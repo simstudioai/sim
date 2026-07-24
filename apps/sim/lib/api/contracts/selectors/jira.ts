@@ -126,7 +126,7 @@ const numberInputSchema = z.union([
     .refine((s) => s.trim() !== '' && Number.isFinite(Number(s)), 'number value must be numeric'),
 ])
 
-const cascadingScalar = z.union([z.string(), z.number()])
+const cascadingScalar = z.union([z.string().min(1, 'cascading value cannot be empty'), z.number()])
 
 /**
  * Parent scalar, `[parent, child]` array, or `{ parent | value, child }` object.
@@ -162,33 +162,56 @@ const cascadingInputSchema = z.union([
  * malformed Jira value that would reject the whole combined update. `raw` is the
  * escape hatch: its value is passed through untouched.
  */
-export const jiraCustomFieldEntrySchema = z.discriminatedUnion('type', [
-  z.object({
-    fieldId: customFieldIdSchema,
-    type: z.literal('text'),
-    value: z.string(),
-  }),
-  z.object({ fieldId: customFieldIdSchema, type: z.literal('number'), value: numberInputSchema }),
-  z.object({ fieldId: customFieldIdSchema, type: z.literal('select'), value: optionInputSchema }),
-  z.object({
-    fieldId: customFieldIdSchema,
-    type: z.literal('multiselect'),
-    value: z.union([z.array(optionInputSchema), optionInputSchema]),
-  }),
-  z.object({ fieldId: customFieldIdSchema, type: z.literal('userpicker'), value: userInputSchema }),
-  z.object({
-    fieldId: customFieldIdSchema,
-    type: z.literal('multiuserpicker'),
-    value: z.union([z.array(userInputSchema), userInputSchema]),
-  }),
-  z.object({
-    fieldId: customFieldIdSchema,
-    type: z.literal('cascading'),
-    value: cascadingInputSchema,
-    child: cascadingScalar.optional(),
-  }),
-  z.object({ fieldId: customFieldIdSchema, type: z.literal('raw'), value: z.unknown() }),
-])
+export const jiraCustomFieldEntrySchema = z
+  .discriminatedUnion('type', [
+    z.object({
+      fieldId: customFieldIdSchema,
+      type: z.literal('text'),
+      value: z.string(),
+    }),
+    z.object({ fieldId: customFieldIdSchema, type: z.literal('number'), value: numberInputSchema }),
+    z.object({ fieldId: customFieldIdSchema, type: z.literal('select'), value: optionInputSchema }),
+    z.object({
+      fieldId: customFieldIdSchema,
+      type: z.literal('multiselect'),
+      value: z.union([z.array(optionInputSchema), optionInputSchema]),
+    }),
+    z.object({
+      fieldId: customFieldIdSchema,
+      type: z.literal('userpicker'),
+      value: userInputSchema,
+    }),
+    z.object({
+      fieldId: customFieldIdSchema,
+      type: z.literal('multiuserpicker'),
+      value: z.union([z.array(userInputSchema), userInputSchema]),
+    }),
+    z.object({
+      fieldId: customFieldIdSchema,
+      type: z.literal('cascading'),
+      value: cascadingInputSchema,
+      child: cascadingScalar.optional(),
+    }),
+    z.object({ fieldId: customFieldIdSchema, type: z.literal('raw'), value: z.unknown() }),
+  ])
+  .superRefine((entry, ctx) => {
+    // Cascading exposes a top-level `child` and an optional `value.child`; if both
+    // are set the serializer would silently keep one and discard the other, so
+    // reject the ambiguity at the boundary.
+    if (entry.type !== 'cascading') return
+    const value: unknown = entry.value
+    const nestedChild =
+      value !== null && typeof value === 'object' && !Array.isArray(value)
+        ? (value as Record<string, unknown>).child
+        : undefined
+    if (entry.child !== undefined && nestedChild !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'cascading child must be set either at the top level or inside value, not both',
+        path: ['child'],
+      })
+    }
+  })
 
 export const jiraUpdateBodySchema = z.object({
   domain: z.string().min(1, 'Domain is required'),

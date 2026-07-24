@@ -125,6 +125,27 @@ describe('Jira update route custom-field serialization', () => {
     expect(response.status).toBe(400)
   })
 
+  it('rejects a cascading entry with an empty parent', async () => {
+    const { response } = await update({
+      customFields: [{ fieldId: 'customfield_10005', type: 'cascading', value: { parent: '' } }],
+    })
+    expect(response.status).toBe(400)
+  })
+
+  it('rejects a cascading entry that sets child both at top level and inside value', async () => {
+    const { response } = await update({
+      customFields: [
+        {
+          fieldId: 'customfield_10005',
+          type: 'cascading',
+          value: { parent: 'Americas', child: 'USA' },
+          child: 'Canada',
+        },
+      ],
+    })
+    expect(response.status).toBe(400)
+  })
+
   it('serializes a multiselect custom field to an array of options', async () => {
     await update({
       customFields: [
