@@ -58,9 +58,9 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
   seoDescription: ENTERPRISE_SEO_DESCRIPTION,
   offersFreeTier: false,
   hero: {
-    heading: 'Sim is the enterprise AI agent platform for governed workflows.',
+    heading: 'Sim is the AI workspace for enterprise AI agents.',
     description:
-      'Build, deploy, and govern enterprise AI agents in one AI workspace, with role-based access, approvals, and full audit trails.',
+      'IT, operations, and technical teams build, deploy, and govern agents in Sim, with SOC2, role-based access, approvals, and full audit trails.',
     summary:
       'An enterprise AI agent uses AI models, business data, and connected tools to complete multi-step work within the permissions, approval policies, and human oversight your organization defines. Sim is the open-source AI workspace where IT, operations, and technical teams build, deploy, and govern enterprise AI agents across 1,000+ integrations and every major LLM.',
     /**
