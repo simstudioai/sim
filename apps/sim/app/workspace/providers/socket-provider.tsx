@@ -604,6 +604,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           const result = joinControllerRef.current.handleAccessRevoked(data.workflowId)
           if (result.shouldClearCurrent) {
             clearJoinedWorkflowState(true)
+            // Surface the same blocked-join UX as a denied join: persistent
+            // toast plus read-only enforcement while the user is still on the
+            // revoked workflow.
+            setBlockedJoinWorkflowId(data.workflowId)
           }
           executeJoinCommands(result.commands)
           eventHandlers.current.accessRevoked?.(data)
