@@ -5,6 +5,12 @@ import {
   a2aSendMessageTool,
 } from '@/tools/a2a'
 import {
+  adanosCryptoSentimentTool,
+  adanosMarketSentimentTool,
+  adanosStockSentimentTool,
+  adanosTrendingTool,
+} from '@/tools/adanos'
+import {
   agentmailCreateDraftTool,
   agentmailCreateInboxTool,
   agentmailDeleteDraftTool,
@@ -4708,6 +4714,10 @@ export const tools: Record<string, ToolConfig> = {
   a2a_get_agent_card: a2aGetAgentCardTool,
   a2a_get_task: a2aGetTaskTool,
   a2a_send_message: a2aSendMessageTool,
+  adanos_crypto_sentiment: adanosCryptoSentimentTool,
+  adanos_market_sentiment: adanosMarketSentimentTool,
+  adanos_stock_sentiment: adanosStockSentimentTool,
+  adanos_trending: adanosTrendingTool,
   agentmail_create_draft: agentmailCreateDraftTool,
   agentmail_create_inbox: agentmailCreateInboxTool,
   agentmail_delete_draft: agentmailDeleteDraftTool,
