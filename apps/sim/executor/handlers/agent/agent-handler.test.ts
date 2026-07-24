@@ -1875,6 +1875,52 @@ describe('AgentBlockHandler', () => {
       expect(providerCallArgs.billingAttribution).toEqual(billingAttribution)
     })
 
+    it('forwards agentEvents to executeProviderRequest on opted-in streaming runs', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Stream this',
+        apiKey: 'test-api-key',
+      }
+
+      const streamingContext = {
+        ...mockContext,
+        stream: true,
+        selectedOutputs: ['test-agent-block'],
+        metadata: { ...mockContext.metadata, agentEvents: true },
+      } as ExecutionContext
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(streamingContext, mockBlock, inputs)
+
+      expect(mockExecuteProviderRequest).toHaveBeenCalled()
+      const providerCallArgs = mockExecuteProviderRequest.mock.calls[0][1]
+      expect(providerCallArgs.stream).toBe(true)
+      expect(providerCallArgs.agentEvents).toBe(true)
+    })
+
+    it('does not set agentEvents on runs without the run-level opt-in', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Stream this',
+        apiKey: 'test-api-key',
+      }
+
+      const streamingContext = {
+        ...mockContext,
+        stream: true,
+        selectedOutputs: ['test-agent-block'],
+      } as ExecutionContext
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(streamingContext, mockBlock, inputs)
+
+      expect(mockExecuteProviderRequest).toHaveBeenCalled()
+      const providerCallArgs = mockExecuteProviderRequest.mock.calls[0][1]
+      expect(providerCallArgs.agentEvents).toBe(false)
+    })
+
     it('should handle multiple MCP tools from the same server efficiently', async () => {
       const fetchCalls: any[] = []
 
@@ -2288,6 +2334,40 @@ describe('AgentBlockHandler', () => {
         expect(tools[0].name).toBe('formatReport')
         expect(tools[0].parameters.required).not.toContain('format')
       })
+    })
+  })
+
+  describe('wrapStreamForMemoryPersistence envelope', () => {
+    it('preserves streamFormat and subscribe via object spread', () => {
+      const handler = new AgentBlockHandler()
+      const subscribe = vi.fn()
+      const streamingExec: StreamingExecution = {
+        stream: new ReadableStream(),
+        streamFormat: 'agent-events-v1',
+        subscribe,
+        execution: {
+          success: true,
+          output: { content: '' },
+          logs: [],
+          metadata: { startTime: '', endTime: '', duration: 0 },
+        },
+      }
+
+      const wrapped = (
+        handler as unknown as {
+          wrapStreamForMemoryPersistence: (
+            ctx: ExecutionContext,
+            inputs: Record<string, unknown>,
+            exec: StreamingExecution
+          ) => StreamingExecution
+        }
+      ).wrapStreamForMemoryPersistence({} as ExecutionContext, {}, streamingExec)
+
+      expect(wrapped.streamFormat).toBe('agent-events-v1')
+      expect(wrapped.subscribe).toBe(subscribe)
+      expect(wrapped.stream).toBe(streamingExec.stream)
+      expect(wrapped.execution).toBe(streamingExec.execution)
+      expect(typeof wrapped.onFullContent).toBe('function')
     })
   })
 })

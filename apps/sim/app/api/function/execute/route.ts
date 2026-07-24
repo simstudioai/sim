@@ -16,10 +16,9 @@ import {
   validateWorkspaceFileWriteTarget,
   writeWorkspaceFileByPath,
 } from '@/lib/copilot/vfs/resource-writer'
-import { isE2bEnabled } from '@/lib/core/config/env-flags'
+import { isRemoteSandboxEnabled } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { executeInE2B, executeShellInE2B, SIM_RESULT_PREFIX } from '@/lib/execution/e2b'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
@@ -36,6 +35,11 @@ import {
 } from '@/lib/execution/payloads/materialization.server'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
+import {
+  executeInSandbox,
+  executeShellInSandbox,
+  SIM_RESULT_PREFIX,
+} from '@/lib/execution/remote-sandbox'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import {
   fetchWorkspaceFileBuffer,
@@ -1509,9 +1513,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
 
     if (lang === CodeLanguage.Shell) {
-      if (!isE2bEnabled) {
+      if (!isRemoteSandboxEnabled) {
         throw new Error(
-          'Shell execution requires E2B to be enabled. Please contact your administrator to enable E2B.'
+          'Shell execution requires a remote code sandbox to be enabled. Please contact your administrator to enable it.'
         )
       }
 
@@ -1524,7 +1528,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       }
 
       logger.info(`[${requestId}] E2B shell execution`, {
-        enabled: isE2bEnabled,
+        enabled: isRemoteSandboxEnabled,
         hasApiKey: Boolean(process.env.E2B_API_KEY),
         envVarCount: Object.keys(shellEnvs).length,
       })
@@ -1537,7 +1541,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         error: shellError,
         exportedFileContent,
         exportedFiles,
-      } = await executeShellInE2B({
+      } = await executeShellInSandbox({
         code: resolvedCode,
         envs: shellEnvs,
         timeoutMs: timeout,
@@ -1589,41 +1593,44 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       )
     }
 
-    if (lang === CodeLanguage.Python && !isE2bEnabled) {
+    if (lang === CodeLanguage.Python && !isRemoteSandboxEnabled) {
       throw new Error(
-        'Python execution requires E2B to be enabled. Please contact your administrator to enable E2B, or use JavaScript instead.'
+        'Python execution requires a remote code sandbox to be enabled. Please contact your administrator to enable it, or use JavaScript instead.'
       )
     }
 
-    if (lang === CodeLanguage.JavaScript && hasImports && !isE2bEnabled) {
+    if (lang === CodeLanguage.JavaScript && hasImports && !isRemoteSandboxEnabled) {
       throw new Error(
-        'JavaScript code with import statements requires E2B to be enabled. Please remove the import statements, or contact your administrator to enable E2B.'
+        'JavaScript code with import statements requires a remote code sandbox to be enabled. Please remove the import statements, or contact your administrator to enable it.'
       )
     }
 
-    const useE2B =
-      isE2bEnabled &&
+    const useRemoteSandbox =
+      isRemoteSandboxEnabled &&
       !isCustomTool &&
       (lang === CodeLanguage.Python || (lang === CodeLanguage.JavaScript && hasImports))
 
-    if (useE2B && containsLargeValueRef(contextVariables)) {
+    if (useRemoteSandbox && containsLargeValueRef(contextVariables)) {
       throw new Error(
-        'Large execution values require the JavaScript isolated-vm runtime. Remove imports, select a nested field, or read the value in a JavaScript function without E2B.'
+        'Large execution values require the JavaScript isolated-vm runtime. Remove imports, select a nested field, or read the value in a JavaScript function without a remote sandbox.'
       )
     }
 
-    // Sandbox file mounts and sandboxPath exports only exist in the E2B
-    // runtime; isolated-vm has no filesystem. Silently dropping a declared
+    // Sandbox file mounts and sandboxPath exports only exist in the remote
+    // sandbox runtime; isolated-vm has no filesystem. Silently dropping a declared
     // sandbox input/output here produced "export succeeded" responses with
     // zero bytes written, so refuse the call instead. The remediation depends
     // on WHY this call runs in isolated-vm — "switch to python" is a dead end
-    // when E2B is disabled or the call is a custom tool.
-    if (!useE2B && (outputSandboxPaths.length > 0 || outputSandboxPath || _sandboxFiles?.length)) {
-      const remediation = !isE2bEnabled
-        ? "E2B is not enabled on this deployment, so there is no sandbox filesystem for any language. Pass input data via params and return output as the code's return value with outputs.files[].path (no sandboxPath)."
+    // when no remote sandbox is enabled or the call is a custom tool.
+    if (
+      !useRemoteSandbox &&
+      (outputSandboxPaths.length > 0 || outputSandboxPath || _sandboxFiles?.length)
+    ) {
+      const remediation = !isRemoteSandboxEnabled
+        ? "No remote code sandbox is enabled on this deployment, so there is no sandbox filesystem for any language. Pass input data via params and return output as the code's return value with outputs.files[].path (no sandboxPath)."
         : isCustomTool
           ? "custom tools always run in the isolated JavaScript VM, which has no sandbox filesystem. Pass input data via params and return output as the code's return value."
-          : 'plain JavaScript runs in the isolated VM, which has no sandbox filesystem. Use language "python" so the code runs in the E2B sandbox, or drop sandboxPath and return the file content as the code\'s return value with outputs.files[].path.'
+          : 'plain JavaScript runs in the isolated VM, which has no sandbox filesystem. Use language "python" so the code runs in the remote sandbox, or drop sandboxPath and return the file content as the code\'s return value with outputs.files[].path.'
       return functionJsonResponse(
         {
           success: false,
@@ -1635,9 +1642,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       )
     }
 
-    if (useE2B) {
+    if (useRemoteSandbox) {
       logger.info(`[${requestId}] E2B status`, {
-        enabled: isE2bEnabled,
+        enabled: isRemoteSandboxEnabled,
         hasApiKey: Boolean(process.env.E2B_API_KEY),
         language: lang,
       })
@@ -1693,7 +1700,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           error: e2bError,
           exportedFileContent,
           exportedFiles,
-        } = await executeInE2B({
+        } = await executeInSandbox({
           code: codeForE2B,
           language: CodeLanguage.JavaScript,
           timeoutMs: timeout,
@@ -1781,7 +1788,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         error: e2bError,
         exportedFileContent,
         exportedFiles,
-      } = await executeInE2B({
+      } = await executeInSandbox({
         code: codeForE2B,
         language: CodeLanguage.Python,
         timeoutMs: timeout,

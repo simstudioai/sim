@@ -3,6 +3,7 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import type { NormalizedBlockOutput } from '@/executor/types'
+import { createAgentEventReadableStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 
 /**
@@ -206,5 +207,43 @@ describe('createStreamingExecution', () => {
     })
 
     vi.restoreAllMocks()
+  })
+
+  it('defaults streamFormat to text and can attach agent-events-v1 object streams', async () => {
+    const textResult = createStreamingExecution({
+      model: 'm',
+      providerStartTime,
+      providerStartTimeISO,
+      timing: { kind: 'simple', segmentName: 'm' },
+      initialTokens: { input: 0, output: 0, total: 0 },
+      initialCost: { input: 0, output: 0, total: 0 },
+      createStream: () => new ReadableStream(),
+    })
+    expect(textResult.streamFormat).toBe('text')
+
+    const events = [
+      { type: 'thinking_delta' as const, text: 'reason' },
+      { type: 'text_delta' as const, text: 'answer', turn: 'final' as const },
+    ]
+    const eventResult = createStreamingExecution({
+      model: 'm',
+      providerStartTime,
+      providerStartTimeISO,
+      timing: { kind: 'simple', segmentName: 'm' },
+      initialTokens: { input: 0, output: 0, total: 0 },
+      initialCost: { input: 0, output: 0, total: 0 },
+      streamFormat: 'agent-events-v1',
+      createStream: () => createAgentEventReadableStream(events),
+    })
+
+    expect(eventResult.streamFormat).toBe('agent-events-v1')
+    const reader = eventResult.stream.getReader()
+    const received = []
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      received.push(value)
+    }
+    expect(received).toEqual(events)
   })
 })

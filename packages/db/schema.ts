@@ -1050,6 +1050,31 @@ export const skill = pgTable(
   })
 )
 
+/**
+ * Editor grants for a skill. A row makes the user an editor (edit, delete,
+ * share); workspace admins are derived editors and need no rows. Everyone with
+ * workspace access can see and use every skill regardless of rows.
+ */
+export const skillMember = pgTable(
+  'skill_member',
+  {
+    id: text('id').primaryKey(),
+    skillId: text('skill_id')
+      .notNull()
+      .references(() => skill.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    invitedBy: text('invited_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index('skill_member_user_id_idx').on(table.userId),
+    uniqueMembership: uniqueIndex('skill_member_unique').on(table.skillId, table.userId),
+  })
+)
+
 export const mothershipSettings = pgTable(
   'mothership_settings',
   {
@@ -1131,6 +1156,13 @@ export const chat = pgTable(
 
     // Output configuration
     outputConfigs: json('output_configs').default('[]'), // Array of {blockId, path} objects
+
+    /**
+     * When true, public chat SSE may expose provider thinking/tool events if the
+     * client also opts in via `X-Sim-Stream-Protocol: agent-events-v1`.
+     * Default off — never derived from auth type or isSecureMode.
+     */
+    includeThinking: boolean('include_thinking').notNull().default(false),
 
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -2998,6 +3030,57 @@ export const ssoProvider = pgTable(
     domainIdx: index('sso_provider_domain_idx').on(table.domain),
     userIdIdx: index('sso_provider_user_id_idx').on(table.userId),
     organizationIdIdx: index('sso_provider_organization_id_idx').on(table.organizationId),
+  })
+)
+
+/**
+ * An email domain an organization has claimed, and its verification state.
+ *
+ * A domain must be **verified** (via a DNS TXT challenge — the org places
+ * `verificationToken` in a `_sim-challenge.<domain>` record) before it can be
+ * configured for single sign-on: verifying proves the org controls the domain,
+ * which is the security precondition for wiring it to an identity provider.
+ * Existing `sso_provider` domains are grandfathered as `verified` by the
+ * backfill in migration 0266.
+ */
+export const ssoDomain = pgTable(
+  'sso_domain',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    /** Normalized (lowercase, registrable) domain — see `normalizeSSODomain`. */
+    domain: text('domain').notNull(),
+    /** `'pending'` until the DNS TXT record is observed, then `'verified'`. */
+    status: text('status').notNull().default('pending'),
+    /** High-entropy token placed in the domain's `_sim-challenge` TXT record. */
+    verificationToken: text('verification_token').notNull(),
+    verifiedAt: timestamp('verified_at'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationIdIdx: index('sso_domain_organization_id_idx').on(table.organizationId),
+    domainIdx: index('sso_domain_domain_idx').on(table.domain),
+    /**
+     * An org holds at most one row per domain. Makes claims idempotent under
+     * concurrency: two admins racing to add the same domain cannot create
+     * duplicate pending rows — the second insert hits this constraint.
+     */
+    orgDomainUnique: uniqueIndex('sso_domain_org_domain_unique').on(
+      table.organizationId,
+      table.domain
+    ),
+    /**
+     * A verified domain is globally unique — exactly one org owns it. Pending
+     * rows may coexist (multiple orgs can race to prove ownership), so the
+     * constraint is a partial unique index scoped to verified rows.
+     */
+    verifiedDomainUnique: uniqueIndex('sso_domain_verified_unique')
+      .on(table.domain)
+      .where(sql`status = 'verified'`),
   })
 )
 

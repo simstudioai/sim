@@ -168,7 +168,19 @@ export interface ProviderRequest {
   chatId?: string
   userId?: string
   stream?: boolean
+  /**
+   * Use the live streaming tool loop (tool lifecycle on the agent-events
+   * stream). Set by the executor only for agent-events runs on providers in
+   * {@link STREAMING_TOOL_CALL_PROVIDERS}; providers without a loop ignore it.
+   */
   streamToolCalls?: boolean
+  /**
+   * Run-level agent-events opt-in. Lets providers request streamable thinking
+   * (e.g. OpenAI reasoning summaries, Gemini thought summaries) for the run.
+   * Never changes answer content; when unset, provider requests are identical
+   * to the pre-agent-events wire shape.
+   */
+  agentEvents?: boolean
   environmentVariables?: Record<string, string>
   workflowVariables?: Record<string, any>
   blockData?: Record<string, any>

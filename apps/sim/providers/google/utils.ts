@@ -16,6 +16,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { buildGeminiMessageParts } from '@/providers/attachments'
+import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { ProviderRequest } from '@/providers/types'
 import { trackForcedToolUsage } from '@/providers/utils'
 
@@ -280,13 +281,16 @@ export function convertToGeminiFormat(
 }
 
 /**
- * Creates a ReadableStream from a Google Gemini streaming response
+ * Creates an agent-events-v1 stream from a Google Gemini streaming response.
+ * Thought parts (`part.thought === true`) → thinking_delta; other text → text_delta.
+ * Capability-honest: thinking only appears when includeThoughts was requested.
  */
 export function createReadableStreamFromGeminiStream(
   stream: AsyncGenerator<GenerateContentResponse>,
-  onComplete?: (content: string, usage: GeminiUsage) => void
-): ReadableStream<Uint8Array> {
+  onComplete?: (content: string, usage: GeminiUsage, thinking?: string) => void
+): ReadableStream<AgentStreamEvent> {
   let fullContent = ''
+  let fullThinking = ''
   let usage: GeminiUsage = { promptTokenCount: 0, candidatesTokenCount: 0, totalTokenCount: 0 }
 
   return new ReadableStream({
@@ -297,14 +301,30 @@ export function createReadableStreamFromGeminiStream(
             usage = convertUsageMetadata(chunk.usageMetadata)
           }
 
+          const parts = chunk.candidates?.[0]?.content?.parts
+          if (Array.isArray(parts)) {
+            for (const part of parts) {
+              if (!part.text) continue
+              if (part.thought === true) {
+                fullThinking += part.text
+                controller.enqueue({ type: 'thinking_delta', text: part.text })
+              } else {
+                fullContent += part.text
+                controller.enqueue({ type: 'text_delta', text: part.text, turn: 'final' })
+              }
+            }
+            continue
+          }
+
+          // Fallback when parts are not exposed — answer text only (no false thinking).
           const text = chunk.text
           if (text) {
             fullContent += text
-            controller.enqueue(new TextEncoder().encode(text))
+            controller.enqueue({ type: 'text_delta', text, turn: 'final' })
           }
         }
 
-        onComplete?.(fullContent, usage)
+        onComplete?.(fullContent, usage, fullThinking || undefined)
         controller.close()
       } catch (error) {
         logger.error('Error reading Google Gemini stream', {

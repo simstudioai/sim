@@ -3,7 +3,7 @@ slug: byok-multi-model-ai-agent-builder
 title: "BYOK Multi-Model AI Agent Builder: How Sim's Bring-Your-Own-Key Works"
 description: Sim is a multi-model AI agent builder with hosted, BYOK, and local execution across 100+ models. Learn how bring-your-own-key works, when to use each mode, and how model flexibility compares across platforms.
 date: 2026-07-18
-updated: 2026-07-18
+updated: 2026-07-23
 authors:
   - andrew
 readingTime: 9
@@ -72,7 +72,7 @@ Model flexibility separates these platforms more than any single feature, so the
 | Billing rate | ~1.1x hosted, provider rate on BYOK, free local | Provider rate | Bundled into platform pricing or task credits |
 | Self-host compatibility | Ollama, vLLM, fully local | None | Varies (n8n self-hosts, most do not for AI) |
 
-The automation platforms earn their reputation on breadth and ease. Zapier connects thousands of apps with almost no configuration, Make gives you a visual canvas that non-developers can follow, and n8n self-hosts its entire workflow engine. Gumloop wraps AI steps in a friendly builder that gets a prototype running fast. If your problem is stitching SaaS tools together, these platforms solve it well, and model choice is a secondary concern.
+The automation platforms earn their reputation on breadth and ease. [Zapier](https://zapier.com/pricing) connects thousands of apps with almost no configuration, Make gives you a visual canvas that non-developers can follow, and n8n self-hosts its entire workflow engine. Gumloop wraps AI steps in a friendly builder that gets a prototype running fast. If your problem is stitching SaaS tools together, these platforms solve it well, and model choice is a secondary concern.
 
 OpenAI's own stack has the opposite strength. You get tight integration with frontier models and first-party tooling, which matters when you are building squarely on GPT and want the shortest path to production.
 
@@ -97,3 +97,5 @@ If you handle regulated data or need agents to run without an outbound internet 
 For a multi-team organization standardizing on one provider, BYOK also keeps billing and model governance in one account you already control.
 
 None of these three modes is the correct default. The right one follows from your call volume, how much control you need over billing and models, and where your data is allowed to travel.
+
+Related reading: [the best AI agent platforms in 2026](/library/best-ai-agent-platforms-2026) covers which platforms support bring-your-own-key at all, [open-source AI agent platforms](/library/open-source-ai-agent-platforms) is the self-hostable subset where you keep full control of model routing, and [how to build AI agents](/library/how-to-create-an-ai-agent) walks through a first build.

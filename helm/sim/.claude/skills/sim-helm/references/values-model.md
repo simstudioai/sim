@@ -27,7 +27,7 @@ The Sim chart splits configuration across **four** layers. Understanding which l
                                   ▼
 ┌───────────────────────────────────────────────────────────────────────────┐
 │ Layer 3: chart-computed (inline env: on the Deployment)                    │
-│   → DATABASE_URL, SOCKET_SERVER_URL, OLLAMA_URL                           │
+│   → DATABASE_URL, SOCKET_SERVER_URL, OLLAMA_URL, PII_URL                           │
 │   → Derived from postgresql.* / externalDatabase.* / service.* values     │
 │   → CANNOT be overridden via app.env — chart filters them out             │
 └───────────────────────────────────────────────────────────────────────────┘
@@ -63,7 +63,7 @@ The exhaustive list of keys per layer lives in `helm/sim/values.yaml`. Read the 
 | Rate limits | 2 (envDefaults) | `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_FREE_SYNC`, etc. |
 | Execution timeouts | 2 (envDefaults) | `EXECUTION_TIMEOUT_FREE`, `EXECUTION_TIMEOUT_PRO`, etc. |
 | IVM pool / quotas | 2 (envDefaults) | `IVM_POOL_SIZE`, `IVM_MAX_CONCURRENT`, `IVM_MAX_PER_WORKER`, etc. |
-| Connection strings | 3 (chart-computed) | `DATABASE_URL`, `SOCKET_SERVER_URL`, `OLLAMA_URL` |
+| Connection strings | 4 (chart-computed) | `DATABASE_URL`, `SOCKET_SERVER_URL`, `OLLAMA_URL`, `PII_URL` |
 | Custom downward API / configMapKeyRef | 4 (extraEnvVars) | anything that needs `valueFrom:` |
 
 ## Common authoring patterns

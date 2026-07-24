@@ -342,6 +342,8 @@ describe('Model Capabilities', () => {
       expect(supportsReasoningEffort('o4-mini')).toBe(true)
       expect(supportsReasoningEffort('azure/gpt-5')).toBe(true)
       expect(supportsReasoningEffort('azure/o3')).toBe(true)
+      expect(supportsReasoningEffort('groq/openai/gpt-oss-120b')).toBe(true)
+      expect(supportsReasoningEffort('groq/openai/gpt-oss-20b')).toBe(true)
     })
 
     it('should return false for models without reasoning effort capability', () => {
@@ -391,6 +393,9 @@ describe('Model Capabilities', () => {
       expect(supportsThinking('claude-sonnet-4-5')).toBe(true)
       expect(supportsThinking('claude-haiku-4-5')).toBe(true)
       expect(supportsThinking('gemini-3-flash-preview')).toBe(true)
+      expect(supportsThinking('deepseek-chat')).toBe(true)
+      expect(supportsThinking('deepseek-reasoner')).toBe(true)
+      expect(supportsThinking('groq/qwen/qwen3.6-27b')).toBe(true)
     })
 
     it('should return false for models without thinking capability', () => {
@@ -467,6 +472,8 @@ describe('Model Capabilities', () => {
 
       expect(MODELS_WITH_REASONING_EFFORT).not.toContain('gpt-4o')
       expect(MODELS_WITH_REASONING_EFFORT).not.toContain('claude-sonnet-4-5')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('groq/openai/gpt-oss-120b')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('groq/openai/gpt-oss-20b')
     })
 
     it('should have correct models in MODELS_WITH_VERBOSITY', () => {
@@ -507,6 +514,10 @@ describe('Model Capabilities', () => {
       expect(MODELS_WITH_THINKING).toContain('gemini-3-flash-preview')
 
       expect(MODELS_WITH_THINKING).toContain('claude-haiku-4-5')
+
+      expect(MODELS_WITH_THINKING).toContain('deepseek-chat')
+      expect(MODELS_WITH_THINKING).toContain('deepseek-reasoner')
+      expect(MODELS_WITH_THINKING).toContain('groq/qwen/qwen3.6-27b')
 
       expect(MODELS_WITH_THINKING).not.toContain('gpt-4o')
       expect(MODELS_WITH_THINKING).not.toContain('gpt-5')

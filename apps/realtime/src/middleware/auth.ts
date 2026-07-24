@@ -69,7 +69,7 @@ export async function authenticateSocket(socket: AuthenticatedSocket, next: (err
       // Store user info in socket for later use
       socket.userId = session.user.id
       socket.userName = session.user.name || session.user.email || 'Unknown User'
-      socket.userEmail = session.user.email
+      socket.userEmail = session.user.email ?? undefined
       socket.userImage = session.user.image || null
       socket.activeOrganizationId = session.session.activeOrganizationId || undefined
 

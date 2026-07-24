@@ -30,13 +30,6 @@ export interface SolutionsHeroConfig {
   /** Supporting description beneath the heading, in the body color. */
   description: string
   /**
-   * Optional visible definition of the page's subject, rendered as a second
-   * paragraph beneath {@link description}. Self-contained and answer-first so
-   * answer engines can quote it whole ("What is an enterprise AI agent?").
-   * Currently honored by the `home` hero variant.
-   */
-  definition?: string
-  /**
    * ~50-word sr-only atomic summary for AI citation (GEO). Names "Sim" explicitly
    * and states what the module is, who it's for, and what it does.
    */

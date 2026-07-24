@@ -4,6 +4,8 @@ templates:
   - deployment-realtime.yaml
   - secrets-app.yaml
   - services.yaml
+  # referenced by the deployments' checksum/secret annotation
+  - external-secret-app.yaml
 release:
   name: t
   namespace: sim

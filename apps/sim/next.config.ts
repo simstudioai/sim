@@ -130,6 +130,7 @@ const nextConfig: NextConfig = {
     'isolated-vm',
     '@e2b/code-interpreter',
     'e2b',
+    '@daytonaio/sdk',
     '@earendil-works/pi-ai',
     '@earendil-works/pi-coding-agent',
   ],

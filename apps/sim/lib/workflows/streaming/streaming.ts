@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import {
   extractBlockIdFromOutputId,
@@ -24,8 +25,22 @@ import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
+import {
+  AGENT_STREAM_PROTOCOL_HEADER,
+  AGENT_STREAM_PROTOCOL_V1,
+  type ChatStreamChunkFrame,
+  type ChatStreamChunkResetFrame,
+  type ChatStreamErrorFrame,
+  type ChatStreamFinalFrame,
+  type ChatStreamStreamErrorFrame,
+  type ChatStreamThinkingFrame,
+  type ChatStreamToolFrame,
+  shouldEmitAgentStreamEvents,
+} from '@/lib/workflows/streaming/agent-stream-protocol'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
+import type { ToolCallEndStatus } from '@/providers/stream-events'
+import { DEFAULT_MAX_THINKING_CHARS } from '@/providers/stream-pump'
 
 /**
  * Extended streaming execution type that includes blockId on the execution.
@@ -41,6 +56,21 @@ const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype']
 const SELECTED_OUTPUT_TOO_LARGE_MESSAGE =
   'Selected output is too large to inline; select a nested field or use pagination/preview.'
 
+/**
+ * Simple SSE stream contract — frame shapes are the `ChatStreamFrame` union in
+ * `agent-stream-protocol.ts`, consumed by both these emitters and the chat client:
+ * - Answer text: `{ blockId, chunk }` only (`chunk` is forever answer text).
+ *   Legacy clients get settled final-turn text; dual-gated clients get answer
+ *   text live from the agent-events sink, reconciled by
+ *   `{ blockId, event: 'chunk_reset' }` when a turn resolves to tool calls.
+ * - Thinking (opt-in): `{ blockId, event: 'thinking', data }` — never uses `chunk`.
+ * - Success terminal: `{ event: 'final', data }` then `[DONE]`.
+ * - Failure terminal: exactly one `{ event: 'error', ... }` then `[DONE]`. No `final` after failure.
+ * - Mid-block read issues may emit non-terminal `{ event: 'stream_error', blockId, error }`.
+ * - Thinking never enters `streamedChunks` / log rewrite / tokenization — the
+ *   log/tokenization source is always the byte stream (final-turn text only).
+ */
+
 interface StreamingConfig {
   selectedOutputs?: string[]
   isSecureMode?: boolean
@@ -48,6 +78,11 @@ interface StreamingConfig {
   includeFileBase64?: boolean
   base64MaxBytes?: number
   timeoutMs?: number
+  /**
+   * Deployment policy for thinking/tool SSE. Still requires the client to send
+   * {@link AGENT_STREAM_PROTOCOL_HEADER}: {@link AGENT_STREAM_PROTOCOL_V1}.
+   */
+  includeThinking?: boolean
 }
 
 export type StreamingExecutorFn = (callbacks: {
@@ -67,7 +102,31 @@ export interface StreamingResponseOptions {
   workspaceId?: string
   workflowId?: string
   userId?: string
+  /** Incoming fetch/request abort — combined with the stream timeout. */
+  requestSignal?: AbortSignal
+  /** Used with {@link StreamingConfig.includeThinking} for dual-gate thinking SSE. */
+  requestHeaders?: Headers | { get(name: string): string | null }
   executeFn: StreamingExecutorFn
+}
+
+/**
+ * Extra response headers when the dual-gate agent stream protocol is active.
+ * Callers should merge these into the SSE response alongside {@link SSE_HEADERS}.
+ */
+export function agentStreamProtocolResponseHeaders(options: {
+  includeThinking?: boolean | null
+  requestHeaders?: Headers | { get(name: string): string | null }
+}): Record<string, string> {
+  if (!options.requestHeaders) return {}
+  if (
+    !shouldEmitAgentStreamEvents({
+      includeThinking: options.includeThinking,
+      requestHeaders: options.requestHeaders,
+    })
+  ) {
+    return {}
+  }
+  return { [AGENT_STREAM_PROTOCOL_HEADER]: AGENT_STREAM_PROTOCOL_V1 }
 }
 
 interface StreamingState {
@@ -193,6 +252,47 @@ function assertSelectedOutputBytes(value: unknown): number {
   return bytes
 }
 
+/**
+ * Strips model internals from `providerTiming.timeSegments` before an output
+ * rides a simple-SSE `final` envelope: `thinkingContent`, intermediate
+ * `assistantContent`, and tool-call arguments would otherwise reach public
+ * chat clients wholesale, bypassing the dual-gated thinking/tool frames.
+ * Timing numbers and tool names stay — they carry no model internals.
+ */
+function sanitizeProviderTimingForEnvelope(
+  output: Record<string, unknown>
+): Record<string, unknown> {
+  const providerTiming = output.providerTiming as { timeSegments?: unknown } | undefined
+  if (!providerTiming || !Array.isArray(providerTiming.timeSegments)) {
+    return output
+  }
+  return {
+    ...output,
+    providerTiming: {
+      ...providerTiming,
+      timeSegments: providerTiming.timeSegments.map((segment) => {
+        if (!segment || typeof segment !== 'object') return segment
+        const { toolCalls, ...rest } = omit(segment as Record<string, unknown>, [
+          'thinkingContent',
+          'assistantContent',
+        ]) as Record<string, unknown> & { toolCalls?: unknown }
+        return {
+          ...rest,
+          ...(Array.isArray(toolCalls)
+            ? {
+                toolCalls: toolCalls.map((toolCall) =>
+                  toolCall && typeof toolCall === 'object'
+                    ? omit(toolCall as Record<string, unknown>, ['arguments'])
+                    : toolCall
+                ),
+              }
+            : {}),
+        }
+      }),
+    },
+  }
+}
+
 async function buildMinimalResult(
   result: ExecutionResult,
   selectedOutputs: string[] | undefined,
@@ -220,7 +320,7 @@ async function buildMinimalResult(
   }
 
   if (result.status === 'paused') {
-    minimalResult.output = result.output || {}
+    minimalResult.output = sanitizeProviderTimingForEnvelope(result.output || {})
     return compactExecutionPayload(minimalResult, {
       ...durableContext,
       preserveUserFileBase64: includeFileBase64,
@@ -229,7 +329,7 @@ async function buildMinimalResult(
   }
 
   if (!selectedOutputs?.length) {
-    minimalResult.output = result.output || {}
+    minimalResult.output = sanitizeProviderTimingForEnvelope(result.output || {})
     return compactExecutionPayload(minimalResult, {
       ...durableContext,
       preserveUserFileBase64: includeFileBase64,
@@ -351,14 +451,31 @@ export async function createStreamingResponse(
   options: StreamingResponseOptions
 ): Promise<ReadableStream> {
   const { requestId, streamConfig, executionId, executeFn } = options
-  const durableContext = {
-    workspaceId: options.workspaceId,
-    workflowId: options.workflowId,
-    executionId,
-    userId: options.userId,
-    requireDurable: Boolean(options.workspaceId && options.workflowId && executionId),
-  }
   const timeoutController = createTimeoutAbortController(streamConfig.timeoutMs)
+  const emitAgentEvents =
+    Boolean(options.requestHeaders) &&
+    shouldEmitAgentStreamEvents({
+      includeThinking: streamConfig.includeThinking,
+      requestHeaders: options.requestHeaders!,
+    })
+  const maxThinkingChars = DEFAULT_MAX_THINKING_CHARS
+
+  let requestAborted = false
+  const onRequestAbort = () => {
+    requestAborted = true
+    timeoutController.abort()
+  }
+  if (options.requestSignal) {
+    if (options.requestSignal.aborted) {
+      onRequestAbort()
+    } else {
+      options.requestSignal.addEventListener('abort', onRequestAbort, { once: true })
+    }
+  }
+
+  const cleanupRequestAbort = () => {
+    options.requestSignal?.removeEventListener('abort', onRequestAbort)
+  }
 
   return new ReadableStream({
     async start(controller) {
@@ -370,6 +487,7 @@ export async function createStreamingResponse(
         selectedOutputBytes: 0,
         streamedSelectedOutputKeys: new Set(),
       }
+      let thinkingCharsEmitted = 0
 
       const sendChunk = (
         blockId: string,
@@ -386,12 +504,47 @@ export async function createStreamingResponse(
           state.selectedOutputBytes = nextSelectedOutputBytes
           state.streamedSelectedOutputKeys.add(options.selectedOutputKey)
         }
-        controller.enqueue(encodeSSE({ blockId, chunk }))
+        const frame: ChatStreamChunkFrame = { blockId, chunk }
+        controller.enqueue(encodeSSE(frame))
         state.processedOutputs.add(blockId)
+      }
+
+      const sendThinking = (blockId: string, text: string) => {
+        if (!text || thinkingCharsEmitted >= maxThinkingChars) return
+        const remaining = maxThinkingChars - thinkingCharsEmitted
+        const forwarded = text.length > remaining ? text.slice(0, remaining) : text
+        thinkingCharsEmitted += forwarded.length
+        // Never push thinking into streamedChunks — logs stay answer-text only.
+        const frame: ChatStreamThinkingFrame = {
+          blockId,
+          event: 'thinking',
+          data: forwarded,
+        }
+        controller.enqueue(encodeSSE(frame))
+      }
+
+      const sendTool = (
+        blockId: string,
+        phase: 'start' | 'end',
+        id: string,
+        name: string,
+        status?: ToolCallEndStatus
+      ) => {
+        const frame: ChatStreamToolFrame = {
+          blockId,
+          event: 'tool',
+          phase,
+          id,
+          name,
+          ...(phase === 'end' && status ? { status } : {}),
+        }
+        controller.enqueue(encodeSSE(frame))
       }
 
       /**
        * Callback for handling streaming execution events.
+       * Subscribe synchronously before the first await so the executor pump
+       * can attach sinks before pulling provider chunks.
        */
       const onStreamCallback = async (streamingExec: StreamingExecutionWithBlockId) => {
         const blockId = streamingExec.execution?.blockId
@@ -400,9 +553,62 @@ export async function createStreamingResponse(
           return
         }
 
+        /**
+         * Dual-gated clients get answer text live from the sink (pending deltas
+         * stream as the model generates; `chunk_reset` clears an intermediate
+         * turn). The byte stream then only feeds `streamedChunks` for logs.
+         * Response-format projections rewrite the bytes, so those blocks keep
+         * the byte stream as the frame source.
+         */
+        const sinkAnswerText =
+          emitAgentEvents &&
+          Boolean(streamingExec.subscribe) &&
+          streamingExec.clientStreamTransformed !== true
+
+        /** False until the first chunk since block start or since a reset. */
+        let emittedSinceReset = false
+
+        const emitAnswerChunk = (text: string) => {
+          if (!text) return
+          if (!emittedSinceReset) {
+            // sendChunk adds the cross-block separator + output bookkeeping.
+            sendChunk(blockId, text)
+            emittedSinceReset = true
+          } else {
+            const frame: ChatStreamChunkFrame = { blockId, chunk: text }
+            controller.enqueue(encodeSSE(frame))
+          }
+        }
+
+        let unsubscribe: (() => void) | undefined
+        if (emitAgentEvents && streamingExec.subscribe) {
+          unsubscribe = streamingExec.subscribe({
+            onEvent: async (event) => {
+              if (event.type === 'thinking_delta') {
+                sendThinking(blockId, event.text)
+              } else if (event.type === 'tool_call_start') {
+                sendTool(blockId, 'start', event.id, event.name)
+              } else if (event.type === 'tool_call_end') {
+                sendTool(blockId, 'end', event.id, event.name, event.status)
+              } else if (sinkAnswerText && event.type === 'text_delta') {
+                if (event.turn !== 'intermediate') {
+                  emitAnswerChunk(event.text)
+                }
+              } else if (sinkAnswerText && event.type === 'turn_end') {
+                if (event.turn === 'intermediate' && emittedSinceReset) {
+                  const frame: ChatStreamChunkResetFrame = { blockId, event: 'chunk_reset' }
+                  controller.enqueue(encodeSSE(frame))
+                  // Re-arm separator bookkeeping so re-streamed text starts clean.
+                  emittedSinceReset = false
+                  state.processedOutputs.delete(blockId)
+                }
+              }
+            },
+          })
+        }
+
         const reader = streamingExec.stream.getReader()
         const decoder = new TextDecoder()
-        let isFirstChunk = true
 
         try {
           while (true) {
@@ -418,22 +624,20 @@ export async function createStreamingResponse(
             }
             state.streamedChunks.get(blockId)!.push(textChunk)
 
-            if (isFirstChunk) {
-              sendChunk(blockId, textChunk)
-              isFirstChunk = false
-            } else {
-              controller.enqueue(encodeSSE({ blockId, chunk: textChunk }))
+            if (!sinkAnswerText) {
+              emitAnswerChunk(textChunk)
             }
           }
         } catch (error) {
           logger.error(`[${requestId}] Error reading stream for block ${blockId}:`, error)
-          controller.enqueue(
-            encodeSSE({
-              event: 'stream_error',
-              blockId,
-              error: getErrorMessage(error, 'Stream reading error'),
-            })
-          )
+          const frame: ChatStreamStreamErrorFrame = {
+            event: 'stream_error',
+            blockId,
+            error: getErrorMessage(error, 'Stream reading error'),
+          }
+          controller.enqueue(encodeSSE(frame))
+        } finally {
+          unsubscribe?.()
         }
       }
 
@@ -521,13 +725,12 @@ export async function createStreamingResponse(
             })
             const errorMessage = getSelectedOutputErrorMessage(error)
             state.selectedOutputError ??= errorMessage
-            controller.enqueue(
-              encodeSSE({
-                event: 'error',
-                blockId,
-                error: errorMessage,
-              })
-            )
+            const frame: ChatStreamErrorFrame = {
+              event: 'error',
+              blockId,
+              error: errorMessage,
+            }
+            controller.enqueue(encodeSSE(frame))
             break
           }
         }
@@ -555,7 +758,8 @@ export async function createStreamingResponse(
         if (
           result.status === 'cancelled' &&
           timeoutController.isTimedOut() &&
-          timeoutController.timeoutMs
+          timeoutController.timeoutMs &&
+          !requestAborted
         ) {
           const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
           logger.info(`[${requestId}] Streaming execution timed out`, {
@@ -564,7 +768,17 @@ export async function createStreamingResponse(
           if (result._streamingMetadata?.loggingSession) {
             await result._streamingMetadata.loggingSession.markAsFailed(timeoutErrorMessage)
           }
-          controller.enqueue(encodeSSE({ event: 'error', error: timeoutErrorMessage }))
+          const frame: ChatStreamErrorFrame = { event: 'error', error: timeoutErrorMessage }
+          controller.enqueue(encodeSSE(frame))
+        } else if (result.status === 'cancelled' && requestAborted) {
+          logger.info(`[${requestId}] Streaming execution aborted by client disconnect`)
+          if (result._streamingMetadata?.loggingSession) {
+            // LoggingSession has no cancelled status; match workflow execute route wording.
+            await result._streamingMetadata.loggingSession.markAsFailed('Client cancelled request')
+          }
+          // No `final` after abort; clients that already disconnected ignore these.
+          const frame: ChatStreamErrorFrame = { event: 'error', error: 'Client cancelled request' }
+          controller.enqueue(encodeSSE(frame))
         } else {
           await completeLoggingSession(result)
 
@@ -591,18 +805,18 @@ export async function createStreamingResponse(
               }
             )
 
-            controller.enqueue(
-              encodeSSE({
-                event: 'final',
-                data: {
-                  ...minimalResult,
-                  ...(result.status === 'paused' && { status: 'paused' }),
-                },
-              })
-            )
+            const frame: ChatStreamFinalFrame = {
+              event: 'final',
+              data: {
+                ...minimalResult,
+                ...(result.status === 'paused' && { status: 'paused' }),
+              },
+            }
+            controller.enqueue(encodeSSE(frame))
           }
         }
 
+        // Terminal marker: always follows success `final` or a single terminal `error`.
         controller.enqueue(encodeSSE('[DONE]'))
 
         if (executionId) {
@@ -616,7 +830,10 @@ export async function createStreamingResponse(
           streamConfig.selectedOutputs?.length && isExecutionResourceLimitError(error)
             ? SELECTED_OUTPUT_TOO_LARGE_MESSAGE
             : getErrorMessage(error, 'Stream processing error')
-        controller.enqueue(encodeSSE({ event: 'error', error: errorMessage }))
+        const frame: ChatStreamErrorFrame = { event: 'error', error: errorMessage }
+        controller.enqueue(encodeSSE(frame))
+        // Same terminal rule as timeout/abort: one error, then [DONE], never `final`.
+        controller.enqueue(encodeSSE('[DONE]'))
 
         if (executionId) {
           await cleanupExecutionBase64Cache(executionId)
@@ -624,12 +841,15 @@ export async function createStreamingResponse(
 
         controller.close()
       } finally {
+        cleanupRequestAbort()
         timeoutController.cleanup()
       }
     },
     async cancel(reason) {
       logger.info(`[${requestId}] Streaming response cancelled`, { reason })
+      requestAborted = true
       timeoutController.abort()
+      cleanupRequestAbort()
       timeoutController.cleanup()
       if (executionId) {
         try {

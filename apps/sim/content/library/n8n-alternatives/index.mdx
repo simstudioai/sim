@@ -3,7 +3,7 @@ slug: n8n-alternatives
 title: '10 Best n8n Alternatives for AI Agent Workflows in 2026'
 description: Comparing the 10 best n8n alternatives in 2026 for AI agent workflows - covering Sim, Make, Zapier, Activepieces, Pipedream, and more, with pricing and use cases.
 date: 2026-07-13
-updated: 2026-07-13
+updated: 2026-07-23
 authors:
   - emir
 readingTime: 15
@@ -31,7 +31,7 @@ This guide covers 10 n8n alternatives for two distinct groups: teams that want s
 - **n8n's core friction points in 2026:** Self-hosting overhead, execution-based pricing that escalates at volume, and AI capabilities bolted onto a pre-agentic architecture push teams toward purpose-built alternatives.
 - **For AI agent workflows:** Sim offers native multi-model orchestration, agent memory, and MCP support as fully integral features rather than add-ons. Gumloop and Botpress serve more specific AI niches (visual LLM workflows and conversational agents, respectively).
 - **For simpler SaaS automation:** Make provides the best debugging experience for visual workflow builders. Zapier offers the widest integration catalog. Neither is built for agentic AI.
-- **Open source matters, but licenses vary:** Activepieces uses a genuine MIT license with no commercial restrictions. n8n's Sustainable Use License restricts commercial redistribution, which isn't true open source by OSI standards.
+- **Open source matters, but licenses vary:** Activepieces uses a genuine MIT license with no commercial restrictions. n8n's [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license) restricts commercial redistribution, which isn't true open source by OSI standards. We unpack the practical consequences in [Apache 2.0 vs fair-code](/library/apache-2-0-vs-fair-code).
 - **Migration is never a weekend project:** Moving a portfolio of n8n workflows to any alternative requires real engineering time. Calculate total cost of ownership, including DevOps hours, before committing.
 - **Self-hosting isn't automatically cheaper:** Factor in server costs, database hosting, security patches, and maintenance hours against the subscription price of managed alternatives before assuming you'll save money.
 
@@ -72,14 +72,14 @@ This table summarizes all 10 tools across the dimensions that matter most when e
 | Tool | Best For | AI Agent Depth | Open Source | Starting Price |
 | --- | --- | --- | --- | --- |
 | **Sim** | AI agent workflows with multi-model orchestration | Native (memory, multi-agent, MCP) | Yes | Free plan available |
-| **Make** | Visual SaaS automation with strong debugging | One-shot AI nodes only | No | Free tier; paid from ~$12/mo |
-| **Zapier** | Widest integration catalog, fastest setup | Basic (Zapier Agents, Copilot) | No | Free tier; paid from ~$20/mo |
-| **Activepieces** | Open-source self-hosting with MIT license | Growing (AI agents, MCP servers) | Yes (MIT) | Free self-hosted; cloud from $5/flow/mo |
+| **[Make](https://www.make.com/en/pricing)** | Visual SaaS automation with strong debugging | One-shot AI nodes only | No | Free tier; paid from $12/mo |
+| **[Zapier](https://zapier.com/pricing)** | Widest integration catalog, fastest setup | Basic (Zapier Agents, Copilot) | No | Free tier; paid from $19.99/mo (annual) |
+| **[Activepieces](https://www.activepieces.com/pricing)** | Open-source self-hosting with MIT license | Growing (AI agents, MCP servers) | Yes (MIT) | Free self-hosted; cloud from $5/flow/mo after 10 free |
 | **Pipedream** | Code-first automation without infra management | Not AI-agent native | Partial | Free tier available |
-| **Gumloop** | Non-developers building LLM-powered workflows | Native visual AI canvas | No | Verify on site |
-| **Lindy** | Task-specific AI agents (email, meetings, sales) | Pre-built agent templates | No | ~$49.99/mo |
-| **Botpress** | Conversational AI agents (chat, voice) | Native (memory, RAG, goals) | Partial | Verify on site |
-| **Microsoft Power Automate** | Microsoft 365/Azure ecosystem teams | AI Builder (add-on cost) | No | Included with some M365 plans |
+| **[Gumloop](https://www.gumloop.com/pricing)** | Non-developers building LLM-powered workflows | Native visual AI canvas | No | See pricing page |
+| **[Lindy](https://www.lindy.ai/pricing)** | Task-specific AI agents (email, meetings, sales) | Pre-built agent templates | No | $49.99/mo |
+| **[Botpress](https://botpress.com/pricing)** | Conversational AI agents (chat, voice) | Native (memory, RAG, goals) | Partial | See pricing page |
+| **[Microsoft Power Automate](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing)** | Microsoft 365/Azure ecosystem teams | AI Builder (add-on cost) | No | $15/user/mo; included with some M365 plans |
 | **Workato** | Enterprise iPaaS with SLAs and compliance | Enterprise orchestration | No | Custom pricing |
 
 ## The 10 Best n8n Alternatives in 2026
@@ -115,7 +115,7 @@ Make's color-coded visual scenario builder is genuinely the best debugging exper
 
 **Limitations:** Make has added AI modules for OpenAI and Claude, but they function as one-shot nodes only. There's no native multi-agent orchestration, no agent memory, and AI can't reason across steps. If you need agentic capabilities, Make won't provide them.
 
-**Pricing:** Make offers a free plan with 1,000 credits per month. Paid plans start at $12/month (billed annually) for 10,000 credits (Core). Each module action in a scenario counts as one credit, including triggers, filters, and routers, so a single Zapier task might equal 3-8 Make operations. Monitor your credit consumption carefully as workflows grow more complex.
+**Pricing:** [Make](https://www.make.com/en/pricing) offers a free plan with 1,000 credits per month. Paid plans start at $12/month billed monthly for 10,000 credits (Core), with roughly 15% off for annual billing. Each module action in a scenario counts as one credit, including triggers, filters, and routers, so a single Zapier task might equal 3-8 Make operations. Monitor your credit consumption carefully as workflows grow more complex.
 
 ### Zapier
 
@@ -144,7 +144,7 @@ Activepieces is the cleanest open-source alternative to n8n if licensing terms m
 - **MIT license with no strings attached:** The codebase lives on GitHub under the MIT license, the most permissive of open-source licenses, giving organizations complete freedom to self-host, modify, fork, and extend the platform without any licensing fees or usage restrictions.
 - **Growing integration and MCP ecosystem:** All 750+ pieces are available as MCP servers that you can use with LLMs on Claude Desktop, Cursor, or Windsurf. The community contributes actively, with 60% of the pieces contributed by the community.
 - **Clean, accessible UI:** Activepieces has the most polished UI of any open-source automation platform, making it accessible to non-technical users while still supporting code steps for custom logic.
-- **Flat-rate cloud pricing:** Cloud pricing starts free with 10 free active flows, then $5 per active flow per month with unlimited runs. No per-execution billing surprises.
+- **Flat-rate cloud pricing:** [Cloud pricing](https://www.activepieces.com/pricing) starts free with 10 free active flows, then $5 per active flow per month with unlimited runs. No per-execution billing surprises.
 
 **Limitations:** The connector ecosystem is smaller than n8n, Make, or Zapier. Enterprise features like SSO, audit logs, and custom RBAC are available under the commercial license, so fully free self-hosted deployments miss those governance capabilities.
 
@@ -196,7 +196,7 @@ Lindy takes a different approach than most platforms on this list. Instead of gi
 
 **Limitations:** Credit-based pricing frustrates teams with high automation volume. Lindy is better for task-specific agents than complex multi-agent orchestration, and it's limited to its defined use case categories. If your workflow doesn't fit Lindy's templates, you'll hit bottlenecks pretty quickly.
 
-**Pricing:** Paid plans start at approximately $49.99/month. Verify current pricing on Lindy's website.
+**Pricing:** [Lindy's](https://www.lindy.ai/pricing) Plus plan is $49.99/month, with Pro at $99.99 and Max at $199.99. There is a 7-day trial but no permanent free plan.
 
 ### Botpress
 
@@ -250,7 +250,7 @@ Workato sits at the opposite end of the spectrum from open-source tools. It's a 
 
 Many teams looking for an n8n open source alternative care about one of three things: self-hosting flexibility, data sovereignty, or cost reduction. How the licensing works for each alternative matters more than most comparison articles acknowledge.
 
-**n8n uses fair-code, not open source.** Although n8n's source code is available under the Sustainable Use License, according to the Open Source Initiative (OSI), open source licenses can't include limitations on use, so n8n does not call itself open source. In practical terms, the license allows you the free right to use, modify, create derivative works, and redistribute, with three limitations, the most significant being that the moment automation becomes a value proposition for external users, the license blocks it. For internal business use, this rarely matters. For agencies, consultancies, or SaaS companies embedding automation into customer-facing products, it's a dealbreaker.
+**n8n uses fair-code, not open source.** Although n8n's source code is available under the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), according to the [Open Source Initiative (OSI)](https://opensource.org/osd), open source licenses can't include limitations on use, so n8n does not call itself open source. In practical terms, the license allows you the free right to use, modify, create derivative works, and redistribute, with three limitations, the most significant being that the moment automation becomes a value proposition for external users, the license blocks it. For internal business use, this rarely matters. For agencies, consultancies, or SaaS companies embedding automation into customer-facing products, it's a dealbreaker.
 
 **Activepieces uses the MIT license.** Unlike many competitors that keep their code proprietary, Activepieces' MIT license allows you to use, adapt, and scale the platform without restrictions. You can embed it in commercial products, resell hosted instances, or fork the codebase without legal risk. This is the permissive open-source experience most developers expect when they hear the term "open source."
 
@@ -271,3 +271,5 @@ If you're leaving because self-hosting is consuming too much engineering time, M
 If licensing restrictions concern you, Activepieces offers the cleanest MIT-licensed alternative with a growing integration ecosystem.
 
 Don't try to evaluate all 10 tools on this list. Identify which of the four archetypes from the framework section fits your team, narrow the list to two or three candidates, and build a real workflow in each. The free tiers across Sim, Make, Zapier, Activepieces, and Pipedream allow you to do this without any upfront spend.
+
+For adjacent shortlists: [best Zapier alternatives](/library/best-zapier-alternatives) covers the same market from the per-task-pricing angle, [open-source AI agent platforms](/library/open-source-ai-agent-platforms) narrows to self-hostable options, and [the best AI agent platforms in 2026](/library/best-ai-agent-platforms-2026) ranks the field on agent capability rather than integration count.

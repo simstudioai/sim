@@ -140,6 +140,9 @@ jobs:
       - name: Verify skill projections are in sync
         run: bun run skills:check
 
+      - name: Verify agent stream capability docs are in sync
+        run: bun run agent-stream-docs:check
+
       - name: Migration safety (zero-downtime) audit
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then

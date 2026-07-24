@@ -2,7 +2,12 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { escapeCql, isCurrentContent } from '@/connectors/confluence/confluence'
+import {
+  escapeCql,
+  isCurrentContent,
+  preserveConfluenceCallouts,
+} from '@/connectors/confluence/confluence'
+import { htmlToPlainText } from '@/connectors/utils'
 
 describe('escapeCql', () => {
   it.concurrent('returns plain strings unchanged', () => {
@@ -46,5 +51,250 @@ describe('isCurrentContent', () => {
   it.concurrent('excludes trashed and deleted content', () => {
     expect(isCurrentContent({ id: '1', status: 'trashed' })).toBe(false)
     expect(isCurrentContent({ id: '1', status: 'deleted' })).toBe(false)
+  })
+})
+
+describe('preserveConfluenceCallouts', () => {
+  it.concurrent('handles empty content', () => {
+    expect(preserveConfluenceCallouts('')).toBe('')
+  })
+
+  it.concurrent('leaves content with no macros unchanged', () => {
+    const html = '<p>Just a normal paragraph.</p>'
+    expect(preserveConfluenceCallouts(html)).toContain('Just a normal paragraph.')
+  })
+
+  it.concurrent('labels a built-in warning macro and keeps its body', () => {
+    const html =
+      '<div class="confluence-information-macro confluence-information-macro-warning">' +
+      '<span class="aui-icon aui-icon-small aui-iconfont-warning confluence-information-macro-icon"></span>' +
+      '<div class="confluence-information-macro-body"><p>Do NOT use this form for GitLab access.</p></div>' +
+      '</div>'
+    const result = preserveConfluenceCallouts(html)
+    expect(result).toContain('[WARNING]')
+    expect(result).toContain('Do NOT use this form for GitLab access.')
+  })
+
+  it.concurrent('labels a built-in info macro', () => {
+    const html =
+      '<div class="confluence-information-macro confluence-information-macro-information">' +
+      '<div class="confluence-information-macro-body"><p>Heads up.</p></div>' +
+      '</div>'
+    expect(preserveConfluenceCallouts(html)).toContain('[INFO] Heads up.')
+  })
+
+  it.concurrent('labels a built-in note macro', () => {
+    const html =
+      '<div class="confluence-information-macro confluence-information-macro-note">' +
+      '<div class="confluence-information-macro-body"><p>See also.</p></div>' +
+      '</div>'
+    expect(preserveConfluenceCallouts(html)).toContain('[NOTE] See also.')
+  })
+
+  it.concurrent('labels a built-in tip macro', () => {
+    const html =
+      '<div class="confluence-information-macro confluence-information-macro-tip">' +
+      '<div class="confluence-information-macro-body"><p>Pro tip.</p></div>' +
+      '</div>'
+    expect(preserveConfluenceCallouts(html)).toContain('[TIP] Pro tip.')
+  })
+
+  it.concurrent('labels a generic custom-colored Panel macro using its header title', () => {
+    const html =
+      '<div class="panel" style="border-width: 1px;">' +
+      '<div class="panelHeader" style="background-color: #ffebe6;"><b>Do NOT use this form for:</b></div>' +
+      '<div class="panelContent"><p>GitLab access requests go to the private channel instead.</p></div>' +
+      '</div>'
+    const result = preserveConfluenceCallouts(html)
+    expect(result).toContain('[CALLOUT: Do NOT use this form for:]')
+    expect(result).toContain('GitLab access requests go to the private channel instead.')
+  })
+
+  it.concurrent('preserves word boundaries between a block header and its own content', () => {
+    const html =
+      '<div class="panel"><div class="panelHeader"><b>Warning:</b></div>' +
+      '<div class="panelContent"><p>See replacement form.</p></div></div>'
+    const result = preserveConfluenceCallouts(html)
+    expect(result).toContain('[CALLOUT: Warning:] See replacement form.')
+  })
+
+  it.concurrent(
+    'keeps a rich header with a real source space intact, without adding a second one',
+    () => {
+      const html =
+        '<div class="panel"><div class="panelHeader"><b>Warning:</b> <span>Do not use</span></div>' +
+        '<div class="panelContent"><p>See replacement form.</p></div></div>'
+      const result = preserveConfluenceCallouts(html)
+      expect(result).toContain('[CALLOUT: Warning: Do not use]')
+    }
+  )
+
+  it.concurrent('falls back to a bare CALLOUT label when a Panel macro has no header text', () => {
+    const html =
+      '<div class="panel"><div class="panelContent"><p>Untitled panel body.</p></div></div>'
+    const result = preserveConfluenceCallouts(html)
+    expect(result).toContain('[CALLOUT]')
+    expect(result).toContain('Untitled panel body.')
+  })
+
+  it.concurrent(
+    'keeps the exclusion marker attached to its content through htmlToPlainText, even across surrounding whitespace collapse',
+    () => {
+      const html =
+        '<p>Intro paragraph.</p>\n\n' +
+        '<div class="confluence-information-macro confluence-information-macro-warning">' +
+        '<div class="confluence-information-macro-body"><p>Do NOT use this form for:</p>' +
+        '<ul><li>GitLab</li></ul></div>' +
+        '</div>\n\n' +
+        '<p>Trailing paragraph.</p>'
+      const plainText = htmlToPlainText(preserveConfluenceCallouts(html))
+      expect(plainText).toContain('[WARNING] Do NOT use this form for: GitLab')
+      expect(plainText).toContain('Intro paragraph.')
+      expect(plainText).toContain('Trailing paragraph.')
+    }
+  )
+
+  it.concurrent(
+    'does not fuse adjacent paragraph and list-item text together (word-boundary regression)',
+    () => {
+      const html =
+        '<div class="confluence-information-macro confluence-information-macro-warning">' +
+        '<div class="confluence-information-macro-body">' +
+        '<p>Do NOT use this form for:</p>' +
+        '<ul><li>GitLab</li><li>ServiceNow</li></ul>' +
+        '</div></div>'
+      const result = preserveConfluenceCallouts(html)
+      expect(result).not.toContain('for:GitLab')
+      expect(result).not.toContain('GitLabServiceNow')
+      expect(result).toContain('Do NOT use this form for: GitLab ServiceNow')
+    }
+  )
+
+  it.concurrent(
+    'preserves word boundaries across multiple paragraphs in a generic Panel macro',
+    () => {
+      const html =
+        '<div class="panel"><div class="panelContent">' +
+        '<p>First sentence.</p><p>Second sentence.</p>' +
+        '</div></div>'
+      const result = preserveConfluenceCallouts(html)
+      expect(result).toContain('First sentence. Second sentence.')
+      expect(result).not.toContain('sentence.Second')
+    }
+  )
+
+  it.concurrent(
+    'does not duplicate or fuse text from a nested list inside a callout body (nesting regression)',
+    () => {
+      const html =
+        '<div class="confluence-information-macro confluence-information-macro-note">' +
+        '<div class="confluence-information-macro-body">' +
+        '<ul><li>Outer item' +
+        '<ul><li>Nested item A</li><li>Nested item B</li></ul>' +
+        '</li><li>Outer item two</li></ul>' +
+        '</div></div>'
+      const result = preserveConfluenceCallouts(html)
+      // Each nested <li>'s text must appear exactly once, not duplicated by the
+      // outer <li> also being matched and its .text() recursing into it.
+      const occurrences = (result.match(/Nested item A/g) ?? []).length
+      expect(occurrences).toBe(1)
+      expect(result).not.toContain('Nested item ANested item B')
+      expect(result).toContain('Outer item Nested item A Nested item B Outer item two')
+    }
+  )
+
+  it.concurrent('does not fuse text from a blockquote nested inside a table cell', () => {
+    const html =
+      '<div class="panel"><div class="panelContent">' +
+      '<table><tr><td>Cell text<blockquote><p>quoted text</p></blockquote>after quote</td></tr></table>' +
+      '</div></div>'
+    const result = preserveConfluenceCallouts(html)
+    expect(result).not.toContain('quotedtext')
+    expect(result).not.toContain('textafter')
+    expect(result).toContain('Cell text quoted text after quote')
+  })
+
+  it.concurrent(
+    'does not inject an artificial space into inline-formatted text mid-word (inline vs. block regression)',
+    () => {
+      const html =
+        '<div class="panel"><div class="panelContent">' +
+        '<p>This is un<b>believe</b>able.</p>' +
+        '</div></div>'
+      const result = preserveConfluenceCallouts(html)
+      expect(result).not.toContain('un believe able')
+      expect(result).toContain('This is unbelieveable.')
+    }
+  )
+
+  it.concurrent('does not inject a space before punctuation carried by an inline tag', () => {
+    const html =
+      '<div class="confluence-information-macro confluence-information-macro-warning">' +
+      '<div class="confluence-information-macro-body"><p>Do not proceed<b>!</b></p></div>' +
+      '</div>'
+    const result = preserveConfluenceCallouts(html)
+    expect(result).not.toContain('proceed !')
+    expect(result).toContain('[WARNING] Do not proceed!')
+  })
+
+  it.concurrent('keeps natural word spacing when inline tags wrap a whole word', () => {
+    const html =
+      '<div class="panel"><div class="panelContent">' +
+      '<p>Do <b>NOT</b> use this form.</p>' +
+      '</div></div>'
+    const result = preserveConfluenceCallouts(html)
+    expect(result).toContain('Do NOT use this form.')
+  })
+
+  it.concurrent(
+    'labels a nested panel-in-panel with both its own and its parent label (nesting regression)',
+    () => {
+      const html =
+        '<div class="panel"><div class="panelHeader"><b>Outer</b></div><div class="panelContent">' +
+        '<div class="panel"><div class="panelHeader"><b>Inner</b></div>' +
+        '<div class="panelContent"><p>inner body</p></div></div>' +
+        '</div></div>'
+      const result = preserveConfluenceCallouts(html)
+      expect(result).toContain('[CALLOUT: Outer]')
+      expect(result).toContain('[CALLOUT: Inner] inner body')
+    }
+  )
+
+  it.concurrent(
+    'labels a nested info-macro inside a panel with its own type instead of dropping it',
+    () => {
+      const html =
+        '<div class="panel"><div class="panelContent">' +
+        '<div class="confluence-information-macro confluence-information-macro-warning">' +
+        '<div class="confluence-information-macro-body"><p>Do not use this.</p></div></div>' +
+        '</div></div>'
+      const result = preserveConfluenceCallouts(html)
+      expect(result).toContain('[WARNING] Do not use this.')
+    }
+  )
+
+  it.concurrent(
+    "does not let an untitled outer panel adopt a nested panel's header as its own",
+    () => {
+      const html =
+        '<div class="panel"><div class="panelContent">' +
+        '<div class="panel"><div class="panelHeader"><b>Inner title</b></div>' +
+        '<div class="panelContent"><p>inner body</p></div></div>' +
+        '</div></div>'
+      const result = preserveConfluenceCallouts(html)
+      // The outer panel has no header of its own — it must fall back to a
+      // bare [CALLOUT], not steal "Inner title" from the nested panel.
+      expect(result).toContain('[CALLOUT] [CALLOUT: Inner title] inner body')
+    }
+  )
+
+  it.concurrent('does not fuse text on either side of a <br> line break', () => {
+    const html =
+      '<div class="confluence-information-macro confluence-information-macro-warning">' +
+      '<div class="confluence-information-macro-body"><p>Do NOT use this form for:<br>GitLab</p></div>' +
+      '</div>'
+    const result = preserveConfluenceCallouts(html)
+    expect(result).not.toContain('for:GitLab')
+    expect(result).toContain('[WARNING] Do NOT use this form for: GitLab')
   })
 })

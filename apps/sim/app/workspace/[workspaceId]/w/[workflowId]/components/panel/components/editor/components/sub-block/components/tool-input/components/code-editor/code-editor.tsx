@@ -4,14 +4,14 @@ import {
   CODE_LINE_HEIGHT_PX,
   Code,
   calculateGutterWidth,
+  chipFieldSurfaceClass,
   cn,
   getCodeEditorProps,
   highlight,
   languages,
 } from '@sim/emcn'
-import { Wand2 } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
-import { Button } from '@/components/ui/button'
+import type { SchemaParameter } from '@/app/workspace/[workspaceId]/components/custom-tool-editor/custom-tool-schema'
 import {
   createEnvVarPattern,
   createWorkflowVariablePattern,
@@ -22,16 +22,15 @@ interface CodeEditorProps {
   onChange: (value: string) => void
   language: 'javascript' | 'json'
   placeholder?: string
+  /** Layout/sizing only — the chip-field chrome is owned by this component. */
   className?: string
-  gutterClassName?: string
+  /** Swaps the field border to the error token. */
+  error?: boolean
   minHeight?: string
   highlightVariables?: boolean
   onKeyDown?: (e: React.KeyboardEvent) => void
   disabled?: boolean
-  schemaParameters?: Array<{ name: string; type: string; description: string; required: boolean }>
-  showWandButton?: boolean
-  onWandClick?: () => void
-  wandButtonDisabled?: boolean
+  schemaParameters?: SchemaParameter[]
 }
 
 const EMPTY_SCHEMA_PARAMETERS: NonNullable<CodeEditorProps['schemaParameters']> = []
@@ -42,15 +41,12 @@ export function CodeEditor({
   language,
   placeholder = '',
   className = '',
-  gutterClassName = '',
+  error = false,
   minHeight,
   highlightVariables = true,
   onKeyDown,
   disabled = false,
   schemaParameters = EMPTY_SCHEMA_PARAMETERS,
-  showWandButton = false,
-  onWandClick,
-  wandButtonDisabled = false,
 }: CodeEditorProps) {
   const [visualLineHeights, setVisualLineHeights] = useState<number[]>([])
 
@@ -182,21 +178,11 @@ export function CodeEditor({
   }
 
   return (
-    <Code.Container className={className} style={minHeight ? { minHeight } : undefined}>
-      {showWandButton && onWandClick && (
-        <Button
-          variant='ghost'
-          size='icon'
-          onClick={onWandClick}
-          disabled={wandButtonDisabled}
-          aria-label='Generate with AI'
-          className='absolute top-2 right-3 z-10 size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground opacity-0 shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow group-hover:opacity-100'
-        >
-          <Wand2 className='size-4' />
-        </Button>
-      )}
-
-      <Code.Gutter width={gutterWidth} className={gutterClassName}>
+    <Code.Container
+      className={cn(chipFieldSurfaceClass, error && 'border-[var(--text-error)]', className)}
+      style={minHeight ? { minHeight } : undefined}
+    >
+      <Code.Gutter width={gutterWidth} className='rounded-l-lg bg-transparent dark:bg-transparent'>
         {renderLineNumbers()}
       </Code.Gutter>
 

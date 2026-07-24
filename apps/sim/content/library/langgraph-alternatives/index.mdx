@@ -3,7 +3,7 @@ slug: langgraph-alternatives
 title: 'Best LangGraph Alternatives for Scalable AI Agent Workflows'
 description: LangGraph struggles at scale with concurrency, debugging, and deployment gaps. Compare the best alternatives - CrewAI, AutoGen, Sim, and more - to find the right fit for your team.
 date: 2026-07-13
-updated: 2026-07-13
+updated: 2026-07-23
 authors:
   - emir
 readingTime: 11
@@ -67,7 +67,7 @@ If you're comfortable in Python (or TypeScript), want in-depth control over agen
 
 ### CrewAI
 
-CrewAI takes a role-based, task-oriented approach where agents are "crew members" with defined roles, goals, and backstories. Instead of wiring graph edges, you assemble a team: a researcher, a writer, a reviewer. Each agent knows its job and passes work to the next.
+[CrewAI](https://docs.crewai.com/) takes a role-based, task-oriented approach where agents are "crew members" with defined roles, goals, and backstories. Instead of wiring graph edges, you assemble a team: a researcher, a writer, a reviewer. Each agent knows its job and passes work to the next.
 
 This is the fastest path from idea to working multi-agent prototype. The mental model maps cleanly to how people already think about delegation, which means less time reading docs and more time building.
 
@@ -79,7 +79,7 @@ The trade-off is that CrewAI doesn't include built-in checkpointing for long-run
 
 ### AutoGen / AG2
 
-AutoGen introduced a conversation-first approach to multi-agent systems: agents collaborate through structured multi-turn dialogue rather than graph transitions. This is a natural fit for use cases where agents need to debate, review, and refine outputs: code generation, analysis, planning scenarios where iterating on quality matters more than speed.
+[AutoGen](https://microsoft.github.io/autogen/stable/) introduced a conversation-first approach to multi-agent systems: agents collaborate through structured multi-turn dialogue rather than graph transitions. This is a natural fit for use cases where agents need to debate, review, and refine outputs: code generation, analysis, planning scenarios where iterating on quality matters more than speed.
 
 The ecosystem, however, is in a complicated place. A significant development occurred in late 2024 when the original creators, Chi Wang and Qingyun Wu, departed Microsoft to establish AG2 as a community-driven fork. In November, they settled on creating a new AG2 GitHub organization and a new repo, inheriting the PyPI autogen and pyautogen packages and the Discord channel. Meanwhile, in October 2025, Microsoft announced that AutoGen and Semantic Kernel are merging into a new unified "Microsoft Agent Framework," with AutoGen entering maintenance mode. Microsoft Agent Framework is now positioned as the enterprise-ready successor to AutoGen, with stable APIs and a commitment to long-term support.
 
@@ -93,7 +93,7 @@ One cost consideration that often gets overlooked: each agent turn in a conversa
 
 ### Google ADK
 
-Google introduced the Agent Development Kit (ADK) at Google Cloud NEXT 2025 as an open-source framework designed to simplify end-to-end development of agents and multi-agent systems. The architecture uses a hierarchical agent tree where a root agent delegates to sub-agents, and ADK is the same framework powering agents within Google products like Agentspace and the Customer Engagement Suite.
+Google introduced the [Agent Development Kit (ADK)](https://adk.dev/) at Google Cloud NEXT 2025 as an open-source framework designed to simplify end-to-end development of agents and multi-agent systems. The architecture uses a hierarchical agent tree where a root agent delegates to sub-agents, and ADK is the same framework powering agents within Google products like Agentspace and the Customer Engagement Suite.
 
 What sets ADK apart from most alternatives is its breadth of language support and deployment integration. ADK is available in Python, TypeScript, Go, and Java, which means teams aren't locked into a single language stack. You can run agents locally or scale them globally using Runtime, Cloud Run, or Google Kubernetes Engine.
 
@@ -105,7 +105,7 @@ The standout capability for teams running multi-framework environments: ADK supp
 
 ### OpenAI Agents SDK
 
-The OpenAI Agents SDK is a lightweight Python framework focused on multi-agent workflows with built-in tracing and guardrails. Despite the OpenAI branding, it's provider-agnostic and compatible with a broad range of LLMs, which makes the name slightly misleading but the tool genuinely flexible.
+The [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/) is a lightweight Python framework focused on multi-agent workflows with built-in tracing and guardrails. Despite the OpenAI branding, it's provider-agnostic and compatible with a broad range of LLMs, which makes the name slightly misleading but the tool genuinely flexible.
 
 The SDK's strength is its simple learning curve. If your team is already calling OpenAI APIs, the mental model transfers directly. Agents are defined with simple Python classes, handoffs between agents are clean and explicit, and tracing is built into every run without extra configuration. There's no graph definition language to learn, no complex expression layer to parse.
 
@@ -117,7 +117,7 @@ The handoff model deserves specific mention: when one agent completes its portio
 
 ### Mastra
 
-Mastra is an open-source TypeScript framework for building AI-powered applications and agents. It was built by the team behind Gatsby, and it's gained serious production traction since launching. Mastra is trusted by engineering teams at Replit, SoftBank, PayPal, PLAID, and Marsh McLennan. Marsh McLennan deployed an agentic search tool built with the framework to 75,000 employees.
+[Mastra](https://mastra.ai/docs) is an open-source TypeScript framework for building AI-powered applications and agents. It was built by the team behind Gatsby, and it's gained serious production traction since launching. Mastra is trusted by engineering teams at Replit, SoftBank, PayPal, PLAID, and Marsh McLennan. Marsh McLennan deployed an agentic search tool built with the framework to 75,000 employees.
 
 The framework comes with a graph-based workflow engine that orchestrates complex multi-step processes with explicit control over execution, plus Mastra Studio, an interactive environment for testing agents, tracing execution, and refining prompts before and after you ship. This local dev playground for visualizing workflow graphs before deployment is a meaningful productivity advantage over purely code-based frameworks.
 
@@ -152,7 +152,7 @@ Chat's build mode is where the workflow differs most from code-first approaches.
 
 ### Dify
 
-Dify is an open-source LLM app development platform with a visual workflow builder. It's well-suited for teams that want low-code agent construction with RAG (retrieval-augmented generation) pipelines and a broad integration set without needing to think in graph abstractions.
+[Dify](https://dify.ai/pricing) is an open-source LLM app development platform with a visual workflow builder. It's well-suited for teams that want low-code agent construction with RAG (retrieval-augmented generation) pipelines and a broad integration set without needing to think in graph abstractions.
 
 Relative to LangGraph, Dify offers a significantly lower engineering floor to get started. You drag blocks, connect them visually, and deploy. The trade-off is less fine-grained control over state transitions for complex branching logic. If your workflow needs deterministic, auditable paths through dozens of conditional branches, Dify's visual model can feel limiting. But for RAG-heavy applications and LLM-powered tools where the goal is getting something running and connected to data sources fast, it's one of the most accessible options available.
 
@@ -190,3 +190,5 @@ LangGraph is a strong tool for a specific set of problems. If your team requires
 For Python teams that want a different architectural model but still want to own their stack, CrewAI, Google ADK, and the OpenAI Agents SDK each offer compelling trade-offs depending on your cloud provider and use case. TypeScript teams have Mastra. Teams invested in Azure should watch the Microsoft Agent Framework closely.
 
 For teams where the real bottleneck is getting agents into production, connected to business tools, and maintained by more than one person, a workspace platform like Sim removes the infrastructure burden so you can focus on the agent logic itself. You can [start building in Sim](https://sim.ai) and see how visual, conversational, and API-driven agent building compares to graph definitions in code.
+
+For wider context: [open-source AI agent platforms](/library/open-source-ai-agent-platforms) covers the self-hostable field including the code-first frameworks, and [the best AI agent platforms in 2026](/library/best-ai-agent-platforms-2026) adds the commercial options. [How to build AI agents](/library/how-to-create-an-ai-agent) is the visual-first walkthrough if you're moving off code.

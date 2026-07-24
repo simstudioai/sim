@@ -219,23 +219,41 @@ export const isDataDrainsEnabled = isTruthy(env.DATA_DRAINS_ENABLED)
 export const isForkingEnabled = isTruthy(env.FORKING_ENABLED)
 
 /**
- * Is E2B enabled for remote code execution
+ * The selected remote sandbox provider (`SANDBOX_PROVIDER`), defaulting to E2B.
+ * Availability below is derived from THIS provider's credentials, so a
+ * Daytona-only deployment (E2B unset) still enables remote execution.
  */
-export const isE2bEnabled = isTruthy(env.E2B_ENABLED)
+const sandboxProvider = (env.SANDBOX_PROVIDER || 'e2b').toLowerCase()
 
 /**
- * Whether the E2B document-generation sandbox is enabled.
+ * Whether remote code/shell execution is available with the selected provider.
  *
- * Requires E2B (with an API key) AND a dedicated doc-generation template id.
- * When true, ALL four formats compile in the E2B doc sandbox: pptx/docx via Node
+ * E2B keeps its explicit `E2B_ENABLED` switch; Daytona is available once its API
+ * key is set (the shell snapshot is verified at create time, failing closed).
+ * Mirrors the E2B gate exactly when the provider is E2B, so existing behavior is
+ * unchanged.
+ */
+export const isRemoteSandboxEnabled =
+  sandboxProvider === 'daytona' ? Boolean(env.DAYTONA_API_KEY) : isTruthy(env.E2B_ENABLED)
+
+/**
+ * Whether the document-generation sandbox is available with the selected
+ * provider — its credential AND its dedicated doc image (E2B doc template, or
+ * Daytona doc snapshot).
+ *
+ * When true, ALL four formats compile in the doc sandbox: pptx/docx via Node
  * (pptxgenjs/docx + react-icons/sharp icons), pdf/xlsx via Python
  * (reportlab/openpyxl). When false, compilation stays on the JavaScript
  * (isolated-vm) path, byte-identical to its prior behavior (and xlsx is
  * unavailable). Drives both the Sim compile backend and the `docCompiler` flag
  * sent to the copilot file subagent so the agent's output and compiler agree.
  */
-export const isE2BDocEnabled =
-  isE2bEnabled && Boolean(env.E2B_API_KEY) && Boolean(env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID)
+export const isDocSandboxEnabled =
+  sandboxProvider === 'daytona'
+    ? Boolean(env.DAYTONA_API_KEY) && Boolean(env.DAYTONA_DOC_SNAPSHOT_ID)
+    : isTruthy(env.E2B_ENABLED) &&
+      Boolean(env.E2B_API_KEY) &&
+      Boolean(env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID)
 
 /**
  * Whether Ollama is configured (OLLAMA_URL is set).

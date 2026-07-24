@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import OpenAI from 'openai'
-import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
+import type {
+  ChatCompletionChunk,
+  ChatCompletionCreateParamsStreaming,
+} from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
@@ -128,6 +131,7 @@ export const xAIProvider: ProviderConfig = {
         initialTokens: { input: 0, output: 0, total: 0 },
         initialCost: { input: 0, output: 0, total: 0 },
         isStreaming: true,
+        streamFormat: 'agent-events-v1',
         createStream: ({ output }) =>
           createReadableStreamFromXAIStream(streamResponse, (content, usage) => {
             output.content = content
@@ -476,10 +480,14 @@ export const xAIProvider: ProviderConfig = {
             stream: true,
           }
         } else {
+          /**
+           * The regeneration exists purely to stream the settled answer as
+           * prose — streamed tool_calls are never executed on this path.
+           */
           finalStreamingPayload = {
             ...basePayload,
             messages: currentMessages,
-            tool_choice: 'auto',
+            tool_choice: 'none',
             tools: preparedTools?.tools,
             stream: true,
           }
@@ -523,28 +531,36 @@ export const xAIProvider: ProviderConfig = {
                 }
               : undefined,
           isStreaming: true,
+          streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
-            createReadableStreamFromXAIStream(streamResponse as any, (content, usage) => {
-              output.content = content
-              output.tokens = {
-                input: tokens.input + usage.prompt_tokens,
-                output: tokens.output + usage.completion_tokens,
-                total: tokens.total + usage.total_tokens,
-              }
+            createReadableStreamFromXAIStream(
+              // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; the stream yields OpenAI ChatCompletionChunk objects
+              streamResponse as unknown as AsyncIterable<ChatCompletionChunk>,
+              (streamedContent, usage) => {
+                if (!streamedContent && content) {
+                  logger.warn('xAI final stream produced no text; keeping tool-loop answer')
+                }
+                output.content = streamedContent || content
+                output.tokens = {
+                  input: tokens.input + usage.prompt_tokens,
+                  output: tokens.output + usage.completion_tokens,
+                  total: tokens.total + usage.total_tokens,
+                }
 
-              const streamCost = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              const tc = sumToolCosts(toolResults)
-              output.cost = {
-                input: accumulatedCost.input + streamCost.input,
-                output: accumulatedCost.output + streamCost.output,
-                toolCost: tc || undefined,
-                total: accumulatedCost.total + streamCost.total + tc,
+                const streamCost = calculateCost(
+                  request.model,
+                  usage.prompt_tokens,
+                  usage.completion_tokens
+                )
+                const tc = sumToolCosts(toolResults)
+                output.cost = {
+                  input: accumulatedCost.input + streamCost.input,
+                  output: accumulatedCost.output + streamCost.output,
+                  toolCost: tc || undefined,
+                  total: accumulatedCost.total + streamCost.total + tc,
+                }
               }
-            }),
+            ),
         })
 
         return streamingResult

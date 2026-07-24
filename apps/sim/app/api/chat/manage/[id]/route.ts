@@ -117,6 +117,7 @@ export const PATCH = withRouteHandler(
         password,
         allowedEmails,
         outputConfigs,
+        includeThinking,
       } = validatedData
 
       if (workflowId && workflowId !== existingChat[0].workflowId) {
@@ -250,6 +251,10 @@ export const PATCH = withRouteHandler(
         updateData.outputConfigs = outputConfigs
       }
 
+      if (includeThinking !== undefined) {
+        updateData.includeThinking = includeThinking
+      }
+
       const emailCount = Array.isArray(updateData.allowedEmails)
         ? updateData.allowedEmails.length
         : undefined
@@ -263,6 +268,7 @@ export const PATCH = withRouteHandler(
         hasPassword: updateData.password !== undefined,
         emailCount,
         outputConfigsCount,
+        includeThinking: updateData.includeThinking,
       })
 
       await db.update(chat).set(updateData).where(eq(chat.id, chatId))

@@ -160,6 +160,7 @@ export const PUT = withRouteHandler(
           authType: chat.authType,
           password: chat.password,
           outputConfigs: chat.outputConfigs,
+          includeThinking: chat.includeThinking,
         })
         .from(chat)
         .where(
@@ -209,6 +210,7 @@ export const PUT = withRouteHandler(
         customizations: deployment.customizations,
         authType: deployment.authType,
         outputConfigs: deployment.outputConfigs,
+        includeThinking: deployment.includeThinking ?? false,
       })
       setChatAuthCookie(response, deployment.id, deployment.authType, deployment.password)
 

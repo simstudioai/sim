@@ -14,7 +14,7 @@ import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { isE2BDocEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { isDocSandboxEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { buildArchiveExtractGuidance, isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 import { stripVersionSuffix } from '@/tools/utils'
@@ -431,7 +431,7 @@ export async function buildCopilotRequestPayload(
       : {}),
     // Tell the copilot file subagent which document toolchain to write. Emitted
     // only in Python mode so the JS path sends no new field (Go defaults to js).
-    ...(isE2BDocEnabled ? { docCompiler: 'python' } : {}),
+    ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
     isHosted,
   }
 }

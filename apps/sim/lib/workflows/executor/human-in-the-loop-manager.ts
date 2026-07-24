@@ -25,7 +25,10 @@ import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
-import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
+import {
+  type ExecutionEvent,
+  LIVE_ONLY_EXECUTION_EVENT_TYPES,
+} from '@/lib/workflows/executor/execution-events'
 import {
   createPausedExecutionResumeMetadata,
   parsePausedExecutionResumeMetadata,
@@ -35,6 +38,10 @@ import {
   normalizeAutomaticResumeWaitingReason,
   resolveAutomaticResumeAdmissionFailure,
 } from '@/lib/workflows/executor/resume-policy'
+import {
+  forwardAgentStreamToExecutionEvents,
+  shouldForwardAnswerTextFromSink,
+} from '@/lib/workflows/streaming/forward-agent-stream-events'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
   ChildWorkflowContext,
@@ -1276,7 +1283,7 @@ export class PauseResumeManager {
       event: ExecutionEvent,
       terminalStatus?: TerminalExecutionStreamStatus
     ) => {
-      const isBuffered = event.type !== 'stream:chunk' && event.type !== 'stream:done'
+      const isBuffered = !LIVE_ONLY_EXECUTION_EVENT_TYPES.has(event.type)
       if (isBuffered) {
         const entry = terminalStatus
           ? await eventWriter.writeTerminal(event, terminalStatus).catch((error) => {
@@ -1418,12 +1425,26 @@ export class PauseResumeManager {
           ? streamingExec.execution.blockId
           : undefined
         const blockId = typeof blockIdValue === 'string' ? blockIdValue : ''
+
+        // Live answer text rides the sink when available; the byte stream is
+        // then drained without re-emitting chunks (same final-turn content).
+        const answerTextFromSink = shouldForwardAnswerTextFromSink(streamingExec)
+
+        const unsubscribe = forwardAgentStreamToExecutionEvents(streamingExec, {
+          blockId,
+          executionId: resumeExecutionId,
+          workflowId,
+          sendEvent: writeBufferedEvent,
+          forwardAnswerText: answerTextFromSink,
+        })
+
         const reader = streamingExec.stream.getReader()
         const decoder = new TextDecoder()
         try {
           while (true) {
             const { done, value } = await reader.read()
             if (done) break
+            if (answerTextFromSink) continue
             const chunk = decoder.decode(value, { stream: true })
             await writeBufferedEvent({
               type: 'stream:chunk',
@@ -1447,6 +1468,7 @@ export class PauseResumeManager {
             error: toError(streamError).message,
           })
         } finally {
+          unsubscribe()
           try {
             await reader.cancel().catch(() => {})
           } catch {}

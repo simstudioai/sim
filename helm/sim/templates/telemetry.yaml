@@ -33,11 +33,14 @@ data:
         timeout: 1s
         send_batch_size: 1024
       memory_limiter:
+        check_interval: 1s
         limit_mib: 512
       
     exporters:
       {{- if .Values.telemetry.jaeger.enabled }}
-      jaeger:
+      {{- /* The dedicated jaeger exporter was removed from collector-contrib in
+           v0.86; Jaeger >=1.35 ingests OTLP natively, so export via OTLP. */}}
+      otlp/jaeger:
         endpoint: {{ .Values.telemetry.jaeger.endpoint }}
         tls:
           insecure: {{ not .Values.telemetry.jaeger.tls.enabled }}
@@ -74,7 +77,7 @@ data:
           exporters:
             - logging
             {{- if .Values.telemetry.jaeger.enabled }}
-            - jaeger
+            - otlp/jaeger
             {{- end }}
             {{- if .Values.telemetry.otlp.enabled }}
             - otlp

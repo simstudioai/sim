@@ -3,7 +3,7 @@ slug: open-source-ai-agent-platforms
 title: 'Open-Source AI Agent Platforms: Comparison'
 description: Compare the top open-source AI agent platforms of 2026 - LangGraph, CrewAI, AutoGen, Dify, n8n, and Sim - by architecture, production readiness, and team fit. Find the right one for your use case.
 date: 2026-07-13
-updated: 2026-07-13
+updated: 2026-07-23
 authors:
   - emir
 readingTime: 12
@@ -29,9 +29,9 @@ This guide splits open-source AI agent platforms into three clear categories, co
 ## Key Takeaways
 
 - **Three categories, not one:** Code-first frameworks (LangGraph, CrewAI, AutoGen), visual builders (Dify, n8n), and AI workspaces (Sim) serve fundamentally different buyers and require different evaluations.
-- **AutoGen is splintering:** Microsoft's AutoGen has fractured into maintenance mode, a community-led AG2 fork, and the new Microsoft Agent Framework. Teams need to choose the option that will work best for them.
+- **AutoGen is splintering:** Microsoft's [AutoGen](https://microsoft.github.io/autogen/stable/) has fractured into maintenance mode, a community-led AG2 fork, and the new Microsoft Agent Framework. Teams need to choose the option that will work best for them.
 - **CrewAI Flows changed the game:** CrewAI's Flows feature adds event-driven orchestration alongside crew-style collaboration, giving teams both flexibility and control in one framework.
-- **Dify dominates the visual builder space:** With over 131,000 GitHub stars and a recent $30M raise, Dify is the most-adopted visual AI agent builder, though it still lacks strong team governance features.
+- **Dify dominates the visual builder space:** With over [149,000 GitHub stars](https://github.com/langgenius/dify) and a recent $30M raise, Dify is the most-adopted visual AI agent builder, though it still lacks strong team governance features.
 - **Workspace platforms bundle what frameworks leave out:** Sim combines visual building, team collaboration, knowledge management, and deployment infrastructure in a single open-source package, reducing the "glue code" problem.
 - **Self-hosting and licensing vary widely:** "Open source" means different things across these platforms, from fully permissive MIT licenses to open-core models where enterprise features sit behind paid tiers.
 
@@ -59,7 +59,7 @@ That control comes at a cost: these frameworks assume you have engineers who can
 
 ### LangGraph
 
-LangGraph is the default choice for complex stateful workflows that need explicit control over branching, retries, and human-in-the-loop. It sits on top of the LangChain ecosystem and has seen the largest enterprise adoption among code-first agent frameworks.
+[LangGraph](https://langchain-ai.github.io/langgraph/) is the default choice for complex stateful workflows that need explicit control over branching, retries, and human-in-the-loop. It sits on top of the LangChain ecosystem and has seen the largest enterprise adoption among code-first agent frameworks.
 
 LangGraph does four things excellently: branching logic that lets you define exactly which path an agent takes based on state, human-led approvals and checkpointing that are now integral features rather than add-ons, durable execution that survives process restarts, and detailed control over every step in the agent's decision chain.
 
@@ -69,7 +69,7 @@ Where it demands investment: setup isn't trivial, especially for teams new to gr
 
 ### CrewAI
 
-CrewAI introduced a mental model that's simple to pick up: instead of defining abstract graph nodes, you define roles. A researcher agent gathers information, a writer agent drafts content, a reviewer agent checks quality. CrewAI is the fastest path from idea to working multi-agent prototype when work decomposes into role-based tasks.
+[CrewAI](https://docs.crewai.com/) introduced a mental model that's simple to pick up: instead of defining abstract graph nodes, you define roles. A researcher agent gathers information, a writer agent drafts content, a reviewer agent checks quality. CrewAI is the fastest path from idea to working multi-agent prototype when work decomposes into role-based tasks.
 
 The Flows addition lets you create structured, event-driven workflows that provide a way to connect multiple tasks, manage state, and control the flow of execution in your AI applications. This is a meaningful evolution. Flows give you a structured, event-driven execution engine that sits above individual crews and tasks. A Crew is great at parallel collaboration with multiple agents working on a shared goal, but Crews don't give you sequential control. Think of it this way: a Crew is a team, a Flow is the project plan that coordinates multiple teams.
 
@@ -99,11 +99,11 @@ Visual builders trade code-level control for speed. They let teams design agent 
 
 Dify's open-source model with 131k GitHub stars targets production scalability. That star count makes it the most-starred visual AI agent builder in the open-source space by a wide margin, and it reflects genuine production adoption.
 
-Dify is a production-ready platform for agentic workflow development, handling everything from enterprise QA bots to AI-driven custom assistants. The platform includes a workflow builder for defining tool-using agents, built-in RAG (retrieval-augmented generation) pipeline management, support for multiple AI model providers, and Model Context Protocol (MCP) integration.
+[Dify](https://dify.ai/pricing) is a production-ready platform for agentic workflow development, handling everything from enterprise QA bots to AI-driven custom assistants. The platform includes a workflow builder for defining tool-using agents, built-in RAG (retrieval-augmented generation) pipeline management, support for multiple AI model providers, and Model Context Protocol (MCP) integration.
 
 The RAG pipeline is Dify's standout feature. It's among the best available in an open-source package. If your primary use case involves document retrieval, knowledge bases, and structured Q&A, Dify's built-in tooling eliminates weeks of integration work.
 
-The self-hosted Community Edition (Docker Compose, single machine or Kubernetes) is free with no significant limitations. Dify Cloud starts with a free Sandbox tier and scales to Professional ($59/month), Team ($159/month), and Enterprise (custom) plans.
+The self-hosted Community Edition (Docker Compose, single machine or Kubernetes) is free with no significant limitations. [Dify Cloud](https://dify.ai/pricing) starts with a free Sandbox tier at 200 message credits and scales to Professional, Team, and Enterprise plans; the Professional tier lists at $590/year and Team at $1,590/year.
 
 Where Dify falls short relative to a purpose-built AI workspace: team governance is limited, agent lifecycle management (versioning, rollback, multi-user editing) lacks depth, and the visual tooling has a ceiling; complex custom logic belongs in code.
 
@@ -190,3 +190,5 @@ Visual builders like Dify and n8n lower the barrier to entry but trade away arch
 Start with the decision paths above. Identify which category fits your team, then evaluate within that category. Trying to compare a Python framework against a visual workspace on the same checklist is how teams end up six months into a tool that doesn't fit.
 
 If your team needs collaboration, multi-model support, and a visual builder with production-grade deployment, [explore Sim](https://sim.ai) and see whether the workspace model matches how your team actually works.
+
+Related reading: [Apache 2.0 vs fair-code](/library/apache-2-0-vs-fair-code) explains why license choice changes what you can build on a self-hosted platform, [LangGraph alternatives](/library/langgraph-alternatives) goes deeper on the code-first category, and [the best AI agent platforms in 2026](/library/best-ai-agent-platforms-2026) widens the field to commercial options alongside these.

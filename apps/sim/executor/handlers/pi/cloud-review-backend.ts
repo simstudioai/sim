@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
-import { withPiSandbox } from '@/lib/execution/e2b'
+import { withPiSandbox } from '@/lib/execution/remote-sandbox'
 import type { PiBackendRun, PiCloudReviewRunParams } from '@/executor/handlers/pi/backend'
 import {
   CLOUD_REVIEW_TOOL_NAMES,

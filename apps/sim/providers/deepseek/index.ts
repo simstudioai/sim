@@ -1,11 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import OpenAI from 'openai'
-import type { StreamingExecution } from '@/executor/types'
+import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import { createReadableStreamFromDeepseekStream } from '@/providers/deepseek/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { createOpenAICompatStreamingToolLoopStream } from '@/providers/openai-compat/streaming-tool-loop'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
@@ -84,6 +85,17 @@ export const deepseekProvider: ProviderConfig = {
       if (request.temperature !== undefined) payload.temperature = request.temperature
       if (request.maxTokens != null) payload.max_tokens = request.maxTokens
 
+      /**
+       * DeepSeek Think mode: reasoning_content streams when enabled (or inherent
+       * on reasoner). The API default is enabled, so 'none' must explicitly send
+       * `disabled`; unset sends nothing to preserve the legacy request shape.
+       */
+      if (request.thinkingLevel && request.thinkingLevel !== 'none') {
+        payload.thinking = { type: 'enabled' }
+      } else if (request.thinkingLevel === 'none') {
+        payload.thinking = { type: 'disabled' }
+      }
+
       let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
 
       if (tools?.length) {
@@ -111,6 +123,67 @@ export const deepseekProvider: ProviderConfig = {
         }
       }
 
+      const shouldStreamToolCalls = request.streamToolCalls ?? false
+
+      if (request.stream && shouldStreamToolCalls && payload.tools?.length) {
+        logger.info('Using streaming tool loop for DeepSeek request')
+
+        const timeSegments: TimeSegment[] = []
+        const forcedTools = preparedTools?.forcedTools || []
+
+        return createStreamingExecution({
+          model: request.model,
+          providerStartTime,
+          providerStartTimeISO,
+          timing: {
+            kind: 'accumulated',
+            modelTime: 0,
+            toolsTime: 0,
+            firstResponseTime: 0,
+            iterations: 1,
+            timeSegments,
+          },
+          initialTokens: { input: 0, output: 0, total: 0 },
+          initialCost: { total: 0.0, input: 0.0, output: 0.0 },
+          isStreaming: true,
+          streamFormat: 'agent-events-v1',
+          createStream: ({ output, finalizeTiming }) =>
+            createOpenAICompatStreamingToolLoopStream({
+              providerName: 'Deepseek',
+              request,
+              basePayload: payload,
+              messages:
+                // double-cast-allowed: formatMessagesForProvider returns loosely-typed provider messages that are wire-compatible with the OpenAI chat.completions message params the shared loop expects
+                formattedMessages as unknown as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+              createStream: async (params, options) =>
+                deepseek.chat.completions.create({ ...params, stream: true }, options),
+              logger,
+              timeSegments,
+              forcedTools,
+              /**
+               * DeepSeek requires reasoning_content passed back on tool-call
+               * turns whenever the API returns it (thinking defaults to enabled
+               * server-side); it is ignored on non-tool turns, so preserving
+               * unconditionally is always safe.
+               */
+              preserveAssistantReasoning: true,
+              onComplete: (result) => {
+                output.content = result.content
+                output.tokens = result.tokens
+                output.cost = result.cost
+                output.toolCalls = result.toolCalls as NormalizedBlockOutput['toolCalls']
+                if (output.providerTiming) {
+                  output.providerTiming.modelTime = result.modelTime
+                  output.providerTiming.toolsTime = result.toolsTime
+                  output.providerTiming.firstResponseTime = result.firstResponseTime
+                  output.providerTiming.iterations = result.iterations
+                }
+                finalizeTiming()
+              },
+            }),
+        })
+      }
+
       if (request.stream && (!tools || tools.length === 0)) {
         logger.info('Using streaming response for DeepSeek request (no tools)')
 
@@ -130,26 +203,38 @@ export const deepseekProvider: ProviderConfig = {
           initialTokens: { input: 0, output: 0, total: 0 },
           initialCost: { input: 0, output: 0, total: 0 },
           isStreaming: true,
+          streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
-            createReadableStreamFromDeepseekStream(streamResponse as any, (content, usage) => {
-              output.content = content
-              output.tokens = {
-                input: usage.prompt_tokens,
-                output: usage.completion_tokens,
-                total: usage.total_tokens,
-              }
+            createReadableStreamFromDeepseekStream(
+              // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; the stream yields OpenAI ChatCompletionChunk objects
+              streamResponse as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>,
+              (content, usage, thinking) => {
+                output.content = content
+                output.tokens = {
+                  input: usage.prompt_tokens,
+                  output: usage.completion_tokens,
+                  total: usage.total_tokens,
+                }
 
-              const costResult = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              output.cost = {
-                input: costResult.input,
-                output: costResult.output,
-                total: costResult.total,
+                const costResult = calculateCost(
+                  request.model,
+                  usage.prompt_tokens,
+                  usage.completion_tokens
+                )
+                output.cost = {
+                  input: costResult.input,
+                  output: costResult.output,
+                  total: costResult.total,
+                }
+
+                if (thinking) {
+                  const segment = output.providerTiming?.timeSegments?.[0]
+                  if (segment) {
+                    segment.thinkingContent = thinking
+                  }
+                }
               }
-            }),
+            ),
         })
 
         return streamingResult
@@ -281,7 +366,17 @@ export const deepseekProvider: ProviderConfig = {
 
           const executionResults = await Promise.allSettled(toolExecutionPromises)
 
-          currentMessages.push({
+          const assistantMessage = currentResponse.choices[0]?.message
+          const assistantHistory: {
+            role: string
+            content: string | null
+            tool_calls: Array<{
+              id: string
+              type: string
+              function: { name: string; arguments: string }
+            }>
+            reasoning_content?: string
+          } = {
             role: 'assistant',
             content: null,
             tool_calls: toolCallsInResponse.map((tc) => ({
@@ -292,7 +387,21 @@ export const deepseekProvider: ProviderConfig = {
                 arguments: tc.function.arguments,
               },
             })),
-          })
+          }
+          /**
+           * DeepSeek requires reasoning_content passed back on tool-call turns
+           * whenever the API returns it (thinking defaults to enabled
+           * server-side, so this applies even without an explicit thinking
+           * level); it is ignored on non-tool turns.
+           */
+          if (assistantMessage) {
+            const reasoningContent = (assistantMessage as { reasoning_content?: string })
+              .reasoning_content
+            if (typeof reasoningContent === 'string' && reasoningContent.length > 0) {
+              assistantHistory.reasoning_content = reasoningContent
+            }
+          }
+          currentMessages.push(assistantHistory)
 
           for (const settledResult of executionResults) {
             if (settledResult.status === 'rejected' || !settledResult.value) continue
@@ -435,10 +544,15 @@ export const deepseekProvider: ProviderConfig = {
       if (request.stream) {
         logger.info('Using streaming for final DeepSeek response after tool processing')
 
+        /**
+         * The regeneration exists purely to stream the settled answer as prose —
+         * streamed tool_calls are never executed on this path; with `auto` a
+         * model can re-call and end the stream with no text.
+         */
         const streamingPayload = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'auto',
+          tool_choice: 'none',
           stream: true,
         }
 
@@ -480,28 +594,43 @@ export const deepseekProvider: ProviderConfig = {
                 }
               : undefined,
           isStreaming: true,
+          streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
-            createReadableStreamFromDeepseekStream(streamResponse as any, (content, usage) => {
-              output.content = content
-              output.tokens = {
-                input: tokens.input + usage.prompt_tokens,
-                output: tokens.output + usage.completion_tokens,
-                total: tokens.total + usage.total_tokens,
-              }
+            createReadableStreamFromDeepseekStream(
+              // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; the stream yields OpenAI ChatCompletionChunk objects
+              streamResponse as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>,
+              (streamedContent, usage, thinking) => {
+                if (!streamedContent && content) {
+                  logger.warn('DeepSeek final stream produced no text; keeping tool-loop answer')
+                }
+                output.content = streamedContent || content
+                output.tokens = {
+                  input: tokens.input + usage.prompt_tokens,
+                  output: tokens.output + usage.completion_tokens,
+                  total: tokens.total + usage.total_tokens,
+                }
 
-              const streamCost = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              const tc = sumToolCosts(toolResults)
-              output.cost = {
-                input: accumulatedCost.input + streamCost.input,
-                output: accumulatedCost.output + streamCost.output,
-                toolCost: tc || undefined,
-                total: accumulatedCost.total + streamCost.total + tc,
+                const streamCost = calculateCost(
+                  request.model,
+                  usage.prompt_tokens,
+                  usage.completion_tokens
+                )
+                const tc = sumToolCosts(toolResults)
+                output.cost = {
+                  input: accumulatedCost.input + streamCost.input,
+                  output: accumulatedCost.output + streamCost.output,
+                  toolCost: tc || undefined,
+                  total: accumulatedCost.total + streamCost.total + tc,
+                }
+
+                if (thinking) {
+                  const lastModel = [...timeSegments].reverse().find((s) => s.type === 'model')
+                  if (lastModel) {
+                    lastModel.thinkingContent = thinking
+                  }
+                }
               }
-            }),
+            ),
         })
 
         return streamingResult
