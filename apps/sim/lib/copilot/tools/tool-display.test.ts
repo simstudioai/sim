@@ -77,6 +77,19 @@ describe('getToolDisplayTitle natural-language coverage', () => {
     expect(getToolDisplayTitle('diff_workflows')).toBe('Comparing workflows')
   })
 
+  it('includes the query in search_docs titles', () => {
+    expect(getToolDisplayTitle('search_docs')).toBe('Searching docs')
+    expect(getToolDisplayTitle('search_docs', { query: 'loop blocks iteration' })).toBe(
+      'Searching docs for "loop blocks iteration"'
+    )
+    expect(
+      getToolDisplayTitle('search_docs', {
+        query:
+          'reference block outputs connection tags blockname.field pass data between blocks in a workflow',
+      })?.length
+    ).toBeLessThanOrEqual('Searching docs for ""'.length + 60 + '...'.length)
+  })
+
   it('falls back to running code for function_execute without a title', () => {
     expect(getToolDisplayTitle('function_execute')).toBe('Running code')
     expect(getToolDisplayTitle('function_execute', { title: 'Crunching numbers' })).toBe(

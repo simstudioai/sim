@@ -1,4 +1,4 @@
-import { stripVersionSuffix } from '@sim/utils/string'
+import { stripVersionSuffix, truncate } from '@sim/utils/string'
 
 /**
  * Single source of truth for copilot tool-call display titles.
@@ -651,6 +651,10 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'search_online': {
       const target = firstStringArg(args, 'toolTitle', 'title')
       return target ? `Searching online for ${target}` : 'Searching online'
+    }
+    case 'search_docs': {
+      const target = firstStringArg(args, 'toolTitle', 'title', 'query')
+      return target ? `Searching docs for "${truncate(target, 60)}"` : 'Searching docs'
     }
     case 'grep': {
       const target = firstStringArg(args, 'toolTitle', 'title')
