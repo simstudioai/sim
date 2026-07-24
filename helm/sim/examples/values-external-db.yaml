@@ -168,18 +168,20 @@ monitoring:
     interval: 15s
 
 networkPolicy:
-  enabled: true
-  # Custom egress rules to allow database connectivity to an external DB.
-  # The chart's app/realtime NetworkPolicies already permit egress to
-  # `postgresql.service.targetPort` when `postgresql.enabled=true`. For an
-  # external DB on a different port (or off-cluster), add an egress rule.
-  # `networkPolicy.egress` is a LIST of NetworkPolicy egress rules.
+  # Disabled by default so a verbatim install can always reach your database.
+  # To opt into network isolation: replace the placeholder CIDR below with your
+  # database's subnet (or /32 host) FIRST, then set enabled: true — with the
+  # policy on, the chart's egress allowlist only covers the in-cluster Postgres,
+  # so an external DB on 5432 is unreachable without this rule, and a wrong
+  # CIDR blocks migrations and all database connections.
+  enabled: false
+  # `networkPolicy.egress` is a LIST of NetworkPolicy egress rules. Scope `to`
+  # to your database — an empty `to:` would allow the pods to reach ANY host
+  # on 5432, defeating the isolation this teaches.
   egress:
     - to:
-        # Scope to YOUR database's subnet — an empty `to:` would allow the pods
-        # to reach ANY host on 5432, defeating the isolation this teaches.
         - ipBlock:
-            cidr: 10.0.0.0/16 # replace with your database subnet or /32 host CIDR
+            cidr: 10.0.0.0/16 # REPLACE with your database subnet or /32 host CIDR
       ports:
         - protocol: TCP
           port: 5432

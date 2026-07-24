@@ -257,4 +257,6 @@ telemetry:
     endpoint: "http://prometheus-server/api/v1/write"
   jaeger:
     enabled: true
-    endpoint: "http://jaeger-collector:14250"
+    # Jaeger's OTLP gRPC endpoint (the chart exports via otlp/jaeger;
+    # Jaeger >=1.35 ingests OTLP natively)
+    endpoint: "jaeger-collector:4317"
