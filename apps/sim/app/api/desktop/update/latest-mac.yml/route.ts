@@ -6,7 +6,7 @@ import {
   channelForHostname,
   DESKTOP_RELEASE_REPO,
   type DesktopReleaseCandidate,
-  manifestAssetName,
+  MANIFEST_ASSET_NAME,
   rewriteManifestUrls,
   selectReleaseForChannel,
 } from '@/lib/desktop/update-feed'
@@ -33,8 +33,14 @@ export const GET = withRouteHandler(async (): Promise<Response> => {
   const hostname = new URL(env.NEXT_PUBLIC_APP_URL).hostname
   const channel = channelForHostname(hostname)
 
+  // A token raises the GitHub API quota from 60/h per NAT IP to 5000/h.
+  // Optional: the repo is public, so the feed works without one.
+  const githubToken = process.env.GITHUB_TOKEN
   const releasesResponse = await fetch(RELEASES_API_URL, {
-    headers: { accept: 'application/vnd.github+json' },
+    headers: {
+      accept: 'application/vnd.github+json',
+      ...(githubToken ? { authorization: `Bearer ${githubToken}` } : {}),
+    },
     next: { revalidate: REVALIDATE_SECONDS },
   })
   if (!releasesResponse.ok) {
@@ -44,11 +50,7 @@ export const GET = withRouteHandler(async (): Promise<Response> => {
     })
     return NextResponse.json({ error: 'Release feed unavailable' }, { status: 502 })
   }
-  const releases = (await releasesResponse.json()) as Array<
-    DesktopReleaseCandidate & {
-      assets?: Array<{ name: string; browser_download_url: string }>
-    }
-  >
+  const releases = (await releasesResponse.json()) as DesktopReleaseCandidate[]
 
   const release = selectReleaseForChannel(releases, channel)
   if (!release) {
@@ -58,14 +60,12 @@ export const GET = withRouteHandler(async (): Promise<Response> => {
     )
   }
 
-  const manifestName = manifestAssetName(release.tag_name.replace(/^v/, ''))
-  const asset = releases
-    .find((candidate) => candidate.tag_name === release.tag_name)
-    ?.assets?.find((candidate) => candidate.name === manifestName)
+  const asset = release.assets?.find((candidate) => candidate.name === MANIFEST_ASSET_NAME)
   if (!asset) {
+    // selectReleaseForChannel already skips assetless releases, so this only
+    // fires when the API response omitted assets entirely.
     logger.error('Release is missing its updater manifest', {
       tag: release.tag_name,
-      manifest: manifestName,
       channel,
     })
     return NextResponse.json({ error: 'Release manifest unavailable' }, { status: 404 })

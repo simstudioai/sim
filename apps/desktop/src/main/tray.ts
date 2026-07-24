@@ -199,7 +199,7 @@ export function buildTrayMenuTemplate(
 ): MenuItemConstructorOptions[] {
   const template: MenuItemConstructorOptions[] = []
   if (recentChats.length > 0) {
-    template.push({ label: 'Recent', enabled: false })
+    template.push({ label: 'Recent Chats', enabled: false })
     for (const chat of recentChats.slice(0, RECENT_CHATS_INLINE)) {
       template.push(chatMenuItem(chat, deps))
     }

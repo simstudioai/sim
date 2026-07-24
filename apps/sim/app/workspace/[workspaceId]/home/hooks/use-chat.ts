@@ -947,6 +947,24 @@ export function getReplayCompletedWorkflowToolCallIds(events: StreamBatchEvent[]
   return completedToolCallIds
 }
 
+/**
+ * True when the transcript holds a browser tool call that is still executing —
+ * i.e. the live turn is mid browser-action. Used on reconnect to restore the
+ * Browser resource panel the way workflow-run recovery restores workflows:
+ * completed browser calls are suppressed on replay (exactly-once) and so never
+ * re-surface the panel themselves.
+ */
+export function hasExecutingBrowserToolCall(messages: ChatMessage[]): boolean {
+  return messages.some((message) =>
+    (message.contentBlocks ?? []).some(
+      (block) =>
+        block.toolCall !== undefined &&
+        isBrowserToolName(block.toolCall.name) &&
+        block.toolCall.status === 'executing'
+    )
+  )
+}
+
 function buildRecoverySubjectKey(
   chatId: string | undefined,
   selectedChatId: string | undefined
@@ -1872,6 +1890,17 @@ export function useChat(
       setActiveResourceId(null)
     }
 
+    // Browser counterpart of the workflow-run recovery above: returning to a
+    // chat whose live turn is mid browser-action re-focuses the Browser tab
+    // and re-expands a collapsed panel. Runs after the resource hydration so
+    // it wins over the "last resource" active fallback. Completed browser
+    // calls are suppressed on replay (exactly-once) and never re-fire
+    // `startClientBrowserTool`, so without this the panel restores to
+    // whichever resource happened to be persisted last.
+    if (shouldReconnectActiveStream && hasExecutingBrowserToolCall(mappedMessages)) {
+      openBrowserResource()
+    }
+
     const snapshotPreviewSessions = Array.isArray(chatHistory.streamSnapshot?.previewSessions)
       ? (chatHistory.streamSnapshot.previewSessions as FilePreviewSession[])
       : []
@@ -1937,6 +1966,7 @@ export function useChat(
     cancelActiveStreamReader,
     cancelActiveStreamRecovery,
     flushPendingResources,
+    openBrowserResource,
     recoverPendingClientWorkflowTools,
     seedPreviewSessions,
     setTransportIdle,
@@ -3286,6 +3316,7 @@ export function useChat(
           resourcesRef.current,
           activeResourceIdRef.current
         )
+        const desktopChatCapabilities = await getDesktopChatCapabilities()
 
         const response = await fetch(apiPathRef.current, {
           method: 'POST',
@@ -3302,7 +3333,7 @@ export function useChat(
             ...(workflowIdRef.current ? { workflowId: workflowIdRef.current } : {}),
             // Desktop-only capabilities (local filesystem tools, browser
             // subagent) — the server gates the features on these flags.
-            ...getDesktopChatCapabilities(),
+            ...desktopChatCapabilities,
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
           signal: abortController.signal,

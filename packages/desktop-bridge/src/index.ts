@@ -1,4 +1,5 @@
 import type {
+  BrowserKnownSessionsState,
   BrowserOmniboxFocusMode,
   BrowserPageState,
   BrowserPanelAction,
@@ -66,6 +67,11 @@ export interface SimDesktopBrowserAgentApi {
    * compatible with installed desktop versions that only support one visible tab.
    */
   getTabsState?(): Promise<BrowserTabsState>
+  /**
+   * Read a privacy-preserving hint of websites that may have a usable session
+   * in the dedicated profile. Optional for compatibility with older shells.
+   */
+  getKnownSessions?(): Promise<BrowserKnownSessionsState>
   /**
    * Subscribe to live tab-list changes. Optional for compatibility with older
    * installed desktop versions.
@@ -184,27 +190,6 @@ export type LocalFilesystemResponse =
       error: string
     }
 
-/** Registration outcome of the Quick Ask global shortcut. */
-/**
- * The Quick Ask launcher surface of the preload bridge, used by the
- * `/desktop/launcher` page loaded inside the floating panel window.
- */
-export interface SimDesktopLauncherApi {
-  /**
-   * Dismiss the panel and open the main window on the given chat (or the
-   * workspace's home surface when `chatId` is omitted).
-   */
-  openChat(target: { workspaceId: string; chatId?: string }): void
-  /** Dismiss the panel and bring up the main window (sign-in, generic open). */
-  openApp(): void
-  /** Dismiss the panel (Esc). */
-  close(): void
-  /** Grow/shrink the panel to fit content; the main process clamps. */
-  resize(height: number): void
-  /** Fires each time the panel is summoned. Returns an unsubscribe function. */
-  onShown(callback: () => void): () => void
-}
-
 /** Outcome of an OAuth connect handoff, pushed when the browser flow finishes. */
 export interface DesktopOAuthConnectResult {
   ok: boolean
@@ -229,9 +214,22 @@ export interface DesktopPreferences {
   notificationsOnlyWhenUnfocused: boolean
   launchAtLogin: boolean
   autoDownloadUpdates: boolean
+  /**
+   * Show the Sim status item (recent chats menu) in the macOS menu bar.
+   * Optional because shells predating the preference don't report it.
+   */
+  trayEnabled?: boolean
 }
 
-export type DesktopPreferenceKey = keyof DesktopPreferences
+/**
+ * The keys settable through {@link SimDesktopSettingsApi.setPreference}. A
+ * closed union frozen at the first shell release: widening it would demand a
+ * capability installed shells lack (their setPreference is typed over fewer
+ * keys), which the bridge contract audit rejects. Preferences added later get
+ * their own optional setter (e.g. {@link SimDesktopSettingsApi.setTrayEnabled})
+ * so the web app can feature-detect them.
+ */
+export type DesktopPreferenceKey = Exclude<keyof DesktopPreferences, 'trayEnabled'>
 
 export interface DesktopNotificationPayload {
   title: string
@@ -251,6 +249,12 @@ export interface SimDesktopSettingsApi {
     value: DesktopPreferences[K]
   ): Promise<DesktopPreferences>
   notify(payload: DesktopNotificationPayload): Promise<boolean>
+  /**
+   * Shows or hides the Sim menu-bar status item. Optional: only shells that
+   * support the tray preference expose it — feature-detect before rendering
+   * a toggle.
+   */
+  setTrayEnabled?(enabled: boolean): Promise<DesktopPreferences>
 }
 
 /**
@@ -337,5 +341,4 @@ export interface SimDesktopApi {
   settings?: SimDesktopSettingsApi
   updates?: SimDesktopUpdatesApi
   browserAgent?: SimDesktopBrowserAgentApi
-  launcher?: SimDesktopLauncherApi
 }

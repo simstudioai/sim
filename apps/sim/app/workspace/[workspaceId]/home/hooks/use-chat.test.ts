@@ -10,10 +10,15 @@ import {
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import {
   getReplayCompletedWorkflowToolCallIds,
+  hasExecutingBrowserToolCall,
   reconcileLiveAssistantTurn,
   selectReconnectReplayState,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
-import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
+import type {
+  ChatMessage,
+  ContentBlock,
+  ToolCallStatus,
+} from '@/app/workspace/[workspaceId]/home/types'
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/workspace/workspace-1/home',
@@ -212,5 +217,35 @@ describe('getReplayCompletedWorkflowToolCallIds', () => {
     ])
 
     expect(result).toEqual(new Set(['workflow-complete']))
+  })
+})
+
+describe('hasExecutingBrowserToolCall', () => {
+  function toolCallMessage(id: string, name: string, status: ToolCallStatus): ChatMessage {
+    return {
+      id,
+      role: 'assistant',
+      content: '',
+      contentBlocks: [{ type: 'tool_call', toolCall: { id: `${id}-tool`, name, status } }],
+    }
+  }
+
+  it('detects a browser tool call that is still executing', () => {
+    const messages = [
+      toolCallMessage('m1', 'browser_click', 'success'),
+      toolCallMessage('m2', 'browser_navigate', 'executing'),
+    ]
+
+    expect(hasExecutingBrowserToolCall(messages)).toBe(true)
+  })
+
+  it('ignores completed browser tool calls and executing non-browser tools', () => {
+    const messages = [
+      toolCallMessage('m1', 'browser_click', 'success'),
+      toolCallMessage('m2', 'run_workflow', 'executing'),
+      { id: 'm3', role: 'assistant' as const, content: 'no blocks' },
+    ]
+
+    expect(hasExecutingBrowserToolCall(messages)).toBe(false)
   })
 })

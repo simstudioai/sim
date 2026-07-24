@@ -6,7 +6,12 @@ import type {
 } from '@sim/desktop-bridge'
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import { ipcMain } from 'electron'
-import { executeTool, getTabsState, handlePanelAction } from '@/main/browser-agent/driver'
+import {
+  executeTool,
+  getKnownSessions,
+  getTabsState,
+  handlePanelAction,
+} from '@/main/browser-agent/driver'
 import {
   setBrowserTheme,
   setPanelBounds,
@@ -21,30 +26,6 @@ import { openExternalSafe } from '@/main/navigation'
 
 /** Workspace/chat ids are opaque tokens; anything else never reaches a URL. */
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
-
-export interface LauncherOpenChatTarget {
-  workspaceId: string
-  chatId?: string
-}
-
-/**
- * Validates the launcher's open-chat payload. Both ids are embedded into a
- * loadURL path, so they are allowlisted to opaque-token characters — no
- * slashes, dots, or percent escapes.
- */
-export function parseLauncherOpenChatTarget(raw: unknown): LauncherOpenChatTarget | null {
-  if (typeof raw !== 'object' || raw === null) {
-    return null
-  }
-  const { workspaceId, chatId } = raw as { workspaceId?: unknown; chatId?: unknown }
-  if (typeof workspaceId !== 'string' || !ID_PATTERN.test(workspaceId)) {
-    return null
-  }
-  if (chatId !== undefined && (typeof chatId !== 'string' || !ID_PATTERN.test(chatId))) {
-    return null
-  }
-  return { workspaceId, ...(chatId !== undefined ? { chatId } : {}) }
-}
 
 export interface OAuthConnectScope {
   workspaceId?: string
@@ -143,17 +124,11 @@ export interface IpcDeps {
     check: () => void
     install: () => void
   }
-  launcher: {
-    openChat: (target: LauncherOpenChatTarget) => void
-    openApp: () => void
-    hide: () => void
-    resize: (height: number) => void
-  }
 }
 
 /**
  * Who may call a channel:
- * - `app-origin`: only the remote app origin (main window / launcher pages).
+ * - `app-origin`: only the remote app origin (main window pages).
  * - `local-page`: only bundled `file:` pages (offline) — shell control.
  * - `any`: sender-independent channels that validate their input instead.
  */
@@ -377,6 +352,12 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       denied: { tabs: [], activeTabId: null },
       handler: () => getTabsState(),
     },
+    'browser-agent:get-known-sessions': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: { sessions: [] },
+      handler: () => getKnownSessions(),
+    },
     'browser-agent:panel-action': {
       kind: 'send',
       gate: 'app-origin',
@@ -429,31 +410,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       },
     },
     'offline:retry': { kind: 'send', gate: 'local-page', handler: () => deps.retryLoad() },
-    'launcher:open-chat': {
-      kind: 'send',
-      gate: 'app-origin',
-      handler: (raw) => {
-        const target = parseLauncherOpenChatTarget(raw)
-        if (target) {
-          deps.launcher.openChat(target)
-        }
-      },
-    },
-    'launcher:open-app': {
-      kind: 'send',
-      gate: 'app-origin',
-      handler: () => deps.launcher.openApp(),
-    },
-    'launcher:close': { kind: 'send', gate: 'app-origin', handler: () => deps.launcher.hide() },
-    'launcher:resize': {
-      kind: 'send',
-      gate: 'app-origin',
-      handler: (height) => {
-        if (typeof height === 'number' && Number.isFinite(height)) {
-          deps.launcher.resize(height)
-        }
-      },
-    },
   }
 
   const senderAllowed = (event: IpcMainEvent | IpcMainInvokeEvent, gate: ChannelGate): boolean => {

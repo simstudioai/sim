@@ -66,7 +66,11 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import { Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
-import { sseHandlers, subAgentHandlers } from '@/lib/copilot/request/handlers'
+import {
+  prePersistClientExecutableToolCall,
+  sseHandlers,
+  subAgentHandlers,
+} from '@/lib/copilot/request/handlers'
 import type { ExecutionContext, StreamEvent, StreamingContext } from '@/lib/copilot/request/types'
 
 describe('sse-handlers tool lifecycle', () => {
@@ -105,6 +109,62 @@ describe('sse-handlers tool lifecycle', () => {
       userId: 'user-1',
       workflowId: 'workflow-1',
     }
+  })
+
+  it('pre-persists browser tools as pending for the desktop authorization claim', async () => {
+    isSimExecuted.mockReturnValue(false)
+    context.runId = 'run-1'
+
+    await prePersistClientExecutableToolCall(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'browser-tool-1',
+          toolName: 'browser_list_tabs',
+          arguments: {},
+          executor: MothershipStreamV1ToolExecutor.client,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context
+    )
+
+    expect(upsertAsyncToolCall).toHaveBeenCalledWith({
+      runId: 'run-1',
+      toolCallId: 'browser-tool-1',
+      toolName: 'browser_list_tabs',
+      args: {},
+      status: MothershipStreamV1AsyncToolRecordStatus.pending,
+    })
+  })
+
+  it('keeps non-browser client tools in the established running state', async () => {
+    isSimExecuted.mockReturnValue(false)
+    context.runId = 'run-1'
+
+    await prePersistClientExecutableToolCall(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'client-tool-1',
+          toolName: 'run_workflow',
+          arguments: { workflowId: 'workflow-1' },
+          executor: MothershipStreamV1ToolExecutor.client,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context
+    )
+
+    expect(upsertAsyncToolCall).toHaveBeenCalledWith({
+      runId: 'run-1',
+      toolCallId: 'client-tool-1',
+      toolName: 'run_workflow',
+      args: { workflowId: 'workflow-1' },
+      status: MothershipStreamV1AsyncToolRecordStatus.running,
+    })
   })
 
   it('keeps only the latest post-tool assistant text for headless final content', async () => {

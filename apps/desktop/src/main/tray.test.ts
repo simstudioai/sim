@@ -139,7 +139,7 @@ describe('buildTrayMenuTemplate', () => {
     ])
     const labels = template.map((item) => item.label ?? item.role ?? item.type)
     expect(labels).toEqual([
-      'Recent',
+      'Recent Chats',
       'Fix the sync',
       'separator',
       'New Chat',
@@ -201,7 +201,7 @@ describe('buildTrayMenuTemplate', () => {
     expect(fits.some((item) => item.label === 'More')).toBe(false)
 
     const empty = buildTrayMenuTemplate(makeDeps(), [])
-    expect(empty.some((item) => item.label === 'Recent')).toBe(false)
+    expect(empty.some((item) => item.label === 'Recent Chats')).toBe(false)
     expect(empty.map((item) => item.label ?? item.role ?? item.type)).toEqual([
       'New Chat',
       'Open Sim',

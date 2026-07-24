@@ -1,3 +1,4 @@
+import { isBrowserToolName } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/copilot/async-runs/lifecycle'
@@ -178,7 +179,12 @@ export async function prePersistClientExecutableToolCall(
     toolCallId: data.toolCallId,
     toolName: data.toolName,
     args: data.arguments,
-    status: MothershipStreamV1AsyncToolRecordStatus.running,
+    // Browser actions cross a second, native authorization boundary. Leave
+    // those rows pending until Electron atomically claims them; all other
+    // client tools retain the established "already dispatched" running state.
+    status: isBrowserToolName(data.toolName)
+      ? MothershipStreamV1AsyncToolRecordStatus.pending
+      : MothershipStreamV1AsyncToolRecordStatus.running,
   }).catch((err) => {
     logger.warn('Failed to pre-persist async tool row before forwarding call frame', {
       toolCallId: data.toolCallId,

@@ -10,7 +10,8 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { BrowserWindow, Input, Session, WebContents } from 'electron'
-import { nativeTheme, WebContentsView } from 'electron'
+import { session as electronSession, nativeTheme, WebContentsView } from 'electron'
+import type { BrowserCookieSignal } from '@/main/browser-agent/known-sessions'
 import { registerAgentWebContents } from '@/main/browser-agent/registry'
 import { checkAgentUrl, isBlockedRequestUrl } from '@/main/browser-agent/url-guard'
 
@@ -119,6 +120,12 @@ export function initSession(
 ): void {
   events = handlers
   getMainWindow = mainWindowProvider
+}
+
+/** Read cookie metadata from the dedicated profile without exposing values. */
+export async function listAgentCookieSignals(): Promise<BrowserCookieSignal[]> {
+  const cookies = await electronSession.fromPartition(AGENT_PARTITION).cookies.get({})
+  return cookies.flatMap(({ domain }) => (typeof domain === 'string' ? [{ domain }] : []))
 }
 
 /**
@@ -325,6 +332,34 @@ nativeTheme.on('updated', () => {
 let attachedView: WebContentsView | null = null
 let lastAppliedBounds = ''
 let lastAppliedVisibility: boolean | null = null
+/**
+ * The panel's edge offsets from the window content box (DIP), captured at the
+ * last renderer-reported layout. Used to reposition the view synchronously on
+ * window `resize` — the renderer's report round-trips layout → rAF → IPC and
+ * trails a live drag by several frames, which reads as the browser "swimming"
+ * inside the window. The prediction assumes the panel keeps its left/top
+ * offsets and stretches with the right/bottom window edges; the next renderer
+ * report is authoritative and corrects any drift (e.g. proportional layouts).
+ */
+let panelAnchor: { x: number; y: number; right: number; bottom: number } | null = null
+
+function predictPanelBoundsForResize(): void {
+  const win = hostedWindow
+  const view = attachedView
+  if (!win || !view || win.isDestroyed() || panelAnchor === null) return
+  const [contentWidth, contentHeight] = win.getContentSize()
+  const bounds = {
+    x: panelAnchor.x,
+    y: panelAnchor.y,
+    width: Math.max(1, contentWidth - panelAnchor.x - panelAnchor.right),
+    height: Math.max(1, contentHeight - panelAnchor.y - panelAnchor.bottom),
+  }
+  const boundsKey = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
+  if (boundsKey !== lastAppliedBounds) {
+    lastAppliedBounds = boundsKey
+    view.setBounds(bounds)
+  }
+}
 
 /**
  * Clears the tracked attachment before touching Electron objects so a stale
@@ -337,9 +372,13 @@ function detachAttachedView(): void {
   hostedWindow = null
   lastAppliedBounds = ''
   lastAppliedVisibility = null
+  panelAnchor = null
   const detachedTab = tabs.find((tab) => tab.view === view)
   clearFocusedBrowserTab(detachedTab?.id)
 
+  if (win) {
+    win.removeListener('resize', predictPanelBoundsForResize)
+  }
   if (!view || !win) return
   try {
     if (win.isDestroyed() || view.webContents.isDestroyed()) return
@@ -400,6 +439,9 @@ function layout(): void {
 
   if (attachedView !== active.view) {
     win.contentView.addChildView(active.view)
+    if (hostedWindow !== win) {
+      win.on('resize', predictPanelBoundsForResize)
+    }
     hostedWindow = win
     attachedView = active.view
     if (panelOccluded && activeViewChanged) {
@@ -412,6 +454,13 @@ function layout(): void {
     y: Math.round(panelBounds.y * zoom),
     width: Math.max(1, Math.round(panelBounds.width * zoom)),
     height: Math.max(1, Math.round(panelBounds.height * zoom)),
+  }
+  const [contentWidth, contentHeight] = win.getContentSize()
+  panelAnchor = {
+    x: bounds.x,
+    y: bounds.y,
+    right: contentWidth - bounds.x - bounds.width,
+    bottom: contentHeight - bounds.y - bounds.height,
   }
   const boundsKey = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
   if (boundsKey !== lastAppliedBounds) {

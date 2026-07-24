@@ -13,10 +13,12 @@ import {
   Tooltip,
   toast,
 } from '@sim/emcn'
+import { Cursor } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { ThinkingLoader } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
+import { isBrowserAgentAvailable, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { getDesktopBridge } from '@/lib/desktop'
@@ -71,6 +73,7 @@ export const CREDENTIAL_TAG_TYPES = [
   'link',
   'secret_input',
   'folder_access',
+  'browser_takeover',
 ] as const
 
 export type CredentialTagType = (typeof CREDENTIAL_TAG_TYPES)[number]
@@ -84,8 +87,9 @@ export interface CredentialTagData {
   type: CredentialTagType
   provider?: string
   /**
-   * Env-var key name to save the pasted secret under (secret_input only),
-   * e.g. "OPENAI_API_KEY".
+   * Env-var key name to save the pasted secret under (secret_input), e.g.
+   * "OPENAI_API_KEY"; the folder hint for folder_access; the takeover reason
+   * for browser_takeover.
    */
   name?: string
   /** Where a secret_input value is persisted. Defaults to "workspace". */
@@ -227,9 +231,9 @@ function isCredentialTagData(value: unknown): value is CredentialTagData {
     }
     return typeof value.name === 'string' && value.name.trim().length > 0
   }
-  // folder_access is a value-less action chip (optional `name` hints at the
-  // folder the user is being asked to grant, e.g. "Desktop").
-  if (value.type === 'folder_access') {
+  // folder_access and browser_takeover are value-less action chips (optional
+  // `name` carries the folder hint / takeover reason).
+  if (value.type === 'folder_access' || value.type === 'browser_takeover') {
     return value.name === undefined || typeof value.name === 'string'
   }
   // A sim_key chip is platform-filled: the model only marks where the workspace
@@ -946,6 +950,44 @@ function FolderAccessDisplay({ data }: { data: CredentialTagData }) {
   )
 }
 
+/**
+ * Inline hand-back chip rendered while `browser_request_takeover` waits on
+ * the user (`{"type":"browser_takeover","name":"Please sign in to LinkedIn"}`).
+ * Same chip as the other credential actions; clicking hands control of the
+ * agent browser back to Sim. Renders nothing outside the desktop app — there
+ * is no agent browser to hand back.
+ */
+function BrowserTakeoverDisplay({ data }: { data: CredentialTagData }) {
+  const [handedBack, setHandedBack] = useState(false)
+
+  if (!isBrowserAgentAvailable()) return null
+
+  const reason = (data.name ?? '').trim()
+  const label = handedBack
+    ? 'Handed control back to Sim'
+    : reason || 'Take over in the browser, then hand control back'
+
+  return (
+    <button
+      type='button'
+      onClick={() => {
+        if (handedBack) return
+        setHandedBack(true)
+        sendBrowserPanelAction('takeover-done')
+      }}
+      disabled={handedBack}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors',
+        !handedBack && 'hover-hover:bg-[var(--surface-5)]'
+      )}
+    >
+      <Cursor className='size-[16px] shrink-0' />
+      <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
+      {!handedBack && <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
+    </button>
+  )
+}
+
 function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
   const { canEdit } = useUserPermissionsContext()
 
@@ -1012,13 +1054,17 @@ function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
   )
 }
 
-function CredentialDisplay({ data }: { data: CredentialTagData }) {
+export function CredentialDisplay({ data }: { data: CredentialTagData }) {
   if (data.type === 'secret_input') {
     return <SecretInputDisplay data={data} />
   }
 
   if (data.type === 'folder_access') {
     return <FolderAccessDisplay data={data} />
+  }
+
+  if (data.type === 'browser_takeover') {
+    return <BrowserTakeoverDisplay data={data} />
   }
 
   if (data.type === 'link') {

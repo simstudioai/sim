@@ -35,8 +35,9 @@ export function feedUrlForOrigin(origin: string): string | null {
 /**
  * Maps the running version to its update channel: prerelease builds follow
  * their prerelease channel, stable builds only ever see stable releases.
- * Only used on the GitHub fallback feed — the origin feed is already
- * channel-resolved server-side.
+ * Channels are strictly isolated — alpha/beta builds carry their own app
+ * identity (Sim Dev / Sim Staging) and update only via their origin feed;
+ * the packaged GitHub fallback feed is stable-only.
  */
 export function resolveUpdateChannel(version: string): UpdateChannel {
   if (version.includes('-alpha')) {
@@ -348,6 +349,12 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
      * back to the packaged GitHub feed when the origin doesn't serve one (an
      * older or partial deployment). The origin feed is channel-resolved
      * server-side, so the client always requests plain `latest-mac.yml`.
+     *
+     * The fallback is stable-only: prerelease (dev/staging) builds exist
+     * solely on their origin feed, and the GitHub feed could only offer them
+     * a stable prod-identity artifact their Squirrel identity can't apply —
+     * so when the origin feed is down, a prerelease shell skips checking
+     * rather than erroring on every cycle. Resolves to whether checks may run.
      */
     const probeOriginFeed =
       deps.probeOriginFeed ??
@@ -355,10 +362,11 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         const response = await net.fetch(`${feedUrl}/latest-mac.yml`)
         return response.ok
       })
-    const feedConfigured = (async () => {
+    const feedConfigured: Promise<boolean> = (async () => {
       const feedUrl = feedUrlForOrigin(deps.appOrigin())
+      const stableBuild = resolveUpdateChannel(currentVersion) === 'latest'
       if (!feedUrl) {
-        return
+        return stableBuild
       }
       try {
         if (!(await probeOriginFeed(feedUrl))) {
@@ -367,21 +375,28 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl, channel: 'latest' })
         autoUpdater.channel = 'latest'
         deps.events.record('update_feed', { url: feedUrl })
+        return true
       } catch (error) {
-        logger.warn('Origin update feed unavailable; using default GitHub feed', {
-          feedUrl,
-          message: getErrorMessage(error, 'unknown'),
-        })
+        logger.warn(
+          stableBuild
+            ? 'Origin update feed unavailable; using default GitHub feed'
+            : 'Origin update feed unavailable; prerelease build skips update checks',
+          { feedUrl, message: getErrorMessage(error, 'unknown') }
+        )
+        return stableBuild
       }
     })()
 
     return {
       check() {
-        void feedConfigured.then(() =>
+        void feedConfigured.then((mayCheck) => {
+          if (!mayCheck) {
+            return
+          }
           autoUpdater.checkForUpdates().catch((error) => {
             logger.warn('Update check failed', { message: getErrorMessage(error, 'unknown') })
           })
-        )
+        })
       },
       advance() {
         autoUpdater.downloadUpdate().catch((error) => {

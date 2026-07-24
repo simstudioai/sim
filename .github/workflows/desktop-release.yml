@@ -179,13 +179,24 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
         run: |
-          # *-mac.yml, not latest-mac.yml: a prerelease build emits
-          # beta-mac.yml / alpha-mac.yml, so the hardcoded name would miss it.
+          # electron-builder's GitHub provider always names the manifest
+          # latest-mac.yml (channels are a generic-provider concept), and the
+          # update feed expects exactly that asset name on every release —
+          # normalize defensively in case a config change ever produces a
+          # channel-named manifest.
+          YML="$(find apps/desktop/release -maxdepth 1 -name '*-mac.yml' | head -1)"
+          if [ -z "$YML" ]; then
+            echo "::error::No *-mac.yml updater manifest found in apps/desktop/release"
+            exit 1
+          fi
+          if [ "$(basename "$YML")" != "latest-mac.yml" ]; then
+            mv "$YML" apps/desktop/release/latest-mac.yml
+          fi
           gh release upload "$VERSION" \
             apps/desktop/release/*.dmg \
             apps/desktop/release/*.zip \
             apps/desktop/release/*.blockmap \
-            apps/desktop/release/*-mac.yml \
+            apps/desktop/release/latest-mac.yml \
             --clobber
 
       - name: Upload artifacts to the workflow run

@@ -86,6 +86,8 @@ Local unsigned build: `bun run package:dir` (app in `release/mac-universal/`). S
 
 Pre-release share (no Developer ID yet): `SIM_DESKTOP_DEFAULT_ORIGIN=https://www.dev.sim.ai bun run package:share` builds a DMG whose fresh installs default to that origin (baked at build time; official builds leave it unset → prod) and skips per-file signature timestamps. Recipients must clear quarantine once: `xattr -cr /Applications/Sim.app`.
 
+The build also derives the app icon from `SIM_DESKTOP_DEFAULT_ORIGIN`: production uses the white `sim` mark, dev uses the blue `sim dev` mark, staging uses the amber `sim staging` mark, and localhost uses the purple `sim local` mark. Vector masters and packaged `.icns` files live in `build/`; `scripts/build.ts` copies the selected variant to the ignored `build/generated-icon.icns` path consumed by electron-builder. Matching 512px PNGs in `static/` provide the Dock icon for unpackaged runs.
+
 CI (`.github/workflows/desktop-release.yml`, wired into `ci.yml`):
 - Runs only after `create-release` on a `vX.Y.Z:` commit to main — **never before**: `scripts/create-single-release.ts` skips creation if the tag exists, so a desktop job publishing first would eat the changelog. The job builds `--publish never` and uploads assets with `gh release upload --clobber` (idempotent re-runs).
 - **Secrets gate**: `check-desktop-signing` in `ci.yml` probes the six Apple secrets and skips the desktop job with a warning until they exist — releases never fail on a missing Apple account, and the first release after the secrets land ships desktop artifacts automatically. Manual/one-off builds: Actions → "Desktop Release (macOS)" → Run workflow with a `vX.Y.Z` version (`publish: false` uploads artifacts to the run instead of the release).
@@ -167,9 +169,8 @@ Raw local file bytes are never exposed through the preload bridge and cannot be 
 
 ## Known caveats
 
-- Voice STT requires the microphone TCC prompt (wired; `NSMicrophoneUsageDescription` + `device.audio-input` entitlement). Camera stays denied by design.
+- Microphone and camera are denied by design (the permission matrix grants only sanitized clipboard writes to the app origin).
 - Default Electron ships H.264/AAC/MP3 — do not swap in the codec-free ffmpeg build.
-- Web Speech **recognition** (`SpeechRecognition`) does not exist in Electron; Sim does not use it (voice goes through `getUserMedia` + server STT).
 - Third-party web analytics (GTM/GA) are blocked at the network layer by default (`blockThirdPartyAnalytics`); first-party PostHog `/ingest` is untouched.
 - `Cmd+F` find-in-page overlay is not implemented (Monaco and tables ship their own finds); revisit if users ask.
 - Sign-in uses only the `127.0.0.1` loopback callback, which needs no OS registration — so it completes identically under `bun run dev` (unpackaged) and in a packaged build. There is no custom URL scheme.

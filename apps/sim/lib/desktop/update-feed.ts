@@ -13,11 +13,13 @@
  * Artifacts stay on GitHub Releases (dumb storage); the feed route picks the
  * right release for its channel and serves that release's electron-updater
  * manifest with download URLs rewritten to absolute GitHub asset URLs.
- * A channel sees its own prereleases plus stable releases — never another
- * channel's prereleases (dev and staging both cut prereleases of the same
- * next core version, and semver would rank `beta` above `alpha` there). A
- * stable release published after a prerelease still moves every environment
- * forward.
+ *
+ * Channels are strictly isolated: alpha serves only `-alpha.` prereleases,
+ * beta only `-beta.` prereleases, and `latest` only stable releases. Builds
+ * carry per-channel app identity (Sim Dev / Sim Staging / Sim), so serving a
+ * stable prod-identity artifact to a dev shell would offer an update
+ * Squirrel.Mac cannot apply (bundle-id mismatch) — each channel only ever
+ * moves forward on its own artifacts.
  */
 import { compareVersions } from '@/lib/desktop/min-version'
 
@@ -44,18 +46,28 @@ export function channelOfVersion(version: string): DesktopUpdateChannel {
   return 'latest'
 }
 
+/**
+ * The manifest asset every desktop build uploads. electron-builder's GitHub
+ * provider always names it `latest-mac.yml` regardless of the version's
+ * prerelease tag (channels are a generic-provider concept); which channel a
+ * release belongs to is carried entirely by its tag.
+ */
+export const MANIFEST_ASSET_NAME = 'latest-mac.yml'
+
 /** The subset of the GitHub releases API the feed needs. */
 export interface DesktopReleaseCandidate {
   tag_name: string
   draft: boolean
   prerelease: boolean
+  assets?: Array<{ name: string; browser_download_url: string }>
 }
 
 /**
- * Picks the newest release a channel may see: stable releases plus the
- * channel's own prereleases. Ordering is semver, so a stable release
- * supersedes earlier prereleases of the same core version. Returns null when
- * nothing qualifies.
+ * Picks the newest release of the channel's own kind. Channels never see
+ * another channel's artifacts (see module docs). Releases without their
+ * updater manifest asset are skipped — a release created before its build
+ * finished (or whose build failed) must not take the channel down. Returns
+ * null when nothing qualifies.
  */
 export function selectReleaseForChannel(
   releases: DesktopReleaseCandidate[],
@@ -66,8 +78,13 @@ export function selectReleaseForChannel(
   for (const release of releases) {
     if (release.draft) continue
     const version = release.tag_name.replace(/^v/, '')
-    const releaseChannel = channelOfVersion(version)
-    if (releaseChannel !== 'latest' && releaseChannel !== channel) continue
+    if (channelOfVersion(version) !== channel) continue
+    // Defense in depth: a bare vX.Y.Z tag manually marked "pre-release" on
+    // GitHub must not reach stable clients.
+    if (channel === 'latest' && release.prerelease) continue
+    if (release.assets && !release.assets.some((asset) => asset.name === MANIFEST_ASSET_NAME)) {
+      continue
+    }
     if (best === null) {
       const valid = compareVersions(version, '0.0.0')
       if (valid === null) continue
@@ -82,12 +99,6 @@ export function selectReleaseForChannel(
     }
   }
   return best
-}
-
-/** The electron-updater manifest asset name a release's build produced. */
-export function manifestAssetName(version: string): string {
-  const channel = channelOfVersion(version)
-  return channel === 'latest' ? 'latest-mac.yml' : `${channel}-mac.yml`
 }
 
 /**

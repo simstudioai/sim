@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect x="100" y="100" width="824" height="824" rx="176" fill="#A78BFA"/>
+  <text
+    x="512"
+    y="505"
+    fill="#000000"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="320"
+    font-weight="400"
+    text-anchor="middle"
+  >sim</text>
+  <text
+    x="512"
+    y="705"
+    fill="#000000"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="140"
+    font-weight="700"
+    text-anchor="middle"
+  >local</text>
+</svg>

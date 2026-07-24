@@ -9,7 +9,7 @@ describe('desktop title bar', () => {
     expect(supportsDesktopTitleBar('/login', 'Macintosh', true)).toBe(true)
     expect(supportsDesktopTitleBar('/workspace/ws/home', 'Macintosh', true)).toBe(false)
     expect(supportsDesktopTitleBar('/signup', 'Macintosh', true)).toBe(false)
-    expect(supportsDesktopTitleBar('/desktop/launcher', 'Macintosh', true)).toBe(false)
+    expect(supportsDesktopTitleBar('/desktop/connect', 'Macintosh', true)).toBe(false)
     expect(supportsDesktopTitleBar('/login', 'Windows NT 10.0', true)).toBe(false)
     expect(supportsDesktopTitleBar('/login', 'Macintosh', false)).toBe(false)
   })

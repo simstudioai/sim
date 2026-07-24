@@ -16,30 +16,15 @@ import {
 const APP = 'https://sim.ai'
 
 describe('resolvePermission', () => {
-  it('allows audio capture from the trusted origin only', () => {
-    expect(resolvePermission('media', APP, APP, ['audio'])).toBe(true)
-    expect(resolvePermission('media', 'https://evil.example', APP, ['audio'])).toBe(false)
-    expect(resolvePermission('media', '', APP, ['audio'])).toBe(false)
-  })
-
-  it('denies any video capture', () => {
-    expect(resolvePermission('media', APP, APP, ['video'])).toBe(false)
-    expect(resolvePermission('media', APP, APP, ['audio', 'video'])).toBe(false)
-  })
-
-  it('default-denies media when the request carries no explicit audio type', () => {
-    expect(resolvePermission('media', APP, APP)).toBe(false)
-    expect(resolvePermission('media', APP, APP, [])).toBe(false)
-    expect(resolvePermission('media', APP, APP, ['unknown'])).toBe(false)
-  })
-
   it('allows sanitized clipboard writes from the trusted origin', () => {
     expect(resolvePermission('clipboard-sanitized-write', APP, APP)).toBe(true)
     expect(resolvePermission('clipboard-sanitized-write', 'https://evil.example', APP)).toBe(false)
+    expect(resolvePermission('clipboard-sanitized-write', '', APP)).toBe(false)
   })
 
-  it('default-denies everything else, including unknown future permissions', () => {
+  it('default-denies everything else, including media and unknown future permissions', () => {
     for (const permission of [
+      'media',
       'geolocation',
       'notifications',
       'camera',

@@ -10,7 +10,6 @@ The rendering-parity guarantee (identical to Chrome of the pinned version) is on
    - Google sign-in via the system-browser handoff (127.0.0.1 loopback callback → token redeem).
    - GitHub sign-in in-window; one integration connect (e.g. Notion) in-window; one Google-family connect via the browser dialog.
    - MCP OAuth popup completes and posts back to the opener.
-   - Voice input records (mic TCC prompt on a clean profile).
    - Workflow canvas (WebGL/ReactFlow), Monaco editing, a table export download.
    - Offline page appears with networking off; Retry recovers.
 6. **E2E:** `bun run test:e2e` green locally on the new pin; `desktop-e2e.yml` green in CI (the `latest` canary leg should already have hinted at surprises).

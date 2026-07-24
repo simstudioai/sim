@@ -35,7 +35,7 @@ function pageProps(params: Record<string, string>) {
 describe('DesktopAuthPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1', email: 'user@example.com' } })
     mockGenerateOneTimeToken.mockResolvedValue({ token: 'tok123456' })
   })
 
@@ -65,25 +65,29 @@ describe('DesktopAuthPage', () => {
     expect(mockGenerateOneTimeToken).not.toHaveBeenCalled()
   })
 
-  it('mints a token and redirects straight to the 127.0.0.1 loopback callback', async () => {
-    await expect(DesktopAuthPage(pageProps({ state: VALID_STATE, port: '54321' }))).rejects.toThrow(
-      `NEXT_REDIRECT:http://127.0.0.1:54321/auth/callback?token=tok123456&state=${VALID_STATE}`
-    )
+  it('renders the confirm screen for a signed-in browser WITHOUT minting a token', async () => {
+    // The gesture gate is the security boundary: state and port are
+    // attacker-choosable in a crafted link, so a bare GET must never mint a
+    // token — only the client-side Continue click may.
+    const result = (await DesktopAuthPage(
+      pageProps({ state: VALID_STATE, port: '54321' })
+    )) as unknown as {
+      type: { name: string }
+      props: Record<string, unknown>
+    }
+    expect(result.type.name).toBe('AuthorizeHandoff')
+    expect(result.props).toEqual({
+      state: VALID_STATE,
+      port: 54321,
+      email: 'user@example.com',
+    })
+    expect(mockGenerateOneTimeToken).not.toHaveBeenCalled()
   })
 
-  it('reads the session fresh (bypassing the cookie cache) so it never mints against a dead session', async () => {
-    await expect(DesktopAuthPage(pageProps({ state: VALID_STATE, port: '54321' }))).rejects.toThrow(
-      'NEXT_REDIRECT:'
-    )
+  it('reads the session fresh (bypassing the cookie cache) so it never confirms a dead session', async () => {
+    await DesktopAuthPage(pageProps({ state: VALID_STATE, port: '54321' }))
     expect(mockGetSession).toHaveBeenCalledWith(
       expect.objectContaining({ query: { disableCookieCache: true } })
-    )
-  })
-
-  it('redirects to login when minting fails', async () => {
-    mockGenerateOneTimeToken.mockRejectedValue(new Error('UNAUTHORIZED'))
-    await expect(DesktopAuthPage(pageProps({ state: VALID_STATE, port: '54321' }))).rejects.toThrow(
-      'NEXT_REDIRECT:/login'
     )
   })
 })

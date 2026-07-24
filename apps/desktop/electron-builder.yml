@@ -33,13 +33,11 @@ mac:
       arch: [universal]
     - target: zip
       arch: [universal]
-  icon: build/icon.icns
+  icon: build/generated-icon.icns
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
-  extendInfo:
-    NSMicrophoneUsageDescription: Sim uses your microphone for voice input to agents.
   notarize: true
 
 dmg:

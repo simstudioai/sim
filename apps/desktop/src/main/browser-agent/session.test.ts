@@ -310,6 +310,40 @@ describe('browser-agent session', () => {
     expect(removeChildView).toHaveBeenCalledWith(tab.view)
   })
 
+  it('repositions the view synchronously on window resize via edge anchoring', () => {
+    const tab = session.ensureTab()
+    const view = tab.view as unknown as MockView
+    const mock = win as unknown as {
+      on: ReturnType<typeof vi.fn>
+      removeListener: ReturnType<typeof vi.fn>
+      getContentSize: ReturnType<typeof vi.fn>
+    }
+
+    // Renderer report at content size 1180x850 → anchor right=280, bottom=200.
+    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const resizeListener = mock.on.mock.calls.find(([event]) => event === 'resize')?.[1] as
+      | (() => void)
+      | undefined
+    expect(resizeListener).toBeDefined()
+
+    // Window grows before the renderer re-reports: the prediction stretches
+    // the view with the right/bottom edges immediately.
+    view.setBounds.mockClear()
+    mock.getContentSize.mockReturnValue([1380, 950])
+    resizeListener?.()
+    expect(view.setBounds).toHaveBeenCalledWith({ x: 100, y: 50, width: 1000, height: 700 })
+
+    // The renderer's authoritative report then lands without a redundant set
+    // when it matches the prediction.
+    view.setBounds.mockClear()
+    session.setPanelBounds({ x: 100, y: 50, width: 1000, height: 700 })
+    expect(view.setBounds).not.toHaveBeenCalled()
+
+    // Hiding the panel removes the resize listener.
+    session.setPanelBounds(null)
+    expect(mock.removeListener).toHaveBeenCalledWith('resize', resizeListener)
+  })
+
   it('creates one real default tab when the browser panel becomes visible', () => {
     expect(session.listTabs()).toHaveLength(0)
 

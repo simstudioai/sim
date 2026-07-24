@@ -67,7 +67,10 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
           return {
             tabs,
             activeTabId,
-            ...(tabs.length > 0 ? { sessionAlive: true } : {}),
+            // A tabs-capable shell reporting an empty list is authoritative:
+            // there is no page to snapshot or act on. Older single-tab shells
+            // never call this setter, so their compatibility default remains.
+            sessionAlive: tabs.length > 0,
             ...(!activeTab
               ? { pageState: null }
               : hasCurrentPageState

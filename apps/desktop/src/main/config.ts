@@ -67,6 +67,12 @@ export interface WindowBounds {
   height: number
 }
 
+export interface BrowserKnownSiteSetting {
+  hostname: string
+  lastVisitedAt: string
+  signInCompletedAt?: string
+}
+
 export interface DesktopSettings {
   origin: string
   windowBounds?: WindowBounds
@@ -74,14 +80,18 @@ export interface DesktopSettings {
   lastRoute?: string
   themeBackground?: 'dark' | 'light'
   blockThirdPartyAnalytics?: boolean
-  /** Quick Ask launcher accelerator — one of the presets in shortcuts.ts, or 'disabled'. */
-  launcherShortcut?: string
   trayEnabled?: boolean
   notificationsEnabled?: boolean
   notificationSounds?: boolean
   notificationsOnlyWhenUnfocused?: boolean
   launchAtLogin?: boolean
   autoDownloadUpdates?: boolean
+  /**
+   * Top-level sites visited in the dedicated agent-browser profile. This is
+   * local inference metadata only; no cookies, credentials, or account data
+   * are persisted here.
+   */
+  browserKnownSites?: BrowserKnownSiteSetting[]
 }
 
 export type OriginValidation = { ok: true; origin: string } | { ok: false; error: string }

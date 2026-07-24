@@ -16,6 +16,7 @@
  * waiting out its own timeout against silence.
  */
 import type {
+  BrowserKnownSessionsState,
   BrowserPageState,
   BrowserPanelAction,
   BrowserTabsState,
@@ -28,6 +29,7 @@ import type { BrowserWindow, WebContents } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
 import { ToolError } from '@/main/browser-agent/errors'
 import { dispatchKeyCombo, parseKeyCombo } from '@/main/browser-agent/keyboard'
+import { BrowserKnownSessionRegistry } from '@/main/browser-agent/known-sessions'
 import {
   clickElement,
   collectSnapshot,
@@ -44,6 +46,7 @@ import {
 } from '@/main/browser-agent/page-functions'
 import * as session from '@/main/browser-agent/session'
 import { checkAgentUrl } from '@/main/browser-agent/url-guard'
+import type { ConfigStore } from '@/main/config'
 
 const logger = createLogger('BrowserAgentDriver')
 
@@ -58,7 +61,9 @@ const TAKEOVER_MAX_MS = 12 * 60 * 60 * 1000
  * goes wrong, the Sim side always gets a response. Sits above the longest
  * legitimate tool (browser_wait_for caps at 120s).
  */
-const TOOL_WATCHDOG_MS = 150_000
+const DEFAULT_TOOL_WATCHDOG_MS = 20_000
+const NAVIGATION_TOOL_WATCHDOG_MS = 30_000
+const WAIT_FOR_TOOL_WATCHDOG_GRACE_MS = 5_000
 
 export interface DriverCallbacks {
   onPageState: (state: BrowserPageState) => void
@@ -67,6 +72,7 @@ export interface DriverCallbacks {
 }
 
 let driverCallbacks: DriverCallbacks | null = null
+let knownSessions: BrowserKnownSessionRegistry | null = null
 
 /**
  * Page states auto-handled since the last tool result (dismissed dialogs,
@@ -132,8 +138,12 @@ function instrumentTab(contents: WebContents): void {
         error: getErrorMessage(error),
       })
     })
+  contents.on('did-navigate', () => {
+    knownSessions?.noteTopLevelNavigation(contents.getURL())
+    pushPageState(contents)
+    pushTabsState()
+  })
   for (const event of [
-    'did-navigate',
     'did-navigate-in-page',
     'page-title-updated',
     'did-start-loading',
@@ -149,9 +159,11 @@ function instrumentTab(contents: WebContents): void {
 
 export function initDriver(
   callbacks: DriverCallbacks,
-  getMainWindow: () => BrowserWindow | null
+  getMainWindow: () => BrowserWindow | null,
+  config?: ConfigStore
 ): void {
   driverCallbacks = callbacks
+  knownSessions = config ? new BrowserKnownSessionRegistry(config) : null
   session.initSession(
     {
       onSessionClosed: () => {
@@ -177,6 +189,12 @@ export function initDriver(
   )
 }
 
+export async function getKnownSessions(): Promise<BrowserKnownSessionsState> {
+  if (!knownSessions) return { sessions: [] }
+  const cookieSignals = await session.listAgentCookieSignals()
+  return knownSessions.list(cookieSignals)
+}
+
 function str(params: Record<string, unknown>, key: string): string | undefined {
   const value = params[key]
   return typeof value === 'string' && value.length > 0 ? value : undefined
@@ -190,6 +208,35 @@ function num(params: Record<string, unknown>, key: string): number | undefined {
     if (Number.isFinite(parsed)) return parsed
   }
   return undefined
+}
+
+/**
+ * Native execution must time out before the renderer gives up (30s default,
+ * 45s navigation, requested wait + 15s). Otherwise the abandoned native
+ * promise keeps owning the serialized queue and every later browser action
+ * times out behind it.
+ */
+export function browserToolWatchdogMs(
+  tool: BrowserToolName,
+  params: Record<string, unknown>
+): number | null {
+  if (tool === 'browser_request_takeover') return null
+  if (
+    tool === 'browser_navigate' ||
+    tool === 'browser_go_back' ||
+    tool === 'browser_go_forward' ||
+    tool === 'browser_open_tab'
+  ) {
+    return NAVIGATION_TOOL_WATCHDOG_MS
+  }
+  if (tool === 'browser_wait_for') {
+    const requested = Math.min(
+      num(params, 'timeoutMs') ?? DEFAULT_WAIT_FOR_TIMEOUT_MS,
+      MAX_WAIT_FOR_TIMEOUT_MS
+    )
+    return requested + WAIT_FOR_TOOL_WATCHDOG_GRACE_MS
+  }
+  return DEFAULT_TOOL_WATCHDOG_MS
 }
 
 function requireStr(params: Record<string, unknown>, key: string): string {
@@ -214,6 +261,12 @@ async function execInPage<Args extends unknown[], Result>(
   fn: (...args: Args) => Result,
   args: Args
 ): Promise<Result> {
+  const url = contents.getURL()
+  if (url === '' || url === 'about:blank') {
+    throw new ToolError(
+      'The active tab is blank. Call browser_navigate before using page inspection or interaction tools.'
+    )
+  }
   const expression = `(${String(fn)}).apply(null, ${JSON.stringify(args)})`
   try {
     return (await contents.executeJavaScript(expression, true)) as Result
@@ -299,7 +352,7 @@ async function activeElementState(contents: WebContents): Promise<Record<string,
  * Nothing is injected into the page, so nothing covers page content and the
  * pending state survives navigations.
  */
-async function runTakeover(): Promise<unknown> {
+async function runTakeover(purpose: string | undefined): Promise<unknown> {
   const tab = session.ensureTab()
   const contents = tab.view.webContents
   takeoverActive = true
@@ -315,6 +368,12 @@ async function runTakeover(): Promise<unknown> {
         )
       }
       if (takeoverDone) {
+        if (purpose === 'sign_in') {
+          const activeContents = session.activeTab()?.view.webContents
+          if (activeContents && !activeContents.isDestroyed()) {
+            knownSessions?.noteSignInCompleted(activeContents.getURL())
+          }
+        }
         return { completed: true, elapsedMs: Date.now() - startedAt }
       }
     }
@@ -397,6 +456,10 @@ async function executeToolInner(
 
     case 'browser_list_tabs': {
       return session.getTabsState()
+    }
+
+    case 'browser_list_sessions': {
+      return await getKnownSessions()
     }
 
     case 'browser_wait_for': {
@@ -547,7 +610,7 @@ async function executeToolInner(
       // The reason renders in the chat's tool row, not here — but require it
       // so the model always tells the user why control was handed over.
       requireStr(params, 'reason')
-      return await runTakeover()
+      return await runTakeover(str(params, 'purpose'))
     }
 
     default: {
@@ -587,12 +650,13 @@ export async function executeTool(
     }
     try {
       const execution = executeToolInner(tool, params)
+      const watchdogMs = browserToolWatchdogMs(tool, params)
       const raced =
-        tool === 'browser_request_takeover'
+        watchdogMs === null
           ? execution
           : Promise.race([
               execution,
-              sleep(TOOL_WATCHDOG_MS).then(() => {
+              sleep(watchdogMs).then(() => {
                 throw new ToolError(
                   'The browser did not finish this action in time. Take a browser_snapshot to see the current page state.'
                 )

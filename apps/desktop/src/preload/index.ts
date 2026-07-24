@@ -1,4 +1,5 @@
 import type {
+  BrowserKnownSessionsState,
   BrowserOmniboxFocusMode,
   BrowserPageState,
   BrowserPanelAction,
@@ -81,6 +82,8 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('desktop:settings:set', key, value),
     notify: (payload: DesktopNotificationPayload): Promise<boolean> =>
       ipcRenderer.invoke('desktop:settings:notify', payload),
+    setTrayEnabled: (enabled: boolean): Promise<DesktopPreferences> =>
+      ipcRenderer.invoke('desktop:settings:set', 'trayEnabled', enabled),
   },
   updates: {
     getState: (): Promise<DesktopUpdateState> => ipcRenderer.invoke('desktop:updates:get-state'),
@@ -95,27 +98,6 @@ const api: SimDesktopApi = {
       ipcRenderer.on('desktop:updates:state', listener)
       return () => {
         ipcRenderer.removeListener('desktop:updates:state', listener)
-      }
-    },
-  },
-  launcher: {
-    openChat: (target: { workspaceId: string; chatId?: string }): void => {
-      ipcRenderer.send('launcher:open-chat', target)
-    },
-    openApp: (): void => {
-      ipcRenderer.send('launcher:open-app')
-    },
-    close: (): void => {
-      ipcRenderer.send('launcher:close')
-    },
-    resize: (height: number): void => {
-      ipcRenderer.send('launcher:resize', height)
-    },
-    onShown: (callback: () => void): (() => void) => {
-      const listener = () => callback()
-      ipcRenderer.on('launcher:shown', listener)
-      return () => {
-        ipcRenderer.removeListener('launcher:shown', listener)
       }
     },
   },
@@ -164,6 +146,8 @@ const api: SimDesktopApi = {
     },
     getTabsState: (): Promise<BrowserTabsState> =>
       ipcRenderer.invoke('browser-agent:get-tabs-state'),
+    getKnownSessions: (): Promise<BrowserKnownSessionsState> =>
+      ipcRenderer.invoke('browser-agent:get-known-sessions'),
     onTabsState: (callback: (state: BrowserTabsState) => void): (() => void) => {
       const listener = (_event: unknown, state: BrowserTabsState) => callback(state)
       ipcRenderer.on('browser-agent:tabs-state', listener)

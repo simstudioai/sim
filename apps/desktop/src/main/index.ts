@@ -20,7 +20,6 @@ import { createDesktopSettingsService } from '@/main/desktop-settings'
 import { attachDownloadHandling } from '@/main/downloads'
 import { createAuthFlow, createConnectFlow, createHandoffManager } from '@/main/handoff'
 import { registerIpcHandlers } from '@/main/ipc'
-import { createLauncherWindow } from '@/main/launcher-window'
 import { attachLoadHealth, type LoadHealthHandle } from '@/main/load-health'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import { createEncryptedLocalFilesystemGrantStore } from '@/main/local-filesystem-grant-store'
@@ -35,7 +34,6 @@ import {
   resolveStartRoute,
   tearDownSession,
 } from '@/main/session-lifecycle'
-import { createLauncherShortcutManager } from '@/main/shortcuts'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
 import { installTray, newChatRoute, settingsRoute, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
@@ -45,6 +43,12 @@ import { attachWindowOpenPolicy, isPopupContents } from '@/main/windows'
 const logger = createLogger('DesktopMain')
 
 const OFFLINE_PAGE = 'static/offline.html'
+const DOCK_ICON_FOR_CHANNEL = {
+  prod: 'dock-icon.png',
+  staging: 'dock-icon-staging.png',
+  dev: 'dock-icon-dev.png',
+  local: 'dock-icon-local.png',
+} as const
 
 function main(): void {
   app.enableSandbox()
@@ -229,8 +233,7 @@ function main(): void {
 
   /**
    * Brings the main window to front (creating it if needed), optionally
-   * navigating it to an in-app route first — the seam used by the tray menu
-   * and the launcher's open-in-Sim action.
+   * navigating it to an in-app route first — the seam used by the tray menu.
    */
   async function openMainWindowAt(route?: string): Promise<void> {
     if (!getMainWindow()) {
@@ -243,9 +246,24 @@ function main(): void {
     if (route) {
       void win.loadURL(`${appOrigin()}${route}`).catch(() => {})
     }
-    // Panel-type windows never activate the app, so opening from the
-    // launcher needs the explicit activation showMainWindow performs.
     showMainWindow()
+  }
+
+  /** Installs or removes the menu-bar status item; safe to call repeatedly. */
+  function setTrayEnabled(enabled: boolean): void {
+    if (!enabled) {
+      tray?.destroy()
+      tray = null
+      return
+    }
+    if (!tray) {
+      tray = installTray({
+        partition: () => partitionForOrigin(appOrigin()),
+        appOrigin,
+        lastRoute: () => config.get('lastRoute'),
+        openMainWindow: (route) => void openMainWindowAt(route),
+      })
+    }
   }
 
   const desktopSettings = createDesktopSettingsService({
@@ -253,26 +271,8 @@ function main(): void {
     getMainWindow,
     openMainWindowAt: (route) => void openMainWindowAt(route),
     setAutoDownloadUpdates: (enabled) => updater?.setAutoDownload(enabled),
+    setTrayEnabled,
   })
-
-  const launcher = createLauncherWindow({
-    appOrigin,
-    partition: () => partitionForOrigin(appOrigin()),
-    preloadPath,
-    isPackaged: app.isPackaged,
-    themeBackground: () => config.get('themeBackground'),
-    openMainWindow: () => void openMainWindowAt(),
-    events,
-  })
-
-  function toggleLauncher(): void {
-    // The launcher shares the app partition; make sure its session policies
-    // (permissions, downloads, telemetry) exist before the window loads.
-    configureSessionForOrigin(appOrigin())
-    launcher.toggle()
-  }
-
-  const launcherShortcut = createLauncherShortcutManager(toggleLauncher)
 
   async function signOutFromMenu(): Promise<void> {
     await localFilesystem.forgetAll()
@@ -311,9 +311,10 @@ function main(): void {
 
   void app.whenReady().then(async () => {
     // Unpackaged runs show Electron's default Dock icon (the packaged icns
-    // only applies to built apps), so dev sets the brand icon at runtime.
+    // only applies to built apps), so use the active origin's icon at runtime.
     if (!app.isPackaged && process.platform === 'darwin') {
-      app.dock?.setIcon(join(__dirname, '..', 'static', 'dock-icon.png'))
+      const channel = channelForOrigin(config.getOrigin())
+      app.dock?.setIcon(join(__dirname, '..', 'static', DOCK_ICON_FOR_CHANNEL[channel]))
     }
     events.record('app_launch', {
       version: app.getVersion(),
@@ -331,7 +332,8 @@ function main(): void {
           getMainWindow()?.webContents.send('browser-agent:session-status', alive)
         },
       },
-      getMainWindow
+      getMainWindow,
+      config
     )
     await localFilesystem.initialize()
     registerIpcHandlers({
@@ -347,21 +349,6 @@ function main(): void {
         check: () => updater?.check(),
         install: () => updater?.install(),
       },
-      launcher: {
-        openChat: (target) => {
-          launcher.hide()
-          const route = target.chatId
-            ? `/workspace/${target.workspaceId}/chat/${target.chatId}`
-            : `/workspace/${target.workspaceId}/home`
-          void openMainWindowAt(route)
-        },
-        openApp: () => {
-          launcher.hide()
-          void openMainWindowAt()
-        },
-        hide: () => launcher.hide(),
-        resize: (height) => launcher.resize(height),
-      },
     })
     await createAndLoadMainWindow()
     installApplicationMenu({
@@ -376,15 +363,7 @@ function main(): void {
       checkForUpdates: () =>
         checkForUpdatesInteractive({ getWindow: getMainWindow, events, handle: updater }),
     })
-    launcherShortcut.apply(config.get('launcherShortcut'))
-    if (config.get('trayEnabled') ?? true) {
-      tray = installTray({
-        partition: () => partitionForOrigin(appOrigin()),
-        appOrigin,
-        lastRoute: () => config.get('lastRoute'),
-        openMainWindow: (route) => void openMainWindowAt(route),
-      })
-    }
+    setTrayEnabled(config.get('trayEnabled') ?? true)
     updater = initUpdater({
       getWindow: getMainWindow,
       events,
@@ -395,14 +374,6 @@ function main(): void {
       },
     })
     desktopSettings.applySystemPreferences()
-
-    // Prewarm Quick Ask a moment after startup so its first summon is instant
-    // (window + remote route already loaded). Deferred so it never competes
-    // with the main window's initial load.
-    setTimeout(() => {
-      configureSessionForOrigin(appOrigin())
-      launcher.prewarm()
-    }, 3000)
   })
 }
 

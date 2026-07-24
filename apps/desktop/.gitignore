@@ -1,4 +1,5 @@
 dist/
 release/
+build/generated-icon.icns
 playwright-report/
 test-results/

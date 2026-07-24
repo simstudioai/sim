@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { Session, WebPreferences } from 'electron'
-import { app, BrowserWindow, dialog, nativeTheme, systemPreferences } from 'electron'
+import { app, BrowserWindow, dialog, nativeTheme } from 'electron'
 import { type ConfigStore, isSafeInternalPath, type WindowBounds } from '@/main/config'
 import { isAppOrigin, isAuthSurfacePath } from '@/main/navigation'
 import type { EventRecorder } from '@/main/observability'
@@ -51,29 +51,17 @@ export function createSecureWebPreferences(
 }
 
 /**
- * The permission matrix: microphone capture and sanitized clipboard writes for
- * the trusted app origin, default-deny for everything else including unknown
- * future permissions. Voice STT uses getUserMedia (audio) — camera stays
- * denied.
+ * The permission matrix: sanitized clipboard writes for the trusted app
+ * origin, default-deny for everything else including unknown future
+ * permissions (media/camera/microphone stay denied).
  */
 export function resolvePermission(
   permission: string,
   requestingOrigin: string,
-  appOrigin: string,
-  mediaTypes?: readonly string[]
+  appOrigin: string
 ): boolean {
   if (!requestingOrigin || requestingOrigin !== appOrigin) {
     return false
-  }
-  if (permission === 'media') {
-    // Default-deny: grant only when the request explicitly asks for audio
-    // (and nothing else). An absent/empty mediaTypes must not fall through to
-    // a grant — that would allow camera capture, which is denied by policy.
-    return (
-      mediaTypes !== undefined &&
-      mediaTypes.length > 0 &&
-      mediaTypes.every((type) => type === 'audio')
-    )
   }
   return permission === 'clipboard-sanitized-write'
 }
@@ -87,68 +75,17 @@ function originOf(raw: string): string {
 }
 
 /**
- * Resolves macOS TCC microphone consent, prompting on first use. Returns the
- * final grant state; on non-darwin platforms capture needs no OS consent.
- */
-export async function ensureMicrophoneAccess(
-  platform: NodeJS.Platform = process.platform
-): Promise<boolean> {
-  if (platform !== 'darwin') {
-    return true
-  }
-  const status = systemPreferences.getMediaAccessStatus('microphone')
-  if (status === 'granted') {
-    return true
-  }
-  if (status === 'denied' || status === 'restricted') {
-    return false
-  }
-  try {
-    return await systemPreferences.askForMediaAccess('microphone')
-  } catch (error) {
-    logger.error('Microphone access prompt failed', { error })
-    return false
-  }
-}
-
-/**
  * Installs both permission handlers (request + check) on a session from the
- * shared permission matrix, wiring macOS microphone TCC consent into media
- * grants.
+ * shared permission matrix.
  */
-export function setupPermissionHandlers(
-  session: Session,
-  getAppOrigin: () => string,
-  platform: NodeJS.Platform = process.platform
-): void {
+export function setupPermissionHandlers(session: Session, getAppOrigin: () => string): void {
   session.setPermissionRequestHandler((webContents, permission, callback, details) => {
     const requestingUrl = details.requestingUrl || webContents?.getURL() || ''
-    const mediaTypes = 'mediaTypes' in details ? details.mediaTypes : undefined
-    const allowed = resolvePermission(
-      permission,
-      originOf(requestingUrl),
-      getAppOrigin(),
-      mediaTypes
-    )
-    if (!allowed) {
-      callback(false)
-      return
-    }
-    if (permission === 'media') {
-      void ensureMicrophoneAccess(platform).then(callback)
-      return
-    }
-    callback(true)
+    callback(resolvePermission(permission, originOf(requestingUrl), getAppOrigin()))
   })
 
-  session.setPermissionCheckHandler((_webContents, permission, requestingOrigin, details) => {
-    const mediaType = 'mediaType' in details ? details.mediaType : undefined
-    return resolvePermission(
-      permission,
-      originOf(requestingOrigin),
-      getAppOrigin(),
-      mediaType ? [mediaType] : undefined
-    )
+  session.setPermissionCheckHandler((_webContents, permission, requestingOrigin) => {
+    return resolvePermission(permission, originOf(requestingOrigin), getAppOrigin())
   })
 }
 

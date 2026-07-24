@@ -40,7 +40,9 @@ const CHANNEL_FLAGS: Record<string, ChannelIdentity> = {
     appId: 'ai.sim.desktop.staging',
     origin: 'https://www.staging.sim.ai',
   },
-  '--prod': { name: 'Sim', appId: 'ai.sim.desktop', origin: 'https://www.sim.ai' },
+  // Bare sim.ai, matching official prod builds (config.ts) — www.sim.ai
+  // would land in a different cookie partition than a real install.
+  '--prod': { name: 'Sim', appId: 'ai.sim.desktop', origin: 'https://sim.ai' },
 }
 
 const DEFAULT_IDENTITY: ChannelIdentity = { name: 'Sim', appId: 'ai.sim.desktop' }
@@ -99,7 +101,7 @@ function quitInstalledApp(): void {
 /**
  * Points the installed app at an environment by writing its persisted
  * settings — the same field the in-app Settings window edits. Merges into the
- * existing file so window bounds, shortcuts, etc. survive.
+ * existing file so window bounds and other settings survive.
  */
 function applyOrigin(origin: string): void {
   let settings: Record<string, unknown> = {}

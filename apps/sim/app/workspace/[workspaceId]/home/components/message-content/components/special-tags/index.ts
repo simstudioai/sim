@@ -18,6 +18,7 @@ export type {
 } from './special-tags'
 export {
   CREDENTIAL_TAG_TYPES,
+  CredentialDisplay,
   PendingTagIndicator,
   parseFileTag,
   parseJsonTagBody,

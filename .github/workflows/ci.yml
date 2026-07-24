@@ -626,7 +626,9 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 5
     needs: [detect-desktop-changes, check-desktop-signing]
-    if: ${{ !cancelled() && needs.detect-desktop-changes.outputs.changed == 'true' }}
+    # Requires the signing probe to have actually succeeded (not just "not
+    # cancelled") so a probe failure can't produce a release with no build.
+    if: ${{ !cancelled() && needs.detect-desktop-changes.outputs.changed == 'true' && needs.check-desktop-signing.result == 'success' }}
     permissions:
       contents: write
     outputs:
@@ -635,34 +637,41 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
-      - name: Compute prerelease version and create release
+      - name: Compute prerelease version and create draft release
         id: version
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           SIGNED: ${{ needs.check-desktop-signing.outputs.configured }}
         run: |
-          if [ "$GITHUB_REF" = "refs/heads/dev" ]; then CHANNEL=alpha; else CHANNEL=beta; fi
+          if [ "$GITHUB_REF" = "refs/heads/dev" ]; then CHANNEL=alpha; APP_NAME="Sim Dev"; else CHANNEL=beta; APP_NAME="Sim Staging"; fi
           # Prerelease core = next patch after the latest stable release, so
           # channel builds always outrank the stable they are built on top of
-          # and are always superseded by the next stable.
+          # and are always superseded by the next stable. The run-attempt
+          # suffix keeps re-runs of the same workflow from colliding on the
+          # tag while preserving semver ordering.
           LATEST="$(gh release list --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName' || true)"
           LATEST="${LATEST:-v0.0.0}"
           IFS='.' read -r MAJOR MINOR PATCH <<< "${LATEST#v}"
-          TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))-${CHANNEL}.${GITHUB_RUN_NUMBER}"
+          TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))-${CHANNEL}.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
           NOTES="Automated ${CHANNEL}-channel desktop build from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}."
           if [ "$SIGNED" != "true" ]; then
             NOTES="$NOTES
 
-          ⚠️ Unsigned test build (Apple signing secrets not configured). Gatekeeper will quarantine a downloaded copy: right-click → Open, or clear the flag with \`xattr -dr com.apple.quarantine /Applications/Sim.app\`."
+          ⚠️ Unsigned test build (Apple signing secrets not configured). Gatekeeper will quarantine a downloaded copy: right-click → Open, or clear the flag with \`xattr -dr com.apple.quarantine \"/Applications/${APP_NAME}.app\"\`."
           fi
+          # Draft until the build uploads its artifacts: drafts are invisible
+          # to the update feed, so a failed or in-flight build can never take
+          # the channel down with an assetless release. Publishing later also
+          # defers tag creation, so failed builds strand no tags.
           gh release create "$TAG" \
+            --draft \
             --prerelease \
             --target "$GITHUB_SHA" \
             --title "$TAG" \
             --notes "$NOTES"
           echo "version=$TAG" >> "$GITHUB_OUTPUT"
-          echo "✅ Created prerelease $TAG"
+          echo "✅ Created draft prerelease $TAG"
 
   desktop-prerelease:
     name: Desktop Prerelease Build
@@ -676,14 +685,33 @@ jobs:
       sign: ${{ needs.check-desktop-signing.outputs.configured == 'true' }}
     secrets: inherit
 
+  # The draft only becomes visible to the update feed once its artifacts are
+  # attached — this is what makes a dev/staging push atomic from the shell's
+  # point of view.
+  publish-desktop-prerelease:
+    name: Publish Desktop Prerelease
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
+    needs: [create-desktop-prerelease, desktop-prerelease]
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.create-desktop-prerelease.outputs.version }}
+    steps:
+      - name: Publish the draft release
+        run: gh release edit "$TAG" --draft=false
+
   # Keep the release list tidy: per channel, retain the newest 5 prereleases
   # and delete the rest (with their tags, so dev force-resets don't strand
-  # commits behind stale tags).
+  # commits behind stale tags). Leftover drafts (failed or superseded builds)
+  # are always garbage by this point — the current run's release is published.
   prune-desktop-prereleases:
     name: Prune Desktop Prereleases
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 5
-    needs: [desktop-prerelease]
+    needs: [publish-desktop-prerelease]
     permissions:
       contents: write
     env:
@@ -693,10 +721,23 @@ jobs:
       - name: Delete stale prereleases
         run: |
           if [ "$GITHUB_REF" = "refs/heads/dev" ]; then CHANNEL=alpha; else CHANNEL=beta; fi
-          gh release list --limit 100 --json tagName,isPrerelease,createdAt \
-            --jq "[.[] | select(.isPrerelease and (.tagName | test(\"-${CHANNEL}\\\\.\")))] | sort_by(.createdAt) | reverse | .[5:] | .[].tagName" |
+          gh release list --limit 100 --json tagName,isPrerelease,isDraft,createdAt \
+            --jq "[.[] | select(.isPrerelease and (.isDraft | not) and (.tagName | test(\"-${CHANNEL}\\\\.\")))] | sort_by(.createdAt) | reverse | .[5:] | .[].tagName" |
           while read -r TAG; do
             [ -n "$TAG" ] || continue
             echo "Deleting stale prerelease $TAG"
             gh release delete "$TAG" --cleanup-tag --yes
+          done
+
+      - name: Delete leftover draft prereleases
+        run: |
+          if [ "$GITHUB_REF" = "refs/heads/dev" ]; then CHANNEL=alpha; else CHANNEL=beta; fi
+          # Drafts have no tag ref, so delete by release id via the API
+          # (gh release delete resolves by tag, which is ambiguous for drafts).
+          gh api "repos/${GH_REPO}/releases?per_page=100" \
+            --jq ".[] | select(.draft and (.tag_name | test(\"-${CHANNEL}\\\\.\"))) | .id" |
+          while read -r ID; do
+            [ -n "$ID" ] || continue
+            echo "Deleting leftover draft release $ID"
+            gh api -X DELETE "repos/${GH_REPO}/releases/${ID}"
           done

@@ -55,11 +55,6 @@ export const clipboard = {
   writeText: vi.fn(),
 }
 
-export const systemPreferences = {
-  getMediaAccessStatus: vi.fn(() => 'granted'),
-  askForMediaAccess: vi.fn(() => Promise.resolve(true)),
-}
-
 export const nativeTheme = {
   shouldUseDarkColors: false,
   on: vi.fn(),
@@ -82,25 +77,6 @@ export const session = {
 export const ipcMain = {
   on: vi.fn(),
   handle: vi.fn(),
-}
-
-export const screen = {
-  getPrimaryDisplay: vi.fn(() => ({
-    bounds: { x: 0, y: 0, width: 1728, height: 1117 },
-    workArea: { x: 0, y: 25, width: 1728, height: 1092 },
-  })),
-  getCursorScreenPoint: vi.fn(() => ({ x: 100, y: 100 })),
-  getDisplayNearestPoint: vi.fn(() => ({
-    bounds: { x: 0, y: 0, width: 1728, height: 1117 },
-    workArea: { x: 0, y: 25, width: 1728, height: 1092 },
-  })),
-}
-
-export const globalShortcut = {
-  register: vi.fn(() => true),
-  unregister: vi.fn(),
-  isRegistered: vi.fn(() => false),
-  unregisterAll: vi.fn(),
 }
 
 export const nativeImage = {
@@ -220,6 +196,7 @@ export class BrowserWindow {
   }
   on = vi.fn()
   once = vi.fn()
+  removeListener = vi.fn()
   isDestroyed = vi.fn(() => false)
   isMinimized = vi.fn(() => false)
   isFullScreen = vi.fn(() => false)

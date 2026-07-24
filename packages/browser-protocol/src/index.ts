@@ -25,6 +25,7 @@ export const BROWSER_TOOL_NAMES = [
   'browser_switch_tab',
   'browser_close_tab',
   'browser_list_tabs',
+  'browser_list_sessions',
   'browser_wait_for',
   'browser_snapshot',
   'browser_read_text',
@@ -42,7 +43,7 @@ export const BROWSER_TOOL_NAMES = [
 export type BrowserToolName = (typeof BROWSER_TOOL_NAMES)[number]
 
 /** Hard cap shared by the desktop browser session and its renderer chrome. */
-export const MAX_BROWSER_TABS = 5
+export const MAX_BROWSER_TABS = 8
 
 export const BROWSER_THEMES = ['system', 'light', 'dark'] as const
 
@@ -136,4 +137,25 @@ export interface BrowserTabState {
 export interface BrowserTabsState {
   tabs: BrowserTabState[]
   activeTabId: string | null
+}
+
+/**
+ * Why the desktop shell believes a website may have an authenticated session.
+ * Neither signal is proof: the live page must always be checked before acting.
+ */
+export type BrowserSessionEvidence = 'sign-in-completed' | 'cookies'
+
+/**
+ * Privacy-preserving summary of one possible authenticated website. Cookie
+ * names, values, paths, account identifiers, and page history never cross the
+ * desktop bridge.
+ */
+export interface BrowserKnownSession {
+  hostname: string
+  evidence: BrowserSessionEvidence
+  lastObservedAt: string
+}
+
+export interface BrowserKnownSessionsState {
+  sessions: BrowserKnownSession[]
 }

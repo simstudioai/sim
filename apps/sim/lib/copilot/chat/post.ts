@@ -91,9 +91,15 @@ const ResourceAttachmentSchema = z.object({
   /**
    * Live page URL for `browser` attachments. The agent browser lives in the
    * desktop app, so the client supplies its state — the server has nothing
-   * to resolve it from.
+   * to resolve it from. Web-only: this string is interpolated into LLM
+   * context, and rejecting other schemes (file://, chrome://…) keeps local
+   * host paths from ever entering the copilot payload.
    */
-  url: z.string().max(2048).optional(),
+  url: z
+    .string()
+    .max(2048)
+    .regex(/^https?:\/\//, 'Must be an http(s) URL')
+    .optional(),
 })
 
 const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['type'], string> = {
@@ -180,12 +186,28 @@ const ChatMessageSchema = z.object({
     .object({
       localFilesystem: z.boolean().optional(),
       browser: z.boolean().optional(),
+      browserSessions: z
+        .array(
+          z.object({
+            hostname: z
+              .string()
+              .max(253)
+              .regex(/^[a-z0-9.-]+$/),
+            evidence: z.enum(['sign-in-completed', 'cookies']),
+            lastObservedAt: z.string().datetime(),
+          })
+        )
+        .max(20)
+        .optional(),
     })
     .optional(),
   browserCapable: z.boolean().optional(),
 })
 
 type UnifiedChatRequest = z.infer<typeof ChatMessageSchema>
+type BrowserSessions = NonNullable<
+  UnifiedChatRequest['desktopCapabilities']
+>['browserSessions']
 type UnifiedChatBranch =
   | {
       kind: 'workflow'
@@ -224,6 +246,7 @@ type UnifiedChatBranch =
         vfs?: VfsSnapshotV1
         desktopLocalFilesystem?: boolean
         browserCapable?: boolean
+        browserSessions?: BrowserSessions
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
         userId: string
@@ -257,6 +280,7 @@ type UnifiedChatBranch =
         vfs?: VfsSnapshotV1
         desktopLocalFilesystem?: boolean
         browserCapable?: boolean
+        browserSessions?: BrowserSessions
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
         userId: string
@@ -693,6 +717,7 @@ async function resolveBranch(params: {
             userMetadata: payloadParams.userMetadata,
             desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
             browserCapable: payloadParams.browserCapable,
+            browserSessions: payloadParams.browserSessions,
           },
           { selectedModel }
         ),
@@ -752,6 +777,7 @@ async function resolveBranch(params: {
           userMetadata: payloadParams.userMetadata,
           desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
           browserCapable: payloadParams.browserCapable,
+          browserSessions: payloadParams.browserSessions,
         },
         { selectedModel: '' }
       ),
@@ -1088,6 +1114,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
                 browserCapable:
                   body.desktopCapabilities?.browser === true || body.browserCapable === true,
+                browserSessions: body.desktopCapabilities?.browserSessions,
               })
             : branch.buildPayload({
                 message: body.message,
@@ -1106,6 +1133,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
                 browserCapable:
                   body.desktopCapabilities?.browser === true || body.browserCapable === true,
+                browserSessions: body.desktopCapabilities?.browserSessions,
               })
         },
         activeOtelRoot.context

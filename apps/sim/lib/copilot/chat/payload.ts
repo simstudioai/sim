@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import type { BrowserKnownSession } from '@sim/browser-protocol'
 import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
@@ -53,6 +54,7 @@ interface BuildPayloadParams {
   }
   desktopLocalFilesystem?: boolean
   browserCapable?: boolean
+  browserSessions?: BrowserKnownSession[]
 }
 
 export interface ToolSchema {
@@ -428,6 +430,9 @@ export async function buildCopilotRequestPayload(
           desktopCapabilities: {
             ...(params.desktopLocalFilesystem ? { localFilesystem: true } : {}),
             ...(params.browserCapable ? { browser: true } : {}),
+            ...(params.browserCapable && params.browserSessions?.length
+              ? { browserSessions: params.browserSessions }
+              : {}),
           },
         }
       : {}),

@@ -1,7 +1,6 @@
-import { useMemo, useState } from 'react'
-import { Chip } from '@sim/emcn'
+import { useMemo } from 'react'
 import { ShimmerText } from '@/components/ui'
-import { isBrowserAgentAvailable, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
+import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import {
   BrowserRequestTakeover,
   CallIntegrationTool,
@@ -15,6 +14,7 @@ import { getBareIconStyle } from '@/blocks/icon-color'
 import { getBlockByToolName } from '@/blocks/registry'
 import type { ToolCallStatus } from '../../../../types'
 import { resolveToolDisplayState } from '../../utils'
+import { CredentialDisplay } from '../special-tags'
 
 export function CircleStop({ className }: { className?: string }) {
   return (
@@ -49,9 +49,11 @@ interface ToolCallItemProps {
  * inline next to its display name (e.g. the Gmail logo before "Read Gmail").
  * The status-aware rewrite is repeated at this final rendering boundary so
  * live, replayed, and directly-constructed rows cannot bypass completed verbs.
- * An executing `browser_request_takeover` row carries the Done chip that
- * hands control back to Sim — the takeover tool only resolves when it is
- * clicked (desktop only; a replayed row in the web app renders as plain text).
+ * An executing `browser_request_takeover` renders through the credential
+ * chip component itself (`CredentialDisplay`, type `browser_takeover`) so it
+ * is pixel-identical to the Connect/folder-grant chips; clicking it hands
+ * control back to Sim — the takeover tool only resolves when it is clicked
+ * (desktop only; a replayed row in the web app renders as plain text).
  */
 export function ToolCallItem({
   toolName,
@@ -60,7 +62,6 @@ export function ToolCallItem({
   params,
   streamingArgs,
 }: ToolCallItemProps) {
-  const [handedBack, setHandedBack] = useState(false)
   const readBlock = useMemo(() => {
     if (toolName !== ReadTool.id) return undefined
     const path = params?.path
@@ -114,6 +115,15 @@ export function ToolCallItem({
 
   const BlockIcon = (readBlock ?? gatewayBlock ?? getBlockByToolName(toolName))?.icon
 
+  if (showTakeoverAction) {
+    const reason = typeof params?.reason === 'string' ? params.reason.trim() : ''
+    return (
+      <div className='pl-6'>
+        <CredentialDisplay data={{ type: 'browser_takeover', name: reason }} />
+      </div>
+    )
+  }
+
   return (
     <div className='flex items-center gap-[6px] pl-6'>
       {BlockIcon && (
@@ -131,18 +141,6 @@ export function ToolCallItem({
         </ShimmerText>
       ) : (
         <span className='text-[13px] text-[var(--text-secondary)]'>{title}</span>
-      )}
-      {showTakeoverAction && (
-        <Chip
-          variant='primary'
-          disabled={handedBack}
-          onClick={() => {
-            setHandedBack(true)
-            sendBrowserPanelAction('takeover-done')
-          }}
-        >
-          Done
-        </Chip>
       )}
     </div>
   )

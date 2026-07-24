@@ -16,9 +16,10 @@
  *   {@link hasLocalFilesystem}), not on "is desktop" — older shells may lack
  *   newer surfaces.
  * - Anything advertised to the copilot backend must flow through
- *   {@link getDesktopChatCapabilities} so every chat surface (main app, Quick
- *   Ask launcher) reports capabilities consistently.
+ *   {@link getDesktopChatCapabilities} so every chat surface reports
+ *   capabilities consistently.
  */
+import type { BrowserKnownSession } from '@sim/browser-protocol'
 import type { SimDesktopApi } from '@sim/desktop-bridge'
 
 /** The preload bridge, or undefined outside the desktop app (and on the server). */
@@ -62,7 +63,11 @@ export function getDesktopUpdates(): SimDesktopApi['updates'] {
 }
 
 export interface DesktopChatCapabilities {
-  desktopCapabilities?: { localFilesystem?: true; browser?: true }
+  desktopCapabilities?: {
+    localFilesystem?: true
+    browser?: true
+    browserSessions?: BrowserKnownSession[]
+  }
   /** Compatibility for mothership deployments predating desktopCapabilities.browser. */
   browserCapable?: true
 }
@@ -71,23 +76,25 @@ export interface DesktopChatCapabilities {
  * The capability fragment spread into chat request payloads. Mothership gates
  * user-local VFS guidance/routing and the browser subagent on these flags, so
  * in a plain web browser the model never sees the features.
- *
- * `includeBrowser: false` is for surfaces that cannot host the browser panel
- * (the Quick Ask launcher) — they still run filesystem tools inline but must
- * not invite browser tool calls they cannot render.
  */
-export function getDesktopChatCapabilities(
-  options: { includeBrowser?: boolean } = {}
-): DesktopChatCapabilities {
-  const { includeBrowser = true } = options
+export async function getDesktopChatCapabilities(): Promise<DesktopChatCapabilities> {
+  const bridge = getDesktopBridge()
   const localFilesystem = hasLocalFilesystem()
-  const browser = includeBrowser && hasBrowserAgent()
+  const browser = hasBrowserAgent()
+  const browserSessions =
+    browser && bridge?.browserAgent?.getKnownSessions
+      ? await bridge.browserAgent
+          .getKnownSessions()
+          .then((state) => state.sessions)
+          .catch(() => [])
+      : []
   return {
     ...(localFilesystem || browser
       ? {
           desktopCapabilities: {
             ...(localFilesystem ? { localFilesystem: true as const } : {}),
             ...(browser ? { browser: true as const } : {}),
+            ...(browserSessions.length > 0 ? { browserSessions } : {}),
           },
         }
       : {}),

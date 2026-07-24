@@ -29,7 +29,6 @@ export type DesktopEventName =
   | 'connect_handoff_state_fail'
   | 'connect_handoff_ok'
   | 'connect_handoff_error'
-  | 'launcher_load_failed'
 
 export interface EventRecorder {
   readonly filePath: string

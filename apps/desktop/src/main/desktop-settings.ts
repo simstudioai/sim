@@ -8,21 +8,29 @@ import { app, Notification } from 'electron'
 import type { ConfigStore } from '@/main/config'
 import { isSafeInternalPath } from '@/main/config'
 
-const PREFERENCE_KEYS: ReadonlySet<string> = new Set<DesktopPreferenceKey>([
+/**
+ * Every key the shell accepts over the settings IPC channel: the closed
+ * `setPreference` union plus preferences added after the first release, which
+ * ride their own optional bridge setters but share this channel.
+ */
+export type DesktopSettingKey = DesktopPreferenceKey | 'trayEnabled'
+
+const PREFERENCE_KEYS: ReadonlySet<string> = new Set<DesktopSettingKey>([
   'notificationsEnabled',
   'notificationSounds',
   'notificationsOnlyWhenUnfocused',
   'launchAtLogin',
   'autoDownloadUpdates',
+  'trayEnabled',
 ])
 
-export function isDesktopPreferenceKey(value: unknown): value is DesktopPreferenceKey {
+export function isDesktopPreferenceKey(value: unknown): value is DesktopSettingKey {
   return typeof value === 'string' && PREFERENCE_KEYS.has(value)
 }
 
 export interface DesktopSettingsService {
   getPreferences(): DesktopPreferences
-  setPreference(key: DesktopPreferenceKey, value: boolean): DesktopPreferences
+  setPreference(key: DesktopSettingKey, value: boolean): DesktopPreferences
   notify(payload: DesktopNotificationPayload): boolean
   applySystemPreferences(): void
 }
@@ -32,6 +40,8 @@ interface DesktopSettingsServiceDeps {
   getMainWindow: () => BrowserWindow | null
   openMainWindowAt: (route?: string) => void
   setAutoDownloadUpdates: (enabled: boolean) => void
+  /** Installs or tears down the menu-bar status item immediately. */
+  setTrayEnabled: (enabled: boolean) => void
 }
 
 function readPreferences(config: ConfigStore): DesktopPreferences {
@@ -41,6 +51,7 @@ function readPreferences(config: ConfigStore): DesktopPreferences {
     notificationsOnlyWhenUnfocused: config.get('notificationsOnlyWhenUnfocused') ?? true,
     launchAtLogin: config.get('launchAtLogin') ?? false,
     autoDownloadUpdates: config.get('autoDownloadUpdates') ?? true,
+    trayEnabled: config.get('trayEnabled') ?? true,
   }
 }
 
@@ -69,6 +80,8 @@ export function createDesktopSettingsService(
         applyLaunchAtLogin(value)
       } else if (key === 'autoDownloadUpdates') {
         deps.setAutoDownloadUpdates(value)
+      } else if (key === 'trayEnabled') {
+        deps.setTrayEnabled(value)
       }
       return readPreferences(deps.config)
     },

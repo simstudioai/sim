@@ -236,6 +236,32 @@ describe('initUpdater state machine', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(autoUpdaterMock.setFeedURL).not.toHaveBeenCalled()
   })
+
+  it('skips checks on prerelease builds when the origin feed is down', async () => {
+    // The GitHub fallback is stable-only: a Sim Dev shell can never apply a
+    // prod-identity artifact, so it must not check against it.
+    vi.mocked(app.getVersion).mockReturnValue('1.0.1-alpha.7')
+    try {
+      const { handle } = await createUpdater({ feedAvailable: false })
+      handle.check()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled()
+    } finally {
+      vi.mocked(app.getVersion).mockReturnValue('1.0.0')
+    }
+  })
+
+  it('checks prerelease builds normally through the origin feed', async () => {
+    vi.mocked(app.getVersion).mockReturnValue('1.0.1-alpha.7')
+    try {
+      const { handle } = await createUpdater({ feedAvailable: true })
+      handle.check()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.mocked(app.getVersion).mockReturnValue('1.0.0')
+    }
+  })
 })
 
 function manifest(version: string): string {

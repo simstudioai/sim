@@ -18,13 +18,15 @@ function makeService() {
   const window = new BrowserWindow()
   const openMainWindowAt = vi.fn()
   const setAutoDownloadUpdates = vi.fn()
+  const setTrayEnabled = vi.fn()
   const service = createDesktopSettingsService({
     config,
     getMainWindow: () => window,
     openMainWindowAt,
     setAutoDownloadUpdates,
+    setTrayEnabled,
   })
-  return { config, window, openMainWindowAt, setAutoDownloadUpdates, service }
+  return { config, window, openMainWindowAt, setAutoDownloadUpdates, setTrayEnabled, service }
 }
 
 describe('desktop settings service', () => {
@@ -41,11 +43,20 @@ describe('desktop settings service', () => {
       notificationsEnabled: true,
       notificationsOnlyWhenUnfocused: true,
       autoDownloadUpdates: true,
+      trayEnabled: true,
     })
 
     service.setPreference('autoDownloadUpdates', false)
     expect(config.get('autoDownloadUpdates')).toBe(false)
     expect(setAutoDownloadUpdates).toHaveBeenCalledWith(false)
+  })
+
+  it('persists tray visibility and applies it immediately', () => {
+    const { config, service, setTrayEnabled } = makeService()
+    service.setPreference('trayEnabled', false)
+    expect(config.get('trayEnabled')).toBe(false)
+    expect(setTrayEnabled).toHaveBeenCalledWith(false)
+    expect(service.getPreferences().trayEnabled).toBe(false)
   })
 
   it('applies login-item changes only for packaged builds', () => {

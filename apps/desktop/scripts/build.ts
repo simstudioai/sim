@@ -1,3 +1,4 @@
+import { copyFileSync } from 'node:fs'
 import { build } from 'esbuild'
 
 const watch = process.argv.includes('--watch')
@@ -21,6 +22,22 @@ if (
 if (bakedDefaultOrigin) {
   console.log(`• Baking default server origin: ${bakedDefaultOrigin}`)
 }
+
+/** Selects the branded app icon that matches the build's baked environment. */
+function iconForOrigin(origin: string): string {
+  if (!origin) return 'build/icon.icns'
+  const host = new URL(origin).hostname.toLowerCase()
+  if (host === 'localhost' || host === '127.0.0.1') return 'build/icon-local.icns'
+  if (host === 'dev.sim.ai' || host.endsWith('.dev.sim.ai')) return 'build/icon-dev.icns'
+  if (host === 'staging.sim.ai' || host.endsWith('.staging.sim.ai')) {
+    return 'build/icon-staging.icns'
+  }
+  return 'build/icon.icns'
+}
+
+const appIcon = iconForOrigin(bakedDefaultOrigin)
+copyFileSync(appIcon, 'build/generated-icon.icns')
+console.log(`• Selecting desktop icon: ${appIcon}`)
 
 const common = {
   bundle: true,

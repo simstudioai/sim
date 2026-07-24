@@ -277,7 +277,7 @@ export function BrowserSession() {
           icon={Search}
           spellCheck={false}
           aria-label='Search Google or enter a URL — press Enter'
-          className='h-[34px] min-w-0 flex-1'
+          className='min-w-0 flex-1'
           value={urlDraft ?? pageState?.url ?? ''}
           placeholder='Search Google or enter a URL'
           autoComplete='off'

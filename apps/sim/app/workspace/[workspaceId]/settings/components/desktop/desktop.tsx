@@ -74,7 +74,9 @@ export function Desktop() {
   const workspaceId = params.workspaceId as string
   const [preferences, setPreferences] = useState<DesktopPreferences | null>(null)
   const [mounts, setMounts] = useState<LocalFilesystemMount[]>([])
-  const [pendingPreference, setPendingPreference] = useState<DesktopPreferenceKey | null>(null)
+  const [pendingPreference, setPendingPreference] = useState<
+    DesktopPreferenceKey | 'trayEnabled' | null
+  >(null)
   const [mountToForget, setMountToForget] = useState<LocalFilesystemMount | null>(null)
   const [mountMutationPending, setMountMutationPending] = useState(false)
   const [updateState, setUpdateState] = useState<DesktopUpdateState>({ status: 'idle' })
@@ -123,6 +125,19 @@ export function Desktop() {
     setPendingPreference(key)
     try {
       setPreferences(await settings.setPreference(key, value))
+    } catch {
+      toast.error('Could not update desktop settings')
+    } finally {
+      setPendingPreference(null)
+    }
+  }, [])
+
+  const updateTrayEnabled = useCallback(async (enabled: boolean) => {
+    const settings = getDesktopBridge()?.settings
+    if (!settings?.setTrayEnabled) return
+    setPendingPreference('trayEnabled')
+    try {
+      setPreferences(await settings.setTrayEnabled(enabled))
     } catch {
       toast.error('Could not update desktop settings')
     } finally {
@@ -213,6 +228,15 @@ export function Desktop() {
               disabled={pendingPreference !== null}
               onCheckedChange={(checked) => void updatePreference('launchAtLogin', checked)}
             />
+            {getDesktopBridge()?.settings?.setTrayEnabled && (
+              <PreferenceRow
+                id='desktop-tray-enabled'
+                label='Show Sim in Control Center'
+                checked={preferences.trayEnabled ?? true}
+                disabled={pendingPreference !== null}
+                onCheckedChange={(checked) => void updateTrayEnabled(checked)}
+              />
+            )}
           </div>
         </SettingsSection>
 

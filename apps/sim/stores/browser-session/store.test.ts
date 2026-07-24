@@ -59,5 +59,6 @@ describe('browser session store', () => {
     useBrowserSessionStore.getState().setTabsState({ tabs: [], activeTabId: null })
 
     expect(useBrowserSessionStore.getState().pageState).toBeNull()
+    expect(useBrowserSessionStore.getState().sessionAlive).toBe(false)
   })
 })

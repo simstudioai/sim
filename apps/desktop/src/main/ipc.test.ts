@@ -77,12 +77,6 @@ describe('registerIpcHandlers', () => {
         check: vi.fn(),
         install: vi.fn(),
       },
-      launcher: {
-        openChat: vi.fn(),
-        openApp: vi.fn(),
-        hide: vi.fn(),
-        resize: vi.fn(),
-      },
     }
     registerIpcHandlers(deps)
   })
@@ -354,45 +348,5 @@ describe('registerIpcHandlers', () => {
     expect(() => handler?.(evilEvent, 'dark')).not.toThrow()
     expect(() => handler?.(appEvent, 'sepia')).not.toThrow()
     expect(() => handler?.(appEvent, 'system')).not.toThrow()
-  })
-
-  it('restricts launcher channels to the app origin and validates ids', () => {
-    const { on } = collectHandlers()
-    const openChat = on.get('launcher:open-chat')
-
-    openChat?.(evilEvent, { workspaceId: 'ws1' })
-    openChat?.(fileEvent, { workspaceId: 'ws1' })
-    expect(deps.launcher.openChat).not.toHaveBeenCalled()
-
-    // Ids that could escape the URL path are rejected.
-    openChat?.(appEvent, { workspaceId: 'ws1/../../admin' })
-    openChat?.(appEvent, { workspaceId: 'ws1', chatId: 'c1?x=1' })
-    openChat?.(appEvent, { workspaceId: '' })
-    openChat?.(appEvent, 'not-an-object')
-    expect(deps.launcher.openChat).not.toHaveBeenCalled()
-
-    openChat?.(appEvent, { workspaceId: 'ws1', chatId: 'chat_2-a' })
-    expect(deps.launcher.openChat).toHaveBeenCalledWith({
-      workspaceId: 'ws1',
-      chatId: 'chat_2-a',
-    })
-    openChat?.(appEvent, { workspaceId: 'ws1' })
-    expect(deps.launcher.openChat).toHaveBeenCalledWith({ workspaceId: 'ws1' })
-
-    on.get('launcher:open-app')?.(evilEvent)
-    expect(deps.launcher.openApp).not.toHaveBeenCalled()
-    on.get('launcher:open-app')?.(appEvent)
-    expect(deps.launcher.openApp).toHaveBeenCalledTimes(1)
-
-    on.get('launcher:close')?.(evilEvent)
-    expect(deps.launcher.hide).not.toHaveBeenCalled()
-    on.get('launcher:close')?.(appEvent)
-    expect(deps.launcher.hide).toHaveBeenCalledTimes(1)
-
-    on.get('launcher:resize')?.(appEvent, 'tall')
-    on.get('launcher:resize')?.(appEvent, Number.NaN)
-    expect(deps.launcher.resize).not.toHaveBeenCalled()
-    on.get('launcher:resize')?.(appEvent, 400)
-    expect(deps.launcher.resize).toHaveBeenCalledWith(400)
   })
 })
