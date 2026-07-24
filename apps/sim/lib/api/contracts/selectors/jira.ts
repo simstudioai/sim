@@ -195,15 +195,19 @@ export const jiraCustomFieldEntrySchema = z
     z.object({ fieldId: customFieldIdSchema, type: z.literal('raw'), value: z.unknown() }),
   ])
   .superRefine((entry, ctx) => {
-    // Cascading exposes a top-level `child` and an optional `value.child`; if both
-    // are set the serializer would silently keep one and discard the other, so
-    // reject the ambiguity at the boundary.
+    // Cascading carries a child in two places: the top-level `child`, and one
+    // embedded in `value` — either `value.child` (object form) or `value[1]`
+    // (the `[parent, child]` array form). If a child is given both at the top
+    // level and inside `value`, the serializer would keep one and silently drop
+    // the other, so reject the ambiguity at the boundary in either form.
     if (entry.type !== 'cascading') return
     const value: unknown = entry.value
-    const nestedChild =
-      value !== null && typeof value === 'object' && !Array.isArray(value)
-        ? (value as Record<string, unknown>).child
-        : undefined
+    let nestedChild: unknown
+    if (Array.isArray(value)) {
+      nestedChild = value[1]
+    } else if (value !== null && typeof value === 'object') {
+      nestedChild = (value as Record<string, unknown>).child
+    }
     if (entry.child !== undefined && nestedChild !== undefined) {
       ctx.addIssue({
         code: 'custom',
