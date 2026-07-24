@@ -1,0 +1,72 @@
+# CI-only values: every optional component enabled so the full template surface
+# renders and validates. Dummy values — never use in a deployment.
+app:
+  env:
+    BETTER_AUTH_SECRET: "cicicicicicicicicicicicicicicicicicicicicicicicicicicicicicicici"
+    ENCRYPTION_KEY: "cicicicicicicicicicicicicicicicicicicicicicicicicicicicicicicici"
+    INTERNAL_API_SECRET: "cicicicicicicicicicicicicicicicicicicicicicicicicicicicicicicici"
+    CRON_SECRET: "cicicicicicicicicicicicicicicicicicicicicicicicicicicicicicicici"
+    API_ENCRYPTION_KEY: "cicicicicicicicicicicicicicicicicicicicicicicicicicicicicicicici"
+
+postgresql:
+  auth:
+    password: "ci-dummy-password"
+  tls:
+    enabled: true
+
+certManager:
+  enabled: true
+
+ingress:
+  enabled: true
+  app:
+    host: ci.example.com
+    paths: [{ path: /, pathType: Prefix }]
+  realtime:
+    host: ci-ws.example.com
+    paths: [{ path: /, pathType: Prefix }]
+  tls:
+    enabled: true
+
+networkPolicy:
+  enabled: true
+
+autoscaling:
+  enabled: true
+
+monitoring:
+  serviceMonitor:
+    enabled: true
+
+telemetry:
+  enabled: true
+  jaeger:
+    enabled: true
+  prometheus:
+    enabled: true
+  otlp:
+    enabled: true
+
+sharedStorage:
+  enabled: true
+
+ollama:
+  enabled: true
+
+pii:
+  enabled: true
+
+copilot:
+  enabled: true
+  postgresql:
+    auth:
+      password: "ci-dummy-password"
+  server:
+    env:
+      AGENT_API_DB_ENCRYPTION_KEY: "cicicicicicicicicicicicicicicicicicicicicicicicicicicicicicicici"
+      INTERNAL_API_SECRET: "cicicicicicicicicicicicicicicicicicicicicicicicicicicicicicicici"
+      LICENSE_KEY: "ci-dummy-license"
+      SIM_BASE_URL: "https://ci.example.com"
+      SIM_AGENT_API_KEY: "ci-dummy-agent-key"
+      REDIS_URL: "redis://ci-redis:6379"
+      OPENAI_API_KEY_1: "ci-dummy-openai-key"
