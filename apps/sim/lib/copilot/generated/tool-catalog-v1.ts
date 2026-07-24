@@ -2857,8 +2857,8 @@ export const KnowledgeBase: ToolCatalogEntry = {
 export const ListIntegrationTools: ToolCatalogEntry = {
   id: 'list_integration_tools',
   name: 'list_integration_tools',
-  route: 'sim',
-  mode: 'async',
+  route: 'go',
+  mode: 'sync',
   parameters: {
     properties: {
       integration: {
@@ -2923,8 +2923,8 @@ export const LoadDeployment: ToolCatalogEntry = {
 export const LoadIntegrationTool: ToolCatalogEntry = {
   id: 'load_integration_tool',
   name: 'load_integration_tool',
-  route: 'sim',
-  mode: 'async',
+  route: 'go',
+  mode: 'sync',
   parameters: {
     properties: {
       tool_ids: {

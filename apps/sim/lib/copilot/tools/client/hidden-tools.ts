@@ -4,11 +4,14 @@
 // could ever match.
 // search_integration_tools is gateway plumbing: the discovery step is not a
 // user-meaningful action, only the resolved call_integration_tool row is.
+// load_skill is the same shape — the agent pulling in a reference guide before
+// doing the work is a step toward the action, not the action.
 const HIDDEN_TOOL_NAMES = new Set([
   'load_agent_skill',
   'load_custom_tool',
   'load_mcp_tool',
   'load_integration_tool',
+  'load_skill',
   'search_integration_tools',
 ])
 
