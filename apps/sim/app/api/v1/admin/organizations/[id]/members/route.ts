@@ -64,6 +64,18 @@ import {
   createPaginationMeta,
 } from '@/app/api/v1/admin/types'
 
+/**
+ * The target's owned-workspace set changed between the advisory-lock capture
+ * and the membership commit; the add is aborted so no workspace escapes the
+ * sweep. Safe to retry immediately.
+ */
+class WorkspaceSetChangedDuringAddError extends Error {
+  constructor() {
+    super('Owned workspaces changed while adding the member')
+    this.name = 'WorkspaceSetChangedDuringAddError'
+  }
+}
+
 const logger = createLogger('AdminOrganizationMembersAPI')
 
 interface RouteParams {
@@ -291,6 +303,24 @@ export const POST = withRouteHandler(
           return { membership, attachedWorkspaceIds: [], usageLimitUserIds: [] }
         }
 
+        /**
+         * ensureUserInOrganizationTx holds the user's billing-identity lock,
+         * which personal workspace creation also takes — so re-reading the
+         * owned set here is race-free. A set that changed since the pre-lock
+         * capture means a workspace escaped the advisory-lock plan: abort the
+         * whole add (rolling back the membership) rather than committing a
+         * member whose workspace dodged the sweep.
+         */
+        const currentOwnedIds = (
+          await tx
+            .select({ id: workspace.id })
+            .from(workspace)
+            .where(ownedAttachableWorkspacesWhere({ userId, includeArchived: true }))
+        ).map((row) => row.id)
+        if ([...currentOwnedIds].sort().join() !== [...ownedWorkspaceIds].sort().join()) {
+          throw new WorkspaceSetChangedDuringAddError()
+        }
+
         if (ownedWorkspaceIds.length === 0) {
           return { membership, attachedWorkspaceIds: [], usageLimitUserIds: [] }
         }
@@ -377,6 +407,11 @@ export const POST = withRouteHandler(
         },
       })
     } catch (error) {
+      if (error instanceof WorkspaceSetChangedDuringAddError) {
+        return badRequestResponse(
+          "The user's workspaces changed while adding them — retry the add."
+        )
+      }
       logger.error('Admin API: Failed to add organization member', { error, organizationId })
       return internalErrorResponse('Failed to add organization member')
     }

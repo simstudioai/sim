@@ -383,6 +383,18 @@ class MembershipRevokedDuringAcceptError extends Error {
   }
 }
 
+/**
+ * Thrown after the member insert when the invitee's owned-workspace set no
+ * longer matches the pre-lock plan (a workspace was created concurrently and
+ * would escape the sweep). Rolls the whole acceptance back; safe to retry.
+ */
+class JoinerWorkspacesChangedDuringAcceptError extends Error {
+  constructor() {
+    super('Owned workspaces changed during invite acceptance')
+    this.name = 'JoinerWorkspacesChangedDuringAcceptError'
+  }
+}
+
 interface InvitationAcceptancePostCommitEffects {
   organizationId: string | null
   memberRole: string | null
@@ -483,67 +495,84 @@ export async function acceptInvitation(
     acceptedInvitation: null,
     membershipAlreadyExists: false,
   }
-  const result = await db.transaction(async (tx): Promise<AcceptInvitationResult> => {
-    await acquireInvitationMutationLocks(tx, {
-      invitationIds: [input.invitationId],
-      workspaceIds: [],
+  const result = await db
+    .transaction(async (tx): Promise<AcceptInvitationResult> => {
+      await acquireInvitationMutationLocks(tx, {
+        invitationIds: [input.invitationId],
+        workspaceIds: [],
+      })
+
+      await tx.execute(sql`select id from invitation where id = ${input.invitationId} for update`)
+
+      const inv = await getInvitationById(input.invitationId, tx)
+      if (!inv) {
+        return { success: false, kind: 'not-found' }
+      }
+
+      /**
+       * Cheap validity checks run before the workspace lock plan so replayed,
+       * expired, or mismatched accepts pay no workspace queries or advisory
+       * locks. The invitation row is already advisory- and row-locked above,
+       * so these reads cannot race a concurrent acceptance.
+       */
+      if (input.token && inv.token !== input.token) {
+        return { success: false, kind: 'invalid-token' }
+      }
+      if (inv.status !== 'pending') {
+        return { success: false, kind: 'already-processed' }
+      }
+      if (isInvitationExpired(inv)) {
+        await tx
+          .update(invitation)
+          .set({ status: 'expired', updatedAt: new Date() })
+          .where(and(eq(invitation.id, inv.id), eq(invitation.status, 'pending')))
+        return { success: false, kind: 'expired' }
+      }
+      if (normalizeEmail(input.userEmail) !== normalizeEmail(inv.email)) {
+        return { success: false, kind: 'email-mismatch' }
+      }
+
+      const lockPlan = await getInvitationAcceptanceWorkspaceLockIds(tx, inv, input.userId)
+      await acquireInvitationMutationLocks(tx, {
+        invitationIds: [],
+        workspaceIds: [
+          ...new Set([...lockPlan.workspaceIds, ...lockPlan.joinerAttachWorkspaceIds]),
+        ],
+      })
+
+      // Re-read and row-lock the primary workspace only after the shared
+      // workspace advisory lock is held. If a move won the lock first, every
+      // billing and membership decision below now uses the committed post-move
+      // organization/billing identity rather than the pre-lock snapshot.
+      const lockedPrimaryWorkspace = inv.grants[0]
+        ? await getWorkspaceWithOwner(inv.grants[0].workspaceId, {
+            executor: tx,
+            forUpdate: true,
+          })
+        : null
+
+      return acceptLockedInvitation(
+        input,
+        inv,
+        { ...lockPlan, primaryWorkspace: lockedPrimaryWorkspace },
+        tx,
+        effects
+      )
     })
-
-    await tx.execute(sql`select id from invitation where id = ${input.invitationId} for update`)
-
-    const inv = await getInvitationById(input.invitationId, tx)
-    if (!inv) {
-      return { success: false, kind: 'not-found' }
-    }
-
-    /**
-     * Cheap validity checks run before the workspace lock plan so replayed,
-     * expired, or mismatched accepts pay no workspace queries or advisory
-     * locks. The invitation row is already advisory- and row-locked above,
-     * so these reads cannot race a concurrent acceptance.
-     */
-    if (input.token && inv.token !== input.token) {
-      return { success: false, kind: 'invalid-token' }
-    }
-    if (inv.status !== 'pending') {
-      return { success: false, kind: 'already-processed' }
-    }
-    if (isInvitationExpired(inv)) {
-      await tx
-        .update(invitation)
-        .set({ status: 'expired', updatedAt: new Date() })
-        .where(and(eq(invitation.id, inv.id), eq(invitation.status, 'pending')))
-      return { success: false, kind: 'expired' }
-    }
-    if (normalizeEmail(input.userEmail) !== normalizeEmail(inv.email)) {
-      return { success: false, kind: 'email-mismatch' }
-    }
-
-    const lockPlan = await getInvitationAcceptanceWorkspaceLockIds(tx, inv, input.userId)
-    await acquireInvitationMutationLocks(tx, {
-      invitationIds: [],
-      workspaceIds: [...new Set([...lockPlan.workspaceIds, ...lockPlan.joinerAttachWorkspaceIds])],
-    })
-
-    // Re-read and row-lock the primary workspace only after the shared
-    // workspace advisory lock is held. If a move won the lock first, every
-    // billing and membership decision below now uses the committed post-move
-    // organization/billing identity rather than the pre-lock snapshot.
-    const lockedPrimaryWorkspace = inv.grants[0]
-      ? await getWorkspaceWithOwner(inv.grants[0].workspaceId, {
-          executor: tx,
-          forUpdate: true,
+    .catch((error): AcceptInvitationResult => {
+      if (error instanceof JoinerWorkspacesChangedDuringAcceptError) {
+        logger.warn('Invite acceptance rolled back: owned workspaces changed concurrently', {
+          invitationId: input.invitationId,
+          userId: input.userId,
         })
-      : null
-
-    return acceptLockedInvitation(
-      input,
-      inv,
-      { ...lockPlan, primaryWorkspace: lockedPrimaryWorkspace },
-      tx,
-      effects
-    )
-  })
+        return {
+          success: false,
+          kind: 'server-error',
+          message: 'Your workspaces changed while accepting — please try again.',
+        }
+      }
+      throw error
+    })
   if (result.success) {
     await runInvitationAcceptancePostCommitEffects(input, effects)
   }
@@ -678,19 +707,41 @@ async function acceptLockedInvitation(
        * membership and seats never grow as a side effect of someone else's
        * join. Fresh joins only: pre-existing members' estates are left
        * untouched until an announced backfill.
+       *
+       * ensureUserInOrganizationTx holds the user's billing-identity lock,
+       * which personal workspace creation also takes — so the owned set is
+       * re-read here race-free. A set that changed since the pre-lock plan
+       * means a workspace escaped the advisory locks: the acceptance is
+       * rolled back (retry succeeds with the fresh set) instead of committing
+       * a member whose workspace dodged the sweep.
        */
-      if (!membershipResult.alreadyMember && lockPlan.joinerAttachWorkspaceIds.length > 0) {
-        await acquireOrganizationMutationLock(tx, targetOrganizationId)
-        const attachResult = await attachOwnedWorkspacesToOrganizationTx(tx, {
-          ownerUserId: input.userId,
-          organizationId: targetOrganizationId,
-          workspaceIds: lockPlan.joinerAttachWorkspaceIds,
-          externalMemberPolicy: 'external-all',
-          ownerMatch: 'owner',
-          includeArchived: true,
-        })
-        effects.syncUsageLimitUserIds.push(...attachResult.usageLimitUserIds)
-        effects.attachedWorkspaceIds = attachResult.attachedWorkspaceIds
+      if (!membershipResult.alreadyMember) {
+        const currentOwnedIds = (
+          await tx
+            .select({ id: workspace.id })
+            .from(workspace)
+            .where(ownedAttachableWorkspacesWhere({ userId: input.userId, includeArchived: true }))
+        ).map((row) => row.id)
+        if (
+          [...currentOwnedIds].sort().join() !==
+          [...lockPlan.joinerAttachWorkspaceIds].sort().join()
+        ) {
+          throw new JoinerWorkspacesChangedDuringAcceptError()
+        }
+
+        if (lockPlan.joinerAttachWorkspaceIds.length > 0) {
+          await acquireOrganizationMutationLock(tx, targetOrganizationId)
+          const attachResult = await attachOwnedWorkspacesToOrganizationTx(tx, {
+            ownerUserId: input.userId,
+            organizationId: targetOrganizationId,
+            workspaceIds: lockPlan.joinerAttachWorkspaceIds,
+            externalMemberPolicy: 'external-all',
+            ownerMatch: 'owner',
+            includeArchived: true,
+          })
+          effects.syncUsageLimitUserIds.push(...attachResult.usageLimitUserIds)
+          effects.attachedWorkspaceIds = attachResult.attachedWorkspaceIds
+        }
       }
     } else {
       shouldJoinOrganization = false
