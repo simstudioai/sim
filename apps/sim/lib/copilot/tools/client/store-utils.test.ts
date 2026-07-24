@@ -49,6 +49,32 @@ describe('resolveToolDisplay', () => {
     ).toBe('Read RET XYZ')
   })
 
+  it('formats docs corpus reads as Section/filename', () => {
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'docs/documentation/workflows/index.mdx',
+      })?.text
+    ).toBe('Read Workflows/index')
+
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.executing, {
+        path: 'docs/academy/agents/block.mdx',
+      })?.text
+    ).toBe('Reading Agents/block')
+
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'docs/api-reference/workflows.json',
+      })?.text
+    ).toBe('Read Workflows')
+
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.error, {
+        path: 'docs/documentation/getting-started.mdx',
+      })?.text
+    ).toBe('Attempted to read Getting-started')
+  })
+
   it('decodes percent-encoded VFS path segments for display', () => {
     expect(
       resolveToolDisplay(ReadTool.id, ClientToolCallState.executing, {
