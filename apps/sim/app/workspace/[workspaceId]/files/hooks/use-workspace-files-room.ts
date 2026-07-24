@@ -14,16 +14,6 @@ const logger = createLogger('WorkspaceFilesRoom')
 const MAX_JOIN_RETRIES = 3
 const JOIN_RETRY_BASE_MS = 1000
 
-/**
- * The workspace whose files room this page currently wants to be in (module-scoped
- * because only one Files page mounts at a time). A remount (React strict-mode, a
- * fast route re-mount) runs the old cleanup then the new effect synchronously; the
- * new effect re-claims this before the deferred leave fires, so the stale leave is
- * skipped — preventing presence flapping and a leave-after-join race that could
- * drop the fresh membership.
- */
-let intendedFilesWorkspaceId: string | null = null
-
 interface PresenceUpdatePayload extends PresenceAvatarUser {
   folderId?: string | null
 }
@@ -110,7 +100,6 @@ export function useWorkspaceFilesRoom(
     }
 
     // Join now if the socket is already connected; `connect` covers (re)connects.
-    intendedFilesWorkspaceId = workspaceId
     if (socket.connected) join()
     socket.on('connect', join)
     socket.on('join-workspace-files-success', handleJoinSuccess)
@@ -127,17 +116,11 @@ export function useWorkspaceFilesRoom(
       socket.off('workspace-files-changed', handleChanged)
       setPresenceUsers([])
 
-      // Defer the leave: if the page re-mounts for the same workspace this tick, the
-      // new effect re-claims `intendedFilesWorkspaceId` and this leave is skipped,
-      // avoiding a flap and a leave-after-join race. A real navigation away leaves
-      // the value cleared/changed, so the leave fires. The leave is scoped to this
-      // workspace so, after a workspace switch, it can't evict the new room.
-      if (intendedFilesWorkspaceId === workspaceId) intendedFilesWorkspaceId = null
-      queueMicrotask(() => {
-        if (intendedFilesWorkspaceId !== workspaceId) {
-          socket.emit('leave-workspace-files', { workspaceId })
-        }
-      })
+      // Leave the room, scoped to THIS workspace: the server no-ops if the socket
+      // has already switched to another workspace's files room (so a workspace
+      // A→B switch, where B's join runs first and auto-leaves A, can't have A's
+      // leave evict the fresh B membership).
+      socket.emit('leave-workspace-files', { workspaceId })
     }
   }, [socket, workspaceId, queryClient])
 
