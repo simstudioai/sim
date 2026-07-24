@@ -49,7 +49,18 @@ export interface CreateOpenAICompatibleAgentEventStreamOptions {
   onComplete?: (result: OpenAICompatStreamComplete) => void
 }
 
-function extractDeltaReasoning(delta: Record<string, unknown> | undefined): {
+/**
+ * Chat Completions delta plus the vendor reasoning extensions the OpenAI SDK
+ * types don't carry (DeepSeek `reasoning_content`; Groq/OpenRouter `reasoning`
+ * as a string or `{ text }` object). All extensions are optional, so SDK
+ * deltas assign to this without casts.
+ */
+type CompatChunkDelta = ChatCompletionChunk.Choice.Delta & {
+  reasoning_content?: string
+  reasoning?: string | { text?: string }
+}
+
+function extractDeltaReasoning(delta: CompatChunkDelta | undefined): {
   text: string
   reasoning_content?: string
   reasoning?: string
@@ -62,13 +73,12 @@ function extractDeltaReasoning(delta: Record<string, unknown> | undefined): {
   if (typeof delta.reasoning === 'string' && delta.reasoning) {
     return { text: delta.reasoning, reasoning: delta.reasoning }
   }
-  const nested = delta.reasoning
   if (
-    nested &&
-    typeof nested === 'object' &&
-    typeof (nested as { text?: string }).text === 'string'
+    delta.reasoning &&
+    typeof delta.reasoning === 'object' &&
+    typeof delta.reasoning.text === 'string'
   ) {
-    const text = (nested as { text: string }).text
+    const text = delta.reasoning.text
     return { text, reasoning: text }
   }
   return { text: '' }
@@ -127,7 +137,7 @@ export function createOpenAICompatibleAgentEventStream(
           if (choice?.finish_reason) {
             finishReason = choice.finish_reason
           }
-          const delta = choice?.delta as Record<string, unknown> | undefined
+          const delta: CompatChunkDelta | undefined = choice?.delta
 
           const extracted = extractDeltaReasoning(delta)
           if (extracted.text) {
@@ -146,12 +156,8 @@ export function createOpenAICompatibleAgentEventStream(
           }
 
           if (emitToolCallStarts && Array.isArray(delta?.tool_calls)) {
-            for (const tc of delta.tool_calls as Array<{
-              index?: number
-              id?: string
-              type?: string
-              function?: { name?: string; arguments?: string }
-            }>) {
+            for (const tc of delta.tool_calls) {
+              // Loose vendors omit index on single-call streams; default to slot 0.
               const index = typeof tc.index === 'number' ? tc.index : 0
               const buf = toolBuffers.get(index) ?? {
                 id: undefined,

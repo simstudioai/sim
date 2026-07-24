@@ -26,14 +26,13 @@ import type { ProviderRequest, TimeSegment } from '@/providers/types'
 import { calculateCost, prepareToolExecution, sumToolCosts } from '@/providers/utils'
 import { executeTool } from '@/tools'
 
-/** Custom payload fields shared with `core.ts` (adaptive thinking, output_format). */
-export type AnthropicStreamingToolLoopPayload = Omit<
-  Anthropic.Messages.MessageStreamParams,
-  'thinking'
-> & {
-  thinking?: Anthropic.Messages.ThinkingConfigParam | { type: 'adaptive'; display?: 'summarized' }
+/**
+ * Message params plus `output_format`, shared with `core.ts`: Sim's structured
+ * outputs ride the anthropic-beta header with a top-level `output_format`
+ * field, which the SDK does not model (it exposes `output_config.format`).
+ */
+export type AnthropicStreamingToolLoopPayload = Anthropic.Messages.MessageStreamParams & {
   output_format?: { type: 'json_schema'; schema: Record<string, unknown> }
-  output_config?: { effort: string }
 }
 
 export interface CreateAnthropicStreamingToolLoopStreamOptions {
@@ -181,10 +180,7 @@ export function createAnthropicStreamingToolLoopStream(
           }
 
           const modelStart = Date.now()
-          const messageStream = anthropic.messages.stream(
-            turnPayload as Anthropic.Messages.MessageStreamParams,
-            streamOptions
-          )
+          const messageStream = anthropic.messages.stream(turnPayload, streamOptions)
 
           const textChunks: string[] = []
           let inputTokens = 0
@@ -201,11 +197,7 @@ export function createAnthropicStreamingToolLoopStream(
                 continue
               }
               if (event.type === 'content_block_start') {
-                const block = event.content_block as {
-                  type?: string
-                  id?: string
-                  name?: string
-                }
+                const block = event.content_block
                 if (block.type === 'tool_use' && block.id && block.name) {
                   openToolStarts.set(block.id, block.name)
                   controller.enqueue({
@@ -219,11 +211,7 @@ export function createAnthropicStreamingToolLoopStream(
               if (event.type !== 'content_block_delta') {
                 continue
               }
-              const delta = event.delta as {
-                type?: string
-                text?: string
-                thinking?: string
-              }
+              const delta = event.delta
               if (delta.type === 'thinking_delta' && typeof delta.thinking === 'string') {
                 controller.enqueue({ type: 'thinking_delta', text: delta.thinking })
                 continue

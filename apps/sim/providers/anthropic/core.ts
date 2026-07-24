@@ -51,12 +51,12 @@ export interface AnthropicProviderConfig {
 
 /**
  * Custom payload type extending the SDK's base message creation params.
- * Adds fields not yet in the SDK: adaptive thinking, output_format, output_config.
+ * Message params plus `output_format`: Sim's structured outputs ride the
+ * anthropic-beta header with a top-level `output_format` field, which the SDK
+ * does not model (it exposes the newer `output_config.format` shape instead).
  */
-interface AnthropicPayload extends Omit<Anthropic.Messages.MessageStreamParams, 'thinking'> {
-  thinking?: Anthropic.Messages.ThinkingConfigParam | { type: 'adaptive'; display?: 'summarized' }
+interface AnthropicPayload extends Anthropic.Messages.MessageStreamParams {
   output_format?: { type: 'json_schema'; schema: Record<string, unknown> }
-  output_config?: { effort: string }
 }
 
 /**
@@ -138,10 +138,8 @@ export function buildThinkingConfig(
   thinkingLevel: string,
   agentEvents: boolean
 ): {
-  thinking:
-    | { type: 'enabled'; budget_tokens: number }
-    | { type: 'adaptive'; display?: 'summarized' }
-  outputConfig?: { effort: string }
+  thinking: Anthropic.Messages.ThinkingConfigParam
+  outputConfig?: Anthropic.Messages.OutputConfig
 } | null {
   const capability = getThinkingCapability(modelId)
   if (!capability || !capability.levels.includes(thinkingLevel)) {
@@ -156,7 +154,8 @@ export function buildThinkingConfig(
         type: 'adaptive',
         ...(requestSummarizedDisplay ? { display: 'summarized' as const } : {}),
       },
-      outputConfig: { effort: thinkingLevel },
+      // Levels are validated against the model's capability list above.
+      outputConfig: { effort: thinkingLevel as Anthropic.Messages.OutputConfig['effort'] },
     }
   }
 

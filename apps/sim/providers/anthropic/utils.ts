@@ -1,9 +1,4 @@
-import type {
-  RawMessageDeltaEvent,
-  RawMessageStartEvent,
-  RawMessageStreamEvent,
-  Usage,
-} from '@anthropic-ai/sdk/resources'
+import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources'
 import { createLogger } from '@sim/logger'
 import { randomFloat } from '@sim/utils/random'
 import type { AgentStreamEvent } from '@/providers/stream-events'
@@ -51,24 +46,20 @@ export function createReadableStreamFromAnthropicStream(
 
         for await (const event of anthropicStream) {
           if (event.type === 'message_start') {
-            const startEvent = event as RawMessageStartEvent
-            const usage: Usage = startEvent.message.usage
-            inputTokens = usage.input_tokens
+            inputTokens = event.message.usage.input_tokens
             continue
           }
 
           if (event.type === 'message_delta') {
-            const deltaEvent = event as RawMessageDeltaEvent
-            outputTokens = deltaEvent.usage.output_tokens
+            outputTokens = event.usage.output_tokens
             continue
           }
 
           if (event.type === 'content_block_start') {
-            const block = event.content_block as { type?: string }
-            if (block?.type === 'redacted_thinking') {
+            if (event.content_block.type === 'redacted_thinking') {
               flushThinkingBlock()
               thinkingBlocks.push('[redacted]')
-            } else if (block?.type === 'thinking') {
+            } else if (event.content_block.type === 'thinking') {
               flushThinkingBlock()
             }
             continue
@@ -83,11 +74,7 @@ export function createReadableStreamFromAnthropicStream(
             continue
           }
 
-          const delta = event.delta as {
-            type?: string
-            text?: string
-            thinking?: string
-          }
+          const delta = event.delta
 
           if (delta.type === 'thinking_delta' && typeof delta.thinking === 'string') {
             currentThinking += delta.thinking
