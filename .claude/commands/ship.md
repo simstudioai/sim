@@ -57,7 +57,9 @@ When the user runs `/ship`:
 
   **Phase B — run lint + every audit CI enforces, in parallel, and abort ship if any fails.** `bun run lint` first (it autofixes formatting and mutates files, so don't parallelize it with the read-only audits), then fan the rest out and collect exit codes. This is exactly the read-only audit set from CI's `Lint and Test` job (all in-repo, runnable in any worktree):
   ```bash
-  bun run lint   # autofix formatting first (mutating; not parallel-safe with the audits)
+  # autofix formatting first (mutating; not parallel-safe with the audits). Gate its exit too —
+  # a non-zero lint (unfixable errors) must abort before the audits run, not be ignored.
+  bun run lint || { echo "❌ lint failed — do not ship"; exit 1; }
   rm -f /tmp/ship-audit-results
   for s in check:boundaries check:api-validation:strict check:utils check:zustand-v5 \
            check:react-query check:client-boundary check:bare-icons check:icon-paths \
