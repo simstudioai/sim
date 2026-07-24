@@ -5,6 +5,7 @@ import {
   validateAlphanumericId,
   validateAwsRegion,
   validateCallbackUrl,
+  validateCliCallbackUrl,
   validateEnum,
   validateExternalUrl,
   validateFileExtension,
@@ -2220,6 +2221,53 @@ describe('validateCallbackUrl', () => {
       expect(validateCallbackUrl('//evil.com')).toBe(false)
       expect(validateCallbackUrl('https://evil.com')).toBe(false)
       expect(validateCallbackUrl('javascript:alert(1)')).toBe(false)
+    })
+  })
+})
+
+describe('validateCliCallbackUrl', () => {
+  describe('accepts loopback listeners', () => {
+    it.each([
+      ['http://127.0.0.1:8721/callback'],
+      ['http://localhost:8721/callback'],
+      ['http://127.0.0.1:8721/'],
+      ['http://127.0.0.1:8721'],
+      ['http://127.0.0.1/cli/callback'],
+      ['HTTP://127.0.0.1:8721/callback'],
+      ['http://2130706433:8721/callback'],
+    ])('accepts %s', (url) => {
+      expect(validateCliCallbackUrl(url)).toBe(true)
+    })
+
+    it('accepts traversal that the URL parser normalizes away', () => {
+      // `%2e%2e` is a double-dot segment: the parser collapses it to /callback
+      // on the same loopback origin, and `buildCliHandoffUrl` re-parses the same
+      // way — so the traversal cannot survive into the redirect.
+      expect(new URL('http://127.0.0.1:8721/%2e%2e/callback').href).toBe(
+        'http://127.0.0.1:8721/callback'
+      )
+      expect(validateCliCallbackUrl('http://127.0.0.1:8721/%2e%2e/callback')).toBe(true)
+    })
+  })
+
+  describe('rejects everything else', () => {
+    it.each([
+      ['', 'empty string'],
+      ['/callback', 'relative reference'],
+      ['https://127.0.0.1:8721/callback', 'https scheme'],
+      ['http://evil.com/callback', 'external host'],
+      ['http://127.0.0.1.evil.com/callback', 'host look-alike'],
+      ['http://127.0.0.2:8721/callback', 'non-loopback IP'],
+      ['http://[::1]:8721/callback', 'IPv6 loopback'],
+      ['http://127.0.0.1@evil.com/callback', 'userinfo smuggling'],
+      ['http://127.0.0.1:8721/callback?key=stolen', 'existing query'],
+      ['http://127.0.0.1:8721/callback#frag', 'fragment'],
+      ['http://127.0.0.1:8721/call%20back', 'percent-encoded path character'],
+      ['javascript:alert(1)', 'javascript scheme'],
+      ['data:text/html,<script>alert(1)</script>', 'data scheme'],
+      ['file:///etc/passwd', 'file scheme'],
+    ])('rejects %s (%s)', (url) => {
+      expect(validateCliCallbackUrl(url)).toBe(false)
     })
   })
 })

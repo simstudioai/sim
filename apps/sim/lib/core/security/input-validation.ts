@@ -1218,6 +1218,49 @@ export function validateCallbackUrl(url: string): boolean {
   }
 }
 
+const CLI_CALLBACK_HOSTNAMES = new Set(['127.0.0.1', 'localhost'])
+const CLI_CALLBACK_PATHNAME_PATTERN = /^\/[A-Za-z0-9\-._~/]*$/
+
+/**
+ * Validates the loopback callback a local CLI hands to `/cli/auth`, where a
+ * freshly generated API key is appended as a query param and the browser is
+ * navigated to it.
+ *
+ * Accepts only `http://127.0.0.1[:port]/path` and `http://localhost[:port]/path`
+ * — the listener the CLI itself opened. Unlike {@link validateCallbackUrl} this
+ * is deliberately *cross*-origin, so every other property of the URL is pinned:
+ *
+ * - `http:` only — an `https:` loopback listener is not what the CLI opens, and
+ *   every other scheme (`javascript:`, `data:`, `file:`) is an exfiltration path
+ * - Hostname compared after WHATWG normalization, so numeric-IP spellings
+ *   (`http://2130706433`) collapse to `127.0.0.1` before the check and
+ *   look-alikes (`127.0.0.1.evil.com`) fail it
+ * - No userinfo (`http://127.0.0.1@evil.com` parses as host `evil.com`, but the
+ *   explicit check keeps the intent legible)
+ * - No query or fragment — the key and state are the only params, so a callback
+ *   arriving with its own would either be clobbered or smuggle a redirect
+ * - Conservative path charset, rejecting percent-encoding and backslashes
+ *
+ * @param url - The callback URL supplied by the CLI
+ * @returns true if the key may be handed to this URL
+ */
+export function validateCliCallbackUrl(url: string): boolean {
+  try {
+    if (typeof url !== 'string' || url.length === 0) return false
+
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'http:') return false
+    if (!CLI_CALLBACK_HOSTNAMES.has(parsed.hostname)) return false
+    if (parsed.username || parsed.password) return false
+    if (parsed.search || parsed.hash) return false
+
+    return CLI_CALLBACK_PATHNAME_PATTERN.test(parsed.pathname)
+  } catch (error) {
+    logger.error('Error validating CLI callback URL:', { error, url })
+    return false
+  }
+}
+
 const OKTA_DOMAIN_PATTERN =
   /^[a-zA-Z0-9][a-zA-Z0-9-]*\.(okta|okta-gov|okta-emea|oktapreview|trexcloud)\.com$/
 
