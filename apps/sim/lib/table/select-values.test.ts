@@ -2,12 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import {
-  resolveFilterSelectValues,
-  resolveRowSelectValues,
-  selectColumnsOf,
-  selectValueToNames,
-} from '@/lib/table/select-values'
+import { resolveFilterSelectValues, selectValueToNames } from '@/lib/table/select-values'
 import type { ColumnDefinition } from '@/lib/table/types'
 
 const status: ColumnDefinition = {
@@ -60,32 +55,8 @@ describe('selectValueToNames', () => {
   })
 })
 
-describe('selectColumnsOf', () => {
-  it('returns only select columns', () => {
-    expect(selectColumnsOf([title, status, tags])).toEqual([status, tags])
-  })
-})
-
-describe('resolveRowSelectValues', () => {
-  it('resolves select cells to names, leaving other cells untouched', () => {
-    const row = { col_status: 'opt_open', col_tags: ['opt_a', 'opt_b'], col_title: 'Hello' }
-    expect(resolveRowSelectValues(row, [status, tags])).toEqual({
-      col_status: 'Open',
-      col_tags: ['Alpha', 'Beta'],
-      col_title: 'Hello',
-    })
-  })
-
-  it('does not add keys absent from the row', () => {
-    const row = { col_title: 'Hello' }
-    expect(resolveRowSelectValues(row, [status, tags])).toEqual({ col_title: 'Hello' })
-  })
-
-  it('returns the row unchanged when there are no select columns', () => {
-    const row = { col_title: 'Hello' }
-    expect(resolveRowSelectValues(row, [])).toBe(row)
-  })
-})
+// Row-level select resolution now lives in `__tests__/cell-format.test.ts`,
+// fused with the column key translation.
 
 describe('resolveFilterSelectValues', () => {
   const columns = [title, status, tags]

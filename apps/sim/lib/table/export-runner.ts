@@ -1,12 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { buildNameById, getColumnId, rowDataIdToName } from '@/lib/table/column-keys'
+import { namedRowMapper } from '@/lib/table/cell-format'
+import { getColumnId } from '@/lib/table/column-keys'
 import { appendTableEvent } from '@/lib/table/events'
 import {
   formatCsvCell,
   neutralizeCsvFormula,
-  resolveSelectExportValue,
   sanitizeExportFilename,
   toCsvRow,
 } from '@/lib/table/export-format'
@@ -60,11 +60,10 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
     if (!table) throw new Error(`Export target table ${tableId} not found`)
 
     const columns = table.schema.columns
-    // Select cells store option ids; exports resolve them to option names below.
-    const selectColumns = columns.filter((c) => c.type === 'select')
-    // Stored row data is id-keyed; CSV headers and JSON keys are display names, so translate
-    // id → name on the way out (export is a name-friendly boundary).
-    const nameById = buildNameById(table.schema)
+    // Stored row data is id-keyed and select cells hold option ids; JSON keys are display
+    // names and values are option names, so translate both on the way out (export is a
+    // name-friendly boundary). Hoisted: the mapper is reused across every streamed page.
+    const toNamedRow = namedRowMapper(columns)
 
     const fileName = `${sanitizeExportFilename(table.name)}.${format}`
     // The key is pinned up front so the streaming upload writes exactly where the download
@@ -99,16 +98,7 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
         } else {
           const prefix = firstJsonRow ? '' : ','
           firstJsonRow = false
-          // Resolve select ids → names before the id → name key translation.
-          let data = row.data
-          if (selectColumns.length > 0) {
-            data = { ...data }
-            for (const c of selectColumns) {
-              const key = getColumnId(c)
-              if (key in data) data[key] = resolveSelectExportValue(c, data[key])
-            }
-          }
-          pageChunks.push(prefix + JSON.stringify(rowDataIdToName(data, nameById)))
+          pageChunks.push(prefix + JSON.stringify(toNamedRow(row.data)))
         }
       }
       await handle.write(pageChunks.join(''))

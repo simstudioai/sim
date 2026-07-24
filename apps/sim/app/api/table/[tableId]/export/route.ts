@@ -8,10 +8,10 @@ import { neutralizeCsvFormula } from '@/lib/core/utils/csv'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { buildNameById, getColumnId, rowDataIdToName } from '@/lib/table/column-keys'
+import { namedRowMapper } from '@/lib/table/cell-format'
+import { getColumnId } from '@/lib/table/column-keys'
 import { formatCsvCell } from '@/lib/table/export-format'
 import { queryRows } from '@/lib/table/rows/service'
-import { resolveRowSelectValues, selectColumnsOf } from '@/lib/table/select-values'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableExport')
@@ -54,8 +54,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
   const columns = table.schema.columns
   // Stored row data is id-keyed; CSV headers and JSON keys are display names, so
   // translate id → name on the way out (export is a name-friendly boundary).
-  const nameById = buildNameById(table.schema)
-  const selectColumns = selectColumnsOf(columns)
+  const toNamedRow = namedRowMapper(columns)
   const safeName = sanitizeFilename(table.name)
   const filename = `${safeName}.${format}`
 
@@ -108,10 +107,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
             } else {
               const prefix = firstJsonRow ? '' : ','
               firstJsonRow = false
-              const resolved = resolveRowSelectValues(row.data, selectColumns)
-              controller.enqueue(
-                encoder.encode(prefix + JSON.stringify(rowDataIdToName(resolved, nameById)))
-              )
+              controller.enqueue(encoder.encode(prefix + JSON.stringify(toNamedRow(row.data))))
             }
           }
 

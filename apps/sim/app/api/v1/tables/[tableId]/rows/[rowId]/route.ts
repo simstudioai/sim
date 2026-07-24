@@ -13,14 +13,9 @@ import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
-import {
-  buildIdByName,
-  buildNameById,
-  rowDataIdToName,
-  rowDataNameToId,
-  updateRow,
-} from '@/lib/table'
-import { resolveRowSelectValues, selectColumnsOf } from '@/lib/table/select-values'
+import { updateRow } from '@/lib/table'
+import { namedRowMapper } from '@/lib/table/cell-format'
+import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -89,17 +84,13 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RowRou
       return NextResponse.json({ error: 'Row not found' }, { status: 404 })
     }
 
-    const nameById = buildNameById(result.table.schema as TableSchema)
-    const selectColumns = selectColumnsOf((result.table.schema as TableSchema).columns)
+    const toNamedRow = namedRowMapper((result.table.schema as TableSchema).columns)
     return NextResponse.json({
       success: true,
       data: {
         row: {
           id: row.id,
-          data: rowDataIdToName(
-            resolveRowSelectValues(row.data as RowData, selectColumns),
-            nameById
-          ),
+          data: toNamedRow(row.data as RowData),
           position: row.position,
           createdAt:
             row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
@@ -147,8 +138,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     }
 
     const idByName = buildIdByName(table.schema as TableSchema)
-    const nameById = buildNameById(table.schema as TableSchema)
-    const selectColumns = selectColumnsOf((table.schema as TableSchema).columns)
+    const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
     const updatedRow = await updateRow(
       {
         tableId,
@@ -174,7 +164,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       data: {
         row: {
           id: updatedRow.id,
-          data: rowDataIdToName(resolveRowSelectValues(updatedRow.data, selectColumns), nameById),
+          data: toNamedRow(updatedRow.data),
           position: updatedRow.position,
           createdAt:
             updatedRow.createdAt instanceof Date

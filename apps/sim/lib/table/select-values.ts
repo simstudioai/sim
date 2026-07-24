@@ -1,21 +1,15 @@
 /**
  * Select-column value translation between stored option **ids** and human
  * **names**. Cells store option ids (a single id, or a `string[]` of ids when
- * `multiple`); the display value is the option `name`. Consumption surfaces
- * (exports, mounts, clipboard, tool/API reads) resolve id→name; filters that
- * accept a typed name resolve name→id.
+ * `multiple`); the display value is the option `name`.
  *
- * Single source of truth reused everywhere so no boundary re-implements it.
+ * Row-level id→name translation lives in `cell-format.ts`, which fuses it with
+ * the column key translation. What remains here is the reverse direction: a
+ * filter operand typed as an option name resolving back to the stored id.
  */
 
 import { getColumnId } from '@/lib/table/column-keys'
-import type {
-  ColumnDefinition,
-  ConditionOperators,
-  Filter,
-  JsonValue,
-  RowData,
-} from '@/lib/table/types'
+import type { ColumnDefinition, ConditionOperators, Filter, JsonValue } from '@/lib/table/types'
 import { resolveSelectOptionId } from '@/lib/table/validation'
 
 /**
@@ -37,29 +31,6 @@ export function selectValueToNames(
     .map((id) => (typeof id === 'string' ? byId.get(id) : undefined))
     .filter((n): n is string => n != null)
   return column.multiple ? names : (names[0] ?? null)
-}
-
-/**
- * Returns a copy of an id-keyed row with every `select` column's value resolved
- * from option id(s) to name(s). Non-select values are untouched. Used at read
- * boundaries that surface names (tool/API reads).
- */
-export function resolveRowSelectValues(
-  rowData: RowData,
-  selectColumns: ColumnDefinition[]
-): RowData {
-  if (selectColumns.length === 0) return rowData
-  const out: RowData = { ...rowData }
-  for (const column of selectColumns) {
-    const key = getColumnId(column)
-    if (key in out) out[key] = selectValueToNames(column, out[key])
-  }
-  return out
-}
-
-/** Convenience: the `select` columns of a schema (single + multiple). */
-export function selectColumnsOf(columns: ColumnDefinition[]): ColumnDefinition[] {
-  return columns.filter((c) => c.type === 'select')
 }
 
 /** Resolves a single filter operand that may be an option name into its id. */

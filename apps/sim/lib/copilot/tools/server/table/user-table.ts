@@ -26,11 +26,10 @@ import {
   TABLE_LIMITS,
   validateMapping,
 } from '@/lib/table'
+import { namedRowMapper } from '@/lib/table/cell-format'
 import {
   buildIdByName,
-  buildNameById,
   filterNamesToIds,
-  rowDataIdToName,
   rowDataNameToId,
   sortNamesToIds,
 } from '@/lib/table/column-keys'
@@ -60,11 +59,7 @@ import {
   updateRow,
   updateRowsByFilter,
 } from '@/lib/table/rows/service'
-import {
-  resolveFilterSelectValues,
-  resolveRowSelectValues,
-  selectColumnsOf,
-} from '@/lib/table/select-values'
+import { resolveFilterSelectValues } from '@/lib/table/select-values'
 import { createTable, deleteTable, getTableById, renameTable } from '@/lib/table/service'
 import type {
   ColumnDefinition,
@@ -534,8 +529,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           assertNotAborted()
           // The LLM authors row data by column name; storage keys by id.
           const idByName = buildIdByName(table.schema)
-          const nameById = buildNameById(table.schema)
-          const selectColumns = selectColumnsOf(table.schema.columns)
+          const toNamedRow = namedRowMapper(table.schema.columns)
           const row = await insertRow(
             {
               tableId: args.tableId,
@@ -554,7 +548,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             data: {
               row: {
                 ...row,
-                data: rowDataIdToName(resolveRowSelectValues(row.data, selectColumns), nameById),
+                data: toNamedRow(row.data),
               },
             },
           }
@@ -579,8 +573,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const idByName = buildIdByName(table.schema)
-          const nameById = buildNameById(table.schema)
-          const selectColumns = selectColumnsOf(table.schema.columns)
+          const toNamedRow = namedRowMapper(table.schema.columns)
           const rows = await batchInsertRows(
             {
               tableId: args.tableId,
@@ -598,7 +591,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             data: {
               rows: rows.map((r) => ({
                 ...r,
-                data: rowDataIdToName(resolveRowSelectValues(r.data, selectColumns), nameById),
+                data: toNamedRow(r.data),
               })),
               insertedCount: rows.length,
             },
@@ -625,15 +618,14 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: `Row not found: ${args.rowId}` }
           }
 
-          const nameById = buildNameById(rowTable.schema)
-          const selectColumns = selectColumnsOf(rowTable.schema.columns)
+          const toNamedRow = namedRowMapper(rowTable.schema.columns)
           return {
             success: true,
             message: `Row ${row.id}`,
             data: {
               row: {
                 ...row,
-                data: rowDataIdToName(resolveRowSelectValues(row.data, selectColumns), nameById),
+                data: toNamedRow(row.data),
               },
             },
           }
@@ -659,8 +651,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          const nameById = buildNameById(table.schema)
-          const selectColumns = selectColumnsOf(table.schema.columns)
+          const toNamedRow = namedRowMapper(table.schema.columns)
           // The model may request any number; we serve at most MAX_QUERY_LIMIT per page so a single
           // tool result can't drain a whole table. `totalCount` in the response signals truncation,
           // and the model pages with `offset`.
@@ -691,7 +682,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               ...result,
               rows: result.rows.map((r) => ({
                 ...r,
-                data: rowDataIdToName(resolveRowSelectValues(r.data, selectColumns), nameById),
+                data: toNamedRow(r.data),
               })),
             },
           }
@@ -719,8 +710,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const idByName = buildIdByName(table.schema)
-          const nameById = buildNameById(table.schema)
-          const selectColumns = selectColumnsOf(table.schema.columns)
+          const toNamedRow = namedRowMapper(table.schema.columns)
           const updatedRow = await updateRow(
             {
               tableId: args.tableId,
@@ -749,10 +739,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             data: {
               row: {
                 ...updatedRow,
-                data: rowDataIdToName(
-                  resolveRowSelectValues(updatedRow.data, selectColumns),
-                  nameById
-                ),
+                data: toNamedRow(updatedRow.data),
               },
             },
           }

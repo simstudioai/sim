@@ -33,7 +33,17 @@ import { getOrCreateTableSnapshot, TableSnapshotTooLargeError } from '@/lib/tabl
 const table = {
   id: 'tbl_1',
   workspaceId: 'ws_1',
-  schema: { columns: [{ id: 'col_name', name: 'name', type: 'string' }] },
+  schema: {
+    columns: [
+      { id: 'col_name', name: 'name', type: 'string' },
+      {
+        id: 'col_status',
+        name: 'status',
+        type: 'select',
+        options: [{ id: 'opt_open', name: 'Open' }],
+      },
+    ],
+  },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any
 
@@ -54,7 +64,7 @@ describe('getOrCreateTableSnapshot', () => {
     lastHandle = null
     mockDeleteFile.mockResolvedValue(undefined)
     mockSelectExportRowPage.mockResolvedValueOnce([
-      { id: 'r1', data: { col_name: 'Ada' }, orderKey: 'a0' },
+      { id: 'r1', data: { col_name: 'Ada', col_status: 'opt_open' }, orderKey: 'a0' },
     ])
     mockSelectExportRowPage.mockResolvedValue([])
     mockCreateMultipartUpload.mockImplementation(({ key }: { key: string }) => {
@@ -103,10 +113,11 @@ describe('getOrCreateTableSnapshot', () => {
         context: 'execution',
       })
     )
-    expect(lastHandle?.content).toBe('name\nAda\n')
+    // Select cells materialize as the option name, not the stored id.
+    expect(lastHandle?.content).toBe('name,status\nAda,Open\n')
     expect(ref).toEqual({
       key: expect.stringMatching(/^table-snapshots\/ws_1\/tbl_1\/v3-[0-9a-f]{12}\.csv$/),
-      size: Buffer.byteLength('name\nAda\n'),
+      size: Buffer.byteLength('name,status\nAda,Open\n'),
       version: 3,
     })
     // Best-effort prune of v2.
@@ -151,9 +162,13 @@ describe('getOrCreateTableSnapshot', () => {
     // second materialize needs its own page sequence
     mockSelectExportRowPage.mockReset()
     mockSelectExportRowPage
-      .mockResolvedValueOnce([{ id: 'r1', data: { col_name: 'Ada' }, orderKey: 'a0' }])
+      .mockResolvedValueOnce([
+        { id: 'r1', data: { col_name: 'Ada', col_status: 'opt_open' }, orderKey: 'a0' },
+      ])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: 'r1', data: { col_name: 'Ada' }, orderKey: 'a0' }])
+      .mockResolvedValueOnce([
+        { id: 'r1', data: { col_name: 'Ada', col_status: 'opt_open' }, orderKey: 'a0' },
+      ])
       .mockResolvedValueOnce([])
 
     const ref = await getOrCreateTableSnapshot(table, 'req')

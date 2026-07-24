@@ -20,6 +20,7 @@ import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { retryTableAdmission } from '@/lib/table/admission-retry'
 import { withCascadeLock } from '@/lib/table/cascade-lock'
+import { fillMissingColumns, mapInputValues, namedRowMapper } from '@/lib/table/cell-format'
 import { getColumnId } from '@/lib/table/column-keys'
 import { isExecCancelled } from '@/lib/table/deps'
 import { getMaxTableDispatchConcurrency } from '@/lib/table/dispatch-concurrency'
@@ -308,12 +309,13 @@ async function runWorkflowAndWriteTerminal(
       if (pickedUp === 'skipped') return 'error'
 
       // Map table columns → enrichment input ids (skip this group's own outputs).
+      // `columnName` holds a column id; the mapper resolves select ids to names.
       const ownOutputColumns = new Set(group.outputs.map((o) => o.columnName))
-      const enrichInputs: Record<string, unknown> = {}
-      for (const m of group.inputMappings ?? []) {
-        if (ownOutputColumns.has(m.columnName)) continue
-        enrichInputs[m.inputName] = row.data[m.columnName]
-      }
+      const enrichInputs = mapInputValues(
+        row.data,
+        table.schema.columns,
+        (group.inputMappings ?? []).filter((m) => !ownOutputColumns.has(m.columnName))
+      )
 
       // Skip (don't error) rows missing a required input — common when a table
       // is partially filled. Clear any prior output values so a stale result
@@ -668,17 +670,17 @@ async function runWorkflowAndWriteTerminal(
       // `inputRow` is name-keyed: the workflow author references columns by name
       // in the Start block and downstream blocks, while stored `row.data` is
       // id-keyed. Translate, skipping this group's own output columns.
+      // NOTE: `outputs[].columnName` / `inputMappings[].columnName` hold column
+      // **ids**, not names — a known misnomer (renaming it is a schema migration).
       const ownOutputColumnIds = new Set(group.outputs.map((o) => o.columnName))
-      const inputRow: Record<string, unknown> = {}
-      for (const col of table.schema.columns) {
-        const id = getColumnId(col)
-        if (ownOutputColumnIds.has(id)) continue
-        inputRow[col.name] = row.data[id]
-      }
-
-      const headers = table.schema.columns
-        .filter((c) => !ownOutputColumnIds.has(getColumnId(c)))
-        .map((c) => c.name)
+      const inputColumns = table.schema.columns.filter(
+        (c) => !ownOutputColumnIds.has(getColumnId(c))
+      )
+      // One column list drives both the row and its headers so they cannot drift.
+      // The mapper also resolves select option ids to names — the workflow author
+      // sees "Open", not `opt_a1b2`.
+      const inputRow = fillMissingColumns(namedRowMapper(inputColumns)(row.data), inputColumns)
+      const headers = inputColumns.map((c) => c.name)
 
       // When the group has explicit input mappings, feed the workflow's
       // Start-block fields from the mapped columns (`inputName ← row[columnId]`).
@@ -686,10 +688,7 @@ async function runWorkflowAndWriteTerminal(
       // Start field still resolves when it matches a column name. `row`/`rawRow`
       // always carry the full (name-keyed) row for downstream reference.
       const inputMappings = group.inputMappings ?? []
-      const mappedInputs: Record<string, unknown> = {}
-      for (const m of inputMappings) {
-        mappedInputs[m.inputName] = row.data[m.columnName]
-      }
+      const mappedInputs = mapInputValues(row.data, table.schema.columns, inputMappings)
 
       const input = {
         ...(inputMappings.length > 0 ? mappedInputs : inputRow),
