@@ -308,6 +308,126 @@ describe('deployment operation persistence', () => {
     expect(dbChainMockFns.insert).toHaveBeenCalled()
   })
 
+  /**
+   * Callers scope one idempotency key to a whole request (the deploy orchestrator
+   * passes `requestId`), so a single request that deploys the same workflow twice —
+   * e.g. the agent redeploying after edits within one chat request — presents the
+   * same key with a new request hash. Once the first deployment settled, the key
+   * must be reassignable or that caller is locked out permanently.
+   */
+  it('releases the key of a completed (active) operation when the request differs', async () => {
+    const completed = operationRow({
+      id: 'operation-active',
+      idempotencyKey: 'deploy-1',
+      requestHash: 'original-hash',
+      status: 'active',
+      generation: 2,
+    })
+    const fresh = operationRow({ id: 'operation-fresh', generation: 3 })
+    mockGenerateId.mockReturnValueOnce('version-fresh').mockReturnValueOnce('operation-fresh')
+    dbChainMockFns.for.mockResolvedValueOnce([{ id: WORKFLOW_ID, archivedAt: null }])
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([completed])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ maxVersion: 2 }])
+      .mockResolvedValueOnce([{ maxGeneration: 2 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([fresh])
+
+    const result = await prepareWorkflowDeployment({
+      workflowId: WORKFLOW_ID,
+      actorId: 'user-1',
+      requestHash: 'different-hash',
+      idempotencyKey: 'deploy-1',
+      workflowState: workflowState(),
+      readinessComponents: ['webhooks'],
+    })
+
+    expect(result).toEqual({ success: true, operation: fresh, reused: false })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: null })
+    )
+    expect(dbChainMockFns.insert).toHaveBeenCalled()
+  })
+
+  it('releases the key of a failed operation even when the request differs', async () => {
+    const failed = operationRow({
+      id: 'operation-failed',
+      idempotencyKey: 'deploy-1',
+      requestHash: 'original-hash',
+      status: 'failed',
+      generation: 2,
+    })
+    const fresh = operationRow({ id: 'operation-fresh', generation: 3 })
+    mockGenerateId.mockReturnValueOnce('version-fresh').mockReturnValueOnce('operation-fresh')
+    dbChainMockFns.for.mockResolvedValueOnce([{ id: WORKFLOW_ID, archivedAt: null }])
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([failed])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ maxVersion: 2 }])
+      .mockResolvedValueOnce([{ maxGeneration: 2 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([fresh])
+
+    const result = await prepareWorkflowDeployment({
+      workflowId: WORKFLOW_ID,
+      actorId: 'user-1',
+      requestHash: 'different-hash',
+      idempotencyKey: 'deploy-1',
+      workflowState: workflowState(),
+      readinessComponents: ['webhooks'],
+    })
+
+    expect(result).toEqual({ success: true, operation: fresh, reused: false })
+    expect(dbChainMockFns.insert).toHaveBeenCalled()
+  })
+
+  it('still rejects a different request while an operation is mid-activation', async () => {
+    dbChainMockFns.for.mockResolvedValueOnce([{ id: WORKFLOW_ID, archivedAt: null }])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      operationRow({
+        idempotencyKey: 'deploy-1',
+        requestHash: 'original-hash',
+        status: 'activating',
+      }),
+    ])
+
+    const result = await prepareWorkflowDeployment({
+      workflowId: WORKFLOW_ID,
+      actorId: 'user-1',
+      requestHash: 'different-hash',
+      idempotencyKey: 'deploy-1',
+      workflowState: workflowState(),
+    })
+
+    expect(result).toEqual({
+      success: false,
+      reason: 'idempotency_conflict',
+      error: 'Idempotency key was already used for a different deployment request',
+    })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('reuses a completed (active) operation for a true duplicate request', async () => {
+    const completed = operationRow({
+      idempotencyKey: 'deploy-1',
+      requestHash: 'hash-1',
+      status: 'active',
+    })
+    dbChainMockFns.for.mockResolvedValueOnce([{ id: WORKFLOW_ID, archivedAt: null }])
+    dbChainMockFns.limit.mockResolvedValueOnce([completed])
+
+    const result = await prepareWorkflowDeployment({
+      workflowId: WORKFLOW_ID,
+      actorId: 'user-1',
+      requestHash: 'hash-1',
+      idempotencyKey: 'deploy-1',
+      workflowState: workflowState(),
+    })
+
+    expect(result).toEqual({ success: true, operation: completed, reused: true })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
   it('rejects stale generation callbacks before mutating legacy deployment state', async () => {
     dbChainMockFns.for
       .mockResolvedValueOnce([{ id: WORKFLOW_ID }])

@@ -751,22 +751,44 @@ async function prepareOperation(
         )
         .limit(1)
       if (existing) {
-        if (existing.requestHash !== requestHash) {
+        /**
+         * `spent` — the attempt ended without deploying, so it can never be
+         * handed back as a successful duplicate.
+         * `settled` — the attempt reached any terminal state (including a
+         * completed `active` deploy), so no work is still in flight under this
+         * key.
+         */
+        const spent = existing.status === 'failed' || existing.status === 'superseded'
+        const settled = spent || existing.status === 'active'
+
+        if (existing.requestHash === requestHash) {
+          // A genuine duplicate submission: hand back the operation that is
+          // already doing (or has already done) the work.
+          if (!spent) {
+            return { success: true, operation: existing, reused: true }
+          }
+        } else if (!settled) {
+          /**
+           * A *different* deployment is still in flight under this key. Which
+           * one the caller meant is genuinely ambiguous, so refuse rather than
+           * race two payloads through the same key.
+           */
           return {
             success: false,
             reason: 'idempotency_conflict',
             error: 'Idempotency key was already used for a different deployment request',
           }
         }
-        if (existing.status !== 'failed' && existing.status !== 'superseded') {
-          return { success: true, operation: existing, reused: true }
-        }
         /**
-         * A terminally failed or superseded attempt releases its idempotency
-         * key: duplicate-submission protection must never pin a retry to a
-         * spent attempt — the caller would get success with no live work
-         * behind it. The key moves to the fresh operation created below so
-         * later duplicates of the same request reuse that one instead.
+         * The key belongs to a settled attempt, so it is free to reassign:
+         * duplicate-submission protection must never pin a retry to a spent
+         * attempt (the caller would get success with no live work behind it),
+         * nor permanently reserve a key that a later, genuinely different
+         * deployment needs. Callers that scope one key to a whole request —
+         * e.g. the agent redeploying an edited workflow within a single chat
+         * request — would otherwise be locked out for good once the first
+         * deployment settled. The key moves to the fresh operation created
+         * below so later duplicates of the same request reuse that one instead.
          */
         await tx
           .update(workflowDeploymentOperation)
