@@ -2154,9 +2154,11 @@ export class WorkspaceVFS {
   }
 
   /**
-   * Advertise workspace skills in the VFS without eagerly loading their bodies.
-   * Paths are registered as lazy so glob/WORKSPACE.md see them, but full content
-   * is fetched only when read (or a grep whose scope touches the path) resolves them.
+   * Advertise the workspace skills in the VFS without eagerly loading their
+   * bodies. Paths are registered as lazy so glob/WORKSPACE.md see them, but
+   * full content is fetched only when read (or a grep whose scope touches the
+   * path) resolves them. Skills are workspace-visible — everyone with
+   * workspace access sees and uses every skill.
    */
   private async materializeSkills(
     workspaceId: string

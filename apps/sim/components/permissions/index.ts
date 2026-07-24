@@ -1,3 +1,12 @@
+export { AddPeopleModal, type AddPeopleTarget } from './add-people-modal'
+export {
+  MEMBER_ROLE_OPTIONS,
+  type MemberRole,
+  type MemberRoleOption,
+  SKILL_EDITOR_ROLE_OPTIONS,
+  type SkillEditorRole,
+} from './member-role-options'
+export { MemberRow, type MemberRowMember } from './member-row'
 export {
   type OrgRole,
   OrgRoleSelector,
@@ -8,6 +17,7 @@ export {
   type CredentialRoleSource,
   credentialRoleLockReason,
   RoleLockTooltip,
+  skillEditorLockReason,
   type WorkspaceRoleSource,
   workspaceRoleLockReason,
 } from './role-lock'

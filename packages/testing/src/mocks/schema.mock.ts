@@ -406,6 +406,14 @@ export const schemaMock = {
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
   },
+  skillMember: {
+    id: 'id',
+    skillId: 'skillId',
+    userId: 'userId',
+    invitedBy: 'invitedBy',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
+  },
   subscription: {
     id: 'id',
     plan: 'plan',

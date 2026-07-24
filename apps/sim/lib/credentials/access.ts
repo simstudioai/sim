@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { credential, credentialMember, credentialTypeEnum } from '@sim/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { resolveWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 type ActiveCredentialMember = typeof credentialMember.$inferSelect
 type CredentialRecord = typeof credential.$inferSelect
@@ -74,11 +74,11 @@ export async function getCredentialActorContext(
     }
   }
 
-  const providedAccess = options?.workspaceAccess
-  const workspaceAccess =
-    providedAccess && providedAccess.workspace?.id === credentialRow.workspaceId
-      ? providedAccess
-      : await checkWorkspaceAccess(credentialRow.workspaceId, userId)
+  const workspaceAccess = await resolveWorkspaceAccess(
+    credentialRow.workspaceId,
+    userId,
+    options?.workspaceAccess
+  )
   const [memberRow] = await db
     .select()
     .from(credentialMember)
@@ -111,6 +111,13 @@ export async function getCredentialActorContext(
  * Workspace owners and admins are derived credential admins, so no per-credential
  * owner promotion is needed to avoid orphaning a credential. Returns the number
  * of memberships revoked.
+ *
+ * Deliberately DIVERGES from the skill sibling (`removeWorkspaceSkillMembershipsTx`
+ * deletes active rows): credential access is explicit-rows-only, so a revoked
+ * row here is an inert tombstone the env-credential join sync uses to avoid
+ * resurrecting access. Skills have an implicit workspace-shared grant, where a
+ * revoked row is a live per-skill DENY marker and a kept-active row would
+ * re-grant on rejoin — do not "harmonize" either helper toward the other.
  */
 export async function revokeWorkspaceCredentialMembershipsTx(
   tx: DbOrTx,

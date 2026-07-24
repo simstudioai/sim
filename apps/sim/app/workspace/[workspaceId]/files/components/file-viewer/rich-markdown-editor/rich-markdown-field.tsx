@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChipTextarea, chipFieldSurfaceClass, cn } from '@sim/emcn'
 import type { JSONContent } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
@@ -30,9 +30,14 @@ interface RichMarkdownFieldProps {
   /** True while `value` is being pushed in externally (AI generation) — the editor turns read-only and mirrors each update. */
   isStreaming?: boolean
   autoFocus?: boolean
-  /** Min height of the scroll box in px. */
+  /** Min height of the editor box in px. */
   minHeight?: number
-  /** Max height of the scroll box in px before it scrolls. */
+  /**
+   * Max height in px before the box scrolls internally. Set this inside a modal,
+   * where the surface itself cannot grow. Omit on a full-page surface so the
+   * editor grows with its content and the page owns the only scrollbar — a
+   * capped box stranded above empty page is worse than a long document.
+   */
   maxHeight?: number
   /** Swaps the border to the error token (the message itself is rendered by the surrounding field). */
   error?: boolean
@@ -61,7 +66,7 @@ function LoadedRichMarkdownField({
   isStreaming = false,
   autoFocus = false,
   minHeight = 140,
-  maxHeight = 360,
+  maxHeight,
   error = false,
   workspaceId,
   disableTagging,
@@ -176,10 +181,17 @@ function LoadedRichMarkdownField({
     <div
       ref={containerRef}
       className={cn(
-        'flex flex-col overflow-y-auto px-3 py-2',
+        'flex flex-col px-3 py-2',
+        // Only a capped box scrolls itself. Uncapped, the box grows and the page
+        // scrolls — making it a scroll container anyway would clip the bubble
+        // menu against an edge that never moves.
+        maxHeight !== undefined && 'overflow-y-auto',
         chipFieldSurfaceClass,
         error && 'border-[var(--text-error)]',
-        !disabled && !isStreaming && 'cursor-text'
+        !disabled && !isStreaming && 'cursor-text',
+        // Match the chip fields' disabled chrome (dimmed, not copyable) while
+        // keeping the container scrollable; streaming stays full-strength.
+        disabled && !isStreaming && 'select-none opacity-50'
       )}
       style={{ minHeight, maxHeight }}
     >
@@ -206,12 +218,44 @@ function RawMarkdownField({
   disabled = false,
   isStreaming = false,
   minHeight = 140,
-  maxHeight = 360,
+  maxHeight,
   error = false,
   onPasteText,
 }: RichMarkdownFieldProps) {
+  // Disabled-look without the `disabled` attribute — a disabled textarea is
+  // inert to wheel/scrollbar, but locked content must stay scrollable.
+  const lockedView = disabled && !isStreaming
+
+  /**
+   * Uncapped, the textarea grows with its content so it matches the WYSIWYG
+   * path on a full-page surface — a textarea has no intrinsic auto-height, so
+   * the height is synced to `scrollHeight` on every value change. Capped (in a
+   * modal) it keeps its own scrollbar and this is skipped.
+   */
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const autoGrow = maxHeight === undefined
+  useLayoutEffect(() => {
+    if (!autoGrow) return
+    const el = textareaRef.current
+    if (!el) return
+
+    const measure = () => {
+      el.style.height = 'auto'
+      el.style.height = `${Math.max(el.scrollHeight, minHeight)}px`
+    }
+    measure()
+
+    // The box is `overflow-hidden` while uncapped, so a width change that
+    // re-wraps lines without touching `value` would clip the tail with no
+    // scrollbar to reach it — re-measure whenever the element resizes.
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [autoGrow, value, minHeight])
+
   return (
     <ChipTextarea
+      ref={textareaRef}
       value={value}
       onChange={(event) => onChange(event.target.value)}
       onPaste={(event) => {
@@ -220,15 +264,20 @@ function RawMarkdownField({
       }}
       placeholder={placeholder}
       error={error}
-      readOnly={disabled || isStreaming}
+      viewOnly={lockedView}
+      readOnly={isStreaming}
+      tabIndex={lockedView ? -1 : undefined}
+      className={cn(lockedView && 'select-none opacity-50', autoGrow && 'overflow-hidden')}
       style={{ minHeight, maxHeight }}
     />
   )
 }
 
 /**
- * A controlled, string-valued markdown editor for modal fields. Drop it inside a `ChipModalField
- * type='custom'`. Mirrors the file editor's safety gate (decided once from the initial value):
+ * A controlled, string-valued markdown editor. Inside a modal, drop it in a `ChipModalField
+ * type='custom'` and pass a `maxHeight` so it scrolls within the modal; on a full-page surface omit
+ * `maxHeight` so it grows with its content and the page owns the only scrollbar.
+ * Mirrors the file editor's safety gate (decided once from the initial value):
  * round-trip-safe content opens in the WYSIWYG editor, while lossy markdown (raw HTML, footnotes,
  * comments) falls back to raw-text editing so an edit can't silently drop those constructs.
  */

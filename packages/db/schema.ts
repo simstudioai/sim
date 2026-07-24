@@ -1050,6 +1050,31 @@ export const skill = pgTable(
   })
 )
 
+/**
+ * Editor grants for a skill. A row makes the user an editor (edit, delete,
+ * share); workspace admins are derived editors and need no rows. Everyone with
+ * workspace access can see and use every skill regardless of rows.
+ */
+export const skillMember = pgTable(
+  'skill_member',
+  {
+    id: text('id').primaryKey(),
+    skillId: text('skill_id')
+      .notNull()
+      .references(() => skill.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    invitedBy: text('invited_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index('skill_member_user_id_idx').on(table.userId),
+    uniqueMembership: uniqueIndex('skill_member_unique').on(table.skillId, table.userId),
+  })
+)
+
 export const mothershipSettings = pgTable(
   'mothership_settings',
   {

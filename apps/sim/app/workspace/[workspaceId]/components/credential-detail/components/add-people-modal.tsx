@@ -1,26 +1,14 @@
 'use client'
-
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import {
-  ChipModal,
-  ChipModalBody,
-  ChipModalError,
-  ChipModalField,
-  ChipModalFooter,
-  ChipModalHeader,
-} from '@sim/emcn'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+  type AddPeopleTarget,
+  type MemberRole,
+  AddPeopleModal as SharedAddPeopleModal,
+} from '@/components/permissions'
 import {
   useUpsertWorkspaceCredentialMember,
   useWorkspaceCredentialMembers,
-  type WorkspaceCredentialRole,
 } from '@/hooks/queries/credentials'
-import { ROLE_OPTIONS } from '../roles'
-import { partitionSettledFailures, resolveAddEmail } from '../sharing'
-
-const logger = createLogger('AddPeopleModal')
 
 interface AddPeopleModalProps {
   credentialId: string
@@ -29,28 +17,12 @@ interface AddPeopleModalProps {
 }
 
 /**
- * Shared "Add people" modal: grants existing workspace members access to a
- * credential with a chosen role. Emails are validated against the workspace
- * roster and current membership; each add is an idempotent upsert and partial
- * failures keep only the people that still need adding.
+ * "Add people" for a credential: wires the shared modal to credential
+ * membership. Active members count as already having access.
  */
 export function AddPeopleModal({ credentialId, open, onOpenChange }: AddPeopleModalProps) {
-  const { workspacePermissions } = useWorkspacePermissionsContext()
   const { data: members = [] } = useWorkspaceCredentialMembers(credentialId)
-  const upsertMember = useUpsertWorkspaceCredentialMember()
-
-  const [emailsToAdd, setEmailsToAdd] = useState<string[]>([])
-  const [roleToAdd, setRoleToAdd] = useState<WorkspaceCredentialRole>('member')
-  const [isAdding, setIsAdding] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-
-  const workspaceUserIdByEmail = useMemo(
-    () =>
-      new Map(
-        (workspacePermissions?.users ?? []).map((user) => [user.email.toLowerCase(), user.userId])
-      ),
-    [workspacePermissions?.users]
-  )
+  const { mutateAsync: upsertMemberAsync } = useUpsertWorkspaceCredentialMember()
 
   const existingMemberEmails = useMemo(
     () =>
@@ -63,108 +35,18 @@ export function AddPeopleModal({ credentialId, open, onOpenChange }: AddPeopleMo
     [members]
   )
 
-  const validateAddEmail = useCallback(
-    (email: string): string | null => {
-      const result = resolveAddEmail(email, { workspaceUserIdByEmail, existingMemberEmails })
-      return 'error' in result ? result.error : null
-    },
-    [workspaceUserIdByEmail, existingMemberEmails]
+  const addMember = useCallback(
+    (target: AddPeopleTarget, role: MemberRole) =>
+      upsertMemberAsync({ credentialId, userId: target.userId, role }),
+    [upsertMemberAsync, credentialId]
   )
 
-  const handleClose = useCallback(() => {
-    setEmailsToAdd([])
-    setRoleToAdd('member')
-    setSubmitError(null)
-    onOpenChange(false)
-  }, [onOpenChange])
-
-  const handleAddPeople = useCallback(async () => {
-    if (emailsToAdd.length === 0 || isAdding) return
-    setSubmitError(null)
-    const targets = emailsToAdd
-      .map((email) => {
-        const result = resolveAddEmail(email, { workspaceUserIdByEmail, existingMemberEmails })
-        return 'userId' in result ? { email, userId: result.userId } : null
-      })
-      .filter((target): target is { email: string; userId: string } => target !== null)
-    if (targets.length === 0) return
-
-    setIsAdding(true)
-    try {
-      const results = await Promise.allSettled(
-        targets.map((target) =>
-          upsertMember.mutateAsync({ credentialId, userId: target.userId, role: roleToAdd })
-        )
-      )
-      const failures = partitionSettledFailures(targets, results)
-      if (failures.length === 0) {
-        handleClose()
-        return
-      }
-      setEmailsToAdd(failures.map((target) => target.email))
-      const firstError = results.find(
-        (result): result is PromiseRejectedResult => result.status === 'rejected'
-      )
-      logger.error('Failed to add some credential members', firstError?.reason)
-      const reason = getErrorMessage(firstError?.reason, 'Please try again in a moment.')
-      setSubmitError(
-        failures.length === targets.length
-          ? `Couldn't add people. ${reason}`
-          : `Couldn't add ${failures.length} of ${targets.length} people. ${reason}`
-      )
-    } finally {
-      setIsAdding(false)
-    }
-  }, [
-    credentialId,
-    emailsToAdd,
-    isAdding,
-    workspaceUserIdByEmail,
-    existingMemberEmails,
-    roleToAdd,
-    upsertMember,
-    handleClose,
-  ])
-
   return (
-    <ChipModal
+    <SharedAddPeopleModal
       open={open}
-      onOpenChange={(next) => {
-        if (!next) handleClose()
-      }}
-      srTitle='Add people'
-    >
-      <ChipModalHeader onClose={handleClose}>Add people</ChipModalHeader>
-      <ChipModalBody>
-        <ChipModalField
-          type='emails'
-          title='Emails'
-          value={emailsToAdd}
-          onChange={setEmailsToAdd}
-          validate={validateAddEmail}
-          placeholder='Enter emails'
-          disabled={isAdding}
-        />
-        <ChipModalField
-          type='dropdown'
-          title='Role'
-          options={ROLE_OPTIONS}
-          value={roleToAdd}
-          placeholder='Select role'
-          align='start'
-          onChange={(role) => setRoleToAdd(role as WorkspaceCredentialRole)}
-          disabled={isAdding}
-        />
-        <ChipModalError>{submitError}</ChipModalError>
-      </ChipModalBody>
-      <ChipModalFooter
-        onCancel={handleClose}
-        primaryAction={{
-          label: isAdding ? 'Adding...' : 'Add',
-          onClick: handleAddPeople,
-          disabled: emailsToAdd.length === 0 || isAdding,
-        }}
-      />
-    </ChipModal>
+      onOpenChange={onOpenChange}
+      existingMemberEmails={existingMemberEmails}
+      addMember={addMember}
+    />
   )
 }

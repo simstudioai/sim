@@ -3,7 +3,9 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { deleteSkill, listSkills, upsertSkills } from '@/lib/workflows/skills/operations'
+import { getSkillActorContext } from '@/lib/skills/access'
+import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
+import { deleteSkill, listSkillsForUser, upsertSkills } from '@/lib/workflows/skills/operations'
 
 const logger = createLogger('CopilotToolExecutor')
 
@@ -33,22 +35,23 @@ export async function executeManageSkill(
     return { success: false, error: 'workspaceId is required' }
   }
 
-  const writeOps: string[] = ['add', 'edit', 'delete']
+  // Workspace write gates only creation; edits and deletes are gated per skill
+  // below (skill editor — explicit editor row or derived workspace admin).
   if (
-    writeOps.includes(operation) &&
+    operation === 'add' &&
     context.userPermission &&
     context.userPermission !== 'write' &&
     context.userPermission !== 'admin'
   ) {
     return {
       success: false,
-      error: `Permission denied: '${operation}' on manage_skill requires write access. You have '${context.userPermission}' permission.`,
+      error: `Permission denied: 'add' on manage_skill requires write access. You have '${context.userPermission}' permission.`,
     }
   }
 
   try {
     if (operation === 'list') {
-      const skills = await listSkills({ workspaceId })
+      const skills = await listSkillsForUser({ workspaceId, userId: context.userId })
 
       return {
         success: true,
@@ -128,26 +131,36 @@ export async function executeManageSkill(
         }
       }
 
-      const existing = await listSkills({ workspaceId })
-      const found = existing.find((s) => s.id === params.skillId)
-      if (!found) {
-        return { success: false, error: `Skill not found: ${params.skillId}` }
+      if (isBuiltinSkillId(params.skillId)) {
+        return { success: false, error: 'Built-in skills are read-only and cannot be modified' }
       }
 
+      const actor = await getSkillActorContext(params.skillId, context.userId)
+      if (!actor.skill || actor.skill.workspaceId !== workspaceId || !actor.hasWorkspaceAccess) {
+        return { success: false, error: `Skill not found: ${params.skillId}` }
+      }
+      if (!actor.canEdit) {
+        return {
+          success: false,
+          error: `Permission denied: editing skill "${actor.skill.name}" requires skill editor access. Ask a skill editor to add you.`,
+        }
+      }
+
+      // Partial update: omitted fields keep their current values server-side.
       await upsertSkills({
         skills: [
           {
             id: params.skillId,
-            name: params.name || found.name,
-            description: params.description || found.description,
-            content: params.content || found.content,
+            ...(params.name ? { name: params.name } : {}),
+            ...(params.description ? { description: params.description } : {}),
+            ...(params.content ? { content: params.content } : {}),
           },
         ],
         workspaceId,
         userId: context.userId,
       })
 
-      const updatedName = params.name || found.name
+      const updatedName = params.name || actor.skill.name
       recordAudit({
         workspaceId,
         actorId: context.userId,
@@ -176,8 +189,8 @@ export async function executeManageSkill(
           success: true,
           operation,
           skillId: params.skillId,
-          name: params.name || found.name,
-          message: `Updated skill "${params.name || found.name}"`,
+          name: updatedName,
+          message: `Updated skill "${updatedName}"`,
         },
       }
     }
@@ -185,6 +198,19 @@ export async function executeManageSkill(
     if (operation === 'delete') {
       if (!params.skillId) {
         return { success: false, error: "'skillId' is required for 'delete'" }
+      }
+
+      if (!isBuiltinSkillId(params.skillId)) {
+        const actor = await getSkillActorContext(params.skillId, context.userId)
+        if (!actor.skill || actor.skill.workspaceId !== workspaceId || !actor.hasWorkspaceAccess) {
+          return { success: false, error: `Skill not found: ${params.skillId}` }
+        }
+        if (!actor.canEdit) {
+          return {
+            success: false,
+            error: `Permission denied: deleting skill "${actor.skill.name}" requires skill editor access. Ask a skill editor to add you.`,
+          }
+        }
       }
 
       const deleted = await deleteSkill({ skillId: params.skillId, workspaceId })

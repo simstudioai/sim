@@ -545,14 +545,26 @@ describe('copyForkResourceContainers external MCP server copy', () => {
 })
 
 describe('copyForkResourceContainers skill copy', () => {
-  function makeSkillTx(rows: Array<Record<string, unknown>>) {
+  /** Sequential tx mock: each select resolves the next queued row set (skill rows, then member rows). */
+  function makeSkillTx(selects: Array<Array<Record<string, unknown>>>) {
+    let call = 0
     const inserted: Array<Record<string, unknown>> = []
     const tx = {
-      select: () => ({ from: () => ({ where: () => Promise.resolve(rows) }) }),
+      select: () => {
+        const result = Promise.resolve(selects[call++] ?? [])
+        const chain = {
+          from: () => chain,
+          innerJoin: () => chain,
+          where: () => result,
+        }
+        return chain
+      },
       insert: () => ({
         values: (values: Array<Record<string, unknown>>) => {
           inserted.push(...values)
-          return Promise.resolve()
+          return Object.assign(Promise.resolve(), {
+            onConflictDoNothing: () => Promise.resolve(),
+          })
         },
       }),
     }
@@ -568,20 +580,20 @@ describe('copyForkResourceContainers skill copy', () => {
     knowledgeBases: [],
   }
 
+  const sourceSkillRow = {
+    id: 'sk-1',
+    name: 'My Skill',
+    description: 'desc',
+    workspaceId: 'src-ws',
+    userId: 'src-user',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }
+
   it('copies the skill body IN-DB and carries only the child id in the content plan', async () => {
     // The source projection deliberately omits `content` (it is copied server-side), so the row
     // fed to the tx mock has none - the body must never be materialized in app memory here.
-    const { tx, inserted } = makeSkillTx([
-      {
-        id: 'sk-1',
-        name: 'My Skill',
-        description: 'desc',
-        workspaceId: 'src-ws',
-        userId: 'src-user',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ])
+    const { tx, inserted } = makeSkillTx([[sourceSkillRow], []])
 
     const result = await copyForkResourceContainers({
       tx,
@@ -603,6 +615,37 @@ describe('copyForkResourceContainers skill copy', () => {
     // The content plan carries ONLY the child id - no skill body text crosses the job payload.
     expect(result.contentPlan.skills).toEqual([{ childId }])
     expect(result.names.skills).toEqual(['My Skill'])
+  })
+
+  it('copies editor grants onto the child skill for users in the target roster', async () => {
+    // The editor query joins the child-workspace permissions in-DB, so the
+    // mock's second row set already represents source editors ∩ target roster.
+    const { tx, inserted } = makeSkillTx([
+      [sourceSkillRow],
+      [
+        { skillId: 'sk-1', userId: 'editor-1' },
+        { skillId: 'sk-1', userId: 'editor-2' },
+      ],
+    ])
+
+    await copyForkResourceContainers({
+      tx,
+      sourceWorkspaceId: 'src-ws',
+      childWorkspaceId: 'child-ws',
+      userId: 'user-1',
+      now: new Date(),
+      selection: skillSelection,
+      workflowIdMap: new Map(),
+    })
+
+    const childSkill = inserted[0]
+    const firstGrant = inserted[1]
+    expect(firstGrant.skillId).toBe(childSkill.id)
+    expect(firstGrant.userId).toBe('editor-1')
+
+    const secondGrant = inserted[2]
+    expect(secondGrant.skillId).toBe(childSkill.id)
+    expect(secondGrant.userId).toBe('editor-2')
   })
 })
 
