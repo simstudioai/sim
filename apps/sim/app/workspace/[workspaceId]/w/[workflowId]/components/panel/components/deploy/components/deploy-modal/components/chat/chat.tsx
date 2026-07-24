@@ -379,9 +379,6 @@ export function ChatDeploy({
               <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
                 Include thinking
               </Label>
-              <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
-                Allow this chat to stream model thinking when the client opts in. Off by default.
-              </p>
             </div>
             <Switch
               checked={formData.includeThinking}
@@ -396,10 +393,6 @@ export function ChatDeploy({
               <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
                 Include tool calls
               </Label>
-              <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
-                Allow this chat to stream tool names and lifecycle status when the client opts in.
-                Off by default.
-              </p>
             </div>
             <Switch
               checked={formData.includeToolCalls}
