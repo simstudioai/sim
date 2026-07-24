@@ -89,6 +89,7 @@
     ]
   },
   "trustedDependencies": [
+    "isolated-vm",
     "sharp"
   ],
   "dependencies": {

@@ -21,13 +21,15 @@ interface DomainSettingsProps {
 interface CopyFieldProps {
   label: string
   value: string
+  hint?: string
 }
 
-function CopyField({ label, value }: CopyFieldProps) {
+function CopyField({ label, value, hint }: CopyFieldProps) {
   return (
     <div className='flex flex-col gap-1'>
       <span className='text-[var(--text-muted)] text-caption'>{label}</span>
       <ChipCopyInput value={value} copyLabel={`Copy ${label}`} inputClassName='font-mono' />
+      {hint ? <span className='text-[var(--text-muted)] text-caption'>{hint}</span> : null}
     </div>
   )
 }
@@ -71,7 +73,11 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
             Add this TXT record at your DNS provider, then verify. DNS changes can take up to 48
             hours to propagate.
           </p>
-          <CopyField label='Host / name' value={domain.challengeHost} />
+          <CopyField
+            label='Host / name'
+            value={domain.challengeHost}
+            hint='Some DNS providers append your zone automatically. If yours does, enter this host with the trailing zone removed.'
+          />
           <CopyField label='Value' value={domain.txtRecordValue} />
           <div>
             <Button size='sm' onClick={handleVerify} disabled={verifyDomain.isPending}>
