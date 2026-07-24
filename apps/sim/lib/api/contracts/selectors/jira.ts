@@ -167,7 +167,7 @@ export const jiraCustomFieldEntrySchema = z
     z.object({
       fieldId: customFieldIdSchema,
       type: z.literal('text'),
-      value: z.string(),
+      value: z.string().min(1, 'text value cannot be empty'),
     }),
     z.object({ fieldId: customFieldIdSchema, type: z.literal('number'), value: numberInputSchema }),
     z.object({ fieldId: customFieldIdSchema, type: z.literal('select'), value: optionInputSchema }),

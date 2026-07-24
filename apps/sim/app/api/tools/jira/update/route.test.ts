@@ -105,6 +105,13 @@ describe('Jira update route custom-field serialization', () => {
     expect(response.status).toBe(400)
   })
 
+  it('rejects a text entry with an empty value', async () => {
+    const { response } = await update({
+      customFields: [{ fieldId: 'customfield_10007', type: 'text', value: '' }],
+    })
+    expect(response.status).toBe(400)
+  })
+
   it('rejects a select entry with an empty option value', async () => {
     const { response } = await update({
       customFields: [{ fieldId: 'customfield_10001', type: 'select', value: { value: '' } }],
