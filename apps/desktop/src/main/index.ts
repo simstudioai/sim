@@ -8,11 +8,13 @@ import {
 } from '@/main/browser-agent/driver'
 import {
   canReportPanelBounds,
+  setPanelBounds as setBrowserAgentPanelBounds,
+  setPanelOccluded as setBrowserAgentPanelOccluded,
+} from '@/main/browser-agent/panel'
+import {
   closeFocusedTab as closeFocusedBrowserTab,
   reopenFocusedTab as reopenClosedBrowserTab,
-  setPanelBounds as setBrowserAgentPanelBounds,
   setPanelFocused as setBrowserAgentPanelFocused,
-  setPanelOccluded as setBrowserAgentPanelOccluded,
 } from '@/main/browser-agent/session'
 import {
   APP_NAME_FOR_CHANNEL,

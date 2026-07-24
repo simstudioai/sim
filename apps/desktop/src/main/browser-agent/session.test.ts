@@ -6,6 +6,10 @@ import { MAX_BROWSER_TABS } from '@sim/browser-protocol'
 import { BrowserWindow, session as electronSession } from 'electron'
 
 type SessionModule = typeof import('@/main/browser-agent/session')
+type PanelModule = typeof import('@/main/browser-agent/panel')
+
+/** Set by freshSession — compositing lives in its own module now. */
+let panel: PanelModule
 
 interface MockView {
   webContents: {
@@ -48,6 +52,7 @@ async function freshSession(
 ): Promise<SessionModule> {
   vi.resetModules()
   const session = await import('@/main/browser-agent/session')
+  panel = await import('@/main/browser-agent/panel')
   session.initSession(
     {
       onSessionClosed: vi.fn(),
@@ -107,7 +112,7 @@ describe('browser-agent session', () => {
   })
 
   it('handles browser shortcuts from a focused native tab', () => {
-    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     const first = session.requireTab()
     const firstContents = (first.view as unknown as MockView).webContents
     const beforeInput = firstContents.on.mock.calls.find(
@@ -155,7 +160,7 @@ describe('browser-agent session', () => {
   })
 
   it('closes only the native browser tab targeted by the application menu accelerator', () => {
-    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     const first = session.requireTab()
     const second = session.addTab()
     const firstContents = (first.view as unknown as MockView).webContents
@@ -197,7 +202,7 @@ describe('browser-agent session', () => {
   })
 
   it('treats renderer browser chrome as browser focus', () => {
-    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     const first = session.requireTab()
     const second = session.addTab()
 
@@ -212,13 +217,13 @@ describe('browser-agent session', () => {
   })
 
   it('retains browser focus while a renderer overlay temporarily occludes the page', () => {
-    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     session.requireTab()
     session.setPanelFocused(true)
 
     // Tooltips and browser chrome overlays hide the native surface briefly;
     // visual occlusion is not a focus change.
-    session.setPanelOccluded(true)
+    panel.setPanelOccluded(true)
     expect(session.closeFocusedTab()).toBe(true)
   })
 
@@ -295,7 +300,7 @@ describe('browser-agent session', () => {
   })
 
   it('reopens the latest closed tab while the browser owns focus', () => {
-    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     session.ensureTab()
     const closed = session.addTab()
     session.setPanelFocused(true)
@@ -314,11 +319,11 @@ describe('browser-agent session', () => {
 
   it('keeps stale reports from another app window from hiding or controlling the browser panel', () => {
     const otherWindow = mainWindowMock()
-    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 }, win)
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 }, win)
     session.ensureTab()
     vi.mocked(win.contentView.removeChildView).mockClear()
 
-    session.setPanelBounds(null, otherWindow)
+    panel.setPanelBounds(null, otherWindow)
     expect(win.contentView.removeChildView).not.toHaveBeenCalled()
 
     session.setPanelFocused(true, win)
@@ -381,7 +386,7 @@ describe('browser-agent session', () => {
       }
     )
 
-    restoredSession.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
 
     const [restored] = restoredSession.listTabs()
     expect(restored).toMatchObject({ pinned: true, active: true })
@@ -417,7 +422,7 @@ describe('browser-agent session', () => {
     // No bounds yet: the view is not attached to the window.
     expect(content.addChildView).not.toHaveBeenCalledWith(tab.view)
 
-    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     expect(content.addChildView).toHaveBeenCalledWith(tab.view)
     expect(view.setBounds).toHaveBeenCalledWith({ x: 100, y: 50, width: 800, height: 600 })
 
@@ -425,7 +430,7 @@ describe('browser-agent session', () => {
     const removeChildView = (
       win as unknown as { contentView: { removeChildView: ReturnType<typeof vi.fn> } }
     ).contentView.removeChildView
-    session.setPanelBounds(null)
+    panel.setPanelBounds(null)
     expect(removeChildView).toHaveBeenCalledWith(tab.view)
   })
 
@@ -439,7 +444,7 @@ describe('browser-agent session', () => {
     }
 
     // Renderer report at content size 1180x850 → anchor right=280, bottom=200.
-    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     const resizeListener = mock.on.mock.calls.find(([event]) => event === 'resize')?.[1] as
       | (() => void)
       | undefined
@@ -456,18 +461,18 @@ describe('browser-agent session', () => {
     // The renderer's authoritative report then lands without a redundant set
     // when it matches the prediction.
     view.setBounds.mockClear()
-    session.setPanelBounds({ x: 300, y: 50, width: 800, height: 700 })
+    panel.setPanelBounds({ x: 300, y: 50, width: 800, height: 700 })
     expect(view.setBounds).not.toHaveBeenCalled()
 
     // Hiding the panel removes the resize listener.
-    session.setPanelBounds(null)
+    panel.setPanelBounds(null)
     expect(mock.removeListener).toHaveBeenCalledWith('resize', resizeListener)
   })
 
   it('creates one real default tab when the browser panel becomes visible', () => {
     expect(session.listTabs()).toHaveLength(0)
 
-    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
 
     expect(session.listTabs()).toHaveLength(1)
     expect(session.getTabsState().activeTabId).toBe(session.listTabs()[0].tabId)
@@ -480,7 +485,7 @@ describe('browser-agent session', () => {
 
   it('clears a stale attachment without touching a destroyed host window', () => {
     const tab = session.ensureTab()
-    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     const staleContent = (
       win as unknown as {
         contentView: {
@@ -507,10 +512,10 @@ describe('browser-agent session', () => {
       () => replacement
     )
 
-    expect(() => session.setPanelBounds(null)).not.toThrow()
+    expect(() => panel.setPanelBounds(null)).not.toThrow()
     expect(staleContent.removeChildView).not.toHaveBeenCalled()
 
-    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     const replacementContent = (
       replacement as unknown as {
         contentView: {
@@ -524,7 +529,7 @@ describe('browser-agent session', () => {
   it('clears a stale attachment without touching a destroyed child view', () => {
     const tab = session.ensureTab()
     const view = tab.view as unknown as MockView
-    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     const content = (
       win as unknown as {
         contentView: {
@@ -535,7 +540,7 @@ describe('browser-agent session', () => {
     content.removeChildView.mockClear()
     view.webContents.isDestroyed.mockReturnValue(true)
 
-    expect(() => session.setPanelBounds(null)).not.toThrow()
+    expect(() => panel.setPanelBounds(null)).not.toThrow()
     expect(content.removeChildView).not.toHaveBeenCalled()
   })
 
@@ -546,7 +551,7 @@ describe('browser-agent session', () => {
     ).webContents.getZoomFactor = vi.fn(() => 1.5)
     return freshSession(winZoomed).then((zoomedSession) => {
       const tab = zoomedSession.ensureTab()
-      zoomedSession.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+      panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
       expect((tab.view as unknown as MockView).setBounds).toHaveBeenCalledWith({
         x: 150,
         y: 75,
@@ -567,11 +572,11 @@ describe('browser-agent session', () => {
         }
       }
     ).contentView
-    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     content.removeChildView.mockClear()
     view.setVisible.mockClear()
 
-    session.setPanelOccluded(true)
+    panel.setPanelOccluded(true)
 
     expect(content.removeChildView).not.toHaveBeenCalled()
     expect(view.setVisible).toHaveBeenLastCalledWith(false)
@@ -582,7 +587,7 @@ describe('browser-agent session', () => {
       })
     })
 
-    session.setPanelOccluded(false)
+    panel.setPanelOccluded(false)
     expect(view.setVisible).toHaveBeenLastCalledWith(true)
   })
 
@@ -633,7 +638,7 @@ describe('browser-agent session', () => {
     const save = vi.fn()
     session = await freshSession(win, {}, { load: () => [], save })
 
-    session.setPanelBounds({ x: 0, y: 0, width: 800, height: 600 })
+    panel.setPanelBounds({ x: 0, y: 0, width: 800, height: 600 })
     const survivor = (session.ensureTab().view as unknown as MockView).webContents
     session.closeTab(session.addTab().id)
     expect(session.reopenClosedTab()).not.toBeNull()
@@ -713,6 +718,51 @@ describe('browser-agent session', () => {
     expect(onSessionClosed).toHaveBeenCalled()
   })
 
+  it('hides the panel when the renderer stops renewing its bounds lease', async () => {
+    vi.useFakeTimers()
+    try {
+      session = await freshSession(win)
+      session.ensureTab()
+      panel.setPanelBounds({ x: 0, y: 0, width: 800, height: 600 }, win)
+      const contentView = (
+        win as unknown as { contentView: { removeChildView: ReturnType<typeof vi.fn> } }
+      ).contentView
+      contentView.removeChildView.mockClear()
+
+      // The renderer goes silent — crashed, unmounted, or wedged. Without the
+      // lease the native view keeps floating over whatever replaced the panel.
+      await vi.advanceTimersByTimeAsync(6_000)
+
+      expect(contentView.removeChildView).toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps the panel while the renderer keeps renewing the lease', async () => {
+    vi.useFakeTimers()
+    try {
+      session = await freshSession(win)
+      session.ensureTab()
+      const bounds = { x: 0, y: 0, width: 800, height: 600 }
+      panel.setPanelBounds(bounds, win)
+      const contentView = (
+        win as unknown as { contentView: { removeChildView: ReturnType<typeof vi.fn> } }
+      ).contentView
+      contentView.removeChildView.mockClear()
+
+      // The renderer heartbeats about once a second.
+      for (let beat = 0; beat < 6; beat++) {
+        await vi.advanceTimersByTimeAsync(1_000)
+        panel.setPanelBounds(bounds, win)
+      }
+
+      expect(contentView.removeChildView).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('hardens every distinct session, not only the first one configured', () => {
     // Guards against tracking this with one process-wide flag: the second
     // session would then be left with no permission handlers, no SSRF request
@@ -745,92 +795,92 @@ describe('browser panel ownership', () => {
   })
 
   it('lets any window claim a panel nobody owns yet', () => {
-    expect(session.canReportPanelBounds(other, null)).toBe(true)
+    expect(panel.canReportPanelBounds(other, null)).toBe(true)
   })
 
   it('keeps the owner reporting while Sim sits in the background', () => {
-    session.setPanelBounds(BOUNDS, win)
+    panel.setPanelBounds(BOUNDS, win)
 
     // Nothing is focused, but the owner has not changed.
-    expect(session.canReportPanelBounds(win, null)).toBe(true)
+    expect(panel.canReportPanelBounds(win, null)).toBe(true)
   })
 
   it('refuses a second window claiming the panel while nothing is focused', () => {
-    session.setPanelBounds(BOUNDS, win)
+    panel.setPanelBounds(BOUNDS, win)
 
     // Both windows heartbeat their bounds every second. Allowing an unfocused
     // claim makes them alternate ownership, re-parenting the native view
     // between windows roughly once a second for as long as Sim is unfocused.
-    expect(session.canReportPanelBounds(other, null)).toBe(false)
+    expect(panel.canReportPanelBounds(other, null)).toBe(false)
   })
 
   it('transfers ownership to the window the user focused', () => {
-    session.setPanelBounds(BOUNDS, win)
+    panel.setPanelBounds(BOUNDS, win)
 
-    expect(session.canReportPanelBounds(other, other)).toBe(true)
+    expect(panel.canReportPanelBounds(other, other)).toBe(true)
   })
 
   it('frees the panel once the owning window is gone', () => {
-    session.setPanelBounds(BOUNDS, win)
+    panel.setPanelBounds(BOUNDS, win)
     vi.mocked(win.isDestroyed).mockReturnValue(true)
 
-    expect(session.canReportPanelBounds(other, null)).toBe(true)
+    expect(panel.canReportPanelBounds(other, null)).toBe(true)
   })
 
   it('releases the panel when the owning window closes', () => {
-    session.setPanelBounds(BOUNDS, win)
+    panel.setPanelBounds(BOUNDS, win)
     const view = session.ensureTab().view as unknown as MockView
     view.setVisible.mockClear()
 
     // Electron destroys the window before emitting `closed`, so the release
     // arrives from an already-destroyed window and must still be honoured.
     vi.mocked(win.isDestroyed).mockReturnValue(true)
-    session.setPanelBounds(null, win)
+    panel.setPanelBounds(null, win)
 
-    expect(session.canReportPanelBounds(other, null)).toBe(true)
+    expect(panel.canReportPanelBounds(other, null)).toBe(true)
     // Left owned, the next layout would re-parent the browser onto another
     // window at the closed window's bounds.
     expect(view.setVisible).not.toHaveBeenCalledWith(true)
   })
 
   it('ignores a live non-owner trying to hide the panel', () => {
-    session.setPanelBounds(BOUNDS, win)
+    panel.setPanelBounds(BOUNDS, win)
 
-    session.setPanelBounds(null, other)
+    panel.setPanelBounds(null, other)
 
-    expect(session.canReportPanelBounds(other, null)).toBe(false)
+    expect(panel.canReportPanelBounds(other, null)).toBe(false)
   })
 
   it('ignores panel updates from a window that does not own the panel', () => {
-    session.setPanelBounds(BOUNDS, win)
+    panel.setPanelBounds(BOUNDS, win)
     const view = session.ensureTab().view as unknown as MockView
     view.webContents.capturePage.mockClear()
 
-    session.setPanelOccluded(true, other)
+    panel.setPanelOccluded(true, other)
 
     expect(view.webContents.capturePage).not.toHaveBeenCalled()
   })
 
   it('accepts panel updates from a live window once the owner is destroyed', () => {
-    session.setPanelBounds(BOUNDS, win)
+    panel.setPanelBounds(BOUNDS, win)
     const view = session.ensureTab().view as unknown as MockView
     vi.mocked(win.isDestroyed).mockReturnValue(true)
     view.webContents.capturePage.mockClear()
 
-    session.setPanelOccluded(true, other)
+    panel.setPanelOccluded(true, other)
 
     // A stale owner must not keep rejecting the window actually on screen.
     expect(view.webContents.capturePage).toHaveBeenCalled()
   })
 
   it('withholds a captured frame from a window that lost ownership mid-capture', async () => {
-    session.setPanelBounds(BOUNDS, win)
+    panel.setPanelBounds(BOUNDS, win)
     session.ensureTab()
     const send = vi.mocked(win.webContents.send)
     send.mockClear()
 
-    session.setPanelOccluded(true, win)
-    session.setPanelBounds(BOUNDS, other)
+    panel.setPanelOccluded(true, win)
+    panel.setPanelBounds(BOUNDS, other)
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     // The frame is a picture of the page; the window no longer showing the
@@ -841,12 +891,12 @@ describe('browser panel ownership', () => {
   })
 
   it('delivers a captured frame to an owner that kept the panel', async () => {
-    session.setPanelBounds(BOUNDS, win)
+    panel.setPanelBounds(BOUNDS, win)
     session.ensureTab()
     const send = vi.mocked(win.webContents.send)
     send.mockClear()
 
-    session.setPanelOccluded(true, win)
+    panel.setPanelOccluded(true, win)
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(

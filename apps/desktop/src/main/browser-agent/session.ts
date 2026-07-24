@@ -1,7 +1,5 @@
 import {
   type BrowserOmniboxFocusMode,
-  type BrowserPanelBounds,
-  type BrowserPanelSnapshot,
   type BrowserTabState,
   type BrowserTabsState,
   type BrowserTheme,
@@ -12,6 +10,15 @@ import { getErrorMessage } from '@sim/utils/errors'
 import type { BrowserWindow, Input, Session, WebContents } from 'electron'
 import { session as electronSession, nativeTheme, WebContentsView } from 'electron'
 import type { BrowserCookieSignal } from '@/main/browser-agent/known-sessions'
+import {
+  detachAttachedView,
+  detachIfAttached,
+  initPanel,
+  isPanelVisible,
+  layout,
+  panelUpdateAllowed,
+  panelWindow,
+} from '@/main/browser-agent/panel'
 import { registerAgentWebContents } from '@/main/browser-agent/registry'
 import { checkAgentUrl, isBlockedRequestUrl } from '@/main/browser-agent/url-guard'
 
@@ -55,8 +62,6 @@ export interface AgentSessionEvents {
  * reloads, crashes, or hard-navigates never gets to send "hide", so the view
  * must never outlive the reports.
  */
-const PANEL_LEASE_TTL_MS = 2_500
-const PANEL_LEASE_CHECK_MS = 1_000
 const MAX_RECENTLY_CLOSED_TABS = 10
 
 export type BrowserShortcut = 'focus-omnibox' | 'new-tab' | 'close-tab'
@@ -114,67 +119,13 @@ let pinnedTabPersistence: PinnedTabPersistence | null = null
 let pinnedTabsRestored = false
 /** Serialized form of the last saved pinned-tab list, for change detection. */
 let lastPersistedPinnedTabs: string | null = null
-/** Where the panel sits in the main window (CSS px); null = panel hidden. */
-let panelBounds: BrowserPanelBounds | null = null
 /** Browser-resource focus, including native pages and renderer-owned chrome. */
 let focusedBrowserTabId: string | null = null
 let focusedBrowserClearTimer: ReturnType<typeof setTimeout> | null = null
-/** True while renderer-owned UI overlaps the native browser surface. */
-let panelOccluded = false
-let panelLeaseAt = 0
-let leaseTimer: ReturnType<typeof setInterval> | null = null
-let panelSnapshotGeneration = 0
 /** Raw Sim preference; `system` remains dynamic as the OS theme changes. */
 let browserTheme: BrowserTheme = 'system'
 /** Prevent hidden-page throttling only while an agent action needs the page to make progress. */
 let automationActive = false
-/** The window currently hosting the active view, for re-parenting checks. */
-let hostedWindow: BrowserWindow | null = null
-/** The app window whose renderer most recently leased the visible browser panel. */
-let panelOwnerWindow: BrowserWindow | null = null
-
-/**
- * The window owning the visible browser panel, or null. Self-healing: a
- * destroyed owner is forgotten here rather than left to reject panel updates
- * from a window that is legitimately showing the browser.
- */
-function panelOwner(): BrowserWindow | null {
-  if (panelOwnerWindow?.isDestroyed()) {
-    panelOwnerWindow = null
-  }
-  return panelOwnerWindow
-}
-
-/** The window the panel's native view and pushes belong to. */
-function panelWindow(): BrowserWindow | null {
-  return panelOwner() ?? getMainWindow()
-}
-
-/**
- * Whether a window may act on the panel. An unowned panel accepts anyone;
- * once owned, only the owner — so a stale report from a second window cannot
- * hide or steal the singleton browser surface.
- */
-function panelUpdateAllowed(ownerWindow?: BrowserWindow): boolean {
-  if (!ownerWindow) return true
-  const owner = panelOwner()
-  return owner === null || owner === ownerWindow
-}
-
-/**
- * Whether a window may report panel bounds, given which Sim window has OS
- * focus. Ownership transfers only to the focused window: when Sim is in the
- * background nothing is focused, and without this rule every window with the
- * panel mounted would reclaim it on its next heartbeat, re-parenting the
- * native view back and forth about once a second.
- */
-export function canReportPanelBounds(
-  win: BrowserWindow,
-  focusedWindow: BrowserWindow | null
-): boolean {
-  const owner = panelOwner()
-  return owner === null || owner === win || focusedWindow === win
-}
 
 export function initSession(
   handlers: AgentSessionEvents,
@@ -186,6 +137,19 @@ export function initSession(
   if (persistence) {
     pinnedTabPersistence = persistence
   }
+  initPanel({
+    getMainWindow: () => getMainWindow(),
+    activeTab,
+    ensureInitialTab: () => {
+      restorePinnedTabs()
+      if (!hasSession()) {
+        ensureTab()
+      }
+    },
+    onViewDetached: (view) => {
+      clearFocusedBrowserTab(tabs.find((tab) => tab.view === view)?.id)
+    },
+  })
 }
 
 /**
@@ -461,233 +425,6 @@ nativeTheme.on('updated', () => {
   }
 })
 
-/** The view currently attached to the host window (attach only on change —
- * re-adding an attached view re-stacks it and can flicker the composite). */
-let attachedView: WebContentsView | null = null
-let lastAppliedBounds = ''
-let lastAppliedVisibility: boolean | null = null
-/**
- * The panel's geometry relative to the window content box (DIP), captured at
- * the last renderer-reported layout. Used to reposition the view
- * synchronously on window `resize` — the renderer's report round-trips
- * layout → observe → IPC and trails a live drag by several frames, which
- * reads as the browser "swimming" inside the window. The panel is
- * right-anchored with a fixed width (vertically it stretches between fixed
- * top and bottom chrome), so the prediction translates the view with the
- * right window edge at constant width and stretches only its height; the
- * next renderer report is authoritative and corrects any drift (e.g. the
- * proportional default width before the first divider drag).
- */
-let panelAnchor: { y: number; right: number; bottom: number; width: number } | null = null
-
-function predictPanelBoundsForResize(): void {
-  const win = hostedWindow
-  const view = attachedView
-  if (!win || !view || win.isDestroyed() || panelAnchor === null) return
-  const [contentWidth, contentHeight] = win.getContentSize()
-  const width = Math.max(1, Math.min(panelAnchor.width, contentWidth - panelAnchor.right))
-  const bounds = {
-    x: Math.max(0, contentWidth - panelAnchor.right - width),
-    y: panelAnchor.y,
-    width,
-    height: Math.max(1, contentHeight - panelAnchor.y - panelAnchor.bottom),
-  }
-  const boundsKey = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
-  if (boundsKey !== lastAppliedBounds) {
-    lastAppliedBounds = boundsKey
-    view.setBounds(bounds)
-  }
-}
-
-/**
- * Clears the tracked attachment before touching Electron objects so a stale
- * host or child view cannot leave layout permanently wedged after teardown.
- */
-function detachAttachedView(): void {
-  const view = attachedView
-  const win = hostedWindow
-  attachedView = null
-  hostedWindow = null
-  lastAppliedBounds = ''
-  lastAppliedVisibility = null
-  panelAnchor = null
-  const detachedTab = tabs.find((tab) => tab.view === view)
-  clearFocusedBrowserTab(detachedTab?.id)
-
-  if (win) {
-    win.removeListener('resize', predictPanelBoundsForResize)
-  }
-  if (!view || !win) return
-  try {
-    if (win.isDestroyed() || view.webContents.isDestroyed()) return
-    win.contentView.removeChildView(view)
-  } catch (error) {
-    logger.warn('Could not detach embedded browser view', {
-      error: getErrorMessage(error, 'unknown'),
-    })
-  }
-}
-
-/**
- * Captures the current browser frame for the renderer to display while the
- * native view is hidden beneath an overlay. Captures stay hidden so Chromium
- * never promotes an occluded page back into the compositor.
- */
-function capturePanelSnapshot(): void {
-  const active = activeTab()
-  const win = panelWindow()
-  if (!active || !win || active.view.webContents.isDestroyed()) return
-
-  const generation = ++panelSnapshotGeneration
-  const tabId = active.id
-  void active.view.webContents
-    .capturePage(undefined, { stayHidden: true })
-    .then((image) => {
-      if (generation !== panelSnapshotGeneration || image.isEmpty()) return
-      // Ownership can move while the capture is in flight. This frame is a
-      // picture of the page, so it goes to the window still showing the
-      // browser or nowhere at all.
-      if (panelWindow() !== win || win.isDestroyed()) return
-      const snapshot: BrowserPanelSnapshot = { dataUrl: image.toDataURL(), tabId }
-      win.webContents.send('browser-agent:panel-snapshot', snapshot)
-    })
-    .catch((error) => {
-      logger.warn('Could not capture browser panel snapshot', {
-        error: getErrorMessage(error),
-      })
-    })
-}
-
-/**
- * Repositions the active view over the panel rect inside the main window
- * (re-parenting if the main window was recreated), and detaches it when the
- * panel is hidden. CSS pixels scale to DIP by the main page's zoom factor.
- * Idempotent: repeated calls with unchanged inputs perform no view mutations.
- */
-function layout(): void {
-  const win = panelWindow()
-  const active = activeTab()
-  const showing = active !== null && panelBounds !== null && win !== null
-  const activeViewChanged = showing && attachedView !== active?.view
-
-  if (!showing || hostedWindow !== win || attachedView !== active?.view) {
-    if (attachedView) {
-      detachAttachedView()
-    }
-  }
-  if (!showing || !active || !win || panelBounds === null) {
-    return
-  }
-
-  if (attachedView !== active.view) {
-    win.contentView.addChildView(active.view)
-    if (hostedWindow !== win) {
-      win.on('resize', predictPanelBoundsForResize)
-    }
-    hostedWindow = win
-    attachedView = active.view
-    if (panelOccluded && activeViewChanged) {
-      capturePanelSnapshot()
-    }
-  }
-  const zoom = win.webContents.getZoomFactor()
-  const bounds = {
-    x: Math.round(panelBounds.x * zoom),
-    y: Math.round(panelBounds.y * zoom),
-    width: Math.max(1, Math.round(panelBounds.width * zoom)),
-    height: Math.max(1, Math.round(panelBounds.height * zoom)),
-  }
-  const [contentWidth, contentHeight] = win.getContentSize()
-  panelAnchor = {
-    y: bounds.y,
-    right: contentWidth - bounds.x - bounds.width,
-    bottom: contentHeight - bounds.y - bounds.height,
-    width: bounds.width,
-  }
-  const boundsKey = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
-  if (boundsKey !== lastAppliedBounds) {
-    lastAppliedBounds = boundsKey
-    active.view.setBounds(bounds)
-  }
-  const visible = !panelOccluded
-  if (visible !== lastAppliedVisibility) {
-    lastAppliedVisibility = visible
-    active.view.setVisible(visible)
-  }
-}
-
-/**
- * Renderer-reported panel rect (null = panel hidden/unmounted). When an owner
- * is supplied, stale reports from another app window cannot steal or hide the
- * singleton browser surface.
- */
-export function setPanelBounds(
-  bounds: BrowserPanelBounds | null,
-  ownerWindow?: BrowserWindow
-): void {
-  // A closing window releases the panel from its `closed` handler, by which
-  // point Electron has already destroyed it. That release has to be honoured
-  // or the panel stays "visible" with a dead owner, and the next layout
-  // re-parents the native view onto whatever window is active — over a UI
-  // that never asked for it — until the bounds lease expires.
-  if (bounds !== null && ownerWindow?.isDestroyed()) return
-  // Only the owner may hide the panel; a stale report from another window
-  // must not pull the browser out from under the window displaying it.
-  if (bounds === null && !panelUpdateAllowed(ownerWindow)) return
-  if (bounds !== null) {
-    panelOwnerWindow = ownerWindow ?? getMainWindow()
-  } else {
-    panelOwnerWindow = null
-  }
-  panelBounds = bounds
-  // A visible browser resource always represents one open browser window.
-  // Materialize its initial about:blank tab before layout so the tab strip,
-  // omnibox, and native session never disagree about an empty state.
-  if (bounds !== null) {
-    restorePinnedTabs()
-    if (!hasSession()) {
-      ensureTab()
-    }
-  }
-  if (bounds === null) {
-    panelOccluded = false
-    panelSnapshotGeneration++
-  }
-  panelLeaseAt = Date.now()
-  if (bounds !== null && leaseTimer === null) {
-    leaseTimer = setInterval(() => {
-      if (panelBounds !== null && Date.now() - panelLeaseAt > PANEL_LEASE_TTL_MS) {
-        logger.info('Panel bounds lease expired; hiding embedded browser view')
-        panelBounds = null
-        panelOwnerWindow = null
-        panelOccluded = false
-        panelSnapshotGeneration++
-        layout()
-      }
-      if (panelBounds === null && leaseTimer !== null) {
-        clearInterval(leaseTimer)
-        leaseTimer = null
-      }
-    }, PANEL_LEASE_CHECK_MS)
-  }
-  layout()
-}
-
-/**
- * Renderer-reported native-surface occlusion. The view stays attached and
- * keeps its bounds while hidden, avoiding the flicker and restacking caused
- * by removing and re-adding it for every tooltip or menu.
- */
-export function setPanelOccluded(occluded: boolean, ownerWindow?: BrowserWindow): void {
-  if (!panelUpdateAllowed(ownerWindow)) return
-  if (panelOccluded === occluded) return
-  panelOccluded = occluded
-  if (occluded) {
-    capturePanelSnapshot()
-  }
-  layout()
-}
-
 /** The active tab, creating the first tab when none exist. */
 export function ensureTab(): AgentTab {
   restorePinnedTabs()
@@ -840,9 +577,7 @@ function forgetTab(tab: AgentTab): void {
   tabs.splice(index, 1)
   const transferBrowserFocus = focusedBrowserTabId === tab.id
   clearFocusedBrowserTab(tab.id)
-  if (attachedView === tab.view) {
-    detachAttachedView()
-  }
+  detachIfAttached(tab.view)
   if (tab.pinned) persistPinnedTabs()
   if (activeTabId === tab.id) {
     activeTabId = (tabs[index] ?? tabs[index - 1])?.id ?? null
@@ -852,7 +587,7 @@ function forgetTab(tab: AgentTab): void {
       events?.onActiveTabChanged(active.view.webContents)
     }
   }
-  if (!hasSession() && panelBounds !== null) {
+  if (!hasSession() && isPanelVisible()) {
     addTab()
     if (transferBrowserFocus) focusedBrowserTabId = activeTabId
     return
@@ -880,9 +615,7 @@ export function closeTab(tabId: string): void {
   }
   const transferBrowserFocus = focusedBrowserTabId === tab.id || tab.view.webContents.isFocused()
   clearFocusedBrowserTab(tab.id)
-  if (attachedView === tab.view) {
-    detachAttachedView()
-  }
+  detachIfAttached(tab.view)
   tab.view.webContents.close()
   if (activeTabId === tab.id) {
     activeTabId = (tabs[index] ?? tabs[index - 1])?.id ?? null
@@ -894,7 +627,7 @@ export function closeTab(tabId: string): void {
   }
   // Closing the last tab must not leave a visible browser resource with an
   // empty strip. Replace it with a fresh New tab, matching normal browser UI.
-  if (!hasSession() && panelBounds !== null) {
+  if (!hasSession() && isPanelVisible()) {
     addTab()
     if (transferBrowserFocus) focusedBrowserTabId = activeTabId
     return
@@ -1008,9 +741,7 @@ function closeTabFromUser(tabId: string): void {
  * pinned tabs, or browsing trail.
  */
 export async function clearProfileStorage(): Promise<void> {
-  if (attachedView) {
-    detachAttachedView()
-  }
+  detachAttachedView()
   for (const tab of tabs.splice(0)) {
     if (!tab.view.webContents.isDestroyed()) {
       tab.view.webContents.close()
