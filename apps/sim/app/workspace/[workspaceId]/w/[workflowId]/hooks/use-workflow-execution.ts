@@ -18,7 +18,12 @@ import { requestJson } from '@/lib/api/client/request'
 import { cancelWorkflowExecutionContract, workflowLogContract } from '@/lib/api/contracts/workflows'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
-import type { ExecutionPausedData } from '@/lib/workflows/executor/execution-events'
+import type {
+  ExecutionPausedData,
+  StreamDoneData,
+  StreamThinkingData,
+  StreamToolData,
+} from '@/lib/workflows/executor/execution-events'
 import { collectInputFormatFiles, isFileFieldType } from '@/lib/workflows/input-format'
 import {
   extractTriggerMockPayload,
@@ -214,6 +219,122 @@ function buildInputFormatInput(inputFormatValue: unknown): Record<string, any> |
   if (files.length > 0) testInput.files = files
 
   return Object.keys(testInput).length > 0 ? testInput : undefined
+}
+
+/**
+ * Thinking deltas arrive per token; batch console writes (same cadence as the
+ * chat surface) so the terminal does not re-render per delta.
+ */
+const AGENT_STREAM_THINKING_FLUSH_MS = 50
+
+type UpdateConsoleFn = ReturnType<(typeof useTerminalConsoleStore)['getState']>['updateConsole']
+
+interface AgentStreamChromeOptions {
+  executionIdRef: { current: string }
+  updateConsole: UpdateConsoleFn
+}
+
+/**
+ * Per-run terminal chrome for live agent stream events: accumulates thinking
+ * text (batched) and tool chips per block, and settles running chips when a
+ * block's stream ends, a block errors, or the execution terminates. Shared by
+ * the full-run and run-from-block paths so both render identical chrome.
+ */
+function createAgentStreamChrome({ executionIdRef, updateConsole }: AgentStreamChromeOptions) {
+  const thinkingByBlock = new Map<string, string>()
+  const toolCallsByBlock = new Map<string, Map<string, AgentStreamToolCall>>()
+  const toolOrderByBlock = new Map<string, string[]>()
+  const thinkingFlushTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+  const flushThinking = (blockId: string) => {
+    const timer = thinkingFlushTimers.get(blockId)
+    if (timer !== undefined) {
+      clearTimeout(timer)
+      thinkingFlushTimers.delete(blockId)
+    }
+    const thinking = thinkingByBlock.get(blockId)
+    if (thinking === undefined) return
+    updateConsole(
+      blockId,
+      { agentStreamThinking: thinking, agentStreamActive: true },
+      executionIdRef.current
+    )
+  }
+
+  const settleBlock = (blockId: string, status: 'success' | 'error' | 'cancelled') => {
+    flushThinking(blockId)
+    const map = toolCallsByBlock.get(blockId)
+    const order = toolOrderByBlock.get(blockId)
+    if (map && order) {
+      settleRunningToolCalls(map, status)
+      updateConsole(
+        blockId,
+        {
+          agentStreamActive: false,
+          agentStreamToolCalls: snapshotToolCalls(order, map),
+        },
+        executionIdRef.current
+      )
+    } else {
+      updateConsole(blockId, { agentStreamActive: false }, executionIdRef.current)
+    }
+  }
+
+  const settleAll = (status: 'success' | 'error' | 'cancelled') => {
+    const blockIds = new Set<string>([...thinkingByBlock.keys(), ...toolCallsByBlock.keys()])
+    for (const blockId of blockIds) {
+      settleBlock(blockId, status)
+    }
+  }
+
+  const onStreamThinking = (data: StreamThinkingData) => {
+    const prev = thinkingByBlock.get(data.blockId) ?? ''
+    thinkingByBlock.set(data.blockId, prev + data.text)
+    if (!thinkingFlushTimers.has(data.blockId)) {
+      thinkingFlushTimers.set(
+        data.blockId,
+        setTimeout(() => flushThinking(data.blockId), AGENT_STREAM_THINKING_FLUSH_MS)
+      )
+    }
+  }
+
+  const onStreamTool = (data: StreamToolData) => {
+    if (!toolCallsByBlock.has(data.blockId)) {
+      toolCallsByBlock.set(data.blockId, new Map())
+      toolOrderByBlock.set(data.blockId, [])
+    }
+    const map = toolCallsByBlock.get(data.blockId)!
+    const order = toolOrderByBlock.get(data.blockId)!
+
+    applyToolCallPhase(
+      map,
+      order,
+      {
+        key: toolCallKey(data.blockId, data.id),
+        id: data.id,
+        name: data.name,
+        phase: data.phase,
+        status: data.status,
+      },
+      (tool) => tool
+    )
+
+    updateConsole(
+      data.blockId,
+      {
+        agentStreamToolCalls: snapshotToolCalls(order, map),
+        agentStreamActive: true,
+      },
+      executionIdRef.current
+    )
+  }
+
+  const onStreamDone = (data: StreamDoneData) => {
+    logger.info('Stream done for block:', data.blockId)
+    settleBlock(data.blockId, 'success')
+  }
+
+  return { flushThinking, settleBlock, settleAll, onStreamThinking, onStreamTool, onStreamDone }
 }
 
 export function useWorkflowExecution() {
@@ -1086,59 +1207,9 @@ export function useWorkflowExecution() {
       const activeBlocksSet = new Set<string>()
       const activeBlockRefCounts = new Map<string, number>()
       const streamedChunks = new Map<string, string[]>()
-      const agentStreamThinking = new Map<string, string>()
-      const agentStreamToolCalls = new Map<string, Map<string, AgentStreamToolCall>>()
-      const agentStreamToolOrder = new Map<string, string[]>()
-      /**
-       * Thinking deltas arrive per token; batch store writes (same cadence as
-       * the chat surface) so the terminal does not re-render per delta.
-       */
-      const THINKING_FLUSH_MS = 50
-      const thinkingFlushTimers = new Map<string, ReturnType<typeof setTimeout>>()
-      const flushThinking = (blockId: string) => {
-        const timer = thinkingFlushTimers.get(blockId)
-        if (timer !== undefined) {
-          clearTimeout(timer)
-          thinkingFlushTimers.delete(blockId)
-        }
-        const thinking = agentStreamThinking.get(blockId)
-        if (thinking === undefined) return
-        updateConsole(
-          blockId,
-          { agentStreamThinking: thinking, agentStreamActive: true },
-          executionIdRef.current
-        )
-      }
-      const settleAgentStreamChrome = (
-        blockId: string,
-        status: 'success' | 'error' | 'cancelled'
-      ) => {
-        flushThinking(blockId)
-        const map = agentStreamToolCalls.get(blockId)
-        const order = agentStreamToolOrder.get(blockId)
-        if (map && order) {
-          settleRunningToolCalls(map, status)
-          updateConsole(
-            blockId,
-            {
-              agentStreamActive: false,
-              agentStreamToolCalls: snapshotToolCalls(order, map),
-            },
-            executionIdRef.current
-          )
-        } else {
-          updateConsole(blockId, { agentStreamActive: false }, executionIdRef.current)
-        }
-      }
-      const settleAllAgentStreamChrome = (status: 'success' | 'error' | 'cancelled') => {
-        const blockIds = new Set<string>([
-          ...agentStreamThinking.keys(),
-          ...agentStreamToolCalls.keys(),
-        ])
-        for (const blockId of blockIds) {
-          settleAgentStreamChrome(blockId, status)
-        }
-      }
+      const agentStreamChrome = createAgentStreamChrome({ executionIdRef, updateConsole })
+      const settleAgentStreamChrome = agentStreamChrome.settleBlock
+      const settleAllAgentStreamChrome = agentStreamChrome.settleAll
       const accumulatedBlockLogs: BlockLog[] = []
       const accumulatedBlockStates = new Map<string, BlockState>()
       const executedBlockIds = new Set<string>()
@@ -1256,52 +1327,9 @@ export function useWorkflowExecution() {
               }
             },
 
-            onStreamThinking: (data) => {
-              const prev = agentStreamThinking.get(data.blockId) ?? ''
-              agentStreamThinking.set(data.blockId, prev + data.text)
-              if (!thinkingFlushTimers.has(data.blockId)) {
-                thinkingFlushTimers.set(
-                  data.blockId,
-                  setTimeout(() => flushThinking(data.blockId), THINKING_FLUSH_MS)
-                )
-              }
-            },
-
-            onStreamTool: (data) => {
-              if (!agentStreamToolCalls.has(data.blockId)) {
-                agentStreamToolCalls.set(data.blockId, new Map())
-                agentStreamToolOrder.set(data.blockId, [])
-              }
-              const map = agentStreamToolCalls.get(data.blockId)!
-              const order = agentStreamToolOrder.get(data.blockId)!
-
-              applyToolCallPhase(
-                map,
-                order,
-                {
-                  key: toolCallKey(data.blockId, data.id),
-                  id: data.id,
-                  name: data.name,
-                  phase: data.phase,
-                  status: data.status,
-                },
-                (tool) => tool
-              )
-
-              updateConsole(
-                data.blockId,
-                {
-                  agentStreamToolCalls: snapshotToolCalls(order, map),
-                  agentStreamActive: true,
-                },
-                executionIdRef.current
-              )
-            },
-
-            onStreamDone: (data) => {
-              logger.info('Stream done for block:', data.blockId)
-              settleAgentStreamChrome(data.blockId, 'success')
-            },
+            onStreamThinking: agentStreamChrome.onStreamThinking,
+            onStreamTool: agentStreamChrome.onStreamTool,
+            onStreamDone: agentStreamChrome.onStreamDone,
 
             onExecutionCompleted: (data) => {
               executionFinished = true
@@ -1948,6 +1976,7 @@ export function useWorkflowExecution() {
       const executedBlockIds = new Set<string>()
       const activeBlocksSet = new Set<string>()
       const activeBlockRefCounts = new Map<string, number>()
+      const agentStreamChrome = createAgentStreamChrome({ executionIdRef, updateConsole })
       const isCurrentRunFromBlockExecution = () => {
         return (
           Boolean(executionIdRef.current) &&
@@ -2001,11 +2030,20 @@ export function useWorkflowExecution() {
 
             onBlockStarted: blockHandlers.onBlockStarted,
             onBlockCompleted: blockHandlers.onBlockCompleted,
-            onBlockError: blockHandlers.onBlockError,
+            onBlockError: (data) => {
+              // Failures often skip stream:done — settle thinking/tool chrome here.
+              agentStreamChrome.settleBlock(data.blockId, 'error')
+              blockHandlers.onBlockError(data)
+            },
             onBlockChildWorkflowStarted: blockHandlers.onBlockChildWorkflowStarted,
+
+            onStreamThinking: agentStreamChrome.onStreamThinking,
+            onStreamTool: agentStreamChrome.onStreamTool,
+            onStreamDone: agentStreamChrome.onStreamDone,
 
             onExecutionCompleted: (data) => {
               if (!isCurrentRunFromBlockExecution()) return
+              agentStreamChrome.settleAll(data.success ? 'success' : 'error')
               const executionId = executionIdRef.current
               reconcileFinalBlockLogs(updateConsole, workflowId, executionId, data.finalBlockLogs)
               finishRunningEntries(workflowId, executionId)
@@ -2040,6 +2078,8 @@ export function useWorkflowExecution() {
 
             onExecutionPaused: (data) => {
               if (!isCurrentRunFromBlockExecution()) return
+              // HITL pause mid tool-loop — open tools never got an end event.
+              agentStreamChrome.settleAll('cancelled')
               const executionId = executionIdRef.current
               reconcileFinalBlockLogs(updateConsole, workflowId, executionId, data.finalBlockLogs)
               finishRunningEntries(workflowId, executionId)
@@ -2059,6 +2099,7 @@ export function useWorkflowExecution() {
 
             onExecutionError: (data) => {
               if (!isCurrentRunFromBlockExecution()) return
+              agentStreamChrome.settleAll('error')
               const executionId = executionIdRef.current
               const isWorkflowModified =
                 data.error?.includes('Block not found in workflow') ||
@@ -2085,6 +2126,7 @@ export function useWorkflowExecution() {
 
             onExecutionCancelled: (data) => {
               if (!isCurrentRunFromBlockExecution()) return
+              agentStreamChrome.settleAll('cancelled')
               const executionId = executionIdRef.current
               handleExecutionCancelledConsole({
                 workflowId,
