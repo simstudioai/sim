@@ -37,8 +37,9 @@ jobs:
 
       - name: Helm unit tests
         run: |
-          helm plugin install https://github.com/helm-unittest/helm-unittest --version v0.8.2
-          helm unittest helm/sim
+          # Official helm-unittest image, pinned by immutable digest (tag 3.17.3-0.8.2)
+          docker run --rm -v "$PWD/helm/sim:/apps" \
+            helmunittest/helm-unittest@sha256:b653db7d5665bc6cec677b15c5eaa1c0377c0de8ac4eb1df58b924478baa21e1 .
 
       - name: Install kubeconform
         run: |
@@ -99,9 +100,11 @@ jobs:
         run: |
           set -euo pipefail
           base="origin/${{ github.base_ref }}"
-          git fetch origin "${{ github.base_ref }}" --depth=1
-          if git diff --name-only "$base"...HEAD | grep -q '^helm/sim/'; then
-            base_version=$(git show "$base:helm/sim/Chart.yaml" | awk '/^version:/ {print $2}')
+          git fetch origin "${{ github.base_ref }}"
+          merge_base=$(git merge-base "$base" HEAD)
+          changed=$(git diff --name-only "$merge_base" HEAD)
+          if echo "$changed" | grep -q '^helm/sim/'; then
+            base_version=$(git show "$merge_base:helm/sim/Chart.yaml" | awk '/^version:/ {print $2}')
             head_version=$(awk '/^version:/ {print $2}' helm/sim/Chart.yaml)
             echo "base=$base_version head=$head_version"
             if [ "$base_version" = "$head_version" ]; then
