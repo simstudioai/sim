@@ -177,6 +177,8 @@ export interface ChatFormData {
   selectedOutputBlocks: string[]
   /** When true, thinking may be streamed to clients that opt into agent-events-v1. Default false. */
   includeThinking: boolean
+  /** When true, tool lifecycle may be streamed to opted-in clients. Default false. */
+  includeToolCalls: boolean
 }
 
 /**
@@ -266,6 +268,7 @@ function buildChatPayload(
       formData.authType === 'email' || formData.authType === 'sso' ? formData.emails : [],
     outputConfigs,
     includeThinking: formData.includeThinking,
+    includeToolCalls: formData.includeToolCalls,
   }
 }
 

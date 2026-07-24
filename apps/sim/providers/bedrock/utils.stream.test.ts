@@ -46,4 +46,16 @@ describe('createReadableStreamFromBedrockStream', () => {
     expect(events.some((e) => e.type === 'tool_call_start')).toBe(false)
     expect(onComplete).toHaveBeenCalledWith('Done', { inputTokens: 2, outputTokens: 3 })
   })
+
+  it('surfaces Bedrock event-stream exceptions', async () => {
+    const stream = createReadableStreamFromBedrockStream(
+      (async function* () {
+        yield {
+          modelStreamErrorException: { message: 'Model stream failed' },
+        } as any
+      })()
+    )
+
+    await expect(collectEvents(stream)).rejects.toThrow('Model stream failed')
+  })
 })

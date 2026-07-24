@@ -274,44 +274,45 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const streamingExec = response as StreamingExecution
       logger.info(`[${requestId}] Received StreamingExecution from provider`)
 
-      // Extract the stream and execution data
       const executionData = streamingExec.execution
-      // agent-events-v1 is an object stream — project final-turn answer bytes for HTTP.
       const byteStream = projectStreamingExecutionToByteStream(streamingExec)
 
-      // Attach the execution data as a custom header
-      // We need to safely serialize the execution data to avoid circular references
       let executionDataHeader
       try {
-        // Create a safe version of execution data with the most important fields
+        const outputContent = executionData.output?.content
+        const outputTokens = executionData.output?.tokens
+        const hasSettledOutput =
+          Boolean(outputContent) ||
+          Boolean(outputTokens?.total) ||
+          Boolean(executionData.output?.toolCalls)
         const safeExecutionData = {
           success: executionData.success,
           output: {
-            // Sanitize content to remove non-ASCII characters that would cause ByteString errors
-            content: executionData.output?.content
-              ? String(executionData.output.content).replace(/[\u0080-\uFFFF]/g, '')
-              : '',
             model: executionData.output?.model,
-            tokens: executionData.output?.tokens || {
-              input: 0,
-              output: 0,
-              total: 0,
-            },
-            // Sanitize any potential Unicode characters in tool calls
-            toolCalls: executionData.output?.toolCalls
-              ? sanitizeToolCalls(executionData.output.toolCalls)
-              : undefined,
-            providerTiming: executionData.output?.providerTiming,
-            cost: executionData.output?.cost,
+            ...(hasSettledOutput
+              ? {
+                  content: String(outputContent ?? '').replace(/[\u0080-\uFFFF]/g, ''),
+                  tokens: outputTokens,
+                  toolCalls: executionData.output?.toolCalls
+                    ? sanitizeToolCalls(executionData.output.toolCalls)
+                    : undefined,
+                  providerTiming: executionData.output?.providerTiming,
+                  cost: executionData.output?.cost,
+                }
+              : {}),
           },
           error: executionData.error,
-          logs: [], // Strip logs from header to avoid encoding issues
+          logs: [],
           metadata: {
             startTime: executionData.metadata?.startTime,
-            endTime: executionData.metadata?.endTime,
-            duration: executionData.metadata?.duration,
+            ...(hasSettledOutput
+              ? {
+                  endTime: executionData.metadata?.endTime,
+                  duration: executionData.metadata?.duration,
+                }
+              : {}),
           },
-          isStreaming: true, // Always mark streaming execution data as streaming
+          isStreaming: true,
           blockId: executionData.logs?.[0]?.blockId,
           blockName: executionData.logs?.[0]?.blockName,
           blockType: executionData.logs?.[0]?.blockType,
@@ -325,7 +326,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         })
       }
 
-      // Return the stream with execution data in a header
       return new Response(byteStream, {
         headers: {
           'Content-Type': 'text/event-stream',

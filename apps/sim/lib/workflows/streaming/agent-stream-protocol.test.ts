@@ -31,21 +31,24 @@ describe('shouldEmitAgentStreamEvents', () => {
     expect(
       shouldEmitAgentStreamEvents({
         includeThinking: false,
+        includeToolCalls: false,
         requestHeaders: headers(),
       })
     ).toBe(false)
     expect(
       shouldEmitAgentStreamEvents({
         includeThinking: undefined,
+        includeToolCalls: undefined,
         requestHeaders: headers(),
       })
     ).toBe(false)
   })
 
-  it('requires both includeThinking and protocol header', () => {
+  it('requires the protocol header and at least one event policy', () => {
     expect(
       shouldEmitAgentStreamEvents({
         includeThinking: true,
+        includeToolCalls: false,
         requestHeaders: headers(),
       })
     ).toBe(false)
@@ -53,6 +56,7 @@ describe('shouldEmitAgentStreamEvents', () => {
     expect(
       shouldEmitAgentStreamEvents({
         includeThinking: false,
+        includeToolCalls: false,
         requestHeaders: headers({ [AGENT_STREAM_PROTOCOL_HEADER]: AGENT_STREAM_PROTOCOL_V1 }),
       })
     ).toBe(false)
@@ -60,6 +64,15 @@ describe('shouldEmitAgentStreamEvents', () => {
     expect(
       shouldEmitAgentStreamEvents({
         includeThinking: true,
+        includeToolCalls: false,
+        requestHeaders: headers({ [AGENT_STREAM_PROTOCOL_HEADER]: AGENT_STREAM_PROTOCOL_V1 }),
+      })
+    ).toBe(true)
+
+    expect(
+      shouldEmitAgentStreamEvents({
+        includeThinking: false,
+        includeToolCalls: true,
         requestHeaders: headers({ [AGENT_STREAM_PROTOCOL_HEADER]: AGENT_STREAM_PROTOCOL_V1 }),
       })
     ).toBe(true)
@@ -69,13 +82,15 @@ describe('shouldEmitAgentStreamEvents', () => {
     expect(
       shouldEmitAgentStreamEvents({
         includeThinking: true,
+        includeToolCalls: false,
         requestHeaders: headers({ [AGENT_STREAM_PROTOCOL_HEADER]: ' Agent-Events-V1 ' }),
       })
     ).toBe(true)
 
     expect(
       shouldEmitAgentStreamEvents({
-        includeThinking: true,
+        includeThinking: false,
+        includeToolCalls: true,
         requestHeaders: headers({
           [AGENT_STREAM_PROTOCOL_HEADER]: 'text, agent-events-v1',
         }),

@@ -13,6 +13,7 @@
 
 import type { Logger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import type OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -20,12 +21,15 @@ import {
   createOpenAICompatibleAgentEventStream,
   type OpenAICompatAssembledToolCall,
 } from '@/providers/openai-compat/stream-events'
+import type { OpenRouterReasoningDetail } from '@/providers/openrouter/reasoning'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
 import {
   isAbortError,
+  parseToolArguments,
   type StreamingToolLoopComplete,
   settleOpenTools,
 } from '@/providers/streaming-tool-loop-shared'
+import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type { ProviderRequest, TimeSegment } from '@/providers/types'
 import {
   calculateCost,
@@ -85,6 +89,15 @@ export function createOpenAICompatStreamingToolLoopStream(
     preserveAssistantReasoning = false,
   } = options
   const forcedTools = options.forcedTools ?? []
+  const loopAbortController = new AbortController()
+  const abortFromRequest = () => loopAbortController.abort(request.abortSignal?.reason)
+  let activeEventReader: ReadableStreamDefaultReader<AgentStreamEvent> | undefined
+
+  if (request.abortSignal?.aborted) {
+    abortFromRequest()
+  } else {
+    request.abortSignal?.addEventListener('abort', abortFromRequest, { once: true })
+  }
 
   return new ReadableStream<AgentStreamEvent>({
     async start(controller) {
@@ -100,24 +113,49 @@ export function createOpenAICompatStreamingToolLoopStream(
       const toolCalls: unknown[] = []
       const toolResults: Record<string, unknown>[] = []
       const openToolStarts = new Map<string, string>()
-      const streamOpts = request.abortSignal ? { signal: request.abortSignal } : undefined
+      const streamOpts = { signal: loopAbortController.signal }
 
       let currentToolChoice = basePayload.tool_choice
       let usedForcedTools: string[] = []
       let hasUsedForcedTool = false
+      const reportProgress = () => {
+        const modelCost = calculateCost(request.model, tokens.input, tokens.output)
+        const toolCost = sumToolCosts(toolResults)
+        onComplete({
+          content,
+          tokens,
+          cost: {
+            input: modelCost.input,
+            output: modelCost.output,
+            total: modelCost.total + (toolCost || 0),
+            ...(toolCost ? { toolCost } : {}),
+          },
+          toolCalls:
+            toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
+          modelTime,
+          toolsTime,
+          firstResponseTime,
+          iterations: modelCalls,
+        })
+      }
 
       try {
-        while (iterationCount < MAX_TOOL_ITERATIONS) {
-          if (request.abortSignal?.aborted) {
+        while (modelCalls <= MAX_TOOL_ITERATIONS) {
+          if (loopAbortController.signal.aborted) {
             settleOpenTools(controller, openToolStarts, 'cancelled')
             throw new DOMException('Stream aborted', 'AbortError')
           }
 
           const modelStart = Date.now()
+          const finalSynthesis = iterationCount >= MAX_TOOL_ITERATIONS
           const turnPayload = {
             ...basePayload,
             messages: currentMessages,
-            ...(currentToolChoice !== undefined ? { tool_choice: currentToolChoice } : {}),
+            ...(finalSynthesis
+              ? { tools: undefined, tool_choice: 'none' }
+              : currentToolChoice !== undefined
+                ? { tool_choice: currentToolChoice }
+                : {}),
             stream: true as const,
           }
 
@@ -130,11 +168,26 @@ export function createOpenAICompatStreamingToolLoopStream(
           let turnContent = ''
           let turnReasoningContent = ''
           let turnReasoning = ''
+          let turnReasoningDetails: OpenRouterReasoningDetail[] | undefined
           let turnFinishReason: string | undefined
           let assembledTools: OpenAICompatAssembledToolCall[] = []
           const liveText: string[] = []
+          let sawToolCallDelta = false
+          const inspectedStream = (async function* () {
+            for await (const chunk of stream) {
+              if (
+                chunk.choices.some(
+                  (choice) =>
+                    Array.isArray(choice.delta.tool_calls) && choice.delta.tool_calls.length > 0
+                )
+              ) {
+                sawToolCallDelta = true
+              }
+              yield chunk
+            }
+          })()
 
-          const eventStream = createOpenAICompatibleAgentEventStream(stream, {
+          const eventStream = createOpenAICompatibleAgentEventStream(inspectedStream, {
             providerName,
             emitToolCallStarts: true,
             onComplete: (result) => {
@@ -146,6 +199,7 @@ export function createOpenAICompatStreamingToolLoopStream(
               turnContent = result.content || ''
               turnReasoningContent = result.reasoning_content || ''
               turnReasoning = result.reasoning || ''
+              turnReasoningDetails = result.reasoning_details
               turnFinishReason = result.finishReason
               assembledTools = result.toolCalls ?? []
             },
@@ -153,6 +207,7 @@ export function createOpenAICompatStreamingToolLoopStream(
 
           {
             const reader = eventStream.getReader()
+            activeEventReader = reader
             while (true) {
               const { done, value } = await reader.read()
               if (done) break
@@ -168,23 +223,37 @@ export function createOpenAICompatStreamingToolLoopStream(
                 controller.enqueue({ type: 'text_delta', text: value.text, turn: 'pending' })
               }
             }
+            activeEventReader = undefined
           }
 
-          /**
-           * Only execute tools when the turn completed normally. A `length`
-           * finish means the stream truncated mid-generation — assembled tool
-           * arguments would be partial JSON.
-           */
-          const toolsExecutable = turnFinishReason !== 'length'
           const assembledPendingTools = assembledTools.filter((tc) => tc.id && tc.function?.name)
-          if (assembledPendingTools.length > 0 && !toolsExecutable) {
-            logger.warn('Skipping tool execution for truncated turn', {
-              finishReason: turnFinishReason,
-              toolCount: assembledPendingTools.length,
-            })
+          if (turnFinishReason === undefined) {
             settleOpenTools(controller, openToolStarts, 'error')
+            throw new Error(`${providerName} stream ended without finish_reason`)
           }
-          const pendingTools = toolsExecutable ? assembledPendingTools : []
+          if (finalSynthesis && assembledPendingTools.length > 0) {
+            settleOpenTools(controller, openToolStarts, 'error')
+            throw new Error(`${providerName} returned tool calls during final synthesis`)
+          }
+          if (assembledPendingTools.length > 0 && turnFinishReason !== 'tool_calls') {
+            settleOpenTools(controller, openToolStarts, 'error')
+            throw new Error(
+              `${providerName} returned tool calls with finish_reason ${turnFinishReason}`
+            )
+          }
+          const cappedTextTurn =
+            turnFinishReason === 'length' && !sawToolCallDelta && openToolStarts.size === 0
+          if (
+            assembledPendingTools.length === 0 &&
+            turnFinishReason !== 'stop' &&
+            !cappedTextTurn
+          ) {
+            logger.warn('Rejecting incomplete model turn', {
+              finishReason: turnFinishReason,
+            })
+            throw new Error(`${providerName} stream ended with finish_reason ${turnFinishReason}`)
+          }
+          const pendingTools = assembledPendingTools
           const turnTag = pendingTools.length > 0 ? 'intermediate' : 'final'
           const turnText = turnContent || liveText.join('')
           // If the parser assembled text but we somehow missed deltas, still emit
@@ -193,10 +262,7 @@ export function createOpenAICompatStreamingToolLoopStream(
             controller.enqueue({ type: 'text_delta', text: turnText, turn: 'pending' })
           }
           controller.enqueue({ type: 'turn_end', turn: turnTag })
-          if (turnText) {
-            // Keep the latest turn's text so a MAX_TOOL_ITERATIONS exit still has content.
-            content = turnText
-          }
+          content = turnText
 
           const modelEnd = Date.now()
           const thisModelTime = modelEnd - modelStart
@@ -210,6 +276,31 @@ export function createOpenAICompatStreamingToolLoopStream(
             endTime: modelEnd,
             duration: thisModelTime,
           })
+          enrichLastModelSegmentFromChatCompletions(
+            timeSegments,
+            {
+              choices: [
+                {
+                  message: {
+                    content: turnText,
+                    tool_calls: pendingTools,
+                    ...(turnReasoningContent ? { reasoning_content: turnReasoningContent } : {}),
+                    ...(turnReasoning ? { reasoning: turnReasoning } : {}),
+                    ...(turnReasoningDetails?.length
+                      ? { reasoning_details: turnReasoningDetails }
+                      : {}),
+                  },
+                  finish_reason: turnFinishReason,
+                },
+              ],
+              usage: turnUsage,
+            },
+            pendingTools,
+            {
+              model: request.model,
+              provider: providerName.toLowerCase(),
+            }
+          )
           tokens.input += turnUsage.prompt_tokens
           tokens.output += turnUsage.completion_tokens
           tokens.total +=
@@ -240,9 +331,10 @@ export function createOpenAICompatStreamingToolLoopStream(
           const assistantHistory: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam & {
             reasoning_content?: string
             reasoning?: string
+            reasoning_details?: OpenRouterReasoningDetail[]
           } = {
             role: 'assistant',
-            content: turnText || null,
+            content: turnText,
             tool_calls: pendingTools,
           }
           if (preserveAssistantReasoning) {
@@ -252,6 +344,9 @@ export function createOpenAICompatStreamingToolLoopStream(
             if (turnReasoning) {
               assistantHistory.reasoning = turnReasoning
             }
+          }
+          if (turnReasoningDetails?.length) {
+            assistantHistory.reasoning_details = turnReasoningDetails
           }
           currentMessages.push(assistantHistory)
 
@@ -266,14 +361,10 @@ export function createOpenAICompatStreamingToolLoopStream(
                * with defaulted `{}` args could fire side effects with missing
                * parameters. Fail the call and let the model react to the error.
                */
-              let toolArgs: Record<string, unknown> = {}
-              let argsParseError = false
+              let toolArgs: Record<string, unknown>
               try {
-                toolArgs = JSON.parse(tc.function.arguments || '{}')
-              } catch {
-                argsParseError = true
-              }
-              if (argsParseError) {
+                toolArgs = parseToolArguments(tc.function.arguments, toolName)
+              } catch (error) {
                 const endTime = Date.now()
                 openToolStarts.delete(toolUseId)
                 controller.enqueue({
@@ -290,7 +381,7 @@ export function createOpenAICompatStreamingToolLoopStream(
                   result: {
                     success: false as const,
                     output: undefined,
-                    error: `Invalid tool arguments JSON for ${toolName}`,
+                    error: getErrorMessage(error, `Invalid tool arguments for ${toolName}`),
                   },
                   startTime: toolCallStartTime,
                   endTime,
@@ -300,7 +391,7 @@ export function createOpenAICompatStreamingToolLoopStream(
               }
 
               try {
-                if (request.abortSignal?.aborted) {
+                if (loopAbortController.signal.aborted) {
                   throw new DOMException('Stream aborted', 'AbortError')
                 }
                 const tool = request.tools?.find((t) => t.id === toolName)
@@ -336,7 +427,7 @@ export function createOpenAICompatStreamingToolLoopStream(
                   request
                 )
                 const result = await executeTool(toolName, executionParams, {
-                  signal: request.abortSignal,
+                  signal: loopAbortController.signal,
                 })
                 const toolCallEndTime = Date.now()
                 const value = {
@@ -359,11 +450,29 @@ export function createOpenAICompatStreamingToolLoopStream(
                 })
                 return value
               } catch (error) {
-                const cancelled = isAbortError(error) || !!request.abortSignal?.aborted
-                if (!cancelled) {
-                  logger.error('Error processing tool call:', { error, toolName })
-                }
                 const toolCallEndTime = Date.now()
+                if (loopAbortController.signal.aborted) {
+                  openToolStarts.delete(toolUseId)
+                  controller.enqueue({
+                    type: 'tool_call_end',
+                    id: toolUseId,
+                    name: toolName,
+                    status: 'cancelled',
+                  })
+                  throw error
+                }
+                if (isAbortError(error)) {
+                  openToolStarts.delete(toolUseId)
+                  controller.enqueue({
+                    type: 'tool_call_end',
+                    id: toolUseId,
+                    name: toolName,
+                    status: 'error',
+                  })
+                  throw error
+                }
+
+                logger.error('Error processing tool call:', { error, toolName })
                 const value = {
                   toolUseId,
                   toolName,
@@ -377,7 +486,7 @@ export function createOpenAICompatStreamingToolLoopStream(
                   startTime: toolCallStartTime,
                   endTime: toolCallEndTime,
                   duration: toolCallEndTime - toolCallStartTime,
-                  status: (cancelled ? 'cancelled' : 'error') as ToolCallEndStatus,
+                  status: 'error' as ToolCallEndStatus,
                 }
                 openToolStarts.delete(toolUseId)
                 controller.enqueue({
@@ -402,9 +511,11 @@ export function createOpenAICompatStreamingToolLoopStream(
             })
 
             let resultContent: unknown
-            if (value.result.success && value.result.output) {
-              toolResults.push(value.result.output as Record<string, unknown>)
-              resultContent = value.result.output
+            if (value.result.success) {
+              if (isRecordLike(value.result.output)) {
+                toolResults.push(value.result.output)
+              }
+              resultContent = value.result.output ?? null
             } else {
               resultContent = {
                 error: true,
@@ -448,39 +559,32 @@ export function createOpenAICompatStreamingToolLoopStream(
           iterationCount++
         }
 
-        /**
-         * MAX_TOOL_ITERATIONS exit: every turn was tagged intermediate, so the
-         * answer channel would otherwise be empty. Flush the last turn's text
-         * as the final answer so legacy consumers still receive content.
-         */
-        if (!sawFinalTurn && content) {
-          controller.enqueue({ type: 'text_delta', text: content, turn: 'final' })
+        if (!sawFinalTurn) {
+          throw new Error(`${providerName} tool loop ended without a final response`)
         }
 
-        const modelCost = calculateCost(request.model, tokens.input, tokens.output)
-        const toolCostTotal = sumToolCosts(toolResults)
-        onComplete({
-          content,
-          tokens,
-          cost: {
-            input: modelCost.input,
-            output: modelCost.output,
-            total: modelCost.total + (toolCostTotal || 0),
-            ...(toolCostTotal ? { toolCost: toolCostTotal } : {}),
-          },
-          toolCalls:
-            toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
-          modelTime,
-          toolsTime,
-          firstResponseTime,
-          iterations: modelCalls,
-        })
+        reportProgress()
         controller.close()
       } catch (error) {
-        const cancelled = isAbortError(error) || !!request.abortSignal?.aborted
+        reportProgress()
+        const cancelled = loopAbortController.signal.aborted
         settleOpenTools(controller, openToolStarts, cancelled ? 'cancelled' : 'error')
-        controller.error(toError(error))
+        if (cancelled) {
+          if (controller.desiredSize !== null) {
+            controller.close()
+          }
+        } else {
+          controller.error(toError(error))
+        }
+      } finally {
+        activeEventReader = undefined
+        request.abortSignal?.removeEventListener('abort', abortFromRequest)
       }
+    },
+    async cancel(reason) {
+      loopAbortController.abort(reason)
+      await activeEventReader?.cancel(reason)
+      request.abortSignal?.removeEventListener('abort', abortFromRequest)
     },
   })
 }

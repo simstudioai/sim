@@ -1,12 +1,14 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import type OpenAI from 'openai'
-import type { IterationToolCall, StreamingExecution } from '@/executor/types'
+import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
-import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
+import { createOpenAIResponsesStreamingToolLoopStream } from '@/providers/openai/streaming-tool-loop'
+import { enrichLastModelSegmentFromOpenAIResponse } from '@/providers/openai/trace'
 import { createStreamingExecution } from '@/providers/streaming-execution'
+import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
-import { enrichLastModelSegment, parseToolCallArguments } from '@/providers/trace-enrichment'
 import type { Message, ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
 import {
@@ -14,7 +16,6 @@ import {
   enforceStrictSchema,
   prepareToolExecution,
   prepareToolsWithUsageControl,
-  sumToolCosts,
   supportsReasoningEffort,
   trackForcedToolUsage,
 } from '@/providers/utils'
@@ -24,7 +25,6 @@ import {
   convertResponseOutputToInputItems,
   convertToolsToResponses,
   createReadableStreamFromResponses,
-  extractResponseReasoning,
   extractResponseText,
   extractResponseToolCalls,
   parseResponsesUsage,
@@ -127,11 +127,6 @@ export async function executeResponsesProviderRequest(
     }
   }
 
-  // Store response format config - for Azure with tools, we defer applying it until after tool calls complete
-  let deferredTextFormat: OpenAI.Responses.ResponseFormatTextJSONSchemaConfig | undefined
-  const hasTools = !!request.tools?.length
-  const isAzure = config.providerId === 'azure-openai'
-
   if (request.responseFormat) {
     const isStrict = request.responseFormat.strict !== false
     const rawSchema = request.responseFormat.schema || request.responseFormat
@@ -145,20 +140,11 @@ export async function executeResponsesProviderRequest(
       strict: isStrict,
     }
 
-    // Azure OpenAI has issues combining tools + response_format in the same request
-    // Defer the format until after tool calls complete for Azure
-    if (isAzure && hasTools) {
-      deferredTextFormat = textFormat
-      logger.info(
-        `Deferring JSON schema response format for ${config.providerLabel} (will apply after tool calls complete)`
-      )
-    } else {
-      basePayload.text = {
-        ...((basePayload.text as Record<string, unknown>) ?? {}),
-        format: textFormat,
-      }
-      logger.info(`Added JSON schema response format to ${config.providerLabel} request`)
+    basePayload.text = {
+      ...((basePayload.text as Record<string, unknown>) ?? {}),
+      format: textFormat,
     }
+    logger.info(`Added JSON schema response format to ${config.providerLabel} request`)
   }
 
   const tools = request.tools?.length
@@ -247,14 +233,20 @@ export async function executeResponsesProviderRequest(
       : bodyRest
   }
 
+  let reasoningSummariesUnavailable = false
+
   const fetchResponsesWithSummaryFallback = async (
-    body: Record<string, unknown>
+    requestedBody: Record<string, unknown>,
+    abortSignal = request.abortSignal
   ): Promise<Response> => {
+    const body = reasoningSummariesUnavailable
+      ? (stripReasoningSummary(requestedBody) ?? requestedBody)
+      : requestedBody
     const response = await fetchImpl(config.endpoint, {
       method: 'POST',
       headers: config.headers,
       body: JSON.stringify(body),
-      signal: request.abortSignal,
+      signal: abortSignal,
     })
     if (response.ok) return response
 
@@ -266,6 +258,7 @@ export async function executeResponsesProviderRequest(
       throw new Error(`${config.providerLabel} API error (${response.status}): ${message}`)
     }
 
+    reasoningSummariesUnavailable = true
     logger.warn(
       `${config.providerLabel} rejected reasoning summaries (organization not verified); retrying without summary`,
       { model: config.modelName }
@@ -274,7 +267,7 @@ export async function executeResponsesProviderRequest(
       method: 'POST',
       headers: config.headers,
       body: JSON.stringify(strippedBody),
-      signal: request.abortSignal,
+      signal: abortSignal,
     })
     if (!retryResponse.ok) {
       const retryMessage = await parseErrorResponse(retryResponse)
@@ -296,7 +289,58 @@ export async function executeResponsesProviderRequest(
   const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
   try {
-    if (request.stream && (!tools || tools.length === 0)) {
+    const hasActiveTools = Array.isArray(basePayload.tools) && basePayload.tools.length > 0
+
+    if (request.stream && hasActiveTools) {
+      logger.info(`Using live streaming tool loop for ${config.providerLabel} request`)
+      const timeSegments: TimeSegment[] = []
+
+      return createStreamingExecution({
+        model: request.model,
+        providerStartTime,
+        providerStartTimeISO,
+        timing: {
+          kind: 'accumulated',
+          modelTime: 0,
+          toolsTime: 0,
+          firstResponseTime: 0,
+          iterations: 1,
+          timeSegments,
+        },
+        initialTokens: { input: 0, output: 0, total: 0 },
+        initialCost: { input: 0, output: 0, total: 0 },
+        isStreaming: true,
+        streamFormat: 'agent-events-v1',
+        createStream: ({ output, finalizeTiming }) =>
+          createOpenAIResponsesStreamingToolLoopStream({
+            providerId: config.providerId,
+            providerLabel: config.providerLabel,
+            request,
+            initialInput,
+            initialToolChoice: responsesToolChoice,
+            forcedTools: preparedTools?.forcedTools,
+            createStream: (input, overrides, abortSignal) =>
+              fetchResponsesWithSummaryFallback(createRequestBody(input, overrides), abortSignal),
+            logger,
+            timeSegments,
+            onComplete: (result) => {
+              output.content = result.content
+              output.tokens = result.tokens
+              output.cost = result.cost
+              output.toolCalls = result.toolCalls as NormalizedBlockOutput['toolCalls']
+              if (output.providerTiming) {
+                output.providerTiming.modelTime = result.modelTime
+                output.providerTiming.toolsTime = result.toolsTime
+                output.providerTiming.firstResponseTime = result.firstResponseTime
+                output.providerTiming.iterations = result.iterations
+              }
+              finalizeTiming()
+            },
+          }),
+      })
+    }
+
+    if (request.stream && !hasActiveTools) {
       logger.info(`Using streaming response for ${config.providerLabel} request`)
 
       const streamResponse = await fetchResponsesWithSummaryFallback(
@@ -386,12 +430,6 @@ export async function executeResponsesProviderRequest(
 
     const toolCalls = []
     const toolResults: Record<string, unknown>[] = []
-    /**
-     * Executed calls in completion order, for settled tool chips on the
-     * regenerated answer stream (the silent loop has no live stream to emit
-     * lifecycle events on while tools actually run).
-     */
-    const toolLifecycle: Array<{ id: string; name: string; status: ToolCallEndStatus }> = []
     let iterationCount = 0
     let modelTime = firstResponseTime
     let toolsTime = 0
@@ -450,11 +488,24 @@ export async function executeResponsesProviderRequest(
         const toolName = toolCall.name
 
         try {
-          const toolArgs = toolCall.arguments ? JSON.parse(toolCall.arguments) : {}
+          const toolArgs = parseToolArguments(toolCall.arguments, toolName)
           const tool = request.tools?.find((t) => t.id === toolName)
 
           if (!tool) {
-            return null
+            const toolCallEndTime = Date.now()
+            return {
+              toolCall,
+              toolName,
+              toolParams: {},
+              result: {
+                success: false,
+                output: undefined,
+                error: `Tool "${toolName}" is not available`,
+              },
+              startTime: toolCallStartTime,
+              endTime: toolCallEndTime,
+              duration: toolCallEndTime - toolCallStartTime,
+            }
           }
 
           const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
@@ -473,6 +524,9 @@ export async function executeResponsesProviderRequest(
             duration: toolCallEndTime - toolCallStartTime,
           }
         } catch (error) {
+          if (isAbortError(error) || request.abortSignal?.aborted) {
+            throw error
+          }
           const toolCallEndTime = Date.now()
           logger.error('Error processing tool call:', { error, toolName })
 
@@ -492,13 +546,11 @@ export async function executeResponsesProviderRequest(
         }
       })
 
-      const executionResults = await Promise.allSettled(toolExecutionPromises)
+      const executionResults = await Promise.all(toolExecutionPromises)
 
-      for (const settledResult of executionResults) {
-        if (settledResult.status === 'rejected' || !settledResult.value) continue
-
+      for (const executionResult of executionResults) {
         const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
-          settledResult.value
+          executionResult
 
         timeSegments.push({
           type: 'tool',
@@ -509,10 +561,12 @@ export async function executeResponsesProviderRequest(
           toolCallId: toolCall.id,
         })
 
-        let resultContent: Record<string, unknown>
-        if (result.success && result.output) {
-          toolResults.push(result.output)
-          resultContent = result.output as Record<string, unknown>
+        let resultContent: unknown
+        if (result.success) {
+          if (isRecordLike(result.output)) {
+            toolResults.push(result.output)
+          }
+          resultContent = result.output ?? null
         } else {
           resultContent = {
             error: true,
@@ -529,12 +583,6 @@ export async function executeResponsesProviderRequest(
           duration: duration,
           result: resultContent,
           success: result.success,
-        })
-
-        toolLifecycle.push({
-          id: toolCall.id,
-          name: toolName,
-          status: result.success ? 'success' : 'error',
         })
 
         currentInput.push({
@@ -618,225 +666,6 @@ export async function executeResponsesProviderRequest(
       )
     }
 
-    // For Azure with deferred format: make a final call with the response format applied
-    // This happens whenever we have a deferred format, even if no tools were called
-    // (the initial call was made without the format, so we need to apply it now)
-    let appliedDeferredFormat = false
-    if (deferredTextFormat) {
-      logger.info(
-        `Applying deferred JSON schema response format for ${config.providerLabel} (iterationCount: ${iterationCount})`
-      )
-
-      const finalFormatStartTime = Date.now()
-
-      // Determine what input to use for the formatted call
-      let formattedInput: ResponsesInputItem[]
-
-      if (iterationCount > 0) {
-        // Tools were called - include the conversation history with tool results
-        const lastOutputItems = convertResponseOutputToInputItems(currentResponse.output)
-        if (lastOutputItems.length) {
-          currentInput.push(...lastOutputItems)
-        }
-        formattedInput = currentInput
-      } else {
-        // No tools were called - just retry the initial call with format applied
-        // Don't include the model's previous unformatted response
-        formattedInput = initialInput
-      }
-
-      // Make final call with the response format - build payload without tools
-      const finalPayload: Record<string, unknown> = {
-        model: config.modelName,
-        input: formattedInput,
-        text: {
-          ...((basePayload.text as Record<string, unknown>) ?? {}),
-          format: deferredTextFormat,
-        },
-      }
-
-      // Copy over non-tool related settings
-      if (request.temperature !== undefined) finalPayload.temperature = request.temperature
-      if (request.maxTokens != null) finalPayload.max_output_tokens = request.maxTokens
-      if (supportsReasoningEffort(config.modelName) && basePayload.reasoning) {
-        finalPayload.reasoning = basePayload.reasoning
-      }
-      if (request.verbosity !== undefined && request.verbosity !== 'auto') {
-        finalPayload.text = {
-          ...((finalPayload.text as Record<string, unknown>) ?? {}),
-          verbosity: request.verbosity,
-        }
-      }
-
-      currentResponse = await postResponses(finalPayload)
-
-      const finalFormatEndTime = Date.now()
-      const finalFormatDuration = finalFormatEndTime - finalFormatStartTime
-
-      timeSegments.push({
-        type: 'model',
-        name: 'Final formatted response',
-        startTime: finalFormatStartTime,
-        endTime: finalFormatEndTime,
-        duration: finalFormatDuration,
-      })
-
-      modelTime += finalFormatDuration
-
-      const finalUsage = parseResponsesUsage(currentResponse.usage)
-      if (finalUsage) {
-        tokens.input += finalUsage.promptTokens
-        tokens.output += finalUsage.completionTokens
-        tokens.total += finalUsage.totalTokens
-      }
-
-      // Update content with the formatted response
-      const formattedText = extractResponseText(currentResponse.output)
-      if (formattedText) {
-        content = formattedText
-      }
-
-      enrichLastModelSegmentFromOpenAIResponse(
-        timeSegments,
-        currentResponse,
-        formattedText,
-        extractResponseToolCalls(currentResponse.output),
-        { model: request.model }
-      )
-
-      appliedDeferredFormat = true
-    }
-
-    // Skip streaming if we already applied deferred format - we have the formatted content
-    // Making another streaming call would lose the formatted response
-    if (request.stream && !appliedDeferredFormat) {
-      logger.info('Using streaming for final response after tool processing')
-
-      const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
-
-      /**
-       * The regeneration exists purely to stream the settled answer as prose —
-       * streamed function calls are never executed. With `tool_choice: 'auto'`
-       * a reasoning model can re-decide to call a tool here, ending the stream
-       * with a dead function_call and an empty answer.
-       */
-      const streamOverrides: Record<string, unknown> = { stream: true, tool_choice: 'none' }
-      if (deferredTextFormat) {
-        streamOverrides.text = {
-          ...((basePayload.text as Record<string, unknown>) ?? {}),
-          format: deferredTextFormat,
-        }
-      }
-
-      const streamResponse = await fetchResponsesWithSummaryFallback(
-        createRequestBody(currentInput, streamOverrides)
-      )
-
-      const streamingResult = createStreamingExecution({
-        model: request.model,
-        providerStartTime,
-        providerStartTimeISO,
-        timing: {
-          kind: 'accumulated',
-          modelTime,
-          toolsTime,
-          firstResponseTime,
-          iterations: iterationCount + 1,
-          timeSegments,
-        },
-        initialTokens: { input: tokens.input, output: tokens.output, total: tokens.total },
-        initialCost: {
-          input: accumulatedCost.input,
-          output: accumulatedCost.output,
-          total: accumulatedCost.total,
-        },
-        toolCalls: toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
-        streamFormat: 'agent-events-v1',
-        createStream: ({ output }) => {
-          const answerStream = createReadableStreamFromResponses(
-            streamResponse,
-            (streamedContent, usage, thinking) => {
-              /**
-               * Belt-and-braces for the regeneration ending without text: keep
-               * the tool loop's settled answer instead of clobbering it with an
-               * empty string (clients then render it from the final envelope).
-               */
-              if (!streamedContent && content) {
-                logger.warn(
-                  `${config.providerLabel} final stream produced no text; keeping tool-loop answer`
-                )
-              }
-              output.content = streamedContent || content
-              output.tokens = {
-                input: tokens.input + (usage?.promptTokens || 0),
-                output: tokens.output + (usage?.completionTokens || 0),
-                total: tokens.total + (usage?.totalTokens || 0),
-              }
-
-              const streamCost = calculateCost(
-                request.model,
-                usage?.promptTokens || 0,
-                usage?.completionTokens || 0
-              )
-              const tc = sumToolCosts(toolResults)
-              output.cost = {
-                input: accumulatedCost.input + streamCost.input,
-                output: accumulatedCost.output + streamCost.output,
-                toolCost: tc || undefined,
-                total: accumulatedCost.total + streamCost.total + tc,
-              }
-
-              if (thinking) {
-                const lastModel = [...timeSegments].reverse().find((s) => s.type === 'model')
-                if (lastModel) {
-                  lastModel.thinkingContent = thinking
-                }
-              }
-            }
-          )
-
-          if (toolLifecycle.length === 0) {
-            return answerStream
-          }
-
-          /**
-           * Settled tool chips ride ahead of the answer: the silent loop's
-           * calls already completed, so opted-in consumers get start+end pairs
-           * (name + status only) before the regenerated text streams. Runs
-           * without a sink never see these events (the byte projection ignores
-           * non-text), so legacy output is unchanged.
-           */
-          const answerReader = answerStream.getReader()
-          return new ReadableStream<AgentStreamEvent>({
-            start(controller) {
-              for (const call of toolLifecycle) {
-                controller.enqueue({ type: 'tool_call_start', id: call.id, name: call.name })
-                controller.enqueue({
-                  type: 'tool_call_end',
-                  id: call.id,
-                  name: call.name,
-                  status: call.status,
-                })
-              }
-            },
-            async pull(controller) {
-              const { done, value } = await answerReader.read()
-              if (done) {
-                controller.close()
-                return
-              }
-              controller.enqueue(value)
-            },
-            cancel(reason) {
-              return answerReader.cancel(reason)
-            },
-          })
-        },
-      })
-
-      return streamingResult
-    }
-
     const providerEndTime = Date.now()
     const providerEndTimeISO = new Date(providerEndTime).toISOString()
     const totalDuration = providerEndTime - providerStartTime
@@ -868,89 +697,14 @@ export async function executeResponsesProviderRequest(
       duration: totalDuration,
     })
 
+    if (isAbortError(error) || request.abortSignal?.aborted) {
+      throw error
+    }
+
     throw new ProviderError(toError(error).message, {
       startTime: providerStartTimeISO,
       endTime: providerEndTimeISO,
       duration: totalDuration,
     })
   }
-}
-
-/**
- * Determines a finish reason for an OpenAI Responses API response.
- * Maps to conventional values: 'tool_calls' | 'length' | 'stop'.
- */
-function deriveOpenAIFinishReason(
-  response: OpenAI.Responses.Response,
-  toolCalls: ResponsesToolCall[]
-): string | undefined {
-  const incompleteReason = response.incomplete_details?.reason
-  if (incompleteReason === 'max_output_tokens') return 'length'
-  if (incompleteReason === 'content_filter') return 'content_filter'
-  if (toolCalls.length > 0) return 'tool_calls'
-  if (incompleteReason) return incompleteReason
-  if (response.status === 'failed') return 'error'
-  if (response.status === 'incomplete') return 'length'
-  if (response.status && response.status !== 'completed') return response.status
-  return 'stop'
-}
-
-/**
- * Enriches the last model segment with per-iteration content extracted from an
- * OpenAI Responses API response: assistant text, tool calls, finish reason,
- * and token usage for the iteration.
- */
-function enrichLastModelSegmentFromOpenAIResponse(
-  timeSegments: TimeSegment[],
-  response: OpenAI.Responses.Response,
-  assistantText: string,
-  toolCallsInResponse: ResponsesToolCall[],
-  extras?: {
-    model?: string
-    ttft?: number
-    errorType?: string
-    errorMessage?: string
-  }
-): void {
-  const toolCalls: IterationToolCall[] = toolCallsInResponse.map((tc) => ({
-    id: tc.id,
-    name: tc.name,
-    arguments:
-      typeof tc.arguments === 'string' ? parseToolCallArguments(tc.arguments) : tc.arguments,
-  }))
-
-  const usage = parseResponsesUsage(response.usage)
-  const thinkingContent = extractResponseReasoning(response.output)
-
-  let cost: { input: number; output: number; total: number } | undefined
-  if (extras?.model && usage) {
-    const full = calculateCost(
-      extras.model,
-      usage.promptTokens,
-      usage.completionTokens,
-      usage.cachedTokens > 0
-    )
-    cost = { input: full.input, output: full.output, total: full.total }
-  }
-
-  enrichLastModelSegment(timeSegments, {
-    assistantContent: assistantText || undefined,
-    thinkingContent: thinkingContent || undefined,
-    toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-    finishReason: deriveOpenAIFinishReason(response, toolCallsInResponse),
-    tokens: usage
-      ? {
-          input: usage.promptTokens,
-          output: usage.completionTokens,
-          total: usage.totalTokens,
-          ...(usage.cachedTokens > 0 && { cacheRead: usage.cachedTokens }),
-          ...(usage.reasoningTokens > 0 && { reasoning: usage.reasoningTokens }),
-        }
-      : undefined,
-    cost,
-    provider: 'openai',
-    ttft: extras?.ttft,
-    errorType: extras?.errorType,
-    errorMessage: extras?.errorMessage,
-  })
 }

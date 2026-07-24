@@ -48,14 +48,6 @@ export interface GeminiUsage {
 }
 
 /**
- * Parsed function call from Gemini response
- */
-interface ParsedFunctionCall {
-  name: string
-  args: Record<string, unknown>
-}
-
-/**
  * Removes additionalProperties from a schema object (not supported by Gemini)
  */
 export function cleanSchemaForGemini(schema: SchemaUnion): SchemaUnion {
@@ -91,40 +83,6 @@ export function extractTextContent(candidate: Candidate | undefined): string {
   if (textParts.length === 1) return textParts[0].text
 
   return textParts.map((part) => part.text).join('\n')
-}
-
-/**
- * Extracts the first function call from a Gemini response candidate
- */
-export function extractFunctionCall(candidate: Candidate | undefined): ParsedFunctionCall | null {
-  if (!candidate?.content?.parts) return null
-
-  for (const part of candidate.content.parts) {
-    if (part.functionCall) {
-      return {
-        name: part.functionCall.name ?? '',
-        args: (part.functionCall.args ?? {}) as Record<string, unknown>,
-      }
-    }
-  }
-
-  return null
-}
-
-/**
- * Extracts the full Part containing the function call (preserves thoughtSignature)
- * @deprecated Use extractAllFunctionCallParts for proper multi-tool handling
- */
-export function extractFunctionCallPart(candidate: Candidate | undefined): Part | null {
-  if (!candidate?.content?.parts) return null
-
-  for (const part of candidate.content.parts) {
-    if (part.functionCall) {
-      return part
-    }
-  }
-
-  return null
 }
 
 /**
@@ -292,11 +250,26 @@ export function createReadableStreamFromGeminiStream(
   let fullContent = ''
   let fullThinking = ''
   let usage: GeminiUsage = { promptTokenCount: 0, candidatesTokenCount: 0, totalTokenCount: 0 }
+  let cancelled = false
+  let streamIterator: AsyncIterator<GenerateContentResponse> | undefined
 
   return new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of stream) {
+        streamIterator = stream[Symbol.asyncIterator]()
+        while (true) {
+          const next = await streamIterator.next()
+          if (next.done || cancelled) break
+          const chunk = next.value
+          if (chunk.promptFeedback?.blockReason) {
+            throw new Error(
+              `Gemini prompt blocked: ${chunk.promptFeedback.blockReason}${
+                chunk.promptFeedback.blockReasonMessage
+                  ? ` (${chunk.promptFeedback.blockReasonMessage})`
+                  : ''
+              }`
+            )
+          }
           if (chunk.usageMetadata) {
             usage = convertUsageMetadata(chunk.usageMetadata)
           }
@@ -324,14 +297,21 @@ export function createReadableStreamFromGeminiStream(
           }
         }
 
+        if (cancelled) return
         onComplete?.(fullContent, usage, fullThinking || undefined)
         controller.close()
       } catch (error) {
-        logger.error('Error reading Google Gemini stream', {
-          error: toError(error).message,
-        })
-        controller.error(error)
+        if (!cancelled) {
+          logger.error('Error reading Google Gemini stream', {
+            error: toError(error).message,
+          })
+          controller.error(error)
+        }
       }
+    },
+    async cancel() {
+      cancelled = true
+      await streamIterator?.return?.()
     },
   })
 }

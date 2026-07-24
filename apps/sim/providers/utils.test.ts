@@ -393,7 +393,7 @@ describe('Model Capabilities', () => {
       expect(supportsThinking('claude-sonnet-4-5')).toBe(true)
       expect(supportsThinking('claude-haiku-4-5')).toBe(true)
       expect(supportsThinking('gemini-3-flash-preview')).toBe(true)
-      expect(supportsThinking('deepseek-chat')).toBe(true)
+      expect(supportsThinking('deepseek-v4-flash')).toBe(true)
       expect(supportsThinking('deepseek-reasoner')).toBe(true)
       expect(supportsThinking('groq/qwen/qwen3.6-27b')).toBe(true)
     })
@@ -402,6 +402,7 @@ describe('Model Capabilities', () => {
       expect(supportsThinking('gpt-4o')).toBe(false)
       expect(supportsThinking('gpt-5')).toBe(false)
       expect(supportsThinking('o3')).toBe(false)
+      expect(supportsThinking('deepseek-chat')).toBe(false)
       expect(supportsThinking('deepseek-v3')).toBe(false)
       expect(supportsThinking('unknown-model')).toBe(false)
     })
@@ -515,8 +516,9 @@ describe('Model Capabilities', () => {
 
       expect(MODELS_WITH_THINKING).toContain('claude-haiku-4-5')
 
-      expect(MODELS_WITH_THINKING).toContain('deepseek-chat')
+      expect(MODELS_WITH_THINKING).toContain('deepseek-v4-flash')
       expect(MODELS_WITH_THINKING).toContain('deepseek-reasoner')
+      expect(MODELS_WITH_THINKING).not.toContain('deepseek-chat')
       expect(MODELS_WITH_THINKING).toContain('groq/qwen/qwen3.6-27b')
 
       expect(MODELS_WITH_THINKING).not.toContain('gpt-4o')
@@ -703,8 +705,11 @@ describe('Max Output Tokens', () => {
       expect(getMaxOutputTokensForModel('azure/gpt-5.2')).toBe(128000)
     })
 
+    it('should return published max for DeepSeek Reasoner', () => {
+      expect(getMaxOutputTokensForModel('deepseek-reasoner')).toBe(384000)
+    })
+
     it('should return standard default for models without maxOutputTokens', () => {
-      expect(getMaxOutputTokensForModel('deepseek-reasoner')).toBe(4096)
       expect(getMaxOutputTokensForModel('grok-4-latest')).toBe(4096)
     })
 

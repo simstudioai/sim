@@ -185,7 +185,7 @@ export interface BlockToolCall {
   error?: string
   arguments?: Record<string, unknown>
   input?: Record<string, unknown>
-  result?: Record<string, unknown>
+  result?: unknown
   output?: Record<string, unknown>
 }
 

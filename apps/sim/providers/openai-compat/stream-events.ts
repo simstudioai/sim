@@ -12,6 +12,10 @@
 import { createLogger } from '@sim/logger'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
+import {
+  getOpenRouterReasoningDetailText,
+  type OpenRouterReasoningDetail,
+} from '@/providers/openrouter/reasoning'
 import type { AgentStreamEvent, TextDeltaTurn } from '@/providers/stream-events'
 import { ensureToolCallId } from '@/providers/tool-call-id'
 
@@ -28,6 +32,8 @@ export interface OpenAICompatStreamComplete {
   reasoning_content?: string
   /** Groq-style reasoning field accumulated from deltas. */
   reasoning?: string
+  /** OpenRouter reasoning blocks accumulated without reordering or normalization. */
+  reasoning_details?: OpenRouterReasoningDetail[]
   usage: CompletionUsage
   /** Assembled when emitToolCallStarts is true (id + name + args). */
   toolCalls?: OpenAICompatAssembledToolCall[]
@@ -53,6 +59,24 @@ export interface CreateOpenAICompatibleAgentEventStreamOptions {
 type CompatChunkDelta = ChatCompletionChunk.Choice.Delta & {
   reasoning_content?: string
   reasoning?: string | { text?: string }
+}
+
+export type OpenRouterChatCompletionChunk = ChatCompletionChunk & {
+  choices: Array<
+    ChatCompletionChunk.Choice & {
+      delta: CompatChunkDelta & {
+        reasoning_details?: OpenRouterReasoningDetail[]
+      }
+    }
+  >
+}
+
+interface CompatStreamExtension {
+  error?: string | { message?: string }
+  x_groq?: {
+    usage?: CompletionUsage
+    error?: string | { message?: string }
+  }
 }
 
 function extractDeltaReasoning(delta: CompatChunkDelta | undefined): {
@@ -89,6 +113,8 @@ export function createOpenAICompatibleAgentEventStream(
 ): ReadableStream<AgentStreamEvent> {
   const { providerName, turn = 'final', emitToolCallStarts = false, onComplete } = options
   const streamLogger = createLogger(`${providerName}Utils`)
+  let cancelled = false
+  let streamIterator: AsyncIterator<ChatCompletionChunk> | undefined
 
   return new ReadableStream<AgentStreamEvent>({
     async start(controller) {
@@ -96,6 +122,7 @@ export function createOpenAICompatibleAgentEventStream(
       let fullThinking = ''
       let reasoningContent = ''
       let reasoning = ''
+      const reasoningDetails: OpenRouterReasoningDetail[] = []
       let promptTokens = 0
       let completionTokens = 0
       let totalTokens = 0
@@ -107,15 +134,29 @@ export function createOpenAICompatibleAgentEventStream(
       >()
 
       try {
-        for await (const chunk of stream) {
+        streamIterator = stream[Symbol.asyncIterator]()
+        while (true) {
+          const next = await streamIterator.next()
+          if (next.done || cancelled) break
+          const chunk = next.value
+          const extension = chunk as ChatCompletionChunk & CompatStreamExtension
+          if (extension.error) {
+            const message =
+              typeof extension.error === 'string' ? extension.error : extension.error.message
+            throw new Error(message || `${providerName} stream error`)
+          }
+          if (extension.x_groq?.error) {
+            const message =
+              typeof extension.x_groq.error === 'string'
+                ? extension.x_groq.error
+                : extension.x_groq.error.message
+            throw new Error(message || 'Groq stream error')
+          }
           /**
            * Groq puts stream usage under `x_groq.usage` on the final chunk
            * instead of the OpenAI `usage` field; accept either shape.
            */
-          const usage =
-            chunk.usage ??
-            (chunk as { x_groq?: { usage?: CompletionUsage } }).x_groq?.usage ??
-            undefined
+          const usage = chunk.usage ?? extension.x_groq?.usage
           if (usage) {
             promptTokens = usage.prompt_tokens ?? 0
             completionTokens = usage.completion_tokens ?? 0
@@ -127,13 +168,29 @@ export function createOpenAICompatibleAgentEventStream(
             finishReason = choice.finish_reason
           }
           const delta: CompatChunkDelta | undefined = choice?.delta
+          const openRouterDelta = (chunk as OpenRouterChatCompletionChunk).choices?.[0]?.delta
+          const chunkReasoningDetails = Array.isArray(openRouterDelta?.reasoning_details)
+            ? openRouterDelta.reasoning_details
+            : []
+          let structuredThinking = ''
+          for (const detail of chunkReasoningDetails) {
+            reasoningDetails.push(detail)
+            const text = getOpenRouterReasoningDetailText(detail)
+            if (text) {
+              structuredThinking += text
+              controller.enqueue({ type: 'thinking_delta', text })
+            }
+          }
+          fullThinking += structuredThinking
 
           const extracted = extractDeltaReasoning(delta)
           if (extracted.text) {
-            fullThinking += extracted.text
             if (extracted.reasoning_content) reasoningContent += extracted.reasoning_content
             if (extracted.reasoning) reasoning += extracted.reasoning
-            controller.enqueue({ type: 'thinking_delta', text: extracted.text })
+            if (!structuredThinking) {
+              fullThinking += extracted.text
+              controller.enqueue({ type: 'thinking_delta', text: extracted.text })
+            }
           }
 
           const content = typeof delta?.content === 'string' ? delta.content : ''
@@ -182,6 +239,7 @@ export function createOpenAICompatibleAgentEventStream(
           }
         }
 
+        if (cancelled) return
         if (onComplete) {
           if (promptTokens === 0 && completionTokens === 0) {
             streamLogger.warn(`${providerName} stream completed without usage data`)
@@ -202,6 +260,7 @@ export function createOpenAICompatibleAgentEventStream(
             thinking: fullThinking,
             ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
             ...(reasoning ? { reasoning } : {}),
+            ...(reasoningDetails.length > 0 ? { reasoning_details: reasoningDetails } : {}),
             usage: {
               prompt_tokens: promptTokens,
               completion_tokens: completionTokens,
@@ -214,8 +273,14 @@ export function createOpenAICompatibleAgentEventStream(
 
         controller.close()
       } catch (error) {
-        controller.error(error)
+        if (!cancelled) {
+          controller.error(error)
+        }
       }
+    },
+    async cancel() {
+      cancelled = true
+      await streamIterator?.return?.()
     },
   })
 }

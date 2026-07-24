@@ -67,7 +67,7 @@ export interface FunctionCallResponse {
   startTime?: string
   endTime?: string
   duration?: number
-  result?: Record<string, any>
+  result?: unknown
   output?: Record<string, any>
   input?: Record<string, any>
   success?: boolean
@@ -169,16 +169,10 @@ export interface ProviderRequest {
   userId?: string
   stream?: boolean
   /**
-   * Use the live streaming tool loop (tool lifecycle on the agent-events
-   * stream). Set by the executor only for agent-events runs on providers in
-   * {@link STREAMING_TOOL_CALL_PROVIDERS}; providers without a loop ignore it.
-   */
-  streamToolCalls?: boolean
-  /**
    * Run-level agent-events opt-in. Lets providers request streamable thinking
-   * (e.g. OpenAI reasoning summaries, Gemini thought summaries) for the run.
-   * Never changes answer content; when unset, provider requests are identical
-   * to the pre-agent-events wire shape.
+   * (e.g. OpenAI reasoning summaries, Gemini thought summaries) and lets opted-in
+   * consumers observe the event timeline. It does not select the internal tool
+   * loop and never changes answer content.
    */
   agentEvents?: boolean
   environmentVariables?: Record<string, string>

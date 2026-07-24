@@ -60,10 +60,12 @@ const SELECTED_OUTPUT_TOO_LARGE_MESSAGE =
  * Simple SSE stream contract — frame shapes are the `ChatStreamFrame` union in
  * `agent-stream-protocol.ts`, consumed by both these emitters and the chat client:
  * - Answer text: `{ blockId, chunk }` only (`chunk` is forever answer text).
- *   Legacy clients get settled final-turn text; dual-gated clients get answer
- *   text live from the agent-events sink, reconciled by
+ *   Legacy clients get settled final-turn text; protocol-negotiated clients
+ *   with either event policy get answer text live from the agent-events sink,
+ *   reconciled by
  *   `{ blockId, event: 'chunk_reset' }` when a turn resolves to tool calls.
  * - Thinking (opt-in): `{ blockId, event: 'thinking', data }` — never uses `chunk`.
+ * - Tool lifecycle (opt-in): `{ blockId, event: 'tool', ... }` — name/status only.
  * - Success terminal: `{ event: 'final', data }` then `[DONE]`.
  * - Failure terminal: exactly one `{ event: 'error', ... }` then `[DONE]`. No `final` after failure.
  * - Mid-block read issues may emit non-terminal `{ event: 'stream_error', blockId, error }`.
@@ -78,11 +80,10 @@ interface StreamingConfig {
   includeFileBase64?: boolean
   base64MaxBytes?: number
   timeoutMs?: number
-  /**
-   * Deployment policy for thinking/tool SSE. Still requires the client to send
-   * {@link AGENT_STREAM_PROTOCOL_HEADER}: {@link AGENT_STREAM_PROTOCOL_V1}.
-   */
+  /** Thinking SSE policy; still requires the negotiated agent-events protocol. */
   includeThinking?: boolean
+  /** Tool lifecycle SSE policy; still requires the negotiated agent-events protocol. */
+  includeToolCalls?: boolean
 }
 
 export type StreamingExecutorFn = (callbacks: {
@@ -104,23 +105,25 @@ export interface StreamingResponseOptions {
   userId?: string
   /** Incoming fetch/request abort — combined with the stream timeout. */
   requestSignal?: AbortSignal
-  /** Used with {@link StreamingConfig.includeThinking} for dual-gate thinking SSE. */
+  /** Used with the independent event policies to negotiate agent-events SSE. */
   requestHeaders?: Headers | { get(name: string): string | null }
   executeFn: StreamingExecutorFn
 }
 
 /**
- * Extra response headers when the dual-gate agent stream protocol is active.
+ * Extra response headers when either event policy negotiates the stream protocol.
  * Callers should merge these into the SSE response alongside {@link SSE_HEADERS}.
  */
 export function agentStreamProtocolResponseHeaders(options: {
   includeThinking?: boolean | null
+  includeToolCalls?: boolean | null
   requestHeaders?: Headers | { get(name: string): string | null }
 }): Record<string, string> {
   if (!options.requestHeaders) return {}
   if (
     !shouldEmitAgentStreamEvents({
       includeThinking: options.includeThinking,
+      includeToolCalls: options.includeToolCalls,
       requestHeaders: options.requestHeaders,
     })
   ) {
@@ -256,7 +259,7 @@ function assertSelectedOutputBytes(value: unknown): number {
  * Strips model internals from `providerTiming.timeSegments` before an output
  * rides a simple-SSE `final` envelope: `thinkingContent`, intermediate
  * `assistantContent`, and tool-call arguments would otherwise reach public
- * chat clients wholesale, bypassing the dual-gated thinking/tool frames.
+ * chat clients wholesale, bypassing the independently gated thinking/tool frames.
  * Timing numbers and tool names stay — they carry no model internals.
  */
 function sanitizeProviderTimingForEnvelope(
@@ -456,8 +459,11 @@ export async function createStreamingResponse(
     Boolean(options.requestHeaders) &&
     shouldEmitAgentStreamEvents({
       includeThinking: streamConfig.includeThinking,
+      includeToolCalls: streamConfig.includeToolCalls,
       requestHeaders: options.requestHeaders!,
     })
+  const emitThinking = emitAgentEvents && streamConfig.includeThinking === true
+  const emitToolCalls = emitAgentEvents && streamConfig.includeToolCalls === true
   const maxThinkingChars = DEFAULT_MAX_THINKING_CHARS
 
   let requestAborted = false
@@ -554,11 +560,11 @@ export async function createStreamingResponse(
         }
 
         /**
-         * Dual-gated clients get answer text live from the sink (pending deltas
-         * stream as the model generates; `chunk_reset` clears an intermediate
-         * turn). The byte stream then only feeds `streamedChunks` for logs.
-         * Response-format projections rewrite the bytes, so those blocks keep
-         * the byte stream as the frame source.
+         * Protocol-negotiated clients with either event policy get answer text
+         * live from the sink (pending deltas stream as the model generates;
+         * `chunk_reset` clears an intermediate turn). The byte stream then only
+         * feeds `streamedChunks` for logs. Response-format projections rewrite
+         * the bytes, so those blocks keep the byte stream as the frame source.
          */
         const sinkAnswerText =
           emitAgentEvents &&
@@ -585,11 +591,11 @@ export async function createStreamingResponse(
           unsubscribe = streamingExec.subscribe({
             onEvent: async (event) => {
               if (event.type === 'thinking_delta') {
-                sendThinking(blockId, event.text)
+                if (emitThinking) sendThinking(blockId, event.text)
               } else if (event.type === 'tool_call_start') {
-                sendTool(blockId, 'start', event.id, event.name)
+                if (emitToolCalls) sendTool(blockId, 'start', event.id, event.name)
               } else if (event.type === 'tool_call_end') {
-                sendTool(blockId, 'end', event.id, event.name, event.status)
+                if (emitToolCalls) sendTool(blockId, 'end', event.id, event.name, event.status)
               } else if (sinkAnswerText && event.type === 'text_delta') {
                 if (event.turn !== 'intermediate') {
                   emitAnswerChunk(event.text)

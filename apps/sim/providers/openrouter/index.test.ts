@@ -70,7 +70,9 @@ vi.mock('@/providers/utils', () => ({
   generateSchemaInstructions: vi.fn(() => 'SCHEMA_INSTRUCTIONS'),
 }))
 
+import type { StreamingExecution } from '@/executor/types'
 import { openRouterProvider } from '@/providers/openrouter/index'
+import type { OpenRouterReasoningDetail } from '@/providers/openrouter/reasoning'
 import type { ProviderRequest, ProviderResponse, ProviderToolConfig } from '@/providers/types'
 
 interface Usage {
@@ -89,12 +91,25 @@ function textResponse(
   }
 }
 
-function toolCallResponse(name: string, args: Record<string, unknown>, id = 'call_1') {
+function toolCallResponse(
+  name: string,
+  args: Record<string, unknown>,
+  id = 'call_1',
+  assistant: {
+    content?: string | null
+    reasoning?: string
+    reasoning_details?: OpenRouterReasoningDetail[]
+  } = {}
+) {
   return {
     choices: [
       {
         message: {
-          content: null,
+          content: assistant.content ?? null,
+          ...(assistant.reasoning !== undefined ? { reasoning: assistant.reasoning } : {}),
+          ...(assistant.reasoning_details !== undefined
+            ? { reasoning_details: assistant.reasoning_details }
+            : {}),
           tool_calls: [
             { id, type: 'function', function: { name, arguments: JSON.stringify(args) } },
           ],
@@ -129,6 +144,9 @@ describe('openRouterProvider.executeRequest', () => {
     mockCreate.mockReset()
     mockExecuteTool.mockReset()
     mockSupportsNative.mockResolvedValue(false)
+    mockCreateStream.mockReturnValue(
+      new ReadableStream({ start: (controller) => controller.close() })
+    )
   })
 
   it('requires an API key', async () => {
@@ -233,6 +251,85 @@ describe('openRouterProvider.executeRequest', () => {
     })
   })
 
+  it('replays OpenRouter reasoning_details unchanged with assistant content', async () => {
+    const reasoningDetails: OpenRouterReasoningDetail[] = [
+      {
+        type: 'reasoning.summary',
+        summary: 'Need current weather.',
+        id: 'reasoning-1',
+        format: 'anthropic-claude-v1',
+        index: 0,
+      },
+      {
+        type: 'reasoning.encrypted',
+        data: 'opaque-data',
+        id: 'reasoning-2',
+        format: 'anthropic-claude-v1',
+        index: 1,
+      },
+      {
+        type: 'reasoning.text',
+        text: 'Call the weather tool.',
+        signature: null,
+        id: 'reasoning-3',
+        format: 'anthropic-claude-v1',
+        index: 2,
+      },
+    ]
+    mockCreate
+      .mockResolvedValueOnce(
+        toolCallResponse('get_weather', { city: 'SF' }, 'call_1', {
+          content: 'I will check.',
+          reasoning_details: reasoningDetails,
+        })
+      )
+      .mockResolvedValueOnce(textResponse('done'))
+    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { temp: 70 } })
+
+    await openRouterProvider.executeRequest({
+      ...baseRequest,
+      tools: [tool('get_weather')],
+    })
+
+    const assistant = mockCreate.mock.calls[1][0].messages.find(
+      (message: { role: string }) => message.role === 'assistant'
+    )
+    expect(assistant).toEqual({
+      role: 'assistant',
+      content: 'I will check.',
+      tool_calls: [
+        {
+          id: 'call_1',
+          type: 'function',
+          function: { name: 'get_weather', arguments: '{"city":"SF"}' },
+        },
+      ],
+      reasoning_details: reasoningDetails,
+    })
+  })
+
+  it('does not add OpenRouter reasoning fields when the provider omitted them', async () => {
+    mockCreate
+      .mockResolvedValueOnce(
+        toolCallResponse('get_weather', { city: 'SF' }, 'call_1', {
+          content: 'I will check.',
+        })
+      )
+      .mockResolvedValueOnce(textResponse('done'))
+    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { temp: 70 } })
+
+    await openRouterProvider.executeRequest({
+      ...baseRequest,
+      tools: [tool('get_weather')],
+    })
+
+    const assistant = mockCreate.mock.calls[1][0].messages.find(
+      (message: { role: string }) => message.role === 'assistant'
+    )
+    expect(assistant).not.toHaveProperty('reasoning')
+    expect(assistant).not.toHaveProperty('reasoning_details')
+  })
+
   it('applies native structured outputs (json_schema + require_parameters) when no tools are active', async () => {
     mockSupportsNative.mockResolvedValue(true)
     mockCreate.mockResolvedValueOnce(textResponse('{"x":1}'))
@@ -329,8 +426,40 @@ describe('openRouterProvider.executeRequest', () => {
     expect(res).toHaveProperty('execution.output.model', 'anthropic/claude-3.5-sonnet')
   })
 
+  it('streams the settled tool-loop answer without a duplicate provider request', async () => {
+    mockCreate
+      .mockResolvedValueOnce(toolCallResponse('get_weather', { city: 'SF' }))
+      .mockResolvedValueOnce(
+        textResponse('It is sunny', { prompt_tokens: 20, completion_tokens: 6, total_tokens: 26 })
+      )
+    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { temp: 70 } })
+
+    const res = (await openRouterProvider.executeRequest({
+      ...baseRequest,
+      stream: true,
+      tools: [tool('get_weather')],
+    })) as StreamingExecution
+
+    expect(mockCreate).toHaveBeenCalledTimes(2)
+    expect(res.execution.output).toMatchObject({
+      content: 'It is sunny',
+      tokens: { input: 28, output: 10, total: 38 },
+      toolCalls: { count: 1 },
+    })
+    const reader = res.stream.getReader()
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: { type: 'text_delta', text: 'It is sunny', turn: 'final' },
+    })
+    await expect(reader.read()).resolves.toEqual({ done: true, value: undefined })
+  })
+
   it('stops the tool loop at MAX_TOOL_ITERATIONS', async () => {
-    mockCreate.mockResolvedValue(toolCallResponse('looping', {}))
+    mockCreate.mockImplementation((payload) =>
+      payload.tool_choice === 'none'
+        ? textResponse('iteration limit answer')
+        : toolCallResponse('looping', {})
+    )
     mockExecuteTool.mockResolvedValue({ success: true, output: {} })
 
     const res = (await openRouterProvider.executeRequest({
@@ -338,9 +467,11 @@ describe('openRouterProvider.executeRequest', () => {
       tools: [tool('looping')],
     })) as ProviderResponse
 
-    expect(mockCreate).toHaveBeenCalledTimes(11)
+    expect(mockCreate).toHaveBeenCalledTimes(12)
     expect(mockExecuteTool).toHaveBeenCalledTimes(10)
     expect(res.toolCalls?.length).toBe(10)
+    expect(res.content).toBe('iteration limit answer')
+    expect(mockCreate.mock.calls.at(-1)?.[0]).toMatchObject({ tool_choice: 'none' })
   })
 
   it('wraps SDK errors in a ProviderError', async () => {

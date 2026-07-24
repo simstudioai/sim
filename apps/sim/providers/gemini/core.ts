@@ -13,6 +13,7 @@ import {
 } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import type { IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { createGeminiStreamingToolLoopStream } from '@/providers/gemini/streaming-tool-loop'
@@ -29,7 +30,9 @@ import {
   mapToThinkingLevel,
   supportsDisablingGemini25Thinking,
 } from '@/providers/google/utils'
+import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
+import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import { ensureToolCallId } from '@/providers/tool-call-id'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type {
@@ -114,7 +117,7 @@ async function executeToolCallsBatch(
     const toolCallStartTime = Date.now()
     const functionCall = part.functionCall!
     const toolName = functionCall.name ?? ''
-    const args = (functionCall.args ?? {}) as Record<string, unknown>
+    const args = isRecordLike(functionCall.args) ? functionCall.args : undefined
 
     const tool = request.tools?.find((t) => t.id === toolName)
     if (!tool) {
@@ -133,6 +136,10 @@ async function executeToolCallsBatch(
     }
 
     try {
+      if (!args) {
+        throw new Error(`Arguments for tool "${toolName}" must be an object`)
+      }
+
       const { toolParams, executionParams } = prepareToolExecution(tool, args, request)
       const result = await executeTool(toolName, executionParams, {
         signal: request.abortSignal,
@@ -157,6 +164,10 @@ async function executeToolCallsBatch(
         duration,
       }
     } catch (error) {
+      if (isAbortError(error) || request.abortSignal?.aborted) {
+        throw error
+      }
+
       const toolCallEndTime = Date.now()
       logger.error('Error processing function call:', {
         error: toError(error).message,
@@ -166,7 +177,7 @@ async function executeToolCallsBatch(
         success: false,
         part,
         toolName,
-        args,
+        args: args ?? {},
         resultContent: {
           error: true,
           message: getErrorMessage(error, 'Tool execution failed'),
@@ -221,8 +232,8 @@ async function executeToolCallsBatch(
       result: r.resultContent,
     })
 
-    if (r.success && r.result?.output) {
-      newToolResults.push(r.result.output as Record<string, unknown>)
+    if (r.success && isRecordLike(r.result?.output)) {
+      newToolResults.push(r.result.output)
     }
 
     newTimeSegments.push({
@@ -299,7 +310,6 @@ function updateStateWithResponse(
         duration,
       },
     ],
-    iterationCount: state.iterationCount + 1,
   }
 }
 
@@ -367,7 +377,9 @@ function createStreamingResult(
           modelTime: state?.modelTime ?? firstResponseTime,
           toolsTime: state?.toolsTime ?? 0,
           firstResponseTime,
-          iterations: (state?.iterationCount ?? 0) + 1,
+          iterations: state
+            ? state.timeSegments.filter((segment) => segment.type === 'model').length
+            : 1,
           timeSegments: state?.timeSegments ?? [
             {
               type: 'model',
@@ -1031,13 +1043,14 @@ export async function executeGeminiRequest(
      * no calls and skip the schema. Gemini 3 carries responseJsonSchema
      * alongside tools, so its live loop keeps structured output.
      */
-    const responseFormatNeedsFinalPass = Boolean(request.responseFormat) && !isGemini3Model(model)
-    const shouldStreamToolCalls =
-      (request.streamToolCalls ?? false) && !responseFormatNeedsFinalPass
-    const shouldStream = request.stream && !tools?.length
+    const hasActiveTools = Boolean(geminiConfig.tools?.length)
+    const responseFormatNeedsFinalPass =
+      Boolean(request.responseFormat) && hasActiveTools && !isGemini3Model(model)
+    const liveToolLoopSupported = !responseFormatNeedsFinalPass
+    const shouldStream = request.stream && !hasActiveTools
 
     // Live streaming tool loop
-    if (request.stream && shouldStreamToolCalls && tools?.length) {
+    if (request.stream && liveToolLoopSupported && hasActiveTools) {
       logger.info('Using streaming tool loop for Gemini request')
 
       const timeSegments: TimeSegment[] = []
@@ -1175,6 +1188,64 @@ export async function executeGeminiRequest(
 
     let currentResponse = response
     let content = ''
+    const generateFinalSynthesis = async (
+      currentState: ExecutionState,
+      baseConfig: GenerateContentConfig
+    ): Promise<{ state: ExecutionState; response: GenerateContentResponse }> => {
+      const finalConfig: GenerateContentConfig = {
+        ...baseConfig,
+        tools: undefined,
+        toolConfig: undefined,
+      }
+      if (request.responseFormat && !isGemini3Model(model)) {
+        finalConfig.responseMimeType = 'application/json'
+        finalConfig.responseSchema = cleanSchemaForGemini(request.responseFormat.schema) as Schema
+      }
+
+      const finalStartTime = Date.now()
+      const finalResponse = await ai.models.generateContent({
+        model,
+        contents: currentState.contents,
+        config: finalConfig,
+      })
+      const finalState = updateStateWithResponse(
+        currentState,
+        finalResponse,
+        model,
+        finalStartTime,
+        Date.now()
+      )
+      enrichLastModelSegmentFromGeminiResponse(finalState.timeSegments, finalResponse, {
+        model,
+      })
+      return { state: finalState, response: finalResponse }
+    }
+    const createSettledStreamingResult = (
+      currentState: ExecutionState,
+      settledAnswer: string
+    ): StreamingExecution => {
+      const toolCost = sumToolCosts(currentState.toolResults)
+      const streamingResult = createStreamingResult(
+        providerStartTime,
+        providerStartTimeISO,
+        firstResponseTime,
+        initialCallTime,
+        currentState
+      )
+      streamingResult.execution.output.model = model
+      streamingResult.execution.output.content = settledAnswer
+      streamingResult.execution.output.cost = {
+        ...currentState.cost,
+        toolCost: toolCost || undefined,
+        total: currentState.cost.total + toolCost,
+      }
+
+      return {
+        ...streamingResult,
+        stream: createSettledAgentEventStream(settledAnswer),
+        streamFormat: 'agent-events-v1',
+      }
+    }
 
     // Tool execution loop
     const functionCalls = response.functionCalls
@@ -1182,11 +1253,32 @@ export async function executeGeminiRequest(
       const functionNames = functionCalls.map((fc) => fc.name).join(', ')
       logger.info(`Received ${functionCalls.length} function call(s) from Gemini: ${functionNames}`)
 
-      while (state.iterationCount < MAX_TOOL_ITERATIONS) {
+      while (true) {
         // Extract ALL function call parts from the response (Gemini can return multiple)
         const functionCallParts = extractAllFunctionCallParts(currentResponse.candidates?.[0])
         if (functionCallParts.length === 0) {
           content = extractTextContent(currentResponse.candidates?.[0])
+          break
+        }
+
+        if (state.iterationCount >= MAX_TOOL_ITERATIONS) {
+          logger.info('Gemini tool-batch cap reached; generating a tool-disabled final response')
+          const finalConfig = buildNextConfig(
+            geminiConfig,
+            state,
+            forcedTools,
+            request,
+            logger,
+            model
+          )
+          const finalSynthesis = await generateFinalSynthesis(state, finalConfig)
+          state = finalSynthesis.state
+          currentResponse = finalSynthesis.response
+          content = extractTextContent(finalSynthesis.response.candidates?.[0])
+
+          if (request.stream) {
+            return createSettledStreamingResult(state, content)
+          }
           break
         }
 
@@ -1211,121 +1303,7 @@ export async function executeGeminiRequest(
         state = { ...updatedState, iterationCount: updatedState.iterationCount + 1 }
         const nextConfig = buildNextConfig(geminiConfig, state, forcedTools, request, logger, model)
 
-        // Stream final response if requested
-        if (request.stream) {
-          const checkResponse = await ai.models.generateContent({
-            model,
-            contents: state.contents,
-            config: nextConfig,
-          })
-          state = updateStateWithResponse(state, checkResponse, model, Date.now() - 100, Date.now())
-          enrichLastModelSegmentFromGeminiResponse(state.timeSegments, checkResponse, {
-            model,
-          })
-
-          if (checkResponse.functionCalls?.length) {
-            currentResponse = checkResponse
-            continue
-          }
-
-          logger.info('No more function calls, streaming final response')
-
-          if (request.responseFormat) {
-            nextConfig.tools = undefined
-            nextConfig.toolConfig = undefined
-            if (!isGemini3Model(model)) {
-              nextConfig.responseMimeType = 'application/json'
-              nextConfig.responseSchema = cleanSchemaForGemini(
-                request.responseFormat.schema
-              ) as Schema
-            }
-          } else if (nextConfig.tools) {
-            /**
-             * The regeneration exists purely to stream the settled answer as
-             * prose — streamed function calls are never executed. With AUTO the
-             * model can re-decide to call a tool here, ending the stream with a
-             * dead functionCall and an empty answer.
-             */
-            nextConfig.toolConfig = {
-              functionCallingConfig: { mode: FunctionCallingConfigMode.NONE },
-            }
-          }
-
-          /** Settled answer from the check response — kept if the stream ends without text. */
-          const checkAnswer = extractTextContent(checkResponse.candidates?.[0])
-
-          // Capture accumulated cost before streaming
-          const accumulatedCost = {
-            input: state.cost.input,
-            output: state.cost.output,
-            total: state.cost.total,
-          }
-          const accumulatedTokens = { ...state.tokens }
-
-          const streamGenerator = await ai.models.generateContentStream({
-            model,
-            contents: state.contents,
-            config: nextConfig,
-          })
-
-          const streamingResult = createStreamingResult(
-            providerStartTime,
-            providerStartTimeISO,
-            firstResponseTime,
-            initialCallTime,
-            state
-          )
-          streamingResult.execution.output.model = model
-
-          const stream = createReadableStreamFromGeminiStream(
-            streamGenerator,
-            (streamContent: string, usage: GeminiUsage, thinking?: string) => {
-              if (!streamContent && checkAnswer) {
-                logger.warn('Gemini final stream produced no text; keeping tool-loop answer')
-              }
-              streamingResult.execution.output.content = streamContent || checkAnswer
-              streamingResult.execution.output.tokens = {
-                input: accumulatedTokens.input + usage.promptTokenCount,
-                output: accumulatedTokens.output + usage.candidatesTokenCount,
-                total: accumulatedTokens.total + usage.totalTokenCount,
-              }
-
-              const streamCost = calculateCost(
-                model,
-                usage.promptTokenCount,
-                usage.candidatesTokenCount
-              )
-              const tc = sumToolCosts(state.toolResults)
-              streamingResult.execution.output.cost = {
-                input: accumulatedCost.input + streamCost.input,
-                output: accumulatedCost.output + streamCost.output,
-                toolCost: tc || undefined,
-                total: accumulatedCost.total + streamCost.total + tc,
-                pricing: streamCost.pricing,
-              }
-
-              if (thinking) {
-                const segments = streamingResult.execution.output.providerTiming?.timeSegments
-                const lastModel = segments
-                  ? [...segments].reverse().find((s) => s.type === 'model')
-                  : undefined
-                if (lastModel) {
-                  lastModel.thinkingContent = thinking
-                }
-              }
-
-              if (streamingResult.execution.output.providerTiming) {
-                streamingResult.execution.output.providerTiming.endTime = new Date().toISOString()
-                streamingResult.execution.output.providerTiming.duration =
-                  Date.now() - providerStartTime
-              }
-            }
-          )
-
-          return { ...streamingResult, stream, streamFormat: 'agent-events-v1' as const }
-        }
-
-        // Non-streaming: get next response
+        /** Resolve the final turn, then project its settled answer when streaming was requested. */
         const nextModelStartTime = Date.now()
         const nextResponse = await ai.models.generateContent({
           model,
@@ -1337,6 +1315,22 @@ export async function executeGeminiRequest(
           model,
         })
         currentResponse = nextResponse
+
+        if (
+          request.stream &&
+          extractAllFunctionCallParts(nextResponse.candidates?.[0]).length === 0
+        ) {
+          let settledResponse = nextResponse
+          if (responseFormatNeedsFinalPass) {
+            logger.info('Generating final schema-configured Gemini response')
+            const finalSynthesis = await generateFinalSynthesis(state, nextConfig)
+            state = finalSynthesis.state
+            settledResponse = finalSynthesis.response
+          }
+
+          const settledAnswer = extractTextContent(settledResponse.candidates?.[0])
+          return createSettledStreamingResult(state, settledAnswer)
+        }
       }
 
       if (!content) {
@@ -1361,7 +1355,7 @@ export async function executeGeminiRequest(
         modelTime: state.modelTime,
         toolsTime: state.toolsTime,
         firstResponseTime,
-        iterations: state.iterationCount + 1,
+        iterations: state.timeSegments.filter((segment) => segment.type === 'model').length,
         timeSegments: state.timeSegments,
       },
       cost: state.cost,
@@ -1374,6 +1368,10 @@ export async function executeGeminiRequest(
       error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
+
+    if (isAbortError(error) || request.abortSignal?.aborted) {
+      throw error
+    }
 
     const enhancedError = toError(error)
     Object.assign(enhancedError, {

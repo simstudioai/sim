@@ -6,16 +6,17 @@
  * provider-agnostic contract they share.
  */
 
+import { isRecordLike } from '@sim/utils/object'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
 
 /**
- * Providers with a live streaming tool loop wired. The executor consults this
- * (instead of hardcoding provider ids) when deciding whether an agent-events
- * run can stream tool lifecycle; providers not listed simply ignore
- * `streamToolCalls` and keep their legacy loop.
+ * Providers with a live streaming tool loop wired. Generated documentation and
+ * capability reporting consume this set; providers select their own internal
+ * loop from request shape. Event exposure is controlled separately.
  */
 export const STREAMING_TOOL_CALL_PROVIDERS: ReadonlySet<string> = new Set([
+  'openai',
   'anthropic',
   'azure-anthropic',
   'groq',
@@ -24,11 +25,6 @@ export const STREAMING_TOOL_CALL_PROVIDERS: ReadonlySet<string> = new Set([
   'vertex',
   'bedrock',
 ])
-
-/** Whether a provider has a live streaming tool loop wired. */
-export function supportsStreamingToolCalls(providerId: string): boolean {
-  return STREAMING_TOOL_CALL_PROVIDERS.has(providerId)
-}
 
 /** Aggregate result reported by a streaming tool loop when its stream closes. */
 export interface StreamingToolLoopComplete {
@@ -47,6 +43,25 @@ export function isAbortError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false
   const name = (error as { name?: string }).name
   return name === 'AbortError' || name === 'APIUserAbortError'
+}
+
+/** Parse provider-supplied tool arguments without accepting non-object JSON values. */
+export function parseToolArguments(
+  argumentsJson: string,
+  toolName: string
+): Record<string, unknown> {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(argumentsJson)
+  } catch (error) {
+    throw new Error(`Invalid JSON arguments for tool "${toolName}"`, { cause: error })
+  }
+
+  if (!isRecordLike(parsed)) {
+    throw new Error(`Arguments for tool "${toolName}" must be a JSON object`)
+  }
+
+  return parsed
 }
 
 /**

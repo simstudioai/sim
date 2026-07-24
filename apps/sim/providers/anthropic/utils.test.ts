@@ -60,7 +60,50 @@ describe('createReadableStreamFromAnthropicStream', () => {
     expect(onComplete.mock.calls[0][0]).toMatchObject({
       content: anthropicThinkingTextToolExpectedText,
       thinking: anthropicThinkingTextToolExpectedThinking,
-      usage: { input_tokens: 42, output_tokens: expect.any(Number) },
+      usage: { input: 42, output: expect.any(Number) },
+    })
+  })
+
+  it('captures stream cache usage once from cumulative message events', async () => {
+    const onComplete = vi.fn()
+    const stream = createReadableStreamFromAnthropicStream(
+      (async function* () {
+        yield {
+          type: 'message_start',
+          message: {
+            usage: {
+              input_tokens: 10,
+              output_tokens: 0,
+              cache_read_input_tokens: 20,
+              cache_creation_input_tokens: 30,
+              cache_creation: {
+                ephemeral_5m_input_tokens: 10,
+                ephemeral_1h_input_tokens: 20,
+              },
+            },
+          },
+        }
+        yield {
+          type: 'message_delta',
+          usage: {
+            input_tokens: 10,
+            output_tokens: 40,
+            cache_read_input_tokens: 20,
+            cache_creation_input_tokens: 30,
+          },
+        }
+      })() as AsyncIterable<any>,
+      onComplete
+    )
+
+    await collectEvents(stream)
+
+    expect(onComplete.mock.calls[0][0].usage).toEqual({
+      input: 10,
+      output: 40,
+      cacheRead: 20,
+      cacheWriteFiveMinute: 10,
+      cacheWriteOneHour: 20,
     })
   })
 

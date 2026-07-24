@@ -309,6 +309,8 @@ export async function executeDeployChat(
               outputConfigs:
                 (existing[0].outputConfigs as Array<{ blockId: string; path: string }>) || [],
               includeThinking: existing[0].includeThinking ?? false,
+              includeToolCalls:
+                existing[0].includeToolCalls ?? existing[0].includeThinking ?? false,
               welcomeMessage:
                 (existing[0].customizations as { welcomeMessage?: string } | null)
                   ?.welcomeMessage || 'Hi there! How can I help you today?',
@@ -400,6 +402,10 @@ export async function executeDeployChat(
       typeof params.includeThinking === 'boolean'
         ? params.includeThinking
         : (existingDeployment?.includeThinking ?? false)
+    const resolvedIncludeToolCalls =
+      typeof params.includeToolCalls === 'boolean'
+        ? params.includeToolCalls
+        : (existingDeployment?.includeToolCalls ?? existingDeployment?.includeThinking ?? false)
     const welcomeMessage =
       typeof params.welcomeMessage === 'string'
         ? params.welcomeMessage
@@ -444,6 +450,7 @@ export async function executeDeployChat(
       allowedEmails: resolvedAllowedEmails,
       outputConfigs: resolvedOutputConfigs,
       includeThinking: resolvedIncludeThinking,
+      includeToolCalls: resolvedIncludeToolCalls,
       workspaceId: workflowRecord.workspaceId,
     })
 
@@ -497,6 +504,7 @@ export async function executeDeployChat(
             allowedEmails: resolvedAllowedEmails,
             outputConfigs: resolvedOutputConfigs,
             includeThinking: resolvedIncludeThinking,
+            includeToolCalls: resolvedIncludeToolCalls,
             welcomeMessage: welcomeMessage || 'Hi there! How can I help you today?',
             primaryColor:
               params.customizations?.primaryColor ||

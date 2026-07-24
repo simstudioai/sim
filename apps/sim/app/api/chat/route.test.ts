@@ -454,6 +454,8 @@ describe('Chat API Route', () => {
         expect.objectContaining({
           workflowId: 'workflow-123',
           userId: 'user-id',
+          includeThinking: false,
+          includeToolCalls: false,
         })
       )
     })

@@ -121,7 +121,7 @@ function buildGeneratedContent(): { content: string; errors: string[] } {
   const lines: string[] = []
   lines.push('')
   lines.push(
-    `Live tool-call chips stream for **${liveToolProviders.join(', ')}** models. Other providers run tools without live chips — tool results still appear in the block output when the run completes.`
+    `Live tool-call chips stream for **${liveToolProviders.join(', ')}** models. Other providers run tools without live chips and project the settled final answer when the run completes; they do not ask the model to regenerate that answer just to create a stream.`
   )
   lines.push('')
   lines.push('| Provider | Streamed thinking | Models |')

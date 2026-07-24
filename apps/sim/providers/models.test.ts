@@ -5,10 +5,29 @@ import { describe, expect, it } from 'vitest'
 import {
   getBaseModelProviders,
   getHostedModels,
+  getThinkingStreamVisibility,
   isModelDeprecated,
   orderModelIdsByReleaseDate,
   PROVIDER_DEFINITIONS,
 } from '@/providers/models'
+
+describe('Anthropic thinking stream visibility', () => {
+  it('classifies visible Claude thinking as summarized rather than raw', () => {
+    for (const providerId of ['anthropic', 'azure-anthropic'] as const) {
+      for (const model of PROVIDER_DEFINITIONS[providerId].models) {
+        if (model.capabilities.thinking) {
+          expect(getThinkingStreamVisibility(model.id)).toBe('summary')
+        }
+      }
+    }
+  })
+})
+
+describe('Meta thinking stream visibility', () => {
+  it('classifies private Muse reasoning as not streamed', () => {
+    expect(getThinkingStreamVisibility('muse-spark-1.1')).toBe('none')
+  })
+})
 
 const DYNAMIC_PROVIDERS = new Set([
   'ollama',

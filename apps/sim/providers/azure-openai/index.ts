@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { AzureOpenAI } from 'openai'
 import type {
   ChatCompletion,
@@ -27,7 +28,9 @@ import {
 } from '@/providers/azure-openai/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
+import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
+import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
@@ -302,10 +305,25 @@ async function executeChatCompletionsRequest(
         const toolName = toolCall.function.name
 
         try {
-          const toolArgs = JSON.parse(toolCall.function.arguments)
+          const toolArgs = parseToolArguments(toolCall.function.arguments, toolName)
           const tool = request.tools?.find((t) => t.id === toolName)
 
-          if (!tool) return null
+          if (!tool) {
+            const toolCallEndTime = Date.now()
+            return {
+              toolCall,
+              toolName,
+              toolParams: {},
+              result: {
+                success: false,
+                output: undefined,
+                error: `Tool "${toolName}" is not available`,
+              },
+              startTime: toolCallStartTime,
+              endTime: toolCallEndTime,
+              duration: toolCallEndTime - toolCallStartTime,
+            }
+          }
 
           const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
           const result = await executeTool(toolName, executionParams, {
@@ -323,6 +341,9 @@ async function executeChatCompletionsRequest(
             duration: toolCallEndTime - toolCallStartTime,
           }
         } catch (error) {
+          if (isAbortError(error) || request.abortSignal?.aborted) {
+            throw error
+          }
           const toolCallEndTime = Date.now()
           logger.error('Error processing tool call:', { error, toolName })
 
@@ -342,7 +363,7 @@ async function executeChatCompletionsRequest(
         }
       })
 
-      const executionResults = await Promise.allSettled(toolExecutionPromises)
+      const executionResults = await Promise.all(toolExecutionPromises)
 
       currentMessages.push({
         role: 'assistant',
@@ -357,11 +378,9 @@ async function executeChatCompletionsRequest(
         })),
       })
 
-      for (const settledResult of executionResults) {
-        if (settledResult.status === 'rejected' || !settledResult.value) continue
-
+      for (const executionResult of executionResults) {
         const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
-          settledResult.value
+          executionResult
 
         timeSegments.push({
           type: 'tool',
@@ -371,10 +390,12 @@ async function executeChatCompletionsRequest(
           duration: duration,
         })
 
-        let resultContent: Record<string, unknown>
+        let resultContent: unknown
         if (result.success) {
-          toolResults.push(result.output as Record<string, unknown>)
-          resultContent = result.output as Record<string, unknown>
+          if (isRecordLike(result.output)) {
+            toolResults.push(result.output)
+          }
+          resultContent = result.output ?? null
         } else {
           resultContent = {
             error: true,
@@ -472,28 +493,56 @@ async function executeChatCompletionsRequest(
       iterationCount++
     }
 
+    if (
+      iterationCount === MAX_TOOL_ITERATIONS &&
+      currentResponse.choices[0]?.message?.tool_calls?.length
+    ) {
+      /**
+       * The capped turn still requests tools, so make one tool-disabled call to
+       * synthesize an answer from the tool results already gathered.
+       */
+      const { tools: _tools, tool_choice: _toolChoice, ...synthesisPayload } = payload
+      const synthesisStartTime = Date.now()
+      const synthesisResponse = (await azureOpenAI.chat.completions.create(
+        {
+          ...synthesisPayload,
+          messages: currentMessages,
+        },
+        request.abortSignal ? { signal: request.abortSignal } : undefined
+      )) as ChatCompletion
+      const synthesisEndTime = Date.now()
+
+      timeSegments.push({
+        type: 'model',
+        name: 'Final answer after tool limit',
+        startTime: synthesisStartTime,
+        endTime: synthesisEndTime,
+        duration: synthesisEndTime - synthesisStartTime,
+      })
+      modelTime += synthesisEndTime - synthesisStartTime
+
+      content = synthesisResponse.choices[0]?.message?.content || content
+      if (synthesisResponse.usage) {
+        tokens.input += synthesisResponse.usage.prompt_tokens || 0
+        tokens.output += synthesisResponse.usage.completion_tokens || 0
+        tokens.total += synthesisResponse.usage.total_tokens || 0
+      }
+
+      enrichLastModelSegmentFromChatCompletions(
+        timeSegments,
+        synthesisResponse,
+        synthesisResponse.choices[0]?.message?.tool_calls,
+        { model: request.model, provider: 'azure_openai' }
+      )
+    }
+
     if (request.stream) {
-      logger.info('Using streaming for final response after tool processing')
+      logger.info('Projecting settled response after tool processing')
 
       const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
+      const toolCost = sumToolCosts(toolResults)
 
-      /**
-       * The regeneration exists purely to stream the settled answer as prose —
-       * streamed tool_calls are never executed on this path.
-       */
-      const streamingParams: ChatCompletionCreateParamsStreaming = {
-        ...payload,
-        messages: currentMessages,
-        tool_choice: 'none',
-        stream: true,
-        stream_options: { include_usage: true },
-      }
-      const streamResponse = await azureOpenAI.chat.completions.create(
-        streamingParams,
-        request.abortSignal ? { signal: request.abortSignal } : undefined
-      )
-
-      const streamingResult = createStreamingExecution({
+      return createStreamingExecution({
         model: request.model,
         providerStartTime,
         providerStartTimeISO,
@@ -502,7 +551,7 @@ async function executeChatCompletionsRequest(
           modelTime,
           toolsTime,
           firstResponseTime,
-          iterations: iterationCount + 1,
+          iterations: timeSegments.filter((segment) => segment.type === 'model').length,
           timeSegments,
         },
         initialTokens: {
@@ -513,7 +562,8 @@ async function executeChatCompletionsRequest(
         initialCost: {
           input: accumulatedCost.input,
           output: accumulatedCost.output,
-          total: accumulatedCost.total,
+          toolCost: toolCost || undefined,
+          total: accumulatedCost.total + toolCost,
         },
         toolCalls:
           toolCalls.length > 0
@@ -523,36 +573,12 @@ async function executeChatCompletionsRequest(
               }
             : undefined,
         streamFormat: 'agent-events-v1',
-        createStream: ({ output, finalizeTiming }) =>
-          createReadableStreamFromAzureOpenAIStream(streamResponse, (streamedContent, usage) => {
-            if (!streamedContent && content) {
-              logger.warn('Azure OpenAI final stream produced no text; keeping tool-loop answer')
-            }
-            output.content = streamedContent || content
-            output.tokens = {
-              input: tokens.input + usage.prompt_tokens,
-              output: tokens.output + usage.completion_tokens,
-              total: tokens.total + usage.total_tokens,
-            }
-
-            const streamCost = calculateCost(
-              request.model,
-              usage.prompt_tokens,
-              usage.completion_tokens
-            )
-            const tc = sumToolCosts(toolResults)
-            output.cost = {
-              input: accumulatedCost.input + streamCost.input,
-              output: accumulatedCost.output + streamCost.output,
-              toolCost: tc || undefined,
-              total: accumulatedCost.total + streamCost.total + tc,
-            }
-
-            finalizeTiming()
-          }),
+        createStream: ({ output, finalizeTiming }) => {
+          output.content = content
+          finalizeTiming()
+          return createSettledAgentEventStream(content)
+        },
       })
-
-      return streamingResult
     }
 
     const providerEndTime = Date.now()
@@ -572,7 +598,7 @@ async function executeChatCompletionsRequest(
         modelTime: modelTime,
         toolsTime: toolsTime,
         firstResponseTime: firstResponseTime,
-        iterations: iterationCount + 1,
+        iterations: timeSegments.filter((segment) => segment.type === 'model').length,
         timeSegments: timeSegments,
       },
     }
@@ -585,6 +611,10 @@ async function executeChatCompletionsRequest(
       error,
       duration: totalDuration,
     })
+
+    if (isAbortError(error) || request.abortSignal?.aborted) {
+      throw error
+    }
 
     throw new ProviderError(toError(error).message, {
       startTime: providerStartTimeISO,

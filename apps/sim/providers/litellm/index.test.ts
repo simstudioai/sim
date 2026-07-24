@@ -72,19 +72,30 @@ vi.mock('@/providers/utils', () => ({
 }))
 
 import { litellmProvider } from '@/providers/litellm'
+import type { AgentStreamEvent } from '@/providers/stream-events'
 import { ProviderError } from '@/providers/types'
 
 interface ChatOptions {
   content?: string | null
   toolCalls?: Array<{ id: string; function: { name: string; arguments: string } }>
   usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+  reasoning_content?: string
 }
 
-function chat({ content = null, toolCalls, usage }: ChatOptions = {}) {
+function chat({
+  content = null,
+  toolCalls,
+  usage,
+  reasoning_content: reasoningContent,
+}: ChatOptions = {}) {
   return {
     choices: [
       {
-        message: { content, tool_calls: toolCalls },
+        message: {
+          content,
+          tool_calls: toolCalls,
+          ...(reasoningContent !== undefined ? { reasoning_content: reasoningContent } : {}),
+        },
         finish_reason: toolCalls ? 'tool_calls' : 'stop',
       },
     ],
@@ -106,6 +117,16 @@ function run(request: Record<string, unknown>) {
 
 const firstPayload = () => mockCreate.mock.calls[0][0]
 const lastPayload = () => mockCreate.mock.calls.at(-1)![0]
+
+async function readAgentEvents(stream: ReadableStream<AgentStreamEvent>) {
+  const events: AgentStreamEvent[] = []
+  const reader = stream.getReader()
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) return events
+    events.push(value)
+  }
+}
 
 describe('litellmProvider.executeRequest', () => {
   beforeEach(() => {
@@ -190,12 +211,13 @@ describe('litellmProvider.executeRequest', () => {
     expect(result.content).toBe('{"answer":1}')
   })
 
-  it('defers response_format into the final streaming call while keeping tools', async () => {
+  it('uses one distinct non-streaming extraction call for deferred response_format', async () => {
     mockCreate
       .mockResolvedValueOnce(
         chat({ toolCalls: [{ id: 'c1', function: { name: 'known', arguments: '{}' } }] })
       )
       .mockResolvedValueOnce(chat({ content: 'mid' }))
+      .mockResolvedValueOnce(chat({ content: '{"answer":1}' }))
 
     const result = await run({
       stream: true,
@@ -204,12 +226,46 @@ describe('litellmProvider.executeRequest', () => {
     })
 
     const final = lastPayload()
-    expect(final.stream).toBe(true)
+    expect(mockCreate).toHaveBeenCalledTimes(3)
+    expect(final.stream).toBeUndefined()
     expect(final.response_format.type).toBe('json_schema')
     expect(final.tools).toBeDefined()
     expect(final.tool_choice).toBe('none')
     expect(final.parallel_tool_calls).toBe(false)
     expect(result.execution.isStreaming).toBe(true)
+    expect(result.execution.output.content).toBe('{"answer":1}')
+    expect(result.execution.output.providerTiming?.iterations).toBe(3)
+    expect(
+      result.execution.output.providerTiming?.timeSegments?.filter(
+        (segment) => segment.type === 'model'
+      )
+    ).toHaveLength(3)
+    await expect(readAgentEvents(result.stream)).resolves.toEqual([
+      { type: 'text_delta', text: '{"answer":1}', turn: 'final' },
+    ])
+  })
+
+  it('projects a normal settled tool-loop answer without regeneration', async () => {
+    mockCreate
+      .mockResolvedValueOnce(
+        chat({ toolCalls: [{ id: 'c1', function: { name: 'known', arguments: '{}' } }] })
+      )
+      .mockResolvedValueOnce(chat({ content: 'done' }))
+
+    const result = await run({ stream: true, tools: [tool('known')] })
+
+    expect(mockCreate).toHaveBeenCalledTimes(2)
+    expect(result.execution.output.content).toBe('done')
+    expect(result.execution.output.tokens).toEqual({ input: 10, output: 6, total: 16 })
+    expect(result.execution.output.providerTiming?.iterations).toBe(2)
+    expect(
+      result.execution.output.providerTiming?.timeSegments?.filter(
+        (segment) => segment.type === 'model'
+      )
+    ).toHaveLength(2)
+    await expect(readAgentEvents(result.stream)).resolves.toEqual([
+      { type: 'text_delta', text: 'done', turn: 'final' },
+    ])
   })
 
   it('threads assistant tool_calls and a named tool response, and reports toolCalls', async () => {
@@ -238,7 +294,31 @@ describe('litellmProvider.executeRequest', () => {
     expect(result.content).toBe('done')
   })
 
-  it('emits a stub tool response for an unanswered tool_call_id', async () => {
+  it('replays LiteLLM assistant content and emitted reasoning on the second request', async () => {
+    mockCreate
+      .mockResolvedValueOnce(
+        chat({
+          content: 'I will use the tool.',
+          toolCalls: [{ id: 'c1', function: { name: 'known', arguments: '{}' } }],
+          reasoning_content: 'Normalized reasoning.',
+        })
+      )
+      .mockResolvedValueOnce(chat({ content: 'done' }))
+
+    await run({ tools: [tool('known')] })
+
+    const assistant = mockCreate.mock.calls[1][0].messages.find(
+      (message: { role: string }) => message.role === 'assistant'
+    )
+    expect(assistant).toEqual({
+      role: 'assistant',
+      content: 'I will use the tool.',
+      reasoning_content: 'Normalized reasoning.',
+      tool_calls: [{ id: 'c1', type: 'function', function: { name: 'known', arguments: '{}' } }],
+    })
+  })
+
+  it('emits a structured response when the requested tool is unavailable', async () => {
     mockCreate
       .mockResolvedValueOnce(
         chat({ toolCalls: [{ id: 'cX', function: { name: 'ghost', arguments: '{}' } }] })
@@ -254,7 +334,7 @@ describe('litellmProvider.executeRequest', () => {
     expect(toolMsg.content).toContain('not available')
   })
 
-  it('executes a tool with empty arguments without failing', async () => {
+  it('rejects empty tool arguments without executing the tool', async () => {
     mockCreate
       .mockResolvedValueOnce(
         chat({ toolCalls: [{ id: 'c1', function: { name: 'ping', arguments: '' } }] })
@@ -263,9 +343,9 @@ describe('litellmProvider.executeRequest', () => {
 
     await run({ tools: [tool('ping')] })
 
-    expect(mockExecuteTool).toHaveBeenCalledTimes(1)
+    expect(mockExecuteTool).not.toHaveBeenCalled()
     const toolMsg = mockCreate.mock.calls[1][0].messages.find((m: any) => m.role === 'tool')
-    expect(toolMsg.content).not.toContain('"error":true')
+    expect(toolMsg.content).toContain('"error":true')
   })
 
   it('stops the tool loop at MAX_TOOL_ITERATIONS', async () => {
@@ -275,8 +355,10 @@ describe('litellmProvider.executeRequest', () => {
 
     await run({ tools: [tool('known')] })
 
-    expect(mockCreate).toHaveBeenCalledTimes(1 + 20)
+    expect(mockCreate).toHaveBeenCalledTimes(1 + 20 + 1)
     expect(mockExecuteTool).toHaveBeenCalledTimes(20)
+    expect(lastPayload().tools).toBeUndefined()
+    expect(lastPayload().tool_choice).toBeUndefined()
   })
 
   it('returns a streaming execution when streaming without active tools', async () => {

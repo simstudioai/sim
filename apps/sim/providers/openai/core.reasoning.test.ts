@@ -18,8 +18,8 @@ vi.mock('@/providers/utils', () => ({
   sumToolCosts: () => 0,
   enforceStrictSchema: (schema: unknown) => schema,
   prepareToolExecution: () => ({ toolParams: {}, executionParams: {} }),
-  prepareToolsWithUsageControl: () => ({
-    tools: [],
+  prepareToolsWithUsageControl: (tools: unknown[]) => ({
+    tools,
     toolChoice: undefined,
     forcedTools: [],
     hasFilteredTools: false,
@@ -35,6 +35,22 @@ function jsonResponse(body: unknown, status = 200) {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
+}
+
+function sseResponse(events: unknown[]) {
+  const body = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')
+  return new Response(body, { headers: { 'Content-Type': 'text/event-stream' } })
+}
+
+async function collect(stream: ReadableStream<unknown>) {
+  const events: unknown[] = []
+  const reader = stream.getReader()
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    events.push(value)
+  }
+  return events
 }
 
 const COMPLETED_RESPONSE = {
@@ -61,6 +77,7 @@ describe('executeResponsesProviderRequest reasoning payload', () => {
   let fetchMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
+    vi.clearAllMocks()
     fetchMock = vi.fn().mockResolvedValue(jsonResponse(COMPLETED_RESPONSE))
   })
 
@@ -127,6 +144,46 @@ describe('executeResponsesProviderRequest reasoning payload', () => {
       expect((result as { content: string }).content).toBe('hello')
     })
 
+    it('remembers summary rejection for later tool-loop turns', async () => {
+      fetchMock
+        .mockResolvedValueOnce(
+          jsonResponse(
+            {
+              error: {
+                message:
+                  "Your organization must be verified to generate reasoning summaries. (param: 'reasoning.summary')",
+              },
+            },
+            400
+          )
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({
+            id: 'resp_tool',
+            status: 'completed',
+            output: [
+              { type: 'function_call', call_id: 'call_1', name: 'exa_search', arguments: '{}' },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          })
+        )
+        .mockResolvedValueOnce(jsonResponse(COMPLETED_RESPONSE))
+      ;(executeTool as Mock).mockResolvedValue({ success: true, output: { results: [] } })
+
+      await run({
+        model: 'o3',
+        agentEvents: true,
+        tools: [{ id: 'exa_search', name: 'exa_search', description: 'd', parameters: {} }] as any,
+      })
+
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body as string).reasoning).toEqual({
+        summary: 'auto',
+      })
+      expect(JSON.parse(fetchMock.mock.calls[1][1].body as string).reasoning).toBeUndefined()
+      expect(JSON.parse(fetchMock.mock.calls[2][1].body as string).reasoning).toBeUndefined()
+    })
+
     it('does not retry on unrelated 400s', async () => {
       fetchMock.mockResolvedValue(
         jsonResponse({ error: { message: 'Invalid value for input' } }, 400)
@@ -164,75 +221,458 @@ describe('executeResponsesProviderRequest reasoning payload', () => {
     expect(body.reasoning).toBeUndefined()
   })
 
-  describe('final regenerated stream after the tool loop', () => {
-    const TOOL_CALL_RESPONSE = {
-      id: 'resp_tool',
-      status: 'completed',
-      output: [{ type: 'function_call', call_id: 'call_1', name: 'exa_search', arguments: '{}' }],
-      usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
-    }
-
-    const SETTLED_ANSWER_RESPONSE = {
-      id: 'resp_answer',
-      status: 'completed',
-      output: [
-        {
-          type: 'message',
-          role: 'assistant',
-          content: [{ type: 'output_text', text: 'Settled answer from loop' }],
-        },
-      ],
-      usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
-    }
-
-    /** An SSE stream that ends without any output_text (dead function_call turn). */
-    function emptySseResponse() {
-      return new Response('data: {"type":"response.completed"}\n\ndata: [DONE]\n\n', {
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream' },
-      })
-    }
-
-    async function collect(stream: ReadableStream<unknown>) {
-      const events: unknown[] = []
-      const reader = stream.getReader()
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        events.push(value)
+  describe('live streaming tool loop', () => {
+    it('streams reasoning and tool lifecycle in real time without a regeneration call', async () => {
+      const toolTurnResponse = {
+        id: 'resp_tool',
+        status: 'completed',
+        output: [
+          {
+            id: 'rs_1',
+            type: 'reasoning',
+            summary: [{ type: 'summary_text', text: 'I should search.' }],
+          },
+          {
+            id: 'fc_1',
+            type: 'function_call',
+            call_id: 'call_1',
+            name: 'exa_search',
+            arguments: '{}',
+            status: 'completed',
+          },
+        ],
+        usage: { input_tokens: 2, output_tokens: 3, total_tokens: 5 },
       }
-      return events
-    }
+      const answerTurnResponse = {
+        id: 'resp_answer',
+        status: 'completed',
+        output: [
+          {
+            id: 'msg_1',
+            type: 'message',
+            role: 'assistant',
+            status: 'completed',
+            content: [{ type: 'output_text', text: 'Final answer', annotations: [] }],
+          },
+        ],
+        usage: { input_tokens: 4, output_tokens: 5, total_tokens: 9 },
+      }
 
-    it('forces tool_choice none and keeps the tool-loop answer when the stream has no text', async () => {
-      ;(executeTool as Mock).mockResolvedValue({ success: true, output: { results: [] } })
       fetchMock
-        .mockResolvedValueOnce(jsonResponse(TOOL_CALL_RESPONSE))
-        .mockResolvedValueOnce(jsonResponse(SETTLED_ANSWER_RESPONSE))
-        .mockResolvedValueOnce(emptySseResponse())
+        .mockResolvedValueOnce(
+          sseResponse([
+            {
+              type: 'response.reasoning_summary_text.delta',
+              item_id: 'rs_1',
+              output_index: 0,
+              summary_index: 0,
+              sequence_number: 1,
+              delta: 'I should search.',
+            },
+            {
+              type: 'response.output_item.added',
+              output_index: 1,
+              sequence_number: 2,
+              item: {
+                id: 'fc_1',
+                type: 'function_call',
+                call_id: 'call_1',
+                name: 'exa_search',
+                arguments: '',
+                status: 'in_progress',
+              },
+            },
+            {
+              type: 'response.completed',
+              sequence_number: 3,
+              response: toolTurnResponse,
+            },
+          ])
+        )
+        .mockResolvedValueOnce(
+          sseResponse([
+            {
+              type: 'response.reasoning_summary_text.delta',
+              item_id: 'rs_2',
+              output_index: 0,
+              summary_index: 0,
+              sequence_number: 1,
+              delta: 'I have the result.',
+            },
+            {
+              type: 'response.output_text.delta',
+              item_id: 'msg_1',
+              output_index: 1,
+              content_index: 0,
+              sequence_number: 2,
+              delta: 'Final answer',
+              logprobs: [],
+            },
+            {
+              type: 'response.completed',
+              sequence_number: 3,
+              response: answerTurnResponse,
+            },
+          ])
+        )
+      let resolveTool!: (value: { success: true; output: { results: string[] } }) => void
+      ;(executeTool as Mock).mockReturnValue(
+        new Promise((resolve) => {
+          resolveTool = resolve
+        })
+      )
+
+      const result = (await run({
+        model: 'gpt-5.5',
+        stream: true,
+        agentEvents: true,
+        tools: [{ id: 'exa_search', name: 'exa_search', description: 'd', parameters: {} }] as any,
+      })) as { stream: ReadableStream<unknown>; execution: { output: { content: string } } }
+
+      const reader = result.stream.getReader()
+      const events: unknown[] = []
+      for (let index = 0; index < 3; index++) {
+        const next = await reader.read()
+        expect(next.done).toBe(false)
+        events.push(next.value)
+      }
+
+      expect(events).toEqual([
+        { type: 'thinking_delta', text: 'I should search.' },
+        { type: 'tool_call_start', id: 'call_1', name: 'exa_search' },
+        { type: 'turn_end', turn: 'intermediate' },
+      ])
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+
+      resolveTool({ success: true, output: { results: ['hit'] } })
+      while (true) {
+        const next = await reader.read()
+        if (next.done) break
+        events.push(next.value)
+      }
+
+      expect(events).toEqual([
+        { type: 'thinking_delta', text: 'I should search.' },
+        { type: 'tool_call_start', id: 'call_1', name: 'exa_search' },
+        { type: 'turn_end', turn: 'intermediate' },
+        { type: 'tool_call_end', id: 'call_1', name: 'exa_search', status: 'success' },
+        { type: 'thinking_delta', text: 'I have the result.' },
+        { type: 'text_delta', text: 'Final answer', turn: 'pending' },
+        { type: 'turn_end', turn: 'final' },
+      ])
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      const firstBody = JSON.parse(fetchMock.mock.calls[0][1].body as string)
+      const secondBody = JSON.parse(fetchMock.mock.calls[1][1].body as string)
+      expect(firstBody.stream).toBe(true)
+      expect(secondBody.stream).toBe(true)
+      expect(secondBody.input).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'rs_1', type: 'reasoning' }),
+          expect.objectContaining({ call_id: 'call_1', type: 'function_call' }),
+          expect.objectContaining({ call_id: 'call_1', type: 'function_call_output' }),
+        ])
+      )
+      expect(result.execution.output.content).toBe('Final answer')
+    })
+
+    it('fails an unexpected tool AbortError and preserves completed usage', async () => {
+      fetchMock.mockResolvedValueOnce(
+        sseResponse([
+          {
+            type: 'response.output_item.added',
+            output_index: 0,
+            sequence_number: 1,
+            item: {
+              id: 'fc_1',
+              type: 'function_call',
+              call_id: 'call_1',
+              name: 'exa_search',
+              arguments: '{}',
+              status: 'completed',
+            },
+          },
+          {
+            type: 'response.completed',
+            sequence_number: 2,
+            response: {
+              id: 'resp_tool',
+              status: 'completed',
+              output: [
+                {
+                  id: 'fc_1',
+                  type: 'function_call',
+                  call_id: 'call_1',
+                  name: 'exa_search',
+                  arguments: '{}',
+                  status: 'completed',
+                },
+              ],
+              usage: { input_tokens: 2, output_tokens: 3, total_tokens: 5 },
+            },
+          },
+        ])
+      )
+      ;(executeTool as Mock).mockRejectedValueOnce(
+        new DOMException('tool aborted unexpectedly', 'AbortError')
+      )
 
       const result = (await run({
         model: 'gpt-5.5',
         stream: true,
         tools: [{ id: 'exa_search', name: 'exa_search', description: 'd', parameters: {} }] as any,
+      })) as {
+        stream: ReadableStream<unknown>
+        execution: { output: { tokens: { input: number; output: number; total: number } } }
+      }
+
+      await expect(collect(result.stream)).rejects.toMatchObject({ name: 'AbortError' })
+      expect(result.execution.output.tokens).toEqual({ input: 2, output: 3, total: 5 })
+    })
+
+    it('makes the final answer turn after the maximum tool batches', async () => {
+      for (let index = 0; index < 5; index++) {
+        const callId = `call_${index}`
+        fetchMock.mockResolvedValueOnce(
+          sseResponse([
+            {
+              type: 'response.output_item.added',
+              output_index: 0,
+              sequence_number: 1,
+              item: {
+                id: `fc_${index}`,
+                type: 'function_call',
+                call_id: callId,
+                name: 'exa_search',
+                arguments: '',
+                status: 'in_progress',
+              },
+            },
+            {
+              type: 'response.completed',
+              sequence_number: 2,
+              response: {
+                id: `resp_${index}`,
+                status: 'completed',
+                output: [
+                  {
+                    id: `fc_${index}`,
+                    type: 'function_call',
+                    call_id: callId,
+                    name: 'exa_search',
+                    arguments: '{}',
+                    status: 'completed',
+                  },
+                ],
+                usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+              },
+            },
+          ])
+        )
+      }
+      fetchMock.mockResolvedValueOnce(
+        sseResponse([
+          {
+            type: 'response.output_text.delta',
+            item_id: 'msg_final',
+            output_index: 0,
+            content_index: 0,
+            sequence_number: 1,
+            delta: 'Answer after five tools',
+            logprobs: [],
+          },
+          {
+            type: 'response.completed',
+            sequence_number: 2,
+            response: {
+              id: 'resp_final',
+              status: 'completed',
+              output: [
+                {
+                  id: 'msg_final',
+                  type: 'message',
+                  role: 'assistant',
+                  status: 'completed',
+                  content: [
+                    { type: 'output_text', text: 'Answer after five tools', annotations: [] },
+                  ],
+                },
+              ],
+              usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+            },
+          },
+        ])
+      )
+      ;(executeTool as Mock).mockResolvedValue({ success: true, output: { results: [] } })
+
+      const result = (await run({
+        model: 'gpt-5.5',
+        stream: true,
+        agentEvents: true,
+        tools: [{ id: 'exa_search', name: 'exa_search', description: 'd', parameters: {} }] as any,
       })) as { stream: ReadableStream<unknown>; execution: { output: { content: string } } }
 
-      expect(fetchMock).toHaveBeenCalledTimes(3)
-      const streamBody = JSON.parse(fetchMock.mock.calls[2][1].body as string)
-      expect(streamBody.stream).toBe(true)
-      // The regeneration exists to stream prose; streamed calls are never executed.
-      expect(streamBody.tool_choice).toBe('none')
+      await collect(result.stream)
 
-      const events = await collect(result.stream)
-      // Settled chips for the silent loop's executed calls ride ahead of the answer.
-      expect(events[0]).toEqual({ type: 'tool_call_start', id: 'call_1', name: 'exa_search' })
-      expect(events[1]).toEqual({
-        type: 'tool_call_end',
-        id: 'call_1',
-        name: 'exa_search',
-        status: 'success',
+      expect(fetchMock).toHaveBeenCalledTimes(6)
+      expect(executeTool).toHaveBeenCalledTimes(5)
+      const finalBody = JSON.parse(fetchMock.mock.calls[5][1].body as string)
+      expect(finalBody.tool_choice).toBe('none')
+      expect(finalBody.tools).toBeUndefined()
+      expect(result.execution.output.content).toBe('Answer after five tools')
+    })
+
+    it('finalizes truncated text when max_output_tokens is reached without a tool call', async () => {
+      fetchMock.mockResolvedValueOnce(
+        sseResponse([
+          {
+            type: 'response.output_text.delta',
+            item_id: 'msg_partial',
+            output_index: 0,
+            content_index: 0,
+            sequence_number: 1,
+            delta: 'Partial answer',
+            logprobs: [],
+          },
+          {
+            type: 'response.incomplete',
+            sequence_number: 2,
+            response: {
+              id: 'resp_incomplete',
+              status: 'incomplete',
+              incomplete_details: { reason: 'max_output_tokens' },
+              output: [],
+              usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+            },
+          },
+        ])
+      )
+
+      const result = (await run({
+        model: 'gpt-5.5',
+        stream: true,
+        agentEvents: true,
+        tools: [{ id: 'exa_search', name: 'exa_search', description: 'd', parameters: {} }] as any,
+      })) as {
+        stream: ReadableStream<unknown>
+        execution: {
+          output: {
+            content: string
+            tokens: { input: number; output: number; total: number }
+          }
+        }
+      }
+
+      await expect(collect(result.stream)).resolves.toEqual([
+        { type: 'text_delta', text: 'Partial answer', turn: 'pending' },
+        { type: 'turn_end', turn: 'final' },
+      ])
+      expect(result.execution.output).toMatchObject({
+        content: 'Partial answer',
+        tokens: { input: 1, output: 1, total: 2 },
       })
-      expect(result.execution.output.content).toBe('Settled answer from loop')
+    })
+
+    it('rejects a max_output_tokens turn containing a partial tool call', async () => {
+      fetchMock.mockResolvedValueOnce(
+        sseResponse([
+          {
+            type: 'response.output_item.added',
+            output_index: 0,
+            sequence_number: 1,
+            item: {
+              id: 'fc_partial',
+              type: 'function_call',
+              call_id: 'call_partial',
+              name: 'exa_search',
+              arguments: '',
+              status: 'in_progress',
+            },
+          },
+          {
+            type: 'response.function_call_arguments.delta',
+            item_id: 'fc_partial',
+            output_index: 0,
+            sequence_number: 2,
+            delta: '{"query":',
+          },
+          {
+            type: 'response.incomplete',
+            sequence_number: 3,
+            response: {
+              id: 'resp_incomplete_tool',
+              status: 'incomplete',
+              incomplete_details: { reason: 'max_output_tokens' },
+              output: [
+                {
+                  id: 'fc_partial',
+                  type: 'function_call',
+                  call_id: 'call_partial',
+                  name: 'exa_search',
+                  arguments: '{"query":',
+                  status: 'incomplete',
+                },
+              ],
+              usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+            },
+          },
+        ])
+      )
+
+      const result = (await run({
+        model: 'gpt-5.5',
+        stream: true,
+        agentEvents: true,
+        tools: [{ id: 'exa_search', name: 'exa_search', description: 'd', parameters: {} }] as any,
+      })) as { stream: ReadableStream<unknown> }
+
+      await expect(collect(result.stream)).rejects.toThrow(
+        'OpenAI Responses stream incomplete: max_output_tokens'
+      )
+      expect(executeTool).not.toHaveBeenCalled()
+    })
+
+    it('aborts the active Responses stream when its consumer cancels', async () => {
+      let requestSignal: AbortSignal | undefined
+      const encoder = new TextEncoder()
+      fetchMock.mockImplementation(async (_url: string, init: RequestInit) => {
+        requestSignal = init.signal as AbortSignal
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(
+                encoder.encode(
+                  `data: ${JSON.stringify({
+                    type: 'response.reasoning_summary_text.delta',
+                    item_id: 'rs_1',
+                    output_index: 0,
+                    summary_index: 0,
+                    sequence_number: 1,
+                    delta: 'Still working',
+                  })}\n\n`
+                )
+              )
+            },
+          }),
+          { headers: { 'Content-Type': 'text/event-stream' } }
+        )
+      })
+
+      const result = (await run({
+        model: 'gpt-5.5',
+        stream: true,
+        agentEvents: true,
+        tools: [{ id: 'exa_search', name: 'exa_search', description: 'd', parameters: {} }] as any,
+      })) as { stream: ReadableStream<unknown> }
+
+      const reader = result.stream.getReader()
+      expect(await reader.read()).toEqual({
+        done: false,
+        value: { type: 'thinking_delta', text: 'Still working' },
+      })
+
+      await reader.cancel('client disconnected')
+
+      expect(requestSignal?.aborted).toBe(true)
     })
   })
 })

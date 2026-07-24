@@ -1158,11 +1158,19 @@ export const chat = pgTable(
     outputConfigs: json('output_configs').default('[]'), // Array of {blockId, path} objects
 
     /**
-     * When true, public chat SSE may expose provider thinking/tool events if the
+     * When true, public chat SSE may expose provider thinking events if the
      * client also opts in via `X-Sim-Stream-Protocol: agent-events-v1`.
      * Default off — never derived from auth type or isSecureMode.
      */
     includeThinking: boolean('include_thinking').notNull().default(false),
+    /**
+     * When true, public chat SSE may expose tool lifecycle events if the client
+     * also opts in via `X-Sim-Stream-Protocol: agent-events-v1`.
+     *
+     * Null preserves the pre-expand policy: readers fall back to includeThinking.
+     */
+    // contract-pending(after the includeToolCalls expand release is fully deployed): backfill include_tool_calls from include_thinking, then set DEFAULT false and NOT NULL — all new-app chat writes persist an explicit value
+    includeToolCalls: boolean('include_tool_calls'),
 
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),

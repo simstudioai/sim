@@ -1445,8 +1445,9 @@ async function handleExecutePost(
           includeFileBase64,
           base64MaxBytes,
           timeoutMs: preprocessResult.executionTimeout?.sync,
-          // Workflow API has no chat includeThinking policy — thinking frames stay off.
+          /** Workflow API has no deployed-chat event policies, so agent-event frames stay off. */
           includeThinking: false,
+          includeToolCalls: false,
         },
         executionId,
         largeValueExecutionIds,

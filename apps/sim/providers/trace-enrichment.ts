@@ -1,4 +1,8 @@
 import type { BlockTokens, IterationToolCall, ProviderTimingSegment } from '@/executor/types'
+import {
+  getOpenRouterReasoningDetailText,
+  type OpenRouterReasoningDetail,
+} from '@/providers/openrouter/reasoning'
 import { calculateCost } from '@/providers/utils'
 
 /**
@@ -15,10 +19,7 @@ interface ChatCompletionLike {
       tool_calls?: Array<ChatCompletionToolCallLike> | null
       reasoning_content?: string | null
       reasoning?: string | null
-      reasoning_details?: Array<{
-        text?: string | null
-        summary?: string | null
-      } | null> | null
+      reasoning_details?: OpenRouterReasoningDetail[] | null
     } | null
     finish_reason?: string | null
   } | null>
@@ -141,8 +142,8 @@ function extractChatCompletionsReasoning(
   }
   if (Array.isArray(message.reasoning_details)) {
     const joined = message.reasoning_details
-      .map((d) => d?.text ?? d?.summary ?? '')
-      .filter((s): s is string => typeof s === 'string' && s.length > 0)
+      .map(getOpenRouterReasoningDetailText)
+      .filter((text) => text.length > 0)
       .join('\n')
     if (joined.length > 0) return joined
   }

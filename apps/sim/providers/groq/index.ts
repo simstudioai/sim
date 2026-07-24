@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { Groq } from 'groq-sdk'
 import type { ChatCompletionCreateParamsStreaming as GroqChatCompletionCreateParamsStreaming } from 'groq-sdk/resources/chat/completions'
 import type {
@@ -13,6 +14,7 @@ import { createReadableStreamFromGroqStream } from '@/providers/groq/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatStreamingToolLoopStream } from '@/providers/openai-compat/streaming-tool-loop'
 import { createStreamingExecution } from '@/providers/streaming-execution'
+import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
@@ -26,7 +28,6 @@ import {
   calculateCost,
   prepareToolExecution,
   prepareToolsWithUsageControl,
-  sumToolCosts,
   trackForcedToolUsage,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
@@ -139,9 +140,7 @@ export const groqProvider: ProviderConfig = {
       }
     }
 
-    const shouldStreamToolCalls = request.streamToolCalls ?? false
-
-    if (request.stream && shouldStreamToolCalls && payload.tools?.length) {
+    if (request.stream && payload.tools?.length) {
       logger.info('Using streaming tool loop for Groq request')
 
       const providerStartTime = Date.now()
@@ -184,9 +183,7 @@ export const groqProvider: ProviderConfig = {
             logger,
             timeSegments,
             forcedTools,
-            preserveAssistantReasoning:
-              (!!request.thinkingLevel && request.thinkingLevel !== 'none') ||
-              (payload.model as string).includes('gpt-oss'),
+            preserveAssistantReasoning: true,
             onComplete: (result) => {
               output.content = result.content
               output.tokens = result.tokens
@@ -204,7 +201,7 @@ export const groqProvider: ProviderConfig = {
       })
     }
 
-    if (request.stream && (!tools || tools.length === 0)) {
+    if (request.stream && !payload.tools?.length) {
       logger.info('Using streaming response for Groq request (no tools)')
 
       const providerStartTime = Date.now()
@@ -227,7 +224,7 @@ export const groqProvider: ProviderConfig = {
         initialCost: { input: 0, output: 0, total: 0 },
         isStreaming: true,
         streamFormat: 'agent-events-v1',
-        createStream: ({ output }) =>
+        createStream: ({ output, finalizeTiming }) =>
           createReadableStreamFromGroqStream(
             // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; groq-sdk stream chunks are wire-compatible with the OpenAI ChatCompletionChunk shape the adapter consumes
             streamResponse as unknown as AsyncIterable<ChatCompletionChunk>,
@@ -256,6 +253,7 @@ export const groqProvider: ProviderConfig = {
                   segment.thinkingContent = thinking
                 }
               }
+              finalizeTiming()
             }
           ),
       })
@@ -324,10 +322,25 @@ export const groqProvider: ProviderConfig = {
             const toolName = toolCall.function.name
 
             try {
-              const toolArgs = JSON.parse(toolCall.function.arguments)
+              const toolArgs = parseToolArguments(toolCall.function.arguments, toolName)
               const tool = request.tools?.find((t) => t.id === toolName)
 
-              if (!tool) return null
+              if (!tool) {
+                const toolCallEndTime = Date.now()
+                return {
+                  toolCall,
+                  toolName,
+                  toolParams: {},
+                  result: {
+                    success: false,
+                    output: undefined,
+                    error: `Tool "${toolName}" is not available`,
+                  },
+                  startTime: toolCallStartTime,
+                  endTime: toolCallEndTime,
+                  duration: toolCallEndTime - toolCallStartTime,
+                }
+              }
 
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
               const result = await executeTool(toolName, executionParams, {
@@ -345,6 +358,9 @@ export const groqProvider: ProviderConfig = {
                 duration: toolCallEndTime - toolCallStartTime,
               }
             } catch (error) {
+              if (isAbortError(error) || request.abortSignal?.aborted) {
+                throw error
+              }
               const toolCallEndTime = Date.now()
               logger.error('Error processing tool call:', { error, toolName })
 
@@ -364,11 +380,14 @@ export const groqProvider: ProviderConfig = {
             }
           })
 
-          const executionResults = await Promise.allSettled(toolExecutionPromises)
+          const executionResults = await Promise.all(toolExecutionPromises)
 
+          const assistantMessage = currentResponse.choices[0]?.message
+          const assistantReasoning = (assistantMessage as { reasoning?: string } | undefined)
+            ?.reasoning
           currentMessages.push({
             role: 'assistant',
-            content: null,
+            content: assistantMessage?.content ?? '',
             tool_calls: toolCallsInResponse.map((tc) => ({
               id: tc.id,
               type: 'function',
@@ -377,13 +396,12 @@ export const groqProvider: ProviderConfig = {
                 arguments: tc.function.arguments,
               },
             })),
+            ...(assistantReasoning ? { reasoning: assistantReasoning } : {}),
           })
 
-          for (const settledResult of executionResults) {
-            if (settledResult.status === 'rejected' || !settledResult.value) continue
-
+          for (const executionResult of executionResults) {
             const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
-              settledResult.value
+              executionResult
 
             timeSegments.push({
               type: 'tool',
@@ -394,10 +412,12 @@ export const groqProvider: ProviderConfig = {
               toolCallId: toolCall.id,
             })
 
-            let resultContent: any
-            if (result.success && result.output) {
-              toolResults.push(result.output)
-              resultContent = result.output
+            let resultContent: unknown
+            if (result.success) {
+              if (isRecordLike(result.output)) {
+                toolResults.push(result.output)
+              }
+              resultContent = result.output ?? null
             } else {
               resultContent = {
                 error: true,
@@ -494,101 +514,7 @@ export const groqProvider: ProviderConfig = {
         }
       } catch (error) {
         logger.error('Error in Groq request:', { error })
-      }
-
-      if (request.stream) {
-        logger.info('Using streaming for final Groq response after tool processing')
-
-        /**
-         * The regeneration exists purely to stream the settled answer as prose —
-         * streamed tool_calls are never executed on this path (re-applying the
-         * original forced tool_choice here would even guarantee a dead call).
-         */
-        const streamingPayload = {
-          ...payload,
-          messages: currentMessages,
-          tool_choice: 'none' as const,
-          stream: true,
-        }
-
-        const streamResponse = await groq.chat.completions.create(
-          streamingPayload,
-          request.abortSignal ? { signal: request.abortSignal } : undefined
-        )
-
-        const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
-
-        const streamingResult = createStreamingExecution({
-          model: request.model,
-          providerStartTime,
-          providerStartTimeISO,
-          timing: {
-            kind: 'accumulated',
-            modelTime,
-            toolsTime,
-            firstResponseTime,
-            iterations: iterationCount + 1,
-            timeSegments,
-          },
-          initialTokens: {
-            input: tokens.input,
-            output: tokens.output,
-            total: tokens.total,
-          },
-          initialCost: {
-            input: accumulatedCost.input,
-            output: accumulatedCost.output,
-            toolCost: undefined as number | undefined,
-            total: accumulatedCost.total,
-          },
-          toolCalls:
-            toolCalls.length > 0
-              ? {
-                  list: toolCalls,
-                  count: toolCalls.length,
-                }
-              : undefined,
-          isStreaming: true,
-          streamFormat: 'agent-events-v1',
-          createStream: ({ output }) =>
-            createReadableStreamFromGroqStream(
-              // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; groq-sdk stream chunks are wire-compatible with the OpenAI ChatCompletionChunk shape the adapter consumes
-              streamResponse as unknown as AsyncIterable<ChatCompletionChunk>,
-              (streamedContent, usage, thinking) => {
-                if (!streamedContent && content) {
-                  logger.warn('Groq final stream produced no text; keeping tool-loop answer')
-                }
-                output.content = streamedContent || content
-                output.tokens = {
-                  input: tokens.input + usage.prompt_tokens,
-                  output: tokens.output + usage.completion_tokens,
-                  total: tokens.total + usage.total_tokens,
-                }
-
-                const streamCost = calculateCost(
-                  request.model,
-                  usage.prompt_tokens,
-                  usage.completion_tokens
-                )
-                const tc = sumToolCosts(toolResults)
-                output.cost = {
-                  input: accumulatedCost.input + streamCost.input,
-                  output: accumulatedCost.output + streamCost.output,
-                  toolCost: tc || undefined,
-                  total: accumulatedCost.total + streamCost.total + tc,
-                }
-
-                if (thinking) {
-                  const lastModel = [...timeSegments].reverse().find((s) => s.type === 'model')
-                  if (lastModel) {
-                    lastModel.thinkingContent = thinking
-                  }
-                }
-              }
-            ),
-        })
-
-        return streamingResult
+        throw error
       }
 
       const providerEndTime = Date.now()
@@ -622,6 +548,9 @@ export const groqProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
+      if (isAbortError(error) || request.abortSignal?.aborted) {
+        throw error
+      }
       throw new ProviderError(toError(error).message, {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,

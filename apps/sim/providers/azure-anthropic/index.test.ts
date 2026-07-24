@@ -56,7 +56,7 @@ function request(overrides: Partial<ProviderRequest>): ProviderRequest {
 /** Invokes the createClient factory handed to the Anthropic core and returns the SDK options it built. */
 function buildClientOptions(): Record<string, unknown> {
   const config = mockExecuteAnthropic.mock.calls[0][1]
-  config.createClient('k', false)
+  config.createClient('k')
   return anthropicArgs[0]
 }
 
@@ -90,6 +90,18 @@ describe('azureAnthropicProvider — SSRF pinning', () => {
     expect(mockValidate).not.toHaveBeenCalled()
     expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
     expect(buildClientOptions()).not.toHaveProperty('fetch')
+  })
+
+  it('keeps the registry model in core and resolves a separate Azure wire model', async () => {
+    setEnv({ AZURE_ANTHROPIC_ENDPOINT: 'https://identity.services.ai.azure.com' })
+    const providerRequest = request({})
+
+    await azureAnthropicProvider.executeRequest(providerRequest)
+
+    const [forwardedRequest, config] = mockExecuteAnthropic.mock.calls[0]
+    expect(forwardedRequest.model).toBe('azure-anthropic/claude-3-5-sonnet')
+    expect(config.resolveWireModel(forwardedRequest)).toBe('claude-3-5-sonnet')
+    expect(buildClientOptions().defaultHeaders).not.toHaveProperty('anthropic-beta')
   })
 
   it('throws and never builds a client when validation blocks the endpoint', async () => {

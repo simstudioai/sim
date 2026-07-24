@@ -1,5 +1,6 @@
 import type { ConverseStreamOutput } from '@aws-sdk/client-bedrock-runtime'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { randomFloat } from '@sim/utils/random'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import { trackForcedToolUsage } from '@/providers/utils'
@@ -9,6 +10,22 @@ const logger = createLogger('BedrockUtils')
 export interface BedrockStreamUsage {
   inputTokens: number
   outputTokens: number
+}
+
+/**
+ * Converts an AWS event-stream exception member into an Error.
+ */
+export function getBedrockStreamError(event: ConverseStreamOutput): Error | undefined {
+  const exception =
+    event.internalServerException ??
+    event.modelStreamErrorException ??
+    event.validationException ??
+    event.throttlingException ??
+    event.serviceUnavailableException
+  if (!exception) return undefined
+  return new Error(exception.message || getErrorMessage(exception, 'Bedrock stream error'), {
+    cause: exception,
+  })
 }
 
 /**
@@ -25,11 +42,19 @@ export function createReadableStreamFromBedrockStream(
   let fullContent = ''
   let inputTokens = 0
   let outputTokens = 0
+  let cancelled = false
+  let streamIterator: AsyncIterator<ConverseStreamOutput> | undefined
 
   return new ReadableStream({
     async start(controller) {
       try {
-        for await (const event of bedrockStream) {
+        streamIterator = bedrockStream[Symbol.asyncIterator]()
+        while (true) {
+          const next = await streamIterator.next()
+          if (next.done || cancelled) break
+          const event = next.value
+          const streamError = getBedrockStreamError(event)
+          if (streamError) throw streamError
           if (event.contentBlockDelta?.delta?.text) {
             const text = event.contentBlockDelta.delta.text
             fullContent += text
@@ -40,14 +65,21 @@ export function createReadableStreamFromBedrockStream(
           }
         }
 
+        if (cancelled) return
         if (onComplete) {
           onComplete(fullContent, { inputTokens, outputTokens })
         }
 
         controller.close()
       } catch (err) {
-        controller.error(err)
+        if (!cancelled) {
+          controller.error(err)
+        }
       }
+    },
+    async cancel() {
+      cancelled = true
+      await streamIterator?.return?.()
     },
   })
 }

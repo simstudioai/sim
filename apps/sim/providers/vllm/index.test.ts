@@ -75,6 +75,7 @@ vi.mock('@/stores/providers', () => ({
 }))
 
 import { clearProviderClientCacheForTests } from '@/providers/client-cache'
+import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { ProviderToolConfig } from '@/providers/types'
 import { vllmProvider } from '@/providers/vllm/index'
 
@@ -84,9 +85,13 @@ interface ToolCall {
   function: { name: string; arguments: string }
 }
 
-function chatResponse(content: string | null, toolCalls?: ToolCall[]) {
+function chatResponse(
+  content: string | null,
+  toolCalls?: ToolCall[],
+  reasoning?: { reasoning?: string; reasoning_content?: string }
+) {
   return {
-    choices: [{ message: { content, tool_calls: toolCalls } }],
+    choices: [{ message: { content, tool_calls: toolCalls, ...reasoning } }],
     usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
   }
 }
@@ -109,6 +114,16 @@ const toolCall = (id: string, name: string, args = '{}'): ToolCall => ({
 
 /** Payload passed to the Nth `chat.completions.create` call. */
 const createPayload = (callIndex: number) => mockCreate.mock.calls[callIndex][0]
+
+async function readAgentEvents(stream: ReadableStream<AgentStreamEvent>) {
+  const events: AgentStreamEvent[] = []
+  const reader = stream.getReader()
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) return events
+    events.push(value)
+  }
+}
 
 afterAll(resetEnvMock)
 
@@ -281,6 +296,40 @@ describe('vllmProvider', () => {
     expect(result.toolResults).toHaveLength(1)
   })
 
+  it('replays vLLM assistant content and emitted reasoning fields on the second request', async () => {
+    mockCreate
+      .mockResolvedValueOnce(
+        chatResponse('I will use the tool.', [toolCall('call_1', 'myTool', '{"x":1}')], {
+          reasoning: 'Current vLLM reasoning.',
+          reasoning_content: 'Legacy vLLM reasoning.',
+        })
+      )
+      .mockResolvedValueOnce(chatResponse('final answer'))
+
+    await vllmProvider.executeRequest({
+      model: 'vllm/llama-3',
+      messages: [{ role: 'user', content: 'use a tool' }],
+      tools: [makeTool('myTool')],
+    })
+
+    const assistant = createPayload(1).messages.find(
+      (message: { role: string }) => message.role === 'assistant'
+    )
+    expect(assistant).toEqual({
+      role: 'assistant',
+      content: 'I will use the tool.',
+      reasoning: 'Current vLLM reasoning.',
+      reasoning_content: 'Legacy vLLM reasoning.',
+      tool_calls: [
+        {
+          id: 'call_1',
+          type: 'function',
+          function: { name: 'myTool', arguments: '{"x":1}' },
+        },
+      ],
+    })
+  })
+
   it('records a failed tool result without throwing', async () => {
     mockExecuteTool.mockResolvedValueOnce({ success: false, error: 'tool blew up' })
     mockCreate
@@ -353,19 +402,33 @@ describe('vllmProvider', () => {
     expect('stream' in result && 'execution' in result).toBe(true)
   })
 
-  it('uses tool_choice "none" on the final streaming call after tool processing', async () => {
-    mockCreate.mockResolvedValueOnce(chatResponse('answer')).mockResolvedValueOnce({})
+  it('projects the settled tool-loop answer without a final streaming call', async () => {
+    mockCreate
+      .mockResolvedValueOnce(chatResponse(null, [toolCall('call_1', 'myTool')]))
+      .mockResolvedValueOnce(chatResponse('answer'))
 
-    await vllmProvider.executeRequest({
+    const result = await vllmProvider.executeRequest({
       model: 'vllm/llama-3',
       messages: [{ role: 'user', content: 'hi' }],
       stream: true,
       tools: [makeTool('myTool')],
     })
 
-    const streamingPayload = createPayload(1)
-    expect(streamingPayload.stream).toBe(true)
-    expect(streamingPayload.tool_choice).toBe('none')
+    expect(mockCreate).toHaveBeenCalledTimes(2)
+    expect(mockExecuteTool).toHaveBeenCalledTimes(1)
+    expect('stream' in result).toBe(true)
+    if (!('stream' in result)) throw new Error('Expected streaming execution')
+    expect(result.execution.output.content).toBe('answer')
+    expect(result.execution.output.tokens).toEqual({ input: 20, output: 10, total: 30 })
+    expect(result.execution.output.providerTiming?.iterations).toBe(2)
+    expect(
+      result.execution.output.providerTiming?.timeSegments?.filter(
+        (segment) => segment.type === 'model'
+      )
+    ).toHaveLength(2)
+    await expect(
+      readAgentEvents(result.stream as ReadableStream<AgentStreamEvent>)
+    ).resolves.toEqual([{ type: 'text_delta', text: 'answer', turn: 'final' }])
   })
 
   it('throws a ProviderError carrying the vLLM error message on API failure', async () => {

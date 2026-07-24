@@ -58,7 +58,11 @@ type StreamingTiming = SimpleTiming | AccumulatedTiming
 interface StreamFinalizer {
   /** Live output object — write final `content`/`tokens`/`cost` here on drain. */
   output: NormalizedBlockOutput
-  /** Overwrites placeholder timing from the drain timestamp. Call once on drain. */
+  /**
+   * Overwrites placeholder timing from the drain timestamp. Providers may call
+   * this after populating output; the factory also guarantees finalization when
+   * the stream closes, errors, or is cancelled.
+   */
   finalizeTiming: () => void
 }
 
@@ -156,12 +160,36 @@ export function createStreamingExecution(
     providerTiming,
     cost: initialCost,
   }
+  const executionMetadata = {
+    startTime: providerStartTimeISO,
+    endTime: nowISO,
+    duration,
+  }
 
   const timingKind = timing.kind
-  const stream = createStream({
+  let timingFinalized = false
+  const finalizeTimingOnce = () => {
+    if (timingFinalized) return
+    timingFinalized = true
+    finalizeTiming(output, providerStartTime, timingKind)
+    const finalizedTiming = output.providerTiming
+    if (finalizedTiming) {
+      executionMetadata.endTime = finalizedTiming.endTime
+      executionMetadata.duration = finalizedTiming.duration
+    }
+  }
+  const providerStream = createStream({
     output,
-    finalizeTiming: () => finalizeTiming(output, providerStartTime, timingKind),
+    finalizeTiming: finalizeTimingOnce,
   })
+  const stream = timingFinalized
+    ? providerStream
+    : streamFormat === 'agent-events-v1'
+      ? withTimingFinalization(
+          providerStream as ReadableStream<AgentStreamEvent>,
+          finalizeTimingOnce
+        )
+      : withTimingFinalization(providerStream as ReadableStream<Uint8Array>, finalizeTimingOnce)
 
   return {
     stream,
@@ -170,14 +198,48 @@ export function createStreamingExecution(
       success: true,
       output,
       logs: [],
-      metadata: {
-        startTime: providerStartTimeISO,
-        endTime: nowISO,
-        duration,
-      },
+      metadata: executionMetadata,
       ...(isStreaming ? { isStreaming: true } : {}),
     },
   }
+}
+
+/**
+ * Finalizes provider timing exactly once when a stream settles while preserving
+ * backpressure and cancellation on the provider's original stream.
+ */
+function withTimingFinalization<T>(
+  stream: ReadableStream<T>,
+  finalize: () => void
+): ReadableStream<T> {
+  const reader = stream.getReader()
+
+  return new ReadableStream<T>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read()
+        if (done) {
+          finalize()
+          reader.releaseLock()
+          controller.close()
+          return
+        }
+        controller.enqueue(value)
+      } catch (error) {
+        finalize()
+        reader.releaseLock()
+        controller.error(error)
+      }
+    },
+    async cancel(reason) {
+      try {
+        await reader.cancel(reason)
+      } finally {
+        finalize()
+        reader.releaseLock()
+      }
+    },
+  })
 }
 
 /**

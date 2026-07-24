@@ -12,18 +12,19 @@ Agent blocks can emit more than answer text while they run: **provider-exposed t
 Sim does **not** invent thinking for providers that do not stream it. Bedrock Converse, many OpenAI-compat models, and non-reasoning chat models stay text-only (plus tools when a live tool loop is wired).
 </Callout>
 
-## Dual gate (public chat / simple SSE)
+## Independent event gates (public chat / simple SSE)
 
-Thinking and tool frames leave the public chat or workflow simple-SSE path only when **both** are true:
+Thinking and tool frames each require the stream protocol header plus their own deployment policy:
 
-1. Deployment policy: chat `includeThinking` is enabled (default **off**).
-2. Request opts in with header:
+1. Thinking frames require chat `includeThinking` (default **off**).
+2. Tool lifecycle frames require chat `includeToolCalls` (default **off**).
+3. Both require the request to opt in with:
 
 ```http
 X-Sim-Stream-Protocol: agent-events-v1
 ```
 
-Legacy clients that omit the header keep today’s text-only SSE even if the deployment has thinking enabled. The hosted chat UI always sends the header for its own deployments.
+Legacy clients that omit the header keep today’s text-only SSE even if either deployment policy is enabled. The hosted chat UI always sends the header for its own deployments.
 
 ## Simple SSE frame shapes
 
@@ -44,7 +45,7 @@ Answer text stays on `chunk`. Thinking and tools never reuse `chunk` (so older c
 
 During a live tool loop, the model can’t be classified mid-turn: text it emits may turn out to be the final answer or preamble before a tool call (the stop reason arrives only at turn end).
 
-- **Opted-in clients** (protocol header + `includeThinking`) receive answer text as `chunk` frames **live**, token by token. If the turn then resolves to tool calls, a `chunk_reset` frame tells the client to discard that block’s streamed text — the final turn re-streams live after tools settle. Append `chunk`, honor `chunk_reset`, and the displayed answer always converges to the block’s final content.
+- **Opted-in clients** (protocol header + either event policy) receive answer text as `chunk` frames **live**, token by token. If the turn then resolves to tool calls, a `chunk_reset` frame tells the client to discard that block’s streamed text — the final turn re-streams live after tools settle. Append `chunk`, honor `chunk_reset`, and the displayed answer always converges to the block’s final content.
 - **Legacy clients** (no header) never see provisional text: only settled final-turn text is emitted as `chunk`, delivered when the turn completes.
 
 Logs, memory, and the block’s `content` output always contain final-turn text only — intermediate preamble is never persisted.
@@ -68,9 +69,9 @@ When you click **Run** in the builder, the execution-events SSE path forwards th
 
 The terminal output panel shows Thinking / Tools chrome above the block output when those events arrive. PII redaction on block output still disables live forwarding (executor rule).
 
-## Chat deployment toggle
+## Chat deployment toggles
 
-In **Deploy → Chat**, enable **Include thinking** so public chat can expose thinking/tool frames (still requires the protocol header). Redeploy / update the chat after changing Agent models or tools.
+In **Deploy → Chat**, enable **Include thinking** for provider-exposed thinking and **Include tool calls** for tool names and lifecycle status. The switches are independent, and both event types still require the protocol header. Tool arguments and results are never included in lifecycle frames. Redeploy or update the chat after changing Agent models or tools.
 
 ## Capability honesty (high level)
 
@@ -97,4 +98,4 @@ curl -N -X POST 'http://localhost:3000/api/chat/your-slug' \
   </Tab>
 </Tabs>
 
-See also [Chat deployment](/docs/workflows/deployment/chat) for access control and the Include thinking setting.
+See also [Chat deployment](/docs/workflows/deployment/chat) for access control and the event settings.

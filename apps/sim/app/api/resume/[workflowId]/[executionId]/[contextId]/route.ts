@@ -253,6 +253,8 @@ export const POST = withRouteHandler(
       const executionMode = isApiCaller
         ? (persistedSnapshot.metadata.executionMode ?? 'sync')
         : undefined
+      const includeThinking = persistedSnapshot.metadata.includeThinking === true
+      const includeToolCalls = persistedSnapshot.metadata.includeToolCalls ?? includeThinking
 
       if (isApiCaller && executionMode === 'stream') {
         const stream = await createStreamingResponse({
@@ -260,7 +262,8 @@ export const POST = withRouteHandler(
           streamConfig: {
             selectedOutputs: persistedSnapshot.selectedOutputs,
             timeoutMs: preprocessResult.executionTimeout?.sync,
-            includeThinking: persistedSnapshot.metadata.includeThinking === true,
+            includeThinking,
+            includeToolCalls,
           },
           executionId: enqueueResult.resumeExecutionId,
           workspaceId: workflow.workspaceId || undefined,
@@ -283,7 +286,8 @@ export const POST = withRouteHandler(
             ...SSE_HEADERS,
             // Echo the negotiated stream protocol (same as the public chat route).
             ...agentStreamProtocolResponseHeaders({
-              includeThinking: persistedSnapshot.metadata.includeThinking === true,
+              includeThinking,
+              includeToolCalls,
               requestHeaders: request.headers,
             }),
             'X-Execution-Id': enqueueResult.resumeExecutionId,

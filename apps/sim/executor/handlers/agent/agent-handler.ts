@@ -46,7 +46,6 @@ import {
   shouldUseLargeFilePath,
   supportsFileAttachments,
 } from '@/providers/attachments'
-import { supportsStreamingToolCalls } from '@/providers/streaming-tool-loop-shared'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { filterSchemaForLLM, type ToolSchema } from '@/tools/params'
@@ -956,18 +955,8 @@ export class AgentBlockHandler implements BlockHandler {
       verbosity: inputs.verbosity,
       thinkingLevel: inputs.thinkingLevel,
       previousInteractionId: inputs.previousInteractionId,
-      /**
-       * Agent-events opt-in and live tool lifecycle. Both are gated on the
-       * run-level {@link ExecutionMetadata.agentEvents} flag so runs without an
-       * agent-events consumer keep the exact pre-agent-events provider
-       * behavior (legacy loops, unchanged request payloads).
-       */
+      /** Agent-events remains the opt-in for exposing thinking and tool lifecycle events. */
       agentEvents: streaming && ctx.metadata?.agentEvents === true,
-      streamToolCalls:
-        streaming &&
-        ctx.metadata?.agentEvents === true &&
-        formattedTools.length > 0 &&
-        supportsStreamingToolCalls(providerId),
     }
   }
 
@@ -1043,7 +1032,6 @@ export class AgentBlockHandler implements BlockHandler {
         thinkingLevel: providerRequest.thinkingLevel,
         previousInteractionId: providerRequest.previousInteractionId,
         agentEvents: providerRequest.agentEvents,
-        streamToolCalls: providerRequest.streamToolCalls,
         abortSignal: ctx.abortSignal,
       })
 

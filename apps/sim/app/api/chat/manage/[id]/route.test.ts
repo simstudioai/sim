@@ -144,6 +144,8 @@ describe('Chat Edit API Route', () => {
         description: 'A test chat',
         password: 'encrypted-password',
         customizations: { primaryColor: '#000000' },
+        includeThinking: true,
+        includeToolCalls: null,
       }
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
@@ -158,6 +160,7 @@ describe('Chat Edit API Route', () => {
       expect(data.title).toBe('Test Chat')
       expect(data.chatUrl).toBe('http://localhost:3000/chat/test-chat')
       expect(data.hasPassword).toBe(true)
+      expect(data.includeToolCalls).toBe(true)
     })
   })
 
@@ -206,6 +209,8 @@ describe('Chat Edit API Route', () => {
         title: 'Test Chat',
         authType: 'public',
         workflowId: 'workflow-123',
+        includeThinking: true,
+        includeToolCalls: null,
       }
 
       mockCheckChatAccess.mockResolvedValue({
@@ -222,6 +227,9 @@ describe('Chat Edit API Route', () => {
 
       expect(response.status).toBe(200)
       expect(dbChainMockFns.update).toHaveBeenCalled()
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({ includeToolCalls: true })
+      )
       const data = await response.json()
       expect(data.id).toBe('chat-123')
       expect(data.chatUrl).toBe('http://localhost:3000/chat/test-chat')

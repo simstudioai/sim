@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createGeminiStreamingToolLoopStream } from '@/providers/gemini/streaming-tool-loop'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import { resetLocalToolIdCounterForTests } from '@/providers/tool-call-id'
@@ -19,11 +19,12 @@ async function collectEvents(
   return events
 }
 
+const { mockExecuteTool } = vi.hoisted(() => ({
+  mockExecuteTool: vi.fn(),
+}))
+
 vi.mock('@/tools', () => ({
-  executeTool: vi.fn(async () => ({
-    success: true,
-    output: { ok: true, url: 'https://httpbin.org/get' },
-  })),
+  executeTool: mockExecuteTool,
 }))
 
 vi.mock('@/providers/utils', () => ({
@@ -43,6 +44,14 @@ vi.mock('@/providers/utils', () => ({
 }))
 
 describe('createGeminiStreamingToolLoopStream', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockExecuteTool.mockResolvedValue({
+      success: true,
+      output: { ok: true, url: 'https://httpbin.org/get' },
+    })
+  })
+
   it('emits thinking, tool lifecycle, then final answer; allocates local tool ids', async () => {
     resetLocalToolIdCounterForTests()
 
@@ -164,5 +173,210 @@ describe('createGeminiStreamingToolLoopStream', () => {
         toolCalls: expect.objectContaining({ count: 1 }),
       })
     )
+  })
+
+  it('fails an unexpected tool AbortError and reports completed usage', async () => {
+    mockExecuteTool.mockRejectedValueOnce(
+      new DOMException('tool aborted unexpectedly', 'AbortError')
+    )
+    const ai = {
+      models: {
+        generateContentStream: vi.fn(async () =>
+          (async function* () {
+            yield {
+              candidates: [
+                {
+                  content: {
+                    parts: [
+                      {
+                        functionCall: {
+                          name: 'http_request',
+                          args: { url: 'https://httpbin.org/get' },
+                        },
+                      },
+                    ],
+                  },
+                  finishReason: 'STOP',
+                },
+              ],
+              usageMetadata: {
+                promptTokenCount: 10,
+                candidatesTokenCount: 5,
+                totalTokenCount: 15,
+              },
+            } as any
+          })()
+        ),
+      },
+    }
+    const onComplete = vi.fn()
+    const stream = createGeminiStreamingToolLoopStream({
+      ai: ai as any,
+      model: 'gemini-2.5-flash',
+      baseConfig: {},
+      contents: [{ role: 'user', parts: [{ text: 'fetch it' }] }],
+      request: {
+        model: 'gemini-2.5-flash',
+        tools: [
+          {
+            id: 'http_request',
+            name: 'http_request',
+            description: 'HTTP',
+            parameters: { type: 'object', properties: {}, required: [] },
+          },
+        ],
+      } as any,
+      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as any,
+      timeSegments: [],
+      onComplete,
+    })
+
+    await expect(collectEvents(stream)).rejects.toMatchObject({ name: 'AbortError' })
+    expect(onComplete).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tokens: { input: 10, output: 5, total: 15 } })
+    )
+  })
+
+  it('overrides the turn signal and aborts the active SDK call on consumer cancellation', async () => {
+    const baseAbortController = new AbortController()
+    const requestAbortController = new AbortController()
+    let capturedSignal: AbortSignal | undefined
+    let resolveCallStarted: (() => void) | undefined
+    const callStarted = new Promise<void>((resolve) => {
+      resolveCallStarted = resolve
+    })
+    const generateContentStream = vi.fn(
+      async ({ config }: { config: { abortSignal?: AbortSignal } }) => {
+        capturedSignal = config.abortSignal
+        resolveCallStarted?.()
+        return await new Promise<never>((_, reject) => {
+          config.abortSignal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('SDK request aborted', 'AbortError')),
+            { once: true }
+          )
+        })
+      }
+    )
+    const stream = createGeminiStreamingToolLoopStream({
+      ai: { models: { generateContentStream } } as never,
+      model: 'gemini-2.5-flash',
+      baseConfig: { abortSignal: baseAbortController.signal },
+      contents: [{ role: 'user', parts: [{ text: 'fetch it' }] }],
+      request: {
+        model: 'gemini-2.5-flash',
+        abortSignal: requestAbortController.signal,
+      } as never,
+      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never,
+      timeSegments: [],
+      onComplete: vi.fn(),
+    })
+    const reader = stream.getReader()
+    const pendingRead = reader.read()
+
+    await callStarted
+    expect(capturedSignal).toBeDefined()
+    expect(capturedSignal).not.toBe(baseAbortController.signal)
+    expect(capturedSignal).not.toBe(requestAbortController.signal)
+    expect(capturedSignal?.aborted).toBe(false)
+
+    await reader.cancel('consumer cancelled')
+
+    expect(capturedSignal?.aborted).toBe(true)
+    expect(capturedSignal?.reason).toBe('consumer cancelled')
+    await expect(pendingRead).resolves.toEqual({ done: true, value: undefined })
+  })
+
+  it('accepts terminal MAX_TOKENS text when no function call is pending', async () => {
+    const generateContentStream = vi.fn(async () =>
+      (async function* () {
+        yield {
+          candidates: [
+            {
+              content: { parts: [{ text: 'Complete answer at the token limit' }] },
+              finishReason: 'MAX_TOKENS',
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 4,
+            candidatesTokenCount: 6,
+            totalTokenCount: 10,
+          },
+        } as any
+      })()
+    )
+    const onComplete = vi.fn()
+    const stream = createGeminiStreamingToolLoopStream({
+      ai: { models: { generateContentStream } } as never,
+      model: 'gemini-2.5-flash',
+      baseConfig: {},
+      contents: [{ role: 'user', parts: [{ text: 'answer fully' }] }],
+      request: { model: 'gemini-2.5-flash' } as never,
+      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never,
+      timeSegments: [],
+      onComplete,
+    })
+
+    const events = await collectEvents(stream)
+
+    expect(events).toContainEqual({ type: 'turn_end', turn: 'final' })
+    expect(onComplete).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        content: 'Complete answer at the token limit',
+        iterations: 1,
+      })
+    )
+  })
+
+  it.each([
+    {
+      label: 'complete',
+      parts: [
+        { text: 'Partial answer' },
+        { functionCall: { name: 'http_request', args: { url: 'https://httpbin.org/get' } } },
+      ],
+    },
+    {
+      label: 'partial',
+      parts: [{ text: 'Partial answer' }, { functionCall: { args: {} } }],
+    },
+  ])('rejects a $label function call on a MAX_TOKENS turn', async ({ parts }) => {
+    const generateContentStream = vi.fn(async () =>
+      (async function* () {
+        yield {
+          candidates: [{ content: { parts }, finishReason: 'MAX_TOKENS' }],
+          usageMetadata: {
+            promptTokenCount: 4,
+            candidatesTokenCount: 6,
+            totalTokenCount: 10,
+          },
+        } as any
+      })()
+    )
+    const stream = createGeminiStreamingToolLoopStream({
+      ai: { models: { generateContentStream } } as never,
+      model: 'gemini-2.5-flash',
+      baseConfig: {},
+      contents: [{ role: 'user', parts: [{ text: 'answer fully' }] }],
+      request: {
+        model: 'gemini-2.5-flash',
+        tools: [
+          {
+            id: 'http_request',
+            name: 'http_request',
+            description: 'HTTP',
+            parameters: { type: 'object', properties: {}, required: [] },
+          },
+        ],
+      } as never,
+      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never,
+      timeSegments: [],
+      onComplete: vi.fn(),
+    })
+
+    await expect(collectEvents(stream)).rejects.toThrow(
+      'Gemini stream ended with finish reason MAX_TOKENS'
+    )
+    expect(mockExecuteTool).not.toHaveBeenCalled()
   })
 })

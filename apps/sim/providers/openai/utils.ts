@@ -1,10 +1,8 @@
-import { createLogger } from '@sim/logger'
 import type OpenAI from 'openai'
+import { Stream } from 'openai/streaming'
 import { buildOpenAIMessageContent } from '@/providers/attachments'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { Message } from '@/providers/types'
-
-const logger = createLogger('ResponsesUtils')
 
 export interface ResponsesUsageTokens {
   promptTokens: number
@@ -20,22 +18,68 @@ export interface ResponsesToolCall {
   arguments: string
 }
 
-export type ResponsesInputItem =
-  | {
-      role: 'system' | 'user' | 'assistant'
-      content: string | OpenAI.Responses.ResponseInputContent[]
+export type ResponsesStreamEvent = OpenAI.Responses.ResponseStreamEvent
+
+export type ResponsesInputItem = OpenAI.Responses.ResponseInputItem
+
+/**
+ * Identifies the one incomplete Responses status that still contains a valid
+ * truncated answer: the configured output-token cap was reached.
+ */
+export function isMaxOutputTokensIncompleteResponse(response: OpenAI.Responses.Response): boolean {
+  return (
+    response.status === 'incomplete' && response.incomplete_details?.reason === 'max_output_tokens'
+  )
+}
+
+/**
+ * Checks the terminal Responses output for a function call, including one
+ * whose arguments or status remain incomplete.
+ */
+export function responseContainsFunctionCall(response: OpenAI.Responses.Response): boolean {
+  return response.output.some((item) => item.type === 'function_call')
+}
+
+/**
+ * Detects documented Responses stream events that prove function-call
+ * generation started, even when the terminal output omits the partial item.
+ */
+export function isResponseFunctionCallEvent(event: ResponsesStreamEvent): boolean {
+  return (
+    (event.type === 'response.output_item.added' && event.item.type === 'function_call') ||
+    event.type === 'response.function_call_arguments.delta' ||
+    event.type === 'response.function_call_arguments.done'
+  )
+}
+
+/**
+ * Parses a Responses API SSE body with the official OpenAI stream decoder.
+ */
+export async function* iterateResponsesStreamEvents(
+  response: Response,
+  abortSignal?: AbortSignal
+): AsyncGenerator<ResponsesStreamEvent> {
+  const parserController = new AbortController()
+  const abortParser = () => parserController.abort(abortSignal?.reason)
+
+  if (abortSignal?.aborted) {
+    abortParser()
+  } else {
+    abortSignal?.addEventListener('abort', abortParser, { once: true })
+  }
+
+  try {
+    const stream = Stream.fromSSEResponse<ResponsesStreamEvent>(response, parserController)
+    for await (const event of stream) {
+      yield event
     }
-  | {
-      type: 'function_call'
-      call_id: string
-      name: string
-      arguments: string
+  } finally {
+    abortSignal?.removeEventListener('abort', abortParser)
+    if (!parserController.signal.aborted) {
+      parserController.abort()
     }
-  | {
-      type: 'function_call_output'
-      call_id: string
-      output: string
-    }
+  }
+}
 
 export interface ResponsesToolDefinition {
   type: 'function'
@@ -43,6 +87,8 @@ export interface ResponsesToolDefinition {
   description?: string
   parameters?: Record<string, unknown>
 }
+
+export type ResponsesToolChoice = 'auto' | 'none' | { type: 'function'; name: string }
 
 /**
  * Converts chat-style messages into Responses API input items.
@@ -136,7 +182,7 @@ export function toResponsesToolChoice(
     | { type: 'tool'; name: string }
     | { type: 'any'; any: { model: string; name: string } }
     | undefined
-): 'auto' | 'none' | { type: 'function'; name: string } | undefined {
+): ResponsesToolChoice | undefined {
   if (!toolChoice) {
     return undefined
   }
@@ -176,17 +222,10 @@ function extractTextFromMessageItem(item: unknown): string {
       continue
     }
 
-    if ((part.type === 'output_text' || part.type === 'text') && typeof part.text === 'string') {
+    if (part.type === 'output_text' && typeof part.text === 'string') {
       textParts.push(part.text)
-      continue
-    }
-
-    if (part.type === 'output_json') {
-      if (typeof part.text === 'string') {
-        textParts.push(part.text)
-      } else if (part.json !== undefined) {
-        textParts.push(JSON.stringify(part.json))
-      }
+    } else if (part.type === 'refusal' && typeof part.refusal === 'string') {
+      textParts.push(part.refusal)
     }
   }
 
@@ -228,13 +267,8 @@ export function extractResponseReasoning(output: OpenAI.Responses.ResponseOutput
   const parts: string[] = []
   for (const item of output) {
     if (!item || item.type !== 'reasoning') continue
-    // double-cast-allowed: the Responses SDK types summary entries as non-null, but the wire can carry null entries/text on partial reasoning items; widen to read defensively
-    const summary = (item as unknown as { summary?: Array<{ text?: string | null } | null> })
-      .summary
-    if (!Array.isArray(summary)) continue
-    for (const entry of summary) {
-      const text = entry?.text
-      if (typeof text === 'string' && text.length > 0) parts.push(text)
+    for (const entry of item.summary) {
+      if (entry.text.length > 0) parts.push(entry.text)
     }
   }
   return parts.join('\n\n')
@@ -246,75 +280,7 @@ export function extractResponseReasoning(output: OpenAI.Responses.ResponseOutput
 export function convertResponseOutputToInputItems(
   output: OpenAI.Responses.ResponseOutputItem[]
 ): ResponsesInputItem[] {
-  if (!Array.isArray(output)) {
-    return []
-  }
-
-  const items: ResponsesInputItem[] = []
-  for (const item of output) {
-    if (!isRecord(item)) {
-      continue
-    }
-
-    if (item.type === 'message') {
-      const text = extractTextFromMessageItem(item)
-      if (text) {
-        items.push({
-          role: 'assistant',
-          content: text,
-        })
-      }
-
-      // Handle Chat Completions-style tool_calls nested under message items
-      const toolCalls = Array.isArray(item.tool_calls) ? item.tool_calls : []
-      for (const toolCall of toolCalls) {
-        const tc = toolCall as Record<string, unknown>
-        const fn = tc.function as Record<string, unknown> | undefined
-        const callId = tc.id as string | undefined
-        const name = (fn?.name ?? tc.name) as string | undefined
-        if (!callId || !name) {
-          continue
-        }
-
-        const argumentsValue =
-          typeof fn?.arguments === 'string' ? fn.arguments : JSON.stringify(fn?.arguments ?? {})
-
-        items.push({
-          type: 'function_call',
-          call_id: callId,
-          name,
-          arguments: argumentsValue,
-        })
-      }
-
-      continue
-    }
-
-    if (item.type === 'function_call') {
-      const fc = item as OpenAI.Responses.ResponseFunctionToolCall
-      const callId = fc.call_id ?? (typeof item.id === 'string' ? item.id : undefined)
-      const name =
-        fc.name ??
-        (isRecord(item.function) && typeof item.function.name === 'string'
-          ? item.function.name
-          : undefined)
-      if (!callId || !name) {
-        continue
-      }
-
-      const argumentsValue =
-        typeof fc.arguments === 'string' ? fc.arguments : JSON.stringify(fc.arguments ?? {})
-
-      items.push({
-        type: 'function_call',
-        call_id: callId,
-        name,
-        arguments: argumentsValue,
-      })
-    }
-  }
-
-  return items
+  return Array.isArray(output) ? output : []
 }
 
 /**
@@ -336,13 +302,7 @@ export function extractResponseToolCalls(
 
     if (item.type === 'function_call') {
       const fc = item as OpenAI.Responses.ResponseFunctionToolCall
-      const callId = fc.call_id ?? (typeof item.id === 'string' ? item.id : undefined)
-      const name =
-        fc.name ??
-        (isRecord(item.function) && typeof item.function.name === 'string'
-          ? item.function.name
-          : undefined)
-      if (!callId || !name) {
+      if (!fc.call_id || !fc.name) {
         continue
       }
 
@@ -350,33 +310,10 @@ export function extractResponseToolCalls(
         typeof fc.arguments === 'string' ? fc.arguments : JSON.stringify(fc.arguments ?? {})
 
       toolCalls.push({
-        id: callId,
-        name,
+        id: fc.call_id,
+        name: fc.name,
         arguments: argumentsValue,
       })
-      continue
-    }
-
-    // Handle Chat Completions-style tool_calls nested under message items
-    if (item.type === 'message' && Array.isArray(item.tool_calls)) {
-      for (const toolCall of item.tool_calls) {
-        const tc = toolCall as Record<string, unknown>
-        const fn = tc.function as Record<string, unknown> | undefined
-        const callId = tc.id as string | undefined
-        const name = (fn?.name ?? tc.name) as string | undefined
-        if (!callId || !name) {
-          continue
-        }
-
-        const argumentsValue =
-          typeof fn?.arguments === 'string' ? fn.arguments : JSON.stringify(fn?.arguments ?? {})
-
-        toolCalls.push({
-          id: callId,
-          name,
-          arguments: argumentsValue,
-        })
-      }
     }
   }
 
@@ -424,141 +361,86 @@ export function createReadableStreamFromResponses(
   response: Response,
   onComplete?: (content: string, usage?: ResponsesUsageTokens, thinking?: string) => void
 ): ReadableStream<AgentStreamEvent> {
-  let fullContent = ''
-  let fullThinking = ''
-  let finalUsage: ResponsesUsageTokens | undefined
-  let activeEventType: string | undefined
+  const streamAbortController = new AbortController()
 
   return new ReadableStream<AgentStreamEvent>({
-    async start(controller) {
-      const reader = response.body?.getReader()
-      if (!reader) {
-        controller.close()
-        return
-      }
+    start(controller) {
+      void (async () => {
+        let fullContent = ''
+        let fullThinking = ''
+        let finalUsage: ResponsesUsageTokens | undefined
+        let completed = false
+        let sawFunctionCall = false
 
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) {
-            break
+        try {
+          for await (const event of iterateResponsesStreamEvents(
+            response,
+            streamAbortController.signal
+          )) {
+            if (isResponseFunctionCallEvent(event)) {
+              sawFunctionCall = true
+            }
+            if (event.type === 'error') {
+              throw new Error(event.message || 'OpenAI Responses stream error')
+            }
+            if (event.type === 'response.failed') {
+              throw new Error(event.response.error?.message || 'OpenAI Responses stream failed')
+            }
+            if (event.type === 'response.incomplete') {
+              const reason = event.response.incomplete_details?.reason ?? 'unknown'
+              if (
+                !isMaxOutputTokensIncompleteResponse(event.response) ||
+                sawFunctionCall ||
+                responseContainsFunctionCall(event.response)
+              ) {
+                throw new Error(`OpenAI Responses stream incomplete: ${reason}`)
+              }
+              finalUsage = parseResponsesUsage(event.response.usage)
+              completed = true
+              continue
+            }
+            if (event.type === 'response.reasoning_summary_text.delta') {
+              if (event.delta) {
+                fullThinking += event.delta
+                controller.enqueue({ type: 'thinking_delta', text: event.delta })
+              }
+              continue
+            }
+            if (event.type === 'response.output_text.delta') {
+              if (event.delta) {
+                fullContent += event.delta
+                controller.enqueue({ type: 'text_delta', text: event.delta, turn: 'final' })
+              }
+              continue
+            }
+            if (event.type === 'response.refusal.delta') {
+              if (event.delta) {
+                fullContent += event.delta
+                controller.enqueue({ type: 'text_delta', text: event.delta, turn: 'final' })
+              }
+              continue
+            }
+            if (event.type === 'response.completed') {
+              finalUsage = parseResponsesUsage(event.response.usage)
+              completed = true
+            }
           }
 
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
+          if (!completed) {
+            throw new Error('OpenAI Responses stream ended without a completed response')
+          }
 
-          for (const line of lines) {
-            const trimmed = line.trim()
-            if (!trimmed) {
-              continue
-            }
-
-            if (trimmed.startsWith('event:')) {
-              activeEventType = trimmed.slice(6).trim()
-              continue
-            }
-
-            if (!trimmed.startsWith('data:')) {
-              continue
-            }
-
-            const data = trimmed.slice(5).trim()
-            if (data === '[DONE]') {
-              continue
-            }
-
-            let event: Record<string, unknown>
-            try {
-              event = JSON.parse(data)
-            } catch (error) {
-              logger.debug('Skipping non-JSON response stream chunk', {
-                data: data.slice(0, 200),
-                error,
-              })
-              continue
-            }
-
-            const eventType = event?.type ?? activeEventType
-
-            if (
-              eventType === 'response.error' ||
-              eventType === 'error' ||
-              eventType === 'response.failed'
-            ) {
-              const errorObj = event.error as Record<string, unknown> | undefined
-              const message = (errorObj?.message as string) || 'Responses API stream error'
-              controller.error(new Error(message))
-              return
-            }
-
-            // Reasoning *summaries* only (`response.reasoning_summary_text.delta`
-            // per the Responses streaming reference) — never raw reasoning
-            // (`response.reasoning_text.delta`) and never encrypted_content.
-            if (eventType === 'response.reasoning_summary_text.delta') {
-              let deltaText = ''
-              const delta = event.delta as string | Record<string, unknown> | undefined
-              if (typeof delta === 'string') {
-                deltaText = delta
-              } else if (delta && typeof delta.text === 'string') {
-                deltaText = delta.text
-              } else if (typeof event.text === 'string') {
-                deltaText = event.text
-              }
-              if (deltaText.length > 0) {
-                fullThinking += deltaText
-                controller.enqueue({ type: 'thinking_delta', text: deltaText })
-              }
-              continue
-            }
-
-            if (
-              eventType === 'response.output_text.delta' ||
-              eventType === 'response.output_json.delta'
-            ) {
-              let deltaText = ''
-              const delta = event.delta as string | Record<string, unknown> | undefined
-              if (typeof delta === 'string') {
-                deltaText = delta
-              } else if (delta && typeof delta.text === 'string') {
-                deltaText = delta.text
-              } else if (delta && delta.json !== undefined) {
-                deltaText = JSON.stringify(delta.json)
-              } else if (event.json !== undefined) {
-                deltaText = JSON.stringify(event.json)
-              } else if (typeof event.text === 'string') {
-                deltaText = event.text
-              }
-
-              if (deltaText.length > 0) {
-                fullContent += deltaText
-                controller.enqueue({ type: 'text_delta', text: deltaText, turn: 'final' })
-              }
-            }
-
-            if (eventType === 'response.completed') {
-              const responseObj = event.response as Record<string, unknown> | undefined
-              const usageData = (responseObj?.usage ?? event.usage) as
-                | OpenAI.Responses.ResponseUsage
-                | undefined
-              finalUsage = parseResponsesUsage(usageData)
-            }
+          onComplete?.(fullContent, finalUsage, fullThinking || undefined)
+          controller.close()
+        } catch (error) {
+          if (!streamAbortController.signal.aborted) {
+            controller.error(error)
           }
         }
-
-        if (onComplete) {
-          onComplete(fullContent, finalUsage, fullThinking || undefined)
-        }
-
-        controller.close()
-      } catch (error) {
-        controller.error(error)
-      } finally {
-        reader.releaseLock()
-      }
+      })()
+    },
+    cancel(reason) {
+      streamAbortController.abort(reason)
     },
   })
 }
