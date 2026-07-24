@@ -65,6 +65,15 @@ interface FileDocRoom {
 const fileDocRooms = new Map<string, FileDocRoom>()
 /** socketId → its current file-doc room name (a socket edits at most one doc). */
 const socketToRoomName = new Map<string, string>()
+/**
+ * socketId → a monotonic join generation. A JOIN bumps it on arrival and, after
+ * the async authorization, proceeds only if the generation is still its own — so
+ * a disconnect, a LEAVE, or a newer JOIN (a fast document switch) that occurred
+ * during authorization aborts the now-stale JOIN. Without this, an out-of-order
+ * authorize completion could bind the socket to the wrong document, or a
+ * disconnect-during-authorize could register a dead socket and leak its room.
+ */
+const joinGeneration = new Map<string, number>()
 
 interface AwarenessChange {
   added: number[]
@@ -254,6 +263,10 @@ function handleMessage(socket: AuthenticatedSocket, data: unknown) {
  * Exported for the disconnect handler; safe to call for a socket in no room.
  */
 export function cleanupFileDocForSocket(socketId: string, io: Server): void {
+  // Drop the join generation so an in-flight JOIN for this socket aborts after
+  // its authorize resolves, and the map never leaks across the socket's life.
+  joinGeneration.delete(socketId)
+
   const name = socketToRoomName.get(socketId)
   if (!name) return
   socketToRoomName.delete(socketId)
@@ -315,6 +328,10 @@ export function setupWorkspaceFileDocHandlers(
         return
       }
 
+      // Claim this JOIN's generation before the async authorize below.
+      const generation = (joinGeneration.get(socket.id) ?? 0) + 1
+      joinGeneration.set(socket.id, generation)
+
       const room = fileDocRoom(fileId)
       const name = roomName(room)
 
@@ -342,6 +359,11 @@ export function setupWorkspaceFileDocHandlers(
         )
         return
       }
+
+      // Abort a JOIN superseded during authorization: the socket disconnected, or
+      // a LEAVE / newer JOIN bumped the generation. Registering here would leak a
+      // dead socket's room or bind the socket to a document it has left behind.
+      if (socket.disconnected || joinGeneration.get(socket.id) !== generation) return
 
       // Switched documents on the same socket — leave the previous one first (a
       // socket edits at most one document). A duplicate join of the SAME room
@@ -411,8 +433,18 @@ export function setupWorkspaceFileDocHandlers(
     } catch (error) {
       logger.error('Error joining file-doc room:', error)
       try {
-        socket.leave(roomName(fileDocRoom(fileId)))
+        const name = roomName(fileDocRoom(fileId))
+        socket.leave(name)
         cleanupFileDocForSocket(socket.id, io)
+        // If the failure happened after `getOrCreateRoom` but before the socket
+        // registered as an owner, `cleanupFileDocForSocket` (which keys off
+        // `socketToRoomName`) can't drop the freshly-created empty room — do it here.
+        const room = fileDocRooms.get(name)
+        if (room && room.owners.size === 0) {
+          room.awareness.destroy()
+          room.doc.destroy()
+          fileDocRooms.delete(name)
+        }
       } catch {}
       emitJoinError(socket, fileId, 'Failed to join file document', 'JOIN_FAILED', true)
     }
@@ -422,6 +454,11 @@ export function setupWorkspaceFileDocHandlers(
 
   socket.on(FILE_DOC_EVENTS.LEAVE, (payload?: LeaveFileDocPayload) => {
     try {
+      // Invalidate any in-flight JOIN for this socket: a LEAVE arriving while a
+      // JOIN is still authorizing means the client no longer wants the room by
+      // the time that JOIN resolves.
+      joinGeneration.set(socket.id, (joinGeneration.get(socket.id) ?? 0) + 1)
+
       const name = socketToRoomName.get(socket.id)
       if (!name) return
       // Scope the leave to the named file when provided: a deferred leave from a

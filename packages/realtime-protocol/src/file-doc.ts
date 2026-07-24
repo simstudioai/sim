@@ -86,6 +86,23 @@ export interface JoinFileDocSuccess {
  * recipient imports the file's stored markdown into the (empty) document. The
  * client still guards on the CRDT `initialContentLoaded` flag so a re-election
  * that races an in-flight seed can never duplicate content.
+ *
+ * Consumer (editor hook) contract — the relay depends on these to be safe:
+ * 1. **Never overwrite content with an unseeded doc.** Autosave (the markdown
+ *    mirror written through the content API) MUST be gated on the document being
+ *    both synced AND seeded (`initialContentLoaded === true`). Otherwise an empty
+ *    or still-syncing doc could be saved over the real file — the one true
+ *    data-loss path, and the reason a withholding seeder is only a liveness
+ *    nuisance rather than destructive.
+ * 2. **Seed atomically, or leave.** Write content + the flag in ONE
+ *    `doc.transact(...)`; if seeding fails, emit {@link FILE_DOC_EVENTS.LEAVE}
+ *    (or destroy the provider) so the server re-elects another client.
+ * 3. **One provider per socket.** Destroy the previous {@link FILE_DOC_EVENTS}
+ *    provider before creating the next (document switch), so a stale provider's
+ *    binary-frame listener can't apply another document's updates.
+ * 4. **Re-mint on CLIENT_ID_IN_USE.** On a `CLIENT_ID_IN_USE` join error,
+ *    recreate the Yjs doc (fresh `clientID`) and rejoin rather than giving up —
+ *    the id is transiently held by another socket of the same user.
  */
 export interface SeedRequestPayload {
   fileId: string

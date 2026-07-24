@@ -49,6 +49,7 @@ function createSocket(id: string, overrides?: Record<string, unknown>) {
     id,
     userId: 'user-1',
     userName: 'Test User',
+    disconnected: false,
     on: vi.fn((event: string, handler: Handler) => {
       handlers[event] = handler
     }),
@@ -397,5 +398,99 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
     const seed = sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)
     expect(seed?.target).toBe('socket-b')
+  })
+
+  it('aborts a join superseded by a newer join during authorization (no cross-binding)', async () => {
+    const { io } = createIo()
+    let resolveFirst: (v: unknown) => void = () => {}
+    mockAuthorizeRoom
+      .mockReturnValueOnce(new Promise((resolve) => (resolveFirst = resolve)))
+      .mockResolvedValueOnce({ allowed: true, status: 200, workspacePermission: 'write' })
+    const s = setup('socket-a', io)
+
+    const pending = s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-2', clientId: 1 })
+    resolveFirst({ allowed: true, status: 200, workspacePermission: 'write' })
+    await pending
+
+    // The socket is bound only to the newer file, never cross-bound to file-1.
+    expect(s.socket.join).toHaveBeenCalledWith('workspace-file-doc:file-2')
+    expect(s.socket.join).not.toHaveBeenCalledWith('workspace-file-doc:file-1')
+  })
+
+  it('does not register a socket that disconnected during authorization', async () => {
+    const { io, sent } = createIo()
+    let resolveAuth: (v: unknown) => void = () => {}
+    mockAuthorizeRoom.mockReturnValueOnce(new Promise((resolve) => (resolveAuth = resolve)))
+    const s = setup('socket-a', io)
+
+    const pending = s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    s.socket.disconnected = true
+    cleanupFileDocForSocket('socket-a', io) // disconnect cleanup — no-op, nothing registered yet
+    resolveAuth({ allowed: true, status: 200, workspacePermission: 'write' })
+    await pending
+
+    expect(s.socket.join).not.toHaveBeenCalled()
+    // No room leaked: a fresh joiner starts a new document and is elected to seed.
+    const b = setup('socket-b', io)
+    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+    expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)?.target).toBe('socket-b')
+  })
+
+  it('scopes LEAVE to the named file (a leave for a different file is a no-op)', async () => {
+    const { io } = createIo()
+    const a = setup('socket-a', io)
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+
+    a.handlers[FILE_DOC_EVENTS.LEAVE]({ fileId: 'other' })
+    expect(a.socket.leave).not.toHaveBeenCalledWith(ROOM_NAME)
+
+    a.handlers[FILE_DOC_EVENTS.LEAVE]({ fileId: 'file-1' })
+    expect(a.socket.leave).toHaveBeenCalledWith(ROOM_NAME)
+  })
+
+  it('replies with a sync step 2 to the sender on a sync step 1 frame', async () => {
+    const { io } = createIo()
+    const a = setup('socket-a', io)
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    // Give the server doc some content so a step-1 request yields a non-empty step 2.
+    const seeded = new Y.Doc()
+    seeded.getText('default').insert(0, 'hi')
+    a.handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
+        syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(seeded))
+      )
+    )
+    a.socket.emit.mockClear()
+
+    a.handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) => syncProtocol.writeSyncStep1(e, new Y.Doc()))
+    )
+
+    const reply = a.socket.emit.mock.calls.find(
+      ([event, payload]) => event === FILE_DOC_EVENTS.MESSAGE && payload instanceof Uint8Array
+    )
+    expect((reply?.[1] as Uint8Array)[0]).toBe(FILE_DOC_MESSAGE_TYPE.SYNC)
+  })
+
+  it('does not re-elect a seeder once the document is marked seeded', async () => {
+    const { io, sent } = createIo()
+    const a = setup('socket-a', io)
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 }) // a elected seeder
+    // a seeds: set the CRDT initialContentLoaded flag on the server doc.
+    const seeded = new Y.Doc()
+    seeded.getMap('config').set('initialContentLoaded', true)
+    a.handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
+        syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(seeded))
+      )
+    )
+    const b = setup('socket-b', io)
+    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+    sent.length = 0
+
+    // The seeder leaves a SEEDED doc → no re-election (no duplicate seed).
+    cleanupFileDocForSocket('socket-a', io)
+    expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)).toBeUndefined()
   })
 })
