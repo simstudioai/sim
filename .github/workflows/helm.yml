@@ -37,8 +37,11 @@ jobs:
 
       - name: Helm unit tests
         run: |
-          # Official helm-unittest image, pinned by immutable digest (tag 3.17.3-0.8.2)
-          docker run --rm -v "$PWD/helm/sim:/apps" \
+          # Official helm-unittest image, pinned by immutable digest (tag 3.17.3-0.8.2).
+          # Run as the runner's UID so the container can write into the bind
+          # mount (it creates tests/__snapshot__), with a writable HOME for helm.
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "$PWD/helm/sim:/apps" \
             helmunittest/helm-unittest@sha256:b653db7d5665bc6cec677b15c5eaa1c0377c0de8ac4eb1df58b924478baa21e1 .
 
       - name: Install kubeconform
