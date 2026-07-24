@@ -852,11 +852,17 @@ export async function executeAnthropicProviderRequest(
 
       const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
 
+      /**
+       * The regeneration exists purely to stream the settled answer as prose —
+       * streamed tool_use is never executed on this path. `tools` must stay
+       * (history contains tool_use blocks) but tool choice is pinned to none;
+       * with tools present and no choice, `auto` would let the model re-call.
+       */
       const streamingPayload = {
         ...payload,
         messages: currentMessages,
         stream: true,
-        tool_choice: undefined,
+        tool_choice: payload.tools?.length ? ({ type: 'none' } as const) : undefined,
       }
 
       const streamResponse = await anthropic.messages.create(
@@ -890,7 +896,12 @@ export async function executeAnthropicProviderRequest(
           createReadableStreamFromAnthropicStream(
             streamResponse as AsyncIterable<RawMessageStreamEvent>,
             ({ content: streamContent, usage, thinking }) => {
-              output.content = streamContent
+              if (!streamContent && content) {
+                logger.warn(
+                  `${providerLabel} final stream produced no text; keeping tool-loop answer`
+                )
+              }
+              output.content = streamContent || content
               output.tokens = {
                 input: tokens.input + usage.input_tokens,
                 output: tokens.output + usage.output_tokens,
@@ -1286,11 +1297,12 @@ export async function executeAnthropicProviderRequest(
     if (request.stream) {
       logger.info(`Using streaming for final ${providerLabel} response after tool processing`)
 
+      /** Same regeneration guard as the primary path: prose only, no re-calls. */
       const streamingPayload = {
         ...payload,
         messages: currentMessages,
         stream: true,
-        tool_choice: undefined,
+        tool_choice: payload.tools?.length ? ({ type: 'none' } as const) : undefined,
       }
 
       const streamResponse = await anthropic.messages.create(
@@ -1324,7 +1336,12 @@ export async function executeAnthropicProviderRequest(
           createReadableStreamFromAnthropicStream(
             streamResponse as AsyncIterable<RawMessageStreamEvent>,
             ({ content: streamContent, usage, thinking }) => {
-              output.content = streamContent
+              if (!streamContent && content) {
+                logger.warn(
+                  `${providerLabel} final stream produced no text; keeping tool-loop answer`
+                )
+              }
+              output.content = streamContent || content
               output.tokens = {
                 input: tokens.input + usage.input_tokens,
                 output: tokens.output + usage.output_tokens,

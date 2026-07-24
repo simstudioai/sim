@@ -480,10 +480,14 @@ export const xAIProvider: ProviderConfig = {
             stream: true,
           }
         } else {
+          /**
+           * The regeneration exists purely to stream the settled answer as
+           * prose — streamed tool_calls are never executed on this path.
+           */
           finalStreamingPayload = {
             ...basePayload,
             messages: currentMessages,
-            tool_choice: 'auto',
+            tool_choice: 'none',
             tools: preparedTools?.tools,
             stream: true,
           }
@@ -532,8 +536,11 @@ export const xAIProvider: ProviderConfig = {
             createReadableStreamFromXAIStream(
               // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; the stream yields OpenAI ChatCompletionChunk objects
               streamResponse as unknown as AsyncIterable<ChatCompletionChunk>,
-              (content, usage) => {
-                output.content = content
+              (streamedContent, usage) => {
+                if (!streamedContent && content) {
+                  logger.warn('xAI final stream produced no text; keeping tool-loop answer')
+                }
+                output.content = streamedContent || content
                 output.tokens = {
                   input: tokens.input + usage.prompt_tokens,
                   output: tokens.output + usage.completion_tokens,

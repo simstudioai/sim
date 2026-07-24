@@ -544,10 +544,15 @@ export const deepseekProvider: ProviderConfig = {
       if (request.stream) {
         logger.info('Using streaming for final DeepSeek response after tool processing')
 
+        /**
+         * The regeneration exists purely to stream the settled answer as prose —
+         * streamed tool_calls are never executed on this path; with `auto` a
+         * model can re-call and end the stream with no text.
+         */
         const streamingPayload = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'auto',
+          tool_choice: 'none',
           stream: true,
         }
 
@@ -594,8 +599,11 @@ export const deepseekProvider: ProviderConfig = {
             createReadableStreamFromDeepseekStream(
               // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; the stream yields OpenAI ChatCompletionChunk objects
               streamResponse as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>,
-              (content, usage, thinking) => {
-                output.content = content
+              (streamedContent, usage, thinking) => {
+                if (!streamedContent && content) {
+                  logger.warn('DeepSeek final stream produced no text; keeping tool-loop answer')
+                }
+                output.content = streamedContent || content
                 output.tokens = {
                   input: tokens.input + usage.prompt_tokens,
                   output: tokens.output + usage.completion_tokens,

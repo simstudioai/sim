@@ -3,6 +3,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import type OpenAI from 'openai'
 import type { IterationToolCall, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegment, parseToolCallArguments } from '@/providers/trace-enrichment'
@@ -385,6 +386,12 @@ export async function executeResponsesProviderRequest(
 
     const toolCalls = []
     const toolResults: Record<string, unknown>[] = []
+    /**
+     * Executed calls in completion order, for settled tool chips on the
+     * regenerated answer stream (the silent loop has no live stream to emit
+     * lifecycle events on while tools actually run).
+     */
+    const toolLifecycle: Array<{ id: string; name: string; status: ToolCallEndStatus }> = []
     let iterationCount = 0
     let modelTime = firstResponseTime
     let toolsTime = 0
@@ -522,6 +529,12 @@ export async function executeResponsesProviderRequest(
           duration: duration,
           result: resultContent,
           success: result.success,
+        })
+
+        toolLifecycle.push({
+          id: toolCall.id,
+          name: toolName,
+          status: result.success ? 'success' : 'error',
         })
 
         currentInput.push({
@@ -701,8 +714,13 @@ export async function executeResponsesProviderRequest(
 
       const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
 
-      // For Azure with deferred format in streaming mode, include the format in the streaming call
-      const streamOverrides: Record<string, unknown> = { stream: true, tool_choice: 'auto' }
+      /**
+       * The regeneration exists purely to stream the settled answer as prose —
+       * streamed function calls are never executed. With `tool_choice: 'auto'`
+       * a reasoning model can re-decide to call a tool here, ending the stream
+       * with a dead function_call and an empty answer.
+       */
+      const streamOverrides: Record<string, unknown> = { stream: true, tool_choice: 'none' }
       if (deferredTextFormat) {
         streamOverrides.text = {
           ...((basePayload.text as Record<string, unknown>) ?? {}),
@@ -734,35 +752,86 @@ export async function executeResponsesProviderRequest(
         },
         toolCalls: toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
         streamFormat: 'agent-events-v1',
-        createStream: ({ output }) =>
-          createReadableStreamFromResponses(streamResponse, (content, usage, thinking) => {
-            output.content = content
-            output.tokens = {
-              input: tokens.input + (usage?.promptTokens || 0),
-              output: tokens.output + (usage?.completionTokens || 0),
-              total: tokens.total + (usage?.totalTokens || 0),
-            }
+        createStream: ({ output }) => {
+          const answerStream = createReadableStreamFromResponses(
+            streamResponse,
+            (streamedContent, usage, thinking) => {
+              /**
+               * Belt-and-braces for the regeneration ending without text: keep
+               * the tool loop's settled answer instead of clobbering it with an
+               * empty string (clients then render it from the final envelope).
+               */
+              if (!streamedContent && content) {
+                logger.warn(
+                  `${config.providerLabel} final stream produced no text; keeping tool-loop answer`
+                )
+              }
+              output.content = streamedContent || content
+              output.tokens = {
+                input: tokens.input + (usage?.promptTokens || 0),
+                output: tokens.output + (usage?.completionTokens || 0),
+                total: tokens.total + (usage?.totalTokens || 0),
+              }
 
-            const streamCost = calculateCost(
-              request.model,
-              usage?.promptTokens || 0,
-              usage?.completionTokens || 0
-            )
-            const tc = sumToolCosts(toolResults)
-            output.cost = {
-              input: accumulatedCost.input + streamCost.input,
-              output: accumulatedCost.output + streamCost.output,
-              toolCost: tc || undefined,
-              total: accumulatedCost.total + streamCost.total + tc,
-            }
+              const streamCost = calculateCost(
+                request.model,
+                usage?.promptTokens || 0,
+                usage?.completionTokens || 0
+              )
+              const tc = sumToolCosts(toolResults)
+              output.cost = {
+                input: accumulatedCost.input + streamCost.input,
+                output: accumulatedCost.output + streamCost.output,
+                toolCost: tc || undefined,
+                total: accumulatedCost.total + streamCost.total + tc,
+              }
 
-            if (thinking) {
-              const lastModel = [...timeSegments].reverse().find((s) => s.type === 'model')
-              if (lastModel) {
-                lastModel.thinkingContent = thinking
+              if (thinking) {
+                const lastModel = [...timeSegments].reverse().find((s) => s.type === 'model')
+                if (lastModel) {
+                  lastModel.thinkingContent = thinking
+                }
               }
             }
-          }),
+          )
+
+          if (toolLifecycle.length === 0) {
+            return answerStream
+          }
+
+          /**
+           * Settled tool chips ride ahead of the answer: the silent loop's
+           * calls already completed, so opted-in consumers get start+end pairs
+           * (name + status only) before the regenerated text streams. Runs
+           * without a sink never see these events (the byte projection ignores
+           * non-text), so legacy output is unchanged.
+           */
+          const answerReader = answerStream.getReader()
+          return new ReadableStream<AgentStreamEvent>({
+            start(controller) {
+              for (const call of toolLifecycle) {
+                controller.enqueue({ type: 'tool_call_start', id: call.id, name: call.name })
+                controller.enqueue({
+                  type: 'tool_call_end',
+                  id: call.id,
+                  name: call.name,
+                  status: call.status,
+                })
+              }
+            },
+            async pull(controller) {
+              const { done, value } = await answerReader.read()
+              if (done) {
+                controller.close()
+                return
+              }
+              controller.enqueue(value)
+            },
+            cancel(reason) {
+              return answerReader.cancel(reason)
+            },
+          })
+        },
       })
 
       return streamingResult

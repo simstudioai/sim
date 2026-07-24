@@ -1239,7 +1239,20 @@ export async function executeGeminiRequest(
                 request.responseFormat.schema
               ) as Schema
             }
+          } else if (nextConfig.tools) {
+            /**
+             * The regeneration exists purely to stream the settled answer as
+             * prose — streamed function calls are never executed. With AUTO the
+             * model can re-decide to call a tool here, ending the stream with a
+             * dead functionCall and an empty answer.
+             */
+            nextConfig.toolConfig = {
+              functionCallingConfig: { mode: FunctionCallingConfigMode.NONE },
+            }
           }
+
+          /** Settled answer from the check response — kept if the stream ends without text. */
+          const checkAnswer = extractTextContent(checkResponse.candidates?.[0])
 
           // Capture accumulated cost before streaming
           const accumulatedCost = {
@@ -1267,7 +1280,10 @@ export async function executeGeminiRequest(
           const stream = createReadableStreamFromGeminiStream(
             streamGenerator,
             (streamContent: string, usage: GeminiUsage, thinking?: string) => {
-              streamingResult.execution.output.content = streamContent
+              if (!streamContent && checkAnswer) {
+                logger.warn('Gemini final stream produced no text; keeping tool-loop answer')
+              }
+              streamingResult.execution.output.content = streamContent || checkAnswer
               streamingResult.execution.output.tokens = {
                 input: accumulatedTokens.input + usage.promptTokenCount,
                 output: accumulatedTokens.output + usage.candidatesTokenCount,

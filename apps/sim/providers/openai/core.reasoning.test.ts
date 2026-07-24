@@ -6,9 +6,10 @@
  * without explicit effort keep a reasoning-free payload, and the
  * unverified-organization 400 falls back to a summary-free retry.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
 import type { ProviderRequest } from '@/providers/types'
+import { executeTool } from '@/tools'
 
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
 
@@ -161,5 +162,77 @@ describe('executeResponsesProviderRequest reasoning payload', () => {
     await run({ model: 'gpt-4o', agentEvents: true })
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
     expect(body.reasoning).toBeUndefined()
+  })
+
+  describe('final regenerated stream after the tool loop', () => {
+    const TOOL_CALL_RESPONSE = {
+      id: 'resp_tool',
+      status: 'completed',
+      output: [{ type: 'function_call', call_id: 'call_1', name: 'exa_search', arguments: '{}' }],
+      usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+    }
+
+    const SETTLED_ANSWER_RESPONSE = {
+      id: 'resp_answer',
+      status: 'completed',
+      output: [
+        {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Settled answer from loop' }],
+        },
+      ],
+      usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+    }
+
+    /** An SSE stream that ends without any output_text (dead function_call turn). */
+    function emptySseResponse() {
+      return new Response('data: {"type":"response.completed"}\n\ndata: [DONE]\n\n', {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    }
+
+    async function collect(stream: ReadableStream<unknown>) {
+      const events: unknown[] = []
+      const reader = stream.getReader()
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        events.push(value)
+      }
+      return events
+    }
+
+    it('forces tool_choice none and keeps the tool-loop answer when the stream has no text', async () => {
+      ;(executeTool as Mock).mockResolvedValue({ success: true, output: { results: [] } })
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse(TOOL_CALL_RESPONSE))
+        .mockResolvedValueOnce(jsonResponse(SETTLED_ANSWER_RESPONSE))
+        .mockResolvedValueOnce(emptySseResponse())
+
+      const result = (await run({
+        model: 'gpt-5.5',
+        stream: true,
+        tools: [{ id: 'exa_search', name: 'exa_search', description: 'd', parameters: {} }] as any,
+      })) as { stream: ReadableStream<unknown>; execution: { output: { content: string } } }
+
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      const streamBody = JSON.parse(fetchMock.mock.calls[2][1].body as string)
+      expect(streamBody.stream).toBe(true)
+      // The regeneration exists to stream prose; streamed calls are never executed.
+      expect(streamBody.tool_choice).toBe('none')
+
+      const events = await collect(result.stream)
+      // Settled chips for the silent loop's executed calls ride ahead of the answer.
+      expect(events[0]).toEqual({ type: 'tool_call_start', id: 'call_1', name: 'exa_search' })
+      expect(events[1]).toEqual({
+        type: 'tool_call_end',
+        id: 'call_1',
+        name: 'exa_search',
+        status: 'success',
+      })
+      expect(result.execution.output.content).toBe('Settled answer from loop')
+    })
   })
 })
