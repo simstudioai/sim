@@ -154,4 +154,36 @@ describe('createMainWindow', () => {
     leaveFullscreenHandler?.()
     expect(win.setTitle).toHaveBeenLastCalledWith('Sim')
   })
+
+  it('lets the OS cascade secondary windows instead of reusing the saved position', () => {
+    const config = {
+      filePath: '/tmp/settings.json',
+      getOrigin: vi.fn(() => APP),
+      setOrigin: vi.fn(),
+      get: vi.fn(() => ({ x: 40, y: 60, width: 1200, height: 800 })),
+      set: vi.fn(),
+    } as unknown as ConfigStore
+    const events = {
+      filePath: '/tmp/events.jsonl',
+      record: vi.fn(),
+    } satisfies EventRecorder
+
+    createMainWindow({
+      config,
+      events,
+      appOrigin: () => APP,
+      partition: 'persist:sim',
+      preloadPath: '/tmp/preload.cjs',
+      isPackaged: false,
+      onClosed: vi.fn(),
+      restorePosition: false,
+    })
+
+    const MockBrowserWindow = BrowserWindow as typeof BrowserWindow & {
+      lastOptions?: Record<string, unknown>
+    }
+    expect(MockBrowserWindow.lastOptions).toMatchObject({ width: 1200, height: 800 })
+    expect(MockBrowserWindow.lastOptions?.x).toBeUndefined()
+    expect(MockBrowserWindow.lastOptions?.y).toBeUndefined()
+  })
 })

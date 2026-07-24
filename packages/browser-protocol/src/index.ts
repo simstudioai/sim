@@ -19,6 +19,7 @@
 
 export const BROWSER_TOOL_NAMES = [
   'browser_navigate',
+  'browser_open_url',
   'browser_go_back',
   'browser_go_forward',
   'browser_open_tab',

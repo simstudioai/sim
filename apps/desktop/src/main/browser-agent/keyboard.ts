@@ -118,6 +118,29 @@ function macEditingCommands(combo: ParsedCombo, platform: NodeJS.Platform): stri
 }
 
 /**
+ * The characters a combo would insert, or undefined when it only moves the
+ * caret or triggers an editing command. Enter counts: it carries "\r" and
+ * activates defaults such as form submission.
+ */
+function insertedTextFor(combo: ParsedCombo): string | undefined {
+  if (combo.key === 'Enter') return '\r'
+  const printable = combo.key.length === 1 && !combo.ctrl && !combo.meta
+  return printable ? combo.key : undefined
+}
+
+/**
+ * Whether a combo would put characters into whatever the page has focused.
+ * Shares {@link insertedTextFor} with the dispatcher so a guard built on this
+ * cannot drift from what is actually sent.
+ */
+export function comboInsertsText(
+  rawCombo: ParsedCombo,
+  platform: NodeJS.Platform = process.platform
+): boolean {
+  return insertedTextFor(normalizeComboForPlatform(rawCombo, platform)) !== undefined
+}
+
+/**
  * Builds the trusted keyDown/keyUp pair for a combo. Printable keys without
  * ctrl/meta carry `text` so Blink inserts the character; Enter carries "\r"
  * so it activates defaults (form submission, newline). Everything else is a
@@ -137,8 +160,7 @@ export function buildKeyDispatchPlan(
     windowsVirtualKeyCode: combo.keyCode,
     nativeVirtualKeyCode: combo.keyCode,
   }
-  const printable = combo.key.length === 1 && !combo.ctrl && !combo.meta
-  const text = combo.key === 'Enter' ? '\r' : printable ? combo.key : undefined
+  const text = insertedTextFor(combo)
   const commands = macEditingCommands(combo, platform)
   const down: cdp.CdpKeyEvent = {
     ...base,

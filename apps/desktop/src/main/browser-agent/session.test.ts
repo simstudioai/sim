@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 import { MAX_BROWSER_TABS } from '@sim/browser-protocol'
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, session as electronSession } from 'electron'
 
 type SessionModule = typeof import('@/main/browser-agent/session')
 
@@ -16,6 +16,8 @@ interface MockView {
     on: ReturnType<typeof vi.fn>
     setWindowOpenHandler: ReturnType<typeof vi.fn>
     loadURL: ReturnType<typeof vi.fn>
+    getURL: ReturnType<typeof vi.fn>
+    close: ReturnType<typeof vi.fn>
     focus: ReturnType<typeof vi.fn>
     isFocused: ReturnType<typeof vi.fn>
     isDestroyed: ReturnType<typeof vi.fn>
@@ -277,6 +279,68 @@ describe('browser-agent session', () => {
 
     expect(() => session.switchTab('999')).toThrow(/No tab with id 999/)
     expect(() => session.closeTab('999')).toThrow(/No tab with id 999/)
+  })
+
+  it('selects the neighboring tab when the active tab closes', () => {
+    const first = session.ensureTab()
+    const second = session.addTab()
+    const third = session.addTab()
+
+    session.switchTab(second.id)
+    session.closeTab(second.id)
+    expect(session.activeTab()?.id).toBe(third.id)
+
+    session.closeTab(third.id)
+    expect(session.activeTab()?.id).toBe(first.id)
+  })
+
+  it('reopens the latest closed tab while the browser owns focus', () => {
+    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    session.ensureTab()
+    const closed = session.addTab()
+    session.setPanelFocused(true)
+    session.closeTab(closed.id)
+
+    expect(session.reopenFocusedTab()).toBe(true)
+    const reopened = session.activeTab()
+    expect(reopened?.id).not.toBe(closed.id)
+    const contents = (reopened?.view as unknown as MockView | undefined)?.webContents
+    expect(contents?.loadURL).toHaveBeenCalledWith('https://example.com/')
+    expect(contents?.focus).toHaveBeenCalled()
+
+    session.setPanelFocused(false)
+    expect(session.reopenFocusedTab()).toBe(false)
+  })
+
+  it('keeps stale reports from another app window from hiding or controlling the browser panel', () => {
+    const otherWindow = mainWindowMock()
+    session.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 }, win)
+    session.ensureTab()
+    vi.mocked(win.contentView.removeChildView).mockClear()
+
+    session.setPanelBounds(null, otherWindow)
+    expect(win.contentView.removeChildView).not.toHaveBeenCalled()
+
+    session.setPanelFocused(true, win)
+    expect(session.closeFocusedTab(otherWindow)).toBe(false)
+    expect(session.closeFocusedTab(win)).toBe(true)
+  })
+
+  it('reorders tabs while preserving the pinned-tab boundary', () => {
+    const first = session.ensureTab()
+    const second = session.addTab()
+    const third = session.addTab()
+
+    session.reorderTab(third.id, 0)
+    expect(session.listTabs().map((tab) => tab.tabId)).toEqual([third.id, first.id, second.id])
+
+    session.setTabPinned(first.id, true)
+    session.reorderTab(second.id, 0)
+    expect(session.listTabs().map((tab) => tab.tabId)).toEqual([first.id, second.id, third.id])
+
+    session.reorderTab(first.id, 2)
+    expect(session.listTabs().map((tab) => tab.tabId)).toEqual([first.id, second.id, third.id])
+    expect(() => session.reorderTab('999', 0)).toThrow(/No tab with id 999/)
   })
 
   it('moves pinned tabs left and requires unpinning before any close path', async () => {
@@ -557,5 +621,222 @@ describe('browser-agent session', () => {
 
     const checkHandler = ses.setPermissionCheckHandler.mock.calls[0][0] as () => boolean
     expect(checkHandler()).toBe(false)
+  })
+
+  it('leaves nothing of the signed-out user behind in the browser profile', async () => {
+    const clearStorageData = vi.fn(async () => {})
+    const clearCache = vi.fn(async () => {})
+    vi.mocked(electronSession.fromPartition).mockReturnValue({
+      clearStorageData,
+      clearCache,
+    } as unknown as ReturnType<typeof electronSession.fromPartition>)
+    const save = vi.fn()
+    session = await freshSession(win, {}, { load: () => [], save })
+
+    session.setPanelBounds({ x: 0, y: 0, width: 800, height: 600 })
+    const survivor = (session.ensureTab().view as unknown as MockView).webContents
+    session.closeTab(session.addTab().id)
+    expect(session.reopenClosedTab()).not.toBeNull()
+
+    await session.clearBrowserProfile()
+
+    expect(survivor.close).toHaveBeenCalled()
+    expect(session.listTabs()).toHaveLength(0)
+    // Reopen Closed Tab must not resurrect the previous account's browsing.
+    expect(session.reopenClosedTab()).toBeNull()
+    expect(save).toHaveBeenLastCalledWith([])
+    expect(clearStorageData).toHaveBeenCalled()
+    expect(clearCache).toHaveBeenCalled()
+  })
+
+  it('hardens every distinct session, not only the first one configured', () => {
+    // Guards against tracking this with one process-wide flag: the second
+    // session would then be left with no permission handlers, no SSRF request
+    // filtering, and no download blocking — silently, and still passing types.
+    const first = (session.ensureTab().view as unknown as MockView).webContents.session
+    const second = (session.addTab().view as unknown as MockView).webContents.session
+    expect(second).not.toBe(first)
+
+    for (const ses of [first, second]) {
+      expect(ses.setPermissionRequestHandler).toHaveBeenCalled()
+      expect(ses.setPermissionCheckHandler).toHaveBeenCalled()
+    }
+  })
+})
+
+/**
+ * The browser is one native surface shared by every app window, so exactly one
+ * window may drive it at a time. These cover who is allowed to take it.
+ */
+describe('browser panel ownership', () => {
+  const BOUNDS = { x: 0, y: 0, width: 800, height: 600 }
+  let win: BrowserWindow
+  let other: BrowserWindow
+  let session: SessionModule
+
+  beforeEach(async () => {
+    win = mainWindowMock()
+    other = mainWindowMock()
+    session = await freshSession(win)
+  })
+
+  it('lets any window claim a panel nobody owns yet', () => {
+    expect(session.canReportPanelBounds(other, null)).toBe(true)
+  })
+
+  it('keeps the owner reporting while Sim sits in the background', () => {
+    session.setPanelBounds(BOUNDS, win)
+
+    // Nothing is focused, but the owner has not changed.
+    expect(session.canReportPanelBounds(win, null)).toBe(true)
+  })
+
+  it('refuses a second window claiming the panel while nothing is focused', () => {
+    session.setPanelBounds(BOUNDS, win)
+
+    // Both windows heartbeat their bounds every second. Allowing an unfocused
+    // claim makes them alternate ownership, re-parenting the native view
+    // between windows roughly once a second for as long as Sim is unfocused.
+    expect(session.canReportPanelBounds(other, null)).toBe(false)
+  })
+
+  it('transfers ownership to the window the user focused', () => {
+    session.setPanelBounds(BOUNDS, win)
+
+    expect(session.canReportPanelBounds(other, other)).toBe(true)
+  })
+
+  it('frees the panel once the owning window is gone', () => {
+    session.setPanelBounds(BOUNDS, win)
+    vi.mocked(win.isDestroyed).mockReturnValue(true)
+
+    expect(session.canReportPanelBounds(other, null)).toBe(true)
+  })
+
+  it('releases the panel when the owning window closes', () => {
+    session.setPanelBounds(BOUNDS, win)
+    const view = session.ensureTab().view as unknown as MockView
+    view.setVisible.mockClear()
+
+    // Electron destroys the window before emitting `closed`, so the release
+    // arrives from an already-destroyed window and must still be honoured.
+    vi.mocked(win.isDestroyed).mockReturnValue(true)
+    session.setPanelBounds(null, win)
+
+    expect(session.canReportPanelBounds(other, null)).toBe(true)
+    // Left owned, the next layout would re-parent the browser onto another
+    // window at the closed window's bounds.
+    expect(view.setVisible).not.toHaveBeenCalledWith(true)
+  })
+
+  it('ignores a live non-owner trying to hide the panel', () => {
+    session.setPanelBounds(BOUNDS, win)
+
+    session.setPanelBounds(null, other)
+
+    expect(session.canReportPanelBounds(other, null)).toBe(false)
+  })
+
+  it('ignores panel updates from a window that does not own the panel', () => {
+    session.setPanelBounds(BOUNDS, win)
+    const view = session.ensureTab().view as unknown as MockView
+    view.webContents.capturePage.mockClear()
+
+    session.setPanelOccluded(true, other)
+
+    expect(view.webContents.capturePage).not.toHaveBeenCalled()
+  })
+
+  it('accepts panel updates from a live window once the owner is destroyed', () => {
+    session.setPanelBounds(BOUNDS, win)
+    const view = session.ensureTab().view as unknown as MockView
+    vi.mocked(win.isDestroyed).mockReturnValue(true)
+    view.webContents.capturePage.mockClear()
+
+    session.setPanelOccluded(true, other)
+
+    // A stale owner must not keep rejecting the window actually on screen.
+    expect(view.webContents.capturePage).toHaveBeenCalled()
+  })
+
+  it('withholds a captured frame from a window that lost ownership mid-capture', async () => {
+    session.setPanelBounds(BOUNDS, win)
+    session.ensureTab()
+    const send = vi.mocked(win.webContents.send)
+    send.mockClear()
+
+    session.setPanelOccluded(true, win)
+    session.setPanelBounds(BOUNDS, other)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    // The frame is a picture of the page; the window no longer showing the
+    // browser has no business receiving it.
+    expect(
+      send.mock.calls.filter(([channel]) => channel === 'browser-agent:panel-snapshot')
+    ).toEqual([])
+  })
+
+  it('delivers a captured frame to an owner that kept the panel', async () => {
+    session.setPanelBounds(BOUNDS, win)
+    session.ensureTab()
+    const send = vi.mocked(win.webContents.send)
+    send.mockClear()
+
+    session.setPanelOccluded(true, win)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(
+      send.mock.calls.filter(([channel]) => channel === 'browser-agent:panel-snapshot').length
+    ).toBe(1)
+  })
+})
+
+describe('reopening a closed tab', () => {
+  let win: BrowserWindow
+  let session: SessionModule
+
+  beforeEach(async () => {
+    win = mainWindowMock()
+    session = await freshSession(win)
+  })
+
+  it('restores an ordinary closed tab', () => {
+    session.ensureTab()
+    const closing = session.addTab()
+    ;(closing.view as unknown as MockView).webContents.getURL.mockReturnValue(
+      'https://example.com/inbox'
+    )
+    session.closeTab(closing.id)
+
+    const reopened = session.reopenClosedTab()
+
+    expect((reopened?.view as unknown as MockView).webContents.loadURL).toHaveBeenCalledWith(
+      'https://example.com/inbox'
+    )
+  })
+
+  it('never revives a URL carrying embedded credentials', () => {
+    session.ensureTab()
+    const closing = session.addTab()
+    ;(closing.view as unknown as MockView).webContents.getURL.mockReturnValue(
+      'https://user:secret@example.com/inbox'
+    )
+    session.closeTab(closing.id)
+
+    const reopened = session.reopenClosedTab()
+
+    // Falls back to a blank tab rather than re-sending the credentials.
+    expect((reopened?.view as unknown as MockView).webContents.loadURL).not.toHaveBeenCalled()
+  })
+
+  it('drops a non-http scheme from the reopen list', () => {
+    session.ensureTab()
+    const closing = session.addTab()
+    ;(closing.view as unknown as MockView).webContents.getURL.mockReturnValue('file:///etc/passwd')
+    session.closeTab(closing.id)
+
+    const reopened = session.reopenClosedTab()
+
+    expect((reopened?.view as unknown as MockView).webContents.loadURL).not.toHaveBeenCalled()
   })
 })

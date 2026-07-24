@@ -122,6 +122,16 @@ export function setBrowserTabPinned(tabId: string, pinned: boolean): void {
   bridge()?.setTabPinned?.(tabId, pinned)
 }
 
+/** Whether the installed desktop shell supports user-driven browser-tab ordering. */
+export function isBrowserTabReorderingAvailable(): boolean {
+  return typeof bridge()?.reorderTab === 'function'
+}
+
+/** Moves a live browser tab to its final list index when supported by the shell. */
+export function reorderBrowserTab(tabId: string, targetIndex: number): void {
+  bridge()?.reorderTab?.(tabId, targetIndex)
+}
+
 /** Mirrors Sim's raw light/dark/system preference into embedded pages. */
 export function reportBrowserTheme(theme: BrowserTheme): void {
   bridge()?.setTheme?.(theme)

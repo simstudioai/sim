@@ -16,9 +16,11 @@ export interface ToolCatalogEntry {
     | 'browser_go_back'
     | 'browser_go_forward'
     | 'browser_hover'
+    | 'browser_list_sessions'
     | 'browser_list_tabs'
     | 'browser_navigate'
     | 'browser_open_tab'
+    | 'browser_open_url'
     | 'browser_press_key'
     | 'browser_read_text'
     | 'browser_request_takeover'
@@ -133,9 +135,11 @@ export interface ToolCatalogEntry {
     | 'browser_go_back'
     | 'browser_go_forward'
     | 'browser_hover'
+    | 'browser_list_sessions'
     | 'browser_list_tabs'
     | 'browser_navigate'
     | 'browser_open_tab'
+    | 'browser_open_url'
     | 'browser_press_key'
     | 'browser_read_text'
     | 'browser_request_takeover'
@@ -397,6 +401,15 @@ export const BrowserHover: ToolCatalogEntry = {
   clientExecutable: true,
 }
 
+export const BrowserListSessions: ToolCatalogEntry = {
+  id: 'browser_list_sessions',
+  name: 'browser_list_sessions',
+  route: 'client',
+  mode: 'async',
+  parameters: { type: 'object', properties: {} },
+  clientExecutable: true,
+}
+
 export const BrowserListTabs: ToolCatalogEntry = {
   id: 'browser_list_tabs',
   name: 'browser_list_tabs',
@@ -433,6 +446,25 @@ export const BrowserOpenTab: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: { url: { type: 'string', description: 'Optional URL to open the new tab at.' } },
+  },
+  clientExecutable: true,
+}
+
+export const BrowserOpenUrl: ToolCatalogEntry = {
+  id: 'browser_open_url',
+  name: 'browser_open_url',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      url: {
+        type: 'string',
+        description:
+          'The absolute URL to open, including scheme (https:// or http:// — localhost/local dev URLs are supported).',
+      },
+    },
+    required: ['url'],
   },
   clientExecutable: true,
 }
@@ -481,6 +513,12 @@ export const BrowserRequestTakeover: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
+      purpose: {
+        type: 'string',
+        description:
+          'Why takeover is needed. Set sign_in for a login/password flow so the desktop can remember a privacy-preserving session hint after the user finishes.',
+        enum: ['sign_in', 'captcha', 'payment', 'sensitive_confirmation', 'other'],
+      },
       reason: {
         type: 'string',
         description:
@@ -5159,9 +5197,11 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [BrowserGoBack.id]: BrowserGoBack,
   [BrowserGoForward.id]: BrowserGoForward,
   [BrowserHover.id]: BrowserHover,
+  [BrowserListSessions.id]: BrowserListSessions,
   [BrowserListTabs.id]: BrowserListTabs,
   [BrowserNavigate.id]: BrowserNavigate,
   [BrowserOpenTab.id]: BrowserOpenTab,
+  [BrowserOpenUrl.id]: BrowserOpenUrl,
   [BrowserPressKey.id]: BrowserPressKey,
   [BrowserReadText.id]: BrowserReadText,
   [BrowserRequestTakeover.id]: BrowserRequestTakeover,

@@ -32,6 +32,7 @@ const WAIT_FOR_TIMEOUT_GRACE_MS = 15_000
  */
 const SESSION_REVIVAL_TOOLS: ReadonlySet<BrowserToolName> = new Set<BrowserToolName>([
   'browser_navigate',
+  'browser_open_url',
   'browser_open_tab',
   'browser_list_tabs',
 ])
@@ -83,6 +84,7 @@ function timeoutForTool(toolName: BrowserToolName, params: Record<string, unknow
   if (toolName === 'browser_request_takeover') return null
   if (
     toolName === 'browser_navigate' ||
+    toolName === 'browser_open_url' ||
     toolName === 'browser_go_back' ||
     toolName === 'browser_go_forward' ||
     toolName === 'browser_open_tab'

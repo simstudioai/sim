@@ -35,6 +35,11 @@ export interface SimDesktopBrowserAgentApi {
    */
   setTabPinned?(tabId: string, pinned: boolean): void
   /**
+   * Move a live tab to a final list index. Optional for compatibility with
+   * desktop builds predating tab reordering.
+   */
+  reorderTab?(tabId: string, targetIndex: number): void
+  /**
    * Report where the browser panel sits in the window (CSS pixels relative
    * to the viewport), or null when the panel is hidden/unmounted. The main
    * process keeps the embedded view glued to this rect.

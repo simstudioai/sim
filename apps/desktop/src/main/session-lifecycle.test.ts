@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import type { Session } from 'electron'
+import { BrowserWindow, type Session } from 'electron'
 import {
+  createSessionLifecycleCoordinator,
   decideStartRoute,
   isLogoutNavigation,
   isSessionCookieName,
@@ -138,7 +139,7 @@ describe('probeSession', () => {
 })
 
 describe('tearDownSession', () => {
-  it('waits for local secret revocation before clearing the web session', async () => {
+  it('revokes local secrets and the browser profile before clearing the web session', async () => {
     const order: string[] = []
     const session = {
       clearStorageData: vi.fn(async () => {
@@ -152,9 +153,80 @@ describe('tearDownSession', () => {
         await Promise.resolve()
         order.push('local')
       },
-      { filePath: '/tmp/events.log', record: vi.fn() }
+      { filePath: '/tmp/events.log', record: vi.fn() },
+      async () => {
+        await Promise.resolve()
+        order.push('browser')
+      }
     )
 
-    expect(order).toEqual(['local', 'session'])
+    expect(order).toEqual(['local', 'browser', 'session'])
+  })
+
+  it('still clears the web session when the browser profile cannot be cleared', async () => {
+    // Sign-out must complete even if the embedded browser is in a bad state;
+    // failing to clear its cookies is bad, failing to sign out is worse.
+    const clearStorageData = vi.fn(async () => {})
+    const session = { clearStorageData } as unknown as Session
+
+    await expect(
+      tearDownSession(
+        session,
+        async () => {},
+        { filePath: '/tmp/events.log', record: vi.fn() },
+        async () => {
+          throw new Error('browser view already destroyed')
+        }
+      )
+    ).resolves.toBeUndefined()
+
+    expect(clearStorageData).toHaveBeenCalled()
+  })
+})
+
+describe('createSessionLifecycleCoordinator', () => {
+  it('shares session observers and signs every app window out with one teardown', async () => {
+    const cookiesOn = vi.fn()
+    const webRequestOnCompleted = vi.fn()
+    const clearStorageData = vi.fn(async () => {})
+    const session = {
+      cookies: { on: cookiesOn },
+      webRequest: { onCompleted: webRequestOnCompleted },
+      clearStorageData,
+      fetch: vi.fn(async () => Response.json(null)),
+    } as unknown as Session
+    const first = new BrowserWindow()
+    const second = new BrowserWindow()
+    const clearHandoffState = vi.fn(async () => {})
+    const coordinator = createSessionLifecycleCoordinator({
+      appSession: session,
+      origin: () => APP,
+      events: { filePath: '/tmp/events.log', record: vi.fn() },
+      clearHandoffState,
+      onReauthRequested: vi.fn(),
+      getWindow: () => first,
+      getWindows: () => [first, second],
+    })
+
+    coordinator.attachWindow(first)
+    coordinator.attachWindow(second)
+
+    expect(cookiesOn).toHaveBeenCalledOnce()
+    expect(webRequestOnCompleted).toHaveBeenCalledOnce()
+
+    const windowEventCalls = vi.mocked(first.webContents.on).mock.calls as unknown as Array<
+      [string, (...args: unknown[]) => unknown]
+    >
+    const navigation = windowEventCalls.find(([event]) => event === 'did-navigate-in-page')?.[1] as
+      | ((event: unknown, url: string) => void)
+      | undefined
+    navigation?.({}, `${APP}/login?fromLogout=true`)
+
+    await vi.waitFor(() => {
+      expect(clearStorageData).toHaveBeenCalledOnce()
+      expect(first.loadURL).toHaveBeenCalledWith(`${APP}/login`)
+      expect(second.loadURL).toHaveBeenCalledWith(`${APP}/login`)
+    })
+    expect(clearHandoffState).toHaveBeenCalledOnce()
   })
 })

@@ -28,9 +28,10 @@ import { sleep } from '@sim/utils/helpers'
 import type { BrowserWindow, WebContents } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
 import { ToolError } from '@/main/browser-agent/errors'
-import { dispatchKeyCombo, parseKeyCombo } from '@/main/browser-agent/keyboard'
+import { comboInsertsText, dispatchKeyCombo, parseKeyCombo } from '@/main/browser-agent/keyboard'
 import { BrowserKnownSessionRegistry } from '@/main/browser-agent/known-sessions'
 import {
+  activeElementSecrecy,
   clickElement,
   collectSnapshot,
   focusElementForTyping,
@@ -201,6 +202,16 @@ export async function getKnownSessions(): Promise<BrowserKnownSessionsState> {
   return knownSessions.list(cookieSignals)
 }
 
+/**
+ * Everything the embedded browser remembers about the signed-in user, cleared
+ * as one unit on sign-out. Lives here because the browsing-trail registry and
+ * the session profile are owned by different modules.
+ */
+export async function clearBrowserProfile(): Promise<void> {
+  knownSessions?.clear()
+  await session.clearBrowserProfile()
+}
+
 function str(params: Record<string, unknown>, key: string): string | undefined {
   const value = params[key]
   return typeof value === 'string' && value.length > 0 ? value : undefined
@@ -229,6 +240,7 @@ export function browserToolWatchdogMs(
   if (tool === 'browser_request_takeover') return null
   if (
     tool === 'browser_navigate' ||
+    tool === 'browser_open_url' ||
     tool === 'browser_go_back' ||
     tool === 'browser_go_forward' ||
     tool === 'browser_open_tab'
@@ -285,6 +297,15 @@ async function execInPage<Args extends unknown[], Result>(
   }
 }
 
+/**
+ * Covers focusing, clicking, and typing: the agent has no legitimate reason to
+ * reach a credential field, and takeover is the sanctioned path when a task
+ * needs one.
+ */
+const PASSWORD_REFUSAL =
+  'Refusing to act on a password field. Call browser_request_takeover so the user ' +
+  'can enter their credentials themselves.'
+
 /** Maps sentinel `{ error: ... }` results from injected functions to ToolErrors. */
 function unwrapPageResult(result: unknown): unknown {
   if (typeof result === 'object' && result !== null && 'error' in result) {
@@ -296,10 +317,7 @@ function unwrapPageResult(result: unknown): unknown {
       )
     }
     if (code === 'password') {
-      throw new ToolError(
-        'Refusing to type into a password field. Call browser_request_takeover so the user ' +
-          'can enter their credentials themselves.'
-      )
+      throw new ToolError(PASSWORD_REFUSAL)
     }
     if (code === 'not-editable') {
       throw new ToolError('That element is not a text input — pick an editable element.')
@@ -412,6 +430,27 @@ async function executeToolInner(
       // sites; the settled URL/title below is the truth worth reporting.
       void contents.loadURL(url).catch(() => {})
       return await navigationResult(contents)
+    }
+
+    case 'browser_open_url': {
+      // Composite navigate + snapshot: one round trip for the copilot's
+      // direct "open this page and look at it" tool, instead of two
+      // checkpoint/resume cycles for browser_navigate then browser_snapshot.
+      const url = requireStr(params, 'url')
+      const guard = await checkAgentUrl(url)
+      if (!guard.ok) {
+        throw new ToolError(guard.error ?? 'That address was blocked.')
+      }
+      const tab = session.ensureTab()
+      const contents = tab.view.webContents
+      void contents.loadURL(url).catch(() => {})
+      const nav = await navigationResult(contents)
+      // A failed snapshot (browser-internal page, injection error) should not
+      // fail the open itself — the page is on screen either way.
+      const snapshot = await execInPage(contents, collectSnapshot, []).catch(() => null)
+      return snapshot === null
+        ? { ...nav, note: 'The page loaded but a snapshot could not be captured.' }
+        : { ...nav, snapshot }
     }
 
     case 'browser_go_back':
@@ -548,8 +587,22 @@ async function executeToolInner(
           contents,
           parseKeyCombo(process.platform === 'darwin' ? 'Cmd+A' : 'Control+A')
         )
+        // The guard above vetted the element we asked to focus, but the insert
+        // below goes wherever focus actually is now, a round trip later. Login
+        // forms that auto-advance from username to password move it in exactly
+        // that window, so re-check the real target before sending text.
+        // Deliberately after the select-all rather than before it: this needs
+        // to sit as close to the write as possible. The cost is that a field
+        // which stole focus may end up with its contents selected — it is
+        // never read, and nothing is inserted into it.
+        if ((await execInPage(contents, activeElementSecrecy, []).catch(() => 'safe')) !== 'safe') {
+          throw new ToolError(PASSWORD_REFUSAL)
+        }
         await cdp.insertText(contents, text)
-      } catch {
+      } catch (error) {
+        // A refusal is a decision, not a CDP failure — it must not be retried
+        // through the synthetic path.
+        if (error instanceof ToolError) throw error
         return unwrapPageResult(
           await execInPage(contents, typeIntoElement, [elementId, text, submit])
         )
@@ -564,6 +617,21 @@ async function executeToolInner(
     case 'browser_press_key': {
       const combo = parseKeyCombo(requireStr(params, 'key'))
       const contents = session.requireTab().view.webContents
+      // Trusted CDP key events never enter the page, so they cannot be vetted
+      // from inside it — a focused credential field has to be ruled out here,
+      // before dispatch. Probe failures (blank or uninjectable page) fall
+      // through as safe: such a page has no field to protect.
+      const secrecy = await execInPage(contents, activeElementSecrecy, []).catch(() => 'safe')
+      if (secrecy === 'secret') {
+        throw new ToolError(PASSWORD_REFUSAL)
+      }
+      if (secrecy === 'opaque' && comboInsertsText(combo)) {
+        throw new ToolError(
+          'Focus is inside a cross-origin frame whose contents cannot be inspected, so this ' +
+            'keystroke could land in a password field. Call browser_request_takeover if the ' +
+            'user needs to type here.'
+        )
+      }
       try {
         await dispatchKeyCombo(contents, combo)
       } catch {

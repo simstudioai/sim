@@ -114,6 +114,9 @@ const api: SimDesktopApi = {
     setTabPinned: (tabId: string, pinned: boolean): void => {
       ipcRenderer.send('browser-agent:set-tab-pinned', tabId, pinned)
     },
+    reorderTab: (tabId: string, targetIndex: number): void => {
+      ipcRenderer.send('browser-agent:reorder-tab', tabId, targetIndex)
+    },
     setPanelBounds: (bounds: BrowserPanelBounds | null): void => {
       ipcRenderer.send('browser-agent:set-panel-bounds', bounds)
     },

@@ -116,6 +116,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  browser_list_sessions: {
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    resultSchema: undefined,
+  },
   browser_list_tabs: {
     parameters: {
       type: 'object',
@@ -149,6 +156,20 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  browser_open_url: {
+    parameters: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description:
+            'The absolute URL to open, including scheme (https:// or http:// — localhost/local dev URLs are supported).',
+        },
+      },
+      required: ['url'],
+    },
+    resultSchema: undefined,
+  },
   browser_press_key: {
     parameters: {
       type: 'object',
@@ -179,6 +200,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
+        purpose: {
+          type: 'string',
+          description:
+            'Why takeover is needed. Set sign_in for a login/password flow so the desktop can remember a privacy-preserving session hint after the user finishes.',
+          enum: ['sign_in', 'captcha', 'payment', 'sensitive_confirmation', 'other'],
+        },
         reason: {
           type: 'string',
           description:

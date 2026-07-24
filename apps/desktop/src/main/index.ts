@@ -1,17 +1,22 @@
 import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
-import type { BrowserWindow } from 'electron'
-import { app, crashReporter, net, session } from 'electron'
+import type { Session, WebContents } from 'electron'
+import { app, BrowserWindow, crashReporter, net, session } from 'electron'
 import { initDriver as initBrowserAgentDriver } from '@/main/browser-agent/driver'
 import {
+  canReportPanelBounds,
   closeFocusedTab as closeFocusedBrowserTab,
+  reopenFocusedTab as reopenClosedBrowserTab,
   setPanelBounds as setBrowserAgentPanelBounds,
+  setPanelFocused as setBrowserAgentPanelFocused,
+  setPanelOccluded as setBrowserAgentPanelOccluded,
 } from '@/main/browser-agent/session'
 import {
   APP_NAME_FOR_CHANNEL,
   channelForOrigin,
   createConfigStore,
   DEFAULT_ORIGIN,
+  isSafeInternalPath,
   partitionForOrigin,
 } from '@/main/config'
 import { attachContextMenu } from '@/main/context-menu'
@@ -28,7 +33,7 @@ import { openExternalSafe } from '@/main/navigation'
 import { createEventLog } from '@/main/observability'
 import { installGlobalGuards } from '@/main/security-guards'
 import {
-  attachSessionLifecycle,
+  createSessionLifecycleCoordinator,
   decideStartRoute,
   handleConnectIntercept,
   resolveStartRoute,
@@ -62,20 +67,47 @@ function main(): void {
   })
   const preloadPath = join(__dirname, 'preload.cjs')
 
-  let mainWindow: BrowserWindow | null = null
-  let mainWindowCreation: Promise<void> | null = null
-  let loadHealth: LoadHealthHandle | null = null
+  const windows = new Set<BrowserWindow>()
+  const loadHealthByWindow = new Map<BrowserWindow, LoadHealthHandle>()
+  let lastActiveWindow: BrowserWindow | null = null
+  let ensureWindowCreation: Promise<BrowserWindow> | null = null
+  let appSession: Session | null = null
+  let sessionLifecycle: ReturnType<typeof createSessionLifecycleCoordinator> | null = null
   let tray: TrayHandle | null = null
   let updater: UpdaterHandle | null = null
   const configuredPartitions = new Set<string>()
 
   const appOrigin = () => config.getOrigin()
   const allowHttpLocalhost = () => !app.isPackaged || appOrigin().startsWith('http://')
-  const getMainWindow = () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null)
+  const getWindows = () => [...windows].filter((win) => !win.isDestroyed())
+  const getMainWindow = () => {
+    const focused = BrowserWindow.getFocusedWindow()
+    if (focused && windows.has(focused) && !focused.isDestroyed()) {
+      return focused
+    }
+    if (lastActiveWindow && windows.has(lastActiveWindow) && !lastActiveWindow.isDestroyed()) {
+      return lastActiveWindow
+    }
+    return getWindows().at(-1) ?? null
+  }
+  const windowForContents = (contents: WebContents) => {
+    const win = BrowserWindow.fromWebContents(contents)
+    return win && windows.has(win) && !win.isDestroyed() ? win : null
+  }
+  /** The focused window, but only when it is one of ours. */
+  const focusedAppWindow = () => {
+    const focused = BrowserWindow.getFocusedWindow()
+    return focused && windows.has(focused) && !focused.isDestroyed() ? focused : null
+  }
+  const broadcast = (channel: string, ...args: unknown[]) => {
+    for (const win of getWindows()) {
+      win.webContents.send(channel, ...args)
+    }
+  }
 
-  /** Restore/show/focus the main window and activate the app (steal focus). */
-  function showMainWindow(): void {
-    const win = getMainWindow()
+  /** Restore/show/focus one full Sim window and activate the app. */
+  function showMainWindow(target?: BrowserWindow | null): void {
+    const win = target ?? getMainWindow()
     if (win) {
       if (win.isMinimized()) {
         win.restore()
@@ -105,8 +137,7 @@ function main(): void {
     ensureMainWindow: async () => {
       let win = getMainWindow()
       if (!win) {
-        await createAndLoadMainWindow()
-        win = getMainWindow()
+        win = await ensureMainWindow()
       }
       if (!win) {
         throw new Error('Main window unavailable')
@@ -120,7 +151,7 @@ function main(): void {
     events,
     focusMainWindow: showMainWindow,
     notifyRenderer: (result) => {
-      getMainWindow()?.webContents.send('desktop:oauth-connect-complete', result)
+      broadcast('desktop:oauth-connect-complete', result)
     },
   })
 
@@ -148,26 +179,62 @@ function main(): void {
     return ses
   }
 
-  async function createAndLoadMainWindow(): Promise<void> {
-    if (mainWindowCreation) {
-      await mainWindowCreation
-      return
-    }
-    const pending = performCreateAndLoadMainWindow()
-    mainWindowCreation = pending
+  function ensureAppSession(): Session {
+    if (appSession && sessionLifecycle) return appSession
+    const ses = configureSessionForOrigin(appOrigin())
+    appSession = ses
+    sessionLifecycle = createSessionLifecycleCoordinator({
+      appSession: ses,
+      origin: appOrigin,
+      events,
+      getWindow: getMainWindow,
+      getWindows,
+      clearHandoffState: async () => {
+        handoff.clear()
+        await localFilesystem.forgetAll()
+      },
+      onReauthRequested: () => void authFlow.beginLoginHandoff(),
+    })
+    return ses
+  }
+
+  async function ensureMainWindow(): Promise<BrowserWindow> {
+    const existing = getMainWindow()
+    if (existing) return existing
+    if (ensureWindowCreation) return ensureWindowCreation
+
+    const pending = createAndLoadAppWindow({ restorePosition: true })
+    ensureWindowCreation = pending
     try {
-      await pending
+      return await pending
     } finally {
-      if (mainWindowCreation === pending) {
-        mainWindowCreation = null
+      if (ensureWindowCreation === pending) {
+        ensureWindowCreation = null
       }
     }
   }
 
-  async function performCreateAndLoadMainWindow(): Promise<void> {
+  function routeFromAppUrl(rawUrl: string): string | null {
+    try {
+      const url = new URL(rawUrl)
+      if (url.origin !== appOrigin()) return null
+      const route = `${url.pathname}${url.search}${url.hash}`
+      return isSafeInternalPath(route) ? route : null
+    } catch {
+      return null
+    }
+  }
+
+  async function createAndLoadAppWindow({
+    route: requestedRouteOverride,
+    restorePosition = false,
+  }: {
+    route?: string
+    restorePosition?: boolean
+  } = {}): Promise<BrowserWindow> {
     const origin = appOrigin()
-    const ses = configureSessionForOrigin(origin)
-    const requestedRoute = decideStartRoute(config.get('lastRoute'))
+    const ses = ensureAppSession()
+    const requestedRoute = decideStartRoute(requestedRouteOverride ?? config.get('lastRoute'))
     const route = await resolveStartRoute(ses, origin, requestedRoute)
     if (route !== requestedRoute) {
       config.set('lastRoute', route)
@@ -179,74 +246,83 @@ function main(): void {
       partition: partitionForOrigin(origin),
       preloadPath,
       isPackaged: app.isPackaged,
+      restorePosition,
       onFullScreenChange: (isFullScreen) => {
-        getMainWindow()?.webContents.send('desktop:window-state:changed', { isFullScreen })
+        if (!win.isDestroyed()) {
+          win.webContents.send('desktop:window-state:changed', { isFullScreen })
+        }
       },
       onClosed: () => {
-        mainWindow = null
+        setBrowserAgentPanelBounds(null, win)
+        windows.delete(win)
+        loadHealthByWindow.delete(win)
+        if (lastActiveWindow === win) {
+          lastActiveWindow = getWindows().at(-1) ?? null
+        }
       },
     })
-    mainWindow = win
+    windows.add(win)
+    lastActiveWindow = win
+    win.on('focus', () => {
+      lastActiveWindow = win
+    })
     // A fresh document (reload, origin change, crash recovery) has no browser
     // panel mounted yet — hide the embedded agent-browser view immediately
     // rather than letting it linger over the loading page.
     win.webContents.on('did-start-loading', () => {
-      setBrowserAgentPanelBounds(null)
+      setBrowserAgentPanelBounds(null, win)
     })
     attachWindowOpenPolicy(win.webContents, {
       appOrigin,
-      getMainWindow,
+      openAppWindow: (url) => {
+        const route = routeFromAppUrl(url)
+        if (route) {
+          void createAndLoadAppWindow({ route })
+        }
+      },
       allowHttpLocalhost: allowHttpLocalhost(),
     })
     attachContextMenu(win.webContents, {
       isDev: !app.isPackaged,
       allowHttpLocalhost: allowHttpLocalhost(),
     })
-    loadHealth = attachLoadHealth(win, {
+    const loadHealth = attachLoadHealth(win, {
       offlinePagePath: OFFLINE_PAGE,
       getStartUrl: () => `${appOrigin()}${route}`,
       isOnline: () => net.isOnline(),
       events,
     })
-    attachSessionLifecycle(win, {
-      appSession: ses,
-      origin: appOrigin,
-      events,
-      clearHandoffState: async () => {
-        handoff.clear()
-        await localFilesystem.forgetAll()
-      },
-      onReauthRequested: () => void authFlow.beginLoginHandoff(),
-    })
+    loadHealthByWindow.set(win, loadHealth)
+    sessionLifecycle?.attachWindow(win)
     loadHealth.startWatchdog()
     // Fire-and-forget: the window and all its handlers are wired synchronously
     // above, so callers get a usable window immediately and the app menu and
     // updater never wait on the remote page's load (load-health surfaces any
     // failure).
     void win.loadURL(`${origin}${route}`).catch(() => {})
+    return win
   }
 
-  /** Opens the Sim app's settings page in the main window. */
+  /** Opens the Sim app's settings page in the active window. */
   function openSettings(): void {
     void openMainWindowAt(settingsRoute(config.get('lastRoute')))
   }
 
   /**
-   * Brings the main window to front (creating it if needed), optionally
+   * Brings the active window to front (creating one if needed), optionally
    * navigating it to an in-app route first — the seam used by the tray menu.
    */
   async function openMainWindowAt(route?: string): Promise<void> {
-    if (!getMainWindow()) {
-      await createAndLoadMainWindow()
-    }
-    const win = getMainWindow()
+    let win = getMainWindow()
     if (!win) {
+      win = await createAndLoadAppWindow({ route, restorePosition: true })
+      showMainWindow(win)
       return
     }
     if (route) {
       void win.loadURL(`${appOrigin()}${route}`).catch(() => {})
     }
-    showMainWindow()
+    showMainWindow(win)
   }
 
   /** Installs or removes the menu-bar status item; safe to call repeatedly. */
@@ -278,8 +354,7 @@ function main(): void {
     await localFilesystem.forgetAll()
     const ses = session.fromPartition(partitionForOrigin(appOrigin()))
     await tearDownSession(ses, () => handoff.clear(), events)
-    const win = getMainWindow()
-    if (win) {
+    for (const win of getWindows()) {
       try {
         await win.loadURL(`${appOrigin()}/login`)
       } catch {}
@@ -287,7 +362,7 @@ function main(): void {
   }
 
   app.on('second-instance', () => {
-    showMainWindow()
+    void app.whenReady().then(() => createAndLoadAppWindow())
   })
 
   app.on('window-all-closed', () => {
@@ -305,7 +380,7 @@ function main(): void {
 
   app.on('activate', () => {
     if (app.isReady() && !getMainWindow()) {
-      void createAndLoadMainWindow()
+      void ensureMainWindow()
     }
   })
 
@@ -323,13 +398,13 @@ function main(): void {
     initBrowserAgentDriver(
       {
         onPageState: (state) => {
-          getMainWindow()?.webContents.send('browser-agent:page-state', state)
+          broadcast('browser-agent:page-state', state)
         },
         onTabsState: (state) => {
-          getMainWindow()?.webContents.send('browser-agent:tabs-state', state)
+          broadcast('browser-agent:tabs-state', state)
         },
         onSessionStatus: (alive) => {
-          getMainWindow()?.webContents.send('browser-agent:session-status', alive)
+          broadcast('browser-agent:session-status', alive)
         },
       },
       getMainWindow,
@@ -339,10 +414,33 @@ function main(): void {
     registerIpcHandlers({
       appOrigin,
       allowHttpLocalhost,
-      retryLoad: () => loadHealth?.retry(),
+      retryLoad: (sender) => {
+        const win = windowForContents(sender)
+        if (win) loadHealthByWindow.get(win)?.retry()
+      },
       localFilesystem,
       settings: desktopSettings,
-      getWindowState: () => ({ isFullScreen: getMainWindow()?.isFullScreen() ?? false }),
+      getWindowState: (sender) => ({
+        isFullScreen: windowForContents(sender)?.isFullScreen() ?? false,
+      }),
+      browserPanel: {
+        setBounds: (sender, bounds) => {
+          const win = windowForContents(sender)
+          if (!win) return
+          if (bounds !== null && !canReportPanelBounds(win, focusedAppWindow())) {
+            return
+          }
+          setBrowserAgentPanelBounds(bounds, win)
+        },
+        setFocused: (sender, focused) => {
+          const win = windowForContents(sender)
+          if (win) setBrowserAgentPanelFocused(focused, win)
+        },
+        setOccluded: (sender, occluded) => {
+          const win = windowForContents(sender)
+          if (win) setBrowserAgentPanelOccluded(occluded, win)
+        },
+      },
       beginOAuthConnect: (providerId, scope) => connectFlow.beginConnectHandoff(providerId, scope),
       updates: {
         getState: () => updater?.getState() ?? { status: 'idle' },
@@ -350,14 +448,16 @@ function main(): void {
         install: () => updater?.install(),
       },
     })
-    await createAndLoadMainWindow()
+    await ensureMainWindow()
     installApplicationMenu({
       config,
       getMainWindow,
       allowHttpLocalhost,
       openSettings,
+      newWindow: () => void createAndLoadAppWindow(),
       newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
-      closeFocusedBrowserTab,
+      closeFocusedBrowserTab: (win) => closeFocusedBrowserTab(win),
+      reopenClosedBrowserTab: (win) => reopenClosedBrowserTab(win),
       toggleSidebar: () => getMainWindow()?.webContents.send('desktop:command', 'toggle-sidebar'),
       signOut: () => void signOutFromMenu(),
       checkForUpdates: () =>
@@ -370,16 +470,19 @@ function main(): void {
       appOrigin,
       autoDownload: () => config.get('autoDownloadUpdates') ?? true,
       onStateChange: (state) => {
-        getMainWindow()?.webContents.send('desktop:updates:state', state)
+        broadcast('desktop:updates:state', state)
       },
     })
     desktopSettings.applySystemPreferences()
   })
 }
 
-// Identity and userData must be set before the single-instance lock, which
-// writes its lock file into userData. Setting them here (not inside main)
-// keeps the SIM_DESKTOP_ORIGIN/USER_DATA test overrides isolated per instance.
+// Identity and userData must be set before the single-process lock, which
+// writes its lock file into userData. Sim supports many full BrowserWindows
+// inside that one process; a second OS launch is forwarded to the running
+// process so it can create another window without two processes mutating the
+// same Chromium profile. Setting identity here (not inside main) keeps the
+// SIM_DESKTOP_ORIGIN/USER_DATA test overrides isolated per process.
 // The name follows the build's channel ("Sim", "Sim Dev", …) so one developer
 // can run one install per environment side by side — separate settings,
 // sessions, locks, and update feeds.

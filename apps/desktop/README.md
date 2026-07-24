@@ -9,7 +9,7 @@ src/main/           # main process (bundled to dist/main.cjs)
   index.ts          # lifecycle + wiring
   config.ts         # origin + settings store (userData/settings.json)
   navigation.ts     # navigation classifier + openExternalSafe
-  windows.ts        # window.open policy (single-window, MCP popup, blank children)
+  windows.ts        # window.open policy (full app windows, MCP popup, blank children)
   window.ts         # secure BrowserWindow, permissions, crash/hang recovery
   security-guards.ts# global web-contents guards, TLS policy
   handoff.ts        # 127.0.0.1 loopback login handoff + token redeem

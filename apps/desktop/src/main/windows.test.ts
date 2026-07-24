@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import type { BrowserWindow, WebContents } from 'electron'
+import type { WebContents } from 'electron'
 import { shell } from 'electron'
 import { attachWindowOpenPolicy, isPopupContents, registerPopupContents } from '@/main/windows'
 
@@ -24,14 +24,6 @@ function makeContents(): FakeContents {
   return contents
 }
 
-function makeMainWindow() {
-  return {
-    isDestroyed: () => false,
-    loadURL: vi.fn(() => Promise.resolve()),
-    focus: vi.fn(),
-  } as unknown as BrowserWindow
-}
-
 describe('attachWindowOpenPolicy', () => {
   beforeEach(() => {
     vi.mocked(shell.openExternal).mockClear()
@@ -39,13 +31,13 @@ describe('attachWindowOpenPolicy', () => {
 
   function setup() {
     const contents = makeContents()
-    const main = makeMainWindow()
+    const openAppWindow = vi.fn()
     attachWindowOpenPolicy(contents as unknown as WebContents, {
       appOrigin: () => APP,
-      getMainWindow: () => main,
+      openAppWindow,
       allowHttpLocalhost: false,
     })
-    return { contents, main }
+    return { contents, openAppWindow }
   }
 
   it('allows the MCP OAuth popup', () => {
@@ -62,12 +54,11 @@ describe('attachWindowOpenPolicy', () => {
     expect(contents.handler?.({ url: 'about:blank', frameName: '' })).toEqual({ action: 'allow' })
   })
 
-  it('collapses internal new-tab opens into the main window', () => {
-    const { contents, main } = setup()
+  it('opens internal new-window requests as full Sim windows', () => {
+    const { contents, openAppWindow } = setup()
     const result = contents.handler?.({ url: `${APP}/workspace/ws1/w/wf1`, frameName: '' })
     expect(result).toEqual({ action: 'deny' })
-    expect(main.loadURL).toHaveBeenCalledWith(`${APP}/workspace/ws1/w/wf1`)
-    expect(main.focus).toHaveBeenCalled()
+    expect(openAppWindow).toHaveBeenCalledWith(`${APP}/workspace/ws1/w/wf1`)
   })
 
   it('routes external opens to the system browser', () => {
@@ -78,11 +69,11 @@ describe('attachWindowOpenPolicy', () => {
   })
 
   it('denies non-web schemes without opening anything', () => {
-    const { contents, main } = setup()
+    const { contents, openAppWindow } = setup()
     const result = contents.handler?.({ url: 'javascript:alert(1)', frameName: '' })
     expect(result).toEqual({ action: 'deny' })
     expect(shell.openExternal).not.toHaveBeenCalled()
-    expect(main.loadURL).not.toHaveBeenCalled()
+    expect(openAppWindow).not.toHaveBeenCalled()
   })
 
   it('registers guards on created child windows', () => {

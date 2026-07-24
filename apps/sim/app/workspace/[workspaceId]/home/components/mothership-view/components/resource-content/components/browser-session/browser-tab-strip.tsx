@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
   useCallback,
   useLayoutEffect,
@@ -21,7 +22,9 @@ interface BrowserTabStripProps {
   onSwitchTab: (tabId: string) => void
   onCloseTab: (tabId: string) => void
   onSetTabPinned: (tabId: string, pinned: boolean) => void
+  onReorderTab: (tabId: string, targetIndex: number) => void
   pinningSupported: boolean
+  reorderingSupported: boolean
 }
 
 function tabTitle(tab: BrowserTabState): string {
@@ -45,14 +48,31 @@ export function isBrowserTabTitleTruncated(
   return hiddenWidth >= tooltipThreshold
 }
 
+export function browserTabDropIndex(
+  tabs: BrowserTabState[],
+  draggedTabId: string,
+  gapIndex: number
+): number | null {
+  const fromIndex = tabs.findIndex((tab) => tab.tabId === draggedTabId)
+  if (fromIndex < 0 || !Number.isFinite(gapIndex)) return null
+
+  const pinnedCount = tabs.filter((tab) => tab.pinned).length
+  const draggedTab = tabs[fromIndex]
+  const minGapIndex = draggedTab.pinned ? 0 : pinnedCount
+  const maxGapIndex = draggedTab.pinned ? pinnedCount : tabs.length
+  const boundedGapIndex = Math.max(minGapIndex, Math.min(maxGapIndex, Math.trunc(gapIndex)))
+  const targetIndex = boundedGapIndex > fromIndex ? boundedGapIndex - 1 : boundedGapIndex
+  return targetIndex === fromIndex ? null : targetIndex
+}
+
 function BrowserTabIcon({ tab }: { tab: BrowserTabState }) {
   if (tab.loading) {
-    return <Loader className='size-[13px] shrink-0 animate-spin text-[var(--text-icon)]' />
+    return <Loader className='size-[12px] shrink-0 animate-spin text-[var(--text-icon)]' />
   }
 
   const hostname = browserTabHostname(tab.url)
   if (!hostname) {
-    return <Link className='size-[13px] shrink-0 text-[var(--text-icon)]' />
+    return <Link className='size-[12px] shrink-0 text-[var(--text-icon)]' />
   }
 
   return (
@@ -60,7 +80,7 @@ function BrowserTabIcon({ tab }: { tab: BrowserTabState }) {
       key={hostname}
       src={faviconUrl(hostname, 32)}
       alt=''
-      className='size-[13px] shrink-0 rounded-[3px]'
+      className='size-[12px] shrink-0 rounded-[3px]'
       onError={(event) => {
         event.currentTarget.style.display = 'none'
       }}
@@ -74,9 +94,33 @@ interface BrowserTabProps {
   onSwitchTab: (tabId: string) => void
   onCloseTab: (tabId: string) => void
   onContextMenu: (event: ReactMouseEvent<HTMLDivElement>, tabId: string) => void
+  draggable: boolean
+  dragging: boolean
+  showDropBefore: boolean
+  showDropAfter: boolean
+  onDragStart: (event: ReactDragEvent<HTMLDivElement>, tabId: string) => void
+  onDragOver: (event: ReactDragEvent<HTMLDivElement>, tabIndex: number) => void
+  onDragLeave: (event: ReactDragEvent<HTMLDivElement>) => void
+  onDragEnd: () => void
+  tabIndex: number
 }
 
-function BrowserTab({ tab, activeTabId, onSwitchTab, onCloseTab, onContextMenu }: BrowserTabProps) {
+function BrowserTab({
+  tab,
+  activeTabId,
+  onSwitchTab,
+  onCloseTab,
+  onContextMenu,
+  draggable,
+  dragging,
+  showDropBefore,
+  showDropAfter,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDragEnd,
+  tabIndex,
+}: BrowserTabProps) {
   const title = tabTitle(tab)
   const isActive = tab.tabId === activeTabId
   const titleRef = useRef<HTMLSpanElement>(null)
@@ -98,11 +142,23 @@ function BrowserTab({ tab, activeTabId, onSwitchTab, onCloseTab, onContextMenu }
       className={cn(
         'group relative select-none',
         tab.pinned
-          ? 'w-[40px] min-w-[40px] max-w-[40px] flex-none'
-          : 'min-w-[102px] max-w-[190px] flex-1 basis-[146px]'
+          ? 'w-[34px] min-w-[34px] max-w-[34px] flex-none'
+          : 'min-w-[96px] max-w-[180px] flex-1 basis-[140px]',
+        dragging && 'opacity-30'
       )}
+      draggable={draggable}
+      onDragStart={(event) => onDragStart(event, tab.tabId)}
+      onDragOver={(event) => onDragOver(event, tabIndex)}
+      onDragLeave={onDragLeave}
+      onDragEnd={onDragEnd}
       onContextMenu={(event) => onContextMenu(event, tab.tabId)}
     >
+      {showDropBefore && (
+        <div className='-translate-x-1/2 -translate-y-1/2 pointer-events-none absolute top-1/2 left-0 z-30 h-[16px] w-[2px] rounded-full bg-[var(--text-subtle)]' />
+      )}
+      {showDropAfter && (
+        <div className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 z-30 h-[16px] w-[2px] translate-x-1/2 rounded-full bg-[var(--text-subtle)]' />
+      )}
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <Button
@@ -112,11 +168,10 @@ function BrowserTab({ tab, activeTabId, onSwitchTab, onCloseTab, onContextMenu }
             aria-current={isActive ? 'page' : undefined}
             aria-label={tab.pinned ? title : undefined}
             className={cn(
-              'h-[32px] w-full select-none rounded-b-none border py-0 font-normal text-[13px]',
-              tab.pinned ? 'justify-center px-0' : 'justify-start gap-[7px] px-[9px] pr-[30px]',
-              isActive
-                ? 'relative z-10 border-[var(--border-1)] border-b-transparent bg-[var(--surface-4)] shadow-sm'
-                : 'border-transparent bg-[var(--bg)]'
+              '-mb-px h-[30px] w-full select-none rounded-b-none border border-transparent border-b-0 bg-transparent py-0 font-normal text-caption',
+              tab.pinned ? 'justify-center px-0' : 'justify-start gap-1.5 px-2 pr-7',
+              isActive &&
+                'hover-hover:!border-[var(--border)] hover-hover:!bg-[var(--bg)] hover-hover:!text-[var(--text-primary)] hover-hover:!brightness-100 hover-hover:!opacity-100 relative z-10 border-[var(--border)] bg-[var(--bg)] text-[var(--text-primary)] transition-none'
             )}
             onClick={() => onSwitchTab(tab.tabId)}
           >
@@ -137,7 +192,7 @@ function BrowserTab({ tab, activeTabId, onSwitchTab, onCloseTab, onContextMenu }
           size='sm'
           aria-label={`Close ${title}`}
           className={cn(
-            'absolute top-1 right-1 z-20 size-[24px] p-0 transition-opacity hover-hover:bg-[var(--surface-active)]',
+            'absolute top-[5px] right-1 z-20 size-[20px] p-0 transition-opacity',
             isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
           )}
           onClick={(event) => {
@@ -145,7 +200,7 @@ function BrowserTab({ tab, activeTabId, onSwitchTab, onCloseTab, onContextMenu }
             onCloseTab(tab.tabId)
           }}
         >
-          <X className='size-[13px]' />
+          <X className='size-[11px]' />
         </Button>
       )}
     </div>
@@ -164,10 +219,16 @@ export function BrowserTabStrip({
   onSwitchTab,
   onCloseTab,
   onSetTabPinned,
+  onReorderTab,
   pinningSupported,
+  reorderingSupported,
 }: BrowserTabStripProps) {
   const atTabLimit = tabs.length >= MAX_BROWSER_TABS
+  const draggedTabIdRef = useRef<string | null>(null)
+  const dropTargetIndexRef = useRef<number | null>(null)
   const [contextTabId, setContextTabId] = useState<string | null>(null)
+  const [draggedTabId, setDraggedTabId] = useState<string | null>(null)
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
   const {
     isOpen: isContextMenuOpen,
     position: contextMenuPosition,
@@ -189,18 +250,92 @@ export function BrowserTabStrip({
     },
     [handleContextMenu, pinningSupported]
   )
+  const resetTabDrag = useCallback(() => {
+    draggedTabIdRef.current = null
+    dropTargetIndexRef.current = null
+    setDraggedTabId(null)
+    setDropTargetIndex(null)
+  }, [])
+  const handleTabDragStart = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>, tabId: string) => {
+      if (!reorderingSupported) {
+        event.preventDefault()
+        return
+      }
+      draggedTabIdRef.current = tabId
+      setDraggedTabId(tabId)
+      event.dataTransfer.effectAllowed = 'move'
+      event.dataTransfer.setData('text/plain', tabId)
+    },
+    [reorderingSupported]
+  )
+  const handleTabDragOver = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>, tabIndex: number) => {
+      const tabId = draggedTabIdRef.current
+      if (!reorderingSupported || !tabId) return
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'move'
+      const rect = event.currentTarget.getBoundingClientRect()
+      const gapIndex = event.clientX < rect.left + rect.width / 2 ? tabIndex : tabIndex + 1
+      const targetIndex = browserTabDropIndex(tabs, tabId, gapIndex)
+      dropTargetIndexRef.current = targetIndex
+      setDropTargetIndex(targetIndex)
+    },
+    [reorderingSupported, tabs]
+  )
+  const handleTabDrop = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      const tabId = draggedTabIdRef.current
+      const targetIndex = dropTargetIndexRef.current
+      if (tabId && targetIndex !== null) {
+        onReorderTab(tabId, targetIndex)
+      }
+      resetTabDrag()
+    },
+    [onReorderTab, resetTabDrag]
+  )
+  const draggedTabIndex = tabs.findIndex((tab) => tab.tabId === draggedTabId)
 
   return (
-    <div className='flex h-[37px] shrink-0 select-none items-end gap-1 border-[var(--border)] border-b bg-[var(--surface-secondary)] px-2 pt-[5px]'>
-      <div className='flex min-w-0 flex-1 select-none items-end gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
-        {tabs.map((tab) => (
+    <div className='flex h-[34px] shrink-0 select-none items-end gap-1 border-[var(--border)] border-b bg-transparent px-2 pt-1'>
+      <div
+        className='flex min-w-0 flex-1 select-none items-end gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+        onDragOver={(event) => {
+          if (draggedTabIdRef.current) event.preventDefault()
+        }}
+        onDrop={handleTabDrop}
+      >
+        {tabs.map((tab, tabIndex) => (
           <BrowserTab
             key={tab.tabId}
             tab={tab}
+            tabIndex={tabIndex}
             activeTabId={activeTabId}
+            draggable={reorderingSupported}
+            dragging={draggedTabId === tab.tabId}
+            showDropBefore={
+              dropTargetIndex === tabIndex && draggedTabIndex >= 0 && draggedTabIndex > tabIndex
+            }
+            showDropAfter={
+              dropTargetIndex === tabIndex && draggedTabIndex >= 0 && draggedTabIndex < tabIndex
+            }
             onSwitchTab={onSwitchTab}
             onCloseTab={onCloseTab}
             onContextMenu={openTabContextMenu}
+            onDragStart={handleTabDragStart}
+            onDragOver={handleTabDragOver}
+            onDragLeave={(event) => {
+              if (
+                event.relatedTarget instanceof Node &&
+                event.currentTarget.contains(event.relatedTarget)
+              ) {
+                return
+              }
+              dropTargetIndexRef.current = null
+              setDropTargetIndex(null)
+            }}
+            onDragEnd={resetTabDrag}
           />
         ))}
       </div>
@@ -211,11 +346,11 @@ export function BrowserTabStrip({
             variant='ghost-secondary'
             size='sm'
             aria-label='New tab'
-            className='mb-px size-[30px] shrink-0 p-0'
+            className='mb-px size-[28px] shrink-0 p-0'
             disabled={atTabLimit}
             onClick={onNewTab}
           >
-            <Plus className='size-[15px]' />
+            <Plus className='size-[14px]' />
           </Button>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>

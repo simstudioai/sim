@@ -136,6 +136,12 @@ export interface CreateMainWindowDeps {
   isPackaged: boolean
   onClosed: () => void
   onFullScreenChange?: (isFullScreen: boolean) => void
+  /**
+   * Restores the persisted screen position for the first window. Secondary
+   * windows omit it so the OS can cascade them instead of stacking every
+   * window at the exact same coordinates.
+   */
+  restorePosition?: boolean
   /** Injectable for platform-specific window behavior tests. */
   platform?: NodeJS.Platform
 }
@@ -147,13 +153,14 @@ export interface CreateMainWindowDeps {
  */
 export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
   const bounds = sanitizeBounds(deps.config.get('windowBounds'))
+  const restorePosition = deps.restorePosition ?? true
   const platform = deps.platform ?? process.platform
   const win = new BrowserWindow({
     title: WINDOW_TITLE,
     width: bounds?.width ?? DEFAULT_WIDTH,
     height: bounds?.height ?? DEFAULT_HEIGHT,
-    x: bounds?.x,
-    y: bounds?.y,
+    x: restorePosition ? bounds?.x : undefined,
+    y: restorePosition ? bounds?.y : undefined,
     minWidth: MIN_WIDTH,
     minHeight: MIN_HEIGHT,
     // No separate title bar: the page renders full-bleed to the window's top

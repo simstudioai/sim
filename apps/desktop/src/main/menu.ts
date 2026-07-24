@@ -1,5 +1,5 @@
-import type { BrowserWindow, MenuItemConstructorOptions } from 'electron'
-import { app, Menu } from 'electron'
+import type { MenuItemConstructorOptions } from 'electron'
+import { app, BrowserWindow, Menu } from 'electron'
 import type { ConfigStore } from '@/main/config'
 import { openExternalSafe } from '@/main/navigation'
 
@@ -12,8 +12,10 @@ export interface MenuDeps {
   getMainWindow: () => BrowserWindow | null
   allowHttpLocalhost: () => boolean
   openSettings: () => void
+  newWindow: () => void
   newChat: () => void
-  closeFocusedBrowserTab: () => boolean
+  closeFocusedBrowserTab: (win: BrowserWindow | null) => boolean
+  reopenClosedBrowserTab: (win: BrowserWindow | null) => boolean
   toggleSidebar: () => void
   signOut: () => void
   checkForUpdates: () => void
@@ -88,14 +90,29 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
     {
       label: 'File',
       submenu: [
+        {
+          label: 'New Window',
+          accelerator: 'CmdOrCtrl+Shift+N',
+          click: deps.newWindow,
+        },
         { label: 'New Chat', accelerator: 'CmdOrCtrl+N', click: deps.newChat },
         { type: 'separator' },
+        {
+          label: 'Reopen Closed Tab',
+          accelerator: 'CmdOrCtrl+Shift+T',
+          click: (_item, focusedWindow) => {
+            const win =
+              focusedWindow instanceof BrowserWindow ? focusedWindow : deps.getMainWindow()
+            deps.reopenClosedBrowserTab(win)
+          },
+        },
         {
           label: 'Close Window',
           accelerator: 'CmdOrCtrl+W',
           click: (_item, focusedWindow) => {
-            if (deps.closeFocusedBrowserTab()) return
-            const win = focusedWindow ?? deps.getMainWindow()
+            const win =
+              focusedWindow instanceof BrowserWindow ? focusedWindow : deps.getMainWindow()
+            if (deps.closeFocusedBrowserTab(win)) return
             if (win && !win.isDestroyed()) win.close()
           },
         },

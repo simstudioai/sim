@@ -8,6 +8,15 @@
  * The element registry (`window.__simAgentElements`) is rebuilt by every
  * snapshot and naturally cleared by navigation; interaction functions treat a
  * missing or disconnected entry as a stale id.
+ *
+ * Several functions repeat an identical `isSecretField` helper. That
+ * duplication is required, not accidental: self-containment means a shared
+ * module-level helper would not survive serialization. It matches on
+ * `tagName`/`type`/`autocomplete` rather than `instanceof HTMLInputElement`
+ * because element wrappers are realm-bound — an input reached through a
+ * same-origin iframe belongs to that frame's realm, so `instanceof` against
+ * the top frame's constructor returns false and would skip the check on
+ * exactly the nested login forms that need it most.
  */
 
 declare global {
@@ -89,6 +98,16 @@ export function collectSnapshot(): unknown {
     return style.visibility !== 'hidden' && style.display !== 'none'
   }
 
+  const isSecretField = (el: Element | null): boolean => {
+    if (!el || el.tagName !== 'INPUT') return false
+    if (String((el as HTMLInputElement).type || '').toLowerCase() === 'password') return true
+    // A reveal toggle flips the field to type="text" without making its
+    // contents any less secret, and some forms never use type="password" at
+    // all. The autocomplete token is the page's own declaration either way.
+    const hint = String(el.getAttribute('autocomplete') || '').toLowerCase()
+    return hint === 'current-password' || hint === 'new-password'
+  }
+
   const roleFor = (el: Element): string => {
     const explicit = el.getAttribute('role')
     if (explicit) return explicit
@@ -144,14 +163,14 @@ export function collectSnapshot(): unknown {
     registry.push(el)
     let role = roleFor(el)
     const parts: string[] = []
-    if (
+    if (isSecretField(el)) {
+      role = 'password-field'
+    } else if (
       el instanceof HTMLInputElement ||
       el instanceof HTMLTextAreaElement ||
       el instanceof HTMLSelectElement
     ) {
-      const isPassword = el instanceof HTMLInputElement && el.type === 'password'
-      if (isPassword) role = 'password-field'
-      else if (el.value) parts.push(`value="${cut(String(el.value), 120)}"`)
+      if (el.value) parts.push(`value="${cut(String(el.value), 120)}"`)
     }
     if (el.tagName === 'A') {
       const href = el.getAttribute('href')
@@ -249,8 +268,20 @@ export function collectSnapshot(): unknown {
 }
 
 export function clickElement(id: number): unknown {
+  const isSecretField = (node: Element | null): boolean => {
+    if (!node || node.tagName !== 'INPUT') return false
+    if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
+    const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
+    return hint === 'current-password' || hint === 'new-password'
+  }
+
   const el = (window.__simAgentElements || [])[id]
   if (!el || !el.isConnected) return { error: 'stale' }
+  // Clicking focuses, and a focused credential field is the one state in
+  // which subsequent keystrokes would land in a password. Refusing the click
+  // keeps that state unreachable rather than relying on every later keyboard
+  // path to re-check.
+  if (isSecretField(el)) return { error: 'password' }
   el.scrollIntoView({ block: 'center', inline: 'center' })
   const rect = el.getBoundingClientRect()
   const opts = {
@@ -283,11 +314,18 @@ export function clickElement(id: number): unknown {
  * models sync from the DOM selection / native input pipeline.
  */
 export function focusElementForTyping(id: number): unknown {
+  const isSecretField = (node: Element | null): boolean => {
+    if (!node || node.tagName !== 'INPUT') return false
+    if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
+    const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
+    return hint === 'current-password' || hint === 'new-password'
+  }
+
   const el = (window.__simAgentElements || [])[id]
   if (!el || !el.isConnected) return { error: 'stale' }
   el.scrollIntoView({ block: 'center' })
 
-  if (el instanceof HTMLInputElement && el.type === 'password') {
+  if (isSecretField(el)) {
     return { error: 'password' }
   }
 
@@ -322,9 +360,49 @@ export function focusElementForTyping(id: number): unknown {
  * the driver can report what actually happened instead of assuming success.
  */
 export function readActiveElementState(): unknown {
-  const active = document.activeElement as HTMLElement | null
-  if (!active || active === document.body) {
+  const isSecretField = (node: Element | null): boolean => {
+    if (!node || node.tagName !== 'INPUT') return false
+    if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
+    const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
+    return hint === 'current-password' || hint === 'new-password'
+  }
+
+  // Focus inside a frame or an open shadow root surfaces on the outer document
+  // as the host element, so descend to find what is really focused.
+  let active = document.activeElement as HTMLElement | null
+  for (let depth = 0; active && depth < 10; depth++) {
+    const shadow = active.shadowRoot
+    if (shadow?.activeElement) {
+      active = shadow.activeElement as HTMLElement
+      continue
+    }
+    if (active.tagName === 'IFRAME' || active.tagName === 'FRAME') {
+      try {
+        const inner = (active as HTMLIFrameElement).contentDocument
+        if (inner?.activeElement && inner.activeElement !== inner.body) {
+          active = inner.activeElement as HTMLElement
+          continue
+        }
+      } catch {
+        // Cross-origin frame — not inspectable, report the frame itself.
+      }
+    }
+    break
+  }
+
+  if (!active || active === active.ownerDocument.body) {
     return { activeElement: 'body', selectedChars: 0, valueLength: 0, valuePreview: '' }
+  }
+  // Length and selection size are withheld along with the value: both are
+  // observations of a secret the agent is never allowed to learn.
+  if (isSecretField(active)) {
+    return {
+      activeElement: 'password-field',
+      selectedChars: 0,
+      valueLength: 0,
+      valuePreview: '',
+      redacted: true,
+    }
   }
   let value = ''
   let selectedChars = 0
@@ -348,12 +426,65 @@ export function readActiveElementState(): unknown {
   }
 }
 
+/**
+ * Classifies what currently holds focus, for the driver's pre-dispatch check
+ * on trusted CDP key events (which bypass the page entirely and land on
+ * whatever is focused, so this cannot be enforced from inside the page alone):
+ *
+ * - `secret` — a credential field. No keystroke belongs here.
+ * - `opaque` — a cross-origin frame we cannot inspect, so a credential field
+ *   cannot be ruled out. Character insertion is refused; caret movement and
+ *   Escape are not.
+ * - `safe` — anything we can see and that is not a credential field.
+ */
+export function activeElementSecrecy(): string {
+  const isSecretField = (node: Element | null): boolean => {
+    if (!node || node.tagName !== 'INPUT') return false
+    if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
+    const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
+    return hint === 'current-password' || hint === 'new-password'
+  }
+
+  let active = document.activeElement as HTMLElement | null
+  for (let depth = 0; active && depth < 10; depth++) {
+    if (isSecretField(active)) return 'secret'
+    const shadow = active.shadowRoot
+    if (shadow?.activeElement) {
+      active = shadow.activeElement as HTMLElement
+      continue
+    }
+    if (active.tagName === 'IFRAME' || active.tagName === 'FRAME') {
+      let inner: Document | null = null
+      try {
+        inner = (active as HTMLIFrameElement).contentDocument
+      } catch {
+        return 'opaque'
+      }
+      // A same-origin frame yields a document; a cross-origin one yields null.
+      if (!inner) return 'opaque'
+      if (inner.activeElement && inner.activeElement !== inner.body) {
+        active = inner.activeElement as HTMLElement
+        continue
+      }
+    }
+    break
+  }
+  return isSecretField(active) ? 'secret' : 'safe'
+}
+
 export function typeIntoElement(id: number, text: string, submit: boolean): unknown {
+  const isSecretField = (node: Element | null): boolean => {
+    if (!node || node.tagName !== 'INPUT') return false
+    if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
+    const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
+    return hint === 'current-password' || hint === 'new-password'
+  }
+
   const el = (window.__simAgentElements || [])[id]
   if (!el || !el.isConnected) return { error: 'stale' }
   el.scrollIntoView({ block: 'center' })
 
-  if (el instanceof HTMLInputElement && el.type === 'password') {
+  if (isSecretField(el)) {
     return { error: 'password' }
   }
 
@@ -406,7 +537,17 @@ export function pressKeyOnPage(
   shift: boolean,
   alt: boolean
 ): unknown {
+  const isSecretField = (node: Element | null): boolean => {
+    if (!node || node.tagName !== 'INPUT') return false
+    if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
+    const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
+    return hint === 'current-password' || hint === 'new-password'
+  }
+
   const target = (document.activeElement as HTMLElement | null) ?? document.body
+  // The driver checks focus before taking the trusted CDP path; this covers
+  // the synthetic fallback, which is reached independently when CDP is down.
+  if (isSecretField(target)) return { error: 'password' }
   const opts = {
     bubbles: true,
     cancelable: true,

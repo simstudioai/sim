@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { Session, WebContents } from 'electron'
 import { BrowserWindow, dialog } from 'electron'
+import { clearBrowserProfile as clearAgentBrowserProfile } from '@/main/browser-agent/driver'
 import { isSafeInternalPath } from '@/main/config'
 import { isAuthSurfacePath, openExternalSafe } from '@/main/navigation'
 import type { EventRecorder } from '@/main/observability'
@@ -150,14 +151,26 @@ export async function probeSession(
 /**
  * Clears every session-bearing storage in the app partition plus any pending
  * handoff secrets — the desktop analogue of a browser profile sign-out.
+ *
+ * The embedded browser has its own partition, which this clears too: it holds
+ * the signed-in user's cookies for third-party sites, so leaving it behind
+ * would hand the next account on this machine a set of live sessions. Passed
+ * as a defaulted parameter purely so tests can observe it without a live
+ * browser session.
  */
 export async function tearDownSession(
   session: Session,
   clearHandoffState: () => void | Promise<void>,
-  events: EventRecorder
+  events: EventRecorder,
+  clearBrowserProfile: () => Promise<void> = clearAgentBrowserProfile
 ): Promise<void> {
   events.record('sign_out')
   await clearHandoffState()
+  // A failure here must not strand the app-partition clear, which is the part
+  // that actually signs the user out.
+  await clearBrowserProfile().catch((error) =>
+    logger.error('Browser profile teardown failed', { error })
+  )
   await session.clearStorageData({ storages: [...CLEARED_STORAGES] })
 }
 
@@ -169,24 +182,36 @@ export interface SessionLifecycleDeps {
   onReauthRequested: () => void
 }
 
+export interface SessionLifecycleCoordinator {
+  attachWindow(win: BrowserWindow): void
+}
+
+interface SessionLifecycleCoordinatorDeps extends SessionLifecycleDeps {
+  getWindow: () => BrowserWindow | null
+  getWindows: () => BrowserWindow[]
+}
+
 /**
- * Watches the session after login: web sign-out triggers a full partition
- * teardown, and 401s from the app API (confirmed by a session probe) surface
- * a native "session expired" prompt that reruns the browser handoff.
+ * Owns shared app-session observers once per Electron process while allowing
+ * every full Sim window to contribute navigation signals. This prevents
+ * duplicate cookie listeners, storage clears, and expiry dialogs when
+ * multiple application windows are open.
  */
-export function attachSessionLifecycle(win: BrowserWindow, deps: SessionLifecycleDeps): void {
+export function createSessionLifecycleCoordinator(
+  deps: SessionLifecycleCoordinatorDeps
+): SessionLifecycleCoordinator {
   let tearingDown = false
   const runTeardown = () => {
-    if (tearingDown || win.isDestroyed()) {
-      return
-    }
+    if (tearingDown) return
     tearingDown = true
     logger.info('Sign-out detected; clearing partition')
     void tearDownSession(deps.appSession, deps.clearHandoffState, deps.events)
       .catch((error) => logger.error('Session teardown failed', { error }))
       .finally(() => {
-        if (!win.isDestroyed()) {
-          void win.loadURL(`${deps.origin()}/login`).catch(() => {})
+        for (const win of deps.getWindows()) {
+          if (!win.isDestroyed()) {
+            void win.loadURL(`${deps.origin()}/login`).catch(() => {})
+          }
         }
         // Re-arm after clearStorageData's own cookie-removal events have
         // drained, so self-induced deletions never re-trigger teardown.
@@ -195,17 +220,6 @@ export function attachSessionLifecycle(win: BrowserWindow, deps: SessionLifecycl
         }, TEARDOWN_COOLDOWN_MS)
       })
   }
-
-  const onNavigation = (url: string) => {
-    if (isLogoutNavigation(url, deps.origin())) {
-      runTeardown()
-    }
-  }
-  // The web app signs out with a Next.js soft navigation to
-  // /login?fromLogout=true, which fires did-navigate-in-page — not
-  // did-navigate — so both events must be observed or teardown never runs.
-  win.webContents.on('did-navigate', (_event, url) => onNavigation(url))
-  win.webContents.on('did-navigate-in-page', (_event, url) => onNavigation(url))
 
   // Robust backstop: when the better-auth session cookie is deleted by ANY
   // path (not just the fromLogout redirect), confirm the session is really
@@ -236,9 +250,8 @@ export function attachSessionLifecycle(win: BrowserWindow, deps: SessionLifecycl
     }
     lastExpiryPromptAt = nowTs
     void probeSession(deps.appSession, deps.origin()).then((state) => {
-      if (state !== 'invalid' || win.isDestroyed()) {
-        return
-      }
+      const win = deps.getWindow()
+      if (state !== 'invalid' || !win || win.isDestroyed()) return
       deps.events.record('session_expired')
       void dialog
         .showMessageBox(win, {
@@ -256,6 +269,33 @@ export function attachSessionLifecycle(win: BrowserWindow, deps: SessionLifecycl
         })
     })
   })
+
+  return {
+    attachWindow(win) {
+      const onNavigation = (url: string) => {
+        if (isLogoutNavigation(url, deps.origin())) {
+          runTeardown()
+        }
+      }
+      // The web app signs out with a Next.js soft navigation to
+      // /login?fromLogout=true, which fires did-navigate-in-page — not
+      // did-navigate — so both events must be observed or teardown never runs.
+      win.webContents.on('did-navigate', (_event, url) => onNavigation(url))
+      win.webContents.on('did-navigate-in-page', (_event, url) => onNavigation(url))
+    },
+  }
+}
+
+/**
+ * Single-window compatibility wrapper. Multi-window callers create one
+ * coordinator and attach every application window to it.
+ */
+export function attachSessionLifecycle(win: BrowserWindow, deps: SessionLifecycleDeps): void {
+  createSessionLifecycleCoordinator({
+    ...deps,
+    getWindow: () => (win.isDestroyed() ? null : win),
+    getWindows: () => (win.isDestroyed() ? [] : [win]),
+  }).attachWindow(win)
 }
 
 /**

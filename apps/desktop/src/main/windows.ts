@@ -24,14 +24,14 @@ export function isPopupContents(contents: WebContents): boolean {
 
 export interface WindowPolicyDeps {
   appOrigin: () => string
-  getMainWindow: () => BrowserWindow | null
+  openAppWindow: (url: string) => void
   allowHttpLocalhost: boolean
 }
 
 /**
- * Applies the window.open routing policy to a WebContents. Internal "new tab"
- * opens collapse into the main window (single-window policy); MCP OAuth
- * popups and blank-then-assign children are allowed in the same partition so
+ * Applies the window.open routing policy to a WebContents. Internal requests
+ * open as full, independently navigable Sim windows; MCP OAuth popups and
+ * blank-then-assign children are allowed in the same partition so
  * window.opener/postMessage keep working; everything else goes to the system
  * browser.
  */
@@ -43,11 +43,7 @@ export function attachWindowOpenPolicy(contents: WebContents, deps: WindowPolicy
       case 'popup-blank':
         return { action: 'allow' }
       case 'popup-internal': {
-        const main = deps.getMainWindow()
-        if (main && !main.isDestroyed()) {
-          void main.loadURL(details.url)
-          main.focus()
-        }
+        deps.openAppWindow(details.url)
         return { action: 'deny' }
       }
       case 'external':
@@ -71,8 +67,8 @@ export function attachWindowOpenPolicy(contents: WebContents, deps: WindowPolicy
 
 /**
  * Routes the first real navigation of an about:blank child: same-origin URLs
- * collapse into the main window, external URLs open in the system browser,
- * and the child closes either way.
+ * open in a full Sim window, external URLs open in the system browser, and
+ * the child closes either way.
  */
 function attachBlankChildGuards(child: BrowserWindow, deps: WindowPolicyDeps): void {
   child.webContents.on('will-navigate', (event, url) => {
@@ -82,11 +78,7 @@ function attachBlankChildGuards(child: BrowserWindow, deps: WindowPolicyDeps): v
     }
     event.preventDefault()
     if (action === 'internal') {
-      const main = deps.getMainWindow()
-      if (main && !main.isDestroyed()) {
-        void main.loadURL(url)
-        main.focus()
-      }
+      deps.openAppWindow(url)
     } else if (action === 'external') {
       void openExternalSafe(url, deps.allowHttpLocalhost)
     }

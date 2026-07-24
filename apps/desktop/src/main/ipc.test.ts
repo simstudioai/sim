@@ -28,8 +28,21 @@ function collectHandlers() {
   return { invoke, on }
 }
 
-const fileEvent = { senderFrame: { url: 'file:///app/static/offline.html' } }
-const appEvent = { senderFrame: { url: `${APP}/workspace/ws1` } }
+const rejectedSender = () => ({
+  session: {
+    fetch: vi.fn(async () => {
+      throw new Error('not authorized')
+    }),
+  },
+})
+const fileSender = rejectedSender()
+const appSender = rejectedSender()
+const evilSender = rejectedSender()
+const fileEvent = {
+  senderFrame: { url: 'file:///app/static/offline.html' },
+  sender: fileSender,
+}
+const appEvent = { senderFrame: { url: `${APP}/workspace/ws1` }, sender: appSender }
 const activeAppEvent = {
   senderFrame: {
     url: `${APP}/workspace/ws1`,
@@ -42,7 +55,7 @@ const inactiveAppEvent = {
     executeJavaScript: vi.fn(async () => false),
   },
 }
-const evilEvent = { senderFrame: { url: 'https://evil.example/page' } }
+const evilEvent = { senderFrame: { url: 'https://evil.example/page' }, sender: evilSender }
 
 describe('registerIpcHandlers', () => {
   let deps: IpcDeps
@@ -72,6 +85,11 @@ describe('registerIpcHandlers', () => {
         applySystemPreferences: vi.fn(),
       },
       getWindowState: vi.fn(() => ({ isFullScreen: true })),
+      browserPanel: {
+        setBounds: vi.fn(),
+        setFocused: vi.fn(),
+        setOccluded: vi.fn(),
+      },
       updates: {
         getState: vi.fn(() => ({ status: 'ready' as const, version: '1.2.3' })),
         check: vi.fn(),
@@ -253,7 +271,7 @@ describe('registerIpcHandlers', () => {
 
     expect(await getWindowState?.(evilEvent)).toEqual({ isFullScreen: false })
     expect(await getWindowState?.(appEvent)).toEqual({ isFullScreen: true })
-    expect(deps.getWindowState).toHaveBeenCalledTimes(1)
+    expect(deps.getWindowState).toHaveBeenCalledWith(appSender)
   })
 
   it('restricts shell-control channels to bundled local pages', () => {
@@ -262,7 +280,7 @@ describe('registerIpcHandlers', () => {
     on.get('offline:retry')?.(appEvent)
     expect(deps.retryLoad).not.toHaveBeenCalled()
     on.get('offline:retry')?.(fileEvent)
-    expect(deps.retryLoad).toHaveBeenCalledTimes(1)
+    expect(deps.retryLoad).toHaveBeenCalledWith(fileSender)
   })
 
   it('handles a missing senderFrame safely', async () => {
@@ -340,6 +358,17 @@ describe('registerIpcHandlers', () => {
     expect(() => handler?.(appEvent, '1', true)).not.toThrow()
   })
 
+  it('restricts browser-tab reordering to typed app-origin messages', () => {
+    const { on } = collectHandlers()
+    const handler = on.get('browser-agent:reorder-tab')
+
+    expect(() => handler?.(evilEvent, '1', 0)).not.toThrow()
+    expect(() => handler?.(appEvent, 1, 0)).not.toThrow()
+    expect(() => handler?.(appEvent, '1', '0')).not.toThrow()
+    expect(() => handler?.(appEvent, '1', Number.NaN)).not.toThrow()
+    expect(() => handler?.(appEvent, '1', 0)).not.toThrow()
+  })
+
   it('restricts browser-panel occlusion updates to boolean app-origin messages', () => {
     const { on } = collectHandlers()
     const handler = on.get('browser-agent:set-panel-occluded')
@@ -347,6 +376,7 @@ describe('registerIpcHandlers', () => {
     expect(() => handler?.(evilEvent, true)).not.toThrow()
     expect(() => handler?.(appEvent, 'yes')).not.toThrow()
     expect(() => handler?.(appEvent, true)).not.toThrow()
+    expect(deps.browserPanel.setOccluded).toHaveBeenCalledWith(appSender, true)
   })
 
   it('restricts browser-panel focus updates to boolean app-origin messages', () => {
@@ -356,6 +386,22 @@ describe('registerIpcHandlers', () => {
     expect(() => handler?.(evilEvent, true)).not.toThrow()
     expect(() => handler?.(appEvent, 'yes')).not.toThrow()
     expect(() => handler?.(appEvent, true)).not.toThrow()
+    expect(deps.browserPanel.setFocused).toHaveBeenCalledWith(appSender, true)
+  })
+
+  it('routes validated browser-panel bounds with the originating app window sender', () => {
+    const { on } = collectHandlers()
+    const handler = on.get('browser-agent:set-panel-bounds')
+    const bounds = { x: 100, y: 50, width: 800, height: 600 }
+
+    handler?.(evilEvent, bounds)
+    handler?.(appEvent, { ...bounds, width: Number.NaN })
+    expect(deps.browserPanel.setBounds).not.toHaveBeenCalled()
+
+    handler?.(appEvent, bounds)
+    handler?.(appEvent, null)
+    expect(deps.browserPanel.setBounds).toHaveBeenNthCalledWith(1, appSender, bounds)
+    expect(deps.browserPanel.setBounds).toHaveBeenNthCalledWith(2, appSender, null)
   })
 
   it('restricts browser theme updates to known app-origin preferences', () => {

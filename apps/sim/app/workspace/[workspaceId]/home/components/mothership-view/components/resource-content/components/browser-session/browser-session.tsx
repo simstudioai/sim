@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isBrowserTheme } from '@sim/browser-protocol'
-import { Button, ChipInput, Tooltip } from '@sim/emcn'
+import { Button, ChipInput } from '@sim/emcn'
 import { ArrowLeft, ArrowRight, Cursor, RefreshCw, Search } from '@sim/emcn/icons'
 import { useTheme } from 'next-themes'
 import {
   isBrowserTabPinningAvailable,
+  isBrowserTabReorderingAvailable,
   onBrowserOmniboxFocus,
+  reorderBrowserTab,
   reportBrowserPanelBounds,
   reportBrowserPanelFocused,
   reportBrowserTheme,
@@ -94,6 +96,7 @@ export function BrowserSession() {
   const panelSnapshot = useBrowserSessionStore((state) => state.panelSnapshot)
   const sessionAlive = useBrowserSessionStore((state) => state.sessionAlive)
   const tabPinningSupported = isBrowserTabPinningAvailable()
+  const tabReorderingSupported = isBrowserTabReorderingAvailable()
   const panelRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
@@ -246,93 +249,86 @@ export function BrowserSession() {
     setBrowserTabPinned(tabId, pinned)
   }, [])
 
+  const handleReorderTab = useCallback((tabId: string, targetIndex: number) => {
+    reorderBrowserTab(tabId, targetIndex)
+  }, [])
+
   return (
     <div ref={panelRef} className='flex h-full flex-col overflow-hidden'>
-      {tabsSupported && (
-        <BrowserTabStrip
-          tabs={tabs}
-          activeTabId={activeTabId}
-          onNewTab={handleNewTab}
-          onSwitchTab={handleSwitchTab}
-          onCloseTab={handleCloseTab}
-          onSetTabPinned={handleSetTabPinned}
-          pinningSupported={tabPinningSupported}
-        />
-      )}
-      <div className='flex items-center gap-1 border-[var(--border)] border-b px-2.5 py-1.5'>
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              type='button'
-              variant='ghost-secondary'
-              size='sm'
-              aria-label='Back'
-              disabled={!pageState?.canGoBack}
-              className='size-[30px] flex-shrink-0 p-0'
-              onClick={() => sendBrowserPanelAction('back')}
-            >
-              <ArrowLeft className='size-[14px]' />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='bottom'>Back</Tooltip.Content>
-        </Tooltip.Root>
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              type='button'
-              variant='ghost-secondary'
-              size='sm'
-              aria-label='Forward'
-              disabled={!pageState?.canGoForward}
-              className='size-[30px] flex-shrink-0 p-0'
-              onClick={() => sendBrowserPanelAction('forward')}
-            >
-              <ArrowRight className='size-[14px]' />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='bottom'>Forward</Tooltip.Content>
-        </Tooltip.Root>
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              type='button'
-              variant='ghost-secondary'
-              size='sm'
-              aria-label='Reload page'
-              className='size-[30px] flex-shrink-0 p-0'
-              onClick={() => sendBrowserPanelAction('reload')}
-            >
-              <RefreshCw className='size-[14px]' />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='bottom'>Reload page</Tooltip.Content>
-        </Tooltip.Root>
-        {/* URL bar: Enter navigates the agent browser. */}
-        <ChipInput
-          ref={urlInputRef}
-          type='text'
-          icon={Search}
-          spellCheck={false}
-          aria-label='Search Google or enter a URL — press Enter'
-          className='min-w-0 flex-1'
-          value={urlDraft ?? pageState?.url ?? ''}
-          placeholder='Search Google or enter a URL'
-          autoComplete='off'
-          onChange={(event) => setUrlDraft(event.target.value)}
-          onFocus={(event) => {
-            setUrlDraft((current) => current ?? pageState?.url ?? '')
-            selectFocusedOmniboxOnNextFrame(event.currentTarget)
-          }}
-          onBlur={() => setUrlDraft(null)}
-          onKeyDown={(event) => {
-            event.stopPropagation()
-            if (event.key === 'Enter') submitUrl()
-            if (event.key === 'Escape') urlInputRef.current?.blur()
-          }}
-        />
+      <div className='shrink-0 border-[var(--border)] border-b bg-[var(--bg)]'>
+        {tabsSupported && (
+          <BrowserTabStrip
+            tabs={tabs}
+            activeTabId={activeTabId}
+            onNewTab={handleNewTab}
+            onSwitchTab={handleSwitchTab}
+            onCloseTab={handleCloseTab}
+            onSetTabPinned={handleSetTabPinned}
+            onReorderTab={handleReorderTab}
+            pinningSupported={tabPinningSupported}
+            reorderingSupported={tabReorderingSupported}
+          />
+        )}
+        <div className='flex items-center gap-1 px-2.5 py-1.5'>
+          <Button
+            type='button'
+            variant='ghost-secondary'
+            size='sm'
+            aria-label='Back'
+            disabled={!pageState?.canGoBack}
+            className='size-[30px] flex-shrink-0 p-0'
+            onClick={() => sendBrowserPanelAction('back')}
+          >
+            <ArrowLeft className='size-[14px]' />
+          </Button>
+          <Button
+            type='button'
+            variant='ghost-secondary'
+            size='sm'
+            aria-label='Forward'
+            disabled={!pageState?.canGoForward}
+            className='size-[30px] flex-shrink-0 p-0'
+            onClick={() => sendBrowserPanelAction('forward')}
+          >
+            <ArrowRight className='size-[14px]' />
+          </Button>
+          <Button
+            type='button'
+            variant='ghost-secondary'
+            size='sm'
+            aria-label='Reload page'
+            className='size-[30px] flex-shrink-0 p-0'
+            onClick={() => sendBrowserPanelAction('reload')}
+          >
+            <RefreshCw className='size-[14px]' />
+          </Button>
+          {/* URL bar: Enter navigates the agent browser. */}
+          <ChipInput
+            ref={urlInputRef}
+            type='text'
+            icon={Search}
+            spellCheck={false}
+            aria-label='Search Google or enter a URL — press Enter'
+            className='min-w-0 flex-1'
+            value={urlDraft ?? pageState?.url ?? ''}
+            placeholder='Search Google or enter a URL'
+            autoComplete='off'
+            onChange={(event) => setUrlDraft(event.target.value)}
+            onFocus={(event) => {
+              setUrlDraft((current) => current ?? pageState?.url ?? '')
+              selectFocusedOmniboxOnNextFrame(event.currentTarget)
+            }}
+            onBlur={() => setUrlDraft(null)}
+            onKeyDown={(event) => {
+              event.stopPropagation()
+              if (event.key === 'Enter') submitUrl()
+              if (event.key === 'Escape') urlInputRef.current?.blur()
+            }}
+          />
+        </div>
       </div>
       {/* Host area: the real page is overlaid exactly on this rect. */}
-      <div ref={hostRef} className='relative flex-1 overflow-hidden bg-[var(--surface-secondary)]'>
+      <div ref={hostRef} className='relative flex-1 overflow-hidden bg-[var(--bg)]'>
         {panelOccluded &&
           panelSnapshot &&
           (!activeTabId || panelSnapshot.tabId === activeTabId) && (

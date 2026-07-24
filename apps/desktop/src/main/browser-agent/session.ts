@@ -57,6 +57,7 @@ export interface AgentSessionEvents {
  */
 const PANEL_LEASE_TTL_MS = 2_500
 const PANEL_LEASE_CHECK_MS = 1_000
+const MAX_RECENTLY_CLOSED_TABS = 10
 
 export type BrowserShortcut = 'focus-omnibox' | 'new-tab' | 'close-tab'
 
@@ -98,9 +99,15 @@ export function browserShortcutForInput(
 }
 
 const tabs: AgentTab[] = []
+const recentlyClosedTabUrls: string[] = []
 let activeTabId: string | null = null
 let nextTabId = 1
-let partitionConfigured = false
+/**
+ * Per-session rather than a single boolean: a process-wide flag would make the
+ * SECOND partition ever configured silently skip every hardening step below —
+ * a failure that type-checks and passes tests.
+ */
+const configuredPartitions = new WeakSet<Session>()
 let events: AgentSessionEvents | null = null
 let getMainWindow: () => BrowserWindow | null = () => null
 let pinnedTabPersistence: PinnedTabPersistence | null = null
@@ -121,6 +128,51 @@ let browserTheme: BrowserTheme = 'system'
 let automationActive = false
 /** The window currently hosting the active view, for re-parenting checks. */
 let hostedWindow: BrowserWindow | null = null
+/** The app window whose renderer most recently leased the visible browser panel. */
+let panelOwnerWindow: BrowserWindow | null = null
+
+/**
+ * The window owning the visible browser panel, or null. Self-healing: a
+ * destroyed owner is forgotten here rather than left to reject panel updates
+ * from a window that is legitimately showing the browser.
+ */
+function panelOwner(): BrowserWindow | null {
+  if (panelOwnerWindow?.isDestroyed()) {
+    panelOwnerWindow = null
+  }
+  return panelOwnerWindow
+}
+
+/** The window the panel's native view and pushes belong to. */
+function panelWindow(): BrowserWindow | null {
+  return panelOwner() ?? getMainWindow()
+}
+
+/**
+ * Whether a window may act on the panel. An unowned panel accepts anyone;
+ * once owned, only the owner — so a stale report from a second window cannot
+ * hide or steal the singleton browser surface.
+ */
+function panelUpdateAllowed(ownerWindow?: BrowserWindow): boolean {
+  if (!ownerWindow) return true
+  const owner = panelOwner()
+  return owner === null || owner === ownerWindow
+}
+
+/**
+ * Whether a window may report panel bounds, given which Sim window has OS
+ * focus. Ownership transfers only to the focused window: when Sim is in the
+ * background nothing is focused, and without this rule every window with the
+ * panel mounted would reclaim it on its next heartbeat, re-parenting the
+ * native view back and forth about once a second.
+ */
+export function canReportPanelBounds(
+  win: BrowserWindow,
+  focusedWindow: BrowserWindow | null
+): boolean {
+  const owner = panelOwner()
+  return owner === null || owner === win || focusedWindow === win
+}
 
 export function initSession(
   handlers: AgentSessionEvents,
@@ -134,25 +186,30 @@ export function initSession(
   }
 }
 
+/**
+ * Accepts only what is safe to navigate back to later: http(s), no embedded
+ * credentials, bounded length. Shared by the pinned-tab list and the
+ * closed-tab list, both of which outlive the tab they came from and so must
+ * not be able to revive a `user:pass@host` URL.
+ */
+function sanitizeRestorableUrl(candidate: unknown): string | null {
+  if (typeof candidate !== 'string' || candidate.length > 8_192) return null
+  if (candidate === 'about:blank') return candidate
+  try {
+    const url = new URL(candidate)
+    if ((url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password) {
+      return url.href
+    }
+  } catch {}
+  return null
+}
+
 function sanitizePinnedTabUrls(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   const urls: string[] = []
   for (const candidate of value) {
-    if (typeof candidate !== 'string' || candidate.length > 8_192) continue
-    if (candidate === 'about:blank') {
-      urls.push(candidate)
-    } else {
-      try {
-        const url = new URL(candidate)
-        if (
-          (url.protocol === 'http:' || url.protocol === 'https:') &&
-          !url.username &&
-          !url.password
-        ) {
-          urls.push(url.href)
-        }
-      } catch {}
-    }
+    const url = sanitizeRestorableUrl(candidate)
+    if (url !== null) urls.push(url)
     if (urls.length >= MAX_BROWSER_TABS) break
   }
   return urls
@@ -183,8 +240,8 @@ export async function listAgentCookieSignals(): Promise<BrowserCookieSignal[]> {
  * silently dropped on disk.
  */
 function configureAgentPartition(ses: Session): void {
-  if (partitionConfigured) return
-  partitionConfigured = true
+  if (configuredPartitions.has(ses)) return
+  configuredPartitions.add(ses)
   ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
   ses.setPermissionCheckHandler(() => false)
   // SSRF choke point for the agent partition. Document navigations (top-level +
@@ -222,7 +279,7 @@ function configureAgentPartition(ses: Session): void {
 }
 
 function focusRendererOmnibox(mode: BrowserOmniboxFocusMode): void {
-  const win = getMainWindow()
+  const win = panelWindow()
   if (!win || win.isDestroyed()) return
   win.webContents.focus()
   win.webContents.send('browser-agent:focus-omnibox', mode)
@@ -454,7 +511,7 @@ function detachAttachedView(): void {
  */
 function capturePanelSnapshot(): void {
   const active = activeTab()
-  const win = getMainWindow()
+  const win = panelWindow()
   if (!active || !win || active.view.webContents.isDestroyed()) return
 
   const generation = ++panelSnapshotGeneration
@@ -463,8 +520,12 @@ function capturePanelSnapshot(): void {
     .capturePage(undefined, { stayHidden: true })
     .then((image) => {
       if (generation !== panelSnapshotGeneration || image.isEmpty()) return
+      // Ownership can move while the capture is in flight. This frame is a
+      // picture of the page, so it goes to the window still showing the
+      // browser or nowhere at all.
+      if (panelWindow() !== win || win.isDestroyed()) return
       const snapshot: BrowserPanelSnapshot = { dataUrl: image.toDataURL(), tabId }
-      getMainWindow()?.webContents.send('browser-agent:panel-snapshot', snapshot)
+      win.webContents.send('browser-agent:panel-snapshot', snapshot)
     })
     .catch((error) => {
       logger.warn('Could not capture browser panel snapshot', {
@@ -480,7 +541,7 @@ function capturePanelSnapshot(): void {
  * Idempotent: repeated calls with unchanged inputs perform no view mutations.
  */
 function layout(): void {
-  const win = getMainWindow()
+  const win = panelWindow()
   const active = activeTab()
   const showing = active !== null && panelBounds !== null && win !== null
   const activeViewChanged = showing && attachedView !== active?.view
@@ -531,8 +592,29 @@ function layout(): void {
   }
 }
 
-/** Renderer-reported panel rect (null = panel hidden/unmounted). */
-export function setPanelBounds(bounds: BrowserPanelBounds | null): void {
+/**
+ * Renderer-reported panel rect (null = panel hidden/unmounted). When an owner
+ * is supplied, stale reports from another app window cannot steal or hide the
+ * singleton browser surface.
+ */
+export function setPanelBounds(
+  bounds: BrowserPanelBounds | null,
+  ownerWindow?: BrowserWindow
+): void {
+  // A closing window releases the panel from its `closed` handler, by which
+  // point Electron has already destroyed it. That release has to be honoured
+  // or the panel stays "visible" with a dead owner, and the next layout
+  // re-parents the native view onto whatever window is active — over a UI
+  // that never asked for it — until the bounds lease expires.
+  if (bounds !== null && ownerWindow?.isDestroyed()) return
+  // Only the owner may hide the panel; a stale report from another window
+  // must not pull the browser out from under the window displaying it.
+  if (bounds === null && !panelUpdateAllowed(ownerWindow)) return
+  if (bounds !== null) {
+    panelOwnerWindow = ownerWindow ?? getMainWindow()
+  } else {
+    panelOwnerWindow = null
+  }
   panelBounds = bounds
   // A visible browser resource always represents one open browser window.
   // Materialize its initial about:blank tab before layout so the tab strip,
@@ -553,6 +635,7 @@ export function setPanelBounds(bounds: BrowserPanelBounds | null): void {
       if (panelBounds !== null && Date.now() - panelLeaseAt > PANEL_LEASE_TTL_MS) {
         logger.info('Panel bounds lease expired; hiding embedded browser view')
         panelBounds = null
+        panelOwnerWindow = null
         panelOccluded = false
         panelSnapshotGeneration++
         layout()
@@ -571,7 +654,8 @@ export function setPanelBounds(bounds: BrowserPanelBounds | null): void {
  * keeps its bounds while hidden, avoiding the flicker and restacking caused
  * by removing and re-adding it for every tooltip or menu.
  */
-export function setPanelOccluded(occluded: boolean): void {
+export function setPanelOccluded(occluded: boolean, ownerWindow?: BrowserWindow): void {
+  if (!panelUpdateAllowed(ownerWindow)) return
   if (panelOccluded === occluded) return
   panelOccluded = occluded
   if (occluded) {
@@ -657,6 +741,25 @@ export function addTab(): AgentTab {
   return addTabInternal()
 }
 
+/** Restores the most recently closed regular tab for the current app session. */
+export function reopenClosedTab(): AgentTab | null {
+  restorePinnedTabs()
+  if (listTabs().length >= MAX_BROWSER_TABS) return null
+  const url = recentlyClosedTabUrls.shift()
+  if (!url) return null
+
+  const tab = addTabInternal()
+  if (url !== 'about:blank') {
+    // No checkAgentUrl here, unlike the tool-driven navigations: the stored
+    // URL was already sanitized to http(s) on close, and the partition's
+    // onBeforeRequest still runs the full DNS-resolving SSRF check on the
+    // document load. Pre-checking would only buy a nicer error, and there is
+    // no model to report one to — this path is a user keystroke.
+    void tab.view.webContents.loadURL(url).catch(() => {})
+  }
+  return tab
+}
+
 export function switchTab(tabId: string): AgentTab {
   restorePinnedTabs()
   const tab = tabs.find((entry) => entry.id === tabId)
@@ -671,6 +774,33 @@ export function switchTab(tabId: string): AgentTab {
   return tab
 }
 
+/**
+ * Moves a tab to a final list index while preserving the pinned/regular
+ * boundary. Dragging across that boundary moves to its nearest valid edge.
+ */
+export function reorderTab(tabId: string, targetIndex: number): AgentTab {
+  restorePinnedTabs()
+  if (!Number.isFinite(targetIndex)) {
+    throw new SessionError('Browser tab target index must be a finite number.')
+  }
+  const currentIndex = tabs.findIndex((entry) => entry.id === tabId)
+  if (currentIndex < 0) {
+    throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
+  }
+  const tab = tabs[currentIndex]
+  const pinnedCount = tabs.filter((entry) => entry.pinned).length
+  const minIndex = tab.pinned ? 0 : pinnedCount
+  const maxIndex = tab.pinned ? pinnedCount - 1 : tabs.length - 1
+  const nextIndex = Math.max(minIndex, Math.min(maxIndex, Math.trunc(targetIndex)))
+  if (nextIndex === currentIndex) return tab
+
+  tabs.splice(currentIndex, 1)
+  tabs.splice(nextIndex, 0, tab)
+  if (tab.pinned) persistPinnedTabs()
+  events?.onTabsChanged()
+  return tab
+}
+
 export function closeTab(tabId: string): void {
   restorePinnedTabs()
   const index = tabs.findIndex((entry) => entry.id === tabId)
@@ -679,6 +809,12 @@ export function closeTab(tabId: string): void {
     throw new SessionError('Pinned tabs cannot be closed. Unpin the tab first.')
   }
   const [tab] = tabs.splice(index, 1)
+  recentlyClosedTabUrls.unshift(
+    sanitizeRestorableUrl(tab.view.webContents.getURL()) ?? 'about:blank'
+  )
+  if (recentlyClosedTabUrls.length > MAX_RECENTLY_CLOSED_TABS) {
+    recentlyClosedTabUrls.length = MAX_RECENTLY_CLOSED_TABS
+  }
   const transferBrowserFocus = focusedBrowserTabId === tab.id || tab.view.webContents.isFocused()
   clearFocusedBrowserTab(tab.id)
   if (attachedView === tab.view) {
@@ -686,7 +822,7 @@ export function closeTab(tabId: string): void {
   }
   tab.view.webContents.close()
   if (activeTabId === tab.id) {
-    activeTabId = tabs.length > 0 ? tabs[tabs.length - 1].id : null
+    activeTabId = (tabs[index] ?? tabs[index - 1])?.id ?? null
     layout()
     const active = activeTab()
     if (active) {
@@ -738,7 +874,8 @@ export function setTabPinned(tabId: string, pinned: boolean): AgentTab {
  * function instead of Electron's global close role. Returns false when focus
  * belongs to the rest of the app.
  */
-export function closeFocusedTab(): boolean {
+export function closeFocusedTab(ownerWindow?: BrowserWindow | null): boolean {
+  if (!panelUpdateAllowed(ownerWindow ?? undefined)) return false
   const focusedTab = tabs.find(
     (tab) =>
       !tab.view.webContents.isDestroyed() &&
@@ -749,8 +886,25 @@ export function closeFocusedTab(): boolean {
   return true
 }
 
+/** Reopens the latest closed tab only while the browser owns interaction focus. */
+export function reopenFocusedTab(ownerWindow?: BrowserWindow | null): boolean {
+  if (!panelUpdateAllowed(ownerWindow ?? undefined)) return false
+  const browserFocused = tabs.some(
+    (tab) =>
+      !tab.view.webContents.isDestroyed() &&
+      (tab.id === focusedBrowserTabId || tab.view.webContents.isFocused())
+  )
+  if (!browserFocused) return false
+
+  const reopened = reopenClosedTab()
+  if (!reopened) return false
+  reopened.view.webContents.focus()
+  return true
+}
+
 /** Marks renderer-owned browser chrome as focused or releases browser focus. */
-export function setPanelFocused(focused: boolean): void {
+export function setPanelFocused(focused: boolean, ownerWindow?: BrowserWindow): void {
+  if (!panelUpdateAllowed(ownerWindow)) return
   if (!focused) {
     clearFocusedBrowserTab()
     return
@@ -781,6 +935,38 @@ function closeTabFromUser(tabId: string): void {
     return
   }
   active.view.webContents.focus()
+}
+
+/**
+ * Wipes the embedded browser's profile: open tabs, the in-memory list behind
+ * Reopen Closed Tab, the persisted pinned tabs, and all site data and cache in
+ * the agent partition. Sim sign-out runs this so the next account signing in
+ * on this machine cannot inherit the previous user's authenticated sessions,
+ * pinned tabs, or browsing trail.
+ */
+export async function clearBrowserProfile(): Promise<void> {
+  if (attachedView) {
+    detachAttachedView()
+  }
+  for (const tab of tabs.splice(0)) {
+    if (!tab.view.webContents.isDestroyed()) {
+      tab.view.webContents.close()
+    }
+  }
+  recentlyClosedTabUrls.length = 0
+  activeTabId = null
+  clearFocusedBrowserTab()
+  // Stays true so a later restore cannot re-read the list being erased here.
+  pinnedTabsRestored = true
+  pinnedTabPersistence?.save([])
+  events?.onTabsChanged()
+  layout()
+
+  const ses = electronSession.fromPartition(AGENT_PARTITION)
+  // No `storages` filter: a profile wipe should leave nothing behind, and an
+  // allowlist would silently miss whatever Chromium adds next.
+  await ses.clearStorageData()
+  await ses.clearCache()
 }
 
 export function listTabs(): BrowserTabState[] {

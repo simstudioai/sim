@@ -500,6 +500,7 @@ const TOOL_TITLES: Record<string, string> = {
   browser_switch_tab: 'Switching tab',
   browser_close_tab: 'Closing tab',
   browser_list_tabs: 'Listing tabs',
+  browser_list_sessions: 'Checking signed-in sites',
   browser_snapshot: 'Scanning page',
   browser_read_text: 'Reading page',
   browser_screenshot: 'Taking screenshot',
@@ -725,6 +726,10 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       return url ? `Scraping ${url}` : 'Scraping page'
     }
     case 'browser_navigate': {
+      const url = displayUrl(stringArg(args, 'url'))
+      return url ? `Opening ${url}` : 'Opening page'
+    }
+    case 'browser_open_url': {
       const url = displayUrl(stringArg(args, 'url'))
       return url ? `Opening ${url}` : 'Opening page'
     }

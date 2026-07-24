@@ -163,6 +163,15 @@ export class BrowserKnownSessionRegistry {
     )
   }
 
+  /**
+   * Forgets every remembered site. The record is a browsing trail scoped to
+   * whoever was signed in, so Sim sign-out must not leave it for the next
+   * account.
+   */
+  clear(): void {
+    this.config.set('browserKnownSites', [])
+  }
+
   list(cookieSignals: BrowserCookieSignal[]): BrowserKnownSessionsState {
     const now = this.now()
     const stored = this.config.get('browserKnownSites')

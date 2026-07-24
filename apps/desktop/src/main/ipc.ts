@@ -1,10 +1,10 @@
-import { isBrowserTheme, isBrowserToolName } from '@sim/browser-protocol'
+import { type BrowserPanelBounds, isBrowserTheme, isBrowserToolName } from '@sim/browser-protocol'
 import type {
   DesktopNotificationPayload,
   DesktopUpdateState,
   DesktopWindowState,
 } from '@sim/desktop-bridge'
-import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 import { ipcMain } from 'electron'
 import {
   executeTool,
@@ -12,13 +12,7 @@ import {
   getTabsState,
   handlePanelAction,
 } from '@/main/browser-agent/driver'
-import {
-  setBrowserTheme,
-  setPanelBounds,
-  setPanelFocused,
-  setPanelOccluded,
-  setTabPinned,
-} from '@/main/browser-agent/session'
+import { reorderTab, setBrowserTheme, setTabPinned } from '@/main/browser-agent/session'
 import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
 import { isDesktopPreferenceKey } from '@/main/desktop-settings'
@@ -115,10 +109,15 @@ export function parseDesktopNotificationPayload(raw: unknown): DesktopNotificati
 export interface IpcDeps {
   appOrigin: () => string
   allowHttpLocalhost: () => boolean
-  retryLoad: () => void
+  retryLoad: (sender: WebContents) => void
   localFilesystem: LocalFilesystemService
   settings: DesktopSettingsService
-  getWindowState: () => DesktopWindowState
+  getWindowState: (sender: WebContents) => DesktopWindowState
+  browserPanel: {
+    setBounds: (sender: WebContents, bounds: BrowserPanelBounds | null) => void
+    setFocused: (sender: WebContents, focused: boolean) => void
+    setOccluded: (sender: WebContents, occluded: boolean) => void
+  }
   beginOAuthConnect: (providerId: string, scope: OAuthConnectScope) => Promise<boolean>
   updates: {
     getState: () => DesktopUpdateState
@@ -139,6 +138,7 @@ type ChannelSpec =
   | {
       kind: 'invoke'
       gate: ChannelGate
+      passSender?: boolean
       /** Returned to the caller when the gate rejects the sender. */
       denied: unknown
       handler: (...args: unknown[]) => unknown
@@ -146,6 +146,7 @@ type ChannelSpec =
   | {
       kind: 'send'
       gate: ChannelGate
+      passSender?: boolean
       handler: (...args: unknown[]) => void
     }
 
@@ -317,8 +318,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'desktop:window-state:get': {
       kind: 'invoke',
       gate: 'app-origin',
+      passSender: true,
       denied: { isFullScreen: false },
-      handler: () => deps.getWindowState(),
+      handler: (sender) => deps.getWindowState(sender as WebContents),
     },
     'desktop:updates:get-state': {
       kind: 'invoke',
@@ -385,31 +387,50 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         } catch {}
       },
     },
+    'browser-agent:reorder-tab': {
+      kind: 'send',
+      gate: 'app-origin',
+      handler: (tabId, targetIndex) => {
+        if (
+          typeof tabId !== 'string' ||
+          typeof targetIndex !== 'number' ||
+          !Number.isFinite(targetIndex)
+        ) {
+          return
+        }
+        try {
+          reorderTab(tabId, targetIndex)
+        } catch {}
+      },
+    },
     'browser-agent:set-panel-bounds': {
       kind: 'send',
       gate: 'app-origin',
-      handler: (raw) => {
+      passSender: true,
+      handler: (sender, raw) => {
         const bounds = parsePanelBounds(raw)
         if (bounds !== undefined) {
-          setPanelBounds(bounds)
+          deps.browserPanel.setBounds(sender as WebContents, bounds)
         }
       },
     },
     'browser-agent:set-panel-focused': {
       kind: 'send',
       gate: 'app-origin',
-      handler: (focused) => {
+      passSender: true,
+      handler: (sender, focused) => {
         if (typeof focused === 'boolean') {
-          setPanelFocused(focused)
+          deps.browserPanel.setFocused(sender as WebContents, focused)
         }
       },
     },
     'browser-agent:set-panel-occluded': {
       kind: 'send',
       gate: 'app-origin',
-      handler: (occluded) => {
+      passSender: true,
+      handler: (sender, occluded) => {
         if (typeof occluded === 'boolean') {
-          setPanelOccluded(occluded)
+          deps.browserPanel.setOccluded(sender as WebContents, occluded)
         }
       },
     },
@@ -422,7 +443,12 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         }
       },
     },
-    'offline:retry': { kind: 'send', gate: 'local-page', handler: () => deps.retryLoad() },
+    'offline:retry': {
+      kind: 'send',
+      gate: 'local-page',
+      passSender: true,
+      handler: (sender) => deps.retryLoad(sender as WebContents),
+    },
   }
 
   const senderAllowed = (event: IpcMainEvent | IpcMainInvokeEvent, gate: ChannelGate): boolean => {
@@ -474,12 +500,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
             error: 'This local filesystem request is not an authorized pending Copilot tool call.',
           }
         }
+        if (spec.passSender) {
+          handlerArgs = [event.sender, ...handlerArgs]
+        }
         return spec.handler(...handlerArgs)
       })
     } else {
       ipcMain.on(channel, (event, ...args) => {
         if (senderAllowed(event, spec.gate)) {
-          spec.handler(...args)
+          spec.handler(...(spec.passSender ? [event.sender, ...args] : args))
         }
       })
     }

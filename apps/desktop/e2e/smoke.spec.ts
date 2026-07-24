@@ -74,12 +74,15 @@ test.describe('desktop shell smoke', () => {
     expect(window.url()).toBe(`${origin}/workspace`)
   })
 
-  test('internal window.open collapses into the main window (single-window policy)', async () => {
+  test('internal window.open creates an independent full Sim window', async () => {
     app = await launchApp(origin)
     const window = await app.firstWindow()
+    const newWindowPromise = app.waitForEvent('window')
     await window.locator('#internal-blank').click()
-    await expect(window.locator('#two')).toHaveText('second-route')
-    expect(app.windows()).toHaveLength(1)
+    const secondWindow = await newWindowPromise
+    await expect(secondWindow.locator('#two')).toHaveText('second-route')
+    await expect(window.locator('#app')).toHaveText('fixture-app')
+    expect(app.windows()).toHaveLength(2)
   })
 
   test('external window.open goes to the system browser, never a new app window', async () => {

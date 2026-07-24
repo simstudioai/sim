@@ -18,8 +18,10 @@ function makeDeps(): MenuDeps {
     getMainWindow: vi.fn(() => null),
     allowHttpLocalhost: vi.fn(() => false),
     openSettings: vi.fn(),
+    newWindow: vi.fn(),
     newChat: vi.fn(),
     closeFocusedBrowserTab: vi.fn(() => false),
+    reopenClosedBrowserTab: vi.fn(() => false),
     toggleSidebar: vi.fn(),
     signOut: vi.fn(),
     checkForUpdates: vi.fn(),
@@ -61,8 +63,10 @@ describe('buildMenuTemplate', () => {
       'quit',
     ])
     expect(submenu(template, 'File').map((item) => item.label ?? item.role ?? item.type)).toEqual([
+      'New Window',
       'New Chat',
       'separator',
+      'Reopen Closed Tab',
       'Close Window',
     ])
     expect(submenu(template, 'View').map((item) => item.label ?? item.role ?? item.type)).toEqual([
@@ -89,7 +93,7 @@ describe('buildMenuTemplate', () => {
   })
 
   it('routes the close accelerator through the focused browser tab before closing a window', () => {
-    const closeFocusedBrowserTab = vi.fn(() => true)
+    const closeFocusedBrowserTab = vi.fn((_win: BrowserWindow | null) => true)
     const deps = Object.assign(makeDeps(), { closeFocusedBrowserTab })
     const closeItem = submenu(buildMenuTemplate(deps), 'File').find(
       (item) => item.accelerator === 'CmdOrCtrl+W'
@@ -105,11 +109,45 @@ describe('buildMenuTemplate', () => {
     ) => void
     click({}, focusedWindow)
 
-    expect(closeFocusedBrowserTab).toHaveBeenCalledOnce()
+    expect(closeFocusedBrowserTab).toHaveBeenCalledWith(focusedWindow)
     expect(focusedWindow.close).not.toHaveBeenCalled()
 
     closeFocusedBrowserTab.mockReturnValue(false)
     click({}, focusedWindow)
     expect(focusedWindow.close).toHaveBeenCalledOnce()
+  })
+
+  it('routes the reopen accelerator through the focused browser session', () => {
+    const reopenClosedBrowserTab = vi.fn((_win: BrowserWindow | null) => true)
+    const template = buildMenuTemplate(
+      Object.assign(makeDeps(), {
+        reopenClosedBrowserTab,
+      })
+    )
+    const reopenItem = submenu(template, 'File').find(
+      (item) => item.accelerator === 'CmdOrCtrl+Shift+T'
+    )
+
+    expect(reopenItem).toMatchObject({
+      label: 'Reopen Closed Tab',
+      accelerator: 'CmdOrCtrl+Shift+T',
+    })
+    const focusedWindow = new BrowserWindow()
+    ;(reopenItem?.click as unknown as (menuItem: unknown, browserWindow: BrowserWindow) => void)(
+      {},
+      focusedWindow
+    )
+    expect(reopenClosedBrowserTab).toHaveBeenCalledWith(focusedWindow)
+  })
+
+  it('offers the standard new-window command', () => {
+    const deps = makeDeps()
+    const item = submenu(buildMenuTemplate(deps), 'File').find(
+      (entry) => entry.accelerator === 'CmdOrCtrl+Shift+N'
+    )
+
+    expect(item).toMatchObject({ label: 'New Window' })
+    ;(item?.click as unknown as () => void)()
+    expect(deps.newWindow).toHaveBeenCalledOnce()
   })
 })

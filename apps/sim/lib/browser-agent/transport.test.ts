@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   onFocusOmnibox,
   onPanelSnapshot,
+  reorderTab,
   setPageState,
   setPanelBounds,
   setPanelFocused,
@@ -16,6 +17,7 @@ const {
 } = vi.hoisted(() => ({
   onFocusOmnibox: vi.fn(),
   onPanelSnapshot: vi.fn(),
+  reorderTab: vi.fn(),
   setPageState: vi.fn(),
   setPanelBounds: vi.fn(),
   setPanelFocused: vi.fn(),
@@ -39,6 +41,7 @@ vi.mock('@/lib/desktop', () => ({
       onSessionStatus: vi.fn(),
       onTabsState: vi.fn(),
       panelAction: vi.fn(),
+      reorderTab,
       setPanelBounds,
       setPanelFocused,
       setPanelOccluded,
@@ -63,7 +66,9 @@ vi.mock('@/stores/browser-session/store', () => ({
 import {
   initBrowserAgentTransport,
   isBrowserTabPinningAvailable,
+  isBrowserTabReorderingAvailable,
   onBrowserOmniboxFocus,
+  reorderBrowserTab,
   reportBrowserPanelBounds,
   reportBrowserPanelFocused,
   reportBrowserPanelOcclusion,
@@ -78,6 +83,7 @@ describe('browser panel transport', () => {
     setPanelBounds.mockClear()
     setPanelFocused.mockClear()
     setPanelOccluded.mockClear()
+    reorderTab.mockClear()
     setTabPinned.mockClear()
     setTheme.mockClear()
   })
@@ -112,6 +118,14 @@ describe('browser panel transport', () => {
       ['tab-2', true],
       ['tab-2', false],
     ])
+  })
+
+  it('forwards tab reordering only through shells that advertise support', () => {
+    expect(isBrowserTabReorderingAvailable()).toBe(true)
+
+    reorderBrowserTab('tab-3', 1)
+
+    expect(reorderTab).toHaveBeenCalledWith('tab-3', 1)
   })
 
   it('wires captured browser frames into the browser-session store', () => {

@@ -173,6 +173,7 @@ export class WebContentsView {
 
 export class BrowserWindow {
   static fromWebContents = vi.fn(() => null)
+  static getFocusedWindow = vi.fn(() => null)
   /** Constructor tracking for tests (the class itself is not a vi.fn mock). */
   static instances: BrowserWindow[] = []
   static lastOptions: Record<string, unknown> | undefined

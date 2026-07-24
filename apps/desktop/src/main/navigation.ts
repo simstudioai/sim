@@ -137,8 +137,8 @@ export function classifyNavigation(rawUrl: string, ctx: NavigationContext): Main
 }
 
 /**
- * Classifies a window.open request (setWindowOpenHandler). Internal popups
- * collapse into the single main window; the MCP OAuth popup and the
+ * Classifies a window.open request (setWindowOpenHandler). Internal requests
+ * become full Sim application windows; the MCP OAuth popup and the
  * blank-then-assign pattern (Stripe portal, deployed-chat tabs) are allowed as
  * guarded children in the same partition.
  */
