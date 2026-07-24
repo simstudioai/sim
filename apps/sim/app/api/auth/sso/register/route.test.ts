@@ -100,7 +100,7 @@ describe('POST /api/auth/sso/register', () => {
     mockHasSSOAccess.mockResolvedValue(true)
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '1.2.3.4' })
     mockSecureFetchWithPinnedIP.mockRejectedValue(new Error('discovery not mocked for this test'))
-    mockRegisterSSOProvider.mockResolvedValue({ providerId: 'acme-oidc' })
+    mockRegisterSSOProvider.mockResolvedValue({ id: 'row-1', providerId: 'acme-oidc' })
     mockUpdateSSOProvider.mockResolvedValue({ providerId: 'acme-oidc' })
     // Default: the org has already verified the domain, so the ownership gate
     // passes and each test exercises the logic beyond it. The gate is checked
