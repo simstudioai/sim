@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { normalizeSSODomain } from '@/lib/auth/sso/domain'
+import { normalizeSSODomain } from './sso-domain'
 
 describe('normalizeSSODomain', () => {
   it('lowercases and trims', () => {

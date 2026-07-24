@@ -916,6 +916,17 @@ export const schemaMock = {
     providerId: 'providerId',
     organizationId: 'organizationId',
   },
+  ssoDomain: {
+    id: 'id',
+    organizationId: 'organizationId',
+    domain: 'domain',
+    status: 'status',
+    verificationToken: 'verificationToken',
+    verifiedAt: 'verifiedAt',
+    createdBy: 'createdBy',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
+  },
   workflowMcpServer: {
     id: 'id',
     workspaceId: 'workspaceId',
