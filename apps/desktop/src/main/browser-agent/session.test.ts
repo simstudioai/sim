@@ -638,7 +638,7 @@ describe('browser-agent session', () => {
     session.closeTab(session.addTab().id)
     expect(session.reopenClosedTab()).not.toBeNull()
 
-    await session.clearBrowserProfile()
+    await session.clearProfileStorage()
 
     expect(survivor.close).toHaveBeenCalled()
     expect(session.listTabs()).toHaveLength(0)

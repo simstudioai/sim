@@ -9,6 +9,7 @@ import type {
   LocalFilesystemResponse,
 } from '@sim/desktop-bridge'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { app, dialog, shell } from 'electron'
 import micromatch from 'micromatch'
 import safeRegex from 'safe-regex2'
@@ -85,10 +86,6 @@ interface SelectedDirectory {
 export interface LocalFilesystemToolAuthorization {
   toolName: string
   args: Record<string, unknown>
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function isWithinRoot(rootPath: string, candidatePath: string): boolean {
@@ -300,7 +297,7 @@ export class LocalFilesystemService {
 
   async handle(request: unknown): Promise<LocalFilesystemResponse> {
     try {
-      if (!isRecord(request) || typeof request.operation !== 'string') {
+      if (!isRecordLike(request) || typeof request.operation !== 'string') {
         throw new LocalFilesystemError('INVALID_REQUEST', 'Local filesystem request is invalid.')
       }
 
@@ -391,7 +388,7 @@ export class LocalFilesystemService {
     request: unknown,
     authorization: LocalFilesystemToolAuthorization
   ): boolean {
-    if (!isRecord(request) || typeof request.operation !== 'string') return false
+    if (!isRecordLike(request) || typeof request.operation !== 'string') return false
     if (
       typeof request.requestId !== 'string' ||
       request.requestId.length === 0 ||

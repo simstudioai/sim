@@ -1007,7 +1007,7 @@ function closeTabFromUser(tabId: string): void {
  * on this machine cannot inherit the previous user's authenticated sessions,
  * pinned tabs, or browsing trail.
  */
-export async function clearBrowserProfile(): Promise<void> {
+export async function clearProfileStorage(): Promise<void> {
   if (attachedView) {
     detachAttachedView()
   }

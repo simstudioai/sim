@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { isLoopbackHostname } from '@sim/security/ssrf'
 import { shell } from 'electron'
+import { scrubUrl } from '@/main/observability'
 
 const logger = createLogger('DesktopNavigation')
 
@@ -218,7 +219,7 @@ export function isSafeExternalUrl(raw: string, allowHttpLocalhost = false): bool
  */
 export async function openExternalSafe(raw: string, allowHttpLocalhost = false): Promise<boolean> {
   if (!isSafeExternalUrl(raw, allowHttpLocalhost)) {
-    logger.warn('Blocked unsafe external URL', { url: raw.slice(0, 200) })
+    logger.warn('Blocked unsafe external URL', { url: scrubUrl(raw) })
     return false
   }
   try {

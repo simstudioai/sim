@@ -4,15 +4,16 @@ import type {
   DesktopUpdateState,
   DesktopWindowState,
 } from '@sim/desktop-bridge'
+import { isRecordLike } from '@sim/utils/object'
 import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 import { ipcMain } from 'electron'
+import { executeTool, getKnownSessions, handlePanelAction } from '@/main/browser-agent/driver'
 import {
-  executeTool,
-  getKnownSessions,
   getTabsState,
-  handlePanelAction,
-} from '@/main/browser-agent/driver'
-import { reorderTab, setBrowserTheme, setTabPinned } from '@/main/browser-agent/session'
+  reorderTab,
+  setBrowserTheme,
+  setTabPinned,
+} from '@/main/browser-agent/session'
 import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
 import { isDesktopPreferenceKey } from '@/main/desktop-settings'
@@ -355,8 +356,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         if (typeof tool !== 'string' || !isBrowserToolName(tool)) {
           return { ok: false, error: `Unknown browser tool: ${String(tool)}` }
         }
-        const toolParams =
-          typeof params === 'object' && params !== null ? (params as Record<string, unknown>) : {}
+        const toolParams = isRecordLike(params) ? params : {}
         return executeTool(tool, toolParams)
       },
     },

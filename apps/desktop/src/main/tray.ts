@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
+import { truncate } from '@sim/utils/string'
 import type { MenuItemConstructorOptions, NativeImage } from 'electron'
 import { app, Menu, nativeImage, session, Tray } from 'electron'
 import { isSafeInternalPath } from '@/main/config'
@@ -182,7 +183,7 @@ export interface TrayDeps {
 function chatMenuItem(chat: RecentChat, deps: TrayDeps): MenuItemConstructorOptions {
   const icon = statusDotImage(chat.status)
   return {
-    label: chat.title.length > 60 ? `${chat.title.slice(0, 57)}…` : chat.title,
+    label: truncate(chat.title, 57, '…'),
     ...(icon ? { icon } : {}),
     click: () => deps.openMainWindow(chatRoute(chat)),
   }

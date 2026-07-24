@@ -5,6 +5,7 @@ import {
   classifyWindowOpen,
   openExternalSafe,
 } from '@/main/navigation'
+import { scrubUrl } from '@/main/observability'
 
 const logger = createLogger('DesktopWindows')
 
@@ -50,7 +51,7 @@ export function attachWindowOpenPolicy(contents: WebContents, deps: WindowPolicy
         void openExternalSafe(details.url, deps.allowHttpLocalhost)
         return { action: 'deny' }
       default:
-        logger.warn('Denied window.open', { url: details.url.slice(0, 200) })
+        logger.warn('Denied window.open', { url: scrubUrl(details.url) })
         return { action: 'deny' }
     }
   })

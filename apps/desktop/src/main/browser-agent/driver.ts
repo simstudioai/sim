@@ -25,6 +25,7 @@ import type {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { isRecordLike } from '@sim/utils/object'
 import type { BrowserWindow, WebContents } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
 import { ToolError } from '@/main/browser-agent/errors'
@@ -214,7 +215,7 @@ export async function getKnownSessions(): Promise<BrowserKnownSessionsState> {
  */
 export async function clearBrowserProfile(): Promise<void> {
   knownSessions?.clear()
-  await session.clearBrowserProfile()
+  await session.clearProfileStorage()
 }
 
 function str(params: Record<string, unknown>, key: string): string | undefined {
@@ -313,7 +314,7 @@ const PASSWORD_REFUSAL =
 
 /** Maps sentinel `{ error: ... }` results from injected functions to ToolErrors. */
 function unwrapPageResult(result: unknown): unknown {
-  if (typeof result === 'object' && result !== null && 'error' in result) {
+  if (isRecordLike(result) && 'error' in result) {
     const code = (result as { error: string }).error
     if (code === 'stale') {
       throw new ToolError(
@@ -394,7 +395,7 @@ function raceAgainstWatchdog<T>(execution: Promise<T>, watchdogMs: number): Prom
  */
 async function activeElementState(contents: WebContents): Promise<Record<string, unknown>> {
   const state = await execInPage(contents, readActiveElementState, []).catch(() => null)
-  return typeof state === 'object' && state !== null ? (state as Record<string, unknown>) : {}
+  return isRecordLike(state) ? state : {}
 }
 
 /**
@@ -685,7 +686,7 @@ async function executeToolInner(
           combo.alt,
         ])
         return {
-          ...(typeof fallback === 'object' && fallback !== null ? fallback : {}),
+          ...(isRecordLike(fallback) ? fallback : {}),
           note: 'Delivered as a synthetic page event; editing shortcuts may not take effect.',
         }
       }
@@ -741,7 +742,7 @@ function withNotices(result: unknown): unknown {
   if (pendingNotices.length === 0) return result
   const notices = pendingNotices
   pendingNotices = []
-  if (typeof result === 'object' && result !== null && !Array.isArray(result)) {
+  if (isRecordLike(result)) {
     return { ...(result as Record<string, unknown>), notices }
   }
   return { value: result, notices }
@@ -782,10 +783,6 @@ export async function executeTool(
     logger.warn('Browser tool failed', { tool, error: message })
     return { ok: false, error: message }
   }
-}
-
-export function getTabsState(): BrowserTabsState {
-  return session.getTabsState()
 }
 
 /** Browser-chrome commands from the panel header; fire-and-forget. */
