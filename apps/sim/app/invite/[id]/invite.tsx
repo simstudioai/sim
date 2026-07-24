@@ -272,11 +272,12 @@ export default function Invite() {
           token: token ?? undefined,
           /**
            * Disclosure token: acceptance rejects with disclosure-outdated if
-           * the sweep set no longer matches what this screen showed.
+           * the sweep set no longer matches what this screen showed. Sent
+           * whenever a preview rendered — a no-join preview means the user
+           * was shown that nothing moves (an empty disclosed set), which
+           * must also conflict if acceptance would sweep anything.
            */
-          disclosedWorkspaceIds: joinPreview?.willJoinOrganization
-            ? joinPreview.workspaceIdsToMove
-            : undefined,
+          disclosedWorkspaceIds: joinPreview ? joinPreview.workspaceIdsToMove : undefined,
         },
       })
 
