@@ -27,6 +27,9 @@ export function buildResourceAttachments(
   const { pageState, tabs, tabsSupported } = useBrowserSessionStore.getState()
   const attachments = resources.flatMap<ResourceAttachment>((resource) => {
     if (resource.type !== 'browser') {
+      // A resource persisted without an id (e.g. an unresolvable chip) can
+      // never be attached — sending it fails the chat request's validation.
+      if (!resource.id) return []
       return [
         {
           type: resource.type,

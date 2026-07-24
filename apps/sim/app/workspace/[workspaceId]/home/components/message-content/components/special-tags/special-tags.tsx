@@ -713,7 +713,7 @@ export function WorkspaceResourceDisplay({
 
     return {
       type: toMothershipResourceType(data.type),
-      id: data.id ?? fileFromPath?.id ?? data.path ?? '',
+      id: [data.id, fileFromPath?.id, data.path].find((value) => value?.trim()) ?? '',
       title,
       ...(data.type === 'file' && data.path ? { path: data.path } : {}),
     }

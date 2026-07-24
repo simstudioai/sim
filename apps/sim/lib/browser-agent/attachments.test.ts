@@ -21,6 +21,19 @@ describe('buildResourceAttachments', () => {
     })
   })
 
+  it('drops resources persisted without an id', () => {
+    const attachments = buildResourceAttachments(
+      [
+        { type: 'file', id: '', title: 'api.mdx' },
+        { type: 'file', id: 'file-1', title: 'report.csv' },
+      ],
+      null
+    )
+    expect(attachments).toEqual([
+      { type: 'file', id: 'file-1', title: 'report.csv', active: false },
+    ])
+  })
+
   it('adds every live browser tab and marks only the selected tab active', () => {
     useBrowserSessionStore.setState({
       tabsSupported: true,
