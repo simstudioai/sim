@@ -18,6 +18,20 @@ describe('roomName', () => {
     expect(roomName({ type: ROOM_TYPES.WORKSPACE_FILES, id: 'ws-123' })).toBe(
       'workspace-files:ws-123'
     )
+    expect(roomName({ type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: 'file-123' })).toBe(
+      'workspace-file-doc:file-123'
+    )
+  })
+
+  it('keeps the file-doc and file-browser namespaces distinct for the same id', () => {
+    // `workspace-file-doc` must not be parsed as the `workspace-files` browser
+    // room (or vice versa): the prefix match is the whole segment before `:`.
+    const id = 'a1b2c3d4-uuid'
+    const doc = roomName({ type: ROOM_TYPES.WORKSPACE_FILE_DOC, id })
+    const browser = roomName({ type: ROOM_TYPES.WORKSPACE_FILES, id })
+    expect(doc).not.toBe(browser)
+    expect(parseRoomName(doc)).toEqual({ type: ROOM_TYPES.WORKSPACE_FILE_DOC, id })
+    expect(parseRoomName(browser)).toEqual({ type: ROOM_TYPES.WORKSPACE_FILES, id })
   })
 
   it('never collides a namespaced room with a bare workflow id for real ids', () => {
@@ -35,6 +49,7 @@ describe('parseRoomName', () => {
     const refs: RoomRef[] = [
       { type: ROOM_TYPES.WORKFLOW, id: 'wf-123' },
       { type: ROOM_TYPES.WORKSPACE_FILES, id: 'ws-456' },
+      { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: 'file-789' },
     ]
     for (const ref of refs) {
       expect(parseRoomName(roomName(ref))).toEqual(ref)
