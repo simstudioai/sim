@@ -39,6 +39,7 @@ describe('unified settings navigation', () => {
       { id: 'inbox', label: 'Sim mailer', section: 'system' },
       { id: 'recently-deleted', label: 'Recently deleted', section: 'system' },
       { id: 'sso', label: 'Single sign-on', section: 'enterprise' },
+      { id: 'domains', label: 'Verified domains', section: 'enterprise' },
       { id: 'sessions', label: 'Session policies', section: 'enterprise' },
       { id: 'data-retention', label: 'Data retention', section: 'enterprise' },
       { id: 'data-drains', label: 'Data drains', section: 'enterprise' },

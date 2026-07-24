@@ -3,6 +3,7 @@
   "pages": [
     "index",
     "sso",
+    "verified-domains",
     "session-policies",
     "access-control",
     "custom-blocks",

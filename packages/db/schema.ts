@@ -3002,6 +3002,48 @@ export const ssoProvider = pgTable(
 )
 
 /**
+ * An email domain an organization has claimed, and its verification state.
+ *
+ * A domain must be **verified** (via a DNS TXT challenge — the org places
+ * `verificationToken` in a `_sim-challenge.<domain>` record) before it can
+ * back SSO enforcement or domain auto-join: verifying proves the org controls
+ * the domain, which is the security precondition for those account-capture
+ * features. Existing `sso_provider` domains are grandfathered as `verified` by
+ * the backfill in migration 0266.
+ */
+export const ssoDomain = pgTable(
+  'sso_domain',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    /** Normalized (lowercase, registrable) domain — see `normalizeSSODomain`. */
+    domain: text('domain').notNull(),
+    /** `'pending'` until the DNS TXT record is observed, then `'verified'`. */
+    status: text('status').notNull().default('pending'),
+    /** High-entropy token placed in the domain's `_sim-challenge` TXT record. */
+    verificationToken: text('verification_token').notNull(),
+    verifiedAt: timestamp('verified_at'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationIdIdx: index('sso_domain_organization_id_idx').on(table.organizationId),
+    domainIdx: index('sso_domain_domain_idx').on(table.domain),
+    /**
+     * A verified domain is globally unique — exactly one org owns it. Pending
+     * rows may coexist (multiple orgs can race to prove ownership), so the
+     * constraint is a partial unique index scoped to verified rows.
+     */
+    verifiedDomainUnique: uniqueIndex('sso_domain_verified_unique')
+      .on(table.domain)
+      .where(sql`status = 'verified'`),
+  })
+)
+
+/**
  * Workflow MCP Servers - User-created MCP servers that expose workflows as tools.
  * These servers are accessible by external MCP clients via API key authentication,
  * or publicly if isPublic is set to true.

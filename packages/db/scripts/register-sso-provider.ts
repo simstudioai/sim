@@ -40,10 +40,10 @@
 
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { ssoProvider, user } from '../schema'
+import { ssoDomain, ssoProvider, user } from '../schema'
 
 interface SSOMapping {
   id: string
@@ -639,6 +639,40 @@ async function registerSSOProvider(): Promise<boolean> {
         .where(eq(ssoProvider.providerId, ssoConfig.providerId))
     } else {
       await db.insert(ssoProvider).values(providerData)
+    }
+
+    // Keep the verified-domains model consistent with script registration: a
+    // domain registered for org SSO here is owned by that org, so mark it
+    // verified (mirrors migration 0266's grandfathering). Without this, a
+    // domain added by the script after the migration would be missing its
+    // verified record and the UI/API would treat it as unverified. Org-scoped
+    // only — user-scoped providers have no org to attach a domain to.
+    if (providerData.organizationId) {
+      const normalizedDomain = ssoConfig.domain.trim().toLowerCase()
+      const existingDomain = await db
+        .select({ id: ssoDomain.id })
+        .from(ssoDomain)
+        .where(
+          and(
+            eq(ssoDomain.organizationId, providerData.organizationId),
+            eq(ssoDomain.domain, normalizedDomain)
+          )
+        )
+      if (existingDomain.length === 0) {
+        await db.insert(ssoDomain).values({
+          id: generateId(),
+          organizationId: providerData.organizationId,
+          domain: normalizedDomain,
+          status: 'verified',
+          verificationToken: generateId(),
+          verifiedAt: new Date(),
+        })
+      } else {
+        await db
+          .update(ssoDomain)
+          .set({ status: 'verified', verifiedAt: new Date(), updatedAt: new Date() })
+          .where(eq(ssoDomain.id, existingDomain[0].id))
+      }
     }
 
     logger.info('✅ SSO provider registered successfully in database!', {

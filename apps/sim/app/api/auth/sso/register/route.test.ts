@@ -94,6 +94,10 @@ describe('POST /api/auth/sso/register', () => {
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '1.2.3.4' })
     mockSecureFetchWithPinnedIP.mockRejectedValue(new Error('discovery not mocked for this test'))
     mockRegisterSSOProvider.mockResolvedValue({ providerId: 'acme-oidc' })
+    // Default: the org has already verified the domain, so the ownership gate
+    // passes and each test exercises the logic beyond it. Gate-specific tests
+    // reset the queue to assert the unverified path.
+    queueTableRows(schemaMock.ssoDomain, [{ id: 'verified-domain' }])
   })
 
   afterAll(() => {
@@ -119,6 +123,17 @@ describe('POST /api/auth/sso/register', () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
     const res = await POST(request({ ...OIDC_BODY, domain: 'not-a-domain', orgId: 'org1' }))
     expect(res.status).toBe(400)
+    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+  })
+
+  it('rejects configuring org SSO for a domain the org has not verified', async () => {
+    resetDbChainMock()
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueTableRows(schemaMock.ssoDomain, []) // no verified sso_domain row
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    const json = await res.json()
+    expect(res.status).toBe(403)
+    expect(json.code).toBe('SSO_DOMAIN_NOT_VERIFIED')
     expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
   })
 

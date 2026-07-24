@@ -1,4 +1,4 @@
-import { db, member, ssoProvider } from '@sim/db'
+import { db, member, ssoDomain, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
@@ -118,6 +118,34 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const domain = normalizeSSODomain(body.domain)
     if (!domain) {
       return NextResponse.json({ error: 'Enter a valid domain like company.com' }, { status: 400 })
+    }
+
+    // Security gate: configuring org SSO for a domain requires the org to have
+    // proven ownership of it (DNS TXT verification). Without this, the old
+    // first-come claim let any org wire another company's domain to their own
+    // IdP — an account-takeover primitive. Existing domains were grandfathered
+    // as verified by migration 0266, so live tenants are unaffected.
+    if (orgId) {
+      const [verified] = await db
+        .select({ id: ssoDomain.id })
+        .from(ssoDomain)
+        .where(
+          and(
+            eq(ssoDomain.organizationId, orgId),
+            eq(ssoDomain.domain, domain),
+            eq(ssoDomain.status, 'verified')
+          )
+        )
+        .limit(1)
+      if (!verified) {
+        return NextResponse.json(
+          {
+            error: `Verify ownership of ${domain} under Settings → Verified domains before configuring SSO for it.`,
+            code: 'SSO_DOMAIN_NOT_VERIFIED',
+          },
+          { status: 403 }
+        )
+      }
     }
 
     const isOwnedByCaller = (provider: {
