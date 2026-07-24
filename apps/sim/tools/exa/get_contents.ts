@@ -87,6 +87,7 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
     headers: (params) => ({
       'Content-Type': 'application/json',
       'x-api-key': params.apiKey,
+      'x-exa-integration': 'sim',
     }),
     body: (params) => {
       // Parse the comma-separated URLs into an array
