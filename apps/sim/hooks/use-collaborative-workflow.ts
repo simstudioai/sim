@@ -153,6 +153,7 @@ export function useCollaborativeWorkflow() {
     onSubblockUpdate,
     onVariableUpdate,
     onWorkflowDeleted,
+    onAccessRevoked,
     onWorkflowReverted,
     onWorkflowUpdated,
     onWorkflowDeployed,
@@ -639,6 +640,22 @@ export function useCollaborativeWorkflow() {
       }
     }
 
+    const handleAccessRevoked = (data: any) => {
+      const { workflowId } = data
+      logger.warn(`Access to workflow ${workflowId} has been revoked`)
+
+      if (activeWorkflowId === workflowId) {
+        logger.info(
+          `Access to currently active workflow ${workflowId} was revoked, stopping collaborative operations`
+        )
+
+        const currentUserId = session?.user?.id || 'unknown'
+        useUndoRedoStore.getState().clear(workflowId, currentUserId)
+
+        isApplyingRemoteChange.current = false
+      }
+    }
+
     const reloadWorkflowFromApi = async (workflowId: string, reason: string): Promise<boolean> => {
       const reloadSequence = (reloadSequencesRef.current[workflowId] ?? 0) + 1
       reloadSequencesRef.current[workflowId] = reloadSequence
@@ -913,6 +930,7 @@ export function useCollaborativeWorkflow() {
     onSubblockUpdate(handleSubblockUpdate)
     onVariableUpdate(handleVariableUpdate)
     onWorkflowDeleted(handleWorkflowDeleted)
+    onAccessRevoked(handleAccessRevoked)
     onWorkflowReverted(handleWorkflowReverted)
     onWorkflowUpdated(handleWorkflowUpdated)
     onWorkflowDeployed(handleWorkflowDeployed)
@@ -935,6 +953,7 @@ export function useCollaborativeWorkflow() {
     onSubblockUpdate,
     onVariableUpdate,
     onWorkflowDeleted,
+    onAccessRevoked,
     onWorkflowReverted,
     onWorkflowUpdated,
     onWorkflowDeployed,

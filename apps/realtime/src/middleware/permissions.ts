@@ -85,11 +85,13 @@ export function checkRolePermission(
 }
 
 /**
- * TTL for the per-pod role cache backing live re-validation of mutating operations.
- * Bounds how long a revoked or downgraded collaborator can retain write access on an
- * already-connected socket.
+ * TTL for the per-pod role cache backing live re-validation. It gates both the
+ * mutating-operation checks ({@link checkWorkflowOperationPermission}) and the
+ * periodic read-access sweep (`access-revalidation.ts`), so a revoked or
+ * downgraded collaborator loses write access — and live reads — on an
+ * already-connected socket within a bounded window rather than until disconnect.
  */
-const ROLE_REVALIDATION_TTL_MS = 30_000
+export const ROLE_REVALIDATION_TTL_MS = 30_000
 
 /** Soft cap on cached entries before an opportunistic purge of expired ones runs. */
 const MAX_ROLE_CACHE_ENTRIES = 5_000
