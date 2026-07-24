@@ -630,33 +630,18 @@ async function registerSSOProvider(): Promise<boolean> {
     // can never leave a live provider without its ownership row. Both commit or
     // neither does.
     await db.transaction(async (tx) => {
-      // Update the specific row observed above by its primary-key id, NOT the
-      // logical providerId: if that row was deregistered and another
-      // registration created a replacement with the same providerId, a
-      // providerId-keyed update would clobber the replacement's config and
-      // ownership. Targeting the observed id touches only our row; if it is gone
-      // (zero rows) we insert, which then fails cleanly on the providerId unique
-      // constraint instead of overwriting the replacement. The insert-fallback
-      // is decided from the update's row count, so a row deleted before the
-      // transaction can never leave an orphaned verified-domain record below.
-      const priorId = existingProviders[0]?.id
-      const updated = priorId
-        ? await tx
-            .update(ssoProvider)
-            .set({
-              issuer: providerData.issuer,
-              domain: providerData.domain,
-              oidcConfig: providerData.oidcConfig,
-              samlConfig: providerData.samlConfig,
-              userId: providerData.userId,
-              organizationId: providerData.organizationId,
-            })
-            .where(eq(ssoProvider.id, priorId))
-            .returning({ id: ssoProvider.id })
-        : []
-      if (updated.length === 0) {
-        await tx.insert(ssoProvider).values(providerData)
-      }
+      // Idempotent, race-safe upsert for a providerId that has NO unique
+      // constraint (sso_provider.provider_id is a plain index, and prod already
+      // holds legitimate duplicates): delete every row for this providerId, then
+      // insert exactly one. A prior "update by id, else insert" could create a
+      // duplicate when the observed row was deregistered and replaced before the
+      // transaction — with no unique constraint the fallback insert would
+      // succeed. Delete-then-insert inside the transaction guarantees the
+      // providerId ends up as exactly this config, atomically. Deleting the
+      // ssoProvider row does not touch linked accounts (they key on the
+      // providerId string, not the row id), so existing SSO logins keep working.
+      await tx.delete(ssoProvider).where(eq(ssoProvider.providerId, ssoConfig.providerId))
+      await tx.insert(ssoProvider).values(providerData)
 
       // Keep the verified-domains model consistent with script registration: a
       // domain registered for org SSO here is owned by that org, so mark it
