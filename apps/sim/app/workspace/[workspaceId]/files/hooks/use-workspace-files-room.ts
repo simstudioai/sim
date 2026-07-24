@@ -130,10 +130,13 @@ export function useWorkspaceFilesRoom(
       // Defer the leave: if the page re-mounts for the same workspace this tick, the
       // new effect re-claims `intendedFilesWorkspaceId` and this leave is skipped,
       // avoiding a flap and a leave-after-join race. A real navigation away leaves
-      // the value cleared/changed, so the leave fires.
+      // the value cleared/changed, so the leave fires. The leave is scoped to this
+      // workspace so, after a workspace switch, it can't evict the new room.
       if (intendedFilesWorkspaceId === workspaceId) intendedFilesWorkspaceId = null
       queueMicrotask(() => {
-        if (intendedFilesWorkspaceId !== workspaceId) socket.emit('leave-workspace-files')
+        if (intendedFilesWorkspaceId !== workspaceId) {
+          socket.emit('leave-workspace-files', { workspaceId })
+        }
       })
     }
   }, [socket, workspaceId, queryClient])

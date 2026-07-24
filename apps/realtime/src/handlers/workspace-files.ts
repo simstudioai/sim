@@ -177,14 +177,18 @@ export function setupWorkspaceFilesHandlers(
     }
   )
 
-  socket.on('leave-workspace-files', async () => {
+  socket.on('leave-workspace-files', async (payload?: { workspaceId?: string }) => {
     try {
       if (!roomManager.isReady()) return
       const room = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.WORKSPACE_FILES)
       if (!room) return
+      // Scope the leave to a specific workspace when the client provides one: a
+      // deferred leave from a prior page must not evict the socket from a room it
+      // has since switched into (workspace A→B leaves A's leave targeting B).
+      if (payload?.workspaceId && payload.workspaceId !== room.id) return
       socket.leave(roomName(room))
       await roomManager.removeUserFromRoom(room, socket.id)
-      await roomManager.broadcastPresenceUpdate(room)
+      await roomManager.broadcastPresenceUpdate(room, socket.id)
     } catch (error) {
       logger.error('Error leaving workspace files room:', error)
     }
