@@ -60,7 +60,7 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
   hero: {
     heading: 'Sim is the AI workspace for enterprise AI agents.',
     description:
-      'Build, deploy, and govern enterprise AI agents with role-based access, approvals, and full audit trails.',
+      'The enterprise AI agent platform. Build, deploy, and govern agents with role-based access, approvals, and full audit trails.',
     summary:
       'Sim is the open-source AI workspace where IT, operations, and technical teams build, deploy, and govern enterprise AI agents across 1,000+ integrations and every major LLM. An enterprise AI agent uses AI models, business data, and connected tools to complete multi-step work within the permissions, approval policies, and human oversight your organization defines.',
     /**
