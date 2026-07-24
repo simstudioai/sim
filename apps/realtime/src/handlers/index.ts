@@ -4,6 +4,7 @@ import { setupPresenceHandlers } from '@/handlers/presence'
 import { setupSubblocksHandlers } from '@/handlers/subblocks'
 import { setupVariablesHandlers } from '@/handlers/variables'
 import { setupWorkflowHandlers } from '@/handlers/workflow'
+import { setupWorkspaceFilesHandlers } from '@/handlers/workspace-files'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import type { IRoomManager } from '@/rooms'
 
@@ -13,5 +14,6 @@ export function setupAllHandlers(socket: AuthenticatedSocket, roomManager: IRoom
   setupSubblocksHandlers(socket, roomManager)
   setupVariablesHandlers(socket, roomManager)
   setupPresenceHandlers(socket, roomManager)
+  setupWorkspaceFilesHandlers(socket, roomManager)
   setupConnectionHandlers(socket, roomManager)
 }

@@ -7,6 +7,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
   FileConflictError,
   parseWorkspaceFileKey,
@@ -62,6 +63,8 @@ export const POST = withRouteHandler(
 
       if (created) {
         logger.info(`Registered direct upload ${name} -> ${key}`)
+
+        await notifyWorkspaceFilesChanged(workspaceId)
 
         captureServerEvent(
           userId,
