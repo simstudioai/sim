@@ -66,8 +66,8 @@ realtime:
   # Keep realtime at 1 replica unless REDIS_URL is set (in app.env — realtime
   # shares the app secret): Socket.IO only bridges events across pods through
   # its Redis adapter, so multi-replica realtime without Redis silently drops
-  # cross-pod collaboration updates. NOTE: with autoscaling.enabled below, the
-  # realtime HPA overrides this value — set REDIS_URL before enabling it.
+  # cross-pod collaboration updates. autoscaling.realtime.enabled is false
+  # below for the same reason — flip both once REDIS_URL is set.
   replicaCount: 1
   
   resources:
@@ -145,11 +145,13 @@ ingress:
     secretName: simstudio-tls-secret
 
 # Production-ready features (autoscaling, monitoring, etc.)
-# NOTE: autoscaling also renders an HPA for realtime with the same minReplicas,
-# overriding realtime.replicaCount. Multi-replica realtime REQUIRES REDIS_URL in
-# app.env (Socket.IO Redis adapter) or cross-pod collaboration events are lost.
 autoscaling:
   enabled: true
+  # Keep realtime out of the HPA until REDIS_URL is set (Socket.IO Redis
+  # adapter) — multi-replica realtime without Redis silently drops cross-pod
+  # collaboration events.
+  realtime:
+    enabled: false
   minReplicas: 2
   maxReplicas: 20
   targetCPUUtilizationPercentage: 70

@@ -1012,6 +1012,12 @@ serviceAccount:
 # if you use customMetrics) installed in the cluster.
 autoscaling:
   enabled: false
+  # Also scale the realtime Deployment with the same HPA settings. Multi-replica
+  # realtime REQUIRES REDIS_URL in app.env (Socket.IO Redis adapter) — without
+  # Redis, cross-pod collaboration events are silently dropped. Set false to
+  # keep realtime pinned at realtime.replicaCount while the app still scales.
+  realtime:
+    enabled: true
   minReplicas: 1
   maxReplicas: 10
   targetCPUUtilizationPercentage: 80

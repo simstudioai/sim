@@ -8,7 +8,9 @@ metadata:
   labels:
     {{- include "sim.realtime.labels" . | nindent 4 }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
+  {{- /* The HPA owns replicas only when the realtime HPA actually renders —
+      with autoscaling.realtime.enabled=false, replicaCount stays in charge. */}}
+  {{- if not (and .Values.autoscaling.enabled .Values.autoscaling.realtime.enabled) }}
   replicas: {{ .Values.realtime.replicaCount }}
   {{- end }}
   selector:
