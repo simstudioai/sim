@@ -1,33 +1,24 @@
 'use client'
 
-import { type ReactNode, useState } from 'react'
-import {
-  Chip,
-  ChipConfirmModal,
-  ChipInput,
-  ChipLink,
-  ChipTextarea,
-  chipFieldSurfaceClass,
-  cn,
-  Send,
-  Tooltip,
-  toast,
-} from '@sim/emcn'
+import { useState } from 'react'
+import { Chip, ChipConfirmModal, ChipLink, Send, toast } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { AddPeopleModal } from '@/components/permissions'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import {
   CredentialDetailHeading,
   CredentialDetailLayout,
-  DetailSection,
   UnsavedChangesModal,
   useUnsavedChangesGuard,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { SkillEditorsCard } from '@/app/workspace/[workspaceId]/skills/[skillId]/components/skill-editors-card'
+import {
+  type SkillFieldErrors,
+  SkillFields,
+} from '@/app/workspace/[workspaceId]/skills/components/skill-fields'
 import { useSkillEditorsController } from '@/app/workspace/[workspaceId]/skills/components/skill-members'
 import {
   isSkillNameConflictError,
@@ -36,46 +27,7 @@ import {
 } from '@/app/workspace/[workspaceId]/skills/components/utils'
 import { useDeleteSkill, useSkills, useUpdateSkill } from '@/hooks/queries/skills'
 
-const RichMarkdownField = dynamic(
-  () =>
-    import(
-      '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field'
-    ).then((m) => m.RichMarkdownField),
-  {
-    ssr: false,
-    loading: () => <div className={cn('min-h-[260px]', chipFieldSurfaceClass)} />,
-  }
-)
-
 const logger = createLogger('SkillDetail')
-
-interface FieldErrors {
-  name?: string
-  description?: string
-  content?: string
-}
-
-interface FieldLockTooltipProps {
-  reason: string | null
-  children: ReactNode
-}
-
-/**
- * Wraps a read-only field so hovering it explains why editing is locked.
- * Renders children unchanged when the field is editable. The wrapper div
- * receives the hover events a disabled control swallows.
- */
-function FieldLockTooltip({ reason, children }: FieldLockTooltipProps) {
-  if (!reason) return <>{children}</>
-  return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <div>{children}</div>
-      </Tooltip.Trigger>
-      <Tooltip.Content>{reason}</Tooltip.Content>
-    </Tooltip.Root>
-  )
-}
 
 interface SkillDetailProps {
   workspaceId: string
@@ -110,7 +62,7 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
   const [contentDraft, setContentDraft] = useState('')
   /** Bumped to remount the seed-once rich Content editor on programmatic sets. */
   const [contentSeed, setContentSeed] = useState(0)
-  const [errors, setErrors] = useState<FieldErrors>({})
+  const [errors, setErrors] = useState<SkillFieldErrors>({})
   const [shareOpen, setShareOpen] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [prevSkillId, setPrevSkillId] = useState<string | null>(null)
@@ -138,7 +90,7 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
   const handleSave = async () => {
     if (!skill || !canEdit || !isDirty || updateSkill.isPending) return
 
-    const newErrors: FieldErrors = {}
+    const newErrors: SkillFieldErrors = {}
     const nameError = validateSkillName(nameDraft)
     if (nameError) newErrors.name = nameError
     if (!descriptionDraft.trim()) newErrors.description = 'Description is required'
@@ -252,70 +204,29 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
           subtitle={isBuiltin ? 'Built-in skill' : skill.description}
         />
 
-        <DetailSection title='Name'>
-          <FieldLockTooltip reason={lockReason}>
-            <ChipInput
-              id='skill-name'
-              value={nameDraft}
-              onChange={(event) => {
-                setNameDraft(event.target.value)
-                if (errors.name) setErrors((prev) => ({ ...prev, name: undefined }))
-              }}
-              placeholder='my-skill-name'
-              autoComplete='off'
-              data-lpignore='true'
-              disabled={readOnly}
-              error={!!errors.name}
-            />
-          </FieldLockTooltip>
-          {errors.name && (
-            <p className='mt-[9px] text-[var(--text-error)] text-caption'>{errors.name}</p>
-          )}
-        </DetailSection>
-
-        <DetailSection title='Description'>
-          <FieldLockTooltip reason={lockReason}>
-            <ChipTextarea
-              id='skill-description'
-              rows={3}
-              value={descriptionDraft}
-              onChange={(event) => {
-                setDescriptionDraft(event.target.value)
-                if (errors.description) setErrors((prev) => ({ ...prev, description: undefined }))
-              }}
-              placeholder='What this skill does and when to use it...'
-              maxLength={1024}
-              autoComplete='off'
-              data-lpignore='true'
-              disabled={readOnly}
-            />
-          </FieldLockTooltip>
-          {errors.description && (
-            <p className='mt-[9px] text-[var(--text-error)] text-caption'>{errors.description}</p>
-          )}
-        </DetailSection>
-
-        <DetailSection title='Content'>
-          <FieldLockTooltip reason={lockReason}>
-            <RichMarkdownField
-              key={`${skill.id}:${contentSeed}`}
-              value={contentDraft}
-              onChange={(value) => {
-                setContentDraft(value)
-                if (errors.content) setErrors((prev) => ({ ...prev, content: undefined }))
-              }}
-              placeholder='Skill instructions in markdown...'
-              minHeight={260}
-              disabled={readOnly}
-              error={!!errors.content}
-              workspaceId={workspaceId}
-              onPasteText={handleContentPaste}
-            />
-          </FieldLockTooltip>
-          {errors.content && (
-            <p className='mt-[9px] text-[var(--text-error)] text-caption'>{errors.content}</p>
-          )}
-        </DetailSection>
+        <SkillFields
+          name={nameDraft}
+          description={descriptionDraft}
+          content={contentDraft}
+          onNameChange={(value) => {
+            setNameDraft(value)
+            if (errors.name) setErrors((prev) => ({ ...prev, name: undefined }))
+          }}
+          onDescriptionChange={(value) => {
+            setDescriptionDraft(value)
+            if (errors.description) setErrors((prev) => ({ ...prev, description: undefined }))
+          }}
+          onContentChange={(value) => {
+            setContentDraft(value)
+            if (errors.content) setErrors((prev) => ({ ...prev, content: undefined }))
+          }}
+          errors={errors}
+          contentKey={`${skill.id}:${contentSeed}`}
+          workspaceId={workspaceId}
+          disabled={readOnly}
+          lockReason={lockReason}
+          onPasteText={handleContentPaste}
+        />
 
         {!isBuiltin && <SkillEditorsCard editors={editors} canEdit={canEdit} />}
       </CredentialDetailLayout>

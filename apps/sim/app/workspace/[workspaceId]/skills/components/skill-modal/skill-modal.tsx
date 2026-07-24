@@ -15,6 +15,13 @@ import {
 import { getErrorMessage } from '@sim/utils/errors'
 import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
+import {
+  SKILL_CONTENT_PLACEHOLDER,
+  SKILL_DESCRIPTION_MAX_LENGTH,
+  SKILL_DESCRIPTION_PLACEHOLDER,
+  SKILL_NAME_HINT,
+  SKILL_NAME_PLACEHOLDER,
+} from '@/app/workspace/[workspaceId]/skills/components/skill-copy'
 import { SkillImport } from '@/app/workspace/[workspaceId]/skills/components/skill-import'
 import {
   isSkillNameConflictError,
@@ -73,7 +80,6 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
    */
   const [contentSeed, setContentSeed] = useState(0)
   const [errors, setErrors] = useState<FieldErrors>({})
-  const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState<TabValue>('create')
   const [prevOpen, setPrevOpen] = useState(false)
   const [prevInitialValues, setPrevInitialValues] = useState(initialValues)
@@ -96,6 +102,8 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
     description !== initialValues.description ||
     content !== initialValues.content
 
+  const saving = createSkill.isPending || updateSkill.isPending
+
   const handleSave = async () => {
     const newErrors: FieldErrors = {}
 
@@ -114,8 +122,6 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
       setErrors(newErrors)
       return
     }
-
-    setSaving(true)
 
     try {
       if (initialValues) {
@@ -137,8 +143,6 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
       } else {
         setErrors({ general: 'Failed to save skill. Please try again.' })
       }
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -205,10 +209,10 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
                 if (errors.name || errors.general)
                   setErrors((prev) => ({ ...prev, name: undefined, general: undefined }))
               }}
-              placeholder='my-skill-name'
+              placeholder={SKILL_NAME_PLACEHOLDER}
               required
               error={errors.name}
-              hint='Lowercase letters, numbers, and hyphens (e.g. my-skill)'
+              hint={SKILL_NAME_HINT}
               disabled={readOnly || saving}
             />
 
@@ -221,8 +225,8 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
                 if (errors.description || errors.general)
                   setErrors((prev) => ({ ...prev, description: undefined, general: undefined }))
               }}
-              placeholder='What this skill does and when to use it...'
-              maxLength={1024}
+              placeholder={SKILL_DESCRIPTION_PLACEHOLDER}
+              maxLength={SKILL_DESCRIPTION_MAX_LENGTH}
               required
               error={errors.description}
               disabled={readOnly || saving}
@@ -237,7 +241,7 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
                   if (errors.content || errors.general)
                     setErrors((prev) => ({ ...prev, content: undefined, general: undefined }))
                 }}
-                placeholder='Skill instructions in markdown...'
+                placeholder={SKILL_CONTENT_PLACEHOLDER}
                 minHeight={200}
                 maxHeight={360}
                 disabled={readOnly || saving}
