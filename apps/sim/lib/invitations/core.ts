@@ -881,6 +881,21 @@ async function acceptLockedInvitation(
     }
   }
 
+  /**
+   * Reverse disclosure guard: a will-join notice (non-empty disclosed set)
+   * whose acceptance resolved to no-join must not silently succeed as an
+   * external grant — the user consented to membership plus a migration that
+   * will not happen. Nothing has been written on the no-join path, so a
+   * plain failure return suffices; retry renders the refreshed preview.
+   */
+  if (
+    !shouldJoinOrganization &&
+    input.disclosedWorkspaceIds !== undefined &&
+    input.disclosedWorkspaceIds.length > 0
+  ) {
+    return { success: false, kind: 'disclosure-outdated' }
+  }
+
   const acceptedWorkspaceIds: string[] = []
 
   try {
