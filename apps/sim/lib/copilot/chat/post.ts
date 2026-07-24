@@ -1227,6 +1227,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     otelRoot?.finish('error', error)
 
     if (isZodError(error)) {
+      logger.warn(`[${requestId}] Chat request failed validation`, { issues: error.issues })
       return validationErrorResponse(error, 'Invalid request data')
     }
 
