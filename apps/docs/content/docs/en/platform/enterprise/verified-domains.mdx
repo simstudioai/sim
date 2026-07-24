@@ -23,7 +23,11 @@ Go to **Settings → Security → Verified domains** in your organization settin
 3. Add that TXT record at your DNS provider.
 4. Click **Verify**. Sim looks up the record; on success the domain is marked **Verified**.
 
-DNS changes can take up to 48 hours to propagate — if verification does not succeed immediately, wait and retry. You can remove the TXT record after the domain is verified; the verification persists.
+<Callout type="warning">
+  Some DNS providers — GoDaddy, Namecheap, Hover, and most cPanel panels — append your domain to whatever you type in the host field. If yours does, enter just `_sim-challenge` rather than the full `_sim-challenge.acme.com`, or you will end up with `_sim-challenge.acme.com.acme.com` and verification will never succeed. Cloudflare and Route 53 take the full host as shown.
+</Callout>
+
+DNS changes can take up to 48 hours to propagate — if verification does not succeed immediately, wait and retry. Keep the TXT record published: leaving it in place means the domain stays verifiable if you ever need to verify it again.
 
 Add each domain you own separately. Subdomains (`eng.acme.com`) are verified independently of the apex.
 

@@ -18,16 +18,30 @@ interface DomainSettingsProps {
   organizationId: string
 }
 
+/**
+ * The bare challenge label (e.g. `_sim-challenge`) from the full challenge host.
+ * Providers such as GoDaddy and Namecheap append the zone to whatever is entered,
+ * so pasting the FQDN there yields `_sim-challenge.acme.com.acme.com` and
+ * verification silently fails — those admins need the label on its own. Derived
+ * from the server-supplied host rather than importing the prefix constant, which
+ * lives in a module that pulls in `node:dns`.
+ */
+function challengeHostLabel(challengeHost: string): string {
+  return challengeHost.split('.')[0]
+}
+
 interface CopyFieldProps {
   label: string
   value: string
+  hint?: string
 }
 
-function CopyField({ label, value }: CopyFieldProps) {
+function CopyField({ label, value, hint }: CopyFieldProps) {
   return (
     <div className='flex flex-col gap-1'>
       <span className='text-[var(--text-muted)] text-caption'>{label}</span>
       <ChipCopyInput value={value} copyLabel={`Copy ${label}`} inputClassName='font-mono' />
+      {hint ? <span className='text-[var(--text-muted)] text-caption'>{hint}</span> : null}
     </div>
   )
 }
@@ -71,7 +85,11 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
             Add this TXT record at your DNS provider, then verify. DNS changes can take up to 48
             hours to propagate.
           </p>
-          <CopyField label='Host / name' value={domain.challengeHost} />
+          <CopyField
+            label='Host / name'
+            value={domain.challengeHost}
+            hint={`Some DNS providers add your domain automatically. If yours does, enter just ${challengeHostLabel(domain.challengeHost)}.`}
+          />
           <CopyField label='Value' value={domain.txtRecordValue} />
           <div>
             <Button size='sm' onClick={handleVerify} disabled={verifyDomain.isPending}>
