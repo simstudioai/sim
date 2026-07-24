@@ -5,18 +5,42 @@ import * as p from './prompter.ts'
 import { link, theme } from './theme.ts'
 import { FLAG_TWINS, hasMailProvider, LOGIN_PROVIDERS, SELF_HOST_UNLOCKS } from './twins.ts'
 
+/**
+ * `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` are read as raw AES-256 material,
+ * so the app requires exactly 64 hex characters and throws on anything else
+ * (`lib/core/security/encryption.ts`, `lib/api-key/crypto.ts`). A merely-long
+ * passphrase passes a length check here and then fails every encryption path at
+ * runtime, so those two are validated on format rather than length.
+ */
+const HEX_KEY_PATTERN = /^[0-9a-f]{64}$/i
+const HEX_SECRET_KEYS = new Set(['ENCRYPTION_KEY', 'API_ENCRYPTION_KEY'])
+
+function isUsableSecret(key: string, value: string): boolean {
+  if (isPlaceholder(value)) return false
+  return HEX_SECRET_KEYS.has(key) ? HEX_KEY_PATTERN.test(value) : value.length >= 32
+}
+
 /** Reuses existing valid secrets (never regenerates them) and generates the rest. */
 export function collectSecrets(existing: EnvFile): Record<string, string> {
   const secrets: Record<string, string> = {}
   const generated: string[] = []
+  const replaced: string[] = []
   for (const key of SECRET_KEYS) {
     const current = existing.vars.get(key)
-    if (current && !isPlaceholder(current) && current.length >= 32) {
+    if (current && isUsableSecret(key, current)) {
       secrets[key] = current
     } else {
       secrets[key] = generateSecret()
-      generated.push(key)
+      // A key the app would reject never successfully encrypted anything, so
+      // replacing it cannot orphan existing ciphertext.
+      if (current && !isPlaceholder(current)) replaced.push(key)
+      else generated.push(key)
     }
+  }
+  if (replaced.length > 0) {
+    p.log.warn(
+      `Replaced ${replaced.join(', ')} — the existing value is not a 64-character hex key, which the app rejects at runtime.`
+    )
   }
   if (generated.length > 0) {
     p.log.step(`Generated ${generated.join(', ')}`)

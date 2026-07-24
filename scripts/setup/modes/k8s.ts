@@ -11,8 +11,12 @@ const RELEASE = 'sim-dev'
 const NAMESPACE = 'sim-dev'
 const LOCAL_CONTEXT_PREFIXES = ['kind-', 'docker-desktop', 'minikube', 'orbstack']
 
-function run(command: string, args: string[], failMessage: string): string {
-  const result = spawnSync(command, args, { encoding: 'utf8' })
+/**
+ * `input` is piped on stdin rather than passed as arguments — argv is readable
+ * by any process on the machine, so secrets must never travel that way.
+ */
+function run(command: string, args: string[], failMessage: string, input?: string): string {
+  const result = spawnSync(command, args, { encoding: 'utf8', input })
   if (result.status !== 0) {
     throw new Error(`${failMessage}: ${result.stderr.trim() || result.stdout.trim()}`)
   }
@@ -65,11 +69,12 @@ async function ensureLocalContext(detection: Detection): Promise<string> {
   return 'kind-sim'
 }
 
-function existingReleaseSecrets(): Record<string, string> | null {
-  const status = spawnSync('helm', ['status', RELEASE, '-n', NAMESPACE], { stdio: 'ignore' })
+function existingReleaseSecrets(context: string): Record<string, string> | null {
+  const scope = ['--kube-context', context, '-n', NAMESPACE]
+  const status = spawnSync('helm', ['status', RELEASE, ...scope], { stdio: 'ignore' })
   if (status.status !== 0) return null
   const values = JSON.parse(
-    run('helm', ['get', 'values', RELEASE, '-n', NAMESPACE, '-o', 'json'], 'helm get values failed')
+    run('helm', ['get', 'values', RELEASE, ...scope, '-o', 'json'], 'helm get values failed')
   ) as { app?: { env?: Record<string, string> }; postgresql?: { auth?: { password?: string } } }
   const env = values.app?.env ?? {}
   const password = values.postgresql?.auth?.password
@@ -91,10 +96,27 @@ function existingReleaseSecrets(): Record<string, string> | null {
   }
 }
 
-export async function runK8sMode(detection: Detection): Promise<void> {
-  await ensureLocalContext(detection)
+/**
+ * Values document piped to helm on stdin instead of `--set`. `JSON.stringify`
+ * quotes and escapes each value — JSON is a subset of YAML, so a secret
+ * containing `#`, `:`, or a leading `*` can neither break the document nor be
+ * reinterpreted as YAML syntax.
+ */
+function secretValues(secrets: Record<string, string>): string {
+  const { POSTGRES_PASSWORD, ...appEnv } = secrets
+  const env = Object.entries(appEnv)
+    .map(([key, value]) => `    ${key}: ${JSON.stringify(value)}`)
+    .join('\n')
+  return `app:\n  env:\n${env}\npostgresql:\n  auth:\n    password: ${JSON.stringify(POSTGRES_PASSWORD)}\n`
+}
 
-  const reused = existingReleaseSecrets()
+export async function runK8sMode(detection: Detection): Promise<void> {
+  // Pin every subsequent call to the context we validated: the ambient context
+  // can change between detection and deploy, which would send generated
+  // credentials to an unintended cluster.
+  const context = await ensureLocalContext(detection)
+
+  const reused = existingReleaseSecrets(context)
   const secrets = reused ?? {
     BETTER_AUTH_SECRET: generateSecret(),
     ENCRYPTION_KEY: generateSecret(),
@@ -114,26 +136,21 @@ export async function runK8sMode(detection: Detection): Promise<void> {
         '--install',
         RELEASE,
         './helm/sim',
+        '--kube-context',
+        context,
         '--namespace',
         NAMESPACE,
         '--create-namespace',
         '--values',
         './helm/sim/examples/values-development.yaml',
-        '--set',
-        `app.env.BETTER_AUTH_SECRET=${secrets.BETTER_AUTH_SECRET}`,
-        '--set',
-        `app.env.ENCRYPTION_KEY=${secrets.ENCRYPTION_KEY}`,
-        '--set',
-        `app.env.INTERNAL_API_SECRET=${secrets.INTERNAL_API_SECRET}`,
-        '--set',
-        `app.env.CRON_SECRET=${secrets.CRON_SECRET}`,
-        '--set',
-        `postgresql.auth.password=${secrets.POSTGRES_PASSWORD}`,
+        '--values',
+        '-',
         '--wait',
         '--timeout',
         '15m',
       ],
-      'helm upgrade --install failed'
+      'helm upgrade --install failed',
+      secretValues(secrets)
     )
   } catch (error) {
     spin.stop(`${theme.error('✗')} helm install failed`)
@@ -147,7 +164,7 @@ export async function runK8sMode(detection: Detection): Promise<void> {
 
   const testSpin = p.spinner()
   testSpin.start('Running helm test…')
-  const test = spawnSync('helm', ['test', RELEASE, '-n', NAMESPACE], {
+  const test = spawnSync('helm', ['test', RELEASE, '--kube-context', context, '-n', NAMESPACE], {
     encoding: 'utf8',
     cwd: ROOT,
   })
@@ -162,9 +179,9 @@ export async function runK8sMode(detection: Detection): Promise<void> {
 
   p.note(
     [
-      `kubectl -n ${NAMESPACE} port-forward svc/${RELEASE}-app 3000:3000`,
-      `kubectl -n ${NAMESPACE} get pods`,
-      `helm uninstall ${RELEASE} -n ${NAMESPACE}   # tear down`,
+      `kubectl --context ${context} -n ${NAMESPACE} port-forward svc/${RELEASE}-app 3000:3000`,
+      `kubectl --context ${context} -n ${NAMESPACE} get pods`,
+      `helm uninstall ${RELEASE} --kube-context ${context} -n ${NAMESPACE}   # tear down`,
     ].join('\n'),
     'Reach your cluster'
   )
