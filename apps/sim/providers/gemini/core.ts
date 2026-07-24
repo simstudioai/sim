@@ -16,8 +16,8 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import type { IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
-import { LIST_PRICE_POLICY, priceModelUsage } from '@/providers/cost-policy'
 import { createGeminiStreamingToolLoopStream } from '@/providers/gemini/streaming-tool-loop'
+import { priceGeminiTokens, splitGeminiTokens, splitGeminiUsage } from '@/providers/gemini/usage'
 import {
   checkForForcedToolUsage,
   cleanSchemaForGemini,
@@ -43,7 +43,6 @@ import type {
   TimeSegment,
 } from '@/providers/types'
 import {
-  calculateCost,
   isDeepResearchModel,
   isGemini3Model,
   prepareToolExecution,
@@ -64,20 +63,12 @@ function createInitialState(
   model: string,
   toolConfig: ToolConfig | undefined
 ): ExecutionState {
-  const initialCost = calculateCost(
-    model,
-    initialUsage.promptTokenCount,
-    initialUsage.candidatesTokenCount
-  )
+  const split = splitGeminiUsage(initialUsage)
 
   return {
     contents,
-    tokens: {
-      input: initialUsage.promptTokenCount,
-      output: initialUsage.candidatesTokenCount,
-      total: initialUsage.totalTokenCount,
-    },
-    cost: initialCost,
+    tokens: { ...split, total: initialUsage.totalTokenCount },
+    cost: priceGeminiTokens(model, split),
     toolCalls: [],
     toolResults: [],
     iterationCount: 0,
@@ -284,14 +275,16 @@ function updateStateWithResponse(
   endTime: number
 ): ExecutionState {
   const usage = convertUsageMetadata(response.usageMetadata)
-  const cost = calculateCost(model, usage.promptTokenCount, usage.candidatesTokenCount)
+  const split = splitGeminiUsage(usage)
+  const cost = priceGeminiTokens(model, split)
   const duration = endTime - startTime
 
   return {
     ...state,
     tokens: {
-      input: state.tokens.input + usage.promptTokenCount,
-      output: state.tokens.output + usage.candidatesTokenCount,
+      input: state.tokens.input + split.input,
+      output: state.tokens.output + split.output,
+      cacheRead: state.tokens.cacheRead + split.cacheRead,
       total: state.tokens.total + usage.totalTokenCount,
     },
     cost: {
@@ -366,7 +359,7 @@ function createStreamingResult(
       output: {
         content: '',
         model: '',
-        tokens: state?.tokens ?? { input: 0, output: 0, total: 0 },
+        tokens: state?.tokens ?? { input: 0, output: 0, cacheRead: 0, total: 0 },
         toolCalls: state?.toolCalls.length
           ? { list: state.toolCalls, count: state.toolCalls.length }
           : undefined,
@@ -501,22 +494,30 @@ function extractTextFromInteractionOutputs(outputs: Interactions.Interaction['ou
   return textParts.join('\n\n')
 }
 
-/**
- * Extracts token usage from an Interaction's Usage object.
- * The Interactions API provides total_input_tokens, total_output_tokens, total_tokens,
- * and total_reasoning_tokens (for thinking models).
- *
- * Also handles the raw API field name total_thought_tokens which the SDK may
- * map to total_reasoning_tokens.
- */
-function extractInteractionUsage(usage: Interactions.Usage | undefined): {
+/** Token usage for one deep research interaction. */
+interface DeepResearchUsage {
   inputTokens: number
   outputTokens: number
   reasoningTokens: number
+  cachedTokens: number
   totalTokens: number
-} {
+}
+
+/**
+ * Extracts token usage from an Interaction's Usage object.
+ * The Interactions API provides total_input_tokens, total_output_tokens, total_tokens,
+ * total_cached_tokens, and total_reasoning_tokens (for thinking models).
+ *
+ * Also handles the raw API field name total_thought_tokens which the SDK may
+ * map to total_reasoning_tokens.
+ *
+ * The Interactions API supports implicit caching, and `total_cached_tokens` is a
+ * subset of `total_input_tokens` there just as `cachedContentTokenCount` is of
+ * `promptTokenCount` on generateContent.
+ */
+function extractInteractionUsage(usage: Interactions.Usage | undefined): DeepResearchUsage {
   if (!usage) {
-    return { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, totalTokens: 0 }
+    return { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cachedTokens: 0, totalTokens: 0 }
   }
 
   const usageLogger = createLogger('DeepResearchUsage')
@@ -528,9 +529,10 @@ function extractInteractionUsage(usage: Interactions.Usage | undefined): {
     usage.total_reasoning_tokens ??
     ((usage as Record<string, unknown>).total_thought_tokens as number) ??
     0
+  const cachedTokens = usage.total_cached_tokens ?? 0
   const totalTokens = usage.total_tokens ?? inputTokens + outputTokens
 
-  return { inputTokens, outputTokens, reasoningTokens, totalTokens }
+  return { inputTokens, outputTokens, reasoningTokens, cachedTokens, totalTokens }
 }
 
 /**
@@ -539,25 +541,22 @@ function extractInteractionUsage(usage: Interactions.Usage | undefined): {
 function buildDeepResearchResponse(
   content: string,
   model: string,
-  usage: {
-    inputTokens: number
-    outputTokens: number
-    reasoningTokens: number
-    totalTokens: number
-  },
+  usage: DeepResearchUsage,
   providerStartTime: number,
   providerStartTimeISO: string,
   interactionId?: string
 ): ProviderResponse {
   const providerEndTime = Date.now()
   const duration = providerEndTime - providerStartTime
+  const split = splitGeminiTokens(usage.inputTokens, usage.outputTokens, usage.cachedTokens)
 
   return {
     content,
     model,
     tokens: {
-      input: usage.inputTokens,
-      output: usage.outputTokens,
+      input: split.input,
+      output: split.output,
+      cacheRead: split.cacheRead,
       total: usage.totalTokens,
     },
     timing: {
@@ -578,7 +577,7 @@ function buildDeepResearchResponse(
         },
       ],
     },
-    cost: calculateCost(model, usage.inputTokens, usage.outputTokens),
+    cost: priceGeminiTokens(model, split),
     interactionId,
   }
 }
@@ -597,20 +596,17 @@ function buildDeepResearchResponse(
  */
 function createDeepResearchStream(
   stream: AsyncIterable<Interactions.InteractionSSEEvent>,
-  onComplete?: (
-    content: string,
-    usage: {
-      inputTokens: number
-      outputTokens: number
-      reasoningTokens: number
-      totalTokens: number
-    },
-    interactionId?: string
-  ) => void
+  onComplete?: (content: string, usage: DeepResearchUsage, interactionId?: string) => void
 ): ReadableStream<Uint8Array> {
   const streamLogger = createLogger('DeepResearchStream')
   let fullContent = ''
-  let completionUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, totalTokens: 0 }
+  let completionUsage: DeepResearchUsage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    reasoningTokens: 0,
+    cachedTokens: 0,
+    totalTokens: 0,
+  }
   let completedInteractionId: string | undefined
 
   return new ReadableStream({
@@ -782,16 +778,12 @@ export async function executeDeepResearchRequest(
       const stream = createDeepResearchStream(
         streamResponse,
         (content, usage, streamInteractionId) => {
-          streamingResult.execution.output.content = content
-          streamingResult.execution.output.tokens = {
-            input: usage.inputTokens,
-            output: usage.outputTokens,
-            total: usage.totalTokens,
-          }
-          streamingResult.execution.output.interactionId = streamInteractionId
+          const split = splitGeminiTokens(usage.inputTokens, usage.outputTokens, usage.cachedTokens)
 
-          const cost = calculateCost(model, usage.inputTokens, usage.outputTokens)
-          streamingResult.execution.output.cost = cost
+          streamingResult.execution.output.content = content
+          streamingResult.execution.output.tokens = { ...split, total: usage.totalTokens }
+          streamingResult.execution.output.interactionId = streamInteractionId
+          streamingResult.execution.output.cost = priceGeminiTokens(model, split)
 
           const streamEndTime = Date.now()
           if (streamingResult.execution.output.providerTiming) {
@@ -1123,19 +1115,11 @@ export async function executeGeminiRequest(
       const stream = createReadableStreamFromGeminiStream(
         streamGenerator,
         (content: string, usage: GeminiUsage, thinking?: string) => {
-          streamingResult.execution.output.content = content
-          streamingResult.execution.output.tokens = {
-            input: usage.promptTokenCount,
-            output: usage.candidatesTokenCount,
-            total: usage.totalTokenCount,
-          }
+          const split = splitGeminiUsage(usage)
 
-          const costResult = calculateCost(
-            model,
-            usage.promptTokenCount,
-            usage.candidatesTokenCount
-          )
-          streamingResult.execution.output.cost = costResult
+          streamingResult.execution.output.content = content
+          streamingResult.execution.output.tokens = { ...split, total: usage.totalTokenCount }
+          streamingResult.execution.output.cost = priceGeminiTokens(model, split)
 
           if (thinking) {
             const segment = streamingResult.execution.output.providerTiming?.timeSegments?.[0]
@@ -1422,7 +1406,7 @@ function enrichLastModelSegmentFromGeminiResponse(
     }))
 
   const usage = convertUsageMetadata(response.usageMetadata)
-  const cachedContentTokens = response.usageMetadata?.cachedContentTokenCount ?? 0
+  const split = splitGeminiUsage(usage)
   const thoughtsTokens = response.usageMetadata?.thoughtsTokenCount ?? 0
 
   let cost: { input: number; output: number; total: number } | undefined
@@ -1432,17 +1416,7 @@ function enrichLastModelSegmentFromGeminiResponse(
     typeof usage.promptTokenCount === 'number' &&
     typeof usage.candidatesTokenCount === 'number'
   ) {
-    // Gemini's implicit cache reports `cachedContentTokenCount` as a subset of
-    // `promptTokenCount`, so the uncached remainder is the subtraction.
-    const full = priceModelUsage(
-      extras.model,
-      {
-        input: Math.max(0, usage.promptTokenCount - cachedContentTokens),
-        output: usage.candidatesTokenCount,
-        cacheRead: cachedContentTokens,
-      },
-      LIST_PRICE_POLICY
-    )
+    const full = priceGeminiTokens(extras.model, split)
     cost = { input: full.input, output: full.output, total: full.total }
   }
 
@@ -1456,7 +1430,7 @@ function enrichLastModelSegmentFromGeminiResponse(
           input: usage.promptTokenCount,
           output: usage.candidatesTokenCount,
           total: usage.totalTokenCount,
-          ...(cachedContentTokens > 0 && { cacheRead: cachedContentTokens }),
+          ...(split.cacheRead > 0 && { cacheRead: split.cacheRead }),
           ...(thoughtsTokens > 0 && { reasoning: thoughtsTokens }),
         }
       : undefined,

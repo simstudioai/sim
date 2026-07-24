@@ -7,13 +7,18 @@ import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { createOpenAIResponsesStreamingToolLoopStream } from '@/providers/openai/streaming-tool-loop'
 import { enrichLastModelSegmentFromOpenAIResponse } from '@/providers/openai/trace'
+import {
+  addOpenAIUsage,
+  buildOpenAIUsageCost,
+  buildOpenAIUsageTokens,
+  createOpenAIUsageAccumulator,
+} from '@/providers/openai/usage'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import type { Message, ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
 import {
-  calculateCost,
   enforceStrictSchema,
   prepareToolExecution,
   prepareToolsWithUsageControl,
@@ -387,23 +392,12 @@ export async function executeResponsesProviderRequest(
         streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) =>
           createReadableStreamFromResponses(streamResponse, (content, usage, thinking) => {
-            output.content = content
-            output.tokens = {
-              input: usage?.promptTokens || 0,
-              output: usage?.completionTokens || 0,
-              total: usage?.totalTokens || 0,
-            }
+            const accumulator = createOpenAIUsageAccumulator()
+            addOpenAIUsage(accumulator, usage)
 
-            const costResult = calculateCost(
-              request.model,
-              usage?.promptTokens || 0,
-              usage?.completionTokens || 0
-            )
-            output.cost = {
-              input: costResult.input,
-              output: costResult.output,
-              total: costResult.total,
-            }
+            output.content = content
+            output.tokens = buildOpenAIUsageTokens(accumulator)
+            output.cost = buildOpenAIUsageCost(request.model, accumulator)
 
             if (thinking) {
               const segment = output.providerTiming?.timeSegments?.[0]
@@ -451,12 +445,8 @@ export async function executeResponsesProviderRequest(
     )
     const firstResponseTime = Date.now() - initialCallTime
 
-    const initialUsage = parseResponsesUsage(currentResponse.usage)
-    const tokens = {
-      input: initialUsage?.promptTokens || 0,
-      output: initialUsage?.completionTokens || 0,
-      total: initialUsage?.totalTokens || 0,
-    }
+    const usage = createOpenAIUsageAccumulator()
+    addOpenAIUsage(usage, parseResponsesUsage(currentResponse.usage))
 
     const toolCalls = []
     const toolResults: Record<string, unknown>[] = []
@@ -674,12 +664,7 @@ export async function executeResponsesProviderRequest(
 
       modelTime += thisModelTime
 
-      const usage = parseResponsesUsage(currentResponse.usage)
-      if (usage) {
-        tokens.input += usage.promptTokens
-        tokens.output += usage.completionTokens
-        tokens.total += usage.totalTokens
-      }
+      addOpenAIUsage(usage, parseResponsesUsage(currentResponse.usage))
 
       iterationCount++
     }
@@ -703,7 +688,13 @@ export async function executeResponsesProviderRequest(
     return {
       content,
       model: request.model,
-      tokens,
+      tokens: buildOpenAIUsageTokens(usage),
+      /**
+       * No tool cost here: `executeProviderRequest` re-derives it from
+       * `toolResults` for non-streaming responses, so folding it in would
+       * double-charge it.
+       */
+      cost: buildOpenAIUsageCost(request.model, usage),
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       toolResults: toolResults.length > 0 ? toolResults : undefined,
       timing: {

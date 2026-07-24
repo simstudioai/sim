@@ -40,6 +40,7 @@ vi.mock('@/providers/utils', () => ({
   })),
   sumToolCosts: vi.fn(() => 0),
   isGemini3Model: vi.fn(() => false),
+  shouldBillModelUsage: vi.fn(() => true),
   trackForcedToolUsage: () => ({ hasUsedForcedTool: false, usedForcedTools: [] }),
 }))
 
@@ -233,7 +234,7 @@ describe('createGeminiStreamingToolLoopStream', () => {
 
     await expect(collectEvents(stream)).rejects.toMatchObject({ name: 'AbortError' })
     expect(onComplete).toHaveBeenLastCalledWith(
-      expect.objectContaining({ tokens: { input: 10, output: 5, total: 15 } })
+      expect.objectContaining({ tokens: { input: 10, output: 5, cacheRead: 0, total: 15 } })
     )
   })
 

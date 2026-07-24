@@ -223,7 +223,12 @@ describe('executeGeminiRequest settled stream projection', () => {
     })
     await expect(reader.read()).resolves.toEqual({ done: true, value: undefined })
     expect(result.execution.output.content).toBe('{"value":"capped"}')
-    expect(result.execution.output.tokens).toEqual({ input: 6, output: 6, total: 12 })
+    expect(result.execution.output.tokens).toEqual({
+      input: 6,
+      output: 6,
+      cacheRead: 0,
+      total: 12,
+    })
     expect(result.execution.output.providerTiming?.iterations).toBe(3)
     expect(
       result.execution.output.providerTiming?.timeSegments?.filter(

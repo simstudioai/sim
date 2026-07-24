@@ -7,6 +7,7 @@
  * unverified-organization 400 falls back to a summary-free retry.
  */
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import type { BlockTokens } from '@/executor/types'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
 import type { ProviderRequest } from '@/providers/types'
 import { executeTool } from '@/tools'
@@ -422,11 +423,17 @@ describe('executeResponsesProviderRequest reasoning payload', () => {
         tools: [{ id: 'exa_search', name: 'exa_search', description: 'd', parameters: {} }] as any,
       })) as {
         stream: ReadableStream<unknown>
-        execution: { output: { tokens: { input: number; output: number; total: number } } }
+        execution: { output: { tokens: BlockTokens } }
       }
 
       await expect(collect(result.stream)).rejects.toMatchObject({ name: 'AbortError' })
-      expect(result.execution.output.tokens).toEqual({ input: 2, output: 3, total: 5 })
+      expect(result.execution.output.tokens).toEqual({
+        input: 2,
+        output: 3,
+        total: 5,
+        cacheRead: 0,
+        cacheWrite: 0,
+      })
     })
 
     it('makes the final answer turn after the maximum tool batches', async () => {

@@ -18,7 +18,7 @@ export interface ResponsesUsageTokens {
 }
 
 /** GPT-5.6 and later bill cache writes at 1.25x the uncached input rate. */
-const OPENAI_CACHE_WRITE_MULTIPLIER = 1.25
+export const OPENAI_CACHE_WRITE_MULTIPLIER = 1.25
 
 /**
  * Normalizes OpenAI usage into the shared {@link ModelUsage} shape.

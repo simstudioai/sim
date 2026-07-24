@@ -16,6 +16,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { buildGeminiMessageParts } from '@/providers/attachments'
+import type { GeminiUsage } from '@/providers/gemini/types'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { ProviderRequest } from '@/providers/types'
 import { trackForcedToolUsage } from '@/providers/utils'
@@ -36,15 +37,6 @@ export function ensureStructResponse(value: unknown): Record<string, unknown> {
     return value
   }
   return { value }
-}
-
-/**
- * Usage metadata for Google Gemini responses
- */
-export interface GeminiUsage {
-  promptTokenCount: number
-  candidatesTokenCount: number
-  totalTokenCount: number
 }
 
 /**
@@ -100,6 +92,10 @@ export function extractAllFunctionCallParts(candidate: Candidate | undefined): P
  * Converts usage metadata from SDK response to our format.
  * Per Gemini docs, total = promptTokenCount + candidatesTokenCount + toolUsePromptTokenCount + thoughtsTokenCount
  * We include toolUsePromptTokenCount in input and thoughtsTokenCount in output for correct billing.
+ *
+ * `cachedContentTokenCount` is carried through unchanged — it stays a subset of
+ * the reported `promptTokenCount`, and callers subtract it when they need the
+ * tokens billed at the base input rate.
  */
 export function convertUsageMetadata(
   usageMetadata: GenerateContentResponseUsageMetadata | undefined
@@ -111,6 +107,7 @@ export function convertUsageMetadata(
   return {
     promptTokenCount,
     candidatesTokenCount,
+    cachedContentTokenCount: usageMetadata?.cachedContentTokenCount ?? 0,
     totalTokenCount: usageMetadata?.totalTokenCount ?? 0,
   }
 }
@@ -249,7 +246,12 @@ export function createReadableStreamFromGeminiStream(
 ): ReadableStream<AgentStreamEvent> {
   let fullContent = ''
   let fullThinking = ''
-  let usage: GeminiUsage = { promptTokenCount: 0, candidatesTokenCount: 0, totalTokenCount: 0 }
+  let usage: GeminiUsage = {
+    promptTokenCount: 0,
+    candidatesTokenCount: 0,
+    cachedContentTokenCount: 0,
+    totalTokenCount: 0,
+  }
   let cancelled = false
   let streamIterator: AsyncIterator<GenerateContentResponse> | undefined
 

@@ -5,6 +5,12 @@ import type OpenAI from 'openai'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { enrichLastModelSegmentFromOpenAIResponse } from '@/providers/openai/trace'
 import {
+  addOpenAIUsage,
+  buildOpenAIUsageCost,
+  buildOpenAIUsageTokens,
+  createOpenAIUsageAccumulator,
+} from '@/providers/openai/usage'
+import {
   extractResponseText,
   extractResponseToolCalls,
   isMaxOutputTokensIncompleteResponse,
@@ -25,7 +31,7 @@ import {
   terminateToolLoop,
 } from '@/providers/streaming-tool-loop-shared'
 import type { ProviderRequest, TimeSegment } from '@/providers/types'
-import { calculateCost, prepareToolExecution, sumToolCosts } from '@/providers/utils'
+import { prepareToolExecution, sumToolCosts } from '@/providers/utils'
 import { executeTool } from '@/tools'
 
 export type CreateOpenAIResponsesStream = (
@@ -33,6 +39,10 @@ export type CreateOpenAIResponsesStream = (
   overrides: Record<string, unknown>,
   abortSignal: AbortSignal
 ) => Promise<Response>
+
+type OpenAIStreamingToolLoopComplete = Omit<StreamingToolLoopComplete, 'tokens'> & {
+  tokens: ReturnType<typeof buildOpenAIUsageTokens>
+}
 
 export interface CreateOpenAIResponsesStreamingToolLoopOptions {
   providerId: string
@@ -44,7 +54,7 @@ export interface CreateOpenAIResponsesStreamingToolLoopOptions {
   createStream: CreateOpenAIResponsesStream
   logger: Logger
   timeSegments: TimeSegment[]
-  onComplete: (result: StreamingToolLoopComplete) => void
+  onComplete: (result: OpenAIStreamingToolLoopComplete) => void
 }
 
 interface OpenAIResponsesTurn {
@@ -336,7 +346,7 @@ export function createOpenAIResponsesStreamingToolLoopStream(
       void (async () => {
         const currentInput = [...initialInput]
         const usedForcedTools = new Set<string>()
-        const tokens = { input: 0, output: 0, total: 0 }
+        const usage = createOpenAIUsageAccumulator()
         const toolCalls: unknown[] = []
         const toolResults: Record<string, unknown>[] = []
         const openTools = new Map<string, string>()
@@ -348,17 +358,11 @@ export function createOpenAIResponsesStreamingToolLoopStream(
         let toolsTime = 0
         let firstResponseTime = 0
         const reportProgress = () => {
-          const modelCost = calculateCost(request.model, tokens.input, tokens.output)
           const toolCost = sumToolCosts(toolResults)
           onComplete({
             content,
-            tokens,
-            cost: {
-              input: modelCost.input,
-              output: modelCost.output,
-              total: modelCost.total + (toolCost || 0),
-              ...(toolCost ? { toolCost } : {}),
-            },
+            tokens: buildOpenAIUsageTokens(usage),
+            cost: buildOpenAIUsageCost(request.model, usage, toolCost),
             toolCalls:
               toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
             modelTime,
@@ -397,7 +401,7 @@ export function createOpenAIResponsesStreamingToolLoopStream(
             )
             const modelEnd = Date.now()
             const modelDuration = modelEnd - modelStart
-            const usage = parseResponsesUsage(turn.response.usage)
+            const turnUsage = parseResponsesUsage(turn.response.usage)
             const reachedToolLimit = iterationCount >= MAX_TOOL_ITERATIONS
             const toolsExecutable = turn.response.status === 'completed' && !reachedToolLimit
             const executableTools = toolsExecutable ? turn.toolCalls : []
@@ -454,11 +458,7 @@ export function createOpenAIResponsesStreamingToolLoopStream(
               { model: request.model }
             )
 
-            if (usage) {
-              tokens.input += usage.promptTokens
-              tokens.output += usage.completionTokens
-              tokens.total += usage.totalTokens
-            }
+            addOpenAIUsage(usage, turnUsage)
 
             if (executableTools.length === 0) {
               break

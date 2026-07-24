@@ -42,15 +42,15 @@ import {
 } from '@/providers/streaming-tool-loop-shared'
 import { ensureToolCallId } from '@/providers/tool-call-id'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
-import type { ProviderRequest, TimeSegment } from '@/providers/types'
-import {
-  calculateCost,
-  isGemini3Model,
-  prepareToolExecution,
-  sumToolCosts,
-} from '@/providers/utils'
+import type { ModelPricing, ProviderRequest, TimeSegment } from '@/providers/types'
+import { isGemini3Model, prepareToolExecution, sumToolCosts } from '@/providers/utils'
 import { executeTool } from '@/tools'
 import type { GeminiUsage } from './types'
+import { priceGeminiTokens, splitGeminiUsage } from './usage'
+
+type GeminiStreamingToolLoopComplete = Omit<StreamingToolLoopComplete, 'tokens'> & {
+  tokens: { input: number; output: number; cacheRead: number; total: number }
+}
 
 export interface CreateGeminiStreamingToolLoopStreamOptions {
   ai: GoogleGenAI
@@ -62,7 +62,7 @@ export interface CreateGeminiStreamingToolLoopStreamOptions {
   timeSegments: TimeSegment[]
   forcedTools?: string[]
   toolConfig?: ToolConfig
-  onComplete: (result: StreamingToolLoopComplete) => void
+  onComplete: (result: GeminiStreamingToolLoopComplete) => void
 }
 
 /**
@@ -128,7 +128,12 @@ async function drainGeminiTurn(
   const functionCalls: StreamedFunctionCall[] = []
   let hasFunctionCallPart = false
   const seenKeys = new Set<string>()
-  let usage: GeminiUsage = { promptTokenCount: 0, candidatesTokenCount: 0, totalTokenCount: 0 }
+  let usage: GeminiUsage = {
+    promptTokenCount: 0,
+    candidatesTokenCount: 0,
+    cachedContentTokenCount: 0,
+    totalTokenCount: 0,
+  }
   let finishReason: string | undefined
 
   const iterator = stream[Symbol.asyncIterator]()
@@ -243,11 +248,11 @@ export function createGeminiStreamingToolLoopStream(
         let modelTime = 0
         let toolsTime = 0
         let firstResponseTime = 0
-        const tokens = { input: 0, output: 0, total: 0 }
+        const tokens = { input: 0, output: 0, cacheRead: 0, total: 0 }
         let costInput = 0
         let costOutput = 0
         let costTotal = 0
-        let latestPricing: ReturnType<typeof calculateCost>['pricing'] | undefined
+        let latestPricing: ModelPricing | undefined
         const toolCalls: unknown[] = []
         const toolResults: Record<string, unknown>[] = []
         const openToolStarts = new Map<string, string>()
@@ -328,15 +333,13 @@ export function createGeminiStreamingToolLoopStream(
               duration: thisModelTime,
             })
 
-            tokens.input += drained.usage.promptTokenCount
-            tokens.output += drained.usage.candidatesTokenCount
+            const split = splitGeminiUsage(drained.usage)
+            tokens.input += split.input
+            tokens.output += split.output
+            tokens.cacheRead += split.cacheRead
             tokens.total += drained.usage.totalTokenCount
 
-            const turnCost = calculateCost(
-              model,
-              drained.usage.promptTokenCount,
-              drained.usage.candidatesTokenCount
-            )
+            const turnCost = priceGeminiTokens(model, split)
             costInput += turnCost.input
             costOutput += turnCost.output
             costTotal += turnCost.total
@@ -379,6 +382,7 @@ export function createGeminiStreamingToolLoopStream(
                 input: drained.usage.promptTokenCount,
                 output: drained.usage.candidatesTokenCount,
                 total: drained.usage.totalTokenCount,
+                ...(split.cacheRead > 0 && { cacheRead: split.cacheRead }),
               },
               cost: {
                 input: turnCost.input,
