@@ -38,12 +38,12 @@ helm install sim ./helm/sim \
 
 ## Cloud-Specific Values
 
-These commands reuse the `$BETTER_AUTH_SECRET`, `$ENCRYPTION_KEY`, `$INTERNAL_API_SECRET`, `$CRON_SECRET`, and `$POSTGRES_PASSWORD` variables generated in [Installation](#installation) above — run that block's `openssl` lines first in the same shell.
+These are cloud-tuned **alternatives** to the generic install above — pick one path, don't run both. The commands reuse the `$BETTER_AUTH_SECRET`, `$ENCRYPTION_KEY`, `$INTERNAL_API_SECRET`, `$CRON_SECRET`, and `$POSTGRES_PASSWORD` variables generated in [Installation](#installation) above, so run that block's `openssl` lines first in the same shell. They use `helm upgrade --install`, which also converts an existing generic install to the cloud values in place.
 
 <Tabs items={['AWS EKS', 'Azure AKS', 'GCP GKE']}>
   <Tab value="AWS EKS">
 ```bash
-helm install sim ./helm/sim \
+helm upgrade --install sim ./helm/sim \
   --values ./helm/sim/examples/values-aws.yaml \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
@@ -56,7 +56,7 @@ helm install sim ./helm/sim \
   </Tab>
   <Tab value="Azure AKS">
 ```bash
-helm install sim ./helm/sim \
+helm upgrade --install sim ./helm/sim \
   --values ./helm/sim/examples/values-azure.yaml \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
@@ -69,7 +69,7 @@ helm install sim ./helm/sim \
   </Tab>
   <Tab value="GCP GKE">
 ```bash
-helm install sim ./helm/sim \
+helm upgrade --install sim ./helm/sim \
   --values ./helm/sim/examples/values-gcp.yaml \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
