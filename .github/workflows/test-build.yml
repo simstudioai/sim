@@ -262,18 +262,19 @@ jobs:
           key: ${{ github.repository }}-nextjs-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./apps/sim/.next/cache
 
-      # A cold build peaks ~51 GB, and running out of RAM kills the whole VM —
-      # which surfaces only as "the runner has received a shutdown signal", with
-      # no mention of memory. Fail up front with the actual numbers instead, so
-      # an undersized runner (any CI_PROVIDER, including the GitHub fallback)
-      # is a one-line diagnosis rather than a 12-minute mystery.
-      - name: Check runner has enough memory
+      # Running out of RAM kills the whole VM and surfaces only as "the runner
+      # has received a shutdown signal" — no mention of memory, ~12 min in. Warn
+      # with the real numbers so that failure is a one-line diagnosis instead of
+      # a mystery. Warn, never fail: a warm build peaks ~12 GB and a partial one
+      # ~28 GB, so a 32 GB runner still completes plenty of builds, and the
+      # GitHub fallback is the break-glass path — degrading it to a guaranteed
+      # failure would be worse than the risk this flags.
+      - name: Check runner memory headroom
         run: |
           TOTAL_GB=$(awk '/MemTotal/ {printf "%d", $2/1048576}' /proc/meminfo)
-          echo "Runner memory: ${TOTAL_GB} GB (cold-cache build peaks ~51 GB)"
+          echo "Runner memory: ${TOTAL_GB} GB"
           if [ "$TOTAL_GB" -lt 40 ]; then
-            echo "::error::Runner has ${TOTAL_GB} GB; this build needs ~51 GB on a cold cache and will be OOM-killed. Use a larger runner for the Build App job."
-            exit 1
+            echo "::warning::Runner has ${TOTAL_GB} GB. A cold-cache build peaks ~51 GB, so this run may be OOM-killed (reported only as 'the runner has received a shutdown signal'). Warm/partial builds should still fit."
           fi
 
       - name: Install dependencies
