@@ -2,10 +2,14 @@
 
 import { useMemo, useState } from 'react'
 import { ChipConfirmModal, toast } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { ArrowLeft, Wrench } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { ResourceTile } from '@/app/workspace/[workspaceId]/components'
+import {
+  CredentialDetailHeading,
+  UnsavedChangesModal,
+} from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
   CUSTOM_TOOL_DELETE_CONFIRM_TEXT,
   CustomToolCodeField,
@@ -217,11 +221,6 @@ export function CustomToolDetail({
       <SettingsPanel
         back={{ text: 'Custom tools', icon: ArrowLeft, onSelect: () => guard.guardBack(onBack) }}
         title={identity.name || tool?.title || 'New tool'}
-        description={
-          identity.description ||
-          tool?.schema.function.description ||
-          'Define the JSON schema your agents call, and the code that runs.'
-        }
         actions={[
           ...(readOnly
             ? []
@@ -247,6 +246,16 @@ export function CustomToolDetail({
         ]}
       >
         <div className='flex flex-col gap-7'>
+          <CredentialDetailHeading
+            leading={<ResourceTile icon={Wrench} />}
+            title={identity.name || tool?.title || 'New tool'}
+            subtitle={
+              identity.description ||
+              tool?.schema.function.description ||
+              'Define the JSON schema your agents call, and the code that runs.'
+            }
+          />
+
           <SettingsSection
             label='Schema'
             headerAccessory={
@@ -270,6 +279,7 @@ export function CustomToolDetail({
               }}
               error={!!schemaError}
               generation={schemaGeneration}
+              disabled={readOnly}
             />
           </SettingsSection>
 
@@ -296,6 +306,7 @@ export function CustomToolDetail({
               generation={codeGeneration}
               schemaParameters={schemaParameters}
               workspaceId={workspaceId}
+              disabled={readOnly}
             />
           </SettingsSection>
         </div>

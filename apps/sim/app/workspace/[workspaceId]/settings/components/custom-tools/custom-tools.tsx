@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { Wrench } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ArrowRight, Plus, Wrench } from 'lucide-react'
+import { ArrowRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
@@ -121,7 +122,8 @@ export function CustomTools() {
               className='w-full cursor-pointer rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
             >
               <SettingsResourceRow
-                icon={<Wrench />}
+                icon={<Wrench className='text-[var(--text-icon)]' />}
+                iconFilled
                 title={tool.title || 'Unnamed Tool'}
                 description={tool.schema?.function?.description || undefined}
                 trailing={<ArrowRight className='size-4 text-[var(--text-icon)]' />}
