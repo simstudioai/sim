@@ -11,9 +11,12 @@
 #   - Network reachability from the cluster (peering, private link, or public
 #     endpoint with TLS)
 #
-# Install — generate each secret first in the same shell, e.g.:
-#   export BETTER_AUTH_SECRET=$(openssl rand -hex 32)   # likewise ENCRYPTION_KEY,
-#   export DB_PASSWORD=$(openssl rand -hex 24)          # INTERNAL_API_SECRET, CRON_SECRET
+# Install — generate each secret first in the same shell:
+#   export BETTER_AUTH_SECRET=$(openssl rand -hex 32)
+#   export ENCRYPTION_KEY=$(openssl rand -hex 32)
+#   export INTERNAL_API_SECRET=$(openssl rand -hex 32)
+#   export CRON_SECRET=$(openssl rand -hex 32)
+#   export DB_PASSWORD=$(openssl rand -hex 24)
 #
 #   helm install sim ./helm/sim \
 #     --namespace sim --create-namespace \
