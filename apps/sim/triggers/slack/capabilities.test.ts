@@ -31,7 +31,7 @@ describe('buildSlackManifest - interactivity', () => {
 })
 
 describe('buildSlackManifest - description', () => {
-  it('emits display_information.description and reuses it as the assistant description', () => {
+  it('emits display_information.description and reuses it as the agent description', () => {
     const manifest = buildSlackManifest(new Set(['action_assistant']), {
       ...opts,
       description: 'Answers support questions.',
@@ -41,15 +41,29 @@ describe('buildSlackManifest - description', () => {
       description: 'Answers support questions.',
     })
     const features = manifest.features as Record<string, Record<string, unknown>>
-    expect(features.assistant_view.assistant_description).toBe('Answers support questions.')
+    expect(features.agent_view.agent_description).toBe('Answers support questions.')
   })
 
-  it('omits the description key and falls back for the assistant when absent', () => {
+  it('omits the description key and falls back for the agent when absent', () => {
     const manifest = buildSlackManifest(new Set(['action_assistant']), opts)
     expect(manifest.display_information).toEqual({ name: 'Test Bot' })
     const features = manifest.features as Record<string, Record<string, unknown>>
-    expect(features.assistant_view.assistant_description).toBe(
-      'Test Bot — an AI assistant powered by Sim.'
-    )
+    expect(features.agent_view.agent_description).toBe('Test Bot — an AI agent powered by Sim.')
+  })
+
+  it('caps the agent description at the 300-char manifest limit', () => {
+    const manifest = buildSlackManifest(new Set(['action_assistant']), {
+      ...opts,
+      description: 'x'.repeat(400),
+    })
+    const features = manifest.features as Record<string, Record<string, unknown>>
+    expect((features.agent_view.agent_description as string).length).toBe(300)
+  })
+
+  it('subscribes the agent-experience events, not the deprecated assistant_thread_* set', () => {
+    const manifest = buildSlackManifest(new Set(['action_assistant']), opts)
+    const settings = settingsOf(manifest)
+    const events = (settings.event_subscriptions as Record<string, unknown>).bot_events as string[]
+    expect(events).toEqual(['app_context_changed', 'app_home_opened', 'message.im'])
   })
 })

@@ -117,6 +117,13 @@ interface SlackTriggerEvent {
    * submissions). Null for non-block_actions payloads.
    */
   state: Record<string, unknown> | null
+  /**
+   * What the user is currently viewing, for `app_context_changed` (agent
+   * messaging experience): `{ entities: [{ type, value, team_id }] }`, ordered
+   * by relevance; an empty object when Slack has no entities. Null for every
+   * other event type.
+   */
+  context: Record<string, unknown> | null
   hasFiles: boolean
   files: SlackDownloadedFile[]
 }
@@ -151,6 +158,7 @@ function createSlackEvent(): SlackTriggerEvent {
     view: null,
     message: null,
     state: null,
+    context: null,
     hasFiles: false,
     files: [],
   }
@@ -605,6 +613,7 @@ export function resolveSlackEventKey(body: Record<string, unknown>): string | nu
     case 'pin_removed':
     case 'team_join':
     case 'app_home_opened':
+    case 'app_context_changed':
     case 'assistant_thread_started':
     case 'assistant_thread_context_changed':
       return type
@@ -977,6 +986,9 @@ export const slackHandler: WebhookProviderHandler = {
     event.message_ts = messageTs
     event.hasFiles = hasFiles
     event.files = files
+    if (eventType === 'app_context_changed') {
+      event.context = (rawEvent?.context as Record<string, unknown> | undefined) ?? {}
+    }
 
     return { input: { event } }
   },

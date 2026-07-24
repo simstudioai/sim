@@ -127,6 +127,11 @@ export const SLACK_TRIGGER_OUTPUTS: Record<string, TriggerOutput> = {
         description:
           'Timestamp of the message the interaction originated from. Present for block_actions',
       },
+      context: {
+        type: 'json',
+        description:
+          'What the user is currently viewing: an object with an entities array (each entry: type, value, team_id), e.g. context.entities[0].value. Present for app_context_changed; null otherwise',
+      },
       view: {
         type: 'json',
         description:
@@ -245,6 +250,12 @@ export const SLACK_EVENT_CATALOG: readonly SlackEventCatalogEntry[] = [
   { id: 'pin_removed', label: 'Pin removed', simSubscribed: false, filters: ['channels'] },
   { id: 'team_join', label: 'Member joined workspace', simSubscribed: false, filters: [] },
   { id: 'app_home_opened', label: 'App home opened', simSubscribed: false, filters: [] },
+  {
+    id: 'app_context_changed',
+    label: 'App context changed',
+    simSubscribed: false,
+    filters: [],
+  },
   { id: 'assistant_thread_started', label: 'Assistant opened', simSubscribed: true, filters: [] },
   {
     id: 'assistant_thread_context_changed',

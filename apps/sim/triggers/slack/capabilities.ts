@@ -20,10 +20,12 @@ export interface SlackCapability {
   scopes: readonly string[]
   events: readonly string[]
   /**
-   * Marks the AI Assistant capability. When enabled the manifest additionally
-   * declares the app as an Agents & AI app (`features.assistant_view`) and
-   * enables the App Home messages tab — required for assistant threads, the
-   * "thinking" status (`assistant.threads.setStatus`), and DM-style chat to work.
+   * Marks the AI agent capability. When enabled the manifest additionally
+   * declares the app as an Agents & AI app (`features.agent_view` — the current
+   * agent messaging experience; new Slack apps cannot use the deprecated
+   * `assistant_view`) and enables the App Home messages tab — required for the
+   * agent surface, the "thinking" status (`assistant.threads.setStatus`), and
+   * DM-style chat to work.
    */
   assistant?: boolean
   /**
@@ -166,13 +168,18 @@ export const SLACK_CAPABILITIES: readonly SlackCapability[] = [
   },
   {
     id: 'action_assistant',
-    label: 'AI assistant',
+    label: 'AI agent',
     description:
-      'Register the bot as an AI assistant: users open an assistant thread, the bot shows a "thinking" status, and can set the thread title and suggested prompts (assistant.threads.*).',
+      'Register the bot as an AI agent: users chat with it in the agent surface, the bot shows a "thinking" status, and can set the thread title and suggested prompts (assistant.threads.*).',
     defaultChecked: true,
     group: 'action',
     scopes: ['assistant:write', 'im:history'],
-    events: ['assistant_thread_started', 'assistant_thread_context_changed', 'message.im'],
+    // The agent messaging experience's event set: app_home_opened (user opened
+    // the agent DM), app_context_changed (what the user is viewing; requires
+    // features.agent_view), message.im (incoming messages). The legacy
+    // assistant_thread_* events belong to the deprecated assistant_view
+    // experience and are not subscribable by new agent_view apps.
+    events: ['app_home_opened', 'app_context_changed', 'message.im'],
     assistant: true,
   },
   {
@@ -211,7 +218,7 @@ const WEBHOOK_URL_PLACEHOLDER = '<deploy workflow to generate webhook URL>'
 export interface BuildManifestOptions {
   appName: string
   webhookUrl: string | null
-  /** Shown on the bot's Slack profile and as the assistant description. */
+  /** Shown on the bot's Slack profile and as the agent description. */
   description?: string
 }
 
@@ -241,12 +248,16 @@ export function buildSlackManifest(
     bot_user: { display_name: displayName, always_online: true },
   }
   if (isAssistant) {
-    // Declares the app as an Agents & AI app; without this Slack won't surface
-    // the assistant thread UI or fire assistant_thread_* events. The messages
-    // tab must be enabled so users can chat the assistant.
-    features.assistant_view = {
-      assistant_description:
-        trimmedDescription || `${displayName} — an AI assistant powered by Sim.`,
+    // Declares the app as an Agents & AI app via the current agent messaging
+    // experience. New Slack apps can ONLY use agent_view (assistant_view is
+    // deprecated and rejected for new apps; switching an existing app to
+    // agent_view is irreversible). Without this Slack won't surface the agent
+    // UI or fire app_context_changed. The messages tab must be enabled so
+    // users can chat with the agent. agent_description caps at 300 chars.
+    features.agent_view = {
+      agent_description: (
+        trimmedDescription || `${displayName} — an AI agent powered by Sim.`
+      ).slice(0, 300),
     }
     features.app_home = {
       home_tab_enabled: false,
