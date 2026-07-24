@@ -17,12 +17,14 @@ export interface WizardFlags {
 }
 
 async function handleExistingConfig(detection: Detection): Promise<'continue' | 'doctor'> {
+  // Root counts: a compose install writes only `.env`, so excluding it made a
+  // configured machine look unconfigured and silently re-run from scratch.
   const present = Object.entries(detection.envFiles)
-    .filter(([target, exists]) => exists && target !== 'root')
-    .map(([target]) => target)
+    .filter(([, exists]) => exists)
+    .map(([target]) => (target === 'root' ? '.env' : `${target}/.env`))
   if (present.length === 0) return 'continue'
   const choice = await p.select({
-    message: `Found existing config (${present.map((t) => `${t}/.env`).join(', ')}) — what should we do?`,
+    message: `Found existing config (${present.join(', ')}) — what should we do?`,
     options: [
       { value: 'keep', label: 'Keep it', hint: 'run doctor against the current setup and exit' },
       {

@@ -26,21 +26,43 @@ export interface Finding {
   autofix?: () => void
 }
 
+/**
+ * Which env-file topology this install uses. Compose mode writes a single root
+ * `.env` (that's what `docker-compose.*.yml` reads via `env_file`), dev mode
+ * writes the three per-app files. Checking for the wrong one reports a healthy
+ * install as broken, so the layout is derived and every check consults it.
+ */
+export type EnvLayout = 'split' | 'root' | 'none'
+
 export interface CheckContext {
   env: Record<EnvTarget, EnvFile>
+  layout: EnvLayout
+  /** The file holding app configuration for this layout — what coherence reads. */
+  primary: EnvFile
   live: boolean
 }
 
+/** Split wins when both exist: the per-app files are what a dev run actually loads. */
+function detectLayout(env: Record<EnvTarget, EnvFile>): EnvLayout {
+  if (env.sim.exists || env.realtime.exists || env.db.exists) return 'split'
+  return env.root.exists ? 'root' : 'none'
+}
+
+/** Targets whose files this layout expects to exist. */
+function layoutTargets(layout: EnvLayout): EnvTarget[] {
+  if (layout === 'split') return ['sim', 'realtime', 'db']
+  return layout === 'root' ? ['root'] : []
+}
+
 export function loadCheckContext(live: boolean): CheckContext {
-  return {
-    env: {
-      sim: readEnvFile('sim'),
-      realtime: readEnvFile('realtime'),
-      db: readEnvFile('db'),
-      root: readEnvFile('root'),
-    },
-    live,
+  const env = {
+    sim: readEnvFile('sim'),
+    realtime: readEnvFile('realtime'),
+    db: readEnvFile('db'),
+    root: readEnvFile('root'),
   }
+  const layout = detectLayout(env)
+  return { env, layout, primary: layout === 'root' ? env.root : env.sim, live }
 }
 
 const REQUIRED_KEYS: Partial<Record<EnvTarget, string[]>> = {
@@ -70,8 +92,18 @@ function rel(file: EnvFile): string {
 }
 
 function checkFiles(ctx: CheckContext): Finding[] {
+  if (ctx.layout === 'none') {
+    return [
+      {
+        group: 'files',
+        status: 'fail',
+        message: 'no env files found',
+        fix: 'run: bun run setup',
+      },
+    ]
+  }
   const findings: Finding[] = []
-  for (const target of ['sim', 'realtime', 'db'] as const) {
+  for (const target of layoutTargets(ctx.layout)) {
     const file = ctx.env[target]
     if (file.exists) {
       findings.push({ group: 'files', status: 'pass', message: `${rel(file)} exists` })
@@ -124,11 +156,13 @@ function autofixForMissing(
 function checkSchema(ctx: CheckContext): Finding[] {
   const findings: Finding[] = []
   const production = process.env.NODE_ENV === 'production'
-  for (const target of ['sim', 'realtime', 'db'] as const) {
+  for (const target of layoutTargets(ctx.layout)) {
     const file = ctx.env[target]
     if (!file.exists) continue
     const missing: string[] = []
-    for (const key of REQUIRED_KEYS[target] ?? []) {
+    // The single root file feeds both containers, so it must satisfy the app's
+    // requirements — a superset of realtime's.
+    for (const key of REQUIRED_KEYS[target === 'root' ? 'sim' : target] ?? []) {
       const value = file.vars.get(key)
       if (!value) {
         missing.push(key)
@@ -189,6 +223,13 @@ function checkSchema(ctx: CheckContext): Finding[] {
 }
 
 function checkConsistency(ctx: CheckContext): Finding[] {
+  // Consistency is about the same key agreeing across files; a single root
+  // file has nothing to disagree with.
+  if (ctx.layout !== 'split') {
+    return ctx.layout === 'root'
+      ? [{ group: 'consistency', status: 'skip', message: 'single .env — nothing to mirror' }]
+      : []
+  }
   const findings: Finding[] = []
   const { sim, realtime, db } = ctx.env
   if (sim.exists && realtime.exists) {
@@ -233,7 +274,7 @@ function checkConsistency(ctx: CheckContext): Finding[] {
 
 function checkCoherence(ctx: CheckContext): Finding[] {
   const findings: Finding[] = []
-  const sim = ctx.env.sim
+  const sim = ctx.primary
   if (!sim.exists) return findings
   if (isTruthy(sim.vars.get('TRIGGER_DEV_ENABLED'))) {
     const missing = ['TRIGGER_SECRET_KEY', 'TRIGGER_PROJECT_ID'].filter((k) => !sim.vars.get(k))
@@ -556,7 +597,7 @@ async function checkOllama(sim: EnvFile): Promise<Finding[]> {
  * report stays deterministic regardless of which probe settles first.
  */
 async function checkLive(ctx: CheckContext): Promise<Finding[]> {
-  const sim = ctx.env.sim
+  const sim = ctx.primary
   const [database, redis, app, realtime, ollama] = await Promise.all([
     checkDatabase(sim),
     checkRedis(sim),
