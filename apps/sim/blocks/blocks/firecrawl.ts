@@ -660,7 +660,7 @@ Example 2 - Product Data:
             }
             if (onlyMainContent != null) result.onlyMainContent = onlyMainContent
             if (params.maxConcurrency != null && params.maxConcurrency !== '') {
-              result.maxConcurrency = Number.parseInt(String(params.maxConcurrency))
+              result.maxConcurrency = Number.parseInt(String(params.maxConcurrency), 10)
             }
             if (params.ignoreInvalidURLs != null) {
               result.ignoreInvalidURLs = params.ignoreInvalidURLs
