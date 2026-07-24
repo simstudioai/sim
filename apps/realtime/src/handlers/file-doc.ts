@@ -344,6 +344,30 @@ export function setupWorkspaceFileDocHandlers(
       }
 
       const entry = getOrCreateRoom(io, room)
+
+      // A same socket rejoining with a NEW client id: clear its old caret so it
+      // doesn't linger as a ghost after the binding is overwritten below.
+      const previousClientId = entry.ownedClientId.get(socket.id)
+      if (previousClientId !== undefined && previousClientId !== clientId) {
+        awarenessProtocol.removeAwarenessStates(entry.awareness, [previousClientId], null)
+      }
+
+      // A client id must be owned by at most one LIVE socket, or a peer could bind
+      // an active collaborator's id and pass the per-frame ownership check to
+      // spoof/clear its caret. Reject a live duplicate; reclaim a stale binding
+      // (a reconnect reuses the same Yjs client id, and its prior socket may not
+      // be cleaned up yet). `io.sockets.sockets` is this replica's registry — the
+      // same single-replica assumption the in-memory Y.Doc already relies on.
+      for (const [otherSid, otherCid] of entry.ownedClientId) {
+        if (otherCid !== clientId || otherSid === socket.id) continue
+        if (io.sockets.sockets.has(otherSid)) {
+          emitJoinError(socket, fileId, 'Client id already in use', 'CLIENT_ID_IN_USE', false)
+          return
+        }
+        entry.ownedClientId.delete(otherSid)
+        awarenessProtocol.removeAwarenessStates(entry.awareness, [otherCid], null)
+      }
+
       entry.ownedClientId.set(socket.id, clientId)
       socketToRoomName.set(socket.id, name)
       socket.join(name)

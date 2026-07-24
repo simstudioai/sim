@@ -33,6 +33,8 @@ interface SentMessage {
 /** An `io` mock that records every server-originated emit with its target/except. */
 function createIo() {
   const sent: SentMessage[] = []
+  // Socket ids the mock considers currently connected (for client-id ownership).
+  const connected = new Set<string>()
   const to = vi.fn((target: string) => ({
     except: (exclude: string) => ({
       emit: (event: string, payload: unknown) =>
@@ -40,7 +42,11 @@ function createIo() {
     }),
     emit: (event: string, payload: unknown) => sent.push({ target, event, payload }),
   }))
-  return { io: { to } as unknown as IRoomManager['io'], sent }
+  const io = {
+    to,
+    sockets: { sockets: { has: (id: string) => connected.has(id) } },
+  } as unknown as IRoomManager['io']
+  return { io, sent, connected }
 }
 
 function createSocket(id: string, overrides?: Record<string, unknown>) {
@@ -283,6 +289,55 @@ describe('setupWorkspaceFileDocHandlers', () => {
         (m.payload as Uint8Array)[0] === FILE_DOC_MESSAGE_TYPE.AWARENESS
     )
     expect(relayed).toBeUndefined()
+  })
+
+  it("rejects a join that binds a live peer's client id", async () => {
+    const { io, connected } = createIo()
+    connected.add('socket-a')
+    const a = setup('socket-a', io)
+    const b = setup('socket-b', io)
+
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 7 })
+    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 7 })
+
+    expect(b.socket.emit).toHaveBeenCalledWith(
+      FILE_DOC_EVENTS.JOIN_ERROR,
+      expect.objectContaining({ code: 'CLIENT_ID_IN_USE' })
+    )
+    expect(b.socket.join).not.toHaveBeenCalled()
+  })
+
+  it('reclaims a client id whose prior owner is no longer connected (reconnect)', async () => {
+    const { io } = createIo()
+    // socket-a joined with client id 7 but is NOT in the connected set (its
+    // disconnect cleanup has not run yet); socket-b reconnects reusing id 7.
+    const a = setup('socket-a', io)
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 7 })
+    const b = setup('socket-b', io)
+
+    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 7 })
+
+    expect(joinSuccessFileId(b.socket)).toBe('file-1')
+    expect(b.socket.join).toHaveBeenCalledWith(ROOM_NAME)
+  })
+
+  it('clears a departed caret when a socket rejoins the room with a new client id', async () => {
+    const { io, sent } = createIo()
+    const { frame: awFrame } = awarenessFrame(500, 'A')
+    const a = setup('socket-a', io)
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 500 })
+    a.handlers[FILE_DOC_EVENTS.MESSAGE](awFrame)
+    sent.length = 0
+
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 501 })
+
+    // The old client (500) caret removal is broadcast to the room.
+    const removal = sent.find(
+      (m) =>
+        m.event === FILE_DOC_EVENTS.MESSAGE &&
+        (m.payload as Uint8Array)[0] === FILE_DOC_MESSAGE_TYPE.AWARENESS
+    )
+    expect(removal).toBeDefined()
   })
 
   it('drops a malformed frame without throwing', async () => {
