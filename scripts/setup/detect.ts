@@ -146,9 +146,9 @@ export async function runDetection(): Promise<Detection> {
     shellLlmKeys: SHELL_LLM_KEYS.filter((key) => process.env[key]),
     ollamaReachable: ollamaPortOpen ? await ollamaReachable() : false,
     binaries: {
-      kubectl: commandSucceeds('which', ['kubectl']),
-      helm: commandSucceeds('which', ['helm']),
-      kind: commandSucceeds('which', ['kind']),
+      kubectl: Bun.which('kubectl') !== null,
+      helm: Bun.which('helm') !== null,
+      kind: Bun.which('kind') !== null,
     },
     kubeContext: commandOutput('kubectl', ['config', 'current-context']),
     specs: detectSpecs(dockerRunning),

@@ -82,6 +82,11 @@ const REQUIRED_KEYS: Partial<Record<EnvTarget, string[]>> = {
     'NEXT_PUBLIC_APP_URL',
   ],
   db: ['DATABASE_URL'],
+  // Compose's single root .env only carries the secrets that have no safe
+  // interpolation default in docker-compose.*.yml. DATABASE_URL, BETTER_AUTH_URL,
+  // and NEXT_PUBLIC_APP_URL are supplied by `${VAR:-default}` there, so requiring
+  // them here would fail a healthy compose install that never wrote them.
+  root: ['BETTER_AUTH_SECRET', 'ENCRYPTION_KEY', 'INTERNAL_API_SECRET'],
 }
 
 const MIN_32_KEYS = new Set<string>(SECRET_KEYS)
@@ -160,9 +165,7 @@ function checkSchema(ctx: CheckContext): Finding[] {
     const file = ctx.env[target]
     if (!file.exists) continue
     const missing: string[] = []
-    // The single root file feeds both containers, so it must satisfy the app's
-    // requirements — a superset of realtime's.
-    for (const key of REQUIRED_KEYS[target === 'root' ? 'sim' : target] ?? []) {
+    for (const key of REQUIRED_KEYS[target] ?? []) {
       const value = file.vars.get(key)
       if (!value) {
         missing.push(key)

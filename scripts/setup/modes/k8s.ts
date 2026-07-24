@@ -29,6 +29,17 @@ function isLocalContext(context: string): boolean {
   return LOCAL_CONTEXT_PREFIXES.some((prefix) => context === prefix || context.startsWith(prefix))
 }
 
+/**
+ * POSIX-quote a value for a copyable shell hint. A kube-context passes only a
+ * prefix check, so it can still contain whitespace or shell metacharacters that
+ * would break the `--context` argument (or run embedded syntax) when copied.
+ * Ordinary context names stay bare; only unsafe ones get single-quoted.
+ */
+function shq(value: string): string {
+  if (/^[A-Za-z0-9._/-]+$/.test(value)) return value
+  return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
 async function ensureLocalContext(detection: Detection): Promise<string> {
   if (!detection.binaries.helm || !detection.binaries.kubectl) {
     throw new SetupError('kubernetes mode needs kubectl and helm on PATH.', [
@@ -157,8 +168,8 @@ export async function runK8sMode(detection: Detection): Promise<void> {
   } catch (error) {
     spin.stop(`${glyph.fail} helm install failed`)
     throw new SetupError(getErrorMessage(error), [
-      `pod status: ${theme.command(`kubectl --context ${context} -n ${NAMESPACE} get pods`)}`,
-      `stuck pods: ${theme.command(`kubectl --context ${context} -n ${NAMESPACE} describe pod <name> | tail -20`)}`,
+      `pod status: ${theme.command(`kubectl --context ${shq(context)} -n ${NAMESPACE} get pods`)}`,
+      `stuck pods: ${theme.command(`kubectl --context ${shq(context)} -n ${NAMESPACE} describe pod <name> | tail -20`)}`,
       'ImagePullBackOff on ghcr.io/simstudioai/* usually means the chart appVersion tag was never published — check Chart.yaml against ghcr',
     ])
   }
@@ -173,16 +184,16 @@ export async function runK8sMode(detection: Detection): Promise<void> {
   if (test.status !== 0) {
     testSpin.stop(`${glyph.fail} helm test failed`)
     throw new SetupError(`helm test failed:\n${test.stdout}${test.stderr}`, [
-      `pod status: ${theme.command(`kubectl --context ${context} -n ${NAMESPACE} get pods`)}`,
-      `app logs: ${theme.command(`kubectl --context ${context} -n ${NAMESPACE} logs deploy/${RELEASE}-app --tail 50`)}`,
+      `pod status: ${theme.command(`kubectl --context ${shq(context)} -n ${NAMESPACE} get pods`)}`,
+      `app logs: ${theme.command(`kubectl --context ${shq(context)} -n ${NAMESPACE} logs deploy/${RELEASE}-app --tail 50`)}`,
     ])
   }
   testSpin.stop('helm test passed')
 
   p.note(
     [
-      `kubectl --context ${context} -n ${NAMESPACE} port-forward svc/${RELEASE}-app 3000:3000`,
-      `kubectl --context ${context} -n ${NAMESPACE} get pods`,
+      `kubectl --context ${shq(context)} -n ${NAMESPACE} port-forward svc/${RELEASE}-app 3000:3000`,
+      `kubectl --context ${shq(context)} -n ${NAMESPACE} get pods`,
       `helm uninstall ${RELEASE} --kube-context ${context} -n ${NAMESPACE}   # tear down`,
     ].join('\n'),
     'Reach your cluster'

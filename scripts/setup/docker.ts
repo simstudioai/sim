@@ -14,7 +14,9 @@ function daemonUp(): boolean {
 }
 
 function installed(): boolean {
-  return spawnSync('which', ['docker'], { stdio: 'ignore' }).status === 0
+  // Bun.which resolves PATH cross-platform (incl. PATHEXT on Windows); `which`
+  // is not a standard Windows command.
+  return Bun.which('docker') !== null
 }
 
 /**
