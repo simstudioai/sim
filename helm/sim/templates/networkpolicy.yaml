@@ -16,7 +16,7 @@ spec:
   - Ingress
   - Egress
   ingress:
-  # Allow ingress from realtime service
+  # Allow ingress from realtime pods (defensive — current traffic flows app -> realtime only)
   {{- if .Values.realtime.enabled }}
   - from:
     - podSelector:
@@ -237,7 +237,7 @@ spec:
     ports:
     - protocol: TCP
       port: {{ .Values.postgresql.service.targetPort }}
-  # Allow ingress from realtime service
+  # Allow ingress from realtime pods (defensive — current traffic flows app -> realtime only)
   {{- if .Values.realtime.enabled }}
   - from:
     - podSelector:

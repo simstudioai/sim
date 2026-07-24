@@ -586,8 +586,9 @@ postgresql:
     # This enables integration with External Secrets Operator, HashiCorp Vault, etc.
     existingSecret:
       enabled: false
-      name: ""           # Name of existing Kubernetes secret
-      passwordKey: "POSTGRES_PASSWORD"  # Key in the secret containing the password
+      name: ""           # Name of existing Kubernetes secret. Must contain the
+                         # password under the key POSTGRES_PASSWORD — key
+                         # remapping is not supported.
   
   # Node selector for database pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
@@ -705,8 +706,9 @@ externalDatabase:
   # This enables integration with External Secrets Operator, HashiCorp Vault, etc.
   existingSecret:
     enabled: false
-    name: ""           # Name of existing Kubernetes secret
-    passwordKey: "EXTERNAL_DB_PASSWORD"  # Key in the secret containing the password
+    name: ""           # Name of existing Kubernetes secret. Must contain the
+                       # password under the key EXTERNAL_DB_PASSWORD — key
+                       # remapping is not supported.
 
 # Ollama local AI models configuration
 ollama:
@@ -1429,7 +1431,9 @@ telemetry:
   # Jaeger tracing backend
   jaeger:
     enabled: false
-    endpoint: "http://jaeger-collector:14250"
+    # Jaeger's OTLP gRPC endpoint (Jaeger >=1.35 accepts OTLP natively; the
+    # legacy jaeger exporter was removed from the collector-contrib image)
+    endpoint: "jaeger-collector:4317"
     tls:
       enabled: false
   

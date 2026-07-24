@@ -271,8 +271,7 @@ postgresql:
   auth:
     existingSecret:
       enabled: true
-      name: sim-postgres-secret
-      passwordKey: POSTGRES_PASSWORD
+      name: sim-postgres-secret   # must contain the password under the key POSTGRES_PASSWORD
 ```
 
 See `examples/values-existing-secret.yaml`.
