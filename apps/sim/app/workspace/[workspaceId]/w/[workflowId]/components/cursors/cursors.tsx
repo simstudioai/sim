@@ -3,6 +3,7 @@
 import { memo, useMemo } from 'react'
 import { useViewport } from 'reactflow'
 import { getUserColor } from '@/lib/workspaces/colors'
+import { RemoteCursor } from '@/app/workspace/[workspaceId]/components/presence/remote-cursor'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { usePresenceStore } from '@/stores/presence/store'
@@ -65,20 +66,7 @@ const CursorsComponent = () => {
               transition: 'transform 0.12s ease-out',
             }}
           >
-            <div className='relative flex items-start'>
-              {/* Filled mouse pointer cursor */}
-              <svg className='-mt-4.5' width={24} height={24} viewBox='0 0 24 24' fill={color}>
-                <path d='M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z' />
-              </svg>
-
-              {/* Name tag to the right, background tightly wrapping text */}
-              <div
-                className='ml-[-4px] inline-flex max-w-[160px] truncate whitespace-nowrap rounded-xs px-1.5 py-0.5 font-medium text-[var(--surface-1)] text-xs'
-                style={{ backgroundColor: color }}
-              >
-                {name}
-              </div>
-            </div>
+            <RemoteCursor name={name} color={color} />
           </div>
         )
       })}

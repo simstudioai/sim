@@ -164,6 +164,8 @@ function ResourceRoot({ children, onContextMenu }: ResourceProps) {
 export interface ResourceTableHandle {
   /** Scroll the row with the given id into view via the virtualizer (works even when the row is not in the DOM). */
   scrollToRow: (rowId: string) => void
+  /** The scrolling element, for overlays that must map content coordinates to the viewport (e.g. collaborator cursors). */
+  getScrollElement: () => HTMLDivElement | null
 }
 
 interface ResourceTableProps {
@@ -315,6 +317,7 @@ const ResourceTable = memo(function ResourceTable({
         const index = rows.findIndex((row) => row.id === rowId)
         if (index >= 0) rowVirtualizer.scrollToIndex(index, { align: 'auto' })
       },
+      getScrollElement: () => scrollRef.current,
     }),
     [rows, rowVirtualizer]
   )

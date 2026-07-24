@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
@@ -13,6 +13,8 @@ const logger = createLogger('WorkspaceFilesRoom')
 /** Retry cap + base delay for a retryable join failure on an otherwise-live socket. */
 const MAX_JOIN_RETRIES = 3
 const JOIN_RETRY_BASE_MS = 1000
+/** Minimum gap between outbound cursor frames (~30fps), matching the canvas. */
+const CURSOR_THROTTLE_MS = 33
 
 interface PresenceUpdatePayload extends PresenceAvatarUser {
   folderId?: string | null
@@ -25,9 +27,29 @@ interface JoinErrorPayload {
   retryable?: boolean
 }
 
+/** A collaborator's cursor in content-space coordinates of the file list. */
+export interface FilesCursor {
+  socketId: string
+  userId: string
+  userName: string
+  cursor: { x: number; y: number }
+}
+
+interface FilesCursorPayload {
+  socketId: string
+  userId: string
+  userName: string
+  cursor: { x: number; y: number } | null
+  folderId: string | null
+}
+
 interface UseWorkspaceFilesRoomResult {
   /** Collaborators viewing this workspace's files, excluding the current socket. */
   otherUsers: PresenceAvatarUser[]
+  /** Remote cursors in the currently-open folder, excluding the current socket. */
+  cursors: FilesCursor[]
+  /** Emit the local content-space pointer position (throttled). Pass `null` when it leaves the list. */
+  emitCursor: (cursor: { x: number; y: number } | null) => void
 }
 
 /**
@@ -48,10 +70,14 @@ export function useWorkspaceFilesRoom(
   const queryClient = useQueryClient()
 
   const [presenceUsers, setPresenceUsers] = useState<PresenceUpdatePayload[]>([])
+  const [cursorBySocket, setCursorBySocket] = useState<
+    Map<string, FilesCursor & { folderId: string | null }>
+  >(() => new Map())
 
   const tabSessionIdRef = useRef<string>('')
   if (!tabSessionIdRef.current) tabSessionIdRef.current = generateShortId()
   const folderIdRef = useRef(folderId)
+  const lastCursorEmitRef = useRef(0)
 
   useEffect(() => {
     folderIdRef.current = folderId
@@ -98,6 +124,23 @@ export function useWorkspaceFilesRoom(
       if (data.workspaceId === workspaceId)
         invalidateWorkspaceFileBrowsers(queryClient, workspaceId)
     }
+    const handleCursor = (data: FilesCursorPayload) => {
+      setCursorBySocket((prev) => {
+        const next = new Map(prev)
+        if (data.cursor) {
+          next.set(data.socketId, {
+            socketId: data.socketId,
+            userId: data.userId,
+            userName: data.userName,
+            cursor: data.cursor,
+            folderId: data.folderId ?? null,
+          })
+        } else {
+          next.delete(data.socketId)
+        }
+        return next
+      })
+    }
 
     // Join now if the socket is already connected; `connect` covers (re)connects.
     if (socket.connected) join()
@@ -106,6 +149,7 @@ export function useWorkspaceFilesRoom(
     socket.on('join-workspace-files-error', handleJoinError)
     socket.on('workspace-files:presence-update', handlePresence)
     socket.on('workspace-files-changed', handleChanged)
+    socket.on('files-cursor-update', handleCursor)
 
     return () => {
       if (retryTimer) clearTimeout(retryTimer)
@@ -114,7 +158,9 @@ export function useWorkspaceFilesRoom(
       socket.off('join-workspace-files-error', handleJoinError)
       socket.off('workspace-files:presence-update', handlePresence)
       socket.off('workspace-files-changed', handleChanged)
+      socket.off('files-cursor-update', handleCursor)
       setPresenceUsers([])
+      setCursorBySocket(new Map())
 
       // Leave the room, scoped to THIS workspace: the server no-ops if the socket
       // has already switched to another workspace's files room (so a workspace
@@ -124,10 +170,31 @@ export function useWorkspaceFilesRoom(
     }
   }, [socket, workspaceId, queryClient])
 
+  const emitCursor = useCallback(
+    (cursor: { x: number; y: number } | null) => {
+      if (!socket) return
+      if (cursor) {
+        const now = Date.now()
+        if (now - lastCursorEmitRef.current < CURSOR_THROTTLE_MS) return
+        lastCursorEmitRef.current = now
+      }
+      socket.emit('files-cursor-update', { cursor, folderId: folderIdRef.current })
+    },
+    [socket]
+  )
+
   const otherUsers = useMemo(
     () => presenceUsers.filter((user) => user.socketId !== currentSocketId),
     [presenceUsers, currentSocketId]
   )
 
-  return { otherUsers }
+  const cursors = useMemo(
+    () =>
+      Array.from(cursorBySocket.values()).filter(
+        (c) => c.socketId !== currentSocketId && (c.folderId ?? null) === (folderId ?? null)
+      ),
+    [cursorBySocket, currentSocketId, folderId]
+  )
+
+  return { otherUsers, cursors, emitCursor }
 }

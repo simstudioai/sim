@@ -201,6 +201,29 @@ export function setupWorkspaceFilesHandlers(
     }
   )
 
+  socket.on('files-cursor-update', async ({ cursor, folderId }) => {
+    try {
+      const room = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.WORKSPACE_FILES)
+      const session = await roomManager.getUserSession(socket.id)
+      if (!room || !session) return
+
+      await roomManager.updateUserActivity(room, socket.id, { cursor })
+
+      // Broadcast to the room; the client scopes rendering to the same folder via
+      // the `folderId` carried on the payload.
+      socket.to(roomName(room)).emit('files-cursor-update', {
+        socketId: socket.id,
+        userId: session.userId,
+        userName: session.userName,
+        avatarUrl: session.avatarUrl,
+        cursor,
+        folderId: folderId ?? null,
+      })
+    } catch (error) {
+      logger.error(`Error handling files cursor update for socket ${socket.id}:`, error)
+    }
+  })
+
   socket.on('leave-workspace-files', async (payload?: { workspaceId?: string }) => {
     try {
       if (!roomManager.isReady()) return

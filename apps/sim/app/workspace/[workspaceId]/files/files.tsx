@@ -51,6 +51,7 @@ import type {
   ResourceAction,
   ResourceColumn,
   ResourceRow,
+  ResourceTableHandle,
   RowDragDropConfig,
   SearchConfig,
   SortConfig,
@@ -73,6 +74,7 @@ import {
   isPreviewable,
   isTextEditable,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { FilesCursors } from '@/app/workspace/[workspaceId]/files/components/files-cursors'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import { useWorkspaceFilesRoom } from '@/app/workspace/[workspaceId]/files/hooks/use-workspace-files-room'
@@ -205,10 +207,12 @@ export function Files() {
   const canEdit = userPermissions.canEdit === true
   const { config: permissionConfig } = usePermissionConfig()
 
-  const { otherUsers: filesPresenceUsers } = useWorkspaceFilesRoom(
-    workspaceId,
-    currentFolderId ?? null
-  )
+  const {
+    otherUsers: filesPresenceUsers,
+    cursors: filesCursors,
+    emitCursor: emitFilesCursor,
+  } = useWorkspaceFilesRoom(workspaceId, currentFolderId ?? null)
+  const filesTableApiRef = useRef<ResourceTableHandle>(null)
 
   useEffect(() => {
     if (permissionConfig.hideFilesTab) {
@@ -1975,6 +1979,7 @@ export function Files() {
           filter={filterContent ? { content: filterContent } : undefined}
         />
         <Resource.Table
+          apiRef={filesTableApiRef}
           columns={COLUMNS}
           rows={rows}
           selectable={selectableConfig}
@@ -1990,6 +1995,11 @@ export function Files() {
                 moveOptions={canEdit ? contextMenuMoveOptions : undefined}
                 onDelete={canEdit ? handleBulkDelete : undefined}
                 isLoading={bulkArchiveItems.isPending || moveItems.isPending}
+              />
+              <FilesCursors
+                tableApiRef={filesTableApiRef}
+                cursors={filesCursors}
+                emitCursor={emitFilesCursor}
               />
               {isDraggingOver ? (
                 <div className='pointer-events-none absolute inset-0 z-[var(--z-dropdown)] flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--surface-4)] transition-colors'>
