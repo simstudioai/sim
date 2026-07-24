@@ -42,6 +42,7 @@ import { getOrgMemberLedgerByUser } from '@/lib/billing/core/organization'
 import { addUserToOrganization } from '@/lib/billing/organizations/membership'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { attachOwnedWorkspacesToOrganization } from '@/lib/workspaces/organization-workspaces'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   adminInvalidJsonResponse,
@@ -262,6 +263,33 @@ export const POST = withRouteHandler(
 
       if (!result.success) {
         return badRequestResponse(result.error || 'Failed to add member')
+      }
+
+      /**
+       * A new member's owned personal workspaces follow them into the org
+       * (collaborators stay external). Best-effort: membership is already
+       * committed, and an attach failure leaves the pre-join status quo.
+       */
+      try {
+        const attach = await attachOwnedWorkspacesToOrganization({
+          ownerUserId: userId,
+          organizationId,
+          externalMemberPolicy: 'external-all',
+          includeArchived: true,
+        })
+        if (attach.attachedWorkspaceIds.length > 0) {
+          logger.info('Attached new member workspaces to organization', {
+            userId,
+            organizationId,
+            attachedWorkspaceCount: attach.attachedWorkspaceIds.length,
+          })
+        }
+      } catch (attachError) {
+        logger.error('Failed to attach new member workspaces to organization', {
+          userId,
+          organizationId,
+          error: attachError,
+        })
       }
 
       const data: AdminMember = {

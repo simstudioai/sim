@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { invitation, invitationWorkspaceGrant } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -14,7 +15,12 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { cancelInvitation, getInvitationById } from '@/lib/invitations/core'
+import {
+  cancelInvitation,
+  getInvitationById,
+  getInvitationJoinPreview,
+  isInvitationExpired,
+} from '@/lib/invitations/core'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('InvitationsAPI')
@@ -42,22 +48,41 @@ export const GET = withRouteHandler(
       const isInvitee = normalizeEmail(session.user.email || '') === normalizeEmail(inv.email)
       const tokenMatches = !!token && token === inv.token
 
-      let hasAdminView = false
-      if (inv.organizationId) {
-        hasAdminView = await isOrganizationOwnerOrAdmin(session.user.id, inv.organizationId)
-      }
-      if (!hasAdminView && inv.grants.length > 0) {
-        const adminChecks = await Promise.all(
-          inv.grants.map((grant) => hasWorkspaceAdminAccess(session.user.id, grant.workspaceId))
-        )
-        hasAdminView = adminChecks.some(Boolean)
+      if (!isInvitee && !tokenMatches) {
+        let hasAdminView = false
+        if (inv.organizationId) {
+          hasAdminView = await isOrganizationOwnerOrAdmin(session.user.id, inv.organizationId)
+        }
+        if (!hasAdminView && inv.grants.length > 0) {
+          const adminChecks = await Promise.all(
+            inv.grants.map((grant) => hasWorkspaceAdminAccess(session.user.id, grant.workspaceId))
+          )
+          hasAdminView = adminChecks.some(Boolean)
+        }
+        if (!hasAdminView) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
       }
 
-      if (!isInvitee && !tokenMatches && !hasAdminView) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      /**
+       * Disclosure-only: a preview failure must never block viewing or
+       * accepting the invitation itself. Expired-but-still-pending rows get
+       * no preview — acceptance deterministically rejects them.
+       */
+      let joinPreview = null
+      if (isInvitee && inv.status === 'pending' && !isInvitationExpired(inv)) {
+        try {
+          joinPreview = await getInvitationJoinPreview(session.user.id, inv)
+        } catch (previewError) {
+          logger.warn('Failed to compute invitation join preview', {
+            invitationId: id,
+            error: previewError,
+          })
+        }
       }
 
       return NextResponse.json({
+        joinPreview,
         invitation: {
           id: inv.id,
           kind: inv.kind,
@@ -126,6 +151,20 @@ export const PATCH = withRouteHandler(
           return NextResponse.json(
             { error: 'Only an organization owner or admin can change invitation roles' },
             { status: 403 }
+          )
+        }
+        /**
+         * A member-role invite without workspace grants would leave the
+         * invitee workspace-less after accepting (admins derive access to
+         * every organization workspace; members do not).
+         */
+        if (!isOrgAdminRole(role) && inv.grants.length === 0) {
+          return NextResponse.json(
+            {
+              error:
+                'Member invitations must include at least one workspace. Keep the admin role or send a new invitation with workspace access.',
+            },
+            { status: 400 }
           )
         }
       }

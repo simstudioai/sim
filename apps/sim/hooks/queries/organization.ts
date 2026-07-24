@@ -16,6 +16,7 @@ import {
 } from '@/lib/api/contracts/invitations'
 import {
   createOrganizationContract,
+  getMemberRemovalImpactContract,
   getOrganizationMemberUsageLimitContract,
   getOrganizationRosterContract,
   inviteOrganizationMembersContract,
@@ -23,6 +24,7 @@ import {
   type OrganizationMembersResponse,
   type OrganizationMemberUsageLimitData,
   type OrganizationRoster,
+  type RemovalImpactCredential,
   type RosterMember,
   type RosterPendingInvitation,
   type RosterWorkspaceAccess,
@@ -54,6 +56,7 @@ export const ORGANIZATION_SUBSCRIPTION_STALE_TIME = 30 * 1000
 export const ORGANIZATION_BILLING_STALE_TIME = 30 * 1000
 export const ORGANIZATION_MEMBERS_STALE_TIME = 30 * 1000
 export const ORGANIZATION_MEMBER_USAGE_LIMIT_STALE_TIME = 30 * 1000
+export const ORGANIZATION_REMOVAL_IMPACT_STALE_TIME = 30 * 1000
 
 type OrganizationSubscriptionCandidate = {
   id: string
@@ -115,6 +118,8 @@ export const organizationKeys = {
   memberUsageLimit: (id: string, userId: string) =>
     [...organizationKeys.detail(id), 'member-usage-limit', userId] as const,
   roster: (id: string) => [...organizationKeys.detail(id), 'roster'] as const,
+  removalImpact: (id: string, userId: string) =>
+    [...organizationKeys.detail(id), 'removal-impact', userId] as const,
 }
 
 export type { OrganizationRoster, RosterMember, RosterPendingInvitation, RosterWorkspaceAccess }
@@ -145,6 +150,37 @@ export function useOrganizationRoster(orgId: string | undefined | null) {
     queryFn: ({ signal }) => fetchOrganizationRoster(orgId as string, signal),
     enabled: !!orgId,
     staleTime: ORGANIZATION_ROSTER_STALE_TIME,
+  })
+}
+
+async function fetchMemberRemovalImpact(
+  orgId: string,
+  userId: string,
+  signal?: AbortSignal
+): Promise<RemovalImpactCredential[]> {
+  const data = await requestJson(getMemberRemovalImpactContract, {
+    params: { id: orgId },
+    query: { userId },
+    signal,
+  })
+  return data.credentials
+}
+
+/**
+ * Identity-bound credentials the target user owns in organization workspaces —
+ * the set that stops working after removal. Fetched lazily while the
+ * remove-member dialog is open.
+ */
+export function useMemberRemovalImpact(
+  orgId: string | undefined | null,
+  userId: string | undefined | null,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: organizationKeys.removalImpact(orgId ?? '', userId ?? ''),
+    queryFn: ({ signal }) => fetchMemberRemovalImpact(orgId as string, userId as string, signal),
+    enabled: Boolean(orgId) && Boolean(userId) && (options?.enabled ?? true),
+    staleTime: ORGANIZATION_REMOVAL_IMPACT_STALE_TIME,
   })
 }
 

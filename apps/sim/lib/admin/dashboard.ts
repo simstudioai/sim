@@ -937,15 +937,9 @@ export async function getDashboardMemberTransferPreflight(
       .where(eq(user.id, userId))
       .limit(1),
     db
-      .select({ id: workspace.id, name: workspace.name })
+      .select({ id: workspace.id, name: workspace.name, archivedAt: workspace.archivedAt })
       .from(workspace)
-      .where(
-        and(
-          eq(workspace.ownerId, userId),
-          isNull(workspace.archivedAt),
-          ne(workspace.workspaceMode, 'organization')
-        )
-      )
+      .where(and(eq(workspace.ownerId, userId), ne(workspace.workspaceMode, 'organization')))
       .orderBy(workspace.name, workspace.id),
   ])
   if (!destination) throw new Error('Destination organization not found')
@@ -969,7 +963,11 @@ export async function getDashboardMemberTransferPreflight(
       target.organizationId && target.organizationName
         ? { id: target.organizationId, name: target.organizationName, role: target.role }
         : null,
-    personalWorkspaces,
+    personalWorkspaces: personalWorkspaces.map((row) => ({
+      id: row.id,
+      name: row.name,
+      archived: row.archivedAt !== null,
+    })),
     credentialDependencies,
     canAdd: reason === null,
     reason,
@@ -995,7 +993,6 @@ export async function addDashboardOrganizationMember(
         and(
           inArray(workspace.id, selectedWorkspaceIds),
           eq(workspace.ownerId, values.userId),
-          isNull(workspace.archivedAt),
           ne(workspace.workspaceMode, 'organization')
         )
       )

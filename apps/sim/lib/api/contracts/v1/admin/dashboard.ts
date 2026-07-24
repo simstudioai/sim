@@ -172,7 +172,9 @@ export const adminDashboardMemberPreflightQuerySchema = z.object({
 export const adminDashboardMemberPreflightSchema = z.object({
   user: z.object({ id: z.string(), name: z.string(), email: z.string() }),
   currentOrganization: z.object({ id: z.string(), name: z.string(), role: z.string() }).nullable(),
-  personalWorkspaces: z.array(z.object({ id: z.string(), name: z.string() })),
+  personalWorkspaces: z.array(
+    z.object({ id: z.string(), name: z.string(), archived: z.boolean() })
+  ),
   credentialDependencies: z.array(
     z.object({
       id: z.string(),

@@ -39,7 +39,6 @@ export class WorkspaceMoveError extends Error {
     readonly code:
       | 'workspace-not-found'
       | 'organization-not-found'
-      | 'workspace-archived'
       | 'already-organization-workspace'
   ) {
     super(message)
@@ -139,7 +138,6 @@ export async function searchWorkspaceMoveCandidates(
     .innerJoin(user, eq(user.id, workspace.ownerId))
     .where(
       and(
-        isNull(workspace.archivedAt),
         ne(workspace.workspaceMode, WORKSPACE_MODE.ORGANIZATION),
         or(eq(workspace.id, query), ilike(workspace.name, `%${query}%`))
       )
@@ -455,10 +453,12 @@ async function searchWorkspaceById(workspaceId: string): Promise<WorkspaceMoveCa
     .limit(1)
 }
 
+/**
+ * Archived workspaces are deliberately movable: leaving them behind keeps an
+ * unarchive-later escape hatch outside the organization's purview, and
+ * join-attach already sweeps them (`includeArchived`).
+ */
 function assertWorkspaceMovable(row: { archivedAt?: Date | null; workspaceMode: string }): void {
-  if (row.archivedAt) {
-    throw new WorkspaceMoveError('Archived workspaces cannot be moved', 'workspace-archived')
-  }
   if (row.workspaceMode === WORKSPACE_MODE.ORGANIZATION) {
     throw new WorkspaceMoveError(
       'Inter-organization workspace transfers are not supported',

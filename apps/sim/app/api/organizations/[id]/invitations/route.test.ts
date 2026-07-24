@@ -112,7 +112,7 @@ describe('POST /api/organizations/[id]/invitations', () => {
     const response = await POST(
       createMockRequest(
         'POST',
-        { emails: ['invitee@example.com'] },
+        { emails: ['invitee@example.com'], role: 'admin' },
         {},
         'http://localhost/api/organizations/org-1/invitations'
       ),
@@ -125,7 +125,7 @@ describe('POST /api/organizations/[id]/invitations', () => {
         kind: 'organization',
         email: 'invitee@example.com',
         organizationId: 'org-1',
-        role: 'member',
+        role: 'admin',
         grants: [],
       })
     )
@@ -133,6 +133,28 @@ describe('POST /api/organizations/[id]/invitations', () => {
       expect.objectContaining({ kind: 'organization', email: 'invitee@example.com' })
     )
     expect(mockCancelPendingInvitation).not.toHaveBeenCalled()
+  })
+
+  it('rejects grant-less member-role invitations on the non-batch path', async () => {
+    mockGetSession.mockResolvedValue(
+      createSession({ userId: 'user-1', email: 'owner@example.com', name: 'Owner' })
+    )
+    queueOwnerAndOrg()
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { emails: ['invitee@example.com'] },
+        {},
+        'http://localhost/api/organizations/org-1/invitations'
+      ),
+      { params: Promise.resolve({ id: 'org-1' }) }
+    )
+
+    expect(response.status).toBe(400)
+    const body = await response.json()
+    expect(body.error).toContain('Member invitations must include at least one workspace')
+    expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
   })
 
   it('adds an existing member directly to selected workspaces they lack (no invitation/email)', async () => {
@@ -356,7 +378,7 @@ describe('POST /api/organizations/[id]/invitations', () => {
     const response = await POST(
       createMockRequest(
         'POST',
-        { emails: ['member@example.com'] },
+        { emails: ['member@example.com'], role: 'admin' },
         {},
         'http://localhost/api/organizations/org-1/invitations'
       ),
@@ -385,7 +407,7 @@ describe('POST /api/organizations/[id]/invitations', () => {
     const response = await POST(
       createMockRequest(
         'POST',
-        { emails: ['invitee@example.com'] },
+        { emails: ['invitee@example.com'], role: 'admin' },
         {},
         'http://localhost/api/organizations/org-1/invitations'
       ),

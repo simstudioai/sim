@@ -29,6 +29,16 @@ const ROLE_OPTIONS = [
   { value: 'read', label: 'Read' },
 ] as const
 
+const MEMBERSHIP_OPTIONS = [
+  { value: 'internal', label: 'Member' },
+  { value: 'external', label: 'External collaborator' },
+] as const
+
+type MembershipIntent = (typeof MEMBERSHIP_OPTIONS)[number]['value']
+
+const EXTERNAL_MEMBERSHIP_HINT =
+  'External collaborators get access to this workspace only — no organization membership or seat.'
+
 interface InviteModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -46,6 +56,7 @@ export function InviteModal({
 }: InviteModalProps) {
   const [emails, setEmails] = useState<string[]>([])
   const [inviteRole, setInviteRole] = useState<PermissionType>('admin')
+  const [membershipIntent, setMembershipIntent] = useState<MembershipIntent>('internal')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const params = useParams()
@@ -75,7 +86,9 @@ export function InviteModal({
   // seats are provisioned automatically when an invitee accepts.
   const isEnterpriseOrg = isEnterprise(organizationBillingData?.data?.subscriptionPlan)
   const hasSeatData = canViewOrganizationBilling && isEnterpriseOrg && totalSeats > 0
-  const exceedsSeatCapacity = hasSeatData && userPerms.canAdmin && emails.length > availableSeats
+  const isExternalInvite = Boolean(organizationId) && membershipIntent === 'external'
+  const exceedsSeatCapacity =
+    hasSeatData && userPerms.canAdmin && !isExternalInvite && emails.length > availableSeats
   const seatLimitReason = exceedsSeatCapacity
     ? `Only ${availableSeats} internal seat${availableSeats === 1 ? '' : 's'} available. External workspace invites do not require seats.`
     : null
@@ -109,7 +122,12 @@ export function InviteModal({
     const invitations = emails.map((email) => ({ email, permission: inviteRole }))
 
     batchSendInvitations.mutate(
-      { workspaceId, organizationId, invitations },
+      {
+        workspaceId,
+        organizationId,
+        invitations,
+        membershipIntent: isExternalInvite ? 'external' : undefined,
+      },
       {
         onSuccess: (result) => {
           const parts: string[] = []
@@ -151,13 +169,14 @@ export function InviteModal({
     workspaceId,
     organizationId,
     inviteRole,
-    batchSendInvitations,
+    isExternalInvite,
     onOpenChange,
   ])
 
   const resetState = useCallback(() => {
     setEmails([])
     setInviteRole('admin')
+    setMembershipIntent('internal')
     setErrorMessage(null)
   }, [])
 
@@ -206,6 +225,18 @@ export function InviteModal({
           align='start'
           onChange={(role) => setInviteRole(role as PermissionType)}
         />
+        {organizationId && (
+          <ChipModalField
+            type='dropdown'
+            title='Membership'
+            options={MEMBERSHIP_OPTIONS}
+            value={membershipIntent}
+            placeholder='Select membership'
+            align='start'
+            hint={isExternalInvite ? EXTERNAL_MEMBERSHIP_HINT : undefined}
+            onChange={(intent) => setMembershipIntent(intent as MembershipIntent)}
+          />
+        )}
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => handleOpenChange(false)}

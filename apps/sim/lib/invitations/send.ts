@@ -8,6 +8,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray, ne, sql } from 'drizzle-orm'
@@ -49,9 +50,29 @@ export interface CreatePendingInvitationResult {
   expiresAt: Date
 }
 
+/**
+ * Thrown when an invitation would strand its invitee: a member-role
+ * organization invite with no workspace grants leaves the accepted member
+ * with no accessible workspace (admins derive access to every organization
+ * workspace; members do not). Enforced here so every creation path — routes,
+ * admin tooling, future callers — hits the same rule.
+ */
+export class GrantlessMemberInvitationError extends Error {
+  constructor() {
+    super(
+      'Member invitations must include at least one workspace so the invitee has a workspace to land in.'
+    )
+    this.name = 'GrantlessMemberInvitationError'
+  }
+}
+
 export async function createPendingInvitation(
   input: CreatePendingInvitationInput
 ): Promise<CreatePendingInvitationResult> {
+  if (input.kind === 'organization' && !isOrgAdminRole(input.role) && input.grants.length === 0) {
+    throw new GrantlessMemberInvitationError()
+  }
+
   const invitationId = generateId()
   const token = generateId()
   const expiresAt = input.expiresAt ?? computeInvitationExpiry()

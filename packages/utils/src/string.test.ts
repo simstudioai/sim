@@ -2,7 +2,13 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { isVersionedType, normalizeEmail, stripVersionSuffix, truncate } from './string.js'
+import {
+  formatQuotedNameList,
+  isVersionedType,
+  normalizeEmail,
+  stripVersionSuffix,
+  truncate,
+} from './string.js'
 
 describe('truncate', () => {
   it('appends the suffix when the string exceeds the slice length', () => {
@@ -63,5 +69,19 @@ describe('normalizeEmail', () => {
 
   it('leaves an already-normalized email unchanged', () => {
     expect(normalizeEmail('user@example.com')).toBe('user@example.com')
+  })
+})
+
+describe('formatQuotedNameList', () => {
+  it('lists all names quoted when within the cap', () => {
+    expect(formatQuotedNameList(['A', 'B'], 3)).toBe('"A", "B"')
+  })
+
+  it('truncates to the cap with an overflow tail', () => {
+    expect(formatQuotedNameList(['A', 'B', 'C', 'D', 'E'], 3)).toBe('"A", "B", "C" and 2 more')
+  })
+
+  it('returns an empty string for no names', () => {
+    expect(formatQuotedNameList([], 3)).toBe('')
   })
 })

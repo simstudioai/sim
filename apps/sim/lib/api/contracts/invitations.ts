@@ -47,6 +47,11 @@ export const batchWorkspaceInvitationBodySchema = z.object({
       })
     )
     .min(1, 'At least one invitation is required'),
+  /**
+   * Only valid on organization workspaces. `external` invites workspace-only
+   * collaborators: no org membership, no seat.
+   */
+  membershipIntent: z.enum(['internal', 'external']).optional(),
 })
 
 export const batchInvitationResultSchema = z
@@ -91,6 +96,11 @@ export const invitationDetailsSchema = z.object({
       permission: workspacePermissionSchema,
     })
   ),
+})
+
+export const invitationJoinPreviewSchema = z.object({
+  willJoinOrganization: z.boolean(),
+  workspacesToMove: z.array(z.string()),
 })
 
 export const acceptInvitationResponseSchema = z.object({
@@ -151,6 +161,8 @@ export const getInvitationContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       invitation: invitationDetailsSchema,
+      /** Invitee-only preview of what accepting will do; null for other viewers. */
+      joinPreview: invitationJoinPreviewSchema.nullable(),
     }),
   },
 })
@@ -211,3 +223,4 @@ export const removeWorkspaceMemberContract = defineRouteContract({
 export type PendingInvitationRow = z.infer<typeof pendingWorkspaceInvitationSchema>
 export type BatchInvitationResult = z.infer<typeof batchInvitationResultSchema>
 export type InvitationDetails = z.infer<typeof invitationDetailsSchema>
+export type InvitationJoinPreview = z.infer<typeof invitationJoinPreviewSchema>

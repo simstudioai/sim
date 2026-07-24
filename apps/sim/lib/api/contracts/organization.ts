@@ -87,10 +87,18 @@ export const updateOrganizationMemberRoleBodySchema = z.object({
   role: organizationRoleSchema,
 })
 
+/**
+ * Role is required: member-role invites need workspace grants, which this
+ * endpoint cannot carry — send those through the invitations endpoint with
+ * workspaceInvitations. Only admin-role invites succeed here.
+ */
 export const inviteOrganizationMemberBodySchema = z
   .object({
     email: z.string({ error: 'Email is required' }).min(1, 'Email is required'),
-    role: z.enum(['admin', 'member'], { error: 'Invalid role' }).optional(),
+    role: z.enum(['admin', 'member'], {
+      error:
+        'Role is required. Member invitations must include workspace access — use the invitations endpoint with workspaceInvitations.',
+    }),
   })
   .passthrough()
 
@@ -337,6 +345,38 @@ export const getOrganizationRosterContract = defineRouteContract({
     }),
   },
 })
+
+export const removalImpactCredentialSchema = z.object({
+  id: z.string(),
+  displayName: z.string(),
+  type: z.string(),
+  workspaceId: z.string(),
+})
+
+export const memberRemovalImpactQuerySchema = z.object({
+  userId: z.string().min(1, 'User ID is required'),
+})
+
+/**
+ * Identity-bound credentials (OAuth accounts, personal env keys) the user owns
+ * in organization workspaces. These stop working when the user's workspace
+ * access is revoked and must be reconnected by a remaining member — removal is
+ * never blocked, only disclosed.
+ */
+export const getMemberRemovalImpactContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/removal-impact',
+  params: organizationParamsSchema,
+  query: memberRemovalImpactQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      credentials: z.array(removalImpactCredentialSchema),
+    }),
+  },
+})
+
+export type RemovalImpactCredential = z.infer<typeof removalImpactCredentialSchema>
 
 export const listOrganizationMembersContract = defineRouteContract({
   method: 'GET',

@@ -12,7 +12,7 @@ import { createWorkspaceContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
 import { recoverFromStaleSession } from '@/lib/auth/stale-session-recovery'
 import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
-import { useWorkspacesWithMetadata, type WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
+import { useWorkspacesWithMetadata } from '@/hooks/queries/workspace'
 
 const logger = createLogger('WorkspacePage')
 
@@ -27,12 +27,47 @@ function isStaleSessionError(error: unknown): boolean {
   return isApiClientError(error) && error.status === 401
 }
 
+interface WorkspaceStatusCardProps {
+  title: string
+  description: string
+  primaryLabel: string
+  onPrimary: () => void
+}
+
+function WorkspaceStatusCard({
+  title,
+  description,
+  primaryLabel,
+  onPrimary,
+}: WorkspaceStatusCardProps) {
+  return (
+    <main className='flex h-screen w-full items-center justify-center bg-[var(--surface-1)] p-6'>
+      <div className='flex max-w-md flex-col items-center gap-3 text-center'>
+        <div className='flex size-10 items-center justify-center rounded-full bg-[var(--surface-3)]'>
+          <CircleAlert className='size-[18px] text-[var(--text-icon)]' aria-hidden />
+        </div>
+        <div className='space-y-1'>
+          <h1 className='font-medium text-[var(--text-primary)] text-lg'>{title}</h1>
+          <p className='text-[var(--text-muted)] text-sm'>{description}</p>
+        </div>
+        <div className='flex items-center gap-2'>
+          <Chip variant='primary' onClick={onPrimary}>
+            {primaryLabel}
+          </Chip>
+          <Chip onClick={() => void recoverFromStaleSession()}>Sign out</Chip>
+        </div>
+      </div>
+    </main>
+  )
+}
+
 export default function WorkspacePage() {
   const router = useRouter()
   const { data: session, isPending: isSessionPending, error: sessionError } = useSession()
   const isAuthenticated = !isSessionPending && !!session?.user
   const hasRedirectedRef = useRef(false)
   const isRecoveringRef = useRef(false)
+  const blockedLoggedRef = useRef(false)
   const [recoveryFailed, setRecoveryFailed] = useState(false)
 
   const {
@@ -75,17 +110,34 @@ export default function WorkspacePage() {
 
     if (isWorkspacesLoading || workspacesError || !data) return
 
+    const { workspaces, lastActiveWorkspaceId, creationPolicy } = data
+
+    if (workspaces.length === 0) {
+      /**
+       * Blocked state is derived in render and deliberately does NOT set
+       * hasRedirectedRef: a later refetch that shows granted access resumes
+       * the normal redirect path, so the screen self-heals.
+       */
+      if (creationPolicy && !creationPolicy.canCreate) {
+        if (!blockedLoggedRef.current) {
+          blockedLoggedRef.current = true
+          logger.warn('No workspaces found and workspace creation is blocked', {
+            reason: creationPolicy.reason,
+            workspaceMode: creationPolicy.workspaceMode,
+            organizationId: creationPolicy.organizationId,
+          })
+        }
+        return
+      }
+      hasRedirectedRef.current = true
+      handleNoWorkspaces(router)
+      return
+    }
+
     hasRedirectedRef.current = true
 
     const urlParams = new URLSearchParams(window.location.search)
     const redirectWorkflowId = urlParams.get('redirect_workflow')
-
-    const { workspaces, lastActiveWorkspaceId, creationPolicy } = data
-
-    if (workspaces.length === 0) {
-      handleNoWorkspaces(router, creationPolicy)
-      return
-    }
 
     const localRecentId = WorkspaceRecencyStorage.getMostRecent()
     const findWorkspace = (id: string | null) =>
@@ -103,6 +155,30 @@ export default function WorkspacePage() {
     router.replace(`/workspace/${targetWorkspace.id}/home`)
   }, [session, isSessionPending, sessionError, isWorkspacesLoading, workspacesError, data, router])
 
+  const blockedPolicy =
+    isAuthenticated &&
+    data &&
+    data.workspaces.length === 0 &&
+    data.creationPolicy &&
+    !data.creationPolicy.canCreate
+      ? data.creationPolicy
+      : null
+
+  if (blockedPolicy) {
+    return (
+      <WorkspaceStatusCard
+        title='No workspace access yet'
+        description={
+          blockedPolicy.workspaceMode === 'organization'
+            ? "Your account is linked to an organization, but you don't have access to any of its workspaces. Ask an organization admin for workspace access, then check again — or sign out and back in if you recently left the organization."
+            : 'All of your workspaces are archived and your plan has reached its workspace limit. Unarchive a workspace or upgrade your plan to continue.'
+        }
+        primaryLabel='Check again'
+        onPrimary={() => window.location.reload()}
+      />
+    )
+  }
+
   const failedToLoad =
     recoveryFailed ||
     (Boolean(sessionError) && !session?.user) ||
@@ -110,28 +186,12 @@ export default function WorkspacePage() {
 
   if (failedToLoad) {
     return (
-      <main className='flex h-screen w-full items-center justify-center bg-[var(--surface-1)] p-6'>
-        <div className='flex max-w-md flex-col items-center gap-3 text-center'>
-          <div className='flex size-10 items-center justify-center rounded-full bg-[var(--surface-3)]'>
-            <CircleAlert className='size-[18px] text-[var(--text-icon)]' aria-hidden />
-          </div>
-          <div className='space-y-1'>
-            <h1 className='font-medium text-[var(--text-primary)] text-lg'>
-              Could not load your workspaces
-            </h1>
-            <p className='text-[var(--text-muted)] text-sm'>
-              Something went wrong while loading your account. Try again, or sign out and log back
-              in.
-            </p>
-          </div>
-          <div className='flex items-center gap-2'>
-            <Chip variant='primary' onClick={() => window.location.reload()}>
-              Try again
-            </Chip>
-            <Chip onClick={() => void recoverFromStaleSession()}>Sign out</Chip>
-          </div>
-        </div>
-      </main>
+      <WorkspaceStatusCard
+        title='Could not load your workspaces'
+        description='Something went wrong while loading your account. Try again, or sign out and log back in.'
+        primaryLabel='Try again'
+        onPrimary={() => window.location.reload()}
+      />
     )
   }
 
@@ -172,20 +232,7 @@ async function handleWorkflowRedirect(
   router.replace(`/workspace/${fallbackWorkspaceId}/home`)
 }
 
-async function handleNoWorkspaces(
-  router: ReturnType<typeof useRouter>,
-  creationPolicy: WorkspaceCreationPolicy | null
-): Promise<void> {
-  if (creationPolicy && !creationPolicy.canCreate) {
-    logger.warn('No workspaces found and workspace creation is blocked', {
-      reason: creationPolicy.reason,
-      workspaceMode: creationPolicy.workspaceMode,
-      organizationId: creationPolicy.organizationId,
-    })
-    router.replace('/')
-    return
-  }
-
+async function handleNoWorkspaces(router: ReturnType<typeof useRouter>): Promise<void> {
   logger.warn('No workspaces found, creating default workspace')
   try {
     const data = await requestJson(createWorkspaceContract, {

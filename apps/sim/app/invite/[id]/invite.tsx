@@ -3,17 +3,18 @@
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { formatQuotedNameList } from '@sim/utils/string'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
   acceptInvitationContract,
-  getInvitationContract,
-  type InvitationDetails,
+  type InvitationJoinPreview,
 } from '@/lib/api/contracts/invitations'
 import { client, useSession } from '@/lib/auth/auth-client'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
+import { useInvitationDetails } from '@/hooks/queries/invitations'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { refreshSessionQuery } from '@/hooks/queries/session'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
@@ -155,6 +156,28 @@ function getInviteError(code: string): InviteError {
   )
 }
 
+const MAX_LISTED_WORKSPACE_NAMES = 3
+
+/**
+ * Disclosure appended to the accept copy when accepting moves the invitee's
+ * own workspaces into the organization — said where the decision happens, so
+ * accepting never silently changes who controls their work.
+ */
+function buildWorkspaceMigrationNotice(
+  joinPreview: InvitationJoinPreview | null,
+  organizationLabel: string
+): string {
+  if (!joinPreview?.willJoinOrganization || joinPreview.workspacesToMove.length === 0) {
+    return ''
+  }
+
+  const names = joinPreview.workspacesToMove
+  const nameList = formatQuotedNameList(names, MAX_LISTED_WORKSPACE_NAMES)
+  const single = names.length === 1
+
+  return ` Accepting also moves your ${single ? 'workspace' : 'workspaces'} ${nameList} into ${organizationLabel}: its admins get full access, and ${single ? 'it stays' : 'they stay'} with the organization if you leave.`
+}
+
 function codeFromStatus(status: number): InviteErrorCode {
   if (status === 401) return 'unauthorized'
   if (status === 403) return 'forbidden'
@@ -181,9 +204,8 @@ export default function Invite() {
   const searchParams = useSearchParams()
   const { data: session, isPending } = useSession()
   const queryClient = useQueryClient()
-  const [invitation, setInvitation] = useState<InvitationDetails | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<InviteError | null>(null)
+  const [actionError, setActionError] = useState<InviteError | null>(null)
+  const [urlError, setUrlError] = useState<InviteError | null>(null)
   const [isAccepting, setIsAccepting] = useState(false)
   const [accepted, setAccepted] = useState(false)
   const [isNewUser, setIsNewUser] = useState(false)
@@ -206,37 +228,29 @@ export default function Invite() {
     }
 
     if (errorReason) {
-      setError(getInviteError(errorReason))
-      setIsLoading(false)
+      setUrlError(getInviteError(errorReason))
     }
   }, [searchParams, inviteId, inviteTokenStorageKey])
 
-  useEffect(() => {
-    if (!session?.user) return
+  const invitationQuery = useInvitationDetails(inviteId, token, {
+    enabled: Boolean(session?.user),
+  })
+  const invitation = invitationQuery.data?.invitation ?? null
+  const joinPreview = invitationQuery.data?.joinPreview ?? null
+  const isLoading = Boolean(session?.user) && invitationQuery.isPending
 
-    async function fetchInvitation() {
-      setIsLoading(true)
-      try {
-        const data = await requestJson(getInvitationContract, {
-          params: { id: inviteId },
-          query: { token: token ?? undefined },
-        })
-        setInvitation(data.invitation)
-        setError(null)
-      } catch (fetchError) {
-        logger.error('Error fetching invitation:', fetchError)
-        const code =
-          fetchError instanceof ApiClientError
-            ? codeFromApiClientError(fetchError)
-            : 'network-error'
-        setError(getInviteError(code))
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchInvitation()
-  }, [session?.user, inviteId, token])
+  const fetchError = invitationQuery.error
+    ? getInviteError(
+        invitationQuery.error instanceof ApiClientError
+          ? codeFromApiClientError(invitationQuery.error)
+          : 'network-error'
+      )
+    : null
+  /**
+   * Action errors (accept failures) outrank fetch errors; the URL error param
+   * only shows until the invitation loads successfully.
+   */
+  const error = actionError ?? fetchError ?? (invitationQuery.data ? null : urlError)
 
   const handleAcceptInvitation = async () => {
     if (!session?.user || !invitation) return
@@ -265,7 +279,7 @@ export default function Invite() {
         acceptError instanceof ApiClientError
           ? codeFromApiClientError(acceptError)
           : 'network-error'
-      setError(getInviteError(code))
+      setActionError(getInviteError(code))
       setIsAccepting(false)
     }
   }
@@ -440,13 +454,15 @@ export default function Invite() {
   }
 
   const isOrg = invitation?.kind === 'organization'
+  const organizationLabel = invitation?.organizationName || 'the organization'
+  const migrationNotice = buildWorkspaceMigrationNotice(joinPreview, organizationLabel)
 
   return (
     <InviteLayout>
       <InviteStatusCard
         type='invitation'
         title={isOrg ? 'Organization Invitation' : 'Workspace Invitation'}
-        description={`You've been invited to join ${displayName}. Click accept below to join.`}
+        description={`You've been invited to join ${displayName}. Click accept below to join.${migrationNotice}`}
         icon={isOrg ? 'users' : 'mail'}
         actions={[
           {

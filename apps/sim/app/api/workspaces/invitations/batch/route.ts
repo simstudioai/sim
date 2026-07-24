@@ -82,6 +82,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           context,
           email: item.email,
           permission: item.permission,
+          membershipIntent: body.membershipIntent,
           request: req,
         })
         if (invitation.instantAdd) {
