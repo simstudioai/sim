@@ -112,6 +112,16 @@ export function sendBrowserPanelAction(
   bridge()?.panelAction({ action, ...payload })
 }
 
+/** Whether the installed desktop shell supports durable browser-tab pinning. */
+export function isBrowserTabPinningAvailable(): boolean {
+  return typeof bridge()?.setTabPinned === 'function'
+}
+
+/** Pins or unpins a live browser tab when supported by the desktop shell. */
+export function setBrowserTabPinned(tabId: string, pinned: boolean): void {
+  bridge()?.setTabPinned?.(tabId, pinned)
+}
+
 /** Mirrors Sim's raw light/dark/system preference into embedded pages. */
 export function reportBrowserTheme(theme: BrowserTheme): void {
   bridge()?.setTheme?.(theme)
@@ -133,6 +143,31 @@ export function reportBrowserPanelBounds(bounds: BrowserPanelBounds | null): voi
   const agent = bridge()
   if (!agent?.setPanelOccluded && panelOccluded && bounds !== null) return
   agent?.setPanelBounds(bounds)
+}
+
+/**
+ * Fast path for live divider drags. The measured pipeline (renderer layout →
+ * ResizeObserver → report) can only start after the new panel width has laid
+ * out, so the native view learns each rect milliseconds after the divider
+ * moved and can miss the frame's composite deadline — the page visibly swims
+ * against the divider. During a divider drag only the panel's left edge
+ * moves, so the next rect is pure arithmetic: the rect measured at drag start
+ * with its left edge shifted by the divider's travel. Call at drag start with
+ * the divider position (the panel's left edge in viewport CSS pixels); the
+ * returned predictor reports a rect per pointer move, before layout runs.
+ * Measured reports remain authoritative and correct any drift.
+ */
+export function beginBrowserPanelDividerDrag(
+  startDividerX: number
+): ((dividerX: number) => void) | null {
+  const base = latestPanelBounds
+  if (!bridge() || !base) return null
+  return (dividerX: number) => {
+    const dx = Math.round(dividerX - startDividerX)
+    const width = base.width - dx
+    if (width <= 0) return
+    reportBrowserPanelBounds({ x: base.x + dx, y: base.y, width, height: base.height })
+  }
 }
 
 /** Reports whether renderer-owned browser chrome owns the interaction context. */

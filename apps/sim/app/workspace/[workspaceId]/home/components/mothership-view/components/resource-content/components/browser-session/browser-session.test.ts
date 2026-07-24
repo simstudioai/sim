@@ -2,7 +2,11 @@
  * @vitest-environment jsdom
  */
 import { describe, expect, it, vi } from 'vitest'
-import { resolveUrlBarInput, trackBrowserPanelFocus } from './browser-session'
+import {
+  resolveUrlBarInput,
+  selectFocusedOmniboxOnNextFrame,
+  trackBrowserPanelFocus,
+} from './browser-session'
 
 describe('resolveUrlBarInput', () => {
   it('passes explicit schemes through untouched', () => {
@@ -60,5 +64,35 @@ describe('trackBrowserPanelFocus', () => {
 
     panel.remove()
     outsideButton.remove()
+  })
+})
+
+describe('selectFocusedOmniboxOnNextFrame', () => {
+  it('waits for the focus click to settle and selects only while the input remains focused', () => {
+    const callbacks: FrameRequestCallback[] = []
+    const requestFrame = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => {
+        callbacks.push(callback)
+        return callbacks.length
+      })
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+    const select = vi.spyOn(input, 'select')
+
+    input.focus()
+    selectFocusedOmniboxOnNextFrame(input)
+    expect(select).not.toHaveBeenCalled()
+    callbacks.shift()?.(0)
+    expect(select).toHaveBeenCalledOnce()
+
+    select.mockClear()
+    selectFocusedOmniboxOnNextFrame(input)
+    input.blur()
+    callbacks.shift()?.(0)
+    expect(select).not.toHaveBeenCalled()
+
+    requestFrame.mockRestore()
+    input.remove()
   })
 })

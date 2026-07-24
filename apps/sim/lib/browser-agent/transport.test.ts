@@ -9,6 +9,7 @@ const {
   setPanelOccluded,
   setPanelSnapshot,
   setSessionAlive,
+  setTabPinned,
   setTheme,
   setTabsState,
   setTabsSupported,
@@ -21,6 +22,7 @@ const {
   setPanelOccluded: vi.fn(),
   setPanelSnapshot: vi.fn(),
   setSessionAlive: vi.fn(),
+  setTabPinned: vi.fn(),
   setTheme: vi.fn(),
   setTabsState: vi.fn(),
   setTabsSupported: vi.fn(),
@@ -40,6 +42,7 @@ vi.mock('@/lib/desktop', () => ({
       setPanelBounds,
       setPanelFocused,
       setPanelOccluded,
+      setTabPinned,
       setTheme,
     },
   }),
@@ -59,12 +62,14 @@ vi.mock('@/stores/browser-session/store', () => ({
 
 import {
   initBrowserAgentTransport,
+  isBrowserTabPinningAvailable,
   onBrowserOmniboxFocus,
   reportBrowserPanelBounds,
   reportBrowserPanelFocused,
   reportBrowserPanelOcclusion,
   reportBrowserTheme,
   resetBrowserPanelOcclusion,
+  setBrowserTabPinned,
 } from '@/lib/browser-agent/transport'
 
 describe('browser panel transport', () => {
@@ -73,6 +78,7 @@ describe('browser panel transport', () => {
     setPanelBounds.mockClear()
     setPanelFocused.mockClear()
     setPanelOccluded.mockClear()
+    setTabPinned.mockClear()
     setTheme.mockClear()
   })
 
@@ -94,6 +100,18 @@ describe('browser panel transport', () => {
     reportBrowserPanelFocused(false)
 
     expect(setPanelFocused.mock.calls).toEqual([[true], [false]])
+  })
+
+  it('forwards tab pinning only through shells that advertise support', () => {
+    expect(isBrowserTabPinningAvailable()).toBe(true)
+
+    setBrowserTabPinned('tab-2', true)
+    setBrowserTabPinned('tab-2', false)
+
+    expect(setTabPinned.mock.calls).toEqual([
+      ['tab-2', true],
+      ['tab-2', false],
+    ])
   })
 
   it('wires captured browser frames into the browser-session store', () => {

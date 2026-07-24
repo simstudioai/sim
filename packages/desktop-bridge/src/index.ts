@@ -30,6 +30,11 @@ export interface SimDesktopBrowserAgentApi {
   /** Browser-chrome commands from the panel (URL bar, back, reload, takeover Done). */
   panelAction(action: BrowserPanelAction): void
   /**
+   * Pin or unpin a live browser tab. Optional for compatibility with desktop
+   * builds predating durable pinned tabs.
+   */
+  setTabPinned?(tabId: string, pinned: boolean): void
+  /**
    * Report where the browser panel sits in the window (CSS pixels relative
    * to the viewport), or null when the panel is hidden/unmounted. The main
    * process keeps the embedded view glued to this rect.

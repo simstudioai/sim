@@ -25,6 +25,12 @@ class SessionError extends Error {}
 export interface AgentTab {
   id: string
   view: WebContentsView
+  pinned: boolean
+}
+
+export interface PinnedTabPersistence {
+  load: () => unknown
+  save: (urls: string[]) => void
 }
 
 export interface AgentSessionEvents {
@@ -97,6 +103,8 @@ let nextTabId = 1
 let partitionConfigured = false
 let events: AgentSessionEvents | null = null
 let getMainWindow: () => BrowserWindow | null = () => null
+let pinnedTabPersistence: PinnedTabPersistence | null = null
+let pinnedTabsRestored = false
 /** Where the panel sits in the main window (CSS px); null = panel hidden. */
 let panelBounds: BrowserPanelBounds | null = null
 /** Browser-resource focus, including native pages and renderer-owned chrome. */
@@ -116,10 +124,51 @@ let hostedWindow: BrowserWindow | null = null
 
 export function initSession(
   handlers: AgentSessionEvents,
-  mainWindowProvider: () => BrowserWindow | null
+  mainWindowProvider: () => BrowserWindow | null,
+  persistence?: PinnedTabPersistence
 ): void {
   events = handlers
   getMainWindow = mainWindowProvider
+  if (persistence) {
+    pinnedTabPersistence = persistence
+  }
+}
+
+function sanitizePinnedTabUrls(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const urls: string[] = []
+  for (const candidate of value) {
+    if (typeof candidate !== 'string' || candidate.length > 8_192) continue
+    if (candidate === 'about:blank') {
+      urls.push(candidate)
+    } else {
+      try {
+        const url = new URL(candidate)
+        if (
+          (url.protocol === 'http:' || url.protocol === 'https:') &&
+          !url.username &&
+          !url.password
+        ) {
+          urls.push(url.href)
+        }
+      } catch {}
+    }
+    if (urls.length >= MAX_BROWSER_TABS) break
+  }
+  return urls
+}
+
+function pinnedUrl(tab: AgentTab): string {
+  return tab.view.webContents.getURL() || 'about:blank'
+}
+
+function persistPinnedTabs(): void {
+  if (!pinnedTabPersistence || !pinnedTabsRestored) return
+  pinnedTabPersistence.save(
+    tabs
+      .filter((tab) => tab.pinned && !tab.view.webContents.isDestroyed())
+      .map((tab) => pinnedUrl(tab))
+  )
 }
 
 /** Read cookie metadata from the dedicated profile without exposing values. */
@@ -263,6 +312,10 @@ function createTabView(): WebContentsView {
     const tab = tabs.find((entry) => entry.view === view)
     if (tab) closeTabFromUser(tab.id)
   })
+  // A pinned tab persists its latest top-level location, including
+  // user-driven navigations that do not pass through the driver.
+  contents.on('did-navigate', persistPinnedTabs)
+  contents.on('did-navigate-in-page', persistPinnedTabs)
 
   events?.onTabCreated(contents)
   return view
@@ -333,25 +386,29 @@ let attachedView: WebContentsView | null = null
 let lastAppliedBounds = ''
 let lastAppliedVisibility: boolean | null = null
 /**
- * The panel's edge offsets from the window content box (DIP), captured at the
- * last renderer-reported layout. Used to reposition the view synchronously on
- * window `resize` — the renderer's report round-trips layout → rAF → IPC and
- * trails a live drag by several frames, which reads as the browser "swimming"
- * inside the window. The prediction assumes the panel keeps its left/top
- * offsets and stretches with the right/bottom window edges; the next renderer
- * report is authoritative and corrects any drift (e.g. proportional layouts).
+ * The panel's geometry relative to the window content box (DIP), captured at
+ * the last renderer-reported layout. Used to reposition the view
+ * synchronously on window `resize` — the renderer's report round-trips
+ * layout → observe → IPC and trails a live drag by several frames, which
+ * reads as the browser "swimming" inside the window. The panel is
+ * right-anchored with a fixed width (vertically it stretches between fixed
+ * top and bottom chrome), so the prediction translates the view with the
+ * right window edge at constant width and stretches only its height; the
+ * next renderer report is authoritative and corrects any drift (e.g. the
+ * proportional default width before the first divider drag).
  */
-let panelAnchor: { x: number; y: number; right: number; bottom: number } | null = null
+let panelAnchor: { y: number; right: number; bottom: number; width: number } | null = null
 
 function predictPanelBoundsForResize(): void {
   const win = hostedWindow
   const view = attachedView
   if (!win || !view || win.isDestroyed() || panelAnchor === null) return
   const [contentWidth, contentHeight] = win.getContentSize()
+  const width = Math.max(1, Math.min(panelAnchor.width, contentWidth - panelAnchor.right))
   const bounds = {
-    x: panelAnchor.x,
+    x: Math.max(0, contentWidth - panelAnchor.right - width),
     y: panelAnchor.y,
-    width: Math.max(1, contentWidth - panelAnchor.x - panelAnchor.right),
+    width,
     height: Math.max(1, contentHeight - panelAnchor.y - panelAnchor.bottom),
   }
   const boundsKey = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
@@ -457,10 +514,10 @@ function layout(): void {
   }
   const [contentWidth, contentHeight] = win.getContentSize()
   panelAnchor = {
-    x: bounds.x,
     y: bounds.y,
     right: contentWidth - bounds.x - bounds.width,
     bottom: contentHeight - bounds.y - bounds.height,
+    width: bounds.width,
   }
   const boundsKey = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
   if (boundsKey !== lastAppliedBounds) {
@@ -480,8 +537,11 @@ export function setPanelBounds(bounds: BrowserPanelBounds | null): void {
   // A visible browser resource always represents one open browser window.
   // Materialize its initial about:blank tab before layout so the tab strip,
   // omnibox, and native session never disagree about an empty state.
-  if (bounds !== null && !hasSession()) {
-    ensureTab()
+  if (bounds !== null) {
+    restorePinnedTabs()
+    if (!hasSession()) {
+      ensureTab()
+    }
   }
   if (bounds === null) {
     panelOccluded = false
@@ -522,15 +582,17 @@ export function setPanelOccluded(occluded: boolean): void {
 
 /** The active tab, creating the first tab when none exist. */
 export function ensureTab(): AgentTab {
+  restorePinnedTabs()
   let active = activeTab()
   if (!active) {
-    active = addTab()
+    active = addTabInternal()
   }
   return active
 }
 
 /** The active tab without creating one. */
 export function requireTab(): AgentTab {
+  restorePinnedTabs()
   const active = activeTab()
   if (!active) {
     throw new SessionError('No page is open yet — call browser_navigate or browser_open_tab first.')
@@ -538,23 +600,65 @@ export function requireTab(): AgentTab {
   return active
 }
 
-export function addTab(): AgentTab {
+interface AddTabOptions {
+  pinned?: boolean
+  activate?: boolean
+  notify?: boolean
+}
+
+function addTabInternal({
+  pinned = false,
+  activate = true,
+  notify = true,
+}: AddTabOptions = {}): AgentTab {
   if (tabs.filter((tab) => !tab.view.webContents.isDestroyed()).length >= MAX_BROWSER_TABS) {
     throw new SessionError(`The browser supports up to ${MAX_BROWSER_TABS} open tabs.`)
   }
   const transferBrowserFocus =
-    focusedBrowserTabId !== null || tabs.some((tab) => tab.view.webContents.isFocused())
-  const tab: AgentTab = { id: String(nextTabId++), view: createTabView() }
-  tabs.push(tab)
-  activeTabId = tab.id
-  layout()
-  if (transferBrowserFocus) focusedBrowserTabId = tab.id
-  events?.onActiveTabChanged(tab.view.webContents)
-  events?.onTabsChanged()
+    activate &&
+    (focusedBrowserTabId !== null || tabs.some((tab) => tab.view.webContents.isFocused()))
+  const tab: AgentTab = { id: String(nextTabId++), view: createTabView(), pinned }
+  if (pinned) {
+    const firstRegularTab = tabs.findIndex((entry) => !entry.pinned)
+    tabs.splice(firstRegularTab < 0 ? tabs.length : firstRegularTab, 0, tab)
+  } else {
+    tabs.push(tab)
+  }
+  if (activate || activeTabId === null) {
+    activeTabId = tab.id
+    layout()
+    if (transferBrowserFocus) focusedBrowserTabId = tab.id
+    if (notify) events?.onActiveTabChanged(tab.view.webContents)
+  }
+  if (notify) events?.onTabsChanged()
   return tab
 }
 
+function restorePinnedTabs(): void {
+  if (pinnedTabsRestored) return
+  pinnedTabsRestored = true
+  const urls = sanitizePinnedTabUrls(pinnedTabPersistence?.load())
+  for (const url of urls) {
+    const tab = addTabInternal({ pinned: true, activate: false, notify: false })
+    if (url !== 'about:blank') {
+      void tab.view.webContents.loadURL(url).catch(() => {})
+    }
+  }
+  const active = activeTab()
+  if (active) {
+    layout()
+    events?.onActiveTabChanged(active.view.webContents)
+    events?.onTabsChanged()
+  }
+}
+
+export function addTab(): AgentTab {
+  restorePinnedTabs()
+  return addTabInternal()
+}
+
 export function switchTab(tabId: string): AgentTab {
+  restorePinnedTabs()
   const tab = tabs.find((entry) => entry.id === tabId)
   if (!tab) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
   const transferBrowserFocus =
@@ -568,8 +672,12 @@ export function switchTab(tabId: string): AgentTab {
 }
 
 export function closeTab(tabId: string): void {
+  restorePinnedTabs()
   const index = tabs.findIndex((entry) => entry.id === tabId)
   if (index < 0) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
+  if (tabs[index].pinned) {
+    throw new SessionError('Pinned tabs cannot be closed. Unpin the tab first.')
+  }
   const [tab] = tabs.splice(index, 1)
   const transferBrowserFocus = focusedBrowserTabId === tab.id || tab.view.webContents.isFocused()
   clearFocusedBrowserTab(tab.id)
@@ -597,6 +705,30 @@ export function closeTab(tabId: string): void {
   if (!hasSession()) {
     events?.onSessionClosed()
   }
+}
+
+/**
+ * Pins or unpins a live tab. Pinned tabs form a stable group at the far left,
+ * and their latest URLs are persisted locally for the next browser opening.
+ */
+export function setTabPinned(tabId: string, pinned: boolean): AgentTab {
+  restorePinnedTabs()
+  const index = tabs.findIndex((entry) => entry.id === tabId)
+  if (index < 0) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
+  const tab = tabs[index]
+  if (tab.pinned === pinned) return tab
+
+  tabs.splice(index, 1)
+  tab.pinned = pinned
+  if (pinned) {
+    const firstRegularTab = tabs.findIndex((entry) => !entry.pinned)
+    tabs.splice(firstRegularTab < 0 ? tabs.length : firstRegularTab, 0, tab)
+  } else {
+    tabs.push(tab)
+  }
+  persistPinnedTabs()
+  events?.onTabsChanged()
+  return tab
 }
 
 /**
@@ -640,6 +772,7 @@ function clearFocusedBrowserTab(tabId?: string): void {
 }
 
 function closeTabFromUser(tabId: string): void {
+  if (tabs.find((tab) => tab.id === tabId)?.pinned) return
   const closingLastTab = listTabs().length === 1
   closeTab(tabId)
   const active = activeTab()
@@ -651,6 +784,7 @@ function closeTabFromUser(tabId: string): void {
 }
 
 export function listTabs(): BrowserTabState[] {
+  restorePinnedTabs()
   return tabs
     .filter((tab) => !tab.view.webContents.isDestroyed())
     .map((tab) => ({
@@ -659,6 +793,7 @@ export function listTabs(): BrowserTabState[] {
       url: tab.view.webContents.getURL(),
       loading: tab.view.webContents.isLoading(),
       active: tab.id === activeTabId,
+      pinned: tab.pinned,
     }))
 }
 

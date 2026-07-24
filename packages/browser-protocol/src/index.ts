@@ -131,6 +131,8 @@ export interface BrowserTabState {
   title: string
   loading: boolean
   active: boolean
+  /** Pinned tabs are ordered before regular tabs and cannot be closed. */
+  pinned?: boolean
 }
 
 /** Complete live tab list pushed by the desktop shell. */

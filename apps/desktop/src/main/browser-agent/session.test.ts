@@ -41,7 +41,8 @@ function mainWindowMock() {
 
 async function freshSession(
   win: BrowserWindow | null,
-  eventOverrides: Partial<import('@/main/browser-agent/session').AgentSessionEvents> = {}
+  eventOverrides: Partial<import('@/main/browser-agent/session').AgentSessionEvents> = {},
+  persistence?: import('@/main/browser-agent/session').PinnedTabPersistence
 ): Promise<SessionModule> {
   vi.resetModules()
   const session = await import('@/main/browser-agent/session')
@@ -55,7 +56,8 @@ async function freshSession(
       onDownloadBlocked: vi.fn(),
       ...eventOverrides,
     },
-    () => win
+    () => win,
+    persistence
   )
   return session
 }
@@ -277,7 +279,60 @@ describe('browser-agent session', () => {
     expect(() => session.closeTab('999')).toThrow(/No tab with id 999/)
   })
 
-  it('limits the browser session to five open tabs', () => {
+  it('moves pinned tabs left and requires unpinning before any close path', async () => {
+    const save = vi.fn()
+    const pinnedSession = await freshSession(
+      win,
+      {},
+      {
+        load: () => [],
+        save,
+      }
+    )
+    const first = pinnedSession.ensureTab()
+    const second = pinnedSession.addTab()
+
+    pinnedSession.setTabPinned(second.id, true)
+
+    expect(pinnedSession.listTabs()).toEqual([
+      expect.objectContaining({ tabId: second.id, pinned: true }),
+      expect.objectContaining({ tabId: first.id, pinned: false }),
+    ])
+    expect(save).toHaveBeenLastCalledWith(['https://example.com/'])
+    expect(() => pinnedSession.closeTab(second.id)).toThrow(/Pinned tabs cannot be closed/)
+
+    pinnedSession.setTabPinned(second.id, false)
+    pinnedSession.closeTab(second.id)
+    expect(pinnedSession.listTabs().map((tab) => tab.tabId)).toEqual([first.id])
+    expect(save).toHaveBeenLastCalledWith([])
+  })
+
+  it('restores pinned tabs when the browser resource opens again', async () => {
+    const restoredSession = await freshSession(
+      win,
+      {},
+      {
+        load: () => ['https://docs.sim.ai/guide'],
+        save: vi.fn(),
+      }
+    )
+
+    restoredSession.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+
+    const [restored] = restoredSession.listTabs()
+    expect(restored).toMatchObject({ pinned: true, active: true })
+    const contents = (restoredSession.requireTab().view as unknown as MockView).webContents
+    expect(contents.loadURL).toHaveBeenCalledWith('https://docs.sim.ai/guide')
+    expect(() => restoredSession.closeTab(restored.tabId)).toThrow(/Pinned tabs cannot be closed/)
+
+    const regular = restoredSession.addTab()
+    expect(restoredSession.listTabs()).toEqual([
+      expect.objectContaining({ tabId: restored.tabId, pinned: true }),
+      expect.objectContaining({ tabId: regular.id, pinned: false, active: true }),
+    ])
+  })
+
+  it('limits the browser session to the shared tab cap', () => {
     session.ensureTab()
     for (let index = 1; index < MAX_BROWSER_TABS; index++) {
       session.addTab()
@@ -326,17 +381,18 @@ describe('browser-agent session', () => {
       | undefined
     expect(resizeListener).toBeDefined()
 
-    // Window grows before the renderer re-reports: the prediction stretches
-    // the view with the right/bottom edges immediately.
+    // Window grows before the renderer re-reports: the panel is
+    // right-anchored at fixed width, so the prediction translates the view
+    // with the right edge and stretches only its height.
     view.setBounds.mockClear()
     mock.getContentSize.mockReturnValue([1380, 950])
     resizeListener?.()
-    expect(view.setBounds).toHaveBeenCalledWith({ x: 100, y: 50, width: 1000, height: 700 })
+    expect(view.setBounds).toHaveBeenCalledWith({ x: 300, y: 50, width: 800, height: 700 })
 
     // The renderer's authoritative report then lands without a redundant set
     // when it matches the prediction.
     view.setBounds.mockClear()
-    session.setPanelBounds({ x: 100, y: 50, width: 1000, height: 700 })
+    session.setPanelBounds({ x: 300, y: 50, width: 800, height: 700 })
     expect(view.setBounds).not.toHaveBeenCalled()
 
     // Hiding the panel removes the resize listener.

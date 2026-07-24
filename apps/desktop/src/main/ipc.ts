@@ -17,6 +17,7 @@ import {
   setPanelBounds,
   setPanelFocused,
   setPanelOccluded,
+  setTabPinned,
 } from '@/main/browser-agent/session'
 import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
@@ -372,6 +373,16 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           return
         }
         void handlePanelAction(action as Parameters<typeof handlePanelAction>[0]).catch(() => {})
+      },
+    },
+    'browser-agent:set-tab-pinned': {
+      kind: 'send',
+      gate: 'app-origin',
+      handler: (tabId, pinned) => {
+        if (typeof tabId !== 'string' || typeof pinned !== 'boolean') return
+        try {
+          setTabPinned(tabId, pinned)
+        } catch {}
       },
     },
     'browser-agent:set-panel-bounds': {

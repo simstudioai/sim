@@ -92,6 +92,11 @@ export interface DesktopSettings {
    * are persisted here.
    */
   browserKnownSites?: BrowserKnownSiteSetting[]
+  /**
+   * URLs of user-pinned agent-browser tabs, in pinned-strip order. Pinned
+   * pages are restored locally when the browser resource is opened again.
+   */
+  browserPinnedTabUrls?: string[]
 }
 
 export type OriginValidation = { ok: true; origin: string } | { ok: false; error: string }

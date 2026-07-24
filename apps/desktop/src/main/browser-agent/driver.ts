@@ -185,7 +185,13 @@ export function initDriver(
         )
       },
     },
-    getMainWindow
+    getMainWindow,
+    config
+      ? {
+          load: () => config.get('browserPinnedTabUrls'),
+          save: (urls) => config.set('browserPinnedTabUrls', urls),
+        }
+      : undefined
   )
 }
 

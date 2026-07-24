@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
+import { beginBrowserPanelDividerDrag } from '@/lib/browser-agent/transport'
 import { MOTHERSHIP_WIDTH } from '@/stores/constants'
 
 /**
@@ -19,12 +20,23 @@ export function useMothershipResize() {
 
     const el = mothershipRef.current
     if (!el) return
+    // Single-flight: a second press while a drag is live must not stack listeners
+    if (cleanupRef.current) return
 
     const handle = e.currentTarget as HTMLElement
-    handle.setPointerCapture(e.pointerId)
+    const pointerId = e.pointerId
+    handle.setPointerCapture(pointerId)
 
     // Pin to current rendered width so drag starts from the visual position
-    el.style.width = `${el.getBoundingClientRect().width}px`
+    const startRect = el.getBoundingClientRect()
+    el.style.width = `${startRect.width}px`
+
+    // The panel's left edge IS the divider. Handing it to the browser
+    // transport lets the native browser view (when one is showing) be
+    // repositioned arithmetically per pointer move instead of waiting for the
+    // renderer's layout → measure → report round-trip; no-op (null) when no
+    // browser resource is live
+    const predictBrowserBounds = beginBrowserPanelDividerDrag(startRect.left)
 
     // Disable CSS transition to prevent animation lag during drag
     const prevTransition = el.style.transition
@@ -32,12 +44,32 @@ export function useMothershipResize() {
     document.body.style.cursor = 'ew-resize'
     document.body.style.userSelect = 'none'
 
+    let rafId: number | null = null
+    let lastClientX: number | null = null
+
+    const computeWidth = (clientX: number) => {
+      const maxWidth = window.innerWidth * MOTHERSHIP_WIDTH.MAX_PERCENTAGE
+      return Math.min(Math.max(window.innerWidth - clientX, MOTHERSHIP_WIDTH.MIN), maxWidth)
+    }
+
+    const applyWidth = (clientX: number) => {
+      el.style.width = `${computeWidth(clientX)}px`
+    }
+
     // AbortController removes all listeners at once on cleanup/cancel/unmount
     const ac = new AbortController()
     const { signal } = ac
 
     const cleanup = () => {
       ac.abort()
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
+      // Land on the exact final pointer position before transitions come back:
+      // a fast flick whose last move never got a frame is not lost, and the
+      // write can't animate
+      if (lastClientX !== null) applyWidth(lastClientX)
       el.style.transition = prevTransition
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
@@ -48,9 +80,19 @@ export function useMothershipResize() {
     handle.addEventListener(
       'pointermove',
       (moveEvent: PointerEvent) => {
-        const newWidth = window.innerWidth - moveEvent.clientX
-        const maxWidth = window.innerWidth * MOTHERSHIP_WIDTH.MAX_PERCENTAGE
-        el.style.width = `${Math.min(Math.max(newWidth, MOTHERSHIP_WIDTH.MIN), maxWidth)}px`
+        if (moveEvent.pointerId !== pointerId) return
+        lastClientX = moveEvent.clientX
+        // Fast path first: hand the native browser view its next rect at
+        // pointer-event time (clamped exactly like the width write below), a
+        // full layout pass ahead of the measured geometry report
+        predictBrowserBounds?.(window.innerWidth - computeWidth(moveEvent.clientX))
+        // Coalesce to one width write per frame: pointermove can outpace the
+        // display refresh, and every unbatched write forces an extra layout
+        // pass that the embedded browser view then has to chase
+        rafId ??= requestAnimationFrame(() => {
+          rafId = null
+          if (lastClientX !== null) applyWidth(lastClientX)
+        })
       },
       { signal }
     )
@@ -58,6 +100,7 @@ export function useMothershipResize() {
     handle.addEventListener(
       'pointerup',
       (upEvent: PointerEvent) => {
+        if (upEvent.pointerId !== pointerId) return
         handle.releasePointerCapture(upEvent.pointerId)
         cleanup()
       },
@@ -67,6 +110,9 @@ export function useMothershipResize() {
     // Browser fires pointercancel when it reclaims the gesture (scroll, palm rejection, etc.)
     // Without this, body cursor/userSelect and transition would be permanently stuck
     handle.addEventListener('pointercancel', cleanup, { signal })
+    // A blur mid-drag (cmd-tab, window switch) would otherwise strand the
+    // body cursor/userSelect overrides with no pointerup coming
+    window.addEventListener('blur', cleanup, { signal })
   }, [])
 
   // Tear down any active drag if the component unmounts mid-drag

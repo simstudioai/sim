@@ -6,11 +6,13 @@ import { Button, ChipInput, Tooltip } from '@sim/emcn'
 import { ArrowLeft, ArrowRight, Cursor, RefreshCw, Search } from '@sim/emcn/icons'
 import { useTheme } from 'next-themes'
 import {
+  isBrowserTabPinningAvailable,
   onBrowserOmniboxFocus,
   reportBrowserPanelBounds,
   reportBrowserPanelFocused,
   reportBrowserTheme,
   sendBrowserPanelAction,
+  setBrowserTabPinned,
 } from '@/lib/browser-agent/transport'
 import { useBrowserPanelOcclusion } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserTabStrip } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-tab-strip'
@@ -41,6 +43,19 @@ export function resolveUrlBarInput(raw: string): string {
     return `${isLocal ? 'http' : 'https'}://${input}`
   }
   return `https://www.google.com/search?q=${encodeURIComponent(input)}`
+}
+
+/**
+ * Selects the omnibox after the pointer event that focused it has settled.
+ * Selecting synchronously in `focus` lets the remainder of that click collapse
+ * the selection to an arbitrary caret position.
+ */
+export function selectFocusedOmniboxOnNextFrame(input: HTMLInputElement): number {
+  return requestAnimationFrame(() => {
+    if (input.ownerDocument.activeElement === input) {
+      input.select()
+    }
+  })
 }
 
 /**
@@ -78,6 +93,7 @@ export function BrowserSession() {
   const tabsSupported = useBrowserSessionStore((state) => state.tabsSupported)
   const panelSnapshot = useBrowserSessionStore((state) => state.panelSnapshot)
   const sessionAlive = useBrowserSessionStore((state) => state.sessionAlive)
+  const tabPinningSupported = isBrowserTabPinningAvailable()
   const panelRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
@@ -121,8 +137,12 @@ export function BrowserSession() {
   }, [])
 
   // Keep the embedded view glued to the host rect without forcing layout on
-  // every animation frame. ResizeObserver covers panel transitions/resizes;
-  // viewport resize and captured scroll cover position changes. A one-second
+  // every animation frame. ResizeObserver covers panel drags/transitions and
+  // reports synchronously — its callbacks run post-layout, so the measure is
+  // free and the bounds reach the main process within the same frame as the
+  // layout change (deferring to the next rAF made the native view trail a
+  // live panel drag by a full frame). Viewport resize and captured scroll
+  // fire pre-layout, so those defer to rAF for a clean measure. A one-second
   // heartbeat renews the main-process visibility lease. Renderer overlays are
   // coordinated separately so bounds continue updating while the view hides.
   useEffect(() => {
@@ -141,8 +161,19 @@ export function BrowserSession() {
         width: Math.round(rect.width),
         height: Math.round(rect.height),
       }
+      // A zero-size host means the panel has visually collapsed (e.g. the
+      // w-0 transition finished). Report null so the native view — which
+      // floats above all renderer content — hides now instead of lingering
+      // at its last sliver of a rect until the visibility lease expires.
+      if (bounds.width <= 0 || bounds.height <= 0) {
+        if (last !== 'hidden') {
+          last = 'hidden'
+          reportBrowserPanelBounds(null)
+        }
+        return
+      }
       const key = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
-      if ((force || key !== last) && bounds.width > 0 && bounds.height > 0) {
+      if (force || key !== last) {
         last = key
         reportBrowserPanelBounds(bounds)
       }
@@ -160,7 +191,7 @@ export function BrowserSession() {
     }
 
     const handleGeometryChange = () => scheduleGeometryReport()
-    const resizeObserver = new ResizeObserver(handleGeometryChange)
+    const resizeObserver = new ResizeObserver(() => reportGeometry(false))
     resizeObserver.observe(host)
     window.addEventListener('resize', handleGeometryChange)
     window.addEventListener('scroll', handleGeometryChange, true)
@@ -211,6 +242,10 @@ export function BrowserSession() {
     sendBrowserPanelAction('close-tab', { tabId })
   }, [])
 
+  const handleSetTabPinned = useCallback((tabId: string, pinned: boolean) => {
+    setBrowserTabPinned(tabId, pinned)
+  }, [])
+
   return (
     <div ref={panelRef} className='flex h-full flex-col overflow-hidden'>
       {tabsSupported && (
@@ -220,6 +255,8 @@ export function BrowserSession() {
           onNewTab={handleNewTab}
           onSwitchTab={handleSwitchTab}
           onCloseTab={handleCloseTab}
+          onSetTabPinned={handleSetTabPinned}
+          pinningSupported={tabPinningSupported}
         />
       )}
       <div className='flex items-center gap-1 border-[var(--border)] border-b px-2.5 py-1.5'>
@@ -284,7 +321,7 @@ export function BrowserSession() {
           onChange={(event) => setUrlDraft(event.target.value)}
           onFocus={(event) => {
             setUrlDraft((current) => current ?? pageState?.url ?? '')
-            event.target.select()
+            selectFocusedOmniboxOnNextFrame(event.currentTarget)
           }}
           onBlur={() => setUrlDraft(null)}
           onKeyDown={(event) => {
