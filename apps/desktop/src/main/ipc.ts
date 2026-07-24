@@ -159,7 +159,9 @@ function isAppOriginSender(event: IpcMainEvent | IpcMainInvokeEvent, appOrigin: 
 function localFilesystemRequestNeedsUserActivation(request: unknown): boolean {
   if (typeof request !== 'object' || request === null) return false
   const operation = (request as { operation?: unknown }).operation
-  return operation === 'mount_directory' || operation === 'forget_mount'
+  return (
+    operation === 'mount_directory' || operation === 'forget_mount' || operation === 'reveal_mount'
+  )
 }
 
 function localFilesystemRequestNeedsToolAuthorization(request: unknown): boolean {

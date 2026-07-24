@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 import type { LocalFilesystemMount, LocalFilesystemResponse } from '@sim/desktop-bridge'
+import { shell } from 'electron'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import type {
   LocalFilesystemGrantStore,
@@ -380,5 +381,21 @@ describe('LocalFilesystemService', () => {
     })
 
     expect(await mount(sessionService)).toMatchObject({ remembered: false })
+  })
+
+  it('shows a granted folder in the file manager, and only a granted one', async () => {
+    const granted = await mount(service)
+
+    expect(dataOf(await service.handle({ operation: 'reveal_mount', uri: granted.uri }))).toEqual({
+      revealed: true,
+    })
+    expect(shell.showItemInFolder).toHaveBeenCalledWith(await realpath(root))
+
+    const unknown = await service.handle({
+      operation: 'reveal_mount',
+      uri: 'localfs://not-a-mount/',
+    })
+    expect(unknown.ok).toBe(false)
+    expect(shell.showItemInFolder).toHaveBeenCalledOnce()
   })
 })

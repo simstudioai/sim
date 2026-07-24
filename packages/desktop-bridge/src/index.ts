@@ -128,6 +128,7 @@ export type LocalFilesystemRequest =
   | { operation: 'mount_directory' }
   | { operation: 'list_mounts' }
   | { operation: 'forget_mount'; uri: string }
+  | { operation: 'reveal_mount'; uri: string }
   | { operation: 'list'; uri: string; requestId?: string }
   | {
       operation: 'glob'
@@ -163,6 +164,7 @@ export type LocalFilesystemData =
   | { mount: LocalFilesystemMount | null; cancelled: boolean }
   | { mounts: LocalFilesystemMount[] }
   | { forgotten: boolean }
+  | { revealed: boolean }
   | { entries: LocalFilesystemEntry[]; truncated: boolean }
   | { matches: LocalFilesystemGrepMatch[]; truncated: boolean }
   | { files: string[]; truncated: boolean }

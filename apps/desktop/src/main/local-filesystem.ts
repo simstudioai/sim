@@ -9,7 +9,7 @@ import type {
   LocalFilesystemResponse,
 } from '@sim/desktop-bridge'
 import { generateId } from '@sim/utils/id'
-import { app, dialog } from 'electron'
+import { app, dialog, shell } from 'electron'
 import micromatch from 'micromatch'
 import safeRegex from 'safe-regex2'
 import type {
@@ -279,6 +279,9 @@ export class LocalFilesystemService {
             break
           case 'forget_mount':
             data = await this.forgetMount(this.requiredUri(request))
+            break
+          case 'reveal_mount':
+            data = this.revealMount(this.requiredUri(request))
             break
           case 'list':
             data = await this.listDirectory(this.requiredUri(request))
@@ -600,6 +603,17 @@ export class LocalFilesystemService {
       }
     }
     return { forgotten: true }
+  }
+
+  /**
+   * Opens the grant's root in the OS file manager. Only a URI that resolves to
+   * a live grant can be revealed, so this exposes nothing the renderer could not
+   * already read.
+   */
+  private revealMount(uri: string): LocalFilesystemData {
+    const { mount } = this.parseUri(uri)
+    shell.showItemInFolder(mount.rootPath)
+    return { revealed: true }
   }
 
   private parseUri(uri: string): { mount: GrantedMount; relativePath: string } {

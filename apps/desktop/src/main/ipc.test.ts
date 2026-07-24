@@ -152,6 +152,13 @@ describe('registerIpcHandlers', () => {
       ok: true,
       data: { cancelled: true, mount: null },
     })
+    expect(
+      await handler?.(inactiveAppEvent, { operation: 'reveal_mount', uri: 'localfs://mount-1/' })
+    ).toMatchObject({
+      ok: false,
+      code: 'ACCESS_DENIED',
+      error: expect.stringContaining('explicit user click'),
+    })
   })
 
   it('requires server authorization for every privileged filesystem tool request', async () => {

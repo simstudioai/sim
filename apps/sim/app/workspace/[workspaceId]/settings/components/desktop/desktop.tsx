@@ -161,6 +161,13 @@ export function Desktop() {
     }
   }, [refreshMounts])
 
+  const revealFolder = useCallback(async (mount: LocalFilesystemMount) => {
+    const bridge = getDesktopBridge()
+    if (!bridge) return
+    const response = await bridge.localFilesystem({ operation: 'reveal_mount', uri: mount.uri })
+    if (!response.ok) toast.error(`Could not open folder: ${response.error}`)
+  }, [])
+
   const forgetFolder = useCallback(async () => {
     const bridge = getDesktopBridge()
     if (!bridge || !mountToForget) return
@@ -294,8 +301,10 @@ export function Desktop() {
                 <SettingsResourceRow
                   key={mount.id}
                   icon={<Folder />}
+                  iconVariant='plain'
                   title={mount.name}
-                  description='Read-only access for Mothership'
+                  onClick={() => void revealFolder(mount)}
+                  clickLabel={`Show ${mount.name} in the file manager`}
                   trailing={
                     <div className='flex flex-shrink-0 items-center gap-2'>
                       {!mount.remembered && (
