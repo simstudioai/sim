@@ -16,7 +16,10 @@ vi.mock('@/middleware/permissions', () => ({
   ROLE_REVALIDATION_TTL_MS: 30_000,
 }))
 
-import { startAccessRevalidationSweep } from '@/access-revalidation'
+import {
+  ACCESS_REVALIDATION_SWEEP_INTERVAL_MS,
+  startAccessRevalidationSweep,
+} from '@/access-revalidation'
 import type { IRoomManager, UserPresence } from '@/rooms'
 
 interface FakeSocket {
@@ -127,7 +130,7 @@ describe('access-revalidation sweep', () => {
     expect(manager.removeUserFromRoom).not.toHaveBeenCalled()
   })
 
-  it('passes the join-time presence role as the fallback', async () => {
+  it('resolves with the static safe fallback and no presence reads in the scan', async () => {
     const socket = makeSocket('sock-1', 'user-1', 'wf-1')
     const manager = makeManager([socket], [{ socketId: 'sock-1', role: 'admin' }])
     mockResolveRole.mockResolvedValue('admin')
@@ -136,7 +139,9 @@ describe('access-revalidation sweep', () => {
     await sweep.runOnce()
     sweep.stop()
 
-    expect(mockResolveRole).toHaveBeenCalledWith('user-1', 'wf-1', 'admin')
+    expect(mockResolveRole).toHaveBeenCalledWith('user-1', 'wf-1', 'read')
+    // The security scan must stay Redis-free — presence is never consulted.
+    expect(manager.getWorkflowUsers).not.toHaveBeenCalled()
   })
 
   it('evicts only the revoked socket, not co-members of the room', async () => {
@@ -279,19 +284,36 @@ describe('access-revalidation sweep', () => {
     expect(manager.broadcastPresenceUpdate).not.toHaveBeenCalled()
   })
 
-  it('still evaluates access when presence lookup fails (falls back safely)', async () => {
-    const socket = makeSocket('sock-1', 'user-1', 'wf-1')
-    const manager = makeManager([socket])
-    manager.getWorkflowUsers.mockRejectedValue(new Error('redis down'))
-    mockResolveRole.mockResolvedValue(null)
+  it('keeps scanning on later ticks while a deferred cleanup hangs', async () => {
+    vi.useFakeTimers()
+    try {
+      const socket = makeSocket('sock-1', 'user-1', 'wf-1')
+      const manager = makeManager([socket], [{ socketId: 'sock-1', role: 'read' }])
+      // A Redis outage where commands hang in the offline queue instead of
+      // failing: the cleanup lane stalls, but scans must keep running.
+      manager.getWorkflowIdForSocket.mockReturnValue(new Promise(() => {}))
+      mockResolveRole.mockResolvedValue(null)
 
-    const sweep = startAccessRevalidationSweep(manager)
-    await sweep.runOnce()
-    sweep.stop()
+      const sweep = startAccessRevalidationSweep(manager)
 
-    // Presence unavailable → default fallback role, but the DB check still runs
-    // and a confirmed revocation still evicts.
-    expect(mockResolveRole).toHaveBeenCalledWith('user-1', 'wf-1', 'read')
-    expect(socket.leave).toHaveBeenCalledWith('wf-1')
+      await vi.advanceTimersByTimeAsync(ACCESS_REVALIDATION_SWEEP_INTERVAL_MS)
+      expect(socket.leave).toHaveBeenCalledWith('wf-1')
+      const scansAfterFirstTick = mockResolveRole.mock.calls.length
+
+      // Second socket appears while the first eviction's cleanup hangs.
+      const second = makeSocket('sock-2', 'user-2', 'wf-1')
+      const socketMap = manager.io.sockets.sockets as unknown as Map<string, FakeSocket>
+      socketMap.set('sock-2', second)
+
+      await vi.advanceTimersByTimeAsync(ACCESS_REVALIDATION_SWEEP_INTERVAL_MS)
+      sweep.stop()
+
+      // The hung cleanup did not block the next scan: the new socket was
+      // evaluated and evicted.
+      expect(mockResolveRole.mock.calls.length).toBeGreaterThan(scansAfterFirstTick)
+      expect(second.leave).toHaveBeenCalledWith('wf-1')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

@@ -19,17 +19,19 @@ const logger = createLogger('AccessRevalidation')
 export const ACCESS_REVALIDATION_SWEEP_INTERVAL_MS = ROLE_REVALIDATION_TTL_MS
 
 /**
- * Non-null fallback used only when a socket has no presence entry to read its
- * join-time role from. It is consumed by {@link resolveCurrentWorkflowRole} only
- * on a transient DB failure with a cold cache, where returning a non-null role
- * (never eviction) is the safe outcome during an outage.
+ * Non-null fallback consumed by {@link resolveCurrentWorkflowRole} only on a
+ * transient DB failure with a cold cache, where returning a non-null role
+ * (never eviction) is the safe outcome during an outage. The scan deliberately
+ * does not read presence for a per-socket join-time role: that would put a
+ * Redis dependency inside the security-critical scan lane, and the fallback's
+ * only job is to be non-null.
  */
 const FALLBACK_ROLE = 'read'
 
 export interface AccessRevalidationSweep {
   /** Stop the periodic sweep (clears the interval). */
   stop: () => void
-  /** Run a single sweep pass. Exposed for deterministic testing. */
+  /** Run one full scan + cleanup pass sequentially. Exposed for deterministic testing. */
   runOnce: () => Promise<void>
 }
 
@@ -67,17 +69,25 @@ function collectLocalMemberships(io: IRoomManager['io']): Map<string, Authentica
  * a previously-recorded revocation reused across a failure. A transient DB error
  * against a still-authorized (or freshly-joined) user resolves to the last-known
  * or fallback role, so a database blip never evicts anyone.
+ *
+ * Liveness: the loop runs as two independently-guarded lanes. The security scan
+ * (local sockets + DB role checks + emit/leave) touches no Redis at all; the
+ * best-effort room-state cleanup (Redis presence) runs in its own lane. A Redis
+ * outage — including commands that hang in the client's offline queue rather
+ * than failing — can therefore stall only presence cleanup, never revocation
+ * enforcement on subsequent ticks.
  */
 export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessRevalidationSweep {
   const io = roomManager.io
-  let running = false
+  let scanRunning = false
+  let cleanupRunning = false
 
   /**
-   * Evictions whose room-state cleanup failed transiently, keyed
-   * `${socketId}:${workflowId}`. The evicted socket has already left the
-   * Socket.IO room, so membership scans will never see it again — these are
-   * retried at the start of every sweep pass until they succeed, so remaining
-   * collaborators do not keep a stale presence entry for the evicted socket.
+   * Room-state cleanups owed for evicted sockets, keyed
+   * `${socketId}:${workflowId}`. Every eviction enqueues here (the evicted
+   * socket has already left the Socket.IO room, so membership scans will never
+   * see it again); the cleanup lane drains the queue until each removal is
+   * confirmed, so remaining collaborators do not keep a stale presence entry.
    */
   const pendingCleanups = new Map<string, { socketId: string; workflowId: string }>()
 
@@ -123,15 +133,33 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
     }
   }
 
-  async function retryPendingCleanups(): Promise<void> {
+  async function drainPendingCleanups(): Promise<void> {
     for (const [, { socketId, workflowId }] of pendingCleanups) {
       await cleanupEvictedSocket(socketId, workflowId)
     }
   }
 
-  async function revokeSocket(socket: AuthenticatedSocket, workflowId: string): Promise<void> {
+  /**
+   * Launches the cleanup lane unless it is already running or has nothing to
+   * do. Never awaited by the scan lane: a Redis command hanging in the client's
+   * offline queue stalls only this lane, never revocation enforcement.
+   */
+  function launchCleanups(): void {
+    if (cleanupRunning || pendingCleanups.size === 0) {
+      return
+    }
+    cleanupRunning = true
+    drainPendingCleanups()
+      .catch((error) => logger.error('Deferred eviction cleanup failed', error))
+      .finally(() => {
+        cleanupRunning = false
+      })
+  }
+
+  function revokeSocket(socket: AuthenticatedSocket, workflowId: string): void {
     // Security-critical, pod-local, and synchronous: stop this socket receiving
-    // room broadcasts immediately, before any async bookkeeping that could fail.
+    // room broadcasts immediately. Room-state cleanup is only enqueued here —
+    // the cleanup lane performs the Redis work, so eviction never blocks on it.
     const payload: AccessRevokedBroadcast = {
       workflowId,
       message: 'Your access to this workflow has been revoked',
@@ -144,38 +172,21 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
       `Revoked live access for user ${socket.userId} on workflow ${workflowId} (socket ${socket.id})`
     )
 
-    // Cleanup failure never restores access (the socket already left the room);
-    // it defers to pendingCleanups and is retried on subsequent passes.
-    await cleanupEvictedSocket(socket.id, workflowId)
+    pendingCleanups.set(`${socket.id}:${workflowId}`, { socketId: socket.id, workflowId })
   }
 
-  async function runOnce(): Promise<void> {
-    await retryPendingCleanups()
-
+  async function scanMemberships(): Promise<void> {
     const memberships = collectLocalMemberships(io)
 
     for (const [workflowId, sockets] of memberships) {
-      // One presence read per active workflow supplies each socket's join-time
-      // role as the transient-failure fallback (a fallback never evicts).
-      const fallbackBySocket = new Map<string, string>()
-      try {
-        const presence = await roomManager.getWorkflowUsers(workflowId)
-        for (const entry of presence) {
-          fallbackBySocket.set(entry.socketId, entry.role)
-        }
-      } catch (error) {
-        logger.warn(`Failed to load presence for ${workflowId}; using default fallback role`, error)
-      }
-
       for (const socket of sockets) {
         const userId = socket.userId
         if (!userId) continue
 
         try {
-          const fallbackRole = fallbackBySocket.get(socket.id) ?? FALLBACK_ROLE
-          const role = await resolveCurrentWorkflowRole(userId, workflowId, fallbackRole)
+          const role = await resolveCurrentWorkflowRole(userId, workflowId, FALLBACK_ROLE)
           if (role === null) {
-            await revokeSocket(socket, workflowId)
+            revokeSocket(socket, workflowId)
           }
         } catch (error) {
           // Never evict on an unexpected error — only a definitive `null` role
@@ -189,17 +200,33 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
     }
   }
 
-  const timer = setInterval(() => {
-    if (running) {
-      logger.warn('Skipping access re-validation sweep; previous sweep still running')
-      return
+  async function runOnce(): Promise<void> {
+    await scanMemberships()
+    if (!cleanupRunning && pendingCleanups.size > 0) {
+      cleanupRunning = true
+      try {
+        await drainPendingCleanups()
+      } finally {
+        cleanupRunning = false
+      }
     }
-    running = true
-    runOnce()
-      .catch((error) => logger.error('Access re-validation sweep failed', error))
-      .finally(() => {
-        running = false
-      })
+  }
+
+  const timer = setInterval(() => {
+    if (scanRunning) {
+      logger.warn('Skipping access re-validation scan; previous scan still running')
+    } else {
+      scanRunning = true
+      scanMemberships()
+        .catch((error) => logger.error('Access re-validation scan failed', error))
+        .finally(() => {
+          scanRunning = false
+          // Freshly-enqueued evictions get their cleanup promptly rather than
+          // waiting a full interval.
+          launchCleanups()
+        })
+    }
+    launchCleanups()
   }, ACCESS_REVALIDATION_SWEEP_INTERVAL_MS)
 
   // Do not keep the process alive solely for this timer.
