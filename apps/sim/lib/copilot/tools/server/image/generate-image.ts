@@ -1,18 +1,20 @@
 import { GoogleGenAI, type Part } from '@google/genai'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { GenerateImage } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import {
+  prepareMediaOutput,
+  requireAtLeastOneMediaFile,
+  resolveMediaInputFile,
+} from '@/lib/copilot/tools/server/media/file-paths'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('GenerateImageTool')
 
@@ -74,6 +76,15 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
     }
 
     try {
+      // Preflight explicit outputs so invalid paths fail before provider work begins.
+      const outputFile = params.outputs?.files?.length
+        ? await prepareMediaOutput({
+            output: params.outputs,
+            workspaceId,
+            userId: context.userId,
+          })
+        : undefined
+
       const apiKey = getRotatingApiKey('gemini')
       const ai = new GoogleGenAI({ apiKey })
 
@@ -82,34 +93,29 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
 
       const parts: Part[] = []
 
-      const referencePaths = params.inputs?.files?.map((file) => file.path) ?? []
+      const referencePaths = params.inputs
+        ? requireAtLeastOneMediaFile(params.inputs.files, 'Input').map((file) => file.path)
+        : []
 
       if (referencePaths.length) {
         for (const filePath of referencePaths) {
-          try {
-            const fileRecord = await resolveWorkspaceFileReference(workspaceId, filePath)
-            if (fileRecord) {
-              const buffer = await fetchWorkspaceFileBuffer(fileRecord)
-              const base64 = buffer.toString('base64')
-              const mime = fileRecord.type || 'image/png'
-              parts.push({
-                inlineData: { mimeType: mime, data: base64 },
-              })
-              logger.info('Loaded reference image', {
-                filePath,
-                name: fileRecord.name,
-                size: buffer.length,
-                mimeType: mime,
-              })
-            } else {
-              logger.warn('Reference file not found, skipping', { filePath })
-            }
-          } catch (err) {
-            logger.warn('Failed to load reference image, skipping', {
-              filePath,
-              error: toError(err).message,
-            })
-          }
+          const fileRecord = await resolveMediaInputFile({
+            workspaceId,
+            chatId: context.chatId,
+            path: filePath,
+          })
+          const buffer = await fetchWorkspaceFileBuffer(fileRecord)
+          const base64 = buffer.toString('base64')
+          const mime = fileRecord.type || 'image/png'
+          parts.push({
+            inlineData: { mimeType: mime, data: base64 },
+          })
+          logger.info('Loaded reference image', {
+            filePath,
+            name: fileRecord.name,
+            size: buffer.length,
+            mimeType: mime,
+          })
         }
       }
 
@@ -161,7 +167,6 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
       }
 
       const ext = mimeType.includes('jpeg') || mimeType.includes('jpg') ? '.jpg' : '.png'
-      const outputFile = params.outputs?.files?.[0]
       const outputPath = outputFile?.path || `files/generated-image${ext}`
       const imageBuffer = Buffer.from(imageBase64, 'base64')
       const mode = outputFile?.mode ?? 'create'

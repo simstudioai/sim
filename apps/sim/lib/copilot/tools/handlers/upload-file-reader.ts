@@ -97,6 +97,17 @@ function toWorkspaceFileRecord(row: typeof workspaceFiles.$inferSelect): Workspa
 }
 
 /**
+ * Resolve a chat-scoped upload to the same file-record shape used by workspace files.
+ */
+export async function resolveChatUpload(
+  filename: string,
+  chatId: string
+): Promise<WorkspaceFileRecord | null> {
+  const row = await findMothershipUploadRowByChatAndName(chatId, filename)
+  return row ? toWorkspaceFileRecord(row) : null
+}
+
+/**
  * Resolve a mothership upload row by VFS name (the collision-disambiguated `displayName`
  * for new rows, or `originalName` for legacy rows that predate the column). Prefers an
  * exact DB match; falls back to a normalized scan when the model passes a visually

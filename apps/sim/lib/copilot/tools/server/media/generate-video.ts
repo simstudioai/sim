@@ -6,12 +6,14 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import {
+  prepareMediaOutput,
+  requireExactlyOneMediaFile,
+  resolveMediaInputFile,
+} from '@/lib/copilot/tools/server/media/file-paths'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { generateFalVideo } from '@/lib/media/falai-video'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('GenerateVideoTool')
 
@@ -59,13 +61,25 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
     }
 
     try {
+      // Preflight explicit outputs so invalid paths fail before provider work begins.
+      const outputFile = params.outputs?.files?.length
+        ? await prepareMediaOutput({
+            output: params.outputs,
+            workspaceId,
+            userId: context.userId,
+          })
+        : undefined
+
       let imageDataUri: string | undefined
-      const refPath = params.inputs?.files?.[0]?.path
-      if (refPath) {
-        const fileRecord = await resolveWorkspaceFileReference(workspaceId, refPath)
-        if (!fileRecord) {
-          return { success: false, message: `Reference image not found: ${refPath}` }
-        }
+      const inputFile = params.inputs
+        ? requireExactlyOneMediaFile(params.inputs.files, 'Input')
+        : undefined
+      if (inputFile) {
+        const fileRecord = await resolveMediaInputFile({
+          workspaceId,
+          chatId: context.chatId,
+          path: inputFile.path,
+        })
         const buffer = await fetchWorkspaceFileBuffer(fileRecord)
         const mime = fileRecord.type || 'image/png'
         imageDataUri = `data:${mime};base64,${buffer.toString('base64')}`
@@ -89,7 +103,6 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
         imageDataUri,
       })
 
-      const outputFile = params.outputs?.files?.[0]
       const outputPath = outputFile?.path || 'files/generated-video.mp4'
       const mode = outputFile?.mode ?? 'create'
 

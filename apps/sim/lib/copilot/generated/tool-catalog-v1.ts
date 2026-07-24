@@ -1269,14 +1269,14 @@ export const Ffmpeg: ToolCatalogEntry = {
           },
           files: {
             type: 'array',
-            description: 'Workspace files to mount into the sandbox.',
+            description: 'Workspace files or chat uploads to mount into the sandbox.',
             items: {
               type: 'object',
               properties: {
                 path: {
                   type: 'string',
                   description:
-                    'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "uploads/sales.csv". By default this mounts at "/home/user/{path}".',
                 },
                 sandboxPath: {
                   type: 'string',
@@ -1286,6 +1286,7 @@ export const Ffmpeg: ToolCatalogEntry = {
               },
               required: ['path'],
             },
+            minItems: 1,
           },
           tables: {
             type: 'array',
@@ -1303,6 +1304,7 @@ export const Ffmpeg: ToolCatalogEntry = {
             },
           },
         },
+        required: ['files'],
       },
       loopToVideo: {
         type: 'boolean',
@@ -1358,7 +1360,8 @@ export const Ffmpeg: ToolCatalogEntry = {
                 },
                 path: {
                   type: 'string',
-                  description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
+                  description:
+                    'Canonical destination VFS path under "files/", e.g. "files/Reports/chart.png".',
                 },
                 sandboxPath: {
                   type: 'string',
@@ -1368,8 +1371,11 @@ export const Ffmpeg: ToolCatalogEntry = {
               },
               required: ['path', 'mode'],
             },
+            minItems: 1,
+            maxItems: 1,
           },
         },
+        required: ['files'],
       },
       position: {
         type: 'string',
@@ -1450,14 +1456,14 @@ export const FunctionExecute: ToolCatalogEntry = {
           },
           files: {
             type: 'array',
-            description: 'Workspace files to mount into the sandbox.',
+            description: 'Workspace files or chat uploads to mount into the sandbox.',
             items: {
               type: 'object',
               properties: {
                 path: {
                   type: 'string',
                   description:
-                    'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "uploads/sales.csv". By default this mounts at "/home/user/{path}".',
                 },
                 sandboxPath: {
                   type: 'string',
@@ -1523,7 +1529,8 @@ export const FunctionExecute: ToolCatalogEntry = {
                 },
                 path: {
                   type: 'string',
-                  description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
+                  description:
+                    'Canonical destination VFS path under "files/", e.g. "files/Reports/chart.png".',
                 },
                 sandboxPath: {
                   type: 'string',
@@ -1617,14 +1624,14 @@ export const GenerateAudio: ToolCatalogEntry = {
           },
           files: {
             type: 'array',
-            description: 'Workspace files to mount into the sandbox.',
+            description: 'Workspace files or chat uploads to mount into the sandbox.',
             items: {
               type: 'object',
               properties: {
                 path: {
                   type: 'string',
                   description:
-                    'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "uploads/sales.csv". By default this mounts at "/home/user/{path}".',
                 },
                 sandboxPath: {
                   type: 'string',
@@ -1634,6 +1641,8 @@ export const GenerateAudio: ToolCatalogEntry = {
               },
               required: ['path'],
             },
+            minItems: 1,
+            maxItems: 1,
           },
           tables: {
             type: 'array',
@@ -1651,6 +1660,7 @@ export const GenerateAudio: ToolCatalogEntry = {
             },
           },
         },
+        required: ['files'],
       },
       instrumental: {
         type: 'boolean',
@@ -1695,7 +1705,8 @@ export const GenerateAudio: ToolCatalogEntry = {
                 },
                 path: {
                   type: 'string',
-                  description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
+                  description:
+                    'Canonical destination VFS path under "files/", e.g. "files/Reports/chart.png".',
                 },
                 sandboxPath: {
                   type: 'string',
@@ -1705,8 +1716,11 @@ export const GenerateAudio: ToolCatalogEntry = {
               },
               required: ['path', 'mode'],
             },
+            minItems: 1,
+            maxItems: 1,
           },
         },
+        required: ['files'],
       },
       prompt: {
         type: 'string',
@@ -1767,14 +1781,14 @@ export const GenerateImage: ToolCatalogEntry = {
           },
           files: {
             type: 'array',
-            description: 'Workspace files to mount into the sandbox.',
+            description: 'Workspace files or chat uploads to mount into the sandbox.',
             items: {
               type: 'object',
               properties: {
                 path: {
                   type: 'string',
                   description:
-                    'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "uploads/sales.csv". By default this mounts at "/home/user/{path}".',
                 },
                 sandboxPath: {
                   type: 'string',
@@ -1784,6 +1798,7 @@ export const GenerateImage: ToolCatalogEntry = {
               },
               required: ['path'],
             },
+            minItems: 1,
           },
           tables: {
             type: 'array',
@@ -1801,6 +1816,7 @@ export const GenerateImage: ToolCatalogEntry = {
             },
           },
         },
+        required: ['files'],
       },
       outputs: {
         type: 'object',
@@ -1830,7 +1846,8 @@ export const GenerateImage: ToolCatalogEntry = {
                 },
                 path: {
                   type: 'string',
-                  description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
+                  description:
+                    'Canonical destination VFS path under "files/", e.g. "files/Reports/chart.png".',
                 },
                 sandboxPath: {
                   type: 'string',
@@ -1840,8 +1857,11 @@ export const GenerateImage: ToolCatalogEntry = {
               },
               required: ['path', 'mode'],
             },
+            minItems: 1,
+            maxItems: 1,
           },
         },
+        required: ['files'],
       },
       prompt: {
         type: 'string',
@@ -1905,14 +1925,14 @@ export const GenerateVideo: ToolCatalogEntry = {
           },
           files: {
             type: 'array',
-            description: 'Workspace files to mount into the sandbox.',
+            description: 'Workspace files or chat uploads to mount into the sandbox.',
             items: {
               type: 'object',
               properties: {
                 path: {
                   type: 'string',
                   description:
-                    'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "uploads/sales.csv". By default this mounts at "/home/user/{path}".',
                 },
                 sandboxPath: {
                   type: 'string',
@@ -1922,6 +1942,8 @@ export const GenerateVideo: ToolCatalogEntry = {
               },
               required: ['path'],
             },
+            minItems: 1,
+            maxItems: 1,
           },
           tables: {
             type: 'array',
@@ -1939,6 +1961,7 @@ export const GenerateVideo: ToolCatalogEntry = {
             },
           },
         },
+        required: ['files'],
       },
       model: {
         type: 'string',
@@ -1989,7 +2012,8 @@ export const GenerateVideo: ToolCatalogEntry = {
                 },
                 path: {
                   type: 'string',
-                  description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
+                  description:
+                    'Canonical destination VFS path under "files/", e.g. "files/Reports/chart.png".',
                 },
                 sandboxPath: {
                   type: 'string',
@@ -1999,8 +2023,11 @@ export const GenerateVideo: ToolCatalogEntry = {
               },
               required: ['path', 'mode'],
             },
+            minItems: 1,
+            maxItems: 1,
           },
         },
+        required: ['files'],
       },
       prompt: {
         type: 'string',
@@ -3424,14 +3451,14 @@ export const RunCode: ToolCatalogEntry = {
           },
           files: {
             type: 'array',
-            description: 'Workspace files to mount into the sandbox.',
+            description: 'Workspace files or chat uploads to mount into the sandbox.',
             items: {
               type: 'object',
               properties: {
                 path: {
                   type: 'string',
                   description:
-                    'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "uploads/sales.csv". By default this mounts at "/home/user/{path}".',
                 },
                 sandboxPath: {
                   type: 'string',

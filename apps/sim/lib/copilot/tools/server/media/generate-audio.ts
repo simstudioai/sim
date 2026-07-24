@@ -6,12 +6,14 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import {
+  prepareMediaOutput,
+  requireExactlyOneMediaFile,
+  resolveMediaInputFile,
+} from '@/lib/copilot/tools/server/media/file-paths'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { type AudioType, generateFalAudio } from '@/lib/media/falai-audio'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('GenerateAudioTool')
 
@@ -80,20 +82,32 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
       }
     }
 
-    // Voice cloning: a reference sample clones that voice into the generated speech.
-    let voiceSampleDataUri: string | undefined
-    const samplePath = params.inputs?.files?.[0]?.path
-    if (samplePath) {
-      const sample = await resolveWorkspaceFileReference(workspaceId, samplePath)
-      if (!sample) {
-        return { success: false, message: `Voice sample not found: ${samplePath}` }
-      }
-      const sampleBuffer = await fetchWorkspaceFileBuffer(sample)
-      const sampleMime = sample.type || 'audio/mpeg'
-      voiceSampleDataUri = `data:${sampleMime};base64,${sampleBuffer.toString('base64')}`
-    }
-
     try {
+      // Preflight explicit outputs so invalid paths fail before provider work begins.
+      const outputFile = params.outputs?.files?.length
+        ? await prepareMediaOutput({
+            output: params.outputs,
+            workspaceId,
+            userId: context.userId,
+          })
+        : undefined
+
+      // Resolve voice-clone uploads inside the tool error boundary because lookup can fail.
+      let voiceSampleDataUri: string | undefined
+      const inputFile = params.inputs
+        ? requireExactlyOneMediaFile(params.inputs.files, 'Input')
+        : undefined
+      if (inputFile) {
+        const sample = await resolveMediaInputFile({
+          workspaceId,
+          chatId: context.chatId,
+          path: inputFile.path,
+        })
+        const sampleBuffer = await fetchWorkspaceFileBuffer(sample)
+        const sampleMime = sample.type || 'audio/mpeg'
+        voiceSampleDataUri = `data:${sampleMime};base64,${sampleBuffer.toString('base64')}`
+      }
+
       logger.info('Generating audio', {
         type,
         model: params.model,
@@ -112,7 +126,6 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
         voiceSampleDataUri,
       })
 
-      const outputFile = params.outputs?.files?.[0]
       const ext = audioExtFromContentType(result.contentType)
       const outputPath = outputFile?.path || `files/generated-audio.${ext}`
       const mode = outputFile?.mode ?? 'create'

@@ -1084,14 +1084,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             files: {
               type: 'array',
-              description: 'Workspace files to mount into the sandbox.',
+              description: 'Workspace files or chat uploads to mount into the sandbox.',
               items: {
                 type: 'object',
                 properties: {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                      'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "uploads/sales.csv". By default this mounts at "/home/user/{path}".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1101,6 +1101,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 },
                 required: ['path'],
               },
+              minItems: 1,
             },
             tables: {
               type: 'array',
@@ -1124,6 +1125,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               },
             },
           },
+          required: ['files'],
         },
         loopToVideo: {
           type: 'boolean',
@@ -1179,7 +1181,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   },
                   path: {
                     type: 'string',
-                    description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
+                    description:
+                      'Canonical destination VFS path under "files/", e.g. "files/Reports/chart.png".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1189,8 +1192,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 },
                 required: ['path', 'mode'],
               },
+              minItems: 1,
+              maxItems: 1,
             },
           },
+          required: ['files'],
         },
         position: {
           type: 'string',
@@ -1268,14 +1274,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             files: {
               type: 'array',
-              description: 'Workspace files to mount into the sandbox.',
+              description: 'Workspace files or chat uploads to mount into the sandbox.',
               items: {
                 type: 'object',
                 properties: {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                      'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "uploads/sales.csv". By default this mounts at "/home/user/{path}".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1347,7 +1353,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   },
                   path: {
                     type: 'string',
-                    description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
+                    description:
+                      'Canonical destination VFS path under "files/", e.g. "files/Reports/chart.png".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1431,14 +1438,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             files: {
               type: 'array',
-              description: 'Workspace files to mount into the sandbox.',
+              description: 'Workspace files or chat uploads to mount into the sandbox.',
               items: {
                 type: 'object',
                 properties: {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                      'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "uploads/sales.csv". By default this mounts at "/home/user/{path}".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1448,6 +1455,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 },
                 required: ['path'],
               },
+              minItems: 1,
+              maxItems: 1,
             },
             tables: {
               type: 'array',
@@ -1471,6 +1480,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               },
             },
           },
+          required: ['files'],
         },
         instrumental: {
           type: 'boolean',
@@ -1515,7 +1525,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   },
                   path: {
                     type: 'string',
-                    description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
+                    description:
+                      'Canonical destination VFS path under "files/", e.g. "files/Reports/chart.png".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1525,8 +1536,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 },
                 required: ['path', 'mode'],
               },
+              minItems: 1,
+              maxItems: 1,
             },
           },
+          required: ['files'],
         },
         prompt: {
           type: 'string',
@@ -1584,14 +1598,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             files: {
               type: 'array',
-              description: 'Workspace files to mount into the sandbox.',
+              description: 'Workspace files or chat uploads to mount into the sandbox.',
               items: {
                 type: 'object',
                 properties: {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                      'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "uploads/sales.csv". By default this mounts at "/home/user/{path}".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1601,6 +1615,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 },
                 required: ['path'],
               },
+              minItems: 1,
             },
             tables: {
               type: 'array',
@@ -1624,6 +1639,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               },
             },
           },
+          required: ['files'],
         },
         outputs: {
           type: 'object',
@@ -1653,7 +1669,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   },
                   path: {
                     type: 'string',
-                    description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
+                    description:
+                      'Canonical destination VFS path under "files/", e.g. "files/Reports/chart.png".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1663,8 +1680,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 },
                 required: ['path', 'mode'],
               },
+              minItems: 1,
+              maxItems: 1,
             },
           },
+          required: ['files'],
         },
         prompt: {
           type: 'string',
@@ -1722,14 +1742,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             files: {
               type: 'array',
-              description: 'Workspace files to mount into the sandbox.',
+              description: 'Workspace files or chat uploads to mount into the sandbox.',
               items: {
                 type: 'object',
                 properties: {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                      'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "uploads/sales.csv". By default this mounts at "/home/user/{path}".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1739,6 +1759,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 },
                 required: ['path'],
               },
+              minItems: 1,
+              maxItems: 1,
             },
             tables: {
               type: 'array',
@@ -1762,6 +1784,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               },
             },
           },
+          required: ['files'],
         },
         model: {
           type: 'string',
@@ -1812,7 +1835,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   },
                   path: {
                     type: 'string',
-                    description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
+                    description:
+                      'Canonical destination VFS path under "files/", e.g. "files/Reports/chart.png".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1822,8 +1846,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 },
                 required: ['path', 'mode'],
               },
+              minItems: 1,
+              maxItems: 1,
             },
           },
+          required: ['files'],
         },
         prompt: {
           type: 'string',
@@ -3227,14 +3254,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             files: {
               type: 'array',
-              description: 'Workspace files to mount into the sandbox.',
+              description: 'Workspace files or chat uploads to mount into the sandbox.',
               items: {
                 type: 'object',
                 properties: {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                      'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "uploads/sales.csv". By default this mounts at "/home/user/{path}".',
                   },
                   sandboxPath: {
                     type: 'string',
