@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-16",
+  "updatedAt": "2026-07-22",
   "integrations": [
     {
       "type": "onepassword",
@@ -16688,6 +16688,25 @@
       "integrationType": "observability",
       "tags": ["error-tracking", "monitoring"]
     },
+    {
+      "type": "serpdive",
+      "slug": "serpdive",
+      "name": "SERPdive",
+      "description": "Search the web with SERPdive",
+      "longDescription": "Integrate SERPdive into the workflow. Can search the web and return the extracted, answer-ready content of each source instead of links or snippets.",
+      "bgColor": "#0A0F13",
+      "iconName": "SerpdiveIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/serpdive",
+      "operations": [],
+      "operationCount": 0,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "search",
+      "tags": ["web-scraping", "enrichment"]
+    },
+
     {
       "type": "serper",
       "slug": "serper",

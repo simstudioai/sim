@@ -269,6 +269,7 @@ import { SecretsManagerBlock, SecretsManagerBlockMeta } from '@/blocks/blocks/se
 import { SendblueBlock, SendblueBlockMeta } from '@/blocks/blocks/sendblue'
 import { SendGridBlock, SendGridBlockMeta } from '@/blocks/blocks/sendgrid'
 import { SentryBlock, SentryBlockMeta } from '@/blocks/blocks/sentry'
+import { SerpdiveBlock, SerpdiveBlockMeta } from '@/blocks/blocks/serpdive'
 import { SerperBlock, SerperBlockMeta } from '@/blocks/blocks/serper'
 import { ServiceNowBlock, ServiceNowBlockMeta } from '@/blocks/blocks/servicenow'
 import { SESBlock, SESBlockMeta } from '@/blocks/blocks/ses'
@@ -584,6 +585,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   sendblue: SendblueBlock,
   sendgrid: SendGridBlock,
   sentry: SentryBlock,
+  serpdive: SerpdiveBlock,
   serper: SerperBlock,
   servicenow: ServiceNowBlock,
   ses: SESBlock,
@@ -869,6 +871,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   sendblue: SendblueBlockMeta,
   sendgrid: SendGridBlockMeta,
   sentry: SentryBlockMeta,
+  serpdive: SerpdiveBlockMeta,
   serper: SerperBlockMeta,
   servicenow: ServiceNowBlockMeta,
   ses: SESBlockMeta,
