@@ -110,6 +110,16 @@ export type TableEvent =
       dispatchId?: string
       message: string
     }
+  | {
+      /** A user made a manual cell-value edit (a plain row write, not an
+       *  execution). Signals collaborators to refetch the row so the winning
+       *  value shows live — last-write-wins is simply the DB's committed order.
+       *  Carries no value: peers refetch in their own wire format, avoiding
+       *  auth-specific value translation on the wire. */
+      kind: 'edit'
+      tableId: string
+      rowId: string
+    }
 
 export interface TableEventEntry {
   eventId: number

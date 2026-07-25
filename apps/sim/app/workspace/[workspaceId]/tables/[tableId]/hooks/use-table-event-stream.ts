@@ -379,6 +379,9 @@ export function useTableEventStream({
           else if (entry.event?.kind === 'dispatch') applyDispatch(entry.event)
           else if (entry.event?.kind === 'job') applyJob(entry.event)
           else if (entry.event?.kind === 'usageLimitReached') applyUsageLimit(entry.event)
+          // A collaborator's manual edit: refetch rows (debounced) so the winning
+          // last-write value shows live, in this client's own wire format.
+          else if (entry.event?.kind === 'edit') scheduleRowsInvalidate()
         } catch (err) {
           logger.warn('Failed to parse table event', { tableId, err })
         }
