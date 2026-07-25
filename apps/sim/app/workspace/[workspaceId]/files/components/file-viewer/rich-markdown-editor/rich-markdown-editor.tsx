@@ -553,15 +553,16 @@ export function LoadedRichMarkdownEditor({
    *   re-election can never duplicate content — the relay's exactly-once contract);
    * - **gate** the parent's autosave until the doc is synced AND seeded, so an
    *   empty/still-syncing doc can never overwrite the real file's markdown mirror;
-   * - **degrade** on a fatal join: seed the loaded content so it is shown, and — for
-   *   a NON-permission failure (the user can still save) — mark it writable so the
-   *   file stays editable locally (edits persist through the mirror, only live sync
-   *   is off). A permission denial stays read-only (the save would 403 too).
+   * - **fall back** on a fatal join: seed the loaded content so it is SHOWN, but
+   *   leave the editor read-only + gated. Every non-retryable failure (auth, access
+   *   denied, not found, client-id conflict) either can't save or is moot, so the
+   *   safe fallback is a read-only view of the content rather than editable-but-
+   *   unsavable — which would silently drop the user's edits.
    *
-   * `ready` (synced+seeded, or degraded-writable) gates BOTH the editor's editability
-   * (a user must never type into an empty/unsynced doc) and the parent's autosave.
-   * Non-collaborative documents are never gated. `provider.shouldSeed` is latched, so
-   * a SEED_REQUEST that arrived before this subscription is not missed.
+   * `ready` (synced+seeded) gates BOTH the editor's editability (a user must never
+   * type into an empty/unsynced doc) and the parent's autosave. Non-collaborative
+   * documents are never gated. `provider.shouldSeed` / `provider.joinError` are
+   * latched, so events that fired before this subscription are not missed.
    */
   useEffect(() => {
     const setReady = (ready: boolean) => {
@@ -578,7 +579,6 @@ export function LoadedRichMarkdownEditor({
       return
     }
     const config = doc.getMap('config')
-    let degraded = false
 
     const seedFromLoaded = () => {
       if (config.get('initialContentLoaded') === true) return
@@ -590,19 +590,15 @@ export function LoadedRichMarkdownEditor({
         config.set('initialContentLoaded', true)
       })
     }
-    const report = () =>
-      setReady(degraded || (provider.synced && config.get('initialContentLoaded') === true))
+    const report = () => setReady(provider.synced && config.get('initialContentLoaded') === true)
     const onProgress = () => {
       if (provider.shouldSeed && provider.synced) seedFromLoaded()
       report()
     }
     const onJoinError = (error: JoinFileDocError) => {
-      if (error.retryable !== false) return
-      // Show the loaded content, but only mark it writable when the failure isn't a
-      // permission denial — a denied user can't save either, so it stays read-only.
-      seedFromLoaded()
-      if (error.code !== 'ACCESS_DENIED') degraded = true
-      report()
+      // Show the loaded content, but keep it read-only + gated: a fatal join means
+      // the durable save would fail too, so editable-but-unsavable would lose edits.
+      if (error.retryable === false) seedFromLoaded()
     }
 
     provider.on('seed-request', onProgress)
