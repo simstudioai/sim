@@ -24,6 +24,7 @@ import {
   Resource,
   type SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
+import { PresenceAvatars } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
@@ -59,7 +60,7 @@ import {
 } from './components'
 import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
 import { COLUMN_TYPE_ICONS } from './components/table-grid/headers'
-import { useTable, useTableEventStream } from './hooks'
+import { useTable, useTableEventStream, useTableRoom } from './hooks'
 import {
   DEFAULT_TABLE_DETAIL_SORT_DIRECTION,
   tableDetailParsers,
@@ -152,6 +153,14 @@ export function Table({
     })
   }
   useTableEventStream({ tableId, workspaceId, onUsageLimitReached })
+
+  // Live table presence (avatars + cell-selection highlights). Scoped to the
+  // dedicated tables page — the embedded surface passes no id, disabling it.
+  const {
+    otherUsers: presenceUsers,
+    remoteSelections,
+    emitCellSelection,
+  } = useTableRoom(embedded ? '' : tableId)
 
   const [slideout, dispatch] = useReducer(slideoutReducer, { kind: 'none' })
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
@@ -654,6 +663,7 @@ export function Table({
           breadcrumbs={breadcrumbs}
           aside={
             <div className='flex items-center gap-1.5'>
+              {presenceUsers.length > 0 && <PresenceAvatars users={presenceUsers} />}
               <ImportProgressMenu workspaceId={workspaceId} tableId={tableId} />
               {selection.totalRunning > 0 || selection.hasActiveDispatch ? (
                 <RunStatusControl
@@ -708,6 +718,8 @@ export function Table({
         tableId={tableId}
         embedded={embedded}
         sidebarReservedPx={sidebarReservedPx}
+        remoteSelections={remoteSelections}
+        emitCellSelection={emitCellSelection}
         onOpenColumnConfig={onOpenColumnConfig}
         onOpenWorkflowConfig={onOpenWorkflowConfig}
         onOpenEnrichments={onOpenEnrichments}

@@ -1,4 +1,4 @@
-import { db, workspace, workspaceFiles } from '@sim/db'
+import { db, userTableDefinitions, workspace, workspaceFiles } from '@sim/db'
 import { ROOM_TYPES, type RoomRef, type RoomType } from '@sim/realtime-protocol/rooms'
 import { and, eq, isNull } from 'drizzle-orm'
 import { getActiveWorkflowContext } from './workflow'
@@ -56,6 +56,23 @@ async function resolveFileDocWorkspace(fileId: string): Promise<RoomWorkspace | 
 }
 
 /**
+ * Resolves a table presence room to its owning workspace. The room id is the
+ * table id; look up its (non-archived) definition, then reuse the workspace
+ * resolver so archival is honored uniformly. Returns `null` when the table is
+ * missing or archived.
+ */
+async function resolveTableWorkspace(tableId: string): Promise<RoomWorkspace | null> {
+  const [table] = await db
+    .select({ workspaceId: userTableDefinitions.workspaceId })
+    .from(userTableDefinitions)
+    .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.archivedAt)))
+    .limit(1)
+
+  if (!table?.workspaceId) return null
+  return resolveWorkspaceRoomWorkspace(table.workspaceId)
+}
+
+/**
  * Single source of truth mapping each room type to its resource→workspace
  * lookup. Every realtime room is workspace-scoped and authorizes through the
  * same effective-permission resolver, so a room type only has to say *which*
@@ -74,6 +91,8 @@ const ROOM_WORKSPACE_RESOLVERS: Record<RoomType, RoomWorkspaceResolver> = {
   [ROOM_TYPES.WORKSPACE_FILES]: resolveWorkspaceRoomWorkspace,
   // A file-doc room is addressed by file id; resolve it to its workspace.
   [ROOM_TYPES.WORKSPACE_FILE_DOC]: resolveFileDocWorkspace,
+  // A table room is addressed by table id; resolve it to its workspace.
+  [ROOM_TYPES.TABLE]: resolveTableWorkspace,
 }
 
 /** Resolves a room's owning workspace, or `null` if the room resource is gone. */

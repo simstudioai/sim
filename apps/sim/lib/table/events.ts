@@ -110,6 +110,32 @@ export type TableEvent =
       dispatchId?: string
       message: string
     }
+  | {
+      /** A user changed row data manually (a cell edit, or an added/deleted row) —
+       *  not an execution. Signals collaborators to refetch the rows so the change
+       *  shows live; last-write-wins is simply the DB's committed order. Carries no
+       *  value: peers refetch in their own wire format, avoiding auth-specific value
+       *  translation on the wire. */
+      kind: 'edit'
+      tableId: string
+    }
+  | {
+      /** A user changed the table's structure (added/updated/deleted a column, or
+       *  renamed the table). Signals collaborators to refetch the table definition
+       *  and rows, since a schema change reshapes how rows render. Value-less, same
+       *  refetch-in-own-format rationale as {@link kind} `edit`. */
+      kind: 'schema'
+      tableId: string
+    }
+  | {
+      /** A user changed the table's UI metadata (column width, pin, or order). Signals
+       *  collaborators to re-apply the new layout live. Lighter than {@link kind}
+       *  `schema`: only the definition carries metadata, so peers refetch the definition
+       *  alone — no rows/run-state refetch. Value-less, same refetch-in-own-format
+       *  rationale as {@link kind} `edit`. */
+      kind: 'metadata'
+      tableId: string
+    }
 
 export interface TableEventEntry {
   eventId: number
@@ -130,6 +156,40 @@ export async function appendTableEvent(event: TableEvent): Promise<TableEventEnt
     entrySuffix: `,"tableId":${JSON.stringify(event.tableId)},"event":${JSON.stringify(event)}}`,
     buildMemory: (eventId) => ({ eventId, tableId: event.tableId, event }),
   })
+}
+
+// The mutating client receives its own signal too (the stream carries no originator id)
+// and self-refetches. Data-correct — signals fire after the write commits, so the refetch
+// returns the committed state, and in-flight edits are protected by the update/delete
+// hooks' cancelQueries. The one caveat is an own row-CREATE on a scrolled, multi-page
+// table, which can briefly reshuffle loaded pages (the create hook otherwise skips that
+// refetch); if that ever proves visible, stamp an originator id so the actor ignores its
+// own signal.
+
+/**
+ * Signal collaborators that a user changed row data so they refetch the rows live.
+ * Fire-and-forget — a Redis blip must never fail the write that triggered it.
+ */
+export function signalTableRowsChanged(tableId: string): void {
+  void appendTableEvent({ kind: 'edit', tableId })
+}
+
+/**
+ * Signal collaborators that a user changed the table structure so they refetch the
+ * definition + rows live. Fire-and-forget for the same reason as
+ * {@link signalTableRowsChanged}.
+ */
+export function signalTableSchemaChanged(tableId: string): void {
+  void appendTableEvent({ kind: 'schema', tableId })
+}
+
+/**
+ * Signal collaborators that a user changed the table's UI metadata (column width, pin,
+ * or order) so they re-apply the new layout live. Fire-and-forget for the same reason as
+ * {@link signalTableRowsChanged}.
+ */
+export function signalTableMetadataChanged(tableId: string): void {
+  void appendTableEvent({ kind: 'metadata', tableId })
 }
 
 /**

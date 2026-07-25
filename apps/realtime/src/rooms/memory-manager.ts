@@ -156,13 +156,14 @@ export class MemoryRoomManager implements IRoomManager {
   async updateUserActivity(
     room: RoomRef,
     socketId: string,
-    updates: Partial<Pick<UserPresence, 'cursor' | 'selection' | 'lastActivity'>>
+    updates: Partial<Pick<UserPresence, 'cursor' | 'selection' | 'cell' | 'lastActivity'>>
   ): Promise<void> {
     const presence = this.rooms.get(roomKey(room))?.users.get(socketId)
     if (!presence) return
 
     if (updates.cursor !== undefined) presence.cursor = updates.cursor
     if (updates.selection !== undefined) presence.selection = updates.selection
+    if (updates.cell !== undefined) presence.cell = updates.cell
     presence.lastActivity = updates.lastActivity ?? Date.now()
   }
 

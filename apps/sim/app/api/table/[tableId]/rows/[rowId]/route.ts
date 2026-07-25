@@ -15,6 +15,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
 import { deleteRow, updateRow } from '@/lib/table'
+import { signalTableRowsChanged } from '@/lib/table/events'
 import { rowWireTranslators } from '@/app/api/table/row-wire'
 import {
   accessError,
@@ -146,6 +147,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     // Only `null` when a `cancellationGuard` is supplied and the SQL guard
     // rejects the write — this route doesn't pass one, so reaching null is a bug.
     if (!updatedRow) throw new Error('updateRow returned null without a cancellationGuard')
+    // An edit that also triggers a dispatch already emits dispatch/cell events; the
+    // debounced rows refetch on the peer coalesces the two.
+    signalTableRowsChanged(tableId)
     // Auto-dispatch for user edits is handled inside `updateRow` (mode: 'new').
     // Firing a second mode: 'incomplete' dispatch here would race with the
     // `mode: 'new'` one AND bulk-clear sibling-group outputs (the incomplete
@@ -212,6 +216,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
     }
 
     await deleteRow(tableId, rowId, validated.workspaceId, requestId)
+    signalTableRowsChanged(tableId)
 
     return NextResponse.json({
       success: true,

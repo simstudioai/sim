@@ -379,6 +379,27 @@ export function useTableEventStream({
           else if (entry.event?.kind === 'dispatch') applyDispatch(entry.event)
           else if (entry.event?.kind === 'job') applyJob(entry.event)
           else if (entry.event?.kind === 'usageLimitReached') applyUsageLimit(entry.event)
+          // A collaborator's manual edit: refetch rows (debounced) so the winning
+          // last-write value shows live, in this client's own wire format.
+          else if (entry.event?.kind === 'edit') scheduleRowsInvalidate()
+          // A collaborator changed the table structure: mirror the local
+          // invalidateTableSchema set — the definition (exact, so rows stay on the
+          // debounce), the run-state + enrichment sibling queries under detail (a group
+          // delete/restructure can otherwise leave a stale running badge or enrichment
+          // panel), the tables list (column/row counts), and the debounced rows.
+          else if (entry.event?.kind === 'schema') {
+            void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
+            void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
+            void queryClient.invalidateQueries({ queryKey: tableKeys.enrichmentDetails(tableId) })
+            void queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+            scheduleRowsInvalidate()
+          }
+          // A collaborator changed the column layout (width/pin/order): refetch the
+          // definition alone (it carries the metadata) — the grid re-applies it without
+          // a rows refetch. Exact, so rows/run-state stay put.
+          else if (entry.event?.kind === 'metadata') {
+            void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
+          }
         } catch (err) {
           logger.warn('Failed to parse table event', { tableId, err })
         }

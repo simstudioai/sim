@@ -3,6 +3,7 @@ import { setupWorkspaceFileDocHandlers } from '@/handlers/file-doc'
 import { setupOperationsHandlers } from '@/handlers/operations'
 import { setupPresenceHandlers } from '@/handlers/presence'
 import { setupSubblocksHandlers } from '@/handlers/subblocks'
+import { setupTablesHandlers } from '@/handlers/tables'
 import { setupVariablesHandlers } from '@/handlers/variables'
 import { setupWorkflowHandlers } from '@/handlers/workflow'
 import { setupWorkspaceFilesHandlers } from '@/handlers/workspace-files'
@@ -17,5 +18,6 @@ export function setupAllHandlers(socket: AuthenticatedSocket, roomManager: IRoom
   setupPresenceHandlers(socket, roomManager)
   setupWorkspaceFilesHandlers(socket, roomManager)
   setupWorkspaceFileDocHandlers(socket, roomManager)
+  setupTablesHandlers(socket, roomManager)
   setupConnectionHandlers(socket, roomManager)
 }

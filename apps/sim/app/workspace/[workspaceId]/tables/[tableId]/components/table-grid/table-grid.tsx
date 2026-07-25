@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { cn, toast, useToast } from '@sim/emcn'
 import { Loader, TableX } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import type { TableCellSelection } from '@sim/realtime-protocol/table-presence'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -14,6 +15,7 @@ import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup 
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-room'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import {
   useAddTableColumn,
@@ -47,6 +49,7 @@ import { ExpandedCellPopover } from './cells'
 import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
 import { DataRow } from './data-row'
 import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
+import { RemoteSelectionOverlay } from './remote-selection-overlay'
 import { TableFind } from './table-find'
 import { AddRowButton, SelectAllCheckbox, TableColGroup } from './table-primitives'
 import type { DisplayColumn } from './types'
@@ -143,6 +146,10 @@ interface TableGridProps {
   workspaceId?: string
   tableId?: string
   embedded?: boolean
+  /** Remote collaborators' cell selections, rendered as presence overlays. */
+  remoteSelections: RemoteTableSelection[]
+  /** Broadcast the local viewer's cell selection to the table presence room. */
+  emitCellSelection: (cell: TableCellSelection) => void
   /**
    * Pixel width to reserve on the right of the table's scroll content for the
    * currently-open slideout panel (column config, workflow config, or log
@@ -288,6 +295,8 @@ export function TableGrid({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
   embedded,
+  remoteSelections,
+  emitCellSelection,
   sidebarReservedPx,
   onOpenColumnConfig,
   onOpenWorkflowConfig,
@@ -348,6 +357,8 @@ export function TableGrid({
   const columnWidthsRef = useRef(columnWidths)
   columnWidthsRef.current = columnWidths
   const [resizingColumn, setResizingColumn] = useState<string | null>(null)
+  const resizingColumnRef = useRef(resizingColumn)
+  resizingColumnRef.current = resizingColumn
   const [columnOrder, setColumnOrder] = useState<string[] | null>(null)
   const columnOrderRef = useRef(columnOrder)
   columnOrderRef.current = columnOrder
@@ -645,6 +656,13 @@ export function TableGrid({
     return expandToDisplayColumns(ordered, tableWorkflowGroups)
   }, [columns, columnOrder, tableWorkflowGroups])
 
+  /** Column id → its rendered index (matches the cells' `data-col`), for placing overlays. */
+  const columnIndexById = useMemo(() => {
+    const map = new Map<string, number>()
+    displayColumns.forEach((col, index) => map.set(col.key, index))
+    return map
+  }, [displayColumns])
+
   const workflowGroupById = useMemo(
     () => new Map(tableWorkflowGroups.map((g) => [g.id, g])),
     [tableWorkflowGroups]
@@ -818,6 +836,30 @@ export function TableGrid({
   focusRowIdRef.current = selectionFocus
     ? (rowsRef.current[selectionFocus.rowIndex]?.id ?? null)
     : null
+
+  // Broadcast the local viewer's cell selection to the presence room. Resolves the
+  // index-based selection to stable (rowId, columnId), re-running on `rows`/`displayColumns`
+  // too so a peer's row insert/delete/reorder re-broadcasts the shifted id under the same
+  // index (the emitter dedups an unchanged result). `editing` marks the active cell so
+  // peers darken it (the "someone is typing here" signal).
+  useEffect(() => {
+    const resolve = (coord: CellCoord | null) => {
+      if (!coord) return null
+      const rowId = rows[coord.rowIndex]?.id
+      const columnId = displayColumns[coord.colIndex]?.key
+      return rowId && columnId ? { rowId, columnId } : null
+    }
+    const anchor = resolve(selectionAnchor)
+    if (!anchor) {
+      emitCellSelection(null)
+      return
+    }
+    // A single-cell click leaves `selectionFocus` null; the grid treats that as a
+    // one-cell selection at the anchor (`focus ?? anchor`). Mirror that — otherwise the
+    // most common selection would never broadcast and would clear the prior outline.
+    const focus = resolve(selectionFocus) ?? anchor
+    emitCellSelection({ anchor, focus, editing: editingCell !== null })
+  }, [selectionAnchor, selectionFocus, editingCell, rows, displayColumns, emitCellSelection])
 
   const { data: findData, isFetching: isFindFetching } = useFindTableRows({
     workspaceId,
@@ -1740,20 +1782,32 @@ export function TableGrid({
       }
       return
     }
-    // After first load: only re-seed `columnOrder` when the *set of columns*
-    // changes (e.g. a workflow group adds/removes outputs server-side). Pure
-    // reorders are left alone so an in-flight optimistic drag isn't clobbered
-    // by a refetch returning the pre-drag order.
+    // After first load a collaborator (or our own committed edit) reshaped the layout.
+    // Re-apply it live, but never clobber the gesture the local user is mid-way through —
+    // their in-progress value leads the server's. Each field is guarded by reference:
+    // React Query structural sharing keeps an unchanged sub-object referentially stable,
+    // so an unrelated change (e.g. a peer's pin) doesn't re-apply widths/order.
+    // Width: keep the column being actively resized on its live local value.
+    const serverWidths = tableData.metadata.columnWidths
+    if (serverWidths && serverWidths !== columnWidthsRef.current) {
+      const resizing = resizingColumnRef.current
+      const localWidth = resizing ? columnWidthsRef.current[resizing] : undefined
+      setColumnWidths(
+        resizing && localWidth !== undefined
+          ? { ...serverWidths, [resizing]: localWidth }
+          : serverWidths
+      )
+    }
+    // Pins toggle instantly (no in-progress gesture) — apply on change.
+    const serverPins = tableData.metadata.pinnedColumns
+    if (serverPins && serverPins !== pinnedColumnsRef.current) {
+      setPinnedColumns(serverPins)
+    }
+    // Order: apply unless a local column drag is in flight (an optimistic reorder would
+    // otherwise be reverted to the pre-drag order the refetch returns).
     const serverOrder = tableData.metadata.columnOrder
-    if (serverOrder) {
-      const localOrder = columnOrderRef.current
-      const serverSet = new Set(serverOrder)
-      const localSet = new Set(localOrder ?? [])
-      const setChanged =
-        !localOrder || serverSet.size !== localSet.size || serverOrder.some((n) => !localSet.has(n))
-      if (setChanged) {
-        setColumnOrder(serverOrder)
-      }
+    if (serverOrder && serverOrder !== columnOrderRef.current && !dragColumnNameRef.current) {
+      setColumnOrder(serverOrder)
     }
   }, [tableData?.metadata])
 
@@ -3885,6 +3939,13 @@ export function TableGrid({
                     })()}
               </tbody>
             </table>
+            {remoteSelections.length > 0 && (
+              <RemoteSelectionOverlay
+                remoteSelections={remoteSelections}
+                columnIndexById={columnIndexById}
+                scrollElement={scrollRef.current}
+              />
+            )}
             {resizingColumn && (
               <div
                 className='-translate-x-[1.5px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]'
