@@ -59,6 +59,12 @@ export function useTableRoom(tableId: string): UseTableRoomResult {
   const tabSessionIdRef = useRef<string>('')
   if (!tabSessionIdRef.current) tabSessionIdRef.current = generateShortId()
 
+  // The local viewer's current selection, re-broadcast on (re)join. Emits only fire on a
+  // selection change, and the server drops a CELL_SELECTION for a socket not yet in the
+  // room — so a selection made before the join completes (or held across a reconnect)
+  // would otherwise never reach peers until it next changes.
+  const currentCellRef = useRef<TableCellSelection>(null)
+
   useEffect(() => {
     if (!socket || !tableId) return
 
@@ -77,6 +83,11 @@ export function useTableRoom(tableId: string): UseTableRoomResult {
         retryTimer = null
       }
       setPresenceUsers(data.presenceUsers ?? [])
+      // Re-send our current selection now that the room is joined (earlier emits were
+      // dropped server-side), so peers see it without waiting for the next change.
+      if (currentCellRef.current) {
+        socket.emit(TABLE_PRESENCE_EVENTS.CELL_SELECTION, { cell: currentCellRef.current })
+      }
     }
     const handleJoinError = (data: JoinTableError) => {
       if (data.tableId !== tableId) return
@@ -149,12 +160,14 @@ export function useTableRoom(tableId: string): UseTableRoomResult {
         trailingTimerRef.current = null
       }
       pendingCellRef.current = null
+      currentCellRef.current = null
       lastEmitRef.current = 0
     },
     [tableId]
   )
 
   const emitCellSelection = useCallback((cell: TableCellSelection) => {
+    currentCellRef.current = cell
     pendingCellRef.current = cell
     const flush = () => {
       lastEmitRef.current = Date.now()
