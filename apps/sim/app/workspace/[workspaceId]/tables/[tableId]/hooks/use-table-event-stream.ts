@@ -382,6 +382,16 @@ export function useTableEventStream({
           // A collaborator's manual edit: refetch rows (debounced) so the winning
           // last-write value shows live, in this client's own wire format.
           else if (entry.event?.kind === 'edit') scheduleRowsInvalidate()
+          // A collaborator changed the table structure: refetch the definition (exact —
+          // not the whole detail subtree) + rows, mirroring the local column-mutation
+          // invalidation, so new/renamed/removed columns show live.
+          else if (entry.event?.kind === 'schema') {
+            void queryClient.invalidateQueries({
+              queryKey: tableKeys.detail(tableId),
+              exact: true,
+            })
+            scheduleRowsInvalidate()
+          }
         } catch (err) {
           logger.warn('Failed to parse table event', { tableId, err })
         }

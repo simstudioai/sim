@@ -111,12 +111,20 @@ export type TableEvent =
       message: string
     }
   | {
-      /** A user made a manual cell-value edit (a plain row write, not an
-       *  execution). Signals collaborators to refetch so the winning value shows
-       *  live — last-write-wins is simply the DB's committed order. Carries no
-       *  value: peers refetch in their own wire format, avoiding auth-specific
-       *  value translation on the wire. */
+      /** A user changed row data manually (a cell edit, or an added/deleted row) —
+       *  not an execution. Signals collaborators to refetch the rows so the change
+       *  shows live; last-write-wins is simply the DB's committed order. Carries no
+       *  value: peers refetch in their own wire format, avoiding auth-specific value
+       *  translation on the wire. */
       kind: 'edit'
+      tableId: string
+    }
+  | {
+      /** A user changed the table's structure (added/updated/deleted a column, or
+       *  renamed the table). Signals collaborators to refetch the table definition
+       *  and rows, since a schema change reshapes how rows render. Value-less, same
+       *  refetch-in-own-format rationale as {@link kind} `edit`. */
+      kind: 'schema'
       tableId: string
     }
 
@@ -139,6 +147,24 @@ export async function appendTableEvent(event: TableEvent): Promise<TableEventEnt
     entrySuffix: `,"tableId":${JSON.stringify(event.tableId)},"event":${JSON.stringify(event)}}`,
     buildMemory: (eventId) => ({ eventId, tableId: event.tableId, event }),
   })
+}
+
+/**
+ * Signal collaborators that a user changed row data (a cell edit, or an added/
+ * deleted/upserted/batch-written row) so they refetch the rows live. Fire-and-forget
+ * — a Redis blip must never fail the write that triggered it.
+ */
+export function signalTableRowsChanged(tableId: string): void {
+  void appendTableEvent({ kind: 'edit', tableId })
+}
+
+/**
+ * Signal collaborators that a user changed the table structure (a column, workflow
+ * group, rename, or import that reshapes the schema) so they refetch the definition +
+ * rows live. Fire-and-forget for the same reason as {@link signalTableRowsChanged}.
+ */
+export function signalTableSchemaChanged(tableId: string): void {
+  void appendTableEvent({ kind: 'schema', tableId })
 }
 
 /**

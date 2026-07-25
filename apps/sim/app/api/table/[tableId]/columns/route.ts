@@ -17,6 +17,7 @@ import {
   updateColumnConstraints,
   updateColumnType,
 } from '@/lib/table'
+import { signalTableSchemaChanged } from '@/lib/table/events'
 import { accessError, checkAccess, normalizeColumn, rootErrorMessage } from '@/app/api/table/utils'
 
 const logger = createLogger('TableColumnsAPI')
@@ -51,6 +52,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
     }
 
     const updatedTable = await addTableColumn(tableId, validated.column, requestId)
+    signalTableSchemaChanged(tableId)
 
     return NextResponse.json({
       success: true,
@@ -138,6 +140,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     if (!updatedTable) {
       return NextResponse.json({ error: 'No updates specified' }, { status: 400 })
     }
+    signalTableSchemaChanged(tableId)
 
     return NextResponse.json({
       success: true,
@@ -202,6 +205,7 @@ export const DELETE = withRouteHandler(
         { tableId, columnName: validated.columnName },
         requestId
       )
+      signalTableSchemaChanged(tableId)
 
       return NextResponse.json({
         success: true,

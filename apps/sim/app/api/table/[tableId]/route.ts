@@ -9,6 +9,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { deleteTable, renameTable, TableConflictError, type TableSchema } from '@/lib/table'
 import { getWorkspaceTableLimits } from '@/lib/table/billing'
+import { signalTableSchemaChanged } from '@/lib/table/events'
 import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
 
 const logger = createLogger('TableDetailAPI')
@@ -126,6 +127,7 @@ export const PATCH = withRouteHandler(
       }
 
       const updated = await renameTable(tableId, validated.name, requestId, authResult.userId)
+      signalTableSchemaChanged(tableId)
 
       return NextResponse.json({
         success: true,

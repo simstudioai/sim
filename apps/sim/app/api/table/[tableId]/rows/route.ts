@@ -25,6 +25,7 @@ import {
   validateRowData,
   validateRowSize,
 } from '@/lib/table'
+import { signalTableRowsChanged } from '@/lib/table/events'
 import { queryRows } from '@/lib/table/rows/service'
 import { TableQueryValidationError } from '@/lib/table/sql'
 import { rowWireTranslators } from '@/app/api/table/row-wire'
@@ -79,6 +80,7 @@ async function handleBatchInsert(
       table,
       requestId
     )
+    signalTableRowsChanged(tableId)
 
     return NextResponse.json({
       success: true,
@@ -164,6 +166,7 @@ export const POST = withRouteHandler(
         table,
         requestId
       )
+      signalTableRowsChanged(tableId)
 
       return NextResponse.json({
         success: true,
@@ -371,6 +374,7 @@ export const PUT = withRouteHandler(
           { status: 200 }
         )
       }
+      signalTableRowsChanged(tableId)
 
       return NextResponse.json({
         success: true,
@@ -436,6 +440,7 @@ export const DELETE = withRouteHandler(
           { tableId, rowIds: validated.rowIds, workspaceId: validated.workspaceId },
           requestId
         )
+        signalTableRowsChanged(tableId)
 
         return NextResponse.json({
           success: true,
@@ -461,6 +466,7 @@ export const DELETE = withRouteHandler(
         },
         requestId
       )
+      signalTableRowsChanged(tableId)
 
       return NextResponse.json({
         success: true,
@@ -534,6 +540,7 @@ export const PATCH = withRouteHandler(
         table,
         requestId
       )
+      signalTableRowsChanged(tableId)
 
       return NextResponse.json({
         success: true,

@@ -10,6 +10,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { signalTableSchemaChanged } from '@/lib/table/events'
 import {
   addWorkflowGroup,
   deleteWorkflowGroup,
@@ -99,6 +100,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       },
       requestId
     )
+    signalTableSchemaChanged(tableId)
     return NextResponse.json({
       success: true,
       data: {
@@ -161,6 +163,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
       },
       requestId
     )
+    signalTableSchemaChanged(tableId)
     return NextResponse.json({
       success: true,
       data: {
@@ -194,6 +197,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, { params }: 
       { tableId, groupId: validated.groupId },
       requestId
     )
+    signalTableSchemaChanged(tableId)
     return NextResponse.json({
       success: true,
       data: {
