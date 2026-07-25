@@ -69,7 +69,9 @@ export async function bulkInsertImportBatch(
   /** Re-asserts the insert lock inside the write transaction. See {@link guardBatch}. */
   revalidate?: MutationRevalidator
 ): Promise<{ inserted: number; lastOrderKey: string | null }> {
-  assertRowInsert(table)
+  // Superseded by the in-tx revalidation when one is supplied; asserting
+  // the caller's snapshot too would reject a since-cleared lock.
+  if (!revalidate) assertRowInsert(table)
 
   for (let i = 0; i < data.rows.length; i++) {
     const sizeValidation = validateRowSize(data.rows[i])
@@ -130,7 +132,9 @@ export async function deleteAllTableRows(
   /** Re-asserts the delete lock inside the write transaction. See {@link guardBatch}. */
   revalidate?: MutationRevalidator
 ): Promise<void> {
-  assertRowDelete(table)
+  // Superseded by the in-tx revalidation when one is supplied; asserting
+  // the caller's snapshot too would reject a since-cleared lock.
+  if (!revalidate) assertRowDelete(table)
   await db.transaction(async (trx) => {
     await guardBatch(trx, table.id, revalidate)
     await trx.delete(userTableRows).where(eq(userTableRows.tableId, table.id))
@@ -150,8 +154,11 @@ export async function addImportColumns(
   revalidate?: MutationRevalidator
 ): Promise<TableDefinition> {
   const updated = await db.transaction(async (trx) => {
-    await guardBatch(trx, table.id, revalidate)
-    return addTableColumnsWithTx(trx, table, additions, requestId)
+    // `addTableColumnsWithTx` re-asserts the schema lock, so hand it the
+    // freshly-read definition — asserting the caller's snapshot would reject a
+    // lock that has since been cleared.
+    const fresh = await guardBatch(trx, table.id, revalidate)
+    return addTableColumnsWithTx(trx, fresh ?? table, additions, requestId)
   })
   auditTableColumnsAdded(
     table,
@@ -168,7 +175,9 @@ export async function setTableSchemaForImport(
   /** Re-asserts the schema lock inside the write transaction. See {@link guardBatch}. */
   revalidate?: MutationRevalidator
 ): Promise<void> {
-  assertSchemaMutable(table)
+  // Superseded by the in-tx revalidation when one is supplied; asserting
+  // the caller's snapshot too would reject a since-cleared lock.
+  if (!revalidate) assertSchemaMutable(table)
   await db.transaction(async (trx) => {
     await guardBatch(trx, table.id, revalidate)
     await trx

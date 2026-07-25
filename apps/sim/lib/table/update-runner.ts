@@ -112,6 +112,7 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
     const revalidate = async (trx: DbTransaction) => {
       const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
       if (fresh) assertRowUpdate(fresh, patchColumnIds(data))
+      return fresh ?? undefined
     }
 
     const filterClause = buildFilterClause(filter, USER_TABLE_ROWS_SQL_NAME, table.schema.columns)

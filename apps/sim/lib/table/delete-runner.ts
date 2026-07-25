@@ -104,6 +104,7 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
     const revalidate = async (trx: DbTransaction) => {
       const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
       if (fresh) assertRowDelete(fresh)
+      return fresh ?? undefined
     }
 
     const filterClause = filter

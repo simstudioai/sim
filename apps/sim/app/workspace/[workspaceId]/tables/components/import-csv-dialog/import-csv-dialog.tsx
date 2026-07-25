@@ -175,10 +175,16 @@ export function ImportCsvDialog({
     resetState()
   }
 
+  // Replace deletes every existing row and creating columns is a schema change,
+  // so each needs its own lock clear. Withholding them here keeps the dialog
+  // from offering a configuration the server can only answer with a 423.
+  const canReplace = !table.locks?.deleteLocked
+  const canCreateColumns = !table.locks?.schemaLocked
+
   const columnOptions: ComboboxOption[] = useMemo(() => {
     const options: ComboboxOption[] = [
       { label: 'Do not import', value: SKIP_VALUE },
-      { label: '+ Create new column', value: CREATE_VALUE },
+      ...(canCreateColumns ? [{ label: '+ Create new column', value: CREATE_VALUE }] : []),
     ]
     for (const col of table.schema.columns) {
       options.push({
@@ -187,7 +193,7 @@ export function ImportCsvDialog({
       })
     }
     return options
-  }, [table.schema.columns])
+  }, [table.schema.columns, canCreateColumns])
 
   async function handleFileSelected(file: File) {
     const ext = file.name.split('.').pop()?.toLowerCase()
@@ -257,6 +263,7 @@ export function ImportCsvDialog({
 
   function handleModeChange(value: string) {
     setSubmitError(null)
+    if (value === 'replace' && !canReplace) return
     setMode(value as CsvImportMode)
   }
 
@@ -307,7 +314,8 @@ export function ImportCsvDialog({
   async function handleSubmit() {
     if (!parsed || !canSubmit) return
     setSubmitError(null)
-    const createColumns = createHeaders.size > 0 ? [...createHeaders] : undefined
+    const createColumns =
+      canCreateColumns && createHeaders.size > 0 ? [...createHeaders] : undefined
 
     // Large files can't be POSTed through the server (request-body cap) — upload them
     // straight to storage and import in the background instead. Seed the header tray and
@@ -426,14 +434,19 @@ export function ImportCsvDialog({
             <ChipModalField type='custom' title='Mode'>
               <ButtonGroup value={mode} onValueChange={handleModeChange}>
                 <ButtonGroupItem value='append'>Append</ButtonGroupItem>
-                <ButtonGroupItem value='replace'>Replace all rows</ButtonGroupItem>
+                {canReplace && <ButtonGroupItem value='replace'>Replace all rows</ButtonGroupItem>}
               </ButtonGroup>
             </ChipModalField>
 
             <ChipModalField type='custom' title='Column mapping'>
               {skipCount > 0 && (
                 <div className='flex justify-end'>
-                  <Button variant='ghost' size='sm' onClick={handleCreateAllUnmapped}>
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    disabled={!canCreateColumns}
+                    onClick={handleCreateAllUnmapped}
+                  >
                     Create columns for {skipCount} unmapped
                   </Button>
                 </div>

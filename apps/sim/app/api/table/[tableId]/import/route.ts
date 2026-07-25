@@ -337,6 +337,12 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
           },
         })
       } catch (err) {
+        // This branch returns rather than rethrowing, so the outer catch's
+        // mapper is unreachable from here — map the lock error first or a 423
+        // degrades into a generic 500 (replace mode rethrows and maps fine).
+        const lockError = tableLockErrorResponse(err)
+        if (lockError) return lockError
+
         const message = toError(err).message
         logger.warn(`[${requestId}] Append failed for table ${tableId}`, {
           total: coerced.length,

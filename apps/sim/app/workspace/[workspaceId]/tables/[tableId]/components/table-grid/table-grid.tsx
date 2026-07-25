@@ -2337,8 +2337,15 @@ export function TableGrid({
       }
 
       if (e.key === 'Enter' || e.key === 'F2') {
-        if (!canEditCellRef.current) return
+        if (!canEditRef.current) return
         e.preventDefault()
+        // The primary keyboard edit path — same lock notice as double-click and
+        // Space, rather than a keypress that silently does nothing.
+        if (updateLockedRef.current) {
+          onBlockedActionRef.current('edit-cell')
+          return
+        }
+        if (!canEditCellRef.current) return
         const col = cols[anchor.colIndex]
         if (!col) return
 
@@ -3850,18 +3857,32 @@ export function TableGrid({
                                 // the whole menu — and each item should explain the lock
                                 // rather than silently vanish or fail with a 423 toast.
                                 onInsertLeft={
-                                  canMutateSchema ? handleInsertColumnLeft : handleBlockedAddColumn
+                                  !userPermissions.canEdit
+                                    ? undefined
+                                    : canMutateSchema
+                                      ? handleInsertColumnLeft
+                                      : handleBlockedAddColumn
                                 }
                                 onInsertRight={
-                                  canMutateSchema ? handleInsertColumnRight : handleBlockedAddColumn
+                                  !userPermissions.canEdit
+                                    ? undefined
+                                    : canMutateSchema
+                                      ? handleInsertColumnRight
+                                      : handleBlockedAddColumn
                                 }
                                 onDeleteColumn={
-                                  canDestroyColumn ? handleDeleteColumn : handleBlockedDeleteColumn
+                                  !userPermissions.canEdit
+                                    ? undefined
+                                    : canDestroyColumn
+                                      ? handleDeleteColumn
+                                      : handleBlockedDeleteColumn
                                 }
                                 onDeleteGroup={
-                                  canDestroyColumn
-                                    ? handleDeleteWorkflowGroup
-                                    : handleBlockedDeleteColumn
+                                  !userPermissions.canEdit
+                                    ? undefined
+                                    : canDestroyColumn
+                                      ? handleDeleteWorkflowGroup
+                                      : handleBlockedDeleteColumn
                                 }
                                 onViewWorkflow={
                                   workflowGroupById.get(g.groupId)?.type === 'enrichment'
@@ -3944,6 +3965,8 @@ export function TableGrid({
                             onRenameSubmit={columnRename.submitRename}
                             onRenameCancel={columnRename.cancelRename}
                             onColumnSelect={handleColumnSelect}
+                            // Required props here, and the menu is already
+                            // suppressed for non-editors by `readOnly`.
                             onInsertLeft={
                               canMutateSchema ? handleInsertColumnLeft : handleBlockedAddColumn
                             }

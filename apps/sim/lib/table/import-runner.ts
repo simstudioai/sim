@@ -114,16 +114,19 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     const revalidateInsert = async (trx: DbTransaction) => {
       const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
       if (fresh) assertRowInsert(fresh)
+      return fresh ?? undefined
     }
     /** Same guard for the replace-mode wipe, which lands before the first batch. */
     const revalidateDelete = async (trx: DbTransaction) => {
       const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
       if (fresh) assertRowDelete(fresh)
+      return fresh ?? undefined
     }
     /** Same guard for the inferred-schema write and `createColumns`. */
     const revalidateSchema = async (trx: DbTransaction) => {
       const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
       if (fresh) assertSchemaMutable(fresh)
+      return fresh ?? undefined
     }
 
     // Total byte size for the progress estimate — a cheap HEAD, no download. May be null on

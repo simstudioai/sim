@@ -15,7 +15,7 @@ import type { MutationProof } from '@/lib/table/mutation-locks'
 import { keyBetween, nKeysBetween } from '@/lib/table/order-key'
 import { type DbExecutor, type DbTransaction, withSeqscanOff } from '@/lib/table/planner'
 import { setTableTxTimeouts } from '@/lib/table/tx'
-import type { RowData } from '@/lib/table/types'
+import type { RowData, TableDefinition } from '@/lib/table/types'
 
 /**
  * Starting `position` for an append import — `max(position) + 1`, or 0 when empty. Read once,
@@ -399,7 +399,7 @@ export async function selectRowDataPage(params: {
  * Re-verifies the table's locks from inside a write transaction. Supplied by
  * the background runners; see {@link deletePageByIds}.
  */
-export type MutationRevalidator = (trx: DbTransaction) => Promise<void>
+export type MutationRevalidator = (trx: DbTransaction) => Promise<TableDefinition | undefined>
 
 /**
  * Takes the table's schema advisory lock and runs `revalidate` inside the
@@ -408,17 +408,20 @@ export type MutationRevalidator = (trx: DbTransaction) => Promise<void>
  * a lock committed before this call is seen and throws; one committed after it
  * waits for this batch to finish. Without it, the caller's proof would only
  * describe the lock state at some earlier point in the run.
+ *
+ * Returns the freshly-read definition so tx-bound helpers can act on live state
+ * instead of the caller's snapshot.
  */
 export async function guardBatch(
   trx: DbTransaction,
   tableId: string,
   revalidate: MutationRevalidator | undefined
-): Promise<void> {
-  if (!revalidate) return
+): Promise<TableDefinition | undefined> {
+  if (!revalidate) return undefined
   await trx.execute(
     sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_schema:${tableId}`}, 0))`
   )
-  await revalidate(trx)
+  return revalidate(trx)
 }
 
 /**

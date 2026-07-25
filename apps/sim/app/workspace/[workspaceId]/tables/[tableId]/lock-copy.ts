@@ -60,7 +60,9 @@ export function describeLocks(locks: TableLocks): { name: string; detail: string
   if (locked.length === LOCK_FIELDS.length) {
     return { name: 'Read-only', detail: 'no one can change this table’s rows or columns.' }
   }
-  if (!locks.insertLocked && locks.updateLocked && locks.deleteLocked) {
+  // Only the exact three-lock shape is Append-only — with the schema locked too
+  // the chip would claim columns are mutable when they aren't.
+  if (!locks.insertLocked && locks.updateLocked && locks.deleteLocked && !locks.schemaLocked) {
     return { name: 'Append-only', detail: 'rows can be added, but not edited or deleted.' }
   }
   return { name: 'Locked', detail: `${locked.join(', ')} locked.` }
