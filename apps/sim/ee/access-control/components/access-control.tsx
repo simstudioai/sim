@@ -108,6 +108,22 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
     ...groupStatusUrlKeys,
   })
 
+  /**
+   * The detail view's tab/search/status params are scoped to one group, so both
+   * transitions reset them — otherwise a stale `group-id` that never resolves
+   * leaves them in the URL and the next group opens on the previous group's tab
+   * and filters. nuqs batches these same-tick writes into one URL update.
+   */
+  const openGroupDetail = useCallback(
+    (groupId: string) => {
+      void setSelectedGroupId(groupId)
+      void setGroupTab(null)
+      void setGroupSearch(null)
+      void setGroupStatus(null)
+    },
+    [setSelectedGroupId, setGroupTab, setGroupSearch, setGroupStatus]
+  )
+
   const closeGroupDetail = useCallback(() => {
     void setSelectedGroupId(null, { history: 'replace' })
     void setGroupTab(null)
@@ -236,7 +252,7 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
                 <button
                   key={group.id}
                   type='button'
-                  onClick={() => void setSelectedGroupId(group.id)}
+                  onClick={() => openGroupDetail(group.id)}
                   className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                 >
                   <div className='flex min-w-0 flex-1 flex-col'>

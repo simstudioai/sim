@@ -409,7 +409,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
             </SettingRow>
 
             <SettingRow label='Issuer URL'>
-              <p className='break-all font-mono text-[var(--text-primary)] text-small leading-relaxed'>
+              <p className='break-all text-[var(--text-primary)] text-small'>
                 {existingProvider.issuer}
               </p>
             </SettingRow>
