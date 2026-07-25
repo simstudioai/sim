@@ -43,6 +43,12 @@ interface FileDocProviderEvents {
  */
 export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   synced = false
+  /**
+   * Latched `true` when the server elects this client to seed the document. The
+   * `seed-request` event is transient and can fire before a consumer subscribes,
+   * so consumers read this flag on subscription rather than relying on the event.
+   */
+  shouldSeed = false
 
   private disposed = false
   /** Set on a non-retryable join rejection (e.g. lost write access) so the
@@ -102,6 +108,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
   private handleSeedRequest = (data: SeedRequestPayload) => {
     if (data.fileId !== this.fileId) return
+    this.shouldSeed = true
     this.emit('seed-request', [])
   }
 

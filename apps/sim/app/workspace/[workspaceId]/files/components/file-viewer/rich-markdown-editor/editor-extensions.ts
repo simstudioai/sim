@@ -4,7 +4,7 @@ import CollaborationCaret from '@tiptap/extension-collaboration-caret'
 import Placeholder from '@tiptap/extension-placeholder'
 import type { Awareness } from 'y-protocols/awareness'
 import type * as Y from 'yjs'
-import { hexToRgb } from '@/lib/colors'
+import { withAlpha } from '@/lib/workspaces/colors'
 import { BlockMover } from './block-mover'
 import { CodeBlockWithLanguage } from './code-block'
 import { CodeBlockHighlight } from './code-highlight'
@@ -72,10 +72,9 @@ export function createMarkdownEditorExtensions({
             user: collaboration.user,
             selectionRender: (user) => {
               const hex = typeof user.color === 'string' ? user.color : '#000000'
-              const { r, g, b } = hexToRgb(hex)
               return {
                 class: 'collaboration-carets__selection',
-                style: `background-color: rgba(${r}, ${g}, ${b}, 0.2);`,
+                style: `background-color: ${withAlpha(hex, 0.2)};`,
               }
             },
           }),

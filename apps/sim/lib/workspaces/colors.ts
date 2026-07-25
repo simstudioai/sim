@@ -59,7 +59,7 @@ function hashIdentifier(identifier: string | number): number {
   return 0
 }
 
-function withAlpha(hexColor: string, alpha: number): string {
+export function withAlpha(hexColor: string, alpha: number): string {
   if (!HEX_COLOR_REGEX.test(hexColor)) {
     return hexColor
   }

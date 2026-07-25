@@ -83,14 +83,17 @@ describe('FileDocProvider', () => {
     expect(messages[0][0]).toBe(FILE_DOC_MESSAGE_TYPE.SYNC)
   })
 
-  it('emits seed-request when the server elects it to seed', () => {
+  it('emits seed-request and latches shouldSeed when the server elects it', () => {
     const { provider, fire } = createProvider(true)
     const seed = vi.fn()
     provider.on('seed-request', seed)
+    expect(provider.shouldSeed).toBe(false)
 
     fire(FILE_DOC_EVENTS.SEED_REQUEST, { fileId: 'file-1' })
 
     expect(seed).toHaveBeenCalledTimes(1)
+    // Latched so a consumer subscribing after the event can still detect election.
+    expect(provider.shouldSeed).toBe(true)
   })
 
   it('ignores acks and seed requests for a different file', () => {
@@ -103,6 +106,7 @@ describe('FileDocProvider', () => {
     fire(FILE_DOC_EVENTS.SEED_REQUEST, { fileId: 'other-file' })
 
     expect(seed).not.toHaveBeenCalled()
+    expect(provider.shouldSeed).toBe(false)
     expect(emittedMessages(emit)).toHaveLength(0)
   })
 

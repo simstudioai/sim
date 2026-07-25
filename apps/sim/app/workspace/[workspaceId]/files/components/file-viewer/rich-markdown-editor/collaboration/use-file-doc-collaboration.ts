@@ -51,12 +51,16 @@ export function useFileDocCollaboration({
 }: UseFileDocCollaborationParams): FileDocCollaboration | null {
   const { socket } = useSocket()
 
-  // The Y.Doc + Awareness are the editor's authoritative binding — lazily created
-  // once and stable for the hook's life (see sim-react-performance: lazy-init ref).
+  // The Y.Doc + Awareness are the editor's authoritative binding — created once
+  // and stable for the hook's life (see sim-react-performance: lazy-init ref).
+  // Only allocated when collaboration is enabled, so read-only / streaming /
+  // round-trip-unsafe views never build a Yjs document they won't use.
   const docRef = useRef<Y.Doc | null>(null)
-  docRef.current ??= new Y.Doc()
   const awarenessRef = useRef<Awareness | null>(null)
-  awarenessRef.current ??= new Awareness(docRef.current)
+  if (enabled && docRef.current === null) {
+    docRef.current = new Y.Doc()
+    awarenessRef.current = new Awareness(docRef.current)
+  }
 
   const [provider, setProvider] = useState<FileDocProvider | null>(null)
 
@@ -64,11 +68,9 @@ export function useFileDocCollaboration({
   // AFTER the provider effect's cleanup (cleanups run in reverse declaration
   // order) — the provider detaches from the doc/awareness before they're destroyed.
   useEffect(() => {
-    const doc = docRef.current
-    const awareness = awarenessRef.current
     return () => {
-      awareness?.destroy()
-      doc?.destroy()
+      awarenessRef.current?.destroy()
+      docRef.current?.destroy()
     }
   }, [])
 
