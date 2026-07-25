@@ -775,7 +775,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const deleteRowTable = await getTableById(args.tableId)
-          if (!deleteRowTable) {
+          // The old signature passed `workspaceId` into `deleteRow`, which scoped
+          // the query; taking a TableDefinition instead means the ownership check
+          // has to happen here, as every other operation in this tool does.
+          if (!deleteRowTable || deleteRowTable.workspaceId !== workspaceId) {
             return { success: false, message: `Table ${args.tableId} not found` }
           }
           await deleteRow(deleteRowTable, args.rowId, requestId)
@@ -1101,7 +1104,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const batchDeleteTable = await getTableById(args.tableId)
-          if (!batchDeleteTable) {
+          if (!batchDeleteTable || batchDeleteTable.workspaceId !== workspaceId) {
             return { success: false, message: `Table ${args.tableId} not found` }
           }
           const result = await deleteRowsByIds(
