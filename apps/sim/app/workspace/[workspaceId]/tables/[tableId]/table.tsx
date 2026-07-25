@@ -411,10 +411,11 @@ export function Table({
     setTableParams,
   ])
 
-  /** Save replaces `config` wholesale, so the current layout is spread back in.
-   *  With a view active that's the view's own stored layout; on "All" it's the
-   *  table metadata the grid is currently rendering from — without which "Save as
-   *  view" would create a layout-less view and then reset the grid to defaults. */
+  /** The payload for creating a view, and the left-hand side of the dirty check.
+   *  Carries the current layout so "Save as view" from "All" captures the widths /
+   *  order / pins the grid is rendering (they live in the table's shared metadata
+   *  until a view owns them) instead of creating a layout-less view that then
+   *  resets the grid. Updates never send this — they send a merge patch. */
   const currentViewConfig = useMemo<TableViewConfig>(
     () => ({
       ...(activeView?.config ?? tableData?.metadata),
@@ -468,8 +469,12 @@ export function Table({
 
   const handleSaveView = () => {
     if (activeView) {
+      // Only the fields Save owns, merged server-side — never a client-built full
+      // config. A full replace from a cached snapshot would drop a layout write
+      // still in flight (and vice versa). `null`/`[]` merge as explicit values, so
+      // clearing a filter or unhiding every column still persists as a removal.
       updateViewMutation.mutate(
-        { viewId: activeView.id, config: currentViewConfig },
+        { viewId: activeView.id, configPatch: { filter, sort: sortQuery, hiddenColumns } },
         { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save view')) }
       )
       return
