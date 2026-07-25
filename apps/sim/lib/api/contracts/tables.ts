@@ -39,11 +39,15 @@ export const selectOptionsSchema = z
 
 /**
  * Cross-field rule: a `select` column must declare a non-empty option set;
- * other types must not carry options. Skipped when `type` is absent (an
- * options-only update on an existing select column).
+ * other types must not carry options or `multiple`. Skipped when `type` is
+ * absent (an options-only update on an existing select column).
  */
 function refineColumnOptions(
-  data: { type?: (typeof COLUMN_TYPES)[number]; options?: z.infer<typeof selectOptionsSchema> },
+  data: {
+    type?: (typeof COLUMN_TYPES)[number]
+    options?: z.infer<typeof selectOptionsSchema>
+    multiple?: boolean
+  },
   ctx: z.RefinementCtx
 ): void {
   if (data.type === 'select') {
@@ -54,11 +58,23 @@ function refineColumnOptions(
         message: 'A select column must define at least one option',
       })
     }
-  } else if (data.type !== undefined && data.options && data.options.length > 0) {
+    return
+  }
+  if (data.type === undefined) return
+  if (data.options && data.options.length > 0) {
     ctx.addIssue({
       code: 'custom',
       path: ['options'],
       message: 'options are only allowed on select columns',
+    })
+  }
+  // `multiple` stored on a non-select column is inert until a later
+  // convert-to-select inherits it, silently producing a multiselect.
+  if (data.multiple) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['multiple'],
+      message: 'multiple is only allowed on select columns',
     })
   }
 }

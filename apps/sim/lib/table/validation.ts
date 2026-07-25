@@ -775,8 +775,17 @@ export function validateColumnDefinition(column: ColumnDefinition): ValidationRe
     if (column.unique) {
       errors.push(`Column "${column.name}" of type "select" cannot be unique`)
     }
-  } else if (column.options !== undefined) {
-    errors.push(`Column "${column.name}" cannot define options for type "${column.type}"`)
+  } else {
+    if (column.options !== undefined) {
+      errors.push(`Column "${column.name}" cannot define options for type "${column.type}"`)
+    }
+    // A stored `multiple` on a non-select column is inert until the column is
+    // converted, at which point `updateColumnType` inherits it — silently
+    // turning an intended single-select into a multiselect and rewriting every
+    // cell as an array.
+    if (column.multiple) {
+      errors.push(`Column "${column.name}" cannot be multiple for type "${column.type}"`)
+    }
   }
 
   return { valid: errors.length === 0, errors }

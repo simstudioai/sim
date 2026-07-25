@@ -87,6 +87,27 @@ describe('Validation', () => {
       }
     })
 
+    it('rejects select-only fields on a non-select column', () => {
+      // Both are inert on a string column, but `updateColumnType` inherits them
+      // on a later convert-to-select — options would be silently replaced and
+      // `multiple` would turn an intended single-select into a multiselect.
+      const withOptions = validateColumnDefinition({
+        name: 'status',
+        type: 'string',
+        options: [{ id: 'opt_a', name: 'Open' }],
+      })
+      expect(withOptions.valid).toBe(false)
+      expect(withOptions.errors[0]).toContain('cannot define options')
+
+      const withMultiple = validateColumnDefinition({
+        name: 'status',
+        type: 'string',
+        multiple: true,
+      })
+      expect(withMultiple.valid).toBe(false)
+      expect(withMultiple.errors[0]).toContain('cannot be multiple')
+    })
+
     it('should reject empty column name', () => {
       const result = validateColumnDefinition({ name: '', type: 'string' })
       expect(result.valid).toBe(false)
