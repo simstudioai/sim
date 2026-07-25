@@ -89,12 +89,6 @@ class TerminalError extends Error {
 /** Where the service pushes live updates; wired to the renderer by ipc.ts. */
 export interface TerminalSink {
   data(terminalId: string, data: string): void
-  /**
-   * Full scrollback for a freshly mounted panel to repaint from. The renderer
-   * resets before writing it, so anything it painted beforehand is discarded
-   * and cannot duplicate.
-   */
-  replay(terminalId: string, data: string): void
   tabs(state: TerminalTabsState): void
   command(event: TerminalCommandEvent): void
 }
@@ -141,14 +135,24 @@ export class TerminalService {
   start(options: TerminalStartOptions): TerminalTabsState {
     if (this.sessions.size === 0) {
       this.spawn(this.startingCwd(), options.cols, options.rows)
-      return this.getTabs()
-    }
-    // Adopting: the panel is mounting over shells that have been running
-    // without it, so hand back everything already on their screens.
-    for (const session of this.sessions.values()) {
-      this.sink?.replay(session.terminalId, session.takeReplaySnapshot())
     }
     return this.getTabs()
+  }
+
+  /**
+   * Everything on a terminal's screen, for a freshly created view to paint
+   * itself from.
+   *
+   * Pulled by the view rather than pushed on start. Pushing meant the repaint
+   * was aimed at whoever happened to be subscribed at the time: on a first
+   * mount that is nobody, because the tab list is still empty and no view
+   * exists yet, so the paint was dropped and the panel came up blank over a
+   * shell that had been running all along. On later mounts it was everybody,
+   * so a panel that already had its content repainted anyway. A view asking
+   * for its own terminal is right in both cases, and asks exactly once.
+   */
+  getScrollback(terminalId: string): string {
+    return this.sessions.get(terminalId)?.takeReplaySnapshot() ?? ''
   }
 
   /** Opens an additional terminal and makes it active. */

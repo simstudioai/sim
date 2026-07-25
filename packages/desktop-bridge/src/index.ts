@@ -52,12 +52,11 @@ export interface SimDesktopTerminalApi {
   /** Subscribe to PTY output batches. Returns an unsubscribe function. */
   onData(callback: (terminalId: string, data: string) => void): () => void
   /**
-   * Subscribe to full-scrollback repaints, sent when the panel attaches to a
-   * shell that was already running. Reset the terminal before writing it.
-   * Optional for compatibility with shells predating scrollback replay; without
-   * it the panel simply starts empty over a live shell.
+   * Everything already on a terminal's screen, for a new view to paint itself
+   * from. Pulled per view so the repaint cannot be aimed at the wrong set of
+   * subscribers, or at none at all.
    */
-  onReplay?(callback: (terminalId: string, data: string) => void): () => void
+  getScrollback(terminalId: string): Promise<string>
   /** Subscribe to the open-terminal list and which one is active. */
   onTabs(callback: (state: TerminalTabsState) => void): () => void
   /** Subscribe to command start/end, used for agent attribution in the panel. */

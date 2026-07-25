@@ -433,7 +433,6 @@ function main(): void {
     await localFilesystem.initialize()
     terminal.setSink({
       data: (terminalId, data) => broadcast('terminal:data', terminalId, data),
-      replay: (terminalId, data) => broadcast('terminal:replay', terminalId, data),
       tabs: (state) => broadcast('terminal:tabs', state),
       command: (event) => broadcast('terminal:command', event),
     })

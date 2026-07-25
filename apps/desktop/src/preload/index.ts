@@ -236,14 +236,8 @@ const api: SimDesktopApi = {
         ipcRenderer.removeListener('terminal:data', listener)
       }
     },
-    onReplay: (callback: (terminalId: string, data: string) => void): (() => void) => {
-      const listener = (_event: unknown, terminalId: string, data: string) =>
-        callback(terminalId, data)
-      ipcRenderer.on('terminal:replay', listener)
-      return () => {
-        ipcRenderer.removeListener('terminal:replay', listener)
-      }
-    },
+    getScrollback: (terminalId: string): Promise<string> =>
+      ipcRenderer.invoke('terminal:scrollback', terminalId),
     onTabs: (callback: (state: TerminalTabsState) => void): (() => void) => {
       const listener = (_event: unknown, state: TerminalTabsState) => callback(state)
       ipcRenderer.on('terminal:tabs', listener)

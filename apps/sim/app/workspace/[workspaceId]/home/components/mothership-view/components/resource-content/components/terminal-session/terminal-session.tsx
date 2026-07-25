@@ -22,8 +22,8 @@ import { MAX_TERMINALS } from '@sim/terminal-protocol'
 import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import {
   closeTerminal,
+  getTerminalScrollback,
   onTerminalData,
-  onTerminalReplay,
   openTerminal,
   resizeTerminal,
   startTerminalSession,
@@ -144,6 +144,7 @@ function TerminalView({ terminalId, active }: { terminalId: string; active: bool
     const host = hostRef.current
     if (!host) return
 
+    let disposed = false
     const terminal = new Terminal({
       allowProposedApi: true,
       cursorBlink: true,
@@ -171,17 +172,31 @@ function TerminalView({ terminalId, active }: { terminalId: string; active: bool
     const disposeResize = terminal.onResize(({ cols, rows }) =>
       resizeTerminal(terminalId, cols, rows)
     )
+    // The desktop app owns the scrollback, so a view opening onto a shell that
+    // has been running without it paints from what is already on that screen.
+    //
+    // Live bytes are held until that paint lands rather than written straight
+    // through: the snapshot is a moment in time, and anything arriving while
+    // it is in flight would either be wiped by the reset or, written first,
+    // appear above the history it followed. Buffering keeps the order true.
+    let painted = false
+    let buffered = ''
     const unsubscribeData = onTerminalData((id, data) => {
-      if (id === terminalId) terminal.write(data)
-    })
-    // The desktop app owns the scrollback, so a panel mounting over a shell
-    // that was already running repaints from it. Resetting first makes the
-    // repaint idempotent, so bytes that arrived before it cannot show up twice.
-    const unsubscribeReplay = onTerminalReplay((id, data) => {
       if (id !== terminalId) return
-      terminal.reset()
-      if (data) terminal.write(data)
+      if (painted) terminal.write(data)
+      else buffered += data
     })
+
+    void getTerminalScrollback(terminalId)
+      .catch(() => '')
+      .then((scrollback) => {
+        if (disposed) return
+        terminal.reset()
+        if (scrollback) terminal.write(scrollback)
+        if (buffered) terminal.write(buffered)
+        buffered = ''
+        painted = true
+      })
 
     // Resizing is debounced, and deliberately not applied to hidden tabs.
     //
@@ -212,10 +227,10 @@ function TerminalView({ terminalId, active }: { terminalId: string; active: bool
     observer.observe(host)
 
     return () => {
+      disposed = true
       if (resizeTimer) clearTimeout(resizeTimer)
       observer.disconnect()
       unsubscribeData()
-      unsubscribeReplay()
       disposeData.dispose()
       disposeResize.dispose()
       terminal.dispose()

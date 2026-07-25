@@ -583,6 +583,14 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         return deps.terminal.executeTool(toolCallId, call.operation, args)
       },
     },
+    'terminal:scrollback': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      denied: '',
+      handler: (terminalId) =>
+        typeof terminalId === 'string' ? deps.terminal.getScrollback(terminalId) : '',
+    },
     'terminal:get-tabs': {
       kind: 'invoke',
       gate: 'app-origin',
