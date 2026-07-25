@@ -849,11 +849,14 @@ export function TableGrid({
       return rowId && columnId ? { rowId, columnId } : null
     }
     const anchor = resolve(selectionAnchor)
-    const focus = resolve(selectionFocus)
-    if (!anchor || !focus) {
+    if (!anchor) {
       emitCellSelection(null)
       return
     }
+    // A single-cell click leaves `selectionFocus` null; the grid treats that as a
+    // one-cell selection at the anchor (`focus ?? anchor`). Mirror that — otherwise the
+    // most common selection would never broadcast and would clear the prior outline.
+    const focus = resolve(selectionFocus) ?? anchor
     emitCellSelection({ anchor, focus, editing: editingCell !== null })
   }, [selectionAnchor, selectionFocus, editingCell, emitCellSelection])
 
