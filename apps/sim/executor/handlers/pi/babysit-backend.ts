@@ -7,13 +7,11 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { type PiSandboxRunner, withPiSandbox } from '@/lib/execution/remote-sandbox'
-import {
-  PI_SANDBOX_MAX_LIFETIME_MS,
-  resolvePiSandboxLifetimeMs,
-} from '@/lib/execution/remote-sandbox/pi-lifetime'
+import { resolvePiSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import {
   assertBabysitPinned,
   type BabysitCheckState,
@@ -513,6 +511,11 @@ function outstandingReason(
   return fallback
 }
 
+/** Resolves the host-side run budget without imposing E2B's lifetime on other providers. */
+export function resolveBabysitExecutionBudgetMs(executionBudgetMs?: number): number {
+  return executionBudgetMs ?? resolvePiSandboxLifetimeMs() ?? getMaxExecutionTimeout()
+}
+
 /** Injectable variant used by deterministic multi-round tests. */
 export async function runBabysitPiWithOptions(
   params: PiBabysitRunParams,
@@ -540,8 +543,7 @@ export async function runBabysitPiWithOptions(
   )
   const { signal } = cancellation
   const startedAt = Date.now()
-  const lifetime =
-    params.executionBudgetMs ?? resolvePiSandboxLifetimeMs() ?? PI_SANDBOX_MAX_LIFETIME_MS
+  const lifetime = resolveBabysitExecutionBudgetMs(params.executionBudgetMs)
   if (lifetime < MIN_ROUND_BUDGET_MS) {
     cancellation.cleanup()
     throw new Error(

@@ -12,6 +12,7 @@ const {
   mockReplyAndResolve,
   mockRequestReview,
   mockReviewLanded,
+  mockResolvePiSandboxLifetime,
 } = vi.hoisted(() => ({
   mockWithPiSandbox: vi.fn(),
   mockFetchSnapshot: vi.fn(),
@@ -21,6 +22,7 @@ const {
   mockReplyAndResolve: vi.fn(),
   mockRequestReview: vi.fn(),
   mockReviewLanded: vi.fn(),
+  mockResolvePiSandboxLifetime: vi.fn(),
 }))
 
 vi.mock('@/lib/execution/remote-sandbox', () => ({
@@ -30,6 +32,14 @@ vi.mock('@/lib/execution/cancellation', () => ({
   isRedisCancellationEnabled: () => false,
   isExecutionCancelled: vi.fn().mockResolvedValue(false),
 }))
+vi.mock('@/lib/execution/remote-sandbox/pi-lifetime', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@/lib/execution/remote-sandbox/pi-lifetime')>()
+  return {
+    ...original,
+    resolvePiSandboxLifetimeMs: mockResolvePiSandboxLifetime,
+  }
+})
 vi.mock('@/executor/handlers/pi/babysit-github', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/executor/handlers/pi/babysit-github')>()
   return {
@@ -44,7 +54,11 @@ vi.mock('@/executor/handlers/pi/babysit-github', async (importOriginal) => {
   }
 })
 
-import { runBabysitPiWithOptions } from '@/executor/handlers/pi/babysit-backend'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import {
+  resolveBabysitExecutionBudgetMs,
+  runBabysitPiWithOptions,
+} from '@/executor/handlers/pi/babysit-backend'
 import { BABYSIT_ROUND_PATH } from '@/executor/handlers/pi/babysit-round'
 import type { PiBabysitRunParams } from '@/executor/handlers/pi/backend'
 import { DIFF_PATH } from '@/executor/handlers/pi/cloud-shared'
@@ -195,6 +209,7 @@ function makeRunner(options: {
 describe('runBabysitPiWithOptions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockResolvePiSandboxLifetime.mockReturnValue(undefined)
     mockFetchDiagnostics.mockResolvedValue(new Map([['check:ci', 'failure output']]))
     mockReplyAndResolve.mockResolvedValue({
       repliesPosted: 1,
@@ -211,6 +226,10 @@ describe('runBabysitPiWithOptions', () => {
       failures: [],
     })
     mockReviewLanded.mockResolvedValue(false)
+  })
+
+  it('uses the platform execution budget when the provider has no absolute lifetime', () => {
+    expect(resolveBabysitExecutionBudgetMs()).toBe(getMaxExecutionTimeout())
   })
 
   it('returns clean before sandbox creation when the PR already needs nothing', async () => {
