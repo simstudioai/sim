@@ -56,6 +56,8 @@
     "mship:check": "bun run scripts/generate-mship-contracts.ts --check",
     "skills:sync": "bun run scripts/sync-skills.ts",
     "skills:check": "bun run scripts/sync-skills.ts --check",
+    "agent-stream-docs:generate": "bun run scripts/sync-agent-stream-docs.ts",
+    "agent-stream-docs:check": "bun run scripts/sync-agent-stream-docs.ts --check",
     "prepare": "bun husky",
     "type-check": "turbo run type-check",
     "release": "bun run scripts/create-single-release.ts"
@@ -68,7 +70,14 @@
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.5",
     "minimatch": "^10.2.5",
-    "mermaid": "11.15.0"
+    "mermaid": "11.15.0",
+    "zod": "4.3.6"
+  },
+  "optionalDependencies": {
+    "@next/swc-darwin-arm64": "16.2.11",
+    "@next/swc-darwin-x64": "16.2.11",
+    "@next/swc-linux-arm64-gnu": "16.2.11",
+    "@next/swc-linux-x64-gnu": "16.2.11"
   },
   "devDependencies": {
     "@biomejs/biome": "2.0.0-beta.5",
@@ -86,6 +95,7 @@
     ]
   },
   "trustedDependencies": [
+    "isolated-vm",
     "sharp"
   ],
   "dependencies": {

@@ -36,8 +36,8 @@ export function MentionChipView({ node, editor }: ReactNodeViewProps) {
   const router = useRouter()
   const params = useParams()
   const { kind, id, label } = node.attrs as MentionAttrs
-  const Icon = mentionIcon(kind, id) as StyleableIcon
-  const iconStyle = getBareIconStyle(Icon)
+  const Icon = mentionIcon(kind, id, label) as StyleableIcon | undefined
+  const iconStyle = Icon ? getBareIconStyle(Icon) : undefined
   const navigable = editor.storage.mention?.navigable === true
   const workspaceId = typeof params.workspaceId === 'string' ? params.workspaceId : undefined
   const path = navigable && workspaceId ? simLinkPath(workspaceId, kind, id) : null
@@ -55,7 +55,7 @@ export function MentionChipView({ node, editor }: ReactNodeViewProps) {
       onClick={path ? handleClick : undefined}
       title={label}
     >
-      <Icon style={iconStyle} />
+      {Icon && <Icon style={iconStyle} />}
       <span>{label}</span>
     </NodeViewWrapper>
   )

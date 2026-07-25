@@ -28,6 +28,7 @@ import {
   backfillCanonicalModes,
   migrateSubblockIds,
 } from '@/lib/workflows/migrations/subblock-migrations'
+import { backfillWhatsAppInteractiveType } from '@/lib/workflows/migrations/whatsapp-interactive-type'
 import { supersedeInFlightDeploymentOperations } from '@/lib/workflows/persistence/deployment-operations'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
 
@@ -277,6 +278,11 @@ const applyBlockMigrations = createMigrationPipeline([
     return { ...ctx, blocks, migrated: ctx.migrated || migrated }
   },
 
+  (ctx) => {
+    const { blocks, migrated } = backfillWhatsAppInteractiveType(ctx.blocks)
+    return { ...ctx, blocks, migrated: ctx.migrated || migrated }
+  },
+
   async (ctx) => {
     const { blocks, migrated } = await migrateCredentialIds(
       ctx.blocks,
@@ -460,8 +466,9 @@ async function migrateCredentialIds(
 /**
  * Load workflow from normalized tables and apply all block migrations
  * (credential ID rewrites, agent message migration, subblock ID migrations,
- * canonical-mode backfill, tool sanitization). Returns null if the workflow
- * has not been migrated to normalized tables yet.
+ * WhatsApp interactive-type backfill, canonical-mode backfill, tool
+ * sanitization). Returns null if the workflow has not been migrated to
+ * normalized tables yet.
  */
 export async function loadWorkflowFromNormalizedTables(
   workflowId: string,

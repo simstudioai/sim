@@ -32,7 +32,12 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
       .from(chat)
       .where(and(eq(chat.userId, session.user.id), isNull(chat.archivedAt)))
 
-    return createSuccessResponse({ deployments })
+    return createSuccessResponse({
+      deployments: deployments.map((deployment) => ({
+        ...deployment,
+        includeToolCalls: deployment.includeToolCalls ?? deployment.includeThinking,
+      })),
+    })
   } catch (error) {
     logger.error('Error fetching chat deployments:', error)
     return createErrorResponse(getErrorMessage(error, 'Failed to fetch chat deployments'), 500)
@@ -68,6 +73,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       password,
       allowedEmails = [],
       outputConfigs = [],
+      includeThinking = false,
+      includeToolCalls = false,
     } = parsed.data.body
 
     if (authType === 'password' && !password) {
@@ -127,6 +134,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       password,
       allowedEmails,
       outputConfigs,
+      includeThinking,
+      includeToolCalls,
       workspaceId: workflowRecord.workspaceId,
     })
 

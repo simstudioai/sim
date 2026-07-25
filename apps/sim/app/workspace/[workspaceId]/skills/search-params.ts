@@ -3,20 +3,18 @@ import { parseAsString } from 'nuqs/server'
 /**
  * Co-located, typed URL query-param definition for the Skills gallery.
  *
- * `skillId` deep-links the skill edit modal to a specific skill. The modal
- * opens when a valid id (one that resolves to a loaded skill) is present;
- * closing it clears the param. Opening a skill is a destination, so it lands in
- * the browser history (`history: 'push'`). The "create new skill" flow has no id
- * and stays in local component state.
+ * `skillId` is a LEGACY deep-link param from when skills edited in a modal on
+ * this page. Skills now open at `/workspace/[workspaceId]/skills/[skillId]`;
+ * the gallery reads this param once and redirects there (read-then-strip).
  */
 export const skillIdParam = {
   key: 'skillId',
   parser: parseAsString,
 } as const
 
-/** Opening a skill is a destination → push to history; clear on close. */
+/** Read-once redirect signal — replace history, never linger. */
 export const skillIdUrlKeys = {
-  history: 'push',
+  history: 'replace',
   clearOnDefault: true,
 } as const
 

@@ -1,5 +1,6 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -59,6 +60,7 @@ import {
   FUNCTION_BLOCK_DISPLAY_CODE_KEY,
   type VariableResolver,
 } from '@/executor/variables/resolver'
+import { createAgentStreamPump } from '@/providers/stream-pump'
 import type { SerializedBlock } from '@/serializer/types'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
@@ -176,6 +178,7 @@ export class BlockExecutor {
     }
     cleanupSelfReference?.()
 
+    let streamingPartialOutput: Record<string, any> | undefined
     try {
       const output = handler.executeWithNode
         ? await handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
@@ -188,21 +191,24 @@ export class BlockExecutor {
       if (isStreamingExecution) {
         const streamingExec = output as StreamingExecution
 
-        // The stream must still be drained to populate `execution.output`, but
-        // forwarding raw chunks to the client (or persisting them to memory)
-        // before redaction would leak PII. When block-output redaction is on we
-        // drain in buffer-only mode (no `onStream`, content masked before it's
-        // stored); the masked final output reaches the client via block-complete.
-        if (ctx.onStream) {
+        // Always drain via the agent stream pump (tokens/cost/timing callbacks),
+        // even with no `onStream`. When block-output redaction is on we do not
+        // live-forward chunks; content is masked before persist and the masked
+        // final output reaches the client via block-complete.
+        try {
           await this.handleStreamingExecution(
             ctx,
             node,
             block,
             streamingExec,
             resolvedInputs,
-            normalizeStringArray(ctx.selectedOutputs),
-            !ctx.piiBlockOutputRedaction?.enabled
+            normalizeStringArray(ctx.selectedOutputs)
           )
+        } catch (streamError) {
+          // Timeout / drain failures may still have projected answer text — keep it
+          // for the failed block output so logs match what the client already saw.
+          streamingPartialOutput = streamingExec.execution?.output
+          throw streamError
         }
 
         normalizedOutput = this.normalizeOutput(
@@ -315,7 +321,8 @@ export class BlockExecutor {
         blockLog,
         inputsForLog,
         isSentinel,
-        'execution'
+        'execution',
+        streamingPartialOutput
       )
     }
   }
@@ -372,7 +379,8 @@ export class BlockExecutor {
     blockLog: BlockLog | undefined,
     inputsForLog: Record<string, any>,
     isSentinel: boolean,
-    phase: 'input_resolution' | 'execution'
+    phase: 'input_resolution' | 'execution',
+    streamingPartialOutput?: Record<string, any>
   ): Promise<NormalizedBlockOutput> {
     const endedAt = new Date().toISOString()
     const duration = performance.now() - startTime
@@ -383,8 +391,63 @@ export class BlockExecutor {
       ? inputsForLog
       : ((block.config?.params as Record<string, any> | undefined) ?? {})
 
+    // Routine user Stop on Agent streams: don't paint a failed agent block
+    // (workflow is already cancelled). Timeouts abort with reason `'timeout'`.
+    // Non-agent blocks (HTTP, Function, etc.) still fail normally on AbortError
+    // so logs don't show a green empty success.
+    const isAbort =
+      (error instanceof DOMException && error.name === 'AbortError') ||
+      (error instanceof Error && error.name === 'AbortError')
+    const isTimeout = isTimeoutAbortReason(ctx.abortSignal?.reason)
+    const isAgentBlock = block.metadata?.id === BlockType.AGENT
+    if (isAbort && !isTimeout && ctx.abortSignal?.aborted && isAgentBlock) {
+      const softOutput: NormalizedBlockOutput = {
+        content: '',
+      }
+
+      this.setNodeOutput(node, softOutput, duration)
+
+      if (blockLog) {
+        blockLog.endedAt = endedAt
+        blockLog.durationMs = duration
+        blockLog.success = true
+        blockLog.error = undefined
+        blockLog.input = this.sanitizeInputsForLog(input, block.metadata?.id)
+        blockLog.output = filterOutputForLog(block.metadata?.id || '', softOutput, { block })
+      }
+
+      this.execLogger.info('Block stream aborted by client; soft-completing', {
+        blockId: node.id,
+        blockType: block.metadata?.id,
+      })
+
+      if (!isSentinel && blockLog) {
+        this.fireBlockCompleteCallback(
+          blockStartPromise,
+          ctx,
+          node,
+          block,
+          this.sanitizeInputsForLog(input, block.metadata?.id),
+          filterOutputForLog(block.metadata?.id || '', softOutput, { block }),
+          duration,
+          blockLog.startedAt,
+          blockLog.executionOrder,
+          blockLog.endedAt
+        )
+      }
+
+      return softOutput
+    }
+
     const errorOutput: NormalizedBlockOutput = {
       error: errorMessage,
+    }
+
+    // Keep any answer text already drained before timeout/failure so logs match
+    // what was projected to the client.
+    const partialContent = streamingPartialOutput?.content
+    if (typeof partialContent === 'string' && partialContent) {
+      errorOutput.content = partialContent
     }
 
     if (ChildWorkflowError.isChildWorkflowError(error)) {
@@ -774,119 +837,125 @@ export class BlockExecutor {
     block: SerializedBlock,
     streamingExec: StreamingExecution,
     resolvedInputs: Record<string, any>,
-    selectedOutputs: string[],
-    forwardToClient = true
+    selectedOutputs: string[]
   ): Promise<void> {
     const blockId = node.id
+    const piiEnabled = Boolean(ctx.piiBlockOutputRedaction?.enabled)
+    // Live-forward only when a client stream exists and PII redaction is off.
+    const forwardToClient = Boolean(ctx.onStream) && !piiEnabled
 
     const responseFormat =
       resolvedInputs?.responseFormat ??
       (block.config?.params as Record<string, any> | undefined)?.responseFormat ??
       (block.config as Record<string, any> | undefined)?.responseFormat
 
-    const sourceReader = streamingExec.stream.getReader()
-    const decoder = new TextDecoder()
-    const accumulated: string[] = []
-    let drainError: unknown
-    let sourceFullyDrained = false
+    const streamFormat = streamingExec.streamFormat ?? 'text'
+    const pump = createAgentStreamPump({
+      source: streamingExec.stream,
+      streamFormat,
+      // No live consumer → sink-mode so we never buffer into an unread text stream.
+      sinkMode: !forwardToClient,
+      abortSignal: ctx.abortSignal,
+    })
 
-    if (forwardToClient) {
-      const clientSource = new ReadableStream<Uint8Array>({
-        async pull(controller) {
-          try {
-            const { done, value } = await sourceReader.read()
-            if (done) {
-              const tail = decoder.decode()
-              if (tail) accumulated.push(tail)
-              sourceFullyDrained = true
-              controller.close()
-              return
-            }
-            accumulated.push(decoder.decode(value, { stream: true }))
-            controller.enqueue(value)
-          } catch (error) {
-            drainError = error
-            controller.error(error)
-          }
-        },
-        async cancel(reason) {
-          try {
-            await sourceReader.cancel(reason)
-          } catch {}
-        },
-      })
+    let onStreamPromise: Promise<void> | undefined
+    let processedClientStream: ReadableStream<Uint8Array> | undefined
 
-      const processedClientStream = streamingResponseFormatProcessor.processStream(
-        clientSource,
+    if (forwardToClient && ctx.onStream && pump.textStream) {
+      processedClientStream = streamingResponseFormatProcessor.processStream(
+        pump.textStream,
         blockId,
         selectedOutputs,
         responseFormat
       )
 
-      try {
-        await ctx.onStream?.({
+      // Start onStream without awaiting so a sync `subscribe(sink)` can run before
+      // the first provider pull, then read the projected text stream concurrently
+      // with `pump.run()`.
+      onStreamPromise = ctx
+        .onStream({
+          ...streamingExec,
           stream: processedClientStream,
-          execution: streamingExec.execution,
+          streamFormat: 'text',
+          subscribe: pump.subscribe,
+          // processStream returns the input stream identity when no
+          // response-format extraction applies.
+          clientStreamTransformed: processedClientStream !== pump.textStream,
         })
-      } catch (error) {
-        this.execLogger.error('Error in onStream callback', { blockId, error })
-        await processedClientStream.cancel().catch(() => {})
-      } finally {
-        try {
-          sourceReader.releaseLock()
-        } catch {}
-      }
-    } else {
-      // Buffer-only drain: consume the source so `execution.output` is complete,
-      // but never forward raw chunks to the client (block-output redaction is on).
-      try {
-        while (true) {
-          const { done, value } = await sourceReader.read()
-          if (done) {
-            const tail = decoder.decode()
-            if (tail) accumulated.push(tail)
-            sourceFullyDrained = true
-            break
-          }
-          accumulated.push(decoder.decode(value, { stream: true }))
-        }
-      } catch (error) {
-        drainError = error
-      } finally {
-        try {
-          sourceReader.releaseLock()
-        } catch {}
-      }
+        .catch(async (error) => {
+          this.execLogger.error('Error in onStream callback', { blockId, error })
+          await processedClientStream?.cancel().catch(() => {})
+        })
     }
 
-    if (drainError) {
-      this.execLogger.error('Error reading stream for block', { blockId, error: drainError })
+    let pumpResult
+    try {
+      pumpResult = await pump.run()
+    } catch (error) {
+      this.execLogger.error('Error reading stream for block', { blockId, error })
+      if (onStreamPromise) {
+        await onStreamPromise.catch(() => {})
+      }
+      throw error instanceof Error ? error : new Error(String(error))
+    }
+
+    if (onStreamPromise) {
+      await onStreamPromise
+    }
+
+    // Timeout still fails the block, but keep any drained answer text so logs
+    // match what was already projected to the client before the deadline.
+    // User Stop soft-completes below so logs don't show a scary red agent block
+    // for a routine cancel (workflow status remains `cancelled` via abort).
+    if (pumpResult.cancelled && pumpResult.cancelReason === 'timeout') {
+      const truncated = pumpResult.answerText
+      if (truncated && streamingExec.execution?.output) {
+        streamingExec.execution.output.content = truncated
+      }
+      this.execLogger.warn('Stream timed out; persisting drained answer before failing block', {
+        blockId,
+        hasContent: Boolean(truncated),
+      })
+      throw new DOMException('Provider request timed out', 'AbortError')
+    }
+
+    // Provider onComplete may have attached thinking to timing segments during drain.
+    // Under PII redaction, never retain raw thinking in traces.
+    if (piiEnabled) {
+      stripThinkingContentFromOutput(streamingExec.execution?.output)
+    }
+
+    // User/unknown cancel: persist truncated answer when present, then return.
+    if (pumpResult.cancelled) {
+      const truncated = pumpResult.answerText
+      if (truncated && streamingExec.execution?.output) {
+        streamingExec.execution.output.content = truncated
+      }
+      this.execLogger.info('Stream cancelled by client; soft-completing agent block', {
+        blockId,
+        cancelReason: pumpResult.cancelReason,
+        hasContent: Boolean(truncated),
+      })
       return
     }
 
-    // If the onStream consumer exited before the source drained (e.g. it caught
-    // an internal error and returned normally), `accumulated` holds a truncated
-    // response. Persisting that to memory or setting it as the block output
-    // would corrupt downstream state — skip and log instead.
-    if (!sourceFullyDrained) {
+    // If the pump did not fully drain (should be rare when not cancelled), skip
+    // persistence of potentially truncated answer text.
+    if (!pumpResult.fullyDrained) {
       this.execLogger.warn(
         'Stream consumer exited before source drained; skipping content persistence',
-        {
-          blockId,
-        }
+        { blockId }
       )
       return
     }
 
-    let fullContent = accumulated.join('')
+    let fullContent = pumpResult.answerText
     if (!fullContent) {
       return
     }
 
-    if (!forwardToClient && ctx.piiBlockOutputRedaction?.enabled) {
-      // Mask before the content is written to `execution.output` or persisted to
-      // memory via `onFullContent`, so the streamed agent response can't leak PII
-      // through either path. The block-output redaction below is then idempotent.
+    if (piiEnabled && ctx.piiBlockOutputRedaction) {
+      // Mask before writing to `execution.output` or `onFullContent`.
       fullContent = await redactObjectStrings(fullContent, {
         entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
         language: ctx.piiBlockOutputRedaction.language,
@@ -928,6 +997,19 @@ export class BlockExecutor {
       } catch (error) {
         this.execLogger.error('onFullContent callback failed', { blockId, error })
       }
+    }
+  }
+}
+
+/** Removes retained thinking from provider timing segments (PII safe default). */
+function stripThinkingContentFromOutput(output: unknown): void {
+  if (!output || typeof output !== 'object') return
+  const providerTiming = (output as { providerTiming?: { timeSegments?: unknown } }).providerTiming
+  const segments = providerTiming?.timeSegments
+  if (!Array.isArray(segments)) return
+  for (const segment of segments) {
+    if (segment && typeof segment === 'object' && 'thinkingContent' in segment) {
+      ;(segment as { thinkingContent?: string }).thinkingContent = undefined
     }
   }
 }

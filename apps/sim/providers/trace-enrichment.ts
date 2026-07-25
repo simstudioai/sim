@@ -1,5 +1,9 @@
 import type { BlockTokens, IterationToolCall, ProviderTimingSegment } from '@/executor/types'
-import { calculateCost } from '@/providers/utils'
+import { LIST_PRICE_POLICY, priceModelUsage } from '@/providers/cost-policy'
+import {
+  getOpenRouterReasoningDetailText,
+  type OpenRouterReasoningDetail,
+} from '@/providers/openrouter/reasoning'
 
 /**
  * Minimal structural shape shared by OpenAI Chat Completions and every
@@ -15,10 +19,7 @@ interface ChatCompletionLike {
       tool_calls?: Array<ChatCompletionToolCallLike> | null
       reasoning_content?: string | null
       reasoning?: string | null
-      reasoning_details?: Array<{
-        text?: string | null
-        summary?: string | null
-      } | null> | null
+      reasoning_details?: OpenRouterReasoningDetail[] | null
     } | null
     finish_reason?: string | null
   } | null>
@@ -141,8 +142,8 @@ function extractChatCompletionsReasoning(
   }
   if (Array.isArray(message.reasoning_details)) {
     const joined = message.reasoning_details
-      .map((d) => d?.text ?? d?.summary ?? '')
-      .filter((s): s is string => typeof s === 'string' && s.length > 0)
+      .map(getOpenRouterReasoningDetailText)
+      .filter((text) => text.length > 0)
       .join('\n')
     if (joined.length > 0) return joined
   }
@@ -193,7 +194,17 @@ export function enrichLastModelSegmentFromChatCompletions(
 
   let derivedCost = extras?.cost
   if (!derivedCost && extras?.model && promptTokens != null && completionTokens != null) {
-    const full = calculateCost(extras.model, promptTokens, completionTokens, cacheRead > 0)
+    // OpenAI-compatible vendors report cached tokens as a subset of the prompt
+    // total, so the uncached remainder is the subtraction.
+    const full = priceModelUsage(
+      extras.model,
+      {
+        input: Math.max(0, promptTokens - cacheRead),
+        output: completionTokens,
+        cacheRead,
+      },
+      LIST_PRICE_POLICY
+    )
     derivedCost = { input: full.input, output: full.output, total: full.total }
   }
 

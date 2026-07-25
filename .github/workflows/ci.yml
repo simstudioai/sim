@@ -104,7 +104,7 @@ jobs:
     name: Build Dev ECR
     needs: [detect-version, migrate-dev]
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || matrix.gh_runner }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.bs_runner || matrix.gh_runner }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -115,18 +115,25 @@ jobs:
         include:
           # Only the app image needs the paid 8-core/32 GB runner: next build
           # exhausts the free 16 GB one (exit 137). The others build in <5 min.
+          # bs_runner mirrors that per-image sizing on Blacksmith — a single
+          # pinned tier put every image on 8 vCPU, where the non-app builds idle
+          # at 12-15% CPU and under 10% memory.
           - dockerfile: ./docker/app.Dockerfile
             ecr_repo_secret: ECR_APP
             gh_runner: linux-x64-8-core
+            bs_runner: blacksmith-8vcpu-ubuntu-2404
           - dockerfile: ./docker/db.Dockerfile
             ecr_repo_secret: ECR_MIGRATIONS
             gh_runner: ubuntu-latest
+            bs_runner: blacksmith-2vcpu-ubuntu-2404
           - dockerfile: ./docker/realtime.Dockerfile
             ecr_repo_secret: ECR_REALTIME
             gh_runner: ubuntu-latest
+            bs_runner: blacksmith-4vcpu-ubuntu-2404
           - dockerfile: ./docker/pii.Dockerfile
             ecr_repo_secret: ECR_PII
             gh_runner: ubuntu-latest
+            bs_runner: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -215,7 +222,7 @@ jobs:
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || matrix.gh_runner }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.bs_runner || matrix.gh_runner }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -229,18 +236,22 @@ jobs:
             ghcr_image: ghcr.io/simstudioai/simstudio
             ecr_repo_secret: ECR_APP
             gh_runner: linux-x64-8-core
+            bs_runner: blacksmith-8vcpu-ubuntu-2404
           - dockerfile: ./docker/db.Dockerfile
             ghcr_image: ghcr.io/simstudioai/migrations
             ecr_repo_secret: ECR_MIGRATIONS
             gh_runner: ubuntu-latest
+            bs_runner: blacksmith-2vcpu-ubuntu-2404
           - dockerfile: ./docker/realtime.Dockerfile
             ghcr_image: ghcr.io/simstudioai/realtime
             ecr_repo_secret: ECR_REALTIME
             gh_runner: ubuntu-latest
+            bs_runner: blacksmith-4vcpu-ubuntu-2404
           - dockerfile: ./docker/pii.Dockerfile
             ghcr_image: ghcr.io/simstudioai/pii
             ecr_repo_secret: ECR_PII
             gh_runner: ubuntu-latest
+            bs_runner: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -387,7 +398,7 @@ jobs:
   # never moves a documented tag.
   build-ghcr-arm64:
     name: Build ARM64 (GHCR Only)
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404-arm' || matrix.gh_runner }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.bs_runner || matrix.gh_runner }}
     timeout-minutes: 30
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
@@ -396,19 +407,27 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Non-app images sit at 4 vCPU rather than the finer x64 split: the ARM
+        # sizing data is job-level (8 -> 4 for the whole matrix), not per-image,
+        # and this job only runs on push to main — an unprovisioned label would
+        # hang a release in `queued` rather than fail a PR.
         include:
           - dockerfile: ./docker/app.Dockerfile
             image: ghcr.io/simstudioai/simstudio
             gh_runner: linux-arm64-8-core
+            bs_runner: blacksmith-8vcpu-ubuntu-2404-arm
           - dockerfile: ./docker/db.Dockerfile
             image: ghcr.io/simstudioai/migrations
             gh_runner: ubuntu-24.04-arm
+            bs_runner: blacksmith-4vcpu-ubuntu-2404-arm
           - dockerfile: ./docker/realtime.Dockerfile
             image: ghcr.io/simstudioai/realtime
             gh_runner: ubuntu-24.04-arm
+            bs_runner: blacksmith-4vcpu-ubuntu-2404-arm
           - dockerfile: ./docker/pii.Dockerfile
             image: ghcr.io/simstudioai/pii
             gh_runner: ubuntu-24.04-arm
+            bs_runner: blacksmith-4vcpu-ubuntu-2404-arm
 
     steps:
       - name: Checkout code

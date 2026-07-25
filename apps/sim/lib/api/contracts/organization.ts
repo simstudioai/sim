@@ -194,6 +194,51 @@ export const organizationSessionPolicyResponseSchema = z.object({
   data: organizationSessionPolicyDataSchema,
 })
 
+export const MAX_ORGANIZATION_DOMAINS = 25
+
+export const organizationDomainParamsSchema = z.object({
+  id: z.string().min(1),
+  domainId: z.string().min(1),
+})
+
+export const addOrganizationDomainBodySchema = z.object({
+  domain: z.string().min(1, 'Domain is required').max(253, 'Domain is too long'),
+})
+
+export type AddOrganizationDomainBody = z.input<typeof addOrganizationDomainBodySchema>
+
+export const organizationDomainStatusSchema = z.enum(['pending', 'verified'])
+
+const organizationDomainSchema = z.object({
+  id: z.string(),
+  domain: z.string(),
+  status: organizationDomainStatusSchema,
+  verifiedAt: z.string().nullable(),
+  /** DNS host the TXT record must live on (e.g. `_sim-challenge.acme.com`). */
+  challengeHost: z.string(),
+  /** Exact TXT record value the org must publish. Null for grandfathered/verified rows. */
+  txtRecordValue: z.string().nullable(),
+})
+
+export type OrganizationDomain = z.output<typeof organizationDomainSchema>
+
+const organizationDomainsDataSchema = z.object({
+  isEnterprise: z.boolean(),
+  domains: z.array(organizationDomainSchema),
+})
+
+export type OrganizationDomains = z.output<typeof organizationDomainsDataSchema>
+
+export const listOrganizationDomainsResponseSchema = z.object({
+  success: z.boolean(),
+  data: organizationDomainsDataSchema,
+})
+
+export const organizationDomainResponseSchema = z.object({
+  success: z.boolean(),
+  data: z.object({ domain: organizationDomainSchema }),
+})
+
 export const revokeOrganizationSessionsResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
@@ -578,6 +623,47 @@ export const revokeOrganizationSessionsContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: revokeOrganizationSessionsResponseSchema,
+  },
+})
+
+export const listOrganizationDomainsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/domains',
+  params: organizationParamsSchema,
+  response: {
+    mode: 'json',
+    schema: listOrganizationDomainsResponseSchema,
+  },
+})
+
+export const addOrganizationDomainContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/organizations/[id]/domains',
+  params: organizationParamsSchema,
+  body: addOrganizationDomainBodySchema,
+  response: {
+    mode: 'json',
+    schema: organizationDomainResponseSchema,
+  },
+})
+
+export const verifyOrganizationDomainContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/organizations/[id]/domains/[domainId]/verify',
+  params: organizationDomainParamsSchema,
+  response: {
+    mode: 'json',
+    schema: organizationDomainResponseSchema,
+  },
+})
+
+export const removeOrganizationDomainContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/organizations/[id]/domains/[domainId]',
+  params: organizationDomainParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ success: z.boolean() }),
   },
 })
 

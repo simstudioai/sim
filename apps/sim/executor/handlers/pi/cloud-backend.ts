@@ -15,7 +15,7 @@
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
-import { withPiSandbox } from '@/lib/execution/e2b'
+import { withPiSandbox } from '@/lib/execution/remote-sandbox'
 import type { PiBackendRun, PiCloudRunParams } from '@/executor/handlers/pi/backend'
 import {
   CLONE_TIMEOUT_MS,

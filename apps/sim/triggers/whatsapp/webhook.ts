@@ -1,5 +1,5 @@
 import { WhatsAppIcon } from '@/components/icons'
-import type { TriggerConfig } from '../types'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const whatsappWebhookTrigger: TriggerConfig = {
   id: 'whatsapp_webhook',
@@ -104,6 +104,19 @@ export const whatsappWebhookTrigger: TriggerConfig = {
     messageType: {
       type: 'string',
       description: 'Type of the first incoming message in the batch (text, image, system, etc.)',
+    },
+    mediaId: {
+      type: 'string',
+      description:
+        'Media asset ID from the first incoming media message. Pass to the Download Media operation to fetch the file. Expires after 7 days.',
+    },
+    mediaMimeType: {
+      type: 'string',
+      description: 'MIME type of the first incoming media message',
+    },
+    caption: {
+      type: 'string',
+      description: 'Caption on the first incoming image, video, or document message',
     },
     status: {
       type: 'string',

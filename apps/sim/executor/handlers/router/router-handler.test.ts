@@ -204,6 +204,34 @@ describe('RouterBlockHandler', () => {
     })
   })
 
+  it('bills the cost the provider proxy decided rather than recomputing it', async () => {
+    // The proxy already resolved key provenance and the margin; recomputing
+    // here would re-charge a BYOK caller the proxy correctly zeroed.
+    mockFetch.mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: 'target-block-1',
+            model: 'mock-model',
+            tokens: { input: 100, output: 5, total: 105 },
+            cost: { input: 0.004, output: 0.002, total: 0.006 },
+            timing: { total: 300 },
+          }),
+      })
+    )
+
+    const result = await handler.execute(mockContext, mockBlock, {
+      prompt: 'Choose the best option.',
+    })
+
+    expect((result as { cost: unknown }).cost).toEqual({
+      input: 0.004,
+      output: 0.002,
+      total: 0.006,
+    })
+  })
+
   it('should throw error if target block is missing', async () => {
     const inputs = { prompt: 'Test' }
     mockContext.workflow!.blocks = [mockBlock, mockTargetBlock2]

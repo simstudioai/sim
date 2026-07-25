@@ -4530,12 +4530,14 @@ import {
   webflowUpdateItemTool,
 } from '@/tools/webflow'
 import {
+  whatsappGetMediaTool,
   whatsappMarkReadTool,
   whatsappSendInteractiveTool,
   whatsappSendMediaTool,
   whatsappSendMessageTool,
   whatsappSendReactionTool,
   whatsappSendTemplateTool,
+  whatsappUploadMediaTool,
 } from '@/tools/whatsapp'
 import {
   wikipediaPageContentTool,
@@ -5928,6 +5930,8 @@ export const tools: Record<string, ToolConfig> = {
   whatsapp_send_interactive: whatsappSendInteractiveTool,
   whatsapp_send_reaction: whatsappSendReactionTool,
   whatsapp_mark_read: whatsappMarkReadTool,
+  whatsapp_upload_media: whatsappUploadMediaTool,
+  whatsapp_get_media: whatsappGetMediaTool,
   x_write: xWriteTool,
   x_read: xReadTool,
   x_search: xSearchTool,

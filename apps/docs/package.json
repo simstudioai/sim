@@ -41,7 +41,7 @@
     "tailwind-merge": "^3.0.2",
     "reactflow": "^11.11.4",
     "framer-motion": "^12.5.0",
-    "zod": "^4.3.6"
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",

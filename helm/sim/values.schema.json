@@ -94,10 +94,6 @@
                 "name": {
                   "type": "string",
                   "description": "Name of the existing Kubernetes secret"
-                },
-                "keys": {
-                  "type": "object",
-                  "description": "Key name mappings in the existing secret"
                 }
               }
             }
@@ -577,10 +573,6 @@
                 "name": {
                   "type": "string",
                   "description": "Name of the existing Kubernetes secret"
-                },
-                "passwordKey": {
-                  "type": "string",
-                  "description": "Key in the secret containing the password"
                 }
               }
             }
@@ -634,10 +626,6 @@
             "name": {
               "type": "string",
               "description": "Name of the existing Kubernetes secret"
-            },
-            "passwordKey": {
-              "type": "string",
-              "description": "Key in the secret containing the password"
             }
           }
         }
@@ -1202,8 +1190,81 @@
           }
         }
       }
+    },
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name used in resource names"
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the fully qualified release name used in resource names"
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Pod affinity/anti-affinity rules applied to app and realtime pods"
+    },
+    "branding": {
+      "type": "object",
+      "description": "Whitelabel branding configuration (logos, names, colors)"
+    },
+    "certManager": {
+      "type": "object",
+      "description": "Chart-managed cert-manager issuers (self-signed bootstrap + CA) for postgresql.tls"
+    },
+    "cronjobs": {
+      "type": "object",
+      "description": "Scheduled jobs (schedule execution, polling, reconciliation)"
+    },
+    "extraEnvVars": {
+      "type": "array",
+      "description": "Additional environment variables added to app and realtime containers"
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Additional volume mounts added to app and realtime containers"
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Additional volumes added to app and realtime pods"
+    },
+    "ingressInternal": {
+      "type": "object",
+      "description": "Secondary internal ingress configuration"
+    },
+    "migrations": {
+      "type": "object",
+      "description": "Database migrations init-container configuration"
+    },
+    "monitoring": {
+      "type": "object",
+      "description": "Prometheus Operator ServiceMonitor configuration"
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "NetworkPolicy toggles and custom ingress/egress rules"
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Annotations added to app and realtime pods"
+    },
+    "podDisruptionBudget": {
+      "type": "object",
+      "description": "PodDisruptionBudget configuration for app and realtime"
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Labels added to app and realtime pods"
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount creation, name, and annotations (e.g. Workload Identity)"
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations applied to app and realtime pods"
     }
   },
+  "additionalProperties": false,
   "allOf": [
     {
       "if": {

@@ -16,29 +16,26 @@
  */
 
 import { defaultBuildLogger, Template, waitForTimeout } from '@e2b/code-interpreter'
+import {
+  PI_APT,
+  PI_NODE_MAJOR,
+  PI_NODE_VERSION_ASSERT,
+  PI_NPM,
+} from '@/scripts/pi-sandbox-packages'
 
 const DEFAULT_TEMPLATE_NAME = 'sim-pi'
 
-/** Exact first-party Pi versions mirrored from bun.lock because E2B builds run npm independently. */
-const PI_PACKAGES = [
-  '@earendil-works/pi-coding-agent@0.80.10',
-  '@earendil-works/pi-agent-core@0.80.10',
-  '@earendil-works/pi-ai@0.80.10',
-  '@earendil-works/pi-tui@0.80.10',
-] as const
-
 /** Pi 0.80 requires Node >=22.19; E2B's code-interpreter base currently ships Node 20. */
-const INSTALL_NODE_COMMAND =
-  'curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs && node -e "const [major, minor] = process.versions.node.split(\'.\').map(Number); if (major < 22 || (major === 22 && minor < 19)) process.exit(1)"'
+const INSTALL_NODE_COMMAND = `curl -fsSL https://deb.nodesource.com/setup_${PI_NODE_MAJOR}.x | bash - && apt-get install -y nodejs && ${PI_NODE_VERSION_ASSERT}`
 
-/** Pi uses E2B's command and filesystem APIs, so the inherited Jupyter service is unnecessary. */
+/** Pi uses the command and filesystem APIs, so the inherited Jupyter service is unnecessary. */
 const START_COMMAND = 'sleep infinity'
 
 const piTemplate = Template()
   .fromTemplate('code-interpreter-v1')
   .runCmd(INSTALL_NODE_COMMAND, { user: 'root' })
-  .aptInstall(['git', 'gh', 'openssh-client', 'ca-certificates', 'ripgrep', 'fd-find'])
-  .npmInstall([...PI_PACKAGES], { g: true })
+  .aptInstall([...PI_APT])
+  .npmInstall([...PI_NPM], { g: true })
   .setStartCmd(START_COMMAND, waitForTimeout(1_000))
 
 async function main() {

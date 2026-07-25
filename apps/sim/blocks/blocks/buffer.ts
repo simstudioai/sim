@@ -125,7 +125,7 @@ export const BufferBlock: BlockConfig<BufferPostResponse> = {
       id: 'mediaUpload',
       title: 'Media',
       type: 'file-upload',
-      canonicalParamId: 'media',
+      canonicalParamId: 'mediaSource',
       acceptedTypes: 'image/png,image/jpeg,image/gif,image/webp,video/mp4,video/quicktime',
       mode: 'basic',
       multiple: false,
@@ -135,8 +135,17 @@ export const BufferBlock: BlockConfig<BufferPostResponse> = {
       id: 'mediaRef',
       title: 'Media',
       type: 'short-input',
-      canonicalParamId: 'media',
-      placeholder: 'Public image/video URL or a file reference from a previous block',
+      canonicalParamId: 'mediaSource',
+      placeholder: 'Reference a file from a previous block',
+      mode: 'advanced',
+      condition: { field: 'operation', value: POST_EDIT_OPS },
+    },
+    {
+      id: 'mediaUrl',
+      title: 'Media URL',
+      type: 'short-input',
+      placeholder: 'Public image or video URL',
+      description: 'Alternative to Media.',
       mode: 'advanced',
       condition: { field: 'operation', value: POST_EDIT_OPS },
     },
@@ -285,7 +294,8 @@ export const BufferBlock: BlockConfig<BufferPostResponse> = {
       params: (params) => {
         const result: Record<string, unknown> = {}
         for (const [key, value] of Object.entries(params)) {
-          if (key === 'media') continue
+          // Media is resolved below into the single `media` param the tools declare.
+          if (key === 'mediaSource' || key === 'mediaUrl') continue
           if (value === undefined || value === null || value === '') continue
           if (key === 'limit') {
             const limit = Number(value)
@@ -295,23 +305,14 @@ export const BufferBlock: BlockConfig<BufferPostResponse> = {
           result[key] = value
         }
 
-        // Collapse basic/advanced media inputs into a single file reference,
-        // passing plain URL strings (advanced mode) through untouched. JSON-ish
-        // strings that normalize to nothing (e.g. "[]" from an empty file
-        // reference) are dropped rather than treated as URLs.
-        const media = params.media
-        const normalizedMedia = normalizeFileInput(media, { single: true })
+        // An uploaded or referenced file wins; otherwise fall back to the separate URL
+        // field. `mediaSource` only ever holds a file, so no value sniffing is needed.
+        const normalizedMedia = normalizeFileInput(params.mediaSource, { single: true })
+        const mediaUrl = typeof params.mediaUrl === 'string' ? params.mediaUrl.trim() : ''
         if (normalizedMedia) {
           result.media = normalizedMedia
-        } else if (typeof media === 'string' && media.trim() !== '') {
-          const trimmed = media.trim()
-          let parsesAsJson = true
-          try {
-            JSON.parse(trimmed)
-          } catch {
-            parsesAsJson = false
-          }
-          if (!parsesAsJson) result.media = trimmed
+        } else if (mediaUrl) {
+          result.media = mediaUrl
         }
 
         return result
@@ -333,7 +334,8 @@ export const BufferBlock: BlockConfig<BufferPostResponse> = {
     schedulingType: { type: 'string', description: 'Scheduling type (automatic or notification)' },
     dueAt: { type: 'string', description: 'Publish time (ISO 8601)' },
     saveToDraft: { type: 'boolean', description: 'Save the post as a draft' },
-    media: { type: 'string', description: 'Image or video attachment (file or public URL)' },
+    mediaSource: { type: 'json', description: 'Image or video file to attach' },
+    mediaUrl: { type: 'string', description: 'Public image or video URL to attach' },
     mediaType: {
       type: 'string',
       description: 'Attachment type override: auto, image, or video',

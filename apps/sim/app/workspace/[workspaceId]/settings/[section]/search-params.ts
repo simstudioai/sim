@@ -97,6 +97,22 @@ export const customBlockIdUrlKeys = {
 } as const
 
 /**
+ * `custom-tool-id` deep-links the Custom Tools settings tab to a specific
+ * tool's detail sub-view. The "create new" flow stays in local state — only
+ * existing entities are deep-linkable.
+ */
+export const customToolIdParam = {
+  key: 'custom-tool-id',
+  parser: parseAsString,
+} as const
+
+/** Opening a tool's detail is a destination → push to history; clear on close. */
+export const customToolIdUrlKeys = {
+  history: 'push',
+  clearOnDefault: true,
+} as const
+
+/**
  * `fork-direction` is the sync direction (push/pull) on the parent fork's detail
  * page — shareable view state, so a copied link opens the same side of the sync.
  */
