@@ -21,6 +21,7 @@ import type {
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import type { BlockedTableAction } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import {
   useAddTableColumn,
@@ -50,7 +51,6 @@ import type { ColumnConfig } from '../column-config-sidebar'
 import { ContextMenu } from '../context-menu'
 import { NewColumnDropdown } from '../new-column-dropdown'
 import { resolveSelectOptions } from '../select-field'
-import type { BlockedTableAction } from '../table-locked-modal'
 import type { WorkflowConfig } from '../workflow-sidebar'
 import { ExpandedCellPopover } from './cells'
 import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'

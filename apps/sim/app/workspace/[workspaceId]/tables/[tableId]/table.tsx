@@ -44,7 +44,6 @@ import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import {
-  type BlockedTableAction,
   type ColumnConfig,
   ColumnConfigSidebar,
   EnrichmentDetails,
@@ -57,14 +56,18 @@ import {
   TableActionBar,
   TableFilter,
   TableGrid,
-  TableLockedModal,
   type WorkflowConfig,
   WorkflowSidebar,
 } from './components'
 import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
 import { COLUMN_TYPE_ICONS } from './components/table-grid/headers'
 import { useTable, useTableEventStream } from './hooks'
-import { describeLocks, lockedNouns } from './lock-copy'
+import {
+  type BlockedTableAction,
+  describeBlockedAction,
+  describeLocks,
+  lockedNouns,
+} from './lock-copy'
 import {
   DEFAULT_TABLE_DETAIL_SORT_DIRECTION,
   tableDetailParsers,
@@ -82,6 +85,9 @@ const logger = createLogger('Table')
  * gating stays legible if the flag is turned off after locks were applied.
  */
 const tableLocksEnabled = isTruthy(getEnv('NEXT_PUBLIC_TABLE_LOCKS'))
+
+/** Blocked-action toasts carry a button, so they linger past the 5s default. */
+const BLOCKED_TOAST_MS = 8000
 
 interface TableProps {
   /** When set, the table renders without its page header / breadcrumbs / page-level
@@ -169,7 +175,9 @@ export function Table({
   const [slideout, dispatch] = useReducer(slideoutReducer, { kind: 'none' })
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
   const [showLockSettings, setShowLockSettings] = useState(false)
-  const [blockedAction, setBlockedAction] = useState<BlockedTableAction | null>(null)
+  // Id of the last blocked-action toast, so a user who keeps typing into a
+  // locked cell replaces one notice rather than stacking a column of them.
+  const blockedToastIdRef = useRef<string | null>(null)
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
   const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
   const [deletingRows, setDeletingRows] = useState<DeletedRowSnapshot[]>([])
@@ -602,6 +610,38 @@ export function Table({
     ]
   )
 
+  // An admin can always reach the settings on a locked table — clearing locks
+  // stays allowed with the flag off, so the kill switch can't strand one. With
+  // the flag off and nothing locked there is nothing to change, so the toast is
+  // a plain notice with no action.
+  const canOpenLockSettings =
+    userPermissions.canAdmin === true &&
+    (tableLocksEnabled || (tableData ? lockedNouns(tableData.locks).length > 0 : false))
+
+  /**
+   * Explains why a table mutation is unavailable. A toast rather than a modal:
+   * being told you can't edit shouldn't cost a dismiss click, and admins still
+   * get a direct route to the settings via the action button.
+   */
+  const showBlockedToast = useCallback(
+    (action: BlockedTableAction) => {
+      if (!tableData) return
+      if (blockedToastIdRef.current) toast.dismiss(blockedToastIdRef.current)
+      const { title, text } = describeBlockedAction(action, tableData.locks)
+      blockedToastIdRef.current = toast.warning(title, {
+        description: text,
+        ...(canOpenLockSettings
+          ? {
+              action: { label: 'Lock settings', onClick: () => setShowLockSettings(true) },
+              // An action would otherwise pin the toast open until dismissed.
+              duration: BLOCKED_TOAST_MS,
+            }
+          : {}),
+      })
+    },
+    [tableData, canOpenLockSettings]
+  )
+
   const headerActions = useMemo(() => {
     if (!tableData) return undefined
     const anyLocked = lockedNouns(tableData.locks).length > 0
@@ -616,7 +656,7 @@ export function Table({
               label: lockLabel,
               icon: Lock,
               onClick: () =>
-                userPermissions.canAdmin ? setShowLockSettings(true) : setBlockedAction('status'),
+                userPermissions.canAdmin ? setShowLockSettings(true) : showBlockedToast('status'),
             },
           ]
         : []),
@@ -641,6 +681,7 @@ export function Table({
     userPermissions.canAdmin,
     handleExportCsv,
     onRequestImportCsv,
+    showBlockedToast,
   ])
 
   // Adding a column is a schema change. The trigger stays visible when the
@@ -651,7 +692,7 @@ export function Table({
       trigger='header'
       disabled={false}
       blocked={!canMutateSchema}
-      onBlocked={() => setBlockedAction('add-column')}
+      onBlocked={() => showBlockedToast('add-column')}
       onPickType={handleAddColumnOfType}
       onPickWorkflow={handleAddWorkflowColumn}
       onPickEnrichment={onOpenEnrichments}
@@ -775,7 +816,7 @@ export function Table({
         tableId={tableId}
         embedded={embedded}
         locks={tableData?.locks}
-        onBlockedAction={setBlockedAction}
+        onBlockedAction={showBlockedToast}
         sidebarReservedPx={sidebarReservedPx}
         onOpenColumnConfig={onOpenColumnConfig}
         onOpenWorkflowConfig={onOpenWorkflowConfig}
@@ -1037,22 +1078,6 @@ export function Table({
           workspaceId={workspaceId}
           tableId={tableData.id}
           locks={tableData.locks}
-        />
-      )}
-      {tableData && (
-        <TableLockedModal
-          action={blockedAction}
-          locks={tableData.locks}
-          // An admin can always reach the panel on a locked table — clearing
-          // locks stays allowed with the flag off, so the kill switch can't
-          // strand one. With the flag off and nothing locked there is nothing
-          // to change, so they get the same read-only notice as everyone else.
-          canAdmin={
-            userPermissions.canAdmin === true &&
-            (tableLocksEnabled || lockedNouns(tableData.locks).length > 0)
-          }
-          onClose={() => setBlockedAction(null)}
-          onOpenLockSettings={() => setShowLockSettings(true)}
         />
       )}
     </Resource>
