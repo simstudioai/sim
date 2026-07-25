@@ -4492,7 +4492,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         seconds: {
           type: 'number',
-          description: 'How long to pause, in seconds. Capped at 30.',
+          description: 'How long to pause, in seconds. Capped at 120.',
         },
       },
       required: ['seconds'],

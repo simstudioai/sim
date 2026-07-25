@@ -4825,7 +4825,7 @@ export const Wait: ToolCatalogEntry = {
         description:
           'What you are waiting for, in a few words (e.g. "the test suite to finish"). Shown to the user so the pause is not unexplained.',
       },
-      seconds: { type: 'number', description: 'How long to pause, in seconds. Capped at 30.' },
+      seconds: { type: 'number', description: 'How long to pause, in seconds. Capped at 120.' },
     },
     required: ['seconds'],
   },
