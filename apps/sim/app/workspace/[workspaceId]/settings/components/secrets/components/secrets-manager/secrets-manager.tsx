@@ -36,6 +36,14 @@ import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const logger = createLogger('SecretsManager')
 
+/**
+ * Salts the generated `name` attributes so password managers can't match them
+ * against a known field. Generated once at module load rather than per render —
+ * a value that changes every keystroke defeats autofill no better, but costs a
+ * `crypto.getRandomValues()` call and a DOM attribute patch per field per render.
+ */
+const AUTOFILL_SALT = generateShortId(8)
+
 const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto] items-center'
 const COL_SPAN_ALL = 'col-span-4'
 
@@ -227,7 +235,7 @@ function WorkspaceVariableRow({
           onPendingKeyChange(e.target.value)
         }}
         onBlur={() => onRenameEnd(envKey, value)}
-        name={`workspace_env_key_${envKey}_${generateShortId()}`}
+        name={`workspace_env_key_${envKey}_${AUTOFILL_SALT}`}
         autoComplete='off'
         autoCapitalize='off'
         spellCheck='false'
@@ -241,7 +249,7 @@ function WorkspaceVariableRow({
         value={value}
         onChange={(next) => onValueChange(envKey, next)}
         canEdit={canEdit}
-        name={`workspace_env_value_${envKey}_${generateShortId()}`}
+        name={`workspace_env_value_${envKey}_${AUTOFILL_SALT}`}
       />
       <SecretRowMenu
         onCopyName={() => copyName(envKey)}
@@ -277,7 +285,7 @@ function NewWorkspaceVariableRow({
         onChange={(e) => onUpdate(index, 'key', e.target.value)}
         onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
         placeholder='API_KEY'
-        name={`new_workspace_key_${envVar.id || index}_${generateShortId()}`}
+        name={`new_workspace_key_${envVar.id || index}_${AUTOFILL_SALT}`}
         autoComplete='off'
         autoCapitalize='off'
         spellCheck='false'
@@ -291,7 +299,7 @@ function NewWorkspaceVariableRow({
         onChange={(next) => onUpdate(index, 'value', next)}
         onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
         placeholder='Enter value'
-        name={`new_workspace_value_${envVar.id || index}_${generateShortId()}`}
+        name={`new_workspace_value_${envVar.id || index}_${AUTOFILL_SALT}`}
         className='ml-0'
       />
       {hasContent ? (
@@ -865,7 +873,7 @@ export function SecretsManager() {
           onChange={(e) => updateEnvVar(originalIndex, 'key', e.target.value)}
           onPaste={(e) => handlePaste(e, originalIndex)}
           placeholder='API_KEY'
-          name={`env_variable_name_${envVar.id || originalIndex}_${generateShortId()}`}
+          name={`env_variable_name_${envVar.id || originalIndex}_${AUTOFILL_SALT}`}
           autoComplete='off'
           autoCapitalize='off'
           spellCheck='false'
@@ -881,7 +889,7 @@ export function SecretsManager() {
           unmasked={isConflicted}
           readOnly={isConflicted}
           placeholder={isConflicted ? 'Workspace override active' : 'Enter value'}
-          name={`env_variable_value_${envVar.id || originalIndex}_${generateShortId()}`}
+          name={`env_variable_value_${envVar.id || originalIndex}_${AUTOFILL_SALT}`}
           className={cn(isConflicted && 'cursor-not-allowed opacity-50')}
         />
         {hasContent ? (
