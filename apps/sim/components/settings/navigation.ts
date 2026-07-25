@@ -220,6 +220,8 @@ export const ACCOUNT_SETTINGS_PATH_ALIASES = {
 
 export const ORGANIZATION_SETTINGS_PATH_ALIASES = {
   organization: 'members',
+  // Verified domains moved into the SSO page; keep old links working.
+  domains: 'sso',
 } as const satisfies Readonly<Record<string, OrganizationSettingsSection>>
 
 export const WORKSPACE_SETTINGS_PATH_ALIASES = {
