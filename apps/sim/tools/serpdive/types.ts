@@ -25,7 +25,7 @@ export const SERPDIVE_SEARCH_RESULT_OUTPUT_PROPERTIES = {
 export interface SerpdiveSearchParams {
   query: string
   apiKey: string
-  model?: 'mako' | 'moby'
+  model?: 'mako' | 'krill' | 'moby'
   answer?: boolean
   max_results?: number
 }

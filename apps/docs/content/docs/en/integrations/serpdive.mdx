@@ -16,8 +16,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 SERPdive gives your agents live web access without a scraping loop to maintain:
 
 - **Answer-ready content**: every result carries the readable content of the page, so the agent can quote and cite facts straight from the response.
-- **Two retrieval depths**: Mako returns the fact-carrying sentences of each source and is fast; Moby returns the full readable content of every page when whole-page context matters.
-- **Optional written answer**: the API can also return an answer built from the sources, concise on Mako and cited on Moby.
+- **Three retrieval depths**: Mako returns the fact-carrying sentences of each source and is fast; Krill returns a smaller set of them for free under fair use, one request at a time and at low priority; Moby returns the full readable content of every page when whole-page context matters.
+- **Optional written answer**: the API can also return an answer built from the sources, concise on Mako and cited on Moby. Krill returns sources only.
 - **Automatic localization**: the query's language decides where the search runs, so no country parameter is needed.
 
 Quality is measured, not asserted: on a [public, replayable 1,000-question benchmark](https://github.com/edendalexis/serpdive-benchmark) judged blind by an independent model, SERPdive runs at the same speed as Tavily, feeds the LLM **20.2% fewer tokens**, and wins **60.7% of decided quality duels** against Tavily's default search.

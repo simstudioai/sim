@@ -29,7 +29,7 @@ export const searchTool: ToolConfig<SerpdiveSearchParams, SerpdiveSearchResponse
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Also return a written answer built from the sources: concise on mako, detailed with citations on moby. No extra credits.',
+        'Also return a written answer built from the sources: concise on mako, detailed with citations on moby, unavailable on krill. No extra credits.',
     },
     max_results: {
       type: 'number',
@@ -110,7 +110,7 @@ export const searchTool: ToolConfig<SerpdiveSearchParams, SerpdiveSearchResponse
     },
     model: {
       type: 'string',
-      description: 'The retrieval model that answered: mako or moby',
+      description: 'The retrieval model that answered: mako, krill or moby',
       optional: true,
     },
     response_time_ms: {
