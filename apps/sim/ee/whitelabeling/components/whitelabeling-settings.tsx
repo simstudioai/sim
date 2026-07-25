@@ -336,7 +336,9 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
                     type='button'
                     onClick={logoUpload.handleThumbnailClick}
                     disabled={logoUpload.isUploading}
-                    className='group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                    aria-label={logoUpload.previewUrl ? 'Change logo' : 'Upload logo'}
+                    title={logoUpload.previewUrl ? 'Change logo' : 'Upload logo'}
+                    className='group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
                   >
                     {logoUpload.isUploading ? (
                       <Loader className='size-5 text-[var(--text-muted)]' animate />
@@ -358,6 +360,7 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
                     variant='ghost'
                     size='sm'
                     onClick={logoUpload.handleRemove}
+                    aria-label='Remove logo'
                     className='text-[var(--text-muted)] text-small hover:text-[var(--text-primary)]'
                   >
                     <X className='size-[14px]' />
@@ -383,7 +386,9 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
                     type='button'
                     onClick={wordmarkUpload.handleThumbnailClick}
                     disabled={wordmarkUpload.isUploading}
-                    className='group relative flex h-16 w-full items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                    aria-label={wordmarkUpload.previewUrl ? 'Change wordmark' : 'Upload wordmark'}
+                    title={wordmarkUpload.previewUrl ? 'Change wordmark' : 'Upload wordmark'}
+                    className='group relative flex h-16 w-full items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
                   >
                     {wordmarkUpload.isUploading ? (
                       <Loader className='size-5 text-[var(--text-muted)]' animate />
@@ -405,6 +410,7 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
                     variant='ghost'
                     size='sm'
                     onClick={wordmarkUpload.handleRemove}
+                    aria-label='Remove wordmark'
                     className='text-[var(--text-muted)] text-small hover:text-[var(--text-primary)]'
                   >
                     <X className='size-[14px]' />

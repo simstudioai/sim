@@ -27,10 +27,19 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { ChevronDown, Plus } from 'lucide-react'
+import { useQueryState } from 'nuqs'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import {
+  groupSearchParam,
+  groupSearchUrlKeys,
+  groupStatusParam,
+  groupStatusUrlKeys,
+  groupTabParam,
+  groupTabUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import {
   MemberAvatar,
   MemberRow,
@@ -58,6 +67,7 @@ import { SettingRow } from '@/ee/components/setting-row'
 import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
 import { useOrganizationRoster } from '@/hooks/queries/organization'
 import { useProviderModels } from '@/hooks/queries/providers'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import {
   DYNAMIC_MODEL_PROVIDERS,
   getProviderModels,
@@ -71,6 +81,9 @@ import { getTool } from '@/tools/utils'
 const logger = createLogger('AccessControlGroupDetail')
 
 type ConfigTab = 'general' | 'providers' | 'blocks' | 'platform'
+
+/** Hoisted: rebuilding this per comparison allocated once per sort step. */
+const BLOCK_CATEGORY_ORDER: Record<string, number> = { triggers: 0, blocks: 1, tools: 2 }
 
 /** Public-file-share auth modes an admin can allow/disallow. `null` config = all allowed. */
 const FILE_SHARE_AUTH_TYPE_OPTIONS: { value: ShareAuthType; label: string }[] = [
@@ -651,7 +664,7 @@ function ProviderRow({
           onCheckedChange={() => onToggleProvider()}
         />
         <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
-          {ProviderIcon && <ProviderIcon className='!h-[16px] !w-[16px]' />}
+          {ProviderIcon && <ProviderIcon className='!size-[16px]' />}
         </div>
         <button
           type='button'
@@ -842,13 +855,33 @@ export function GroupDetail({
    */
   const scopeWriteSeqRef = useRef(0)
 
-  const [configTab, setConfigTab] = useState<ConfigTab>('general')
-  const [providerSearchTerm, setProviderSearchTerm] = useState('')
-  const [integrationSearchTerm, setIntegrationSearchTerm] = useState('')
-  const [platformSearchTerm, setPlatformSearchTerm] = useState('')
-  const [providerStatusFilter, setProviderStatusFilter] = useState<StatusFilter>('all')
-  const [blockStatusFilter, setBlockStatusFilter] = useState<StatusFilter>('all')
-  const [platformStatusFilter, setPlatformStatusFilter] = useState<StatusFilter>('all')
+  // Tab, search, and status filter are shareable detail-view state, so they live
+  // in the URL (see .claude/rules/sim-url-state.md). The three tabs never render
+  // together, so search and status share one param each rather than carrying
+  // three mutually-exclusive keys; switching tabs resets both.
+  const [configTab, setConfigTab] = useQueryState(groupTabParam.key, {
+    ...groupTabParam.parser,
+    ...groupTabUrlKeys,
+  })
+  const [searchTerm, setSearchTermParam] = useQueryState(groupSearchParam.key, {
+    ...groupSearchParam.parser,
+    ...groupSearchUrlKeys,
+  })
+  const setSearchTerm = useDebouncedSearchSetter(setSearchTermParam)
+  const [statusFilter, setStatusFilter] = useQueryState(groupStatusParam.key, {
+    ...groupStatusParam.parser,
+    ...groupStatusUrlKeys,
+  })
+
+  const handleTabChange = useCallback(
+    (value: string) => {
+      void setConfigTab(value as ConfigTab)
+      // Don't carry a provider query or an enabled-only filter into another tab.
+      setSearchTerm('')
+      void setStatusFilter(null)
+    },
+    [setConfigTab, setSearchTerm, setStatusFilter]
+  )
 
   const [showAddMembersModal, setShowAddMembersModal] = useState(false)
   const [addMembersError, setAddMembersError] = useState<string | null>(null)
@@ -878,9 +911,8 @@ export function GroupDetail({
   const allBlocks = useMemo(() => {
     const blocks = getAllBlocks().filter((b) => !isBlockTypeAccessControlExempt(b.type))
     return blocks.sort((a, b) => {
-      const categoryOrder = { triggers: 0, blocks: 1, tools: 2 }
-      const catA = categoryOrder[a.category] ?? 3
-      const catB = categoryOrder[b.category] ?? 3
+      const catA = BLOCK_CATEGORY_ORDER[a.category] ?? 3
+      const catB = BLOCK_CATEGORY_ORDER[b.category] ?? 3
       if (catA !== catB) return catA - catB
       return a.name.localeCompare(b.name)
     })
@@ -913,20 +945,20 @@ export function GroupDetail({
   }, [allBlocks])
 
   const searchedPlatformFeatures = useMemo(() => {
-    const search = platformSearchTerm.trim().toLowerCase()
+    const search = searchTerm.trim().toLowerCase()
     if (!search) return PLATFORM_FEATURES
     return PLATFORM_FEATURES.filter(
       (f) => f.label.toLowerCase().includes(search) || f.category.toLowerCase().includes(search)
     )
-  }, [platformSearchTerm])
+  }, [searchTerm])
 
   /** Split from the search pass for the same reason as the provider and block lists. */
   const filteredPlatformFeatures = useMemo(() => {
-    if (platformStatusFilter === 'all') return searchedPlatformFeatures
+    if (statusFilter === 'all') return searchedPlatformFeatures
     return searchedPlatformFeatures.filter((f) =>
-      matchesStatusFilter(platformStatusFilter, !editingConfig[f.configKey])
+      matchesStatusFilter(statusFilter, !editingConfig[f.configKey])
     )
-  }, [searchedPlatformFeatures, platformStatusFilter, editingConfig])
+  }, [searchedPlatformFeatures, statusFilter, editingConfig])
 
   const platformCategories = useMemo(() => {
     const categories: Record<string, typeof PLATFORM_FEATURES> = {}
@@ -999,10 +1031,10 @@ export function GroupDetail({
   )
 
   const searchedProviders = useMemo(() => {
-    const query = providerSearchTerm.trim().toLowerCase()
+    const query = searchTerm.trim().toLowerCase()
     if (!query) return allProviderIds
     return allProviderIds.filter((id) => id.toLowerCase().includes(query))
-  }, [allProviderIds, providerSearchTerm])
+  }, [allProviderIds, searchTerm])
 
   /**
    * Split from the search pass so the common `all` case returns the searched
@@ -1010,24 +1042,24 @@ export function GroupDetail({
    * checkbox toggle no longer invalidates downstream consumers.
    */
   const filteredProviders = useMemo(() => {
-    if (providerStatusFilter === 'all') return searchedProviders
+    if (statusFilter === 'all') return searchedProviders
     return searchedProviders.filter((id) =>
-      matchesStatusFilter(providerStatusFilter, isProviderAllowed(id))
+      matchesStatusFilter(statusFilter, isProviderAllowed(id))
     )
-  }, [searchedProviders, providerStatusFilter, isProviderAllowed])
+  }, [searchedProviders, statusFilter, isProviderAllowed])
 
   const searchedBlocks = useMemo(() => {
-    const query = integrationSearchTerm.trim().toLowerCase()
+    const query = searchTerm.trim().toLowerCase()
     if (!query) return visibleBlocks
     return visibleBlocks.filter((b) => b.name.toLowerCase().includes(query))
-  }, [visibleBlocks, integrationSearchTerm])
+  }, [visibleBlocks, searchTerm])
 
   const filteredBlocks = useMemo(() => {
-    if (blockStatusFilter === 'all') return searchedBlocks
+    if (statusFilter === 'all') return searchedBlocks
     return searchedBlocks.filter((b) =>
-      matchesStatusFilter(blockStatusFilter, isIntegrationAllowed(b.type))
+      matchesStatusFilter(statusFilter, isIntegrationAllowed(b.type))
     )
-  }, [searchedBlocks, blockStatusFilter, isIntegrationAllowed])
+  }, [searchedBlocks, statusFilter, isIntegrationAllowed])
 
   const filteredCoreBlocks = useMemo(
     () => filteredBlocks.filter((block) => block.category === 'blocks'),
@@ -1519,18 +1551,14 @@ export function GroupDetail({
         ]}
       >
         <div className='sticky top-0 z-10 bg-[var(--bg)]'>
-          <ChipModalTabs
-            tabs={tabs}
-            value={configTab}
-            onChange={(value) => setConfigTab(value as ConfigTab)}
-          />
+          <ChipModalTabs tabs={tabs} value={configTab} onChange={handleTabChange} />
         </div>
 
         {configTab === 'general' && (
           <>
             <SettingsSection label='Details'>
               <div className='flex flex-col gap-4'>
-                <SettingRow label='Name'>
+                <SettingRow label='Name' error={!trimmedName ? 'Name is required.' : undefined}>
                   <ChipInput
                     value={editingName}
                     onChange={(e) => setEditingName(e.target.value)}
@@ -1538,9 +1566,6 @@ export function GroupDetail({
                     maxLength={100}
                     error={!trimmedName}
                   />
-                  {!trimmedName && (
-                    <p className='text-[var(--text-error)] text-caption'>Name is required.</p>
-                  )}
                 </SettingRow>
                 <SettingRow label='Description'>
                   <ChipInput
@@ -1676,11 +1701,11 @@ export function GroupDetail({
               <ChipInput
                 icon={Search}
                 placeholder='Search providers...'
-                value={providerSearchTerm}
-                onChange={(e) => setProviderSearchTerm(e.target.value)}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className='min-w-0 flex-1'
               />
-              <StatusFilterChip value={providerStatusFilter} onChange={setProviderStatusFilter} />
+              <StatusFilterChip value={statusFilter} onChange={setStatusFilter} />
               <Chip
                 flush
                 onClick={() => setProvidersAllowed(filteredProviders, !filteredProvidersAllAllowed)}
@@ -1719,11 +1744,11 @@ export function GroupDetail({
               <ChipInput
                 icon={Search}
                 placeholder='Search blocks...'
-                value={integrationSearchTerm}
-                onChange={(e) => setIntegrationSearchTerm(e.target.value)}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className='min-w-0 flex-1'
               />
-              <StatusFilterChip value={blockStatusFilter} onChange={setBlockStatusFilter} flush />
+              <StatusFilterChip value={statusFilter} onChange={setStatusFilter} flush />
             </div>
             {filteredCoreBlocks.length === 0 && filteredToolBlocks.length === 0 && (
               <SettingsEmptyState variant='inline'>
@@ -1822,11 +1847,11 @@ export function GroupDetail({
               <ChipInput
                 icon={Search}
                 placeholder='Search features...'
-                value={platformSearchTerm}
-                onChange={(e) => setPlatformSearchTerm(e.target.value)}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className='min-w-0 flex-1'
               />
-              <StatusFilterChip value={platformStatusFilter} onChange={setPlatformStatusFilter} />
+              <StatusFilterChip value={statusFilter} onChange={setStatusFilter} />
               <Chip
                 onClick={() =>
                   setEditingConfig((prev) => ({

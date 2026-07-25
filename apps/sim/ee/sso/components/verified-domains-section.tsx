@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, ChipConfirmModal, ChipCopyInput, ChipInput, ChipTag, toast } from '@sim/emcn'
+import { Chip, ChipConfirmModal, ChipCopyInput, ChipInput, ChipTag, toast } from '@sim/emcn'
 import { Link } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OrganizationDomain } from '@/lib/api/contracts/organization'
-import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu/row-actions-menu'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -81,9 +81,9 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
           </SettingRow>
 
           <div>
-            <Button size='sm' onClick={handleVerify} disabled={verifyDomain.isPending}>
+            <Chip onClick={handleVerify} disabled={verifyDomain.isPending}>
               {verifyDomain.isPending ? 'Checking...' : 'Verify'}
-            </Button>
+            </Chip>
           </div>
         </div>
       )}
@@ -144,9 +144,13 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
                 placeholder='acme.com'
                 className='min-w-0 flex-1'
               />
-              <Button onClick={handleAdd} disabled={addDomain.isPending || !newDomain.trim()}>
+              <Chip
+                variant='primary'
+                onClick={handleAdd}
+                disabled={addDomain.isPending || !newDomain.trim()}
+              >
                 {addDomain.isPending ? 'Adding...' : 'Add domain'}
-              </Button>
+              </Chip>
             </div>
           </SettingRow>
 

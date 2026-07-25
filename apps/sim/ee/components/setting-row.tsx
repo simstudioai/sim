@@ -1,5 +1,4 @@
-import { Label, Tooltip } from '@sim/emcn'
-import { Info } from 'lucide-react'
+import { Info, Label } from '@sim/emcn'
 
 interface SettingRowProps {
   label: string
@@ -24,19 +23,14 @@ export function SettingRow({
   return (
     <div className='flex flex-col gap-1.5'>
       <div className='flex items-center gap-1.5'>
-        <Label className='text-[var(--text-primary)] text-small'>
+        <Label>
           {label}
           {optional ? <span className='ml-1 text-[var(--text-muted)]'>(optional)</span> : null}
         </Label>
         {labelTooltip && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
-            </Tooltip.Trigger>
-            <Tooltip.Content side='bottom' align='start'>
-              {labelTooltip}
-            </Tooltip.Content>
-          </Tooltip.Root>
+          <Info side='bottom' align='start'>
+            {labelTooltip}
+          </Info>
         )}
       </div>
       {description && <p className='text-[var(--text-muted)] text-caption'>{description}</p>}

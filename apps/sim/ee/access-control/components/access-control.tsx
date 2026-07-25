@@ -22,6 +22,12 @@ import { getEnv, isTruthy } from '@/lib/core/config/env'
 import {
   groupIdParam,
   groupIdUrlKeys,
+  groupSearchParam,
+  groupSearchUrlKeys,
+  groupStatusParam,
+  groupStatusUrlKeys,
+  groupTabParam,
+  groupTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -85,6 +91,29 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
     ...groupIdParam.parser,
     ...groupIdUrlKeys,
   })
+
+  // Params scoped to the detail sub-view are cleared alongside the group id, so
+  // a tab/search/filter can't linger on the list URL after going back. nuqs
+  // batches these same-tick writes into a single URL update.
+  const [, setGroupTab] = useQueryState(groupTabParam.key, {
+    ...groupTabParam.parser,
+    ...groupTabUrlKeys,
+  })
+  const [, setGroupSearch] = useQueryState(groupSearchParam.key, {
+    ...groupSearchParam.parser,
+    ...groupSearchUrlKeys,
+  })
+  const [, setGroupStatus] = useQueryState(groupStatusParam.key, {
+    ...groupStatusParam.parser,
+    ...groupStatusUrlKeys,
+  })
+
+  const closeGroupDetail = useCallback(() => {
+    void setSelectedGroupId(null, { history: 'replace' })
+    void setGroupTab(null)
+    void setGroupSearch(null)
+    void setGroupStatus(null)
+  }, [setSelectedGroupId, setGroupTab, setGroupSearch, setGroupStatus])
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupDescription, setNewGroupDescription] = useState('')
@@ -169,8 +198,8 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
         workspaceOptions={workspaceOptions}
         organizationWorkspaces={organizationWorkspaces}
         workspacesLoading={workspacesLoading}
-        onBack={() => void setSelectedGroupId(null, { history: 'replace' })}
-        onDeleted={() => void setSelectedGroupId(null, { history: 'replace' })}
+        onBack={closeGroupDetail}
+        onDeleted={closeGroupDetail}
       />
     )
   }
