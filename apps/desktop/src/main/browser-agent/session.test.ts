@@ -1085,6 +1085,39 @@ describe('reopening a closed tab', () => {
     expect((reopened?.view as unknown as MockView).webContents.loadURL).not.toHaveBeenCalled()
   })
 
+  it('duplicates a tab by loading the same URL in a new one', () => {
+    session.ensureTab()
+    const source = session.addTab()
+    ;(source.view as unknown as MockView).webContents.getURL.mockReturnValue(
+      'https://example.com/inbox'
+    )
+
+    const copy = session.duplicateTab(source.id)
+
+    expect(copy?.id).not.toBe(source.id)
+    expect((copy?.view as unknown as MockView).webContents.loadURL).toHaveBeenCalledWith(
+      'https://example.com/inbox'
+    )
+  })
+
+  it('never copies a URL carrying embedded credentials into a duplicate', () => {
+    session.ensureTab()
+    const source = session.addTab()
+    ;(source.view as unknown as MockView).webContents.getURL.mockReturnValue(
+      'https://user:pass@example.com/'
+    )
+
+    const copy = session.duplicateTab(source.id)
+
+    // Falls back to a blank tab rather than re-sending the credentials.
+    expect((copy?.view as unknown as MockView).webContents.loadURL).not.toHaveBeenCalled()
+  })
+
+  it('returns null when duplicating a tab that is not open', () => {
+    session.ensureTab()
+    expect(session.duplicateTab('no-such-tab')).toBeNull()
+  })
+
   it('drops a non-http scheme from the reopen list', () => {
     session.ensureTab()
     const closing = session.addTab()

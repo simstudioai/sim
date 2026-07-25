@@ -1,6 +1,12 @@
 import dns from 'node:dns/promises'
 import { createLogger } from '@sim/logger'
-import { isIpLiteral, isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from '@sim/security/ssrf'
+import {
+  isIpLiteral,
+  isLoopbackIp,
+  isPrivateIp,
+  isPrivateIpHost,
+  unwrapIpv6Brackets,
+} from '@sim/security/ssrf'
 import { getErrorMessage } from '@sim/utils/errors'
 import { parseHttpUrl } from '@/main/navigation'
 
@@ -37,6 +43,25 @@ export interface UrlGuardResult {
 }
 
 const OK: UrlGuardResult = { ok: true }
+
+/**
+ * Whether an address is off limits to the embedded browser.
+ *
+ * Loopback is deliberately allowed: it is the user's own machine, and opening
+ * a dev server on localhost is one of the most ordinary things to do in this
+ * panel — the URL bar already assumes `http://` for it. Nothing is given away
+ * by it either, since the desktop app hands the same agent an unrestricted
+ * shell on that machine, so a blocked `http://localhost:3000` is one
+ * `curl http://localhost:3000` away regardless.
+ *
+ * Every other private range stays blocked. Those are a different matter: the
+ * LAN is other people's machines, and `169.254.169.254` is link-local rather
+ * than loopback, so the cloud-metadata endpoint this guard exists for is
+ * unaffected.
+ */
+function isBlockedAddress(ip: string): boolean {
+  return isPrivateIp(ip) && !isLoopbackIp(ip)
+}
 const BLOCKED: UrlGuardResult = {
   ok: false,
   error: 'That address points to a private or internal network and was blocked.',
@@ -48,7 +73,8 @@ const BLOCKED: UrlGuardResult = {
  * loopback/RFC1918/link-local host (e.g. the `169.254.169.254` cloud-metadata
  * endpoint) would let a page's contents be read back through the read/snapshot
  * tools. This resolves the host the same way `apps/sim` does for outbound
- * fetches and blocks any that land on a private/reserved address.
+ * fetches and blocks any that land on a private/reserved address — except
+ * loopback, which is allowed (see {@link isBlockedAddress}).
  *
  * IP literals are classified directly; hostnames are DNS-resolved and every
  * returned address is checked. Resolution failure fails CLOSED (blocks): we
@@ -69,7 +95,7 @@ export async function checkAgentUrl(rawUrl: string): Promise<UrlGuardResult> {
 
   // IP literal: classify directly, no DNS lookup needed.
   if (isIpLiteral(host)) {
-    if (isPrivateIp(host)) {
+    if (isBlockedAddress(host)) {
       logger.warn('Blocked agent navigation to private IP literal', { host })
       return BLOCKED
     }
@@ -78,7 +104,7 @@ export async function checkAgentUrl(rawUrl: string): Promise<UrlGuardResult> {
 
   try {
     const resolved = await resolveHost(host)
-    if (resolved.some(({ address }) => isPrivateIp(address))) {
+    if (resolved.some(({ address }) => isBlockedAddress(address))) {
       logger.warn('Blocked agent navigation resolving to private IP', { host })
       return BLOCKED
     }
@@ -105,8 +131,10 @@ export async function checkAgentUrl(rawUrl: string): Promise<UrlGuardResult> {
  */
 export function isBlockedRequestUrl(rawUrl: string): boolean {
   try {
-    // isPrivateIpHost strips IPv6 brackets itself.
-    return isPrivateIpHost(new URL(rawUrl).hostname)
+    // isPrivateIpHost strips IPv6 brackets itself; unwrap again for the
+    // loopback carve-out, which takes a bare address.
+    const host = new URL(rawUrl).hostname
+    return isPrivateIpHost(host) && !isLoopbackIp(unwrapIpv6Brackets(host))
   } catch {
     return false
   }

@@ -25,11 +25,36 @@ describe('checkAgentUrl', () => {
   })
 
   it('blocks private IP literals without resolving', async () => {
-    expect((await checkAgentUrl('http://127.0.0.1/')).ok).toBe(false)
     expect((await checkAgentUrl('http://169.254.169.254/latest/meta-data')).ok).toBe(false)
     expect((await checkAgentUrl('http://10.0.0.5/')).ok).toBe(false)
-    expect((await checkAgentUrl('http://[::1]/')).ok).toBe(false)
+    expect((await checkAgentUrl('http://192.168.1.1/')).ok).toBe(false)
+    expect((await checkAgentUrl('http://[fd00::1]/')).ok).toBe(false)
     expect(mockLookup).not.toHaveBeenCalled()
+  })
+
+  it('allows loopback, so a local dev server can be opened', async () => {
+    // The panel exists to browse from this machine, and the agent already has
+    // an unrestricted shell on it. The LAN and the metadata endpoint above are
+    // a different matter and stay blocked.
+    expect((await checkAgentUrl('http://127.0.0.1:3000/')).ok).toBe(true)
+    expect((await checkAgentUrl('http://[::1]:3000/')).ok).toBe(true)
+    expect(mockLookup).not.toHaveBeenCalled()
+  })
+
+  it('allows localhost, which resolves to loopback', async () => {
+    mockLookup.mockResolvedValue([
+      { address: '::1', family: 6 },
+      { address: '127.0.0.1', family: 4 },
+    ])
+    expect((await checkAgentUrl('http://localhost:3000/app')).ok).toBe(true)
+  })
+
+  it('still blocks a host that resolves to the LAN alongside loopback', async () => {
+    mockLookup.mockResolvedValue([
+      { address: '127.0.0.1', family: 4 },
+      { address: '192.168.0.9', family: 4 },
+    ])
+    expect((await checkAgentUrl('http://sneaky.test/')).ok).toBe(false)
   })
 
   it('allows public IP literals without resolving', async () => {
@@ -77,8 +102,13 @@ describe('checkAgentUrl', () => {
 describe('isBlockedRequestUrl', () => {
   it('blocks literal private/reserved hosts', () => {
     expect(isBlockedRequestUrl('http://169.254.169.254/latest/meta-data')).toBe(true)
-    expect(isBlockedRequestUrl('http://127.0.0.1:8080/x')).toBe(true)
+    expect(isBlockedRequestUrl('http://10.0.0.5/x')).toBe(true)
     expect(isBlockedRequestUrl('https://[fd00::1]/')).toBe(true)
+  })
+
+  it('allows loopback subresources, so a local page can load its own assets', () => {
+    expect(isBlockedRequestUrl('http://127.0.0.1:8080/app.js')).toBe(false)
+    expect(isBlockedRequestUrl('http://[::1]:8080/app.css')).toBe(false)
   })
 
   it('allows public literals and hostnames (classified at nav time)', () => {
