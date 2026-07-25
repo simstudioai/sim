@@ -79,19 +79,25 @@ function traySubscriptSegments(marker: TrayEnvironmentMarker): GlyphSegment[] {
     ]
   }
   if (marker === 'D') {
-    const curve = Array.from({ length: 17 }, (_, index) => {
-      const angle = -Math.PI / 2 + (Math.PI * index) / 16
-      return {
-        x: 0.65 + Math.cos(angle) * 3.75,
-        y: 3.5 + Math.sin(angle) * 2.95,
-      }
-    })
     return [
       [
         { x: 0.65, y: 0.55 },
         { x: 0.65, y: 6.45 },
       ],
-      ...segmentsFromPoints(curve),
+      ...cubicBezier(
+        { x: 0.65, y: 0.55 },
+        { x: 3.15, y: 0.55 },
+        { x: 4.4, y: 1.55 },
+        { x: 4.4, y: 3.5 },
+        12
+      ),
+      ...cubicBezier(
+        { x: 4.4, y: 3.5 },
+        { x: 4.4, y: 5.45 },
+        { x: 3.15, y: 6.45 },
+        { x: 0.65, y: 6.45 },
+        12
+      ),
     ]
   }
   return [
