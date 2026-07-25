@@ -164,7 +164,7 @@ export const PATCH = withRouteHandler(
             { status: 403 }
           )
         }
-        await updateTableLocks(tableId, validated.locks, authResult.userId, requestId)
+        await updateTableLocks(tableId, validated.locks, authResult.userId, requestId, request)
       }
 
       if (validated.name !== undefined) {
