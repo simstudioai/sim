@@ -42,7 +42,8 @@ function resolveOperand(value: JsonValue, options: ColumnDefinition['options']):
 /**
  * Returns a copy of an id-keyed filter with `select` field values resolved from
  * option name → id, so a filter typed/served with option names matches the
- * stored ids. Handles the equality shorthand, `$eq`/`$ne`/`$in`/`$nin`, and
+ * stored ids. Handles the equality shorthand, `$eq`/`$ne`/`$in`/`$nin`,
+ * `$contains`/`$ncontains` (multi-select membership), and
  * nested `$and`/`$or`. Fields keyed by non-select columns pass through.
  */
 export function resolveFilterSelectValues(filter: Filter, columns: ColumnDefinition[]): Filter {
@@ -73,6 +74,18 @@ export function resolveFilterSelectValues(filter: Filter, columns: ColumnDefinit
           next.$in = ops.$in.map((v) => resolveOperand(v, options)) as ConditionOperators['$in']
         if (Array.isArray(ops.$nin))
           next.$nin = ops.$nin.map((v) => resolveOperand(v, options)) as ConditionOperators['$nin']
+        // Multi-select asks membership, so its operands arrive under
+        // `$contains`/`$ncontains` rather than `$eq`/`$ne`.
+        if (ops.$contains !== undefined)
+          next.$contains = resolveOperand(
+            ops.$contains as JsonValue,
+            options
+          ) as ConditionOperators['$contains']
+        if (ops.$ncontains !== undefined)
+          next.$ncontains = resolveOperand(
+            ops.$ncontains as JsonValue,
+            options
+          ) as ConditionOperators['$ncontains']
         out[key] = next
       } else {
         // Equality shorthand: `{ status: 'Open' }` → resolve to the id.

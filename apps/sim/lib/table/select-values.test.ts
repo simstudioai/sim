@@ -85,6 +85,15 @@ describe('resolveFilterSelectValues', () => {
     })
   })
 
+  it('resolves names under $contains/$ncontains (multi-select membership)', () => {
+    expect(
+      resolveFilterSelectValues(
+        { col_tags: { $contains: 'Alpha' }, col_status: { $ncontains: 'Closed' } },
+        columns
+      )
+    ).toEqual({ col_tags: { $contains: 'opt_a' }, col_status: { $ncontains: 'opt_closed' } })
+  })
+
   it('recurses into $and/$or and leaves non-select fields untouched', () => {
     expect(
       resolveFilterSelectValues({ $or: [{ col_status: 'Open' }, { col_title: 'x' }] }, columns)

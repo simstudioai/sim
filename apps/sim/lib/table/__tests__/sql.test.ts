@@ -468,6 +468,47 @@ describe('SQL Builder', () => {
       expect(out).toContain("= '[]'")
     })
 
+    it('filters a multiselect by ARRAY membership, not scalar equality', () => {
+      // `{"tags":["opt_a"]} @> {"tags":"opt_a"}` is FALSE in Postgres — the
+      // operand has to be wrapped or the filter silently matches nothing.
+      const out = render(buildFilterClause({ tags: { $contains: 'opt_a' } }, TABLE, [tagsCol]))
+      expect(out).toContain('user_table_rows.data @>')
+      expect(out).toContain('"tags":["opt_a"]')
+      expect(out).not.toContain('"tags":"opt_a"')
+      expect(out).not.toContain('ILIKE')
+    })
+
+    it('negates multiselect membership for $ncontains', () => {
+      const out = render(buildFilterClause({ tags: { $ncontains: 'opt_a' } }, TABLE, [tagsCol]))
+      expect(out).toContain('NOT (')
+      expect(out).toContain('"tags":["opt_a"]')
+    })
+
+    it('rejects explicit equality on a multiselect — it could never match', () => {
+      expect(() => buildFilterClause({ tags: { $eq: 'opt_a' } }, TABLE, [tagsCol])).toThrow(
+        'not supported on multi-select'
+      )
+    })
+
+    it('reads the equality shorthand on a multiselect as membership', () => {
+      // The shorthand bypasses the operator whitelist, so it has to compile to
+      // membership itself or it silently matches nothing.
+      const out = render(buildFilterClause({ tags: 'opt_a' }, TABLE, [tagsCol]))
+      expect(out).toContain('"tags":["opt_a"]')
+    })
+
+    it('rejects membership operators on a single select', () => {
+      expect(() =>
+        buildFilterClause({ status: { $contains: 'opt_open' } }, TABLE, [statusCol])
+      ).toThrow('not supported on select')
+    })
+
+    it('still uses ILIKE for $contains on a plain string column', () => {
+      const strCol: ColumnDefinition = { id: 'name', name: 'name', type: 'string' }
+      const out = render(buildFilterClause({ name: { $contains: 'jo' } }, TABLE, [strCol]))
+      expect(out).toContain('ILIKE')
+    })
+
     it('sorts a select column alphabetically by option name via CASE', () => {
       const out = render(buildSortClause({ status: 'asc' }, TABLE, [statusCol]))
       expect(out).toContain('CASE')

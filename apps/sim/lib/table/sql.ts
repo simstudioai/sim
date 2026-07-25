@@ -32,8 +32,16 @@ export class TableQueryValidationError extends Error {
 type ColumnType = ColumnDefinition['type']
 type ColumnMap = ReadonlyMap<string, ColumnDefinition>
 
-/** Operators that make sense on a `select` column (whose values are opaque option ids). */
-const SELECT_OPERATORS = new Set(['$eq', '$ne', '$in', '$nin', '$empty'])
+/**
+ * Operators that make sense on a `select` column (whose values are opaque option
+ * ids), split by cardinality. A single-select cell holds one id, so it compares
+ * for equality; a multi-select cell holds an array of ids, so the question is
+ * membership — hence contains / does-not-contain. `$eq` against an array cell
+ * can never be true (`{"t":["a"]} @> {"t":"a"}` is false in Postgres), so
+ * allowing it would silently match nothing.
+ */
+const SINGLE_SELECT_OPERATORS = new Set(['$eq', '$ne', '$in', '$nin', '$empty'])
+const MULTI_SELECT_OPERATORS = new Set(['$contains', '$ncontains', '$empty'])
 
 /**
  * Returns the Postgres cast needed to compare a JSONB text value of the given
@@ -323,10 +331,13 @@ function buildFieldCondition(
       // Validate operator to ensure only allowed operators are used
       validateOperator(op)
       // Select values are opaque option ids — range/pattern operators are meaningless.
-      if (isSelect && !SELECT_OPERATORS.has(op)) {
-        throw new TableQueryValidationError(
-          `Operator "${op}" is not supported on select column "${field}". Allowed: ${Array.from(SELECT_OPERATORS).join(', ')}`
-        )
+      if (isSelect) {
+        const allowed = isMultiSelect ? MULTI_SELECT_OPERATORS : SINGLE_SELECT_OPERATORS
+        if (!allowed.has(op)) {
+          throw new TableQueryValidationError(
+            `Operator "${op}" is not supported on ${isMultiSelect ? 'multi-select' : 'select'} column "${field}". Allowed: ${Array.from(allowed).join(', ')}`
+          )
+        }
       }
 
       switch (op) {
@@ -387,12 +398,20 @@ function buildFieldCondition(
           break
 
         case '$contains':
-          conditions.push(buildLikeClause(tableName, field, value as string, 'contains'))
+          conditions.push(
+            isMultiSelect
+              ? buildArrayMembershipClause(tableName, field, value as JsonValue)
+              : buildLikeClause(tableName, field, value as string, 'contains')
+          )
           break
 
         case '$ncontains':
           conditions.push(
-            buildLikeClause(tableName, field, value as string, 'contains', { negate: true })
+            isMultiSelect
+              ? // Mirror the ILIKE negation: rows with no selection at all count
+                // as "does not contain", so an empty cell isn't silently excluded.
+                sql`NOT (${buildArrayMembershipClause(tableName, field, value as JsonValue)})`
+              : buildLikeClause(tableName, field, value as string, 'contains', { negate: true })
           )
           break
 
@@ -423,7 +442,15 @@ function buildFieldCondition(
     // isRecordLike's negation can't structurally exclude ConditionOperators (no index
     // signature), unlike the prior typeof-based narrowing, so the JsonValue-only shape
     // of this branch is asserted rather than inferred.
-    conditions.push(buildContainmentClause(tableName, field, condition as JsonValue))
+    //
+    // On a multi-select the shorthand reads as "holds this option" — scalar
+    // equality against an array cell can never be true, so treat it as
+    // membership rather than compiling a filter that silently matches nothing.
+    conditions.push(
+      isMultiSelect
+        ? buildArrayMembershipClause(tableName, field, condition as JsonValue)
+        : buildContainmentClause(tableName, field, condition as JsonValue)
+    )
   }
 
   return conditions
@@ -473,6 +500,19 @@ function buildLogicalClause(
 /** Builds JSONB containment clause: `data @> '{"field": value}'::jsonb` (uses GIN index) */
 function buildContainmentClause(tableName: string, field: string, value: JsonValue): SQL {
   const jsonObj = JSON.stringify({ [field]: value })
+  return sql`${sql.raw(`${tableName}.data`)} @> ${jsonObj}::jsonb`
+}
+
+/**
+ * Builds an array-membership clause for a multi-select cell:
+ * `data @> '{"field": [value]}'::jsonb`.
+ *
+ * The value is wrapped in an array because Postgres containment requires
+ * matching structure — `{"t":["a","b"]} @> {"t":"a"}` is **false**, while
+ * `{"t":["a","b"]} @> {"t":["a"]}` is true. Same GIN index as the scalar form.
+ */
+function buildArrayMembershipClause(tableName: string, field: string, value: JsonValue): SQL {
+  const jsonObj = JSON.stringify({ [field]: [value] })
   return sql`${sql.raw(`${tableName}.data`)} @> ${jsonObj}::jsonb`
 }
 

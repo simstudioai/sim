@@ -9,11 +9,24 @@ import { getColumnId } from '@/lib/table/column-keys'
 import { COMPARISON_OPERATORS, VALUELESS_OPERATORS } from '@/lib/table/query-builder/constants'
 import { filterRulesToFilter, filterToRules } from '@/lib/table/query-builder/converters'
 
-/** Operators a `select` column supports (values are opaque option ids). */
-const SELECT_FILTER_OPERATORS = new Set(['eq', 'ne', 'isEmpty', 'isNotEmpty'])
-const SELECT_COMPARISON_OPERATORS = COMPARISON_OPERATORS.filter((o) =>
-  SELECT_FILTER_OPERATORS.has(o.value)
+/**
+ * Operators a `select` column supports (values are opaque option ids). A
+ * multi-select cell holds several ids, so it asks about membership — equality
+ * against the whole array can never be true.
+ */
+const SINGLE_SELECT_FILTER_OPERATORS = new Set(['eq', 'ne', 'isEmpty', 'isNotEmpty'])
+const MULTI_SELECT_FILTER_OPERATORS = new Set(['contains', 'ncontains', 'isEmpty', 'isNotEmpty'])
+
+const SINGLE_SELECT_COMPARISON_OPERATORS = COMPARISON_OPERATORS.filter((o) =>
+  SINGLE_SELECT_FILTER_OPERATORS.has(o.value)
 )
+const MULTI_SELECT_COMPARISON_OPERATORS = COMPARISON_OPERATORS.filter((o) =>
+  MULTI_SELECT_FILTER_OPERATORS.has(o.value)
+)
+
+function selectFilterOperators(column: ColumnDefinition | undefined): Set<string> {
+  return column?.multiple ? MULTI_SELECT_FILTER_OPERATORS : SINGLE_SELECT_FILTER_OPERATORS
+}
 
 interface TableFilterProps {
   columns: ColumnDefinition[]
@@ -73,10 +86,16 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
       setRules((prev) =>
         prev.map((r) => {
           if (r.id !== id) return r
-          const wasSelect = columnById.get(r.column)?.type === 'select'
-          const isSelect = columnById.get(columnId)?.type === 'select'
+          const previous = columnById.get(r.column)
+          const next = columnById.get(columnId)
+          const wasSelect = previous?.type === 'select'
+          const isSelect = next?.type === 'select'
           if (!wasSelect && !isSelect) return { ...r, column: columnId }
-          const operator = isSelect && !SELECT_FILTER_OPERATORS.has(r.operator) ? 'eq' : r.operator
+          // Single- and multi-select take different operators, so a switch
+          // between them has to fall back too, not just select ↔ non-select.
+          const allowed = selectFilterOperators(next)
+          const fallback = next?.multiple ? 'contains' : 'eq'
+          const operator = isSelect && !allowed.has(r.operator) ? fallback : r.operator
           return { ...r, column: columnId, operator, value: '' }
         })
       )
@@ -186,7 +205,11 @@ const FilterRuleRow = memo(function FilterRuleRow({
 
   const selectedColumn = columnById.get(rule.column)
   const isSelect = selectedColumn?.type === 'select'
-  const operatorOptions = isSelect ? SELECT_COMPARISON_OPERATORS : COMPARISON_OPERATORS
+  const operatorOptions = !isSelect
+    ? COMPARISON_OPERATORS
+    : selectedColumn?.multiple
+      ? MULTI_SELECT_COMPARISON_OPERATORS
+      : SINGLE_SELECT_COMPARISON_OPERATORS
 
   // Select value picker: label by option name, send the stored option id. A
   // stale id (option since deleted) is kept selectable so the rule still shows.
@@ -270,11 +293,13 @@ const FilterRuleRow = memo(function FilterRuleRow({
 })
 
 function createRule(columns: ColumnDefinition[]): FilterRule {
+  const first = columns[0]
   return {
     id: generateShortId(),
     logicalOperator: 'and',
-    column: columns[0] ? getColumnId(columns[0]) : '',
-    operator: 'eq',
+    column: first ? getColumnId(first) : '',
+    // A multi-select can't be compared for equality — default it to membership.
+    operator: first?.type === 'select' && first.multiple ? 'contains' : 'eq',
     value: '',
   }
 }
