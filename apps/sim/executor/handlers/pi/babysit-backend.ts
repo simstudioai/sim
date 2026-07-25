@@ -556,6 +556,10 @@ function outstandingReason(
   return fallback
 }
 
+function threadsAreClean(threads: BabysitThreadsState | undefined): boolean {
+  return !!threads && threads.actionable.length === 0 && threads.skipped.length === 0
+}
+
 /** Resolves the host-side run budget without imposing E2B's lifetime on other providers. */
 export function resolveBabysitExecutionBudgetMs(executionBudgetMs?: number): number {
   return executionBudgetMs ?? resolvePiSandboxLifetimeMs() ?? getMaxExecutionTimeout()
@@ -874,11 +878,23 @@ export async function runBabysitPiWithOptions(
                 secrets
               )}`
             )
-            return resultFor(totals, 'pushed_awaiting_confirmation', progress, threadsClean, false)
+            return resultFor(
+              totals,
+              'pushed_awaiting_confirmation',
+              progress,
+              threadsClean,
+              lastKnownChecksGreen
+            )
           }
           if (convergence === 'third_party') {
             progress.notes.push('A third-party head SHA appeared after the Babysit push.')
-            return resultFor(totals, 'pushed_awaiting_confirmation', progress, threadsClean, false)
+            return resultFor(
+              totals,
+              'pushed_awaiting_confirmation',
+              progress,
+              threadsClean,
+              lastKnownChecksGreen
+            )
           }
           if (convergence === 'lagging') {
             progress.notes.push('The push succeeded, but GitHub had not yet converged on its SHA.')
@@ -899,13 +915,7 @@ export async function runBabysitPiWithOptions(
           roundRaw = await runner.readFile(BABYSIT_ROUND_PATH)
         } catch (error) {
           progress.notes.push(scrubPiSecrets(getErrorMessage(error), secrets))
-          return resultFor(
-            totals,
-            'agent_failure',
-            progress,
-            threadsClean,
-            latestChecks!.checksGreen
-          )
+          return resultFor(totals, 'agent_failure', progress, threadsClean, lastKnownChecksGreen)
         }
         let decisions
         try {
@@ -918,13 +928,7 @@ export async function runBabysitPiWithOptions(
           })
         } catch (error) {
           progress.notes.push(scrubPiSecrets(getErrorMessage(error), secrets))
-          return resultFor(
-            totals,
-            'agent_failure',
-            progress,
-            threadsClean,
-            latestChecks!.checksGreen
-          )
+          return resultFor(totals, 'agent_failure', progress, threadsClean, lastKnownChecksGreen)
         }
         progress.notes.push(...decisions.contractViolations)
         if (decisions.summary) progress.notes.push(decisions.summary)
@@ -944,12 +948,13 @@ export async function runBabysitPiWithOptions(
         progress.threadsResolved += writeResult.threadsResolved
         const resolvedThreadIds = new Set(writeResult.resolvedThreadIds ?? [])
         if (resolvedThreadIds.size > 0) {
+          const knownThreads = latestThreads!
           latestThreads = {
-            ...latestThreads,
-            actionable: latestThreads.actionable.filter(
+            ...knownThreads,
+            actionable: knownThreads.actionable.filter(
               (thread) => !resolvedThreadIds.has(thread.id)
             ),
-            totalUnresolved: Math.max(0, latestThreads.totalUnresolved - resolvedThreadIds.size),
+            totalUnresolved: Math.max(0, knownThreads.totalUnresolved - resolvedThreadIds.size),
           }
         }
         githubWriteOccurred ||= writeResult.repliesPosted > 0 || writeResult.threadsResolved > 0
@@ -965,13 +970,11 @@ export async function runBabysitPiWithOptions(
           )
         }
         if (writeResult.stopReason) {
-          const knownThreadsClean =
-            latestThreads.actionable.length === 0 && latestThreads.skipped.length === 0
           return resultFor(
             totals,
             writeResult.stopReason,
             progress,
-            knownThreadsClean,
+            threadsAreClean(latestThreads),
             lastKnownChecksGreen
           )
         }
@@ -986,7 +989,7 @@ export async function runBabysitPiWithOptions(
             totals,
             finalized.commitPushed ? 'pushed_awaiting_confirmation' : 'agent_failure',
             progress,
-            latestThreads.actionable.length === 0 && latestThreads.skipped.length === 0,
+            threadsAreClean(latestThreads),
             lastKnownChecksGreen
           )
         }
@@ -995,7 +998,7 @@ export async function runBabysitPiWithOptions(
             totals,
             'head_moved',
             progress,
-            latestThreads.actionable.length === 0 && latestThreads.skipped.length === 0,
+            threadsAreClean(latestThreads),
             lastKnownChecksGreen
           )
         }
@@ -1004,7 +1007,7 @@ export async function runBabysitPiWithOptions(
             totals,
             'pushed_awaiting_confirmation',
             progress,
-            latestThreads.actionable.length === 0 && latestThreads.skipped.length === 0,
+            threadsAreClean(latestThreads),
             lastKnownChecksGreen
           )
         }

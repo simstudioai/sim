@@ -130,6 +130,11 @@ const greenChecks = {
   blockingFailing: [],
   checksGreen: true,
 }
+const noChecksGreen = {
+  ...greenChecks,
+  checks: [],
+  contextRequirements: new Map<string, boolean>(),
+}
 
 function params(overrides: Partial<PiBabysitRunParams> = {}): PiBabysitRunParams {
   return {
@@ -648,11 +653,6 @@ describe('runBabysitPiWithOptions', () => {
   })
 
   it('preserves known clean flags when the pin moves after successful writes', async () => {
-    const noChecksGreen = {
-      ...greenChecks,
-      checks: [],
-      contextRequirements: new Map<string, boolean>(),
-    }
     mockFetchSnapshot
       .mockResolvedValueOnce(snapshot)
       .mockResolvedValueOnce(snapshot)
@@ -695,7 +695,7 @@ describe('runBabysitPiWithOptions', () => {
       totalUnresolved: 1,
       latestReview: null,
     })
-    mockFetchChecks.mockResolvedValue(greenChecks)
+    mockFetchChecks.mockResolvedValue(noChecksGreen)
     const { runner } = makeRunner({})
     mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
 
@@ -710,8 +710,38 @@ describe('runBabysitPiWithOptions', () => {
       rounds: 1,
       commitsPushed: 1,
       threadsResolved: 0,
+      checksGreen: true,
     })
     expect(result.totals.finalText).toContain('temporary GitHub read failure')
+  })
+
+  it('marks required checks non-green when a pushed round file is invalid', async () => {
+    mockFetchSnapshot
+      .mockResolvedValueOnce(snapshot)
+      .mockResolvedValueOnce(snapshot)
+      .mockResolvedValue({ ...snapshot, headSha: NEW_SHA })
+    mockFetchThreads.mockResolvedValue({
+      actionable: [trustedThread],
+      skipped: [],
+      totalUnresolved: 1,
+      latestReview: null,
+    })
+    mockFetchChecks.mockResolvedValue(greenChecks)
+    const { runner } = makeRunner({ roundFile: 'not json' })
+    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+
+    const result = await runBabysitPiWithOptions(
+      params(),
+      { onEvent: vi.fn() },
+      { convergenceWaitMs: 0, roundWaitMs: 0 }
+    )
+
+    expect(result).toMatchObject({
+      stopReason: 'agent_failure',
+      rounds: 1,
+      commitsPushed: 1,
+      checksGreen: false,
+    })
   })
 
   it('keeps an agent summary and does not await re-review when every request failed', async () => {
