@@ -610,13 +610,19 @@ export function LoadedRichMarkdownEditor({
       })
     }
 
+    // Realtime-establish grace: on a genuine outage (socket never connects), show the
+    // loaded content read-only after a grace period so the user reads their file instead
+    // of a blank editor. The socket object exists even while disconnected, so gate on the
+    // live connection state — a connected-but-slow sync must not seed here (it would race
+    // the server's seeder election). `seedFromLoaded` also self-guards on
+    // `initialContentLoaded`, so a completed sync makes this a no-op; a reconnect re-runs
+    // this effect onto the normal server-seeded sync path.
+    const graceTimer = setTimeout(() => {
+      if (!provider || !provider.isConnected) seedFromLoaded()
+    }, COLLAB_ESTABLISH_GRACE_MS)
+
     if (!provider) {
-      // Realtime is not yet available (socket still connecting, or a full outage). Stay
-      // read-only + gated. If the provider never arrives, a grace timer seeds the loaded
-      // content so the user reads their file instead of a blank editor; a reconnect
-      // re-runs this effect with a live provider onto the normal server-seeded sync path.
       setReady(false)
-      const graceTimer = setTimeout(seedFromLoaded, COLLAB_ESTABLISH_GRACE_MS)
       return () => clearTimeout(graceTimer)
     }
 
@@ -637,6 +643,7 @@ export function LoadedRichMarkdownEditor({
     if (provider.joinError) onJoinError(provider.joinError)
 
     return () => {
+      clearTimeout(graceTimer)
       provider.off('seed-request', onProgress)
       provider.off('synced', onProgress)
       provider.off('join-error', onJoinError)
