@@ -423,6 +423,8 @@ describe('runBabysitPiWithOptions', () => {
       .mockResolvedValueOnce({ ...snapshot, headSha: NEW_SHA })
       .mockResolvedValueOnce({ ...snapshot, headSha: NEW_SHA })
       .mockResolvedValueOnce({ ...snapshot, headSha: NEW_SHA })
+      .mockResolvedValueOnce({ ...snapshot, headSha: NEW_SHA })
+      .mockResolvedValueOnce({ ...snapshot, headSha: SECOND_SHA })
       .mockResolvedValueOnce({ ...snapshot, headSha: SECOND_SHA })
       .mockResolvedValueOnce({ ...snapshot, headSha: SECOND_SHA })
     mockFetchThreads.mockResolvedValue({
@@ -443,6 +445,20 @@ describe('runBabysitPiWithOptions', () => {
       headMoved: false,
       awaitingConfirmation: false,
     })
+    mockRequestReview
+      .mockResolvedValueOnce({
+        requestedAt: '2026-07-25T12:00:00.000Z',
+        commentIds: new Set([11]),
+        posted: 1,
+        failures: [],
+      })
+      .mockResolvedValueOnce({
+        requestedAt: '2026-07-25T12:05:00.000Z',
+        commentIds: new Set(),
+        posted: 0,
+        failures: ['@review-bot'],
+      })
+    mockReviewLanded.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
     const { runner, runCalls } = makeRunner({
       prepareStdout: [
         `__CUMULATIVE_CHANGED__=src/a.ts\n__CUMULATIVE_DIFF_BYTES__=20\n__CHANGED__=src/a.ts\n__NEW_SHA__=${NEW_SHA}\n__NEEDS_PUSH__=1\n`,
@@ -454,7 +470,7 @@ describe('runBabysitPiWithOptions', () => {
     mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(
-      params(),
+      params({ reviewMentions: ['@review-bot'] }),
       { onEvent: vi.fn() },
       { convergenceWaitMs: 0, roundWaitMs: 0 }
     )
@@ -471,6 +487,8 @@ describe('runBabysitPiWithOptions', () => {
         .filter(({ command }) => command.includes('CURRENT_DIGEST='))
         .map(({ envs }) => envs?.PINNED_SHA)
     ).toEqual([OLD_SHA, NEW_SHA])
+    expect(mockRequestReview).toHaveBeenCalledTimes(2)
+    expect(mockReviewLanded).toHaveBeenCalledTimes(2)
   })
 
   it('refuses .github changes before the credentialed push', async () => {

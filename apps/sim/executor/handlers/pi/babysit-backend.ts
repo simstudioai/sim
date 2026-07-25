@@ -1019,14 +1019,19 @@ export async function runBabysitPiWithOptions(
           )
           const request = await requestBabysitReview(params, params.reviewMentions, secrets, signal)
           githubWriteOccurred ||= request.posted > 0
-          reviewRequest =
-            request.posted > 0
-              ? {
-                  requestedAt: request.requestedAt,
-                  commentIds: request.commentIds,
-                  landed: false,
-                }
-              : undefined
+          if (request.posted > 0) {
+            reviewRequest = {
+              requestedAt: request.requestedAt,
+              commentIds: request.commentIds,
+              landed: false,
+            }
+          } else if (reviewRequest) {
+            reviewRequest = {
+              requestedAt: request.requestedAt,
+              commentIds: reviewRequest.commentIds,
+              landed: false,
+            }
+          }
           if (request.failures.length) {
             progress.notes.push(`${request.failures.length} re-review requests failed.`)
           }
