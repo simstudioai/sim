@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { DeleteFileFolder } from '@/lib/copilot/generated/tool-catalog-v1'
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
   assertServerToolNotAborted,
@@ -18,7 +17,6 @@ import {
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   performCreateWorkspaceFileFolder,
-  performDeleteWorkspaceFileItems,
   performMoveWorkspaceFileItems,
   performUpdateWorkspaceFileFolder,
 } from '@/lib/workspace-files/orchestration'
@@ -50,13 +48,6 @@ interface MoveFileFolderArgs extends WorkspaceScopedArgs {
   folderId?: string
   destinationPath?: string | null
   parentId?: string | null
-}
-
-interface DeleteFileFolderArgs extends WorkspaceScopedArgs {
-  paths?: string[]
-  path?: string
-  folderIds?: string[]
-  folderId?: string
 }
 
 interface MoveFileArgs extends WorkspaceScopedArgs {
@@ -380,56 +371,6 @@ export const moveFileFolderServerTool: BaseServerTool<MoveFileFolderArgs, FileFo
           ? `Moved file folder "${folderLabel(folder)}"`
           : `Moved file folder "${folderLabel(folder)}" to root`,
         data: { folder },
-      }
-    } catch (error) {
-      return { success: false, message: toError(error).message }
-    }
-  },
-}
-
-export const deleteFileFolderServerTool: BaseServerTool<DeleteFileFolderArgs, FileFolderResult> = {
-  name: DeleteFileFolder.id,
-  async execute(
-    params: DeleteFileFolderArgs,
-    context?: ServerToolContext
-  ): Promise<FileFolderResult> {
-    try {
-      const workspaceId = await resolveWorkspaceId(params, context, 'write')
-      if (typeof workspaceId !== 'string') return workspaceId
-      if (!context?.userId) throw new Error('Authentication required')
-
-      const payload = nested(params)
-      const paths = stringListFromValues(params.paths, payload?.paths, params.path, payload?.path)
-      const folderIds =
-        paths.length > 0
-          ? await Promise.all(paths.map((path) => resolveFolderIdFromPath(workspaceId, path)))
-          : (params.folderIds ??
-            stringArrayValue(payload?.folderIds) ??
-            [stringValue(params.folderId) || stringValue(payload?.folderId) || ''].filter(Boolean))
-      if (folderIds.length === 0) return { success: false, message: 'paths is required' }
-
-      assertServerToolNotAborted(context)
-      const result = await performDeleteWorkspaceFileItems({
-        workspaceId,
-        userId: context.userId,
-        folderIds,
-      })
-      if (!result.success || !result.deletedItems) {
-        return { success: false, message: result.error || 'Failed to delete file folders' }
-      }
-
-      logger.info('File folders deleted via delete_file_folder', {
-        workspaceId,
-        folderIds,
-        folders: result.deletedItems.folders,
-        files: result.deletedItems.files,
-        userId: context.userId,
-      })
-
-      return {
-        success: result.deletedItems.folders > 0 || result.deletedItems.files > 0,
-        message: `Deleted ${result.deletedItems.folders} file folder${result.deletedItems.folders === 1 ? '' : 's'} and ${result.deletedItems.files} file${result.deletedItems.files === 1 ? '' : 's'}`,
-        data: { ...result.deletedItems, deletedFolderIds: folderIds },
       }
     } catch (error) {
       return { success: false, message: toError(error).message }

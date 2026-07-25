@@ -433,15 +433,11 @@ const TOOL_TITLES: Record<string, string> = {
   generate_video: 'Generating video',
   generate_audio: 'Generating audio',
   ffmpeg: 'Processing media',
-  manage_folder: 'Folder action',
   check_deployment_status: 'Checking deployment status',
   complete_scheduled_task: 'Completing scheduled task',
   create_file: 'Creating file',
   create_file_folder: 'Creating folder',
   create_workspace_mcp_server: 'Creating MCP server',
-  delete_file: 'Deleting file',
-  delete_file_folder: 'Deleting folder',
-  delete_workflow: 'Deleting workflow',
   delete_workspace_mcp_server: 'Deleting MCP server',
   deploy_api: 'Deploying API',
   deploy_chat: 'Deploying chat',
@@ -634,14 +630,6 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       return setGlobalWorkflowVariablesTitle(args)
     case 'create_file':
       return createFileTitle(args)
-    case 'delete_file': {
-      const targets = stringArrayArg(args, 'paths').map(pathLeaf)
-      return `Deleting ${summarizeTargets(targets, 'file')}`
-    }
-    case 'delete_file_folder': {
-      const targets = stringArrayArg(args, 'paths').map(pathLeaf)
-      return `Deleting ${summarizeTargets(targets, 'folder')}`
-    }
     case 'create_workflow': {
       const target = firstStringArg(args, 'name', 'workflowName', 'title')
       return `Creating ${target || 'workflow'}`
@@ -649,13 +637,6 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'edit_workflow': {
       const target = firstStringArg(args, 'workflowName', 'name', 'title')
       return `Editing ${target || 'workflow'}`
-    }
-    case 'delete_workflow': {
-      const target = summarizeTargets(
-        stringArrayArg(args, 'workflowNames'),
-        countedResourceTarget(args, 'workflowIds', 'workflow', 'workflows')
-      )
-      return `Deleting ${target}`
     }
     case 'create_workspace_mcp_server': {
       const target = firstStringArg(args, 'name', 'serverName', 'title')
@@ -699,6 +680,14 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'mkdir': {
       const target = firstStringArg(args, 'toolTitle', 'title')
       return target ? `Creating ${target}` : 'Creating folder'
+    }
+    case 'rm': {
+      // toolTitle is the model's phrasing; the paths are the fallback because
+      // rm spans categories and there is no one noun to count.
+      const target =
+        firstStringArg(args, 'toolTitle', 'title') ||
+        summarizeTargets(stringArrayArg(args, 'paths').map(pathLeaf), 'resource')
+      return target ? `Deleting ${target}` : 'Deleting'
     }
     case 'enrichment_run': {
       const subject = nestedStringArg(
@@ -814,32 +803,6 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       const target = firstStringArg(args, 'credentialName', 'displayName', 'name', 'title')
       return namedOperationTitle(args, target, 'Credential action', {
         delete: { verb: 'Deleting', resource: 'credential' },
-      })
-    }
-    case 'manage_folder': {
-      const operation = stringArg(args, 'operation')
-      if (operation === 'rename') {
-        const rawFrom = firstStringArg(args, 'oldPath', 'source', 'path', 'folderName')
-        const rawTo = firstStringArg(args, 'newPath', 'destination', 'newName', 'name', 'title')
-        const from = rawFrom ? pathLeaf(rawFrom) : ''
-        const to = rawTo ? pathLeaf(rawTo) : ''
-        if (from && to) return `Renaming ${from} to ${to}`
-        return to ? `Renaming folder to ${to}` : 'Renaming folder'
-      }
-      const rawTarget = firstStringArg(
-        args,
-        'newPath',
-        'destination',
-        'path',
-        'folderName',
-        'name',
-        'title'
-      )
-      const target = rawTarget ? pathLeaf(rawTarget) : ''
-      return namedOperationTitle(args, target, 'Folder action', {
-        create: { verb: 'Creating', resource: 'folder' },
-        move: { verb: 'Moving', resource: 'folder' },
-        delete: { verb: 'Deleting', resource: 'folder' },
       })
     }
     case 'run_workflow':

@@ -128,6 +128,47 @@ async function pushWorkspaceFileMount(
   mounted.buffered += buffer.length
 }
 
+/**
+ * Explains why a VFS path the agent legitimately discovered cannot be mounted, and
+ * what to do instead. Only workspace `files/` are backed by storage the sandbox can
+ * fetch from — `internal/` is served by the copilot backend and its bytes never reach
+ * Sim, `uploads/` is chat-scoped, `recently-deleted/` is archived, and the remaining
+ * namespaces are metadata views rather than stored file bytes. Returns null for
+ * `files/` references, where "not found" is the honest answer.
+ *
+ * These paths are correct and are advertised to the model as read/grep-able, so the
+ * generic not-found message ("copy the exact canonical path") is actively wrong for
+ * them: it sends the agent hunting for a path that does not exist.
+ */
+function unmountableNamespaceReason(filePath: string): string | null {
+  // Trailing slash so a bare namespace passed as a directory matches the same prefixes
+  // as a file path inside it.
+  const path = `${filePath.replace(/^\/+|\/+$/g, '')}/`
+
+  if (path.startsWith('uploads/')) {
+    return 'uploads/ files are not mountable into the sandbox. Use materialize_file to save it to a files/... path first, then mount that canonical path.'
+  }
+  if (path.startsWith('internal/tool-results/')) {
+    return 'tool-result artifacts are stored by the copilot backend, not in workspace storage, so read and grep reach them but the sandbox cannot. This path is correct — searching for a different one will not find anything. Either read or grep the artifact and inline the values you need in code, or re-run the tool that produced it with an output path under files/ (function_execute: outputs.files[].path, user_table: outputPath) and mount that files/... path.'
+  }
+  if (path.startsWith('internal/')) {
+    return 'internal/ paths are served by the copilot backend, not from workspace storage, so read and grep reach them but the sandbox cannot. This path is correct — read or grep it and inline the values you need in code instead of mounting it.'
+  }
+  if (path.startsWith('recently-deleted/')) {
+    return 'deleted resources are not mountable into the sandbox. Use restore_resource to restore it first, then mount the restored files/... path.'
+  }
+  if (path.startsWith('tables/')) {
+    return 'tables are not mounted as files. Pass the table in inputs.tables instead and it is mounted as CSV.'
+  }
+  const namespace = /^(workflows|knowledgebases|components|environment|agent|jobs|tasks)\//.exec(
+    path
+  )?.[1]
+  if (namespace) {
+    return `${namespace}/ paths are VFS metadata views, not stored file bytes, so the sandbox cannot mount them. This path is correct — read or grep it and inline the values you need in code.`
+  }
+  return null
+}
+
 interface CanonicalFileInput {
   path: string
   sandboxPath?: string
@@ -190,10 +231,9 @@ export async function resolveInputFiles(
       if (!filePath) continue
       const record = findWorkspaceFileRecord(allFiles, filePath)
       if (!record) {
-        if (filePath.startsWith('uploads/')) {
-          throw new Error(
-            `Cannot mount "${filePath}": uploads/ files are not mountable into the sandbox. Use materialize_file to save it to a files/... path first, then mount that canonical path.`
-          )
+        const unmountable = unmountableNamespaceReason(filePath)
+        if (unmountable) {
+          throw new Error(`Cannot mount "${filePath}": ${unmountable}`)
         }
         throw new Error(
           `Input file not found: "${filePath}". Pass the exact canonical VFS path copied from glob/read (e.g. "files/Reports/data.csv").`
@@ -223,7 +263,12 @@ export async function resolveInputFiles(
       const folderDisplayPath = folderSegments.join('/')
       const folder = folders.find((candidate) => candidate.path === folderDisplayPath)
       if (!folder) {
-        throw new Error(`Input directory not found: ${dirPath}`)
+        const unmountable = unmountableNamespaceReason(dirPath)
+        throw new Error(
+          unmountable
+            ? `Cannot mount "${dirPath}": ${unmountable}`
+            : `Input directory not found: "${dirPath}". Pass a canonical workspace folder path copied from glob/read (e.g. "files/Reports").`
+        )
       }
       const mountRoot =
         typeof dirRef === 'object' &&

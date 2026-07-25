@@ -39,9 +39,6 @@ export interface ToolCatalogEntry {
     | 'create_file'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
-    | 'delete_file'
-    | 'delete_file_folder'
-    | 'delete_workflow'
     | 'delete_workspace_mcp_server'
     | 'deploy'
     | 'deploy_api'
@@ -81,7 +78,6 @@ export interface ToolCatalogEntry {
     | 'load_skill'
     | 'manage_credential'
     | 'manage_custom_tool'
-    | 'manage_folder'
     | 'manage_mcp_tool'
     | 'manage_scheduled_task'
     | 'manage_skill'
@@ -99,6 +95,7 @@ export interface ToolCatalogEntry {
     | 'redeploy'
     | 'respond'
     | 'restore_resource'
+    | 'rm'
     | 'run'
     | 'run_block'
     | 'run_code'
@@ -159,9 +156,6 @@ export interface ToolCatalogEntry {
     | 'create_file'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
-    | 'delete_file'
-    | 'delete_file_folder'
-    | 'delete_workflow'
     | 'delete_workspace_mcp_server'
     | 'deploy'
     | 'deploy_api'
@@ -201,7 +195,6 @@ export interface ToolCatalogEntry {
     | 'load_skill'
     | 'manage_credential'
     | 'manage_custom_tool'
-    | 'manage_folder'
     | 'manage_mcp_tool'
     | 'manage_scheduled_task'
     | 'manage_skill'
@@ -219,6 +212,7 @@ export interface ToolCatalogEntry {
     | 'redeploy'
     | 'respond'
     | 'restore_resource'
+    | 'rm'
     | 'run'
     | 'run_block'
     | 'run_code'
@@ -885,72 +879,6 @@ export const CreateWorkspaceMcpServer: ToolCatalogEntry = {
     required: ['name'],
   },
   requiredPermission: 'admin',
-}
-
-export const DeleteFile: ToolCatalogEntry = {
-  id: 'delete_file',
-  name: 'delete_file',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      paths: {
-        type: 'array',
-        description:
-          'Canonical workspace file VFS paths to delete, e.g. ["files/Reports/draft.md"].',
-        items: { type: 'string' },
-      },
-    },
-    required: ['paths'],
-  },
-  resultSchema: {
-    type: 'object',
-    properties: {
-      message: { type: 'string', description: 'Human-readable outcome.' },
-      success: { type: 'boolean', description: 'Whether the delete succeeded.' },
-    },
-    required: ['success', 'message'],
-  },
-  requiredPermission: 'write',
-}
-
-export const DeleteFileFolder: ToolCatalogEntry = {
-  id: 'delete_file_folder',
-  name: 'delete_file_folder',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      paths: {
-        type: 'array',
-        description: 'Canonical folder VFS paths to delete, e.g. ["files/Archive"].',
-        items: { type: 'string' },
-      },
-    },
-    required: ['paths'],
-  },
-  requiredPermission: 'write',
-}
-
-export const DeleteWorkflow: ToolCatalogEntry = {
-  id: 'delete_workflow',
-  name: 'delete_workflow',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      workflowIds: {
-        type: 'array',
-        description: 'The workflow IDs to delete.',
-        items: { type: 'string' },
-      },
-    },
-    required: ['workflowIds'],
-  },
-  requiredPermission: 'write',
 }
 
 export const DeleteWorkspaceMcpServer: ToolCatalogEntry = {
@@ -2838,7 +2766,6 @@ export const KnowledgeBase: ToolCatalogEntry = {
           'query',
           'add_file',
           'update',
-          'delete',
           'delete_document',
           'update_document',
           'list_tags',
@@ -3061,31 +2988,6 @@ export const ManageCustomTool: ToolCatalogEntry = {
         type: 'array',
         description: 'Array of custom tool IDs (for batch delete)',
         items: { type: 'string' },
-      },
-    },
-    required: ['operation'],
-  },
-  requiredPermission: 'write',
-}
-
-export const ManageFolder: ToolCatalogEntry = {
-  id: 'manage_folder',
-  name: 'manage_folder',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      folderId: {
-        type: 'string',
-        description:
-          'Target folder ID, used as a fallback when path is not given. Readable from a contained workflow\'s meta.json "folderId".',
-      },
-      operation: { type: 'string', description: 'The operation to perform.', enum: ['delete'] },
-      path: {
-        type: 'string',
-        description:
-          'Target folder\'s VFS path (e.g. "workflows/Marketing/Q3 Campaigns"), per-segment percent-encoded like every VFS path.',
       },
     },
     required: ['operation'],
@@ -3757,6 +3659,31 @@ export const RestoreResource: ToolCatalogEntry = {
     required: ['type', 'id'],
   },
   requiredPermission: 'admin',
+}
+
+export const Rm: ToolCatalogEntry = {
+  id: 'rm',
+  name: 'rm',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      paths: {
+        type: 'array',
+        description:
+          'Canonical VFS paths to delete, e.g. ["files/Reports/draft.md"]. Copy paths verbatim from glob/grep/read output. Paths from different categories may be mixed in one call.',
+        items: { type: 'string' },
+      },
+      toolTitle: {
+        type: 'string',
+        description:
+          'Target-only UI phrase for the action row, e.g. "draft.md" or "3 files", not a full sentence like "Deleting draft.md".',
+      },
+    },
+    required: ['paths', 'toolTitle'],
+  },
+  requiredPermission: 'write',
 }
 
 export const Run: ToolCatalogEntry = {
@@ -4745,7 +4672,6 @@ export const UserTable: ToolCatalogEntry = {
           'import_file',
           'get',
           'get_schema',
-          'delete',
           'rename',
           'insert_row',
           'batch_insert_rows',
@@ -4980,7 +4906,6 @@ export const KnowledgeBaseOperation = {
   query: 'query',
   addFile: 'add_file',
   update: 'update',
-  delete: 'delete',
   deleteDocument: 'delete_document',
   updateDocument: 'update_document',
   listTags: 'list_tags',
@@ -5003,7 +4928,6 @@ export const KnowledgeBaseOperationValues = [
   KnowledgeBaseOperation.query,
   KnowledgeBaseOperation.addFile,
   KnowledgeBaseOperation.update,
-  KnowledgeBaseOperation.delete,
   KnowledgeBaseOperation.deleteDocument,
   KnowledgeBaseOperation.updateDocument,
   KnowledgeBaseOperation.listTags,
@@ -5046,15 +4970,6 @@ export const ManageCustomToolOperationValues = [
   ManageCustomToolOperation.delete,
   ManageCustomToolOperation.list,
 ] as const
-
-export const ManageFolderOperation = {
-  delete: 'delete',
-} as const
-
-export type ManageFolderOperation =
-  (typeof ManageFolderOperation)[keyof typeof ManageFolderOperation]
-
-export const ManageFolderOperationValues = [ManageFolderOperation.delete] as const
 
 export const ManageMcpToolOperation = {
   add: 'add',
@@ -5159,7 +5074,6 @@ export const UserTableOperation = {
   importFile: 'import_file',
   get: 'get',
   getSchema: 'get_schema',
-  delete: 'delete',
   rename: 'rename',
   insertRow: 'insert_row',
   batchInsertRows: 'batch_insert_rows',
@@ -5195,7 +5109,6 @@ export const UserTableOperationValues = [
   UserTableOperation.importFile,
   UserTableOperation.get,
   UserTableOperation.getSchema,
-  UserTableOperation.delete,
   UserTableOperation.rename,
   UserTableOperation.insertRow,
   UserTableOperation.batchInsertRows,
@@ -5271,9 +5184,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [CreateFile.id]: CreateFile,
   [CreateWorkflow.id]: CreateWorkflow,
   [CreateWorkspaceMcpServer.id]: CreateWorkspaceMcpServer,
-  [DeleteFile.id]: DeleteFile,
-  [DeleteFileFolder.id]: DeleteFileFolder,
-  [DeleteWorkflow.id]: DeleteWorkflow,
   [DeleteWorkspaceMcpServer.id]: DeleteWorkspaceMcpServer,
   [Deploy.id]: Deploy,
   [DeployApi.id]: DeployApi,
@@ -5313,7 +5223,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [LoadSkill.id]: LoadSkill,
   [ManageCredential.id]: ManageCredential,
   [ManageCustomTool.id]: ManageCustomTool,
-  [ManageFolder.id]: ManageFolder,
   [ManageMcpTool.id]: ManageMcpTool,
   [ManageScheduledTask.id]: ManageScheduledTask,
   [ManageSkill.id]: ManageSkill,
@@ -5331,6 +5240,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Redeploy.id]: Redeploy,
   [Respond.id]: Respond,
   [RestoreResource.id]: RestoreResource,
+  [Rm.id]: Rm,
   [Run.id]: Run,
   [RunBlock.id]: RunBlock,
   [RunCode.id]: RunCode,

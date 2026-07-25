@@ -110,6 +110,44 @@ describe('tool events (dispatch → model + side effects)', () => {
     expect(toolNode(ctx, 'tc-3').status).toBe('error')
   })
 
+  it('does not surface a resource when the agent merely reads one', () => {
+    // Reading is navigation, not intent to show. Surfacing here made every
+    // grep/read hop add a resource, switch the active one out from under the
+    // user, and pop the collapsed panel open. Create/edit and the explicit
+    // open_resource tool are the only things that should open the panel.
+    const addResource = vi.fn(() => true)
+    const onResourceEventRef = ref<(() => void) | undefined>(vi.fn())
+    const ctx = createStreamLoopContext(makeStreamLoopDeps({ addResource, onResourceEventRef }))
+
+    dispatchStreamEvent(
+      ctx,
+      toolEnv({
+        phase: 'call',
+        executor: 'sim',
+        mode: 'async',
+        toolCallId: 'read-1',
+        toolName: 'read',
+        arguments: { path: 'workflows/My%20Workflow/meta.json' },
+      })
+    )
+    dispatchStreamEvent(
+      ctx,
+      toolEnv({
+        phase: 'result',
+        executor: 'sim',
+        mode: 'async',
+        toolCallId: 'read-1',
+        toolName: 'read',
+        success: true,
+        status: 'success',
+        result: { output: { id: 'wf-1', name: 'My Workflow' } },
+      })
+    )
+
+    expect(addResource).not.toHaveBeenCalled()
+    expect(onResourceEventRef.current).not.toHaveBeenCalled()
+  })
+
   it('routes an ordinary read call to the desktop only for an explicit user-local path', () => {
     const startClientLocalFilesystemTool = vi.fn()
     const ctx = createStreamLoopContext(makeStreamLoopDeps({ startClientLocalFilesystemTool }))

@@ -17,6 +17,7 @@ import {
   COPILOT_BILLING_PROTOCOL_HEADER,
 } from '@/lib/copilot/generated/billing-protocol-v1'
 import {
+  MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
   MothershipStreamV1RunKind,
   MothershipStreamV1ToolOutcome,
@@ -27,6 +28,7 @@ import {
   BillingLimitError,
   CopilotBackendError,
   runStreamLoop,
+  StreamEndedWithoutTerminalError,
 } from '@/lib/copilot/request/go/stream'
 import {
   getToolCallTerminalData,
@@ -191,8 +193,17 @@ export async function runCopilotLifecycle(
       hostedBillingRequest
     )
 
+    // The backend's terminal `complete` is the turn's verdict. A failure it
+    // reported in-band on the way there — a tool or a subagent that failed and
+    // was handed back to the model as data — belongs to a turn that still
+    // finished, so it must not turn the whole request into an error and discard
+    // the work the user watched succeed.
+    const backendFinishedTurn =
+      context.completionStatus === MothershipStreamV1CompletionStatus.complete
+    const succeeded = !context.wasAborted && (backendFinishedTurn || context.errors.length === 0)
+
     const result: OrchestratorResult = {
-      success: context.errors.length === 0 && !context.wasAborted,
+      success: succeeded,
       // `cancelled` is an explicit discriminator so callers can tell
       // "user hit Stop" (persist partial assistant content through the
       // cancelled completion path) from "backend errored" (do clear the
@@ -208,7 +219,7 @@ export async function runCopilotLifecycle(
       toolCalls: buildToolCallSummaries(context),
       chatId: context.chatId,
       requestId: context.requestId,
-      errors: context.errors.length ? context.errors : undefined,
+      errors: !succeeded && context.errors.length ? context.errors : undefined,
       usage: context.usage,
       cost: context.cost,
     }
@@ -338,6 +349,9 @@ function mothershipRequestHeaders(
 //   - errors: a leg's transient retryable error (rolled back inside
 //     runResumeLegWithRetry) must not truncate a concurrent sibling's shared
 //     error array by index; each leg collects its own and merges the survivors.
+//   - completionStatus: the backend's terminal verdict, set only on the leg that
+//     carries the turn to its end; a stale one from a sibling would speak for a
+//     turn that leg never finished.
 // When adding a per-leg field, update BOTH functions (and the contract test in
 // resume-leg-context.test.ts). Exported only for that test.
 export function makeResumeLegContext(base: StreamingContext): StreamingContext {
@@ -350,6 +364,7 @@ export function makeResumeLegContext(base: StreamingContext): StreamingContext {
     usage: undefined,
     cost: undefined,
     errors: [],
+    completionStatus: undefined,
   }
 }
 
@@ -364,6 +379,7 @@ export function mergeResumeLegOutputs(context: StreamingContext, leg: StreamingC
   if (leg.sawMainToolCall) context.sawMainToolCall = true
   if (leg.wasAborted) context.wasAborted = true
   if (leg.errors.length > 0) context.errors.push(...leg.errors)
+  if (leg.completionStatus) context.completionStatus = leg.completionStatus
 }
 
 async function waitForToolIds(context: StreamingContext, toolIds: string[]): Promise<void> {
@@ -415,15 +431,13 @@ async function runResumeLegWithRetry(
   let attempt = 0
   for (;;) {
     const errorsBeforeAttempt = leg.errors.length
-    const willRetryOnStreamError = attempt < MAX_RESUME_ATTEMPTS - 1
-    const legBody = willRetryOnStreamError ? { ...body, willRetryOnStreamError: true } : body
     try {
       await runStreamLoop(
         url,
         {
           method: 'POST',
           headers: mothershipRequestHeaders(hostedBillingRequest),
-          body: JSON.stringify(legBody),
+          body: JSON.stringify(body),
         },
         leg,
         execContext,
@@ -680,22 +694,9 @@ async function runCheckpointLoop(
     // Snapshot recorded errors before this attempt. If the attempt fails with
     // a retryable resume error, we roll back to this baseline before retrying
     // so a subsequent successful retry doesn't inherit the failed attempt's
-    // errors (e.g. "backend stream ended before a terminal event") and get
+    // errors (e.g. the 5xx the backend refused the leg with) and get
     // mis-finalized as `error`.
     const errorsBeforeAttempt = context.errors.length
-
-    // A resume leg that is not the last allowed attempt will be retried below
-    // on a retryable stream error. Tell Go so it treats a mid-flight provider
-    // error as non-terminal for the UI and suppresses the user-facing error tag
-    // that a recovered retry should not show. Billing is still flushed for
-    // every leg; /api/billing/update-cost records cumulative cost as a
-    // monotonic top-up, so the partial retry leg and the recovered terminal leg
-    // reconcile to the maximum cumulative total. Recomputed per attempt because
-    // the same payload is reused across retries.
-    const willRetryOnStreamError = isResume && resumeAttempt < MAX_RESUME_ATTEMPTS - 1
-    const legPayload = willRetryOnStreamError
-      ? { ...payload, willRetryOnStreamError: true }
-      : payload
 
     try {
       await runStreamLoop(
@@ -703,7 +704,7 @@ async function runCheckpointLoop(
         {
           method: 'POST',
           headers: mothershipRequestHeaders(hostedBillingRequest),
-          body: JSON.stringify(legPayload),
+          body: JSON.stringify(payload),
         },
         context,
         execContext,
@@ -1107,8 +1108,23 @@ function cancelPendingTools(context: StreamingContext): void {
   }
 }
 
+/**
+ * Only a leg the backend never took is worth re-posting: a network failure with
+ * no response at all, or a 5xx it answered with — Go releases the checkpoint
+ * claim on those, expecting the retry.
+ *
+ * Once the backend answers `200` the checkpoint is claimed and the leg runs to
+ * whatever outcome it reaches, so a leg that ends early is reporting a result,
+ * not a transport fault. Re-posting it reproduces the same result and bills the
+ * leg again — which is why the resume payload no longer claims
+ * `willRetryOnStreamError`: promising Go a transparent retry makes it suppress
+ * the error tag that explains the failure, and nothing here would retry it.
+ */
 function isRetryableStreamError(error: unknown): boolean {
   if (error instanceof DOMException && error.name === 'AbortError') {
+    return false
+  }
+  if (error instanceof StreamEndedWithoutTerminalError) {
     return false
   }
   if (error instanceof CopilotBackendError) {

@@ -110,6 +110,14 @@ const MAX_BATCH_SIZE = CSV_MAX_BATCH_SIZE
 async function resolveWorkspaceFileRecordOrThrow(fileReference: string, workspaceId: string) {
   const record = await resolveWorkspaceFileReference(workspaceId, fileReference)
   if (!record) {
+    // Only workspace files resolve here. A chat upload is a real, correctly-copied
+    // path, so pointing it at glob("files/**") would send the agent looking for a
+    // file that is not in that tree until materialize_file moves it there.
+    if (fileReference.replace(/^\/+/, '').startsWith('uploads/')) {
+      throw new Error(
+        `Cannot import "${fileReference}": chat uploads are not workspace files. Use materialize_file to save it to a files/... path first, then pass that canonical path.`
+      )
+    }
     throw new Error(
       `File not found: "${fileReference}". Use glob("files/**") and read the canonical file path metadata to find workspace files.`
     )

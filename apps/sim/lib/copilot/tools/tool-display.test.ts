@@ -55,7 +55,7 @@ function toolPropertyEnum(entry: ToolCatalogEntry, property: string): unknown[] 
 
 describe('humanizeToolName', () => {
   it('title-cases snake_case names', () => {
-    expect(humanizeToolName('manage_folder')).toBe('Manage Folder')
+    expect(humanizeToolName('manage_scheduled_task')).toBe('Manage Scheduled Task')
   })
 
   it('title-cases kebab-case names', () => {
@@ -231,17 +231,25 @@ describe('getToolDisplayTitle for the vfs verbs', () => {
     expect(getToolDisplayTitle('create_file')).toBe('Creating file')
   })
 
-  it('shows deleted file and folder names', () => {
+  it('titles rm from toolTitle, falling back to the paths', () => {
+    expect(getToolDisplayTitle('rm', { toolTitle: 'Old Report.pdf' })).toBe(
+      'Deleting Old Report.pdf'
+    )
+    // rm spans categories, so with no toolTitle the paths are the only signal.
     expect(
-      getToolDisplayTitle('delete_file', {
-        paths: ['files/Reports/Old%20Report.pdf'],
-      })
-    ).toBe('Deleting Old Report.pdf')
-    expect(
-      getToolDisplayTitle('delete_file_folder', {
+      getToolDisplayTitle('rm', {
         paths: ['files/Old%20Reports', 'files/Drafts'],
       })
     ).toBe('Deleting Old Reports and Drafts')
+    expect(
+      getToolDisplayTitle('rm', {
+        paths: ['workflows/Lead%20Router'],
+      })
+    ).toBe('Deleting Lead Router')
+    // rm has no TOOL_TITLES entry (its case always returns), so a bare call
+    // must not fall through to the humanizer and render as "Rm".
+    expect(getToolDisplayTitle('rm', {})).toBe('Deleting resource')
+    expect(getToolDisplayTitle('rm')).toBe('Deleting resource')
   })
 
   it('uses the derived verb for mv titles', () => {
@@ -280,8 +288,8 @@ describe('getToolDisplayTitle for workflow resources', () => {
       'Editing Lead Router'
     )
     expect(
-      getToolDisplayTitle('delete_workflow', {
-        workflowNames: ['Lead Router', 'Lead Enricher'],
+      getToolDisplayTitle('rm', {
+        paths: ['workflows/Lead%20Router', 'workflows/Lead%20Enricher'],
       })
     ).toBe('Deleting Lead Router and Lead Enricher')
   })
@@ -313,16 +321,7 @@ describe('getToolDisplayTitle for managed resources', () => {
       },
       'Renaming Stripe to Production Stripe',
     ],
-    [
-      'manage_folder',
-      { operation: 'rename', path: 'workflows/Old%20Name', name: 'New Name' },
-      'Renaming Old Name to New Name',
-    ],
-    [
-      'manage_folder',
-      { operation: 'delete', path: 'workflows/Marketing/Q3%20Campaigns' },
-      'Deleting Q3 Campaigns',
-    ],
+    ['rm', { paths: ['workflows/Marketing/Q3%20Campaigns'] }, 'Deleting Q3 Campaigns'],
     ['manage_custom_tool', { operation: 'list' }, 'Viewing custom tools'],
     ['manage_mcp_tool', { operation: 'list' }, 'Viewing MCP servers'],
     ['manage_skill', { operation: 'list' }, 'Viewing skills'],

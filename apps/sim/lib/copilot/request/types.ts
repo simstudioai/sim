@@ -1,5 +1,8 @@
 import type { AsyncCompletionSignal } from '@/lib/copilot/async-runs/lifecycle'
-import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
+import {
+  type MothershipStreamV1CompletionStatus,
+  MothershipStreamV1ToolOutcome,
+} from '@/lib/copilot/generated/mothership-stream-v1'
 import type { RequestTraceV1Span } from '@/lib/copilot/generated/request-trace-v1'
 import type { StreamEvent } from '@/lib/copilot/request/session'
 import type { TraceCollector } from '@/lib/copilot/request/trace'
@@ -149,6 +152,13 @@ export interface StreamingContext {
   streamComplete: boolean
   wasAborted: boolean
   errors: string[]
+  /**
+   * Terminal status carried by the backend's `complete` event. Set only once
+   * the backend declares the turn finished, so it can outrank in-band failures
+   * recorded on the way there (a tool or subagent that failed and was handed
+   * back to the model as data).
+   */
+  completionStatus?: MothershipStreamV1CompletionStatus
   usage?: { prompt: number; completion: number }
   cost?: { input: number; output: number; total: number }
   /**

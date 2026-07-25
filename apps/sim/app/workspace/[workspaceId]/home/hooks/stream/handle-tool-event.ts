@@ -3,7 +3,7 @@ import {
   MothershipStreamV1ToolPhase,
   MothershipStreamV1ToolStatus,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
 import {
   extractResourcesFromToolResult,
@@ -15,7 +15,6 @@ import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/co
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import {
   DEPLOY_TOOL_NAMES,
-  extractResourceFromReadResult,
   FILE_SUBAGENT_ID,
   FOLDER_TOOL_NAMES,
   WORKFLOW_MUTATION_TOOL_NAMES,
@@ -51,16 +50,6 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode): void 
   const isSuccess = node.status === 'success'
   const params = node.args
   const calledBy = agentIdForSpan(ctx, node.spanId)
-
-  if (name === ReadTool.id && isSuccess) {
-    const resource = extractResourceFromReadResult(
-      typeof params?.path === 'string' ? params.path : undefined,
-      output
-    )
-    if (resource && deps.addResource(resource)) {
-      deps.onResourceEventRef.current?.()
-    }
-  }
 
   if (DEPLOY_TOOL_NAMES.has(name) && isSuccess) {
     const out = output as Record<string, unknown> | undefined

@@ -56,6 +56,7 @@ vi.mock('@/lib/copilot/request/tools/client', () => ({
 
 import {
   MothershipStreamV1AsyncToolRecordStatus,
+  MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
   MothershipStreamV1ResourceOp,
   MothershipStreamV1RunKind,
@@ -1286,6 +1287,24 @@ describe('sse-handlers tool lifecycle', () => {
 
     expect(context.awaitingAsyncContinuation).toBeUndefined()
     expect(context.streamComplete).toBe(false)
+  })
+
+  it('records the terminal completion status so a finished turn can outrank an in-band failure', async () => {
+    context.errors.push('subagent build failed')
+
+    await sseHandlers.complete(
+      {
+        type: MothershipStreamV1EventType.complete,
+        payload: { status: MothershipStreamV1CompletionStatus.complete },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    expect(context.completionStatus).toBe(MothershipStreamV1CompletionStatus.complete)
+    expect(context.streamComplete).toBe(true)
+    expect(context.errors).toEqual(['subagent build failed'])
   })
 
   it('routes resource events through an explicit main-lane handler', async () => {

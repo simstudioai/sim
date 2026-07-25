@@ -555,68 +555,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  delete_file: {
-    parameters: {
-      type: 'object',
-      properties: {
-        paths: {
-          type: 'array',
-          description:
-            'Canonical workspace file VFS paths to delete, e.g. ["files/Reports/draft.md"].',
-          items: {
-            type: 'string',
-          },
-        },
-      },
-      required: ['paths'],
-    },
-    resultSchema: {
-      type: 'object',
-      properties: {
-        message: {
-          type: 'string',
-          description: 'Human-readable outcome.',
-        },
-        success: {
-          type: 'boolean',
-          description: 'Whether the delete succeeded.',
-        },
-      },
-      required: ['success', 'message'],
-    },
-  },
-  delete_file_folder: {
-    parameters: {
-      type: 'object',
-      properties: {
-        paths: {
-          type: 'array',
-          description: 'Canonical folder VFS paths to delete, e.g. ["files/Archive"].',
-          items: {
-            type: 'string',
-          },
-        },
-      },
-      required: ['paths'],
-    },
-    resultSchema: undefined,
-  },
-  delete_workflow: {
-    parameters: {
-      type: 'object',
-      properties: {
-        workflowIds: {
-          type: 'array',
-          description: 'The workflow IDs to delete.',
-          items: {
-            type: 'string',
-          },
-        },
-      },
-      required: ['workflowIds'],
-    },
-    resultSchema: undefined,
-  },
   delete_workspace_mcp_server: {
     parameters: {
       type: 'object',
@@ -2530,7 +2468,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'query',
             'add_file',
             'update',
-            'delete',
             'delete_document',
             'update_document',
             'list_tags',
@@ -2754,30 +2691,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           items: {
             type: 'string',
           },
-        },
-      },
-      required: ['operation'],
-    },
-    resultSchema: undefined,
-  },
-  manage_folder: {
-    parameters: {
-      type: 'object',
-      properties: {
-        folderId: {
-          type: 'string',
-          description:
-            'Target folder ID, used as a fallback when path is not given. Readable from a contained workflow\'s meta.json "folderId".',
-        },
-        operation: {
-          type: 'string',
-          description: 'The operation to perform.',
-          enum: ['delete'],
-        },
-        path: {
-          type: 'string',
-          description:
-            'Target folder\'s VFS path (e.g. "workflows/Marketing/Q3 Campaigns"), per-segment percent-encoded like every VFS path.',
         },
       },
       required: ['operation'],
@@ -3441,6 +3354,28 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['type', 'id'],
+    },
+    resultSchema: undefined,
+  },
+  rm: {
+    parameters: {
+      type: 'object',
+      properties: {
+        paths: {
+          type: 'array',
+          description:
+            'Canonical VFS paths to delete, e.g. ["files/Reports/draft.md"]. Copy paths verbatim from glob/grep/read output. Paths from different categories may be mixed in one call.',
+          items: {
+            type: 'string',
+          },
+        },
+        toolTitle: {
+          type: 'string',
+          description:
+            'Target-only UI phrase for the action row, e.g. "draft.md" or "3 files", not a full sentence like "Deleting draft.md".',
+        },
+      },
+      required: ['paths', 'toolTitle'],
     },
     resultSchema: undefined,
   },
@@ -4420,7 +4355,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'import_file',
             'get',
             'get_schema',
-            'delete',
             'rename',
             'insert_row',
             'batch_insert_rows',

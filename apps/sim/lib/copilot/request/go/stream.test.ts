@@ -43,6 +43,8 @@ import {
   decodeJsonStringPrefix,
   extractEditContent,
   runStreamLoop,
+  STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE,
+  StreamEndedWithoutTerminalError,
 } from '@/lib/copilot/request/go/stream'
 import { AbortReason, createEvent, hasAbortMarker } from '@/lib/copilot/request/session'
 import { RequestTraceV1Outcome, TraceCollector } from '@/lib/copilot/request/trace'
@@ -567,16 +569,30 @@ describe('copilot go stream helpers', () => {
       workflowId: 'workflow-1',
     }
 
-    await expect(
-      runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
-        timeout: 1000,
-      })
-    ).rejects.toThrow('Copilot backend stream ended before a terminal event')
-    expect(
-      context.errors.some((message) =>
-        message.includes('Copilot backend stream ended before a terminal event')
-      )
-    ).toBe(true)
+    const failure = await runStreamLoop(
+      'https://example.com/mothership/stream',
+      {},
+      context,
+      execContext,
+      { timeout: 1000 }
+    ).then(
+      () => undefined,
+      (error: unknown) => error
+    )
+
+    // The backend answered 200 and ran the leg, so the failure must not
+    // masquerade as an HTTP status the resume loop treats as transient.
+    expect(failure).toBeInstanceOf(StreamEndedWithoutTerminalError)
+    expect(failure).not.toHaveProperty('status')
+    expect(failure).toMatchObject({ path: '/mothership/stream' })
+    expect((failure as Error).message).toBe(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
+    expect(context.errors).toEqual([STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE])
+  })
+
+  it('tells the user what happened without promising that a retry helps', () => {
+    expect(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE).not.toMatch(/try again/i)
+    expect(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE).not.toMatch(/\/api\//)
+    expect(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE).toMatch(/saved/i)
   })
 
   it('reclassifies as aborted when the body closes without terminal but the abort marker is set', async () => {
@@ -607,11 +623,7 @@ describe('copilot go stream helpers', () => {
 
     expect(hasAbortMarker).toHaveBeenCalledWith(context.messageId)
     expect(context.wasAborted).toBe(true)
-    expect(
-      context.errors.some((message) =>
-        message.includes('Copilot backend stream ended before a terminal event')
-      )
-    ).toBe(false)
+    expect(context.errors).toEqual([])
   })
 
   it('invokes onAbortObserved with MarkerObservedAtBodyClose when reclassifying via the abort marker', async () => {
@@ -675,7 +687,7 @@ describe('copilot go stream helpers', () => {
         timeout: 1000,
         onAbortObserved,
       })
-    ).rejects.toThrow('Copilot backend stream ended before a terminal event')
+    ).rejects.toThrow(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
 
     expect(onAbortObserved).not.toHaveBeenCalled()
   })
@@ -706,7 +718,7 @@ describe('copilot go stream helpers', () => {
       runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
         timeout: 1000,
       })
-    ).rejects.toThrow('Copilot backend stream ended before a terminal event')
+    ).rejects.toThrow(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
     expect(context.wasAborted).toBe(false)
   })
 
