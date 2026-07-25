@@ -43,6 +43,11 @@ export function hasBrowserAgent(): boolean {
   return Boolean(getDesktopBridge()?.browserAgent)
 }
 
+/** True when the shell can run an interactive local shell for the agent. */
+export function hasTerminal(): boolean {
+  return Boolean(getDesktopBridge()?.terminal)
+}
+
 /** True when the shell exposes device-level desktop preferences. */
 export function hasDesktopSettings(): boolean {
   return Boolean(getDesktopBridge()?.settings)
@@ -66,6 +71,7 @@ export interface DesktopChatCapabilities {
   desktopCapabilities?: {
     localFilesystem?: true
     browser?: true
+    terminal?: true
     browserSessions?: BrowserKnownSession[]
   }
   /** Compatibility for mothership deployments predating desktopCapabilities.browser. */
@@ -81,6 +87,7 @@ export async function getDesktopChatCapabilities(): Promise<DesktopChatCapabilit
   const bridge = getDesktopBridge()
   const localFilesystem = hasLocalFilesystem()
   const browser = hasBrowserAgent()
+  const terminal = hasTerminal()
   const browserSessions =
     browser && bridge?.browserAgent?.getKnownSessions
       ? await bridge.browserAgent
@@ -89,11 +96,12 @@ export async function getDesktopChatCapabilities(): Promise<DesktopChatCapabilit
           .catch(() => [])
       : []
   return {
-    ...(localFilesystem || browser
+    ...(localFilesystem || browser || terminal
       ? {
           desktopCapabilities: {
             ...(localFilesystem ? { localFilesystem: true as const } : {}),
             ...(browser ? { browser: true as const } : {}),
+            ...(terminal ? { terminal: true as const } : {}),
             ...(browserSessions.length > 0 ? { browserSessions } : {}),
           },
         }

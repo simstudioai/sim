@@ -115,10 +115,16 @@ export interface ToolCatalogEntry {
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
     | 'table'
+    | 'terminal_cwd'
+    | 'terminal_input'
+    | 'terminal_kill'
+    | 'terminal_read'
+    | 'terminal_run'
     | 'update_deployment_version'
     | 'update_scheduled_task_history'
     | 'update_workspace_mcp_server'
     | 'user_table'
+    | 'wait'
     | 'workflow'
     | 'workspace_file'
   internal?: boolean
@@ -232,10 +238,16 @@ export interface ToolCatalogEntry {
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
     | 'table'
+    | 'terminal_cwd'
+    | 'terminal_input'
+    | 'terminal_kill'
+    | 'terminal_read'
+    | 'terminal_run'
     | 'update_deployment_version'
     | 'update_scheduled_task_history'
     | 'update_workspace_mcp_server'
     | 'user_table'
+    | 'wait'
     | 'workflow'
     | 'workspace_file'
   parameters: unknown
@@ -4313,6 +4325,106 @@ export const Table: ToolCatalogEntry = {
   internal: true,
 }
 
+export const TerminalCwd: ToolCatalogEntry = {
+  id: 'terminal_cwd',
+  name: 'terminal_cwd',
+  route: 'client',
+  mode: 'async',
+  parameters: { type: 'object', properties: {} },
+  clientExecutable: true,
+}
+
+export const TerminalInput: ToolCatalogEntry = {
+  id: 'terminal_input',
+  name: 'terminal_input',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      key: {
+        type: 'string',
+        description:
+          'A control key to send instead of text. Use "enter" to submit something already typed.',
+        enum: [
+          'ctrl-c',
+          'ctrl-d',
+          'ctrl-z',
+          'enter',
+          'up',
+          'down',
+          'left',
+          'right',
+          'escape',
+          'tab',
+        ],
+      },
+      text: {
+        type: 'string',
+        description:
+          'Literal text to type. A trailing newline is sent as Enter, so a single call can type and submit; send text without one when you want to type now and submit separately.',
+      },
+    },
+  },
+  clientExecutable: true,
+}
+
+export const TerminalKill: ToolCatalogEntry = {
+  id: 'terminal_kill',
+  name: 'terminal_kill',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      signal: {
+        type: 'string',
+        description: 'Signal to send. Defaults to SIGINT.',
+        enum: ['SIGINT', 'SIGTERM', 'SIGKILL'],
+      },
+    },
+  },
+  clientExecutable: true,
+}
+
+export const TerminalRead: ToolCatalogEntry = {
+  id: 'terminal_read',
+  name: 'terminal_read',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      lines: { type: 'number', description: 'How many trailing lines to return. Defaults to 200.' },
+    },
+  },
+  clientExecutable: true,
+}
+
+export const TerminalRun: ToolCatalogEntry = {
+  id: 'terminal_run',
+  name: 'terminal_run',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      command: {
+        type: 'string',
+        description:
+          'The command line to run, exactly as it would be typed at the prompt. Shell syntax (pipes, &&, quoting, redirection) is supported because a real shell interprets it.',
+      },
+      waitSeconds: {
+        type: 'number',
+        description:
+          'How long to wait before handing back a still-running command as status "running". Defaults to 30, capped at 120. Raising it does not make a command finish sooner — it only delays your first look at it.',
+      },
+    },
+    required: ['command'],
+  },
+  clientExecutable: true,
+}
+
 export const UpdateDeploymentVersion: ToolCatalogEntry = {
   id: 'update_deployment_version',
   name: 'update_deployment_version',
@@ -4710,6 +4822,25 @@ export const UserTable: ToolCatalogEntry = {
       success: { type: 'boolean', description: 'Whether the operation succeeded.' },
     },
     required: ['success', 'message'],
+  },
+}
+
+export const Wait: ToolCatalogEntry = {
+  id: 'wait',
+  name: 'wait',
+  route: 'go',
+  mode: 'sync',
+  parameters: {
+    type: 'object',
+    properties: {
+      reason: {
+        type: 'string',
+        description:
+          'What you are waiting for, in a few words (e.g. "the test suite to finish"). Shown to the user so the pause is not unexplained.',
+      },
+      seconds: { type: 'number', description: 'How long to pause, in seconds. Capped at 30.' },
+    },
+    required: ['seconds'],
   },
 }
 
@@ -5260,10 +5391,16 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [SetEnvironmentVariables.id]: SetEnvironmentVariables,
   [SetGlobalWorkflowVariables.id]: SetGlobalWorkflowVariables,
   [Table.id]: Table,
+  [TerminalCwd.id]: TerminalCwd,
+  [TerminalInput.id]: TerminalInput,
+  [TerminalKill.id]: TerminalKill,
+  [TerminalRead.id]: TerminalRead,
+  [TerminalRun.id]: TerminalRun,
   [UpdateDeploymentVersion.id]: UpdateDeploymentVersion,
   [UpdateScheduledTaskHistory.id]: UpdateScheduledTaskHistory,
   [UpdateWorkspaceMcpServer.id]: UpdateWorkspaceMcpServer,
   [UserTable.id]: UserTable,
+  [Wait.id]: Wait,
   [Workflow.id]: Workflow,
   [WorkspaceFile.id]: WorkspaceFile,
 }

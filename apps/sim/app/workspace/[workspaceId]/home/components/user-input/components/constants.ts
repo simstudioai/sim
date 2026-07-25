@@ -99,8 +99,10 @@ export const SPEECH_RECOGNITION_LANG = 'en-US'
  * so adding a new resource type fails compilation here until a conversion is
  * supplied — preventing silent drift between the two taxonomies.
  */
+// `browser` and `terminal` are live desktop panels, not addressable workspace
+// entities, so neither can become chat context.
 const RESOURCE_TO_CONTEXT: Record<
-  Exclude<MothershipResourceType, 'browser'>,
+  Exclude<MothershipResourceType, 'browser' | 'terminal'>,
   (resource: MothershipResource) => ChatContext
 > = {
   workflow: (r) => ({ kind: 'workflow', workflowId: r.id, label: r.title }),
@@ -117,8 +119,8 @@ const RESOURCE_TO_CONTEXT: Record<
 }
 
 export function mapResourceToContext(resource: MothershipResource): ChatContext {
-  if (resource.type === 'browser') {
-    throw new Error('Live browser sessions cannot be attached as chat context')
+  if (resource.type === 'browser' || resource.type === 'terminal') {
+    throw new Error(`Live ${resource.type} sessions cannot be attached as chat context`)
   }
   return RESOURCE_TO_CONTEXT[resource.type](resource)
 }

@@ -36,6 +36,7 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
+import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
@@ -279,6 +280,9 @@ export const ResourceContent = memo(function ResourceContent({
     case 'browser':
       return <BrowserSession key={resource.id} />
 
+    case 'terminal':
+      return <TerminalSession key={resource.id} />
+
     default:
       return null
   }
@@ -320,6 +324,7 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
     case 'folder':
     case 'generic':
     case 'browser':
+    case 'terminal':
       return null
     default:
       return null

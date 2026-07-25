@@ -222,6 +222,15 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Cursor} />,
   },
+  terminal: {
+    type: 'terminal',
+    label: 'Terminal',
+    icon: TerminalWindow,
+    renderTabIcon: (_resource, className) => (
+      <TerminalWindow className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={TerminalWindow} />,
+  },
 } as const
 
 export const RESOURCE_TYPES = Object.values(RESOURCE_REGISTRY)
@@ -283,6 +292,11 @@ const RESOURCE_INVALIDATORS: Record<
    * invalidate.
    */
   browser: () => {},
+  /**
+   * The terminal panel is backed by a live PTY in the desktop app, not a
+   * server-backed query, so there is nothing to invalidate.
+   */
+  terminal: () => {},
 }
 
 /**

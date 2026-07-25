@@ -1,5 +1,6 @@
 import { isBrowserToolName } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
+import { isTerminalToolName } from '@sim/terminal-protocol'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/copilot/async-runs/lifecycle'
 import { markAsyncToolDelivered, upsertAsyncToolCall } from '@/lib/copilot/async-runs/repository'
@@ -179,12 +180,15 @@ export async function prePersistClientExecutableToolCall(
     toolCallId: data.toolCallId,
     toolName: data.toolName,
     args: data.arguments,
-    // Browser actions cross a second, native authorization boundary. Leave
-    // those rows pending until Electron atomically claims them; all other
+    // Browser and terminal actions cross a second, native authorization
+    // boundary. Leave those rows pending until Electron atomically claims
+    // them — the authorize endpoint only hands over a pending call, so a row
+    // that arrives already running can never be executed natively. All other
     // client tools retain the established "already dispatched" running state.
-    status: isBrowserToolName(data.toolName)
-      ? MothershipStreamV1AsyncToolRecordStatus.pending
-      : MothershipStreamV1AsyncToolRecordStatus.running,
+    status:
+      isBrowserToolName(data.toolName) || isTerminalToolName(data.toolName)
+        ? MothershipStreamV1AsyncToolRecordStatus.pending
+        : MothershipStreamV1AsyncToolRecordStatus.running,
   }).catch((err) => {
     logger.warn('Failed to pre-persist async tool row before forwarding call frame', {
       toolCallId: data.toolCallId,

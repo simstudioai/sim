@@ -44,6 +44,7 @@ import {
   resolveStartRoute,
 } from '@/main/session-lifecycle'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
+import { TerminalService } from '@/main/terminal'
 import { installTray, newChatRoute, settingsRoute, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
 import { createMainWindow, setupPermissionHandlers } from '@/main/window'
@@ -68,6 +69,10 @@ function main(): void {
     grantStore: createEncryptedLocalFilesystemGrantStore(
       join(app.getPath('userData'), 'local-filesystem-grants.json')
     ),
+  })
+  const terminal = new TerminalService({
+    loadCwd: () => config.get('terminalCwd'),
+    saveCwd: (cwd) => config.set('terminalCwd', cwd),
   })
   const preloadPath = join(__dirname, 'preload.cjs')
 
@@ -380,6 +385,7 @@ function main(): void {
     tray?.destroy()
     tray = null
     localFilesystem.close()
+    terminal.dispose()
   })
 
   app.on('activate', () => {
@@ -415,6 +421,12 @@ function main(): void {
       config
     )
     await localFilesystem.initialize()
+    terminal.setSink({
+      data: (data) => broadcast('terminal:data', data),
+      replay: (data) => broadcast('terminal:replay', data),
+      state: (state) => broadcast('terminal:state', state),
+      command: (event) => broadcast('terminal:command', event),
+    })
     registerIpcHandlers({
       appOrigin,
       allowHttpLocalhost,
@@ -423,6 +435,7 @@ function main(): void {
         if (win) loadHealthByWindow.get(win)?.retry()
       },
       localFilesystem,
+      terminal,
       settings: desktopSettings,
       getWindowState: (sender) => ({
         isFullScreen: windowForContents(sender)?.isFullScreen() ?? false,

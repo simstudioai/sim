@@ -7,6 +7,7 @@ vi.mock('electron', () => import('@/test/electron-mock'))
 import { ipcMain, shell } from 'electron'
 import { type IpcDeps, registerIpcHandlers } from '@/main/ipc'
 import { LocalFilesystemService } from '@/main/local-filesystem'
+import { TerminalService } from '@/main/terminal'
 
 const APP = 'https://sim.ai'
 
@@ -74,6 +75,7 @@ describe('registerIpcHandlers', () => {
       localFilesystem: new LocalFilesystemService({
         chooseDirectory: vi.fn(async () => null),
       }),
+      terminal: new TerminalService(),
       settings: {
         getPreferences: vi.fn(() => ({
           notificationsEnabled: true,

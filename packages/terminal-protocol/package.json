@@ -1,5 +1,5 @@
 {
-  "name": "@sim/desktop-bridge",
+  "name": "@sim/terminal-protocol",
   "version": "0.1.0",
   "private": true,
   "sideEffects": false,
@@ -22,12 +22,10 @@
     "format": "biome format --write .",
     "format:check": "biome format ."
   },
-  "dependencies": {
-    "@sim/browser-protocol": "workspace:*",
-    "@sim/terminal-protocol": "workspace:*"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "typescript": "^7.0.2"
+    "@types/node": "24.2.1",
+    "typescript": "^5.7.3"
   }
 }

@@ -102,6 +102,12 @@ export interface StreamLoopDeps {
     args: Record<string, unknown>,
     ts?: string
   ) => void
+  startClientTerminalTool: (
+    id: string,
+    name: string,
+    args: Record<string, unknown>,
+    ts?: string
+  ) => void
   upsertMothershipChatHistory: (
     chatId: string,
     updater: (current: MothershipChatHistory) => MothershipChatHistory

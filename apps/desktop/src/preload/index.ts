@@ -23,6 +23,13 @@ import type {
   LocalFilesystemResponse,
   SimDesktopApi,
 } from '@sim/desktop-bridge'
+import type {
+  TerminalCommandEvent,
+  TerminalSessionState,
+  TerminalStartOptions,
+  TerminalToolName,
+  TerminalToolResponse,
+} from '@sim/terminal-protocol'
 import { contextBridge, ipcRenderer } from 'electron'
 
 const VERSION_ARG_PREFIX = '--sim-desktop-version='
@@ -166,6 +173,63 @@ const api: SimDesktopApi = {
       ipcRenderer.on('browser-agent:session-status', listener)
       return () => {
         ipcRenderer.removeListener('browser-agent:session-status', listener)
+      }
+    },
+  },
+  terminal: {
+    start: async (options: TerminalStartOptions): Promise<TerminalSessionState> => {
+      const response = (await ipcRenderer.invoke('terminal:start', options)) as
+        | { ok: true; state: TerminalSessionState }
+        | { ok: false; code?: string; error?: string }
+      if (!response?.ok) {
+        const failure = new Error(response?.error ?? 'Could not open a terminal.')
+        failure.name = response?.code ?? 'SPAWN_FAILED'
+        throw failure
+      }
+      return response.state
+    },
+    executeTool: (
+      toolCallId: string,
+      tool: TerminalToolName,
+      params: Record<string, unknown>
+    ): Promise<TerminalToolResponse> =>
+      ipcRenderer.invoke('terminal:execute-tool', toolCallId, tool, params),
+    write: (data: string): void => {
+      ipcRenderer.send('terminal:write', data)
+    },
+    resize: (cols: number, rows: number): void => {
+      ipcRenderer.send('terminal:resize', cols, rows)
+    },
+    getState: (): Promise<TerminalSessionState> => ipcRenderer.invoke('terminal:get-state'),
+    dispose: (): void => {
+      ipcRenderer.send('terminal:dispose')
+    },
+    onData: (callback: (data: string) => void): (() => void) => {
+      const listener = (_event: unknown, data: string) => callback(data)
+      ipcRenderer.on('terminal:data', listener)
+      return () => {
+        ipcRenderer.removeListener('terminal:data', listener)
+      }
+    },
+    onReplay: (callback: (data: string) => void): (() => void) => {
+      const listener = (_event: unknown, data: string) => callback(data)
+      ipcRenderer.on('terminal:replay', listener)
+      return () => {
+        ipcRenderer.removeListener('terminal:replay', listener)
+      }
+    },
+    onState: (callback: (state: TerminalSessionState) => void): (() => void) => {
+      const listener = (_event: unknown, state: TerminalSessionState) => callback(state)
+      ipcRenderer.on('terminal:state', listener)
+      return () => {
+        ipcRenderer.removeListener('terminal:state', listener)
+      }
+    },
+    onCommand: (callback: (event: TerminalCommandEvent) => void): (() => void) => {
+      const listener = (_event: unknown, payload: TerminalCommandEvent) => callback(payload)
+      ipcRenderer.on('terminal:command', listener)
+      return () => {
+        ipcRenderer.removeListener('terminal:command', listener)
       }
     },
   },

@@ -13,7 +13,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "bun run scripts/build.ts",
+    "build": "bun run scripts/ensure-pty-prebuilds.ts && bun run scripts/build.ts",
     "dev": "bun run scripts/build.ts && electron .",
     "start": "electron .",
     "package:dir": "bun run build && electron-builder --mac dir --publish never",
@@ -30,11 +30,16 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@lydell/node-pty": "1.2.0-beta.12",
+    "@lydell/node-pty-darwin-arm64": "1.2.0-beta.12",
+    "@lydell/node-pty-darwin-x64": "1.2.0-beta.12",
     "@sim/browser-protocol": "workspace:*",
     "@sim/desktop-bridge": "workspace:*",
     "@sim/logger": "workspace:*",
     "@sim/security": "workspace:*",
+    "@sim/terminal-protocol": "workspace:*",
     "@sim/utils": "workspace:*",
+    "@xterm/headless": "6.0.0",
     "electron-updater": "6.8.9",
     "micromatch": "4.0.8",
     "safe-regex2": "5.1.0"

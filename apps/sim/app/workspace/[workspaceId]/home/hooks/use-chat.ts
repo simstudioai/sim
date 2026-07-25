@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react'
 import { isBrowserToolName } from '@sim/browser-protocol'
+import { isTerminalToolName } from '@sim/terminal-protocol'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -58,8 +59,13 @@ import {
   isFilePreviewSession,
 } from '@/lib/copilot/request/session/file-preview-session-contract'
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
-import { BROWSER_SESSION_RESOURCE_ID, isEphemeralResource } from '@/lib/copilot/resources/types'
+import {
+  BROWSER_SESSION_RESOURCE_ID,
+  isEphemeralResource,
+  TERMINAL_SESSION_RESOURCE_ID,
+} from '@/lib/copilot/resources/types'
 import { executeBrowserToolOnClient } from '@/lib/copilot/tools/client/browser-tool-execution'
+import { executeTerminalToolOnClient } from '@/lib/copilot/tools/client/terminal-tool-execution'
 import { executeLocalFilesystemTool } from '@/lib/copilot/tools/client/local-filesystem'
 import {
   bindRunToolToExecution,
@@ -70,6 +76,7 @@ import {
 } from '@/lib/copilot/tools/client/run-tool-execution'
 import { setCurrentChatTraceparent } from '@/lib/copilot/tools/client/trace-context'
 import { isUserLocalVfsToolCall } from '@/lib/copilot/tools/local-filesystem'
+import { initTerminalTransport } from '@/lib/terminal/transport'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import { readSSELines } from '@/lib/core/utils/sse'
 import { getDesktopBridge, getDesktopChatCapabilities } from '@/lib/desktop'
@@ -1673,6 +1680,33 @@ export function useChat(
     [openBrowserResource]
   )
 
+  const openTerminalResource = useCallback(() => {
+    const wasAdded = addResource({
+      type: 'terminal',
+      id: TERMINAL_SESSION_RESOURCE_ID,
+      title: 'Terminal',
+    })
+    if (!wasAdded && activeResourceIdRef.current !== TERMINAL_SESSION_RESOURCE_ID) {
+      setActiveResourceId(TERMINAL_SESSION_RESOURCE_ID)
+    }
+    // The panel must be visible before a command runs: it is where the user
+    // sees what is about to execute and approves or declines it.
+    onResourceEventRef.current?.()
+  }, [addResource, setActiveResourceId])
+
+  const startClientTerminalTool = useCallback(
+    (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>, eventTs?: string) => {
+      if (!isTerminalToolName(toolName)) {
+        return
+      }
+      openTerminalResource()
+      // Replay/exactly-once guarding lives in executeTerminalToolOnClient
+      // (sessionStorage-backed, so reloads cannot re-run a command).
+      executeTerminalToolOnClient(toolCallId, toolName, toolArgs, eventTs)
+    },
+    [openTerminalResource]
+  )
+
   // Chat links clicked in the desktop app open in the embedded browser panel
   // (message components dispatch the request; this hook owns the resource).
   useEffect(() => {
@@ -1796,6 +1830,7 @@ export function useChat(
 
   useEffect(() => {
     initBrowserAgentTransport()
+    initTerminalTransport()
   }, [])
 
   useEffect(() => {
@@ -2003,6 +2038,7 @@ export function useChat(
         startClientWorkflowTool,
         startClientLocalFilesystemTool,
         startClientBrowserTool,
+        startClientTerminalTool,
         upsertMothershipChatHistory: upsertChatHistory,
         ensureWorkflowInRegistry,
         onPreviewPhase,
@@ -2117,6 +2153,7 @@ export function useChat(
       startClientWorkflowTool,
       startClientLocalFilesystemTool,
       startClientBrowserTool,
+      startClientTerminalTool,
       upsertChatHistory,
       onPreviewPhase,
       applyPreviewSessionUpdate,

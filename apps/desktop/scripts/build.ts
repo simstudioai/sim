@@ -45,7 +45,9 @@ const common = {
   format: 'cjs' as const,
   target: 'node22',
   sourcemap: true,
-  external: ['electron'],
+  // node-pty resolves a prebuilt .node binary at runtime, so it must stay
+  // external and be loaded from node_modules rather than inlined here.
+  external: ['electron', '@lydell/node-pty'],
   tsconfig: 'tsconfig.json',
   logLevel: 'info' as const,
   define: {

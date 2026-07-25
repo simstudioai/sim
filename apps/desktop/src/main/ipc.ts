@@ -4,6 +4,7 @@ import type {
   DesktopUpdateState,
   DesktopWindowState,
 } from '@sim/desktop-bridge'
+import { isTerminalToolName } from '@sim/terminal-protocol'
 import { isRecordLike } from '@sim/utils/object'
 import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 import { ipcMain } from 'electron'
@@ -19,6 +20,7 @@ import type { DesktopSettingsService } from '@/main/desktop-settings'
 import { isDesktopPreferenceKey } from '@/main/desktop-settings'
 import type { LocalFilesystemService } from '@/main/local-filesystem'
 import { isAppOrigin, openExternalSafe } from '@/main/navigation'
+import type { TerminalService } from '@/main/terminal'
 
 /** Workspace/chat ids are opaque tokens; anything else never reaches a URL. */
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
@@ -112,6 +114,7 @@ export interface IpcDeps {
   allowHttpLocalhost: () => boolean
   retryLoad: (sender: WebContents) => void
   localFilesystem: LocalFilesystemService
+  terminal: TerminalService
   settings: DesktopSettingsService
   getWindowState: (sender: WebContents) => DesktopWindowState
   browserPanel: {
@@ -452,6 +455,74 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         }
       },
     },
+    'terminal:start': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: { ok: false, code: 'ACCESS_DENIED', error: 'Not allowed from this page.' },
+      handler: (raw) => {
+        const options = isRecordLike(raw) ? raw : {}
+        const cols = Number(options.cols)
+        const rows = Number(options.rows)
+        try {
+          return {
+            ok: true,
+            state: deps.terminal.start({
+              cols: Number.isFinite(cols) && cols > 0 ? Math.floor(cols) : 80,
+              rows: Number.isFinite(rows) && rows > 0 ? Math.floor(rows) : 24,
+            }),
+          }
+        } catch (error) {
+          const failure = error as { code?: string; message?: string }
+          return {
+            ok: false,
+            code: failure.code ?? 'SPAWN_FAILED',
+            error: failure.message ?? 'Could not open a terminal.',
+          }
+        }
+      },
+    },
+    'terminal:execute-tool': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: { ok: false, error: 'Terminal access is not allowed from this page.' },
+      handler: (toolCallId, tool, params) => {
+        if (
+          typeof toolCallId !== 'string' ||
+          typeof tool !== 'string' ||
+          !isTerminalToolName(tool)
+        ) {
+          return { ok: false, error: `Unknown terminal tool: ${String(tool)}` }
+        }
+        return deps.terminal.executeTool(toolCallId, tool, isRecordLike(params) ? params : {})
+      },
+    },
+    'terminal:get-state': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: () => deps.terminal.getState(),
+    },
+    'terminal:write': {
+      kind: 'send',
+      gate: 'app-origin',
+      handler: (data) => {
+        if (typeof data === 'string') deps.terminal.write(data)
+      },
+    },
+    'terminal:resize': {
+      kind: 'send',
+      gate: 'app-origin',
+      handler: (cols, rows) => {
+        if (typeof cols === 'number' && typeof rows === 'number') {
+          deps.terminal.resize(Math.floor(cols), Math.floor(rows))
+        }
+      },
+    },
+    'terminal:dispose': {
+      kind: 'send',
+      gate: 'app-origin',
+      handler: () => deps.terminal.dispose(),
+    },
     'offline:retry': {
       kind: 'send',
       gate: 'local-page',
@@ -486,6 +557,24 @@ export function registerIpcHandlers(deps: IpcDeps): void {
             }
           }
           handlerArgs = [authorization.toolName, authorization.args]
+        }
+        if (channel === 'terminal:execute-tool') {
+          const requestedTool = args[1]
+          const authorization = await fetchDesktopToolAuthorization(event, deps, args[0])
+          if (
+            !authorization ||
+            typeof requestedTool !== 'string' ||
+            authorization.toolName !== requestedTool ||
+            !isTerminalToolName(authorization.toolName)
+          ) {
+            return {
+              ok: false,
+              error: 'This terminal action is not an authorized pending Copilot tool call.',
+            }
+          }
+          // The command executed is the one the server has on file for this
+          // tool call, never the one the renderer passed in.
+          handlerArgs = [args[0], authorization.toolName, authorization.args]
         }
         if (
           channel === 'desktop:local-filesystem' &&

@@ -3972,6 +3972,87 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  terminal_cwd: {
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    resultSchema: undefined,
+  },
+  terminal_input: {
+    parameters: {
+      type: 'object',
+      properties: {
+        key: {
+          type: 'string',
+          description:
+            'A control key to send instead of text. Use "enter" to submit something already typed.',
+          enum: [
+            'ctrl-c',
+            'ctrl-d',
+            'ctrl-z',
+            'enter',
+            'up',
+            'down',
+            'left',
+            'right',
+            'escape',
+            'tab',
+          ],
+        },
+        text: {
+          type: 'string',
+          description:
+            'Literal text to type. A trailing newline is sent as Enter, so a single call can type and submit; send text without one when you want to type now and submit separately.',
+        },
+      },
+    },
+    resultSchema: undefined,
+  },
+  terminal_kill: {
+    parameters: {
+      type: 'object',
+      properties: {
+        signal: {
+          type: 'string',
+          description: 'Signal to send. Defaults to SIGINT.',
+          enum: ['SIGINT', 'SIGTERM', 'SIGKILL'],
+        },
+      },
+    },
+    resultSchema: undefined,
+  },
+  terminal_read: {
+    parameters: {
+      type: 'object',
+      properties: {
+        lines: {
+          type: 'number',
+          description: 'How many trailing lines to return. Defaults to 200.',
+        },
+      },
+    },
+    resultSchema: undefined,
+  },
+  terminal_run: {
+    parameters: {
+      type: 'object',
+      properties: {
+        command: {
+          type: 'string',
+          description:
+            'The command line to run, exactly as it would be typed at the prompt. Shell syntax (pipes, &&, quoting, redirection) is supported because a real shell interprets it.',
+        },
+        waitSeconds: {
+          type: 'number',
+          description:
+            'How long to wait before handing back a still-running command as status "running". Defaults to 30, capped at 120. Raising it does not make a command finish sooner — it only delays your first look at it.',
+        },
+      },
+      required: ['command'],
+    },
+    resultSchema: undefined,
+  },
   update_deployment_version: {
     parameters: {
       type: 'object',
@@ -4403,6 +4484,24 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       },
       required: ['success', 'message'],
     },
+  },
+  wait: {
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description:
+            'What you are waiting for, in a few words (e.g. "the test suite to finish"). Shown to the user so the pause is not unexplained.',
+        },
+        seconds: {
+          type: 'number',
+          description: 'How long to pause, in seconds. Capped at 30.',
+        },
+      },
+      required: ['seconds'],
+    },
+    resultSchema: undefined,
   },
   workflow: {
     parameters: {

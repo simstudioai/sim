@@ -17,7 +17,11 @@ import {
 import { Folder, Plus, Workflow } from '@sim/emcn/icons'
 import { truncate } from '@sim/utils/string'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
-import { BROWSER_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
+import {
+  BROWSER_SESSION_RESOURCE_ID,
+  TERMINAL_SESSION_RESOURCE_ID,
+} from '@/lib/copilot/resources/types'
+import { isTerminalAvailable } from '@/lib/terminal/transport'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
@@ -195,6 +199,20 @@ export function useAvailableResources(
             id: BROWSER_SESSION_RESOURCE_ID,
             name: 'Browser',
             isOpen: existingKeys.has(`browser:${BROWSER_SESSION_RESOURCE_ID}`),
+          },
+        ],
+      })
+    }
+    // The live terminal — desktop app only (needs the PTY bridge), and a
+    // singleton like the browser.
+    if (isTerminalAvailable()) {
+      groups.push({
+        type: 'terminal' as const,
+        items: [
+          {
+            id: TERMINAL_SESSION_RESOURCE_ID,
+            name: 'Terminal',
+            isOpen: existingKeys.has(`terminal:${TERMINAL_SESSION_RESOURCE_ID}`),
           },
         ],
       })
@@ -559,9 +577,9 @@ export function AddResourceDropdown({
                 if (items.length === 0) return null
                 const config = getResourceConfig(type)
                 const Icon = config.icon
-                // The browser panel is a singleton — a flat item, not a
-                // one-entry submenu.
-                if (type === 'browser') {
+                // The browser and terminal panels are singletons — flat
+                // items, not one-entry submenus.
+                if (type === 'browser' || type === 'terminal') {
                   const item = items[0]
                   return (
                     <DropdownMenuItem

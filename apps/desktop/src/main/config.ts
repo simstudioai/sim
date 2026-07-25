@@ -87,6 +87,14 @@ export interface DesktopSettings {
   launchAtLogin?: boolean
   autoDownloadUpdates?: boolean
   /**
+   * Where the agent terminal last was. A shell that always reopened in the
+   * home directory would drop the user back at square one every session, and
+   * `$HOME` is the worst possible working directory for tools that ask what
+   * they are allowed to touch. Restored on the next launch when it still
+   * exists.
+   */
+  terminalCwd?: string
+  /**
    * Top-level sites visited in the dedicated agent-browser profile. This is
    * local inference metadata only; no cookies, credentials, or account data
    * are persisted here.

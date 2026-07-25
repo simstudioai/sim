@@ -84,6 +84,10 @@ const ResourceAttachmentSchema = z.object({
     'scheduledtask',
     'generic',
     'browser',
+    // Filtered out client-side rather than sent, but accepted here so a stray
+    // terminal attachment degrades to a no-op instead of rejecting the whole
+    // chat request.
+    'terminal',
   ]),
   id: z.string().min(1),
   title: z.string().optional(),
@@ -114,6 +118,7 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
   scheduledtask: 'Scheduled Task',
   generic: 'Resource',
   browser: 'Browser',
+  terminal: 'Terminal',
 }
 
 /**
@@ -186,6 +191,7 @@ const ChatMessageSchema = z.object({
     .object({
       localFilesystem: z.boolean().optional(),
       browser: z.boolean().optional(),
+      terminal: z.boolean().optional(),
       browserSessions: z
         .array(
           z.object({
@@ -244,6 +250,7 @@ type UnifiedChatBranch =
         vfs?: VfsSnapshotV1
         desktopLocalFilesystem?: boolean
         browserCapable?: boolean
+        terminalCapable?: boolean
         browserSessions?: BrowserSessions
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
@@ -278,6 +285,7 @@ type UnifiedChatBranch =
         vfs?: VfsSnapshotV1
         desktopLocalFilesystem?: boolean
         browserCapable?: boolean
+        terminalCapable?: boolean
         browserSessions?: BrowserSessions
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
@@ -715,6 +723,7 @@ async function resolveBranch(params: {
             userMetadata: payloadParams.userMetadata,
             desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
             browserCapable: payloadParams.browserCapable,
+            terminalCapable: payloadParams.terminalCapable,
             browserSessions: payloadParams.browserSessions,
           },
           { selectedModel }
@@ -775,6 +784,7 @@ async function resolveBranch(params: {
           userMetadata: payloadParams.userMetadata,
           desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
           browserCapable: payloadParams.browserCapable,
+          terminalCapable: payloadParams.terminalCapable,
           browserSessions: payloadParams.browserSessions,
         },
         { selectedModel: '' }
@@ -1112,6 +1122,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
                 browserCapable:
                   body.desktopCapabilities?.browser === true || body.browserCapable === true,
+                terminalCapable: body.desktopCapabilities?.terminal === true,
                 browserSessions: body.desktopCapabilities?.browserSessions,
               })
             : branch.buildPayload({
@@ -1131,6 +1142,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
                 browserCapable:
                   body.desktopCapabilities?.browser === true || body.browserCapable === true,
+                terminalCapable: body.desktopCapabilities?.terminal === true,
                 browserSessions: body.desktopCapabilities?.browserSessions,
               })
         },

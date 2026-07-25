@@ -10,6 +10,53 @@ import type {
   BrowserToolName,
   BrowserToolResponse,
 } from '@sim/browser-protocol'
+import type {
+  TerminalCommandEvent,
+  TerminalSessionState,
+  TerminalStartOptions,
+  TerminalToolName,
+  TerminalToolResponse,
+} from '@sim/terminal-protocol'
+
+/**
+ * The agent-terminal surface of the preload bridge. A real PTY runs in the
+ * Electron main process, starting in the user's home directory; the renderer
+ * paints its bytes with xterm.js and forwards keystrokes back. The user and
+ * the agent share the one shell, so working directory and environment stay
+ * consistent between them.
+ */
+export interface SimDesktopTerminalApi {
+  /** Start the session, or adopt the running one. */
+  start(options: TerminalStartOptions): Promise<TerminalSessionState>
+  /**
+   * Execute one terminal tool. Resolves with the tool's outcome; never
+   * rejects for tool-level failures (those ride `ok: false`).
+   */
+  executeTool(
+    toolCallId: string,
+    tool: TerminalToolName,
+    params: Record<string, unknown>
+  ): Promise<TerminalToolResponse>
+  /** Forward the user's keystrokes to the PTY. */
+  write(data: string): void
+  resize(cols: number, rows: number): void
+  getState(): Promise<TerminalSessionState>
+  /** End the shell. A new one starts on the next `start`. */
+  dispose(): void
+  /** Subscribe to PTY output batches. Returns an unsubscribe function. */
+  onData(callback: (data: string) => void): () => void
+  /**
+   * Subscribe to full-scrollback repaints, sent when the panel attaches to a
+   * shell that was already running. Reset the terminal before writing it.
+   * Optional for compatibility with shells predating scrollback replay; without
+   * it the panel simply starts empty over a live shell.
+   */
+  onReplay?(callback: (data: string) => void): () => void
+  /** Subscribe to session state (cwd, liveness, foreground command). */
+  onState(callback: (state: TerminalSessionState) => void): () => void
+  /** Subscribe to command start/end, used for agent attribution in the panel. */
+  onCommand(callback: (event: TerminalCommandEvent) => void): () => void
+}
 
 /**
  * The browser-agent surface of the preload bridge. Tools execute in the
@@ -353,4 +400,9 @@ export interface SimDesktopApi {
   settings?: SimDesktopSettingsApi
   updates?: SimDesktopUpdatesApi
   browserAgent?: SimDesktopBrowserAgentApi
+  /**
+   * Optional so a newer web deployment stays compatible with installed shells
+   * that predate the agent terminal.
+   */
+  terminal?: SimDesktopTerminalApi
 }

@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "simstudio",
@@ -22,11 +21,16 @@
       "name": "@sim/desktop",
       "version": "0.0.0",
       "dependencies": {
+        "@lydell/node-pty": "1.2.0-beta.12",
+        "@lydell/node-pty-darwin-arm64": "1.2.0-beta.12",
+        "@lydell/node-pty-darwin-x64": "1.2.0-beta.12",
         "@sim/browser-protocol": "workspace:*",
         "@sim/desktop-bridge": "workspace:*",
         "@sim/logger": "workspace:*",
         "@sim/security": "workspace:*",
+        "@sim/terminal-protocol": "workspace:*",
         "@sim/utils": "workspace:*",
+        "@xterm/headless": "6.0.0",
         "electron-updater": "6.8.9",
         "micromatch": "4.0.8",
         "safe-regex2": "5.1.0",
@@ -202,6 +206,7 @@
         "@sim/realtime-protocol": "workspace:*",
         "@sim/runtime-secrets": "workspace:*",
         "@sim/security": "workspace:*",
+        "@sim/terminal-protocol": "workspace:*",
         "@sim/utils": "workspace:*",
         "@sim/workflow-persistence": "workspace:*",
         "@sim/workflow-renderer": "workspace:*",
@@ -222,6 +227,11 @@
         "@tiptap/suggestion": "3.26.1",
         "@trigger.dev/sdk": "4.4.3",
         "@typescript/typescript6": "^6.0.2",
+        "@xterm/addon-fit": "0.11.0",
+        "@xterm/addon-unicode11": "0.9.0",
+        "@xterm/addon-web-links": "0.12.0",
+        "@xterm/addon-webgl": "0.19.0",
+        "@xterm/xterm": "6.0.0",
         "ajv": "8.18.0",
         "better-auth": "1.6.13",
         "binary-extensions": "3.1.0",
@@ -429,6 +439,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@sim/browser-protocol": "workspace:*",
+        "@sim/terminal-protocol": "workspace:*",
       },
       "devDependencies": {
         "@sim/tsconfig": "workspace:*",
@@ -533,6 +544,15 @@
         "@types/node": "24.2.1",
         "typescript": "^7.0.2",
         "vitest": "^4.1.0",
+      },
+    },
+    "packages/terminal-protocol": {
+      "name": "@sim/terminal-protocol",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "@types/node": "24.2.1",
+        "typescript": "^5.7.3",
       },
     },
     "packages/testing": {
@@ -1206,6 +1226,20 @@
 
     "@linear/sdk": ["@linear/sdk@40.0.0", "", { "dependencies": { "@graphql-typed-document-node/core": "^3.1.0", "graphql": "^15.4.0", "isomorphic-unfetch": "^3.1.0" } }, "sha512-R4lyDIivdi00fO+DYPs7gWNX221dkPJhgDowFrsfos/rNG6o5HixsCPgwXWtKN0GA0nlqLvFTmzvzLXpud1xKw=="],
 
+    "@lydell/node-pty": ["@lydell/node-pty@1.2.0-beta.12", "", { "optionalDependencies": { "@lydell/node-pty-darwin-arm64": "1.2.0-beta.12", "@lydell/node-pty-darwin-x64": "1.2.0-beta.12", "@lydell/node-pty-linux-arm64": "1.2.0-beta.12", "@lydell/node-pty-linux-x64": "1.2.0-beta.12", "@lydell/node-pty-win32-arm64": "1.2.0-beta.12", "@lydell/node-pty-win32-x64": "1.2.0-beta.12" } }, "sha512-qIK890UwPupoj07osVvgOIa++1mxeHbcGry4PKRHhNVNs81V2SCG34eJr46GybiOmBtc8Sj5PB1/GGM5PL549g=="],
+
+    "@lydell/node-pty-darwin-arm64": ["@lydell/node-pty-darwin-arm64@1.2.0-beta.12", "", { "os": "darwin", "cpu": "arm64" }, "sha512-tqaifcY9Cr41SblO1+FLzh8oxxtkNhuW9Dhl22lKme9BreYvKvxEZcdPIXTuqkJc5tagOEC4QHShKmJjLyLXLQ=="],
+
+    "@lydell/node-pty-darwin-x64": ["@lydell/node-pty-darwin-x64@1.2.0-beta.12", "", { "os": "darwin", "cpu": "x64" }, "sha512-4LrS5pCJwqHKDVf1zS2gyNV0m4hKAXch+XZNhbZ6LY8uwVL8BhchzQBO40Os5anuRxRCWzHpw4Sp64Ie8q7E4Q=="],
+
+    "@lydell/node-pty-linux-arm64": ["@lydell/node-pty-linux-arm64@1.2.0-beta.12", "", { "os": "linux", "cpu": "arm64" }, "sha512-Sx+A71x5BDGHt9ansfrtGxwq2VFVDWvJUAdlUL0Hv0qeiJUfts+hgopx+CgT4PSwahKjdEgtu0+FAfY9rICKRw=="],
+
+    "@lydell/node-pty-linux-x64": ["@lydell/node-pty-linux-x64@1.2.0-beta.12", "", { "os": "linux", "cpu": "x64" }, "sha512-bJzs94njofYhGg/UDqW1nj0dtvvu+2OvxMY+RlLS1T17VgcktKoIR6PuenTwE5HJ/D6StCPADmXcT0nNsCKmIQ=="],
+
+    "@lydell/node-pty-win32-arm64": ["@lydell/node-pty-win32-arm64@1.2.0-beta.12", "", { "os": "win32", "cpu": "arm64" }, "sha512-p7POgjVEiFaBC3/y+AKuV1FzePCsJ6HmZDv2XK+jBZSfwP8+uBAw181ZiKYN1YuRa/XpmBGaWezcI8hZkbW++g=="],
+
+    "@lydell/node-pty-win32-x64": ["@lydell/node-pty-win32-x64@1.2.0-beta.12", "", { "os": "win32", "cpu": "x64" }, "sha512-IDFa00g7qUDGUYgByrUBJtC+mOjYVt/8KYyWivCg5JjGOHbBUACUQZLl0jTWmnr+tld/UyTpX90a2PY6oTVtRw=="],
+
     "@malept/cross-spawn-promise": ["@malept/cross-spawn-promise@2.0.0", "", { "dependencies": { "cross-spawn": "^7.0.1" } }, "sha512-1DpKU0Z5ThltBwjNySMC14g0CkbyhCaz9FkhxqNsZI6uAPJXFS8cMXlBKo26FJ8ZuW6S9GCMcR9IO5k2X5/9Fg=="],
 
     "@malept/flatpak-bundler": ["@malept/flatpak-bundler@0.4.0", "", { "dependencies": { "debug": "^4.1.1", "fs-extra": "^9.0.0", "lodash": "^4.17.15", "tmp-promise": "^3.0.2" } }, "sha512-9QOtNffcOF/c1seMCDnjckb3R9WHcG34tky+FHpNKKCW0wc/scYLwMtO+ptyGUfMW0/b/n4qRiALlaFHc9Oj7Q=="],
@@ -1681,6 +1715,8 @@
     "@sim/runtime-secrets": ["@sim/runtime-secrets@workspace:packages/runtime-secrets"],
 
     "@sim/security": ["@sim/security@workspace:packages/security"],
+
+    "@sim/terminal-protocol": ["@sim/terminal-protocol@workspace:packages/terminal-protocol"],
 
     "@sim/testing": ["@sim/testing@workspace:packages/testing"],
 
@@ -2189,6 +2225,18 @@
     "@xmldom/is-dom-node": ["@xmldom/is-dom-node@1.0.1", "", {}, "sha512-CJDxIgE5I0FH+ttq/Fxy6nRpxP70+e2O048EPe85J2use3XKdatVM7dDVvFNjQudd9B49NPoZ+8PG49zj4Er8Q=="],
 
     "@xmldom/xmldom": ["@xmldom/xmldom@0.8.13", "", {}, "sha512-KRYzxepc14G/CEpEGc3Yn+JKaAeT63smlDr+vjB8jRfgTBBI9wRj/nkQEO+ucV8p8I9bfKLWp37uHgFrbntPvw=="],
+
+    "@xterm/addon-fit": ["@xterm/addon-fit@0.11.0", "", {}, "sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g=="],
+
+    "@xterm/addon-unicode11": ["@xterm/addon-unicode11@0.9.0", "", {}, "sha512-FxDnYcyuXhNl+XSqGZL/t0U9eiNb/q3EWT5rYkQT/zuig8Gz/VagnQANKHdDWFM2lTMk9ly0EFQxxxtZUoRetw=="],
+
+    "@xterm/addon-web-links": ["@xterm/addon-web-links@0.12.0", "", {}, "sha512-4Smom3RPyVp7ZMYOYDoC/9eGJJJqYhnPLGGqJ6wOBfB8VxPViJNSKdgRYb8NpaM6YSelEKbA2SStD7lGyqaobw=="],
+
+    "@xterm/addon-webgl": ["@xterm/addon-webgl@0.19.0", "", {}, "sha512-b3fMOsyLVuCeNJWxolACEUED0vm7qC0cy4wRvf3oURSzDTYVQiGPhTnhWZwIHdvC48Y+oLhvYXnY4XDXPoJo6A=="],
+
+    "@xterm/headless": ["@xterm/headless@6.0.0", "", {}, "sha512-5Yj1QINYCyzrZtf8OFIHi47iQtI+0qYFPHmouEfG8dHNxbZ9Tb9YGSuLcsEwj9Z+OL75GJqPyJbyoFer80a2Hw=="],
+
+    "@xterm/xterm": ["@xterm/xterm@6.0.0", "", {}, "sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg=="],
 
     "@zone-eu/mailsplit": ["@zone-eu/mailsplit@5.4.8", "", { "dependencies": { "libbase64": "1.3.0", "libmime": "5.3.7", "libqp": "2.1.1" } }, "sha512-eEyACj4JZ7sjzRvy26QhLgKEMWwQbsw1+QZnlLX+/gihcNH07lVPOcnwf5U6UAL7gkc//J3jVd76o/WS+taUiA=="],
 
@@ -4785,6 +4833,8 @@
     "@sim/browser-protocol/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "@sim/db/@types/node": ["@types/node@22.19.21", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-VMeFBSCKQKmm2swI2kW51SFusDqekC6q9trBCvJ/JliDchFSuoYYKN7yVNjPthP1HKZcx3U1gI/wTcEBjEFKTA=="],
+
+    "@sim/terminal-protocol/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "@smithy/middleware-compression/fflate": ["fflate@0.8.1", "", {}, "sha512-/exOvEuc+/iaUm105QIiOt4LpBdMTWsXxqR0HDF35vx3fmaKzw7354gTilCh5rkzEt8WYyG//ku3h3nRmd7CHQ=="],
 

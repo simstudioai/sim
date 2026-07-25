@@ -11,6 +11,7 @@ export const MothershipResourceType = {
   integration: 'integration',
   generic: 'generic',
   browser: 'browser',
+  terminal: 'terminal',
 } as const
 export type MothershipResourceType =
   (typeof MothershipResourceType)[keyof typeof MothershipResourceType]
@@ -23,7 +24,11 @@ export interface MothershipResource {
 }
 
 export function isEphemeralResource(resource: MothershipResource): boolean {
-  return resource.type === 'generic' || resource.id === 'streaming-file'
+  // The terminal is a live desktop panel backed by a PTY, not an addressable
+  // workspace entity — there is nothing about it worth persisting with a chat.
+  return (
+    resource.type === 'generic' || resource.type === 'terminal' || resource.id === 'streaming-file'
+  )
 }
 
 /**
@@ -33,6 +38,13 @@ export function isEphemeralResource(resource: MothershipResource): boolean {
  * by the desktop app.
  */
 export const BROWSER_SESSION_RESOURCE_ID = 'browser-session'
+
+/**
+ * Singleton id for the live terminal panel. As with the browser, only this
+ * resource metadata is persisted with the chat; the shell process and its
+ * scrollback stay owned by the desktop app.
+ */
+export const TERMINAL_SESSION_RESOURCE_ID = 'terminal-session'
 
 /** Placeholder resource titles that a more specific title may overwrite during dedup. */
 export const GENERIC_RESOURCE_TITLES = new Set<string>([

@@ -1,4 +1,5 @@
 import { isBrowserToolName } from '@sim/browser-protocol'
+import { isTerminalToolName } from '@sim/terminal-protocol'
 import {
   MothershipStreamV1ToolPhase,
   MothershipStreamV1ToolStatus,
@@ -194,6 +195,21 @@ export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void
       !node.result
     if (shouldStartBrowserTool) {
       deps.startClientBrowserTool(
+        rawId,
+        name,
+        (payload.arguments as Record<string, unknown> | undefined) ?? {},
+        parsed.ts
+      )
+    }
+  }
+  if (isTerminalToolName(name) && !isPartial) {
+    const shouldStartTerminalTool =
+      !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
+      node?.kind === 'tool' &&
+      node.status === 'running' &&
+      !node.result
+    if (shouldStartTerminalTool) {
+      deps.startClientTerminalTool(
         rawId,
         name,
         (payload.arguments as Record<string, unknown> | undefined) ?? {},

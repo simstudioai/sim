@@ -19,7 +19,7 @@ import {
   TerminalWindow,
   Wrench,
 } from '@sim/emcn'
-import { Calendar, Cursor, Table as TableIcon } from '@sim/emcn/icons'
+import { Calendar, Clock, Cursor, Table as TableIcon } from '@sim/emcn/icons'
 import { AgentIcon, ImageIcon, TTSIcon, VideoIcon } from '@/components/icons'
 import type { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -93,6 +93,13 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   browser_select_option: Cursor,
   browser_hover: Cursor,
   browser_request_takeover: Cursor,
+  terminal: TerminalWindow,
+  terminal_run: TerminalWindow,
+  terminal_input: TerminalWindow,
+  terminal_read: TerminalWindow,
+  terminal_kill: TerminalWindow,
+  terminal_cwd: TerminalWindow,
+  wait: Clock,
 }
 
 export function getAgentIcon(name: string): IconComponent {
