@@ -97,9 +97,8 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   }
 
   /**
-   * Handle the join ack. Membership is now registered, so it is safe to send — an
-   * earlier send could be dropped because the server registers the room before this
-   * ack — so the initial sync + local awareness exchange begins here.
+   * Handle the join ack. The server registers the room before acking, so an earlier
+   * send could be dropped — the initial sync + local awareness exchange begins here.
    */
   private handleJoinSuccess = (data: JoinFileDocSuccess) => {
     if (data.fileId !== this.fileId) return
@@ -144,7 +143,6 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
         if (encoding.length(encoder) > 1) {
           this.socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
         }
-        // The first sync step 2 marks the document fully synced with the server.
         if (syncType === syncProtocol.messageYjsSyncStep2 && !this.synced) this.setSynced(true)
         break
       }
@@ -215,9 +213,9 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   }
 
   /**
-   * Tear down the provider: leave the room, clear our awareness (so our caret
-   * disappears for everyone else), and detach all listeners. The document and
-   * awareness objects are the caller's and are left intact.
+   * Tear down the provider: leave the room, clear our awareness (so peers drop our
+   * caret immediately rather than after the server's 30s timeout), and detach all
+   * listeners. The document and awareness objects are the caller's and are left intact.
    */
   destroy() {
     if (this.disposed) {
@@ -226,8 +224,6 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     }
     this.disposed = true
 
-    // Clear our local awareness so peers drop our caret immediately, rather than
-    // waiting for the server's 30s awareness timeout.
     awarenessProtocol.removeAwarenessStates(this.awareness, [this.doc.clientID], 'provider-destroy')
 
     this.socket.emit(FILE_DOC_EVENTS.LEAVE, { fileId: this.fileId })

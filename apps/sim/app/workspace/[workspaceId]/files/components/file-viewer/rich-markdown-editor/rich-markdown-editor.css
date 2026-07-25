@@ -483,11 +483,21 @@
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
-  color: #fff;
+  /* Fixed dark text: the label background is always a light user color (assigned
+   * inline, theme-independent), so a theme token would go unreadable in one mode. */
+  color: #1a1a1a;
   user-select: none;
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.12s ease;
+}
+
+/* Widen the caret's hover target beyond its 1px width so the name label is easy to
+ * reveal; the label itself stays pointer-events:none and never intercepts clicks. */
+.rich-markdown-prose .collaboration-carets__caret::before {
+  content: "";
+  position: absolute;
+  inset: -0.1em -2px;
 }
 
 .rich-markdown-prose .collaboration-carets__caret:hover .collaboration-carets__label {

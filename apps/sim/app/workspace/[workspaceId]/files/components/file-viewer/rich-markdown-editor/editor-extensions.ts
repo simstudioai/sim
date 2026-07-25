@@ -63,10 +63,9 @@ export function createMarkdownEditorExtensions({
     ...(collaboration
       ? [
           Collaboration.configure({ document: collaboration.doc }),
-          // CollaborationCaret reads only `provider.awareness`; the awareness is
-          // created synchronously and relayed by the socket provider once connected.
-          // The default caret + name label already color from `user.color`; only the
-          // selection is overridden to a lighter translucent tint of the same color.
+          // CollaborationCaret reads only `provider.awareness` (created synchronously,
+          // relayed by the socket provider once connected). The default caret + label
+          // color from `user.color`; only the selection tint needs an explicit override.
           CollaborationCaret.configure({
             provider: { awareness: collaboration.awareness },
             user: collaboration.user,

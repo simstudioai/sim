@@ -221,11 +221,11 @@ export function LoadedRichMarkdownEditor({
     settledRef.current = lockSettled(content)
   }
   /**
-   * Collaboration is decided ONCE at mount (TipTap fixes the extension set at
-   * editor creation, so it cannot turn on later): only an editable, round-trip-safe,
-   * non-streaming workspace document with a known user. All inputs are available
-   * synchronously at mount (`settledRef` is set just above), so this is decided
-   * once via `useState`-init and never changes.
+   * Collaboration is decided once at mount from synchronously-available inputs
+   * (`settledRef` is set just above) via `useState`-init, and never changes — TipTap
+   * fixes the extension set at editor creation, so it cannot turn on later. Enabled
+   * only for an editable, round-trip-safe, non-streaming workspace document with a
+   * known user.
    */
   const [collaborationEnabled] = useState(
     () =>
@@ -236,11 +236,10 @@ export function LoadedRichMarkdownEditor({
       (file.storageContext ?? 'workspace') === 'workspace'
   )
   /**
-   * Whether the collaborative document is safe to edit + persist: synced and seeded,
-   * or degraded to writable after a recoverable collaboration failure. Starts
-   * `false` for a collaborative document — so the editor is read-only and autosave
-   * gated until the shared content has arrived (a user must not type into an empty,
-   * unsynced doc, which the seed would then discard) — and `true` for a local one.
+   * Whether the collaborative document is safe to edit + persist: synced and seeded.
+   * Starts `false` for a collaborative document — so the editor is read-only and
+   * autosave gated until the shared content has arrived (a user must not type into an
+   * empty, unsynced doc, which the seed would then discard) — and `true` for a local one.
    */
   const [collabReady, setCollabReady] = useState(!collaborationEnabled)
   const isEditable =
@@ -596,8 +595,6 @@ export function LoadedRichMarkdownEditor({
       report()
     }
     const onJoinError = (error: JoinFileDocError) => {
-      // Show the loaded content, but keep it read-only + gated: a fatal join means
-      // the durable save would fail too, so editable-but-unsavable would lose edits.
       if (error.retryable === false) seedFromLoaded()
     }
 
@@ -605,8 +602,6 @@ export function LoadedRichMarkdownEditor({
     provider.on('synced', onProgress)
     provider.on('join-error', onJoinError)
     config.observe(report)
-    // Catch a seed-request / fatal join-error that fired before this subscription
-    // (both are latched on the provider).
     onProgress()
     if (provider.joinError) onJoinError(provider.joinError)
 
