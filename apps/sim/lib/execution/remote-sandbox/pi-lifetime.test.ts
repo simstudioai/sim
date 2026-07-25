@@ -38,6 +38,12 @@ describe('resolvePiSandboxLifetimeMs', () => {
     expect(lifetime).toBe(max)
   })
 
+  it('matches provider selection by treating an empty provider as E2B', async () => {
+    const { lifetime, max } = await resolveWith({ provider: '' })
+
+    expect(lifetime).toBe(max)
+  })
+
   it('has no lifetime to report when the provider stops on inactivity', async () => {
     // Daytona has no absolute lifetime, so reporting E2B's would cut the agent
     // turn to fit a ceiling that does not apply — the regression this prevents.

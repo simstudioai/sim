@@ -15,7 +15,7 @@ const logger = createLogger('PiSandboxLifetime')
  * its header describes: no provider adapters, no barrel, no config gate.
  */
 function isLifetimeProvider(): boolean {
-  return (env.SANDBOX_PROVIDER?.toLowerCase() ?? 'e2b') === 'e2b'
+  return (env.SANDBOX_PROVIDER || 'e2b').toLowerCase() === 'e2b'
 }
 
 /**
