@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { HANDLE_POSITIONS } from '@sim/workflow-renderer'
 import { describe, expect, it, vi } from 'vitest'
 import { layoutBlocksCore } from '@/lib/workflows/autolayout/core'
 import type { Edge } from '@/lib/workflows/autolayout/types'
@@ -72,5 +73,36 @@ describe('layoutBlocksCore', () => {
         layer1[i].position.y + layer1[i].metrics.height
       )
     }
+  })
+
+  it('aligns an error branch to the source block bottom using layout metrics height', () => {
+    // The source's height comes from layout.measuredHeight, not the raw height
+    // field, so an error handle offset read off block.height would fall back to
+    // MIN_HEIGHT and place the error branch near the block's top instead.
+    const source = {
+      ...createBlock('source'),
+      height: undefined,
+      layout: { measuredWidth: 250, measuredHeight: 400 },
+    } as BlockState
+
+    const blocks: Record<string, BlockState> = {
+      source,
+      ok: createBlock('ok'),
+      failed: createBlock('failed'),
+    }
+    const edges: Edge[] = [
+      { id: 'e1', source: 'source', target: 'ok' },
+      { id: 'e2', source: 'source', target: 'failed', sourceHandle: 'error' },
+    ]
+
+    const { nodes } = layoutBlocksCore(blocks, edges, { isContainer: false })
+    const sourceNode = nodes.get('source')!
+
+    // The error branch's target handle lines up with the source's error handle,
+    // which sits ERROR_BOTTOM_OFFSET above the source's real bottom edge.
+    const errorHandleY =
+      sourceNode.position.y + sourceNode.metrics.height - HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET
+    expect(nodes.get('failed')!.position.y + HANDLE_POSITIONS.DEFAULT_Y_OFFSET).toBe(errorHandleY)
+    expect(nodes.get('ok')!.position.y).toBeLessThan(nodes.get('failed')!.position.y)
   })
 })

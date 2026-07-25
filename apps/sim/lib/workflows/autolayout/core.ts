@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '@sim/workflow-renderer'
+import { HANDLE_POSITIONS } from '@sim/workflow-renderer'
 import {
   CONTAINER_LAYOUT_OPTIONS,
   DEFAULT_LAYOUT_OPTIONS,
@@ -21,11 +21,18 @@ const SUBFLOW_START_HANDLES = new Set(['loop-start-source', 'parallel-start-sour
 
 /**
  * Calculates the Y offset for a source handle based on block type and handle ID.
+ *
+ * The error handle sits relative to the block's bottom, so it must use the same
+ * height the rest of the layout uses (`node.metrics.height`). Reading the raw
+ * `block.height` field instead would mis-place the handle for any block sized
+ * from `layout.measuredHeight` or from an estimate, pulling error branches far
+ * above their real handle.
  */
-function getSourceHandleYOffset(block: BlockState, sourceHandle?: string | null): number {
+function getSourceHandleYOffset(node: GraphNode, sourceHandle?: string | null): number {
+  const block = node.block
+
   if (sourceHandle === 'error') {
-    const blockHeight = block.height || BLOCK_DIMENSIONS.MIN_HEIGHT
-    return blockHeight - HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET
+    return node.metrics.height - HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET
   }
 
   if (sourceHandle && SUBFLOW_START_HANDLES.has(sourceHandle)) {
@@ -319,7 +326,7 @@ export function calculatePositions(
       for (const edge of incomingEdges) {
         const predecessor = allNodes.get(edge.source)
         if (predecessor) {
-          const sourceHandleOffset = getSourceHandleYOffset(predecessor.block, edge.sourceHandle)
+          const sourceHandleOffset = getSourceHandleYOffset(predecessor, edge.sourceHandle)
           const sourceHandleY = predecessor.position.y + sourceHandleOffset
 
           if (sourceHandleY > bestSourceHandleY) {
