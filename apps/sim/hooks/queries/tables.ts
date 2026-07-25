@@ -17,6 +17,7 @@ import {
 } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import {
+  ApiClientError,
   extractValidationIssues,
   isApiClientError,
   isValidationError,
@@ -1578,7 +1579,13 @@ export function useUploadCsvToTable() {
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || 'CSV import failed')
+        // Carry the status: a plain Error drops it, and the 423 self-heal below
+        // keys off `error.status`.
+        throw new ApiClientError({
+          status: response.status,
+          body: data,
+          message: data.error || 'CSV import failed',
+        })
       }
 
       return response.json()
@@ -1714,7 +1721,8 @@ export function useImportCsvIntoTableAsync() {
       })
       return response.data
     },
-    onError: (error) => {
+    onError: (error, variables) => {
+      if (handleTableLockRejection(error, queryClient, variables.tableId)) return
       logger.error('Failed to start async CSV import:', error)
       toast.error(error.message, { duration: 5000 })
     },
@@ -1793,7 +1801,8 @@ export function useImportCsvIntoTable() {
 
       return response.json()
     },
-    onError: (error) => {
+    onError: (error, variables) => {
+      if (handleTableLockRejection(error, queryClient, variables.tableId)) return
       logger.error('Failed to import CSV into table:', error)
       toast.error(error.message, { duration: 5000 })
     },

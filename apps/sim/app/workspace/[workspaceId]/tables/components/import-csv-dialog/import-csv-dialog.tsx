@@ -314,6 +314,9 @@ export function ImportCsvDialog({
   async function handleSubmit() {
     if (!parsed || !canSubmit) return
     setSubmitError(null)
+    // Hiding the Replace control doesn't clear an already-selected `mode`, so a
+    // delete lock landing while the dialog is open would still submit replace.
+    const effectiveMode: CsvImportMode = canReplace ? mode : 'append'
     const createColumns =
       canCreateColumns && createHeaders.size > 0 ? [...createHeaders] : undefined
 
@@ -334,7 +337,7 @@ export function ImportCsvDialog({
           workspaceId,
           tableId: table.id,
           file: parsed.file,
-          mode,
+          mode: effectiveMode,
           mapping,
           createColumns,
           onProgress: (percent) => {
@@ -365,12 +368,12 @@ export function ImportCsvDialog({
         workspaceId,
         tableId: table.id,
         file: parsed.file,
-        mode,
+        mode: effectiveMode,
         mapping,
         createColumns,
       })
       const data = result.data
-      if (mode === 'append') {
+      if (effectiveMode === 'append') {
         toast.success(`Imported ${data?.insertedCount ?? 0} rows into "${table.name}"`)
       } else {
         toast.success(

@@ -13,13 +13,14 @@ import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
 import { assertRowDelete, assertRowInsert, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import { nKeysBetween } from '@/lib/table/order-key'
+import type { DbTransaction } from '@/lib/table/planner'
 import {
   acquireRowOrderLock,
   guardBatch,
   type MutationRevalidator,
 } from '@/lib/table/rows/ordering'
 import { batchInsertRowsWithTx, replaceTableRowsWithTx } from '@/lib/table/rows/service'
-import { addTableColumnsWithTx, auditTableColumnsAdded } from '@/lib/table/service'
+import { addTableColumnsWithTx, auditTableColumnsAdded, getTableById } from '@/lib/table/service'
 import type {
   ReplaceRowsResult,
   RowData,
@@ -188,6 +189,28 @@ export async function setTableSchemaForImport(
 }
 
 /**
+ * Re-reads the table under its schema advisory lock inside the caller's
+ * transaction. The sync import paths own their transaction rather than taking a
+ * revalidator, so they refresh here: a lock committed while the CSV was being
+ * parsed must be visible to the asserts in `addTableColumnsWithTx` /
+ * `batchInsertRowsWithTx` / `replaceTableRowsWithTx`, which all read the
+ * definition they are handed.
+ *
+ * Taken before `acquireRowOrderLock` so the order stays advisory → rows_pos →
+ * definitions, matching every other advisory-lock holder.
+ */
+async function refreshUnderLock(
+  trx: DbTransaction,
+  table: TableDefinition
+): Promise<TableDefinition> {
+  const fresh = await guardBatch(trx, table.id, async (tx) => {
+    const latest = await getTableById(table.id, { tx, includeArchived: true })
+    return latest ?? undefined
+  })
+  return fresh ?? table
+}
+
+/**
  * Owns the append-import transaction so the API route never holds a `trx`:
  * optionally creates the new columns, then inserts every row in CSV-sized
  * batches — all atomic. Caller fires {@link dispatchAfterBatchInsert} after this
@@ -206,7 +229,7 @@ export async function importAppendRows(
     addedRows: rows.length,
   })
   const result = await db.transaction(async (trx) => {
-    let working = table
+    let working = await refreshUnderLock(trx, table)
     if (additions.length > 0) {
       // Take the row-order lock before creating columns so this path uses the
       // same rows_pos → user_table_definitions order as plain inserts. Creating
@@ -214,7 +237,7 @@ export async function importAppendRows(
       // the order and deadlocking concurrent inserts on this table. The lock is
       // re-entrant, so the per-batch acquire below is a no-op.
       await acquireRowOrderLock(trx, table.id)
-      working = await addTableColumnsWithTx(trx, table, additions, ctx.requestId)
+      working = await addTableColumnsWithTx(trx, working, additions, ctx.requestId)
     }
     const inserted: TableRow[] = []
     for (let i = 0; i < rows.length; i += CSV_MAX_BATCH_SIZE) {
@@ -264,10 +287,10 @@ export async function importReplaceRows(
     addedRows: data.rows.length,
   })
   const result = await db.transaction(async (trx) => {
-    let working = table
+    let working = await refreshUnderLock(trx, table)
     if (additions.length > 0) {
       await acquireRowOrderLock(trx, table.id)
-      working = await addTableColumnsWithTx(trx, table, additions, requestId)
+      working = await addTableColumnsWithTx(trx, working, additions, requestId)
     }
     return replaceTableRowsWithTx(
       trx,
