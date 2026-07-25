@@ -774,8 +774,12 @@ export async function updateColumnOptions(
 /**
  * Rewrites a column's cells from stored option **ids** to option **names**, for
  * a column that is ceasing to be a `select`. A multi cell joins comma-separated
- * — the same shape it exports as. Ids with no surviving option pass through
- * unchanged rather than being blanked.
+ * — the same shape it exports as.
+ *
+ * An id whose option no longer exists becomes null, matching
+ * {@link selectValueForConversion}, which is what the compatibility check ran
+ * on. Passing it through instead would leave an opaque `opt_…` in a typed cell
+ * the check had already accounted as empty.
  *
  * Set-based: one statement per stored shape, driven by a jsonb id→name map, so
  * cost is independent of row count.
@@ -790,15 +794,16 @@ async function migrateSelectCellsToNames(
   await trx.execute(
     sql`UPDATE ${userTableRows}
         SET data = jsonb_set(data, ARRAY[${columnKey}::text],
-          COALESCE(${nameById}::jsonb -> (data->>${columnKey}::text), data->${columnKey}::text))
+          COALESCE(${nameById}::jsonb -> (data->>${columnKey}::text), 'null'::jsonb))
         WHERE table_id = ${tableId}
           AND jsonb_typeof(data->${columnKey}::text) = 'string'`
   )
   await trx.execute(
     sql`UPDATE ${userTableRows}
         SET data = jsonb_set(data, ARRAY[${columnKey}::text], COALESCE(to_jsonb((
-              SELECT string_agg(COALESCE(${nameById}::jsonb ->> e, e), ', ')
+              SELECT string_agg(${nameById}::jsonb ->> e, ', ')
               FROM jsonb_array_elements_text(data->${columnKey}::text) e
+              WHERE ${nameById}::jsonb ? e
             )), 'null'::jsonb))
         WHERE table_id = ${tableId}
           AND jsonb_typeof(data->${columnKey}::text) = 'array'`
@@ -815,8 +820,11 @@ async function migrateSelectCellsToNames(
  * scalar id while multi filters compile to array containment, which a scalar
  * never matches. Either way the cell silently drops out until it is re-edited.
  *
- * The map keys both ids and names so it is idempotent: an already-canonical id
- * maps to itself.
+ * The map keys ids, names, and lower-cased names — ids so re-running is a no-op,
+ * lower-cased names because `resolveSelectOptionId` accepts a case-mismatched
+ * name and a cell that passed that check must actually migrate. Duplicate option
+ * names are rejected case-insensitively at validation, so the folded key is
+ * unambiguous; lookups still try the exact form first to preserve its precedence.
  */
 async function migrateCellsToSelectIds(
   trx: DbTransaction,
@@ -826,14 +834,20 @@ async function migrateCellsToSelectIds(
   multiple: boolean
 ): Promise<void> {
   const idByRef = JSON.stringify(
-    Object.fromEntries(options.flatMap((o) => [[o.id, o.id] as const, [o.name, o.id] as const]))
+    Object.fromEntries(
+      options.flatMap((o) => [
+        [o.name.toLowerCase(), o.id] as const,
+        [o.name, o.id] as const,
+        [o.id, o.id] as const,
+      ])
+    )
   )
 
   if (multiple) {
     await trx.execute(
       sql`UPDATE ${userTableRows}
           SET data = jsonb_set(data, ARRAY[${columnKey}::text],
-            jsonb_build_array(COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), data->${columnKey}::text)))
+            jsonb_build_array(COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text), data->${columnKey}::text)))
           WHERE table_id = ${tableId}
             AND jsonb_typeof(data->${columnKey}::text) = 'string'
             AND data->>${columnKey}::text <> ''`
@@ -841,7 +855,7 @@ async function migrateCellsToSelectIds(
     await trx.execute(
       sql`UPDATE ${userTableRows}
           SET data = jsonb_set(data, ARRAY[${columnKey}::text], COALESCE((
-                SELECT jsonb_agg(COALESCE(${idByRef}::jsonb -> e, to_jsonb(e)))
+                SELECT jsonb_agg(COALESCE(${idByRef}::jsonb -> e, ${idByRef}::jsonb -> lower(e), to_jsonb(e)))
                 FROM jsonb_array_elements_text(data->${columnKey}::text) e
               ), '[]'::jsonb))
           WHERE table_id = ${tableId}
@@ -853,7 +867,7 @@ async function migrateCellsToSelectIds(
   await trx.execute(
     sql`UPDATE ${userTableRows}
         SET data = jsonb_set(data, ARRAY[${columnKey}::text],
-          COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), data->${columnKey}::text))
+          COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text), data->${columnKey}::text))
         WHERE table_id = ${tableId}
           AND jsonb_typeof(data->${columnKey}::text) = 'string'`
   )
@@ -862,7 +876,7 @@ async function migrateCellsToSelectIds(
   await trx.execute(
     sql`UPDATE ${userTableRows}
         SET data = jsonb_set(data, ARRAY[${columnKey}::text],
-          COALESCE(${idByRef}::jsonb -> (data->${columnKey}::text->>0), data->${columnKey}::text->0, 'null'::jsonb))
+          COALESCE(${idByRef}::jsonb -> (data->${columnKey}::text->>0), ${idByRef}::jsonb -> lower(data->${columnKey}::text->>0), data->${columnKey}::text->0, 'null'::jsonb))
         WHERE table_id = ${tableId}
           AND jsonb_typeof(data->${columnKey}::text) = 'array'`
   )
