@@ -21,7 +21,7 @@ const logger = createLogger('SecurityPolicy')
  * never cached; it is read fresh at enforcement time (see `session-policy.ts`),
  * which is what keeps a stale version from ever pairing with a stale policy.
  */
-const SECURITY_POLICY_VERSION_CACHE_TTL_MS = 60 * 1000
+export const SECURITY_POLICY_VERSION_CACHE_TTL_MS = 60 * 1000
 const SECURITY_POLICY_VERSION_CACHE_MAX_ENTRIES = 5_000
 
 const MEMBERSHIP_CACHE_TTL_MS = 60 * 1000
@@ -59,6 +59,15 @@ const membershipCache = new LRUCache<string, MembershipCacheEntry>({
   ttl: MEMBERSHIP_CACHE_TTL_MS,
 })
 
+async function readStoredVersion(organizationId: string): Promise<number> {
+  const [row] = await db
+    .select({ version: organization.securityPolicyVersion })
+    .from(organization)
+    .where(eq(organization.id, organizationId))
+    .limit(1)
+  return row?.version ?? DEFAULT_VERSION
+}
+
 /**
  * Resolves the org's security-policy version — the shared monotonic counter
  * behind the Better Auth cookie-cache version. It backs ALL org security
@@ -82,13 +91,20 @@ export async function getSecurityPolicyVersion(
   if (cached !== undefined) return cached
 
   try {
-    const [row] = await db
-      .select({ version: organization.securityPolicyVersion })
-      .from(organization)
-      .where(eq(organization.id, organizationId))
-      .limit(1)
+    const startedAt = Date.now()
+    let version = await readStoredVersion(organizationId)
 
-    const version = row?.version ?? DEFAULT_VERSION
+    // The post-read guard below can only out-rank this value while the entry
+    // that would out-rank it still exists. A read that outlived the cache TTL
+    // has watched that entry expire, so it could carry a pre-bump version with
+    // nothing left to catch it. Read once more instead of trusting it.
+    if (Date.now() - startedAt >= SECURITY_POLICY_VERSION_CACHE_TTL_MS) {
+      logger.warn('Security policy version read outlived the cache TTL; re-reading', {
+        organizationId,
+      })
+      version = await readStoredVersion(organizationId)
+    }
+
     // Re-check after the await. The counter only ever increments, so a value
     // that landed while this read was in flight is newer — neither store nor
     // return ours, or a late read would re-serve a pre-bump version and keep

@@ -15,6 +15,7 @@ import {
   getSecurityPolicyVersion,
   getSessionCookieCacheVersion,
   invalidateMembershipCache,
+  SECURITY_POLICY_VERSION_CACHE_TTL_MS,
   setSecurityPolicyVersion,
 } from '@/lib/auth/security-policy'
 
@@ -74,6 +75,29 @@ describe('security policy', () => {
       setSecurityPolicyVersion(orgId, 7)
       setSecurityPolicyVersion(orgId, 6)
       expect(await getSecurityPolicyVersion(orgId)).toBe(7)
+    })
+
+    it('re-reads when the lookup outlived the cache TTL', async () => {
+      const orgId = nextOrgId()
+      const realNow = Date.now
+      const base = realNow()
+      // First reading of the clock is the read's start; every later reading is
+      // past the TTL, so the elapsed check sees a lookup that outlived it.
+      let seenFirst = false
+      Date.now = () => {
+        if (seenFirst) return base + SECURITY_POLICY_VERSION_CACHE_TTL_MS + 1_000
+        seenFirst = true
+        return base
+      }
+
+      try {
+        // A stale pre-bump value, then the value a fresh read would see.
+        queueTableRows(organization, [{ version: 1 }])
+        queueTableRows(organization, [{ version: 8 }])
+        expect(await getSecurityPolicyVersion(orgId)).toBe(8)
+      } finally {
+        Date.now = realNow
+      }
     })
 
     it('prefers a version published mid-flight over the default when the read fails', async () => {
