@@ -141,15 +141,16 @@ describe('tray environment marker', () => {
     expect(trayEnvironmentMarker('staging')).toBe('S')
   })
 
-  it('adds a crisp subscript representation without modifying the source icon', () => {
+  it('adds a larger antialiased subscript without modifying the source icon', () => {
     const source = nativeImage.createFromPath('/tmp/simTemplate.png')
     const marked = addTrayEnvironmentSubscript(source, 'D')
 
     expect(marked).not.toBe(source)
     const [bitmap, options] = vi.mocked(nativeImage.createFromBitmap).mock.calls.at(-1) ?? []
-    expect(options).toEqual({ width: 74, height: 32, scaleFactor: 2 })
+    expect(options).toEqual({ width: 76, height: 32, scaleFactor: 2 })
     expect(Buffer.isBuffer(bitmap)).toBe(true)
     expect((bitmap as Buffer).some((value) => value === 255)).toBe(true)
+    expect((bitmap as Buffer).some((value) => value > 0 && value < 255)).toBe(true)
   })
 })
 

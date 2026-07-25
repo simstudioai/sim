@@ -26,13 +26,109 @@ const RECENT_CHATS_TOTAL = 30
 // recents instead of dropping them.
 const CHATS_FETCH_TIMEOUT_MS = 5000
 const TRAY_ICON_SCALE_FACTOR = 2
-const TRAY_SUBSCRIPT_GLYPHS = {
-  L: ['1000', '1000', '1000', '1000', '1000', '1111'],
-  D: ['1110', '1001', '1001', '1001', '1001', '1110'],
-  S: ['1111', '1000', '1110', '0001', '0001', '1110'],
-} as const
+const TRAY_SUBSCRIPT_WIDTH = 5
+const TRAY_SUBSCRIPT_HEIGHT = 7
+const TRAY_SUBSCRIPT_STROKE_WIDTH = 1.1
+const TRAY_SUBSCRIPT_SUPERSAMPLE = 4
 
-type TrayEnvironmentMarker = keyof typeof TRAY_SUBSCRIPT_GLYPHS
+type TrayEnvironmentMarker = 'L' | 'D' | 'S'
+type GlyphPoint = { x: number; y: number }
+type GlyphSegment = readonly [GlyphPoint, GlyphPoint]
+
+function segmentsFromPoints(points: GlyphPoint[]): GlyphSegment[] {
+  return points.slice(1).map((point, index) => [points[index], point] as const)
+}
+
+function cubicBezier(
+  start: GlyphPoint,
+  control1: GlyphPoint,
+  control2: GlyphPoint,
+  end: GlyphPoint,
+  steps = 10
+): GlyphSegment[] {
+  const points = Array.from({ length: steps + 1 }, (_, index) => {
+    const t = index / steps
+    const inverse = 1 - t
+    return {
+      x:
+        inverse ** 3 * start.x +
+        3 * inverse ** 2 * t * control1.x +
+        3 * inverse * t ** 2 * control2.x +
+        t ** 3 * end.x,
+      y:
+        inverse ** 3 * start.y +
+        3 * inverse ** 2 * t * control1.y +
+        3 * inverse * t ** 2 * control2.y +
+        t ** 3 * end.y,
+    }
+  })
+  return segmentsFromPoints(points)
+}
+
+function traySubscriptSegments(marker: TrayEnvironmentMarker): GlyphSegment[] {
+  if (marker === 'L') {
+    return [
+      [
+        { x: 0.65, y: 0.55 },
+        { x: 0.65, y: 6.4 },
+      ],
+      [
+        { x: 0.65, y: 6.4 },
+        { x: 4.4, y: 6.4 },
+      ],
+    ]
+  }
+  if (marker === 'D') {
+    const curve = Array.from({ length: 17 }, (_, index) => {
+      const angle = -Math.PI / 2 + (Math.PI * index) / 16
+      return {
+        x: 0.65 + Math.cos(angle) * 3.75,
+        y: 3.5 + Math.sin(angle) * 2.95,
+      }
+    })
+    return [
+      [
+        { x: 0.65, y: 0.55 },
+        { x: 0.65, y: 6.45 },
+      ],
+      ...segmentsFromPoints(curve),
+    ]
+  }
+  return [
+    ...cubicBezier(
+      { x: 4.4, y: 1.05 },
+      { x: 3.3, y: 0.25 },
+      { x: 0.6, y: 0.3 },
+      { x: 0.6, y: 2.25 }
+    ),
+    ...cubicBezier(
+      { x: 0.6, y: 2.25 },
+      { x: 0.6, y: 3.4 },
+      { x: 4.4, y: 3.15 },
+      { x: 4.4, y: 4.65 }
+    ),
+    ...cubicBezier(
+      { x: 4.4, y: 4.65 },
+      { x: 4.4, y: 6.75 },
+      { x: 1.45, y: 6.75 },
+      { x: 0.55, y: 5.85 }
+    ),
+  ]
+}
+
+function distanceToSegment(point: GlyphPoint, [start, end]: GlyphSegment): number {
+  const dx = end.x - start.x
+  const dy = end.y - start.y
+  const lengthSquared = dx * dx + dy * dy
+  const projection =
+    lengthSquared === 0
+      ? 0
+      : Math.max(
+          0,
+          Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared)
+        )
+  return Math.hypot(point.x - (start.x + projection * dx), point.y - (start.y + projection * dy))
+}
 
 export function trayEnvironmentMarker(channel: DesktopChannel): TrayEnvironmentMarker | null {
   switch (channel) {
@@ -49,8 +145,9 @@ export function trayEnvironmentMarker(channel: DesktopChannel): TrayEnvironmentM
 
 /**
  * Adds a compact lower-right environment letter to the monochrome status
- * icon. A single crisp 2x bitmap is enough for the macOS-only desktop target;
- * template-image rendering lets the OS tint both the Sim mark and subscript.
+ * icon. The glyph is drawn as a supersampled vector stroke so its curves match
+ * the smooth Sim mark at menu-bar scale; template rendering lets macOS tint
+ * both parts together.
  */
 export function addTrayEnvironmentSubscript(
   source: NativeImage,
@@ -60,9 +157,7 @@ export function addTrayEnvironmentSubscript(
   const sourceWidth = sourceSize.width * TRAY_ICON_SCALE_FACTOR
   const sourceHeight = sourceSize.height * TRAY_ICON_SCALE_FACTOR
   const sourceBitmap = source.toBitmap({ scaleFactor: TRAY_ICON_SCALE_FACTOR })
-  const glyph = TRAY_SUBSCRIPT_GLYPHS[marker]
-  const glyphWidth = glyph[0].length
-  const targetLogicalWidth = sourceSize.width + glyphWidth + 1
+  const targetLogicalWidth = sourceSize.width + TRAY_SUBSCRIPT_WIDTH + 1
   const targetWidth = targetLogicalWidth * TRAY_ICON_SCALE_FACTOR
   const targetBitmap = Buffer.alloc(targetWidth * sourceHeight * 4)
 
@@ -76,18 +171,29 @@ export function addTrayEnvironmentSubscript(
   }
 
   const glyphX = (sourceSize.width + 1) * TRAY_ICON_SCALE_FACTOR
-  const glyphY = (sourceSize.height - glyph.length) * TRAY_ICON_SCALE_FACTOR
-  for (let row = 0; row < glyph.length; row++) {
-    for (let column = 0; column < glyphWidth; column++) {
-      if (glyph[row][column] !== '1') continue
-      for (let dy = 0; dy < TRAY_ICON_SCALE_FACTOR; dy++) {
-        for (let dx = 0; dx < TRAY_ICON_SCALE_FACTOR; dx++) {
-          const x = glyphX + column * TRAY_ICON_SCALE_FACTOR + dx
-          const y = glyphY + row * TRAY_ICON_SCALE_FACTOR + dy
-          const offset = (y * targetWidth + x) * 4
-          targetBitmap[offset + 3] = 255
+  const glyphY = (sourceSize.height - TRAY_SUBSCRIPT_HEIGHT) * TRAY_ICON_SCALE_FACTOR
+  const segments = traySubscriptSegments(marker)
+  const sampleCount = TRAY_SUBSCRIPT_SUPERSAMPLE ** 2
+  for (let y = glyphY; y < sourceHeight; y++) {
+    for (let x = glyphX; x < targetWidth; x++) {
+      let coveredSamples = 0
+      for (let sampleY = 0; sampleY < TRAY_SUBSCRIPT_SUPERSAMPLE; sampleY++) {
+        for (let sampleX = 0; sampleX < TRAY_SUBSCRIPT_SUPERSAMPLE; sampleX++) {
+          const point = {
+            x: (x - glyphX + (sampleX + 0.5) / TRAY_SUBSCRIPT_SUPERSAMPLE) / TRAY_ICON_SCALE_FACTOR,
+            y: (y - glyphY + (sampleY + 0.5) / TRAY_SUBSCRIPT_SUPERSAMPLE) / TRAY_ICON_SCALE_FACTOR,
+          }
+          if (
+            segments.some(
+              (segment) => distanceToSegment(point, segment) <= TRAY_SUBSCRIPT_STROKE_WIDTH / 2
+            )
+          ) {
+            coveredSamples++
+          }
         }
       }
+      const offset = (y * targetWidth + x) * 4
+      targetBitmap[offset + 3] = Math.round((coveredSamples / sampleCount) * 255)
     }
   }
 
