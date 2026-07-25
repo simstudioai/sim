@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { cn, TabStrip, type TabStripItem } from '@sim/emcn'
+import { cn, TabStrip, type TabStripItem, toast } from '@sim/emcn'
 import { Loader, TerminalWindow } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { FitAddon } from '@xterm/addon-fit'
@@ -31,8 +31,10 @@ import {
   writeToTerminal,
 } from '@/lib/terminal/transport'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
+import { TerminalContextMenu } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-context-menu'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 
 const logger = createLogger('TerminalSession')
@@ -132,7 +134,16 @@ function attachWebglRenderer(terminal: Terminal): void {
  * visible, and only it is measured — `fit()` against a hidden element reads a
  * zero-sized box and would resize the PTY to nonsense.
  */
-function TerminalView({ terminalId, active }: { terminalId: string; active: boolean }) {
+function TerminalView({
+  terminalId,
+  active,
+  canClose,
+}: {
+  terminalId: string
+  active: boolean
+  canClose: boolean
+}) {
+  const { navigateToSettings } = useSettingsNavigation()
   const { resolvedTheme } = useTheme()
   const hostRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
@@ -264,13 +275,99 @@ function TerminalView({ terminalId, active }: { terminalId: string; active: bool
     return () => cancelAnimationFrame(frame)
   }, [active])
 
+  const {
+    isOpen: isMenuOpen,
+    position: menuPosition,
+    menuRef,
+    handleContextMenu,
+    closeMenu,
+  } = useContextMenu()
+  // Read at open time so Copy reflects the selection the click landed on.
+  const [hasSelection, setHasSelection] = useState(false)
+
+  const openMenu = useCallback(
+    (event: React.MouseEvent) => {
+      setHasSelection(Boolean(terminalRef.current?.hasSelection()))
+      // Suppresses Electron's native editable-field menu, which would
+      // otherwise target xterm's offscreen input textarea.
+      handleContextMenu(event)
+    },
+    [handleContextMenu]
+  )
+
+  const copySelection = useCallback(() => {
+    const selection = terminalRef.current?.getSelection()
+    if (selection) void navigator.clipboard.writeText(selection)
+  }, [])
+
+  const pasteClipboard = useCallback(() => {
+    void navigator.clipboard
+      .readText()
+      .then((text) => {
+        if (!text) return
+        // Straight to the PTY: the shell echoes it, exactly like a real paste.
+        writeToTerminal(terminalId, text)
+        terminalRef.current?.focus()
+      })
+      .catch(() => {
+        // Reading the clipboard needs a permission the shell grants to its own
+        // origin; an older shell that predates that grant denies it. Keyboard
+        // paste is a native paste event and keeps working either way.
+        toast.error('Could not read the clipboard. Press ⌘V to paste.')
+      })
+  }, [terminalId])
+
+  const selectAll = useCallback(() => {
+    terminalRef.current?.selectAll()
+  }, [])
+
+  const clearScreen = useCallback(() => {
+    terminalRef.current?.clear()
+    terminalRef.current?.focus()
+  }, [])
+
+  const newTab = useCallback(() => {
+    void openTerminal()
+  }, [])
+
+  const openTerminalSettings = useCallback(() => {
+    navigateToSettings({ section: 'terminal' })
+  }, [navigateToSettings])
+
+  // Scoped to the terminal that was right-clicked, not the active one.
+  const closeThisTerminal = useCallback(() => {
+    void closeTerminal(terminalId)
+  }, [terminalId])
+
   // An inactive tab is `display: none`, not merely invisible. xterm watches its
   // element with an IntersectionObserver and pauses rendering once it stops
   // intersecting — which `visibility: hidden` never does, since it still
   // occupies its box. Left that way, every background terminal keeps painting
   // output nobody is looking at, out of the active terminal's frame budget.
   // xterm re-measures and does a full refresh when the element comes back.
-  return <div ref={hostRef} className={cn('absolute inset-0 px-2 py-1', !active && 'hidden')} />
+  return (
+    <>
+      <div
+        ref={hostRef}
+        onContextMenu={openMenu}
+        className={cn('absolute inset-0 px-2 py-1', !active && 'hidden')}
+      />
+      <TerminalContextMenu
+        isOpen={isMenuOpen}
+        position={menuPosition}
+        menuRef={menuRef}
+        onClose={closeMenu}
+        hasSelection={hasSelection}
+        onCopy={copySelection}
+        onPaste={pasteClipboard}
+        onSelectAll={selectAll}
+        onClear={clearScreen}
+        onNewTab={newTab}
+        onOpenSettings={openTerminalSettings}
+        {...(canClose ? { onCloseTerminal: closeThisTerminal } : {})}
+      />
+    </>
+  )
 }
 
 /**
@@ -396,6 +493,7 @@ export function TerminalSession() {
             key={tab.terminalId}
             terminalId={tab.terminalId}
             active={tab.terminalId === activeTerminalId}
+            canClose={tabs.length > 1}
           />
         ))}
         {startError && (

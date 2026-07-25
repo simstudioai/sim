@@ -51,9 +51,15 @@ export function createSecureWebPreferences(
 }
 
 /**
- * The permission matrix: sanitized clipboard writes for the trusted app
- * origin, default-deny for everything else including unknown future
- * permissions (media/camera/microphone stay denied).
+ * The permission matrix: clipboard access for the trusted app origin,
+ * default-deny for everything else including unknown future permissions
+ * (media/camera/microphone stay denied).
+ *
+ * Clipboard reads are what the terminal's Paste action runs on — xterm has no
+ * native paste target to fall back to, so a denied read is a Paste that fails.
+ * The grant is scoped to the app's own origin, which already reaches far more
+ * sensitive surfaces through the preload bridge, so it widens nothing that a
+ * compromise of that origin would not already own.
  */
 export function resolvePermission(
   permission: string,
@@ -63,7 +69,7 @@ export function resolvePermission(
   if (!requestingOrigin || requestingOrigin !== appOrigin) {
     return false
   }
-  return permission === 'clipboard-sanitized-write'
+  return permission === 'clipboard-sanitized-write' || permission === 'clipboard-read'
 }
 
 function originOf(raw: string): string {

@@ -34,6 +34,7 @@ const chatColumns = {
   config: copilotChats.config,
   resources: copilotChats.resources,
   lastSeenAt: copilotChats.lastSeenAt,
+  autoAllowedTools: copilotChats.autoAllowedTools,
   pinned: copilotChats.pinned,
   createdAt: copilotChats.createdAt,
   updatedAt: copilotChats.updatedAt,

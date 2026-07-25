@@ -22,6 +22,12 @@ describe('resolvePermission', () => {
     expect(resolvePermission('clipboard-sanitized-write', '', APP)).toBe(false)
   })
 
+  it('allows clipboard reads from the trusted origin only, so terminal Paste works', () => {
+    expect(resolvePermission('clipboard-read', APP, APP)).toBe(true)
+    expect(resolvePermission('clipboard-read', 'https://evil.example', APP)).toBe(false)
+    expect(resolvePermission('clipboard-read', '', APP)).toBe(false)
+  })
+
   it('default-denies everything else, including media and unknown future permissions', () => {
     for (const permission of [
       'media',
