@@ -77,7 +77,7 @@ return removed
  * socket key TTLs to keep a long-lived session alive.
  *
  * KEYS: [roomUsers, socketRooms, socketSession]
- * ARGV: [socketId, cursorJson, selectionJson, lastActivity, roomsTtl, sessionTtl]
+ * ARGV: [socketId, cursorJson, selectionJson, lastActivity, roomsTtl, sessionTtl, cellJson]
  * Returns 1 if the socket had presence in the room, else 0.
  */
 const UPDATE_ACTIVITY_SCRIPT = `
@@ -90,6 +90,7 @@ local selectionJson = ARGV[3]
 local lastActivity = ARGV[4]
 local roomsTtl = tonumber(ARGV[5])
 local sessionTtl = tonumber(ARGV[6])
+local cellJson = ARGV[7]
 
 local existingJson = redis.call('HGET', roomUsersKey, socketId)
 if not existingJson then
@@ -102,6 +103,9 @@ if cursorJson ~= '' then
 end
 if selectionJson ~= '' then
   existing.selection = cjson.decode(selectionJson)
+end
+if cellJson ~= '' then
+  existing.cell = cjson.decode(cellJson)
 end
 existing.lastActivity = tonumber(lastActivity)
 
@@ -325,7 +329,7 @@ export class RedisRoomManager implements IRoomManager {
   async updateUserActivity(
     room: RoomRef,
     socketId: string,
-    updates: Partial<Pick<UserPresence, 'cursor' | 'selection' | 'lastActivity'>>,
+    updates: Partial<Pick<UserPresence, 'cursor' | 'selection' | 'cell' | 'lastActivity'>>,
     retried = false
   ): Promise<void> {
     if (!this.updateActivityScriptSha) {
@@ -343,6 +347,9 @@ export class RedisRoomManager implements IRoomManager {
           (updates.lastActivity ?? Date.now()).toString(),
           SOCKET_ROOMS_TTL.toString(),
           SESSION_TTL.toString(),
+          // Trailing arg (ARGV[7]) so existing indices stay stable. `null` (cleared
+          // selection) serializes to 'null'; `undefined` (no cell change) to '' (skip).
+          updates.cell !== undefined ? JSON.stringify(updates.cell) : '',
         ],
       })
     } catch (error) {

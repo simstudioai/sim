@@ -1,9 +1,8 @@
-import { db, user } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { authorizeRoom } from '@sim/platform-authz/rooms'
 import { ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
-import { eq } from 'drizzle-orm'
 import type { AuthenticatedSocket } from '@/middleware/auth'
+import { resolveAvatarUrl } from '@/handlers/avatar'
 import type { IRoomManager, UserPresence } from '@/rooms'
 import { filterVisiblePresence, sweepStalePresence } from '@/rooms/presence-visibility'
 
@@ -19,24 +18,6 @@ interface JoinPayload {
   workspaceId: string
   folderId?: string | null
   tabSessionId?: string
-}
-
-async function resolveAvatarUrl(
-  socket: AuthenticatedSocket,
-  userId: string
-): Promise<string | null> {
-  if (socket.userImage) return socket.userImage
-  try {
-    const [record] = await db
-      .select({ image: user.image })
-      .from(user)
-      .where(eq(user.id, userId))
-      .limit(1)
-    return record?.image ?? null
-  } catch (error) {
-    logger.warn('Failed to load user avatar for files presence', { userId, error })
-    return null
-  }
 }
 
 /**

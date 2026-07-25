@@ -29,6 +29,10 @@
     "./file-doc": {
       "types": "./src/file-doc.ts",
       "default": "./src/file-doc.ts"
+    },
+    "./table-presence": {
+      "types": "./src/table-presence.ts",
+      "default": "./src/table-presence.ts"
     }
   },
   "scripts": {

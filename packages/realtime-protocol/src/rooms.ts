@@ -29,6 +29,12 @@ export const ROOM_TYPES = {
    * workspace-scoped {@link ROOM_TYPES.WORKSPACE_FILES} browser room.
    */
   WORKSPACE_FILE_DOC: 'workspace-file-doc',
+  /**
+   * A single table's grid (one room per table). Carries live cell-selection
+   * presence — which cells each viewer has selected — so its id space is the
+   * table id.
+   */
+  TABLE: 'table',
 } as const
 
 export type RoomType = (typeof ROOM_TYPES)[keyof typeof ROOM_TYPES]

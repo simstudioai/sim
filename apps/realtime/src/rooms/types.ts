@@ -1,4 +1,5 @@
 import type { RoomRef, RoomType } from '@sim/realtime-protocol/rooms'
+import type { TableCellSelection } from '@sim/realtime-protocol/table-presence'
 import type { Server } from 'socket.io'
 
 /**
@@ -18,6 +19,8 @@ export interface UserPresence {
   role: string
   cursor?: { x: number; y: number }
   selection?: { type: 'block' | 'edge' | 'none'; id?: string }
+  /** The viewer's current table cell selection, for table presence rooms. */
+  cell?: TableCellSelection
   avatarUrl?: string | null
   /**
    * The subfolder the user is viewing, recorded at join for room types that track
@@ -108,11 +111,11 @@ export interface IRoomManager {
    */
   deleteRoom(room: RoomRef): Promise<void>
 
-  /** Update a socket's activity (cursor, selection, lastActivity) within a room. */
+  /** Update a socket's activity (cursor, selection, cell, lastActivity) within a room. */
   updateUserActivity(
     room: RoomRef,
     socketId: string,
-    updates: Partial<Pick<UserPresence, 'cursor' | 'selection' | 'lastActivity'>>
+    updates: Partial<Pick<UserPresence, 'cursor' | 'selection' | 'cell' | 'lastActivity'>>
   ): Promise<void>
 
   /** Bump a room's lastModified timestamp. */
