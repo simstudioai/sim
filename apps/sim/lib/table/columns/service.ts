@@ -538,15 +538,24 @@ export async function updateColumnType(
     // commit and only then fail the constraint.
     const targetRequired = !!(data.required ?? column.required)
 
+    // Rows missing the key (or holding null/`[]`) are filtered out of `rows`
+    // entirely, so the loop below can never see them — they have to be counted
+    // separately, through the same predicate the constraint write will use.
+    if (targetRequired) {
+      const emptyCount = await countEmptyCells(trx, data.tableId, columnKey)
+      if (emptyCount > 0) {
+        throw new Error(
+          `Cannot change column "${column.name}" to a required "${data.newType}": ${emptyCount} row(s) have null, missing, or empty values. Fill them first, or apply the type change without making the column required.`
+        )
+      }
+    }
+
     let incompatibleCount = 0
     let blankCount = 0
     for (const row of rows) {
       const rowData = row.data as RowData
       const value = rowData[columnKey]
-      if (value === null || value === undefined) {
-        if (targetRequired) blankCount++
-        continue
-      }
+      if (value === null || value === undefined) continue
 
       const effective = convertingAwayFromSelect ? selectValueForConversion(column, value) : value
 
@@ -661,24 +670,10 @@ export async function updateColumnConstraints(
       )
     }
     if (data.required === true && !column.required) {
-      const [result] = await trx
-        .select({ count: count() })
-        .from(userTableRows)
-        .where(
-          and(
-            eq(userTableRows.tableId, data.tableId),
-            // An emptied multi-select is stored as `[]`, which `->>` renders as
-            // the text '[]' rather than NULL. Write-path validation rejects an
-            // empty required multi-select, so it has to block the constraint too.
-            sql`(NOT (${userTableRows.data} ? ${columnKey})
-                 OR ${userTableRows.data}->>${columnKey}::text IS NULL
-                 OR ${userTableRows.data}->${columnKey}::text = '[]'::jsonb)`
-          )
-        )
-
-      if (result.count > 0) {
+      const emptyCount = await countEmptyCells(trx, data.tableId, columnKey)
+      if (emptyCount > 0) {
         throw new Error(
-          `Cannot set column "${column.name}" as required: ${result.count} row(s) have null, missing, or empty values`
+          `Cannot set column "${column.name}" as required: ${emptyCount} row(s) have null, missing, or empty values`
         )
       }
     }
@@ -820,6 +815,24 @@ export async function updateColumnOptions(
     // column), emptiness checks and `is empty` filters count them as filled,
     // and dependent groups treat the row as satisfied.
     if (removedAny) {
+      // On a required column, clearing is not an option: it would leave rows the
+      // write path rejects, and `updateColumnConstraints` refuses to CREATE that
+      // state, so producing it here would be inconsistent. Make the caller
+      // reassign those rows first.
+      if (column.required) {
+        const strandedCount = await countCellsLosingTheirOptions(
+          trx,
+          data.tableId,
+          columnKey,
+          data.options,
+          nextMultiple
+        )
+        if (strandedCount > 0) {
+          throw new Error(
+            `Cannot remove options from required column "${column.name}": ${strandedCount} row(s) would be left empty. Reassign those rows to a remaining option first.`
+          )
+        }
+      }
       await clearRemovedSelectOptions(trx, data.tableId, columnKey, data.options, nextMultiple)
     }
 
@@ -866,9 +879,9 @@ async function migrateSelectCellsToNames(
   await trx.execute(
     sql`UPDATE ${userTableRows}
         SET data = jsonb_set(data, ARRAY[${columnKey}::text], COALESCE(to_jsonb((
-              SELECT string_agg(${nameById}::jsonb ->> e, ', ')
-              FROM jsonb_array_elements_text(data->${columnKey}::text) e
-              WHERE ${nameById}::jsonb ? e
+              SELECT string_agg(${nameById}::jsonb ->> e.v, ', ' ORDER BY e.ord)
+              FROM jsonb_array_elements_text(data->${columnKey}::text) WITH ORDINALITY AS e(v, ord)
+              WHERE ${nameById}::jsonb ? e.v
             )), 'null'::jsonb))
         WHERE table_id = ${tableId}
           AND jsonb_typeof(data->${columnKey}::text) = 'array'`
@@ -941,8 +954,8 @@ async function migrateCellsToSelectIds(
     await trx.execute(
       sql`UPDATE ${userTableRows}
           SET data = jsonb_set(data, ARRAY[${columnKey}::text], COALESCE((
-                SELECT jsonb_agg(COALESCE(${idByRef}::jsonb -> e, ${idByRef}::jsonb -> lower(e), to_jsonb(e)))
-                FROM jsonb_array_elements_text(data->${columnKey}::text) e
+                SELECT jsonb_agg(COALESCE(${idByRef}::jsonb -> e.v, ${idByRef}::jsonb -> lower(e.v), to_jsonb(e.v)) ORDER BY e.ord)
+                FROM jsonb_array_elements_text(data->${columnKey}::text) WITH ORDINALITY AS e(v, ord)
               ), '[]'::jsonb))
           WHERE table_id = ${tableId}
             AND jsonb_typeof(data->${columnKey}::text) = 'array'`
@@ -974,6 +987,88 @@ async function migrateCellsToSelectIds(
 }
 
 /**
+ * Rows whose cell counts as empty for a `required` constraint: the key is
+ * missing, the value is JSON null, or it is an emptied multiselect `[]`.
+ *
+ * Single source of truth. `updateColumnType`'s pre-flight and
+ * `updateColumnConstraints` both ask this question, and they run as separate
+ * transactions — when the two definitions drifted, a combined type+required
+ * request passed the first check, committed the conversion, and only then
+ * failed the constraint write.
+ */
+async function countEmptyCells(
+  trx: DbTransaction,
+  tableId: string,
+  columnKey: string
+): Promise<number> {
+  const [result] = await trx
+    .select({ count: count() })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.tableId, tableId),
+        sql`(NOT (${userTableRows.data} ? ${columnKey})
+             OR ${userTableRows.data}->>${columnKey}::text IS NULL
+             OR ${userTableRows.data}->${columnKey}::text = '[]'::jsonb)`
+      )
+    )
+  return result?.count ?? 0
+}
+
+/**
+ * Rows that removing these options would leave with no selection at all — a
+ * single cell holding a removed id, or a multi cell whose every element is
+ * being removed. Rows that keep at least one option are unaffected.
+ */
+async function countCellsLosingTheirOptions(
+  trx: DbTransaction,
+  tableId: string,
+  columnKey: string,
+  options: SelectOption[],
+  multiple: boolean
+): Promise<number> {
+  const keptIds = JSON.stringify(options.map((o) => o.id))
+
+  if (multiple) {
+    const [result] = await trx
+      .select({ count: count() })
+      .from(userTableRows)
+      .where(
+        and(
+          eq(userTableRows.tableId, tableId),
+          sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'array'`,
+          sql`${userTableRows.data}->${columnKey}::text <> '[]'::jsonb`,
+          // The type guard above is not ordered against this predicate, so the
+          // element expansion has to guard its own argument — otherwise a scalar
+          // cell left over from a single→multi toggle raises "cannot get array
+          // length of a scalar" before the guard is ever applied.
+          sql`NOT EXISTS (
+                SELECT 1 FROM jsonb_array_elements_text(
+                  CASE WHEN jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'array'
+                       THEN ${userTableRows.data}->${columnKey}::text ELSE '[]'::jsonb END
+                ) e
+                WHERE ${keptIds}::jsonb @> jsonb_build_array(e)
+              )`
+        )
+      )
+    return result?.count ?? 0
+  }
+
+  const [result] = await trx
+    .select({ count: count() })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.tableId, tableId),
+        sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'string'`,
+        sql`${userTableRows.data}->>${columnKey}::text <> ''`,
+        sql`NOT (${keptIds}::jsonb @> jsonb_build_array(${userTableRows.data}->${columnKey}::text))`
+      )
+    )
+  return result?.count ?? 0
+}
+
+/**
  * Clears stored ids that are no longer in a `select` column's option set.
  *
  * A single cell holding a removed option becomes null; a multi cell drops just
@@ -992,9 +1087,9 @@ async function clearRemovedSelectOptions(
     await trx.execute(
       sql`UPDATE ${userTableRows}
           SET data = jsonb_set(data, ARRAY[${columnKey}::text], COALESCE((
-                SELECT jsonb_agg(e)
-                FROM jsonb_array_elements(data->${columnKey}::text) e
-                WHERE ${keptIds}::jsonb @> jsonb_build_array(e)
+                SELECT jsonb_agg(e.v ORDER BY e.ord)
+                FROM jsonb_array_elements(data->${columnKey}::text) WITH ORDINALITY AS e(v, ord)
+                WHERE ${keptIds}::jsonb @> jsonb_build_array(e.v)
               ), '[]'::jsonb))
           WHERE table_id = ${tableId}
             AND jsonb_typeof(data->${columnKey}::text) = 'array'
