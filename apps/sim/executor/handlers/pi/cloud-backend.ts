@@ -26,9 +26,18 @@ import type { PiBackendRun, PiCloudRunParams } from '@/executor/handlers/pi/back
 import {
   buildPiScript,
   CLONE_TIMEOUT_MS,
+  COMMIT_MSG_PATH,
+  DIFF_PATH,
   extractMarkerValues,
+  FINALIZE_TIMEOUT_MS,
+  GIT_CONFIG_DIGEST_LINE,
+  MAX_DIFF_BYTES,
   PI_TIMEOUT_MS,
+  PREPARE_SCRIPT,
   PROMPT_PATH,
+  PUSH_ERR_PATH,
+  PUSH_ERROR_MAX,
+  PUSH_SCRIPT,
   REPO_DIR,
   raceAbort,
   scrubGitSecrets,
@@ -57,14 +66,8 @@ import { executeTool } from '@/tools'
 
 const logger = createLogger('PiCloudBackend')
 
-const DIFF_PATH = '/workspace/pi.diff'
-const COMMIT_MSG_PATH = '/workspace/pi-commit.txt'
-const PUSH_ERR_PATH = '/workspace/pi-push-err.txt'
-const FINALIZE_TIMEOUT_MS = 10 * 60 * 1000
-const MAX_DIFF_BYTES = 200_000
 const COMMIT_TITLE_MAX = 72
 const PR_SUMMARY_MAX = 2000
-const PUSH_ERROR_MAX = 1000
 
 /**
  * Keeps git authentication out of the agent loop by reserving commit, push, and
@@ -86,28 +89,8 @@ git rev-parse HEAD | sed "s/^/__BASE_SHA__=/"
 DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed "s#^origin/##" || true)
 echo "__DEFAULT_BRANCH__=$DEFAULT_BRANCH"
 git checkout -b "$BRANCH"
-git remote set-url origin "https://github.com/$REPO_OWNER/$REPO_NAME.git"`
-
-/**
- * Stages, commits, and diffs without the GitHub token because repository config
- * can execute filters, fsmonitor, external diffs, or textconv during these git
- * operations. Commit tolerates an empty tree; the marker checks whether HEAD
- * advanced before the separately authenticated push.
- */
-const PREPARE_SCRIPT = `set -e
-cd ${REPO_DIR}
-git -c core.hooksPath=/dev/null add -A
-git -c core.hooksPath=/dev/null -c user.email="pi@sim.ai" -c user.name="Sim Pi Agent" commit -F ${COMMIT_MSG_PATH} >/dev/null 2>&1 || true
-git diff --name-only "$BASE_SHA" HEAD | sed "s/^/__CHANGED__=/"
-git diff "$BASE_SHA" HEAD > ${DIFF_PATH} 2>/dev/null || true
-if git diff --quiet "$BASE_SHA" HEAD; then echo "__NO_CHANGES__=1"; else echo "__NEEDS_PUSH__=1"; fi`
-
-/**
- * The only token-bearing command. It neutralizes repository-configured hooks,
- * credential helpers, and fsmonitor before pushing agent-authored changes.
- */
-const PUSH_SCRIPT = `cd ${REPO_DIR}
-git -c core.hooksPath=/dev/null -c credential.helper= -c core.fsmonitor= push "https://x-access-token:$GITHUB_TOKEN@github.com/$REPO_OWNER/$REPO_NAME.git" "$BRANCH" >/dev/null 2>${PUSH_ERR_PATH} && echo "__PUSHED__=1"`
+git remote set-url origin "https://github.com/$REPO_OWNER/$REPO_NAME.git"
+${GIT_CONFIG_DIGEST_LINE}`
 
 function buildPrBody(task: string, finalText: string): string {
   const summary = finalText.trim()
@@ -328,6 +311,8 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
         runner.run(PUSH_SCRIPT, {
           envs: {
             GITHUB_TOKEN: params.githubToken,
+            GIT_CONFIG_NOSYSTEM: '1',
+            GIT_CONFIG_GLOBAL: '/dev/null',
             REPO_OWNER: params.owner,
             REPO_NAME: params.repo,
             BRANCH: branch,

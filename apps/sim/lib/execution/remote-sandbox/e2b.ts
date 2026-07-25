@@ -121,10 +121,18 @@ export const e2bProvider: SandboxProvider = {
     const templateName = templateFor(kind)
     logger.info('Creating E2B sandbox', { kind, template: templateName || '(default)' })
 
+    // E2B reaps a sandbox after `timeoutMs` (default five minutes). Omitted
+    // unless a caller asked for a lifetime, so the short-lived code/doc/shell
+    // kinds keep the SDK default.
+    const createOptions = {
+      apiKey,
+      ...(options?.lifetimeMs ? { timeoutMs: options.lifetimeMs } : {}),
+    }
+
     const { Sandbox } = await import('@e2b/code-interpreter')
     const sandbox = templateName
-      ? await Sandbox.create(templateName, { apiKey })
-      : await Sandbox.create({ apiKey })
+      ? await Sandbox.create(templateName, createOptions)
+      : await Sandbox.create(createOptions)
 
     return new E2BSandboxHandle(sandbox, options?.language ?? CodeLanguage.Python)
   },

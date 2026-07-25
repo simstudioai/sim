@@ -26,6 +26,11 @@ export const PI_NPM = [
  * required, not optional: the review tools shell out to the `rg` binary by name
  * (`cloud-review-tools-script.ts:146`), so a missing package breaks code search
  * at runtime rather than at build time.
+ *
+ * The token-bearing push invokes git as `/usr/bin/git` (`cloud-shared.ts`'s
+ * `PUSH_SCRIPT`) so a shim planted earlier on `$PATH` is not what runs. Both
+ * images apt-install git on Debian, which puts it there — moving off Debian or
+ * off the distro package would break that command.
  */
 export const PI_APT = [
   'git',

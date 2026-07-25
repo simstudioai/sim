@@ -1036,6 +1036,13 @@ export interface GitHubPullRequestBranch {
   label: string
   ref: string
   sha: string
+  /**
+   * `owner/repo` of the branch's repository, or null when GitHub omits it (a
+   * deleted fork sends `repo: null`). Comparing the full name is stronger than
+   * inferring fork-ness from `label`'s owner prefix, which cannot distinguish a
+   * same-owner fork under a different repository name.
+   */
+  repo_full_name: string | null
 }
 
 /** Changed-file fields returned by the GitHub pull request files endpoint. */
@@ -2058,5 +2065,138 @@ export interface TreeResponse extends ToolResponse {
       items: TreeItemMetadata[]
       total_count: number
     }
+  }
+}
+
+/** One comment inside a pull request review thread. */
+export interface ReviewThreadComment {
+  body: string
+  /** `OWNER`, `MEMBER`, `COLLABORATOR`, `CONTRIBUTOR`, `NONE`, ... */
+  authorAssociation: string
+  authorLogin: string | null
+  /** GraphQL type of the author: `User`, `Bot`, or `Organization`. */
+  authorType: string | null
+}
+
+/** One pull request review thread with the comments fetched for it. */
+export interface ReviewThread {
+  id: string
+  isResolved: boolean
+  path: string
+  line: number | null
+  /** Total comments on the thread; exceeds `comments.length` when truncated. */
+  commentsTotalCount: number
+  comments: ReviewThreadComment[]
+}
+
+/** The newest submitted review on a pull request. */
+export interface SubmittedReviewSummary {
+  state: string
+  submittedAt: string
+  authorLogin: string | null
+  authorType: string | null
+}
+
+export interface ListReviewThreadsParams extends BaseGitHubParams {
+  pullNumber: number
+  threadsPerPage?: number
+  commentsPerThread?: number
+  cursor?: string
+}
+
+export interface ListReviewThreadsResponse extends ToolResponse {
+  output: {
+    threads: ReviewThread[]
+    totalCount: number
+    hasNextPage: boolean
+    endCursor: string | null
+    latestReview: SubmittedReviewSummary | null
+  }
+}
+
+export interface ReplyReviewThreadParams {
+  threadId: string
+  body: string
+  apiKey: string
+}
+
+export interface ReplyReviewThreadResponse extends ToolResponse {
+  output: {
+    id: string
+    url: string
+    createdAt: string
+  }
+}
+
+export interface ResolveReviewThreadParams {
+  threadId: string
+  apiKey: string
+}
+
+export interface ResolveReviewThreadResponse extends ToolResponse {
+  output: {
+    id: string
+    isResolved: boolean
+  }
+}
+
+/**
+ * One entry of a commit's merged check state. Check runs come from Actions and
+ * GitHub Apps; status contexts are the legacy commit-status API several
+ * providers still post to.
+ */
+export type StatusCheckRollupContext =
+  | {
+      __typename: 'CheckRun'
+      name: string
+      /** `QUEUED`, `IN_PROGRESS`, `COMPLETED`, `WAITING`, `REQUESTED`, `PENDING`. */
+      status: string
+      /** Null until the run completes. */
+      conclusion: string | null
+      detailsUrl: string | null
+      /** REST id of the check run; the Actions job id for an Actions check run. */
+      databaseId: number | null
+      /** Null when GitHub could not decide whether the check gates the merge. */
+      isRequired: boolean | null
+      /** Null on every GitHub Actions check run. */
+      output: { title: string | null; summary: string | null } | null
+    }
+  | {
+      __typename: 'StatusContext'
+      context: string
+      /** `EXPECTED`, `PENDING`, `SUCCESS`, `FAILURE`, `ERROR`. */
+      state: string
+      description: string | null
+      targetUrl: string | null
+      isRequired: boolean | null
+    }
+
+export interface StatusCheckRollupParams extends BaseGitHubParams {
+  sha: string
+  pullNumber: number
+  cursor?: string
+}
+
+export interface StatusCheckRollupResponse extends ToolResponse {
+  output: {
+    /** Null when the commit carries no checks at all. */
+    state: string | null
+    totalCount: number
+    hasNextPage: boolean
+    endCursor: string | null
+    contexts: StatusCheckRollupContext[]
+  }
+}
+
+export interface JobLogsParams extends BaseGitHubParams {
+  job_id: number
+  maxCharacters?: number
+}
+
+export interface JobLogsResponse extends ToolResponse {
+  output: {
+    logs: string
+    totalCharacters: number
+    truncated: boolean
   }
 }

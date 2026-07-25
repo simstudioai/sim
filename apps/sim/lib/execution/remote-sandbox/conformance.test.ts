@@ -6,7 +6,7 @@
  * what would surface as a broken failover mid-incident, so every scenario runs
  * twice — once per provider — from a single table.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
 
 const {
@@ -32,6 +32,7 @@ const {
 } = vi.hoisted(() => ({
   mockEnv: {
     SANDBOX_PROVIDER: 'e2b' as string | undefined,
+    PI_SANDBOX_LIFETIME_MS: undefined as string | undefined,
     E2B_API_KEY: 'test-key',
     MOTHERSHIP_E2B_TEMPLATE_ID: 'mothership-shell',
     MOTHERSHIP_E2B_DOC_TEMPLATE_ID: 'mothership-docs',
@@ -75,6 +76,7 @@ import {
   SIM_RESULT_PREFIX,
   withPiSandbox,
 } from '@/lib/execution/remote-sandbox'
+import { PI_SANDBOX_MAX_LIFETIME_MS } from '@/lib/execution/remote-sandbox/pi-lifetime'
 
 type Provider = 'e2b' | 'daytona'
 const PROVIDERS: Provider[] = ['e2b', 'daytona']
@@ -451,5 +453,63 @@ describe('provider selection', () => {
 
     expect(result.exitCode).toBe(1)
     expect(result.stderr).toContain('start failed')
+  })
+})
+
+describe('Pi sandbox lifetime', () => {
+  afterEach(() => {
+    mockEnv.PI_SANDBOX_LIFETIME_MS = undefined
+  })
+
+  it('asks E2B for a lifetime under the one-hour Hobby ceiling', async () => {
+    useProvider('e2b')
+
+    await withPiSandbox(async () => undefined)
+
+    const [template, options] = mockE2BCreate.mock.calls[0]
+    expect(template).toBe('sim-pi')
+    // E2B's default is five minutes, which kills any Pi run that outlives it,
+    // and it rejects a create above one hour on a Hobby account.
+    expect(options.timeoutMs).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
+    expect(options.timeoutMs).toBeLessThan(3_600_000)
+  })
+
+  it('clamps a configured lifetime that would exceed the ceiling', async () => {
+    useProvider('e2b')
+    mockEnv.PI_SANDBOX_LIFETIME_MS = '5400000'
+
+    await withPiSandbox(async () => undefined)
+
+    expect(mockE2BCreate.mock.calls[0][1].timeoutMs).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
+  })
+
+  it('honours a configured lifetime below the ceiling', async () => {
+    useProvider('e2b')
+    mockEnv.PI_SANDBOX_LIFETIME_MS = '600000'
+
+    await withPiSandbox(async () => undefined)
+
+    expect(mockE2BCreate.mock.calls[0][1].timeoutMs).toBe(600_000)
+  })
+
+  it('leaves the short-lived sandbox kinds on the E2B default', async () => {
+    useProvider('e2b')
+    stubCodeRun('e2b', `${SIM_RESULT_PREFIX}null`)
+
+    await executeInSandbox({ code: 'x', language: CodeLanguage.Python, timeoutMs: 1000 })
+
+    expect(mockE2BCreate.mock.calls[0][1]).not.toHaveProperty('timeoutMs')
+  })
+
+  it('leaves Daytona alone: its inactivity interval is a different thing', async () => {
+    useProvider('daytona')
+
+    await withPiSandbox(async () => undefined)
+
+    expect(mockDaytonaCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ snapshot: 'sim-pi:v1' })
+    )
+    expect(mockDaytonaCreate.mock.calls[0][0]).not.toHaveProperty('timeoutMs')
+    expect(mockDaytonaCreate.mock.calls[0][0]).not.toHaveProperty('autoStopInterval')
   })
 })

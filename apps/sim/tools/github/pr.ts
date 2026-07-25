@@ -1,8 +1,10 @@
 import {
   isRecord,
+  nullableBoolean,
   nullableString,
   optionalString,
   readGitHubErrorMessage,
+  requiredBoolean,
   requiredNumber,
   requiredString,
 } from '@/tools/github/response-parsers'
@@ -16,8 +18,30 @@ import type {
   PullRequestResponse,
   PullRequestV2Response,
 } from '@/tools/github/types'
-import { BRANCH_REF_OUTPUT, PR_FILE_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
-import type { ToolConfig } from '@/tools/types'
+import {
+  BRANCH_REF_OUTPUT_PROPERTIES,
+  PR_FILE_OUTPUT_PROPERTIES,
+  USER_OUTPUT,
+} from '@/tools/github/types'
+import type { OutputProperty, ToolConfig } from '@/tools/types'
+
+/**
+ * The PR reader's own branch-reference output. `repo_full_name` is declared here
+ * rather than on the shared `BRANCH_REF_OUTPUT_PROPERTIES` because `list_prs`
+ * reuses those with a pass-through transform that never derives the field.
+ */
+const PR_BRANCH_REF_OUTPUT = {
+  type: 'object',
+  description: 'Branch reference info',
+  properties: {
+    ...BRANCH_REF_OUTPUT_PROPERTIES,
+    repo_full_name: {
+      type: 'string',
+      description: "Full name (owner/repo) of the branch's repository",
+      nullable: true,
+    },
+  },
+} as const satisfies OutputProperty
 
 type GitHubPullRequest = Omit<GitHubPullRequestV2Output, 'files'>
 
@@ -27,23 +51,6 @@ type PullRequestFilesResult =
 
 const PULL_REQUEST_FILES_PER_PAGE = 100
 const MAX_PULL_REQUEST_FILES = 3_000
-
-function requiredBoolean(record: Record<string, unknown>, key: string, context: string): boolean {
-  const value = record[key]
-  if (typeof value !== 'boolean') throw new Error(`${context}.${key} must be a boolean`)
-  return value
-}
-
-function nullableBoolean(
-  record: Record<string, unknown>,
-  key: string,
-  context: string
-): boolean | null {
-  const value = record[key]
-  if (value === null) return null
-  if (typeof value !== 'boolean') throw new Error(`${context}.${key} must be a boolean or null`)
-  return value
-}
 
 function parsePullRequestUser(value: unknown, context: string): GitHubPullRequestUser {
   if (!isRecord(value)) throw new Error(`${context} must be an object`)
@@ -65,6 +72,17 @@ function parseNullablePullRequestUser(
   return parsePullRequestUser(value, context)
 }
 
+/**
+ * A branch's repository is absent on some payloads and explicitly null when the
+ * repository is gone (a deleted fork), so both read as "unknown" rather than as
+ * a malformed response.
+ */
+function parseBranchRepoFullName(repo: unknown, context: string): string | null {
+  if (repo === null || repo === undefined) return null
+  if (!isRecord(repo)) throw new Error(`${context} must be an object or null`)
+  return requiredString(repo, 'full_name', context)
+}
+
 function parsePullRequestBranch(value: unknown, context: string): GitHubPullRequestBranch {
   if (!isRecord(value)) throw new Error(`${context} must be an object`)
 
@@ -72,6 +90,7 @@ function parsePullRequestBranch(value: unknown, context: string): GitHubPullRequ
     label: requiredString(value, 'label', context),
     ref: requiredString(value, 'ref', context),
     sha: requiredString(value, 'sha', context),
+    repo_full_name: parseBranchRepoFullName(value.repo, `${context}.repo`),
   }
 }
 
@@ -387,8 +406,8 @@ export const prV2Tool: ToolConfig<PRV2OperationParams, PullRequestV2Response> = 
     diff_url: { type: 'string', description: 'Raw diff URL' },
     body: { type: 'string', description: 'PR description', nullable: true },
     user: USER_OUTPUT,
-    head: BRANCH_REF_OUTPUT,
-    base: BRANCH_REF_OUTPUT,
+    head: PR_BRANCH_REF_OUTPUT,
+    base: PR_BRANCH_REF_OUTPUT,
     merged: { type: 'boolean', description: 'Whether PR is merged' },
     mergeable: { type: 'boolean', description: 'Whether PR is mergeable', nullable: true },
     merged_by: { ...USER_OUTPUT, nullable: true },

@@ -1,10 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
-import type { CodeLanguage } from '@/lib/execution/languages'
 import { daytonaProvider } from '@/lib/execution/remote-sandbox/daytona'
 import { e2bProvider } from '@/lib/execution/remote-sandbox/e2b'
+import { resolvePiSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import type {
+  CreateSandboxOptions,
   SandboxCommandResult,
   SandboxExecutionRequest,
   SandboxExecutionResult,
@@ -64,7 +65,7 @@ function resolveProvider(): SandboxProvider {
 
 async function createSandbox(
   kind: SandboxKind,
-  options?: { language?: CodeLanguage }
+  options?: CreateSandboxOptions
 ): Promise<SandboxHandle> {
   const provider = resolveProvider()
   const sandbox = await provider.create(kind, options)
@@ -428,7 +429,7 @@ export interface PiSandboxRunner {
  * so secrets handed to one command never leak into the next.
  */
 export async function withPiSandbox<T>(fn: (runner: PiSandboxRunner) => Promise<T>): Promise<T> {
-  const sandbox = await createSandbox('pi')
+  const sandbox = await createSandbox('pi', { lifetimeMs: resolvePiSandboxLifetimeMs() })
   logger.info('Started Pi sandbox', { sandboxId: sandbox.sandboxId })
 
   const runner: PiSandboxRunner = {

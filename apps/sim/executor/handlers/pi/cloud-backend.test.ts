@@ -120,8 +120,43 @@ describe('runCloudPi', () => {
     expect(pushCmd).toContain('core.fsmonitor=')
     expect(pushOpts.envs.GITHUB_TOKEN).toBe('ghp_secret')
     expect(pushOpts.envs.ANTHROPIC_API_KEY).toBeUndefined()
+    // The `-c` flags do not reach config-driven URL rewriting, which would send
+    // the token's userinfo to another host; neutralizing the system and global
+    // scopes does, and leaves repo-local as the only writable one.
+    expect(pushOpts.envs.GIT_CONFIG_NOSYSTEM).toBe('1')
+    expect(pushOpts.envs.GIT_CONFIG_GLOBAL).toBe('/dev/null')
 
     expect(onEvent).toHaveBeenCalledWith({ type: 'text', text: 'done' })
+  })
+
+  it('pushes the verified commit by explicit refspec, from an absolute git path', async () => {
+    await runCloudPi(baseParams(), { onEvent: vi.fn() })
+
+    const [pushCmd] = mockRun.mock.calls[3]
+
+    // The bare branch name would push whatever the local ref points at, which is
+    // not necessarily the commit PREPARE just created (detached HEAD, or the
+    // agent having switched branches).
+    expect(pushCmd).toContain('"HEAD:refs/heads/$BRANCH"')
+    expect(pushCmd).toContain('/usr/bin/git')
+  })
+
+  it('snapshots the git config digest as the clone script last line, and does not verify it here', async () => {
+    await runCloudPi(baseParams(), { onEvent: vi.fn() })
+
+    const [cloneCmd] = mockRun.mock.calls[0]
+    const [pushCmd] = mockRun.mock.calls[3]
+
+    // The digest must be taken after the `git remote set-url` rewrite — a digest
+    // captured before it mismatches at push time and every push fails.
+    const lines = cloneCmd.trim().split('\n')
+    expect(lines.at(-1)).toContain('__GIT_CONFIG_DIGEST__=')
+    expect(lines.at(-2)).toContain('git remote set-url origin')
+
+    // Emitting the marker is additive for every mode; only Babysit verifies it,
+    // because verification would fail any run that legitimately writes
+    // repository-local git config.
+    expect(pushCmd).not.toContain('__GIT_CONFIG_DIGEST__=')
   })
 
   it('delivers the prompt and commit message via files, never the command line', async () => {
