@@ -173,6 +173,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
           newType: updates.type as NonNullable<typeof updates.type>,
           ...(updates.options !== undefined ? { options: updates.options } : {}),
           ...(updates.multiple !== undefined ? { multiple: updates.multiple } : {}),
+          // Forwarded so the conversion validates against the constraint this
+          // same request is about to set, not the column's current one.
+          ...(updates.required !== undefined ? { required: updates.required } : {}),
         },
         requestId
       )

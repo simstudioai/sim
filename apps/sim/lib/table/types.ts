@@ -664,6 +664,13 @@ export interface UpdateColumnTypeData {
   options?: SelectOption[]
   /** Whether the `select` column accepts multiple options per cell. */
   multiple?: boolean
+  /**
+   * The `required` value the same request is about to set, when it changes type
+   * and constraints together. Those are separate transactions, so the
+   * conversion has to validate against the constraint the column will END UP
+   * with — otherwise it commits and the constraint write then fails.
+   */
+  required?: boolean
 }
 
 export interface UpdateColumnOptionsData {

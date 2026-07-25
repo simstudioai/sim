@@ -532,12 +532,21 @@ export async function updateColumnType(
     // once the column is text/number/etc. Check compatibility against the option
     // NAME — that's what the cell will actually become (migrated below).
     const convertingAwayFromSelect = column.type === 'select' && !isSelectType
+    // The constraint the column ends up with, which may be arriving in this same
+    // request. `updateColumnConstraints` runs as its own transaction afterwards,
+    // so validating against the column's CURRENT flag would let the conversion
+    // commit and only then fail the constraint.
+    const targetRequired = !!(data.required ?? column.required)
 
     let incompatibleCount = 0
+    let blankCount = 0
     for (const row of rows) {
       const rowData = row.data as RowData
       const value = rowData[columnKey]
-      if (value === null || value === undefined) continue
+      if (value === null || value === undefined) {
+        if (targetRequired) blankCount++
+        continue
+      }
 
       const effective = convertingAwayFromSelect ? selectValueForConversion(column, value) : value
 
@@ -547,11 +556,18 @@ export async function updateColumnType(
           data.newType,
           targetOptions,
           !!targetMultiple,
-          !!column.required
+          targetRequired
         )
       ) {
-        incompatibleCount++
+        if (effective === null || effective === '') blankCount++
+        else incompatibleCount++
       }
+    }
+
+    if (blankCount > 0) {
+      throw new Error(
+        `Cannot change column "${column.name}" to a required "${data.newType}": ${blankCount} row(s) are empty. Fill them first, or apply the type change without making the column required.`
+      )
     }
 
     if (incompatibleCount > 0) {
