@@ -117,7 +117,10 @@ export interface ContentNodeViews {
  * registry. The live editor passes the node-view nodes via {@link createMarkdownEditorExtensions}; the
  * schema and markdown output are identical either way.
  */
-export function createMarkdownContentExtensions(nodeViews: ContentNodeViews = {}): Extensions {
+export function createMarkdownContentExtensions(
+  nodeViews: ContentNodeViews = {},
+  options: { disableHistory?: boolean } = {}
+): Extensions {
   const codeBlock = (nodeViews.codeBlock ?? MarkdownCodeBlock).configure({
     HTMLAttributes: { class: 'code-editor-theme' },
   })
@@ -128,6 +131,9 @@ export function createMarkdownContentExtensions(nodeViews: ContentNodeViews = {}
       codeBlock: false,
       code: false,
       paragraph: false,
+      // Collaboration provides its own (Yjs-backed) undo/redo — disabling the
+      // built-in history avoids the two fighting over the shared document.
+      ...(options.disableHistory ? { undoRedo: false as const } : {}),
     }),
     BlockSafeParagraph,
     InlineCode,

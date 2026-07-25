@@ -17,15 +17,6 @@ export function getRandomWorkspaceColor(): string {
   return randomItem(WORKSPACE_COLORS)
 }
 
-const APP_COLORS = [
-  { from: '#4F46E5', to: '#7C3AED' }, // indigo to purple
-  { from: '#7C3AED', to: '#C026D3' }, // purple to fuchsia
-  { from: '#EC4899', to: '#F97316' }, // pink to orange
-  { from: '#14B8A6', to: '#10B981' }, // teal to emerald
-  { from: '#6366F1', to: '#8B5CF6' }, // indigo to violet
-  { from: '#F59E0B', to: '#F97316' }, // amber to orange
-]
-
 /**
  * User color palette matching terminal.tsx RUN_ID_COLORS
  * These colors are used consistently across cursors, avatars, and terminal run IDs
@@ -38,12 +29,6 @@ export const USER_COLORS = [
   '#C084FC', // Purple
   '#FCD34D', // Yellow
 ] as const
-
-interface PresenceColorPalette {
-  gradient: string
-  accentColor: string
-  baseColor: string
-}
 
 const HEX_COLOR_REGEX = /^#(?:[0-9a-fA-F]{3}){1,2}$/
 
@@ -59,46 +44,13 @@ function hashIdentifier(identifier: string | number): number {
   return 0
 }
 
-function withAlpha(hexColor: string, alpha: number): string {
+export function withAlpha(hexColor: string, alpha: number): string {
   if (!HEX_COLOR_REGEX.test(hexColor)) {
     return hexColor
   }
 
   const { r, g, b } = hexToRgb(hexColor)
   return `rgba(${r}, ${g}, ${b}, ${Math.min(Math.max(alpha, 0), 1)})`
-}
-
-function buildGradient(fromColor: string, toColor: string, rotationSeed: number): string {
-  const rotation = (rotationSeed * 25) % 360
-  return `linear-gradient(${rotation}deg, ${fromColor}, ${toColor})`
-}
-
-export function getPresenceColors(
-  identifier: string | number,
-  explicitColor?: string
-): PresenceColorPalette {
-  const paletteIndex = hashIdentifier(identifier)
-
-  if (explicitColor) {
-    const normalizedColor = explicitColor.trim()
-    const lighterShade = HEX_COLOR_REGEX.test(normalizedColor)
-      ? withAlpha(normalizedColor, 0.85)
-      : normalizedColor
-
-    return {
-      gradient: buildGradient(lighterShade, normalizedColor, paletteIndex),
-      accentColor: normalizedColor,
-      baseColor: lighterShade,
-    }
-  }
-
-  const colorPair = APP_COLORS[paletteIndex % APP_COLORS.length]
-
-  return {
-    gradient: buildGradient(colorPair.from, colorPair.to, paletteIndex),
-    accentColor: colorPair.to,
-    baseColor: colorPair.from,
-  }
 }
 
 /**
@@ -111,24 +63,4 @@ export function getPresenceColors(
 export function getUserColor(userId: string): string {
   const hash = hashIdentifier(userId)
   return USER_COLORS[hash % USER_COLORS.length]
-}
-
-/**
- * Creates a stable mapping of user IDs to color indices for a list of users.
- * Useful when you need to maintain consistent color assignments across renders.
- *
- * @param userIds - Array of user IDs to map
- * @returns Map of user ID to color index
- */
-export function createUserColorMap(userIds: string[]): Map<string, number> {
-  const colorMap = new Map<string, number>()
-  let colorIndex = 0
-
-  for (const userId of userIds) {
-    if (!colorMap.has(userId)) {
-      colorMap.set(userId, colorIndex++)
-    }
-  }
-
-  return colorMap
 }

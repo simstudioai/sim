@@ -1924,6 +1924,7 @@ export function Files() {
             onSaveStatusChange={handleSaveStatusChange}
             saveRef={saveRef}
             discardRef={discardRef}
+            collaborative
           />
 
           <ChipConfirmModal

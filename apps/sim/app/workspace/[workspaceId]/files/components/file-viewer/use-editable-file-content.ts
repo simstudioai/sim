@@ -66,6 +66,13 @@ interface UseEditableFileContentOptions {
    * the at-rest baseline, never while an agent stream is in flight. Stable reference required.
    */
   normalizeBaseline?: (raw: string) => string
+  /**
+   * Extra gate on autosave (and draft persistence). When `false`, saving is
+   * suppressed even when otherwise eligible — the collaborative editor uses it to
+   * hold saves until the shared document is synced AND seeded, so an empty or
+   * partially-synced doc can never overwrite the real file. Defaults to `true`.
+   */
+  canAutosave?: boolean
 }
 
 interface EditableFileContent {
@@ -141,6 +148,7 @@ export function useEditableFileContent({
   saveRef,
   discardRef,
   normalizeBaseline,
+  canAutosave = true,
 }: UseEditableFileContentOptions): EditableFileContent {
   const onDirtyChangeRef = useRef(onDirtyChange)
   const onSaveStatusChangeRef = useRef(onSaveStatusChange)
@@ -239,7 +247,7 @@ export function useEditableFileContent({
     [workspaceId, file.id, markSavedContent]
   )
 
-  const autosaveEnabled = canEdit && isInitialized && !isStreamInteractionLocked
+  const autosaveEnabled = canEdit && isInitialized && !isStreamInteractionLocked && canAutosave
 
   const { saveStatus, saveImmediately, isDirty, discard } = useAutosave({
     content,

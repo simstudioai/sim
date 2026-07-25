@@ -110,6 +110,12 @@ interface FileViewerProps {
   streamIsIncremental?: boolean
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
+  /**
+   * Opt this surface into live collaborative editing (markdown files only). Set by the
+   * Files page; the agent/Chat surface leaves it off so collaboration and agent-streaming
+   * never target one editor. See {@link RichMarkdownEditorProps.collaborative}.
+   */
+  collaborative?: boolean
 }
 
 export function FileViewer(props: FileViewerProps) {
@@ -141,6 +147,7 @@ function FileViewerContent({
   streamIsIncremental,
   disableStreamingAutoScroll = false,
   previewContextKey,
+  collaborative,
 }: FileViewerProps) {
   const category = resolveFileCategory(file.type, file.name)
 
@@ -185,6 +192,7 @@ function FileViewerContent({
           streamIsIncremental={streamIsIncremental}
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
+          collaborative={collaborative}
         />
       )
     }
