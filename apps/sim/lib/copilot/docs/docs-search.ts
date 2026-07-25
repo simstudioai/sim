@@ -109,6 +109,19 @@ function escapeLikePattern(value: string): string {
 }
 
 /**
+ * Clamp a caller-supplied result count into [1, {@link MAX_TOP_K}].
+ *
+ * Guards magnitude AND type: `Math.min`/`Math.max` propagate NaN, so a
+ * non-numeric value would otherwise reach the query as `.limit(NaN)`. The
+ * generated tool schema rejects a non-number upstream today, but this function
+ * is also called directly, so it does not rely on that.
+ */
+function clampTopK(requested: number | undefined): number {
+  if (requested === undefined || !Number.isFinite(requested)) return DEFAULT_TOP_K
+  return Math.min(Math.max(Math.trunc(requested), 1), MAX_TOP_K)
+}
+
+/**
  * Semantic search over the indexed docs corpus (`docs_embeddings`, rebuilt by
  * `scripts/process-docs.ts` on release). Every result carries the `docs/` path
  * it came from so the caller can `read` the full page next.
@@ -128,7 +141,7 @@ export async function searchDocs(
 ): Promise<DocsSearchOutcome> {
   if (!query || typeof query !== 'string') throw new Error('query is required')
 
-  const topK = Math.min(Math.max(Math.trunc(options?.topK ?? DEFAULT_TOP_K), 1), MAX_TOP_K)
+  const topK = clampTopK(options?.topK)
   const where = scopeCondition(options?.path)
 
   logger.info('Executing docs search', { query, topK, path: options?.path ?? null })

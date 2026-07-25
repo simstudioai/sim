@@ -3,9 +3,10 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGenerateSearchEmbedding, capturedWhere, mockRows } = vi.hoisted(() => ({
+const { mockGenerateSearchEmbedding, capturedWhere, capturedLimit, mockRows } = vi.hoisted(() => ({
   mockGenerateSearchEmbedding: vi.fn(),
   capturedWhere: { value: undefined as unknown },
+  capturedLimit: { value: undefined as number | undefined },
   mockRows: { value: [] as unknown[] },
 }))
 
@@ -38,7 +39,12 @@ vi.mock('@sim/db', () => ({
         where: (condition: unknown) => {
           capturedWhere.value = condition
           return {
-            orderBy: () => ({ limit: async () => mockRows.value }),
+            orderBy: () => ({
+              limit: async (n: number) => {
+                capturedLimit.value = n
+                return mockRows.value
+              },
+            }),
           }
         },
       }),
@@ -225,5 +231,45 @@ describe('searchDocs shortfall reporting', () => {
     expect(outcome.droppedBelowThreshold).toBe(0)
     expect(outcome.droppedStale).toBe(0)
     expect(outcome.results).toHaveLength(1)
+  })
+})
+
+describe('searchDocs topK clamping', () => {
+  beforeEach(() => {
+    capturedLimit.value = undefined
+    mockRows.value = []
+    mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [0.1, 0.2] })
+  })
+
+  it('defaults to 10 when unspecified', async () => {
+    await searchDocs('cron')
+    expect(capturedLimit.value).toBe(10)
+  })
+
+  it('caps at 25 — the documented max, which the old tool never enforced', async () => {
+    await searchDocs('cron', { topK: 500 })
+    expect(capturedLimit.value).toBe(25)
+  })
+
+  it('floors at 1', async () => {
+    await searchDocs('cron', { topK: 0 })
+    expect(capturedLimit.value).toBe(1)
+    await searchDocs('cron', { topK: -8 })
+    expect(capturedLimit.value).toBe(1)
+  })
+
+  it('truncates a fractional count', async () => {
+    await searchDocs('cron', { topK: 7.9 })
+    expect(capturedLimit.value).toBe(7)
+  })
+
+  it('falls back to the default rather than passing NaN to the query', async () => {
+    // Math.min/Math.max propagate NaN, so a bare clamp would reach `.limit(NaN)`.
+    await searchDocs('cron', { topK: Number.NaN })
+    expect(capturedLimit.value).toBe(10)
+    await searchDocs('cron', { topK: 'twelve' as unknown as number })
+    expect(capturedLimit.value).toBe(10)
+    await searchDocs('cron', { topK: Number.POSITIVE_INFINITY })
+    expect(capturedLimit.value).toBe(10)
   })
 })
