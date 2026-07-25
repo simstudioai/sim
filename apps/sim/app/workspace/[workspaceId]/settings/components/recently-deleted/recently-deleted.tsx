@@ -464,22 +464,18 @@ export function RecentlyDeleted() {
                 }
                 trailing={
                   !canRestore ? null : isRestoring ? (
-                    <Chip variant='primary' disabled className='shrink-0'>
+                    <Chip variant='primary' disabled>
                       Restoring...
                     </Chip>
                   ) : isRestored ? (
-                    <div className='flex shrink-0 items-center gap-2'>
+                    <div className='flex items-center gap-2'>
                       <span className='text-[var(--text-muted)] text-small'>Restored</span>
                       <Chip variant='primary' onClick={() => handleView(resource)}>
                         View
                       </Chip>
                     </div>
                   ) : (
-                    <Chip
-                      variant='primary'
-                      onClick={() => void handleRestore(resource)}
-                      className='shrink-0'
-                    >
+                    <Chip variant='primary' onClick={() => void handleRestore(resource)}>
                       Restore
                     </Chip>
                   )
