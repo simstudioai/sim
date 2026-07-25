@@ -644,16 +644,15 @@ export function Table({
 
   const headerActions = useMemo(() => {
     if (!tableData) return undefined
+    // Header space is for state, not for settings: the chip appears only once
+    // something is actually locked, and names the mode so it reads at a glance.
+    // Reaching the panel on an unlocked table is the dropdown's job.
     const anyLocked = lockedNouns(tableData.locks).length > 0
-    // Name the mode when locked so the state is legible on open; admins get the
-    // entry point on an unlocked table only where the feature is enabled —
-    // otherwise the panel opens and Save 403s against the server-side gate.
-    const lockLabel = anyLocked ? describeLocks(tableData.locks).name : 'Lock settings'
     return [
-      ...(anyLocked || (userPermissions.canAdmin && tableLocksEnabled)
+      ...(anyLocked
         ? [
             {
-              label: lockLabel,
+              label: describeLocks(tableData.locks).name,
               icon: Lock,
               onClick: () =>
                 userPermissions.canAdmin ? setShowLockSettings(true) : showBlockedToast('status'),
