@@ -27,6 +27,21 @@ export interface DocsSearchResult {
  * section in the docs corpus. Surfaced verbatim so the model can correct itself
  * rather than reading an empty result as "the docs say nothing about this".
  */
+/**
+ * A search result set plus why it may be shorter than `topK`. The SQL LIMIT is
+ * applied before the threshold and liveness filters, so these counts are what
+ * distinguishes "nothing matched" from "matches were filtered out".
+ */
+export interface DocsSearchOutcome {
+  results: DocsSearchResult[]
+  /** Rows the vector search returned before filtering. */
+  candidatesConsidered: number
+  /** Candidates dropped for scoring below the similarity threshold. */
+  droppedBelowThreshold: number
+  /** Candidates dropped because their page is no longer in the docs manifest. */
+  droppedStale: number
+}
+
 export class DocsSearchScopeError extends Error {
   readonly code = 'DOCS_SEARCH_SCOPE' as const
   constructor(message: string) {
@@ -94,11 +109,16 @@ function escapeLikePattern(value: string): string {
  * The index lags the VFS: a page added since the last index rebuild is readable
  * but not searchable, and a deleted one can still return chunks. Results whose
  * source no longer maps to a live `docs/` path are dropped.
+ *
+ * Because those drops happen after the SQL LIMIT, a caller can get fewer hits
+ * than it asked for — or none at all when every candidate was filtered. The
+ * returned {@link DocsSearchOutcome} reports that explicitly so an empty result
+ * is never mistaken for "the documentation does not cover this".
  */
 export async function searchDocs(
   query: string,
   options?: { path?: string; topK?: number }
-): Promise<DocsSearchResult[]> {
+): Promise<DocsSearchOutcome> {
   if (!query || typeof query !== 'string') throw new Error('query is required')
 
   const topK = Math.min(Math.max(Math.trunc(options?.topK ?? DEFAULT_TOP_K), 1), MAX_TOP_K)
@@ -107,7 +127,9 @@ export async function searchDocs(
   logger.info('Executing docs search', { query, topK, path: options?.path ?? null })
 
   const { embedding: queryEmbedding } = await generateSearchEmbedding(query)
-  if (!queryEmbedding || queryEmbedding.length === 0) return []
+  if (!queryEmbedding || queryEmbedding.length === 0) {
+    return { results: [], candidatesConsidered: 0, droppedBelowThreshold: 0, droppedStale: 0 }
+  }
 
   const rows = await db
     .select({
@@ -123,10 +145,18 @@ export async function searchDocs(
     .limit(topK)
 
   const results: DocsSearchResult[] = []
+  let droppedBelowThreshold = 0
+  let droppedStale = 0
   for (const row of rows) {
-    if (row.similarity < SIMILARITY_THRESHOLD) continue
+    if (row.similarity < SIMILARITY_THRESHOLD) {
+      droppedBelowThreshold++
+      continue
+    }
     const path = docsPathForSourceDocument(row.sourceDocument)
-    if (!path) continue
+    if (!path) {
+      droppedStale++
+      continue
+    }
     results.push({
       path,
       url: String(row.sourceLink || '#'),
@@ -138,7 +168,13 @@ export async function searchDocs(
 
   logger.info('Docs search complete', {
     count: results.length,
-    dropped: rows.length - results.length,
+    droppedBelowThreshold,
+    droppedStale,
   })
-  return results
+  return {
+    results,
+    candidatesConsidered: rows.length,
+    droppedBelowThreshold,
+    droppedStale,
+  }
 }

@@ -124,7 +124,7 @@ describe('searchDocs results', () => {
         similarity: 0.8,
       },
     ]
-    const results = await searchDocs('cron')
+    const { results } = await searchDocs('cron')
     expect(results).toEqual([
       {
         path: 'docs/workflows.mdx',
@@ -153,7 +153,7 @@ describe('searchDocs results', () => {
         similarity: 0.9,
       },
     ]
-    expect(await searchDocs('cron')).toEqual([])
+    expect((await searchDocs('cron')).results).toEqual([])
   })
 
   it('drops chunks below the similarity threshold', async () => {
@@ -166,6 +166,55 @@ describe('searchDocs results', () => {
         similarity: 0.1,
       },
     ]
-    expect(await searchDocs('cron')).toEqual([])
+    expect((await searchDocs('cron')).results).toEqual([])
+  })
+})
+
+describe('searchDocs shortfall reporting', () => {
+  beforeEach(() => {
+    capturedWhere.value = undefined
+    mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [0.1, 0.2] })
+  })
+
+  it('counts why candidates were dropped so an empty set is explainable', async () => {
+    mockRows.value = [
+      {
+        chunkText: 'a',
+        sourceDocument: 'agents.mdx',
+        sourceLink: 'x',
+        headerText: 'h',
+        similarity: 0.1,
+      },
+      {
+        chunkText: 'b',
+        sourceDocument: 'deleted-page.mdx',
+        sourceLink: 'y',
+        headerText: 'h',
+        similarity: 0.9,
+      },
+    ]
+    const outcome = await searchDocs('cron')
+    expect(outcome).toEqual({
+      results: [],
+      candidatesConsidered: 2,
+      droppedBelowThreshold: 1,
+      droppedStale: 1,
+    })
+  })
+
+  it('reports no drops when every candidate survives', async () => {
+    mockRows.value = [
+      {
+        chunkText: 'a',
+        sourceDocument: 'agents.mdx',
+        sourceLink: 'x',
+        headerText: 'h',
+        similarity: 0.9,
+      },
+    ]
+    const outcome = await searchDocs('cron')
+    expect(outcome.droppedBelowThreshold).toBe(0)
+    expect(outcome.droppedStale).toBe(0)
+    expect(outcome.results).toHaveLength(1)
   })
 })
