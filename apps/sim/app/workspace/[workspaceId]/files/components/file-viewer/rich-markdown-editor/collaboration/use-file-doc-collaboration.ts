@@ -4,8 +4,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
 import { getUserColor } from '@/lib/workspaces/colors'
+import type { PresenceAvatarUser } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { FileDocProvider } from './file-doc-provider'
+import { useReportFileDocOthers } from './file-doc-room-context'
 
 /** The live collaboration binding the editor wires into TipTap's Collaboration
  * (the {@link Y.Doc}) and CollaborationCaret (the awareness). */
@@ -20,14 +22,26 @@ export interface FileDocCollaboration {
    * provider is consumed for seeding events (`synced` / `seed-request`).
    */
   provider: FileDocProvider | null
-  /** Local caret identity for CollaborationCaret: display name + assigned color. */
-  user: { name: string; color: string }
+  /**
+   * The local presence identity published to awareness: what CollaborationCaret renders
+   * (name/color) plus the fields peers read back — `clientId` for the caret activity
+   * extension, `userId`/`avatarUrl` for the "who's in this file" avatar roster.
+   */
+  user: {
+    name: string
+    color: string
+    clientId: number | undefined
+    userId: string
+    avatarUrl: string | null | undefined
+  }
 }
 
 interface UseFileDocCollaborationParams {
   fileId: string
   userId: string
   userName: string
+  /** The local user's avatar URL, published to awareness for the presence roster. */
+  avatarUrl?: string | null
   /**
    * Whether to establish collaboration. Decided once at editor mount — only for a
    * live, editable, non-streaming workspace document. When `false` the hook
@@ -47,6 +61,7 @@ export function useFileDocCollaboration({
   fileId,
   userId,
   userName,
+  avatarUrl,
   enabled,
 }: UseFileDocCollaborationParams): FileDocCollaboration | null {
   const { socket } = useSocket()
@@ -87,7 +102,56 @@ export function useFileDocCollaboration({
     }
   }, [enabled, socket, fileId])
 
-  const user = useMemo(() => ({ name: userName, color: getUserColor(userId) }), [userName, userId])
+  const reportOthers = useReportFileDocOthers()
+  const reportOthersRef = useRef(reportOthers)
+  reportOthersRef.current = reportOthers
+
+  // The "who's in this file" roster (the useOthers side of the pattern): on every awareness
+  // change, read each remote state's `user`, dedupe by user id (multiple tabs = one person),
+  // and publish to the room context so the file-detail header can render an avatar stack.
+  // Cleared on unmount so a file switch never shows the previous file's occupants.
+  useEffect(() => {
+    if (!enabled) return
+    const awareness = awarenessRef.current as Awareness
+    const localId = awareness.clientID
+    const publish = () => {
+      const byUser = new Map<string, PresenceAvatarUser>()
+      awareness.getStates().forEach((state, clientId) => {
+        if (clientId === localId) return
+        const u = state.user as
+          | { userId?: unknown; name?: unknown; avatarUrl?: unknown }
+          | undefined
+        if (!u || typeof u.userId !== 'string' || byUser.has(u.userId)) return
+        byUser.set(u.userId, {
+          userId: u.userId,
+          userName: typeof u.name === 'string' ? u.name : undefined,
+          avatarUrl: typeof u.avatarUrl === 'string' ? u.avatarUrl : null,
+        })
+      })
+      reportOthersRef.current(Array.from(byUser.values()))
+    }
+    awareness.on('change', publish)
+    publish()
+    return () => {
+      awareness.off('change', publish)
+      reportOthersRef.current([])
+    }
+  }, [enabled])
+
+  // The client id rides in the awareness `user` payload so the caret `render` (which only
+  // receives `user`) can tag each caret node for the activity-driven name label (see
+  // caret-presence.ts); `userId`/`avatarUrl` feed the presence roster above. `doc.clientID`
+  // is stable for the doc's life, so reading it from the ref needs no memo dep.
+  const user = useMemo(
+    () => ({
+      name: userName,
+      color: getUserColor(userId),
+      clientId: docRef.current?.clientID,
+      userId,
+      avatarUrl,
+    }),
+    [userName, userId, avatarUrl]
+  )
 
   return useMemo(
     () =>

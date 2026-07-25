@@ -61,7 +61,6 @@ import {
   Resource,
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
-import { PresenceAvatars } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
 import { FilesActionBar } from '@/app/workspace/[workspaceId]/files/components/action-bar'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
 import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
@@ -73,6 +72,8 @@ import {
   isPreviewable,
   isTextEditable,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { FileDocAvatars } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-avatars'
+import { FileDocRoomProvider } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import { useWorkspaceFilesRoom } from '@/app/workspace/[workspaceId]/files/hooks/use-workspace-files-room'
@@ -205,10 +206,10 @@ export function Files() {
   const canEdit = userPermissions.canEdit === true
   const { config: permissionConfig } = usePermissionConfig()
 
-  const { otherUsers: filesPresenceUsers } = useWorkspaceFilesRoom(
-    workspaceId,
-    currentFolderId ?? null
-  )
+  // Joined for the live file tree: a `workspace-files-changed` broadcast invalidates the
+  // browser. "Who's in this file" comes from the file-doc room (see FileDocRoomProvider),
+  // not from who's browsing the Files section.
+  useWorkspaceFilesRoom(workspaceId)
 
   useEffect(() => {
     if (permissionConfig.hideFilesTab) {
@@ -1907,36 +1908,42 @@ export function Files() {
   if (selectedFile) {
     return (
       <>
-        <Resource>
-          <Resource.Header
-            icon={FilesIcon}
-            breadcrumbs={fileDetailBreadcrumbs}
-            actions={fileActions}
-          />
-          <FileViewer
-            key={selectedFile.id}
-            file={selectedFile}
-            workspaceId={workspaceId}
-            canEdit={canEdit}
-            previewMode={previewMode}
-            autoFocus={isNewFile || justCreatedFileIdRef.current === selectedFile.id}
-            onDirtyChange={setIsDirty}
-            onSaveStatusChange={handleSaveStatusChange}
-            saveRef={saveRef}
-            discardRef={discardRef}
-            collaborative
-          />
+        {/* The room provider scopes "who's in this file" presence to the open document:
+            the editor (inside FileViewer) publishes the awareness roster and the header's
+            FileDocAvatars reads it — both must be descendants. */}
+        <FileDocRoomProvider>
+          <Resource>
+            <Resource.Header
+              icon={FilesIcon}
+              breadcrumbs={fileDetailBreadcrumbs}
+              actions={fileActions}
+              aside={<FileDocAvatars />}
+            />
+            <FileViewer
+              key={selectedFile.id}
+              file={selectedFile}
+              workspaceId={workspaceId}
+              canEdit={canEdit}
+              previewMode={previewMode}
+              autoFocus={isNewFile || justCreatedFileIdRef.current === selectedFile.id}
+              onDirtyChange={setIsDirty}
+              onSaveStatusChange={handleSaveStatusChange}
+              saveRef={saveRef}
+              discardRef={discardRef}
+              collaborative
+            />
 
-          <ChipConfirmModal
-            open={showUnsavedChangesAlert}
-            onOpenChange={setShowUnsavedChangesAlert}
-            srTitle='Unsaved Changes'
-            title='Unsaved Changes'
-            text='You have unsaved changes. Are you sure you want to discard them?'
-            dismissLabel='Keep editing'
-            confirm={{ label: 'Discard Changes', onClick: handleDiscardChanges }}
-          />
-        </Resource>
+            <ChipConfirmModal
+              open={showUnsavedChangesAlert}
+              onOpenChange={setShowUnsavedChangesAlert}
+              srTitle='Unsaved Changes'
+              title='Unsaved Changes'
+              text='You have unsaved changes. Are you sure you want to discard them?'
+              dismissLabel='Keep editing'
+              confirm={{ label: 'Discard Changes', onClick: handleDiscardChanges }}
+            />
+          </Resource>
+        </FileDocRoomProvider>
 
         <DeleteConfirmModal
           open={showDeleteConfirm}
@@ -1967,7 +1974,6 @@ export function Files() {
           title='Files'
           breadcrumbs={listBreadcrumbs}
           actions={headerActionsConfig}
-          aside={<PresenceAvatars users={filesPresenceUsers} />}
         />
         <Resource.Options
           search={searchConfig}

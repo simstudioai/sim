@@ -8,6 +8,7 @@ import { withAlpha } from '@/lib/workspaces/colors'
 import { BlockMover } from './block-mover'
 import { CodeBlockWithLanguage } from './code-block'
 import { CodeBlockHighlight } from './code-highlight'
+import { createCaretActivityExtension, renderCaret } from './collaboration/caret-presence'
 import { LinkEmbed } from './embed/link-embed'
 import { createMarkdownContentExtensions } from './extensions'
 import { ResizableImage } from './image'
@@ -64,11 +65,13 @@ export function createMarkdownEditorExtensions({
       ? [
           Collaboration.configure({ document: collaboration.doc }),
           // CollaborationCaret reads only `provider.awareness` (created synchronously,
-          // relayed by the socket provider once connected). The default caret + label
-          // color from `user.color`; only the selection tint needs an explicit override.
+          // relayed by the socket provider once connected). `render` tags each caret
+          // with the peer's client id and shows its name label; the selection tint is
+          // a translucent fill of the peer's identity color.
           CollaborationCaret.configure({
             provider: { awareness: collaboration.awareness },
             user: collaboration.user,
+            render: renderCaret,
             selectionRender: (user) => {
               const hex = typeof user.color === 'string' ? user.color : '#000000'
               return {
@@ -77,6 +80,7 @@ export function createMarkdownEditorExtensions({
               }
             },
           }),
+          createCaretActivityExtension(collaboration.awareness),
         ]
       : []),
     CodeBlockHighlight,

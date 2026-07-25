@@ -69,6 +69,18 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   ) {
     super()
 
+    // Restore an empty local awareness state if it has been cleared. A fresh
+    // Awareness starts with `{}`, but a *reused* one whose local state was removed
+    // (a prior provider's `destroy()` clears it, and so does `Awareness.destroy()`)
+    // returns `null` here — and y-protocols' `setLocalStateField` is a no-op while
+    // the local state is `null`. The editor binds CollaborationCaret to this exact
+    // awareness for its whole life, so without this reseed a remount (e.g. React
+    // StrictMode's mount→unmount→mount, which re-runs the provider effect on the
+    // same instance) would leave the caret extension unable to ever publish the
+    // local user/cursor — remote peers would see no caret or selection, even though
+    // document sync (which does not depend on local awareness) keeps working.
+    if (awareness.getLocalState() === null) awareness.setLocalState({})
+
     socket.on(FILE_DOC_EVENTS.MESSAGE, this.handleMessage)
     socket.on(FILE_DOC_EVENTS.JOIN_SUCCESS, this.handleJoinSuccess)
     socket.on(FILE_DOC_EVENTS.JOIN_ERROR, this.handleJoinError)
