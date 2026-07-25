@@ -25,7 +25,7 @@ export const PUSH_ERROR_MAX = 1000
  * Such a run can still finish, since those ceilings are pessimistic, so the floor
  * leaves a short turn rather than refusing one.
  */
-const MIN_PI_TIMEOUT_MS = 60 * 1000
+export const MIN_PI_TIMEOUT_MS = 60 * 1000
 
 /**
  * How long one Pi CLI invocation may run. The platform's max execution timeout
@@ -41,14 +41,23 @@ const MIN_PI_TIMEOUT_MS = 60 * 1000
  * What is reserved is each command's timeout ceiling, not its measured elapsed
  * time — a clone takes seconds in practice — so this is a budget that adds up,
  * not a guarantee that the sandbox outlives the run.
+ *
+ * The reserve only applies when the provider imposes an absolute lifetime, which
+ * is E2B alone. Daytona stops on inactivity, so subtracting E2B's ceiling there
+ * would cut the agent turn to fit a limit Daytona does not have.
  */
-export const PI_TIMEOUT_MS = Math.min(
-  getMaxExecutionTimeout(),
-  Math.max(
-    resolvePiSandboxLifetimeMs() - CLONE_TIMEOUT_MS - 2 * FINALIZE_TIMEOUT_MS,
-    MIN_PI_TIMEOUT_MS
-  )
-)
+const piSandboxLifetimeMs = resolvePiSandboxLifetimeMs()
+
+export const PI_TIMEOUT_MS =
+  piSandboxLifetimeMs === undefined
+    ? getMaxExecutionTimeout()
+    : Math.min(
+        getMaxExecutionTimeout(),
+        Math.max(
+          piSandboxLifetimeMs - CLONE_TIMEOUT_MS - 2 * FINALIZE_TIMEOUT_MS,
+          MIN_PI_TIMEOUT_MS
+        )
+      )
 
 /**
  * Marker carrying a digest of the cloned repository's git config. A clone script

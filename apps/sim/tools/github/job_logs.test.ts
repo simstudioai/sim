@@ -23,6 +23,28 @@ describe('github_job_logs', () => {
     expect(url).toBe('https://api.github.com/repos/octo/demo/actions/jobs/42/logs')
   })
 
+  it('escapes coordinates so they cannot redirect the authenticated request', () => {
+    const url = (jobLogsTool.request.url as (params: JobLogsParams) => string)({
+      ...BASE_PARAMS,
+      owner: '../../orgs/secret',
+      repo: 'demo?ref=x',
+    })
+
+    expect(url).toBe(
+      'https://api.github.com/repos/..%2F..%2Forgs%2Fsecret/demo%3Fref%3Dx/actions/jobs/42/logs'
+    )
+  })
+
+  it('rejects a job id that is not a positive integer', () => {
+    const url = jobLogsTool.request.url as (params: JobLogsParams) => string
+
+    expect(() => url({ ...BASE_PARAMS, job_id: 0 })).toThrow(/job_id must be a positive integer/)
+    expect(() => url({ ...BASE_PARAMS, job_id: 1.5 })).toThrow(/job_id must be a positive integer/)
+    expect(() => url({ ...BASE_PARAMS, job_id: '9/../..' as unknown as number })).toThrow(
+      /job_id must be a positive integer/
+    )
+  })
+
   it('returns a short log whole', async () => {
     const result = await jobLogsTool.transformResponse!(logResponse('boom\n'), BASE_PARAMS)
 

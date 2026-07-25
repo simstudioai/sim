@@ -13,6 +13,22 @@ function resolveMaxCharacters(value: number | undefined): number {
 }
 
 /**
+ * Every path segment is escaped or checked before it reaches the URL.
+ *
+ * Raw interpolation is the prevailing shape among the GitHub tools here, but it
+ * costs more in this one: the response body is returned verbatim as `logs`
+ * instead of being parsed into a fixed shape, so a coordinate carrying URL syntax
+ * would turn a bearer-authenticated request into a general read of whatever
+ * endpoint it reached. Siblings that parse a typed response fail closed instead.
+ */
+function jobLogsPath(owner: string, repo: string, jobId: number): string {
+  if (!Number.isSafeInteger(jobId) || jobId < 1) {
+    throw new Error('job_id must be a positive integer')
+  }
+  return `${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/jobs/${jobId}/logs`
+}
+
+/**
  * The tail is what matters: a failing job reports its error at the end.
  *
  * Reading the whole body first is safe because the tool executor already caps a
@@ -76,7 +92,7 @@ export const jobLogsTool: ToolConfig<JobLogsParams, JobLogsResponse> = {
     // The per-job endpoint, not the run-level zip archive. GitHub answers with a
     // 302 to a short-lived blob URL that carries its own signature.
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/actions/jobs/${params.job_id}/logs`,
+      `https://api.github.com/repos/${jobLogsPath(params.owner, params.repo, params.job_id)}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

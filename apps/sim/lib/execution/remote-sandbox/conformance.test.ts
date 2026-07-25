@@ -76,7 +76,10 @@ import {
   SIM_RESULT_PREFIX,
   withPiSandbox,
 } from '@/lib/execution/remote-sandbox'
-import { PI_SANDBOX_MAX_LIFETIME_MS } from '@/lib/execution/remote-sandbox/pi-lifetime'
+import {
+  PI_SANDBOX_MAX_LIFETIME_MS,
+  PI_SANDBOX_MIN_LIFETIME_MS,
+} from '@/lib/execution/remote-sandbox/pi-lifetime'
 
 type Provider = 'e2b' | 'daytona'
 const PROVIDERS: Provider[] = ['e2b', 'daytona']
@@ -483,13 +486,24 @@ describe('Pi sandbox lifetime', () => {
     expect(mockE2BCreate.mock.calls[0][1].timeoutMs).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
   })
 
-  it('honours a configured lifetime below the ceiling', async () => {
+  it('honours a configured lifetime between the floor and the ceiling', async () => {
     useProvider('e2b')
+    mockEnv.PI_SANDBOX_LIFETIME_MS = '2700000'
+
+    await withPiSandbox(async () => undefined)
+
+    expect(mockE2BCreate.mock.calls[0][1].timeoutMs).toBe(2_700_000)
+  })
+
+  it('raises a configured lifetime too short to clone, run, and push in', async () => {
+    useProvider('e2b')
+    // Ten minutes is the clone reserve on its own, so the turn and the push would
+    // race a sandbox E2B may already have reaped.
     mockEnv.PI_SANDBOX_LIFETIME_MS = '600000'
 
     await withPiSandbox(async () => undefined)
 
-    expect(mockE2BCreate.mock.calls[0][1].timeoutMs).toBe(600_000)
+    expect(mockE2BCreate.mock.calls[0][1].timeoutMs).toBe(PI_SANDBOX_MIN_LIFETIME_MS)
   })
 
   it('leaves the short-lived sandbox kinds on the E2B default', async () => {
