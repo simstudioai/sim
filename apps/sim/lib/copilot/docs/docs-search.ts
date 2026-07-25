@@ -56,7 +56,7 @@ export class DocsSearchScopeError extends Error {
  * `source_document` stores the en-relative mdx file path, while VFS paths mirror
  * the public URL — so a section overview is `docs/workflows.mdx` in the VFS but
  * `workflows/index.mdx` (or `workflows.mdx`) on disk. A directory scope covers
- * the whole subtree, including that overview page.
+ * the whole subtree plus the overview in either layout.
  *
  * Returns undefined for an unscoped search, which excludes `academy/` and
  * `api-reference/`: both are indexed but neither is mounted in the VFS, so a hit
@@ -89,7 +89,14 @@ function scopeCondition(path?: string) {
   }
 
   if (isDocsDir(normalized)) {
-    return like(docsEmbeddings.sourceDocument, `${escapeLikePattern(tail)}/%`)
+    // Everything under the directory, PLUS a sibling `<tail>.mdx`. Fumadocs
+    // accepts either layout for a section overview and only `<tail>/index.mdx`
+    // is inside the subtree, so matching the prefix alone would silently omit
+    // the overview for the sibling layout — page scope already covers both.
+    return or(
+      like(docsEmbeddings.sourceDocument, `${escapeLikePattern(tail)}/%`),
+      eq(docsEmbeddings.sourceDocument, `${tail}.mdx`)
+    )
   }
 
   throw new DocsSearchScopeError(
