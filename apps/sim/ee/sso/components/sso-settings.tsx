@@ -4,6 +4,7 @@ import { useState } from 'react'
 import {
   Button,
   ChipCombobox,
+  ChipCopyInput,
   ChipInput,
   ChipSelect,
   ChipTextarea,
@@ -15,7 +16,7 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Check, ChevronDown, Clipboard, Eye, EyeOff } from 'lucide-react'
+import { ChevronDown, Eye, EyeOff } from 'lucide-react'
 import type { SsoRegistrationBody } from '@/lib/api/contracts/auth'
 import { useSession } from '@/lib/auth/auth-client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
@@ -106,7 +107,6 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const configureSSOMutation = useConfigureSSO()
 
   const [showClientSecret, setShowClientSecret] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
 
@@ -330,14 +330,6 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const isSaml = formData.providerType === 'saml'
   const callbackUrl = `${getBaseUrl()}/api/auth/${isSaml ? 'sso/saml2/callback' : 'sso/callback'}/${formData.providerId || existingProvider?.providerId || 'provider-id'}`
 
-  const copyToClipboard = async (url: string) => {
-    try {
-      await navigator.clipboard.writeText(url)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {}
-  }
-
   const handleEdit = () => {
     if (!existingProvider) return
 
@@ -423,25 +415,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
             </SettingRow>
 
             <SettingRow label='Callback URL'>
-              <ChipInput
-                value={providerCallbackUrl}
-                readOnly
-                endAdornment={
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    onClick={() => copyToClipboard(providerCallbackUrl)}
-                    className='size-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
-                    aria-label='Copy callback URL'
-                  >
-                    {copied ? (
-                      <Check className='size-[14px]' />
-                    ) : (
-                      <Clipboard className='size-[14px]' />
-                    )}
-                  </Button>
-                }
-              />
+              <ChipCopyInput value={providerCallbackUrl} copyLabel='Copy callback URL' />
               <p className='text-[var(--text-muted)] text-small'>
                 Configure this in your identity provider
               </p>
@@ -792,25 +766,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
             )}
 
             <SettingRow label='Callback URL'>
-              <ChipInput
-                value={callbackUrl}
-                readOnly
-                endAdornment={
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    onClick={() => copyToClipboard(callbackUrl)}
-                    className='size-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
-                    aria-label='Copy callback URL'
-                  >
-                    {copied ? (
-                      <Check className='size-[14px]' />
-                    ) : (
-                      <Clipboard className='size-[14px]' />
-                    )}
-                  </Button>
-                }
-              />
+              <ChipCopyInput value={callbackUrl} copyLabel='Copy callback URL' />
               <p className='text-[var(--text-muted)] text-small'>
                 Configure this in your identity provider
               </p>

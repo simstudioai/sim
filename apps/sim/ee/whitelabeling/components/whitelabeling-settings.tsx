@@ -79,7 +79,7 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
 
   return (
     <div className='flex flex-col gap-1.5'>
-      <Label className='text-[var(--text-primary)] text-small'>{label}</Label>
+      <Label>{label}</Label>
       <div className={cn(CHIP_FIELD_SHELL, !isValidHex && 'border-[var(--text-error)]')}>
         <div
           className={cn(

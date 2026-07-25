@@ -21,6 +21,7 @@ vi.mock('@sim/emcn', () => ({
     </button>
   ),
   ChipCombobox: () => <div />,
+  ChipCopyInput: ({ value }: { value?: string }) => <input readOnly value={value ?? ''} />,
   ChipInput: ({
     value,
     onChange,

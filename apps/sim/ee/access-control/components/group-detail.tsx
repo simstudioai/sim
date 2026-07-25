@@ -1705,7 +1705,10 @@ export function GroupDetail({
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className='min-w-0 flex-1'
               />
-              <StatusFilterChip value={statusFilter} onChange={setStatusFilter} />
+              <StatusFilterChip
+                value={statusFilter}
+                onChange={(next) => void setStatusFilter(next)}
+              />
               <Chip
                 flush
                 onClick={() => setProvidersAllowed(filteredProviders, !filteredProvidersAllAllowed)}
@@ -1748,7 +1751,11 @@ export function GroupDetail({
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className='min-w-0 flex-1'
               />
-              <StatusFilterChip value={statusFilter} onChange={setStatusFilter} flush />
+              <StatusFilterChip
+                value={statusFilter}
+                onChange={(next) => void setStatusFilter(next)}
+                flush
+              />
             </div>
             {filteredCoreBlocks.length === 0 && filteredToolBlocks.length === 0 && (
               <SettingsEmptyState variant='inline'>
@@ -1851,7 +1858,10 @@ export function GroupDetail({
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className='min-w-0 flex-1'
               />
-              <StatusFilterChip value={statusFilter} onChange={setStatusFilter} />
+              <StatusFilterChip
+                value={statusFilter}
+                onChange={(next) => void setStatusFilter(next)}
+              />
               <Chip
                 onClick={() =>
                   setEditingConfig((prev) => ({

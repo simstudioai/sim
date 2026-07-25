@@ -19,8 +19,8 @@ import {
 } from '@/lib/api/contracts'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 
-export const PERMISSION_GROUPS_STALE_TIME_30S = 30 * 1000
-export const PERMISSION_GROUPS_STALE_TIME_60S = 60 * 1000
+export const PERMISSION_GROUP_MEMBERS_STALE_TIME = 30 * 1000
+export const PERMISSION_GROUPS_STALE_TIME = 60 * 1000
 
 export type {
   PermissionGroup,
@@ -57,7 +57,7 @@ export function usePermissionGroups(organizationId?: string, enabled = true) {
       return data.permissionGroups ?? []
     },
     enabled: Boolean(organizationId) && enabled,
-    staleTime: PERMISSION_GROUPS_STALE_TIME_60S,
+    staleTime: PERMISSION_GROUPS_STALE_TIME,
   })
 }
 
@@ -73,7 +73,7 @@ export function usePermissionGroupMembers(organizationId?: string, permissionGro
       return data.members ?? []
     },
     enabled: Boolean(organizationId) && Boolean(permissionGroupId),
-    staleTime: PERMISSION_GROUPS_STALE_TIME_30S,
+    staleTime: PERMISSION_GROUP_MEMBERS_STALE_TIME,
   })
 }
 
@@ -89,7 +89,7 @@ export function useOrganizationWorkspaces(organizationId?: string, enabled = tru
       return data.workspaces
     },
     enabled: Boolean(organizationId) && enabled,
-    staleTime: PERMISSION_GROUPS_STALE_TIME_60S,
+    staleTime: PERMISSION_GROUPS_STALE_TIME,
   })
 }
 
@@ -104,7 +104,7 @@ export function useUserPermissionConfig(workspaceId?: string) {
       return data
     },
     enabled: Boolean(workspaceId),
-    staleTime: PERMISSION_GROUPS_STALE_TIME_60S,
+    staleTime: PERMISSION_GROUPS_STALE_TIME,
   })
 }
 

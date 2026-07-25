@@ -59,6 +59,7 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
         }
       />
 
+      {/* pl-[46px] indents past SettingsResourceRow's icon gutter (size-9 tile + gap-2.5). */}
       {!isVerified && domain.txtRecordValue && (
         <div className='flex flex-col gap-3 pl-[46px]'>
           <SettingRow
