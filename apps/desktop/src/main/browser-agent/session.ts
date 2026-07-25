@@ -9,6 +9,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { BrowserWindow, Input, Session, WebContents } from 'electron'
 import { session as electronSession, nativeTheme, WebContentsView } from 'electron'
+import { attachAgentContextMenu } from '@/main/browser-agent/context-menu'
 import type { BrowserCookieSignal } from '@/main/browser-agent/known-sessions'
 import {
   detachAttachedView,
@@ -263,6 +264,24 @@ function focusRendererOmnibox(mode: BrowserOmniboxFocusMode): void {
   win.webContents.send('browser-agent:focus-omnibox', mode)
 }
 
+/**
+ * Opens a link from a page in another tab of this browser. Shared by the
+ * window.open interception and the page's right-click menu — both have to stay
+ * inside the browser resource rather than spawn a native window, and both are
+ * reached from an untrusted page, so the scheme is checked here once.
+ */
+function openTabWithUrl(url: string): void {
+  if (!/^https?:\/\//i.test(url)) return
+  try {
+    const tab = addTab()
+    void tab.view.webContents.loadURL(url).catch(() => {})
+  } catch (error) {
+    logger.warn('Could not open a link in a new browser tab', {
+      error: getErrorMessage(error),
+    })
+  }
+}
+
 function createTabView(): WebContentsView {
   const view = new WebContentsView({
     webPreferences: {
@@ -282,6 +301,7 @@ function createTabView(): WebContentsView {
   const contents = view.webContents
   registerAgentWebContents(contents)
   configureAgentPartition(contents.session)
+  attachAgentContextMenu(contents, { openTab: openTabWithUrl })
 
   contents.on('focus', () => {
     if (focusedBrowserClearTimer !== null) {
@@ -309,16 +329,7 @@ function createTabView(): WebContentsView {
   // Keep popups inside the browser resource: http(s) window.open and
   // target=_blank requests become a new internal tab, never a native window.
   contents.setWindowOpenHandler((details) => {
-    if (/^https?:\/\//i.test(details.url)) {
-      try {
-        const tab = addTab()
-        void tab.view.webContents.loadURL(details.url).catch(() => {})
-      } catch (error) {
-        logger.warn('Could not open browser popup in a new tab', {
-          error: getErrorMessage(error),
-        })
-      }
-    }
+    openTabWithUrl(details.url)
     return { action: 'deny' }
   })
 

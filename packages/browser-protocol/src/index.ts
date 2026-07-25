@@ -126,7 +126,8 @@ export interface BrowserPanelSnapshot {
  * reload) plus `takeover-done`, sent by the Done chip on the chat's
  * `browser_request_takeover` tool row when the user finishes a
  * hand-control-back request. Page interactions need no protocol — the user
- * acts on the real embedded page directly.
+ * acts on the real embedded page directly, and its right-click menu is native
+ * and lives entirely in the shell.
  */
 export interface BrowserPanelAction {
   action:

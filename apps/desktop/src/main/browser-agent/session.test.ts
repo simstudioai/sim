@@ -701,7 +701,7 @@ describe('browser-agent session', () => {
     })
   })
 
-  it('keeps an occluded view attached, captures its frame, and toggles visibility', async () => {
+  it('keeps an occluded view attached, and hides it only once its frame is sent', async () => {
     const tab = session.ensureTab()
     const view = tab.view as unknown as MockView
     const content = (
@@ -719,13 +719,17 @@ describe('browser-agent session', () => {
     panel.setPanelOccluded(true)
 
     expect(content.removeChildView).not.toHaveBeenCalled()
-    expect(view.setVisible).toHaveBeenLastCalledWith(false)
+    // The page stays up until the frame that replaces it is sent: the renderer
+    // paints its snapshot the moment it reports occlusion, and hiding first
+    // leaves it showing the previous overlay's frame in the gap.
+    expect(view.setVisible).not.toHaveBeenCalledWith(false)
     await vi.waitFor(() => {
       expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:panel-snapshot', {
         dataUrl: 'data:image/png;base64,c2lt',
         tabId: tab.id,
       })
     })
+    await vi.waitFor(() => expect(view.setVisible).toHaveBeenLastCalledWith(false))
 
     panel.setPanelOccluded(false)
     expect(view.setVisible).toHaveBeenLastCalledWith(true)

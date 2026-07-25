@@ -136,6 +136,10 @@ function createWebContentsMock() {
     isDestroyed: vi.fn(() => false),
     isLoading: vi.fn(() => false),
     setBackgroundThrottling: vi.fn(),
+    getZoomFactor: vi.fn(() => 1),
+    setZoomFactor: vi.fn(),
+    copy: vi.fn(),
+    paste: vi.fn(),
     capturePage: vi.fn(() =>
       Promise.resolve({
         isEmpty: vi.fn(() => false),
@@ -190,6 +194,7 @@ export class BrowserWindow {
     reload: vi.fn(),
     setZoomLevel: vi.fn(),
     getZoomLevel: vi.fn(() => 0),
+    getZoomFactor: vi.fn(() => 1),
     executeJavaScript: vi.fn(() => Promise.resolve(true)),
     focus: vi.fn(),
     send: vi.fn(),

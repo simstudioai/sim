@@ -57,8 +57,17 @@ let host: PanelHost = {
 let panelBounds: BrowserPanelBounds | null = null
 /** How {@link panelBounds} derives from the viewport, when the renderer said. */
 let panelAnchor: BrowserPanelAnchor | null = null
-/** True while renderer-owned UI overlaps the native browser surface. */
+/** True while the view is actually hidden for renderer-owned UI above it. */
 let panelOccluded = false
+/**
+ * What the renderer last reported, which leads {@link panelOccluded} while a
+ * frame is being captured. Hiding is what has to wait: the renderer paints its
+ * snapshot the moment it believes the panel is occluded, and the only frame it
+ * has until the new one lands is the one from the previous overlay — a picture
+ * of a different scroll position, or nothing at all. Staying visible until the
+ * replacement is sent means the swap is invisible instead of a flash.
+ */
+let panelOcclusionRequested = false
 let panelLeaseAt = 0
 let leaseTimer: ReturnType<typeof setInterval> | null = null
 let panelSnapshotGeneration = 0
@@ -255,20 +264,37 @@ export function detachIfAttached(view: WebContentsView): void {
   }
 }
 
+/** Forgets both halves of the occlusion state, so a later report is not deduped away. */
+function resetOcclusion(): void {
+  panelOccluded = false
+  panelOcclusionRequested = false
+  panelSnapshotGeneration++
+}
+
 /**
  * Captures the current browser frame for the renderer to display while the
- * native view is hidden beneath an overlay. Captures stay hidden so Chromium
- * never promotes an occluded page back into the compositor.
+ * native view is hidden beneath an overlay.
+ *
+ * The capture is a copy of the compositor surface, so it can never relayout the
+ * page — but asking to capture a VISIBLE page as hidden perturbs its visibility
+ * bookkeeping, and Chromium flashes overlay scrollbars across that transition.
+ * The frame then freezes the flash, and the swap shows a scrollbar the live page
+ * did not have. So the flag tracks what the view actually is: hidden only for
+ * the one caller that captures an already-hidden page (a tab switched while the
+ * panel is occluded), where it stops Chromium promoting it back for the shot.
  */
-function capturePanelSnapshot(): void {
+function capturePanelSnapshot(onSettled?: () => void): void {
   const active = host.activeTab()
   const win = panelWindow()
-  if (!active || !win || active.view.webContents.isDestroyed()) return
+  if (!active || !win || active.view.webContents.isDestroyed()) {
+    onSettled?.()
+    return
+  }
 
   const generation = ++panelSnapshotGeneration
   const tabId = active.id
   void active.view.webContents
-    .capturePage(undefined, { stayHidden: true })
+    .capturePage(undefined, { stayHidden: panelOccluded })
     .then((image) => {
       if (generation !== panelSnapshotGeneration || image.isEmpty()) return
       // Ownership can move while the capture is in flight. This frame is a
@@ -283,6 +309,7 @@ function capturePanelSnapshot(): void {
         error: getErrorMessage(error),
       })
     })
+    .finally(() => onSettled?.())
 }
 
 /**
@@ -404,8 +431,7 @@ export function setPanelBounds(
     host.ensureInitialTab()
   }
   if (bounds === null) {
-    panelOccluded = false
-    panelSnapshotGeneration++
+    resetOcclusion()
   }
   panelLeaseAt = Date.now()
   if (bounds !== null && leaseTimer === null) {
@@ -414,8 +440,7 @@ export function setPanelBounds(
         logger.info('Panel bounds lease expired; hiding embedded browser view')
         panelBounds = null
         panelOwnerWindow = null
-        panelOccluded = false
-        panelSnapshotGeneration++
+        resetOcclusion()
         layout()
       }
       if (panelBounds === null && leaseTimer !== null) {
@@ -431,13 +456,25 @@ export function setPanelBounds(
  * Renderer-reported native-surface occlusion. The view stays attached and
  * keeps its bounds while hidden, avoiding the flicker and restacking caused by
  * removing and re-adding it for every tooltip or menu.
+ *
+ * Revealing is immediate; hiding waits for the frame that replaces it (see
+ * {@link panelOcclusionRequested}). A capture that fails or finds nothing to
+ * photograph still hides, so an overlay is never left with the page on top.
  */
 export function setPanelOccluded(occluded: boolean, ownerWindow?: BrowserWindow): void {
   if (!panelUpdateAllowed(ownerWindow)) return
-  if (panelOccluded === occluded) return
-  panelOccluded = occluded
-  if (occluded) {
-    capturePanelSnapshot()
+  if (panelOcclusionRequested === occluded) return
+  panelOcclusionRequested = occluded
+  if (!occluded) {
+    panelOccluded = false
+    layout()
+    return
   }
-  layout()
+  capturePanelSnapshot(() => {
+    // The overlay can close while its frame is being taken; hiding then would
+    // blank the page with nothing above it.
+    if (!panelOcclusionRequested) return
+    panelOccluded = true
+    layout()
+  })
 }

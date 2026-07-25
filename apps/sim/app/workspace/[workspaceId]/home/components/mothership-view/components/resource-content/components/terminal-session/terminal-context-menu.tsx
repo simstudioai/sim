@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { Clipboard, Duplicate, Plus, SelectAll, Settings, Trash, X } from '@sim/emcn/icons'
+import { Clipboard, Duplicate, Plus, Trash, X } from '@sim/emcn/icons'
 
 interface TerminalContextMenuProps {
   isOpen: boolean
@@ -18,10 +18,8 @@ interface TerminalContextMenuProps {
   hasSelection: boolean
   onCopy: () => void
   onPaste: () => void
-  onSelectAll: () => void
   onClear: () => void
   onNewTab: () => void
-  onOpenSettings: () => void
   /** Closes this terminal. Absent when it is the only one left. */
   onCloseTerminal?: () => void
 }
@@ -49,10 +47,8 @@ export function TerminalContextMenu({
   hasSelection,
   onCopy,
   onPaste,
-  onSelectAll,
   onClear,
   onNewTab,
-  onOpenSettings,
   onCloseTerminal,
 }: TerminalContextMenuProps) {
   const run = (action: () => void) => () => {
@@ -83,10 +79,6 @@ export function TerminalContextMenu({
           <Clipboard />
           Paste
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={run(onSelectAll)}>
-          <SelectAll />
-          Select all
-        </DropdownMenuItem>
         <DropdownMenuItem onSelect={run(onClear)}>
           <Trash />
           Clear
@@ -98,19 +90,11 @@ export function TerminalContextMenu({
           <Plus />
           New tab
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={run(onOpenSettings)}>
-          <Settings />
-          Terminal settings
-        </DropdownMenuItem>
-
         {onCloseTerminal && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={run(onCloseTerminal)}>
-              <X />
-              Close terminal
-            </DropdownMenuItem>
-          </>
+          <DropdownMenuItem onSelect={run(onCloseTerminal)}>
+            <X />
+            Close terminal
+          </DropdownMenuItem>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

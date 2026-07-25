@@ -34,7 +34,6 @@ import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/compo
 import { TerminalContextMenu } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-context-menu'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 
 const logger = createLogger('TerminalSession')
@@ -143,7 +142,6 @@ function TerminalView({
   active: boolean
   canClose: boolean
 }) {
-  const { navigateToSettings } = useSettingsNavigation()
   const { resolvedTheme } = useTheme()
   const hostRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
@@ -317,10 +315,6 @@ function TerminalView({
       })
   }, [terminalId])
 
-  const selectAll = useCallback(() => {
-    terminalRef.current?.selectAll()
-  }, [])
-
   const clearScreen = useCallback(() => {
     terminalRef.current?.clear()
     terminalRef.current?.focus()
@@ -329,10 +323,6 @@ function TerminalView({
   const newTab = useCallback(() => {
     void openTerminal()
   }, [])
-
-  const openTerminalSettings = useCallback(() => {
-    navigateToSettings({ section: 'terminal' })
-  }, [navigateToSettings])
 
   // Scoped to the terminal that was right-clicked, not the active one.
   const closeThisTerminal = useCallback(() => {
@@ -360,10 +350,8 @@ function TerminalView({
         hasSelection={hasSelection}
         onCopy={copySelection}
         onPaste={pasteClipboard}
-        onSelectAll={selectAll}
         onClear={clearScreen}
         onNewTab={newTab}
-        onOpenSettings={openTerminalSettings}
         {...(canClose ? { onCloseTerminal: closeThisTerminal } : {})}
       />
     </>
