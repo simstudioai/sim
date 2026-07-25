@@ -22,11 +22,14 @@ services:
       - API_ENCRYPTION_KEY=${API_ENCRYPTION_KEY:-}
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-dev-internal-api-secret-min-32-chars}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
-      - COPILOT_API_KEY=${COPILOT_API_KEY}
-      - SIM_AGENT_API_URL=${SIM_AGENT_API_URL}
+      - COPILOT_API_KEY=${COPILOT_API_KEY:-}
+      - SIM_AGENT_API_URL=${SIM_AGENT_API_URL:-}
       - OLLAMA_URL=${OLLAMA_URL:-http://localhost:11434}
       - SOCKET_SERVER_URL=${SOCKET_SERVER_URL:-http://realtime:3002}
-      - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-}
+      # Published on 3002 with no proxy in front, so the browser must target it
+      # directly; empty would fall back to the page origin, where /socket.io
+      # answers 308 and the socket reconnects forever.
+      - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-http://localhost:3002}
     depends_on:
       db:
         condition: service_healthy
