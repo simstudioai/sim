@@ -836,16 +836,15 @@ export function TableGrid({
     : null
 
   // Broadcast the local viewer's cell selection to the presence room. Resolves the
-  // index-based selection to stable (rowId, columnId) through refs so it re-emits only
-  // on a real selection/editing change, not on every data update. `editing` marks the
-  // active cell so peers darken it (the "someone is typing here" signal).
+  // index-based selection to stable (rowId, columnId), re-running on `rows`/`displayColumns`
+  // too so a peer's row insert/delete/reorder re-broadcasts the shifted id under the same
+  // index (the emitter dedups an unchanged result). `editing` marks the active cell so
+  // peers darken it (the "someone is typing here" signal).
   useEffect(() => {
-    const currentRows = rowsRef.current
-    const currentCols = columnsRef.current
     const resolve = (coord: CellCoord | null) => {
       if (!coord) return null
-      const rowId = currentRows[coord.rowIndex]?.id
-      const columnId = currentCols[coord.colIndex]?.key
+      const rowId = rows[coord.rowIndex]?.id
+      const columnId = displayColumns[coord.colIndex]?.key
       return rowId && columnId ? { rowId, columnId } : null
     }
     const anchor = resolve(selectionAnchor)
@@ -858,7 +857,7 @@ export function TableGrid({
     // most common selection would never broadcast and would clear the prior outline.
     const focus = resolve(selectionFocus) ?? anchor
     emitCellSelection({ anchor, focus, editing: editingCell !== null })
-  }, [selectionAnchor, selectionFocus, editingCell, emitCellSelection])
+  }, [selectionAnchor, selectionFocus, editingCell, rows, displayColumns, emitCellSelection])
 
   const { data: findData, isFetching: isFindFetching } = useFindTableRows({
     workspaceId,

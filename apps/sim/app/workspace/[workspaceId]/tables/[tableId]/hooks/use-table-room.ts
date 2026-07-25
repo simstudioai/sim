@@ -150,6 +150,8 @@ export function useTableRoom(tableId: string): UseTableRoomResult {
   const lastEmitRef = useRef(0)
   const trailingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingCellRef = useRef<TableCellSelection>(null)
+  /** Key of the last selection sent, to skip re-emitting an unchanged selection. */
+  const lastSentKeyRef = useRef<string | null>(null)
 
   // Reset the throttle when the table changes (or on unmount): a pending selection for
   // the table we're leaving must not flush into the next table's room after a switch.
@@ -161,12 +163,19 @@ export function useTableRoom(tableId: string): UseTableRoomResult {
       }
       pendingCellRef.current = null
       currentCellRef.current = null
+      lastSentKeyRef.current = null
       lastEmitRef.current = 0
     },
     [tableId]
   )
 
   const emitCellSelection = useCallback((cell: TableCellSelection) => {
+    // Skip re-emitting an unchanged selection: the caller re-resolves on every data
+    // refetch (so a peer's row insert re-broadcasts the shifted rowId), but most refetches
+    // don't move the selection — dedup those, and the no-selection state on table open.
+    const key = cell === null ? 'null' : JSON.stringify(cell)
+    if (key === lastSentKeyRef.current) return
+    lastSentKeyRef.current = key
     currentCellRef.current = cell
     pendingCellRef.current = cell
     const flush = () => {
