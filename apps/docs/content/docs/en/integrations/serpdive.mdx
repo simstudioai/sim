@@ -43,8 +43,8 @@ Search the web with SERPdive. Each result carries the extracted, answer-ready co
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | The search query, phrased as a question or topic, in any language \(e.g., "what changed in the latest Next.js release"\). Maximum 300 characters. |
-| `model` | string | No | Retrieval depth: mako \(1 credit\) returns the fact-carrying sentences of each source, moby \(1.5 credits\) returns the full readable content of every page \(e.g., "mako"\) |
-| `answer` | boolean | No | Also return a written answer built from the sources: concise on mako, detailed with citations on moby. No extra credits. |
+| `model` | string | No | Retrieval depth: mako \(1 credit\) returns the fact-carrying sentences of each source, krill \(free, unlimited under fair use\) returns a smaller set of them at low priority, moby \(1.5 credits\) returns the full readable content of every page \(e.g., "mako"\) |
+| `answer` | boolean | No | Also return a written answer built from the sources: concise on mako, detailed with citations on moby; not available on krill. No extra credits. |
 | `max_results` | number | No | Hard cap on delivered results, keeping the best-ranked ones \(1-10, e.g., 5\). Omit to get everything relevant. |
 | `apiKey` | string | Yes | SERPdive API Key |
 
@@ -60,7 +60,7 @@ Search the web with SERPdive. Each result carries the extracted, answer-ready co
 |   ↳ `date` | string | Publication date when known, ISO YYYY-MM-DD |
 | `answer` | string | Written answer built from the sources \(if requested\) |
 | `extra_info` | object | Structured direct-answer block \(weather, exchange rates, live scores...\) when the query has one |
-| `model` | string | The retrieval model that answered: mako or moby |
+| `model` | string | The retrieval model that answered: mako, krill or moby |
 | `response_time_ms` | number | Time taken for the search request in milliseconds |
 
 

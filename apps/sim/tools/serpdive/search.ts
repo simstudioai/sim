@@ -22,7 +22,7 @@ export const searchTool: ToolConfig<SerpdiveSearchParams, SerpdiveSearchResponse
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Retrieval depth: mako (1 credit) returns the fact-carrying sentences of each source, moby (1.5 credits) returns the full readable content of every page (e.g., "mako")',
+        'Retrieval depth: mako (1 credit) returns the fact-carrying sentences of each source, krill (free, unlimited under fair use) returns a smaller set of them at low priority, moby (1.5 credits) returns the full readable content of every page (e.g., "mako")',
     },
     answer: {
       type: 'boolean',

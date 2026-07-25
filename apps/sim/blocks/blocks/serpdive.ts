@@ -29,6 +29,7 @@ export const SerpdiveBlock: BlockConfig<SerpdiveSearchResponse> = {
       type: 'dropdown',
       options: [
         { label: 'Mako (fast, key sentences)', id: 'mako' },
+        { label: 'Krill (free, unlimited)', id: 'krill' },
         { label: 'Moby (full page content)', id: 'moby' },
       ],
       value: () => 'mako',
@@ -63,7 +64,7 @@ export const SerpdiveBlock: BlockConfig<SerpdiveSearchResponse> = {
   inputs: {
     query: { type: 'string', description: 'Search query' },
     apiKey: { type: 'string', description: 'SERPdive API key' },
-    model: { type: 'string', description: 'Retrieval depth: mako or moby' },
+    model: { type: 'string', description: 'Retrieval depth: mako, krill or moby' },
     answer: { type: 'boolean', description: 'Also return a written answer built from the sources' },
     max_results: { type: 'number', description: 'Hard cap on delivered results (1-10)' },
   },
