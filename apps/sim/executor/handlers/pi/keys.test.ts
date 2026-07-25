@@ -51,13 +51,21 @@ describe('computePiCost', () => {
   })
 
   it('returns zero cost for BYOK keys without billing', () => {
-    expect(computePiCost('claude', 100, 200, true)).toEqual({ input: 0, output: 0, total: 0 })
+    expect(computePiCost('claude', 100, 200, true)).toMatchObject({
+      input: 0,
+      output: 0,
+      total: 0,
+    })
     expect(mockCalculateCost).not.toHaveBeenCalled()
   })
 
   it('returns zero cost for non-billable models', () => {
     mockShouldBill.mockReturnValue(false)
-    expect(computePiCost('local-model', 100, 200, false)).toEqual({ input: 0, output: 0, total: 0 })
+    expect(computePiCost('local-model', 100, 200, false)).toMatchObject({
+      input: 0,
+      output: 0,
+      total: 0,
+    })
     expect(mockCalculateCost).not.toHaveBeenCalled()
   })
 

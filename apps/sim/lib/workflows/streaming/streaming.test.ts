@@ -4,7 +4,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { readSSEStream } from '@/lib/core/utils/sse'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
-import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
+import {
+  agentStreamProtocolResponseHeaders,
+  createStreamingResponse,
+} from '@/lib/workflows/streaming/streaming'
 
 const { mockDownloadFile } = vi.hoisted(() => ({
   mockDownloadFile: vi.fn(),
@@ -605,6 +608,131 @@ describe('createStreamingResponse', () => {
   })
 })
 
+describe('final envelope tool payloads', () => {
+  const agentOutput = {
+    content: 'Done',
+    toolCalls: {
+      count: 1,
+      list: [
+        {
+          name: 'get_weather',
+          duration: 12,
+          arguments: { city: 'private' },
+          result: { temperature: 72 },
+        },
+      ],
+    },
+  }
+
+  function executeFnReturning(output: Record<string, unknown>) {
+    return async () =>
+      ({
+        success: true,
+        output,
+        logs: [
+          {
+            blockId: 'agent-1',
+            output,
+            startedAt: new Date().toISOString(),
+            endedAt: new Date().toISOString(),
+            durationMs: 1,
+            success: true,
+          },
+        ],
+      }) as any
+  }
+
+  it('redacts tool arguments and results for public chat', async () => {
+    // No outputConfigs means the whole block output rides the envelope, which
+    // must not become a side channel around the tool-frame gate.
+    const stream = await createStreamingResponse({
+      requestId: 'request-1',
+      streamConfig: { isSecureMode: true, selectedOutputs: [] },
+      executeFn: executeFnReturning(agentOutput),
+    })
+
+    const events = await collectSSEEvents(stream)
+    const final = events.find((event) => event.event === 'final')
+    const toolCall = (final?.data as any).output.toolCalls.list[0]
+
+    expect(toolCall).toEqual({ name: 'get_weather', duration: 12 })
+    expect(JSON.stringify(final)).not.toContain('private')
+    expect(JSON.stringify(final)).not.toContain('72')
+  })
+
+  /**
+   * A deployment almost always selects outputs, so redaction that only covered
+   * the empty-selection branch would be dead in the case it exists for.
+   */
+  it('redacts tool payloads when the deployment selects toolCalls directly', async () => {
+    const stream = await createStreamingResponse({
+      requestId: 'request-1',
+      streamConfig: { isSecureMode: true, selectedOutputs: ['block_toolCalls'] },
+      executeFn: async ({ onBlockComplete }) => {
+        const toolOnlyOutput = { toolCalls: agentOutput.toolCalls }
+        await onBlockComplete('block', toolOnlyOutput)
+        return {
+          success: true,
+          output: {},
+          logs: [
+            {
+              blockId: 'block',
+              output: toolOnlyOutput,
+              startedAt: new Date().toISOString(),
+              endedAt: new Date().toISOString(),
+              durationMs: 1,
+              success: true,
+            },
+          ],
+        } as any
+      },
+    })
+
+    // The payload rides the chunk frame, not `final`, so assert on the whole
+    // stream — sanitizing only the envelope would still leak here.
+    const events = await collectSSEEvents(stream)
+    const serialized = JSON.stringify(events)
+
+    expect(serialized).not.toContain('private')
+    expect(serialized).not.toContain('72')
+    expect(serialized).toContain('get_weather')
+  })
+
+  it('keeps tool results for the authenticated workflow API', async () => {
+    const stream = await createStreamingResponse({
+      requestId: 'request-1',
+      streamConfig: { isSecureMode: false, selectedOutputs: [] },
+      executeFn: executeFnReturning(agentOutput),
+    })
+
+    const events = await collectSSEEvents(stream)
+    const final = events.find((event) => event.event === 'final')
+    const toolCall = (final?.data as any).output.toolCalls.list[0]
+
+    expect(toolCall.arguments).toEqual({ city: 'private' })
+    expect(toolCall.result).toEqual({ temperature: 72 })
+  })
+})
+
+describe('agent stream protocol response headers', () => {
+  const requestHeaders = new Headers({
+    'x-sim-stream-protocol': 'agent-events-v1',
+  })
+
+  it('echoes the protocol whenever the client negotiated it', () => {
+    // v1 framing (live text + chunk_reset) is in effect on client capability
+    // alone, so the echo must not depend on the event policies.
+    expect(agentStreamProtocolResponseHeaders({ requestHeaders })).toEqual({
+      'x-sim-stream-protocol': 'agent-events-v1',
+    })
+  })
+
+  it('stays inactive for legacy clients and when no headers are supplied', () => {
+    expect(agentStreamProtocolResponseHeaders({ requestHeaders: new Headers() })).toEqual({})
+    expect(agentStreamProtocolResponseHeaders({})).toEqual({})
+  })
+})
+
 describe('createStreamingResponse agent-events-v1', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -616,8 +744,14 @@ describe('createStreamingResponse agent-events-v1', () => {
     answer: string
     fail?: boolean
     tools?: Array<
-      | { type: 'tool_call_start'; id: string; name: string }
-      | { type: 'tool_call_end'; id: string; name: string; status: string }
+      | { type: 'tool_call_start'; id: string; name: string; args?: unknown }
+      | {
+          type: 'tool_call_end'
+          id: string
+          name: string
+          status: string
+          result?: unknown
+        }
     >
   }) {
     return async ({
@@ -710,24 +844,51 @@ describe('createStreamingResponse agent-events-v1', () => {
       .map((chunk) => chunk.slice(6))
   }
 
-  it('legacy path without protocol header stays text-only (no thinking frames)', async () => {
+  /**
+   * A client that never declared a protocol version has no contract for frame
+   * shapes, so policy alone must not expose them.
+   */
+  it('stays text-only without the protocol header even with both policies on', async () => {
     const stream = await createStreamingResponse({
       requestId: 'request-1',
       streamConfig: {
         includeThinking: true,
+        includeToolCalls: true,
         selectedOutputs: ['agent-1_content'],
       },
-      // No requestHeaders → gate closed
       executeFn: createAgentStreamExecuteFn({
-        thinking: ['secret thought'],
+        thinking: ['a thought'],
         answer: 'Hello',
+        tools: [{ type: 'tool_call_start', id: 'toolu_1', name: 'get_weather' }],
       }),
     })
 
     const events = await collectSSEEvents(stream)
     expect(events.some((event) => event.event === 'thinking')).toBe(false)
+    expect(events.some((event) => event.event === 'tool')).toBe(false)
     expect(events).toContainEqual({ blockId: 'agent-1', chunk: 'Hello' })
     expect(events.some((event) => event.event === 'final')).toBe(true)
+  })
+
+  it('stays fully text-only when both policies are off', async () => {
+    const stream = await createStreamingResponse({
+      requestId: 'request-1',
+      streamConfig: {
+        includeThinking: false,
+        includeToolCalls: false,
+        selectedOutputs: ['agent-1_content'],
+      },
+      executeFn: createAgentStreamExecuteFn({
+        thinking: ['secret thought'],
+        answer: 'Hello',
+        tools: [{ type: 'tool_call_start', id: 'toolu_1', name: 'get_weather' }],
+      }),
+    })
+
+    const events = await collectSSEEvents(stream)
+    expect(events.some((event) => event.event === 'thinking')).toBe(false)
+    expect(events.some((event) => event.event === 'tool')).toBe(false)
+    expect(events).toContainEqual({ blockId: 'agent-1', chunk: 'Hello' })
   })
 
   it('header + includeThinking emits thinking on data and answer on chunk', async () => {
@@ -739,6 +900,7 @@ describe('createStreamingResponse agent-events-v1', () => {
       requestHeaders: headers,
       streamConfig: {
         includeThinking: true,
+        includeToolCalls: false,
         selectedOutputs: ['agent-1_content'],
       },
       executeFn: createAgentStreamExecuteFn({
@@ -756,7 +918,7 @@ describe('createStreamingResponse agent-events-v1', () => {
     expect(events.some((event) => event.event === 'final')).toBe(true)
   })
 
-  it('dual gate emits tool start/end frames without putting tools on chunk', async () => {
+  it('includeToolCalls emits tool start/end frames without exposing args or results', async () => {
     const headers = new Headers({
       'x-sim-stream-protocol': 'agent-events-v1',
     })
@@ -764,18 +926,25 @@ describe('createStreamingResponse agent-events-v1', () => {
       requestId: 'request-1',
       requestHeaders: headers,
       streamConfig: {
-        includeThinking: true,
+        includeThinking: false,
+        includeToolCalls: true,
         selectedOutputs: ['agent-1_content'],
       },
       executeFn: createAgentStreamExecuteFn({
         answer: 'Done',
         tools: [
-          { type: 'tool_call_start', id: 'toolu_1', name: 'get_weather' },
+          {
+            type: 'tool_call_start',
+            id: 'toolu_1',
+            name: 'get_weather',
+            args: { city: 'private' },
+          },
           {
             type: 'tool_call_end',
             id: 'toolu_1',
             name: 'get_weather',
             status: 'success',
+            result: { temperature: 72 },
           },
         ],
       }),
@@ -809,7 +978,7 @@ describe('createStreamingResponse agent-events-v1', () => {
     ).toBe(false)
   })
 
-  it('dual gate streams pending text live and resets intermediate turns', async () => {
+  it('tool-only policy streams pending text live and resets intermediate turns', async () => {
     const headers = new Headers({
       'x-sim-stream-protocol': 'agent-events-v1',
     })
@@ -817,7 +986,8 @@ describe('createStreamingResponse agent-events-v1', () => {
       requestId: 'request-1',
       requestHeaders: headers,
       streamConfig: {
-        includeThinking: true,
+        includeThinking: false,
+        includeToolCalls: true,
         selectedOutputs: ['agent-1_content'],
       },
       executeFn: async ({ onStream }) => {
@@ -894,6 +1064,89 @@ describe('createStreamingResponse agent-events-v1', () => {
     )
   })
 
+  it('streams answer text live for a negotiated client with both policies off', async () => {
+    // Answer cadence follows client capability, not event policy: a chat with
+    // thinking and tools both disabled must still stream token by token, the
+    // way it did before streaming tool loops existed.
+    const headers = new Headers({
+      'x-sim-stream-protocol': 'agent-events-v1',
+    })
+    const stream = await createStreamingResponse({
+      requestId: 'request-1',
+      requestHeaders: headers,
+      streamConfig: {
+        includeThinking: false,
+        includeToolCalls: false,
+        selectedOutputs: ['agent-1_content'],
+      },
+      executeFn: async ({ onStream }) => {
+        let textController!: ReadableStreamDefaultController<Uint8Array>
+        let sink: { onEvent: (event: unknown) => void | Promise<void> } | undefined
+        const textStream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            textController = controller
+          },
+        })
+
+        const onStreamPromise = onStream({
+          stream: textStream,
+          streamFormat: 'text',
+          subscribe: (nextSink: { onEvent: (event: unknown) => void | Promise<void> }) => {
+            sink = nextSink
+            return () => {}
+          },
+          execution: {
+            blockId: 'agent-1',
+            success: true,
+            output: { content: 'Final answer' },
+            logs: [],
+            metadata: {},
+          },
+        } as any)
+
+        await sink?.onEvent({ type: 'thinking_delta', text: 'secret reasoning' })
+        await sink?.onEvent({ type: 'tool_call_start', id: 'toolu_1', name: 'get_weather' })
+        await sink?.onEvent({ type: 'turn_end', turn: 'intermediate' })
+        await sink?.onEvent({
+          type: 'tool_call_end',
+          id: 'toolu_1',
+          name: 'get_weather',
+          status: 'success',
+        })
+        await sink?.onEvent({ type: 'text_delta', text: 'Final ', turn: 'pending' })
+        await sink?.onEvent({ type: 'text_delta', text: 'answer', turn: 'pending' })
+        await sink?.onEvent({ type: 'turn_end', turn: 'final' })
+        textController.enqueue(new TextEncoder().encode('Final answer'))
+        textController.close()
+        await onStreamPromise
+
+        return {
+          success: true,
+          output: { content: 'Final answer' },
+          logs: [
+            {
+              blockId: 'agent-1',
+              output: { content: '' },
+              startedAt: new Date().toISOString(),
+              endedAt: new Date().toISOString(),
+              durationMs: 1,
+              success: true,
+            },
+          ],
+        } as any
+      },
+    })
+
+    const events = await collectSSEEvents(stream)
+
+    expect(events.filter((event) => event.chunk !== undefined).map((event) => event.chunk)).toEqual(
+      ['Final ', 'answer']
+    )
+    // Capability alone must not expose either gated event type.
+    expect(events.some((event) => event.event === 'thinking')).toBe(false)
+    expect(events.some((event) => event.event === 'tool')).toBe(false)
+  })
+
   it('dual gate keeps byte-path chunks for response-format transformed streams', async () => {
     const headers = new Headers({
       'x-sim-stream-protocol': 'agent-events-v1',
@@ -903,6 +1156,7 @@ describe('createStreamingResponse agent-events-v1', () => {
       requestHeaders: headers,
       streamConfig: {
         includeThinking: true,
+        includeToolCalls: false,
         selectedOutputs: ['agent-1_content'],
       },
       executeFn: async ({ onStream }) => {
@@ -963,7 +1217,7 @@ describe('createStreamingResponse agent-events-v1', () => {
     expect(events.some((event) => event.event === 'chunk_reset')).toBe(false)
   })
 
-  it('protocol header without includeThinking does not emit tool frames', async () => {
+  it('includeThinking without includeToolCalls does not emit tool frames', async () => {
     const headers = new Headers({
       'x-sim-stream-protocol': 'agent-events-v1',
     })
@@ -971,7 +1225,8 @@ describe('createStreamingResponse agent-events-v1', () => {
       requestId: 'request-1',
       requestHeaders: headers,
       streamConfig: {
-        includeThinking: false,
+        includeThinking: true,
+        includeToolCalls: false,
         selectedOutputs: ['agent-1_content'],
       },
       executeFn: createAgentStreamExecuteFn({
@@ -985,7 +1240,7 @@ describe('createStreamingResponse agent-events-v1', () => {
     expect(events).toContainEqual({ blockId: 'agent-1', chunk: 'Answer' })
   })
 
-  it('protocol header without includeThinking does not emit thinking', async () => {
+  it('includeToolCalls without includeThinking does not emit thinking', async () => {
     const headers = new Headers({
       'x-sim-stream-protocol': 'agent-events-v1',
     })
@@ -994,6 +1249,7 @@ describe('createStreamingResponse agent-events-v1', () => {
       requestHeaders: headers,
       streamConfig: {
         includeThinking: false,
+        includeToolCalls: true,
         selectedOutputs: ['agent-1_content'],
       },
       executeFn: createAgentStreamExecuteFn({
@@ -1064,6 +1320,7 @@ describe('createStreamingResponse agent-events-v1', () => {
       requestHeaders: headers,
       streamConfig: {
         includeThinking: true,
+        includeToolCalls: false,
         selectedOutputs: ['agent-1_content'],
       },
       executeFn: async ({ onStream }) => {

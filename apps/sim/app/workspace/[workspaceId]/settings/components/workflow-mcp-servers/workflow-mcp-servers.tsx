@@ -19,6 +19,7 @@ import {
   Code,
   type ComboboxOption,
   Label,
+  useCopyToClipboard,
 } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -97,7 +98,7 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
     }
   }, [])
 
-  const [copiedConfig, setCopiedConfig] = useState(false)
+  const { copied: copiedConfig, copy: copyConfig } = useCopyToClipboard()
   const [activeConfigTab, setActiveConfigTab] = useState<McpClientType>('cursor')
   const [toolToDelete, setToolToDelete] = useState<WorkflowMcpTool | null>(null)
   const [toolToView, setToolToView] = useState<WorkflowMcpTool | null>(null)
@@ -308,12 +309,9 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
 
   const handleCopyConfig = useCallback(
     (isPublic: boolean, serverName: string) => {
-      const snippet = getConfigSnippet(activeConfigTab, isPublic, serverName)
-      navigator.clipboard.writeText(snippet)
-      setCopiedConfig(true)
-      setTimeout(() => setCopiedConfig(false), 2000)
+      void copyConfig(getConfigSnippet(activeConfigTab, isPublic, serverName))
     },
-    [activeConfigTab, getConfigSnippet]
+    [activeConfigTab, getConfigSnippet, copyConfig]
   )
 
   const handleOpenEditServer = useCallback(() => {
@@ -579,6 +577,7 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
                       </span>
                       <Button
                         variant='ghost'
+                        aria-label={copiedConfig ? 'Configuration copied' : 'Copy configuration'}
                         onClick={() => handleCopyConfig(server.isPublic, server.name)}
                         className='!p-1.5 -my-1.5'
                       >

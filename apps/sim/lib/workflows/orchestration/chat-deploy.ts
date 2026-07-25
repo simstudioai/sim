@@ -31,6 +31,8 @@ export interface ChatDeployPayload {
   outputConfigs?: Array<{ blockId: string; path: string }>
   /** When true, public SSE may expose thinking if the client also opts into agent-events-v1. */
   includeThinking?: boolean
+  /** When true, public SSE may expose tool lifecycle if the client opts into agent-events-v1. */
+  includeToolCalls?: boolean
   workspaceId?: string | null
 }
 
@@ -63,6 +65,7 @@ export async function performChatDeploy(
     allowedEmails = [],
     outputConfigs = [],
     includeThinking = false,
+    includeToolCalls = false,
   } = params
 
   const customizations = {
@@ -145,6 +148,7 @@ export async function performChatDeploy(
         allowedEmails: authType === 'email' || authType === 'sso' ? allowedEmails : [],
         outputConfigs,
         includeThinking,
+        includeToolCalls,
         updatedAt: new Date(),
       })
       .where(eq(chat.id, chatId))
@@ -164,6 +168,7 @@ export async function performChatDeploy(
       allowedEmails: authType === 'email' || authType === 'sso' ? allowedEmails : [],
       outputConfigs,
       includeThinking,
+      includeToolCalls,
       createdAt: new Date(),
       updatedAt: new Date(),
     })

@@ -6,6 +6,28 @@ import {
 } from '@/lib/api/contracts/workflows'
 
 describe('workflow contracts', () => {
+  /**
+   * Agent-event frames are additive to an existing wire format, so an
+   * integration that never asked for them must keep the frame set it has.
+   */
+  it('leaves agent-event exposure off when the caller does not ask for it', () => {
+    const parsed = executeWorkflowBodySchema.parse({ stream: true })
+
+    expect(parsed.includeThinking).toBe(false)
+    expect(parsed.includeToolCalls).toBe(false)
+  })
+
+  it('accepts each agent-event policy independently', () => {
+    expect(executeWorkflowBodySchema.parse({ stream: true, includeToolCalls: true })).toMatchObject(
+      { includeThinking: false, includeToolCalls: true }
+    )
+
+    expect(executeWorkflowBodySchema.parse({ stream: true, includeThinking: true })).toMatchObject({
+      includeThinking: true,
+      includeToolCalls: false,
+    })
+  })
+
   it('normalizes null React Flow edge handles in execution overrides', () => {
     const parsed = executeWorkflowBodySchema.parse({
       workflowStateOverride: {

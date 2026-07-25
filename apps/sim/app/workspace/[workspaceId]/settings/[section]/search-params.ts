@@ -81,6 +81,57 @@ export const groupIdUrlKeys = {
 } as const
 
 /**
+ * `group-tab` is the active tab inside the deep-linked permission-group detail
+ * view, so a shared `group-id` link can land on the same tab (mirrors
+ * `server-tab` on the workflow MCP server detail).
+ */
+export const groupTabParam = {
+  key: 'group-tab',
+  parser: parseAsStringLiteral(['general', 'providers', 'blocks', 'platform'] as const).withDefault(
+    'general'
+  ),
+} as const
+
+/** Tab view-state: clean URLs, no back-stack churn. */
+export const groupTabUrlKeys = {
+  history: 'replace',
+  clearOnDefault: true,
+} as const
+
+/**
+ * `group-search` is the search box inside the permission-group detail view. The
+ * provider/block/platform tabs never render together, so they share one param
+ * rather than carrying three mutually-exclusive keys; the tab handler clears it
+ * so a query cannot bleed across tabs. Distinct from the list's shared
+ * `?search=` (`useSettingsSearch`), which belongs to the group list behind it.
+ */
+export const groupSearchParam = {
+  key: 'group-search',
+  parser: parseAsString.withDefault(''),
+} as const
+
+/** Search view-state: clean URLs, no back-stack churn. */
+export const groupSearchUrlKeys = {
+  history: 'replace',
+  clearOnDefault: true,
+} as const
+
+/**
+ * `group-status` filters the permission-group detail's toggle lists by enabled
+ * state. Shared across the tabs for the same reason as `group-search`.
+ */
+export const groupStatusParam = {
+  key: 'group-status',
+  parser: parseAsStringLiteral(['all', 'enabled', 'disabled'] as const).withDefault('all'),
+} as const
+
+/** Filter view-state: clean URLs, no back-stack churn. */
+export const groupStatusUrlKeys = {
+  history: 'replace',
+  clearOnDefault: true,
+} as const
+
+/**
  * `custom-block-id` deep-links the Custom Blocks settings tab to a specific
  * block's detail sub-view. The "create new" flow stays in local state — only
  * existing entities are deep-linkable.
@@ -108,6 +159,22 @@ export const customToolIdParam = {
 
 /** Opening a tool's detail is a destination → push to history; clear on close. */
 export const customToolIdUrlKeys = {
+  history: 'push',
+  clearOnDefault: true,
+} as const
+
+/**
+ * `data-drain-id` deep-links the Data Drains settings tab to a specific drain's
+ * detail sub-view. The "create new" flow stays in local state — only existing
+ * entities are deep-linkable.
+ */
+export const dataDrainIdParam = {
+  key: 'data-drain-id',
+  parser: parseAsString,
+} as const
+
+/** Opening a drain's detail is a destination → push to history; clear on close. */
+export const dataDrainIdUrlKeys = {
   history: 'push',
   clearOnDefault: true,
 } as const

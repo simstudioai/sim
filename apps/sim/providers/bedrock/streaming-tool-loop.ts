@@ -21,13 +21,20 @@ import {
 } from '@aws-sdk/client-bedrock-runtime'
 import type { Logger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
-import { checkForForcedToolUsage, generateToolUseId } from '@/providers/bedrock/utils'
+import {
+  checkForForcedToolUsage,
+  generateToolUseId,
+  getBedrockStreamError,
+  supportsToolResultStatus,
+} from '@/providers/bedrock/utils'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
 import {
   isAbortError,
   type StreamingToolLoopComplete,
   settleOpenTools,
+  terminateToolLoop,
 } from '@/providers/streaming-tool-loop-shared'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type { ProviderRequest, TimeSegment } from '@/providers/types'
@@ -61,11 +68,12 @@ function parseToolInput(inputJson: string): Record<string, ToolUseInput> {
   if (!inputJson.trim()) return {}
   try {
     const parsed = JSON.parse(inputJson)
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, ToolUseInput>)
-      : {}
-  } catch {
-    return {}
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Tool input must be a JSON object')
+    }
+    return parsed as Record<string, ToolUseInput>
+  } catch (error) {
+    throw new Error(`Invalid Bedrock tool input: ${getErrorMessage(error)}`, { cause: error })
   }
 }
 
@@ -88,6 +96,9 @@ async function drainBedrockTurn(
   let stopReason: string | undefined
 
   for await (const event of stream) {
+    const streamError = getBedrockStreamError(event)
+    if (streamError) throw streamError
+
     if (event.contentBlockStart) {
       currentIndex = event.contentBlockStart.contentBlockIndex
       const start = event.contentBlockStart.start
@@ -163,6 +174,15 @@ export function createBedrockStreamingToolLoopStream(
   } = options
   const forcedTools = options.forcedTools ?? []
   const originalToolChoice = options.toolChoice
+  const loopAbortController = new AbortController()
+  const abortFromRequest = () => loopAbortController.abort(request.abortSignal?.reason)
+  let consumerCancelled = false
+
+  if (request.abortSignal?.aborted) {
+    abortFromRequest()
+  } else {
+    request.abortSignal?.addEventListener('abort', abortFromRequest, { once: true })
+  }
 
   return new ReadableStream<AgentStreamEvent>({
     async start(controller) {
@@ -186,16 +206,44 @@ export function createBedrockStreamingToolLoopStream(
       const toolCalls: unknown[] = []
       const toolResults: Record<string, unknown>[] = []
       const openToolStarts = new Map<string, string>()
+      const reportProgress = () => {
+        const toolCost = sumToolCosts(toolResults)
+        onComplete({
+          content,
+          tokens,
+          cost: {
+            input: costInput,
+            output: costOutput,
+            toolCost: toolCost || undefined,
+            total: costTotal + toolCost,
+            pricing: latestPricing,
+          },
+          toolCalls:
+            toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
+          modelTime,
+          toolsTime,
+          firstResponseTime,
+          iterations: modelCalls,
+        })
+      }
 
       try {
-        while (iterationCount < MAX_TOOL_ITERATIONS) {
-          if (request.abortSignal?.aborted) {
+        while (modelCalls <= MAX_TOOL_ITERATIONS) {
+          if (loopAbortController.signal.aborted) {
             settleOpenTools(controller, openToolStarts, 'cancelled')
             throw new DOMException('Stream aborted', 'AbortError')
           }
 
+          const finalSynthesis = iterationCount >= MAX_TOOL_ITERATIONS
+          /**
+           * Bedrock's ToolChoice has no `none`, and `toolConfig` is required
+           * once the history carries toolUse/toolResult blocks — dropping it to
+           * force a text-only turn makes Bedrock reject the request outright.
+           * Keep the tools and relax to `auto`; the `finalSynthesis` guard below
+           * rejects a tool call the model makes anyway.
+           */
           const toolConfig: ToolConfiguration | undefined = bedrockTools.length
-            ? { tools: bedrockTools, toolChoice }
+            ? { tools: bedrockTools, toolChoice: finalSynthesis ? { auto: {} } : toolChoice }
             : undefined
 
           const modelStart = Date.now()
@@ -207,10 +255,9 @@ export function createBedrockStreamingToolLoopStream(
             toolConfig,
           })
 
-          const streamResponse = await client.send(
-            command,
-            request.abortSignal ? { abortSignal: request.abortSignal } : undefined
-          )
+          const streamResponse = await client.send(command, {
+            abortSignal: loopAbortController.signal,
+          })
           if (!streamResponse.stream) {
             throw new Error('No stream returned from Bedrock')
           }
@@ -249,19 +296,31 @@ export function createBedrockStreamingToolLoopStream(
            */
           const toolsExecutable = drained.stopReason === 'tool_use'
           if (drained.toolUses.length > 0 && !toolsExecutable) {
-            logger.warn('Skipping tool execution for incomplete turn', {
-              stopReason: drained.stopReason,
-              toolCount: drained.toolUses.length,
-            })
             settleOpenTools(controller, openToolStarts, 'error')
+            throw new Error(
+              `Bedrock returned tool use with stop reason ${drained.stopReason ?? 'missing'}`
+            )
+          }
+          if (finalSynthesis && drained.toolUses.length > 0) {
+            settleOpenTools(controller, openToolStarts, 'error')
+            throw new Error('Bedrock returned tool use during final synthesis')
           }
           const executableToolUses = toolsExecutable ? drained.toolUses : []
+          const cappedTextTurn = drained.stopReason === 'max_tokens' && openToolStarts.size === 0
+          if (
+            executableToolUses.length === 0 &&
+            drained.stopReason !== 'end_turn' &&
+            drained.stopReason !== 'stop_sequence' &&
+            !cappedTextTurn
+          ) {
+            throw new Error(
+              `Bedrock stream ended with stop reason ${drained.stopReason ?? 'missing'}`
+            )
+          }
 
           const turnTag = executableToolUses.length > 0 ? 'intermediate' : 'final'
           controller.enqueue({ type: 'turn_end', turn: turnTag })
-          if (drained.text) {
-            content = drained.text
-          }
+          content = drained.text
 
           const assembledToolUses = executableToolUses.map((t) => ({
             toolUseId: t.toolUseId,
@@ -314,12 +373,15 @@ export function createBedrockStreamingToolLoopStream(
             assembledToolUses.map(async (toolUse) => {
               const toolCallStartTime = Date.now()
               const toolName = toolUse.name || ''
-              const toolArgs: Record<string, unknown> = toolUse.input
+              const toolArgs = isRecordLike(toolUse.input) ? toolUse.input : undefined
               const toolUseId = toolUse.toolUseId || generateToolUseId(toolName)
 
               try {
-                if (request.abortSignal?.aborted) {
+                if (loopAbortController.signal.aborted) {
                   throw new DOMException('Stream aborted', 'AbortError')
+                }
+                if (!toolArgs) {
+                  throw new Error(`Arguments for tool "${toolName}" must be an object`)
                 }
 
                 const tool = request.tools?.find((t) => t.id === toolName)
@@ -356,7 +418,7 @@ export function createBedrockStreamingToolLoopStream(
                   request
                 )
                 const result = await executeTool(toolName, executionParams, {
-                  signal: request.abortSignal,
+                  signal: loopAbortController.signal,
                 })
                 const toolCallEndTime = Date.now()
                 const status: ToolCallEndStatus = result.success ? 'success' : 'error'
@@ -381,11 +443,29 @@ export function createBedrockStreamingToolLoopStream(
                 }
               } catch (error) {
                 const toolCallEndTime = Date.now()
-                const cancelled = isAbortError(error) || !!request.abortSignal?.aborted
-                if (!cancelled) {
-                  logger.error('Error processing tool call:', { error, toolName })
+                if (loopAbortController.signal.aborted) {
+                  openToolStarts.delete(toolUseId)
+                  controller.enqueue({
+                    type: 'tool_call_end',
+                    id: toolUseId,
+                    name: toolName,
+                    status: 'cancelled',
+                  })
+                  throw error
                 }
-                const status: ToolCallEndStatus = cancelled ? 'cancelled' : 'error'
+                if (isAbortError(error)) {
+                  openToolStarts.delete(toolUseId)
+                  controller.enqueue({
+                    type: 'tool_call_end',
+                    id: toolUseId,
+                    name: toolName,
+                    status: 'error',
+                  })
+                  throw error
+                }
+
+                logger.error('Error processing tool call:', { error, toolName })
+                const status: ToolCallEndStatus = 'error'
                 openToolStarts.delete(toolUseId)
                 controller.enqueue({
                   type: 'tool_call_end',
@@ -397,7 +477,7 @@ export function createBedrockStreamingToolLoopStream(
                   toolUse,
                   toolUseId,
                   toolName,
-                  toolArgs,
+                  toolArgs: toolArgs ?? {},
                   toolParams: {} as Record<string, unknown>,
                   result: {
                     success: false as const,
@@ -415,13 +495,18 @@ export function createBedrockStreamingToolLoopStream(
 
           toolsTime += Date.now() - toolsStartTime
 
-          const assistantContent: ContentBlock[] = assembledToolUses.map((toolUse) => ({
-            toolUse: {
-              toolUseId: toolUse.toolUseId,
-              name: toolUse.name,
-              input: toolUse.input,
-            },
-          }))
+          const assistantContent: ContentBlock[] = [
+            // Bedrock rejects a blank text block, and a model can emit only
+            // whitespace before a tool call.
+            ...(drained.text.trim() ? [{ text: drained.text }] : []),
+            ...assembledToolUses.map((toolUse) => ({
+              toolUse: {
+                toolUseId: toolUse.toolUseId,
+                name: toolUse.name,
+                input: toolUse.input,
+              },
+            })),
+          ]
           currentMessages.push({
             role: 'assistant' as ConversationRole,
             content: assistantContent,
@@ -441,9 +526,11 @@ export function createBedrockStreamingToolLoopStream(
             })
 
             let resultContent: unknown
-            if (result.success && result.output) {
-              toolResults.push(result.output as Record<string, unknown>)
-              resultContent = result.output
+            if (result.success) {
+              if (isRecordLike(result.output)) {
+                toolResults.push(result.output)
+              }
+              resultContent = result.output ?? null
             } else {
               resultContent = {
                 error: true,
@@ -465,6 +552,9 @@ export function createBedrockStreamingToolLoopStream(
             const toolResultBlock: ToolResultBlock = {
               toolUseId,
               content: [{ text: JSON.stringify(resultContent) }],
+              ...(supportsToolResultStatus(modelId)
+                ? { status: result.success ? 'success' : 'error' }
+                : {}),
             }
             toolResultContent.push({ toolResult: toolResultBlock })
           }
@@ -491,45 +581,33 @@ export function createBedrockStreamingToolLoopStream(
           iterationCount += 1
         }
 
-        /**
-         * MAX_TOOL_ITERATIONS exit: every turn was tagged intermediate, so the
-         * answer channel would otherwise be empty. Flush the last turn's text
-         * as the final answer so legacy consumers still receive content.
-         */
-        if (!sawFinalTurn && content) {
-          controller.enqueue({ type: 'text_delta', text: content, turn: 'final' })
+        if (!sawFinalTurn) {
+          throw new Error('Bedrock tool loop ended without a final response')
         }
 
-        const toolCost = sumToolCosts(toolResults)
-        onComplete({
-          content,
-          tokens,
-          cost: {
-            input: costInput,
-            output: costOutput,
-            toolCost: toolCost || undefined,
-            total: costTotal + toolCost,
-            pricing: latestPricing,
-          },
-          toolCalls:
-            toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
-          modelTime,
-          toolsTime,
-          firstResponseTime,
-          iterations: modelCalls,
-        })
+        reportProgress()
         controller.close()
       } catch (error) {
-        if (isAbortError(error) || request.abortSignal?.aborted) {
-          settleOpenTools(controller, openToolStarts, 'cancelled')
-        } else {
-          settleOpenTools(controller, openToolStarts, 'error')
-          logger.error('Bedrock streaming tool loop failed', {
-            error: toError(error).message,
-          })
-        }
-        controller.error(error)
+        reportProgress()
+        terminateToolLoop({
+          controller,
+          openTools: openToolStarts,
+          aborted: loopAbortController.signal.aborted,
+          consumerCancelled,
+          error,
+          onUnexpectedError: (cause) =>
+            logger.error('Bedrock streaming tool loop failed', {
+              error: toError(cause).message,
+            }),
+        })
+      } finally {
+        request.abortSignal?.removeEventListener('abort', abortFromRequest)
       }
+    },
+    cancel(reason) {
+      consumerCancelled = true
+      loopAbortController.abort(reason)
+      request.abortSignal?.removeEventListener('abort', abortFromRequest)
     },
   })
 }

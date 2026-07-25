@@ -2,25 +2,36 @@
  * Public agent stream protocol: header negotiation and the wire frame
  * vocabulary for the public chat / simple SSE surface.
  *
- * Exposure rule (locked) for public chat / simple SSE:
- *   emit thinking/tool SSE frames iff
- *     deployment.includeThinking === true
- *     AND request opts into agent-events-v1 via {@link AGENT_STREAM_PROTOCOL_HEADER}
+ * Two orthogonal things are decided here:
+ *
+ * 1. Answer-text cadence — {@link AGENT_STREAM_PROTOCOL_HEADER} means the client
+ *    understands v1 framing, so answer text may stream live and be retracted
+ *    with `chunk_reset`. Without it the client keeps settled final-turn text.
+ *    This is a capability question: a client that cannot honor `chunk_reset`
+ *    would render duplicated text, so it must not be opted in on its behalf.
+ * 2. Event exposure — thinking frames need `includeThinking`, tool frames need
+ *    `includeToolCalls`, and both additionally need the negotiated protocol
+ *    above. Declaring the version is what lets these frames evolve without
+ *    breaking clients that never opted in.
+ *
+ * The header alone exposes nothing, so a chat with both policies off still
+ * streams token by token. Where the *caller* requests frames — the workflow
+ * API — asking without negotiating is rejected rather than silently downgraded.
  *
  * Canvas draft runs (execution-events) forward the same sink as live-only
- * `stream:thinking` / `stream:tool` events without the includeThinking gate;
- * the executor still disables the sink when block-output PII redaction is on.
- *
- * Legacy clients omitting the header stay text-only even when the deployment
- * has thinking enabled. Deployed chat UI always sends the header when loading
- * its own deployment.
+ * `stream:thinking` / `stream:tool` events without the policy gates; the
+ * executor still disables the sink when block-output PII redaction is on.
  *
  * See docs: workflows/deployment/agent-events.
  */
 
-import type { ToolCallEndStatus } from '@/providers/stream-events'
+import { isToolCallEndStatus, type ToolCallEndStatus } from '@/providers/stream-events'
 
+/** Lookup key. Lowercase because HTTP/2 lowercases on the wire; `Headers.get` is case-insensitive either way. */
 export const AGENT_STREAM_PROTOCOL_HEADER = 'x-sim-stream-protocol' as const
+
+/** Canonical casing, for docs and generated code samples. */
+export const AGENT_STREAM_PROTOCOL_HEADER_LABEL = 'X-Sim-Stream-Protocol' as const
 
 export const AGENT_STREAM_PROTOCOL_V1 = 'agent-events-v1' as const
 
@@ -30,9 +41,9 @@ export type AgentStreamProtocol = typeof AGENT_STREAM_PROTOCOL_V1
  * Answer text. The only frame legacy clients append to the answer.
  *
  * Legacy clients (no protocol header) receive only settled final-turn text.
- * Dual-gated clients receive answer text live as it streams — including text
- * from a turn that may later resolve to tool calls — reconciled by
- * {@link ChatStreamChunkResetFrame} when a turn turns out to be intermediate.
+ * Protocol-negotiated clients receive answer text live as it streams —
+ * including text from a turn that may later resolve to tool calls — reconciled
+ * by {@link ChatStreamChunkResetFrame} when a turn turns out to be intermediate.
  */
 export interface ChatStreamChunkFrame {
   blockId: string
@@ -40,23 +51,24 @@ export interface ChatStreamChunkFrame {
 }
 
 /**
- * Dual-gated only: the live-streamed answer text for `blockId` belonged to an
- * intermediate turn (tool calls follow). Clients discard the block's
- * accumulated answer text; the final turn re-streams after tools settle.
+ * Negotiated agent-events streams only: the live-streamed answer text for
+ * `blockId` belonged to an intermediate turn (tool calls follow). Clients
+ * discard the block's accumulated answer text; the final turn re-streams after
+ * tools settle.
  */
 export interface ChatStreamChunkResetFrame {
   blockId: string
   event: 'chunk_reset'
 }
 
-/** Thinking / reasoning-summary delta. Dual-gated; never reuses `chunk`. */
+/** Thinking / reasoning-summary delta. Thinking-policy gated; never reuses `chunk`. */
 export interface ChatStreamThinkingFrame {
   blockId: string
   event: 'thinking'
   data: string
 }
 
-/** Tool lifecycle (name + status only — never args or results). Dual-gated. */
+/** Tool lifecycle (name + status only — never args or results). Tool-policy gated. */
 export interface ChatStreamToolFrame {
   blockId: string
   event: 'tool'
@@ -142,7 +154,11 @@ export function isChatToolFrame(value: unknown): value is ChatStreamToolFrame {
     typeof value.id === 'string' &&
     value.id.length > 0 &&
     typeof value.name === 'string' &&
-    value.name.length > 0
+    value.name.length > 0 &&
+    // An unrecognized status is a protocol violation, not a success. Rejecting
+    // the frame leaves the chip running for the terminal settle (which knows
+    // the run's real outcome) instead of rendering it green on a guess.
+    (value.status === undefined || isToolCallEndStatus(value.status))
   )
 }
 
@@ -162,18 +178,17 @@ export function isChatStreamErrorFrame(value: unknown): value is ChatStreamStrea
 }
 
 /**
- * Returns true when both the deployment policy and the request protocol opt-in
- * are present. Simple SSE checks this before emitting thinking/tool frames.
+ * Whether the client declared it understands agent-events-v1 framing.
+ *
+ * This is a statement about the *client*, not about what a deployment may
+ * expose: sending the header means the client appends `chunk` and honors
+ * `chunk_reset`, so answer text can stream live and be retracted. Thinking and
+ * tool exposure are separate deployment policies on top of this.
  */
-export function shouldEmitAgentStreamEvents(options: {
-  includeThinking: boolean | null | undefined
+export function clientAcceptsAgentStreamProtocol(
   requestHeaders: Headers | { get(name: string): string | null }
-}): boolean {
-  if (options.includeThinking !== true) {
-    return false
-  }
-
-  const raw = options.requestHeaders.get(AGENT_STREAM_PROTOCOL_HEADER)
+): boolean {
+  const raw = requestHeaders.get(AGENT_STREAM_PROTOCOL_HEADER)
   if (!raw) {
     return false
   }
@@ -185,4 +200,38 @@ export function shouldEmitAgentStreamEvents(options: {
     .filter(Boolean)
 
   return tokens.includes(AGENT_STREAM_PROTOCOL_V1)
+}
+
+/** True when either agent-event policy is on, before protocol negotiation. */
+export function hasAgentStreamPolicy(options: {
+  includeThinking: boolean | null | undefined
+  includeToolCalls: boolean | null | undefined
+}): boolean {
+  return options.includeThinking === true || options.includeToolCalls === true
+}
+
+/**
+ * Returns true when a negotiated client may receive thinking or tool frames —
+ * at least one policy is on and the client declared the protocol version.
+ *
+ * Drives the run-level `agentEvents` flag, which asks providers for reasoning
+ * summaries. Answer-text cadence does *not* depend on this: a negotiated client
+ * streams live text even with both policies off. Frame emitters still apply
+ * each independent policy before exposing its corresponding frames.
+ *
+ * Surfaces that let the *caller* request frames should reject an un-negotiated
+ * request outright rather than degrade to this returning false — see
+ * {@link hasAgentStreamPolicy}. A silent downgrade is the failure mode this
+ * protocol is meant to avoid.
+ */
+export function shouldEmitAgentStreamEvents(options: {
+  includeThinking: boolean | null | undefined
+  includeToolCalls: boolean | null | undefined
+  requestHeaders: Headers | { get(name: string): string | null }
+}): boolean {
+  if (!hasAgentStreamPolicy(options)) {
+    return false
+  }
+
+  return clientAcceptsAgentStreamProtocol(options.requestHeaders)
 }

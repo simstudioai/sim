@@ -2,10 +2,13 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createOpenAICompatStreamingToolLoopStream } from '@/providers/openai-compat/streaming-tool-loop'
 import type { ProviderRequest } from '@/providers/types'
 
-const { mockCreate } = vi.hoisted(() => ({
+const { mockCreate, mockExecuteTool, mockPrepareToolsWithUsageControl } = vi.hoisted(() => ({
   mockCreate: vi.fn(),
+  mockExecuteTool: vi.fn(),
+  mockPrepareToolsWithUsageControl: vi.fn(),
 }))
 
 vi.mock('groq-sdk', () => ({
@@ -46,17 +49,12 @@ vi.mock('@/providers/trace-enrichment', () => ({
 vi.mock('@/providers/utils', () => ({
   calculateCost: vi.fn(() => ({ input: 0, output: 0, total: 0 })),
   prepareToolExecution: vi.fn((_tool, args) => ({ toolParams: args, executionParams: args })),
-  prepareToolsWithUsageControl: vi.fn(() => ({
-    tools: [],
-    toolChoice: undefined,
-    forcedTools: [],
-    hasFilteredTools: false,
-  })),
+  prepareToolsWithUsageControl: mockPrepareToolsWithUsageControl,
   sumToolCosts: vi.fn(() => 0),
   trackForcedToolUsage: vi.fn(() => ({ hasUsedForcedTool: false, usedForcedTools: [] })),
 }))
 
-vi.mock('@/tools', () => ({ executeTool: vi.fn() }))
+vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 
 import { groqProvider } from '@/providers/groq/index'
 
@@ -72,6 +70,14 @@ function request(overrides: Partial<ProviderRequest> = {}): ProviderRequest {
 describe('groqProvider reasoning payload', () => {
   beforeEach(() => {
     mockCreate.mockReset()
+    mockExecuteTool.mockReset()
+    mockPrepareToolsWithUsageControl.mockReset()
+    mockPrepareToolsWithUsageControl.mockReturnValue({
+      tools: [],
+      toolChoice: undefined,
+      forcedTools: [],
+      hasFilteredTools: false,
+    })
     mockCreate.mockResolvedValue({
       choices: [{ message: { content: 'ok', tool_calls: [] } }],
       usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
@@ -127,5 +133,48 @@ describe('groqProvider reasoning payload', () => {
     const payload = mockCreate.mock.calls[0][0]
     expect(payload.reasoning_format).toBeUndefined()
     expect(payload.reasoning_effort).toBe('none')
+  })
+
+  it('selects the live tool loop without a caller flag', async () => {
+    mockPrepareToolsWithUsageControl.mockReturnValue({
+      tools: [
+        {
+          type: 'function',
+          function: { name: 'lookup', description: 'Lookup', parameters: {} },
+        },
+      ],
+      toolChoice: 'auto',
+      forcedTools: [],
+      hasFilteredTools: false,
+    })
+    vi.mocked(createOpenAICompatStreamingToolLoopStream).mockReturnValue(
+      new ReadableStream() as never
+    )
+
+    const result = (await groqProvider.executeRequest(
+      request({
+        stream: true,
+        tools: [
+          {
+            id: 'lookup',
+            name: 'lookup',
+            description: 'Lookup',
+            params: {},
+            parameters: { type: 'object', properties: {}, required: [] },
+          },
+        ],
+      })
+    )) as unknown as {
+      createStream: (handles: {
+        output: { content?: string }
+        finalizeTiming: () => void
+      }) => ReadableStream<unknown>
+    }
+
+    const output: { content?: string } = {}
+    result.createStream({ output, finalizeTiming: vi.fn() })
+
+    expect(createOpenAICompatStreamingToolLoopStream).toHaveBeenCalledTimes(1)
+    expect(mockCreate).not.toHaveBeenCalled()
   })
 })

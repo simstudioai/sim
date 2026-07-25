@@ -67,7 +67,7 @@ export interface FunctionCallResponse {
   startTime?: string
   endTime?: string
   duration?: number
-  result?: Record<string, any>
+  result?: unknown
   output?: Record<string, any>
   input?: Record<string, any>
   success?: boolean
@@ -84,9 +84,14 @@ export interface ProviderResponse {
   content: string
   model: string
   tokens?: {
+    /** Tokens billed at the base input rate, excluding cache reads and writes. */
     input?: number
     output?: number
     total?: number
+    /** Input tokens served from the provider's prompt cache. */
+    cacheRead?: number
+    /** Input tokens written to the provider's prompt cache. */
+    cacheWrite?: number
   }
   toolCalls?: FunctionCallResponse[]
   toolResults?: Record<string, unknown>[]
@@ -169,16 +174,10 @@ export interface ProviderRequest {
   userId?: string
   stream?: boolean
   /**
-   * Use the live streaming tool loop (tool lifecycle on the agent-events
-   * stream). Set by the executor only for agent-events runs on providers in
-   * {@link STREAMING_TOOL_CALL_PROVIDERS}; providers without a loop ignore it.
-   */
-  streamToolCalls?: boolean
-  /**
    * Run-level agent-events opt-in. Lets providers request streamable thinking
-   * (e.g. OpenAI reasoning summaries, Gemini thought summaries) for the run.
-   * Never changes answer content; when unset, provider requests are identical
-   * to the pre-agent-events wire shape.
+   * (e.g. OpenAI reasoning summaries, Gemini thought summaries) and lets opted-in
+   * consumers observe the event timeline. It does not select the internal tool
+   * loop and never changes answer content.
    */
   agentEvents?: boolean
   environmentVariables?: Record<string, string>
@@ -197,6 +196,14 @@ export interface ProviderRequest {
   reasoningEffort?: string
   verbosity?: string
   thinkingLevel?: string
+  /**
+   * Opt in to caller-placed prompt-cache breakpoints on the static prefix.
+   * Only meaningful for models declaring `capabilities.promptCaching`;
+   * `sanitizeRequest` clears it otherwise.
+   */
+  promptCaching?: boolean
+  /** Stable identity of the block issuing the request, used for cache routing. */
+  blockId?: string
   isDeployedContext?: boolean
   callChain?: string[]
   /**

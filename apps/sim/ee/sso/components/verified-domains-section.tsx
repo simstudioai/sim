@@ -1,12 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, ChipConfirmModal, ChipCopyInput, ChipInput, ChipTag, toast } from '@sim/emcn'
+import { Chip, ChipConfirmModal, ChipCopyInput, ChipInput, ChipTag, toast } from '@sim/emcn'
+import { Link } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OrganizationDomain } from '@/lib/api/contracts/organization'
-import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu/row-actions-menu'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { SettingRow } from '@/ee/components/setting-row'
 import {
   useAddOrganizationDomain,
   useOrganizationDomains,
@@ -14,24 +17,8 @@ import {
   useVerifyOrganizationDomain,
 } from '@/ee/sso/hooks/domains'
 
-interface DomainSettingsProps {
+interface VerifiedDomainsSectionProps {
   organizationId: string
-}
-
-interface CopyFieldProps {
-  label: string
-  value: string
-  hint?: string
-}
-
-function CopyField({ label, value, hint }: CopyFieldProps) {
-  return (
-    <div className='flex flex-col gap-1'>
-      <span className='text-[var(--text-muted)] text-caption'>{label}</span>
-      <ChipCopyInput value={value} copyLabel={`Copy ${label}`} inputClassName='font-mono' />
-      {hint ? <span className='text-[var(--text-muted)] text-caption'>{hint}</span> : null}
-    </div>
-  )
 }
 
 interface DomainRowProps {
@@ -42,6 +29,7 @@ interface DomainRowProps {
 
 function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
   const verifyDomain = useVerifyOrganizationDomain()
+  const isVerified = domain.status === 'verified'
 
   async function handleVerify() {
     try {
@@ -53,36 +41,50 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
   }
 
   return (
-    <div className='flex flex-col gap-3 rounded-lg border border-[var(--border-1)] p-3'>
-      <div className='flex items-center justify-between gap-2'>
-        <span className='truncate text-[var(--text-body)] text-sm'>{domain.domain}</span>
-        <div className='flex items-center gap-2'>
-          <ChipTag variant={domain.status === 'verified' ? 'mono' : 'gray'}>
-            {domain.status === 'verified' ? 'Verified' : 'Pending'}
-          </ChipTag>
-          <RowActionsMenu
-            label={`${domain.domain} actions`}
-            actions={[{ label: 'Remove', onSelect: () => onRemove(domain), destructive: true }]}
-          />
-        </div>
-      </div>
+    <div className='flex flex-col gap-3'>
+      <SettingsResourceRow
+        icon={<Link />}
+        title={domain.domain}
+        description={isVerified ? 'Ownership verified' : 'Awaiting DNS verification'}
+        trailing={
+          <div className='flex items-center gap-2'>
+            <ChipTag variant={isVerified ? 'mono' : 'gray'}>
+              {isVerified ? 'Verified' : 'Pending'}
+            </ChipTag>
+            <RowActionsMenu
+              label={`${domain.domain} actions`}
+              actions={[{ label: 'Remove', onSelect: () => onRemove(domain), destructive: true }]}
+            />
+          </div>
+        }
+      />
 
-      {domain.status === 'pending' && domain.txtRecordValue && (
-        <div className='flex flex-col gap-3'>
-          <p className='text-[var(--text-muted)] text-caption'>
-            Add this TXT record at your DNS provider, then verify. DNS changes can take up to 48
-            hours to propagate.
-          </p>
-          <CopyField
+      {/* pl-[46px] indents past SettingsResourceRow's icon gutter (size-9 tile + gap-2.5). */}
+      {!isVerified && domain.txtRecordValue && (
+        <div className='flex flex-col gap-3 pl-[46px]'>
+          <SettingRow
             label='Host / name'
-            value={domain.challengeHost}
-            hint='Some DNS providers append your zone automatically. If yours does, enter this host with the trailing zone removed.'
-          />
-          <CopyField label='Value' value={domain.txtRecordValue} />
+            description='Some DNS providers append your zone automatically. If yours does, enter this host with the trailing zone removed.'
+          >
+            <ChipCopyInput
+              value={domain.challengeHost}
+              copyLabel='Copy host'
+              inputClassName='font-mono'
+            />
+          </SettingRow>
+
+          <SettingRow label='Value'>
+            <ChipCopyInput
+              value={domain.txtRecordValue}
+              copyLabel='Copy value'
+              inputClassName='font-mono'
+            />
+          </SettingRow>
+
           <div>
-            <Button size='sm' onClick={handleVerify} disabled={verifyDomain.isPending}>
+            <Chip onClick={handleVerify} disabled={verifyDomain.isPending}>
               {verifyDomain.isPending ? 'Checking...' : 'Verify'}
-            </Button>
+            </Chip>
           </div>
         </div>
       )}
@@ -90,31 +92,18 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
   )
 }
 
-export function DomainSettings({ organizationId }: DomainSettingsProps) {
+/**
+ * Domain-ownership management, rendered as a section of the SSO settings page.
+ * A domain must be verified here before SSO can be configured for it, so the two
+ * live together rather than sending the admin to a separate page mid-setup.
+ */
+export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectionProps) {
   const { data, isLoading } = useOrganizationDomains(organizationId)
   const addDomain = useAddOrganizationDomain()
   const removeDomain = useRemoveOrganizationDomain()
 
   const [newDomain, setNewDomain] = useState('')
   const [pendingRemoval, setPendingRemoval] = useState<OrganizationDomain | null>(null)
-
-  if (isLoading) {
-    return (
-      <SettingsPanel>
-        <SettingsEmptyState>Loading domains...</SettingsEmptyState>
-      </SettingsPanel>
-    )
-  }
-
-  if (data && !data.isEnterprise) {
-    return (
-      <SettingsPanel>
-        <SettingsEmptyState>
-          Domain verification is available on Enterprise plans only.
-        </SettingsEmptyState>
-      </SettingsPanel>
-    )
-  }
 
   async function handleAdd() {
     const value = newDomain.trim()
@@ -143,13 +132,12 @@ export function DomainSettings({ organizationId }: DomainSettingsProps) {
 
   return (
     <>
-      <SettingsPanel>
-        <div className='flex flex-col gap-7'>
-          <div className='flex flex-col gap-[9px]'>
-            <p className='text-[var(--text-muted)] text-caption'>
-              Verify domains your organization owns. A domain must be verified before you can
-              configure SSO for it.
-            </p>
+      <SettingsSection label='Verified domains'>
+        <div className='flex flex-col gap-4.5'>
+          <SettingRow
+            label='Add a domain'
+            description='Verify a domain your organization owns before configuring SSO for it. Verifying proves you control the domain, so no one else can point it at their identity provider.'
+          >
             <div className='flex items-center gap-2'>
               <ChipInput
                 value={newDomain}
@@ -157,16 +145,22 @@ export function DomainSettings({ organizationId }: DomainSettingsProps) {
                 placeholder='acme.com'
                 className='min-w-0 flex-1'
               />
-              <Button onClick={handleAdd} disabled={addDomain.isPending || !newDomain.trim()}>
+              <Chip
+                variant='primary'
+                onClick={handleAdd}
+                disabled={addDomain.isPending || !newDomain.trim()}
+              >
                 {addDomain.isPending ? 'Adding...' : 'Add domain'}
-              </Button>
+              </Chip>
             </div>
-          </div>
+          </SettingRow>
 
-          {domains.length === 0 ? (
+          {isLoading ? (
+            <SettingsEmptyState variant='inline'>Loading domains...</SettingsEmptyState>
+          ) : domains.length === 0 ? (
             <SettingsEmptyState variant='inline'>No domains yet.</SettingsEmptyState>
           ) : (
-            <div className='flex flex-col gap-3'>
+            <div className='flex flex-col gap-4'>
               {domains.map((domain) => (
                 <DomainRow
                   key={domain.id}
@@ -178,7 +172,7 @@ export function DomainSettings({ organizationId }: DomainSettingsProps) {
             </div>
           )}
         </div>
-      </SettingsPanel>
+      </SettingsSection>
 
       <ChipConfirmModal
         open={pendingRemoval !== null}

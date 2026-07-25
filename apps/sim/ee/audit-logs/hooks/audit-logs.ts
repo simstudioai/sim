@@ -2,6 +2,8 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { type AuditLogPage, listAuditLogsContract } from '@/lib/api/contracts/audit-logs'
 
+export const AUDIT_LOG_LIST_STALE_TIME = 30 * 1000
+
 export const auditLogKeys = {
   all: ['audit-logs'] as const,
   lists: () => [...auditLogKeys.all, 'list'] as const,
@@ -47,6 +49,6 @@ export function useAuditLogs(organizationId: string, filters: AuditLogFilters, e
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     enabled: Boolean(organizationId) && enabled,
-    staleTime: 30 * 1000,
+    staleTime: AUDIT_LOG_LIST_STALE_TIME,
   })
 }

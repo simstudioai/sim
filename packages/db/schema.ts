@@ -1158,11 +1158,21 @@ export const chat = pgTable(
     outputConfigs: json('output_configs').default('[]'), // Array of {blockId, path} objects
 
     /**
-     * When true, public chat SSE may expose provider thinking/tool events if the
-     * client also opts in via `X-Sim-Stream-Protocol: agent-events-v1`.
-     * Default off — never derived from auth type or isSecureMode.
+     * When true, public chat SSE exposes provider thinking events. Independent
+     * of the `X-Sim-Stream-Protocol` header, which governs answer-text cadence
+     * rather than frame exposure. Default off — never derived from auth type or
+     * isSecureMode.
      */
     includeThinking: boolean('include_thinking').notNull().default(false),
+    /**
+     * When true, public chat SSE exposes tool lifecycle events. Independent of
+     * includeThinking and of the protocol header.
+     *
+     * Nullable only because the column was added after the table; readers treat
+     * null as false.
+     */
+    // contract-pending(any release): normalize nulls to false, then set DEFAULT false and NOT NULL — cosmetic only, since no reader distinguishes null from false
+    includeToolCalls: boolean('include_tool_calls'),
 
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
