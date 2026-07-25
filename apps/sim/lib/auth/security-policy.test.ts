@@ -56,6 +56,23 @@ describe('security policy', () => {
       expect(await getSecurityPolicyVersion(nextOrgId())).toBe(1)
     })
 
+    it('never lets a late read overwrite a newer version', async () => {
+      const orgId = nextOrgId()
+      queueTableRows(organization, [{ version: 9 }])
+      expect(await getSecurityPolicyVersion(orgId)).toBe(9)
+
+      invalidateSecurityPolicyVersionCache(orgId)
+      queueTableRows(organization, [{ version: 9 }])
+      await getSecurityPolicyVersion(orgId)
+      // A read that started before the bump resolving late must not re-seed the
+      // pre-bump value and delay cookie invalidation another TTL.
+      invalidateSecurityPolicyVersionCache(orgId)
+      queueTableRows(organization, [{ version: 10 }])
+      expect(await getSecurityPolicyVersion(orgId)).toBe(10)
+      queueTableRows(organization, [{ version: 9 }])
+      expect(await getSecurityPolicyVersion(orgId)).toBe(10)
+    })
+
     it('falls back to the default when the read fails', async () => {
       dbChainMockFns.limit.mockImplementationOnce(() => {
         throw new Error('connection reset')

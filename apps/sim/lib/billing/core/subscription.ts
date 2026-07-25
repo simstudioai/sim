@@ -447,7 +447,12 @@ export async function resolveOrganizationEnterprisePlan(organizationId: string):
     return false
   }
 
-  const orgSub = await getOrganizationSubscriptionUsable(organizationId)
+  // `onError: 'throw'` is load-bearing: the default swallows a read failure into
+  // `null`, which reads as "no usable subscription" and would make this resolver
+  // report a downgrade on a transient error — exactly the conflation it exists
+  // to avoid. `isOrganizationOnEnterprisePlan` still turns that throw back into
+  // `false` for feature gating.
+  const orgSub = await getOrganizationSubscriptionUsable(organizationId, { onError: 'throw' })
 
   return !!orgSub && checkEnterprisePlan(orgSub)
 }

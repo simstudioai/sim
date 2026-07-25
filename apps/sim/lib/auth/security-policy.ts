@@ -107,12 +107,19 @@ export async function getSecurityPolicyVersion(
       .limit(1)
 
     const version = row?.version ?? DEFAULT_VERSION
-    touch(
-      versionCache,
-      organizationId,
-      { version, fetchedAt: Date.now() },
-      MAX_VERSION_CACHE_ENTRIES
-    )
+    // The counter only ever increments, so a read resolving LOWER than what is
+    // already cached started before the newer one and must not overwrite it — a
+    // late write would otherwise re-serve a pre-bump version and delay cookie
+    // invalidation for a further TTL.
+    const current = versionCache.get(organizationId)
+    if (!current || version >= current.version) {
+      touch(
+        versionCache,
+        organizationId,
+        { version, fetchedAt: Date.now() },
+        MAX_VERSION_CACHE_ENTRIES
+      )
+    }
     return version
   } catch (error) {
     logger.error('Failed to resolve security policy version; using default', {
