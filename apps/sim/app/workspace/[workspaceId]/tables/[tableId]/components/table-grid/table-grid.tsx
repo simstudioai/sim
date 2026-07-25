@@ -2078,6 +2078,28 @@ export function TableGrid({
   const updateMetadataRef = useRef(updateMetadataMutation.mutate)
   updateMetadataRef.current = onPersistLayout ?? updateMetadataMutation.mutate
 
+  /**
+   * Records columns created since the layout was last saved. A new column already
+   * *renders* — `displayColumns` appends anything missing from `columnOrder` — but
+   * without this only the insert-left/right path wrote it back, so creating one via
+   * "+ New column", a workflow group, or an enrichment left it out of the stored
+   * order. With a view active this writes into that view, which is what makes a
+   * column added while a view is open belong to it.
+   *
+   * No-ops when the table has no explicit order (schema order governs, nothing to
+   * record) and when nothing is missing, so it self-heals once and stays quiet.
+   */
+  useEffect(() => {
+    const order = columnOrderRef.current
+    if (!order || columns.length === 0) return
+    const known = new Set(order)
+    const appended = columns.map(getColumnId).filter((id) => !known.has(id))
+    if (appended.length === 0) return
+    const nextOrder = [...order, ...appended]
+    setColumnOrder(nextOrder)
+    updateMetadataRef.current({ columnOrder: nextOrder })
+  }, [columns])
+
   const deleteWorkflowGroupRef = useRef(deleteWorkflowGroupMutation.mutate)
   deleteWorkflowGroupRef.current = deleteWorkflowGroupMutation.mutate
 
