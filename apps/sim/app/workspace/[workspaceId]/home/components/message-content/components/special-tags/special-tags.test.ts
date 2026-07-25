@@ -149,6 +149,53 @@ describe('parseSpecialTags with <question>', () => {
     expect(segments).toEqual([{ type: 'text', content: 'Thinking about it. ' }])
   })
 
+  it('keeps the text when a matched pair fails to parse', () => {
+    // Verbatim from a real message (trace b095e080). The model explained the
+    // tag and ended with a backticked example containing a REAL closing tag,
+    // which closed the earlier opener and made everything between it the body.
+    // That body is not valid JSON, so the segment was dropped and the render
+    // resumed mid-sentence at ") is what actually produces the interactive
+    // chip." — three paragraphs silently gone.
+    const raw =
+      'Here you go — with the ending tag intentionally malformed as `</workflow_resource>`:\n\n' +
+      '<workspace_resource>{"type": "file", "path": "files/notes.md", "title": "notes.md"}</workflow_resource>\n\n' +
+      "Since the closing tag doesn't match the opening `<workspace_resource>`, the chat won't " +
+      'recognize it as a valid resource chip. A properly matched pair ' +
+      '(`<workspace_resource>...</workspace_resource>`) is what actually produces the interactive chip.'
+
+    const rendered = parseSpecialTags(raw, false)
+      .segments.map((segment) => ('content' in segment ? segment.content : ''))
+      .join('')
+
+    expect(rendered).toContain("Since the closing tag doesn't match")
+    expect(rendered).toContain('A properly matched pair')
+    expect(rendered).toContain('"path": "files/notes.md"')
+    // No segment renders as a resource chip — the body was never valid.
+    expect(parseSpecialTags(raw, false).segments.some((s) => s.type === 'workspace_resource')).toBe(
+      false
+    )
+  })
+
+  it('still drops a marker-free malformed payload rather than showing raw JSON', () => {
+    // The complement of the case above: no tag markers in the body, so this is
+    // a genuinely broken emission from the agent, not swallowed prose.
+    const { segments } = parseSpecialTags(
+      'Before. <question>{"type":"single_select"}</question> After.',
+      false
+    )
+    expect(segments).toEqual([
+      { type: 'text', content: 'Before. ' },
+      { type: 'text', content: ' After.' },
+    ])
+  })
+
+  it('still renders a matched pair whose body IS valid', () => {
+    const raw =
+      'see <workspace_resource>{"type":"file","path":"files/a.md","title":"a.md"}</workspace_resource> ok'
+    const { segments } = parseSpecialTags(raw, false)
+    expect(segments.some((s) => s.type === 'workspace_resource')).toBe(true)
+  })
+
   it('shows prose immediately mid-stream instead of blanking the rest', () => {
     // The failure this replaces: everything after the marker stayed invisible
     // for the remainder of the stream, then reappeared when it ended.
@@ -158,6 +205,24 @@ describe('parseSpecialTags with <question>', () => {
     expect(segments.map((s) => ('content' in s ? s.content : s.type)).join('')).toContain(
       'chip only renders for a real file.'
     )
+  })
+
+  it('shows text once the JSON value has closed and stray content follows', () => {
+    // Verbatim shape from a real message (trace afbeefd0): the close tag was
+    // TRUNCATED to `</workspac`, so no marker rule can see it — but the JSON
+    // value completes at the `}`, which makes everything after it fatal.
+    const raw =
+      'kicks off in <workspace_resource>{"type":"file","path":"files/notes.md"}</workspac and after that I brew a cup of coffee.'
+    const { segments, hasPendingTag } = parseSpecialTags(raw, true)
+    expect(hasPendingTag).toBe(false)
+    expect(segments.map((s) => ('content' in s ? s.content : '')).join('')).toContain(
+      'I brew a cup of coffee'
+    )
+  })
+
+  it('tolerates braces inside JSON strings when tracking depth', () => {
+    const raw = 'x <workspace_resource>{"title":"a } b","path":"files/a.md"'
+    expect(parseSpecialTags(raw, true).hasPendingTag).toBe(true)
   })
 
   it('still suppresses a JSON-bodied tag that is genuinely mid-stream', () => {

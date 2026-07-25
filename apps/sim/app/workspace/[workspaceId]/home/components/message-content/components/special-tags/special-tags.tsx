@@ -474,6 +474,12 @@ function parseSpecialTagData(
  * during streaming to prevent flashing raw markup.
  */
 /**
+ * Any tag-shaped marker, including names that are not special tags at all — the
+ * model inventing `</workflow_resource>` is exactly the case that matters.
+ */
+const TAG_SHAPED_MARKER = /<\/?[a-zA-Z][\w-]*>/
+
+/**
  * Tags whose body must be JSON. `thinking` is the exception — its body is prose
  * (see {@link parseTextTagBody}), so a non-JSON body there says nothing about
  * whether a close is still coming.
@@ -526,6 +532,41 @@ function blankJsonStringLiterals(body: string): string {
 }
 
 /**
+ * True while `body` could still grow into a single valid JSON value.
+ *
+ * Checking only the first character is not enough: a body like
+ * `{"type":"file"}</workspac and then prose...` opens with `{` and looks fine,
+ * but the value CLOSES at the `}` and everything after it is fatal. Tracking
+ * depth catches that the moment the stray character arrives, instead of waiting
+ * for a close tag that is never coming.
+ *
+ * String contents are blanked first, so braces and brackets inside JSON strings
+ * do not affect the depth count.
+ */
+function isViableJsonPrefix(body: string): boolean {
+  const scannable = blankJsonStringLiterals(body)
+  if (scannable.trim() === '') return true
+
+  const firstChar = scannable.trimStart().charAt(0)
+  if (firstChar !== '{' && firstChar !== '[') return false
+
+  let depth = 0
+  for (let i = 0; i < scannable.length; i++) {
+    const char = scannable[i]
+    if (char === '{' || char === '[') {
+      depth++
+    } else if (char === '}' || char === ']') {
+      depth--
+      if (depth < 0) return false
+      // The top-level value just closed: only trailing whitespace may follow.
+      if (depth === 0) return scannable.slice(i + 1).trim() === ''
+    }
+  }
+
+  return true
+}
+
+/**
  * True when an opening tag with no close yet can NEVER resolve, so the text
  * after it should be shown immediately instead of held back until the stream
  * ends.
@@ -558,10 +599,7 @@ function unclosedTagCannotResolve(
     if (scannable.includes(`</${name}>`) || scannable.includes(`<${name}>`)) return true
   }
 
-  if (JSON_BODY_TAG_NAMES.has(tagName)) {
-    const firstChar = body.trimStart().charAt(0)
-    if (firstChar !== '' && firstChar !== '{' && firstChar !== '[') return true
-  }
+  if (JSON_BODY_TAG_NAMES.has(tagName) && !isViableJsonPrefix(body)) return true
 
   return false
 }
@@ -647,6 +685,21 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
     const parsedTag = parseSpecialTagData(nearestTagName, body)
     if (parsedTag) {
       segments.push(parsedTag)
+    } else if (TAG_SHAPED_MARKER.test(body)) {
+      // The body failed to parse AND contains tag markers, which means the
+      // close we matched was not this opener's — the model was explaining tag
+      // syntax and a later example like `<workspace_resource>...</workspace_resource>`
+      // closed an earlier opener, making paragraphs of prose the "body".
+      // Dropping that silently loses the text and resumes mid-sentence, so emit
+      // it verbatim. Streamdown escapes the markers, so it reads as literal text.
+      //
+      // A marker-free body that merely fails validation is a genuinely
+      // malformed payload from the agent; that keeps being dropped rather than
+      // showing the user raw JSON.
+      const literal = content.slice(nearestStart, closeIdx + closeTag.length)
+      if (literal.trim()) {
+        segments.push({ type: 'text', content: literal })
+      }
     }
 
     cursor = closeIdx + closeTag.length
