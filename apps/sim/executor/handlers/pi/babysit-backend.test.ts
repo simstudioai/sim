@@ -13,6 +13,7 @@ const {
   mockRequestReview,
   mockReviewLanded,
   mockResolvePiSandboxLifetime,
+  mockSleepUntilAborted,
 } = vi.hoisted(() => ({
   mockWithPiSandbox: vi.fn(),
   mockFetchSnapshot: vi.fn(),
@@ -23,6 +24,7 @@ const {
   mockRequestReview: vi.fn(),
   mockReviewLanded: vi.fn(),
   mockResolvePiSandboxLifetime: vi.fn(),
+  mockSleepUntilAborted: vi.fn(),
 }))
 
 vi.mock('@/lib/execution/remote-sandbox', () => ({
@@ -31,6 +33,9 @@ vi.mock('@/lib/execution/remote-sandbox', () => ({
 vi.mock('@/lib/execution/cancellation', () => ({
   isRedisCancellationEnabled: () => false,
   isExecutionCancelled: vi.fn().mockResolvedValue(false),
+}))
+vi.mock('@/lib/data-drains/destinations/utils', () => ({
+  sleepUntilAborted: mockSleepUntilAborted,
 }))
 vi.mock('@/lib/execution/remote-sandbox/pi-lifetime', async (importOriginal) => {
   const original =
@@ -218,6 +223,7 @@ describe('runBabysitPiWithOptions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolvePiSandboxLifetime.mockReturnValue(undefined)
+    mockSleepUntilAborted.mockResolvedValue(undefined)
     mockFetchDiagnostics.mockResolvedValue(new Map([['check:ci', 'failure output']]))
     mockReplyAndResolve.mockResolvedValue({
       repliesPosted: 1,
@@ -507,11 +513,13 @@ describe('runBabysitPiWithOptions', () => {
     const result = await runBabysitPiWithOptions(
       params({ maxRounds: 1 }),
       { onEvent: vi.fn() },
-      { roundWaitMs: 0 }
+      { roundWaitMs: 1 }
     )
 
     expect(result).toMatchObject({ stopReason: 'clean', rounds: 0, checksGreen: true })
     expect(runCalls.some(({ command }) => command.includes('pi -p --mode json'))).toBe(false)
+    expect(mockSleepUntilAborted).toHaveBeenCalledWith(1, expect.any(AbortSignal))
+    expect(runCalls.some(({ command }) => command === 'true')).toBe(true)
   })
 
   it('returns pushed_awaiting_confirmation after replying against a lagging GitHub record', async () => {

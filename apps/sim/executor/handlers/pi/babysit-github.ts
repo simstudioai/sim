@@ -433,14 +433,10 @@ export async function fetchBabysitCheckState(
       cursor = endCursor
       if (page === MAX_PAGES - 1) throw new Error('Check listing exceeded its page bound')
     }
-    const canSynthesizeMissingContexts = !!initialRequirements?.size
-    if (expectedTotal === undefined || (expectedTotal === 0 && !canSynthesizeMissingContexts)) {
+    if (expectedTotal === undefined) {
       throw new Error('GitHub returned no check rollup for the pinned commit')
     }
-    if (
-      (rollupState === null || rollupState === undefined) &&
-      !(expectedTotal === 0 && canSynthesizeMissingContexts)
-    ) {
+    if ((rollupState === null || rollupState === undefined) && expectedTotal !== 0) {
       throw new Error('GitHub returned checks without a rollup state')
     }
   } catch (error) {

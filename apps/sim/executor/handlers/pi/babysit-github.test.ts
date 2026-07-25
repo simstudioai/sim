@@ -161,6 +161,16 @@ describe('Babysit GitHub orchestration', () => {
     })
   })
 
+  it('accepts a complete empty rollup when the commit has no checks', async () => {
+    mockExecuteTool.mockResolvedValueOnce(checkPage([], { state: null }))
+
+    const state = await fetchBabysitCheckState(params, HEAD_SHA)
+
+    expect(state.checks).toEqual([])
+    expect(state.checksGreen).toBe(true)
+    expect(state.contextRequirements).toEqual(new Map())
+  })
+
   it('treats EXPECTED and incomplete checks as pending and optional failures as non-blocking', async () => {
     mockExecuteTool.mockResolvedValueOnce(
       checkPage([

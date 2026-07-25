@@ -89,6 +89,7 @@ const MAX_REVIEW_PROMPT_BYTES = 250_000
 const MAX_CHECK_PROMPT_BYTES = 400_000
 const MIN_ROUND_BUDGET_MS = 5 * 60 * 1000
 const ROUND_FINALIZATION_RESERVE_MS = 2 * FINALIZE_TIMEOUT_MS
+const SANDBOX_KEEPALIVE_INTERVAL_MS = 4 * 60 * 1000
 
 const BABYSIT_GUIDANCE =
   'You are fixing an existing pull request in a long-lived automated sandbox. Make only minimal ' +
@@ -487,6 +488,25 @@ async function waitForHeadConvergence(
   return 'lagging'
 }
 
+async function waitWithSandboxKeepalive(
+  runner: PiSandboxRunner,
+  durationMs: number,
+  signal: AbortSignal
+): Promise<void> {
+  let remainingMs = durationMs
+  while (remainingMs > 0) {
+    const intervalMs = Math.min(remainingMs, SANDBOX_KEEPALIVE_INTERVAL_MS)
+    await sleepUntilAborted(intervalMs, signal)
+    if (signal.aborted) throw new Error('Pi run aborted')
+    const keepalive = await raceAbort(
+      runner.run('true', { timeoutMs: FINALIZE_TIMEOUT_MS }),
+      signal
+    )
+    if (keepalive.exitCode !== 0) throw new Error('Babysit sandbox keepalive failed')
+    remainingMs -= intervalMs
+  }
+}
+
 function outstandingReason(
   fallback: BabysitStopReason,
   threads: BabysitThreadsState,
@@ -664,8 +684,7 @@ export async function runBabysitPiWithOptions(
             )
             return resultFor(totals, reason, progress, threadsClean, latestChecks!.checksGreen)
           }
-          await sleepUntilAborted(options.roundWaitMs, signal)
-          if (signal.aborted) throw new Error('Pi run aborted')
+          await waitWithSandboxKeepalive(runner, options.roundWaitMs, signal)
           snapshot = await fetchBabysitSnapshot(params, signal)
           assertBabysitPinned(
             { headSha: pinnedHeadSha, headRef: pinnedHeadRef, baseRef: pinnedBaseRef },
@@ -957,8 +976,7 @@ export async function runBabysitPiWithOptions(
           remainingBeforeWait >
             options.roundWaitMs + MIN_ROUND_BUDGET_MS + ROUND_FINALIZATION_RESERVE_MS
         ) {
-          await sleepUntilAborted(options.roundWaitMs, signal)
-          if (signal.aborted) throw new Error('Pi run aborted')
+          await waitWithSandboxKeepalive(runner, options.roundWaitMs, signal)
         }
 
         snapshot = await fetchBabysitSnapshot(params, signal)
