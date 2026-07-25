@@ -45,49 +45,62 @@ const s3FormSpec: DestinationFormSpec<S3State> = {
   },
   FormFields: ({ state, setState }) => (
     <>
-      <SettingRow label='Bucket'>
+      <SettingRow label='Bucket' htmlFor='drain-s3-bucket'>
         <ChipInput
+          id='drain-s3-bucket'
           value={state.bucket}
           onChange={(e) => setState({ ...state, bucket: e.target.value })}
           placeholder='my-logs-bucket'
         />
       </SettingRow>
-      <SettingRow label='Region'>
+      <SettingRow label='Region' htmlFor='drain-s3-region'>
         <ChipInput
+          id='drain-s3-region'
           value={state.region}
           onChange={(e) => setState({ ...state, region: e.target.value })}
           placeholder='us-east-1'
         />
       </SettingRow>
-      <SettingRow label='Prefix (optional)'>
+      <SettingRow label='Prefix (optional)' htmlFor='drain-s3-prefix-optional'>
         <ChipInput
+          id='drain-s3-prefix-optional'
           value={state.prefix}
           onChange={(e) => setState({ ...state, prefix: e.target.value })}
           placeholder='exports/sim'
         />
       </SettingRow>
-      <SettingRow label='Endpoint (optional, S3-compatible stores)'>
+      <SettingRow
+        label='Endpoint (optional, S3-compatible stores)'
+        htmlFor='drain-s3-endpoint-optional-s3-compatible-stores'
+      >
         <ChipInput
+          id='drain-s3-endpoint-optional-s3-compatible-stores'
           value={state.endpoint}
           onChange={(e) => setState({ ...state, endpoint: e.target.value })}
           placeholder='https://s3.example.com'
         />
       </SettingRow>
-      <SettingRow label='Force path style (MinIO, Ceph)'>
+      <SettingRow
+        label='Force path style (MinIO, Ceph)'
+        htmlFor='drain-s3-force-path-style-minio-ceph'
+      >
         <Switch
+          id='drain-s3-force-path-style-minio-ceph'
           checked={state.forcePathStyle}
           onCheckedChange={(v) => setState({ ...state, forcePathStyle: v })}
         />
       </SettingRow>
-      <SettingRow label='Access key ID'>
+      <SettingRow label='Access key ID' htmlFor='drain-s3-access-key-id'>
         <SecretInput
+          id='drain-s3-access-key-id'
           value={state.accessKeyId}
           onChange={(v) => setState({ ...state, accessKeyId: v })}
           placeholder='AKIA...'
         />
       </SettingRow>
-      <SettingRow label='Secret access key'>
+      <SettingRow label='Secret access key' htmlFor='drain-s3-secret-access-key'>
         <SecretInput
+          id='drain-s3-secret-access-key'
           value={state.secretAccessKey}
           onChange={(v) => setState({ ...state, secretAccessKey: v })}
           placeholder='Paste your secret access key'
@@ -127,22 +140,25 @@ const gcsFormSpec: DestinationFormSpec<GCSState> = {
   initialState: { bucket: '', prefix: '', serviceAccountJson: '' },
   FormFields: ({ state, setState }) => (
     <>
-      <SettingRow label='Bucket'>
+      <SettingRow label='Bucket' htmlFor='drain-gcs-bucket'>
         <ChipInput
+          id='drain-gcs-bucket'
           value={state.bucket}
           onChange={(e) => setState({ ...state, bucket: e.target.value })}
           placeholder='my-logs-bucket'
         />
       </SettingRow>
-      <SettingRow label='Prefix (optional)'>
+      <SettingRow label='Prefix (optional)' htmlFor='drain-gcs-prefix-optional'>
         <ChipInput
+          id='drain-gcs-prefix-optional'
           value={state.prefix}
           onChange={(e) => setState({ ...state, prefix: e.target.value })}
           placeholder='exports/sim'
         />
       </SettingRow>
-      <SettingRow label='Service account JSON key'>
+      <SettingRow label='Service account JSON key' htmlFor='drain-gcs-service-account-json-key'>
         <ChipTextarea
+          id='drain-gcs-service-account-json-key'
           value={state.serviceAccountJson}
           onChange={(e) => setState({ ...state, serviceAccountJson: e.target.value })}
           placeholder='{ "type": "service_account", ... }'
@@ -178,36 +194,44 @@ const azureBlobFormSpec: DestinationFormSpec<AzureBlobState> = {
   },
   FormFields: ({ state, setState }) => (
     <>
-      <SettingRow label='Account name'>
+      <SettingRow label='Account name' htmlFor='drain-azure-blob-account-name'>
         <ChipInput
+          id='drain-azure-blob-account-name'
           value={state.accountName}
           onChange={(e) => setState({ ...state, accountName: e.target.value })}
           placeholder='mystorageaccount'
         />
       </SettingRow>
-      <SettingRow label='Container'>
+      <SettingRow label='Container' htmlFor='drain-azure-blob-container'>
         <ChipInput
+          id='drain-azure-blob-container'
           value={state.containerName}
           onChange={(e) => setState({ ...state, containerName: e.target.value })}
           placeholder='sim-exports'
         />
       </SettingRow>
-      <SettingRow label='Prefix (optional)'>
+      <SettingRow label='Prefix (optional)' htmlFor='drain-azure-blob-prefix-optional'>
         <ChipInput
+          id='drain-azure-blob-prefix-optional'
           value={state.prefix}
           onChange={(e) => setState({ ...state, prefix: e.target.value })}
           placeholder='exports/sim'
         />
       </SettingRow>
-      <SettingRow label='Endpoint suffix (optional)'>
+      <SettingRow
+        label='Endpoint suffix (optional)'
+        htmlFor='drain-azure-blob-endpoint-suffix-optional'
+      >
         <ChipInput
+          id='drain-azure-blob-endpoint-suffix-optional'
           value={state.endpointSuffix}
           onChange={(e) => setState({ ...state, endpointSuffix: e.target.value })}
           placeholder='blob.core.windows.net'
         />
       </SettingRow>
-      <SettingRow label='Account key'>
+      <SettingRow label='Account key' htmlFor='drain-azure-blob-account-key'>
         <SecretInput
+          id='drain-azure-blob-account-key'
           value={state.accountKey}
           onChange={(v) => setState({ ...state, accountKey: v })}
           placeholder='Paste your storage account key'
@@ -259,22 +283,28 @@ const datadogFormSpec: DestinationFormSpec<DatadogState> = {
           align='start'
         />
       </SettingRow>
-      <SettingRow label='Service (optional)'>
+      <SettingRow label='Service (optional)' htmlFor='drain-datadog-service-optional'>
         <ChipInput
+          id='drain-datadog-service-optional'
           value={state.service}
           onChange={(e) => setState({ ...state, service: e.target.value })}
           placeholder='sim'
         />
       </SettingRow>
-      <SettingRow label='Tags (optional, comma-separated)'>
+      <SettingRow
+        label='Tags (optional, comma-separated)'
+        htmlFor='drain-datadog-tags-optional-comma-separated'
+      >
         <ChipInput
+          id='drain-datadog-tags-optional-comma-separated'
           value={state.tags}
           onChange={(e) => setState({ ...state, tags: e.target.value })}
           placeholder='env:prod,team:platform'
         />
       </SettingRow>
-      <SettingRow label='API key'>
+      <SettingRow label='API key' htmlFor='drain-datadog-api-key'>
         <SecretInput
+          id='drain-datadog-api-key'
           value={state.apiKey}
           onChange={(v) => setState({ ...state, apiKey: v })}
           placeholder='Paste your Datadog API key'
@@ -306,29 +336,36 @@ const bigqueryFormSpec: DestinationFormSpec<BigQueryState> = {
   initialState: { projectId: '', datasetId: '', tableId: '', serviceAccountJson: '' },
   FormFields: ({ state, setState }) => (
     <>
-      <SettingRow label='Project ID'>
+      <SettingRow label='Project ID' htmlFor='drain-bigquery-project-id'>
         <ChipInput
+          id='drain-bigquery-project-id'
           value={state.projectId}
           onChange={(e) => setState({ ...state, projectId: e.target.value })}
           placeholder='my-gcp-project'
         />
       </SettingRow>
-      <SettingRow label='Dataset'>
+      <SettingRow label='Dataset' htmlFor='drain-bigquery-dataset'>
         <ChipInput
+          id='drain-bigquery-dataset'
           value={state.datasetId}
           onChange={(e) => setState({ ...state, datasetId: e.target.value })}
           placeholder='sim_drains'
         />
       </SettingRow>
-      <SettingRow label='Table'>
+      <SettingRow label='Table' htmlFor='drain-bigquery-table'>
         <ChipInput
+          id='drain-bigquery-table'
           value={state.tableId}
           onChange={(e) => setState({ ...state, tableId: e.target.value })}
           placeholder='workflow_logs'
         />
       </SettingRow>
-      <SettingRow label='Service account JSON key'>
+      <SettingRow
+        label='Service account JSON key'
+        htmlFor='drain-bigquery-service-account-json-key'
+      >
         <ChipTextarea
+          id='drain-bigquery-service-account-json-key'
           value={state.serviceAccountJson}
           onChange={(e) => setState({ ...state, serviceAccountJson: e.target.value })}
           placeholder='{ "type": "service_account", ... }'
@@ -376,64 +413,76 @@ const snowflakeFormSpec: DestinationFormSpec<SnowflakeState> = {
   },
   FormFields: ({ state, setState }) => (
     <>
-      <SettingRow label='Account identifier'>
+      <SettingRow label='Account identifier' htmlFor='drain-snowflake-account-identifier'>
         <ChipInput
+          id='drain-snowflake-account-identifier'
           value={state.account}
           onChange={(e) => setState({ ...state, account: e.target.value })}
           placeholder='orgname-accountname'
         />
       </SettingRow>
-      <SettingRow label='User'>
+      <SettingRow label='User' htmlFor='drain-snowflake-user'>
         <ChipInput
+          id='drain-snowflake-user'
           value={state.user}
           onChange={(e) => setState({ ...state, user: e.target.value })}
           placeholder='SIM_DRAIN_USER'
         />
       </SettingRow>
-      <SettingRow label='Warehouse'>
+      <SettingRow label='Warehouse' htmlFor='drain-snowflake-warehouse'>
         <ChipInput
+          id='drain-snowflake-warehouse'
           value={state.warehouse}
           onChange={(e) => setState({ ...state, warehouse: e.target.value })}
           placeholder='COMPUTE_WH'
         />
       </SettingRow>
-      <SettingRow label='Database'>
+      <SettingRow label='Database' htmlFor='drain-snowflake-database'>
         <ChipInput
+          id='drain-snowflake-database'
           value={state.database}
           onChange={(e) => setState({ ...state, database: e.target.value })}
           placeholder='SIM'
         />
       </SettingRow>
-      <SettingRow label='Schema'>
+      <SettingRow label='Schema' htmlFor='drain-snowflake-schema'>
         <ChipInput
+          id='drain-snowflake-schema'
           value={state.schema}
           onChange={(e) => setState({ ...state, schema: e.target.value })}
           placeholder='PUBLIC'
         />
       </SettingRow>
-      <SettingRow label='Table'>
+      <SettingRow label='Table' htmlFor='drain-snowflake-table'>
         <ChipInput
+          id='drain-snowflake-table'
           value={state.table}
           onChange={(e) => setState({ ...state, table: e.target.value })}
           placeholder='WORKFLOW_LOGS'
         />
       </SettingRow>
-      <SettingRow label='Column (optional, defaults to "DATA")'>
+      <SettingRow
+        label='Column (optional, defaults to "DATA")'
+        htmlFor='drain-snowflake-column-optional-defaults-to-data'
+      >
         <ChipInput
+          id='drain-snowflake-column-optional-defaults-to-data'
           value={state.column}
           onChange={(e) => setState({ ...state, column: e.target.value })}
           placeholder='DATA'
         />
       </SettingRow>
-      <SettingRow label='Role (optional)'>
+      <SettingRow label='Role (optional)' htmlFor='drain-snowflake-role-optional'>
         <ChipInput
+          id='drain-snowflake-role-optional'
           value={state.role}
           onChange={(e) => setState({ ...state, role: e.target.value })}
           placeholder='SIM_DRAIN_ROLE'
         />
       </SettingRow>
-      <SettingRow label='Private key (PEM, PKCS8)'>
+      <SettingRow label='Private key (PEM, PKCS8)' htmlFor='drain-snowflake-private-key-pem-pkcs8'>
         <ChipTextarea
+          id='drain-snowflake-private-key-pem-pkcs8'
           value={state.privateKey}
           onChange={(e) => setState({ ...state, privateKey: e.target.value })}
           placeholder='-----BEGIN PRIVATE KEY-----'
@@ -478,29 +527,36 @@ const webhookFormSpec: DestinationFormSpec<WebhookState> = {
   initialState: { url: '', signatureHeader: '', signingSecret: '', bearerToken: '' },
   FormFields: ({ state, setState }) => (
     <>
-      <SettingRow label='URL'>
+      <SettingRow label='URL' htmlFor='drain-webhook-url'>
         <ChipInput
+          id='drain-webhook-url'
           value={state.url}
           onChange={(e) => setState({ ...state, url: e.target.value })}
           placeholder='https://example.com/sim-drain'
         />
       </SettingRow>
-      <SettingRow label='Signature header (optional)'>
+      <SettingRow
+        label='Signature header (optional)'
+        htmlFor='drain-webhook-signature-header-optional'
+      >
         <ChipInput
+          id='drain-webhook-signature-header-optional'
           value={state.signatureHeader}
           onChange={(e) => setState({ ...state, signatureHeader: e.target.value })}
           placeholder='X-Sim-Signature'
         />
       </SettingRow>
-      <SettingRow label='Signing secret'>
+      <SettingRow label='Signing secret' htmlFor='drain-webhook-signing-secret'>
         <SecretInput
+          id='drain-webhook-signing-secret'
           value={state.signingSecret}
           onChange={(v) => setState({ ...state, signingSecret: v })}
           placeholder='At least 32 characters'
         />
       </SettingRow>
-      <SettingRow label='Bearer token (optional)'>
+      <SettingRow label='Bearer token (optional)' htmlFor='drain-webhook-bearer-token-optional'>
         <SecretInput
+          id='drain-webhook-bearer-token-optional'
           value={state.bearerToken}
           onChange={(v) => setState({ ...state, bearerToken: v })}
           placeholder='Paste your bearer token'

@@ -253,7 +253,9 @@ function RunRow({ run }: { run: DataDrainRun }) {
       </div>
       <div className='flex-shrink-0 text-right text-[var(--text-muted)]'>
         <div className='tabular-nums'>{run.rowsExported.toLocaleString()} rows</div>
-        <div className='tabular-nums'>{formatFileSize(run.bytesWritten)}</div>
+        <div className='tabular-nums'>
+          {formatFileSize(run.bytesWritten, { includeBytes: true })}
+        </div>
       </div>
     </div>
   )
