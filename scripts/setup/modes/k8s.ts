@@ -38,6 +38,12 @@ const LOCAL_SERVER_HOSTS = new Set([
   'host.docker.internal',
 ])
 
+/** True when a context's API server is a loopback/host address — i.e. a local cluster. */
+export function isLocalKubeContext(context: string): boolean {
+  const server = contextServerHost(context)
+  return server !== null && LOCAL_SERVER_HOSTS.has(server)
+}
+
 /** The API server host a context points at, or null if kubectl can't resolve it. */
 function contextServerHost(context: string): string | null {
   const result = spawnSync(

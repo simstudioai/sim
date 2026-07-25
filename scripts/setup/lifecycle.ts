@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { DB_CONTAINER, type Detection, REDIS_CONTAINER, runDetection } from './detect.ts'
 import { archiveEnvFile, ROOT } from './env-files.ts'
 import { SetupError } from './errors.ts'
+import { isLocalKubeContext } from './modes/k8s.ts'
 import { httpHealth } from './probes.ts'
 import * as p from './prompter.ts'
 import { glyph, theme } from './theme.ts'
@@ -93,7 +94,11 @@ function devInstall(detection: Detection): DevInstall | null {
 
 function k8sInstall(detection: Detection): K8sInstall | null {
   const context = detection.kubeContext
-  if (!context) return null
+  // Only manage k8s on a verified-local context. The ambient current-context can
+  // change after setup, and the wizard only ever deploys to a local cluster — so
+  // gating on locality stops `down`/`reset` from uninstalling a same-named release
+  // from a remote cluster the user happens to be pointed at.
+  if (!context || !isLocalKubeContext(context)) return null
   const status = spawnSync(
     'helm',
     ['status', K8S_RELEASE, '--kube-context', context, '-n', K8S_NAMESPACE],
