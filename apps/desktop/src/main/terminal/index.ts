@@ -58,6 +58,13 @@ const INPUT_ECHO_MS = 250
 /** Enough of the screen to show whether the input took, without a wall of it. */
 const INPUT_SCREEN_LINES = 60
 
+/**
+ * How often the active terminal's directory is reconciled against the OS.
+ * Fast enough that a `cd` renames the tab about as soon as the user looks at
+ * it, slow enough that the lookup is nowhere near a hot path.
+ */
+const CWD_POLL_MS = 1_000
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -117,6 +124,7 @@ export class TerminalService {
   private nextId = 1
   private sink: TerminalSink | null = null
   private lastEmittedTabs: string | null = null
+  private cwdTimer: NodeJS.Timeout | null = null
 
   constructor(private readonly options: TerminalServiceOptions = {}) {}
 
@@ -125,6 +133,32 @@ export class TerminalService {
     // A new sink has seen nothing, so the dedupe baseline has to reset or the
     // panel would wait for an unrelated change before learning the tab list.
     this.lastEmittedTabs = null
+    if (sink) this.startCwdWatch()
+    else this.stopCwdWatch()
+  }
+
+  /**
+   * Keeps the visible tab's directory honest without depending on the shell.
+   *
+   * Only the active session is polled, and only while a panel is attached and
+   * nothing is running in the foreground (a running command owns the label
+   * anyway), so this costs one cheap lookup a second at most — the reason it
+   * samples rather than watching every keystroke.
+   */
+  private startCwdWatch(): void {
+    if (this.cwdTimer) return
+    this.cwdTimer = setInterval(() => {
+      const active = this.activeId ? this.sessions.get(this.activeId) : null
+      if (!active || active.isBusy) return
+      void active.refreshCwd()
+    }, CWD_POLL_MS)
+    this.cwdTimer.unref?.()
+  }
+
+  private stopCwdWatch(): void {
+    if (!this.cwdTimer) return
+    clearInterval(this.cwdTimer)
+    this.cwdTimer = null
   }
 
   getTabs(): TerminalTabsState {
@@ -173,6 +207,7 @@ export class TerminalService {
     }
     this.activeId = terminalId
     this.emitTabs()
+    void this.sessions.get(terminalId)?.refreshCwd()
     return this.getTabs()
   }
 
@@ -201,6 +236,7 @@ export class TerminalService {
   }
 
   dispose(): void {
+    this.stopCwdWatch()
     for (const session of this.sessions.values()) session.dispose()
     this.sessions.clear()
     this.activeId = null

@@ -24,6 +24,7 @@ import {
   type TerminalTabState,
 } from '@sim/terminal-protocol'
 import { Terminal as HeadlessTerminal } from '@xterm/headless'
+import { readProcessCwd } from '@/main/terminal/process-cwd'
 import {
   buildShellLaunch,
   createNonce,
@@ -315,6 +316,25 @@ export class TerminalSession {
    */
   get pid(): number {
     return this.pty.pid
+  }
+
+  /**
+   * Reconciles the tracked cwd with the shell's real one, read from the OS.
+   *
+   * The shell-integration hooks report `cd` instantly when they are installed,
+   * but they cannot be relied on alone: a shell we cannot instrument, a config
+   * that overrides the prompt hooks, or a session whose hooks never loaded
+   * would otherwise leave the tab labelled with the directory the shell
+   * started in — the user's home, whose basename is their username. Asking the
+   * OS needs no cooperation from the shell, so it is what makes the label
+   * correct in every case.
+   */
+  async refreshCwd(): Promise<void> {
+    if (this.disposed) return
+    const cwd = await readProcessCwd(this.pty.pid)
+    if (this.disposed || !cwd || cwd === this.cwd) return
+    this.cwd = cwd
+    this.emitState()
   }
 
   /**
