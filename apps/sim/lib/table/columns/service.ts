@@ -541,7 +541,15 @@ export async function updateColumnType(
 
       const effective = convertingAwayFromSelect ? selectValueForConversion(column, value) : value
 
-      if (!isValueCompatibleWithType(effective, data.newType, targetOptions, !!targetMultiple)) {
+      if (
+        !isValueCompatibleWithType(
+          effective,
+          data.newType,
+          targetOptions,
+          !!targetMultiple,
+          !!column.required
+        )
+      ) {
         incompatibleCount++
       }
     }
@@ -1015,7 +1023,8 @@ export function isValueCompatibleWithType(
   value: unknown,
   targetType: (typeof COLUMN_TYPES)[number],
   targetOptions: SelectOption[] = [],
-  targetMultiple = false
+  targetMultiple = false,
+  targetRequired = false
 ): boolean {
   if (value === null || value === undefined) return true
 
@@ -1026,8 +1035,12 @@ export function isValueCompatibleWithType(
       // this check, so anything still structured here is genuinely lossy.
       return typeof value !== 'object'
     case 'select': {
-      // A cleared select cell is written as '' — still convertible.
-      if (value === '') return true
+      // A cleared select cell is written as '' — still convertible, unless the
+      // target is required. Required only rejects null/undefined on a write, so
+      // a required string column legitimately holds ''; the migration turns that
+      // into null (or [] for a multi), and every later update of that row would
+      // then fail its own required check.
+      if (value === '') return !targetRequired
       // Read the value exactly as the write-path coercion will. A multi target
       // splits a comma-delimited string, so a multiselect → text → multiselect
       // round-trip (text holding this feature's own `Bug, Docs` export shape)

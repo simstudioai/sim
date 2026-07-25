@@ -79,6 +79,17 @@ describe('isValueCompatibleWithType — select cardinality', () => {
     expect(isValueCompatibleWithType(flattened, 'select', OPTIONS, false)).toBe(false)
   })
 
+  it('rejects a blank source value when the target select is required', () => {
+    // `required` only rejects null/undefined on a write, so a required string
+    // column legitimately holds ''. Converting it stores null (or [] for a
+    // multi), which would then fail that column's own required check on the
+    // next update of the row.
+    expect(isValueCompatibleWithType('', 'select', OPTIONS, false, true)).toBe(false)
+    expect(isValueCompatibleWithType('', 'select', OPTIONS, true, true)).toBe(false)
+    // Optional target is unchanged — a cleared cell stays convertible.
+    expect(isValueCompatibleWithType('', 'select', OPTIONS, false, false)).toBe(true)
+  })
+
   it('still rejects a comma string holding an undeclared option', () => {
     expect(isValueCompatibleWithType('Alpha, Gone', 'select', OPTIONS, true)).toBe(false)
   })

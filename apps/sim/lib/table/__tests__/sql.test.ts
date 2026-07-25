@@ -516,6 +516,18 @@ describe('SQL Builder', () => {
       expect(out).toContain("WHEN 'opt_closed' THEN 'Closed'")
       expect(out.trim().endsWith('ASC NULLS LAST')).toBe(true)
     })
+
+    it('sorts a multiselect by its option names, not the raw id array', () => {
+      // A multi cell extracts as `["opt_b","opt_a"]`, which matches no single-id
+      // CASE branch — without the array arm it would order on that opaque text.
+      const out = render(buildSortClause({ tags: 'asc' }, TABLE, [tagsCol]))
+      expect(out).toContain('jsonb_array_elements_text')
+      expect(out).toContain('string_agg')
+      expect(out).toContain('ORDER BY e.ord')
+      // The scalar arm survives for values left over from a single→multi toggle.
+      expect(out).toContain('CASE')
+      expect(out.trim().endsWith('ASC NULLS LAST')).toBe(true)
+    })
   })
 
   describe('Field name validation', () => {

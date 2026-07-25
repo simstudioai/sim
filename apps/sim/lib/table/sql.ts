@@ -662,10 +662,13 @@ function buildSortFieldClause(
 
   // Select cells store opaque option ids; sort by the option **name** so ordering
   // is alphabetical by the label the user sees, not by the internal id. A stored
-  // id with no matching option (deleted) falls back to the raw text. Multiselect
-  // renders as a JSON array text, which won't match any id and sorts by that text.
+  // id with no matching option (deleted) falls back to the raw text.
   if (column?.type === 'select') {
-    const orderExpr = buildSelectNameOrderExpr(jsonbExtract, column)
+    const orderExpr = buildSelectNameOrderExpr(
+      jsonbExtract,
+      `${tableName}.data->'${escapedField}'`,
+      column
+    )
     return sql.raw(`${orderExpr} ${directionSql} NULLS LAST`)
   }
 
@@ -685,12 +688,30 @@ function buildSortFieldClause(
  * text extract) to its option name, so an ORDER BY sorts alphabetically by label.
  * Ids and names are SQL-escaped and embedded literally (options are trusted schema
  * data, not caller input); an unmapped id falls through to the raw extract.
+ *
+ * A multiselect cell is an array of ids, which matches no single-id branch — it
+ * sorts on its elements resolved to names and joined in stored order, the same
+ * text the grid renders and an export writes. A scalar left over from before a
+ * single→multi toggle still takes the single-id branch.
  */
-function buildSelectNameOrderExpr(jsonbExtract: string, column: ColumnDefinition): string {
+function buildSelectNameOrderExpr(
+  jsonbExtract: string,
+  jsonbValue: string,
+  column: ColumnDefinition
+): string {
   const options = column.options ?? []
   if (options.length === 0) return jsonbExtract
   const whens = options
     .map((o) => `WHEN '${o.id.replace(/'/g, "''")}' THEN '${o.name.replace(/'/g, "''")}'`)
     .join(' ')
-  return `CASE ${jsonbExtract} ${whens} ELSE ${jsonbExtract} END`
+  const singleExpr = `CASE ${jsonbExtract} ${whens} ELSE ${jsonbExtract} END`
+  if (!column.multiple) return singleExpr
+
+  const nameById = JSON.stringify(
+    Object.fromEntries(new Map(options.map((o) => [o.id, o.name])))
+  ).replace(/'/g, "''")
+  return `CASE WHEN jsonb_typeof(${jsonbValue}) = 'array' THEN (
+    SELECT string_agg(COALESCE('${nameById}'::jsonb ->> e.v, e.v), ', ' ORDER BY e.ord)
+    FROM jsonb_array_elements_text(${jsonbValue}) WITH ORDINALITY AS e(v, ord)
+  ) ELSE ${singleExpr} END`
 }
