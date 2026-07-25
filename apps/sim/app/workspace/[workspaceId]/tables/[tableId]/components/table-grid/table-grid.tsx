@@ -2117,8 +2117,10 @@ export function TableGrid({
 
       // Double-click means "edit this cell". On an update-locked table, say so
       // rather than opening the expanded viewer — which looks like an editor
-      // that silently refuses to save.
-      if (updateLockedRef.current) {
+      // that silently refuses to save. Only for users who could otherwise edit:
+      // without write access the lock isn't why they can't, and they still get
+      // the read-only expanded viewer below.
+      if (canEditRef.current && updateLockedRef.current) {
         onBlockedActionRef.current('edit-cell')
         return
       }
