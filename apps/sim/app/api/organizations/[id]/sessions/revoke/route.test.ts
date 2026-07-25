@@ -13,14 +13,14 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsEnterprise, mockRecordAudit, mockInvalidateOrgSecurityCache } = vi.hoisted(() => ({
+const { mockIsEnterprise, mockRecordAudit, mockInvalidateVersionCache } = vi.hoisted(() => ({
   mockIsEnterprise: vi.fn(),
   mockRecordAudit: vi.fn(),
-  mockInvalidateOrgSecurityCache: vi.fn(),
+  mockInvalidateVersionCache: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/security-policy', () => ({
-  invalidateOrgSecurityCache: mockInvalidateOrgSecurityCache,
+  invalidateSecurityPolicyVersionCache: mockInvalidateVersionCache,
 }))
 
 vi.mock('@/lib/billing/core/subscription', () => ({
@@ -157,7 +157,7 @@ describe('org sessions revoke route', () => {
       expect(dbChainMockFns.set).toHaveBeenCalledWith(
         expect.objectContaining({ securityPolicyVersion: expect.anything() })
       )
-      expect(mockInvalidateOrgSecurityCache).toHaveBeenCalledWith(ORG_ID)
+      expect(mockInvalidateVersionCache).toHaveBeenCalledWith(ORG_ID)
       expect(mockRecordAudit).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'organization.sessions.revoked',

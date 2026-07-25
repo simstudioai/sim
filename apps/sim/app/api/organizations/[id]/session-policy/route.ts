@@ -9,7 +9,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { updateOrganizationSessionPolicyContract } from '@/lib/api/contracts/organization'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { invalidateOrgSecurityCache } from '@/lib/auth/security-policy'
+import { invalidateSecurityPolicyVersionCache } from '@/lib/auth/security-policy'
 import { eagerClampOrgSessions } from '@/lib/auth/session-policy'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
@@ -160,7 +160,7 @@ export const PUT = withRouteHandler(
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
-    invalidateOrgSecurityCache(organizationId)
+    invalidateSecurityPolicyVersionCache(organizationId)
 
     logger.info('Updated organization session policy', { organizationId })
 

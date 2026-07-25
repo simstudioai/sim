@@ -685,13 +685,7 @@ export const auth = betterAuth({
           }
 
           try {
-            // Session creation is rare and, unlike a sliding refresh, is not
-            // already preceded by a cookie-version mismatch read — so it must
-            // read the policy fresh or a just-tightened policy could be missed
-            // for the life of the session.
-            const expiresAt = await clampExpiryForSession(session, membershipOrgId, {
-              bypassPolicyCache: true,
-            })
+            const expiresAt = await clampExpiryForSession(session, membershipOrgId)
             return {
               data: {
                 ...session,
@@ -703,7 +697,10 @@ export const auth = betterAuth({
               },
             }
           } catch (error) {
-            logger.error('Error clamping new session to org policy', {
+            // Allow the sign-in: refusing it would turn a policy-read blip into
+            // an org-wide outage. The session keeps Better Auth's default
+            // expiry and the next refresh clamps it.
+            logger.error('Error clamping new session to org policy; session not clamped', {
               error,
               userId: session.userId,
             })
@@ -728,11 +725,22 @@ export const auth = betterAuth({
           if (!data.expiresAt) return { data }
           const current = ctx?.context?.session?.session
           if (!current) return { data }
-          const expiresAt = await clampExpiryForSession({
-            ...current,
-            expiresAt: new Date(data.expiresAt),
-          })
-          return { data: { ...data, expiresAt } }
+          try {
+            const expiresAt = await clampExpiryForSession({
+              ...current,
+              expiresAt: new Date(data.expiresAt),
+            })
+            return { data: { ...data, expiresAt } }
+          } catch (error) {
+            // Refuse to EXTEND when the policy cannot be read: keeping the
+            // session's current expiry leaves the member signed in without
+            // granting them a fresh 30 days a policy might have forbidden.
+            logger.error('Error re-clamping refreshed session; leaving expiry unchanged', {
+              error,
+              userId: current.userId,
+            })
+            return { data: { ...data, expiresAt: current.expiresAt } }
+          }
         },
       },
     },

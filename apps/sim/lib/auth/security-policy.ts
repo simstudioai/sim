@@ -1,5 +1,4 @@
 import { db } from '@sim/db'
-import type { SessionPolicySettings } from '@sim/db/schema'
 import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
@@ -8,64 +7,38 @@ import { isOrganizationsEnabled } from '@/lib/core/config/env-flags'
 const logger = createLogger('SecurityPolicy')
 
 /**
- * How long a resolved org security record is served from process memory before
- * the next request re-reads it. This TTL is the effective upper bound on
- * org-wide session-revocation latency: a version bump changes the cookie-cache
- * version, and every cached session cookie in the org falls through to a DB
- * read within one TTL.
+ * How long a resolved org security-policy version is served from process
+ * memory before the next request re-reads it. This TTL is the effective upper
+ * bound on org-wide session-revocation latency: a version bump changes the
+ * cookie-cache version, and every cached session cookie in the org falls
+ * through to a DB read within one TTL.
+ *
+ * Only the VERSION is cached. It is read on every authenticated request, and
+ * Better Auth offers no cross-instance invalidation for cookie caches — its own
+ * guidance for immediate revocation is to disable cookie caching entirely — so
+ * a short TTL is the deliberate trade this feature makes. The session POLICY is
+ * never cached; it is read fresh at enforcement time (see `session-policy.ts`),
+ * which is what keeps a stale version from ever pairing with a stale policy.
  */
-export const SECURITY_POLICY_CACHE_TTL_MS = 60 * 1000
-
-/**
- * After a failed read the last known-good record keeps being served, but its
- * timestamp is rolled back to leave this much life so a sustained outage
- * retries periodically instead of on every request.
- */
-const ERROR_RETRY_BACKOFF_MS = 5 * 1000
+export const SECURITY_POLICY_VERSION_CACHE_TTL_MS = 60 * 1000
 
 /**
  * Entry caps. Both maps only ever grow through explicit writes, so without a
- * bound a long-lived process accumulates one entry per distinct org/user it
- * has ever served. Eviction drops expired entries first, then the
- * least-recently-refreshed ones.
+ * bound a long-lived process accumulates one entry per distinct org/user it has
+ * ever served.
  */
-const MAX_ORG_CACHE_ENTRIES = 5_000
+const MAX_VERSION_CACHE_ENTRIES = 5_000
 const MAX_MEMBERSHIP_CACHE_ENTRIES = 20_000
-
-const DEFAULT_VERSION = 1
-
-/**
- * The org security state that governs cached session cookies, read as ONE row
- * so its two fields can never be observed out of sync. Splitting them across
- * independent caches allowed a pod to see a bumped `version` (which forces a
- * session refresh) while still holding the pre-bump `sessionPolicySettings` —
- * the refresh then re-clamped against the stale policy and stretched the
- * session back out, silently undoing a just-saved tightening.
- */
-export interface OrgSecurityRecord {
-  /**
-   * Monotonic counter behind the Better Auth cookie-cache version. It backs
-   * ALL org security policies (session policies today; IP allowlisting and MFA
-   * enforcement are planned consumers): any feature that needs cached session
-   * cookies to re-validate bumps this one counter.
-   */
-  version: number
-  sessionPolicySettings: SessionPolicySettings | null
-}
-
-interface OrgSecurityCacheEntry extends OrgSecurityRecord {
-  fetchedAt: number
-}
-
-const orgSecurityCache = new Map<string, OrgSecurityCacheEntry>()
 
 /**
  * Fraction of the cap an over-capacity prune evicts down to. Trimming to a low
  * water mark rather than exactly to the cap is what keeps eviction amortized
- * O(1): pruning back to the cap would leave the very next insert over again,
- * so every subsequent write would rescan the whole map.
+ * O(1): pruning back to the cap would leave the very next insert over again, so
+ * every subsequent write would rescan the whole map.
  */
 const PRUNE_TARGET_RATIO = 0.9
+
+const DEFAULT_VERSION = 1
 
 /**
  * Evicts down to a low water mark, expired entries first. Map iteration follows
@@ -75,7 +48,7 @@ const PRUNE_TARGET_RATIO = 0.9
 function prune(cache: Map<string, { fetchedAt: number }>, maxEntries: number): void {
   if (cache.size <= maxEntries) return
   const target = Math.floor(maxEntries * PRUNE_TARGET_RATIO)
-  const cutoff = Date.now() - SECURITY_POLICY_CACHE_TTL_MS
+  const cutoff = Date.now() - SECURITY_POLICY_VERSION_CACHE_TTL_MS
   for (const [key, entry] of cache) {
     if (cache.size <= target) break
     if (entry.fetchedAt < cutoff) cache.delete(key)
@@ -98,78 +71,61 @@ function touch<T extends { fetchedAt: number }>(
   prune(cache, maxEntries)
 }
 
-/**
- * Resolves the org's security record from a short TTL cache. On a read failure
- * the last known-good record keeps being served: falling back to defaults
- * would drop the org's session bounds entirely, disabling a security control
- * because of a transient database blip.
- */
-export async function getOrgSecurityRecord(
-  organizationId: string,
-  options: { bypassCache?: boolean } = {}
-): Promise<OrgSecurityRecord> {
-  const cached = orgSecurityCache.get(organizationId)
-  if (
-    !options.bypassCache &&
-    cached &&
-    Date.now() - cached.fetchedAt < SECURITY_POLICY_CACHE_TTL_MS
-  ) {
-    return cached
-  }
-
-  try {
-    const [row] = await db
-      .select({
-        version: organization.securityPolicyVersion,
-        sessionPolicySettings: organization.sessionPolicySettings,
-      })
-      .from(organization)
-      .where(eq(organization.id, organizationId))
-      .limit(1)
-
-    const record: OrgSecurityRecord = {
-      version: row?.version ?? DEFAULT_VERSION,
-      sessionPolicySettings: row?.sessionPolicySettings ?? null,
-    }
-    touch(
-      orgSecurityCache,
-      organizationId,
-      { ...record, fetchedAt: Date.now() },
-      MAX_ORG_CACHE_ENTRIES
-    )
-    return record
-  } catch (error) {
-    if (cached) {
-      logger.error('Failed to refresh org security record; serving last known-good', {
-        organizationId,
-        error,
-      })
-      cached.fetchedAt = Date.now() - SECURITY_POLICY_CACHE_TTL_MS + ERROR_RETRY_BACKOFF_MS
-      return cached
-    }
-    logger.error('Failed to resolve org security record; using defaults', {
-      organizationId,
-      error,
-    })
-    return { version: DEFAULT_VERSION, sessionPolicySettings: null }
-  }
+interface VersionCacheEntry {
+  version: number
+  fetchedAt: number
 }
 
-/** Resolves just the cookie-cache version component of the org security record. */
+const versionCache = new Map<string, VersionCacheEntry>()
+
+/**
+ * Resolves the org's security-policy version — the shared monotonic counter
+ * behind the Better Auth cookie-cache version. It backs ALL org security
+ * policies (session policies today; IP allowlisting and MFA enforcement are
+ * planned consumers): any feature that needs cached session cookies to
+ * re-validate bumps this one counter.
+ *
+ * A failed read falls back to the default rather than the last known value.
+ * That errs toward MORE revalidation, not less: a version that reads lower than
+ * the stored one mismatches the cookie and forces a database session read.
+ */
 export async function getSecurityPolicyVersion(
   organizationId: string | null | undefined
 ): Promise<number> {
   if (!organizationId) return DEFAULT_VERSION
-  return (await getOrgSecurityRecord(organizationId)).version
+
+  const cached = versionCache.get(organizationId)
+  if (cached && Date.now() - cached.fetchedAt < SECURITY_POLICY_VERSION_CACHE_TTL_MS) {
+    return cached.version
+  }
+
+  try {
+    const [row] = await db
+      .select({ version: organization.securityPolicyVersion })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .limit(1)
+
+    const version = row?.version ?? DEFAULT_VERSION
+    touch(
+      versionCache,
+      organizationId,
+      { version, fetchedAt: Date.now() },
+      MAX_VERSION_CACHE_ENTRIES
+    )
+    return version
+  } catch (error) {
+    logger.error('Failed to resolve security policy version; using default', {
+      organizationId,
+      error,
+    })
+    return DEFAULT_VERSION
+  }
 }
 
-/**
- * Drops the cached security record for an org so the next read is fresh. One
- * entry covers both the version and the session policy, so a caller cannot
- * invalidate one and forget the other.
- */
-export function invalidateOrgSecurityCache(organizationId: string): void {
-  orgSecurityCache.delete(organizationId)
+/** Drops the cached version for an org so the next read is fresh. */
+export function invalidateSecurityPolicyVersionCache(organizationId: string): void {
+  versionCache.delete(organizationId)
 }
 
 interface MembershipCacheEntry {
@@ -203,6 +159,10 @@ export function invalidateMembershipCache(userId: string): void {
  * none, and without this fallback such sessions would dodge cookie-cache
  * invalidation (and therefore org-wide revocation) for up to the 24h cookie
  * lifetime.
+ *
+ * Throws if the lookup fails. Callers that can tolerate an unknown membership
+ * use {@link getMemberOrganizationIdSafe}; the session-create path deliberately
+ * does not, so a failed read cannot be mistaken for "not in an org".
  */
 export async function getMemberOrganizationId(
   userId: string | null | undefined
@@ -212,26 +172,33 @@ export async function getMemberOrganizationId(
   const cached = membershipCache.get(userId)
   if (cached) {
     const ttl = cached.organizationId
-      ? SECURITY_POLICY_CACHE_TTL_MS
+      ? SECURITY_POLICY_VERSION_CACHE_TTL_MS
       : NEGATIVE_MEMBERSHIP_CACHE_TTL_MS
     if (Date.now() - cached.fetchedAt < ttl) return cached.organizationId
   }
 
-  try {
-    const [row] = await db
-      .select({ organizationId: member.organizationId })
-      .from(member)
-      .where(eq(member.userId, userId))
-      .limit(1)
+  const [row] = await db
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, userId))
+    .limit(1)
 
-    const organizationId = row?.organizationId ?? null
-    touch(
-      membershipCache,
-      userId,
-      { organizationId, fetchedAt: Date.now() },
-      MAX_MEMBERSHIP_CACHE_ENTRIES
-    )
-    return organizationId
+  const organizationId = row?.organizationId ?? null
+  touch(
+    membershipCache,
+    userId,
+    { organizationId, fetchedAt: Date.now() },
+    MAX_MEMBERSHIP_CACHE_ENTRIES
+  )
+  return organizationId
+}
+
+/** {@link getMemberOrganizationId}, treating a failed lookup as org-less. */
+async function getMemberOrganizationIdSafe(
+  userId: string | null | undefined
+): Promise<string | null> {
+  try {
+    return await getMemberOrganizationId(userId)
   } catch (error) {
     logger.error('Failed to resolve org membership; treating session as org-less', {
       userId,
@@ -251,12 +218,16 @@ export async function getMemberOrganizationId(
  * dodge the destination org's version bumps for up to the 24h cookie lifetime.
  * Sessions of non-members — and every session when organizations are disabled
  * for the deployment — use the static default and cost no lookups.
+ *
+ * Never throws: this runs on every request, and a failed membership read here
+ * yields the default version, whose only effect is a cookie mismatch and a
+ * database session read.
  */
 export async function getSessionCookieCacheVersion(session: {
   userId?: string | null
 }): Promise<string> {
   if (!isOrganizationsEnabled) return 'none'
-  const organizationId = await getMemberOrganizationId(session.userId)
+  const organizationId = await getMemberOrganizationIdSafe(session.userId)
   if (!organizationId) return 'none'
   // The org id is part of the version so moving between orgs always changes
   // the string — two orgs whose counters happen to hold the same number must

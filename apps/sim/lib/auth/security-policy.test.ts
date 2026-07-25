@@ -12,11 +12,10 @@ import {
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getMemberOrganizationId,
-  getOrgSecurityRecord,
   getSecurityPolicyVersion,
   getSessionCookieCacheVersion,
   invalidateMembershipCache,
-  invalidateOrgSecurityCache,
+  invalidateSecurityPolicyVersionCache,
 } from '@/lib/auth/security-policy'
 
 /** Module-level caches persist across cases, so every case uses a fresh id. */
@@ -33,104 +32,37 @@ describe('security policy', () => {
     setEnvFlags({ isOrganizationsEnabled: true })
   })
 
-  describe('getOrgSecurityRecord', () => {
-    it('serves the version and the session policy from ONE row read', async () => {
+  describe('getSecurityPolicyVersion', () => {
+    it('caches the version and re-reads after invalidation', async () => {
       const orgId = nextOrgId()
-      queueTableRows(organization, [
-        { version: 7, sessionPolicySettings: { maxSessionHours: 8, idleTimeoutHours: null } },
-      ])
+      queueTableRows(organization, [{ version: 3 }])
 
-      const record = await getOrgSecurityRecord(orgId)
-
-      expect(record.version).toBe(7)
-      expect(record.sessionPolicySettings).toEqual({ maxSessionHours: 8, idleTimeoutHours: null })
+      expect(await getSecurityPolicyVersion(orgId)).toBe(3)
+      expect(await getSecurityPolicyVersion(orgId)).toBe(3)
       expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+
+      invalidateSecurityPolicyVersionCache(orgId)
+      queueTableRows(organization, [{ version: 4 }])
+      expect(await getSecurityPolicyVersion(orgId)).toBe(4)
     })
 
-    it('reads the row once for a version lookup, then serves the policy from cache', async () => {
-      const orgId = nextOrgId()
-      queueTableRows(organization, [
-        { version: 3, sessionPolicySettings: { maxSessionHours: 12, idleTimeoutHours: null } },
-      ])
-
-      // This is the coherence guarantee: whatever version a caller observed,
-      // the policy it goes on to read came from that same row. Two independent
-      // caches previously allowed a bumped version to pair with a stale policy.
-      const version = await getSecurityPolicyVersion(orgId)
-      const { sessionPolicySettings } = await getOrgSecurityRecord(orgId)
-
-      expect(version).toBe(3)
-      expect(sessionPolicySettings).toEqual({ maxSessionHours: 12, idleTimeoutHours: null })
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+    it('returns the default without querying for an org-less session', async () => {
+      expect(await getSecurityPolicyVersion(null)).toBe(1)
+      expect(dbChainMockFns.select).not.toHaveBeenCalled()
     })
 
-    it('re-reads after invalidation', async () => {
-      const orgId = nextOrgId()
-      queueTableRows(organization, [{ version: 1, sessionPolicySettings: null }])
-      await getOrgSecurityRecord(orgId)
-
-      invalidateOrgSecurityCache(orgId)
-      queueTableRows(organization, [
-        { version: 2, sessionPolicySettings: { maxSessionHours: 4, idleTimeoutHours: null } },
-      ])
-
-      const record = await getOrgSecurityRecord(orgId)
-      expect(record.version).toBe(2)
-      expect(record.sessionPolicySettings).toEqual({ maxSessionHours: 4, idleTimeoutHours: null })
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
-    })
-
-    it('re-reads when the caller bypasses the cache', async () => {
-      const orgId = nextOrgId()
-      queueTableRows(organization, [{ version: 1, sessionPolicySettings: null }])
-      await getOrgSecurityRecord(orgId)
-
-      queueTableRows(organization, [
-        { version: 2, sessionPolicySettings: { maxSessionHours: 6, idleTimeoutHours: null } },
-      ])
-      const record = await getOrgSecurityRecord(orgId, { bypassCache: true })
-
-      expect(record.sessionPolicySettings).toEqual({ maxSessionHours: 6, idleTimeoutHours: null })
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
-    })
-
-    it('serves the last known-good record when a refresh fails', async () => {
-      const orgId = nextOrgId()
-      queueTableRows(organization, [
-        { version: 5, sessionPolicySettings: { maxSessionHours: 8, idleTimeoutHours: null } },
-      ])
-      await getOrgSecurityRecord(orgId)
-
-      invalidateOrgSecurityCache(orgId)
-      // A read failure must not silently drop the org's bounds — that would
-      // disable a security control on a transient database blip.
-      dbChainMockFns.limit.mockImplementationOnce(() => {
-        throw new Error('connection reset')
-      })
-
-      // Nothing cached for this org after invalidation, so it falls to defaults.
-      const cold = await getOrgSecurityRecord(orgId)
-      expect(cold).toEqual({ version: 1, sessionPolicySettings: null })
-
-      queueTableRows(organization, [
-        { version: 5, sessionPolicySettings: { maxSessionHours: 8, idleTimeoutHours: null } },
-      ])
-      await getOrgSecurityRecord(orgId)
-      dbChainMockFns.limit.mockImplementationOnce(() => {
-        throw new Error('connection reset')
-      })
-
-      const warm = await getOrgSecurityRecord(orgId, { bypassCache: true })
-      expect(warm.version).toBe(5)
-      expect(warm.sessionPolicySettings).toEqual({ maxSessionHours: 8, idleTimeoutHours: null })
-    })
-
-    it('defaults an unknown organization to version 1 with no policy', async () => {
+    it('defaults an unknown organization to version 1', async () => {
       queueTableRows(organization, [])
-      expect(await getOrgSecurityRecord(nextOrgId())).toEqual({
-        version: 1,
-        sessionPolicySettings: null,
+      expect(await getSecurityPolicyVersion(nextOrgId())).toBe(1)
+    })
+
+    it('falls back to the default when the read fails', async () => {
+      dbChainMockFns.limit.mockImplementationOnce(() => {
+        throw new Error('connection reset')
       })
+      // Erring low only costs a cookie mismatch and a database session read —
+      // it can never suppress a revocation the way a stale-high value would.
+      expect(await getSecurityPolicyVersion(nextOrgId())).toBe(1)
     })
   })
 
@@ -152,6 +84,13 @@ describe('security policy', () => {
       queueTableRows(member, [{ organizationId: 'org-b' }])
       expect(await getMemberOrganizationId(userId)).toBe('org-b')
     })
+
+    it('propagates a read failure so callers can tell it apart from "no org"', async () => {
+      dbChainMockFns.limit.mockImplementationOnce(() => {
+        throw new Error('connection reset')
+      })
+      await expect(getMemberOrganizationId(nextUserId())).rejects.toThrow('connection reset')
+    })
   })
 
   describe('getSessionCookieCacheVersion', () => {
@@ -159,13 +98,21 @@ describe('security policy', () => {
       const userId = nextUserId()
       const orgId = nextOrgId()
       queueTableRows(member, [{ organizationId: orgId }])
-      queueTableRows(organization, [{ version: 4, sessionPolicySettings: null }])
+      queueTableRows(organization, [{ version: 4 }])
 
       expect(await getSessionCookieCacheVersion({ userId })).toBe(`${orgId}:4`)
     })
 
     it('returns the static default for org-less sessions', async () => {
       queueTableRows(member, [])
+      expect(await getSessionCookieCacheVersion({ userId: nextUserId() })).toBe('none')
+    })
+
+    it('never throws on a failed membership read', async () => {
+      dbChainMockFns.limit.mockImplementationOnce(() => {
+        throw new Error('connection reset')
+      })
+      // Runs on every authenticated request — a throw here would 500 the app.
       expect(await getSessionCookieCacheVersion({ userId: nextUserId() })).toBe('none')
     })
 

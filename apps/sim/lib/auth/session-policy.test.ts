@@ -127,7 +127,7 @@ describe('getSessionPolicy', () => {
   })
 
   it('skips the entitlement check when the org has no bounds stored', async () => {
-    queueTableRows(organization, [{ version: 1, sessionPolicySettings: null }])
+    queueTableRows(organization, [{ settings: null }])
     expect(await getSessionPolicy(nextOrgId())).toEqual({
       maxSessionHours: null,
       idleTimeoutHours: null,
@@ -136,9 +136,7 @@ describe('getSessionPolicy', () => {
   })
 
   it('stops enforcing stored bounds for an org that is no longer entitled', async () => {
-    queueTableRows(organization, [
-      { version: 1, sessionPolicySettings: { maxSessionHours: 8, idleTimeoutHours: null } },
-    ])
+    queueTableRows(organization, [{ settings: { maxSessionHours: 8, idleTimeoutHours: null } }])
     mockResolveEnterprisePlan.mockResolvedValue(false)
 
     expect(await getSessionPolicy(nextOrgId())).toEqual({
@@ -147,27 +145,8 @@ describe('getSessionPolicy', () => {
     })
   })
 
-  it('amortizes the entitlement check across repeated resolutions', async () => {
-    const orgId = nextOrgId()
-    const bounded = {
-      version: 1,
-      sessionPolicySettings: { maxSessionHours: 8, idleTimeoutHours: null },
-    }
-    queueTableRows(organization, [bounded])
-    queueTableRows(organization, [bounded])
-
-    // A policy save makes every member session refresh at once; the plan check
-    // must not run once per refreshing session.
-    await getSessionPolicy(orgId)
-    await getSessionPolicy(orgId, { bypassCache: true })
-
-    expect(mockResolveEnterprisePlan).toHaveBeenCalledTimes(1)
-  })
-
   it('keeps enforcing when the entitlement check itself fails', async () => {
-    queueTableRows(organization, [
-      { version: 1, sessionPolicySettings: { maxSessionHours: 8, idleTimeoutHours: null } },
-    ])
+    queueTableRows(organization, [{ settings: { maxSessionHours: 8, idleTimeoutHours: null } }])
     // Stored bounds are only writable by an entitled org, so a failed plan read
     // must not be mistaken for a downgrade and silently disable enforcement.
     mockResolveEnterprisePlan.mockRejectedValue(new Error('billing unavailable'))
@@ -220,9 +199,7 @@ describe('clampExpiryForSession', () => {
   it('clamps against the org resolved from membership', async () => {
     const orgId = nextOrgId()
     queueTableRows(member, [{ organizationId: orgId }])
-    queueTableRows(organization, [
-      { version: 1, sessionPolicySettings: { maxSessionHours: 24, idleTimeoutHours: null } },
-    ])
+    queueTableRows(organization, [{ settings: { maxSessionHours: 24, idleTimeoutHours: null } }])
 
     const result = await clampExpiryForSession({
       userId: `user-${orgId}`,
@@ -235,9 +212,7 @@ describe('clampExpiryForSession', () => {
 
   it('skips the membership lookup when the caller already resolved it', async () => {
     const orgId = nextOrgId()
-    queueTableRows(organization, [
-      { version: 1, sessionPolicySettings: { maxSessionHours: 24, idleTimeoutHours: null } },
-    ])
+    queueTableRows(organization, [{ settings: { maxSessionHours: 24, idleTimeoutHours: null } }])
 
     const result = await clampExpiryForSession(
       { userId: 'user-fresh', createdAt, expiresAt: proposed },
@@ -251,9 +226,7 @@ describe('clampExpiryForSession', () => {
 
   it('normalizes ISO string dates crossing the hook serialization boundary', async () => {
     const orgId = nextOrgId()
-    queueTableRows(organization, [
-      { version: 1, sessionPolicySettings: { maxSessionHours: 24, idleTimeoutHours: null } },
-    ])
+    queueTableRows(organization, [{ settings: { maxSessionHours: 24, idleTimeoutHours: null } }])
 
     const result = await clampExpiryForSession(
       {
@@ -267,22 +240,28 @@ describe('clampExpiryForSession', () => {
     expect(result?.getTime()).toBe(createdAt.getTime() + 24 * 60 * 60 * 1000)
   })
 
-  it('re-reads the policy when the caller bypasses the cache', async () => {
+  it('reads the policy fresh on every call so a saved policy is never missed', async () => {
     const orgId = nextOrgId()
-    queueTableRows(organization, [{ version: 1, sessionPolicySettings: null }])
+    queueTableRows(organization, [{ settings: null }])
     await clampExpiryForSession({ userId: 'u', createdAt, expiresAt: proposed }, orgId)
 
-    // A policy saved on another process between the two calls: the bypass is
-    // what stops a just-tightened policy from being missed at session create.
-    queueTableRows(organization, [
-      { version: 2, sessionPolicySettings: { maxSessionHours: 24, idleTimeoutHours: null } },
-    ])
+    // A policy saved on another process between the two calls. Nothing is
+    // cached, so the second clamp already sees it.
+    queueTableRows(organization, [{ settings: { maxSessionHours: 24, idleTimeoutHours: null } }])
     const result = await clampExpiryForSession(
       { userId: 'u', createdAt, expiresAt: proposed },
-      orgId,
-      { bypassPolicyCache: true }
+      orgId
     )
 
     expect(result?.getTime()).toBe(createdAt.getTime() + 24 * 60 * 60 * 1000)
+  })
+
+  it('propagates a policy read failure so the hook can refuse to extend', async () => {
+    dbChainMockFns.limit.mockImplementationOnce(() => {
+      throw new Error('connection reset')
+    })
+    await expect(
+      clampExpiryForSession({ userId: 'u', createdAt, expiresAt: proposed }, nextOrgId())
+    ).rejects.toThrow('connection reset')
   })
 })

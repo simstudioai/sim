@@ -24,7 +24,7 @@ vi.mock('@/lib/auth/session-policy', () => ({
 }))
 
 vi.mock('@/lib/auth/security-policy', () => ({
-  invalidateOrgSecurityCache: vi.fn(),
+  invalidateSecurityPolicyVersionCache: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/core/subscription', () => ({
