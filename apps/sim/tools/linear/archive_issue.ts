@@ -1,4 +1,5 @@
 import type { LinearArchiveIssueParams, LinearArchiveIssueResponse } from '@/tools/linear/types'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearArchiveIssueTool: ToolConfig<
@@ -33,7 +34,7 @@ export const linearArchiveIssueTool: ToolConfig<
       }
       return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+        Authorization: linearAuthorizationHeader(params.accessToken),
       }
     },
     body: (params) => ({

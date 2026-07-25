@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import {
-  CHASE_REST_GAP,
-  createSmoothBottomChase,
-  SMOOTH_CHASE_RATE,
-} from '@/lib/core/utils/smooth-bottom-chase'
+import { createSmoothBottomChase } from '@/lib/core/utils/smooth-bottom-chase'
 
 /** Tolerance for keeping stickiness during programmatic auto-scroll. */
 const STICK_THRESHOLD = 30
@@ -29,44 +25,30 @@ const USER_GESTURE_WINDOW = 250
  * in the listener) is the other upward shortcut; plain `Space` pages down.
  */
 const SCROLL_UP_KEYS = new Set(['ArrowUp', 'PageUp', 'Home'])
-/** How long to keep chasing the bottom while a CSS height animation plays. */
-const ANIMATION_FOLLOW_WINDOW = 500
 /**
- * How long to keep chasing the bottom after streaming stops. End-of-turn content
- * mounts just after `isStreaming` flips false — the suggested-follow-up options,
- * the actions row (gated on `!isStreaming`), and the virtualizer's re-measure of
- * the grown row — so a single final scroll fires before it lays out and leaves it
- * clipped behind the input. Following for a short window pulls it into view.
+ * How long the chase idle-follows after stream teardown. Covers content that
+ * mounts with the observers already gone — a stop's stopped-row and actions
+ * append only after the abort round-trips.
  */
-const POST_STREAM_SETTLE_WINDOW = 300
-
-interface UseAutoScrollOptions {
-  scrollOnMount?: boolean
-}
-
+const POST_STOP_SETTLE_WINDOW = 800
 /**
  * Manages sticky auto-scroll for a streaming chat container.
  *
  * Stays pinned to the bottom while content streams in. Detaches immediately
  * on any upward user gesture (wheel, touch, scrollbar drag, keyboard). Once
- * detached, the user must scroll back to within {@link REATTACH_THRESHOLD} of
- * the bottom to re-engage. Each streaming start re-seeds stickiness from the
+ * detached, the user must scroll back down to within {@link REATTACH_THRESHOLD}
+ * of the bottom to re-engage. Each streaming start re-seeds stickiness from the
  * current scroll position, so a user who scrolled up beforehand stays put.
  *
- * Returns `ref` (callback ref for the scroll container) and `scrollToBottom`
- * for imperative use after layout-changing events like panel expansion.
+ * Returns `ref`, the callback ref for the scroll container.
  */
-export function useAutoScroll(
-  isStreaming: boolean,
-  { scrollOnMount = false }: UseAutoScrollOptions = {}
-) {
+export function useAutoScroll(isStreaming: boolean) {
   const containerRef = useRef<HTMLDivElement>(null)
   const stickyRef = useRef(true)
   const userDetachedRef = useRef(false)
   const prevScrollTopRef = useRef(0)
   const prevScrollHeightRef = useRef(0)
   const touchStartYRef = useRef(0)
-  const scrollOnMountRef = useRef(scrollOnMount)
   /**
    * Whether the user is actively dragging the scrollbar — a pointer press on the
    * container itself rather than its content. Reset on teardown so a pointer held
@@ -80,21 +62,25 @@ export function useAutoScroll(
    */
   const lastUserGestureAtRef = useRef(Number.NEGATIVE_INFINITY)
 
-  const scrollToBottom = useCallback(() => {
-    const el = containerRef.current
-    if (!el) return
-    el.scrollTop = el.scrollHeight
-  }, [])
-
   const callbackRef = useCallback((el: HTMLDivElement | null) => {
     containerRef.current = el
-    if (el && scrollOnMountRef.current) el.scrollTop = el.scrollHeight
   }, [])
+
+  /**
+   * Cancels the previous teardown's settle window (chase, temp listeners,
+   * removal timer). Invoked when a new stream starts — a stop-then-resend must
+   * not leave the old settle chase writing beside the new stream's chase — and
+   * on unmount.
+   */
+  const settleCleanupRef = useRef<(() => void) | null>(null)
+  useEffect(() => () => settleCleanupRef.current?.(), [])
 
   useEffect(() => {
     if (!isStreaming) return
     const el = containerRef.current
     if (!el) return
+    settleCleanupRef.current?.()
+    settleCleanupRef.current = null
 
     /**
      * Eased bottom-chase shared by the mutation observer and the seed below —
@@ -164,6 +150,10 @@ export function useAutoScroll(
      * (pointer held) or a recent keyboard scroll. A programmatic upward scroll, e.g.
      * a virtualizer re-pinning content on a row-size shrink, has neither and must not
      * be mistaken for the user scrolling away.
+     *
+     * Re-attach also requires a downward move once detached — a small upward
+     * flick still lands within {@link REATTACH_THRESHOLD}, and would otherwise
+     * re-stick on its own scroll event.
      */
     const onScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = el
@@ -172,8 +162,9 @@ export function useAutoScroll(
       const userDriven =
         pointerDownRef.current ||
         performance.now() - lastUserGestureAtRef.current < USER_GESTURE_WINDOW
+      const movedDown = scrollTop > prevScrollTopRef.current
 
-      if (distanceFromBottom <= threshold) {
+      if (distanceFromBottom <= threshold && (!userDetachedRef.current || movedDown)) {
         stickyRef.current = true
         userDetachedRef.current = false
       } else if (
@@ -188,67 +179,38 @@ export function useAutoScroll(
       prevScrollHeightRef.current = scrollHeight
     }
 
-    const onMutation = () => {
+    /**
+     * The single growth signal: the transcript sizer's height. Every source of
+     * scrollHeight growth flows through it — virtualizer re-measures per
+     * streamed token, CSS height animations (each frame re-measures the row),
+     * the sizer min-height floor — so one ResizeObserver replaces a subtree
+     * MutationObserver plus an `animationstart` deadline machine, and there is
+     * exactly one reason the chase ever runs.
+     */
+    const sizer = el.firstElementChild
+    const onSizerResize = () => {
       prevScrollHeightRef.current = el.scrollHeight
       if (!stickyRef.current) return
       chase.kick()
     }
 
-    /**
-     * Chase the bottom every frame for `durationMs` with the same eased step.
-     * Catches height growth that arrives over several frames with no observed
-     * DOM mutation — a CSS height animation, or end-of-turn content and the
-     * virtualizer's re-measure settling after streaming stops.
-     *
-     * Self-interrupting: our eased writes leave `scrollTop` exactly where we
-     * last put it, whereas a user scroll moves it up from there — so the moment
-     * `scrollTop` drops below our last write, we stop and never fight a real
-     * scroll, even with the gesture listeners already torn down.
-     */
-    const followToBottom = (durationMs: number) => {
-      if (!stickyRef.current) return
-      const until = performance.now() + durationMs
-      let lastTop = -1
-      const follow = () => {
-        if (performance.now() > until || !stickyRef.current) return
-        if (lastTop >= 0 && el.scrollTop < lastTop - 1) return
-        const gap = el.scrollHeight - el.clientHeight - el.scrollTop
-        if (gap > CHASE_REST_GAP) {
-          el.scrollTop = el.scrollTop + Math.max(1, gap * SMOOTH_CHASE_RATE)
-        }
-        lastTop = el.scrollTop
-        requestAnimationFrame(follow)
-      }
-      requestAnimationFrame(follow)
-    }
-
-    /**
-     * CSS-driven height animations (e.g. Radix Collapsible expanding mid-stream)
-     * grow scrollHeight without triggering MutationObserver, so auto-scroll stops
-     * following. Follow for a short window so the container stays pinned while the
-     * animation runs.
-     */
-    const onAnimationStart = () => followToBottom(ANIMATION_FOLLOW_WINDOW)
-
     el.addEventListener('wheel', onWheel, { passive: true })
     el.addEventListener('touchstart', onTouchStart, { passive: true })
     el.addEventListener('touchmove', onTouchMove, { passive: true })
     el.addEventListener('scroll', onScroll, { passive: true })
-    el.addEventListener('animationstart', onAnimationStart)
     el.addEventListener('pointerdown', onPointerDown, { passive: true })
     el.addEventListener('keydown', onKeyDown, { passive: true })
     window.addEventListener('pointerup', onPointerUp, { passive: true })
     window.addEventListener('pointercancel', onPointerUp, { passive: true })
 
-    const observer = new MutationObserver(onMutation)
-    observer.observe(el, { childList: true, subtree: true, characterData: true })
+    const observer = new ResizeObserver(onSizerResize)
+    if (sizer) observer.observe(sizer)
 
     return () => {
       el.removeEventListener('wheel', onWheel)
       el.removeEventListener('touchstart', onTouchStart)
       el.removeEventListener('touchmove', onTouchMove)
       el.removeEventListener('scroll', onScroll)
-      el.removeEventListener('animationstart', onAnimationStart)
       el.removeEventListener('pointerdown', onPointerDown)
       el.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('pointerup', onPointerUp)
@@ -257,9 +219,37 @@ export function useAutoScroll(
       chase.cancel()
       pointerDownRef.current = false
       lastUserGestureAtRef.current = Number.NEGATIVE_INFINITY
-      followToBottom(POST_STREAM_SETTLE_WINDOW)
+      // Growth can land after teardown with no observer alive: options mounted
+      // late in the reveal, and a stop's stopped-row/actions appending once the
+      // abort completes. Idle-follow briefly so that content isn't stranded
+      // behind the input; a user who scrolled away stays put via the sticky
+      // check.
+      chase.kickUntil(POST_STOP_SETTLE_WINDOW)
+      // The main gesture listeners are gone, so give the settle window its own
+      // kill switch: the chase's clamp-aware interrupt catches wheel-scale
+      // moves, but a slow trackpad glide during a concurrent shrink could slip
+      // under it for up to the window's duration.
+      const cancelOnGesture = (event: Event) => {
+        if (event.type === 'wheel' && (event as WheelEvent).deltaY >= 0) return
+        chase.cancel()
+      }
+      el.addEventListener('wheel', cancelOnGesture, { passive: true })
+      el.addEventListener('touchmove', cancelOnGesture, { passive: true })
+      const removeGestureGuard = () => {
+        el.removeEventListener('wheel', cancelOnGesture)
+        el.removeEventListener('touchmove', cancelOnGesture)
+      }
+      const guardTimeout = setTimeout(() => {
+        removeGestureGuard()
+        settleCleanupRef.current = null
+      }, POST_STOP_SETTLE_WINDOW + 100)
+      settleCleanupRef.current = () => {
+        chase.cancel()
+        clearTimeout(guardTimeout)
+        removeGestureGuard()
+      }
     }
-  }, [isStreaming, scrollToBottom])
+  }, [isStreaming])
 
-  return { ref: callbackRef, scrollToBottom }
+  return { ref: callbackRef }
 }

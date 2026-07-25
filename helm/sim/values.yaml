@@ -20,7 +20,7 @@ app:
   # Image configuration
   image:
     repository: simstudioai/simstudio
-    # tag defaults to Chart.AppVersion. Override with a release tag (e.g. "0.6.73") or pin via image.digest.
+    # tag defaults to Chart.AppVersion. Override with a release tag (e.g. "v0.7.44") or pin via image.digest.
     tag: ""
     # Optional image digest pin: "sha256:..." — when set, overrides tag.
     digest: ""
@@ -61,17 +61,11 @@ app:
     existingSecret:
       # Set to true to use an existing secret instead of creating one from values
       enabled: false
-      # Name of the existing Kubernetes secret containing app credentials
+      # Name of the existing Kubernetes secret containing app credentials.
+      # The secret is consumed wholesale via envFrom, so its keys must use the
+      # standard names (BETTER_AUTH_SECRET, ENCRYPTION_KEY, INTERNAL_API_SECRET,
+      # CRON_SECRET, ...) — key remapping is not supported.
       name: ""
-      # Key mappings - specify the key names in your existing secret
-      # Only needed if your secret uses different key names than the defaults
-      keys:
-        BETTER_AUTH_SECRET: "BETTER_AUTH_SECRET"
-        ENCRYPTION_KEY: "ENCRYPTION_KEY"
-        INTERNAL_API_SECRET: "INTERNAL_API_SECRET"
-        CRON_SECRET: "CRON_SECRET"
-        API_ENCRYPTION_KEY: "API_ENCRYPTION_KEY"
-        REDIS_URL: "REDIS_URL"
 
   # Environment variables
   env:
@@ -85,6 +79,11 @@ app:
     # TRUSTED_ORIGINS: comma-separated extra public origins to trust for auth (e.g. apex+www, alias hostnames).
     # Merged into Better Auth `trustedOrigins` alongside NEXT_PUBLIC_APP_URL. Leave empty when serving from a single origin.
     TRUSTED_ORIGINS: ""
+    # AUTH_TRUSTED_PROXIES: comma-separated reverse-proxy IPs or CIDR ranges in front of the app
+    # (ingress controller, load balancer). Better Auth walks x-forwarded-for right to left, skips
+    # these hops, and uses the first untrusted address as the client IP. Required for correct
+    # session IPs and rate-limit keying behind a multi-hop proxy chain (e.g. "10.0.0.0/16").
+    AUTH_TRUSTED_PROXIES: ""
     # SOCKET_SERVER_URL: Auto-detected when realtime.enabled=true (uses internal service)
     # NEXT_PUBLIC_SOCKET_URL: public WebSocket URL for browsers. Leave empty to default to the
     # page's own origin (assumes the ingress/reverse proxy routes /socket.io to the realtime service).
@@ -111,17 +110,20 @@ app:
     
     # Email & Communication
     # Configure one provider — the mailer auto-detects in priority order:
-    # Resend → AWS SES → SMTP → Azure Communication Services.
+    # Resend → AWS SES → SMTP → Azure Communication Services → Gmail.
     EMAIL_VERIFICATION_ENABLED: ""                        # Set to "true" to enable email verification for user registration and login (default "false" via envDefaults)
     RESEND_API_KEY: ""                                    # Resend API key for transactional emails
     FROM_EMAIL_ADDRESS: ""                                # Complete from address (e.g., "Sim <noreply@domain.com>" or "DoNotReply@domain.com")
     EMAIL_DOMAIN: ""                                      # Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)
     AWS_SES_REGION: ""                                    # AWS region for SES (e.g., "us-east-1"); credentials resolved via the standard AWS provider chain (env, IRSA, instance profile)
+    AZURE_ACS_CONNECTION_STRING: ""                       # Azure Communication Services connection string (email provider — used when Resend/SES/SMTP are not configured)
     SMTP_HOST: ""                                         # SMTP server hostname (alternative to Resend/SES)
     SMTP_PORT: ""                                         # SMTP server port (465 for TLS, 587 for STARTTLS, 25 for plain)
     SMTP_USER: ""                                         # SMTP username (optional — omit for unauthenticated relays like MailHog)
     SMTP_PASS: ""                                         # SMTP password (optional — omit for unauthenticated relays)
     SMTP_SECURE: ""                                       # Set to "true" to force TLS on connect; defaults to true when SMTP_PORT=465
+    GMAIL_CREDENTIALS_JSON: ""                            # Inline Google service-account JSON with domain-wide delegation for the Gmail API mail provider
+    GMAIL_SENDER: ""                                      # Google Workspace user the Gmail service account impersonates when sending (e.g., noreply@yourdomain.com)
 
 
     # OAuth Integration Credentials (leave empty if not using)
@@ -145,6 +147,13 @@ app:
     AZURE_ANTHROPIC_ENDPOINT: ""                          # Azure AI Foundry endpoint for Anthropic models
     AZURE_ANTHROPIC_API_KEY: ""                           # Azure Anthropic API key
     AZURE_ANTHROPIC_API_VERSION: ""                       # Azure Anthropic API version (e.g., 2023-06-01)
+    KB_OPENAI_MODEL_NAME: ""                              # Azure deployment name serving the configured KB embedding model (used only when AZURE_OPENAI_* credentials are set)
+    WAND_OPENAI_MODEL_NAME: ""                            # Wand generation model deployment name (works with both regular OpenAI and Azure OpenAI)
+
+    # Azure Mistral OCR Configuration (leave empty if not using Azure-hosted OCR for document processing)
+    OCR_AZURE_ENDPOINT: ""                                # Azure Mistral OCR service endpoint
+    OCR_AZURE_MODEL_NAME: ""                              # Azure Mistral OCR model name
+    OCR_AZURE_API_KEY: ""                                 # Azure Mistral OCR API key
 
     # AI Provider API Keys (leave empty if not using)
     OPENAI_API_KEY: ""                                    # Primary OpenAI API key
@@ -280,6 +289,20 @@ app:
     AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME: ""            # Azure container for OpenGraph preview images
     AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME: ""      # Azure container for workspace logos
 
+    # Google Cloud Storage Configuration (optional - for file storage)
+    # If configured, files will be stored in GCS instead of local storage
+    # Note: used when neither Azure Blob nor S3 is configured
+    GCS_PROJECT_ID: ""                                    # GCP project ID (optional — inferred from credentials/ADC when unset)
+    GCS_CREDENTIALS_JSON: ""                              # Inline service-account JSON. Leave empty to use Workload Identity / Application Default Credentials
+    GCS_BUCKET_NAME: ""                                   # GCS bucket for workspace files (all other GCS buckets fall back to it)
+    GCS_KB_BUCKET_NAME: ""                                # GCS bucket for knowledge base files
+    GCS_EXECUTION_FILES_BUCKET_NAME: ""                   # GCS bucket for workflow execution files
+    GCS_CHAT_BUCKET_NAME: ""                              # GCS bucket for deployed chat files
+    GCS_COPILOT_BUCKET_NAME: ""                           # GCS bucket for copilot files
+    GCS_PROFILE_PICTURES_BUCKET_NAME: ""                  # GCS bucket for user profile pictures
+    GCS_OG_IMAGES_BUCKET_NAME: ""                         # GCS bucket for OpenGraph preview images
+    GCS_WORKSPACE_LOGOS_BUCKET_NAME: ""                   # GCS bucket for workspace logos
+
   # Operational tunables shipped with the chart. These are rendered as inline `env:` on the
   # app container — NOT written into the chart-managed Secret and NOT required to be mapped
   # when externalSecrets.enabled=true. Override any key by setting `app.envDefaults.KEY` in
@@ -316,6 +339,12 @@ app:
     RATE_LIMIT_WINDOW_MS: "60000"                         # Rate limit window duration (1 minute)
     RATE_LIMIT_FREE_SYNC: "50"                            # Sync API executions per minute
     RATE_LIMIT_FREE_ASYNC: "200"                          # Async API executions per minute
+
+    # Billing concurrency limits (in-flight executions per billing account)
+    BILLING_CONCURRENCY_LIMIT_FREE: "10"
+    BILLING_CONCURRENCY_LIMIT_PRO: "50"                   # Pro tier (Pro and Pro for Teams)
+    BILLING_CONCURRENCY_LIMIT_TEAM: "200"                 # Max tier (Max and Max for Teams)
+    BILLING_CONCURRENCY_LIMIT_ENTERPRISE: "1000"          # Default; Enterprise subscription metadata can override
 
     # Execution Timeouts (seconds) — sync timeouts apply to synchronous API calls
     EXECUTION_TIMEOUT_FREE: "300"                         # Free tier sync timeout (5 minutes)
@@ -507,9 +536,9 @@ realtime:
   extraVolumes: []
   extraVolumeMounts: []
 
-# Database migrations job configuration
+# Database migrations configuration (runs as an init container on the app pods)
 migrations:
-  # Enable/disable migrations job
+  # Enable/disable the migrations init container
   enabled: true
   
   # Image configuration
@@ -557,8 +586,9 @@ postgresql:
     # This enables integration with External Secrets Operator, HashiCorp Vault, etc.
     existingSecret:
       enabled: false
-      name: ""           # Name of existing Kubernetes secret
-      passwordKey: "POSTGRES_PASSWORD"  # Key in the secret containing the password
+      name: ""           # Name of existing Kubernetes secret. Must contain the
+                         # password under the key POSTGRES_PASSWORD — key
+                         # remapping is not supported.
   
   # Node selector for database pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
@@ -676,8 +706,9 @@ externalDatabase:
   # This enables integration with External Secrets Operator, HashiCorp Vault, etc.
   existingSecret:
     enabled: false
-    name: ""           # Name of existing Kubernetes secret
-    passwordKey: "EXTERNAL_DB_PASSWORD"  # Key in the secret containing the password
+    name: ""           # Name of existing Kubernetes secret. Must contain the
+                       # password under the key EXTERNAL_DB_PASSWORD — key
+                       # remapping is not supported.
 
 # Ollama local AI models configuration
 ollama:
@@ -821,18 +852,6 @@ pii:
     tag: ""          # defaults to Chart.AppVersion
     digest: ""       # sha256: pin overrides tag
     pullPolicy: IfNotPresent
-
-  # NER engine: "spacy" (default) or "gliner" (opt-in zero-shot transformer NER
-  # for PERSON/LOCATION/NRP/DATE_TIME; regex/checksum recognizers are identical
-  # on both engines). The image ships both engines, so this is a pure env flip
-  # — no image change needed. Note: gliner on CPU is orders of magnitude slower
-  # than spacy; it is intended for GPU nodes.
-  engine: "spacy"
-
-  # Torch device for the gliner engine: "cpu", "cuda", or "cuda:N". Empty
-  # auto-detects (cuda when a GPU is visible, else cpu). GPU resource requests
-  # (nvidia.com/gpu) are not wired yet — GPU scheduling is an infra follow-up.
-  device: ""
 
   # Number of replicas
   replicaCount: 1
@@ -993,6 +1012,12 @@ serviceAccount:
 # if you use customMetrics) installed in the cluster.
 autoscaling:
   enabled: false
+  # Also scale the realtime Deployment with the same HPA settings. Multi-replica
+  # realtime REQUIRES REDIS_URL in app.env (Socket.IO Redis adapter) — without
+  # Redis, cross-pod collaboration events are silently dropped. Set false to
+  # keep realtime pinned at realtime.replicaCount while the app still scales.
+  realtime:
+    enabled: true
   minReplicas: 1
   maxReplicas: 10
   targetCPUUtilizationPercentage: 80
@@ -1412,7 +1437,9 @@ telemetry:
   # Jaeger tracing backend
   jaeger:
     enabled: false
-    endpoint: "http://jaeger-collector:14250"
+    # Jaeger's OTLP gRPC endpoint (Jaeger >=1.35 accepts OTLP natively; the
+    # legacy jaeger exporter was removed from the collector-contrib image)
+    endpoint: "jaeger-collector:4317"
     tls:
       enabled: false
   
@@ -1428,6 +1455,15 @@ telemetry:
     endpoint: "http://otlp-collector:4317"
     tls:
       enabled: false
+
+  # Pod security context (preserves the collector's original UID/GID/fsGroup)
+  podSecurityContext:
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+
+  # Container security context (sim.containerSecurityContext restricted defaults apply)
+  securityContext: {}
 
 # Copilot service configuration (optional microservice)
 copilot:
@@ -1470,11 +1506,12 @@ copilot:
       runAsNonRoot: true
       runAsUser: 1001
     
-    # Environment variables (required and optional)
+    # Environment variables that go through the chart-managed Secret (or ExternalSecret
+    # when externalSecrets.enabled=true). Every non-empty key here must have a matching
+    # externalSecrets.remoteRefs.copilot entry under ESO — reserve this block for values
+    # that are genuinely sensitive or user-provided; static operational config belongs in
+    # envDefaults below instead.
     env:
-      PORT: "8080"
-      SERVICE_NAME: "copilot"
-      ENVIRONMENT: "production"
       AGENT_API_DB_ENCRYPTION_KEY: ""
       INTERNAL_API_SECRET: ""
       LICENSE_KEY: ""
@@ -1483,17 +1520,31 @@ copilot:
       SIM_BASE_URL: ""
       SIM_AGENT_API_KEY: ""
       REDIS_URL: ""
-      # Optional configuration
-      LOG_LEVEL: "info"
       CORS_ALLOWED_ORIGINS: ""
       OTEL_EXPORTER_OTLP_ENDPOINT: ""
-    
+
+    # Operational tunables shipped with the chart. Rendered as inline `env:` on the
+    # copilot container — NOT written into the chart-managed Secret and NOT required to
+    # be mapped when externalSecrets.enabled=true. Override any key by setting
+    # copilot.server.envDefaults.KEY in your values file. Move a key into
+    # copilot.server.env above only if it must be treated as secret.
+    envDefaults:
+      PORT: "8080"
+      SERVICE_NAME: "copilot"
+      ENVIRONMENT: "production"
+      LOG_LEVEL: "info"
+
     # Optional: additional static environment variables
     extraEnv: []
-    
+
     # Optional: references to existing ConfigMaps/Secrets
     extraEnvFrom: []
-    
+
+    # Optional: additional volumes/mounts (e.g. to back an emptyDir /tmp when
+    # enabling securityContext.readOnlyRootFilesystem)
+    extraVolumes: []
+    extraVolumeMounts: []
+
     # Secret generation configuration (set create=false to use an existing secret)
     secret:
       create: true
@@ -1633,9 +1684,10 @@ copilot:
     secretKey: DATABASE_URL
     url: ""
   
-  # Migration job configuration
+  # Migration job configuration (Copilot migrations run as a Helm-hook Job,
+  # unlike the app migrations which run as an init container)
   migrations:
-    # Enable/disable migrations job
+    # Enable/disable the Copilot migrations Job
     enabled: true
     
     # Image configuration (same as server)
@@ -1677,9 +1729,10 @@ externalSecrets:
   enabled: false
 
   # ESO API version. Default "v1beta1" — supported by every ESO release from
-  # v0.7+ (mid-2023) through current. Set to "v1" only when targeting ESO
-  # v0.17+ clusters where the v1 API has graduated.
-  apiVersion: "v1beta1"
+  # Current ESO releases serve only external-secrets.io/v1 (the v1beta1
+  # compatibility path was removed in 2026). Set to "v1beta1" only for
+  # clusters still running ESO < 0.17.
+  apiVersion: "v1"
 
   # How often to sync secrets from the external store
   refreshInterval: "1h"
@@ -1718,6 +1771,27 @@ externalSecrets:
     externalDatabase:
       # Path to external database password in external store
       password: ""
+
+    # Copilot server secrets (used when copilot.enabled=true and copilot.server.secret.create=true).
+    # Every non-empty copilot.server.env key must have a matching entry here, or template
+    # rendering fails with a clear "map it or remove it" error — same rule as remoteRefs.app.
+    copilot:
+      # Path to AGENT_API_DB_ENCRYPTION_KEY in external store
+      AGENT_API_DB_ENCRYPTION_KEY: ""
+      # Path to INTERNAL_API_SECRET in external store (shared with app/realtime)
+      INTERNAL_API_SECRET: ""
+      # Path to LICENSE_KEY in external store
+      LICENSE_KEY: ""
+      # Path to SIM_BASE_URL in external store
+      SIM_BASE_URL: ""
+      # Path to SIM_AGENT_API_KEY in external store
+      SIM_AGENT_API_KEY: ""
+      # Path to REDIS_URL in external store
+      REDIS_URL: ""
+      # Path to OPENAI_API_KEY_1 in external store (one of OPENAI_API_KEY_1/ANTHROPIC_API_KEY_1 required)
+      OPENAI_API_KEY_1: ""
+      # Path to ANTHROPIC_API_KEY_1 in external store (one of OPENAI_API_KEY_1/ANTHROPIC_API_KEY_1 required)
+      ANTHROPIC_API_KEY_1: ""
 
 # cert-manager configuration
 # Prerequisites: Install cert-manager in your cluster first

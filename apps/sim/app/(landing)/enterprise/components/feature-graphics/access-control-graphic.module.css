@@ -1,0 +1,136 @@
+/**
+ * The AccessControlGraphic's motion, all on one shared 6s cycle: the six
+ * connector edges draw in with a dash-normalized stroke sweep (every path
+ * carries `pathLength=1`, so a dasharray/dashoffset of 1 spans the whole
+ * curve regardless of geometry — the deploy tile's pattern), staggered so
+ * the grants wire up one after another, quiet edges first and the
+ * emphasized Engineering → Deploy edge last and slowest. Each edge's
+ * stagger is baked into its own keyframe percentages rather than an
+ * `animation-delay`, so every edge resets on the same loop boundary and
+ * the cycle reads draw-once-then-hold. As the emphasized edge lands, the
+ * grant node blooms the family's soft ring pulse. Under
+ * prefers-reduced-motion everything is static: edges fully drawn, no
+ * pulse.
+ */
+
+.edgeDraw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.edgeDraw0 {
+  animation: access-edge-draw-0 6s ease-in-out infinite;
+}
+
+.edgeDraw1 {
+  animation: access-edge-draw-1 6s ease-in-out infinite;
+}
+
+.edgeDraw2 {
+  animation: access-edge-draw-2 6s ease-in-out infinite;
+}
+
+.edgeDraw3 {
+  animation: access-edge-draw-3 6s ease-in-out infinite;
+}
+
+.edgeDraw4 {
+  animation: access-edge-draw-4 6s ease-in-out infinite;
+}
+
+.edgeDrawEmphasized {
+  animation: access-edge-draw-emphasized 6s ease-in-out infinite;
+}
+
+@keyframes access-edge-draw-0 {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  14%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes access-edge-draw-1 {
+  0%,
+  7% {
+    stroke-dashoffset: 1;
+  }
+  21%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes access-edge-draw-2 {
+  0%,
+  14% {
+    stroke-dashoffset: 1;
+  }
+  28%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes access-edge-draw-3 {
+  0%,
+  21% {
+    stroke-dashoffset: 1;
+  }
+  35%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes access-edge-draw-4 {
+  0%,
+  28% {
+    stroke-dashoffset: 1;
+  }
+  42%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes access-edge-draw-emphasized {
+  0%,
+  38% {
+    stroke-dashoffset: 1;
+  }
+  56%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.grantPulse {
+  animation: access-grant-pulse 6s ease-out infinite;
+}
+
+@keyframes access-grant-pulse {
+  0%,
+  54% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 35%, transparent);
+  }
+  72% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .edgeDraw {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .grantPulse {
+    animation: none;
+  }
+}

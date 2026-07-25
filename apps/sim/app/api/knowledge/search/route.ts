@@ -6,6 +6,16 @@ import { knowledgeSearchBodySchema } from '@/lib/api/contracts/knowledge'
 import { parseJsonBody, validationErrorResponse } from '@/lib/api/server'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import {
+  checkAttributedUsageLimits,
+  requireBillingAttributionHeader,
+  resolveBillingAttribution,
+  toBillingContext,
+} from '@/lib/billing/core/billing-attribution'
+import {
+  checkAndBillOverageThreshold,
+  checkAndBillPayerOverageThreshold,
+} from '@/lib/billing/threshold-billing'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -198,49 +208,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const accessibleKbs = accessChecks
       .filter((ac): ac is KnowledgeBaseAccessResult => Boolean(ac?.hasAccess))
       .map((ac) => ac.knowledgeBase)
-    const workspaceId = accessibleKbs[0]?.workspaceId
-
     const useReranker = validatedData.rerankerEnabled && Boolean(validatedData.query?.trim())
     const rerankerModel = useReranker ? validatedData.rerankerModel : null
 
     const hasQuery = validatedData.query && validatedData.query.trim().length > 0
-    const embeddingModels = Array.from(new Set(accessibleKbs.map((kb) => kb.embeddingModel)))
-    if (hasQuery && embeddingModels.length > 1) {
+    const workspaceIds = new Set(accessibleKbs.map((kb) => kb.workspaceId ?? null))
+    if (hasQuery && workspaceIds.size > 1) {
       return NextResponse.json(
-        {
-          error:
-            'Selected knowledge bases use different embedding models and cannot be searched together. Search them separately.',
-        },
+        { error: 'Selected knowledge bases must belong to the same workspace' },
         { status: 400 }
       )
     }
-    const queryEmbeddingModel = embeddingModels[0]
-
-    const inaccessibleKbIds = knowledgeBaseIds.filter((id) => !accessibleKbIds.includes(id))
-
-    if (inaccessibleKbIds.length > 0) {
-      return NextResponse.json(
-        { error: `Knowledge bases not found or access denied: ${inaccessibleKbIds.join(', ')}` },
-        { status: 404 }
-      )
-    }
-
-    // Gate the actor before incurring hosted embedding cost, unless this is the
-    // internal workflow tool (already gated at preprocessing, rolls cost up). Tag-only
-    // search is free, so only the query path is gated.
-    if (shouldMeter && hasQuery) {
-      const usage = await checkActorUsageLimits(userId, workspaceId)
-      if (usage.isExceeded) {
-        return NextResponse.json(
-          { error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.' },
-          { status: 402 }
-        )
-      }
-    }
-
-    const queryEmbeddingPromise = hasQuery
-      ? generateSearchEmbedding(validatedData.query!, queryEmbeddingModel, workspaceId)
-      : Promise.resolve(null)
+    const workspaceId = accessibleKbs[0]?.workspaceId
 
     if (workflowId) {
       const authorization = await authorizeWorkflowByWorkspacePermission({
@@ -262,6 +241,61 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
     }
+
+    const billingAttribution =
+      hasQuery && workspaceId
+        ? auth.authType === AuthType.INTERNAL_JWT
+          ? requireBillingAttributionHeader(request.headers, {
+              actorUserId: userId,
+              workspaceId,
+            })
+          : shouldMeter
+            ? await resolveBillingAttribution({
+                actorUserId: userId,
+                workspaceId,
+              })
+            : undefined
+        : undefined
+    const embeddingModels = Array.from(new Set(accessibleKbs.map((kb) => kb.embeddingModel)))
+    if (hasQuery && embeddingModels.length > 1) {
+      return NextResponse.json(
+        {
+          error:
+            'Selected knowledge bases use different embedding models and cannot be searched together. Search them separately.',
+        },
+        { status: 400 }
+      )
+    }
+    const queryEmbeddingModel = embeddingModels[0]
+
+    const inaccessibleKbIds = knowledgeBaseIds.filter((id) => !accessibleKbIds.includes(id))
+
+    if (inaccessibleKbIds.length > 0) {
+      return NextResponse.json(
+        { error: `Knowledge bases not found or access denied: ${inaccessibleKbIds.join(', ')}` },
+        { status: 404 }
+      )
+    }
+
+    /**
+     * Gate the workspace payer and actor before hosted embedding cost. Internal
+     * workflow tools were gated during preprocessing, and tag-only search is free.
+     */
+    if (shouldMeter && hasQuery) {
+      const usage = billingAttribution
+        ? await checkAttributedUsageLimits(billingAttribution)
+        : await checkActorUsageLimits(userId)
+      if (usage.isExceeded) {
+        return NextResponse.json(
+          { error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.' },
+          { status: 402 }
+        )
+      }
+    }
+
+    const queryEmbeddingPromise = hasQuery
+      ? generateSearchEmbedding(validatedData.query!, queryEmbeddingModel, workspaceId)
+      : Promise.resolve(null)
 
     let results: SearchResult[]
 
@@ -420,23 +454,31 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     // guardrail RAG). The workflow tool sets skipUsageBilling and rolls the cost
     // up via the executor instead, so this never double-bills; BYOK already
     // resolved to 0 above.
-    if (shouldMeter && workspaceId && cost && cost.total > 0) {
+    if (shouldMeter && cost && cost.total > 0) {
       const { recordUsage } = await import('@/lib/billing/core/usage-log')
-      await recordUsage({
-        userId,
-        workspaceId,
-        entries: [
-          {
-            category: 'model',
-            source: 'knowledge-base',
-            description: queryEmbeddingModel,
-            cost: cost.total,
-            sourceReference: `kb-search:${requestId}`,
-          },
-        ],
-      }).catch((billingError) => {
+      try {
+        await recordUsage({
+          userId,
+          workspaceId: workspaceId ?? undefined,
+          ...(billingAttribution ? toBillingContext(billingAttribution) : {}),
+          entries: [
+            {
+              category: 'model',
+              source: 'knowledge-base',
+              description: queryEmbeddingModel,
+              cost: cost.total,
+              sourceReference: `kb-search:${requestId}`,
+            },
+          ],
+        })
+        if (billingAttribution) {
+          await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
+        } else {
+          await checkAndBillOverageThreshold(userId)
+        }
+      } catch (billingError) {
         logger.error(`[${requestId}] Failed to record KB search usage`, { error: billingError })
-      })
+      }
     }
 
     const tagDefsResults = await Promise.all(

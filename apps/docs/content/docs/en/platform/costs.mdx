@@ -305,7 +305,9 @@ By default, your usage is capped at the credits included in your plan. To allow 
 - **Disable On-Demand**: Resets your usage limit back to the plan's included amount (only available if your current usage hasn't already exceeded it).
 
 <Callout type="info">
-  On-demand billing is managed by workspace admins for team plans. Non-admin team members cannot toggle on-demand billing.
+  On-demand billing for team plans is managed by organization owners and
+  administrators. Workspace admin permission alone does not grant billing
+  authority.
 </Callout>
 
 ## Plan Limits
@@ -330,7 +332,18 @@ Team and Enterprise plans unlock shared workspaces that belong to your organizat
 | **Max** | 300 | 2,500 |
 | **Enterprise** | 600 | 5,000 |
 
-Max (individual) shares the same rate limits as team plans. Team plans (Pro or Max for Teams) use the Max-tier rate limits.
+Rate limits follow the paid tier: Pro and Pro for Teams share the Pro limits, while Max and Max for Teams share the Max limits.
+
+### Concurrent Executions
+
+| Plan | Concurrent Executions |
+|------|-----------------------|
+| **Free** | 10 |
+| **Pro** | 50 |
+| **Max** | 200 |
+| **Enterprise** | 1,000 by default (customizable) |
+
+The concurrency limit applies per billing account. For organization-based plans, the limit is shared by all workspaces, members, and API keys under that organization. Teams plans follow their tier: Pro for Teams uses the Pro limit and Max for Teams uses the Max limit. An admitted async execution holds a slot while queued and running; synchronous executions hold one while running. Workflow-in-workflow blocks execute inside the parent run and do not consume another concurrency slot.
 
 ### File Storage
 
@@ -341,7 +354,7 @@ Max (individual) shares the same rate limits as team plans. Team plans (Pro or M
 | **Max** | 500 GB |
 | **Enterprise** | 500 GB (customizable) |
 
-Team plans (Pro or Max for Teams) use 500 GB.
+Storage follows the paid tier: Pro and Pro for Teams share the Pro limit, while Max and Max for Teams share the Max limit. Organization storage is pooled across the organization's workspaces.
 
 ### Run Time Limits
 
@@ -371,7 +384,8 @@ Sim uses a **base subscription + overage** billing model:
 
 **Team Plans:**
 - Usage is pooled across internal team members in the organization
-- External workspace members keep their own organization or personal billing context for runs where they are the billing actor
+- Usage in an organization-owned workspace is billed to that workspace's organization, including work performed by external collaborators
+- Each authenticated actor's usage is also counted toward their member cap for that organization
 - Overage is calculated from total team usage against the pooled limit
 - Organization owner receives one bill
 

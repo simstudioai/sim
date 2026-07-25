@@ -3,6 +3,7 @@ import type {
   LinearUpdateProjectLabelResponse,
 } from '@/tools/linear/types'
 import { PROJECT_LABEL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearUpdateProjectLabelTool: ToolConfig<
@@ -55,7 +56,7 @@ export const linearUpdateProjectLabelTool: ToolConfig<
       }
       return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+        Authorization: linearAuthorizationHeader(params.accessToken),
       }
     },
     body: (params) => {

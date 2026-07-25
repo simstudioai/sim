@@ -20,6 +20,6 @@ export default function proxy(request: NextRequest, event: NextFetchEvent) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon|static|robots.txt|sitemap.xml|llms.txt|llms-full.txt).*)',
+    '/((?!api|_next/static|_next/image|favicon|icon.svg|static|robots.txt|sitemap.xml|llms.txt|llms-full.txt).*)',
   ],
 }

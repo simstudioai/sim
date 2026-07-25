@@ -4,19 +4,23 @@
 
 import {
   authMockFns,
+  environmentUtilsMockFns,
   permissionsMock,
   permissionsMockFns,
+  resetDbChainMock,
+  resetEnvironmentUtilsMock,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const resolveWorkflowIdForUser = workflowsUtilsMockFns.mockResolveWorkflowIdForUser
 const getUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
+const getEffectiveDecryptedEnv = environmentUtilsMockFns.mockGetEffectiveDecryptedEnv
+
 const {
-  getEffectiveDecryptedEnv,
   generateWorkspaceSnapshot,
   processContextsServer,
   resolveActiveResourceContext,
@@ -26,11 +30,11 @@ const {
   getPendingChatStreamId,
   releasePendingChatStream,
   resolveOrCreateChat,
+  resolveBillingAttribution,
   finalizeAssistantTurn,
   appendCopilotChatMessages,
   mockPublishStatusChanged,
 } = vi.hoisted(() => ({
-  getEffectiveDecryptedEnv: vi.fn(),
   generateWorkspaceSnapshot: vi.fn(),
   processContextsServer: vi.fn(),
   resolveActiveResourceContext: vi.fn(),
@@ -40,19 +44,32 @@ const {
   getPendingChatStreamId: vi.fn(),
   releasePendingChatStream: vi.fn(),
   resolveOrCreateChat: vi.fn(),
+  resolveBillingAttribution: vi.fn(),
   finalizeAssistantTurn: vi.fn(),
   appendCopilotChatMessages: vi.fn(),
   mockPublishStatusChanged: vi.fn(),
 }))
 
 const getSession = authMockFns.mockGetSession
+const billingAttribution = {
+  actorUserId: 'user-1',
+  billedAccountUserId: 'owner-1',
+  billingEntity: { type: 'organization' as const, id: 'org-1' },
+  billingPeriod: {
+    start: '2026-07-01T00:00:00.000Z',
+    end: '2026-08-01T00:00:00.000Z',
+  },
+  organizationId: 'org-1',
+  payerSubscription: null,
+  workspaceId: 'ws-1',
+}
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/environment/utils', () => ({
-  getEffectiveDecryptedEnv,
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  resolveBillingAttribution,
 }))
 
 vi.mock('@/lib/copilot/chat/workspace-context', () => ({
@@ -97,42 +114,17 @@ vi.mock('@/lib/copilot/chat-status', () => ({
   },
 }))
 
-vi.mock('@sim/db', () => {
-  const update = vi.fn(() => ({
-    set: vi.fn(() => ({
-      where: vi.fn(() => ({
-        returning: vi.fn().mockResolvedValue([]),
-      })),
-    })),
-  }))
-  const select = vi.fn(() => ({
-    from: vi.fn(() => ({
-      where: vi.fn(() => ({
-        limit: vi.fn().mockResolvedValue([{ permissionType: 'write' }]),
-      })),
-    })),
-  }))
-  return {
-    db: {
-      update,
-      select,
-      transaction: async (cb: (tx: { update: typeof update; select: typeof select }) => unknown) =>
-        cb({ update, select }),
-    },
-  }
-})
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(() => ({})),
-  eq: vi.fn(() => ({})),
-  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
-}))
-
 import { handleUnifiedChatPost } from './post'
 
 describe('handleUnifiedChatPost', () => {
+  afterAll(() => {
+    resetDbChainMock()
+    resetEnvironmentUtilsMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     getSession.mockResolvedValue({ user: { id: 'user-1' } })
     resolveWorkflowIdForUser.mockResolvedValue({
       status: 'resolved',
@@ -141,6 +133,7 @@ describe('handleUnifiedChatPost', () => {
       workflowName: 'Workflow One',
     })
     getUserEntityPermissions.mockResolvedValue('write')
+    resolveBillingAttribution.mockResolvedValue(billingAttribution)
     getEffectiveDecryptedEnv.mockResolvedValue({ API_KEY: 'secret' })
     generateWorkspaceSnapshot.mockResolvedValue({
       markdown: 'workspace context',
@@ -202,6 +195,7 @@ describe('handleUnifiedChatPost', () => {
             userId: 'user-1',
             workflowId: 'wf-1',
             workspaceId: 'ws-1',
+            billingAttribution,
             requestMode: 'agent',
           }),
         }),
@@ -242,6 +236,7 @@ describe('handleUnifiedChatPost', () => {
             userId: 'user-1',
             workflowId: '',
             workspaceId: 'ws-1',
+            billingAttribution,
             requestMode: 'agent',
           }),
         }),
@@ -271,6 +266,26 @@ describe('handleUnifiedChatPost', () => {
       'Hello',
       'ws-1',
       expect.anything()
+    )
+  })
+
+  it('forwards slash-selected MCP server ids to the request-local tool builder', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: '/Docs search auth',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          contexts: [{ kind: 'mcp', serverId: 'mcp-server-1', label: 'Docs' }],
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ mcpServerIds: ['mcp-server-1'] }),
+      { selectedModel: '' }
     )
   })
 

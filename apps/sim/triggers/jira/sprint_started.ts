@@ -1,5 +1,11 @@
 import { JiraIcon } from '@/components/icons'
-import { buildSprintOutputs, jiraSetupInstructions } from '@/triggers/jira/utils'
+import { buildTriggerSubBlocks } from '@/triggers'
+import {
+  buildJiraExtraFields,
+  buildSprintOutputs,
+  jiraSetupInstructions,
+  jiraTriggerOptions,
+} from '@/triggers/jira/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -14,48 +20,12 @@ export const jiraSprintStartedTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: JiraIcon,
 
-  subBlocks: [
-    {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_sprint_started',
-      },
-    },
-    {
-      id: 'webhookSecret',
-      title: 'Webhook Secret',
-      type: 'short-input',
-      placeholder: 'Enter a strong secret',
-      description: 'Optional secret to validate webhook deliveries from Jira using HMAC signature',
-      password: true,
-      required: false,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_sprint_started',
-      },
-    },
-    {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: jiraSetupInstructions('sprint_started'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_sprint_started',
-      },
-    },
-  ],
+  subBlocks: buildTriggerSubBlocks({
+    triggerId: 'jira_sprint_started',
+    triggerOptions: jiraTriggerOptions,
+    setupInstructions: jiraSetupInstructions('sprint_started'),
+    extraFields: buildJiraExtraFields('jira_sprint_started'),
+  }),
 
   outputs: buildSprintOutputs(),
 

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { selectVisiblePosts } from '@/lib/content/index-list'
 import { getAllPostMeta } from '@/lib/library/registry'
 import { buildCollectionPageJsonLd, buildIndexMetadata, LIBRARY_SECTION } from '@/lib/library/seo'
 import { ContentIndexPage } from '@/app/(landing)/components'
@@ -35,7 +36,10 @@ export default async function LibraryIndex({
       posts={posts}
       page={pageNum}
       tag={tag}
-      collectionJsonLd={buildCollectionPageJsonLd()}
+      collectionJsonLd={buildCollectionPageJsonLd(
+        selectVisiblePosts(posts, { tag, page: pageNum }),
+        { tag, page: pageNum }
+      )}
     />
   )
 }

@@ -19,15 +19,18 @@ import type {
 } from '@/lib/copilot/generated/vfs-snapshot-v1'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkflowVfsDir, canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
-import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
+import {
+  getAccessibleEnvCredentials,
+  getAccessibleOAuthCredentials,
+} from '@/lib/credentials/environment'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { listCustomBlockSummariesForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
-import { listSkills } from '@/lib/workflows/skills/operations'
+import { listSkillsForUser } from '@/lib/workflows/skills/operations'
 import {
   assertActiveWorkspaceAccess,
   getUsersWithPermissions,
-  getWorkspaceWithOwner,
+  type WorkspaceAccess,
 } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceContext')
@@ -52,7 +55,6 @@ export interface WorkspaceMdData {
   workflows: Array<{
     id: string
     name: string
-    description?: string | null
     isDeployed: boolean
     lastRunAt?: Date | null
     folderPath?: string | null
@@ -155,7 +157,6 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
       const workflowDir = canonicalWorkflowVfsDir({ name: wf.name, folderPath: wf.folderPath })
       parts.push(`${indent}  VFS dir: \`${workflowDir}\``)
       parts.push(`${indent}  VFS state path: \`${workflowDir}/state.json\``)
-      if (wf.description) parts.push(`${indent}  ${wf.description}`)
       // `deployed` is a structural flag (kept); `lastRunAt` is intentionally
       // omitted — it changes on every run and would bust the cached prompt
       // prefix that carries this inventory. Current run data lives in
@@ -291,8 +292,8 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
       .sort(byNameThenId)
       .map((s) => `- **${s.name}** (${s.id}) — ${s.description}`)
     sections.push(
-      `## Skills (${data.skills.length})\n` +
-        'To use a skill, call the load_user_skill tool with its name to load the full instructions, then follow them. The descriptions below only say when each skill applies — they are not the instructions.\n' +
+      `## Agent Block Skills — NOT FOR YOU (${data.skills.length})\n` +
+        'These are user-created skills used by agent blocks in the workspace and are NOT instructions for you\n' +
         lines.join('\n')
     )
   }
@@ -333,11 +334,17 @@ export function buildWorkspaceContextMd(data: WorkspaceMdData): string {
 // workspace is unavailable or a fetch fails.
 async function buildWorkspaceMdData(
   workspaceId: string,
-  userId: string
+  userId: string,
+  options?: { workspaceAccess?: WorkspaceAccess }
 ): Promise<WorkspaceMdData | null> {
   try {
-    await assertActiveWorkspaceAccess(workspaceId, userId)
-    const wsRow = await getWorkspaceWithOwner(workspaceId)
+    // Reuse the caller's already-asserted access when provided (hot chat path);
+    // the id match keeps a mismatched cache from authorizing this workspace.
+    const workspaceAccess =
+      options?.workspaceAccess && options.workspaceAccess.workspace?.id === workspaceId
+        ? options.workspaceAccess
+        : await assertActiveWorkspaceAccess(workspaceId, userId)
+    const wsRow = workspaceAccess.hasAccess ? workspaceAccess.workspace : null
     if (!wsRow) {
       return null
     }
@@ -350,6 +357,7 @@ async function buildWorkspaceMdData(
       tables,
       files,
       credentials,
+      envCredentials,
       customTools,
       mcpServerRows,
       skillRows,
@@ -362,7 +370,6 @@ async function buildWorkspaceMdData(
         .select({
           id: workflow.id,
           name: workflow.name,
-          description: workflow.description,
           isDeployed: workflow.isDeployed,
           lastRunAt: workflow.lastRunAt,
           folderId: workflow.folderId,
@@ -406,6 +413,8 @@ async function buildWorkspaceMdData(
 
       getAccessibleOAuthCredentials(workspaceId, userId),
 
+      getAccessibleEnvCredentials(workspaceId, userId),
+
       listCustomTools({ userId, workspaceId }),
 
       db
@@ -418,7 +427,7 @@ async function buildWorkspaceMdData(
         .from(mcpServers)
         .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt))),
 
-      listSkills({ workspaceId, includeBuiltins: false }),
+      listSkillsForUser({ workspaceId, userId, includeBuiltins: false, workspaceAccess }),
 
       db
         .select({
@@ -511,7 +520,13 @@ async function buildWorkspaceMdData(
         displayName: c.displayName,
         role: c.role,
       })),
-      envVariables: [],
+      // Names only: make newly saved personal/workspace secrets visible to the
+      // next Mothership turn without ever putting their values on the wire.
+      // De-duplicate conflicts (the same key may exist in both scopes) and sort
+      // for byte-stable prompt snapshots.
+      envVariables: [...new Set(envCredentials.map((credential) => credential.envKey))].sort(
+        stableCompare
+      ),
       customTools: customTools.map((t) => ({ id: t.id, name: t.title })),
       customBlocks: customBlockSummaries,
       mcpServers: mcpServerRows,
@@ -546,9 +561,10 @@ const WORKSPACE_CONTEXT_UNAVAILABLE_MD =
  */
 export async function generateWorkspaceContext(
   workspaceId: string,
-  userId: string
+  userId: string,
+  options?: { workspaceAccess?: WorkspaceAccess }
 ): Promise<string> {
-  const data = await buildWorkspaceMdData(workspaceId, userId)
+  const data = await buildWorkspaceMdData(workspaceId, userId, options)
   return data ? buildWorkspaceMd(data) : WORKSPACE_CONTEXT_UNAVAILABLE_MD
 }
 
@@ -577,7 +593,6 @@ export function buildVfsSnapshot(data: WorkspaceMdData): VfsSnapshotV1 {
     id: wf.id,
     name: wf.name,
     path: canonicalWorkflowVfsDir({ name: wf.name, folderPath: wf.folderPath }),
-    ...(wf.description ? { description: wf.description } : {}),
     ...(wf.isDeployed ? { isDeployed: true } : {}),
     ...(wf.folderPath ? { folderPath: wf.folderPath } : {}),
   }))

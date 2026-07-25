@@ -65,7 +65,6 @@ export const listTrackersTool: ToolConfig<GongListTrackersParams, GongListTracke
       saidAtInterval: t.saidAtInterval ?? null,
       saidAtUnit: t.saidAtUnit ?? null,
       saidInTopics: t.saidInTopics ?? [],
-      saidInCallParts: t.saidInCallParts ?? [],
       filterQuery: t.filterQuery ?? null,
       created: t.created ?? null,
       creatorUserId: t.creatorUserId ?? null,
@@ -74,11 +73,19 @@ export const listTrackersTool: ToolConfig<GongListTrackersParams, GongListTracke
     }))
     return {
       success: true,
-      output: { trackers },
+      output: {
+        requestId: data.requestId ?? null,
+        trackers,
+      },
     }
   },
 
   outputs: {
+    requestId: {
+      type: 'string',
+      description: 'A Gong request reference ID for troubleshooting purposes',
+      optional: true,
+    },
     trackers: {
       type: 'array',
       description: 'List of keyword tracker definitions',
@@ -133,10 +140,6 @@ export const listTrackersTool: ToolConfig<GongListTrackersParams, GongListTracke
           saidInTopics: {
             type: 'array',
             description: 'Topics where keywords should be detected',
-          },
-          saidInCallParts: {
-            type: 'array',
-            description: 'Specific call segments to monitor',
           },
           filterQuery: {
             type: 'string',

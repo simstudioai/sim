@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { permissions, settings, type WorkspaceMode, workflow, workspace } from '@sim/db/schema'
+import { permissions, type WorkspaceMode, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -9,24 +9,20 @@ import { listWorkspacesQuerySchema } from '@/lib/api/contracts'
 import { createWorkspaceContract } from '@/lib/api/contracts/workspaces'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import type { PlanCategory } from '@/lib/billing/plan-helpers'
+import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { getRandomWorkspaceColor } from '@/lib/workspaces/colors'
+import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import {
-  CONTACT_OWNER_TO_UPGRADE_REASON,
-  evaluateWorkspaceInvitePolicy,
-  getInvitePlanCategoryForOrganization,
-  getInvitePlanCategoryForUser,
   getWorkspaceCreationPolicy,
   getWorkspaceInvitePolicy,
-  UPGRADE_TO_INVITE_REASON,
+  resolveInviteFlags,
   WORKSPACE_MODE,
 } from '@/lib/workspaces/policy'
-import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 const logger = createLogger('Workspaces')
 
@@ -37,13 +33,6 @@ export const GET = withRouteHandler(async (request: Request) => {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-
-  const activeOrganizationId =
-    (session.session as { activeOrganizationId?: string } | null)?.activeOrganizationId ?? null
-  const creationPolicy = await getWorkspaceCreationPolicy({
-    userId: session.user.id,
-    activeOrganizationId,
-  })
 
   const scopeResult = listWorkspacesQuerySchema.safeParse(
     Object.fromEntries(new URL(request.url).searchParams.entries())
@@ -56,20 +45,15 @@ export const GET = withRouteHandler(async (request: Request) => {
   }
   const { scope } = scopeResult.data
 
-  const settingsQuery = db
-    .select({ lastActiveWorkspaceId: settings.lastActiveWorkspaceId })
-    .from(settings)
-    .where(eq(settings.userId, session.user.id))
-    .limit(1)
+  const activeOrganizationId = getActiveOrganizationId(session)
+  const payload = await listWorkspacesForViewer({
+    userId: session.user.id,
+    activeOrganizationId,
+    scope,
+  })
+  const { lastActiveWorkspaceId, creationPolicy } = payload
 
-  const [userWorkspaces, userSettings] = await Promise.all([
-    listAccessibleWorkspaceRowsForUser(session.user.id, scope),
-    settingsQuery,
-  ])
-
-  const lastActiveWorkspaceId = userSettings[0]?.lastActiveWorkspaceId ?? null
-
-  if (scope === 'active' && userWorkspaces.length === 0) {
+  if (scope === 'active' && payload.workspaces.length === 0) {
     if (!creationPolicy.canCreate) {
       return NextResponse.json({ workspaces: [], lastActiveWorkspaceId, creationPolicy })
     }
@@ -95,76 +79,10 @@ export const GET = withRouteHandler(async (request: Request) => {
   }
 
   if (scope === 'active') {
-    await ensureWorkflowsHaveWorkspace(session.user.id, userWorkspaces[0].workspace.id)
+    await ensureWorkflowsHaveWorkspace(session.user.id, payload.workspaces[0].id)
   }
 
-  const nonOrgBilledUserIds = [
-    ...new Set(
-      userWorkspaces
-        .filter(({ workspace: ws }) => ws.workspaceMode !== WORKSPACE_MODE.ORGANIZATION)
-        .map(({ workspace: ws }) => ws.billedAccountUserId)
-    ),
-  ]
-  const orgIds = [
-    ...new Set(
-      userWorkspaces
-        .filter(
-          ({ workspace: ws }) =>
-            ws.workspaceMode === WORKSPACE_MODE.ORGANIZATION && ws.organizationId
-        )
-        .map(({ workspace: ws }) => ws.organizationId as string)
-    ),
-  ]
-  const planCategoryByBilledUser = new Map<string, PlanCategory>()
-  const planCategoryByOrg = new Map<string, PlanCategory>()
-  await Promise.all([
-    ...nonOrgBilledUserIds.map(async (userId) => {
-      planCategoryByBilledUser.set(userId, await getInvitePlanCategoryForUser(userId))
-    }),
-    ...orgIds.map(async (orgId) => {
-      planCategoryByOrg.set(orgId, await getInvitePlanCategoryForOrganization(orgId))
-    }),
-  ])
-
-  const workspacesWithPermissions = userWorkspaces.map(
-    ({ workspace: workspaceDetails, permissionType }) => {
-      const billedPlanCategory: PlanCategory =
-        workspaceDetails.workspaceMode === WORKSPACE_MODE.ORGANIZATION
-          ? workspaceDetails.organizationId
-            ? (planCategoryByOrg.get(workspaceDetails.organizationId) ?? 'free')
-            : 'free'
-          : (planCategoryByBilledUser.get(workspaceDetails.billedAccountUserId) ?? 'free')
-      const invitePolicy = evaluateWorkspaceInvitePolicy(workspaceDetails, { billedPlanCategory })
-      const callerIsBilledUser = workspaceDetails.billedAccountUserId === session.user.id
-
-      const canActOnUpgrade = invitePolicy.upgradeRequired && callerIsBilledUser
-      const inviteDisabledReason = invitePolicy.allowed
-        ? null
-        : callerIsBilledUser
-          ? (invitePolicy.reason ?? UPGRADE_TO_INVITE_REASON)
-          : CONTACT_OWNER_TO_UPGRADE_REASON
-
-      return {
-        ...workspaceDetails,
-        role:
-          workspaceDetails.ownerId === session.user.id
-            ? 'owner'
-            : permissionType === 'admin'
-              ? 'admin'
-              : 'member',
-        permissions: permissionType,
-        inviteMembersEnabled: invitePolicy.allowed,
-        inviteDisabledReason,
-        inviteUpgradeRequired: canActOnUpgrade,
-      }
-    }
-  )
-
-  return NextResponse.json({
-    workspaces: workspacesWithPermissions,
-    lastActiveWorkspaceId,
-    creationPolicy,
-  })
+  return NextResponse.json(payload)
 })
 
 // POST /api/workspaces - Create a new workspace
@@ -179,8 +97,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const parsed = await parseRequest(createWorkspaceContract, req, {})
     if (!parsed.success) return parsed.response
     const { name, color, skipDefaultWorkflow } = parsed.data.body
-    const activeOrganizationId =
-      (session.session as { activeOrganizationId?: string } | null)?.activeOrganizationId ?? null
+    const activeOrganizationId = getActiveOrganizationId(session)
     const creationPolicy = await getWorkspaceCreationPolicy({
       userId: session.user.id,
       activeOrganizationId,
@@ -380,13 +297,6 @@ async function createWorkspace({
     billedAccountUserId,
     ownerId: userId,
   })
-  const callerIsBilledUser = billedAccountUserId === userId
-  const canActOnUpgrade = invitePolicy.upgradeRequired && callerIsBilledUser
-  const inviteDisabledReason = invitePolicy.allowed
-    ? null
-    : callerIsBilledUser
-      ? (invitePolicy.reason ?? UPGRADE_TO_INVITE_REASON)
-      : CONTACT_OWNER_TO_UPGRADE_REASON
 
   return {
     id: workspaceId,
@@ -401,9 +311,7 @@ async function createWorkspace({
     updatedAt: now,
     role: 'owner',
     permissions: 'admin',
-    inviteMembersEnabled: invitePolicy.allowed,
-    inviteDisabledReason,
-    inviteUpgradeRequired: canActOnUpgrade,
+    ...resolveInviteFlags(invitePolicy, billedAccountUserId === userId),
   }
 }
 

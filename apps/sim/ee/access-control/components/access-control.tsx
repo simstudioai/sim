@@ -16,10 +16,17 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useQueryState } from 'nuqs'
+import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import {
+  groupIdParam,
+  groupIdUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { GroupDetail } from '@/ee/access-control/components/group-detail'
 import { WorkspaceSelect } from '@/ee/access-control/components/workspace-select'
 import {
@@ -28,10 +35,16 @@ import {
   usePermissionGroups,
   useUserPermissionConfig,
 } from '@/ee/access-control/hooks/permission-groups'
+import { useOrganizationBilling } from '@/hooks/queries/organization'
 
 const logger = createLogger('AccessControl')
 
-export function AccessControl() {
+interface AccessControlProps {
+  isOrganizationAdmin: boolean
+  organizationId: string
+}
+
+export function AccessControl({ isOrganizationAdmin, organizationId }: AccessControlProps) {
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
 
@@ -43,8 +56,9 @@ export function AccessControl() {
    */
   const { data: userPermissionConfig, isPending: entitlementLoading } =
     useUserPermissionConfig(workspaceId)
-  const organizationId = userPermissionConfig?.organizationId ?? undefined
-  const currentUserIsOrgAdmin = userPermissionConfig?.isOrgAdmin ?? false
+  const { data: organizationBillingData, isPending: organizationBillingLoading } =
+    useOrganizationBilling(organizationId)
+  const currentUserIsOrgAdmin = isOrganizationAdmin
 
   const { data: permissionGroups = [], isPending: groupsLoading } = usePermissionGroups(
     organizationId,
@@ -54,18 +68,23 @@ export function AccessControl() {
     useOrganizationWorkspaces(organizationId, !!organizationId && currentUserIsOrgAdmin)
 
   const accessControlEnabledLocally = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
-  const isEntitled = accessControlEnabledLocally || !!userPermissionConfig?.entitled
+  const isEntitled =
+    accessControlEnabledLocally ||
+    !!userPermissionConfig?.entitled ||
+    isEnterprise(organizationBillingData?.data?.subscriptionPlan)
   const canManage = isEntitled && currentUserIsOrgAdmin && !!organizationId
 
   const isLoading =
-    !workspaceId ||
-    entitlementLoading ||
+    (workspaceId ? entitlementLoading : organizationBillingLoading) ||
     (!!organizationId && currentUserIsOrgAdmin && groupsLoading)
 
   const createPermissionGroup = useCreatePermissionGroup()
 
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
+  const [selectedGroupId, setSelectedGroupId] = useQueryState(groupIdParam.key, {
+    ...groupIdParam.parser,
+    ...groupIdUrlKeys,
+  })
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupDescription, setNewGroupDescription] = useState('')
@@ -150,8 +169,8 @@ export function AccessControl() {
         workspaceOptions={workspaceOptions}
         organizationWorkspaces={organizationWorkspaces}
         workspacesLoading={workspacesLoading}
-        onBack={() => setSelectedGroupId(null)}
-        onDeleted={() => setSelectedGroupId(null)}
+        onBack={() => void setSelectedGroupId(null, { history: 'replace' })}
+        onDeleted={() => void setSelectedGroupId(null, { history: 'replace' })}
       />
     )
   }
@@ -188,7 +207,7 @@ export function AccessControl() {
                 <button
                   key={group.id}
                   type='button'
-                  onClick={() => setSelectedGroupId(group.id)}
+                  onClick={() => void setSelectedGroupId(group.id)}
                   className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                 >
                   <div className='flex min-w-0 flex-1 flex-col'>

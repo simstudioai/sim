@@ -299,6 +299,76 @@ export interface BrexGetTransferParams {
   transferId: string
 }
 
+export interface BrexCreateTransferParams {
+  apiKey: string
+  cashAccountId: string
+  vendorPaymentInstrumentId: string
+  amount: number
+  currency?: string
+  description: string
+  externalMemo: string
+  approvalType?: string
+  isPproEnabled?: boolean
+}
+
+export interface BrexCreateBudgetParams {
+  apiKey: string
+  name: string
+  description: string
+  parentBudgetId: string
+  periodRecurrenceType: string
+  amount: number
+  currency?: string
+  ownerUserIds?: string
+  startDate?: string
+  endDate?: string
+}
+
+export interface BrexArchiveBudgetParams {
+  apiKey: string
+  budgetId: string
+}
+
+export interface BrexCreateSpendLimitParams {
+  apiKey: string
+  name: string
+  periodRecurrenceType: string
+  spendType: string
+  expenseVisibility: string
+  authorizationVisibility: string
+  limitIncreaseSetting: string
+  autoTransferCardsSetting: string
+  autoCreateLimitCardsSetting: string
+  expensePolicyId: string
+  baseLimitAmount: number
+  currency?: string
+  authorizationType: string
+  rolloverRefreshRate: string
+  limitBufferPercentage?: number
+  description?: string
+  parentBudgetId?: string
+  startDate?: string
+  endDate?: string
+  transactionLimitAmount?: number
+  ownerUserIds?: string
+  memberUserIds?: string
+}
+
+export interface BrexCreateVendorParams {
+  apiKey: string
+  companyName: string
+  email?: string
+  phone?: string
+}
+
+export interface BrexUpdateVendorParams {
+  apiKey: string
+  vendorId: string
+  companyName?: string
+  email?: string
+  phone?: string
+}
+
 export interface BrexListExpensesResponse extends ToolResponse {
   output: {
     items: BrexExpense[]
@@ -559,6 +629,89 @@ export interface BrexGetTransferResponse extends ToolResponse {
   }
 }
 
+export interface BrexCreateTransferResponse extends ToolResponse {
+  output: {
+    id: string
+    counterparty: Record<string, unknown> | null
+    description: string | null
+    paymentType: string
+    amount: BrexMoney | null
+    processDate: string | null
+    originatingAccount: Record<string, unknown> | null
+    status: string
+    cancellationReason: string | null
+    estimatedDeliveryDate: string | null
+    creatorUserId: string | null
+    createdAt: string | null
+    displayName: string | null
+    externalMemo: string | null
+    isPproEnabled: boolean | null
+  }
+}
+
+export interface BrexCreateBudgetResponse extends ToolResponse {
+  output: {
+    budgetId: string
+    accountId: string
+    name: string
+    description: string | null
+    parentBudgetId: string | null
+    ownerUserIds: string[]
+    periodRecurrenceType: string
+    startDate: string | null
+    endDate: string | null
+    amount: BrexMoney | null
+    spendBudgetStatus: string
+    limitType: string | null
+  }
+}
+
+export interface BrexArchiveBudgetResponse extends ToolResponse {
+  output: {
+    budgetId: string
+    spendBudgetStatus: string | null
+  }
+}
+
+export interface BrexCreateSpendLimitResponse extends ToolResponse {
+  output: {
+    id: string
+    accountId: string
+    name: string
+    description: string | null
+    parentBudgetId: string | null
+    status: string
+    periodRecurrenceType: string
+    spendType: string
+    startDate: string | null
+    endDate: string | null
+    ownerUserIds: string[]
+    memberUserIds: string[]
+    currentPeriodBalance: BrexSpendLimitPeriodBalance | null
+    authorizationSettings: Record<string, unknown> | null
+  }
+}
+
+export interface BrexCreateVendorResponse extends ToolResponse {
+  output: {
+    id: string
+    companyName: string | null
+    email: string | null
+    phone: string | null
+    paymentAccounts: unknown[]
+  }
+}
+
+export interface BrexUpdateVendorResponse extends ToolResponse {
+  output: {
+    id: string
+    companyName: string | null
+    email: string | null
+    phone: string | null
+    paymentAccounts: unknown[]
+  }
+}
+
 export type BrexResponse =
   | BrexListExpensesResponse
   | BrexGetExpenseResponse
@@ -585,6 +738,12 @@ export type BrexResponse =
   | BrexGetSpendLimitResponse
   | BrexGetVendorResponse
   | BrexGetTransferResponse
+  | BrexCreateTransferResponse
+  | BrexCreateBudgetResponse
+  | BrexArchiveBudgetResponse
+  | BrexCreateSpendLimitResponse
+  | BrexCreateVendorResponse
+  | BrexUpdateVendorResponse
 
 export const BREX_MONEY_PROPERTIES: Record<string, OutputProperty> = {
   amount: {

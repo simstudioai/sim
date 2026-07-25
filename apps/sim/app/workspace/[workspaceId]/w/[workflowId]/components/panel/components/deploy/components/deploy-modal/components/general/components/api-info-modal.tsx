@@ -17,6 +17,7 @@ import {
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
+import { getMeaningfulWorkflowDescription } from '@/lib/mcp/workflow-tool-schema'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
@@ -89,14 +90,9 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
 
   useEffect(() => {
     if (open) {
-      const normalizedDesc = workflowMetadata?.description?.toLowerCase().trim()
-      const isDefaultDescription =
-        !workflowMetadata?.description ||
-        workflowMetadata.description === workflowMetadata.name ||
-        normalizedDesc === 'new workflow' ||
-        normalizedDesc === 'your first workflow - start building here!'
-
-      const initialDescription = isDefaultDescription ? '' : workflowMetadata?.description || ''
+      const initialDescription =
+        getMeaningfulWorkflowDescription(workflowMetadata?.description, workflowMetadata?.name) ??
+        ''
       setDescription(initialDescription)
       initialDescriptionRef.current = initialDescription
 
@@ -181,7 +177,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
         await updateWorkflowMutation.mutateAsync({
           workspaceId,
           workflowId,
-          metadata: { description: description.trim() || 'New workflow' },
+          metadata: { description: description.trim() },
         })
       }
 

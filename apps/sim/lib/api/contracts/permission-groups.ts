@@ -28,7 +28,7 @@ export const permissionGroupFullConfigSchema = z.object({
   hideDeployApi: z.boolean(),
   hideDeployMcp: z.boolean(),
   hideDeployChatbot: z.boolean(),
-  hideDeployTemplate: z.boolean(),
+  allowedChatDeployAuthTypes: z.array(shareAuthTypeSchema).nullable(),
 })
 
 export const addPermissionGroupMemberBodySchema = z.object({
@@ -148,7 +148,7 @@ function refineWorkspaceScope(
 export const createPermissionGroupBodySchema = z
   .object({
     name: z.string().trim().min(1).max(100),
-    description: z.string().max(500).optional(),
+    description: z.string().trim().max(500).optional(),
     config: permissionGroupConfigSchema.optional(),
     isDefault: z.boolean().optional(),
     workspaceIds: workspaceIdsSchema.optional(),
@@ -158,7 +158,7 @@ export const createPermissionGroupBodySchema = z
 export const updatePermissionGroupBodySchema = z
   .object({
     name: z.string().trim().min(1).max(100).optional(),
-    description: z.string().max(500).nullable().optional(),
+    description: z.string().trim().max(500).nullable().optional(),
     config: permissionGroupConfigSchema.optional(),
     isDefault: z.boolean().optional(),
     workspaceIds: workspaceIdsSchema.optional(),

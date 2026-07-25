@@ -63,8 +63,14 @@ export const POST = withRouteHandler(
     await recordBackgroundWork(db, {
       workspaceId: id,
       kind: 'fork_rollback',
-      status: result.skipped > 0 ? 'completed_with_warnings' : 'completed',
-      message: `Undid the last sync from "${otherName}"`,
+      status:
+        result.skipped > 0 || result.pendingActivations.length > 0
+          ? 'completed_with_warnings'
+          : 'completed',
+      message:
+        result.pendingActivations.length > 0
+          ? `Undid the last sync from "${otherName}" — ${result.pendingActivations.length} deployment(s) still activating`
+          : `Undid the last sync from "${otherName}"`,
       metadata: {
         actorName: session.user.name ?? undefined,
         otherWorkspaceId,
@@ -73,6 +79,7 @@ export const POST = withRouteHandler(
         removed: result.archived,
         unarchived: result.unarchived,
         skipped: result.skipped,
+        pendingActivations: result.pendingActivations.length,
       },
     }).catch((error) =>
       logger.error(`[${requestId}] Failed to record rollback activity`, {

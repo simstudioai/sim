@@ -794,7 +794,7 @@ export interface SlackGetThreadParams extends SlackBaseParams {
 export interface SlackSetStatusParams extends SlackBaseParams {
   channel: string
   threadTs: string
-  status: string
+  status?: string
   loadingMessages?: string[]
 }
 

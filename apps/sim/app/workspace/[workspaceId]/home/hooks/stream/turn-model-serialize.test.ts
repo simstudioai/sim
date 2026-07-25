@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import { resolveStreamingToolDisplayTitle } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-helpers'
 import {
   type AgentNode,
   applyTurnTerminal,
@@ -42,6 +43,26 @@ function build(events: PersistedStreamEventEnvelope[]): TurnModel {
   for (const e of events) reduceEvent(m, e)
   return m
 }
+
+describe('streaming resource titles', () => {
+  it('includes resource names as soon as they appear in streamed arguments', () => {
+    expect(resolveStreamingToolDisplayTitle('create_workflow', '{"name":"Lead Router"}')).toBe(
+      'Creating Lead Router'
+    )
+    expect(
+      resolveStreamingToolDisplayTitle(
+        'manage_custom_tool',
+        '{"operation":"add","schema":{"function":{"name":"lookupWeather"}}}'
+      )
+    ).toBe('Creating lookupWeather')
+    expect(
+      resolveStreamingToolDisplayTitle(
+        'manage_folder',
+        '{"operation":"rename","path":"workflows/Old%20Name","name":"New Name"}'
+      )
+    ).toBe('Renaming Old Name to New Name')
+  })
+})
 
 // A main-agent file delegation: trigger tool (main lane), subagent span, inner
 // workspace_file, span end, delegation result.
@@ -322,6 +343,48 @@ describe('modelToContentBlocks', () => {
     )
     expect(blocksByType(blocks, 'subagent_end')).toHaveLength(0)
     expect(blocksByType(blocks, 'subagent')).toHaveLength(1)
+  })
+
+  it('persists a completed compaction inside its subagent span', () => {
+    const sub: Scope = {
+      lane: 'subagent',
+      spanId: 'S1',
+      parentSpanId: 'main',
+      parentToolCallId: 'tc-workflow',
+      agentId: 'workflow',
+    }
+    const blocks = modelToContentBlocks(
+      build([
+        env(
+          1,
+          'span',
+          {
+            kind: 'subagent',
+            event: 'start',
+            agent: 'workflow',
+            data: { tool_call_id: 'tc-workflow' },
+          },
+          sub
+        ),
+        env(2, 'run', { kind: 'compaction_start' }, sub),
+        env(3, 'run', { kind: 'compaction_done' }, sub),
+      ])
+    )
+
+    const compaction = blocks.find(
+      (block) => block.type === 'tool_call' && block.toolCall?.name === 'context_compaction'
+    )
+    expect(compaction).toEqual(
+      expect.objectContaining({
+        spanId: 'S1',
+        parentSpanId: 'main',
+        toolCall: expect.objectContaining({
+          calledBy: 'workflow',
+          displayTitle: 'Summarizing context',
+          status: 'success',
+        }),
+      })
+    )
   })
 })
 

@@ -348,6 +348,27 @@ export const n8nProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          'No: n8n has no feature to publish a deployed workflow as a named, encapsulated block that appears in the node panel for other users to drag into their own separate workflows. The closest built-in mechanism is the Execute Sub-workflow node, which calls another saved workflow (by database lookup, local file, parameter, or URL) from inside a workflow, but it is a generic caller node, not a distinct, iconed, named block per source workflow.',
+        detail:
+          "An n8n community feature request, 'Mark workflow as a custom node to be re-used in other workflows' (opened August 2024), asks for exactly this: turning a workflow into a reusable node listed under its own category in the node panel, with defined input parameters, so other builders can add it without touching the source workflow's internals. n8n has not shipped it; the documented mechanism remains the generic Execute Sub-workflow node. n8n's actual node-level encapsulation mechanism, custom/community nodes, requires writing and packaging real TypeScript code as an npm module, not publishing a no-code workflow someone built visually.",
+        shortValue: 'No, only generic Execute Sub-workflow calls, not a published block',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.executeworkflow/',
+            label: 'Execute Sub-workflow | Nodes | n8n Docs',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://community.n8n.io/t/mark-workflow-as-a-custom-node-to-be-re-used-in-other-workflows/51808',
+            label:
+              'Mark workflow as a custom node to be re-used in other workflows (n8n Community feature request)',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {

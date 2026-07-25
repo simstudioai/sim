@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "typescript": "^5.7.3"
+    "@types/node": "24.2.1",
+    "typescript": "^7.0.2"
   }
 }

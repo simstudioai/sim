@@ -10,6 +10,21 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#2D3748"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+SFTP (SSH File Transfer Protocol) is a secure file transfer protocol that runs over an SSH connection, letting you move and manage files on a remote server without exposing credentials or data in plaintext. It supports authentication via password or private key, making it a standard choice for secure file exchange with servers, hosting providers, and legacy systems.
+
+With this block, you can:
+
+- **Upload files**: Send files or direct text content to a directory on a remote server
+- **Download files**: Retrieve a file from the remote server as text or base64-encoded content
+- **List directory contents**: Browse files and folders, optionally with detailed metadata like size and permissions
+- **Delete files or directories**: Remove remote files, with optional recursive deletion for directories
+- **Create directories**: Make new directories on the remote server, optionally creating parent directories as needed
+
+In Sim, the SFTP block allows your agents to upload, download, list, delete, and create files and directories on a remote server, all authenticated with a password or private key. This enables workflows that move generated files to a remote destination, pull files from a server for processing, sync directory contents, or manage remote file structures as part of a larger automation.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Upload, download, list, and manage files on remote servers via SFTP. Supports both password and private key authentication for secure file transfers.

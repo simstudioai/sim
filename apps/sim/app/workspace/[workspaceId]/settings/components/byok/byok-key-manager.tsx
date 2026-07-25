@@ -59,12 +59,20 @@ interface BYOKKeyManagerBaseProps {
   isLoading: boolean
   isSaving?: boolean
   isDeleting?: boolean
+  readOnly?: boolean
   /** Labeled provider groups. When omitted, renders a single flat list. */
   sections?: BYOKProviderSection[]
   /** Optional subtitle shown above the provider list. */
   description?: string
   /** Show the provider search box (hidden when there are only a couple). */
   showSearch?: boolean
+  /**
+   * Controlled search value + setter. The BYOK settings page passes the shared
+   * `?search=` binding (`useSettingsSearch`) so the search is deep-linkable;
+   * modal/embedded consumers omit both and keep local state.
+   */
+  searchTerm?: string
+  onSearchTermChange?: (value: string) => void
 }
 
 /** One key per provider; saving replaces the stored key. */
@@ -131,12 +139,15 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
     isLoading,
     isSaving = false,
     isDeleting = false,
+    readOnly = false,
     sections,
     description,
     showSearch = true,
   } = props
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [localSearchTerm, setLocalSearchTerm] = useState('')
+  const searchTerm = props.searchTerm ?? localSearchTerm
+  const setSearchTerm = props.onSearchTermChange ?? setLocalSearchTerm
   const [editing, setEditing] = useState<EditingState | null>(null)
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [nameInput, setNameInput] = useState('')
@@ -248,6 +259,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
 
   const renderActions = (provider: BYOKManagerProvider) => {
     if (!hasStoredKey(provider.id)) {
+      if (readOnly) return null
       return (
         <Chip variant='primary' onClick={() => openEditModal(provider.id)}>
           Add Key
@@ -262,11 +274,14 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
           <span className='text-[var(--text-muted)] text-caption'>
             {keyCount} {keyCount === 1 ? 'key' : 'keys'}
           </span>
-          <Chip onClick={() => setManagingProviderId(provider.id)}>Manage</Chip>
+          <Chip onClick={() => setManagingProviderId(provider.id)}>
+            {readOnly ? 'View' : 'Manage'}
+          </Chip>
         </div>
       )
     }
 
+    if (readOnly) return null
     return (
       <div className='flex flex-shrink-0 items-center gap-2'>
         <Chip onClick={() => openEditModal(provider.id)}>Update</Chip>
@@ -350,6 +365,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
           provider={managingMeta}
           keys={managingProviderId ? getProviderKeys(managingProviderId) : NO_KEYS}
           maxKeys={props.maxKeysPerProvider}
+          readOnly={readOnly}
           onAddKey={() => managingProviderId && openEditModal(managingProviderId)}
           onUpdateKey={(key) => managingProviderId && openEditModal(managingProviderId, key)}
           onDeleteKey={(key) => managingProviderId && openDeleteConfirm(managingProviderId, key.id)}

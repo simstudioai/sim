@@ -3,16 +3,21 @@
  *
  * @vitest-environment node
  */
-import { authMockFns, dbChainMock, dbChainMockFns } from '@sim/testing'
+import { authMockFns, dbChainMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetAccessibleCopilotChat, mockGetAccessibleCopilotChatAuth } = vi.hoisted(() => ({
+const {
+  mockDecrementStorageUsageForBillingContext,
+  mockDecrementStorageUsageForBillingContextInTx,
+  mockGetAccessibleCopilotChat,
+  mockGetAccessibleCopilotChatAuth,
+} = vi.hoisted(() => ({
+  mockDecrementStorageUsageForBillingContext: vi.fn(),
+  mockDecrementStorageUsageForBillingContextInTx: vi.fn(),
   mockGetAccessibleCopilotChat: vi.fn(),
   mockGetAccessibleCopilotChatAuth: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/copilot/chat/lifecycle', () => ({
   getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
@@ -21,6 +26,11 @@ vi.mock('@/lib/copilot/chat/lifecycle', () => ({
 
 vi.mock('@/lib/copilot/chat-status', () => ({
   chatPubSub: { publishStatusChanged: vi.fn() },
+}))
+
+vi.mock('@/lib/billing/storage', () => ({
+  decrementStorageUsageForBillingContext: mockDecrementStorageUsageForBillingContext,
+  decrementStorageUsageForBillingContextInTx: mockDecrementStorageUsageForBillingContextInTx,
 }))
 
 import { DELETE } from './route'
@@ -78,6 +88,8 @@ describe('Copilot Chat Delete API Route', () => {
 
       expect(dbChainMockFns.delete).toHaveBeenCalled()
       expect(dbChainMockFns.where).toHaveBeenCalled()
+      expect(mockDecrementStorageUsageForBillingContext).not.toHaveBeenCalled()
+      expect(mockDecrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
     })
 
     it('should return 400 for invalid request body - missing chatId', async () => {

@@ -1,7 +1,11 @@
 import { db } from '@sim/db'
 import { settings, user } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import type { UserSettingsApi } from '@/lib/api/contracts/user'
+
+const logger = createLogger('UserQueries')
 
 /**
  * Default user settings returned for unauthenticated users or when no
@@ -73,6 +77,26 @@ export async function getUserSettings(userId: string | null): Promise<UserSettin
     showActionBar: userSettings.showActionBar ?? true,
     timezone: userSettings.timezone ?? null,
     lastActiveWorkspaceId: userSettings.lastActiveWorkspaceId ?? null,
+  }
+}
+
+/**
+ * Loads a user's email address, or `null` when no matching user exists or the
+ * lookup fails. Fail-soft: callers use this for optional run metadata, and a
+ * transient lookup error must not abort an otherwise valid execution.
+ */
+export async function getUserEmailById(userId: string): Promise<string | null> {
+  try {
+    const [userRecord] = await db
+      .select({ email: user.email })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1)
+
+    return userRecord?.email ?? null
+  } catch (error) {
+    logger.warn('Failed to load user email', { userId, error: getErrorMessage(error) })
+    return null
   }
 }
 

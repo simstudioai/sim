@@ -10,6 +10,20 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[AWS CodePipeline](https://aws.amazon.com/codepipeline/) is a continuous delivery service that automates the build, test, and deploy phases of software release pipelines. It orchestrates pipeline stages and actions, tracking execution status, source revisions, and approval steps across a release process.
+
+With this integration, you can:
+
+- **Inspect pipelines**: List pipelines, retrieve a pipeline's stage and action structure, and check its current execution state
+- **Track executions**: Get details on a specific execution or list recent executions and action-level history, including status, triggers, and source revisions
+- **Control pipeline flow**: Start or stop executions, retry failed stages, and approve or reject pending manual approval actions
+- **Manage stage transitions**: Disable or re-enable artifact transitions into or out of a stage to freeze or resume a pipeline
+
+In Sim, the AWS CodePipeline integration allows your agents to monitor and control release pipelines programmatically — listing pipelines and their structure, checking execution and action status, starting or stopping executions, retrying failed stages, approving or rejecting manual approvals, and enabling or disabling stage transitions. This lets your agents build deployment automation and approval workflows that respond to pipeline state in real time.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate AWS CodePipeline into workflows. Start, stop, and monitor pipeline executions, retry failed stages, and approve or reject manual approval actions. Requires AWS access key and secret access key.

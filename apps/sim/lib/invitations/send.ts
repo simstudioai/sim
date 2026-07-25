@@ -20,6 +20,7 @@ import {
 } from '@/components/emails'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { computeInvitationExpiry } from '@/lib/invitations/core'
+import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { getBrandConfig } from '@/ee/whitelabeling'
@@ -57,12 +58,30 @@ export async function createPendingInvitation(
   const now = new Date()
 
   await db.transaction(async (tx) => {
+    const workspaceIds = input.grants.map((grant) => grant.workspaceId)
+    await acquireInvitationMutationLocks(tx, {
+      invitationIds: [invitationId],
+      workspaceIds,
+    })
+
+    let organizationId = input.organizationId
+    if (input.kind === 'workspace' && workspaceIds.length > 0) {
+      const currentScopes = await tx
+        .select({ organizationId: workspace.organizationId })
+        .from(workspace)
+        .where(inArray(workspace.id, workspaceIds))
+      const uniqueScopes = [...new Set(currentScopes.map((row) => row.organizationId))]
+      if (uniqueScopes.length === 1) {
+        organizationId = uniqueScopes[0]
+      }
+    }
+
     await tx.insert(invitation).values({
       id: invitationId,
       kind: input.kind,
       email: normalizeEmail(input.email),
       inviterId: input.inviterId,
-      organizationId: input.organizationId,
+      organizationId,
       membershipIntent: input.membershipIntent ?? 'internal',
       role: input.role,
       status: 'pending',

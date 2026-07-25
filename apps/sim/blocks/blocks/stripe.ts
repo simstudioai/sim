@@ -1,4 +1,4 @@
-import { GoogleSheetsIcon, StripeIcon } from '@/components/icons'
+import { StripeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { StripeResponse } from '@/tools/stripe/types'
@@ -848,8 +848,8 @@ export const StripeBlockMeta = {
   url: 'https://stripe.com',
   templates: [
     {
-      icon: GoogleSheetsIcon,
-      title: 'Weekly metrics report',
+      icon: StripeIcon,
+      title: 'Stripe weekly metrics report',
       prompt:
         'Build a scheduled workflow that pulls data from Stripe and my database every Monday, calculates key metrics like MRR, churn, new subscriptions, and failed payments, writes results to Google Sheets, and sends the team a Slack summary with week-over-week trends.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -859,7 +859,7 @@ export const StripeBlockMeta = {
     },
     {
       icon: StripeIcon,
-      title: 'Revenue operations dashboard',
+      title: 'Stripe revenue dashboard',
       prompt:
         'Create a scheduled daily workflow that pulls payment data from Stripe, calculates MRR, net revenue, failed payments, and new subscriptions, logs everything to a table with historical tracking, and sends a daily Slack summary with trends and anomalies.',
       modules: ['tables', 'scheduled', 'agent', 'workflows'],
@@ -869,7 +869,7 @@ export const StripeBlockMeta = {
     },
     {
       icon: StripeIcon,
-      title: 'Failed payment recovery',
+      title: 'Stripe failed payment recovery',
       prompt:
         'Build a workflow that listens for Stripe failed-payment events, looks up the customer, classifies the failure reason, drafts a tailored recovery email and a Slack alert to the success team, and logs the attempt in a tracking table so recovery rate can be measured.',
       modules: ['tables', 'agent', 'workflows'],
@@ -879,7 +879,7 @@ export const StripeBlockMeta = {
     },
     {
       icon: StripeIcon,
-      title: 'Subscription churn flagger',
+      title: 'Stripe churn flagger',
       prompt:
         'Create a scheduled daily workflow that lists Stripe subscriptions canceled or scheduled for cancellation, enriches each customer with usage and support history, scores the churn risk, and logs the cohort to a table with recommended save plays for the success team.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -889,7 +889,7 @@ export const StripeBlockMeta = {
     },
     {
       icon: StripeIcon,
-      title: 'Invoice chase automation',
+      title: 'Stripe invoice chaser',
       prompt:
         'Build a scheduled workflow that lists Stripe invoices overdue by more than seven days, sends a polite chase email tailored to the customer history, escalates to a Slack alert at thirty days, and writes every action into a collections tracking table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -899,7 +899,7 @@ export const StripeBlockMeta = {
     },
     {
       icon: StripeIcon,
-      title: 'New customer welcome flow',
+      title: 'Stripe customer welcome flow',
       prompt:
         'Create a workflow triggered when a new Stripe customer is created. Send a personalized welcome email, create their onboarding checklist in a table, schedule a follow-up meeting via Calendly, and post a Slack notification to the customer success channel.',
       modules: ['tables', 'agent', 'workflows'],
@@ -909,7 +909,7 @@ export const StripeBlockMeta = {
     },
     {
       icon: StripeIcon,
-      title: 'Refund pattern analyzer',
+      title: 'Stripe refund pattern analyzer',
       prompt:
         'Build a scheduled weekly workflow that lists Stripe charge and dispute events, classifies each refund or dispute by reason and product, identifies recurring patterns or fraud signals, writes a narrative report file, and Slacks finance with the top concerns and recommended actions.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],

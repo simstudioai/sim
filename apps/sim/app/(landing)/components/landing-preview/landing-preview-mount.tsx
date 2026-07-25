@@ -1,17 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import type { SidebarView } from '@/app/(landing)/components/landing-preview/components/landing-preview-sidebar/landing-preview-sidebar'
+import { useLazyMount } from '@/app/(landing)/hooks/use-lazy-mount'
 
 /** Dimension-stable placeholder sized to the preview's exact footprint (zero CLS). */
 const PLACEHOLDER_CLASS = 'aspect-[1116/615] w-full rounded bg-[var(--surface-1)]'
-
-/**
- * Load the preview chunk a little before it scrolls into view so it's ready by
- * the time the user reaches it, without paying for it on initial load.
- */
-const PRELOAD_ROOT_MARGIN = '400px'
 
 /**
  * Client mount for the {@link LandingPreview} - the heavy, animated workspace
@@ -19,12 +13,12 @@ const PRELOAD_ROOT_MARGIN = '400px'
  * stay Server Components: only this leaf is `'use client'`.
  *
  * Loaded with `ssr: false` so the framer-motion/reactflow bundle never ships in
- * the server-rendered HTML, and **gated on viewport proximity**: the chunk only
- * downloads once an {@link IntersectionObserver} reports the mount is near the
- * viewport, so the below-the-fold previews don't pull the heavy bundle into the
- * initial homepage load. A dimension-stable placeholder (the preview's exact
- * `aspect-[1116/615]` footprint, filled with the canvas surface) holds the space
- * before and during load, so there is zero layout shift or flash.
+ * the server-rendered HTML, and gated on viewport proximity via
+ * {@link useLazyMount} so the below-the-fold previews don't pull the heavy
+ * bundle into the initial homepage load. A dimension-stable placeholder (the
+ * preview's exact `aspect-[1116/615]` footprint, filled with the canvas
+ * surface) holds the space before and during load, so there is zero layout
+ * shift or flash.
  */
 const LandingPreview = dynamic(
   () =>
@@ -47,28 +41,7 @@ interface LandingPreviewMountProps {
 }
 
 export function LandingPreviewMount({ autoplay, view, workflowId }: LandingPreviewMountProps) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [inView, setInView] = useState(false)
-
-  useEffect(() => {
-    if (inView) return
-    // Graceful degradation: without IntersectionObserver support, load eagerly
-    // rather than leave the preview stuck on its placeholder.
-    if (typeof IntersectionObserver === 'undefined') {
-      setInView(true)
-      return
-    }
-    const el = ref.current
-    if (!el) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) setInView(true)
-      },
-      { rootMargin: PRELOAD_ROOT_MARGIN }
-    )
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [inView])
+  const { ref, inView } = useLazyMount('400px')
 
   return (
     <div ref={ref}>

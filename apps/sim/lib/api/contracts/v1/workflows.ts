@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { deploymentVersionMetadataFieldsSchema } from '@/lib/api/contracts/deployments'
+import {
+  activeDeploymentSummarySchema,
+  deploymentOperationSummarySchema,
+  deploymentVersionMetadataFieldsSchema,
+} from '@/lib/api/contracts/deployments'
 import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
@@ -93,13 +97,25 @@ const v1DeploymentStateSchema = z.object({
   warnings: z.array(z.string()),
 })
 
-export const v1DeployWorkflowDataSchema = v1DeploymentStateSchema.extend({
+/**
+ * Deploy/rollback admit asynchronously: HTTP success means the attempt was
+ * accepted, while `isDeployed` reflects whether a version is actually live.
+ * `latestDeploymentAttempt` carries the lifecycle status
+ * (preparing/activating/active/failed/superseded) so API consumers can poll
+ * to a terminal state instead of guessing from `isDeployed` alone.
+ */
+const v1DeploymentLifecycleSchema = v1DeploymentStateSchema.extend({
+  activeDeployment: activeDeploymentSummarySchema.nullable(),
+  latestDeploymentAttempt: deploymentOperationSummarySchema.nullable(),
+})
+
+export const v1DeployWorkflowDataSchema = v1DeploymentLifecycleSchema.extend({
   version: z.number().optional(),
 })
 
 export type V1DeployWorkflowData = z.output<typeof v1DeployWorkflowDataSchema>
 
-export const v1RollbackWorkflowDataSchema = v1DeploymentStateSchema.extend({
+export const v1RollbackWorkflowDataSchema = v1DeploymentLifecycleSchema.extend({
   version: z.number(),
 })
 

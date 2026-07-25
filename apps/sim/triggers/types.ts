@@ -30,6 +30,14 @@ export interface TriggerConfig {
 
   /** When true, this trigger is poll-based (cron-driven) rather than push-based. */
   polling?: boolean
+
+  /**
+   * When true, the trigger stays registered so existing workflows keep
+   * resolving, but it is excluded from generated documentation. Used for
+   * triggers superseded by a newer version (e.g. Grain view-scoped triggers
+   * after the v1 API sunset).
+   */
+  deprecated?: boolean
 }
 
 export interface TriggerRegistry {

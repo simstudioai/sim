@@ -1,76 +1,63 @@
 /**
  * @vitest-environment node
  */
-import { workflowAuthzMockFns, workflowsUtilsMock, workflowsUtilsMockFns } from '@sim/testing'
-import { drizzleOrmMock } from '@sim/testing/mocks'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+  workflowAuthzMockFns,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockAuthorizeWorkflowByWorkspacePermission =
   workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
 
-const { mockDb } = vi.hoisted(() => ({
-  mockDb: {
-    transaction: vi.fn(),
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  ...drizzleOrmMock,
-  min: vi.fn((field) => ({ type: 'min', field })),
-}))
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
-vi.mock('@sim/db', () => ({
-  db: mockDb,
-}))
+vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
-import { duplicateWorkflow } from './duplicate'
+import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 
-function createMockTx(
-  selectResults: unknown[],
-  onWorkflowInsert?: (values: Record<string, unknown>) => void,
-  onInsert?: (values: unknown) => void
-) {
-  let selectCallCount = 0
+/**
+ * Queues the table-routed result sets consumed by `duplicateWorkflow`, in
+ * chain order: source workflow lookup, sibling/folder minimum sort-order
+ * aggregates, then the source blocks/edges/subflows reads.
+ */
+function queueDuplicateFixtures(options: {
+  sourceWorkflow: Record<string, unknown>
+  workflowMin?: unknown[]
+  folderMin?: unknown[]
+  blocks?: unknown[]
+  edges?: unknown[]
+  subflows?: unknown[]
+}) {
+  queueTableRows(schemaMock.workflow, [options.sourceWorkflow])
+  queueTableRows(schemaMock.workflow, options.workflowMin ?? [])
+  queueTableRows(schemaMock.workflowFolder, options.folderMin ?? [])
+  queueTableRows(schemaMock.workflowBlocks, options.blocks ?? [])
+  queueTableRows(schemaMock.workflowEdges, options.edges ?? [])
+  queueTableRows(schemaMock.workflowSubflows, options.subflows ?? [])
+}
 
-  const select = vi.fn().mockImplementation(() => ({
-    from: vi.fn().mockReturnValue({
-      where: vi.fn().mockImplementation(() => {
-        const result = selectResults[selectCallCount++] ?? []
-        if (selectCallCount === 1) {
-          return {
-            limit: vi.fn().mockResolvedValue(result),
-          }
-        }
-        return Promise.resolve(result)
-      }),
-    }),
-  }))
-
-  const insert = vi.fn().mockReturnValue({
-    values: vi.fn().mockImplementation((values: Record<string, unknown>) => {
-      onWorkflowInsert?.(values)
-      onInsert?.(values)
-      return Promise.resolve(undefined)
-    }),
-  })
-
-  const update = vi.fn().mockReturnValue({
-    set: vi.fn().mockReturnValue({
-      where: vi.fn().mockResolvedValue(undefined),
-    }),
-  })
-
-  return {
-    select,
-    insert,
-    update,
-  }
+/**
+ * Returns each payload passed to `insert(table).values(payload)` for the given
+ * schema table. Insert/values chains run sequentially in the code under test,
+ * so the two spies' call lists stay index-aligned.
+ */
+function insertedValuesFor(table: unknown): unknown[] {
+  return dbChainMockFns.insert.mock.calls.flatMap(([calledTable], index) =>
+    calledTable === table ? [dbChainMockFns.values.mock.calls[index]?.[0]] : []
+  )
 }
 
 describe('duplicateWorkflow ordering', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
 
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('new-workflow-id'),
@@ -87,33 +74,22 @@ describe('duplicateWorkflow ordering', () => {
     )
   })
 
-  it('uses mixed-sibling top insertion sort order', async () => {
-    let insertedWorkflowValues: Record<string, unknown> | null = null
-    const tx = createMockTx(
-      [
-        [
-          {
-            id: 'source-workflow-id',
-            workspaceId: 'workspace-123',
-            folderId: null,
-            description: 'source',
-            variables: {},
-          },
-        ],
-        [{ minOrder: 5 }],
-        [{ minOrder: 2 }],
-        [],
-        [],
-        [],
-      ],
-      (values) => {
-        insertedWorkflowValues = values
-      }
-    )
+  afterAll(() => {
+    resetDbChainMock()
+  })
 
-    mockDb.transaction.mockImplementation(async (callback: (txArg: unknown) => Promise<unknown>) =>
-      callback(tx)
-    )
+  it('uses mixed-sibling top insertion sort order', async () => {
+    queueDuplicateFixtures({
+      sourceWorkflow: {
+        id: 'source-workflow-id',
+        workspaceId: 'workspace-123',
+        folderId: null,
+        description: 'source',
+        variables: {},
+      },
+      workflowMin: [{ minOrder: 5 }],
+      folderMin: [{ minOrder: 2 }],
+    })
 
     const result = await duplicateWorkflow({
       sourceWorkflowId: 'source-workflow-id',
@@ -125,36 +101,23 @@ describe('duplicateWorkflow ordering', () => {
     })
 
     expect(result.sortOrder).toBe(1)
+    const insertedWorkflowValues = insertedValuesFor(schemaMock.workflow)[0] as Record<
+      string,
+      unknown
+    >
     expect(insertedWorkflowValues?.sortOrder).toBe(1)
   })
 
   it('defaults to sortOrder 0 when target has no siblings', async () => {
-    let insertedWorkflowValues: Record<string, unknown> | null = null
-    const tx = createMockTx(
-      [
-        [
-          {
-            id: 'source-workflow-id',
-            workspaceId: 'workspace-123',
-            folderId: null,
-            description: 'source',
-            variables: {},
-          },
-        ],
-        [],
-        [],
-        [],
-        [],
-        [],
-      ],
-      (values) => {
-        insertedWorkflowValues = values
-      }
-    )
-
-    mockDb.transaction.mockImplementation(async (callback: (txArg: unknown) => Promise<unknown>) =>
-      callback(tx)
-    )
+    queueDuplicateFixtures({
+      sourceWorkflow: {
+        id: 'source-workflow-id',
+        workspaceId: 'workspace-123',
+        folderId: null,
+        description: 'source',
+        variables: {},
+      },
+    })
 
     const result = await duplicateWorkflow({
       sourceWorkflowId: 'source-workflow-id',
@@ -166,91 +129,76 @@ describe('duplicateWorkflow ordering', () => {
     })
 
     expect(result.sortOrder).toBe(0)
+    const insertedWorkflowValues = insertedValuesFor(schemaMock.workflow)[0] as Record<
+      string,
+      unknown
+    >
     expect(insertedWorkflowValues?.sortOrder).toBe(0)
   })
 
   it('strips copied webhook runtime subblocks and remaps variable assignments', async () => {
-    let insertedBlocks: Array<Record<string, unknown>> | null = null
-    const tx = createMockTx(
-      [
-        [
-          {
-            id: 'source-workflow-id',
-            workspaceId: 'workspace-123',
-            folderId: null,
-            description: 'source',
+    queueDuplicateFixtures({
+      sourceWorkflow: {
+        id: 'source-workflow-id',
+        workspaceId: 'workspace-123',
+        folderId: null,
+        description: 'source',
 
-            variables: {
-              'old-var-id': {
-                id: 'old-var-id',
-                workflowId: 'source-workflow-id',
-                name: 'customerName',
-                type: 'string',
-                value: 'Ada',
-              },
-            },
-          },
-        ],
-        [],
-        [],
-        [
-          {
-            id: 'source-block-id',
+        variables: {
+          'old-var-id': {
+            id: 'old-var-id',
             workflowId: 'source-workflow-id',
-            type: 'generic_webhook',
-            name: 'Webhook',
-            parentId: null,
-            extent: null,
-            data: {},
-            subBlocks: {
-              triggerPath: { id: 'triggerPath', type: 'short-input', value: 'old-webhook-path' },
-              webhookId: { id: 'webhookId', type: 'short-input', value: 'old-webhook-id' },
-              webhookUrlDisplay: {
-                id: 'webhookUrlDisplay',
-                type: 'short-input',
-                value: 'https://example.test/api/webhooks/trigger/old-webhook-path',
-              },
-              variables: {
-                id: 'variables',
-                type: 'variables-input',
-                value: JSON.stringify([
-                  {
-                    id: 'assignment-1',
-                    variableId: 'old-var-id',
-                    variableName: 'customerName',
-                    type: 'string',
-                    value: 'Grace',
-                    isExisting: true,
-                  },
-                ]),
-              },
-            },
-            position: { x: 0, y: 0 },
-            enabled: true,
-            horizontalHandles: true,
-            isWide: false,
-            height: 0,
-            advancedMode: false,
-            triggerMode: true,
-            locked: true,
-            createdAt: new Date(),
-            updatedAt: new Date(),
+            name: 'customerName',
+            type: 'string',
+            value: 'Ada',
           },
-        ],
-        [],
-        [],
+        },
+      },
+      blocks: [
+        {
+          id: 'source-block-id',
+          workflowId: 'source-workflow-id',
+          type: 'generic_webhook',
+          name: 'Webhook',
+          parentId: null,
+          extent: null,
+          data: {},
+          subBlocks: {
+            triggerPath: { id: 'triggerPath', type: 'short-input', value: 'old-webhook-path' },
+            webhookId: { id: 'webhookId', type: 'short-input', value: 'old-webhook-id' },
+            webhookUrlDisplay: {
+              id: 'webhookUrlDisplay',
+              type: 'short-input',
+              value: 'https://example.test/api/webhooks/trigger/old-webhook-path',
+            },
+            variables: {
+              id: 'variables',
+              type: 'variables-input',
+              value: JSON.stringify([
+                {
+                  id: 'assignment-1',
+                  variableId: 'old-var-id',
+                  variableName: 'customerName',
+                  type: 'string',
+                  value: 'Grace',
+                  isExisting: true,
+                },
+              ]),
+            },
+          },
+          position: { x: 0, y: 0 },
+          enabled: true,
+          horizontalHandles: true,
+          isWide: false,
+          height: 0,
+          advancedMode: false,
+          triggerMode: true,
+          locked: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
       ],
-      undefined,
-      (values) => {
-        if (Array.isArray(values)) {
-          insertedBlocks = values as Array<Record<string, unknown>>
-        }
-      }
-    )
-
-    mockDb.transaction.mockImplementation(async (callback: (txArg: unknown) => Promise<unknown>) =>
-      callback(tx)
-    )
+    })
 
     await duplicateWorkflow({
       sourceWorkflowId: 'source-workflow-id',
@@ -261,6 +209,9 @@ describe('duplicateWorkflow ordering', () => {
       requestId: 'req-3',
     })
 
+    const insertedBlocks = insertedValuesFor(schemaMock.workflowBlocks)[0] as Array<
+      Record<string, unknown>
+    >
     expect(insertedBlocks).toHaveLength(1)
     const copiedSubBlocks = insertedBlocks?.[0].subBlocks as Record<string, any>
     expect(copiedSubBlocks.triggerPath).toBeUndefined()
@@ -272,85 +223,61 @@ describe('duplicateWorkflow ordering', () => {
   })
 
   it('remaps variable assignments when duplicating an already-duplicated source (array value)', async () => {
-    let insertedBlocks: Array<Record<string, unknown>> | null = null
-    let insertedWorkflowValues: Record<string, unknown> | null = null
-    const tx = createMockTx(
-      [
-        [
-          {
-            id: 'first-copy-workflow-id',
-            workspaceId: 'workspace-123',
-            folderId: null,
-            description: 'first copy',
+    queueDuplicateFixtures({
+      sourceWorkflow: {
+        id: 'first-copy-workflow-id',
+        workspaceId: 'workspace-123',
+        folderId: null,
+        description: 'first copy',
 
-            variables: {
-              'first-copy-var-id': {
-                id: 'first-copy-var-id',
-                workflowId: 'first-copy-workflow-id',
-                name: 'customerName',
-                type: 'string',
-                value: 'Ada',
-              },
-            },
-          },
-        ],
-        [],
-        [],
-        [
-          {
-            id: 'first-copy-block-id',
+        variables: {
+          'first-copy-var-id': {
+            id: 'first-copy-var-id',
             workflowId: 'first-copy-workflow-id',
-            type: 'agent',
-            name: 'Agent',
-            parentId: null,
-            extent: null,
-            data: {},
-            subBlocks: {
-              variables: {
-                id: 'variables',
-                type: 'variables-input',
-                value: [
-                  {
-                    id: 'assignment-1',
-                    variableId: 'first-copy-var-id',
-                    variableName: 'customerName',
-                    type: 'string',
-                    value: 'Grace',
-                    isExisting: true,
-                  },
-                ],
-              },
-            },
-            position: { x: 0, y: 0 },
-            enabled: true,
-            horizontalHandles: true,
-            isWide: false,
-            height: 0,
-            advancedMode: false,
-            triggerMode: false,
-            locked: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
+            name: 'customerName',
+            type: 'string',
+            value: 'Ada',
           },
-        ],
-        [],
-        [],
-      ],
-      (values) => {
-        if (!insertedWorkflowValues && !Array.isArray(values)) {
-          insertedWorkflowValues = values
-        }
+        },
       },
-      (values) => {
-        if (Array.isArray(values)) {
-          insertedBlocks = values as Array<Record<string, unknown>>
-        }
-      }
-    )
-
-    mockDb.transaction.mockImplementation(async (callback: (txArg: unknown) => Promise<unknown>) =>
-      callback(tx)
-    )
+      blocks: [
+        {
+          id: 'first-copy-block-id',
+          workflowId: 'first-copy-workflow-id',
+          type: 'agent',
+          name: 'Agent',
+          parentId: null,
+          extent: null,
+          data: {},
+          subBlocks: {
+            variables: {
+              id: 'variables',
+              type: 'variables-input',
+              value: [
+                {
+                  id: 'assignment-1',
+                  variableId: 'first-copy-var-id',
+                  variableName: 'customerName',
+                  type: 'string',
+                  value: 'Grace',
+                  isExisting: true,
+                },
+              ],
+            },
+          },
+          position: { x: 0, y: 0 },
+          enabled: true,
+          horizontalHandles: true,
+          isWide: false,
+          height: 0,
+          advancedMode: false,
+          triggerMode: false,
+          locked: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+    })
 
     await duplicateWorkflow({
       sourceWorkflowId: 'first-copy-workflow-id',
@@ -361,11 +288,18 @@ describe('duplicateWorkflow ordering', () => {
       requestId: 'req-second-copy',
     })
 
+    const insertedBlocks = insertedValuesFor(schemaMock.workflowBlocks)[0] as Array<
+      Record<string, unknown>
+    >
     expect(insertedBlocks).toHaveLength(1)
     const copiedSubBlocks = insertedBlocks?.[0].subBlocks as Record<string, any>
     expect(Array.isArray(copiedSubBlocks.variables.value)).toBe(true)
     expect(copiedSubBlocks.variables.value).toHaveLength(1)
 
+    const insertedWorkflowValues = insertedValuesFor(schemaMock.workflow)[0] as Record<
+      string,
+      unknown
+    >
     const newVarIds = Object.keys(
       (insertedWorkflowValues?.variables as Record<string, unknown>) || {}
     )
@@ -377,101 +311,79 @@ describe('duplicateWorkflow ordering', () => {
   })
 
   it('preserves remap when an edge references an unknown source block (drops the edge with a warning)', async () => {
-    let insertedEdges: Array<Record<string, unknown>> | null = null
-    const tx = createMockTx(
-      [
-        [
-          {
-            id: 'source-workflow-id',
-            workspaceId: 'workspace-123',
-            folderId: null,
-            description: 'source',
-            variables: {},
-          },
-        ],
-        [],
-        [],
-        [
-          {
-            id: 'block-a',
-            workflowId: 'source-workflow-id',
-            type: 'agent',
-            name: 'Agent A',
-            parentId: null,
-            extent: null,
-            data: {},
-            subBlocks: {},
-            position: { x: 0, y: 0 },
-            enabled: true,
-            horizontalHandles: true,
-            isWide: false,
-            height: 0,
-            advancedMode: false,
-            triggerMode: false,
-            locked: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-          {
-            id: 'block-b',
-            workflowId: 'source-workflow-id',
-            type: 'agent',
-            name: 'Agent B',
-            parentId: null,
-            extent: null,
-            data: {},
-            subBlocks: {},
-            position: { x: 0, y: 0 },
-            enabled: true,
-            horizontalHandles: true,
-            isWide: false,
-            height: 0,
-            advancedMode: false,
-            triggerMode: false,
-            locked: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-        ],
-        [
-          {
-            id: 'edge-valid',
-            workflowId: 'source-workflow-id',
-            sourceBlockId: 'block-a',
-            targetBlockId: 'block-b',
-            sourceHandle: null,
-            targetHandle: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-          {
-            id: 'edge-orphan',
-            workflowId: 'source-workflow-id',
-            sourceBlockId: 'unknown-source-block',
-            targetBlockId: 'block-b',
-            sourceHandle: null,
-            targetHandle: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-        ],
-        [],
+    queueDuplicateFixtures({
+      sourceWorkflow: {
+        id: 'source-workflow-id',
+        workspaceId: 'workspace-123',
+        folderId: null,
+        description: 'source',
+        variables: {},
+      },
+      blocks: [
+        {
+          id: 'block-a',
+          workflowId: 'source-workflow-id',
+          type: 'agent',
+          name: 'Agent A',
+          parentId: null,
+          extent: null,
+          data: {},
+          subBlocks: {},
+          position: { x: 0, y: 0 },
+          enabled: true,
+          horizontalHandles: true,
+          isWide: false,
+          height: 0,
+          advancedMode: false,
+          triggerMode: false,
+          locked: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: 'block-b',
+          workflowId: 'source-workflow-id',
+          type: 'agent',
+          name: 'Agent B',
+          parentId: null,
+          extent: null,
+          data: {},
+          subBlocks: {},
+          position: { x: 0, y: 0 },
+          enabled: true,
+          horizontalHandles: true,
+          isWide: false,
+          height: 0,
+          advancedMode: false,
+          triggerMode: false,
+          locked: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
       ],
-      undefined,
-      (values) => {
-        if (
-          Array.isArray(values) &&
-          values.length > 0 &&
-          (values[0] as Record<string, unknown>)?.sourceBlockId !== undefined
-        ) {
-          insertedEdges = values as Array<Record<string, unknown>>
-        }
-      }
-    )
-
-    mockDb.transaction.mockImplementation(async (callback: (txArg: unknown) => Promise<unknown>) =>
-      callback(tx)
-    )
+      edges: [
+        {
+          id: 'edge-valid',
+          workflowId: 'source-workflow-id',
+          sourceBlockId: 'block-a',
+          targetBlockId: 'block-b',
+          sourceHandle: null,
+          targetHandle: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: 'edge-orphan',
+          workflowId: 'source-workflow-id',
+          sourceBlockId: 'unknown-source-block',
+          targetBlockId: 'block-b',
+          sourceHandle: null,
+          targetHandle: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+    })
 
     await expect(
       duplicateWorkflow({
@@ -484,6 +396,9 @@ describe('duplicateWorkflow ordering', () => {
       })
     ).resolves.toBeDefined()
 
+    const insertedEdges = insertedValuesFor(schemaMock.workflowEdges)[0] as Array<
+      Record<string, unknown>
+    >
     expect(insertedEdges).toHaveLength(1)
     const onlyEdge = insertedEdges?.[0]
     expect(onlyEdge?.sourceBlockId).not.toBe('unknown-source-block')
@@ -492,94 +407,72 @@ describe('duplicateWorkflow ordering', () => {
   })
 
   it('preserves remap when a subflow references an unknown node (drops the node with a warning)', async () => {
-    let insertedSubflows: Array<Record<string, unknown>> | null = null
-    const tx = createMockTx(
-      [
-        [
-          {
-            id: 'source-workflow-id',
-            workspaceId: 'workspace-123',
-            folderId: null,
-            description: 'source',
-            variables: {},
-          },
-        ],
-        [],
-        [],
-        [
-          {
-            id: 'loop-block',
-            workflowId: 'source-workflow-id',
-            type: 'loop',
-            name: 'Loop',
-            parentId: null,
-            extent: null,
-            data: {},
-            subBlocks: {},
-            position: { x: 0, y: 0 },
-            enabled: true,
-            horizontalHandles: true,
-            isWide: false,
-            height: 0,
-            advancedMode: false,
-            triggerMode: false,
-            locked: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-          {
-            id: 'known-node',
-            workflowId: 'source-workflow-id',
-            type: 'agent',
-            name: 'Agent',
-            parentId: null,
-            extent: null,
-            data: {},
-            subBlocks: {},
-            position: { x: 0, y: 0 },
-            enabled: true,
-            horizontalHandles: true,
-            isWide: false,
-            height: 0,
-            advancedMode: false,
-            triggerMode: false,
-            locked: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-        ],
-        [],
-        [
-          {
-            id: 'loop-block',
-            workflowId: 'source-workflow-id',
-            type: 'loop',
-            config: {
-              id: 'loop-block',
-              nodes: ['known-node', 'unknown-node'],
-              iterations: 1,
-              loopType: 'for',
-            },
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-        ],
+    queueDuplicateFixtures({
+      sourceWorkflow: {
+        id: 'source-workflow-id',
+        workspaceId: 'workspace-123',
+        folderId: null,
+        description: 'source',
+        variables: {},
+      },
+      blocks: [
+        {
+          id: 'loop-block',
+          workflowId: 'source-workflow-id',
+          type: 'loop',
+          name: 'Loop',
+          parentId: null,
+          extent: null,
+          data: {},
+          subBlocks: {},
+          position: { x: 0, y: 0 },
+          enabled: true,
+          horizontalHandles: true,
+          isWide: false,
+          height: 0,
+          advancedMode: false,
+          triggerMode: false,
+          locked: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: 'known-node',
+          workflowId: 'source-workflow-id',
+          type: 'agent',
+          name: 'Agent',
+          parentId: null,
+          extent: null,
+          data: {},
+          subBlocks: {},
+          position: { x: 0, y: 0 },
+          enabled: true,
+          horizontalHandles: true,
+          isWide: false,
+          height: 0,
+          advancedMode: false,
+          triggerMode: false,
+          locked: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
       ],
-      undefined,
-      (values) => {
-        if (
-          Array.isArray(values) &&
-          values.length > 0 &&
-          (values[0] as Record<string, unknown>)?.config !== undefined
-        ) {
-          insertedSubflows = values as Array<Record<string, unknown>>
-        }
-      }
-    )
-
-    mockDb.transaction.mockImplementation(async (callback: (txArg: unknown) => Promise<unknown>) =>
-      callback(tx)
-    )
+      subflows: [
+        {
+          id: 'loop-block',
+          workflowId: 'source-workflow-id',
+          type: 'loop',
+          config: {
+            id: 'loop-block',
+            nodes: ['known-node', 'unknown-node'],
+            iterations: 1,
+            loopType: 'for',
+          },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+    })
 
     await expect(
       duplicateWorkflow({
@@ -592,6 +485,9 @@ describe('duplicateWorkflow ordering', () => {
       })
     ).resolves.toBeDefined()
 
+    const insertedSubflows = insertedValuesFor(schemaMock.workflowSubflows)[0] as Array<
+      Record<string, unknown>
+    >
     expect(insertedSubflows).toHaveLength(1)
     const remappedConfig = insertedSubflows?.[0].config as { nodes: string[] }
     expect(Array.isArray(remappedConfig.nodes)).toBe(true)
@@ -601,80 +497,61 @@ describe('duplicateWorkflow ordering', () => {
   })
 
   it('preserves stale variable references instead of failing the duplicate', async () => {
-    let insertedBlocks: Array<Record<string, unknown>> | null = null
-    const tx = createMockTx(
-      [
-        [
-          {
-            id: 'source-workflow-id',
-            workspaceId: 'workspace-123',
-            folderId: null,
-            description: 'source',
+    queueDuplicateFixtures({
+      sourceWorkflow: {
+        id: 'source-workflow-id',
+        workspaceId: 'workspace-123',
+        folderId: null,
+        description: 'source',
 
-            variables: {
-              'live-var-id': {
-                id: 'live-var-id',
-                workflowId: 'source-workflow-id',
-                name: 'customerName',
-                type: 'string',
-                value: 'Ada',
-              },
-            },
-          },
-        ],
-        [],
-        [],
-        [
-          {
-            id: 'source-block-id',
+        variables: {
+          'live-var-id': {
+            id: 'live-var-id',
             workflowId: 'source-workflow-id',
-            type: 'agent',
-            name: 'Agent',
-            parentId: null,
-            extent: null,
-            data: {},
-            subBlocks: {
-              variables: {
-                id: 'variables',
-                type: 'variables-input',
-                value: [
-                  {
-                    id: 'assignment-1',
-                    variableId: 'deleted-var-id',
-                    variableName: 'customerName',
-                    type: 'string',
-                    value: 'Grace',
-                    isExisting: true,
-                  },
-                ],
-              },
-            },
-            position: { x: 0, y: 0 },
-            enabled: true,
-            horizontalHandles: true,
-            isWide: false,
-            height: 0,
-            advancedMode: false,
-            triggerMode: false,
-            locked: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
+            name: 'customerName',
+            type: 'string',
+            value: 'Ada',
           },
-        ],
-        [],
-        [],
+        },
+      },
+      blocks: [
+        {
+          id: 'source-block-id',
+          workflowId: 'source-workflow-id',
+          type: 'agent',
+          name: 'Agent',
+          parentId: null,
+          extent: null,
+          data: {},
+          subBlocks: {
+            variables: {
+              id: 'variables',
+              type: 'variables-input',
+              value: [
+                {
+                  id: 'assignment-1',
+                  variableId: 'deleted-var-id',
+                  variableName: 'customerName',
+                  type: 'string',
+                  value: 'Grace',
+                  isExisting: true,
+                },
+              ],
+            },
+          },
+          position: { x: 0, y: 0 },
+          enabled: true,
+          horizontalHandles: true,
+          isWide: false,
+          height: 0,
+          advancedMode: false,
+          triggerMode: false,
+          locked: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
       ],
-      undefined,
-      (values) => {
-        if (Array.isArray(values)) {
-          insertedBlocks = values as Array<Record<string, unknown>>
-        }
-      }
-    )
-
-    mockDb.transaction.mockImplementation(async (callback: (txArg: unknown) => Promise<unknown>) =>
-      callback(tx)
-    )
+    })
 
     await expect(
       duplicateWorkflow({
@@ -687,6 +564,9 @@ describe('duplicateWorkflow ordering', () => {
       })
     ).resolves.toBeDefined()
 
+    const insertedBlocks = insertedValuesFor(schemaMock.workflowBlocks)[0] as Array<
+      Record<string, unknown>
+    >
     expect(insertedBlocks).toHaveLength(1)
     const copiedSubBlocks = insertedBlocks?.[0].subBlocks as Record<string, any>
     expect(copiedSubBlocks.variables.value[0].variableId).toBe('deleted-var-id')

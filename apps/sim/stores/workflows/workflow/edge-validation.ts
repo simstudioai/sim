@@ -1,6 +1,9 @@
+import {
+  getWorkflowEdgeScopeDropReason,
+  isWorkflowAnnotationOnlyBlockType,
+} from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
-import { isAnnotationOnlyBlock } from '@/executor/constants'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 interface DroppedEdge {
@@ -11,40 +14,6 @@ interface DroppedEdge {
 export interface EdgeValidationResult {
   valid: Edge[]
   dropped: DroppedEdge[]
-}
-
-function isContainerBlock(block: BlockState | undefined): boolean {
-  return block?.type === 'loop' || block?.type === 'parallel'
-}
-
-function getParentId(block: BlockState | undefined): string | null {
-  return block?.data?.parentId ?? null
-}
-
-function getScopeDropReason(edge: Edge, blocks: Record<string, BlockState>): string | null {
-  const sourceBlock = blocks[edge.source]
-  const targetBlock = blocks[edge.target]
-
-  if (!sourceBlock || !targetBlock) {
-    return 'edge references a missing block'
-  }
-
-  const sourceParent = getParentId(sourceBlock)
-  const targetParent = getParentId(targetBlock)
-
-  if (sourceParent === targetParent) {
-    return null
-  }
-
-  if (targetParent === edge.source && isContainerBlock(sourceBlock)) {
-    return null
-  }
-
-  if (sourceParent === edge.target && isContainerBlock(targetBlock)) {
-    return null
-  }
-
-  return `blocks are in different scopes (${sourceParent ?? 'root'} -> ${targetParent ?? 'root'})`
 }
 
 export function validateEdges(
@@ -63,7 +32,10 @@ export function validateEdges(
       continue
     }
 
-    if (isAnnotationOnlyBlock(sourceBlock.type) || isAnnotationOnlyBlock(targetBlock.type)) {
+    if (
+      isWorkflowAnnotationOnlyBlockType(sourceBlock.type) ||
+      isWorkflowAnnotationOnlyBlockType(targetBlock.type)
+    ) {
       dropped.push({ edge, reason: 'edge references an annotation-only block' })
       continue
     }
@@ -73,7 +45,7 @@ export function validateEdges(
       continue
     }
 
-    const scopeDropReason = getScopeDropReason(edge, blocks)
+    const scopeDropReason = getWorkflowEdgeScopeDropReason(edge, blocks)
     if (scopeDropReason) {
       dropped.push({ edge, reason: scopeDropReason })
       continue

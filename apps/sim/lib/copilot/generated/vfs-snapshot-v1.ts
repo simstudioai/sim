@@ -113,7 +113,6 @@ export interface VfsSnapshotV1Table {
  * via the `definition` "VfsSnapshotV1Workflow".
  */
 export interface VfsSnapshotV1Workflow {
-  description?: string
   folderPath?: string
   id: string
   isDeployed?: boolean

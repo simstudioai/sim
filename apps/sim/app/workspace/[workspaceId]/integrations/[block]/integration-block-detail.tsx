@@ -15,7 +15,10 @@ import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { IntegrationSkillsSection } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-skills-section'
 import { connectParam } from '@/app/workspace/[workspaceId]/integrations/[block]/search-params'
-import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
+import {
+  ConnectServiceAccountModal,
+  useServiceAccountConnectTarget,
+} from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
@@ -72,7 +75,13 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     )
   }, [credentials, oauthService])
   const [serviceAccountOpen, setServiceAccountOpen] = useState(false)
-  const hasServiceAccount = Boolean(oauthService?.serviceAccountProviderId)
+  const serviceAccountTarget = useServiceAccountConnectTarget({
+    serviceAccountProviderId: oauthService?.serviceAccountProviderId,
+    serviceName: oauthService?.serviceName,
+    serviceIcon: oauthService?.serviceIcon,
+  })
+  const hasServiceAccount = Boolean(serviceAccountTarget) && !serviceAccountTarget?.hidden
+  const serviceAccountConnectLabel = serviceAccountTarget?.label ?? 'Add service account'
   const hasHandledConnectQueryRef = useRef(false)
 
   useEffect(() => {
@@ -83,10 +92,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     if (connectMode === CONNECT_MODE.oauth && oauthService) {
       setOAuthOpen(true)
       handled = true
-    } else if (
-      connectMode === CONNECT_MODE.serviceAccount &&
-      oauthService?.serviceAccountProviderId
-    ) {
+    } else if (connectMode === CONNECT_MODE.serviceAccount && hasServiceAccount) {
       setServiceAccountOpen(true)
       handled = true
     }
@@ -94,7 +100,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
 
     hasHandledConnectQueryRef.current = true
     void setConnectMode(null, { history: 'replace', scroll: false })
-  }, [connectMode, oauthService, setConnectMode])
+  }, [connectMode, oauthService, hasServiceAccount, setConnectMode])
 
   const connectOptions = oauthService
     ? [
@@ -105,7 +111,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
         },
         {
           value: CONNECT_MODE.serviceAccount,
-          label: 'Add service account',
+          label: serviceAccountConnectLabel,
           icon: oauthService.serviceIcon,
         },
       ]
@@ -164,7 +170,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
           serviceIcon={oauthService.serviceIcon}
         />
       )}
-      {oauthService?.serviceAccountProviderId && (
+      {hasServiceAccount && oauthService?.serviceAccountProviderId && (
         <ConnectServiceAccountModal
           open={serviceAccountOpen}
           onOpenChange={setServiceAccountOpen}

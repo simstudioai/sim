@@ -4,7 +4,7 @@ import type { CareerPosting } from '@/lib/ashby/jobs'
 import type { DepartmentGroup } from '@/app/(landing)/careers/components/job-board/utils'
 
 /** Empty-state copy: distinguishes a truly empty board from a filtered-to-zero view. */
-const NO_OPEN_ROLES_MESSAGE = 'No open roles right now — check back soon.'
+const NO_OPEN_ROLES_MESSAGE = 'No open roles right now. Check back soon.'
 const NO_MATCHING_ROLES_MESSAGE =
   'No roles match these filters right now. Try clearing them, or check back soon.'
 

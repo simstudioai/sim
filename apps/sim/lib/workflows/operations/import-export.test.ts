@@ -2,9 +2,14 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
 
+vi.mock('@/lib/api/client/request', () => ({
+  requestJson: vi.fn().mockResolvedValue({}),
+}))
+
 import {
   extractWorkflowName,
   parseWorkflowJson,
+  persistImportedWorkflow,
   sanitizePathSegment,
 } from '@/lib/workflows/operations/import-export'
 
@@ -131,6 +136,67 @@ describe('workflow import/export parsing', () => {
       type: 'knowledge-base-selector',
       value: 'kb-uuid-123',
     })
+  })
+})
+
+describe('persistImportedWorkflow description handling', () => {
+  function buildContent(description?: string) {
+    const state = createLegacyState()
+    return JSON.stringify({
+      data: {
+        version: '1.0',
+        workflow: { name: 'Imported Workflow' },
+        state: {
+          ...state,
+          metadata: { name: 'Imported Workflow', description },
+        },
+      },
+    })
+  }
+
+  async function importWithContent(content: string, descriptionOverride?: string) {
+    const createWorkflow = vi.fn().mockResolvedValue({ id: 'wf-1' })
+    await persistImportedWorkflow({
+      content,
+      filename: 'imported-workflow.json',
+      workspaceId: 'ws-1',
+      descriptionOverride,
+      createWorkflow,
+    })
+    return createWorkflow.mock.calls[0][0].description as string
+  }
+
+  it('scrubs placeholder metadata descriptions to an empty string', async () => {
+    expect(await importWithContent(buildContent('New workflow'))).toBe('')
+    expect(
+      await importWithContent(buildContent('Your first workflow - start building here!'))
+    ).toBe('')
+  })
+
+  it('scrubs name-equal metadata descriptions to an empty string', async () => {
+    expect(await importWithContent(buildContent('Imported Workflow'))).toBe('')
+  })
+
+  it('preserves meaningful metadata descriptions', async () => {
+    expect(await importWithContent(buildContent('Syncs leads from HubSpot to Slack'))).toBe(
+      'Syncs leads from HubSpot to Slack'
+    )
+  })
+
+  it('uses an empty string when no description is present', async () => {
+    expect(await importWithContent(buildContent(undefined))).toBe('')
+  })
+
+  it('prefers a meaningful override over metadata', async () => {
+    expect(
+      await importWithContent(buildContent('Metadata description'), 'Override description')
+    ).toBe('Override description')
+  })
+
+  it('falls back to meaningful metadata when the override is a placeholder', async () => {
+    expect(await importWithContent(buildContent('Metadata description'), 'New workflow')).toBe(
+      'Metadata description'
+    )
   })
 })
 

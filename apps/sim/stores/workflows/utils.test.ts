@@ -5,6 +5,7 @@ import {
   createLoopBlock,
   createStarterBlock,
 } from '@sim/testing'
+import type { Edge } from 'reactflow'
 import { describe, expect, it } from 'vitest'
 import { normalizeName } from '@/executor/constants'
 import { getUniqueBlockName, regenerateBlockIds } from './utils'
@@ -436,6 +437,67 @@ describe('regenerateBlockIds', () => {
     const duplicatedBlock = Object.values(result.blocks)[0]
     expect(duplicatedBlock.position).toEqual({ x: 280, y: 70 })
     expect(duplicatedBlock.data?.parentId).toBe(loopId)
+  })
+
+  /**
+   * Regression: a fallback writer stamped a condition block's `conditions`
+   * subblock `short-input`. The id remap must key on block type + subblock key
+   * (not the drifted stored type) so the condition row ids and the outgoing
+   * edge's sourceHandle move together — previously the handle remapped while
+   * the row ids stayed stale, orphaning the edge.
+   */
+  it('keeps condition row ids and edge handles consistent when the stored subblock type drifted', () => {
+    const conditionId = 'condition-1'
+    const targetId = 'target-1'
+
+    const blocksToCopy = {
+      [conditionId]: createBlock({
+        id: conditionId,
+        type: 'condition',
+        name: 'botFilter',
+        subBlocks: {
+          conditions: {
+            id: 'conditions',
+            type: 'short-input',
+            value: JSON.stringify([
+              { id: `${conditionId}-if`, title: 'if', value: '<a.b>' },
+              { id: `${conditionId}-else`, title: 'else', value: '' },
+            ]),
+          },
+        },
+      }),
+      [targetId]: createAgentBlock({ id: targetId, name: 'Agent 1' }),
+    }
+
+    const edges = [
+      {
+        id: 'edge-1',
+        source: conditionId,
+        sourceHandle: `condition-${conditionId}-else`,
+        target: targetId,
+        targetHandle: 'target',
+      },
+    ] as Edge[]
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      edges,
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newCondition = Object.values(result.blocks).find((b) => b.type === 'condition')!
+    const newEdge = result.edges[0]
+    const rowIds = JSON.parse(newCondition.subBlocks.conditions.value as string).map(
+      (row: { id: string }) => row.id
+    )
+
+    expect(rowIds).toEqual([`${newCondition.id}-if`, `${newCondition.id}-else`])
+    expect(newEdge.sourceHandle).toBe(`condition-${newCondition.id}-else`)
   })
 
   it('should unlock pasted block when source is locked', () => {

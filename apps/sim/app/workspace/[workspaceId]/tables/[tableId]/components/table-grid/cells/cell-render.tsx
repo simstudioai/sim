@@ -4,6 +4,7 @@ import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { Badge, Checkbox, cn, Tooltip } from '@sim/emcn'
 import { parse } from 'tldts'
+import { faviconUrl } from '@/lib/core/utils/favicon'
 import type { RowExecutionMetadata } from '@/lib/table'
 import { StatusBadge } from '@/app/workspace/[workspaceId]/logs/utils'
 import { storageToDisplay } from '../../../utils'
@@ -84,6 +85,12 @@ export function resolveCellRender({
       const text = stringifyValue(value)
       return resolveLinkKind(text, currentWorkspaceId) ?? { kind: 'value', text }
     }
+
+    // Enrichment outputs share an empty blockId, so `runningBlockIds` can never
+    // match them — the group-level `running` status is the only "worker picked
+    // this up" signal an enrichment cell has. Checked after the value so a
+    // rerun keeps showing the previous output until the new result lands.
+    if (isEnrichmentOutput && exec?.status === 'running') return { kind: 'running' }
 
     if (inFlight && !(groupHasBlockErrors && !blockRunning)) {
       // A `pending` cell whose jobId starts with `paused-` is mid-pause
@@ -362,7 +369,7 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
       return (
         <span className={cn('flex min-w-0 items-center gap-1.5', isEditing && 'invisible')}>
           <img
-            src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(kind.domain)}&sz=16`}
+            src={faviconUrl(kind.domain, 16)}
             alt=''
             width={12}
             height={12}

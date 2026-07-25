@@ -3,11 +3,14 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
+import { enterpriseIssuanceOutboxHandlers } from '@/lib/billing/enterprise-provisioning'
+import { membershipBillingOutboxHandlers } from '@/lib/billing/organizations/membership-reconciliation'
 import { billingOutboxHandlers } from '@/lib/billing/webhooks/outbox-handlers'
 import { processOutboxEvents } from '@/lib/core/outbox/service'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
+import { invitationMigrationOutboxHandlers } from '@/lib/workspaces/admin-move'
 import { reapStaleBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
 
 const logger = createLogger('OutboxProcessorAPI')
@@ -17,6 +20,9 @@ export const maxDuration = 120
 
 const handlers = {
   ...billingOutboxHandlers,
+  ...membershipBillingOutboxHandlers,
+  ...enterpriseIssuanceOutboxHandlers,
+  ...invitationMigrationOutboxHandlers,
   ...workflowDeploymentOutboxHandlers,
 } as const
 

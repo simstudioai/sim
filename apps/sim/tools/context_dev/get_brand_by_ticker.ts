@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type {
   ContextDevBrandResponse,
   ContextDevGetBrandByTickerParams,
@@ -21,6 +22,8 @@ export const contextDevGetBrandByTickerTool: ToolConfig<
   name: 'Context.dev Get Brand by Ticker',
   description: 'Retrieve brand data for a public company by its stock ticker symbol.',
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevGetBrandByTickerParams>(),
 
   params: {
     ticker: {

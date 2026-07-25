@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import {
   createExecutionToolSchema,
   createLLMToolSchema,
   createUserToolSchema,
   filterSchemaForLLM,
   formatParameterLabel,
+  getSubBlocksForToolInput,
   getToolParametersConfig,
   isPasswordParameter,
   mergeToolParameters,
@@ -14,6 +15,7 @@ import {
   validateToolParameters,
 } from '@/tools/params'
 import type { HttpMethod, ParameterVisibility } from '@/tools/types'
+import * as toolsUtils from '@/tools/utils'
 
 const mockToolConfig = {
   id: 'test_tool',
@@ -54,14 +56,31 @@ const mockToolConfig = {
   },
 }
 
-vi.mock('@/tools/utils', () => ({
-  getTool: vi.fn((toolId: string) => {
-    if (toolId === 'test_tool') {
-      return mockToolConfig
+/**
+ * Spy on the real module namespace instead of vi.mock: under `isolate: false`
+ * `@/tools/params` may already be cached bound to the real `@/tools/utils`
+ * module, so patching the shared namespace is the only wiring that always
+ * applies.
+ */
+const getToolSpy = vi.spyOn(toolsUtils, 'getTool').mockImplementation(((toolId: string) => {
+  if (toolId === 'test_tool') {
+    return mockToolConfig
+  }
+  if (toolId === 'workflow_executor') {
+    return {
+      id: 'workflow_executor',
+      name: 'Workflow Executor',
+      description: '',
+      version: '1.0.0',
+      params: {},
     }
-    return null
-  }),
-}))
+  }
+  return null
+}) as unknown as typeof toolsUtils.getTool)
+
+afterAll(() => {
+  getToolSpy.mockRestore()
+})
 
 describe('Tool Parameters Utils', () => {
   describe('getToolParametersConfig', () => {
@@ -140,6 +159,134 @@ describe('Tool Parameters Utils', () => {
       expect(schema.properties).not.toHaveProperty('accessToken')
       expect(schema.required).not.toContain('accessToken')
       expect(schema.properties).toHaveProperty('message')
+    })
+
+    it.concurrent('keeps the hosted key param optional when hosted keys are supported', () => {
+      const hostedTool = {
+        ...mockToolConfig,
+        id: 'hosted_key_tool',
+        params: {
+          query: {
+            type: 'string',
+            required: true,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Search query',
+          },
+          apiKey: {
+            type: 'string',
+            required: true,
+            visibility: 'user-only' as ParameterVisibility,
+            description: 'Exa AI API Key',
+          },
+        },
+        hosting: {
+          envKeyPrefix: 'EXA_API_KEY',
+          apiKeyParam: 'apiKey',
+          byokProviderId: 'exa',
+          pricing: { type: 'per_request' as const, cost: 0.005 },
+          rateLimit: { mode: 'per_request' as const, requestsPerMinute: 100 },
+        },
+      }
+
+      const hostedSchema = createUserToolSchema(hostedTool, {
+        surface: 'copilot',
+        hostedKeySupport: true,
+      })
+
+      // The key stays available as a bring-your-own-key override but is never
+      // a required argument — the executor injects the hosted key server-side.
+      expect(hostedSchema.properties).toHaveProperty('apiKey')
+      expect(hostedSchema.required).not.toContain('apiKey')
+      expect(hostedSchema.properties.apiKey.description).toContain('hosted key')
+      expect(hostedSchema.required).toContain('query')
+    })
+
+    it.concurrent('keeps the hosted key param required without hosted key support', () => {
+      const hostedTool = {
+        ...mockToolConfig,
+        id: 'hosted_key_tool_self_hosted',
+        params: {
+          apiKey: {
+            type: 'string',
+            required: true,
+            visibility: 'user-only' as ParameterVisibility,
+            description: 'Exa AI API Key',
+          },
+        },
+        hosting: {
+          envKeyPrefix: 'EXA_API_KEY',
+          apiKeyParam: 'apiKey',
+          byokProviderId: 'exa',
+          pricing: { type: 'per_request' as const, cost: 0.005 },
+          rateLimit: { mode: 'per_request' as const, requestsPerMinute: 100 },
+        },
+      }
+
+      const selfHostedSchema = createUserToolSchema(hostedTool, { surface: 'copilot' })
+
+      expect(selfHostedSchema.required).toContain('apiKey')
+      expect(selfHostedSchema.properties.apiKey.description).not.toContain('hosted key')
+    })
+
+    it.concurrent('keeps the key required for conditionally hosted tools', () => {
+      const enabled = Object.assign(
+        (params: Record<string, unknown>) => params.provider === 'falai',
+        {
+          condition: { field: 'provider', operator: 'equals' as const, value: 'falai' },
+        }
+      )
+      const conditionalTool = {
+        ...mockToolConfig,
+        id: 'conditional_hosted_tool',
+        params: {
+          apiKey: {
+            type: 'string',
+            required: true,
+            visibility: 'user-only' as ParameterVisibility,
+            description: 'Provider API Key',
+          },
+        },
+        hosting: {
+          enabled,
+          envKeyPrefix: 'FALAI_API_KEY',
+          apiKeyParam: 'apiKey',
+          byokProviderId: 'falai',
+          pricing: { type: 'per_request' as const, cost: 0.01 },
+          rateLimit: { mode: 'per_request' as const, requestsPerMinute: 100 },
+        },
+      }
+
+      const schema = createUserToolSchema(conditionalTool, {
+        surface: 'copilot',
+        hostedKeySupport: true,
+      })
+
+      // Injection only happens when the predicate passes at runtime, so the
+      // schema must not promise a hosted key for every configuration.
+      expect(schema.required).toContain('apiKey')
+      expect(schema.properties.apiKey.description).not.toContain('hosted key')
+    })
+
+    it.concurrent('does not relax required keys on tools without hosting', () => {
+      const plainTool = {
+        ...mockToolConfig,
+        id: 'plain_key_tool',
+        params: {
+          apiKey: {
+            type: 'string',
+            required: true,
+            visibility: 'user-only' as ParameterVisibility,
+            description: 'Service API Key',
+          },
+        },
+      }
+
+      const schema = createUserToolSchema(plainTool, {
+        surface: 'copilot',
+        hostedKeySupport: true,
+      })
+
+      expect(schema.required).toContain('apiKey')
     })
 
     it.concurrent('adds credentialId only for copilot-facing oauth schemas', () => {
@@ -684,6 +831,52 @@ describe('Tool Parameters Utils', () => {
           }
         })
       }
+    })
+  })
+})
+
+describe('custom block agent-tool rendering', () => {
+  // Mirrors buildCustomBlockConfig: hidden workflowId/inputMapping wiring + per-field
+  // sub-blocks keyed by the source field's stable id.
+  const customBlockConfig = {
+    subBlocks: [
+      { id: 'workflowId', type: 'short-input', hidden: true },
+      { id: 'inputMapping', type: 'code', language: 'json', hidden: true },
+      { id: 'field-question', title: 'Question', type: 'short-input', required: true },
+      { id: 'field-files', title: 'Attachments', type: 'file-upload', multiple: true },
+    ],
+  } as any
+
+  describe('getToolParametersConfig', () => {
+    it('surfaces the field sub-blocks, never workflowId/inputMapping', () => {
+      const result = getToolParametersConfig(
+        'workflow_executor',
+        'custom_block_abc',
+        undefined,
+        customBlockConfig
+      )
+      expect(result).not.toBeNull()
+      const ids = result!.userInputParameters.map((p) => p.id)
+      expect(ids).toEqual(['field-question', 'field-files'])
+      expect(ids).not.toContain('workflowId')
+      expect(ids).not.toContain('inputMapping')
+      expect(result!.userInputParameters.every((p) => p.visibility === 'user-or-llm')).toBe(true)
+      expect(result!.requiredParameters.map((p) => p.id)).toEqual(['field-question'])
+    })
+  })
+
+  describe('getSubBlocksForToolInput', () => {
+    it('returns field sub-blocks as user-or-llm and drops reserved/hidden wiring', () => {
+      const result = getSubBlocksForToolInput(
+        'workflow_executor',
+        'custom_block_abc',
+        undefined,
+        undefined,
+        customBlockConfig
+      )
+      expect(result).not.toBeNull()
+      expect(result!.subBlocks.map((sb) => sb.id)).toEqual(['field-question', 'field-files'])
+      expect(result!.subBlocks.every((sb) => sb.paramVisibility === 'user-or-llm')).toBe(true)
     })
   })
 })

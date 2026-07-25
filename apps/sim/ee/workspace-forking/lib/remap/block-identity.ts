@@ -15,11 +15,16 @@ function uuidToBytes(uuid: string): Buffer {
 /**
  * Deterministic UUIDv5 (SHA-1) of `name` within `namespace`. The same inputs
  * always yield the same UUID, which is how fork block identity stays stable.
+ *
+ * SHA-1 is mandated by RFC 4122 for UUIDv5 and is used here only for deterministic id derivation,
+ * never for secrecy or integrity — not a security use of the algorithm. Swapping it would change
+ * every derived id, breaking webhook URLs and stored block-id references across existing forks
+ * (see {@link FORK_BLOCK_NAMESPACE}).
  */
 function uuidV5(name: string, namespace: string): string {
   const hash = createHash('sha1')
-  hash.update(uuidToBytes(namespace))
-  hash.update(Buffer.from(name, 'utf8'))
+  hash.update(uuidToBytes(namespace)) // lgtm[js/weak-cryptographic-algorithm]
+  hash.update(Buffer.from(name, 'utf8')) // lgtm[js/weak-cryptographic-algorithm]
   const bytes = hash.digest().subarray(0, 16)
   bytes[6] = (bytes[6] & 0x0f) | 0x50
   bytes[8] = (bytes[8] & 0x3f) | 0x80

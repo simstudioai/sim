@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { verifyTwilioAuth } from '@/lib/webhooks/providers/twilio-signature'
 import type {
@@ -13,9 +14,42 @@ export const twilioVoiceHandler: WebhookProviderHandler = {
     return verifyTwilioAuth(ctx, 'Twilio Voice')
   },
 
+  /**
+   * A call fires many independent callbacks against the same CallSid as it
+   * progresses: CallStatus transitions (queued -> ringing -> in-progress ->
+   * completed/...), repeated Gather turns while CallStatus stays
+   * "in-progress" (differentiated only by Digits or SpeechResult), and
+   * separate recording/transcription completions via RecordingStatus/
+   * TranscriptionStatus. The discriminator is built from field=value pairs
+   * (not bare values) so callbacks of different kinds can never collide even
+   * when they share a value — e.g. CallStatus=completed vs
+   * RecordingStatus=completed are distinct strings — while a retried
+   * delivery of the identical payload still produces the identical key.
+   */
   extractIdempotencyId(body: unknown) {
-    const obj = body as Record<string, unknown>
-    return (obj.MessageSid as string) || (obj.CallSid as string) || null
+    if (!isRecordLike(body)) return null
+    const sid = (body.MessageSid as string) || (body.CallSid as string)
+    if (!sid) return null
+
+    const discriminatorFields = [
+      'CallStatus',
+      'Digits',
+      'SpeechResult',
+      'RecordingSid',
+      'RecordingStatus',
+      'TranscriptionSid',
+      'TranscriptionStatus',
+    ] as const
+
+    const discriminator = discriminatorFields
+      .map((field) => {
+        const value = body[field]
+        return typeof value === 'string' && value ? `${field}=${value.toLowerCase()}` : null
+      })
+      .filter(Boolean)
+      .join('&')
+
+    return discriminator ? `${sid}:${discriminator}` : sid
   },
 
   formatSuccessResponse(providerConfig: Record<string, unknown>) {
@@ -46,7 +80,7 @@ export const twilioVoiceHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    const b = body as Record<string, unknown>
+    const b = isRecordLike(body) ? body : {}
     return {
       input: {
         callSid: b.CallSid,

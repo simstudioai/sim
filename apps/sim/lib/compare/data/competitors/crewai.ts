@@ -331,6 +331,32 @@ export const crewaiProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          'No: no documented feature to publish a deployed crew/flow as an encapsulated, org-wide reusable block',
+        detail:
+          "CrewAI AMP's Tool Repository publishes individual custom Tools (single Python functions/classes wrapping an API) to a shared, permissioned catalog, not entire crews or flows. No CrewAI source describes taking a deployed crew or flow and publishing it as a named, iconed block that appears in a shared builder palette for other org members to drop into their own separate crews, with internals hidden and the block auto-tracking the source's latest deployed version. The closest pattern, wrapping a Crew's kickoff as a callable Tool for another Crew, is discussed only as a same-project code workaround in CrewAI's community forum, not a first-party, org-wide publish-as-block feature.",
+        shortValue:
+          'No, Tool Repository publishes single Tools, not published crews/flows as blocks',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.crewai.com/en/enterprise/guides/tool-repository',
+            label: 'Tool Repository - CrewAI Docs',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.crewai.com/en/enterprise/features/crew-studio',
+            label: 'Crew Studio - CrewAI Docs',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://community.crewai.com/t/crew-method-as-tool/400',
+            label: 'Crew method as tool - CrewAI Community',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {

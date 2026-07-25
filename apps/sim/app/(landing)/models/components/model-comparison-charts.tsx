@@ -8,10 +8,11 @@ import {
   MODEL_CATALOG_PROVIDERS,
 } from '@/app/(landing)/models/utils'
 
-/** Providers that host other providers' models - deprioritized to avoid duplicates. */
-const RESELLER_PROVIDERS = new Set(
-  MODEL_CATALOG_PROVIDERS.flatMap((p) => (p.isReseller ? [p.id] : []))
-)
+/** Flagship providers featured in the landing-page comparison, in display order. */
+const FEATURED_COMPARISON_PROVIDER_IDS = ['anthropic', 'openai', 'google']
+
+/** Max latest models pulled from each featured provider. */
+const MAX_MODELS_PER_PROVIDER = 4
 
 const PROVIDER_ICON_MAP: Record<string, ComponentType<{ className?: string }>> = (() => {
   const map: Record<string, ComponentType<{ className?: string }>> = {}
@@ -27,22 +28,22 @@ function selectComparisonModels(models: CatalogModel[]): CatalogModel[] {
   const seen = new Set<string>()
   const result: CatalogModel[] = []
 
-  const sorted = [...models].sort((a, b) => {
-    const score = (m: CatalogModel) => {
-      const reseller = RESELLER_PROVIDERS.has(m.providerId) ? -50 : 0
-      const reasoning = m.capabilities.reasoningEffort || m.capabilities.thinking ? 10 : 0
-      const context = (m.contextWindow ?? 0) / 100000
-      return reseller + reasoning + context
-    }
-    return score(b) - score(a)
-  })
+  for (const providerId of FEATURED_COMPARISON_PROVIDER_IDS) {
+    const providerModels = models
+      .filter((model) => model.providerId === providerId && !model.deprecated)
+      .sort((a, b) => (b.releaseDate ?? '').localeCompare(a.releaseDate ?? ''))
 
-  for (const model of sorted) {
-    if (result.length >= 10) break
-    const nameKey = model.displayName.toLowerCase()
-    if (seen.has(nameKey)) continue
-    seen.add(nameKey)
-    result.push(model)
+    let takenForProvider = 0
+    for (const model of providerModels) {
+      if (takenForProvider >= MAX_MODELS_PER_PROVIDER) break
+
+      const nameKey = model.displayName.toLowerCase()
+      if (seen.has(nameKey)) continue
+
+      seen.add(nameKey)
+      result.push(model)
+      takenForProvider += 1
+    }
   }
 
   return result

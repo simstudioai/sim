@@ -10,6 +10,20 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#F5F5F5"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+The File block is a built-in Sim block for working with files stored in the workspace, or fetched from external URLs. It handles reading, writing, appending, compressing, decompressing, and sharing files as part of a workflow.
+
+With the File block, you can:
+
+- **Read and extract content**: Load workspace file objects and extract their text content
+- **Fetch from URLs**: Retrieve and parse files from external URLs with custom headers
+- **Write and append**: Create new workspace files or append content to existing ones
+- **Compress and decompress**: Bundle files into a .zip archive or extract an archive into the workspace
+- **Manage sharing**: Enable or disable a public share link for a file, with public, password, email, or SSO access modes
+
+In Sim, the File block allows your agents to read and extract text from workspace files, fetch and parse files from URLs, write or append content to files, bundle files into or out of .zip archives, and control public sharing access for a file—all programmatically as steps in a workflow. This makes it possible to move file content into and out of a workflow, package outputs for download or transfer, and expose files to external users through a managed share link.
+{/* MANUAL-CONTENT-END */}
+
 ## Usage Instructions
 
 Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.

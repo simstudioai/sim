@@ -9,8 +9,9 @@ import {
   SidebarItem,
   SidebarSeparator,
 } from '@/components/docs-layout/sidebar-components'
+import { Footer } from '@/components/footer/footer'
 import { Navbar } from '@/components/navbar/navbar'
-import { SimLogoFull } from '@/components/ui/sim-logo'
+import { SimWordmark } from '@/components/ui/sim-logo'
 import { i18n } from '@/lib/i18n'
 import { serializeJsonLd } from '@/lib/json-ld'
 import { source } from '@/lib/source'
@@ -101,7 +102,7 @@ export default async function Layout({ children, params }: LayoutProps) {
           <DocsLayout
             tree={source.pageTree[lang]}
             nav={{
-              title: <SimLogoFull className='h-[22px] w-auto' />,
+              title: <SimWordmark className='h-[18px]' />,
             }}
             sidebar={{
               tabs: false,
@@ -109,6 +110,7 @@ export default async function Layout({ children, params }: LayoutProps) {
               collapsible: false,
               footer: null,
               banner: null,
+              prefetch: false,
               components: {
                 Item: SidebarItem,
                 Folder: SidebarFolder,
@@ -121,6 +123,7 @@ export default async function Layout({ children, params }: LayoutProps) {
           >
             {children}
           </DocsLayout>
+          <Footer />
           <AskAI locale={lang} />
         </RootProvider>
       </body>

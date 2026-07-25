@@ -61,8 +61,7 @@ export function getBlockIconAndColor(
       if (mcpBlock) return { icon: mcpBlock.icon, bgColor: mcpBlock.bgColor }
     }
     const normalized = normalizeToolId(toolName)
-    if (normalized === 'load_skill' || normalized === 'load_user_skill')
-      return { icon: AgentSkillsIcon, bgColor: '#8B5CF6' }
+    if (normalized === 'load_skill') return { icon: AgentSkillsIcon, bgColor: '#8B5CF6' }
     const toolBlock = getBlockByToolName(normalized)
     if (toolBlock) return { icon: toolBlock.icon, bgColor: toolBlock.bgColor }
   }

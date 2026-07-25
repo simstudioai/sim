@@ -3,12 +3,11 @@ release:
   name: t
   namespace: sim
 defaults: &defaults
-  app.env.BETTER_AUTH_SECRET: x
-  app.env.ENCRYPTION_KEY: x
+  app.env.BETTER_AUTH_SECRET: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  app.env.ENCRYPTION_KEY: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
   app.env.INTERNAL_API_SECRET: x
   app.env.CRON_SECRET: x
-  postgresql.auth.password: x
-
+  postgresql.auth.password: xxxxxxxx
 tests:
   - it: app pod template has checksum/secret annotation
     template: deployment-app.yaml
@@ -30,7 +29,7 @@ tests:
     template: deployment-app.yaml
     set:
       <<: *defaults
-      app.env.BETTER_AUTH_SECRET: original-value
+      app.env.BETTER_AUTH_SECRET: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
     asserts:
       - notEqual:
           path: spec.template.metadata.annotations["checksum/secret"]

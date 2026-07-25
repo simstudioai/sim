@@ -16,6 +16,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { buildGeminiMessageParts } from '@/providers/attachments'
+import type { GeminiUsage } from '@/providers/gemini/types'
+import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { ProviderRequest } from '@/providers/types'
 import { trackForcedToolUsage } from '@/providers/utils'
 
@@ -35,23 +37,6 @@ export function ensureStructResponse(value: unknown): Record<string, unknown> {
     return value
   }
   return { value }
-}
-
-/**
- * Usage metadata for Google Gemini responses
- */
-export interface GeminiUsage {
-  promptTokenCount: number
-  candidatesTokenCount: number
-  totalTokenCount: number
-}
-
-/**
- * Parsed function call from Gemini response
- */
-interface ParsedFunctionCall {
-  name: string
-  args: Record<string, unknown>
 }
 
 /**
@@ -93,40 +78,6 @@ export function extractTextContent(candidate: Candidate | undefined): string {
 }
 
 /**
- * Extracts the first function call from a Gemini response candidate
- */
-export function extractFunctionCall(candidate: Candidate | undefined): ParsedFunctionCall | null {
-  if (!candidate?.content?.parts) return null
-
-  for (const part of candidate.content.parts) {
-    if (part.functionCall) {
-      return {
-        name: part.functionCall.name ?? '',
-        args: (part.functionCall.args ?? {}) as Record<string, unknown>,
-      }
-    }
-  }
-
-  return null
-}
-
-/**
- * Extracts the full Part containing the function call (preserves thoughtSignature)
- * @deprecated Use extractAllFunctionCallParts for proper multi-tool handling
- */
-export function extractFunctionCallPart(candidate: Candidate | undefined): Part | null {
-  if (!candidate?.content?.parts) return null
-
-  for (const part of candidate.content.parts) {
-    if (part.functionCall) {
-      return part
-    }
-  }
-
-  return null
-}
-
-/**
  * Extracts ALL Parts containing function calls from a candidate.
  * Gemini can return multiple function calls in a single response,
  * and all should be executed before continuing the conversation.
@@ -141,6 +92,10 @@ export function extractAllFunctionCallParts(candidate: Candidate | undefined): P
  * Converts usage metadata from SDK response to our format.
  * Per Gemini docs, total = promptTokenCount + candidatesTokenCount + toolUsePromptTokenCount + thoughtsTokenCount
  * We include toolUsePromptTokenCount in input and thoughtsTokenCount in output for correct billing.
+ *
+ * `cachedContentTokenCount` is carried through unchanged — it stays a subset of
+ * the reported `promptTokenCount`, and callers subtract it when they need the
+ * tokens billed at the base input rate.
  */
 export function convertUsageMetadata(
   usageMetadata: GenerateContentResponseUsageMetadata | undefined
@@ -152,6 +107,7 @@ export function convertUsageMetadata(
   return {
     promptTokenCount,
     candidatesTokenCount,
+    cachedContentTokenCount: usageMetadata?.cachedContentTokenCount ?? 0,
     totalTokenCount: usageMetadata?.totalTokenCount ?? 0,
   }
 }
@@ -280,38 +236,84 @@ export function convertToGeminiFormat(
 }
 
 /**
- * Creates a ReadableStream from a Google Gemini streaming response
+ * Creates an agent-events-v1 stream from a Google Gemini streaming response.
+ * Thought parts (`part.thought === true`) → thinking_delta; other text → text_delta.
+ * Capability-honest: thinking only appears when includeThoughts was requested.
  */
 export function createReadableStreamFromGeminiStream(
   stream: AsyncGenerator<GenerateContentResponse>,
-  onComplete?: (content: string, usage: GeminiUsage) => void
-): ReadableStream<Uint8Array> {
+  onComplete?: (content: string, usage: GeminiUsage, thinking?: string) => void
+): ReadableStream<AgentStreamEvent> {
   let fullContent = ''
-  let usage: GeminiUsage = { promptTokenCount: 0, candidatesTokenCount: 0, totalTokenCount: 0 }
+  let fullThinking = ''
+  let usage: GeminiUsage = {
+    promptTokenCount: 0,
+    candidatesTokenCount: 0,
+    cachedContentTokenCount: 0,
+    totalTokenCount: 0,
+  }
+  let cancelled = false
+  let streamIterator: AsyncIterator<GenerateContentResponse> | undefined
 
   return new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of stream) {
+        streamIterator = stream[Symbol.asyncIterator]()
+        while (true) {
+          const next = await streamIterator.next()
+          if (next.done || cancelled) break
+          const chunk = next.value
+          if (chunk.promptFeedback?.blockReason) {
+            throw new Error(
+              `Gemini prompt blocked: ${chunk.promptFeedback.blockReason}${
+                chunk.promptFeedback.blockReasonMessage
+                  ? ` (${chunk.promptFeedback.blockReasonMessage})`
+                  : ''
+              }`
+            )
+          }
           if (chunk.usageMetadata) {
             usage = convertUsageMetadata(chunk.usageMetadata)
           }
 
+          const parts = chunk.candidates?.[0]?.content?.parts
+          if (Array.isArray(parts)) {
+            for (const part of parts) {
+              if (!part.text) continue
+              if (part.thought === true) {
+                fullThinking += part.text
+                controller.enqueue({ type: 'thinking_delta', text: part.text })
+              } else {
+                fullContent += part.text
+                controller.enqueue({ type: 'text_delta', text: part.text, turn: 'final' })
+              }
+            }
+            continue
+          }
+
+          // Fallback when parts are not exposed — answer text only (no false thinking).
           const text = chunk.text
           if (text) {
             fullContent += text
-            controller.enqueue(new TextEncoder().encode(text))
+            controller.enqueue({ type: 'text_delta', text, turn: 'final' })
           }
         }
 
-        onComplete?.(fullContent, usage)
+        if (cancelled) return
+        onComplete?.(fullContent, usage, fullThinking || undefined)
         controller.close()
       } catch (error) {
-        logger.error('Error reading Google Gemini stream', {
-          error: toError(error).message,
-        })
-        controller.error(error)
+        if (!cancelled) {
+          logger.error('Error reading Google Gemini stream', {
+            error: toError(error).message,
+          })
+          controller.error(error)
+        }
       }
+    },
+    async cancel() {
+      cancelled = true
+      await streamIterator?.return?.()
     },
   })
 }
@@ -348,6 +350,47 @@ export function mapToThinkingLevel(level: string): ThinkingLevel {
     default:
       return ThinkingLevel.HIGH
   }
+}
+
+/**
+ * Per-model thinkingBudget ranges for Gemini 2.5-series models. Unlike Gemini 3.x, these
+ * models reject `thinkingLevel` entirely (Gemini API docs: "Gemini 2.5 series models don't
+ * support thinkingLevel; use thinkingBudget instead") and require a numeric token budget
+ * within each model's own documented range.
+ */
+const GEMINI_25_THINKING_BUDGETS: Record<string, Record<string, number>> = {
+  'gemini-2.5-pro': { low: 2048, medium: 8192, high: 32768 }, // valid range 128-32768, cannot disable
+  'gemini-2.5-flash': { low: 2048, medium: 8192, high: 24576 }, // valid range 0-24576
+  'gemini-2.5-flash-lite': { low: 1024, medium: 8192, high: 24576 }, // valid range 512-24576
+}
+
+/**
+ * Maps a named thinking level to a `thinkingBudget` token count for Gemini 2.5-series models.
+ * Falls back to -1 (dynamic/automatic budget) for any model not in the explicit table above,
+ * rather than guessing a number that could fall outside an unmapped model's valid range.
+ */
+export function mapToThinkingBudget(model: string, level: string): number {
+  const normalized = model.toLowerCase().replace(/^vertex\//, '')
+  const budgets = GEMINI_25_THINKING_BUDGETS[normalized]
+  if (!budgets) return -1
+  return budgets[level.toLowerCase()] ?? budgets.high
+}
+
+/**
+ * Gemini 2.5-series models that accept `thinkingBudget: 0` to explicitly disable thinking.
+ * gemini-2.5-pro cannot disable thinking at all (its documented budget floor is 128, not 0),
+ * so it's deliberately excluded here.
+ */
+const GEMINI_25_MODELS_SUPPORTING_DISABLE = new Set(['gemini-2.5-flash', 'gemini-2.5-flash-lite'])
+
+/**
+ * Whether this Gemini 2.5-series model supports explicitly disabling thinking via budget=0.
+ * Omitting thinkingConfig entirely (the 'none' no-op path) falls back to the API's own
+ * dynamic default, which is ON for gemini-2.5-flash — not the same as actually disabling it.
+ */
+export function supportsDisablingGemini25Thinking(model: string): boolean {
+  const normalized = model.toLowerCase().replace(/^vertex\//, '')
+  return GEMINI_25_MODELS_SUPPORTING_DISABLE.has(normalized)
 }
 
 /**

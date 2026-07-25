@@ -508,7 +508,6 @@ export const githubWebhookTrigger: TriggerConfig = {
       },
     },
 
-    // Convenient flat fields for easy access
     event_type: {
       type: 'string',
       description: 'Type of GitHub event (e.g., push, pull_request, issues)',

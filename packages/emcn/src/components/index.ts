@@ -7,7 +7,7 @@ export {
   CalendarDayCell,
   type CalendarDayCellProps,
 } from './calendar/calendar-day-cell'
-export { Checkbox } from './checkbox/checkbox'
+export { Checkbox, checkboxIconVariants, checkboxVariants } from './checkbox/checkbox'
 export {
   Chip,
   ChipLink,

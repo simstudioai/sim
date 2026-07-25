@@ -1,7 +1,9 @@
 import { z } from 'zod'
+import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const auditLogsQuerySchema = z.object({
+  organizationId: organizationIdSchema,
   search: z
     .string()
     .optional()

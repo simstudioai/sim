@@ -25,6 +25,10 @@ interface DeleteFileArgs {
 interface DeleteFileResult {
   success: boolean
   message: string
+  data?: {
+    deleted: { id: string; name: string }[]
+    failed: string[]
+  }
 }
 
 export const deleteFileServerTool: BaseServerTool<DeleteFileArgs, DeleteFileResult> = {
@@ -102,6 +106,7 @@ export const deleteFileServerTool: BaseServerTool<DeleteFileArgs, DeleteFileResu
     return {
       success: deletable.length > 0,
       message: parts.join('. '),
+      data: { deleted: deletable, failed },
     }
   },
 }

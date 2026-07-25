@@ -3,15 +3,33 @@ import { pausedExecutions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, asc, inArray, isNotNull, lte } from 'drizzle-orm'
+import { isRecordLike } from '@sim/utils/object'
+import { and, asc, inArray, isNotNull, lte, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
+import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { preprocessExecution } from '@/lib/execution/preprocessing'
 import {
   computeEarliestResumeAt,
   PauseResumeManager,
 } from '@/lib/workflows/executor/human-in-the-loop-manager'
+import {
+  createPausedExecutionResumeMetadata,
+  type PausedExecutionResumeMetadata,
+  parsePausedExecutionResumeMetadata,
+} from '@/lib/workflows/executor/paused-execution-metadata'
+import {
+  LEGACY_PAUSED_SNAPSHOT_FALLBACK_CHUNK_SIZE,
+  MAX_PAUSED_EXECUTION_SNAPSHOT_BYTES,
+} from '@/lib/workflows/executor/paused-execution-policy'
+import {
+  getResumeAdmissionRetryAt,
+  normalizeAutomaticResumeWaitingReason,
+} from '@/lib/workflows/executor/resume-policy'
+import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { PausePoint } from '@/executor/types'
 
 const logger = createLogger('TimePauseResumePoll')
@@ -22,6 +40,10 @@ export const maxDuration = 120
 const LOCK_KEY = 'time-pause-resume-poll-lock'
 const LOCK_TTL_SECONDS = 180
 const POLL_BATCH_LIMIT = 200
+const POLL_PREPROCESSING_CONCURRENCY = 10
+const OVERSIZED_LEGACY_SNAPSHOT_REASON = `Legacy paused execution snapshot exceeds the ${
+  MAX_PAUSED_EXECUTION_SNAPSHOT_BYTES / (1024 * 1024)
+} MiB automatic-resume safety limit and requires repair`
 
 interface DispatchFailure {
   executionId: string
@@ -56,8 +78,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         id: pausedExecutions.id,
         executionId: pausedExecutions.executionId,
         workflowId: pausedExecutions.workflowId,
+        automaticResumeRetryCount: pausedExecutions.automaticResumeRetryCount,
         pausePoints: pausedExecutions.pausePoints,
-        metadata: pausedExecutions.metadata,
+        metadata: sql<unknown>`jsonb_build_object(
+          'executorUserId', ${pausedExecutions.metadata}->'executorUserId',
+          'workspaceId', ${pausedExecutions.metadata}->'workspaceId',
+          'billingAttribution', ${pausedExecutions.metadata}->'billingAttribution'
+        )`,
       })
       .from(pausedExecutions)
       .where(
@@ -73,7 +100,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .orderBy(asc(pausedExecutions.nextResumeAt))
       .limit(POLL_BATCH_LIMIT)
 
-    const results = await Promise.all(dueRows.map((row) => dispatchRow(row, now)))
+    const preparedRows = await prepareDueRows(dueRows)
+    const results = await mapWithConcurrency(preparedRows, POLL_PREPROCESSING_CONCURRENCY, (row) =>
+      dispatchRowSafely(row, now)
+    )
     const dispatched = results.reduce((sum, r) => sum + r.dispatched, 0)
     const failures = results.flatMap((r) => r.failures)
 
@@ -104,16 +134,230 @@ interface DueRow {
   id: string
   executionId: string
   workflowId: string
+  automaticResumeRetryCount: number
   pausePoints: unknown
   metadata: unknown
 }
 
-async function dispatchRow(row: DueRow, now: Date): Promise<RowResult> {
-  const points = (row.pausePoints ?? {}) as Record<string, PausePoint>
-  const metadata = (row.metadata ?? {}) as Record<string, unknown>
-  const userId = typeof metadata.executorUserId === 'string' ? metadata.executorUserId : ''
+interface PreparedDueRow extends DueRow {
+  resumeMetadata: PausedExecutionResumeMetadata | null
+  resumeMetadataError?: string
+}
 
-  const eligiblePoints = Object.values(points).filter(
+interface LegacySnapshotRow {
+  id: string
+  executionSnapshot: unknown
+}
+
+interface LegacySnapshotSizeRow {
+  id: string
+  snapshotBytes: number
+}
+
+interface LegacyResumeMetadataResult {
+  resumeMetadata: PausedExecutionResumeMetadata | null
+  resumeMetadataError?: string
+}
+
+/**
+ * Measures the serialized JSON text sent by the database driver. This matches
+ * the cutover migration's byte accounting and avoids compressed TOAST size
+ * undercounting.
+ */
+function pausedExecutionSnapshotBytesSql() {
+  return sql<number>`octet_length(${pausedExecutions.executionSnapshot}::text)`
+}
+
+function isPausePoint(value: unknown): value is PausePoint {
+  return isRecordLike(value) && typeof value.contextId === 'string'
+}
+
+function getPausePoints(value: unknown): PausePoint[] {
+  return isRecordLike(value) ? Object.values(value).filter(isPausePoint) : []
+}
+
+function getLegacyExecutorUserId(metadata: unknown): string | undefined {
+  if (!isRecordLike(metadata)) return undefined
+  return typeof metadata.executorUserId === 'string' ? metadata.executorUserId : undefined
+}
+
+async function loadLegacyResumeMetadata(
+  rows: DueRow[]
+): Promise<Map<string, LegacyResumeMetadataResult>> {
+  const results = new Map<string, LegacyResumeMetadataResult>()
+  const snapshotSizeRows = (await db
+    .select({
+      id: pausedExecutions.id,
+      snapshotBytes: pausedExecutionSnapshotBytesSql(),
+    })
+    .from(pausedExecutions)
+    .where(
+      inArray(
+        pausedExecutions.id,
+        rows.map((row) => row.id)
+      )
+    )
+    .limit(POLL_BATCH_LIMIT)) as LegacySnapshotSizeRow[]
+
+  const snapshotBytesById = new Map(
+    snapshotSizeRows.map((row) => [row.id, Number(row.snapshotBytes)])
+  )
+  const eligibleIds: string[] = []
+  for (const row of rows) {
+    const snapshotBytes = snapshotBytesById.get(row.id)
+    if (snapshotBytes === undefined || !Number.isFinite(snapshotBytes) || snapshotBytes < 0) {
+      results.set(row.id, {
+        resumeMetadata: null,
+        resumeMetadataError: 'Legacy paused execution snapshot size is unavailable',
+      })
+    } else if (snapshotBytes > MAX_PAUSED_EXECUTION_SNAPSHOT_BYTES) {
+      results.set(row.id, {
+        resumeMetadata: null,
+        resumeMetadataError: OVERSIZED_LEGACY_SNAPSHOT_REASON,
+      })
+    } else {
+      eligibleIds.push(row.id)
+    }
+  }
+
+  const rowsById = new Map(rows.map((row) => [row.id, row]))
+  for (
+    let offset = 0;
+    offset < eligibleIds.length;
+    offset += LEGACY_PAUSED_SNAPSHOT_FALLBACK_CHUNK_SIZE
+  ) {
+    const chunkIds = eligibleIds.slice(offset, offset + LEGACY_PAUSED_SNAPSHOT_FALLBACK_CHUNK_SIZE)
+    const snapshotRows = (await db
+      .select({
+        id: pausedExecutions.id,
+        executionSnapshot: pausedExecutions.executionSnapshot,
+      })
+      .from(pausedExecutions)
+      .where(
+        and(
+          inArray(pausedExecutions.id, chunkIds),
+          lte(pausedExecutionSnapshotBytesSql(), MAX_PAUSED_EXECUTION_SNAPSHOT_BYTES)
+        )
+      )
+      .limit(LEGACY_PAUSED_SNAPSHOT_FALLBACK_CHUNK_SIZE)) as LegacySnapshotRow[]
+
+    const loadedIds = new Set<string>()
+    for (const snapshotRow of snapshotRows) {
+      loadedIds.add(snapshotRow.id)
+      const sourceRow = rowsById.get(snapshotRow.id)
+      try {
+        if (
+          !sourceRow ||
+          !isRecordLike(snapshotRow.executionSnapshot) ||
+          typeof snapshotRow.executionSnapshot.snapshot !== 'string'
+        ) {
+          throw new Error('Legacy paused execution snapshot is missing')
+        }
+        const snapshot = ExecutionSnapshot.fromJSON(snapshotRow.executionSnapshot.snapshot)
+        results.set(snapshotRow.id, {
+          resumeMetadata: createPausedExecutionResumeMetadata(
+            snapshot,
+            getLegacyExecutorUserId(sourceRow.metadata)
+          ),
+        })
+      } catch (error) {
+        results.set(snapshotRow.id, {
+          resumeMetadata: null,
+          resumeMetadataError: toError(error).message,
+        })
+      }
+    }
+
+    for (const id of chunkIds) {
+      if (!loadedIds.has(id)) {
+        results.set(id, {
+          resumeMetadata: null,
+          resumeMetadataError:
+            'Legacy paused execution snapshot is missing or exceeds the automatic-resume safety limit',
+        })
+      }
+    }
+  }
+
+  return results
+}
+
+async function prepareDueRows(rows: DueRow[]): Promise<PreparedDueRow[]> {
+  const parsedMetadata = rows.map((row) => parsePausedExecutionResumeMetadata(row.metadata))
+  const legacyRows = rows.filter((_, index) => parsedMetadata[index] === null)
+  if (legacyRows.length === 0) {
+    return rows.map((row, index) => ({
+      ...row,
+      resumeMetadata: parsedMetadata[index],
+    }))
+  }
+
+  const legacyMetadataById = await loadLegacyResumeMetadata(legacyRows)
+
+  return rows.map((row, index) => {
+    const currentMetadata = parsedMetadata[index]
+    if (currentMetadata) {
+      return { ...row, resumeMetadata: currentMetadata }
+    }
+
+    const legacyMetadata = legacyMetadataById.get(row.id)
+    return {
+      ...row,
+      resumeMetadata: legacyMetadata?.resumeMetadata ?? null,
+      resumeMetadataError:
+        legacyMetadata?.resumeMetadataError ?? 'Legacy paused execution snapshot is unavailable',
+    }
+  })
+}
+
+async function dispatchRowSafely(row: PreparedDueRow, now: Date): Promise<RowResult> {
+  try {
+    return await dispatchRow(row, now)
+  } catch (error) {
+    const message = toError(error).message
+    const contextId = getPausePoints(row.pausePoints)[0]?.contextId ?? 'automatic-resume'
+    logger.warn('Failed to process time-pause resume row', {
+      executionId: row.executionId,
+      contextId,
+      error: message,
+    })
+    return {
+      dispatched: 0,
+      failures: [{ executionId: row.executionId, contextId, error: message }],
+    }
+  }
+}
+
+async function recordAutomaticAdmissionWait(
+  row: DueRow,
+  contextId: string,
+  reason: string,
+  now: Date,
+  retryable: boolean
+): Promise<string> {
+  const boundedReason = normalizeAutomaticResumeWaitingReason(reason)
+  try {
+    await PauseResumeManager.setAutomaticResumeWaiting({
+      pausedExecutionId: row.id,
+      contextId,
+      reason: boundedReason,
+      retryAt: retryable ? getResumeAdmissionRetryAt(now) : null,
+      retryable,
+    })
+  } catch (error) {
+    logger.warn('Failed to persist automatic resume waiting state', {
+      executionId: row.executionId,
+      contextId,
+      error: toError(error).message,
+    })
+  }
+  return boundedReason
+}
+
+async function dispatchRow(row: PreparedDueRow, now: Date): Promise<RowResult> {
+  const points = getPausePoints(row.pausePoints)
+
+  const eligiblePoints = points.filter(
     (point) =>
       point.pauseKind === 'time' && (!point.resumeStatus || point.resumeStatus === 'paused')
   )
@@ -126,6 +370,124 @@ async function dispatchRow(row: DueRow, now: Date): Promise<RowResult> {
   const failures: DispatchFailure[] = []
   let dispatched = 0
 
+  if (!row.resumeMetadata) {
+    const metadataError =
+      row.resumeMetadataError ?? 'Paused execution resume metadata is unavailable'
+    const blockedPoints =
+      duePoints.length > 0
+        ? duePoints
+        : points.filter(
+            (point) => point.resumeStatus === 'queued' || point.resumeStatus === 'resuming'
+          )
+    const contextIds =
+      blockedPoints.length > 0
+        ? blockedPoints.map((point) => point.contextId)
+        : ['automatic-resume']
+    const waitingReason = await recordAutomaticAdmissionWait(
+      row,
+      contextIds[0] ?? 'automatic-resume',
+      metadataError,
+      now,
+      false
+    )
+    for (const contextId of contextIds) {
+      failures.push({
+        executionId: row.executionId,
+        contextId,
+        error: waitingReason,
+      })
+    }
+    return { dispatched, failures }
+  }
+
+  if (duePoints.length === 0) {
+    const queuedPoint = points.find((point) => point.resumeStatus === 'queued')
+    const resumingPoint = points.find((point) => point.resumeStatus === 'resuming')
+    try {
+      await PauseResumeManager.processQueuedResumes(row.executionId, row.workflowId)
+      if (!queuedPoint && !resumingPoint) {
+        await PauseResumeManager.setNextResumeAt({
+          pausedExecutionId: row.id,
+          nextResumeAt: null,
+        })
+      }
+    } catch (error) {
+      const message = toError(error).message
+      const contextId = queuedPoint?.contextId ?? 'queued-resume'
+      const waitingReason = await recordAutomaticAdmissionWait(
+        row,
+        contextId,
+        message,
+        now,
+        isRetryableInfrastructureError(error)
+      )
+      failures.push({
+        executionId: row.executionId,
+        contextId,
+        error: waitingReason,
+      })
+    }
+    return { dispatched, failures }
+  }
+
+  const { executorUserId, workspaceId, billingAttribution } = row.resumeMetadata
+  let preprocessing: Awaited<ReturnType<typeof preprocessExecution>>
+  try {
+    preprocessing = await preprocessExecution({
+      workflowId: row.workflowId,
+      userId: executorUserId,
+      triggerType: 'manual',
+      executionId: row.executionId,
+      requestId: `time-resume:${row.id}`,
+      checkRateLimit: false,
+      checkDeployment: false,
+      skipConcurrencyReservation: true,
+      logPreprocessingErrors: false,
+      workspaceId,
+      billingAttribution,
+    })
+  } catch (error) {
+    const contextIds = duePoints
+      .map((point) => point.contextId)
+      .filter((contextId): contextId is string => Boolean(contextId))
+    const waitingReason = await recordAutomaticAdmissionWait(
+      row,
+      contextIds[0] ?? 'automatic-resume',
+      toError(error).message,
+      now,
+      isRetryableInfrastructureError(error)
+    )
+    for (const contextId of contextIds) {
+      failures.push({
+        executionId: row.executionId,
+        contextId,
+        error: waitingReason,
+      })
+    }
+    return { dispatched, failures }
+  }
+
+  if (!preprocessing.success) {
+    const contextIds = duePoints
+      .map((point) => point.contextId)
+      .filter((contextId): contextId is string => Boolean(contextId))
+    const waitingReason = await recordAutomaticAdmissionWait(
+      row,
+      contextIds[0] ?? 'automatic-resume',
+      preprocessing.error?.message ?? 'Resume admission failed',
+      now,
+      preprocessing.error?.retryable === true
+    )
+    for (const contextId of contextIds) {
+      failures.push({
+        executionId: row.executionId,
+        contextId,
+        error: waitingReason,
+      })
+    }
+    return { dispatched, failures }
+  }
+
   for (const point of duePoints) {
     if (!point.contextId) continue
     try {
@@ -134,16 +496,15 @@ async function dispatchRow(row: DueRow, now: Date): Promise<RowResult> {
         workflowId: row.workflowId,
         contextId: point.contextId,
         resumeInput: {},
-        userId,
+        userId: executorUserId,
         allowedPauseKinds: ['time'],
       })
 
       if (enqueueResult.status === 'starting') {
-        // Route through `executeResumeJob` (not `PauseResumeManager.startResumeExecution`
-        // directly) so cell-context restoration + cascade-loop continuation
-        // fires. This is the same primitive the trigger.dev `resumeExecutionTask`
-        // wraps — calling it directly handles both trigger.dev-disabled local
-        // dev and trigger.dev-enabled prod identically.
+        /**
+         * Route through `executeResumeJob` so cell-context restoration and
+         * cascade continuation use the same primitive as the background task.
+         */
         const { executeResumeJob } = await import('@/background/resume-execution')
         void executeResumeJob({
           resumeEntryId: enqueueResult.resumeEntryId,
@@ -174,10 +535,13 @@ async function dispatchRow(row: DueRow, now: Date): Promise<RowResult> {
     }
   }
 
-  // We never auto-retry a failed dispatch: workflow blocks aren't idempotent, and
-  // an operator must investigate stranded rows by hand. The status='paused' guard
-  // also prevents clobbering when a concurrent manual resume has already advanced
-  // the row's state since we read it.
+  /**
+   * Read-only admission failures happen before input/state claims. The claimed
+   * resume acquires its fresh atomic reservation inside PauseResumeManager;
+   * reservation failures restore that same queued input for a bounded retry.
+   * Execution/dispatch failures keep the existing manual investigation
+   * behavior because workflow blocks are not idempotent.
+   */
   await PauseResumeManager.setNextResumeAt({
     pausedExecutionId: row.id,
     nextResumeAt: computeEarliestResumeAt(eligiblePoints, { after: now }),

@@ -19,10 +19,9 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { Check, ChevronDown, Clipboard, Eye, EyeOff } from 'lucide-react'
 import type { SsoRegistrationBody } from '@/lib/api/contracts/auth'
 import { useSession } from '@/lib/auth/auth-client'
-import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
+import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
@@ -30,8 +29,7 @@ import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { useConfigureSSO, useSSOProviders } from '@/ee/sso/hooks/sso'
-import { useOrganizations } from '@/hooks/queries/organization'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
+import { useOrganizationBilling } from '@/hooks/queries/organization'
 
 const logger = createLogger('SSO')
 
@@ -101,28 +99,28 @@ const DEFAULT_ERRORS = {
   audience: [],
 }
 
-export function SSO() {
-  const { data: session } = useSession()
-  const { data: orgsData } = useOrganizations()
-  const { data: subscriptionData } = useSubscriptionData()
+interface SSOProps {
+  organizationId: string
+}
 
-  const activeOrganization = orgsData?.activeOrganization
+export function SSO({ organizationId }: SSOProps) {
+  return <OrganizationSsoSettings key={organizationId} organizationId={organizationId} />
+}
+
+function OrganizationSsoSettings({ organizationId }: SSOProps) {
+  const { data: session } = useSession()
+  const { data: organizationBillingData, isLoading: isLoadingOrganizationBilling } =
+    useOrganizationBilling(organizationId)
 
   const { data: providersData, isLoading: isLoadingProviders } = useSSOProviders({
-    organizationId: activeOrganization?.id,
+    organizationId,
   })
 
   const providers = providersData?.providers || []
   const existingProvider = providers[0] as SSOProvider | undefined
 
-  const userEmail = session?.user?.email
   const userId = session?.user?.id
-  const userRole = getUserRole(orgsData?.activeOrganization, userEmail)
-  const isOwner = userRole === 'owner'
-  const isAdmin = userRole === 'admin'
-  const canManageSSO = isOwner || isAdmin
-  const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
-  const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
+  const hasEnterprisePlan = isEnterprise(organizationBillingData?.data?.subscriptionPlan)
 
   const isSSOProviderOwner =
     !isBillingEnabled && userId ? providers.some((p) => p.userId === userId) : null
@@ -145,15 +143,11 @@ export function SSO() {
 
   useSettingsUnsavedGuard({ isDirty: hasChanges })
 
-  if (isBillingEnabled) {
-    if (!activeOrganization) {
-      return (
-        <SettingsEmptyState>
-          You must be part of an organization to configure Single Sign-On.
-        </SettingsEmptyState>
-      )
-    }
+  if (isLoadingProviders || (isBillingEnabled && isLoadingOrganizationBilling)) {
+    return null
+  }
 
+  if (isBillingEnabled) {
     if (!hasEnterprisePlan) {
       return (
         <SettingsEmptyState>
@@ -161,28 +155,8 @@ export function SSO() {
         </SettingsEmptyState>
       )
     }
-
-    if (!canManageSSO) {
-      return (
-        <SettingsEmptyState>
-          Only organization owners and admins can configure Single Sign-On settings.
-        </SettingsEmptyState>
-      )
-    }
   } else {
-    if (activeOrganization && !canManageSSO) {
-      return (
-        <SettingsEmptyState>
-          Only organization owners and admins can configure Single Sign-On settings.
-        </SettingsEmptyState>
-      )
-    }
-    if (
-      !activeOrganization &&
-      !isLoadingProviders &&
-      isSSOProviderOwner === false &&
-      providers.length > 0
-    ) {
+    if (!isLoadingProviders && isSSOProviderOwner === false && providers.length > 0) {
       return (
         <SettingsEmptyState>
           Only the user who configured SSO can manage these settings.
@@ -317,7 +291,7 @@ export function SSO() {
               providerId: formData.providerId,
               issuer: formData.issuerUrl,
               domain: formData.domain,
-              orgId: activeOrganization?.id,
+              orgId: organizationId,
               mapping: {
                 id: 'sub',
                 email: 'email',
@@ -333,7 +307,7 @@ export function SSO() {
               providerId: formData.providerId,
               issuer: formData.issuerUrl,
               domain: formData.domain,
-              orgId: activeOrganization?.id,
+              orgId: organizationId,
               mapping: {
                 id: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
                 email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
@@ -439,10 +413,6 @@ export function SSO() {
       logger.error('Failed to parse provider config', { error: err })
       toast.error('Failed to load provider configuration')
     }
-  }
-
-  if (isLoadingProviders) {
-    return null
   }
 
   if (existingProvider && !isEditing) {

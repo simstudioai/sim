@@ -5,22 +5,23 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { mothershipExecuteContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { requireBillingAttributionHeader } from '@/lib/billing/core/billing-attribution'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
 import { processContextsServer } from '@/lib/copilot/chat/process-contents'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
+import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1TextChannel,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { buildSelectedMcpToolSchemas, buildTaggedMcpToolSchemas } from '@/lib/copilot/mcp-tools'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
 import type { StreamEvent } from '@/lib/copilot/request/types'
-import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
+import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { buildUserSkillTool } from '@/lib/mothership/skills'
 import {
   assertActiveWorkspaceAccess,
-  getUserEntityPermissions,
   isWorkspaceAccessDeniedError,
 } from '@/lib/workspaces/permissions/utils'
 import type { ChatContext } from '@/stores/panel'
@@ -105,16 +106,17 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       requestId: providedRequestId,
       fileAttachments,
       contexts,
+      mcpTools,
       workflowId,
       executionId,
       userMetadata,
     } = validation.data.body
 
-    // Bind the billing actor to the authenticated identity. The executor mints
-    // the internal JWT with the workflow owner's userId, so a token issued for
-    // one user must never be used to attribute mothership-block cost to another
-    // user via a forged body.userId. When the token carries a userId we require
-    // the body to match it; the JWT userId is authoritative.
+    /**
+     * Bind actor attribution to the authenticated identity. The executor mints
+     * the internal JWT with its principal, so the request body cannot forge a
+     * different actor. Workspace billing is resolved independently downstream.
+     */
     if (auth.userId && auth.userId !== bodyUserId) {
       logger.warn('Mothership execute userId does not match authenticated identity', {
         tokenUserId: auth.userId,
@@ -127,7 +129,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
     const userId = auth.userId ?? bodyUserId
 
-    await assertActiveWorkspaceAccess(workspaceId, userId)
+    const workspaceAccess = await assertActiveWorkspaceAccess(workspaceId, userId)
+    const billingAttribution = requireBillingAttributionHeader(req.headers, {
+      actorUserId: userId,
+      workspaceId,
+    })
 
     const effectiveChatId = chatId || generateId()
     messageId = providedMessageId || generateId()
@@ -141,14 +147,25 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const lastUserMessage = messages.filter((m) => m.role === 'user').at(-1)?.content
     // double-cast-allowed: the contract validates contexts as open kind/label objects; processContextsServer narrows on `kind` at runtime
     const agentMentions = contexts as unknown as ChatContext[] | undefined
-    const [workspaceContext, integrationTools, userSkillTool, userPermission, agentContexts] =
+    const taggedMcpServerIds = (agentMentions ?? []).flatMap((context) =>
+      context.kind === 'mcp' && context.serverId ? [context.serverId] : []
+    )
+    const nonMcpAgentMentions = agentMentions?.filter((context) => context.kind !== 'mcp')
+    const userPermission = workspaceAccess.permission
+    const [workspaceContext, integrationTools, mothershipTools, entitlements, agentContexts] =
       await Promise.all([
-        generateWorkspaceContext(workspaceId, userId),
+        generateWorkspaceContext(workspaceId, userId, { workspaceAccess }),
         buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
-        buildUserSkillTool(workspaceId),
-        getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
+        Promise.all([
+          buildSelectedMcpToolSchemas(userId, workspaceId, mcpTools ?? []),
+          buildTaggedMcpToolSchemas(userId, workspaceId, taggedMcpServerIds),
+        ]).then((groups) => {
+          const byName = new Map(groups.flat().map((tool) => [tool.name, tool]))
+          return [...byName.values()]
+        }),
+        computeWorkspaceEntitlements(workspaceId, userId),
         processContextsServer(
-          agentMentions,
+          nonMcpAgentMentions,
           userId,
           lastUserMessage,
           workspaceId,
@@ -175,13 +192,35 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       messageId,
       isHosted: true,
       workspaceContext,
-      ...(isE2BDocEnabled ? { docCompiler: 'python' } : {}),
+      ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
       ...(userMetadata ? { userMetadata } : {}),
       ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
-      ...(agentContexts.length > 0 ? { contexts: agentContexts } : {}),
+      ...(agentContexts.length > 0 || mothershipTools.length > 0
+        ? {
+            contexts: [
+              ...agentContexts,
+              ...(mothershipTools.length > 0
+                ? [
+                    {
+                      type: 'mcp',
+                      content: [
+                        'The following MCP tools are explicitly enabled for this request.',
+                        'Load one with load_custom_tool({ type: "mcp", name: "<exact name>" }) before calling it.',
+                        'Do not narrate discovery, loading, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
+                        ...mothershipTools.map(
+                          (tool) => `- ${tool.name}: ${tool.description || tool.name}`
+                        ),
+                      ].join('\n'),
+                    },
+                  ]
+                : []),
+            ],
+          }
+        : {}),
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
-      ...(userSkillTool ? { mothershipTools: [userSkillTool] } : {}),
+      ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
       ...(userPermission ? { userPermission } : {}),
+      ...(entitlements.length > 0 ? { entitlements } : {}),
     }
 
     let allowExplicitAbort = true
@@ -231,6 +270,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         autoExecuteTools: true,
         interactive: false,
         abortSignal: lifecycleAbortController.signal,
+        billingAttribution,
         onEvent,
       })
 

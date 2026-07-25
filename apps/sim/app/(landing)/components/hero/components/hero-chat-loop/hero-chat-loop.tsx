@@ -13,8 +13,8 @@ import {
   ThumbsDown,
   ThumbsUp,
 } from 'lucide-react'
+import { ThinkingLoader } from '@/components/ui'
 import { HERO_TOOLTIP_OFFSET } from '@/app/(landing)/components/hero/components/hero-platform-loop/sidebar-hotspots'
-import { ThinkingLoader } from '@/app/(landing)/components/thinking-loader'
 
 /** The conversation the loop plays - mirrors the seeded capture chat. */
 const USER_MESSAGE = 'When a new lead signs up, enrich it with company data and post it to #sales.'

@@ -71,9 +71,10 @@ export const slackSetStatusTool: ToolConfig<SlackSetStatusParams, SlackSetStatus
     },
     status: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: "Status text to display, e.g. 'Working on it…'. Pass an empty string to clear.",
+      description:
+        "Status text to display, e.g. 'Working on it…'. Omit or pass an empty string to clear the status.",
     },
     loadingMessages: {
       type: 'json',

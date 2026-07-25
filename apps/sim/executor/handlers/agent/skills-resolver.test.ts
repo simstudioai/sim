@@ -1,32 +1,27 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  resolveSkillContent,
+  resolveSkillContentById,
+  resolveSkillMetadata,
+} from './skills-resolver'
 
-const { limitMock } = vi.hoisted(() => ({ limitMock: vi.fn() }))
+// resolveSkillContent is the shared resolver invoked when a workflow agent
+// block calls load_skill. Skill editors gate editing only — resolution never
+// blocks on the acting user.
+beforeEach(() => {
+  vi.clearAllMocks()
+  resetDbChainMock()
+})
 
-vi.mock('@sim/db', () => ({
-  db: { select: () => ({ from: () => ({ where: () => ({ limit: limitMock }) }) }) },
-  skill: { workspaceId: 'workspaceId', name: 'name', content: 'content' },
-}))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }),
-}))
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(() => ({})),
-  eq: vi.fn(() => ({})),
-  inArray: vi.fn(() => ({})),
-}))
+afterAll(() => {
+  resetDbChainMock()
+})
 
-import { resolveSkillContent } from './skills-resolver'
-
-// resolveSkillContent is the shared resolver invoked when the mothership calls
-// load_user_skill (and when a workflow agent block calls load_skill).
 describe('resolveSkillContent', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('returns null without a skill name or workspace', async () => {
     expect(await resolveSkillContent('', 'ws-1')).toBeNull()
     expect(await resolveSkillContent('x', '')).toBeNull()
@@ -35,16 +30,42 @@ describe('resolveSkillContent', () => {
   it('resolves builtin skills without touching the database', async () => {
     const content = await resolveSkillContent('research', 'ws-1')
     expect(content).toBeTruthy()
-    expect(limitMock).not.toHaveBeenCalled()
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
   })
 
   it('resolves a workspace user skill by name', async () => {
-    limitMock.mockResolvedValue([{ content: '# Playbook', name: 'posthog-playbook' }])
+    queueTableRows(schemaMock.skill, [{ content: '# Playbook' }])
     expect(await resolveSkillContent('posthog-playbook', 'ws-1')).toBe('# Playbook')
   })
 
   it('returns null when the user skill is not found', async () => {
-    limitMock.mockResolvedValue([])
     expect(await resolveSkillContent('missing', 'ws-1')).toBeNull()
+  })
+})
+
+describe('resolveSkillContentById', () => {
+  it('resolves a workspace skill by id', async () => {
+    queueTableRows(schemaMock.skill, [{ content: '# Body', name: 'my-skill' }])
+    expect(await resolveSkillContentById('sk-1', 'ws-1')).toEqual({
+      name: 'my-skill',
+      content: '# Body',
+    })
+  })
+
+  it('returns null when the skill does not exist in the workspace', async () => {
+    expect(await resolveSkillContentById('missing', 'ws-1')).toBeNull()
+  })
+})
+
+describe('resolveSkillMetadata', () => {
+  it('returns every attached skill in the workspace', async () => {
+    queueTableRows(schemaMock.skill, [
+      { id: 'sk-1', name: 'a', description: 'A' },
+      { id: 'sk-2', name: 'b', description: 'B' },
+    ])
+
+    const metadata = await resolveSkillMetadata([{ skillId: 'sk-1' }, { skillId: 'sk-2' }], 'ws-1')
+
+    expect(metadata.map((m) => m.name)).toEqual(['a', 'b'])
   })
 })

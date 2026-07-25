@@ -1,5 +1,5 @@
 ---
-description: Add a complete integration to Sim (tools, block, icon, registration)
+description: Add a complete Sim integration from API docs, covering tools, block, icon, optional triggers, registrations, and integration conventions. Use when introducing a new service under `apps/sim/tools`, `apps/sim/blocks`, and `apps/sim/triggers`.
 argument-hint: <service-name> [api-docs-url]
 ---
 
@@ -28,6 +28,21 @@ Before writing any code:
    - Available operations (CRUD, search, etc.)
    - Required vs optional parameters
    - Response structures
+
+### Hard Rule: No Guessed Response Schemas
+
+If the official docs do not clearly show the response JSON shape for an endpoint, you MUST stop and tell the user exactly which outputs are unknown.
+
+- Do NOT guess response field names
+- Do NOT infer nested JSON paths from related endpoints
+- Do NOT invent output properties just because they seem likely
+- Do NOT implement `transformResponse` against unverified payload shapes
+
+If response schemas are missing or incomplete, do one of the following before proceeding:
+1. Ask the user for sample responses
+2. Ask the user for test credentials so you can verify the live payload
+3. Reduce the scope to only endpoints whose response shapes are documented
+4. Leave the tool unimplemented and explicitly report why
 
 ## Step 2: Create Tools
 
@@ -103,6 +118,7 @@ export const {service}{Action}Tool: ToolConfig<Params, Response> = {
 - Set `optional: true` for outputs that may not exist
 - Never output raw JSON dumps - extract meaningful fields
 - When using `type: 'json'` and you know the object shape, define `properties` with the inner fields so downstream consumers know the structure. Only use bare `type: 'json'` when the shape is truly dynamic
+- If you do not know the response JSON shape from docs or verified examples, you MUST tell the user and stop. Never guess outputs or response mappings.
 
 ## Step 3: Create Block
 
@@ -196,7 +212,7 @@ export const {Service}Block: BlockConfig = {
 ```typescript
 // Basic: Visual selector
 {
-  id: 'channel',
+  id: 'channelSelector',
   type: 'channel-selector',
   mode: 'basic',
   canonicalParamId: 'channel',
@@ -211,10 +227,19 @@ export const {Service}Block: BlockConfig = {
 }
 ```
 
+Note neither subblock `id` is `channel` — the canonical id is a third name that both members map
+onto, and it is the only one that survives serialization.
+
 **Critical Canonical Param Rules:**
 - `canonicalParamId` must NOT match any subblock's `id` in the block
-- `canonicalParamId` must be unique per operation/condition context
-- Only use `canonicalParamId` to link basic/advanced alternatives for the same logical parameter
+- `canonicalParamId` must be unique **block-wide**, not per operation. `buildCanonicalIndex` keys
+  groups by `canonicalParamId` across all subblocks and a group holds exactly one `basicId`, so two
+  operations that each need their own pair must use two different canonical ids
+- Only use `canonicalParamId` to link basic/advanced alternatives for the same logical parameter.
+  A pair carries ONE concept — for files that means upload (basic) + file reference (advanced), as
+  in Gmail attachments (`blocks/blocks/gmail.ts`). Never overload the advanced side with alternate
+  identifiers like a URL or a provider asset ID; give those their own subblocks, mark all the
+  mutually exclusive sources `required: false`, and enforce "exactly one" at execution
 - `mode` only controls UI visibility, NOT serialization. Without `canonicalParamId`, both basic and advanced field values would be sent
 - Every subblock `id` must be unique within the block. Duplicate IDs cause conflicts even with different conditions
 - **Required consistency:** If one subblock in a canonical group has `required: true`, ALL subblocks in that group must have `required: true` (prevents bypassing validation by switching modes)
@@ -223,7 +248,7 @@ export const {Service}Block: BlockConfig = {
 
 ### BlockMeta (Required)
 
-Export a `{Service}BlockMeta` in the same file as the block — **minimum 7 templates**. See `add-block.md` → "BlockMeta (Required)" for valid `modules` and `category` values and the full pattern.
+Export a `{Service}BlockMeta` in the same file as the block — **minimum 7 templates**. See `.agents/skills/add-block/SKILL.md` → "BlockMeta (Required)" for valid `modules` and `category` values and the full pattern.
 
 ```typescript
 export const {Service}BlockMeta = {
@@ -431,12 +456,12 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
 
 ## Step 7: Generate Docs
 
-Run the documentation generator (from `apps/sim`):
+Run the documentation generator:
 ```bash
-bun run generate-docs
+bun run scripts/generate-docs.ts
 ```
 
-This creates `apps/docs/content/docs/en/tools/{service}.mdx`
+This creates `apps/docs/content/docs/en/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
 
 ## V2 Integration Pattern
 
@@ -511,6 +536,8 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Verified block subBlocks cover all required tool params with correct conditions
 - [ ] Verified block outputs match what the tools actually return
 - [ ] Verified `tools.config.params` correctly maps and coerces all param types
+- [ ] Verified every tool output and `transformResponse` path against documented or live-verified JSON responses
+- [ ] If any response schema remained unknown, explicitly told the user instead of guessing
 - [ ] `{Service}BlockMeta` exported with at least 7 templates, each having `icon`, `title`, `prompt`, `modules`, `category`, and `tags`
 
 ## Example Command
@@ -622,9 +649,40 @@ tools: {
 
 #### 3. Create Internal API Route
 
-Create `apps/sim/app/api/tools/{service}/{action}/route.ts`:
+Create `apps/sim/app/api/tools/{service}/{action}/route.ts`. Internal tool routes are HTTP boundaries and follow the same contract policy as public routes — define the request/response shape in `apps/sim/lib/api/contracts/tools/{service}.ts` (or an existing aggregate) and validate with canonical helpers from `@/lib/api/server`. Never write a route-local Zod schema.
 
 ```typescript
+// apps/sim/lib/api/contracts/tools/{service}.ts
+import { z } from 'zod'
+import { defineRouteContract } from '@/lib/api/contracts'
+import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
+
+export const {service}UploadBodySchema = z.object({
+  accessToken: z.string(),
+  file: FileInputSchema.optional().nullable(),
+  fileContent: z.string().optional().nullable(),
+  // ... other params
+})
+
+export const {service}UploadResponseSchema = z.object({
+  success: z.boolean(),
+  output: z.object({ id: z.string(), url: z.string() }).optional(),
+  error: z.string().optional(),
+})
+
+export const {service}UploadContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/{service}/upload',
+  body: {service}UploadBodySchema,
+  response: { mode: 'json', schema: {service}UploadResponseSchema },
+})
+
+export type {Service}UploadBody = z.input<typeof {service}UploadBodySchema>
+export type {Service}UploadResponse = z.output<typeof {service}UploadResponseSchema>
+```
+
+```typescript
+// apps/sim/app/api/tools/{service}/upload/route.ts
 import { createLogger } from '@sim/logger'
 import { NextResponse, type NextRequest } from 'next/server'
 import { {service}UploadContract } from '@/lib/api/contracts/tools/{service}'

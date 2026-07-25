@@ -211,6 +211,41 @@ describe('ConditionBlockHandler', () => {
     expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('else1')
   })
 
+  it('recognizes legacy-capitalized else branches without evaluating them', async () => {
+    const conditions = [{ id: 'else1', title: 'Else', value: '' }]
+    const inputs = { conditions: JSON.stringify(conditions) }
+
+    const result = await handler.execute(mockContext, mockBlock, inputs)
+
+    expect(mockExecuteTool).not.toHaveBeenCalled()
+    expect((result as any).selectedOption).toBe('else1')
+    expect((result as any).selectedPath?.blockId).toBe(mockTargetBlock2.id)
+  })
+
+  it('finds whitespace and mixed-case else branches during fallback', async () => {
+    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: false } })
+
+    const conditions = [
+      { id: 'cond1', title: 'if', value: 'false' },
+      { id: 'else1', title: ' \t eLsE \n', value: '' },
+    ]
+    const inputs = { conditions: JSON.stringify(conditions) }
+    mockContext.workflow!.connections = [
+      { source: mockSourceBlock.id, target: mockBlock.id },
+      {
+        source: mockBlock.id,
+        target: mockTargetBlock1.id,
+        sourceHandle: 'condition-cond1',
+      },
+    ]
+
+    const result = await handler.execute(mockContext, mockBlock, inputs)
+
+    expect(mockExecuteTool).toHaveBeenCalledOnce()
+    expect((result as any).selectedOption).toBe('else1')
+    expect((result as any).selectedPath).toBeNull()
+  })
+
   it('should handle invalid conditions JSON format', async () => {
     const inputs = { conditions: '{ "invalid json ' }
 

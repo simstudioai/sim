@@ -1,6 +1,7 @@
 ---
 name: validate-model
-description: Validate a model entry (or every model in a provider) in `apps/sim/providers/models.ts` against the provider's live API docs, reporting pricing and capability drift, dead capability flags, hosting/billing intent, and any field that cannot be verified. Use when auditing or repairing model entries under `apps/sim/providers/models.ts`.
+description: Validate a model entry (or every model in a provider) in apps/sim/providers/models.ts against the provider's live API docs (no hallucination — reports what cannot be verified)
+argument-hint: <provider> [model-id]
 ---
 
 # Validate Model Skill
@@ -34,7 +35,7 @@ Capture per model: `id`, full `pricing`, full `capabilities`, `contextWindow`, `
 
 ## Step 2: Live-fetch authoritative sources
 
-Use the canonical provider URL table in the `add-model` skill (`.claude/commands/add-model.md`, or its mirror `.agents/skills/add-model/SKILL.md`), Step 1, as the single source of truth — fetch the models index, pricing, and reasoning/parameter caveats pages listed there for the target provider. If you update one table, update the other in the same change.
+Use the canonical provider URL table in the `add-model` skill (`.agents/skills/add-model/SKILL.md`), Step 1, as the single source of truth — fetch the models index, pricing, and reasoning/parameter caveats pages listed there for the target provider.
 
 Secondary cross-check (use at least one): OpenRouter, Artificial Analysis, CloudPrice.
 
@@ -88,6 +89,7 @@ For each model, evaluate every row. Statuses: ✓ matches docs, ✗ disagrees, �
 - [ ] `reasoningEffort.values` — list matches docs; **omitted** for always-reasoning models that reject the parameter (e.g., grok-4.3, where xAI docs explicitly state `reasoning_effort` is not supported). Verify per model — some always-reasoning models (e.g., OpenAI's o-series) DO accept `reasoning_effort` and should keep the flag.
 - [ ] `verbosity.values` — only on OpenAI gpt-5.x family; values match docs
 - [ ] `thinking.levels` + `thinking.default` — only on Anthropic/Gemini; values match docs
+- [ ] `thinking.streamed` — REQUIRED on Anthropic-family thinking models (`'full'` for generations returning full thinking deltas, `'summary'` for omitted-display generations like Opus 4.7+/Sonnet 5/Fable 5 where Sim requests `display: 'summarized'`); verify against the provider's thinking-display docs. After any change, run `bun run agent-stream-docs:generate` so the Agent block docs table stays in sync (CI diffs it)
 - [ ] `nativeStructuredOutputs` — only on anthropic/fireworks/openrouter; provider must document Structured Outputs / JSON-mode for this model
 - [ ] `toolUsageControl` — provider supports `tool_choice` semantics
 - [ ] `computerUse` — provider implements computer-use loop AND model is a computer-use SKU

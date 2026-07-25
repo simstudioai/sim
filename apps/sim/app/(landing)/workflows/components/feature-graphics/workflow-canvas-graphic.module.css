@@ -1,0 +1,88 @@
+/**
+ * The WorkflowCanvasGraphic's motion, all on one shared 6s cycle: the
+ * three edges draw in with a dash-normalized stroke sweep (every path
+ * carries `pathLength=1`, the deploy tile's pattern), staggered top to
+ * bottom — trigger into agent first, then each output — with each edge's
+ * stagger baked into its own keyframe percentages so every edge resets
+ * on the same loop boundary and the cycle reads draw-once-then-hold. As
+ * the fan-out lands, the agent's port node blooms the family's soft ring
+ * pulse. Under prefers-reduced-motion everything is static: edges fully
+ * drawn, no pulse.
+ */
+
+.edgeDraw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.edgeDraw0 {
+  animation: workflow-canvas-edge-draw-0 6s ease-in-out infinite;
+}
+
+.edgeDraw1 {
+  animation: workflow-canvas-edge-draw-1 6s ease-in-out infinite;
+}
+
+.edgeDraw2 {
+  animation: workflow-canvas-edge-draw-2 6s ease-in-out infinite;
+}
+
+@keyframes workflow-canvas-edge-draw-0 {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  16%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes workflow-canvas-edge-draw-1 {
+  0%,
+  16% {
+    stroke-dashoffset: 1;
+  }
+  34%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes workflow-canvas-edge-draw-2 {
+  0%,
+  26% {
+    stroke-dashoffset: 1;
+  }
+  44%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.agentPulse {
+  animation: workflow-canvas-agent-pulse 6s ease-out infinite;
+}
+
+@keyframes workflow-canvas-agent-pulse {
+  0%,
+  44% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 35%, transparent);
+  }
+  62% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .edgeDraw {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .agentPulse {
+    animation: none;
+  }
+}

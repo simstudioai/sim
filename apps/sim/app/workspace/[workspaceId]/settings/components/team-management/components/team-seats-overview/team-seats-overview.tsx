@@ -1,5 +1,4 @@
-import { Badge, Chip, cn } from '@sim/emcn'
-import { useParams, useRouter } from 'next/navigation'
+import { Badge, ChipLink, cn } from '@sim/emcn'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
@@ -14,6 +13,7 @@ type Subscription = {
 }
 
 interface TeamSeatsOverviewProps {
+  billingHref?: string
   subscriptionData: Subscription | null
   isLoadingSubscription: boolean
   totalSeats: number
@@ -24,16 +24,13 @@ interface TeamSeatsOverviewProps {
 }
 
 export function TeamSeatsOverview({
+  billingHref,
   subscriptionData,
   isLoadingSubscription,
   totalSeats,
   usedSeats,
   pendingSeats = 0,
 }: TeamSeatsOverviewProps) {
-  const router = useRouter()
-  const params = useParams<{ workspaceId: string }>()
-  const workspaceId = params?.workspaceId
-
   if (isLoadingSubscription) {
     return null
   }
@@ -48,18 +45,11 @@ export function TeamSeatsOverview({
               Purchase a Team plan to invite teammates to this organization.
             </span>
           </div>
-          <Chip
-            variant='primary'
-            flush
-            onClick={() => {
-              if (workspaceId) {
-                router.push(`/workspace/${workspaceId}/settings/billing`)
-              }
-            }}
-            disabled={!workspaceId}
-          >
-            View plans
-          </Chip>
+          {billingHref && (
+            <ChipLink href={billingHref} variant='primary' flush>
+              View plans
+            </ChipLink>
+          )}
         </div>
       </SettingsSection>
     )

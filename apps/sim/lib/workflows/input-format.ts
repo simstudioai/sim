@@ -22,6 +22,11 @@ export interface WorkflowInputField {
    * in the Custom Blocks settings UI; has no source on the workflow's Start block.
    */
   placeholder?: string
+  /**
+   * Consumers must fill this custom-block input. Authored in the Custom Blocks
+   * settings UI; has no source on the workflow's Start block.
+   */
+  required?: boolean
 }
 
 /**

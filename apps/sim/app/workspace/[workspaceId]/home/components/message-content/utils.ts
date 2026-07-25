@@ -30,6 +30,9 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   glob: FolderCode,
   grep: Search,
   read: File,
+  mv: FolderCode,
+  cp: Layout,
+  mkdir: FolderCode,
   search_online: Search,
   scrape_page: Search,
   get_page_contents: Search,
@@ -38,6 +41,7 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   manage_skill: Asterisk,
   user_memory: Database,
   function_execute: TerminalWindow,
+  run_code: TerminalWindow,
   superagent: Blimp,
   user_table: TableIcon,
   workspace_file: File,
@@ -51,12 +55,16 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   auth: Integration,
   knowledge: Database,
   knowledge_base: Database,
+  search_knowledge_base: Database,
   table: TableIcon,
+  query_user_table: TableIcon,
   scheduled_task: Calendar,
   job: Calendar,
   agent: AgentIcon,
   custom_tool: Wrench,
   research: Search,
+  scout: Search,
+  search: Search,
   context_compaction: Asterisk,
   open_resource: Eye,
   file: File,
@@ -69,11 +77,6 @@ const TOOL_ICONS: Record<string, IconComponent> = {
 
 export function getAgentIcon(name: string): IconComponent {
   return TOOL_ICONS[name as keyof typeof TOOL_ICONS] ?? Blimp
-}
-
-export function getToolIcon(name: string): IconComponent | undefined {
-  const icon = TOOL_ICONS[name as keyof typeof TOOL_ICONS]
-  return icon === Blimp ? undefined : icon
 }
 
 export type MessagePhase = 'streaming' | 'revealing' | 'settled'

@@ -25,13 +25,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const authResult = await validateEnterpriseAuditAccess(session.user.id)
-    if (!authResult.success) {
-      return authResult.response
-    }
-
-    const { organizationId, orgMemberIds } = authResult.context
-
     const parsed = await parseRequest(
       listAuditLogsContract,
       request,
@@ -46,7 +39,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
+    const authResult = await validateEnterpriseAuditAccess(
+      session.user.id,
+      parsed.data.query.organizationId
+    )
+    if (!authResult.success) {
+      return authResult.response
+    }
+
+    const { organizationId, orgMemberIds } = authResult.context
+
     const {
+      organizationId: _targetOrganizationId,
       search,
       action,
       resourceType,

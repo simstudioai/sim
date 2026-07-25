@@ -5,6 +5,13 @@ import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncConfirmationStatus,
 } from '@/lib/copilot/async-runs/lifecycle'
+import {
+  BILLING_ATTRIBUTION_HEADER,
+  BILLING_ATTRIBUTION_HEADER_MAX_BYTES,
+  BILLING_REQUEST_ID_HEADER,
+  COPILOT_BILLING_PROTOCOL_HEADER,
+  COPILOT_BILLING_PROTOCOL_VALUES,
+} from '@/lib/copilot/generated/billing-protocol-v1'
 
 export const copilotApiKeySchema = z.object({
   id: z.string(),
@@ -262,15 +269,31 @@ export const updateCopilotMessagesBodySchema = z.object({
 })
 export type UpdateCopilotMessagesBody = z.input<typeof updateCopilotMessagesBodySchema>
 
+export const validateCopilotApiKeyHeadersSchema = z.object({
+  [COPILOT_BILLING_PROTOCOL_HEADER]: z.enum(COPILOT_BILLING_PROTOCOL_VALUES).optional(),
+  [BILLING_REQUEST_ID_HEADER]: z.string().uuid().optional(),
+  [BILLING_ATTRIBUTION_HEADER]: z.string().max(BILLING_ATTRIBUTION_HEADER_MAX_BYTES).optional(),
+})
+
+export const validateCopilotApiKeyErrorSchema = z
+  .object({
+    error: z.string().min(1).max(500),
+    details: z.array(z.unknown()).optional(),
+  })
+  .strict()
+export type ValidateCopilotApiKeyError = z.output<typeof validateCopilotApiKeyErrorSchema>
+
 export const validateCopilotApiKeyBodySchema = z.object({
   userId: z.string().min(1, 'userId is required'),
   /**
-   * Originating workspace. Used to enforce per-member org-workspace credit limits
-   * at mothership/copilot request time. Required: the Go mothership always resolves
-   * a workspace for a chat request, so a missing value must fail closed (block the
-   * request) rather than silently skip the per-member gate.
+   * Originating execution workspace. Hosted attribution-v1 binds it to Sim's
+   * immutable payer snapshot. Markerless legacy-v0 resolves a locally known
+   * workspace's current payer for aligned payer-pool and member admission.
+   * For direct-v1 Chat/Copilot API keys it may be a self-hosted local ID and is
+   * never used to select or authorize a hosted payer, so direct-v1 callers may
+   * omit it entirely.
    */
-  workspaceId: z.string().min(1),
+  workspaceId: z.string().min(1).optional(),
 })
 export type ValidateCopilotApiKeyBody = z.input<typeof validateCopilotApiKeyBodySchema>
 
@@ -466,8 +489,10 @@ export const copilotCredentialsContract = defineRouteContract({
 export const validateCopilotApiKeyContract = defineRouteContract({
   method: 'POST',
   path: '/api/copilot/api-keys/validate',
+  headers: validateCopilotApiKeyHeadersSchema,
   body: validateCopilotApiKeyBodySchema,
   response: { mode: 'empty' },
+  error: validateCopilotApiKeyErrorSchema,
 })
 
 export const validateCopilotByokBodySchema = z.object({

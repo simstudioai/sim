@@ -10,6 +10,18 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#6B7280"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Twilio](https://www.twilio.com/) is a cloud communications platform that lets developers programmatically send and receive SMS, MMS, and voice calls. It provides a widely used API for building messaging into applications, including delivery status callbacks and inbound message handling.
+
+With the Twilio triggers, you can:
+
+- **React to message status changes**: Start a workflow whenever a sent message's status updates (sent, delivered, failed, undelivered)
+- **React to inbound messages**: Start a workflow whenever an SMS or MMS is received on a Twilio number
+- **Access full message context**: Read sender/recipient details, message body, media attachments, and error codes from the triggering event
+
+In Sim, the Twilio triggers allow your agents to start workflows directly from Twilio messaging events. The Twilio Message Status trigger fires when a message's delivery status changes, exposing fields like `messageSid`, `smsStatus`, `messageStatus`, and `errorCode` so a workflow can react to delivery failures or confirmations. The Twilio SMS Received trigger fires on inbound SMS/MMS messages, exposing the sender and recipient numbers, message body, and any attached media, so a workflow can process incoming texts, route them, or trigger automated replies.
+{/* MANUAL-CONTENT-END */}
+
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.

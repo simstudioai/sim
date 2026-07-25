@@ -4,7 +4,6 @@
  */
 
 export * from '@/lib/billing/calculations/usage-monitor'
-export * from '@/lib/billing/core/api-access'
 export * from '@/lib/billing/core/billing'
 export * from '@/lib/billing/core/organization'
 export * from '@/lib/billing/core/subscription'

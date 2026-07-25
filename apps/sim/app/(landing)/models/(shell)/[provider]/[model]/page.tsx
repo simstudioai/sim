@@ -5,6 +5,7 @@ import { SITE_URL } from '@/lib/core/utils/urls'
 import { BackLink } from '@/app/(landing)/components'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
+import { ShareButton } from '@/app/(landing)/components/share-button'
 import { FeaturedModelCard, ProviderIcon } from '@/app/(landing)/models/components/model-primitives'
 import {
   ALL_CATALOG_MODELS,
@@ -181,6 +182,7 @@ export default async function ModelPage({
             <ChipLink href={provider.href} className='border border-[var(--border-1)]'>
               All {provider.name} models
             </ChipLink>
+            <ShareButton url={`${baseUrl}${model.href}`} title={model.displayName} />
           </div>
         </div>
 

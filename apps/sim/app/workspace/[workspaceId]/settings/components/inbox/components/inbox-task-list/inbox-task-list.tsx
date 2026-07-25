@@ -5,7 +5,7 @@ import { Badge, ChipInput, ChipSelect, Search } from '@sim/emcn'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import { ArrowRight, Paperclip } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { debounce, useQueryStates } from 'nuqs'
+import { useQueryStates } from 'nuqs'
 import {
   type InboxStatusFilter,
   inboxTaskParsers,
@@ -14,6 +14,7 @@ import {
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { InboxTaskItem } from '@/hooks/queries/inbox'
 import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All statuses' },
@@ -25,9 +26,6 @@ const STATUS_OPTIONS = [
 ] as const
 
 type StatusFilter = InboxStatusFilter
-
-/** Debounce window for `search` URL writes; the input itself stays instant. */
-const SEARCH_DEBOUNCE_MS = 300 as const
 
 const STATUS_BADGES: Record<
   string,
@@ -55,15 +53,8 @@ export function InboxTaskList() {
    * write is debounced. Filtering below is cheap in-memory over the loaded
    * tasks, so it reads the instant value too.
    */
-  const setSearchTerm = useCallback(
-    (value: string) => {
-      const next = value.length > 0 ? value : null
-      setInboxFilters(
-        { search: next },
-        next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
-      )
-    },
-    [setInboxFilters]
+  const setSearchTerm = useDebouncedSearchSetter((value, options) =>
+    setInboxFilters({ search: value }, options)
   )
 
   const { data: config } = useInboxConfig(workspaceId)
@@ -74,7 +65,7 @@ export function InboxTaskList() {
   const filteredTasks = useMemo(() => {
     if (!tasksData?.tasks) return []
     if (!searchTerm.trim()) return tasksData.tasks
-    const term = searchTerm.toLowerCase()
+    const term = searchTerm.trim().toLowerCase()
     return tasksData.tasks.filter(
       (t) =>
         t.subject?.toLowerCase().includes(term) ||

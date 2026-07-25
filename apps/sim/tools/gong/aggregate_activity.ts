@@ -103,6 +103,7 @@ export const aggregateActivityTool: ToolConfig<
     return {
       success: true,
       output: {
+        requestId: data.requestId ?? null,
         usersActivity,
         timeZone: data.timeZone ?? null,
         fromDateTime: data.fromDateTime ?? null,
@@ -113,6 +114,11 @@ export const aggregateActivityTool: ToolConfig<
   },
 
   outputs: {
+    requestId: {
+      type: 'string',
+      description: 'A Gong request reference ID for troubleshooting purposes',
+      optional: true,
+    },
     usersActivity: {
       type: 'array',
       description: 'Aggregated activity statistics per user',

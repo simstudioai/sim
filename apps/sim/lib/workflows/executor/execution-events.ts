@@ -17,7 +17,26 @@ export type ExecutionEventType =
   | 'block:error'
   | 'block:childWorkflowStarted'
   | 'stream:chunk'
+  /** Live-only: clears a block's streamed answer text (intermediate turn). */
+  | 'stream:chunk_reset'
   | 'stream:done'
+  /** Live-only agent thinking delta (not buffered for reconnect replay). */
+  | 'stream:thinking'
+  /** Live-only tool lifecycle (not buffered for reconnect replay). */
+  | 'stream:tool'
+
+/**
+ * Event types that are live-only: forwarded to connected clients but excluded
+ * from reconnect replay buffers (same rule as answer chunks — guaranteed `seq`
+ * replay for stream events is out of scope).
+ */
+export const LIVE_ONLY_EXECUTION_EVENT_TYPES: ReadonlySet<ExecutionEventType> = new Set([
+  'stream:chunk',
+  'stream:chunk_reset',
+  'stream:done',
+  'stream:thinking',
+  'stream:tool',
+])
 
 /**
  * Base event structure for SSE
@@ -209,6 +228,20 @@ interface StreamChunkEvent extends BaseExecutionEvent {
 }
 
 /**
+ * Live-only reconciliation for agent-events runs: the answer text streamed so
+ * far for `blockId` belonged to an intermediate turn (tool calls follow).
+ * Clients discard the block's accumulated streamed text; the final turn's
+ * text re-streams as regular `stream:chunk` events after tools settle.
+ */
+interface StreamChunkResetEvent extends BaseExecutionEvent {
+  type: 'stream:chunk_reset'
+  workflowId: string
+  data: {
+    blockId: string
+  }
+}
+
+/**
  * Stream done event
  */
 interface StreamDoneEvent extends BaseExecutionEvent {
@@ -216,6 +249,36 @@ interface StreamDoneEvent extends BaseExecutionEvent {
   workflowId: string
   data: {
     blockId: string
+  }
+}
+
+/**
+ * Live thinking delta from an agent-events provider sink (canvas / draft runs).
+ * Builder runs show provider-exposed signals when the sink is attached
+ * (executor already disables the sink under PII redaction).
+ */
+interface StreamThinkingEvent extends BaseExecutionEvent {
+  type: 'stream:thinking'
+  workflowId: string
+  data: {
+    blockId: string
+    text: string
+  }
+}
+
+/**
+ * Live tool lifecycle from an agent-events provider sink.
+ * Name + status only — never args or results.
+ */
+interface StreamToolEvent extends BaseExecutionEvent {
+  type: 'stream:tool'
+  workflowId: string
+  data: {
+    blockId: string
+    phase: 'start' | 'end'
+    id: string
+    name: string
+    status?: 'success' | 'error' | 'cancelled'
   }
 }
 
@@ -233,7 +296,10 @@ export type ExecutionEvent =
   | BlockErrorEvent
   | BlockChildWorkflowStartedEvent
   | StreamChunkEvent
+  | StreamChunkResetEvent
   | StreamDoneEvent
+  | StreamThinkingEvent
+  | StreamToolEvent
 
 export type ExecutionStartedData = ExecutionStartedEvent['data']
 export type ExecutionCompletedData = ExecutionCompletedEvent['data']
@@ -245,7 +311,10 @@ export type BlockCompletedData = BlockCompletedEvent['data']
 export type BlockErrorData = BlockErrorEvent['data']
 export type BlockChildWorkflowStartedData = BlockChildWorkflowStartedEvent['data']
 export type StreamChunkData = StreamChunkEvent['data']
+export type StreamChunkResetData = StreamChunkResetEvent['data']
 export type StreamDoneData = StreamDoneEvent['data']
+export type StreamThinkingData = StreamThinkingEvent['data']
+export type StreamToolData = StreamToolEvent['data']
 
 /**
  * Helper to create SSE formatted message

@@ -10,6 +10,7 @@ import {
   cn,
   FieldDivider,
   Label,
+  Tooltip,
 } from '@sim/emcn'
 import { ArrowRight } from 'lucide-react'
 import type {
@@ -228,8 +229,8 @@ interface DependentWorkflowCardProps {
 /**
  * One workflow's dependent fields as a collapsible card (the same `CollapsibleCard` the table
  * workflow sidebar's input mapping and the enrichment config use): the header names the
- * workflow, the body groups fields under their block's label. Cards holding a required field
- * start expanded - a required field is what gates Sync.
+ * workflow; the body groups fields under block → optional tool → plain field label.
+ * Cards holding a required field start expanded - a required field is what gates Sync.
  */
 function DependentWorkflowCard({
   workflow,
@@ -250,30 +251,70 @@ function DependentWorkflowCard({
       collapsed={collapsed}
       onToggleCollapse={() => setCollapsed((value) => !value)}
     >
-      {workflow.blocks.map((block) => (
-        <div key={block.targetBlockId} className='flex flex-col gap-1.5'>
-          <Label className='text-small'>{block.blockName}</Label>
-          {block.fields.map((field) => (
-            <div key={dependentKey(field)} className='flex flex-col gap-1'>
-              <span className='text-[var(--text-muted)] text-caption'>
-                {field.title}
-                {field.required ? <span className='text-[var(--text-error)]'> *</span> : null}
-              </span>
-              <DependentSelector
-                field={field}
-                block={block}
-                target={target}
-                parentChanged={parentChanged}
-                copying={copying}
-                workspaceId={workspaceId}
-                sourceWorkspaceId={sourceWorkspaceId}
-                reconfig={reconfig}
-                setReconfig={setReconfig}
-              />
+      <div className='flex flex-col gap-3'>
+        {workflow.blocks.map((block) => {
+          const topLevel = block.fields.filter((field) => !field.toolName)
+          const byTool = new Map<string, ForkDependentReconfig[]>()
+          for (const field of block.fields) {
+            if (!field.toolName) continue
+            const list = byTool.get(field.toolName)
+            if (list) list.push(field)
+            else byTool.set(field.toolName, [field])
+          }
+          const toolGroups = Array.from(byTool.entries()).sort(([a], [b]) => a.localeCompare(b))
+
+          return (
+            <div key={block.targetBlockId} className='flex flex-col gap-2'>
+              <Label className='text-small'>{block.blockName}</Label>
+              {topLevel.map((field) => (
+                <div key={dependentKey(field)} className='flex flex-col gap-1'>
+                  <Label className='text-[var(--text-muted)] text-caption'>
+                    {field.title}
+                    {field.required ? <span className='text-[var(--text-error)]'> *</span> : null}
+                  </Label>
+                  <DependentSelector
+                    field={field}
+                    block={block}
+                    target={target}
+                    parentChanged={parentChanged}
+                    copying={copying}
+                    workspaceId={workspaceId}
+                    sourceWorkspaceId={sourceWorkspaceId}
+                    reconfig={reconfig}
+                    setReconfig={setReconfig}
+                  />
+                </div>
+              ))}
+              {toolGroups.map(([toolName, fields]) => (
+                <div key={toolName} className='flex flex-col gap-1.5 pl-2'>
+                  <span className='text-[var(--text-muted)] text-small'>{toolName}</span>
+                  {fields.map((field) => (
+                    <div key={dependentKey(field)} className='flex flex-col gap-1'>
+                      <Label className='text-[var(--text-muted)] text-caption'>
+                        {field.title}
+                        {field.required ? (
+                          <span className='text-[var(--text-error)]'> *</span>
+                        ) : null}
+                      </Label>
+                      <DependentSelector
+                        field={field}
+                        block={block}
+                        target={target}
+                        parentChanged={parentChanged}
+                        copying={copying}
+                        workspaceId={workspaceId}
+                        sourceWorkspaceId={sourceWorkspaceId}
+                        reconfig={reconfig}
+                        setReconfig={setReconfig}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      ))}
+          )
+        })}
+      </div>
     </CollapsibleCard>
   )
 }
@@ -535,6 +576,23 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
   const detailsError = controller.errorMessage ?? controller.diffErrorMessage
   const headsUp = controller.mcpReauthCount > 0 || controller.inlineSecretCount > 0
 
+  // Excluded workflows render greyed in the change list. Orient each name's tooltip
+  // to WHERE it is excluded (that's the only place it can be re-included): the sync's
+  // source is this workspace on push and the other workspace on pull.
+  const excludedRows = [
+    ...(controller.direction === 'push'
+      ? controller.excludedSourceWorkflows
+      : controller.excludedTargetWorkflows
+    ).map((name) => ({ name, tooltip: 'Excluded from sync' })),
+    ...(controller.direction === 'push'
+      ? controller.excludedTargetWorkflows
+      : controller.excludedSourceWorkflows
+    ).map((name) => ({
+      name,
+      tooltip: `Excluded from sync in "${controller.otherWorkspaceName}"`,
+    })),
+  ]
+
   return (
     <div className='flex flex-col gap-7'>
       <SettingsSection label='Sync direction'>
@@ -567,33 +625,51 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
 
       {/* Always shown once the diff loads so the user sees the section even with nothing
           deployed - an empty change list means the source has no deployed workflows (every
-          deployed workflow appears here, changed or not), so the muted state nudges a deploy. */}
+          deployed workflow appears here, changed or not), so the muted state nudges a deploy.
+          Sync-excluded workflows list greyed at the end, with a tooltip naming where the
+          exclusion lives - the sync will not touch them. */}
       {controller.hasDiff ? (
         <SettingsSection label='Deployed workflows'>
-          {controller.workflowChanges.length > 0 ? (
-            <div className='flex flex-col gap-1'>
-              {controller.workflowChanges.map((change, index) => {
-                const renamed = change.currentName !== change.otherName
-                return (
-                  <div
-                    key={`${change.action}:${change.currentName}:${index}`}
-                    className='flex min-w-0 items-center gap-1.5'
-                  >
-                    <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
-                      {change.currentName}
-                    </span>
-                    {renamed ? (
-                      <>
-                        <ArrowRight className='size-3 shrink-0 text-[var(--text-icon)]' />
-                        <span className='min-w-0 truncate text-[var(--text-secondary)] text-sm'>
-                          {change.otherName}
+          {controller.workflowChanges.length + excludedRows.length > 0 ? (
+            <Tooltip.Provider delayDuration={150}>
+              <div className='flex flex-col gap-1'>
+                {controller.workflowChanges.map((change, index) => {
+                  const renamed = change.currentName !== change.otherName
+                  return (
+                    <div
+                      key={`${change.action}:${change.currentName}:${index}`}
+                      className='flex min-w-0 items-center gap-1.5'
+                    >
+                      <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
+                        {change.currentName}
+                      </span>
+                      {renamed ? (
+                        <>
+                          <ArrowRight className='size-3 shrink-0 text-[var(--text-icon)]' />
+                          <span className='min-w-0 truncate text-[var(--text-secondary)] text-sm'>
+                            {change.otherName}
+                          </span>
+                        </>
+                      ) : null}
+                    </div>
+                  )
+                })}
+                {excludedRows.map(({ name, tooltip }, index) => (
+                  <div key={`excluded:${name}:${index}`} className='flex min-w-0 items-center'>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <span className='min-w-0 max-w-full truncate text-[var(--text-muted)] text-sm'>
+                          {name}
                         </span>
-                      </>
-                    ) : null}
+                      </Tooltip.Trigger>
+                      <Tooltip.Content side='top' className='text-small'>
+                        {tooltip}
+                      </Tooltip.Content>
+                    </Tooltip.Root>
                   </div>
-                )
-              })}
-            </div>
+                ))}
+              </div>
+            </Tooltip.Provider>
           ) : (
             <div className='text-[var(--text-muted)] text-small'>
               {controller.direction === 'push'

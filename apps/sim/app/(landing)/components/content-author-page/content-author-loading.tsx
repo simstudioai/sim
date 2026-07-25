@@ -5,22 +5,34 @@ const AUTHOR_POST_SKELETON_COUNT = 4
 /** Shared loading skeleton for a content section's author-profile route. */
 export function ContentAuthorLoading() {
   return (
-    <main className='mx-auto max-w-[900px] px-6 py-10 sm:px-8 md:px-12'>
-      <div className='mb-6 flex items-center gap-3'>
-        <Skeleton className='size-[40px] rounded-full bg-[var(--surface-hover)]' />
-        <Skeleton className='h-[32px] w-[160px] rounded-[4px] bg-[var(--surface-hover)]' />
+    <section className='bg-[var(--bg)]'>
+      <div className='mx-auto w-full max-w-[1460px] px-20 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
+        <Skeleton className='mb-6 h-[16px] w-[100px] rounded-md bg-[var(--surface-hover)]' />
+        <div className='flex items-center gap-4'>
+          <Skeleton className='size-[64px] rounded-full bg-[var(--surface-hover)]' />
+          <Skeleton className='h-[40px] w-[240px] rounded-[4px] bg-[var(--surface-hover)]' />
+        </div>
       </div>
-      <div className='grid grid-cols-1 gap-8 sm:grid-cols-2'>
-        {Array.from({ length: AUTHOR_POST_SKELETON_COUNT }).map((_, i) => (
-          <div key={i} className='overflow-hidden rounded-lg border border-[var(--border)]'>
-            <Skeleton className='h-[160px] w-full rounded-none bg-[var(--surface-hover)]' />
-            <div className='p-3'>
-              <Skeleton className='mb-1 h-[12px] w-[80px] rounded-[4px] bg-[var(--surface-hover)]' />
-              <Skeleton className='h-[14px] w-[200px] rounded-[4px] bg-[var(--surface-hover)]' />
+
+      <div className='mt-8 h-px w-full bg-[var(--border)]' />
+
+      <div className='mx-auto w-full max-w-[1460px] px-20 max-sm:px-5 max-lg:px-8'>
+        <div className='border-[var(--border)] border-x'>
+          {Array.from({ length: AUTHOR_POST_SKELETON_COUNT }).map((_, i) => (
+            <div key={i}>
+              <div className='flex items-center gap-6 p-6'>
+                <Skeleton className='hidden h-[14px] w-[120px] rounded-[4px] bg-[var(--surface-hover)] md:block' />
+                <div className='flex min-w-0 flex-1 flex-col gap-1'>
+                  <Skeleton className='h-[18px] w-[70%] rounded-[4px] bg-[var(--surface-hover)]' />
+                  <Skeleton className='h-[14px] w-[90%] rounded-[4px] bg-[var(--surface-hover)]' />
+                </div>
+                <Skeleton className='hidden h-[80px] w-[140px] rounded-[5px] bg-[var(--surface-hover)] sm:block' />
+              </div>
+              <div className='h-px w-full bg-[var(--border)]' />
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </main>
+    </section>
   )
 }

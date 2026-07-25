@@ -121,16 +121,19 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
   const { source, policy, userId, requestId = 'unknown' } = params
   const selection = params.selection ?? EMPTY_SELECTION
   const childName = params.name?.trim() || `${source.name} (fork)`
+  const childWorkspaceId = generateId()
 
-  // Copied blob bytes (workspace files + KB document blobs) are charged to the initiating
-  // user's storage scope exactly as if uploaded to the child workspace, so enforce
-  // headroom BEFORE any fork work. Sizes come from the metadata rows the fork tx would
-  // load anyway; over quota fails the fork here with the upload path's error shape.
+  // UX-only preflight against the payer selected by the child workspace's creation policy.
+  // The authoritative per-blob admission + increment happens later with metadata activation.
   const copyBytes = await sumForkCopyBytes(db, source.id, {
     fileIds: selection.files,
     knowledgeBaseIds: selection.knowledgeBases,
   })
-  await assertForkStorageHeadroom({ userId, bytes: copyBytes })
+  await assertForkStorageHeadroom({
+    plannedWorkspaceId: childWorkspaceId,
+    creationPolicy: policy,
+    bytes: copyBytes,
+  })
 
   // Read the source's deployed workflows + states BEFORE the transaction so these
   // global-pool reads don't check out a second pooled connection from inside the
@@ -159,7 +162,6 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
   const { result, blobTasks, contentPlan, contentRefMaps } = await db.transaction(async (tx) => {
     await setForkLockTimeout(tx)
     const now = new Date()
-    const childWorkspaceId = generateId()
 
     await tx.insert(workspace).values({
       id: childWorkspaceId,

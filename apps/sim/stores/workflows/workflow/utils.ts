@@ -1,6 +1,8 @@
 import {
+  filterAcyclicEdges as filterAcyclicWorkflowEdges,
   isWorkflowBlockAncestorLocked,
   isWorkflowBlockProtected,
+  wouldCreateCycle as wouldCreateWorkflowEdgeCycle,
 } from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
@@ -19,50 +21,20 @@ export function clampParallelBatchSize(batchSize: unknown): number {
 
 /**
  * Check if adding an edge would create a cycle in the graph.
- * Uses depth-first search to detect if the source node is reachable from the target node.
- *
- * @param edges - Current edges in the graph
- * @param sourceId - Source node ID of the proposed edge
- * @param targetId - Target node ID of the proposed edge
- * @returns true if adding this edge would create a cycle
+ * Delegates to the shared implementation in `@sim/workflow-types` so the
+ * client store, the collaborative queueing layer, and the realtime
+ * persistence layer all agree on the same cyclic edges.
  */
 export function wouldCreateCycle(edges: Edge[], sourceId: string, targetId: string): boolean {
-  if (sourceId === targetId) {
-    return true
-  }
+  return wouldCreateWorkflowEdgeCycle(edges, sourceId, targetId)
+}
 
-  const adjacencyList = new Map<string, string[]>()
-  for (const edge of edges) {
-    if (!adjacencyList.has(edge.source)) {
-      adjacencyList.set(edge.source, [])
-    }
-    adjacencyList.get(edge.source)!.push(edge.target)
-  }
-
-  const visited = new Set<string>()
-
-  function canReachSource(currentNode: string): boolean {
-    if (currentNode === sourceId) {
-      return true
-    }
-
-    if (visited.has(currentNode)) {
-      return false
-    }
-
-    visited.add(currentNode)
-
-    const neighbors = adjacencyList.get(currentNode) || []
-    for (const neighbor of neighbors) {
-      if (canReachSource(neighbor)) {
-        return true
-      }
-    }
-
-    return false
-  }
-
-  return canReachSource(targetId)
+/**
+ * Filters a batch of candidate edges down to the ones that do not create a
+ * cycle against `currentEdges`, evaluated incrementally within the batch.
+ */
+export function filterAcyclicEdges(edgesToAdd: Edge[], currentEdges: Edge[]): Edge[] {
+  return filterAcyclicWorkflowEdges(edgesToAdd, currentEdges)
 }
 
 /**

@@ -308,6 +308,26 @@ export const pipedreamProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          "No: Pipedream's closest mechanism is publishing a single Node.js code step as a reusable 'custom action' that shows up under 'My Actions' for other steps to select, not a full multi-step deployed workflow turned into an org-wide toolbar block. The published code stays directly visible and editable to whoever adds it (no encapsulation of internals/credentials), and updates are opt-in: Pipedream's own docs state a new version 'doesn't automatically update all instances of the same action across your workflows... this gives you the control to gradually update.'",
+        detail:
+          "No Pipedream documentation describes taking an entire deployed workflow, auto-deriving its inputs, letting the publisher hand-pick named outputs, and exposing it as a named/iconed block in the builder toolbar for every other team member to drop into their own workflows while always running the source's latest deployed version. 'Sharing Code Across Workflows' scopes reuse to one code step at a time (multi-step reuse requires the CLI to build a full component, which then cannot be edited inline), and the Components docs don't address workflow-to-component conversion at all. Pipedream's registry model is instead built around wrapping third-party API calls into app integrations, not packaging a user's own business-logic workflow as a hidden-internals block.",
+        shortValue: 'No, only single code-step reuse with opt-in updates',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://pipedream.com/docs/workflows/building-workflows/code/nodejs/sharing-code',
+            label: 'Pipedream Docs: Sharing Code Across Workflows',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://pipedream.com/docs/components',
+            label: 'Pipedream Docs: Components Overview',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {

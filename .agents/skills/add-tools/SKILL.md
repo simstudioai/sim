@@ -1,6 +1,7 @@
 ---
 name: add-tools
-description: Create or update Sim tool configurations from service API docs, including typed params, request mapping, response transforms, outputs, and registry entries. Use when working in `apps/sim/tools/{service}/` or fixing tool definitions for an integration.
+description: Create tool configurations for a Sim integration by reading API docs
+argument-hint: <service-name> [api-docs-url]
 ---
 
 # Add Tools Skill

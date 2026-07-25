@@ -1,4 +1,5 @@
 import { cn } from '@sim/emcn'
+import { OverflowSpan } from '../lib/overflow-span'
 
 /**
  * Props for the pure subblock summary row. The container resolves the value —
@@ -18,26 +19,27 @@ export interface SubBlockRowViewProps {
 /**
  * Pure renderer for a collapsed block's subblock summary row: a capitalized
  * title and its resolved display value.
+ *
+ * The fixed `h-5` row height is part of the handle-position contract —
+ * `HANDLE_POSITIONS.CONDITION_ROW_HEIGHT` in dimensions.ts assumes a 20px row
+ * plus the container's 8px gap, so condition/router source handles align with
+ * their rows.
  */
 export function SubBlockRowView({ title, displayValue, isMonospace }: SubBlockRowViewProps) {
   return (
-    <div className='flex items-center gap-2'>
-      <span
+    <div className='flex h-5 items-center gap-2'>
+      <OverflowSpan
+        value={title}
         className='min-w-0 truncate text-[var(--text-tertiary)] text-sm capitalize'
-        title={title}
-      >
-        {title}
-      </span>
+      />
       {displayValue !== undefined && (
-        <span
+        <OverflowSpan
+          value={displayValue}
           className={cn(
             'flex-1 truncate text-right text-[var(--text-primary)] text-sm',
             isMonospace && 'font-mono'
           )}
-          title={displayValue}
-        >
-          {displayValue}
-        </span>
+        />
       )}
     </div>
   )

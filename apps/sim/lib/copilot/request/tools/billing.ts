@@ -33,16 +33,25 @@ export async function handleBillingLimitResponse(
   let action: 'upgrade_plan' | 'increase_limit' = 'upgrade_plan'
   let message = "You've reached your usage limit. Please upgrade your plan to continue."
   try {
-    const sub = await getHighestPrioritySubscription(userId)
-    if (sub && isPaid(sub.plan)) {
+    let plan: string | undefined
+    let orgScoped = false
+    if (execContext.billingAttribution) {
+      plan = execContext.billingAttribution.payerSubscription?.plan
+      orgScoped = execContext.billingAttribution.billingEntity.type === 'organization'
+    } else {
+      const sub = await getHighestPrioritySubscription(userId)
+      plan = sub?.plan
+      orgScoped = isOrgScopedSubscription(sub, userId)
+    }
+
+    if (plan && isPaid(plan)) {
       // Paid subs use the existing `increase_limit` action so the UI
       // (`UsageUpgradeDisplay`) renders its standard button. The message
       // text does the work of clarifying the action when the user can't
       // actually self-serve the limit change.
       action = 'increase_limit'
-      const orgScoped = isOrgScopedSubscription(sub, userId)
       if (orgScoped) {
-        message = isEnterprise(sub.plan)
+        message = isEnterprise(plan)
           ? "You've reached your organization's usage limit for this billing period. Only an organization admin or Sim support can raise an enterprise limit — reach out to them to continue."
           : "You've reached your organization's usage limit for this billing period. Only an organization owner or admin can raise the limit — please ask them to update it from the team billing settings."
       } else {

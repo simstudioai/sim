@@ -1,30 +1,26 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import {
+  CallIntegrationTool,
   CrawlWebsite,
+  CreateFile,
+  CreateWorkflow,
   DeleteWorkflow,
   DeployApi,
   DeployChat,
   DeployMcp,
+  EditWorkflow,
   FunctionExecute,
   Glob,
   Grep,
   ManageCredential,
-  ManageCredentialOperation,
   ManageCustomTool,
-  ManageCustomToolOperation,
   ManageFolder,
-  ManageFolderOperation,
   ManageMcpTool,
-  ManageMcpToolOperation,
   ManageScheduledTask,
-  ManageScheduledTaskOperation,
   ManageSkill,
-  ManageSkillOperation,
-  MoveWorkflow,
   QueryLogs,
   Redeploy,
-  RenameWorkflow,
   RunFromBlock,
   RunWorkflow,
   RunWorkflowUntilBlock,
@@ -34,7 +30,8 @@ import {
   WorkspaceFileOperation,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
-import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
+import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
+import { getToolDisplayTitle, mvDisplayVerb } from '@/lib/copilot/tools/tool-display'
 import type { ContentBlock, MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 import { getWorkflowById } from '@/hooks/queries/utils/workflow-cache'
@@ -52,12 +49,15 @@ export const DEPLOY_TOOL_NAMES: Set<string> = new Set([
   Redeploy.id,
 ])
 
-export const FOLDER_TOOL_NAMES: Set<string> = new Set([ManageFolder.id])
+export const FOLDER_TOOL_NAMES: Set<string> = new Set([ManageFolder.id, 'mkdir', 'mv'])
 
 export const WORKFLOW_MUTATION_TOOL_NAMES: Set<string> = new Set([
-  MoveWorkflow.id,
-  RenameWorkflow.id,
+  'mv',
+  'cp',
   DeleteWorkflow.id,
+  // Removed legacy tools, kept while their grace-period executors remain.
+  'move_workflow',
+  'rename_workflow',
 ])
 
 export type StreamPayload = Record<string, unknown>
@@ -163,6 +163,25 @@ function resolveWorkflowNameForDisplay(workflowId: unknown): string | undefined 
   return getWorkflowById(workspaceId, id)?.name
 }
 
+function resolveTargetWorkflowName(args: Record<string, unknown> | undefined): string | undefined {
+  const explicitName = stringParam(args?.workflowName) ?? stringParam(args?.name)
+  if (explicitName) return explicitName
+
+  const registry = useWorkflowRegistry.getState()
+  return resolveWorkflowNameForDisplay(args?.workflowId ?? registry.hydration.workflowId)
+}
+
+function resolveDeletedWorkflowTarget(workflowIds: unknown): string | undefined {
+  if (!Array.isArray(workflowIds) || workflowIds.length === 0) return undefined
+  const names = workflowIds
+    .map(resolveWorkflowNameForDisplay)
+    .filter((name): name is string => Boolean(name))
+  if (names.length === 0) return undefined
+  if (workflowIds.length === 1) return names[0]
+  if (workflowIds.length === 2 && names.length === 2) return `${names[0]} and ${names[1]}`
+  return `${names[0]} and ${workflowIds.length - 1} more`
+}
+
 function resolveBlockNameForDisplay(blockId: unknown): string | undefined {
   const id = stringParam(blockId)
   if (!id) return undefined
@@ -195,17 +214,35 @@ function resolveWorkspaceFileDisplayTitle(
   return undefined
 }
 
-function resolveOperationDisplayTitle(
-  operation: unknown,
-  labels: Partial<Record<string, string>>,
-  fallback: string
-): string {
-  const label = typeof operation === 'string' ? labels[operation] : undefined
-  return label ?? fallback
-}
-
 function functionExecuteTitle(title: string | undefined): string {
   return title ?? 'Running code'
+}
+
+/**
+ * Row text for an integration-gateway tool call: the model-authored activity
+ * `description`, readable the moment it completes in the still-streaming
+ * argument buffer — the same pattern `read`/`workspace_file` use for their
+ * streaming VFS targets. The trusted integration branding is the ICON, which
+ * the row component derives deterministically from the streamed `toolId` (or
+ * the rebound operation name) via Sim's block registry — the text carries no
+ * integration name. After Go's authoritative frame rebinds the row to the
+ * exact operation (e.g. `gmail_read_v2`), the preserved
+ * `integrationDescription` keeps the same text. Returns undefined until a
+ * description is readable (callers fall back to the neutral gateway label).
+ */
+export function resolveIntegrationToolDisplayTitle(tool: {
+  name: string
+  args?: Record<string, unknown>
+  streamingArgs?: string
+  integrationDescription?: string
+}): string | undefined {
+  if (tool.name === CallIntegrationTool.id) {
+    const description =
+      stringParam(tool.args?.description) ??
+      extractStreamingStringArgument(tool.streamingArgs, 'description')?.trim()
+    return description || undefined
+  }
+  return tool.integrationDescription
 }
 
 export function resolveToolDisplayTitle(name: string, args?: Record<string, unknown>): string {
@@ -235,6 +272,16 @@ export function resolveToolDisplayTitle(name: string, args?: Record<string, unkn
     return 'Running workflow'
   }
 
+  if (name === EditWorkflow.id) {
+    const workflowName = resolveTargetWorkflowName(args)
+    return workflowName ? `Editing ${workflowName}` : 'Editing workflow'
+  }
+
+  if (name === DeleteWorkflow.id) {
+    const workflowTarget = resolveDeletedWorkflowTarget(args?.workflowIds)
+    if (workflowTarget) return `Deleting ${workflowTarget}`
+  }
+
   if (name === QueryLogs.id) {
     const workflowName =
       resolveWorkflowNameForDisplay(args?.workflowId) ?? stringParam(args?.workflowName)
@@ -258,6 +305,31 @@ function matchStreamingStringArg(streamingArgs: string, key: string): string | u
   return match?.[1] ? decodeStreamingString(match[1]) : undefined
 }
 
+function resolveStreamingManagedResourceTitle(
+  name: string,
+  streamingArgs: string,
+  targetKeys: string[]
+): string | undefined {
+  const operation = matchStreamingStringArg(streamingArgs, 'operation')
+  if (!operation) return undefined
+  let target: string | undefined
+  for (const key of targetKeys) {
+    target = matchStreamingStringArg(streamingArgs, key)
+    if (target) break
+  }
+  return getToolDisplayTitle(name, {
+    operation,
+    ...(target
+      ? {
+          title: target,
+          name: target,
+          displayName: target,
+          path: target,
+        }
+      : {}),
+  })
+}
+
 export function resolveStreamingToolDisplayTitle(
   name: string,
   streamingArgs: string
@@ -272,6 +344,23 @@ export function resolveStreamingToolDisplayTitle(
       matchStreamingStringArg(streamingArgs, 'title'),
       matchStreamingStringArg(streamingArgs, 'fileName')
     )
+  }
+
+  if (name === CreateFile.id) {
+    const target =
+      matchStreamingStringArg(streamingArgs, 'path') ??
+      matchStreamingStringArg(streamingArgs, 'fileName')
+    return target ? getToolDisplayTitle(name, { fileName: target }) : undefined
+  }
+
+  if (name === CreateWorkflow.id) {
+    const workflowName = matchStreamingStringArg(streamingArgs, 'name')
+    return workflowName ? getToolDisplayTitle(name, { name: workflowName }) : undefined
+  }
+
+  if (name === EditWorkflow.id) {
+    const workflowId = matchStreamingStringArg(streamingArgs, 'workflowId')
+    return workflowId ? resolveToolDisplayTitle(name, { workflowId }) : undefined
   }
 
   if (name === SearchOnline.id) {
@@ -289,6 +378,36 @@ export function resolveStreamingToolDisplayTitle(
     return toolTitle ? `Finding ${toolTitle}` : undefined
   }
 
+  if (name === 'mv') {
+    const toolTitle = matchStreamingStringArg(streamingArgs, 'toolTitle')
+    if (!toolTitle) return undefined
+    // Same rename-vs-move derivation as the settled title: single source with
+    // only the leaf changing reads as a rename.
+    const multiSource = /"sources"\s*:\s*\[\s*"[^"]*"\s*,/.test(streamingArgs)
+    const firstSource = streamingArgs.match(/"sources"\s*:\s*\[\s*"([^"]*)"/m)?.[1]
+    const destination = matchStreamingStringArg(streamingArgs, 'destination')
+    const verb = multiSource
+      ? 'Moving'
+      : mvDisplayVerb(firstSource ? decodeStreamingString(firstSource) : undefined, destination)
+    if (verb === 'Renaming' && firstSource && destination) {
+      return getToolDisplayTitle(name, {
+        sources: [decodeStreamingString(firstSource)],
+        destination,
+      })
+    }
+    return `${verb} ${toolTitle}`
+  }
+
+  if (name === 'cp') {
+    const toolTitle = matchStreamingStringArg(streamingArgs, 'toolTitle')
+    return toolTitle ? `Duplicating ${toolTitle}` : undefined
+  }
+
+  if (name === 'mkdir') {
+    const toolTitle = matchStreamingStringArg(streamingArgs, 'toolTitle')
+    return toolTitle ? `Creating ${toolTitle}` : undefined
+  }
+
   if (name === ScrapePage.id) {
     const url = matchStreamingStringArg(streamingArgs, 'url')
     return url ? `Scraping ${url}` : undefined
@@ -300,80 +419,59 @@ export function resolveStreamingToolDisplayTitle(
   }
 
   if (name === ManageCustomTool.id) {
-    return resolveOperationDisplayTitle(
-      matchStreamingStringArg(streamingArgs, 'operation'),
-      {
-        [ManageCustomToolOperation.add]: 'Creating custom tool',
-        [ManageCustomToolOperation.edit]: 'Updating custom tool',
-        [ManageCustomToolOperation.delete]: 'Deleting custom tool',
-        [ManageCustomToolOperation.list]: 'Listing custom tools',
-      },
-      'Custom tool action'
-    )
+    return resolveStreamingManagedResourceTitle(name, streamingArgs, ['toolTitle', 'title', 'name'])
   }
 
   if (name === ManageMcpTool.id) {
-    return resolveOperationDisplayTitle(
-      matchStreamingStringArg(streamingArgs, 'operation'),
-      {
-        [ManageMcpToolOperation.add]: 'Creating MCP server',
-        [ManageMcpToolOperation.edit]: 'Updating MCP server',
-        [ManageMcpToolOperation.delete]: 'Deleting MCP server',
-        [ManageMcpToolOperation.list]: 'Listing MCP servers',
-      },
-      'MCP server action'
-    )
+    return resolveStreamingManagedResourceTitle(name, streamingArgs, [
+      'serverName',
+      'name',
+      'title',
+    ])
   }
 
   if (name === ManageSkill.id) {
-    return resolveOperationDisplayTitle(
-      matchStreamingStringArg(streamingArgs, 'operation'),
-      {
-        [ManageSkillOperation.add]: 'Creating skill',
-        [ManageSkillOperation.edit]: 'Updating skill',
-        [ManageSkillOperation.delete]: 'Deleting skill',
-        [ManageSkillOperation.list]: 'Listing skills',
-      },
-      'Skill action'
-    )
+    return resolveStreamingManagedResourceTitle(name, streamingArgs, ['name', 'skillName', 'title'])
   }
 
   if (name === ManageScheduledTask.id) {
-    return resolveOperationDisplayTitle(
-      matchStreamingStringArg(streamingArgs, 'operation'),
-      {
-        [ManageScheduledTaskOperation.create]: 'Creating scheduled task',
-        [ManageScheduledTaskOperation.get]: 'Getting scheduled task',
-        [ManageScheduledTaskOperation.update]: 'Updating scheduled task',
-        [ManageScheduledTaskOperation.delete]: 'Deleting scheduled task',
-        [ManageScheduledTaskOperation.list]: 'Listing scheduled tasks',
-      },
-      'Scheduled task action'
-    )
+    return resolveStreamingManagedResourceTitle(name, streamingArgs, ['title', 'taskName', 'name'])
   }
 
   if (name === ManageCredential.id) {
-    return resolveOperationDisplayTitle(
-      matchStreamingStringArg(streamingArgs, 'operation'),
-      {
-        [ManageCredentialOperation.rename]: 'Renaming credential',
-        [ManageCredentialOperation.delete]: 'Deleting credential',
-      },
-      'Credential action'
-    )
+    const operation = matchStreamingStringArg(streamingArgs, 'operation')
+    if (!operation) return undefined
+    return getToolDisplayTitle(name, {
+      operation,
+      previousDisplayName:
+        matchStreamingStringArg(streamingArgs, 'previousDisplayName') ??
+        matchStreamingStringArg(streamingArgs, 'oldName') ??
+        matchStreamingStringArg(streamingArgs, 'credentialName'),
+      displayName:
+        matchStreamingStringArg(streamingArgs, 'displayName') ??
+        matchStreamingStringArg(streamingArgs, 'newName') ??
+        matchStreamingStringArg(streamingArgs, 'name'),
+    })
   }
 
   if (name === ManageFolder.id) {
-    return resolveOperationDisplayTitle(
-      matchStreamingStringArg(streamingArgs, 'operation'),
-      {
-        [ManageFolderOperation.create]: 'Creating folder',
-        [ManageFolderOperation.rename]: 'Renaming folder',
-        [ManageFolderOperation.move]: 'Moving folder',
-        [ManageFolderOperation.delete]: 'Deleting folder',
-      },
-      'Folder action'
-    )
+    // create/rename/move are string literals: the live tool only offers delete
+    // (mkdir/mv replaced the rest), but grace-period checkpoint resumes and
+    // transcript replays still stream the legacy operations.
+    const operation = matchStreamingStringArg(streamingArgs, 'operation')
+    if (!operation) return undefined
+    return getToolDisplayTitle(name, {
+      operation,
+      path:
+        matchStreamingStringArg(streamingArgs, 'oldPath') ??
+        matchStreamingStringArg(streamingArgs, 'source') ??
+        matchStreamingStringArg(streamingArgs, 'path'),
+      name:
+        matchStreamingStringArg(streamingArgs, 'newPath') ??
+        matchStreamingStringArg(streamingArgs, 'destination') ??
+        matchStreamingStringArg(streamingArgs, 'newName') ??
+        matchStreamingStringArg(streamingArgs, 'name'),
+    })
   }
 
   return undefined

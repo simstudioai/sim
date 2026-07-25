@@ -84,7 +84,7 @@ export const hubspotListListsTool: ToolConfig<HubSpotListListsParams, HubSpotLis
         paging:
           data.hasMore === true && data.offset != null
             ? { next: { after: String(data.offset) } }
-            : undefined,
+            : null,
         metadata: {
           totalReturned: lists.length,
           total: data.total ?? null,

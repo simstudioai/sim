@@ -5,7 +5,11 @@ import {
   v1UploadKnowledgeDocumentContract,
 } from '@/lib/api/contracts/v1/knowledge'
 import { parseRequest } from '@/lib/api/server'
-import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import {
+  checkAttributedUsageLimits,
+  resolveBillingAttribution,
+  resolveSystemBillingAttribution,
+} from '@/lib/billing/core/billing-attribution'
 import {
   isPayloadSizeLimitError,
   MAX_MULTIPART_OVERHEAD_BYTES,
@@ -151,9 +155,16 @@ export const POST = withRouteHandler(
       )
       if (result instanceof NextResponse) return result
 
-      // Fast usage gate before the storage write + indexing (the async backstop
-      // in processDocumentAsync still covers non-HTTP paths).
-      const usage = await checkActorUsageLimits(userId, workspaceId)
+      /**
+       * Gate before storage and indexing. Workspace keys use the billed account
+       * and immutable payer from one read; personal keys preserve their human actor.
+       */
+      const billingAttribution =
+        rateLimit.keyType === 'workspace'
+          ? await resolveSystemBillingAttribution(workspaceId)
+          : await resolveBillingAttribution({ actorUserId: userId, workspaceId })
+      const billingActorUserId = billingAttribution.actorUserId
+      const usage = await checkAttributedUsageLimits(billingAttribution)
       if (usage.isExceeded) {
         return NextResponse.json(
           {
@@ -183,7 +194,7 @@ export const POST = withRouteHandler(
         },
         knowledgeBaseId,
         requestId,
-        userId
+        billingActorUserId
       )
 
       const documentData: DocumentData = {
@@ -194,7 +205,13 @@ export const POST = withRouteHandler(
         mimeType: contentType,
       }
 
-      processDocumentsWithQueue([documentData], knowledgeBaseId, {}, requestId).catch(() => {
+      processDocumentsWithQueue(
+        [documentData],
+        knowledgeBaseId,
+        {},
+        requestId,
+        billingAttribution
+      ).catch(() => {
         // Processing errors are logged internally
       })
 

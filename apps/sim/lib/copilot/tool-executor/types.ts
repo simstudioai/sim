@@ -1,3 +1,4 @@
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
 
 export interface ToolExecutionContext {
@@ -8,6 +9,7 @@ export interface ToolExecutionContext {
   messageId?: string
   executionId?: string
   runId?: string
+  billingAttribution?: BillingAttributionSnapshot
   copilotToolExecution?: boolean
   requestMode?: string
   currentAgentId?: string

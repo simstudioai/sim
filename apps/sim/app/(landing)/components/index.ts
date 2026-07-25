@@ -18,22 +18,9 @@ export { Lightbox } from './lightbox'
 export { LogoShell } from './logo-shell'
 export { Mothership } from './mothership/mothership'
 export { Navbar } from './navbar'
-export type {
-  PlatformCardConfig,
-  PlatformCardRowConfig,
-  PlatformHeroConfig,
-  PlatformPageConfig,
-  PlatformPillCta,
-} from './platform-page'
-export { PlatformPage } from './platform-page'
+export { PlatformHeroVisual } from './platform-hero-visual'
 export { ProductDemo } from './product-demo'
 export { ShareButton } from './share-button'
 export { SiteStructuredData } from './site-structured-data'
-export type {
-  SolutionsCardConfig,
-  SolutionsCardRowConfig,
-  SolutionsHeroConfig,
-  SolutionsPageConfig,
-  SolutionsPillCta,
-} from './solutions-page'
+export type { SolutionsPageConfig } from './solutions-page'
 export { SolutionsPage } from './solutions-page'

@@ -1,14 +1,14 @@
 import type { ComponentType, SVGProps } from 'react'
 import { memo } from 'react'
 import Link from 'next/link'
-import type { Integration } from '@/lib/integrations'
+import type { IntegrationSummary } from '@/lib/integrations'
 import { ChevronArrow } from '@/app/(landing)/components/chevron-arrow'
 import { IntegrationIcon } from '@/app/(landing)/integrations/components/integration-icon'
 
 const HOVER_BG = 'transition-colors hover:bg-[var(--surface-hover)]' as const
 
 interface IntegrationItemProps {
-  integration: Integration
+  integration: IntegrationSummary
   IconComponent?: ComponentType<SVGProps<SVGSVGElement>>
 }
 

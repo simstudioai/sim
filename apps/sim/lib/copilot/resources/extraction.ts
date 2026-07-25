@@ -1,6 +1,8 @@
 import {
   CreateFile,
   CreateWorkflow,
+  DeleteFile,
+  DeleteFileFolder,
   DeleteWorkflow,
   DownloadToWorkspaceFile,
   EditWorkflow,
@@ -11,6 +13,7 @@ import {
   GenerateVideo,
   Knowledge,
   KnowledgeBase,
+  ManageFolder,
   ManageScheduledTask,
   UserTable,
   WorkspaceFile,
@@ -241,9 +244,12 @@ export function extractResourcesFromToolResult(
 
 const DELETE_CAPABLE_TOOL_RESOURCE_TYPE: Record<string, ResourceType> = {
   [DeleteWorkflow.id]: 'workflow',
+  [DeleteFile.id]: 'file',
+  [DeleteFileFolder.id]: 'filefolder',
   [WorkspaceFile.id]: 'file',
   [UserTable.id]: 'table',
   [KnowledgeBase.id]: 'knowledgebase',
+  [ManageFolder.id]: 'folder',
   [ManageScheduledTask.id]: 'scheduledtask',
 }
 
@@ -271,13 +277,54 @@ export function extractDeletedResourcesFromToolResult(
 
   switch (toolName) {
     case DeleteWorkflow.id: {
+      const deleted = Array.isArray(result.deleted) ? result.deleted : []
+      const resources = deleted.flatMap((entry): ChatResource[] => {
+        const deletedWorkflow = asRecord(entry)
+        const workflowId = deletedWorkflow.workflowId
+        if (typeof workflowId !== 'string' || !workflowId) return []
+        return [
+          {
+            type: resourceType,
+            id: workflowId,
+            title: typeof deletedWorkflow.name === 'string' ? deletedWorkflow.name : 'Workflow',
+          },
+        ]
+      })
+      if (resources.length > 0) return resources
+
+      // Backward compatibility for historical single-workflow tool results.
       const workflowId = (result.workflowId as string) ?? (params?.workflowId as string)
-      if (workflowId && result.deleted) {
+      if (workflowId && result.deleted === true) {
         return [
           { type: resourceType, id: workflowId, title: (result.name as string) || 'Workflow' },
         ]
       }
       return []
+    }
+
+    case DeleteFile.id: {
+      const deleted = Array.isArray(data.deleted) ? data.deleted : []
+      return deleted.flatMap((entry): ChatResource[] => {
+        const deletedFile = asRecord(entry)
+        const fileId = deletedFile.id
+        if (typeof fileId !== 'string' || !fileId) return []
+        return [
+          {
+            type: resourceType,
+            id: fileId,
+            title: typeof deletedFile.name === 'string' ? deletedFile.name : 'File',
+          },
+        ]
+      })
+    }
+
+    case DeleteFileFolder.id: {
+      const deletedFolderIds = Array.isArray(data.deletedFolderIds)
+        ? data.deletedFolderIds.filter(
+            (id): id is string => typeof id === 'string' && id.length > 0
+          )
+        : []
+      return deletedFolderIds.map((id) => ({ type: resourceType, id, title: 'Folder' }))
     }
 
     case WorkspaceFile.id: {
@@ -292,6 +339,12 @@ export function extractDeletedResourcesFromToolResult(
 
     case UserTable.id: {
       if (operation !== 'delete') return []
+      const deleted = Array.isArray(data.deleted)
+        ? data.deleted.filter((id): id is string => typeof id === 'string' && id.length > 0)
+        : []
+      if (deleted.length > 0) {
+        return deleted.map((id) => ({ type: resourceType, id, title: 'Table' }))
+      }
       const tableId = (args.tableId as string) ?? (params?.tableId as string)
       if (tableId) {
         return [{ type: resourceType, id: tableId, title: 'Table' }]
@@ -301,11 +354,36 @@ export function extractDeletedResourcesFromToolResult(
 
     case KnowledgeBase.id: {
       if (operation !== 'delete') return []
+      const deleted = Array.isArray(data.deleted) ? data.deleted : []
+      const resources = deleted.flatMap((entry): ChatResource[] => {
+        const deletedKnowledgeBase = asRecord(entry)
+        const knowledgeBaseId = deletedKnowledgeBase.id
+        if (typeof knowledgeBaseId !== 'string' || !knowledgeBaseId) return []
+        return [
+          {
+            type: resourceType,
+            id: knowledgeBaseId,
+            title:
+              typeof deletedKnowledgeBase.name === 'string'
+                ? deletedKnowledgeBase.name
+                : 'Knowledge Base',
+          },
+        ]
+      })
+      if (resources.length > 0) return resources
       const kbId = (data.id as string) ?? (args.knowledgeBaseId as string)
       if (kbId) {
         return [{ type: resourceType, id: kbId, title: (data.name as string) || 'Knowledge Base' }]
       }
       return []
+    }
+
+    case ManageFolder.id: {
+      if (operation !== 'delete') return []
+      const deletedIds = Array.isArray(result.deleted) ? (result.deleted as unknown[]) : []
+      return deletedIds.flatMap((id): ChatResource[] =>
+        typeof id === 'string' && id ? [{ type: resourceType, id, title: 'Folder' }] : []
+      )
     }
 
     case ManageScheduledTask.id: {

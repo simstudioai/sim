@@ -26,7 +26,7 @@ export const gitlabDeleteIssueTool: ToolConfig<GitLabDeleteIssueParams, GitLabDe
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Project ID or URL-encoded path',
+        description: 'Project ID or path (e.g. mygroup/myproject)',
       },
       issueIid: {
         type: 'number',

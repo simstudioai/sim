@@ -350,6 +350,26 @@ export const openaiAgentkitProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          "No: Agent Builder has no feature to publish a workflow as a named, encapsulated block that other org members can drop into their own separate workflows. Its full node palette (Start, Agent, Note, File search, Guardrails, MCP, If/else, While, Human approval, Transform, Set state) has no 'workflow as a block' node, and publishing only creates a versioned snapshot consumable via the API or embedded through ChatKit, not a reusable canvas block for teammates.",
+        detail:
+          "Publishing a workflow in Agent Builder produces a versioned object callable via API or embeddable through ChatKit, but that is deploying one workflow as an endpoint, not turning it into a block that appears in other users' canvases with inputs auto-derived from its Start node and internals hidden. Team-level reuse in the documented deployment paths (templates, ChatKit, SDK code export) means copying a template, embedding a chat surface, or exporting code, none of which give other builders a live, encapsulated block that stays in sync with the source workflow's latest published version. Agent Builder itself is also being wound down, with full shutdown November 30, 2026.",
+        shortValue: 'No dedicated publish-as-reusable-block feature found',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://developers.openai.com/api/docs/guides/node-reference',
+            label: 'Node reference | OpenAI API',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://developers.openai.com/api/docs/guides/agent-builder',
+            label: 'Agent Builder | OpenAI API',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {

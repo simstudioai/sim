@@ -3,8 +3,36 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
+import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 
 const logger = createLogger('PIIValidator')
+
+/**
+ * Entity list for the batch (data-retention) paths, where an empty selection with
+ * custom patterns means "redact ONLY these custom patterns" (the user unchecked
+ * every built-in entity). An explicit empty array is sent so the server detects
+ * only the custom entities, never "all". With neither, `undefined` preserves the
+ * legacy "detect all" default.
+ *
+ * The guardrails single-text path uses the opposite convention — empty selection
+ * means "detect all" — so it does NOT use this helper (see {@link analyze}).
+ */
+function resolveBatchEntities(
+  entityTypes: string[],
+  patterns?: CustomPiiPattern[]
+): string[] | undefined {
+  if (entityTypes.length > 0) return entityTypes
+  if ((patterns?.length ?? 0) > 0) return []
+  return undefined
+}
+
+/** Map a detected entity type back to its user-facing custom-pattern name, if it is one. */
+function displayEntityType(type: string, patterns?: CustomPiiPattern[]): string {
+  const match = /^CUSTOM_(\d+)$/.exec(type)
+  if (!match) return type
+  const pattern = patterns?.[Number(match[1])]
+  return pattern?.name || type
+}
 
 /**
  * Concurrent chunk requests in flight from a single mask-batch call. Each chunk is
@@ -22,6 +50,8 @@ export interface PIIValidationInput {
   entityTypes: string[] // e.g., ["PERSON", "EMAIL_ADDRESS", "CREDIT_CARD"]
   mode: 'block' | 'mask' // block = fail if PII found, mask = return masked text
   language?: string // default: "en"
+  /** User-supplied custom regex patterns applied alongside `entityTypes`. */
+  customPatterns?: CustomPiiPattern[]
   requestId: string
 }
 
@@ -54,15 +84,25 @@ interface AnalyzerSpan {
 async function analyze(
   text: string,
   entityTypes: string[],
-  language: string
+  language: string,
+  patterns?: CustomPiiPattern[]
 ): Promise<AnalyzerSpan[]> {
+  // Guardrails convention: an empty selection means "detect all". Sending no
+  // `entities` keeps that, and the server still runs the custom recognizers under
+  // detect-all — so a custom pattern augments the built-in detectors, never
+  // silently replaces them.
   const entities = entityTypes.length > 0 ? entityTypes : undefined
 
   // boundary-raw-fetch: internal call to the Presidio analyzer service via PII_URL
   const response = await fetch(`${PII_URL}/analyze`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ text, language, ...(entities ? { entities } : {}) }),
+    body: JSON.stringify({
+      text,
+      language,
+      ...(entities ? { entities } : {}),
+      ...(patterns?.length ? { patterns } : {}),
+    }),
   })
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
@@ -79,15 +119,21 @@ async function analyze(
 async function analyzeBatch(
   texts: string[],
   entityTypes: string[],
-  language: string
+  language: string,
+  patterns?: CustomPiiPattern[]
 ): Promise<AnalyzerSpan[][]> {
-  const entities = entityTypes.length > 0 ? entityTypes : undefined
+  const entities = resolveBatchEntities(entityTypes, patterns)
 
   // boundary-raw-fetch: internal call to the Presidio analyzer service via PII_URL
   const response = await fetch(`${PII_URL}/analyze_batch`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ texts, language, ...(entities ? { entities } : {}) }),
+    body: JSON.stringify({
+      texts,
+      language,
+      ...(entities ? { entities } : {}),
+      ...(patterns?.length ? { patterns } : {}),
+    }),
   })
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
@@ -107,14 +153,17 @@ interface AnonymizeBatchItem {
  * items with no spans (those texts pass through unchanged). Returns masked text
  * per item, in order. Throws on failure.
  */
-async function anonymizeBatch(items: AnonymizeBatchItem[]): Promise<string[]> {
+async function anonymizeBatch(
+  items: AnonymizeBatchItem[],
+  patterns?: CustomPiiPattern[]
+): Promise<string[]> {
   if (items.length === 0) return []
 
   // boundary-raw-fetch: internal call to the Presidio anonymizer service via PII_URL
   const response = await fetch(`${PII_URL}/anonymize_batch`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ items }),
+    body: JSON.stringify({ items, ...(patterns?.length ? { patterns } : {}) }),
   })
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
@@ -144,15 +193,21 @@ let combinedRedactAvailable = true
 async function redactBatch(
   texts: string[],
   entityTypes: string[],
-  language: string
+  language: string,
+  patterns?: CustomPiiPattern[]
 ): Promise<string[] | null> {
-  const entities = entityTypes.length > 0 ? entityTypes : undefined
+  const entities = resolveBatchEntities(entityTypes, patterns)
 
   // boundary-raw-fetch: internal call to the Presidio combined redact service via PII_URL
   const response = await fetch(`${PII_URL}/redact_batch`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ texts, language, ...(entities ? { entities } : {}) }),
+    body: JSON.stringify({
+      texts,
+      language,
+      ...(entities ? { entities } : {}),
+      ...(patterns?.length ? { patterns } : {}),
+    }),
   })
   if (response.status === 404) return null
   if (!response.ok) {
@@ -172,14 +227,22 @@ async function redactBatch(
  * Mask spans via the Presidio anonymizer service. Omitting `anonymizers` uses the
  * default `replace` operator, which yields `<ENTITY_TYPE>`. Throws on failure.
  */
-async function anonymize(text: string, spans: AnalyzerSpan[]): Promise<string> {
+async function anonymize(
+  text: string,
+  spans: AnalyzerSpan[],
+  patterns?: CustomPiiPattern[]
+): Promise<string> {
   if (spans.length === 0) return text
 
   // boundary-raw-fetch: internal call to the Presidio anonymizer service via PII_URL
   const response = await fetch(`${PII_URL}/anonymize`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ text, analyzer_results: spans }),
+    body: JSON.stringify({
+      text,
+      analyzer_results: spans,
+      ...(patterns?.length ? { patterns } : {}),
+    }),
   })
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
@@ -196,20 +259,21 @@ async function anonymize(text: string, spans: AnalyzerSpan[]): Promise<string> {
  * - mask: passes and returns masked text with PII replaced by `<ENTITY_TYPE>`
  */
 export async function validatePII(input: PIIValidationInput): Promise<PIIValidationResult> {
-  const { text, entityTypes, mode, language = 'en', requestId } = input
+  const { text, entityTypes, mode, language = 'en', customPatterns, requestId } = input
 
   logger.info(`[${requestId}] Starting PII validation`, {
     textLength: text.length,
     entityTypes,
     mode,
     language,
+    customPatternCount: customPatterns?.length ?? 0,
   })
 
   try {
-    const spans = await analyze(text, entityTypes, language)
+    const spans = await analyze(text, entityTypes, language, customPatterns)
 
     const detectedEntities: DetectedPIIEntity[] = spans.map((s) => ({
-      type: s.entity_type,
+      type: displayEntityType(s.entity_type, customPatterns),
       start: s.start,
       end: s.end,
       score: s.score,
@@ -234,8 +298,9 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
       return { passed: false, error: `PII detected: ${summary}`, detectedEntities }
     }
 
-    // mask mode: the anonymizer replaces every span with `<ENTITY_TYPE>`.
-    const maskedText = await anonymize(text, spans)
+    // mask mode: the anonymizer replaces every span with `<ENTITY_TYPE>` (or the
+    // pattern's `replacement` for custom-pattern spans).
+    const maskedText = await anonymize(text, spans, customPatterns)
     logger.info(`[${requestId}] PII validation completed`, {
       passed: true,
       detectedCount: detectedEntities.length,
@@ -266,7 +331,8 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
 export async function maskPIIBatch(
   texts: string[],
   entityTypes: string[],
-  language = 'en'
+  language = 'en',
+  customPatterns?: CustomPiiPattern[]
 ): Promise<string[]> {
   if (texts.length === 0) return []
 
@@ -276,7 +342,7 @@ export async function maskPIIBatch(
     const chunkTexts = indices.map((i) => texts[i])
 
     if (combinedRedactAvailable) {
-      const masked = await redactBatch(chunkTexts, entityTypes, language)
+      const masked = await redactBatch(chunkTexts, entityTypes, language, customPatterns)
       if (masked) {
         indices.forEach((originalIndex, pos) => {
           result[originalIndex] = masked[pos]
@@ -287,7 +353,7 @@ export async function maskPIIBatch(
       combinedRedactAvailable = false
     }
 
-    const spansPerText = await analyzeBatch(chunkTexts, entityTypes, language)
+    const spansPerText = await analyzeBatch(chunkTexts, entityTypes, language, customPatterns)
 
     // A short/misaligned batch response would silently leave the unmatched
     // strings unmasked (fail-open). Throw so the caller applies its fail-safe
@@ -310,7 +376,7 @@ export async function maskPIIBatch(
       anonymizePositions.push(pos)
     })
 
-    const masked = await anonymizeBatch(toAnonymize)
+    const masked = await anonymizeBatch(toAnonymize, customPatterns)
     if (masked.length !== toAnonymize.length) {
       throw new Error(
         `Presidio anonymize_batch returned ${masked.length} result(s) for ${toAnonymize.length} input(s)`

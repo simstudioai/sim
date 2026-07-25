@@ -3,16 +3,27 @@ import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { generateId, generateShortId } from '@sim/utils/id'
+import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
+import {
+  type AgentStreamToolCall,
+  applyToolCallPhase,
+  settleRunningToolCalls,
+  snapshotToolCalls,
+  toolCallKey,
+} from '@/components/agent-stream/tool-call-lifecycle'
 import { requestJson } from '@/lib/api/client/request'
 import { cancelWorkflowExecutionContract, workflowLogContract } from '@/lib/api/contracts/workflows'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
-import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
-import type { ExecutionPausedData } from '@/lib/workflows/executor/execution-events'
+import type {
+  ExecutionPausedData,
+  StreamDoneData,
+  StreamThinkingData,
+  StreamToolData,
+} from '@/lib/workflows/executor/execution-events'
 import { collectInputFormatFiles, isFileFieldType } from '@/lib/workflows/input-format'
 import {
   extractTriggerMockPayload,
@@ -25,6 +36,11 @@ import {
   TriggerUtils,
 } from '@/lib/workflows/triggers/triggers'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
+import {
+  type UploadedWorkflowAttachment,
+  uploadWorkflowAttachments,
+  type WorkflowAttachmentInput,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-attachment-upload'
 import {
   addHttpErrorConsoleEntry,
   type BlockEventHandlerConfig,
@@ -139,6 +155,37 @@ function normalizeErrorMessage(error: unknown): string {
   return WORKFLOW_EXECUTION_FAILURE_MESSAGE
 }
 
+interface ChatWorkflowInput {
+  input: unknown
+  files?: WorkflowAttachmentInput[]
+}
+
+function isChatWorkflowInput(value: unknown): value is ChatWorkflowInput {
+  return isRecord(value) && 'input' in value
+}
+
+export interface ChatWorkflowRunResult {
+  success: true
+  stream: ReadableStream<Uint8Array>
+  uploadedAttachments: UploadedWorkflowAttachment[]
+}
+
+export class WorkflowAttachmentUploadError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'WorkflowAttachmentUploadError'
+  }
+}
+
+export function isChatWorkflowRunResult(value: unknown): value is ChatWorkflowRunResult {
+  return (
+    isRecord(value) &&
+    value.success === true &&
+    value.stream instanceof ReadableStream &&
+    Array.isArray(value.uploadedAttachments)
+  )
+}
+
 /**
  * Builds the manual-run workflow input from a trigger's inputFormat subblock.
  * Named fields are coerced by type; file-typed fields are excluded as named
@@ -172,6 +219,122 @@ function buildInputFormatInput(inputFormatValue: unknown): Record<string, any> |
   if (files.length > 0) testInput.files = files
 
   return Object.keys(testInput).length > 0 ? testInput : undefined
+}
+
+/**
+ * Thinking deltas arrive per token; batch console writes (same cadence as the
+ * chat surface) so the terminal does not re-render per delta.
+ */
+const AGENT_STREAM_THINKING_FLUSH_MS = 50
+
+type UpdateConsoleFn = ReturnType<(typeof useTerminalConsoleStore)['getState']>['updateConsole']
+
+interface AgentStreamChromeOptions {
+  executionIdRef: { current: string }
+  updateConsole: UpdateConsoleFn
+}
+
+/**
+ * Per-run terminal chrome for live agent stream events: accumulates thinking
+ * text (batched) and tool chips per block, and settles running chips when a
+ * block's stream ends, a block errors, or the execution terminates. Shared by
+ * the full-run and run-from-block paths so both render identical chrome.
+ */
+function createAgentStreamChrome({ executionIdRef, updateConsole }: AgentStreamChromeOptions) {
+  const thinkingByBlock = new Map<string, string>()
+  const toolCallsByBlock = new Map<string, Map<string, AgentStreamToolCall>>()
+  const toolOrderByBlock = new Map<string, string[]>()
+  const thinkingFlushTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+  const flushThinking = (blockId: string) => {
+    const timer = thinkingFlushTimers.get(blockId)
+    if (timer !== undefined) {
+      clearTimeout(timer)
+      thinkingFlushTimers.delete(blockId)
+    }
+    const thinking = thinkingByBlock.get(blockId)
+    if (thinking === undefined) return
+    updateConsole(
+      blockId,
+      { agentStreamThinking: thinking, agentStreamActive: true },
+      executionIdRef.current
+    )
+  }
+
+  const settleBlock = (blockId: string, status: 'success' | 'error' | 'cancelled') => {
+    flushThinking(blockId)
+    const map = toolCallsByBlock.get(blockId)
+    const order = toolOrderByBlock.get(blockId)
+    if (map && order) {
+      settleRunningToolCalls(map, status)
+      updateConsole(
+        blockId,
+        {
+          agentStreamActive: false,
+          agentStreamToolCalls: snapshotToolCalls(order, map),
+        },
+        executionIdRef.current
+      )
+    } else {
+      updateConsole(blockId, { agentStreamActive: false }, executionIdRef.current)
+    }
+  }
+
+  const settleAll = (status: 'success' | 'error' | 'cancelled') => {
+    const blockIds = new Set<string>([...thinkingByBlock.keys(), ...toolCallsByBlock.keys()])
+    for (const blockId of blockIds) {
+      settleBlock(blockId, status)
+    }
+  }
+
+  const onStreamThinking = (data: StreamThinkingData) => {
+    const prev = thinkingByBlock.get(data.blockId) ?? ''
+    thinkingByBlock.set(data.blockId, prev + data.text)
+    if (!thinkingFlushTimers.has(data.blockId)) {
+      thinkingFlushTimers.set(
+        data.blockId,
+        setTimeout(() => flushThinking(data.blockId), AGENT_STREAM_THINKING_FLUSH_MS)
+      )
+    }
+  }
+
+  const onStreamTool = (data: StreamToolData) => {
+    if (!toolCallsByBlock.has(data.blockId)) {
+      toolCallsByBlock.set(data.blockId, new Map())
+      toolOrderByBlock.set(data.blockId, [])
+    }
+    const map = toolCallsByBlock.get(data.blockId)!
+    const order = toolOrderByBlock.get(data.blockId)!
+
+    applyToolCallPhase(
+      map,
+      order,
+      {
+        key: toolCallKey(data.blockId, data.id),
+        id: data.id,
+        name: data.name,
+        phase: data.phase,
+        status: data.status,
+      },
+      (tool) => tool
+    )
+
+    updateConsole(
+      data.blockId,
+      {
+        agentStreamToolCalls: snapshotToolCalls(order, map),
+        agentStreamActive: true,
+      },
+      executionIdRef.current
+    )
+  }
+
+  const onStreamDone = (data: StreamDoneData) => {
+    logger.info('Stream done for block:', data.blockId)
+    settleBlock(data.blockId, 'success')
+  }
+
+  return { flushThinking, settleBlock, settleAll, onStreamThinking, onStreamTool, onStreamDone }
 }
 
 export function useWorkflowExecution() {
@@ -474,7 +637,7 @@ export function useWorkflowExecution() {
   }
 
   const handleRunWorkflow = useCallback(
-    async (workflowInput?: any, enableDebug = false) => {
+    async (workflowInput?: unknown, enableDebug = false) => {
       if (!activeWorkflowId) return
 
       const scopedWorkspaceId = routeWorkspaceId ?? hydrationWorkspaceId ?? undefined
@@ -498,14 +661,36 @@ export function useWorkflowExecution() {
       }
 
       // Determine if this is a chat execution
-      const isChatExecution =
-        workflowInput && typeof workflowInput === 'object' && 'input' in workflowInput
+      const isChatExecution = isChatWorkflowInput(workflowInput)
 
       // For chat executions, we'll use a streaming approach
       if (isChatExecution) {
         let isCancelled = false
         const executionId = generateId()
         let preserveChatExecutionForRecovery = false
+        let preparedWorkflowInput: unknown = workflowInput
+        let uploadedAttachments: UploadedWorkflowAttachment[] = []
+
+        if (workflowInput.files && workflowInput.files.length > 0) {
+          try {
+            uploadedAttachments = await uploadWorkflowAttachments({
+              files: workflowInput.files,
+              workspaceId,
+              workflowId: activeWorkflowId,
+              executionId,
+            })
+            preparedWorkflowInput = { ...workflowInput, files: uploadedAttachments }
+          } catch (error) {
+            const message = getErrorMessage(error, 'Unexpected error uploading files')
+            logger.error('Error uploading workflow attachments', { message })
+            currentChatExecutionIdRef.current = null
+            setIsExecuting(activeWorkflowId, false)
+            setIsDebugging(activeWorkflowId, false)
+            setActiveBlocks(activeWorkflowId, new Set())
+            throw new WorkflowAttachmentUploadError(message)
+          }
+        }
+
         currentChatExecutionIdRef.current = executionId
         const stream = new ReadableStream({
           async start(controller) {
@@ -520,109 +705,6 @@ export function useWorkflowExecution() {
                 } catch {
                   isCancelled = true
                 }
-              }
-            }
-
-            // Handle file uploads if present
-            const uploadedFiles: any[] = []
-            interface UploadErrorCapableInput {
-              onUploadError: (message: string) => void
-            }
-            const isUploadErrorCapable = (value: unknown): value is UploadErrorCapableInput =>
-              !!value &&
-              typeof value === 'object' &&
-              'onUploadError' in (value as any) &&
-              typeof (value as any).onUploadError === 'function'
-            if (workflowInput.files && Array.isArray(workflowInput.files)) {
-              try {
-                const presignedEndpoint = `/api/files/presigned?type=execution&workflowId=${encodeURIComponent(activeWorkflowId)}&executionId=${encodeURIComponent(executionId)}&workspaceId=${encodeURIComponent(workspaceId)}`
-                for (const fileData of workflowInput.files) {
-                  try {
-                    const result = await runUploadStrategy({
-                      file: fileData.file,
-                      workspaceId,
-                      context: 'execution',
-                      workflowId: activeWorkflowId,
-                      executionId,
-                      presignedEndpoint,
-                    })
-                    uploadedFiles.push({
-                      id: `file_${Date.now()}_${generateShortId(7)}`,
-                      name: fileData.file.name,
-                      url: result.path,
-                      size: fileData.file.size,
-                      type: fileData.file.type,
-                      key: result.key,
-                      context: 'execution',
-                    })
-                  } catch (uploadError) {
-                    if (
-                      uploadError instanceof DirectUploadError &&
-                      uploadError.code === 'FALLBACK_REQUIRED'
-                    ) {
-                      const formData = new FormData()
-                      formData.append('file', fileData.file)
-                      formData.append('context', 'execution')
-                      formData.append('workflowId', activeWorkflowId)
-                      formData.append('executionId', executionId)
-                      formData.append('workspaceId', workspaceId)
-
-                      // boundary-raw-fetch: local-dev fallback when cloud storage is not configured; multipart upload incompatible with requestJson
-                      const response = await fetch('/api/files/upload', {
-                        method: 'POST',
-                        body: formData,
-                      })
-                      if (!response.ok) {
-                        const errorData = await response.json().catch(() => null)
-                        const reason =
-                          errorData?.message || errorData?.error || `${response.status}`
-                        const message = `Failed to upload ${fileData.name}: ${reason}`
-                        logger.error(message)
-                        if (isUploadErrorCapable(workflowInput)) {
-                          try {
-                            workflowInput.onUploadError(message)
-                          } catch {}
-                        }
-                        continue
-                      }
-                      const uploadResult = await response.json()
-                      const processUploadResult = (r: any) => ({
-                        id: r.id || `file_${Date.now()}_${generateShortId(7)}`,
-                        name: r.name,
-                        url: r.url,
-                        size: r.size,
-                        type: r.type,
-                        key: r.key,
-                        context: r.context || 'execution',
-                        uploadedAt: r.uploadedAt,
-                        expiresAt: r.expiresAt,
-                      })
-                      if (uploadResult.files && Array.isArray(uploadResult.files)) {
-                        uploadedFiles.push(...uploadResult.files.map(processUploadResult))
-                      } else if (uploadResult.path || uploadResult.url) {
-                        uploadedFiles.push(processUploadResult(uploadResult))
-                      }
-                    } else {
-                      const message = `Failed to upload ${fileData.name}: ${toError(uploadError).message}`
-                      logger.error(message)
-                      if (isUploadErrorCapable(workflowInput)) {
-                        try {
-                          workflowInput.onUploadError(message)
-                        } catch {}
-                      }
-                    }
-                  }
-                }
-                workflowInput.files = uploadedFiles
-              } catch (error) {
-                logger.error('Error uploading files:', error)
-                if (isUploadErrorCapable(workflowInput)) {
-                  try {
-                    workflowInput.onUploadError('Unexpected error uploading files')
-                  } catch {}
-                }
-                // Continue execution even if file upload fails
-                workflowInput.files = []
               }
             }
 
@@ -669,6 +751,19 @@ export function useWorkflowExecution() {
                 }
               })()
               streamReadingPromises.push(promise)
+            }
+
+            /**
+             * Intermediate-turn reconciliation: drop the block's streamed text
+             * (chunk_reset frame) and remove its bookkeeping entirely so
+             * separator counting ignores it and the final turn (or, if none
+             * re-streams, onBlockComplete's output fallback) starts clean.
+             */
+            const onStreamReset = (blockId: string) => {
+              if (!streamedChunks.has(blockId)) return
+              streamedChunks.delete(blockId)
+              processedFirstChunk.delete(blockId)
+              safeEnqueue(encodeSSE({ blockId, event: 'chunk_reset' }))
             }
 
             // Handle non-streaming blocks (like Function blocks)
@@ -724,11 +819,13 @@ export function useWorkflowExecution() {
 
             try {
               const result = await executeWorkflow(
-                workflowInput,
+                preparedWorkflowInput,
                 onStream,
                 executionId,
                 onBlockComplete,
-                'chat'
+                'chat',
+                undefined,
+                onStreamReset
               )
 
               // Check if execution was cancelled
@@ -843,7 +940,7 @@ export function useWorkflowExecution() {
             isCancelled = true
           },
         })
-        return { success: true, stream }
+        return { success: true, stream, uploadedAttachments } satisfies ChatWorkflowRunResult
       }
 
       const manualExecutionId = generateId()
@@ -892,7 +989,8 @@ export function useWorkflowExecution() {
     executionId?: string,
     onBlockComplete?: (blockId: string, output: any) => Promise<void>,
     overrideTriggerType?: 'chat' | 'manual' | 'api',
-    stopAfterBlockId?: string
+    stopAfterBlockId?: string,
+    onStreamReset?: (blockId: string) => void
   ): Promise<ExecutionResult | StreamingExecution> => {
     // Use diff workflow for execution when available, regardless of canvas view state
     const executionWorkflowState = null as {
@@ -1109,6 +1207,9 @@ export function useWorkflowExecution() {
       const activeBlocksSet = new Set<string>()
       const activeBlockRefCounts = new Map<string, number>()
       const streamedChunks = new Map<string, string[]>()
+      const agentStreamChrome = createAgentStreamChrome({ executionIdRef, updateConsole })
+      const settleAgentStreamChrome = agentStreamChrome.settleBlock
+      const settleAllAgentStreamChrome = agentStreamChrome.settleAll
       const accumulatedBlockLogs: BlockLog[] = []
       const accumulatedBlockStates = new Map<string, BlockState>()
       const executedBlockIds = new Set<string>()
@@ -1180,7 +1281,11 @@ export function useWorkflowExecution() {
 
             onBlockStarted: blockHandlers.onBlockStarted,
             onBlockCompleted: blockHandlers.onBlockCompleted,
-            onBlockError: blockHandlers.onBlockError,
+            onBlockError: (data) => {
+              // Failures often skip stream:done — settle thinking/tool chrome here.
+              settleAgentStreamChrome(data.blockId, 'error')
+              blockHandlers.onBlockError(data)
+            },
             onBlockChildWorkflowStarted: blockHandlers.onBlockChildWorkflowStarted,
 
             onStreamChunk: (data) => {
@@ -1213,9 +1318,18 @@ export function useWorkflowExecution() {
               }
             },
 
-            onStreamDone: (data) => {
-              logger.info('Stream done for block:', data.blockId)
+            onStreamChunkReset: (data) => {
+              // Live-streamed text belonged to an intermediate turn (tools
+              // follow); the final turn re-streams as regular chunks.
+              streamedChunks.delete(data.blockId)
+              if (onStreamReset && isExecutingFromChat) {
+                onStreamReset(data.blockId)
+              }
             },
+
+            onStreamThinking: agentStreamChrome.onStreamThinking,
+            onStreamTool: agentStreamChrome.onStreamTool,
+            onStreamDone: agentStreamChrome.onStreamDone,
 
             onExecutionCompleted: (data) => {
               executionFinished = true
@@ -1226,6 +1340,8 @@ export function useWorkflowExecution() {
                   executionIdRef.current
               )
                 return
+
+              settleAllAgentStreamChrome(data.success ? 'success' : 'error')
 
               if (activeWorkflowId) {
                 setCurrentExecutionId(activeWorkflowId, null)
@@ -1324,6 +1440,9 @@ export function useWorkflowExecution() {
               )
                 return
 
+              // HITL pause mid tool-loop — open tools never got an end event.
+              settleAllAgentStreamChrome('cancelled')
+
               if (activeWorkflowId) {
                 setCurrentExecutionId(activeWorkflowId, null)
                 reconcileFinalBlockLogs(
@@ -1368,6 +1487,8 @@ export function useWorkflowExecution() {
               )
                 return
 
+              settleAllAgentStreamChrome('error')
+
               if (activeWorkflowId) {
                 setCurrentExecutionId(activeWorkflowId, null)
               }
@@ -1409,6 +1530,8 @@ export function useWorkflowExecution() {
                   executionIdRef.current
               )
                 return
+
+              settleAllAgentStreamChrome('cancelled')
 
               if (activeWorkflowId) {
                 setCurrentExecutionId(activeWorkflowId, null)
@@ -1853,6 +1976,7 @@ export function useWorkflowExecution() {
       const executedBlockIds = new Set<string>()
       const activeBlocksSet = new Set<string>()
       const activeBlockRefCounts = new Map<string, number>()
+      const agentStreamChrome = createAgentStreamChrome({ executionIdRef, updateConsole })
       const isCurrentRunFromBlockExecution = () => {
         return (
           Boolean(executionIdRef.current) &&
@@ -1906,11 +2030,20 @@ export function useWorkflowExecution() {
 
             onBlockStarted: blockHandlers.onBlockStarted,
             onBlockCompleted: blockHandlers.onBlockCompleted,
-            onBlockError: blockHandlers.onBlockError,
+            onBlockError: (data) => {
+              // Failures often skip stream:done — settle thinking/tool chrome here.
+              agentStreamChrome.settleBlock(data.blockId, 'error')
+              blockHandlers.onBlockError(data)
+            },
             onBlockChildWorkflowStarted: blockHandlers.onBlockChildWorkflowStarted,
+
+            onStreamThinking: agentStreamChrome.onStreamThinking,
+            onStreamTool: agentStreamChrome.onStreamTool,
+            onStreamDone: agentStreamChrome.onStreamDone,
 
             onExecutionCompleted: (data) => {
               if (!isCurrentRunFromBlockExecution()) return
+              agentStreamChrome.settleAll(data.success ? 'success' : 'error')
               const executionId = executionIdRef.current
               reconcileFinalBlockLogs(updateConsole, workflowId, executionId, data.finalBlockLogs)
               finishRunningEntries(workflowId, executionId)
@@ -1945,6 +2078,8 @@ export function useWorkflowExecution() {
 
             onExecutionPaused: (data) => {
               if (!isCurrentRunFromBlockExecution()) return
+              // HITL pause mid tool-loop — open tools never got an end event.
+              agentStreamChrome.settleAll('cancelled')
               const executionId = executionIdRef.current
               reconcileFinalBlockLogs(updateConsole, workflowId, executionId, data.finalBlockLogs)
               finishRunningEntries(workflowId, executionId)
@@ -1964,6 +2099,7 @@ export function useWorkflowExecution() {
 
             onExecutionError: (data) => {
               if (!isCurrentRunFromBlockExecution()) return
+              agentStreamChrome.settleAll('error')
               const executionId = executionIdRef.current
               const isWorkflowModified =
                 data.error?.includes('Block not found in workflow') ||
@@ -1990,6 +2126,7 @@ export function useWorkflowExecution() {
 
             onExecutionCancelled: (data) => {
               if (!isCurrentRunFromBlockExecution()) return
+              agentStreamChrome.settleAll('cancelled')
               const executionId = executionIdRef.current
               handleExecutionCancelledConsole({
                 workflowId,

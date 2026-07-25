@@ -333,6 +333,21 @@ export const langchainProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          "No: LangChain/LangGraph has no drag-and-drop block toolbar at all, so there is no way to publish a deployed graph as a named, iconed block that other org members drop into their own separate graphs with auto-derived inputs and curated, renamed outputs. The closest adjacent capability is code-level: the RemoteGraph SDK class lets a developer add another team's deployed graph as a node in their own graph by writing code that points at its deployment URL and graph/assistant name.",
+        detail:
+          "RemoteGraph exposes the same programmatic interface as a locally compiled graph ('as if it were a local graph'), but the consuming developer must hand-write any state-schema-mapping wrapper code themselves, and there is no UI for picking/renaming which outputs to expose or for auto-deriving input fields from the source graph the way a visual builder does. LangChain's own docs describe RemoteGraph purely as an SDK for calling a deployment programmatically, not as a block placed in a shared, org-wide palette alongside built-in nodes.",
+        shortValue: 'No block toolbar exists; closest is code-level RemoteGraph SDK calls',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.langchain.com/langsmith/use-remote-graph',
+            label: 'How to interact with a deployment using RemoteGraph - Docs by LangChain',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {

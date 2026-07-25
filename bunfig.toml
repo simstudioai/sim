@@ -1,6 +1,37 @@
 [install]
 exact = true
+# Supply-chain gate: only install package versions published at least 7 days ago
+# (blocks freshly published, potentially compromised releases).
 minimumReleaseAge = 604800
+# @typescript/native-preview stays excluded permanently: it only publishes nightly
+# dev builds, so every version is structurally younger than any age gate.
+# The exactly pinned Pi 0.80.10 packages were vetted for the cloud-review SDK
+# migration; they age out of the gate on 2026-07-24 — drop these four entries then.
+# next@16.2.11, @next/env@16.2.11 and the @next/swc-* binaries are the official Vercel
+# security patch for the July 2026 advisories (SSRF, cache confusion, DoS, middleware
+# bypass — GHSA-89xv-2m56-2m9x et al.); published 2026-07-21, they age out of the gate on
+# 2026-07-28 — drop these entries then. The swc binaries ship in lockstep with next and
+# MUST be excluded alongside it: they are next's platform-gated optionalDependencies, so
+# gating them out leaves them absent from bun.lock entirely, and `bun install
+# --frozen-lockfile` then installs no compiler at all — next falls back to downloading one
+# at build time, which fails in CI.
+# @anthropic-ai/sdk is exactly pinned to 0.114.0, vetted for the agent-events
+# streaming work (adaptive thinking display types + transform-json-schema);
+# published 2026-07-23, it ages out of the gate on 2026-07-30 — drop this entry then.
+minimumReleaseAgeExcludes = [
+  "@typescript/native-preview",
+  "@earendil-works/pi-agent-core",
+  "@earendil-works/pi-ai",
+  "@earendil-works/pi-coding-agent",
+  "@earendil-works/pi-tui",
+  "next",
+  "@next/env",
+  "@next/swc-darwin-arm64",
+  "@next/swc-darwin-x64",
+  "@next/swc-linux-arm64-gnu",
+  "@next/swc-linux-x64-gnu",
+  "@anthropic-ai/sdk",
+]
 
 [run]
 env = { NEXT_PUBLIC_APP_URL = "http://localhost:3000" }

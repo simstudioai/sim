@@ -7,6 +7,8 @@ export {
   shouldExecuteInline,
 } from './config'
 export {
+  AsyncJobEnqueueError,
+  isAsyncJobEnqueueError,
   JOB_MAX_LIFETIME_SECONDS,
   JOB_RETENTION_HOURS,
   JOB_RETENTION_SECONDS,

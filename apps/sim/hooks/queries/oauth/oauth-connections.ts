@@ -143,6 +143,12 @@ export function useConnectOAuthService() {
         return { success: true }
       }
 
+      if (providerId === 'instagram') {
+        const returnUrl = encodeURIComponent(callbackURL)
+        window.location.href = `/api/auth/instagram/authorize?returnUrl=${returnUrl}`
+        return { success: true }
+      }
+
       if (providerId === 'shopify') {
         const returnUrl = encodeURIComponent(callbackURL)
         window.location.href = `/api/auth/shopify/authorize?returnUrl=${returnUrl}`

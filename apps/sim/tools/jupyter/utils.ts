@@ -1,0 +1,229 @@
+import { isPlainRecord } from '@sim/utils/object'
+
+const PROTOCOL_PATTERN = /^https?:\/\//i
+
+/**
+ * Error thrown when a user-supplied Jupyter server URL cannot be parsed into a
+ * safe http(s) origin to target with the caller's token.
+ */
+export class InvalidJupyterServerUrlError extends Error {
+  constructor(rawUrl: string) {
+    super(`Invalid Jupyter server URL: ${rawUrl}`)
+    this.name = 'InvalidJupyterServerUrlError'
+  }
+}
+
+/**
+ * Normalizes a user-supplied Jupyter server URL: trims whitespace, defaults to
+ * `http://` when no scheme is given (most Jupyter servers run over plain HTTP
+ * on localhost or a private network), and strips any trailing slash and
+ * query/fragment. Self-hosted Jupyter servers have no fixed public host, so the
+ * URL is always user-supplied.
+ *
+ * @throws {InvalidJupyterServerUrlError} when the value is empty or not a valid http(s) URL.
+ */
+export function normalizeJupyterServerUrl(rawUrl: unknown): string {
+  const raw = typeof rawUrl === 'string' ? rawUrl.trim() : ''
+  if (!raw) throw new InvalidJupyterServerUrlError(String(rawUrl))
+
+  const withProtocol = PROTOCOL_PATTERN.test(raw) ? raw : `http://${raw}`
+
+  let parsed: URL
+  try {
+    parsed = new URL(withProtocol)
+  } catch {
+    throw new InvalidJupyterServerUrlError(raw)
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new InvalidJupyterServerUrlError(raw)
+  }
+
+  return `${parsed.origin}${parsed.pathname.replace(/\/+$/, '')}`
+}
+
+/**
+ * Builds the `Authorization` header Jupyter Server expects for token auth.
+ */
+export function buildJupyterAuthHeaders(token: string): Record<string, string> {
+  return { Authorization: `token ${token}` }
+}
+
+/**
+ * Error thrown when a user-supplied Jupyter contents path contains a `.` or
+ * `..` segment that could traverse outside the intended directory.
+ */
+export class UnsafeJupyterPathError extends Error {
+  constructor(rawPath: string) {
+    super(`Invalid Jupyter path: ${rawPath}`)
+    this.name = 'UnsafeJupyterPathError'
+  }
+}
+
+/**
+ * Rejects `.` and `..` segments in a Jupyter contents path, which could
+ * otherwise traverse outside the intended directory on the target server.
+ * Shared by every helper that sends a path to Jupyter, whether in a URL or a
+ * request body.
+ *
+ * Decodes the *entire* path once before splitting it, rather than splitting
+ * on literal `/` first and decoding each piece in isolation — a segment like
+ * `foo%2f..%2fsecret` has no literal slash, so a split-then-decode check
+ * would treat it as one opaque segment and never notice the `..` hiding
+ * behind the encoded slash. Decoding first exposes every segment the target
+ * server would actually see once its own single URL-decode pass runs.
+ *
+ * @throws {UnsafeJupyterPathError} when a segment is `.` or `..`, literally
+ * or percent-encoded (including an encoded slash exposing a hidden segment).
+ */
+function assertNoJupyterPathTraversal(path: string | undefined): string[] {
+  const raw = path ?? ''
+
+  let decoded: string
+  try {
+    decoded = decodeURIComponent(raw)
+  } catch {
+    decoded = raw
+  }
+
+  if (decoded.split('/').some((segment) => segment === '.' || segment === '..')) {
+    throw new UnsafeJupyterPathError(raw)
+  }
+
+  return raw.split('/').filter((segment) => segment.length > 0)
+}
+
+/**
+ * Encodes a Jupyter contents path segment-by-segment so slashes stay as path
+ * separators while special characters within a segment are escaped. Use for
+ * paths interpolated into a request URL.
+ *
+ * @throws {UnsafeJupyterPathError} when a segment is `.` or `..`.
+ */
+export function encodeJupyterPath(path: string | undefined): string {
+  return assertNoJupyterPathTraversal(path).map(encodeURIComponent).join('/')
+}
+
+/**
+ * Validates a Jupyter contents path with no URL-encoding. Use for paths sent
+ * as-is in a JSON request body (e.g. a PATCH/POST `path`/`copy_from` field)
+ * that never flow through `encodeJupyterPath`.
+ *
+ * @throws {UnsafeJupyterPathError} when a segment is `.` or `..`.
+ */
+export function assertSafeJupyterPath(path: string): string {
+  assertNoJupyterPathTraversal(path)
+  return path
+}
+
+/**
+ * Validates the `path` field of a `/api/tools/jupyter/proxy` request — an
+ * already-encoded relative path under `/api/` (e.g.
+ * `contents/notebooks%2Fa.ipynb?content=1`) that may carry a query string.
+ * Every tool already validates its own path segments before building this
+ * value, but the proxy route is a shared internal trust boundary reachable
+ * independent of any one tool's call site, so it re-validates rather than
+ * assuming the caller did.
+ *
+ * @throws {UnsafeJupyterPathError} when a segment of the path portion
+ * (everything before the first `?`) is `.` or `..`.
+ */
+export function assertSafeJupyterProxyPath(rawPath: string): void {
+  const [pathname] = rawPath.split('?')
+  assertNoJupyterPathTraversal(pathname)
+}
+
+interface JupyterContentModel {
+  name?: string
+  path?: string
+  type?: 'directory' | 'file' | 'notebook'
+  writable?: boolean
+  created?: string
+  lastModified?: string
+  size?: number
+  mimetype?: string
+  format?: 'json' | 'text' | 'base64'
+  content?: unknown
+}
+
+/** Parses the shared model returned by Jupyter's Contents API. */
+export function parseJupyterContentModel(value: unknown): JupyterContentModel | null {
+  if (!isPlainRecord(value)) return null
+
+  const type =
+    value.type === 'directory' || value.type === 'file' || value.type === 'notebook'
+      ? value.type
+      : undefined
+  const format =
+    value.format === 'json' || value.format === 'text' || value.format === 'base64'
+      ? value.format
+      : undefined
+
+  return {
+    ...(typeof value.name === 'string' ? { name: value.name } : {}),
+    ...(typeof value.path === 'string' ? { path: value.path } : {}),
+    ...(type ? { type } : {}),
+    ...(typeof value.writable === 'boolean' ? { writable: value.writable } : {}),
+    ...(typeof value.created === 'string' ? { created: value.created } : {}),
+    ...(typeof value.last_modified === 'string' ? { lastModified: value.last_modified } : {}),
+    ...(typeof value.size === 'number' ? { size: value.size } : {}),
+    ...(typeof value.mimetype === 'string' ? { mimetype: value.mimetype } : {}),
+    ...(format ? { format } : {}),
+    ...('content' in value ? { content: value.content } : {}),
+  }
+}
+
+interface RawJupyterKernel {
+  id?: string
+  name?: string
+  last_activity?: string
+  execution_state?: string
+  connections?: number
+}
+
+/**
+ * Maps a raw Jupyter kernel model (from Kernels/Sessions API responses) to
+ * Sim's shaped `JupyterKernel` output.
+ */
+export function mapJupyterKernel(raw: RawJupyterKernel): {
+  id: string
+  name: string
+  lastActivity: string | null
+  executionState: string | null
+  connections: number | null
+} {
+  return {
+    id: raw.id ?? '',
+    name: raw.name ?? '',
+    lastActivity: raw.last_activity ?? null,
+    executionState: raw.execution_state ?? null,
+    connections: raw.connections ?? null,
+  }
+}
+
+interface RawJupyterSession {
+  id?: string
+  path?: string
+  name?: string
+  type?: string
+  kernel?: RawJupyterKernel | null
+}
+
+/**
+ * Maps a raw Jupyter session model to Sim's shaped `JupyterSession` output.
+ */
+export function mapJupyterSession(raw: RawJupyterSession): {
+  id: string
+  path: string
+  name: string
+  type: string
+  kernel: ReturnType<typeof mapJupyterKernel> | null
+} {
+  return {
+    id: raw.id ?? '',
+    path: raw.path ?? '',
+    name: raw.name ?? '',
+    type: raw.type ?? '',
+    kernel: raw.kernel ? mapJupyterKernel(raw.kernel) : null,
+  }
+}

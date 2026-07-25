@@ -1,7 +1,6 @@
 {
   "extends": "@sim/tsconfig/library.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@sim/db": ["./index.ts"],
       "@sim/db/*": ["./*"]

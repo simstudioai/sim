@@ -1,5 +1,6 @@
 import type { LinearGetViewerParams, LinearGetViewerResponse } from '@/tools/linear/types'
 import { USER_FULL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearGetViewerTool: ToolConfig<LinearGetViewerParams, LinearGetViewerResponse> = {
@@ -24,7 +25,7 @@ export const linearGetViewerTool: ToolConfig<LinearGetViewerParams, LinearGetVie
       }
       return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+        Authorization: linearAuthorizationHeader(params.accessToken),
       }
     },
     body: () => ({

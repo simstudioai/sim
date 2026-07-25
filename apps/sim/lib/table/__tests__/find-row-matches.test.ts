@@ -6,12 +6,10 @@
  * JS-side shaping (ordinal coercion, column rename, LIMIT+1 truncation), not
  * the query semantics — those need a real Postgres.
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/table/sql', () => ({
   buildFilterClause: vi.fn(() => sql`true`),

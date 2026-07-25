@@ -31,7 +31,7 @@ export const brexGetCompanyTool: ToolConfig<BrexApiKeyParams, BrexGetCompanyResp
         id: data.id ?? '',
         legalName: data.legal_name ?? '',
         mailingAddress: data.mailing_address ?? null,
-        accountType: data.accountType ?? null,
+        accountType: data.account_type ?? null,
       },
     }
   },

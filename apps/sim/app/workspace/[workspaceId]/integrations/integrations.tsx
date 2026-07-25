@@ -14,7 +14,7 @@ import {
 } from '@sim/emcn'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { debounce, useQueryStates } from 'nuqs'
+import { useQueryStates } from 'nuqs'
 import {
   blockTypeToIconMap,
   formatIntegrationType,
@@ -35,9 +35,7 @@ import {
   integrationsUrlKeys,
 } from '@/app/workspace/[workspaceId]/integrations/search-params'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
-
-/** Debounce window for `search` URL writes; the input itself stays instant. */
-const SEARCH_DEBOUNCE_MS = 300 as const
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 /** Slugs surfaced in the pinned Featured section, in display order. */
 const FEATURED_SLUGS = ['slack', 'gmail', 'jira', 'github', 'google-sheets', 'hubspot'] as const
@@ -145,19 +143,12 @@ export function Integrations() {
 
   /**
    * The input is controlled directly by the instant nuqs value; only the URL
-   * write is debounced. Filtering below is cheap in-memory over a static list,
-   * so it reads the instant value too.
+   * write is debounced. The raw value is written (trimming happens on read in
+   * the filters below) so trailing spaces stay typable mid-word. Filtering is
+   * cheap in-memory over a static list, so it reads the instant value too.
    */
-  const setSearchTerm = useCallback(
-    (value: string) => {
-      const trimmed = value.trim()
-      const next = trimmed.length > 0 ? trimmed : null
-      setIntegrationFilters(
-        { search: next },
-        next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
-      )
-    },
-    [setIntegrationFilters]
+  const setSearchTerm = useDebouncedSearchSetter((value, options) =>
+    setIntegrationFilters({ search: value }, options)
   )
 
   const { data: credentials = [], isPending: credentialsLoading } = useWorkspaceCredentials({

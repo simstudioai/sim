@@ -1,0 +1,69 @@
+/**
+ * The ReconcileGraphic's motion: the matched rows stamp in top to bottom
+ * one after another (the audit tile's one-shot settle — a match is
+ * confirmed once, never re-played), the exception card lands last, and
+ * its Flagged tag then carries the family's shared quiet 6s ring-pulse
+ * beat. Under prefers-reduced-motion everything renders settled and
+ * static.
+ */
+
+.row0,
+.row1,
+.row2,
+.exceptionIn {
+  animation: reconcile-stamp-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.row0 {
+  animation-delay: 0.35s;
+}
+
+.row1 {
+  animation-delay: 0.6s;
+}
+
+.row2 {
+  animation-delay: 0.85s;
+}
+
+.exceptionIn {
+  animation-delay: 1.2s;
+}
+
+@keyframes reconcile-stamp-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.flaggedPulse {
+  animation: reconcile-flagged-pulse 6s ease-out 1.6s infinite;
+}
+
+@keyframes reconcile-flagged-pulse {
+  0%,
+  20% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 30%, transparent);
+  }
+  36% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row0,
+  .row1,
+  .row2,
+  .exceptionIn,
+  .flaggedPulse {
+    animation: none;
+  }
+}

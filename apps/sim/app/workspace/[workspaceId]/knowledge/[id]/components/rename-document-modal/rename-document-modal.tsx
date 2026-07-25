@@ -74,17 +74,10 @@ export function RenameDocumentModal({
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      void handleSubmit()
-    }
-  }
-
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Rename Document'>
       <ChipModalHeader onClose={() => onOpenChange(false)}>Rename Document</ChipModalHeader>
-      <ChipModalBody onKeyDown={handleKeyDown}>
+      <ChipModalBody>
         <ChipModalField
           type='input'
           title='Name'

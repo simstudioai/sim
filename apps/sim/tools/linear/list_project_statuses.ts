@@ -3,6 +3,7 @@ import type {
   LinearListProjectStatusesResponse,
 } from '@/tools/linear/types'
 import { PAGE_INFO_OUTPUT, PROJECT_STATUS_OUTPUT_PROPERTIES } from '@/tools/linear/types'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListProjectStatusesTool: ToolConfig<
@@ -43,7 +44,7 @@ export const linearListProjectStatusesTool: ToolConfig<
       }
       return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+        Authorization: linearAuthorizationHeader(params.accessToken),
       }
     },
     body: (params) => ({

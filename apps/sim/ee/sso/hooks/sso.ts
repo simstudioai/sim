@@ -1,6 +1,6 @@
 'use client'
 
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   listSsoProvidersContract,
@@ -42,7 +42,6 @@ export function useSSOProviders({ enabled = true, organizationId }: UseSSOProvid
     queryKey: ssoKeys.providerList(organizationId),
     queryFn: ({ signal }) => fetchSSOProviders(signal, organizationId),
     staleTime: 5 * 60 * 1000,
-    placeholderData: keepPreviousData,
     enabled,
   })
 }

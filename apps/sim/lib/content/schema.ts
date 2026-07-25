@@ -27,7 +27,7 @@ export const ContentFrontmatterSchema = z
     authors: z.array(z.string()).min(1),
     readingTime: z.number().int().positive().optional(),
     tags: z.array(z.string()).default([]),
-    ogImage: z.string().min(1),
+    ogImage: z.string().min(1), // local path (e.g. /blog/<slug>/cover.jpg) - rendered via next/image without `unoptimized`
     ogAlt: z.string().optional(),
     about: z.array(z.string()).optional(),
     timeRequired: z.string().optional(),
@@ -42,6 +42,13 @@ export const ContentFrontmatterSchema = z
     canonical: z.string().url(),
     draft: z.boolean().default(false),
     featured: z.boolean().default(false),
+    /**
+     * Whether this post covers technical/developer content (architecture,
+     * implementation, how-tos). Drives whether `TechArticle` is included
+     * alongside `BlogPosting` in the post's JSON-LD `@type` — general
+     * announcements (funding, company news) should set this to `false`.
+     */
+    technical: z.boolean().default(true),
   })
   .strict()
 
@@ -58,6 +65,10 @@ export interface ContentMeta {
   readingTime?: number
   tags: string[]
   ogImage: string
+  /** Intrinsic pixel width of a local `ogImage`, probed at scan time; absent for remote or unreadable images. */
+  ogImageWidth?: number
+  /** Intrinsic pixel height of a local `ogImage`, probed at scan time; absent for remote or unreadable images. */
+  ogImageHeight?: number
   ogAlt?: string
   about?: string[]
   timeRequired?: string
@@ -66,6 +77,7 @@ export interface ContentMeta {
   canonical: string
   draft: boolean
   featured: boolean
+  technical: boolean
 }
 
 export interface ContentPost extends ContentMeta {

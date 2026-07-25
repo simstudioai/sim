@@ -372,6 +372,36 @@ export const workatoProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          "No: Workato has no feature to publish a deployed recipe as a distinct, named, iconed block that appears in the recipe builder's general step/action picker for every other builder across the org to drop into their own separate recipes. The closest mechanism, Recipe Functions, lets any recipe in the workspace call another recipe (one built with a 'New function call' trigger) by adding a generic 'Recipe Functions by Workato' connector step and then picking the target function from a dropdown list of saved functions, not a bespoke block with its own name/icon sitting alongside built-in actions. The caller does only see the function's declared Input/Response schema, not its internal steps or credentials, and Workato's own marketing copy states 'update the function once, and the changes will take effect anywhere your function is invoked' (i.e. it always calls the live function recipe, not a frozen copy). No documentation describes per-function governance (allow/deny-listing one specific function for a permission group) distinct from ordinary project/connection-level access control.",
+        detail:
+          "Workato's separate Community Library sharing mechanism is explicitly a clone/template flow, not a live block: shared assets are described as 'intended to serve as a reusable set of templates, best practices and guidelines' for another user to install and then 'modify, customize and enhance' as their own independent copy, with no indication the installed copy stays linked to updates on the original. This rules out Community Library as a second candidate for the same capability.",
+        shortValue: "No, only a generic 'Call Recipe Function' connector, not a published block",
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.workato.com/connectors/recipe-functions.html',
+            label: 'Recipe Functions by Workato | Workato Docs',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.workato.com/connectors/recipe-functions/actions/call-recipe-function-synchronously.html',
+            label: 'Recipe Functions - Call Recipe Function Synchronously | Workato Docs',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://www.workato.com/product-hub/recipe-functions-build-reusable-automations/',
+            label: 'How to build reusable automations with Recipe Functions | Workato Product Hub',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.workato.com/community-library.html',
+            label: 'Community library | Workato Docs',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {

@@ -8,11 +8,6 @@ export const PLATFORM_MENU: NavMenu = {
   label: 'Platform',
   items: [
     {
-      title: 'Mothership',
-      description: 'Build and command agents in natural language',
-      href: '/',
-    },
-    {
       title: 'Workflows',
       description: 'Design agent logic visually',
       href: '/workflows',
@@ -33,6 +28,11 @@ export const PLATFORM_MENU: NavMenu = {
       href: '/files',
     },
     {
+      title: 'Scheduled Tasks',
+      description: 'Run agents on a cadence',
+      href: '/scheduled-tasks',
+    },
+    {
       title: 'Logs',
       description: 'Trace every agent decision',
       href: '/logs',
@@ -41,8 +41,8 @@ export const PLATFORM_MENU: NavMenu = {
 }
 
 /**
- * The Resources menu - learning and reference surfaces. Six items in a
- * three-column grid. Docs is the one off-site link.
+ * The Resources menu - learning and reference surfaces plus the Enterprise
+ * page. Six items in a three-column grid. Docs is the one off-site link.
  */
 export const RESOURCES_MENU: NavMenu = {
   label: 'Resources',
@@ -59,9 +59,9 @@ export const RESOURCES_MENU: NavMenu = {
       href: '/blog',
     },
     {
-      title: 'Library',
-      description: 'Comparisons, how-tos, and roundups',
-      href: '/library',
+      title: 'Enterprise',
+      description: 'Govern AI agents at enterprise scale',
+      href: '/enterprise',
     },
     {
       title: 'Changelog',
@@ -82,15 +82,16 @@ export const RESOURCES_MENU: NavMenu = {
 }
 
 /**
- * The Solutions menu - agent use cases by team. Six items in a three-column grid.
+ * The Solutions menu - agent use cases by team, Sales first. Six items in a
+ * three-column grid.
  */
 export const SOLUTIONS_MENU: NavMenu = {
   label: 'Solutions',
   items: [
     {
-      title: 'Enterprise',
-      description: 'Govern AI agents at enterprise scale',
-      href: '/enterprise',
+      title: 'Sales',
+      description: 'Automate outreach and CRM upkeep',
+      href: '/solutions/sales',
     },
     {
       title: 'Engineering',
@@ -121,13 +122,9 @@ export const SOLUTIONS_MENU: NavMenu = {
 }
 
 /**
- * Navbar mega-menus that are currently rendered, in trigger order - shared by
- * desktop and mobile nav (the desktop bar maps this list; mobile nav derives
- * its visible sections from these labels).
- *
- * `PLATFORM_MENU` and `SOLUTIONS_MENU` are intentionally omitted for now to hide
- * those sections from navigation while their pages stay live and reachable by
- * direct URL. The menu definitions above are kept intact - to restore a section,
- * add its constant back to this list.
+ * Navbar mega-menus in trigger order - shared by desktop and mobile nav (the
+ * desktop bar maps this list; mobile nav derives its visible sections from
+ * these labels). Platform leads with the product modules, Solutions follows
+ * with the per-team pages, and Resources closes with learning surfaces.
  */
-export const NAV_MENUS = [RESOURCES_MENU] as const
+export const NAV_MENUS = [PLATFORM_MENU, SOLUTIONS_MENU, RESOURCES_MENU] as const

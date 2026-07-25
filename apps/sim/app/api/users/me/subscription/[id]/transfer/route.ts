@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -7,12 +8,18 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { subscriptionTransferContract } from '@/lib/api/contracts/user'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import {
+  assertNoUnresolvedEnterpriseIssuance,
+  EnterpriseIssuanceInProgressError,
+} from '@/lib/billing/enterprise-outbox'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   hasPaidSubscriptionStatus,
 } from '@/lib/billing/subscriptions/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('SubscriptionTransferAPI')
 
@@ -40,6 +47,10 @@ export const POST = withRouteHandler(
       logger.info('Processing subscription transfer', { subscriptionId, organizationId })
 
       const outcome = await db.transaction(async (tx): Promise<TransferOutcome> => {
+        // Organization-first lock ordering serializes this entitlement move
+        // with Enterprise issuance and membership mutations.
+        await acquireOrganizationMutationLock(tx, organizationId)
+
         const [sub] = await tx
           .select()
           .from(subscription)
@@ -95,6 +106,17 @@ export const POST = withRouteHandler(
           }
         }
 
+        try {
+          await assertNoUnresolvedEnterpriseIssuance(tx, organizationId)
+        } catch (error) {
+          if (!(error instanceof EnterpriseIssuanceInProgressError)) throw error
+          return {
+            kind: 'error',
+            status: 409,
+            error: 'Organization has an unfinished Enterprise issuance',
+          }
+        }
+
         const [existingOrgSub] = await tx
           .select({ id: subscription.id })
           .from(subscription)
@@ -131,6 +153,26 @@ export const POST = withRouteHandler(
           subscriptionId,
           organizationId,
           userId,
+        })
+
+        recordAudit({
+          actorId: userId,
+          action: AuditAction.SUBSCRIPTION_TRANSFERRED,
+          resourceType: AuditResourceType.SUBSCRIPTION,
+          resourceId: subscriptionId,
+          description: `Subscription transferred to organization ${organizationId}`,
+          metadata: {
+            subscriptionId,
+            organizationId,
+            fromEntity: 'user',
+            toEntity: 'organization',
+          },
+          request,
+        })
+        captureServerEvent(userId, 'subscription_transferred', {
+          subscription_id: subscriptionId,
+          from_entity: 'user',
+          to_entity: 'organization',
         })
       }
 

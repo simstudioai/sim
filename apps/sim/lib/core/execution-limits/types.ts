@@ -61,12 +61,21 @@ const EXECUTION_TIMEOUTS: Record<SubscriptionPlan, ExecutionTimeoutConfig> = {
   },
 }
 
+/**
+ * Per-plan execution timeout in milliseconds; `0` means no timeout.
+ * Billing-disabled deployments run untimed unless the operator explicitly set
+ * the free-tier env var (`EXECUTION_TIMEOUT_FREE` /
+ * `EXECUTION_TIMEOUT_ASYNC_FREE`), which opts back into that bound.
+ */
 export function getExecutionTimeout(
   plan: SubscriptionPlan | string | undefined,
   type: 'sync' | 'async' = 'sync'
 ): number {
   if (!isBillingEnabled) {
-    return EXECUTION_TIMEOUTS.free[type]
+    const override = Number.parseInt(
+      (type === 'sync' ? env.EXECUTION_TIMEOUT_FREE : env.EXECUTION_TIMEOUT_ASYNC_FREE) || ''
+    )
+    return Number.isFinite(override) && override > 0 ? EXECUTION_TIMEOUTS.free[type] : 0
   }
   return EXECUTION_TIMEOUTS[getPlanTypeForLimits(plan)][type]
 }
@@ -135,6 +144,19 @@ export interface TimeoutAbortController {
   timeoutMs: number | undefined
 }
 
+/**
+ * True when an abort signal's reason marks an execution timeout. Abort reasons
+ * are `DOMException('timeout' | 'user', 'AbortError')` so code that passes the
+ * signal straight into `fetch` still sees a standard AbortError, while pumps
+ * and executors can discriminate timeout from user Stop via the message.
+ */
+export function isTimeoutAbortReason(reason: unknown): boolean {
+  if (reason === 'timeout') return true
+  return (
+    reason instanceof DOMException && reason.name === 'AbortError' && reason.message === 'timeout'
+  )
+}
+
 export function createTimeoutAbortController(timeoutMs?: number): TimeoutAbortController {
   const abortController = new AbortController()
   let isTimedOut = false
@@ -143,7 +165,8 @@ export function createTimeoutAbortController(timeoutMs?: number): TimeoutAbortCo
   if (timeoutMs) {
     timeoutId = setTimeout(() => {
       isTimedOut = true
-      abortController.abort()
+      // AbortError with a typed message — see isTimeoutAbortReason.
+      abortController.abort(new DOMException('timeout', 'AbortError'))
     }, timeoutMs)
   }
 
@@ -153,7 +176,8 @@ export function createTimeoutAbortController(timeoutMs?: number): TimeoutAbortCo
     cleanup: () => {
       if (timeoutId) clearTimeout(timeoutId)
     },
-    abort: () => abortController.abort(),
+    // Manual abort is user/client cancellation (disconnect, Stop, registerManualExecutionAborter).
+    abort: () => abortController.abort(new DOMException('user', 'AbortError')),
     timeoutMs,
   }
 }

@@ -6,8 +6,9 @@ import type {
 } from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/landing-preview-resource'
 import { LandingPreviewResource } from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/landing-preview-resource'
 import { ownerCell } from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/utils'
+import { ZipIcon } from '@/app/(landing)/components/shared/zip-icon'
 
-/** Generic audio/zip icon using basic SVG since no dedicated component exists */
+/** Generic audio icon using basic SVG since no dedicated component exists */
 function AudioIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -42,27 +43,6 @@ function JsonlIcon({ className }: { className?: string }) {
       <path d='M10 9H8' />
       <path d='M16 13H8' />
       <path d='M16 17H8' />
-    </svg>
-  )
-}
-
-function ZipIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox='0 0 24 24'
-      fill='none'
-      stroke='currentColor'
-      strokeWidth='1.5'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-      className={className}
-    >
-      <path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' />
-      <path d='M14 2v4a2 2 0 0 0 2 2h4' />
-      <path d='M10 6h1' />
-      <path d='M10 10h1' />
-      <path d='M10 14h1' />
-      <path d='M9 18h2v2h-2z' />
     </svg>
   )
 }

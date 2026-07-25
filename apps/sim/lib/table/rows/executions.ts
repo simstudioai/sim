@@ -227,7 +227,11 @@ export async function writeExecutionsPatch(
   tableId: string,
   rowId: string,
   patch: Record<string, RowExecutionMetadata | null> | undefined,
-  guard?: { groupId: string; executionId: string }
+  guard?: {
+    groupId: string
+    executionId: string
+    allowNewExecution?: boolean
+  }
 ): Promise<'wrote' | 'guard-rejected'> {
   if (!patch) return 'wrote'
   const entries = Object.entries(patch)
@@ -262,6 +266,20 @@ export async function writeExecutionsPatch(
       // clauses; we collapse them onto the upsert's WHERE so a non-matching
       // existing row leaves the table untouched and we observe 0 affected.
       const guardExecutionId = guard.executionId
+      const guardCondition = guard.allowNewExecution
+        ? sql`(${tableRowExecutions.executionId} IS DISTINCT FROM ${guardExecutionId} OR ${tableRowExecutions.status} = 'pending')`
+        : and(
+            // Reject any guarded worker write when the cell is `cancelled` — a
+            // stop click wrote it authoritatively. SQL mirror of `isExecCancelled`
+            // (deps.ts). Status-only (not executionId-scoped): the cancel can
+            // only carry the pre-stamp's executionId (often null), so matching on
+            // id would let the worker's real-id claim resurrect a killed cell.
+            sql`${tableRowExecutions.status} <> 'cancelled'`,
+            // Stale-worker: the cell's active run has moved on. Carve-outs
+            // permit a fresh worker to take over when the row's executionId
+            // is unset (dispatcher's pre-batch `pending` stamp).
+            sql`(${tableRowExecutions.executionId} IS NULL OR ${tableRowExecutions.executionId} = ${guardExecutionId})`
+          )
       const updated = await trx
         .insert(tableRowExecutions)
         .values(insertValues)
@@ -283,18 +301,7 @@ export async function writeExecutionsPatch(
             enrichmentDetails: sql`coalesce(excluded.enrichment_details, ${tableRowExecutions.enrichmentDetails})`,
             updatedAt: insertValues.updatedAt,
           },
-          where: and(
-            // Reject any guarded worker write when the cell is `cancelled` — a
-            // stop click wrote it authoritatively. SQL mirror of `isExecCancelled`
-            // (deps.ts). Status-only (not executionId-scoped): the cancel can
-            // only carry the pre-stamp's executionId (often null), so matching on
-            // id would let the worker's real-id claim resurrect a killed cell.
-            sql`${tableRowExecutions.status} <> 'cancelled'`,
-            // Stale-worker: the cell's active run has moved on. Carve-outs
-            // permit a fresh worker to take over when the row's executionId
-            // is unset (dispatcher's pre-batch `pending` stamp).
-            sql`(${tableRowExecutions.executionId} IS NULL OR ${tableRowExecutions.executionId} = ${guardExecutionId})`
-          ) as SQL,
+          where: guardCondition as SQL,
         })
         .returning({ rowId: tableRowExecutions.rowId })
       if (updated.length === 0) return 'guard-rejected'

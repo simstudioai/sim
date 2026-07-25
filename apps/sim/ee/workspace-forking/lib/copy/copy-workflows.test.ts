@@ -293,3 +293,64 @@ describe('copyWorkflowStateIntoTarget folder fallback', () => {
     expect(result.name).toBe('Orphaned placement')
   })
 })
+
+describe('copyWorkflowStateIntoTarget canonicalModes reindex propagation', () => {
+  it(
+    "persists a transform's reindexed canonicalModes on the copied block, and uses that " +
+      "SAME reindexed value (not the source's stale one) for every subsequent remap step",
+    async () => {
+      mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
+      const seenCanonicalModes: Array<Record<string, 'basic' | 'advanced'> | undefined> = []
+      const tx = {
+        insert: () => ({ values: () => Promise.resolve() }),
+      } as unknown as DbOrTx
+
+      await copyWorkflowStateIntoTarget({
+        tx,
+        targetWorkflowId: 'wf-child',
+        targetWorkspaceId: 'ws-target',
+        userId: 'target-user',
+        mode: 'create',
+        now: new Date('2026-07-01'),
+        sourceState: {
+          blocks: {
+            block1: {
+              id: 'block1',
+              type: 'agent',
+              name: 'Agent',
+              subBlocks: {},
+              // The source's ORIGINAL (pre-drop) canonicalModes - every step after the
+              // transform must see the REINDEXED value below instead, not this one.
+              data: { canonicalModes: { '1:credential': 'advanced' } },
+            },
+          },
+          edges: [],
+          loops: {},
+          parallels: {},
+          variables: {},
+        },
+        sourceMeta: { name: 'Reindex test', description: null, folderId: null, sortOrder: 0 },
+        workflowIdMap: new Map(),
+        folderIdMap: new Map(),
+        nameRegistry: buildWorkflowNameRegistry([]),
+        // Simulates a `tool-input` drop shifting tool 1 -> 0: returns subBlocks unchanged but
+        // reports the reindexed canonicalModes via the callback, exactly like
+        // `createForkBootstrapTransform`/`createForkSubBlockTransform` do.
+        transformSubBlocks: (subBlocks, _blockType, canonicalModes, onCanonicalModesChanged) => {
+          seenCanonicalModes.push(canonicalModes)
+          onCanonicalModesChanged?.({ '0:credential': 'advanced' })
+          return subBlocks
+        },
+      })
+
+      const [, remappedState] = mockSaveWorkflowToNormalizedTables.mock.calls.at(-1)!
+      const persistedBlock = Object.values(remappedState.blocks)[0] as {
+        data?: { canonicalModes?: Record<string, 'basic' | 'advanced'> }
+      }
+      // The transform received the source's original value...
+      expect(seenCanonicalModes).toEqual([{ '1:credential': 'advanced' }])
+      // ...and the PERSISTED block carries the reindexed one, not the stale source value.
+      expect(persistedBlock.data?.canonicalModes).toEqual({ '0:credential': 'advanced' })
+    }
+  )
+})

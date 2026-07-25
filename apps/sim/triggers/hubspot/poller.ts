@@ -61,6 +61,7 @@ export const hubspotPollingTrigger: TriggerConfig = {
       description: 'Connect a HubSpot account so Sim can poll your CRM on your behalf.',
       serviceId: 'hubspot',
       requiredScopes: getScopesForService('hubspot'),
+      allowServiceAccounts: true,
       required: true,
       mode: 'trigger',
     },

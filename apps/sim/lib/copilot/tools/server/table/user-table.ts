@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -9,6 +10,7 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   buildAutoMapping,
   COLUMN_TYPES,
@@ -378,6 +380,17 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             requestId
           )
 
+          recordAudit({
+            workspaceId,
+            actorId: context.userId,
+            action: AuditAction.TABLE_CREATED,
+            resourceType: AuditResourceType.TABLE,
+            resourceId: table.id,
+            resourceName: table.name,
+            description: `Created table "${table.name}"`,
+            metadata: { source: 'tool_input' },
+          })
+
           return {
             success: true,
             message: `Created table "${table.name}" (${table.id})`,
@@ -450,13 +463,20 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
             const requestId = generateId().slice(0, 8)
             assertNotAborted()
-            await deleteTable(tableId, requestId)
+            await deleteTable(tableId, requestId, context.userId)
+            captureServerEvent(
+              context.userId,
+              'table_deleted',
+              { table_id: tableId, workspace_id: workspaceId },
+              { groups: { workspace: workspaceId } }
+            )
             deleted.push(tableId)
           }
 
           return {
             success: deleted.length > 0,
             message: `Deleted ${deleted.length} table(s)${failed.length > 0 ? `, ${failed.length} not found` : ''}`,
+            data: { deleted, failed },
           }
         }
 
@@ -928,6 +948,21 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             await releaseJobClaim(table.id, inlineDeleteId).catch(() => {})
           }
 
+          recordAudit({
+            workspaceId,
+            actorId: context.userId,
+            action: AuditAction.TABLE_UPDATED,
+            resourceType: AuditResourceType.TABLE,
+            resourceId: table.id,
+            resourceName: table.name,
+            description: `Deleted ${result.affectedCount} row(s) from table "${table.name}"`,
+            metadata: {
+              op: 'bulk_delete',
+              rowsDeleted: result.affectedCount,
+              source: 'tool_input',
+            },
+          })
+
           return {
             success: true,
             message: `Deleted ${result.affectedCount} rows`,
@@ -1029,6 +1064,16 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, rowIds, workspaceId },
             requestId
           )
+
+          recordAudit({
+            workspaceId,
+            actorId: context.userId,
+            action: AuditAction.TABLE_UPDATED,
+            resourceType: AuditResourceType.TABLE,
+            resourceId: args.tableId,
+            description: `Deleted ${result.deletedCount} row(s)`,
+            metadata: { op: 'bulk_delete', rowsDeleted: result.deletedCount, source: 'tool_input' },
+          })
 
           return {
             success: true,
@@ -1564,7 +1609,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const renamed = await renameTable(args.tableId, newName, requestId)
+          const renamed = await renameTable(args.tableId, newName, requestId, context.userId)
 
           return {
             success: true,

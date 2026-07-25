@@ -1,17 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckInternalAuth, mockMaskPIIBatch } = vi.hoisted(() => ({
-  mockCheckInternalAuth: vi.fn(),
+const { mockMaskPIIBatch } = vi.hoisted(() => ({
   mockMaskPIIBatch: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/hybrid', () => ({
-  checkInternalAuth: mockCheckInternalAuth,
-}))
+const mockCheckInternalAuth = hybridAuthMockFns.mockCheckInternalAuth
 
 vi.mock('@/lib/guardrails/validate_pii', () => ({
   maskPIIBatch: mockMaskPIIBatch,
@@ -52,7 +49,12 @@ describe('POST /api/guardrails/mask-batch', () => {
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.masked).toEqual(['M(a@b.com)', 'M(hello)'])
-    expect(mockMaskPIIBatch).toHaveBeenCalledWith(['a@b.com', 'hello'], ['EMAIL_ADDRESS'], 'en')
+    expect(mockMaskPIIBatch).toHaveBeenCalledWith(
+      ['a@b.com', 'hello'],
+      ['EMAIL_ADDRESS'],
+      'en',
+      undefined
+    )
   })
 
   it('rejects an invalid body with 400', async () => {

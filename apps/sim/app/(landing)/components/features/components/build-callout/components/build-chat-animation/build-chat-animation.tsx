@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { Blimp } from '@sim/emcn/icons'
 import { ArrowUp, Mic, Paperclip, Plus, Slash } from 'lucide-react'
-import { ThinkingLoader } from '@/app/(landing)/components/thinking-loader'
+import { ThinkingLoader } from '@/components/ui'
 
 const PROMPT = 'Build a workflow to schedule and publish posts to my X account.'
 const REPLY =
-  'On it — building a workflow with a schedule trigger, a drafting agent, and an X publish step.'
+  'On it. Building a workflow with a schedule trigger, a drafting agent, and an X publish step.'
 const REPLY_WORDS = REPLY.split(' ')
 
 const TYPE_START_MS = 900

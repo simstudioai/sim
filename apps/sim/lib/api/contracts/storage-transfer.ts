@@ -107,6 +107,15 @@ export const dropboxUploadBodySchema = z.object({
   mute: z.boolean().optional().nullable(),
 })
 
+export const jupyterUploadBodySchema = z.object({
+  serverUrl: z.string().min(1, 'Server URL is required'),
+  token: z.string().min(1, 'Token is required'),
+  directory: z.string().optional().nullable(),
+  file: FileInputSchema.optional().nullable(),
+  fileContent: z.string().optional().nullable(),
+  fileName: z.string().optional().nullable(),
+})
+
 export const wordpressUploadBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   siteId: z.string().min(1, 'Site ID is required'),
@@ -483,6 +492,13 @@ export const dropboxUploadContract = defineRouteContract({
   response: { mode: 'json', schema: jsonResponseSchema },
 })
 
+export const jupyterUploadContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/jupyter/upload',
+  body: jupyterUploadBodySchema,
+  response: { mode: 'json', schema: jsonResponseSchema },
+})
+
 export const wordpressUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/wordpress/upload',
@@ -729,10 +745,24 @@ export const fileExportContract = defineRouteContract({
   response: { mode: 'binary' },
 })
 
+export const fileStorageStatusResponseSchema = z.object({
+  cloudConfigured: z.boolean(),
+})
+
+export const fileStorageStatusContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/files/storage-status',
+  response: { mode: 'json', schema: fileStorageStatusResponseSchema },
+})
+
+export type FileStorageStatusResponse = ContractJsonResponse<typeof fileStorageStatusContract>
+
 export type BoxUploadBody = ContractBodyInput<typeof boxUploadContract>
 export type BoxUploadResponse = ContractJsonResponse<typeof boxUploadContract>
 export type DropboxUploadBody = ContractBodyInput<typeof dropboxUploadContract>
 export type DropboxUploadResponse = ContractJsonResponse<typeof dropboxUploadContract>
+export type JupyterUploadBody = ContractBodyInput<typeof jupyterUploadContract>
+export type JupyterUploadResponse = ContractJsonResponse<typeof jupyterUploadContract>
 export type WordPressUploadBody = ContractBodyInput<typeof wordpressUploadContract>
 export type WordPressUploadResponse = ContractJsonResponse<typeof wordpressUploadContract>
 export type SftpDownloadBody = ContractBodyInput<typeof sftpDownloadContract>

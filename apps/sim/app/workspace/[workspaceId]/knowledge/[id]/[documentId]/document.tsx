@@ -8,7 +8,6 @@ import { truncate } from '@sim/utils/string'
 import { ChevronDown, ChevronUp, FileText, Pencil, Tag } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import { SearchHighlight } from '@/components/ui/search-highlight'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { formatTokenCount } from '@/lib/tokenization'
 import type {
@@ -34,10 +33,11 @@ import {
   DocumentTagsModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import {
+  documentChunkSortParams,
   documentParsers,
   documentUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/search-params'
-import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
+import { ActionBar, SearchHighlight } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -51,9 +51,18 @@ import {
   useUpdateDocument,
 } from '@/hooks/queries/kb/knowledge'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
+import { useUrlSort } from '@/hooks/use-url-sort'
 
 const logger = createLogger('Document')
+
+/**
+ * Debounce window for chunk-search URL writes and the query feed; the input
+ * itself stays instant. Intentionally shorter than the shared
+ * `SEARCH_DEBOUNCE_MS` (300) to match the chunk search's snappier feel.
+ */
+const CHUNK_SEARCH_DEBOUNCE_MS = 200 as const
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -127,10 +136,15 @@ export function Document({
 }: DocumentProps) {
   const { workspaceId } = useParams()
   const router = useRouter()
-  const [{ page: currentPageFromURL, chunk: chunkFromURL }, setDocumentParams] = useQueryStates(
-    documentParsers,
-    documentUrlKeys
-  )
+  const [
+    {
+      page: currentPageFromURL,
+      chunk: chunkFromURL,
+      search: searchQuery,
+      enabled: enabledFilterParam,
+    },
+    setDocumentParams,
+  ] = useQueryStates(documentParsers, documentUrlKeys)
   const userPermissions = useUserPermissionsContext()
 
   const { knowledgeBase } = useKnowledgeBase(knowledgeBaseId)
@@ -138,17 +152,44 @@ export function Document({
 
   const [showTagsModal, setShowTagsModal] = useState(false)
 
-  const [searchQuery, setSearchQuery] = useState('')
-  const debouncedSearchQuery = useDebounce(searchQuery, 200)
-  const [enabledFilter, setEnabledFilter] = useState<string[]>([])
-  const [activeSort, setActiveSort] = useState<{
-    column: string
-    direction: 'asc' | 'desc'
-  } | null>(null)
+  /**
+   * The input is controlled directly by the instant nuqs value; only the URL
+   * write is debounced. The chunk search query below reads a debounced value so
+   * it doesn't refetch on every keystroke. Changing the search resets `page` in
+   * the same write — a search started from a later page must land on the first
+   * page of matches, and a shared search link must open there too.
+   */
+  const handleSearchChange = useDebouncedSearchSetter(
+    (value, options) => void setDocumentParams({ search: value, page: null }, options),
+    { debounceMs: CHUNK_SEARCH_DEBOUNCE_MS }
+  )
+  /** Raw URL value drives the input; the chunk search query always sees it trimmed. */
+  const debouncedSearchQuery = useDebounce(searchQuery, CHUNK_SEARCH_DEBOUNCE_MS).trim()
+  const {
+    activeSort,
+    onSort: onSortColumn,
+    onClear: onClearSort,
+  } = useUrlSort(documentChunkSortParams, documentUrlKeys)
 
-  const enabledFilterParam = useMemo(
-    () => (enabledFilter.length === 1 ? (enabledFilter[0] as 'enabled' | 'disabled') : 'all'),
-    [enabledFilter]
+  /** Multi-select UI view of the scalar `enabled` param (`all` ↔ nothing selected). */
+  const enabledFilter = useMemo<string[]>(
+    () => (enabledFilterParam === 'all' ? [] : [enabledFilterParam]),
+    [enabledFilterParam]
+  )
+
+  /**
+   * Collapses the dropdown's multi-select values to the scalar param (one value
+   * filters; none or both mean `all`) and resets `page` in the same write so a
+   * filter change always lands on the first page.
+   */
+  const setEnabledFilter = useCallback(
+    (values: string[]) => {
+      void setDocumentParams({
+        enabled: values.length === 1 ? (values[0] as 'enabled' | 'disabled') : null,
+        page: null,
+      })
+    },
+    [setDocumentParams]
   )
 
   const {
@@ -181,7 +222,7 @@ export function Document({
       search: debouncedSearchQuery,
     },
     {
-      enabled: Boolean(debouncedSearchQuery.trim()),
+      enabled: Boolean(debouncedSearchQuery),
     }
   )
 
@@ -211,7 +252,7 @@ export function Document({
   const saveStatusRef = useRef<SaveStatus>('idle')
   saveStatusRef.current = saveStatus
 
-  const isSearching = debouncedSearchQuery.trim().length > 0
+  const isSearching = debouncedSearchQuery.length > 0
   const showingSearch = isSearching && searchQuery.trim().length > 0 && searchResults.length > 0
   const SEARCH_PAGE_SIZE = 50
   const maxSearchPages = Math.ceil(searchResults.length / SEARCH_PAGE_SIZE)
@@ -591,15 +632,14 @@ export function Document({
   const searchConfig: SearchConfig | undefined = isCompleted
     ? {
         value: searchQuery,
-        onChange: (value: string) => setSearchQuery(value),
+        onChange: handleSearchChange,
         placeholder: 'Search chunks...',
       }
     : undefined
 
   const enabledDisplayLabel = useMemo(() => {
     if (enabledFilter.length === 0) return 'All'
-    if (enabledFilter.length === 1) return enabledFilter[0] === 'enabled' ? 'Enabled' : 'Disabled'
-    return `${enabledFilter.length} selected`
+    return enabledFilter[0] === 'enabled' ? 'Enabled' : 'Disabled'
   }, [enabledFilter])
 
   const filterContent = useMemo(
@@ -617,7 +657,6 @@ export function Document({
             onMultiSelectChange={(values) => {
               setEnabledFilter(values)
               setSelectedChunks(new Set())
-              void goToPage(1)
             }}
             overlayContent={
               <span className='truncate text-[var(--text-primary)]'>{enabledDisplayLabel}</span>
@@ -633,7 +672,6 @@ export function Document({
             onClick={() => {
               setEnabledFilter([])
               setSelectedChunks(new Set())
-              void goToPage(1)
             }}
             className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
           >
@@ -642,7 +680,7 @@ export function Document({
         )}
       </div>
     ),
-    [enabledFilter, enabledDisplayLabel, goToPage]
+    [enabledFilter, enabledDisplayLabel, setEnabledFilter]
   )
 
   const filterTags: FilterTag[] = useMemo(
@@ -650,12 +688,11 @@ export function Document({
       enabledFilter.map((value) => ({
         label: `Status: ${value === 'enabled' ? 'Enabled' : 'Disabled'}`,
         onRemove: () => {
-          setEnabledFilter((prev) => prev.filter((v) => v !== value))
+          setEnabledFilter(enabledFilter.filter((v) => v !== value))
           setSelectedChunks(new Set())
-          void goToPage(1)
         },
       })),
-    [enabledFilter, goToPage]
+    [enabledFilter, setEnabledFilter]
   )
 
   const handleChunkClick = useCallback(
@@ -861,16 +898,17 @@ export function Document({
         { id: 'status', label: 'Status' },
       ],
       active: activeSort,
+      /** Sorting (or clearing the sort) resets pagination to the first page. */
       onSort: (column, direction) => {
-        setActiveSort({ column, direction })
+        onSortColumn(column, direction)
         void goToPage(1)
       },
       onClear: () => {
-        setActiveSort(null)
+        onClearSort()
         void goToPage(1)
       },
     }),
-    [activeSort, goToPage]
+    [activeSort, onSortColumn, onClearSort, goToPage]
   )
 
   const chunkRows: ResourceRow[] = useMemo(() => {

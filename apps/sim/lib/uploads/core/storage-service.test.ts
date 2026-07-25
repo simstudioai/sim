@@ -3,19 +3,28 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockInitiate, mockUploadPart, mockComplete, mockAbort, mockUploadToS3, partBodies } =
-  vi.hoisted(() => ({
-    mockInitiate: vi.fn(),
-    mockUploadPart: vi.fn(),
-    mockComplete: vi.fn(),
-    mockAbort: vi.fn(),
-    mockUploadToS3: vi.fn(),
-    partBodies: [] as Buffer[],
-  }))
+const {
+  mockInitiate,
+  mockUploadPart,
+  mockComplete,
+  mockAbort,
+  mockUploadToS3,
+  mockInsertFileMetadata,
+  partBodies,
+} = vi.hoisted(() => ({
+  mockInitiate: vi.fn(),
+  mockUploadPart: vi.fn(),
+  mockComplete: vi.fn(),
+  mockAbort: vi.fn(),
+  mockUploadToS3: vi.fn(),
+  mockInsertFileMetadata: vi.fn(),
+  partBodies: [] as Buffer[],
+}))
 
 vi.mock('@/lib/uploads/config', () => ({
   USE_S3_STORAGE: true,
   USE_BLOB_STORAGE: false,
+  USE_GCS_STORAGE: false,
   getStorageConfig: () => ({ bucket: 'b', region: 'r' }),
 }))
 
@@ -27,7 +36,11 @@ vi.mock('@/lib/uploads/providers/s3/client', () => ({
   uploadToS3: mockUploadToS3,
 }))
 
-import { createMultipartUpload } from '@/lib/uploads/core/storage-service'
+vi.mock('@/lib/uploads/server/metadata', () => ({
+  insertFileMetadata: mockInsertFileMetadata,
+}))
+
+import { createMultipartUpload, uploadFile } from '@/lib/uploads/core/storage-service'
 
 const PART_SIZE = 8 * 1024 * 1024
 
@@ -43,6 +56,21 @@ describe('createMultipartUpload', () => {
     mockComplete.mockResolvedValue({ location: 'l', path: 'p', key: 'k' })
     mockAbort.mockResolvedValue(undefined)
     mockUploadToS3.mockResolvedValue({ key: 'k', path: 'p', name: 'k', size: 0, type: 'text/csv' })
+    mockInsertFileMetadata.mockResolvedValue({ id: 'file-1' })
+  })
+
+  it('can upload an object without persisting generic metadata', async () => {
+    await uploadFile({
+      file: Buffer.from('hello'),
+      fileName: 'k',
+      contentType: 'text/plain',
+      context: 'workspace',
+      metadata: { userId: 'user-1', workspaceId: 'workspace-1' },
+      persistMetadata: false,
+    })
+
+    expect(mockUploadToS3).toHaveBeenCalledTimes(1)
+    expect(mockInsertFileMetadata).not.toHaveBeenCalled()
   })
 
   it('takes the single-shot PutObject path for a payload smaller than one part', async () => {

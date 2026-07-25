@@ -145,7 +145,7 @@ function ConnectionItem({
         }}
       >
         <div
-          className='relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+          className='[&_img]:!size-full relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
           style={{ background: bgColor }}
         >
           {Icon && (
@@ -154,7 +154,7 @@ function ConnectionItem({
                 'transition-transform duration-200',
                 getTileIconColorClass(bgColor),
                 hasFields && 'group-hover:scale-110',
-                '!h-[9px] !w-[9px]'
+                '!size-[9px]'
               )}
             />
           )}

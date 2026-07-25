@@ -10,7 +10,10 @@ import type { PlanCategory } from '@/lib/billing/plan-helpers'
 import { getPlanType, isEnterprise, isMax, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { UPGRADE_TO_INVITE_REASON } from '@/lib/workspaces/policy-constants'
+import {
+  CONTACT_OWNER_TO_UPGRADE_REASON,
+  UPGRADE_TO_INVITE_REASON,
+} from '@/lib/workspaces/policy-constants'
 
 const logger = createLogger('WorkspacePolicy')
 
@@ -38,6 +41,33 @@ export interface WorkspaceInvitePolicy {
   requiresSeat: boolean
   organizationId: string | null
   upgradeRequired: boolean
+}
+
+/** Caller-facing invite flags derived from an evaluated invite policy. */
+export interface WorkspaceInviteFlags {
+  inviteMembersEnabled: boolean
+  inviteDisabledReason: string | null
+  inviteUpgradeRequired: boolean
+}
+
+/**
+ * Derives the caller-facing invite flags for a workspace response. Only the
+ * billed user can act on an upgrade, so everyone else gets the contact-owner
+ * message when invites are disabled.
+ */
+export function resolveInviteFlags(
+  invitePolicy: WorkspaceInvitePolicy,
+  callerIsBilledUser: boolean
+): WorkspaceInviteFlags {
+  return {
+    inviteMembersEnabled: invitePolicy.allowed,
+    inviteDisabledReason: invitePolicy.allowed
+      ? null
+      : callerIsBilledUser
+        ? (invitePolicy.reason ?? UPGRADE_TO_INVITE_REASON)
+        : CONTACT_OWNER_TO_UPGRADE_REASON,
+    inviteUpgradeRequired: invitePolicy.upgradeRequired && callerIsBilledUser,
+  }
 }
 
 export interface WorkspaceCreationPolicy {

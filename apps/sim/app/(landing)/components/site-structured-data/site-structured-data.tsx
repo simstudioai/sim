@@ -9,9 +9,19 @@ const SITE_JSON_LD = {
       '@id': `${SITE_URL}#organization`,
       name: 'Sim',
       alternateName: 'Sim Studio',
+      legalName: 'Sim, Inc',
       description:
         'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work.',
       url: SITE_URL,
+      foundingDate: '2025',
+      address: {
+        '@type': 'PostalAddress',
+        streetAddress: '80 Langton St',
+        addressLocality: 'San Francisco',
+        addressRegion: 'CA',
+        postalCode: '94103',
+        addressCountry: 'US',
+      },
       logo: {
         '@type': 'ImageObject',
         '@id': `${SITE_URL}#logo`,
@@ -22,17 +32,27 @@ const SITE_JSON_LD = {
         caption: 'Sim Logo',
       },
       image: { '@id': `${SITE_URL}#logo` },
+      brand: { '@type': 'Brand', name: 'Sim' },
       sameAs: [
         'https://x.com/simdotai',
         'https://github.com/simstudioai/sim',
         'https://www.linkedin.com/company/simstudioai/',
-        'https://discord.gg/Hr4UWYEcTT',
+        'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA',
       ],
-      contactPoint: {
-        '@type': 'ContactPoint',
-        contactType: 'customer support',
-        availableLanguage: ['en'],
-      },
+      contactPoint: [
+        {
+          '@type': 'ContactPoint',
+          contactType: 'customer support',
+          url: `${SITE_URL}/contact`,
+          availableLanguage: ['en'],
+        },
+        {
+          '@type': 'ContactPoint',
+          contactType: 'sales',
+          url: `${SITE_URL}/contact`,
+          availableLanguage: ['en'],
+        },
+      ],
     },
     {
       '@type': 'WebSite',
@@ -59,7 +79,8 @@ const SITE_JSON_LD = {
  * fragment) - every per-page emitter (platform, solutions, pricing, home) points
  * `isPartOf`/`publisher`/`about` at these exact ids, so the graph resolves.
  *
- * Maintenance: `sameAs` must match the Footer social links.
+ * Maintenance: `sameAs` must match the Footer social links. `legalName`
+ * matches the entity named throughout `apps/sim/app/(landing)/terms`.
  */
 export function SiteStructuredData() {
   return <JsonLd data={SITE_JSON_LD} />

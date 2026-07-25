@@ -1,13 +1,7 @@
 /**
  * @vitest-environment node
  */
-import {
-  auditMock,
-  createMockRequest,
-  dbChainMock,
-  dbChainMockFns,
-  resetDbChainMock,
-} from '@sim/testing'
+import { auditMock, createMockRequest, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -32,7 +26,6 @@ const {
   mockCaptureServerEvent: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/billing/organizations/membership', () => ({

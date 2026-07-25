@@ -94,6 +94,17 @@ function shortcutSignature(parsed: ParsedShortcut, isMac: boolean): string {
 }
 
 /**
+ * Whether `element` is an editable region for the purposes of the editable guard.
+ * `isContentEditable` is the browser's computed editability, so focusable descendants of a
+ * `contenteditable` root count as editable, while `contenteditable="false"` (e.g. a rich-text
+ * editor in read-only mode) does not — commands with `allowInEditable: false` still fire there.
+ */
+function isEditableElement(element: Element | null): boolean {
+  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) return true
+  return element instanceof HTMLElement && element.isContentEditable
+}
+
+/**
  * Whether the focused element (or an ancestor) declares it owns `parsed` via a comma-separated
  * `data-owned-shortcuts` attribute (e.g. a rich-text editor that binds `Mod+K` to links). Such a
  * shortcut is left for that element to handle instead of firing the global command.
@@ -141,14 +152,7 @@ export function GlobalCommandsProvider({ children }: { children: ReactNode }) {
       if (e.isComposing) return
 
       for (const [, cmd] of registryRef.current) {
-        if (!cmd.allowInEditable) {
-          const ae = document.activeElement
-          const isEditable =
-            ae instanceof HTMLInputElement ||
-            ae instanceof HTMLTextAreaElement ||
-            ae?.hasAttribute('contenteditable')
-          if (isEditable) continue
-        }
+        if (!cmd.allowInEditable && isEditableElement(document.activeElement)) continue
 
         if (matchesShortcut(e, cmd.parsed)) {
           if (focusedElementOwnsShortcut(cmd.parsed, isMac)) continue

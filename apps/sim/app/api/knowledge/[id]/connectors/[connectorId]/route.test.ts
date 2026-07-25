@@ -5,38 +5,24 @@ import {
   auditMock,
   authOAuthUtilsMock,
   createMockRequest,
+  dbChainMockFns,
   hybridAuthMockFns,
   knowledgeApiUtilsMock,
   knowledgeApiUtilsMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDbChain, mockValidateConfig } = vi.hoisted(() => {
-  const chain = {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    orderBy: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockResolvedValue([]),
-    execute: vi.fn().mockResolvedValue(undefined),
-    transaction: vi.fn(),
-    insert: vi.fn().mockReturnThis(),
-    values: vi.fn().mockResolvedValue(undefined),
-    update: vi.fn().mockReturnThis(),
-    delete: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
-    returning: vi.fn().mockResolvedValue([]),
-  }
-  return {
-    mockDbChain: chain,
-    mockValidateConfig: vi.fn(),
-  }
-})
+const { mockHasWorkspaceLiveSyncAccess, mockValidateConfig } = vi.hoisted(() => ({
+  mockHasWorkspaceLiveSyncAccess: vi.fn(),
+  mockValidateConfig: vi.fn(),
+}))
 
 const mockCheckAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseAccess
 const mockCheckWriteAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseWriteAccess
 
-vi.mock('@sim/db', () => ({ db: mockDbChain }))
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
 vi.mock('@/connectors/registry.server', () => ({
@@ -50,6 +36,9 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
 vi.mock('@/lib/knowledge/documents/service', () => ({
   deleteDocumentStorageFiles: vi.fn().mockResolvedValue(undefined),
 }))
+vi.mock('@/lib/billing/core/subscription', () => ({
+  hasWorkspaceLiveSyncAccess: mockHasWorkspaceLiveSyncAccess,
+}))
 vi.mock('@sim/audit', () => auditMock)
 
 import { DELETE, GET, PATCH } from '@/app/api/knowledge/[id]/connectors/[connectorId]/route'
@@ -59,19 +48,11 @@ describe('Knowledge Connector By ID API Route', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDbChain.select.mockReturnThis()
-    mockDbChain.from.mockReturnThis()
-    mockDbChain.where.mockReturnThis()
-    mockDbChain.orderBy.mockReturnThis()
-    mockDbChain.limit.mockResolvedValue([])
-    mockDbChain.execute.mockResolvedValue(undefined)
-    mockDbChain.transaction.mockImplementation(
-      async (callback: (tx: typeof mockDbChain) => unknown) => callback(mockDbChain)
-    )
-    mockDbChain.update.mockReturnThis()
-    mockDbChain.delete.mockReturnThis()
-    mockDbChain.set.mockReturnThis()
-    mockDbChain.returning.mockResolvedValue([])
+    resetDbChainMock()
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   describe('GET', () => {
@@ -106,7 +87,7 @@ describe('Knowledge Connector By ID API Route', () => {
         userId: 'user-1',
       })
       mockCheckAccess.mockResolvedValue({ hasAccess: true })
-      mockDbChain.limit.mockResolvedValueOnce([])
+      dbChainMockFns.limit.mockResolvedValueOnce([])
 
       const req = createMockRequest('GET')
       const response = await GET(req, { params: mockParams })
@@ -124,7 +105,7 @@ describe('Knowledge Connector By ID API Route', () => {
       const mockConnector = { id: 'conn-456', connectorType: 'jira', status: 'active' }
       const mockLogs = [{ id: 'log-1', status: 'completed' }]
 
-      mockDbChain.limit.mockResolvedValueOnce([mockConnector]).mockResolvedValueOnce(mockLogs)
+      dbChainMockFns.limit.mockResolvedValueOnce([mockConnector]).mockResolvedValueOnce(mockLogs)
 
       const req = createMockRequest('GET')
       const response = await GET(req, { params: mockParams })
@@ -171,7 +152,7 @@ describe('Knowledge Connector By ID API Route', () => {
         userId: 'user-1',
       })
       mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
-      mockDbChain.limit.mockResolvedValueOnce([])
+      dbChainMockFns.limit.mockResolvedValueOnce([])
 
       const req = createMockRequest('PATCH', { sourceConfig: { project: 'NEW' } })
       const response = await PATCH(req, { params: mockParams })
@@ -179,10 +160,10 @@ describe('Knowledge Connector By ID API Route', () => {
       expect(response.status).toBe(404)
     })
 
-    it('returns 200 and updates status', async () => {
+    it('allows a free external actor to enable live sync for a Max workspace', async () => {
       hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
         success: true,
-        userId: 'user-1',
+        userId: 'free-external-admin',
         userName: 'Test',
         userEmail: 'test@test.com',
       })
@@ -190,17 +171,37 @@ describe('Knowledge Connector By ID API Route', () => {
         hasAccess: true,
         knowledgeBase: { workspaceId: 'ws-1', name: 'Test KB' },
       })
+      mockHasWorkspaceLiveSyncAccess.mockResolvedValue(true)
 
-      const updatedConnector = { id: 'conn-456', status: 'paused', syncIntervalMinutes: 120 }
-      mockDbChain.limit.mockResolvedValueOnce([updatedConnector])
+      const updatedConnector = { id: 'conn-456', status: 'paused', syncIntervalMinutes: 5 }
+      dbChainMockFns.limit.mockResolvedValueOnce([updatedConnector])
 
-      const req = createMockRequest('PATCH', { status: 'paused', syncIntervalMinutes: 120 })
+      const req = createMockRequest('PATCH', { status: 'paused', syncIntervalMinutes: 5 })
       const response = await PATCH(req, { params: mockParams })
       const data = await response.json()
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(data.data.status).toBe('paused')
+      expect(mockHasWorkspaceLiveSyncAccess).toHaveBeenCalledWith('ws-1')
+    })
+
+    it('denies a paid actor when the knowledge base workspace is free', async () => {
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+        success: true,
+        userId: 'paid-external-admin',
+      })
+      mockCheckWriteAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: { workspaceId: 'ws-free', name: 'Free KB' },
+      })
+      mockHasWorkspaceLiveSyncAccess.mockResolvedValue(false)
+
+      const req = createMockRequest('PATCH', { syncIntervalMinutes: 5 })
+      const response = await PATCH(req, { params: mockParams })
+
+      expect(response.status).toBe(403)
+      expect(mockHasWorkspaceLiveSyncAccess).toHaveBeenCalledWith('ws-free')
     })
   })
 
@@ -228,12 +229,9 @@ describe('Knowledge Connector By ID API Route', () => {
         hasAccess: true,
         knowledgeBase: { workspaceId: 'ws-1', name: 'Test KB' },
       })
-      mockDbChain.where
-        .mockReturnValueOnce(mockDbChain)
-        .mockResolvedValueOnce([{ id: 'doc-1', fileUrl: '/api/uploads/test.txt' }])
-        .mockReturnValueOnce(mockDbChain)
-      mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456', connectorType: 'jira' }])
-      mockDbChain.returning.mockResolvedValueOnce([{ id: 'conn-456' }])
+      dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-456', connectorType: 'jira' }])
+      queueTableRows(schemaMock.document, [{ id: 'doc-1', fileUrl: '/api/uploads/test.txt' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'conn-456' }])
 
       const req = createMockRequest('DELETE')
       const response = await DELETE(req, { params: mockParams })

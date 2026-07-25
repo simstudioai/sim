@@ -23,6 +23,7 @@
  * Usage limits are updated accordingly to allow spending the credits.
  */
 
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { organization, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -208,6 +209,26 @@ export const POST = withRouteHandler(
         newCreditBalance,
         newUsageLimit,
         reason: reason || 'No reason provided',
+      })
+
+      recordAudit({
+        actorId: 'admin-api',
+        action: AuditAction.CREDIT_ISSUED,
+        resourceType: AuditResourceType.BILLING,
+        resourceId: entityId,
+        description: `Admin API issued $${Number(amount).toFixed(2)} credits to ${entityType} ${entityId}`,
+        metadata: {
+          targetUserId: resolvedUserId,
+          ...(entityType === 'organization'
+            ? { targetOrgId: entityId, organizationId: entityId }
+            : {}),
+          entityType,
+          amount,
+          currency: 'usd',
+          reason: reason || null,
+          newCreditBalance,
+        },
+        request,
       })
 
       return singleResponse({

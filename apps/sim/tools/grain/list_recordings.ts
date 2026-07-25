@@ -77,6 +77,12 @@ export const grainListRecordingsTool: ToolConfig<
       visibility: 'user-only',
       description: 'Include AI-generated summary',
     },
+    includeAiActionItems: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Include AI-detected action items',
+    },
   },
 
   request: {
@@ -88,13 +94,13 @@ export const grainListRecordingsTool: ToolConfig<
       'Public-Api-Version': '2025-10-31',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const body: Record<string, unknown> = {}
 
       if (params.cursor) {
         body.cursor = params.cursor
       }
 
-      const filter: Record<string, any> = {}
+      const filter: Record<string, unknown> = {}
       if (params.beforeDatetime) {
         filter.before_datetime = params.beforeDatetime
       }
@@ -117,7 +123,7 @@ export const grainListRecordingsTool: ToolConfig<
         body.filter = filter
       }
 
-      const include: Record<string, any> = {}
+      const include: Record<string, unknown> = {}
       if (params.includeHighlights) {
         include.highlights = true
       }
@@ -126,6 +132,9 @@ export const grainListRecordingsTool: ToolConfig<
       }
       if (params.includeAiSummary) {
         include.ai_summary = true
+      }
+      if (params.includeAiActionItems) {
+        include.ai_action_items = true
       }
       if (Object.keys(include).length > 0) {
         body.include = include

@@ -29,6 +29,10 @@ const minimalRegistryAlias: Record<string, string> = useMinimalRegistry
 const nextConfig: NextConfig = {
   devIndicators: false,
   poweredByHeader: false,
+  // Safe here since this repo's source is already fully public on GitHub -
+  // no additional exposure versus Next's default (disabled to avoid leaking
+  // source on the client).
+  productionBrowserSourceMaps: true,
   turbopack: {
     root: path.join(import.meta.dirname, '../..'),
     resolveAlias: minimalRegistryAlias,
@@ -126,6 +130,8 @@ const nextConfig: NextConfig = {
     'isolated-vm',
     '@e2b/code-interpreter',
     'e2b',
+    '@daytonaio/sdk',
+    '@earendil-works/pi-ai',
     '@earendil-works/pi-coding-agent',
   ],
   outputFileTracingIncludes: {
@@ -139,6 +145,12 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizeCss: !isDev,
     turbopackFileSystemCacheForDev: false,
+    /**
+     * Turbopack's persistent build cache (beta) — opt-in via env so only the
+     * CI check build uses it; production image builds stay on the default
+     * cold-build path until the feature stabilizes.
+     */
+    turbopackFileSystemCacheForBuild: process.env.NEXT_TURBOPACK_BUILD_CACHE === '1',
     preloadEntriesOnStart: false,
     optimizePackageImports: [
       'lodash',
@@ -170,6 +182,9 @@ const nextConfig: NextConfig = {
         : []),
       'localhost:3000',
       'localhost:3001',
+      '127.0.0.1',
+      '127.0.0.1:3011',
+      '127.0.0.1:3012',
     ],
   }),
   transpilePackages: [
@@ -185,7 +200,11 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: '/((?!api/).*\\.(?:svg|jpg|jpeg|png|gif|ico|webp|avif|woff|woff2|ttf|eot))',
+        // `/public`-served assets keep their path across deploys (no content
+        // hash), so a shorter TTL + revalidation window bounds how long a
+        // changed asset can serve stale.
+        source:
+          '/((?!api/|_next/static/).*\\.(?:svg|jpg|jpeg|png|gif|ico|webp|avif|woff|woff2|ttf|eot))',
         headers: [
           {
             key: 'Cache-Control',
@@ -242,13 +261,28 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      // Block access to sourcemap files (defense in depth)
+      // Block access to sourcemap files (defense in depth). The trailing
+      // `$` this rule previously ended with is not a regex anchor in Next's
+      // `source` matcher (path-to-regexp syntax, not raw regex) - it matched
+      // a literal `$` character, so this rule never actually fired against
+      // real `.map` URLs. Next already anchors the compiled pattern at both
+      // ends, so no trailing anchor is needed here.
+      //
+      // Also bounds `.map` files to a short, revalidated TTL rather than
+      // Next's built-in 1yr immutable default for `_next/static/*` - maps
+      // are content-hashed like their JS, so this isn't about staleness,
+      // it's so a future decision to stop shipping `productionBrowserSourceMaps`
+      // isn't undermined by browsers/edges holding old maps for a year.
       {
-        source: '/(.*)\\.map$',
+        source: '/(.*)\\.map',
         headers: [
           {
             key: 'x-robots-tag',
             value: 'noindex',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, stale-while-revalidate=604800',
           },
         ],
       },
@@ -303,8 +337,19 @@ const nextConfig: NextConfig = {
         permanent: false,
       },
       {
+        source: '/slack',
+        destination:
+          'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA',
+        permanent: false,
+      },
+      {
         source: '/x',
         destination: 'https://x.com/simdotai',
+        permanent: false,
+      },
+      {
+        source: '/linkedin',
+        destination: 'https://www.linkedin.com/company/simstudioai/',
         permanent: false,
       },
       {
@@ -428,6 +473,63 @@ const nextConfig: NextConfig = {
         permanent: true,
       })
     }
+
+    /**
+     * The comparison route was renamed from `/comparison` to `/comparisons`
+     * for naming consistency with `/integrations/[slug]` (plural category,
+     * singular item). Preserve previously indexed URLs for the hub page and
+     * every competitor detail page.
+     */
+    redirects.push(
+      {
+        source: '/comparison',
+        destination: '/comparisons',
+        permanent: true,
+      },
+      {
+        source: '/comparison/:path*',
+        destination: '/comparisons/:path*',
+        permanent: true,
+      }
+    )
+
+    /**
+     * Stray crawler/artifact URLs picked up in an external SEO audit — no
+     * page ever existed at these paths, but they were indexed or linked
+     * somewhere with junk characters/casing. Send them home instead of 404.
+     */
+    redirects.push(
+      {
+        source: '/$',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/&',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/Sim',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/homepage',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/logo',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/en-US',
+        destination: '/',
+        permanent: true,
+      }
+    )
 
     return redirects
   },

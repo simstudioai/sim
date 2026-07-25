@@ -33,11 +33,9 @@ import type {
 export const ActionsGroup = memo(function ActionsGroup({
   items,
   onSelect,
-  query,
 }: {
   items: ActionItem[]
   onSelect: (action: ActionItem) => void
-  query?: string
 }) {
   if (items.length === 0) return null
   return (
@@ -50,7 +48,6 @@ export const ActionsGroup = memo(function ActionsGroup({
           icon={action.icon}
           name={action.name}
           shortcut={action.shortcut}
-          query={query}
         />
       ))}
     </Command.Group>
@@ -60,11 +57,9 @@ export const ActionsGroup = memo(function ActionsGroup({
 export const BlocksGroup = memo(function BlocksGroup({
   items,
   onSelect,
-  query,
 }: {
   items: SearchBlockItem[]
   onSelect: (block: SearchBlockItem) => void
-  query?: string
 }) {
   if (items.length === 0) return null
   return (
@@ -78,7 +73,6 @@ export const BlocksGroup = memo(function BlocksGroup({
           bgColor={block.bgColor}
           showColoredIcon
           label={block.name}
-          query={query}
         />
       ))}
     </Command.Group>
@@ -88,11 +82,9 @@ export const BlocksGroup = memo(function BlocksGroup({
 export const ToolsGroup = memo(function ToolsGroup({
   items,
   onSelect,
-  query,
 }: {
   items: SearchBlockItem[]
   onSelect: (tool: SearchBlockItem) => void
-  query?: string
 }) {
   if (items.length === 0) return null
   return (
@@ -106,7 +98,6 @@ export const ToolsGroup = memo(function ToolsGroup({
           bgColor={tool.bgColor}
           showColoredIcon
           label={tool.name}
-          query={query}
         />
       ))}
     </Command.Group>
@@ -116,11 +107,9 @@ export const ToolsGroup = memo(function ToolsGroup({
 export const TriggersGroup = memo(function TriggersGroup({
   items,
   onSelect,
-  query,
 }: {
   items: SearchBlockItem[]
   onSelect: (trigger: SearchBlockItem) => void
-  query?: string
 }) {
   if (items.length === 0) return null
   return (
@@ -134,7 +123,6 @@ export const TriggersGroup = memo(function TriggersGroup({
           bgColor={trigger.bgColor}
           showColoredIcon
           label={trigger.name}
-          query={query}
         />
       ))}
     </Command.Group>
@@ -144,11 +132,9 @@ export const TriggersGroup = memo(function TriggersGroup({
 export const ToolOpsGroup = memo(function ToolOpsGroup({
   items,
   onSelect,
-  query,
 }: {
   items: SearchToolOperationItem[]
   onSelect: (op: SearchToolOperationItem) => void
-  query?: string
 }) {
   if (items.length === 0) return null
   return (
@@ -162,7 +148,6 @@ export const ToolOpsGroup = memo(function ToolOpsGroup({
           bgColor={op.bgColor}
           showColoredIcon
           label={op.name}
-          query={query}
         />
       ))}
     </Command.Group>
@@ -172,11 +157,9 @@ export const ToolOpsGroup = memo(function ToolOpsGroup({
 export const DocsGroup = memo(function DocsGroup({
   items,
   onSelect,
-  query,
 }: {
   items: SearchDocItem[]
   onSelect: (doc: SearchDocItem) => void
-  query?: string
 }) {
   if (items.length === 0) return null
   return (
@@ -190,7 +173,6 @@ export const DocsGroup = memo(function DocsGroup({
           bgColor='#6B7280'
           showColoredIcon
           label={doc.name}
-          query={query}
         />
       ))}
     </Command.Group>
@@ -200,11 +182,9 @@ export const DocsGroup = memo(function DocsGroup({
 export const WorkflowsGroup = memo(function WorkflowsGroup({
   items,
   onSelect,
-  query,
 }: {
   items: WorkflowItem[]
   onSelect: (workflow: WorkflowItem) => void
-  query?: string
 }) {
   if (items.length === 0) return null
   return (
@@ -217,7 +197,6 @@ export const WorkflowsGroup = memo(function WorkflowsGroup({
           name={workflow.name}
           folderPath={workflow.folderPath}
           isCurrent={workflow.isCurrent}
-          query={query}
         />
       ))}
     </Command.Group>
@@ -227,11 +206,9 @@ export const WorkflowsGroup = memo(function WorkflowsGroup({
 export const ChatsGroup = memo(function ChatsGroup({
   items,
   onSelect,
-  query,
 }: {
   items: TaskItem[]
   onSelect: (task: TaskItem) => void
-  query?: string
 }) {
   if (items.length === 0) return null
   return (
@@ -242,7 +219,6 @@ export const ChatsGroup = memo(function ChatsGroup({
           value={`${task.name} task-${task.id}`}
           onSelect={() => onSelect(task)}
           name={task.name}
-          query={query}
         />
       ))}
     </Command.Group>
@@ -252,11 +228,9 @@ export const ChatsGroup = memo(function ChatsGroup({
 export const WorkspacesGroup = memo(function WorkspacesGroup({
   items,
   onSelect,
-  query,
 }: {
   items: WorkspaceItem[]
   onSelect: (workspace: WorkspaceItem) => void
-  query?: string
 }) {
   if (items.length === 0) return null
   return (
@@ -268,7 +242,6 @@ export const WorkspacesGroup = memo(function WorkspacesGroup({
           onSelect={() => onSelect(workspace)}
           name={workspace.name}
           isCurrent={workspace.isCurrent}
-          query={query}
         />
       ))}
     </Command.Group>
@@ -278,11 +251,9 @@ export const WorkspacesGroup = memo(function WorkspacesGroup({
 export const PagesGroup = memo(function PagesGroup({
   items,
   onSelect,
-  query,
 }: {
   items: PageItem[]
   onSelect: (page: PageItem) => void
-  query?: string
 }) {
   if (items.length === 0) return null
   return (
@@ -295,7 +266,6 @@ export const PagesGroup = memo(function PagesGroup({
           icon={page.icon}
           name={page.name}
           shortcut={page.shortcut}
-          query={query}
         />
       ))}
     </Command.Group>
@@ -311,11 +281,9 @@ export const IntegrationsGroup = createColoredIconGroup('Integrations', 'integra
 export const FilesGroup = memo(function FilesGroup({
   items,
   onSelect,
-  query,
 }: {
   items: FileItem[]
   onSelect: (file: FileItem) => void
-  query?: string
 }) {
   if (items.length === 0) return null
   return (
@@ -327,7 +295,6 @@ export const FilesGroup = memo(function FilesGroup({
           onSelect={() => onSelect(file)}
           name={file.name}
           folderPath={file.folderPath}
-          query={query}
         />
       ))}
     </Command.Group>
@@ -344,11 +311,9 @@ function createColoredIconGroup(heading: string, prefix: string) {
   return memo(function ColoredIconGroup({
     items,
     onSelect,
-    query,
   }: {
     items: IntegrationSearchItem[]
     onSelect: (item: IntegrationSearchItem) => void
-    query?: string
   }) {
     if (items.length === 0) return null
     return (
@@ -362,7 +327,6 @@ function createColoredIconGroup(heading: string, prefix: string) {
             bgColor={item.bgColor}
             showColoredIcon
             label={item.name}
-            query={query}
           />
         ))}
       </Command.Group>
@@ -378,11 +342,9 @@ function createIconGroup(
   return memo(function IconGroup({
     items,
     onSelect,
-    query,
   }: {
     items: TaskItem[]
     onSelect: (item: TaskItem) => void
-    query?: string
   }) {
     if (items.length === 0) return null
     return (
@@ -394,7 +356,6 @@ function createIconGroup(
             onSelect={() => onSelect(item)}
             name={item.name}
             icon={icon}
-            query={query}
           />
         ))}
       </Command.Group>

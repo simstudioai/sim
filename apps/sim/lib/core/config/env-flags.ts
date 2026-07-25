@@ -32,17 +32,32 @@ try {
 export const isHosted = appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
 
 /**
- * Is billing enforcement enabled
+ * Enables the strict attributed-v1 Sim/Copilot billing protocol after the Go
+ * consumer has rolled out. Disabled is the Sim-first compatibility stage.
  */
-export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
+export const isCopilotBillingAttributionV1Enabled = isTruthy(
+  env.COPILOT_BILLING_ATTRIBUTION_V1_ENABLED
+)
 
 /**
- * Block free-plan accounts from programmatic workflow execution (API key, public
- * API, MCP server, generic webhooks, cross-origin chat embeds).
- * Gated behind {@link isBillingEnabled}; off by default so the paywall can ship
- * dark and be enabled per-deployment once verified.
+ * Rejects markerless old-Go billing traffic after an operator explicitly
+ * confirms the compatibility window has closed. Off by default.
  */
-export const isFreeApiDeploymentGateEnabled = isTruthy(env.FREE_API_DEPLOYMENT_GATE_ENABLED)
+export const isCopilotBillingProtocolRequired = isTruthy(env.COPILOT_BILLING_PROTOCOL_REQUIRED)
+
+/**
+ * Is billing enforcement enabled.
+ *
+ * Server code reads `BILLING_ENABLED`. Server-only vars never reach browser
+ * bundles, so client evaluation reads the `NEXT_PUBLIC_BILLING_ENABLED` twin
+ * (via `window.__ENV`, populated by `<PublicEnvScript>`) — reading
+ * `env.BILLING_ENABLED` in client code is always `undefined`. Deployments must
+ * set both vars together.
+ */
+export const isBillingEnabled =
+  typeof window === 'undefined'
+    ? isTruthy(env.BILLING_ENABLED)
+    : isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 /**
  * Is email verification enabled
@@ -140,18 +155,32 @@ export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)
 export const isSsoEnabled = isTruthy(env.SSO_ENABLED)
 
 /**
- * Is access control (permission groups) enabled via env var override
- * This bypasses plan requirements for self-hosted deployments
+ * Is access control (permission groups) enabled via env var override.
+ * This bypasses plan requirements for self-hosted deployments.
+ *
+ * Server code reads `ACCESS_CONTROL_ENABLED`; the browser reads the
+ * `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` twin (see {@link isBillingEnabled}).
  */
-export const isAccessControlEnabled = isTruthy(env.ACCESS_CONTROL_ENABLED)
+export const isAccessControlEnabled =
+  typeof window === 'undefined'
+    ? isTruthy(env.ACCESS_CONTROL_ENABLED)
+    : isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
 
 /**
- * Is organizations enabled
+ * Is organizations enabled.
  * True if billing is enabled (orgs come with billing), OR explicitly enabled via env var,
- * OR if access control is enabled (access control requires organizations)
+ * OR if access control is enabled (access control requires organizations).
+ *
+ * Each term resolves through its `NEXT_PUBLIC_*` twin in the browser (see
+ * {@link isBillingEnabled}), so client code — e.g. the better-auth
+ * `organizationClient` plugin registration — sees the same value as the server.
  */
 export const isOrganizationsEnabled =
-  isBillingEnabled || isTruthy(env.ORGANIZATIONS_ENABLED) || isAccessControlEnabled
+  isBillingEnabled ||
+  (typeof window === 'undefined'
+    ? isTruthy(env.ORGANIZATIONS_ENABLED)
+    : isTruthy(getEnv('NEXT_PUBLIC_ORGANIZATIONS_ENABLED'))) ||
+  isAccessControlEnabled
 
 /**
  * Is inbox (Sim Mailer) enabled via env var override
@@ -190,23 +219,41 @@ export const isDataDrainsEnabled = isTruthy(env.DATA_DRAINS_ENABLED)
 export const isForkingEnabled = isTruthy(env.FORKING_ENABLED)
 
 /**
- * Is E2B enabled for remote code execution
+ * The selected remote sandbox provider (`SANDBOX_PROVIDER`), defaulting to E2B.
+ * Availability below is derived from THIS provider's credentials, so a
+ * Daytona-only deployment (E2B unset) still enables remote execution.
  */
-export const isE2bEnabled = isTruthy(env.E2B_ENABLED)
+const sandboxProvider = (env.SANDBOX_PROVIDER || 'e2b').toLowerCase()
 
 /**
- * Whether the E2B document-generation sandbox is enabled.
+ * Whether remote code/shell execution is available with the selected provider.
  *
- * Requires E2B (with an API key) AND a dedicated doc-generation template id.
- * When true, ALL four formats compile in the E2B doc sandbox: pptx/docx via Node
+ * E2B keeps its explicit `E2B_ENABLED` switch; Daytona is available once its API
+ * key is set (the shell snapshot is verified at create time, failing closed).
+ * Mirrors the E2B gate exactly when the provider is E2B, so existing behavior is
+ * unchanged.
+ */
+export const isRemoteSandboxEnabled =
+  sandboxProvider === 'daytona' ? Boolean(env.DAYTONA_API_KEY) : isTruthy(env.E2B_ENABLED)
+
+/**
+ * Whether the document-generation sandbox is available with the selected
+ * provider — its credential AND its dedicated doc image (E2B doc template, or
+ * Daytona doc snapshot).
+ *
+ * When true, ALL four formats compile in the doc sandbox: pptx/docx via Node
  * (pptxgenjs/docx + react-icons/sharp icons), pdf/xlsx via Python
  * (reportlab/openpyxl). When false, compilation stays on the JavaScript
  * (isolated-vm) path, byte-identical to its prior behavior (and xlsx is
  * unavailable). Drives both the Sim compile backend and the `docCompiler` flag
  * sent to the copilot file subagent so the agent's output and compiler agree.
  */
-export const isE2BDocEnabled =
-  isE2bEnabled && Boolean(env.E2B_API_KEY) && Boolean(env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID)
+export const isDocSandboxEnabled =
+  sandboxProvider === 'daytona'
+    ? Boolean(env.DAYTONA_API_KEY) && Boolean(env.DAYTONA_DOC_SNAPSHOT_ID)
+    : isTruthy(env.E2B_ENABLED) &&
+      Boolean(env.E2B_API_KEY) &&
+      Boolean(env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID)
 
 /**
  * Whether Ollama is configured (OLLAMA_URL is set).
@@ -291,6 +338,19 @@ export function getAllowedIntegrationsFromEnv(): string[] | null {
     .map((i) => i.trim().toLowerCase())
     .filter(Boolean)
   return parsed.length > 0 ? parsed : null
+}
+
+/**
+ * Returns the preview block types revealed via the environment variable — the
+ * off-AppConfig reveal path for self-hosters and local dev. If not set or empty,
+ * returns an empty array (all `preview: true` blocks stay hidden). Block types
+ * are already lowercase snake_case, so entries are trimmed but not lowercased.
+ */
+export function getPreviewBlocksFromEnv(): string[] {
+  if (!env.PREVIEW_BLOCKS) return []
+  return env.PREVIEW_BLOCKS.split(',')
+    .map((t) => t.trim())
+    .filter(Boolean)
 }
 
 /**

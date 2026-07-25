@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
 import type { NextRequest, NextResponse } from 'next/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { type AuthTypeValue, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   assertContentLengthWithinLimit,
@@ -22,6 +22,7 @@ export interface McpAuthContext {
   userId: string
   userName?: string | null
   userEmail?: string | null
+  authType?: AuthTypeValue
   workspaceId: string
   requestId: string
 }
@@ -193,6 +194,7 @@ async function validateMcpAuth(
         userId: auth.userId,
         userName: auth.userName,
         userEmail: auth.userEmail,
+        authType: auth.authType,
         workspaceId,
         requestId,
       },

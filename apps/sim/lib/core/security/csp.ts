@@ -60,6 +60,15 @@ const STATIC_SCRIPT_SRC = [
         'https://www.googletagmanager.com',
         'https://www.google-analytics.com',
         'https://analytics.ahrefs.com',
+        // HubSpot tracking (landing pages) — loader plus the
+        // analytics/form-tracking/banner scripts it injects as <script> tags
+        'https://*.hs-scripts.com',
+        'https://*.hs-analytics.net',
+        'https://*.hscollectedforms.net',
+        'https://*.hs-banner.com',
+        // X (Twitter) conversion pixel (landing pages) — the base code injects
+        // uwt.js as a <script> tag from static.ads-twitter.com
+        'https://static.ads-twitter.com',
       ]
     : []),
 ] as const
@@ -96,6 +105,14 @@ const STATIC_CONNECT_SRC = [
         'https://www.google.com',
         'https://analytics.ahrefs.com',
         'https://*.g.doubleclick.net',
+        // HubSpot tracking — form-tracking API (hscollectedforms.js).
+        // The visitor beacon itself is an image pixel (img-src, already
+        // permitted below), not a connect-src request.
+        'https://*.hscollectedforms.net',
+        // X (Twitter) conversion pixel — uwt.js sends conversion beacons here
+        // via fetch/sendBeacon. The t.co image-pixel fallback is already
+        // covered by the `https:` wildcard in img-src.
+        'https://analytics.twitter.com',
       ]
     : []),
 ] as const

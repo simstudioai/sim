@@ -201,7 +201,10 @@ export class Logger {
   private shouldLog(level: LogLevel): boolean {
     if (!this.config.enabled) return false
 
-    if (getNodeEnv() === 'production' && typeof window !== 'undefined') {
+    if (
+      getNodeEnv() === 'production' &&
+      typeof (globalThis as { window?: unknown }).window !== 'undefined'
+    ) {
       return false
     }
 

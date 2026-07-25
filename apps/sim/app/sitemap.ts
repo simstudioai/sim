@@ -9,7 +9,7 @@ import {
   ALL_COMPETITORS,
   getLatestVerifiedDate,
   SIM_LATEST_VERIFIED,
-} from '@/app/(landing)/comparison/utils'
+} from '@/app/(landing)/comparisons/utils'
 import { ALL_CATALOG_MODELS, MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
 
 /** One sitemap entry per author, timestamped by their most recently updated post. */
@@ -25,7 +25,7 @@ function buildAuthorPages(posts: ContentMeta[], basePath: string): MetadataRoute
     }
   }
   return [...authorsMap.entries()].map(([id, date]) => ({
-    url: `${SITE_URL}${basePath}/authors/${id}`,
+    url: `${SITE_URL}${basePath}/authors/${encodeURIComponent(id)}`,
     lastModified: date,
   }))
 }
@@ -60,6 +60,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${baseUrl}/workflows`,
     },
     {
+      url: `${baseUrl}/knowledge`,
+    },
+    {
+      url: `${baseUrl}/tables`,
+    },
+    {
+      url: `${baseUrl}/files`,
+    },
+    {
+      url: `${baseUrl}/logs`,
+    },
+    {
+      url: `${baseUrl}/scheduled-tasks`,
+    },
+    {
       url: `${baseUrl}/pricing`,
     },
     {
@@ -88,6 +103,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${baseUrl}/solutions/it`,
+    },
+    {
+      url: `${baseUrl}/solutions/sales`,
     },
     {
       url: `${baseUrl}/blog`,
@@ -172,9 +190,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       : SIM_LATEST_VERIFIED
 
   const comparisonPages: MetadataRoute.Sitemap = [
-    { url: `${baseUrl}/comparison`, lastModified: comparisonLastModified },
+    { url: `${baseUrl}/comparisons`, lastModified: comparisonLastModified },
     ...ALL_COMPETITORS.map((competitor) => ({
-      url: `${baseUrl}/comparison/${competitor.id}`,
+      url: `${baseUrl}/comparisons/${competitor.id}`,
       lastModified: competitorLastModified(competitor),
     })),
   ]

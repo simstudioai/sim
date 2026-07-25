@@ -1,3 +1,16 @@
+export {
+  grainAllEventsV2Trigger,
+  grainHighlightAddedV2Trigger,
+  grainHighlightDeletedV2Trigger,
+  grainHighlightUpdatedV2Trigger,
+  grainRecordingAddedV2Trigger,
+  grainRecordingDeletedV2Trigger,
+  grainRecordingUpdatedV2Trigger,
+  grainStoryAddedV2Trigger,
+  grainStoryDeletedV2Trigger,
+  grainStoryUpdatedV2Trigger,
+  grainUploadStatusV2Trigger,
+} from './events_v2'
 export { grainHighlightCreatedTrigger } from './highlight_created'
 export { grainHighlightUpdatedTrigger } from './highlight_updated'
 export { grainItemAddedTrigger } from './item_added'

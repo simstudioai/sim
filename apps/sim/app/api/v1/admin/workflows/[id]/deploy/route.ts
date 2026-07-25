@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getActiveWorkflowRecord } from '@sim/platform-authz/workflow'
 import {
+  type AdminV1DeployResult,
+  type AdminV1UndeployResult,
   adminV1DeployWorkflowContract,
   adminV1UndeployWorkflowContract,
 } from '@/lib/api/contracts/v1/admin'
@@ -15,7 +17,6 @@ import {
   notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
-import type { AdminDeployResult, AdminUndeployResult } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminWorkflowDeployAPI')
 export const maxDuration = 120
@@ -51,9 +52,7 @@ export const POST = withRouteHandler(
       const result = await performFullDeploy({
         workflowId,
         userId: workflowRecord.userId,
-        workflowName: workflowRecord.name,
         requestId,
-        request,
         actorId: 'admin-api',
       })
 
@@ -63,13 +62,19 @@ export const POST = withRouteHandler(
         return internalErrorResponse(result.error || 'Failed to deploy workflow')
       }
 
-      logger.info(`[${requestId}] Admin API: Deployed workflow ${workflowId} as v${result.version}`)
+      const isDeployed = Boolean(result.activeDeployment)
+      const attemptActivated = result.latestDeploymentAttempt?.status === 'active'
+      logger.info(
+        `[${requestId}] Admin API: Deployment ${attemptActivated ? 'activated' : 'accepted'} for workflow ${workflowId}`
+      )
 
-      const response: AdminDeployResult = {
-        isDeployed: true,
-        version: result.version!,
-        deployedAt: result.deployedAt!.toISOString(),
+      const response: AdminV1DeployResult = {
+        isDeployed,
+        version: result.version ?? null,
+        deployedAt: result.deployedAt?.toISOString() ?? null,
         warnings: result.warnings,
+        activeDeployment: result.activeDeployment,
+        latestDeploymentAttempt: result.latestDeploymentAttempt,
       }
 
       return singleResponse(response)
@@ -108,7 +113,7 @@ export const DELETE = withRouteHandler(
 
       logger.info(`Admin API: Undeployed workflow ${workflowId}`)
 
-      const response: AdminUndeployResult = {
+      const response: AdminV1UndeployResult = {
         isDeployed: false,
         warnings: result.warnings,
       }

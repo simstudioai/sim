@@ -1,7 +1,15 @@
 import { document, knowledgeBase, workspaceFiles } from '@sim/db/schema'
+import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
-import { checkStorageQuota } from '@/lib/billing/storage'
+import { getOrganizationSubscription } from '@/lib/billing/core/billing'
+import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
+import {
+  checkStorageQuotaForBillingContext,
+  resolveStorageBillingContext,
+  type StorageBillingContext,
+} from '@/lib/billing/storage'
 import type { DbOrTx } from '@/lib/db/types'
+import type { WorkspaceCreationPolicy } from '@/lib/workspaces/policy'
 import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
 
 /** Resource ids whose blob bytes a fork/sync copy would duplicate into the target. */
@@ -12,68 +20,6 @@ export interface ForkCopyBytesSelection {
   fileKeys?: string[]
   /** Knowledge bases whose live documents' stored blobs would be re-keyed into the target. */
   knowledgeBaseIds?: string[]
-}
-
-/**
- * Byte total of the workspace-file blobs a copy selection would duplicate. Applies the
- * same row filters as `planForkFileCopies` (source workspace, durable `workspace`
- * context, non-deleted, id/key selectors OR'd), so the sum covers exactly the rows the
- * copy would plan.
- */
-async function sumWorkspaceFileBytes(
-  executor: DbOrTx,
-  sourceWorkspaceId: string,
-  fileIds: string[],
-  fileKeys: string[]
-): Promise<number> {
-  if (fileIds.length === 0 && fileKeys.length === 0) return 0
-  const selectors = [
-    fileIds.length > 0 ? inArray(workspaceFiles.id, fileIds) : undefined,
-    fileKeys.length > 0 ? inArray(workspaceFiles.key, fileKeys) : undefined,
-  ].filter((clause): clause is NonNullable<typeof clause> => clause !== undefined)
-  const rows = await executor
-    .select({ total: sql<string>`coalesce(sum(${workspaceFiles.size}), 0)` })
-    .from(workspaceFiles)
-    .where(
-      and(
-        selectors.length === 1 ? selectors[0] : or(...selectors),
-        eq(workspaceFiles.workspaceId, sourceWorkspaceId),
-        eq(workspaceFiles.context, 'workspace'),
-        isNull(workspaceFiles.deletedAt)
-      )
-    )
-  // `sum()` comes back as a string (bigint) from the driver; coerce explicitly.
-  return Number(rows[0]?.total ?? 0)
-}
-
-/**
- * Byte total of the KB document blobs the selected knowledge bases would re-key into the
- * target. Scoped to live KBs in the source workspace (mirroring the container copy) and
- * to LIVE documents with an internal blob: external/`data:` documents have a null
- * `storageKey` (no blob is duplicated), and embeddings are DB rows the upload path never
- * counts, so neither contributes bytes here.
- */
-async function sumKbDocumentBytes(
-  executor: DbOrTx,
-  sourceWorkspaceId: string,
-  knowledgeBaseIds: string[]
-): Promise<number> {
-  if (knowledgeBaseIds.length === 0) return 0
-  const rows = await executor
-    .select({ total: sql<string>`coalesce(sum(${document.fileSize}), 0)` })
-    .from(document)
-    .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
-    .where(
-      and(
-        inArray(knowledgeBase.id, knowledgeBaseIds),
-        eq(knowledgeBase.workspaceId, sourceWorkspaceId),
-        isNull(knowledgeBase.deletedAt),
-        isNull(document.deletedAt),
-        isNull(document.archivedAt),
-        isNotNull(document.storageKey)
-      )
-    )
-  return Number(rows[0]?.total ?? 0)
 }
 
 /**
@@ -89,35 +35,118 @@ export async function sumForkCopyBytes(
   sourceWorkspaceId: string,
   selection: ForkCopyBytesSelection
 ): Promise<number> {
-  const fileBytes = await sumWorkspaceFileBytes(
-    executor,
-    sourceWorkspaceId,
-    selection.fileIds ?? [],
-    selection.fileKeys ?? []
+  const fileIds = selection.fileIds ?? []
+  const fileKeys = selection.fileKeys ?? []
+  const knowledgeBaseIds = selection.knowledgeBaseIds ?? []
+  if (fileIds.length === 0 && fileKeys.length === 0 && knowledgeBaseIds.length === 0) return 0
+
+  const fileSelectors = [
+    fileIds.length > 0 ? inArray(workspaceFiles.id, fileIds) : undefined,
+    fileKeys.length > 0 ? inArray(workspaceFiles.key, fileKeys) : undefined,
+  ].filter((clause): clause is NonNullable<typeof clause> => clause !== undefined)
+  const fileBytes =
+    fileSelectors.length === 0
+      ? sql<number>`0`
+      : sql<number>`(
+          SELECT coalesce(sum(${workspaceFiles.size}), 0)
+          FROM ${workspaceFiles}
+          WHERE ${and(
+            fileSelectors.length === 1 ? fileSelectors[0] : or(...fileSelectors),
+            eq(workspaceFiles.workspaceId, sourceWorkspaceId),
+            eq(workspaceFiles.context, 'workspace'),
+            isNull(workspaceFiles.deletedAt)
+          )}
+        )`
+  const kbBytes =
+    knowledgeBaseIds.length === 0
+      ? sql<number>`0`
+      : sql<number>`(
+          SELECT coalesce(sum(${document.fileSize}), 0)
+          FROM ${document}
+          INNER JOIN ${knowledgeBase}
+            ON ${eq(document.knowledgeBaseId, knowledgeBase.id)}
+          WHERE ${and(
+            inArray(knowledgeBase.id, knowledgeBaseIds),
+            eq(knowledgeBase.workspaceId, sourceWorkspaceId),
+            isNull(knowledgeBase.deletedAt),
+            isNull(document.deletedAt),
+            isNull(document.archivedAt),
+            isNotNull(document.storageKey)
+          )}
+        )`
+  const [row] = await executor.execute<{ total: number | string }>(
+    sql`SELECT (${fileBytes} + ${kbBytes})::bigint AS total`
   )
-  const kbBytes = await sumKbDocumentBytes(
-    executor,
-    sourceWorkspaceId,
-    selection.knowledgeBaseIds ?? []
-  )
-  return fileBytes + kbBytes
+  return Number(row?.total ?? 0)
+}
+
+type ForkCreationPayerPolicy = Pick<
+  WorkspaceCreationPolicy,
+  'workspaceMode' | 'organizationId' | 'billedAccountUserId'
+>
+
+type ForkStorageHeadroomParams =
+  | { targetWorkspaceId: string; bytes: number }
+  | {
+      plannedWorkspaceId: string
+      creationPolicy: ForkCreationPayerPolicy
+      bytes: number
+    }
+
+/** Read the organization-only custom storage limit from subscription metadata. */
+function readCustomStorageLimitGB(metadata: unknown): number | null {
+  if (!isRecordLike(metadata)) return null
+  const value = metadata.customStorageLimitGB
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
 }
 
 /**
- * Assert the initiating user's storage scope has headroom for `bytes` of copied blobs,
- * using the exact quota helper the upload path uses (`checkStorageQuota`, which resolves
- * the org-pooled vs personal scope from the user's subscription and always allows when
- * billing is disabled). Over quota throws a {@link ForkError} (413, matching the upload
- * routes' storage-limit status) carrying the upload path's quota error message, so the
- * fork/sync modals surface the same user-facing text an over-quota upload would.
+ * Resolve the payer selected by a not-yet-created workspace's trusted creation policy.
+ * The planned id is the same id the fork transaction will insert, so this context has
+ * the same shape as one resolved from an existing workspace without consulting the actor.
  */
-export async function assertForkStorageHeadroom(params: {
-  userId: string
-  bytes: number
-}): Promise<void> {
-  const { userId, bytes } = params
+async function resolvePlannedWorkspaceStorageContext(
+  plannedWorkspaceId: string,
+  policy: ForkCreationPayerPolicy
+): Promise<StorageBillingContext> {
+  const subscription = policy.organizationId
+    ? await getOrganizationSubscription(policy.organizationId, { onError: 'throw' })
+    : await getHighestPriorityPersonalSubscription(policy.billedAccountUserId, {
+        onError: 'throw',
+      })
+  const billingEntity = policy.organizationId
+    ? ({ type: 'organization', id: policy.organizationId } as const)
+    : ({ type: 'user', id: policy.billedAccountUserId } as const)
+
+  return {
+    workspaceId: plannedWorkspaceId,
+    billedAccountUserId: policy.billedAccountUserId,
+    billingEntity,
+    plan: subscription?.plan ?? null,
+    customStorageLimitGB:
+      billingEntity.type === 'organization'
+        ? readCustomStorageLimitGB(subscription?.metadata)
+        : null,
+  }
+}
+
+/**
+ * UX-only preflight against the workspace that will receive the copied bytes. Sync
+ * resolves the actual target workspace payer; fork creation derives the future payer
+ * from the already-authorized creation policy. The actor is deliberately not accepted.
+ * Authoritative quota admission still occurs in each metadata/accounting transaction.
+ */
+export async function assertForkStorageHeadroom(params: ForkStorageHeadroomParams): Promise<void> {
+  const { bytes } = params
   if (bytes <= 0) return
-  const quota = await checkStorageQuota(userId, bytes)
+  const context =
+    'targetWorkspaceId' in params
+      ? await resolveStorageBillingContext(params.targetWorkspaceId)
+      : await resolvePlannedWorkspaceStorageContext(
+          params.plannedWorkspaceId,
+          params.creationPolicy
+        )
+  const quota = await checkStorageQuotaForBillingContext(context, bytes)
   if (quota.allowed) return
   throw new ForkError(
     `Not enough storage to copy the selected resources. ${quota.error ?? 'Storage limit exceeded'}`,

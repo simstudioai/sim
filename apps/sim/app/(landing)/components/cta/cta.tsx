@@ -1,4 +1,5 @@
 import { ChipLink } from '@sim/emcn'
+import { DEMO_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
 
 /**
  * Landing pre-footer CTA - the page's final conversion band. A tall, centered
@@ -28,10 +29,10 @@ export function Cta() {
         Build your first agent today.
       </h2>
       <div className='flex items-center gap-1'>
-        <ChipLink variant='primary' href='/signup'>
+        <ChipLink variant='primary' href={SIGNUP_HREF}>
           Get started
         </ChipLink>
-        <ChipLink href='/demo' className='border border-[var(--border-1)]'>
+        <ChipLink href={DEMO_HREF} className='border border-[var(--border-1)]'>
           Contact sales
         </ChipLink>
       </div>

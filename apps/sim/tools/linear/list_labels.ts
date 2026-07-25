@@ -1,5 +1,6 @@
 import type { LinearListLabelsParams, LinearListLabelsResponse } from '@/tools/linear/types'
 import { LABEL_FULL_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT } from '@/tools/linear/types'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListLabelsTool: ToolConfig<LinearListLabelsParams, LinearListLabelsResponse> = {
@@ -43,7 +44,7 @@ export const linearListLabelsTool: ToolConfig<LinearListLabelsParams, LinearList
       }
       return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+        Authorization: linearAuthorizationHeader(params.accessToken),
       }
     },
     body: (params) => {

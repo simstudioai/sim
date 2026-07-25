@@ -290,6 +290,7 @@ export function RecurrenceSection({ recurrence, onChange, launchDate }: Recurren
                   const count = Math.max(1, Math.floor(Number(value) || 1))
                   onChange({ ...recurrence, end: { type: 'after', count } })
                 }}
+                submitOnEnter={false}
               />
             )}
           </>

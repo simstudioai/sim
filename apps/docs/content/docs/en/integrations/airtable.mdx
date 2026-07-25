@@ -142,6 +142,7 @@ Write new records to an Airtable table
 | `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |
 | `tableId` | string | Yes | Table ID \(starts with "tbl"\) or table name |
 | `records` | json | Yes | Array of records to create, each with a `fields` object |
+| `typecast` | boolean | No | When true, Airtable automatically converts string values to the field type |
 
 #### Output
 
@@ -166,6 +167,7 @@ Update an existing record in an Airtable table by ID
 | `tableId` | string | Yes | Table ID \(starts with "tbl"\) or table name |
 | `recordId` | string | Yes | Record ID to update \(starts with "rec", e.g., "recXXXXXXXXXXXXXX"\) |
 | `fields` | json | Yes | An object containing the field names and their new values |
+| `typecast` | boolean | No | When true, Airtable automatically converts string values to the field type |
 
 #### Output
 
@@ -190,6 +192,7 @@ Update multiple existing records in an Airtable table
 | `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |
 | `tableId` | string | Yes | Table ID \(starts with "tbl"\) or table name |
 | `records` | json | Yes | Array of records to update, each with an `id` and a `fields` object |
+| `typecast` | boolean | No | When true, Airtable automatically converts string values to the field type |
 
 #### Output
 

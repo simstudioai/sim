@@ -3,6 +3,7 @@
  * Centralized type definitions for the billing system
  */
 import { z } from 'zod'
+import { MAX_BILLING_CONCURRENCY_LIMIT } from '@/lib/billing/concurrency-defaults'
 
 export const enterpriseSubscriptionMetadataSchema = z.object({
   plan: z
@@ -17,31 +18,20 @@ export const enterpriseSubscriptionMetadataSchema = z.object({
   monthlyPrice: z.coerce.number().positive(),
   // Number of seats for invitation limits (not for billing)
   seats: z.coerce.number().int().positive(),
-  // Optional custom workspace concurrency limit for enterprise workspaces
-  workspaceConcurrencyLimit: z.coerce.number().int().positive().optional(),
+  concurrencyLimit: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(MAX_BILLING_CONCURRENCY_LIMIT)
+    .optional(),
 })
 
 export type EnterpriseSubscriptionMetadata = z.infer<typeof enterpriseSubscriptionMetadataSchema>
-
-const enterpriseWorkspaceConcurrencyMetadataSchema = z.object({
-  workspaceConcurrencyLimit: z.coerce.number().int().positive().optional(),
-})
-
-export type EnterpriseWorkspaceConcurrencyMetadata = z.infer<
-  typeof enterpriseWorkspaceConcurrencyMetadataSchema
->
 
 export function parseEnterpriseSubscriptionMetadata(
   value: unknown
 ): EnterpriseSubscriptionMetadata | null {
   const result = enterpriseSubscriptionMetadataSchema.safeParse(value)
-  return result.success ? result.data : null
-}
-
-export function parseEnterpriseWorkspaceConcurrencyMetadata(
-  value: unknown
-): EnterpriseWorkspaceConcurrencyMetadata | null {
-  const result = enterpriseWorkspaceConcurrencyMetadataSchema.safeParse(value)
   return result.success ? result.data : null
 }
 

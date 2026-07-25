@@ -27,6 +27,10 @@ import {
   UnsavedChangesModal,
   useCredentialDetailForm,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import {
+  ConnectServiceAccountModal,
+  type ServiceAccountProviderId,
+} from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
   useCreateCredentialDraft,
@@ -77,6 +81,7 @@ export function ConnectedCredentialDetail({
 
   const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false)
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
+  const [reconnectOpen, setReconnectOpen] = useState(false)
 
   const form = useCredentialDetailForm({ credential, isAdmin, backHref: integrationsHref })
 
@@ -193,9 +198,13 @@ export function ConnectedCredentialDetail({
   const actions =
     credential && isAdmin ? (
       <>
-        {serviceConfig?.authType !== 'service_account' && (
+        {(credential.type === 'oauth' || credential.type === 'service_account') && (
           <Chip
-            onClick={handleReconnectOAuth}
+            onClick={
+              credential.type === 'service_account'
+                ? () => setReconnectOpen(true)
+                : handleReconnectOAuth
+            }
             disabled={connectOAuthService.isPending}
             leftIcon={serviceConfig?.icon}
           >
@@ -319,6 +328,20 @@ export function ConnectedCredentialDetail({
         onOpenChange={form.setShowUnsavedAlert}
         onDiscard={form.confirmDiscard}
       />
+
+      {credential.type === 'service_account' && credential.providerId && (
+        <ConnectServiceAccountModal
+          open={reconnectOpen}
+          onOpenChange={setReconnectOpen}
+          workspaceId={workspaceId}
+          serviceAccountProviderId={credential.providerId as ServiceAccountProviderId}
+          serviceName={serviceConfig?.name || credential.displayName}
+          serviceIcon={serviceConfig?.icon as ComponentType<{ className?: string }>}
+          credentialId={credential.id}
+          credentialDisplayName={credential.displayName}
+          credentialDescription={credential.description ?? undefined}
+        />
+      )}
     </>
   )
 }

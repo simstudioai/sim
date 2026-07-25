@@ -4,6 +4,7 @@
 import { createLogger } from '@sim/logger'
 import { describe, expect, it } from 'vitest'
 import {
+  extractStorageKey,
   inferContextFromKey,
   isAbortError,
   isInternalFileUrl,
@@ -13,6 +14,24 @@ import {
 } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FileUtilsTest')
+
+describe('extractStorageKey', () => {
+  it('strips every provider serve prefix', () => {
+    expect(extractStorageKey('/api/files/serve/s3/workspace%2Fws-1%2Ffile.txt')).toBe(
+      'workspace/ws-1/file.txt'
+    )
+    expect(extractStorageKey('/api/files/serve/blob/workspace%2Fws-1%2Ffile.txt')).toBe(
+      'workspace/ws-1/file.txt'
+    )
+    expect(extractStorageKey('/api/files/serve/gcs/workspace%2Fws-1%2Ffile.txt')).toBe(
+      'workspace/ws-1/file.txt'
+    )
+  })
+
+  it('returns unprefixed serve keys as-is', () => {
+    expect(extractStorageKey('/api/files/serve/kb/123-doc.pdf')).toBe('kb/123-doc.pdf')
+  })
+})
 
 describe('isInternalFileUrl', () => {
   it('classifies relative serve paths as internal', () => {

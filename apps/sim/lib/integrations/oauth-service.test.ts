@@ -3,7 +3,10 @@
  */
 import { describe, expect, it } from 'vitest'
 import integrationsJson from '@/lib/integrations/integrations.json'
-import { resolveOAuthServiceForSlug } from '@/lib/integrations/oauth-service'
+import {
+  resolveOAuthServiceForSlug,
+  resolveServiceAccountIntegration,
+} from '@/lib/integrations/oauth-service'
 import type { Integration } from '@/lib/integrations/types'
 
 const INTEGRATIONS = integrationsJson.integrations as readonly Integration[]
@@ -127,5 +130,54 @@ describe('resolveOAuthServiceForSlug', () => {
     ).map((entry) => entry.slug)
     expect(missing).toEqual([])
     expect(unexpected).toEqual([])
+  })
+})
+
+describe('resolveServiceAccountIntegration', () => {
+  it.concurrent('keeps a named service instead of collapsing to the family default', () => {
+    // Every Google integration issues the same google-service-account
+    // credential, so a fuzzy matcher can silently answer Drive for all of
+    // them. The user asked about Sheets; the link must land on Sheets.
+    expect(resolveServiceAccountIntegration('google-sheets')?.slug).toBe('google-sheets')
+    expect(resolveServiceAccountIntegration('gmail')?.slug).toBe('gmail')
+    expect(resolveServiceAccountIntegration('confluence')?.slug).toBe('confluence')
+  })
+
+  it.concurrent('resolves a family name to its canonical slug, not an arbitrary member', () => {
+    // Without an explicit canonical entry these fall through to fuzzy
+    // matching, which answers whichever member sorts first (BigQuery).
+    expect(resolveServiceAccountIntegration('google')?.slug).toBe('google-drive')
+    expect(resolveServiceAccountIntegration('google-service-account')?.slug).toBe('google-drive')
+    expect(resolveServiceAccountIntegration('atlassian')?.slug).toBe('jira')
+    expect(resolveServiceAccountIntegration('atlassian-service-account')?.slug).toBe('jira')
+  })
+
+  it.concurrent('accepts provider values, display names, and stray casing', () => {
+    expect(resolveServiceAccountIntegration('google-email')?.slug).toBe('gmail')
+    expect(resolveServiceAccountIntegration('slack-custom-bot')?.slug).toBe('slack')
+    expect(resolveServiceAccountIntegration('calcom')?.slug).toBe('cal-com')
+    expect(resolveServiceAccountIntegration('Cal.com')?.slug).toBe('cal-com')
+    expect(resolveServiceAccountIntegration('  NOTION  ')?.slug).toBe('notion')
+  })
+
+  it.concurrent(
+    'accepts the space/underscore-normalized id forms the oauth guard steers toward',
+    () => {
+      // oauth_get_auth_link rejects `slack custom bot` / `notion_service_account`
+      // and tells the agent to emit a service_account tag; the renderer must then
+      // resolve those same readable forms or the connect control renders nothing.
+      expect(resolveServiceAccountIntegration('slack custom bot')?.slug).toBe('slack')
+      expect(resolveServiceAccountIntegration('notion_service_account')?.slug).toBe('notion')
+      expect(resolveServiceAccountIntegration('google service account')?.slug).toBe('google-drive')
+    }
+  )
+
+  it.concurrent('returns null rather than inventing a link for unsupported input', () => {
+    // The handler turns null into "use oauth_get_auth_link instead"; a wrong
+    // match here would send the user to a modal that cannot take their key.
+    expect(resolveServiceAccountIntegration('github')).toBeNull()
+    expect(resolveServiceAccountIntegration('dropbox')).toBeNull()
+    expect(resolveServiceAccountIntegration('')).toBeNull()
+    expect(resolveServiceAccountIntegration('   ')).toBeNull()
   })
 })

@@ -8,6 +8,7 @@ import { AlertTriangle, Plus } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import type { ForkLineageChildApi, ForkLineageNodeApi } from '@/lib/api/contracts/workspace-fork'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -28,9 +29,10 @@ import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/compo
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { ForkActivityPanel } from '@/ee/workspace-forking/components/fork-activity-panel/fork-activity-panel'
+import { ForkExcludedWorkflows } from '@/ee/workspace-forking/components/fork-excluded-workflows/fork-excluded-workflows'
 import { ForkSyncView } from '@/ee/workspace-forking/components/fork-sync/fork-sync-view'
 import {
   ARCHIVED_PREVIEW_LIMIT,
@@ -87,7 +89,7 @@ interface ForkSyncDetailViewProps {
   otherWorkspaceId: string
   otherWorkspaceName: string
   onBack: () => void
-  /** Header chips rendered left of Sync (Rollback / Open workspace) — the caller owns those. */
+  /** Header chips rendered left of Sync (e.g. Open workspace) — the caller owns those. */
   actions: SettingsAction[]
 }
 
@@ -129,8 +131,8 @@ function ForkSyncDetailView({
   const [confirmSyncOpen, setConfirmSyncOpen] = useState(false)
 
   // Sync is the edge's primary action, so it's the rightmost/black chip; the caller's
-  // Rollback/Open workspace chips sit left of it. Dirty mapping edits swap the whole
-  // cluster for Discard/Save until they're saved or discarded.
+  // Open workspace chip sits left of it. Dirty mapping edits swap the whole cluster
+  // for Discard/Save until they're saved or discarded.
   const panelActions: SettingsAction[] = controller.dirty
     ? saveDiscardActions({
         dirty: controller.dirty,
@@ -157,7 +159,7 @@ function ForkSyncDetailView({
     <>
       <SettingsPanel
         back={{
-          text: 'Forks',
+          text: 'Workspace Forks',
           icon: ArrowLeft,
           onSelect: () =>
             guard.guardBack(() => {
@@ -249,7 +251,7 @@ function ForkActivityDetailView({
 }: ForkActivityDetailViewProps) {
   return (
     <SettingsPanel
-      back={{ text: 'Forks', icon: ArrowLeft, onSelect: onBack }}
+      back={{ text: 'Workspace Forks', icon: ArrowLeft, onSelect: onBack }}
       title='Activity'
       actions={actions}
     >
@@ -263,8 +265,9 @@ function ForkActivityDetailView({
  * "Parent" section, above the "Forks" list of child forks. The parent row's `...` menu
  * has Edit mappings (the child owns its edge's re-picks), Open workspace, and
  * Disconnect; fork rows offer Open workspace and Disconnect only. Activity is
- * workspace-scoped and lives behind the header's "See activity" action; sync/rollback
- * live on the parent's sync detail page.
+ * workspace-scoped and lives behind the header's "See activity" action (including
+ * Rollback when the last sync into this workspace is undoable). Sync lives on the
+ * parent's sync detail page.
  * Forking and sync rewrite workflow state and deployments en masse, so the page is
  * workspace-admin only and gated on the workspace's fork entitlement - every fork route
  * re-checks both; the server remains the boundary.
@@ -286,7 +289,7 @@ export function Forks() {
   const rollback = useRollbackFork()
   const unlink = useUnlinkFork()
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [isForkModalOpen, setIsForkModalOpen] = useState(false)
   const [confirmRollbackOpen, setConfirmRollbackOpen] = useState(false)
   const [confirmUnlink, setConfirmUnlink] = useState<{ id: string; name: string } | null>(null)
@@ -312,11 +315,17 @@ export function Forks() {
   const runRollback = async () => {
     if (!undoableRun) return
     try {
-      await rollback.mutateAsync({
+      const result = await rollback.mutateAsync({
         workspaceId,
         body: { otherWorkspaceId: undoableRun.otherWorkspaceId },
       })
-      toast.success(`Undid sync from "${undoableRun.otherName}"`)
+      if (result.pendingActivations.length > 0) {
+        toast.warning(`Undid sync from "${undoableRun.otherName}"`, {
+          description: `${result.pendingActivations.length} restored deployment(s) are still activating. Undo stays available until they finish, in case a retry is needed.`,
+        })
+      } else {
+        toast.success(`Undid sync from "${undoableRun.otherName}"`)
+      }
       setConfirmRollbackOpen(false)
     } catch (err) {
       toast.error(getErrorMessage(err, 'Undo failed'))
@@ -366,7 +375,6 @@ export function Forks() {
   const parentVisible =
     parent !== null && (!searchLower || parent.name.toLowerCase().includes(searchLower))
   const filteredForks = forks.filter((fork) => fork.name.toLowerCase().includes(searchLower))
-  const hasRows = parent !== null || forks.length > 0
 
   // The sync detail exists only for the PARENT edge: sync (and the mapping re-picks it
   // persists) belongs to the child workspace configuring how it maps its parent's
@@ -374,21 +382,10 @@ export function Forks() {
   // deep link falls back to the list). Fork rows offer Open workspace / Disconnect only.
   const showParentDetail = Boolean(selectedForkId && parent && parent.id === selectedForkId)
 
-  // Rollback (destructive) and Open workspace sit left of the detail view's primary Sync
-  // chip, which the sync page owns (it carries the gating).
+  // Open workspace sits left of the detail view's primary Sync chip, which the sync
+  // page owns (it carries the gating). Rollback lives on the Activity view only.
   const parentHeaderActions: SettingsAction[] = parent
     ? [
-        ...(undoableRun
-          ? [
-              {
-                text: 'Rollback',
-                variant: 'destructive' as const,
-                onSelect: () => setConfirmRollbackOpen(true),
-                disabled: rollback.isPending,
-                tooltip: `The last sync into this workspace (from ${undoableRun.otherName}) can be undone — it restores each workflow's prior deployed version.`,
-              },
-            ]
-          : []),
         {
           text: 'Open workspace',
           onSelect: () => openForkWorkspace(parent.id),
@@ -407,14 +404,14 @@ export function Forks() {
           workspaceId={workspaceId}
           otherWorkspaceId={parent.id}
           otherWorkspaceName={parent.name}
-          onBack={() => setSelectedForkId(null)}
+          onBack={() => setSelectedForkId(null, { history: 'replace' })}
           actions={parentHeaderActions}
         />
       ) : forkView === 'activity' ? (
         <ForkActivityDetailView
           workspaceId={workspaceId}
           workspaceNames={lineagePartnerNames(parent, forks)}
-          onBack={() => setForkView(null)}
+          onBack={() => void setForkView(null, { history: 'replace' })}
           actions={
             undoableRun
               ? [
@@ -452,9 +449,7 @@ export function Forks() {
                 {getErrorMessage(lineage.error, 'Failed to load forks')}
               </p>
             </div>
-          ) : lineage.isLoading ? null : !hasRows ? (
-            <SettingsEmptyState>Click "Create fork" above to get started</SettingsEmptyState>
-          ) : (
+          ) : lineage.isLoading ? null : (
             <div className='flex flex-col gap-7'>
               {parentVisible && parent !== null && (
                 <SettingsSection label='Parent'>
@@ -515,6 +510,9 @@ export function Forks() {
                       : 'No forks yet — click "Create fork" above to get started'}
                   </SettingsEmptyState>
                 )}
+              </SettingsSection>
+              <SettingsSection label='Excluded workflows'>
+                <ForkExcludedWorkflows workspaceId={workspaceId} />
               </SettingsSection>
             </div>
           )}

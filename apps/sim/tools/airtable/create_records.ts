@@ -38,6 +38,12 @@ export const airtableCreateRecordsTool: ToolConfig<AirtableCreateParams, Airtabl
       description: 'Array of records to create, each with a `fields` object',
       // Example: [{ fields: { "Field 1": "Value1", "Field 2": "Value2" } }]
     },
+    typecast: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'When true, Airtable automatically converts string values to the field type',
+    },
   },
 
   request: {
@@ -48,7 +54,10 @@ export const airtableCreateRecordsTool: ToolConfig<AirtableCreateParams, Airtabl
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({ records: params.records }),
+    body: (params) => ({
+      records: params.records,
+      ...(params.typecast != null ? { typecast: params.typecast } : {}),
+    }),
   },
 
   transformResponse: async (response) => {

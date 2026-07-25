@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { hmacSha256Base64 } from '@sim/security/hmac'
 import { authOAuthUtilsMock, inputValidationMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -112,9 +113,110 @@ describe('microsoftTeamsHandler verifyAuth (chat subscription clientState)', () 
     })
     expect(res?.status).toBe(401)
   })
+})
 
-  it('does not require clientState for non-subscription trigger types', async () => {
-    const res = await runVerifyAuth(JSON.stringify({ type: 'message', text: 'hi' }), {})
+describe('microsoftTeamsHandler verifyAuth (outgoing webhook HMAC)', () => {
+  const secretBase64 = Buffer.from('super-secret').toString('base64')
+  const outgoingWebhookConfig = { triggerId: 'microsoftteams_webhook', hmacSecret: secretBase64 }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  function signedRequest(rawBody: string): NextRequest {
+    const signature = hmacSha256Base64(rawBody, Buffer.from(secretBase64, 'base64'))
+    return new NextRequest('https://app.example.com/api/webhooks/trigger/abc', {
+      method: 'POST',
+      body: rawBody,
+      headers: { 'Content-Type': 'application/json', Authorization: `HMAC ${signature}` },
+    })
+  }
+
+  it('accepts a request with a valid HMAC signature', async () => {
+    const rawBody = JSON.stringify({ type: 'message', text: 'hi' })
+    const res = await microsoftTeamsHandler.verifyAuth!({
+      webhook: { id: WEBHOOK_ID },
+      workflow: {},
+      request: signedRequest(rawBody),
+      rawBody,
+      requestId: 'test-req',
+      providerConfig: outgoingWebhookConfig,
+    })
     expect(res).toBeNull()
+  })
+
+  it('rejects a request with an invalid HMAC signature', async () => {
+    const rawBody = JSON.stringify({ type: 'message', text: 'hi' })
+    const res = await microsoftTeamsHandler.verifyAuth!({
+      webhook: { id: WEBHOOK_ID },
+      workflow: {},
+      request: makeRequest(rawBody),
+      rawBody,
+      requestId: 'test-req',
+      providerConfig: { ...outgoingWebhookConfig, hmacSecret: undefined },
+    })
+    expect(res?.status).toBe(401)
+  })
+
+  it('fails closed when no HMAC secret is configured for an outgoing webhook trigger', async () => {
+    const rawBody = JSON.stringify({ type: 'message', text: 'hi' })
+    const res = await runVerifyAuth(rawBody, { triggerId: 'microsoftteams_webhook' })
+    expect(res?.status).toBe(401)
+  })
+})
+
+describe('microsoftTeamsHandler extractIdempotencyId', () => {
+  it('derives a key from subscriptionId + messageId for Graph change notifications', () => {
+    const body = JSON.parse(makeNotificationBody(WEBHOOK_ID)) as unknown
+    expect(microsoftTeamsHandler.extractIdempotencyId!(body)).toBe(`sub-1:1700000000000`)
+  })
+
+  it('derives a key from the Activity id for outgoing webhook messages', () => {
+    const body = { id: 'activity-123', type: 'message', text: 'hi' }
+    expect(microsoftTeamsHandler.extractIdempotencyId!(body)).toBe('activity-123')
+  })
+
+  it('returns null when neither shape yields a stable identifier', () => {
+    expect(microsoftTeamsHandler.extractIdempotencyId!({ type: 'message' })).toBeNull()
+  })
+
+  it('returns null instead of throwing when body is null', () => {
+    expect(microsoftTeamsHandler.extractIdempotencyId!(null)).toBeNull()
+  })
+
+  it('returns null instead of throwing when body is a primitive', () => {
+    expect(microsoftTeamsHandler.extractIdempotencyId!('not-an-object')).toBeNull()
+  })
+})
+
+describe('microsoftTeamsHandler formatInput (outgoing webhook channelData)', () => {
+  it('populates teamsTeamId/teamsChannelId from nested team/channel ids', async () => {
+    const body = {
+      id: 'activity-123',
+      type: 'message',
+      text: 'hello',
+      channelData: {
+        team: { id: 'team-1' },
+        channel: { id: 'channel-1' },
+        tenant: { id: 'tenant-1' },
+      },
+    }
+    const result = await microsoftTeamsHandler.formatInput!({
+      body,
+      webhook: {},
+      workflow: { id: 'wf-1', userId: 'user-1' },
+      headers: {},
+      requestId: 'test-req',
+    })
+    const input = result.input as {
+      message: { raw: { channelData: Record<string, unknown> } }
+    }
+    expect(input.message.raw.channelData).toEqual({
+      team: { id: 'team-1' },
+      tenant: { id: 'tenant-1' },
+      channel: { id: 'channel-1' },
+      teamsTeamId: 'team-1',
+      teamsChannelId: 'channel-1',
+    })
   })
 })

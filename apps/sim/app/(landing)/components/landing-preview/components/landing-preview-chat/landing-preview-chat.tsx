@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
+import { ThinkingLoader } from '@/components/ui'
 import { LandingPreviewChatInput } from '@/app/(landing)/components/landing-preview/components/landing-preview-chat/chat-input'
 import { LandingPreviewChatTitleBar } from '@/app/(landing)/components/landing-preview/components/landing-preview-chat/chat-title-bar'
 import type { PreviewChat } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/hooks/use-landing-submit'
-import { ThinkingLoader } from '@/app/(landing)/components/thinking-loader'
 
 interface LandingPreviewChatProps {
   /** The scripted exchange to play, or `null` to show only the input. */

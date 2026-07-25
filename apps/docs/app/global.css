@@ -296,12 +296,20 @@ aside#nd-sidebar [data-radix-scroll-area-viewport] {
     min-height: var(--fd-docs-height) !important;
   }
 
-  /* Sidebar divider line — fixed to viewport, full height from navbar to bottom */
+  /* Sidebar divider line — sticky within the docs layout box, so it ends where
+     the layout does instead of bleeding into (or past) the footer below it.
+     #nd-docs-layout is a CSS grid (see fumadocs' Container slot); a sticky
+     pseudo-element stays in normal flow, so without an explicit grid-area it
+     gets auto-placed into a real content cell and skews that cell's sizing.
+     Spanning the full grid keeps it purely decorative/overlaid instead. */
   #nd-docs-layout::before {
     content: "";
-    position: fixed;
+    display: block;
+    position: sticky;
+    grid-row: 1 / -1;
+    grid-column: 1 / -1;
     top: 92px; /* below navbar */
-    bottom: 0;
+    height: calc(100dvh - 92px);
     left: calc(var(--sidebar-offset) + var(--fd-sidebar-width));
     width: 1px;
     background-color: var(--surface-active);

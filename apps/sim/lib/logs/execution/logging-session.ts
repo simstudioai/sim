@@ -1,9 +1,10 @@
-import { db } from '@sim/db'
+import { dbFor } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { executionLogger } from '@/lib/logs/execution/logger'
 import {
@@ -78,12 +79,19 @@ function buildCompletedMarkerPersistenceQuery(params: {
       ) <= ${params.marker.endedAt}`
 }
 
+/** Progress-marker and status writes on `workflow_execution_logs` use the exec pool. */
+const execDb = dbFor('exec')
+
 const logger = createLogger('LoggingSession')
 
 type CompletionAttempt = 'complete' | 'error' | 'cancelled' | 'paused'
 
 export interface SessionStartParams {
   userId?: string
+  /** Explicit initiating actor for callers that do not populate `userId`. */
+  actorUserId?: string | null
+  /** Immutable actor/payer decision captured before execution. */
+  billingAttribution?: BillingAttributionSnapshot
   workspaceId: string
   variables?: Record<string, string>
   triggerData?: TriggerData
@@ -128,12 +136,15 @@ export interface SessionPausedParams {
 export class LoggingSession {
   private workflowId: string
   private executionId: string
+  private reservationId: string
   private triggerType: ExecutionTrigger['type']
   private requestId?: string
   private trigger?: ExecutionTrigger
   private environment?: ExecutionEnvironment
   private workflowState?: WorkflowState
   private correlation?: NonNullable<ExecutionTrigger['data']>['correlation']
+  private actorUserId: string | null = null
+  private billingAttribution?: BillingAttributionSnapshot
   private isResume = false
   private completed = false
   /** Synchronous flag to prevent concurrent completion attempts (race condition guard) */
@@ -149,10 +160,12 @@ export class LoggingSession {
     workflowId: string,
     executionId: string,
     triggerType: ExecutionTrigger['type'],
-    requestId?: string
+    requestId?: string,
+    reservationId = executionId
   ) {
     this.workflowId = workflowId
     this.executionId = executionId
+    this.reservationId = reservationId
     this.triggerType = triggerType
     this.requestId = requestId
   }
@@ -183,7 +196,7 @@ export class LoggingSession {
       return
     }
     try {
-      await db.execute(
+      await execDb.execute(
         buildStartedMarkerPersistenceQuery({
           executionId: this.executionId,
           workflowId: this.workflowId,
@@ -209,7 +222,7 @@ export class LoggingSession {
       return
     }
     try {
-      await db.execute(
+      await execDb.execute(
         buildCompletedMarkerPersistenceQuery({
           executionId: this.executionId,
           workflowId: this.workflowId,
@@ -288,13 +301,18 @@ export class LoggingSession {
       isResume: this.isResume,
       level: params.level,
       status: params.status,
+      actorUserId: this.actorUserId,
+      billingAttribution: this.billingAttribution,
     })
 
-    // Release the admission reservation from preprocessing. Skipped on pause: a
-    // paused execution keeps its slot until it terminates (or the TTL expires).
+    /**
+     * Pause persistence releases only after the resumable snapshot is durable.
+     * Releasing here would create a window where neither state nor reservation
+     * protects the execution.
+     */
     if (params.finalizationPath !== 'paused') {
       try {
-        await releaseExecutionSlot(this.executionId)
+        await releaseExecutionSlot(this.reservationId)
       } catch (error) {
         logger.warn(`Failed to release admission reservation for ${this.executionId}:`, {
           error: toError(error).message,
@@ -326,6 +344,8 @@ export class LoggingSession {
   async start(params: SessionStartParams): Promise<void> {
     const {
       userId,
+      actorUserId,
+      billingAttribution,
       workspaceId,
       variables,
       triggerData,
@@ -333,6 +353,8 @@ export class LoggingSession {
       deploymentVersionId,
       workflowState,
     } = params
+    this.actorUserId = billingAttribution?.actorUserId ?? actorUserId ?? userId ?? null
+    this.billingAttribution = billingAttribution
 
     try {
       this.trigger = createTriggerObject(this.triggerType, triggerData)
@@ -357,6 +379,8 @@ export class LoggingSession {
           executionId: this.executionId,
           trigger: this.trigger,
           environment: this.environment,
+          actorUserId,
+          billingAttribution,
           workflowState: this.workflowState,
           deploymentVersionId,
         })
@@ -465,7 +489,7 @@ export class LoggingSession {
     this.completing = true
 
     try {
-      const currentLog = await db
+      const currentLog = await execDb
         .select({ status: workflowExecutionLogs.status })
         .from(workflowExecutionLogs)
         .where(
@@ -596,7 +620,7 @@ export class LoggingSession {
       const endTime = endedAt ? new Date(endedAt) : new Date()
       const durationMs = typeof totalDurationMs === 'number' ? totalDurationMs : 0
 
-      const currentLog = await db
+      const currentLog = await execDb
         .select({ status: workflowExecutionLogs.status })
         .from(workflowExecutionLogs)
         .where(
@@ -690,7 +714,7 @@ export class LoggingSession {
       const endTime = endedAt ? new Date(endedAt) : new Date()
       const durationMs = typeof totalDurationMs === 'number' ? totalDurationMs : 0
 
-      const currentLog = await db
+      const currentLog = await execDb
         .select({ status: workflowExecutionLogs.status })
         .from(workflowExecutionLogs)
         .where(
@@ -786,8 +810,16 @@ export class LoggingSession {
 
       // Fallback: create a minimal logging session without full workflow state
       try {
-        const { userId, workspaceId, variables, triggerData, deploymentVersionId, workflowState } =
-          params
+        const {
+          userId,
+          actorUserId,
+          billingAttribution,
+          workspaceId,
+          variables,
+          triggerData,
+          deploymentVersionId,
+          workflowState,
+        } = params
         this.trigger = createTriggerObject(this.triggerType, triggerData)
         this.correlation = triggerData?.correlation
         this.environment = createEnvironmentObject(
@@ -811,6 +843,8 @@ export class LoggingSession {
           executionId: this.executionId,
           trigger: this.trigger,
           environment: this.environment,
+          actorUserId,
+          billingAttribution,
           workflowState: this.workflowState,
           deploymentVersionId,
         })
@@ -1010,6 +1044,7 @@ export class LoggingSession {
       this.requestId,
       this.workflowId
     )
+    await releaseExecutionSlot(this.reservationId)
   }
 
   /**
@@ -1058,7 +1093,7 @@ export class LoggingSession {
             ELSE ${executionData} END`
       }
 
-      await db
+      await execDb
         .update(workflowExecutionLogs)
         .set({ level: 'error', status: 'failed', executionData })
         .where(

@@ -91,10 +91,8 @@ export interface CommandItemProps {
   icon: ComponentType<{ className?: string }>
   bgColor: string
   showColoredIcon?: boolean
-  /** Primary text. Matched characters are highlighted against {@link query}. */
+  /** Primary text of the row. */
   label: string
-  /** Active search query, used to bold matched characters. */
-  query?: string
 }
 
 export const GROUP_HEADING_CLASSNAME =
@@ -181,9 +179,8 @@ function tokenFallback(lowerText: string, lowerQuery: string): FuzzyResult {
  * (`message slack` matches "Slack Send Message") which a strict left-to-right
  * subsequence would miss.
  *
- * Contiguous substring matches report the indices of the substring itself, so
- * highlighting always bolds the run the user actually matched rather than an
- * earlier scattered occurrence of the same characters.
+ * Contiguous substring matches report the indices of the substring itself
+ * rather than an earlier scattered occurrence of the same characters.
  */
 export function fuzzyMatch(text: string, query: string): FuzzyResult {
   if (!query) return { matched: true, score: 1, positions: [] }
@@ -243,17 +240,65 @@ export function fuzzyMatch(text: string, query: string): FuzzyResult {
   return tokenFallback(lowerText, lowerQuery)
 }
 
+/** Rank offset that lifts every name match above any secondary-text match. */
+const NAME_MATCH_TIER = 1_000_000
+
 /**
- * Filters items whose value fuzzy-matches the search, ordered by descending
- * score. Returns the input untouched when the search is empty.
+ * Ranks an item by its name first, falling back to secondary text (ids, aliases,
+ * option labels) only when the name doesn't match — a name match always wins, so
+ * an exact name hit isn't diluted by a long secondary string ("Agent" beats
+ * "Pi Coding Agent" for the query "agent").
  */
-export function filterAndSort<T>(items: T[], toValue: (item: T) => string, search: string): T[] {
-  if (!search) return items
+function scoreItem(name: string, extra: string | undefined, search: string): FuzzyResult {
+  const byName = fuzzyMatch(name, search)
+  if (!extra) return byName
+  if (byName.matched) {
+    return { matched: true, score: byName.score + NAME_MATCH_TIER, positions: byName.positions }
+  }
+  const byExtra = fuzzyMatch(extra, search)
+  return byExtra.matched ? byExtra : NO_MATCH
+}
+
+/**
+ * Filters and ranks items by fuzzy match, highest score first; returns the input
+ * unchanged when the search is empty or whitespace-only. Pass `toExtra` to rank
+ * the name first and fall back to secondary text.
+ */
+export function filterAndSort<T>(
+  items: T[],
+  toValue: (item: T) => string,
+  search: string,
+  toExtra?: (item: T) => string | undefined
+): T[] {
+  const query = search.trim()
+  if (!query) return items
   const scored: Array<{ item: T; score: number }> = []
   for (const item of items) {
-    const { matched, score } = fuzzyMatch(toValue(item), search)
+    const { matched, score } = scoreItem(toValue(item), toExtra?.(item), query)
     if (matched) scored.push({ item, score })
   }
   scored.sort((a, b) => b.score - a.score)
   return scored.map((entry) => entry.item)
+}
+
+/**
+ * Max rows rendered per group while searching. Re-rendering an unbounded,
+ * reshuffling match set every keystroke is what stalls typing; results are
+ * score-sorted, so the cap only drops the low-relevance tail.
+ */
+export const MAX_RESULTS_PER_GROUP = 50
+
+/**
+ * {@link filterAndSort} bounded to {@link MAX_RESULTS_PER_GROUP} while searching,
+ * so the per-keystroke render can't block typing. The empty browse state is
+ * returned in full.
+ */
+export function filterAndCap<T>(
+  items: T[],
+  toValue: (item: T) => string,
+  search: string,
+  toExtra?: (item: T) => string | undefined
+): T[] {
+  const results = filterAndSort(items, toValue, search, toExtra)
+  return search.trim() ? results.slice(0, MAX_RESULTS_PER_GROUP) : results
 }

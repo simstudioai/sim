@@ -629,18 +629,6 @@ export interface AdminDeploymentVersion {
   deployedByName: string | null
 }
 
-export interface AdminDeployResult {
-  isDeployed: boolean
-  version: number
-  deployedAt: string
-  warnings?: string[]
-}
-
-export interface AdminUndeployResult {
-  isDeployed: boolean
-  warnings?: string[]
-}
-
 // =============================================================================
 // Audit Log Types
 // =============================================================================

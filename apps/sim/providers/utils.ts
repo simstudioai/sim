@@ -2,8 +2,7 @@ import { createLogger, type Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import type OpenAI from 'openai'
-import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
-import type { CompletionUsage } from 'openai/resources/completions'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { formatCreditCost } from '@/lib/billing/credits/conversion'
 import { env } from '@/lib/core/config/env'
 import { getBlacklistedProvidersFromEnv, isHosted } from '@/lib/core/config/env-flags'
@@ -12,12 +11,17 @@ import {
   normalizeStringRecord,
   normalizeWorkflowVariables,
 } from '@/lib/core/utils/records'
+import type { CustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
+import { isFileFieldType, type WorkflowInputField } from '@/lib/workflows/input-format'
 import {
   buildCanonicalIndex,
   type CanonicalGroup,
+  type CanonicalModeOverrides,
   isCanonicalPair,
   resolveActiveCanonicalValue,
+  scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
+import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
 import { isCustomTool } from '@/executor/constants'
 import {
   getComputerUseModels,
@@ -28,6 +32,7 @@ import {
   getModelPricing as getModelPricingFromDefinitions,
   getModelsWithDeepResearch,
   getModelsWithoutMemory,
+  getModelsWithPromptCaching,
   getModelsWithReasoningEffort,
   getModelsWithTemperatureRange,
   getModelsWithTemperatureSupport,
@@ -153,6 +158,10 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   cerebras: buildProviderMetadata('cerebras'),
   groq: buildProviderMetadata('groq'),
   sakana: buildProviderMetadata('sakana'),
+  nvidia: buildProviderMetadata('nvidia'),
+  meta: buildProviderMetadata('meta'),
+  zai: buildProviderMetadata('zai'),
+  kimi: buildProviderMetadata('kimi'),
   mistral: buildProviderMetadata('mistral'),
   bedrock: buildProviderMetadata('bedrock'),
   openrouter: buildProviderMetadata('openrouter'),
@@ -491,8 +500,7 @@ export function extractAndParseJSON(content: string): any {
 function resolveCanonicalResourceParams(
   params: Record<string, any>,
   canonicalGroups: CanonicalGroup[],
-  blockType: string,
-  canonicalModes?: Record<string, 'basic' | 'advanced'>
+  scopedCanonicalModes?: CanonicalModeOverrides
 ): Record<string, any> {
   if (canonicalGroups.length === 0) return params
   const resolved = { ...params }
@@ -501,7 +509,7 @@ function resolveCanonicalResourceParams(
     if (existing !== undefined && existing !== null && existing !== '') continue
     // Route through the canonical SOT: an explicit scoped override wins, else the value heuristic -
     // no `?? 'basic'` (which ignored an advanced-only value when basic was empty).
-    const explicitMode = canonicalModes?.[`${blockType}:${group.canonicalId}`]
+    const explicitMode = scopedCanonicalModes?.[group.canonicalId]
     const chosen = resolveActiveCanonicalValue(
       group,
       params,
@@ -510,6 +518,60 @@ function resolveCanonicalResourceParams(
     if (chosen !== undefined) resolved[group.canonicalId] = chosen
   }
   return resolved
+}
+
+/** JSON-schema type for a workflow input field (LLM tool schema). */
+function inputFieldSchemaType(fieldType: string): string {
+  switch (fieldType) {
+    case 'number':
+      return 'number'
+    case 'boolean':
+      return 'boolean'
+    case 'object':
+      return 'object'
+    case 'array':
+      return 'array'
+    default:
+      return 'string'
+  }
+}
+
+/**
+ * Build the LLM tool schema for a custom block used as an agent tool: a single
+ * `inputMapping` object whose properties are the block's deployed input fields,
+ * keyed by the field's stable id (so it lines up with `assembleCustomBlockInputMapping`
+ * and the child's id→name remap) and marked required per the publisher's overrides.
+ * `file[]` fields are omitted — the model can't synthesize uploaded-file descriptors.
+ */
+function buildCustomBlockInputMappingSchema(
+  blockName: string,
+  inputFields: WorkflowInputField[],
+  requiredInputIds: string[]
+): ProviderToolConfig['parameters'] {
+  const requiredSet = new Set(requiredInputIds)
+  const properties: Record<string, any> = {}
+  const requiredFields: string[] = []
+  for (const field of inputFields) {
+    if (isFileFieldType(field.type)) continue
+    const key = field.id ?? field.name
+    properties[key] = {
+      type: inputFieldSchemaType(field.type),
+      description: field.description ? `${field.name} — ${field.description}` : field.name,
+    }
+    if (requiredSet.has(key)) requiredFields.push(key)
+  }
+  return {
+    type: 'object',
+    properties: {
+      inputMapping: {
+        type: 'object',
+        description: `Input values for ${blockName}`,
+        properties,
+        required: requiredFields,
+      },
+    },
+    required: requiredFields.length > 0 ? ['inputMapping'] : [],
+  }
 }
 
 /**
@@ -527,14 +589,84 @@ export async function transformBlockTool(
     getTool: (toolId: string) => any
     getToolAsync?: (toolId: string) => Promise<any>
     canonicalModes?: Record<string, 'basic' | 'advanced'>
+    /**
+     * Server-only resolver for a custom (deploy-as-block) tool's binding (bound
+     * workflow + input schema), org-scoped to the consumer. Injected as a dependency
+     * — like `getAllBlocks`/`getTool` — so this client-reachable module never imports
+     * the DB-backed `operations` module. Omit for non-server callers that can't
+     * resolve authority; a custom block is then simply not offered as a tool.
+     */
+    resolveCustomBlockBinding?: (blockType: string) => Promise<CustomBlockToolBinding | null>
+    /**
+     * Position of this tool within its parent agent block's `tool-input` array. Canonical-mode
+     * overrides are stored scoped by this index (`${toolIndex}:${canonicalId}`) rather than by
+     * `block.type`, so that two tool entries of the same type (e.g. two Table tools) don't share
+     * a canonical-mode override. Omit for tools with no such array position (e.g. Pi local tools).
+     */
+    toolIndex?: number
   }
 ): Promise<ProviderToolConfig | null> {
-  const { selectedOperation, getAllBlocks, getTool, getToolAsync, canonicalModes } = options
+  const { selectedOperation, getAllBlocks, getTool, getToolAsync, canonicalModes, toolIndex } =
+    options
+  const scopedCanonicalModes = scopeCanonicalModesForTool(canonicalModes, toolIndex, block.type)
 
   const blockDef = getAllBlocks().find((b: any) => b.type === block.type)
   if (!blockDef) {
     logger.warn(`Block definition not found for type: ${block.type}`)
     return null
+  }
+
+  // Custom (deploy-as-block) blocks resolve to the generic `workflow_executor`, but
+  // as an agent tool they must run through the authority boundary (owner identity,
+  // latest deployment, curated outputs) — not the plain workflow executor. Route
+  // them to the dedicated in-process `deployed_block_executor` tool, carrying the
+  // block TYPE (never a source workflow id) so authority is re-resolved server-side.
+  // Dynamic imports keep the DB/executor dependency graph out of client bundles.
+  if (isCustomBlockType(block.type)) {
+    const binding = await options.resolveCustomBlockBinding?.(block.type)
+    if (!binding) {
+      logger.warn(`Custom block tool binding not resolved for type: ${block.type}`)
+      return null
+    }
+    const customToolConfig = getTool('deployed_block_executor')
+    if (!customToolConfig) {
+      logger.warn('deployed_block_executor tool not registered')
+      return null
+    }
+    const inputMapping = assembleCustomBlockInputMapping(block.params || {})
+    // A `file[]` field is omitted from the model schema (the model can't synthesize
+    // upload descriptors). If such a field is REQUIRED and the user hasn't
+    // pre-filled it on the block, no invocation could ever satisfy the child's
+    // required-input check — so don't offer an unusable tool at all.
+    const prefilled = JSON.parse(inputMapping) as Record<string, unknown>
+    const requiredIds = new Set(binding.requiredInputIds)
+    const unfillableFileField = binding.inputFields.find((field) => {
+      const key = field.id ?? field.name
+      return isFileFieldType(field.type) && requiredIds.has(key) && !(key in prefilled)
+    })
+    if (unfillableFileField) {
+      logger.warn(
+        `Custom block ${block.type} not offered as a tool: required file input "${unfillableFileField.name}" has no preset value and cannot be supplied by the model`
+      )
+      return null
+    }
+    return {
+      // Unique per block so two custom-block tools never collide on the wire.
+      id: `deployed_block_executor_${block.type}`,
+      // Name/description come from the block itself — never the source workflow's
+      // metadata, which the consumer has no access to.
+      name: blockDef.name,
+      description: blockDef.description || customToolConfig.description,
+      params: {
+        blockType: block.type,
+        inputMapping,
+      },
+      parameters: buildCustomBlockInputMappingSchema(
+        blockDef.name,
+        binding.inputFields,
+        binding.requiredInputIds
+      ),
+    }
   }
 
   let toolId: string | null = null
@@ -595,8 +727,7 @@ export async function transformBlockTool(
   const resolvedResourceParams = resolveCanonicalResourceParams(
     userProvidedParams,
     canonicalGroups,
-    block.type,
-    canonicalModes
+    scopedCanonicalModes
   )
 
   let uniqueToolId = toolConfig.id
@@ -635,7 +766,7 @@ export async function transformBlockTool(
         for (const group of canonicalGroups) {
           // Route through the canonical SOT: an explicit scoped override wins, else the value
           // heuristic - no `?? 'basic'` (which dropped an advanced-only value when basic was empty).
-          const explicitMode = canonicalModes?.[`${block.type}:${group.canonicalId}`]
+          const explicitMode = scopedCanonicalModes?.[group.canonicalId]
           const chosen = resolveActiveCanonicalValue(
             group,
             result,
@@ -890,8 +1021,14 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   const isOpenAIModel = provider === 'openai'
   const isClaudeModel = provider === 'anthropic'
   const isGeminiModel = provider === 'google'
+  const isZaiModel = provider === 'zai'
+  const isXaiModel = provider === 'xai'
+  const isKimiModel = provider === 'kimi'
 
-  if (isHosted && (isOpenAIModel || isClaudeModel || isGeminiModel)) {
+  if (
+    isHosted &&
+    (isOpenAIModel || isClaudeModel || isGeminiModel || isZaiModel || isXaiModel || isKimiModel)
+  ) {
     const hostedModels = getHostedModels()
     const isModelHosted = hostedModels.some((m) => m.toLowerCase() === model.toLowerCase())
 
@@ -1184,6 +1321,7 @@ export const MODELS_WITH_TEMPERATURE_SUPPORT = getModelsWithTemperatureSupport()
 export const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 export const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 export const MODELS_WITH_THINKING = getModelsWithThinking()
+export const MODELS_WITH_PROMPT_CACHING = getModelsWithPromptCaching()
 export const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
 export const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
 export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = getProvidersWithToolUsageControl()
@@ -1202,6 +1340,11 @@ export function supportsVerbosity(model: string): boolean {
 
 export function supportsThinking(model: string): boolean {
   return MODELS_WITH_THINKING.includes(model.toLowerCase())
+}
+
+/** Whether the model accepts caller-placed prompt-cache breakpoints. */
+export function supportsPromptCaching(model: string): boolean {
+  return MODELS_WITH_PROMPT_CACHING.includes(model.toLowerCase())
 }
 
 export function isDeepResearchModel(model: string): boolean {
@@ -1279,6 +1422,7 @@ export function prepareToolExecution(
     blockNameMapping?: Record<string, string>
     isDeployedContext?: boolean
     callChain?: string[]
+    billingAttribution?: BillingAttributionSnapshot
   }
 ): {
   toolParams: Record<string, any>
@@ -1296,10 +1440,10 @@ export function prepareToolExecution(
 
   const executionParams = {
     ...toolParams,
-    ...(request.workflowId
+    ...(request.workflowId || request.billingAttribution
       ? {
           _context: {
-            workflowId: request.workflowId,
+            ...(request.workflowId ? { workflowId: request.workflowId } : {}),
             ...(request.workspaceId ? { workspaceId: request.workspaceId } : {}),
             ...(request.chatId ? { chatId: request.chatId } : {}),
             ...(request.userId ? { userId: request.userId } : {}),
@@ -1307,6 +1451,9 @@ export function prepareToolExecution(
               ? { isDeployedContext: request.isDeployedContext }
               : {}),
             ...(request.callChain ? { callChain: request.callChain } : {}),
+            ...(request.billingAttribution
+              ? { billingAttribution: request.billingAttribution }
+              : {}),
           },
         }
       : {}),
@@ -1324,63 +1471,6 @@ export function prepareToolExecution(
   }
 
   return { toolParams, executionParams }
-}
-
-/**
- * Creates a ReadableStream from an OpenAI-compatible streaming response.
- * This is a shared utility used by all OpenAI-compatible providers:
- * OpenAI, Groq, DeepSeek, xAI, OpenRouter, Mistral, Ollama, vLLM, Azure OpenAI, Cerebras
- *
- * @param stream - The async iterable stream from the provider
- * @param providerName - Name of the provider for logging purposes
- * @param onComplete - Optional callback called when stream completes with full content and usage
- * @returns A ReadableStream that can be used for streaming responses
- */
-export function createOpenAICompatibleStream(
-  stream: AsyncIterable<ChatCompletionChunk>,
-  providerName: string,
-  onComplete?: (content: string, usage: CompletionUsage) => void
-): ReadableStream<Uint8Array> {
-  const streamLogger = createLogger(`${providerName}Utils`)
-  let fullContent = ''
-  let promptTokens = 0
-  let completionTokens = 0
-  let totalTokens = 0
-
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of stream) {
-          if (chunk.usage) {
-            promptTokens = chunk.usage.prompt_tokens ?? 0
-            completionTokens = chunk.usage.completion_tokens ?? 0
-            totalTokens = chunk.usage.total_tokens ?? 0
-          }
-
-          const content = chunk.choices?.[0]?.delta?.content || ''
-          if (content) {
-            fullContent += content
-            controller.enqueue(new TextEncoder().encode(content))
-          }
-        }
-
-        if (onComplete) {
-          if (promptTokens === 0 && completionTokens === 0) {
-            streamLogger.warn(`${providerName} stream completed without usage data`)
-          }
-          onComplete(fullContent, {
-            prompt_tokens: promptTokens,
-            completion_tokens: completionTokens,
-            total_tokens: totalTokens || promptTokens + completionTokens,
-          })
-        }
-
-        controller.close()
-      } catch (error) {
-        controller.error(error)
-      }
-    },
-  })
 }
 
 /**

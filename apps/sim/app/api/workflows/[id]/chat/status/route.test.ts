@@ -4,7 +4,6 @@
  * @vitest-environment node
  */
 import {
-  dbChainMock,
   dbChainMockFns,
   hybridAuthMockFns,
   resetDbChainMock,
@@ -13,13 +12,6 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => dbChainMock)
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...args: unknown[]) => ({ type: 'and', args })),
-  eq: vi.fn(),
-  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
-}))
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
@@ -82,6 +74,8 @@ describe('Workflow Chat Status Route', () => {
         authType: 'public',
         allowedEmails: [],
         outputConfigs: [{ blockId: 'agent-1', path: 'content' }],
+        includeThinking: true,
+        includeToolCalls: null,
         password: 'secret',
         isActive: true,
       },
@@ -96,5 +90,7 @@ describe('Workflow Chat Status Route', () => {
     expect(data.deployment.id).toBe('chat-1')
     expect(data.deployment.hasPassword).toBe(true)
     expect(data.deployment.outputConfigs).toEqual([{ blockId: 'agent-1', path: 'content' }])
+    expect(data.deployment.includeThinking).toBe(true)
+    expect(data.deployment.includeToolCalls).toBe(true)
   })
 })

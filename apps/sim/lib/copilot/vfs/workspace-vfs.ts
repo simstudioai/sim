@@ -3,10 +3,13 @@ import { db } from '@sim/db'
 import {
   chat as chatTable,
   copilotChats,
+  customTools as customToolsTable,
   document,
   jobExecutionLogs,
+  knowledgeBaseTagDefinitions,
   knowledgeConnector,
   mcpServers as mcpServersTable,
+  skill as skillTable,
   workflowDeploymentVersion,
   workflowExecutionLogs,
   workflowFolder,
@@ -16,7 +19,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, desc, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import {
   buildWorkspaceContextMd,
@@ -48,8 +51,14 @@ import {
   canonicalWorkspaceFilePath,
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
-import type { DeploymentData } from '@/lib/copilot/vfs/serializers'
+import type {
+  DeploymentData,
+  KbTagDefinitionSummary,
+  VfsServiceAccountAuth,
+} from '@/lib/copilot/vfs/serializers'
 import {
+  describeServiceAccountForOAuthProvider,
+  serializeApiKeyIntegrations,
   serializeApiKeys,
   serializeBlockSchema,
   serializeBuiltinTriggerSchema,
@@ -88,7 +97,8 @@ import {
   workspacePlanBackingPath,
   workspacePlansBackingFolderPath,
 } from '@/lib/copilot/vfs/workflow-aliases'
-import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
+import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
+import { isDocSandboxEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   getAccessibleEnvCredentials,
@@ -99,6 +109,7 @@ import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/executi
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
+import { getSharesForResources } from '@/lib/public-shares/share-manager'
 import { listTables } from '@/lib/table/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -108,13 +119,13 @@ import {
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
-import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
+import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import {
   loadWorkflowDeploymentSnapshot,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
-import { listSkills } from '@/lib/workflows/skills/operations'
+import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders, listWorkflows } from '@/lib/workflows/utils'
 import {
   assertActiveWorkspaceAccess,
@@ -124,10 +135,12 @@ import {
 } from '@/lib/workspaces/permissions/utils'
 import { computeNeedsRedeployment } from '@/app/api/workflows/utils'
 import { buildCustomBlockConfig, isCustomBlockType } from '@/blocks/custom/build-config'
-import { getAllBlocks } from '@/blocks/registry'
-import type { BlockIcon } from '@/blocks/types'
+import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
+import type { BlockConfig, BlockIcon } from '@/blocks/types'
+import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import type { ToolConfig } from '@/tools/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 const logger = createLogger('WorkspaceVFS')
@@ -137,8 +150,53 @@ const logger = createLogger('WorkspaceVFS')
 const PLACEHOLDER_BLOCK_ICON = (() => null) as unknown as BlockIcon
 const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
 
-/** Static component files, computed once and shared across all VFS instances */
+/**
+ * Static component files, computed once and shared across all VFS instances.
+ * Built from the UNGATED registry universe (preview blocks included) so this
+ * process-global cache can never be poisoned by one viewer's gated projection;
+ * per-viewer gating is applied when the map is stamped into each fresh VFS
+ * (see {@link isStaticFileHidden}).
+ */
 let staticComponentFiles: Map<string, string> | null = null
+
+/**
+ * Owning block for each `components/integrations/**` file, recorded at build
+ * time. Block/trigger schema files carry their owning type as the path
+ * basename, but integration paths use the version-stripped service name — so
+ * their owners need this lookup for the stamp-time visibility filter.
+ */
+const integrationPathOwners = new Map<string, Pick<BlockConfig, 'type' | 'preview'>>()
+
+/**
+ * Owning block(s) for each `components/triggers/{provider}/{id}.json` file,
+ * recorded at build time by inverting each block's `triggers.available`.
+ * External-trigger paths are keyed on the trigger id + provider (not a block
+ * type), so — like integration paths — they need this lookup for the stamp-time
+ * visibility filter. A trigger can be reachable from more than one block (e.g. a
+ * GA block and its preview successor), so this holds an array and the trigger is
+ * hidden only when EVERY owning block is hidden.
+ */
+const triggerPathOwners = new Map<string, Array<Pick<BlockConfig, 'type' | 'preview'>>>()
+
+/**
+ * Per-request visibility filter for the shared static files: hides files whose
+ * owning block is gated for this viewer (unrevealed preview blocks — the
+ * default with no context — and kill-switched types). Non-registry paths
+ * (loop/parallel, connectors, overviews) are always visible.
+ */
+function isStaticFileHidden(path: string, vis: BlockVisibilityState | null): boolean {
+  const blockMatch = path.match(/^components\/(?:blocks|triggers\/sim)\/([^/]+)\.json$/)
+  if (blockMatch) {
+    const config = BLOCK_REGISTRY[blockMatch[1]!]
+    return config ? isHiddenUnder(vis, config) : false
+  }
+  const triggerOwners = triggerPathOwners.get(path)
+  if (triggerOwners) {
+    return triggerOwners.length > 0 && triggerOwners.every((owner) => isHiddenUnder(vis, owner))
+  }
+  const owner = integrationPathOwners.get(path)
+  return owner ? isHiddenUnder(vis, owner) : false
+}
 
 // On-the-fly doc reads (render/extract) download the binary into the Sim process
 // and base64-stage it to E2B, so bound the input like the compile path's staging
@@ -170,47 +228,62 @@ function getStaticComponentFiles(): Map<string, string> {
 
   const files = new Map<string, string>()
 
-  const allBlocks = getAllBlocks()
+  // Raw registry, never the visibility-projected getAllBlocks: this map is a
+  // process-global shared cache, so it must hold the deterministic ungated
+  // universe. Preview blocks get schema files here (path-filterable at stamp
+  // time for revealed viewers) but are EXCLUDED from the shared aggregate
+  // files (overviews, oauth/api-key summaries) that all viewers receive.
+  const allBlocks = Object.values(BLOCK_REGISTRY)
   const visibleBlocks = allBlocks.filter((b) => !b.hideFromToolbar)
+  const exposedTools = getExposedIntegrationTools()
+  const toolConfigs = new Map<string, ToolConfig>()
+  for (const { toolId, config } of exposedTools) {
+    toolConfigs.set(toolId, config)
+    toolConfigs.set(config.id, config)
+  }
 
   let blocksFiltered = 0
   for (const block of visibleBlocks) {
     const path = `components/blocks/${block.type}.json`
-    files.set(path, serializeBlockSchema(block))
+    files.set(path, serializeBlockSchema(block, { toolConfigs }))
   }
   blocksFiltered = allBlocks.length - visibleBlocks.length
 
   let integrationCount = 0
 
-  const oauthServices = new Map<string, { provider: string; operations: string[] }>()
-  const apiKeyServices = new Map<string, { params: string[]; operations: string[] }>()
+  // `serviceAccount` marks services that also accept a shared service-account
+  // credential (connect AS AN APPLICATION, not as the user) — the same
+  // `auth.serviceAccount` shape the per-operation schemas carry, so the agent
+  // discovers all three auth modes (oauth / api_key / service account) from one
+  // uniform field instead of a separate file.
+  const oauthServices = new Map<
+    string,
+    { provider: string; operations: string[]; serviceAccount?: VfsServiceAccountAuth }
+  >()
 
   // Integration tools come from the shared exposed-tool set (latest version of
   // each operation owned by a visible block), the same set used to build the
   // deferred callable tools — so discovery and execution can never drift.
-  for (const { config: tool, service, operation } of getExposedIntegrationTools()) {
+  for (const exposedTool of exposedTools) {
+    const { config: tool, service, operation, blockType, preview } = exposedTool
     const path = `components/integrations/${service}/${operation}.json`
     files.set(path, serializeIntegrationSchema(tool))
+    integrationPathOwners.set(path, { type: blockType, preview })
     integrationCount++
+
+    // Preview-owned tools stay out of the shared oauth/api-key aggregates —
+    // those files are identical for every viewer.
+    if (preview) continue
 
     if (tool.oauth?.required) {
       const existing = oauthServices.get(service)
       if (existing) {
         existing.operations.push(operation)
       } else {
-        oauthServices.set(service, { provider: tool.oauth.provider, operations: [operation] })
-      }
-    } else if (tool.hosting?.apiKeyParam) {
-      const existing = apiKeyServices.get(service)
-      if (existing) {
-        if (!existing.params.includes(tool.hosting.apiKeyParam)) {
-          existing.params.push(tool.hosting.apiKeyParam)
-        }
-        existing.operations.push(operation)
-      } else {
-        apiKeyServices.set(service, {
-          params: [tool.hosting.apiKeyParam],
+        oauthServices.set(service, {
+          provider: tool.oauth.provider,
           operations: [operation],
+          serviceAccount: describeServiceAccountForOAuthProvider(tool.oauth.provider),
         })
       }
     }
@@ -222,7 +295,7 @@ function getStaticComponentFiles(): Map<string, string> {
   )
   files.set(
     'environment/api-key-integrations.json',
-    JSON.stringify(Object.fromEntries(apiKeyServices), null, 2)
+    serializeApiKeyIntegrations(exposedTools, isHosted)
   )
 
   files.set(
@@ -310,6 +383,21 @@ function getStaticComponentFiles(): Map<string, string> {
     files.set(`components/triggers/sim/${block.type}.json`, serializeBuiltinTriggerSchema(block))
   }
 
+  // Attribute each external trigger to its owning block(s) by inverting
+  // `triggers.available` — the same block-visibility rules that gate a block's
+  // schema file then gate its triggers' schema files at stamp time.
+  for (const block of allBlocks) {
+    for (const triggerId of block.triggers?.available ?? []) {
+      const trigger = TRIGGER_REGISTRY[triggerId]
+      if (!trigger) continue
+      const path = `components/triggers/${trigger.provider}/${triggerId}.json`
+      const owners = triggerPathOwners.get(path)
+      const owner = { type: block.type, preview: block.preview }
+      if (owners) owners.push(owner)
+      else triggerPathOwners.set(path, [owner])
+    }
+  }
+
   let externalTriggerCount = 0
   for (const [triggerId, trigger] of Object.entries(TRIGGER_REGISTRY)) {
     const path = `components/triggers/${trigger.provider}/${triggerId}.json`
@@ -320,18 +408,28 @@ function getStaticComponentFiles(): Map<string, string> {
   files.set(
     'components/triggers/triggers.md',
     serializeTriggerOverview(
-      builtinTriggerBlocks.map((b) => ({
-        id: b.type,
-        name: b.name,
-        provider: 'sim',
-        description: b.description,
-      })),
-      Object.entries(TRIGGER_REGISTRY).map(([id, t]) => ({
-        id,
-        name: t.name,
-        provider: t.provider,
-        description: t.description,
-      }))
+      // The overview is a shared file — preview trigger blocks stay out of it
+      // (their per-type schema file remains discoverable for revealed viewers).
+      builtinTriggerBlocks
+        .filter((b) => !b.preview)
+        .map((b) => ({
+          id: b.type,
+          name: b.name,
+          provider: 'sim',
+          description: b.description,
+        })),
+      // Same for external triggers: a trigger owned solely by preview blocks is
+      // hidden under the null (no-viewer) state this shared file is built with.
+      Object.entries(TRIGGER_REGISTRY)
+        .filter(
+          ([id, t]) => !isStaticFileHidden(`components/triggers/${t.provider}/${id}.json`, null)
+        )
+        .map(([id, t]) => ({
+          id,
+          name: t.name,
+          provider: t.provider,
+          description: t.description,
+        }))
     )
   )
 
@@ -642,7 +740,11 @@ export class WorkspaceVFS {
 
             await timed('recently_deleted', this.materializeRecentlyDeleted(workspaceId, userId))
 
+            // Per-viewer gating happens HERE, not in the shared builder: files
+            // owned by blocks hidden for this viewer are skipped at stamp time.
+            const blockVisibility = overlayVisibility()
             for (const [path, content] of getStaticComponentFiles()) {
+              if (isStaticFileHidden(path, blockVisibility)) continue
               this.files.set(path, content)
             }
 
@@ -833,7 +935,7 @@ export class WorkspaceVFS {
           totalLines: 1,
         }
       }
-      if (isE2BDocEnabled && (await getE2BDocFormat(record.name))) {
+      if (isDocSandboxEnabled && (await getE2BDocFormat(record.name))) {
         bin = (
           await compileDoc({ source: code, fileName: record.name, workspaceId: this._workspaceId })
         ).buffer
@@ -886,7 +988,7 @@ export class WorkspaceVFS {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
-        const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(record.name) : null
+        const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
         if (!e2bFmt && !taskId) return null
 
@@ -1012,7 +1114,7 @@ export class WorkspaceVFS {
     }
 
     const extractMatch = /^files\/.+\/extract$/.test(path)
-    if (extractMatch && isE2BDocEnabled) {
+    if (extractMatch && isDocSandboxEnabled) {
       let record: WorkspaceFileRecord | null = null
       try {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'extract')
@@ -1081,7 +1183,7 @@ export class WorkspaceVFS {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled-check')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
-        const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(record.name) : null
+        const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
         const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
         if (!e2bFmt && !taskId && !isMermaidFile) return null
@@ -1436,7 +1538,6 @@ export class WorkspaceVFS {
     return workflowRows.map((wf) => ({
       id: wf.id,
       name: wf.name,
-      description: wf.description,
       isDeployed: wf.isDeployed,
       lastRunAt: wf.lastRunAt,
       folderPath: wf.folderId ? (folderPaths.get(wf.folderId) ?? null) : null,
@@ -1452,6 +1553,8 @@ export class WorkspaceVFS {
     userId: string
   ): Promise<WorkspaceMdData['knowledgeBases']> {
     const kbs = await getKnowledgeBases(userId, workspaceId)
+
+    const tagDefinitionsByKb = await this.loadKbTagDefinitions(kbs.map((kb) => kb.id))
 
     await Promise.all(
       kbs.map(async (kb) => {
@@ -1471,6 +1574,7 @@ export class WorkspaceVFS {
             updatedAt: kb.updatedAt,
             documentCount: kb.docCount,
             connectorTypes: kb.connectorTypes,
+            tagDefinitions: tagDefinitionsByKb.get(kb.id),
           })
         )
 
@@ -1543,6 +1647,61 @@ export class WorkspaceVFS {
   }
 
   /**
+   * Load tag definitions for the given knowledge bases in a single query, grouped by
+   * KB id and ordered by tag slot. Surfaced inline in each KB's meta.json so the agent
+   * knows which tags exist (and their slot binding) when editing a knowledge-tag filter.
+   *
+   * @remarks
+   * Tag definitions are an optional enrichment, so a query failure degrades to a meta.json
+   * without them rather than rejecting. This materializer runs inside the top-level
+   * `Promise.all`, whose rejection would fail the entire workspace VFS build and leave the
+   * agent unable to read any file.
+   */
+  private async loadKbTagDefinitions(
+    kbIds: string[]
+  ): Promise<Map<string, KbTagDefinitionSummary[]>> {
+    const byKb = new Map<string, KbTagDefinitionSummary[]>()
+    if (kbIds.length === 0) return byKb
+
+    let rows: Array<{
+      knowledgeBaseId: string
+      tagSlot: string
+      displayName: string
+      fieldType: string
+    }>
+    try {
+      rows = await db
+        .select({
+          knowledgeBaseId: knowledgeBaseTagDefinitions.knowledgeBaseId,
+          tagSlot: knowledgeBaseTagDefinitions.tagSlot,
+          displayName: knowledgeBaseTagDefinitions.displayName,
+          fieldType: knowledgeBaseTagDefinitions.fieldType,
+        })
+        .from(knowledgeBaseTagDefinitions)
+        .where(inArray(knowledgeBaseTagDefinitions.knowledgeBaseId, kbIds))
+        .orderBy(knowledgeBaseTagDefinitions.tagSlot)
+    } catch (err) {
+      logger.warn('Failed to load knowledge base tag definitions', {
+        error: toError(err).message,
+      })
+      return byKb
+    }
+
+    for (const row of rows) {
+      const entry = {
+        tagName: row.displayName,
+        tagSlot: row.tagSlot,
+        fieldType: row.fieldType,
+      }
+      const existing = byKb.get(row.knowledgeBaseId)
+      if (existing) existing.push(entry)
+      else byKb.set(row.knowledgeBaseId, [entry])
+    }
+
+    return byKb
+  }
+
+  /**
    * Materialize tables using the shared listTables function.
    * Returns a summary for WORKSPACE.md generation.
    */
@@ -1574,11 +1733,11 @@ export class WorkspaceVFS {
         rowCount: t.rowCount,
       }))
     } catch (err) {
-      logger.warn('Failed to materialize tables', {
+      logger.error('Failed to materialize tables; refusing to serve an incomplete VFS', {
         workspaceId,
         error: toError(err).message,
       })
-      return []
+      throw err
     }
   }
 
@@ -1595,7 +1754,25 @@ export class WorkspaceVFS {
       const files = await listWorkspaceFiles(workspaceId, {
         folders,
         includeReservedSystemFiles: true,
+        throwOnError: true,
       })
+      // Batch-load public share state so each file's metadata carries an ambient
+      // `shared` flag (mirrors how the files-list UI enriches rows) — no N+1.
+      // Fail soft: share state is only metadata enrichment, so a lookup failure
+      // must not drop the whole file tree (the outer catch returns []) — fall back
+      // to no shares, and files still materialize with `shared: false`.
+      let shareByFileId: Awaited<ReturnType<typeof getSharesForResources>> = new Map()
+      try {
+        shareByFileId = await getSharesForResources(
+          'file',
+          files.map((file) => file.id)
+        )
+      } catch (error) {
+        logger.warn('Failed to load file share state; file metadata will show shared: false', {
+          workspaceId,
+          error: toError(error).message,
+        })
+      }
       for (const folder of folders) {
         if (
           !workflowArtifactsEnabled &&
@@ -1614,6 +1791,8 @@ export class WorkspaceVFS {
         if (!workflowArtifactsEnabled && isWorkflowAliasBackingPath(filePath)) {
           continue
         }
+        const share = shareByFileId.get(file.id)
+        const shared = share?.isActive ?? false
         this.files.set(
           filePath,
           serializeFileMeta({
@@ -1625,6 +1804,10 @@ export class WorkspaceVFS {
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,
+            updatedAt: file.updatedAt,
+            shared,
+            shareAuthType: shared ? share?.authType : undefined,
+            shareUrl: shared ? share?.url : undefined,
           })
         )
       }
@@ -1710,11 +1893,11 @@ export class WorkspaceVFS {
           folderPath: f.folderPath ?? null,
         }))
     } catch (err) {
-      logger.warn('Failed to materialize files', {
+      logger.error('Failed to materialize files; refusing to serve an incomplete VFS', {
         workspaceId,
         error: toError(err).message,
       })
-      return []
+      throw err
     }
   }
 
@@ -1772,6 +1955,11 @@ export class WorkspaceVFS {
                 eq(workflowDeploymentVersion.isActive, true)
               )
             )
+            // Match checkNeedsRedeployment/loadDeployedWorkflowState. Historical
+            // workflows can contain more than one active row, so an unordered
+            // limit may compare the draft with an older deployment while the UI
+            // correctly compares against the newest active deployment.
+            .orderBy(desc(workflowDeploymentVersion.createdAt))
             .limit(1)
         : Promise.resolve([]),
       db
@@ -1827,25 +2015,47 @@ export class WorkspaceVFS {
   }
 
   /**
-   * Materialize custom tools using the shared listCustomTools function.
+   * Advertise custom tools in the VFS without eagerly loading their code.
+   * Paths are registered as lazy so glob/WORKSPACE.md see them, but full
+   * schema+code is fetched only when read (or a grep whose scope touches them).
    */
   private async materializeCustomTools(
     workspaceId: string,
     userId: string
   ): Promise<NonNullable<WorkspaceMdData['customTools']>> {
     try {
-      const toolRows = await listCustomTools({ userId, workspaceId })
+      // Metadata only — tool code can be large; keep it out of the eager map.
+      // Visibility matches listCustomTools: workspace tools + legacy user-owned.
+      const toolRows = await db
+        .select({
+          id: customToolsTable.id,
+          title: customToolsTable.title,
+        })
+        .from(customToolsTable)
+        .where(
+          or(
+            eq(customToolsTable.workspaceId, workspaceId),
+            and(isNull(customToolsTable.workspaceId), eq(customToolsTable.userId, userId))
+          )
+        )
+        .orderBy(desc(customToolsTable.createdAt))
 
       for (const tool of toolRows) {
         const safeName = sanitizeName(tool.title)
-        const serialized = serializeCustomTool({
-          id: tool.id,
-          title: tool.title,
-          schema: tool.schema,
-          code: tool.code,
-        })
-        this.files.set(`custom-tools/${safeName}.json`, serialized)
-        this.files.set(`agent/custom-tools/${safeName}.json`, serialized)
+        const toolId = tool.id
+        const load = async () => {
+          const full = await getCustomToolById({ toolId, userId, workspaceId })
+          if (!full) return null
+          return serializeCustomTool({
+            id: full.id,
+            title: full.title,
+            schema: full.schema,
+            code: full.code,
+          })
+        }
+        // Legacy alias + canonical agent/ path — each resolves independently on read.
+        this.registerLazy(`custom-tools/${safeName}.json`, load)
+        this.registerLazy(`agent/custom-tools/${safeName}.json`, load)
       }
 
       return toolRows.map((t) => ({ id: t.id, name: t.title }))
@@ -1944,26 +2154,41 @@ export class WorkspaceVFS {
   }
 
   /**
-   * Materialize workspace skills using the shared listSkills function.
+   * Advertise the workspace skills in the VFS without eagerly loading their
+   * bodies. Paths are registered as lazy so glob/WORKSPACE.md see them, but
+   * full content is fetched only when read (or a grep whose scope touches the
+   * path) resolves them. Skills are workspace-visible — everyone with
+   * workspace access sees and uses every skill.
    */
   private async materializeSkills(
     workspaceId: string
   ): Promise<NonNullable<WorkspaceMdData['skills']>> {
     try {
-      const skillRows = await listSkills({ workspaceId, includeBuiltins: false })
+      // Metadata only — skill bodies can be large; keep them out of the eager map.
+      const skillRows = await db
+        .select({
+          id: skillTable.id,
+          name: skillTable.name,
+          description: skillTable.description,
+        })
+        .from(skillTable)
+        .where(eq(skillTable.workspaceId, workspaceId))
+        .orderBy(desc(skillTable.createdAt))
 
       for (const s of skillRows) {
         const safeName = sanitizeName(s.name)
-        this.files.set(
-          `agent/skills/${safeName}.json`,
-          serializeSkill({
-            id: s.id,
-            name: s.name,
-            description: s.description,
-            content: s.content,
-            createdAt: s.createdAt,
+        const skillId = s.id
+        this.registerLazy(`agent/skills/${safeName}.json`, async () => {
+          const full = await getSkillById({ skillId, workspaceId })
+          if (!full) return null
+          return serializeSkill({
+            id: full.id,
+            name: full.name,
+            description: full.description,
+            content: full.content,
+            createdAt: full.createdAt,
           })
-        )
+        })
       }
 
       return skillRows.map((s) => ({ id: s.id, name: s.name, description: s.description }))
@@ -2024,7 +2249,8 @@ export class WorkspaceVFS {
           and(
             eq(copilotChats.workspaceId, workspaceId),
             eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership')
+            eq(copilotChats.type, 'mothership'),
+            isNull(copilotChats.deletedAt)
           )
         )
         .orderBy(desc(copilotChats.updatedAt))
@@ -2278,6 +2504,7 @@ export class WorkspaceVFS {
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,
+            updatedAt: file.updatedAt,
           })
         )
       }
@@ -2346,6 +2573,7 @@ export class WorkspaceVFS {
             displayName: c.displayName,
             role: c.role,
             scope: null,
+            credentialType: c.type,
             createdAt: c.updatedAt,
           })),
         ])

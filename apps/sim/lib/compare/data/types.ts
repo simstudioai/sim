@@ -66,6 +66,8 @@ export interface ComparisonFacts {
     richTextEditor: Fact
     /** Calling one saved workflow as a reusable step inside another workflow (composition/nesting), versus only being able to duplicate or manually re-wire the same logic per workflow. */
     subWorkflows: Fact
+    /** Publishing a deployed workflow/flow as a reusable, named block with its own icon/inputs/outputs that appears in the block toolbar for other org members to drop into their own workflows, without needing access to the underlying flow — distinct from subWorkflows (same-author composition) and from custom code/tool blocks. */
+    customBlocks: Fact
   }
   aiCapabilities: {
     multiLlmSupport: Fact

@@ -20,7 +20,9 @@ import {
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
 import { isRecordLike } from '@sim/utils/object'
+import { useQueryStates } from 'nuqs'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type { EnterpriseAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import { formatDateShort } from '@/app/workspace/[workspaceId]/logs/utils'
 import {
@@ -29,8 +31,15 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/activity-log'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
 import { type AuditLogFilters, useAuditLogs } from '@/ee/audit-logs/hooks/audit-logs'
+import {
+  auditLogFilterParsers,
+  auditLogFilterUrlKeys,
+  DEFAULT_AUDIT_TIME_RANGE,
+} from '@/ee/audit-logs/search-params'
+import { useDebounce } from '@/hooks/use-debounce'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
 const logger = createLogger('AuditLogs')
@@ -223,31 +232,31 @@ function toActivityEntry(entry: EnterpriseAuditLogEntry): ActivityLogEntry {
   }
 }
 
-export function AuditLogs() {
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([])
-  const [timeRange, setTimeRange] = useState<TimeRange>('Past 30 days')
-  const [customStartDate, setCustomStartDate] = useState('')
-  const [customEndDate, setCustomEndDate] = useState('')
+interface AuditLogsProps {
+  organizationId: string
+}
+
+export function AuditLogs({ organizationId }: AuditLogsProps) {
+  const [urlFilters, setUrlFilters] = useQueryStates(auditLogFilterParsers, auditLogFilterUrlKeys)
+  const { types: selectedTypes } = urlFilters
+  const customStartDate = urlFilters.startDate ?? ''
+  const customEndDate = urlFilters.endDate ?? ''
+  /**
+   * 'Custom range' is only honored with both bounds present — a partial deep
+   * link (`?time-range=custom` with a missing date) falls back to the default
+   * preset window instead of silently querying unbounded.
+   */
+  const timeRange: TimeRange =
+    urlFilters.timeRange === 'Custom range' && (!customStartDate || !customEndDate)
+      ? DEFAULT_AUDIT_TIME_RANGE
+      : urlFilters.timeRange
   const [datePickerOpen, setDatePickerOpen] = useState(false)
-  const previousTimeRangeRef = useRef<TimeRange>('Past 30 days')
   const dateRangeAppliedRef = useRef(false)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
+  const debouncedSearch = useDebounce(searchTerm, SEARCH_DEBOUNCE_MS).trim()
   const [isVisuallyRefreshing, setIsVisuallyRefreshing] = useState(false)
   const refreshTimersRef = useRef(new Set<number>())
   const [isExporting, setIsExporting] = useState(false)
-
-  useEffect(() => {
-    const trimmed = searchTerm.trim()
-    if (trimmed === debouncedSearch) return
-    debounceRef.current = setTimeout(() => {
-      setDebouncedSearch(trimmed)
-    }, 300)
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-    }
-  }, [searchTerm, debouncedSearch])
 
   useEffect(() => {
     const timers = refreshTimersRef.current
@@ -273,7 +282,7 @@ export function AuditLogs() {
     hasNextPage,
     fetchNextPage,
     refetch,
-  } = useAuditLogs(filters)
+  } = useAuditLogs(organizationId, filters)
 
   const allEntries = useMemo(() => {
     if (!data?.pages) return []
@@ -294,27 +303,23 @@ export function AuditLogs() {
 
   const handleTimeRangeChange = (value: string) => {
     if (value === 'Custom range') {
-      previousTimeRangeRef.current = timeRange
       setDatePickerOpen(true)
     } else {
-      setCustomStartDate('')
-      setCustomEndDate('')
-      setTimeRange(value as TimeRange)
+      void setUrlFilters({ timeRange: value as TimeRange, startDate: null, endDate: null })
     }
   }
 
   const handleDateRangeApply = (start: string, end: string) => {
     dateRangeAppliedRef.current = true
-    setCustomStartDate(start)
-    setCustomEndDate(end)
-    setTimeRange('Custom range')
+    void setUrlFilters({ timeRange: 'Custom range', startDate: start, endDate: end })
     setDatePickerOpen(false)
   }
 
+  /**
+   * Cancel is a pure close: the URL only ever holds 'Custom range' after Apply
+   * wrote both bounds atomically, so there is never a pending state to revert.
+   */
   const handleDatePickerCancel = () => {
-    if (timeRange === 'Custom range' && !customStartDate) {
-      setTimeRange(previousTimeRangeRef.current)
-    }
     setDatePickerOpen(false)
   }
 
@@ -342,6 +347,7 @@ export function AuditLogs() {
     setIsExporting(true)
     try {
       const params = new URLSearchParams()
+      params.set('organizationId', organizationId)
       if (filters.search) params.set('search', filters.search)
       if (filters.resourceType) params.set('resourceType', filters.resourceType)
       if (filters.startDate) params.set('startDate', filters.startDate)
@@ -394,7 +400,7 @@ export function AuditLogs() {
           options={RESOURCE_TYPE_OPTIONS}
           multiSelect
           multiSelectValues={selectedTypes}
-          onMultiSelectChange={setSelectedTypes}
+          onMultiSelectChange={(values) => void setUrlFilters({ types: values })}
           placeholder='All types'
           displayLabel={typeDisplayLabel}
           searchable

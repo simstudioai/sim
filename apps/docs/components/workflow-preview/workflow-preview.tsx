@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { domAnimation, LazyMotion, m } from 'framer-motion'
 import { Maximize2, X } from 'lucide-react'
 import ReactFlow, {
@@ -253,6 +253,8 @@ export function WorkflowPreview({
 }: WorkflowPreviewProps) {
   const [expanded, setExpanded] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     if (!expanded) return
@@ -261,12 +263,15 @@ export function WorkflowPreview({
     }
     document.addEventListener('keydown', onKey)
     const previousOverflow = document.body.style.overflow
+    previouslyFocusedRef.current = document.activeElement as HTMLElement | null
     document.body.style.overflow = 'hidden'
     document.body.classList.add('wp-lightbox-open')
+    closeButtonRef.current?.focus()
     return () => {
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = previousOverflow
       document.body.classList.remove('wp-lightbox-open')
+      previouslyFocusedRef.current?.focus()
     }
   }, [expanded])
 
@@ -322,6 +327,7 @@ export function WorkflowPreview({
               <div className='pointer-events-none absolute top-0 right-0 left-0 z-10 flex items-center justify-between px-4 py-3'>
                 <span className='text-[13px] text-[var(--text-muted)]'>{workflow.name}</span>
                 <button
+                  ref={closeButtonRef}
                   type='button'
                   aria-label='Close'
                   onClick={() => setExpanded(false)}

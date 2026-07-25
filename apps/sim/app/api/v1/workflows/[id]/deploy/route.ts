@@ -60,11 +60,9 @@ export const POST = withRouteHandler(
       const result = await performFullDeploy({
         workflowId: id,
         userId,
-        workflowName: workflow.name || undefined,
         versionName: body.data.name,
         versionDescription: body.data.description ?? undefined,
         requestId,
-        request,
       })
 
       if (!result.success) {
@@ -74,25 +72,19 @@ export const POST = withRouteHandler(
         )
       }
 
-      captureServerEvent(
-        userId,
-        'workflow_deployed',
-        { workflow_id: id, workspace_id: workspaceId },
-        {
-          groups: { workspace: workspaceId },
-          setOnce: { first_workflow_deployed_at: new Date().toISOString() },
-        }
-      )
+      const isDeployed = Boolean(result.activeDeployment)
 
       const limits = await getUserLimits(userId)
       const apiResponse = createApiResponse(
         {
           data: {
             id,
-            isDeployed: true,
+            isDeployed,
             deployedAt: result.deployedAt?.toISOString() ?? null,
             version: result.version,
             warnings: result.warnings ?? [],
+            activeDeployment: result.activeDeployment ?? null,
+            latestDeploymentAttempt: result.latestDeploymentAttempt ?? null,
           },
         },
         limits,

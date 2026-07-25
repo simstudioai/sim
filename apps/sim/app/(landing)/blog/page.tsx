@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { BLOG_SECTION, buildCollectionPageJsonLd, buildIndexMetadata } from '@/lib/blog/seo'
+import { selectVisiblePosts } from '@/lib/content/index-list'
 import { ContentIndexPage } from '@/app/(landing)/components'
 
 /**
@@ -35,7 +36,10 @@ export default async function BlogIndex({
       posts={posts}
       page={pageNum}
       tag={tag}
-      collectionJsonLd={buildCollectionPageJsonLd()}
+      collectionJsonLd={buildCollectionPageJsonLd(
+        selectVisiblePosts(posts, { tag, page: pageNum }),
+        { tag, page: pageNum }
+      )}
     />
   )
 }

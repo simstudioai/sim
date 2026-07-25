@@ -1,6 +1,7 @@
 ---
 name: add-block
 description: Create or update a Sim integration block with correct subBlocks, conditions, dependsOn, modes, canonicalParamId usage, outputs, and tool wiring. Use when working on `apps/sim/blocks/blocks/{service}.ts` or aligning a block with its tools.
+argument-hint: <service-name>
 ---
 
 # Add Block Skill
@@ -143,6 +144,25 @@ export const {ServiceName}Block: BlockConfig = {
 
 **Scope descriptions:** When adding a new OAuth provider, also add human-readable descriptions for all scopes in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts`.
 
+**Service accounts (shared, app-level credentials):** A plain `oauth-input` already lets users *select* an existing service account — those credentials fold into the picker automatically (a Google service account created for any Google service appears in every Google block's picker). You only set `credentialKind` when you want to change the *connect* action:
+
+```typescript
+{
+  id: 'credential',
+  title: 'Account',
+  type: 'oauth-input',
+  serviceId: '{service}',
+  requiredScopes: getScopesForService('{service}'),
+  credentialKind: 'any',   // omit | 'service-account' | 'any'
+}
+```
+
+- **omit (default):** lists OAuth accounts + any existing service accounts; the only connect action is "Connect account" (OAuth). Use this for the common "let users pick a service account someone set up elsewhere, but don't offer inline setup" case — no config needed.
+- **`'service-account'`:** service-account credentials *only*, plus an inline setup action that opens the provider's connect modal. Use when a block accepts *only* an app credential.
+- **`'any'`:** merged picker — OAuth accounts *and* service accounts in one grouped dropdown, with a connect action for each. Use when a block supports both (e.g. Slack: a personal account *or* a custom bot).
+
+Optional companions: `credentialLabels` (override the picker's section/connect-row copy) and `allowServiceAccounts: true` (trigger-mode only — list service accounts, which triggers otherwise exclude; set only when the trigger's polling path can resolve a service-account token). The connect modal, provider families (Google JSON key, Atlassian token, token-paste, client-credential, Slack bot), and the preview gate are all resolved from `serviceAccountProviderId` — you don't wire them per block.
+
 ### Selectors (with dynamic options)
 ```typescript
 // Channel selector (Slack, Discord, etc.)
@@ -237,13 +257,43 @@ When your block accepts file uploads, use the basic/advanced mode pattern with `
 },
 ```
 
+**Keep the pair to one logical thing.** Basic is the file upload, advanced is *only* a reference to
+a file from a previous block. Gmail attachments are the reference implementation
+(`apps/sim/blocks/blocks/gmail.ts` — `attachmentFiles` / `attachments`).
+
+Do not overload the advanced side with alternate identifiers (a remote URL, a provider asset ID, a
+path). A subblock whose meaning changes based on what the string looks like is impossible to reason
+about, forces the params function to sniff the value, and makes the field's type meaningless. Give
+each alternative its own subblock outside the pair:
+
+```typescript
+// ✓ Good — the pair is "a file"; other sources are their own fields
+{ id: 'mediaFile',    type: 'file-upload', canonicalParamId: 'media', mode: 'basic' },
+{ id: 'mediaFileRef', type: 'short-input', canonicalParamId: 'media', mode: 'advanced' },
+{ id: 'mediaId',      type: 'short-input', mode: 'advanced' },  // separate concept
+{ id: 'mediaLink',    type: 'short-input', mode: 'advanced' },  // separate concept
+
+// ✗ Bad — one field meaning three things, resolved by guessing
+{ id: 'mediaRef', type: 'short-input', canonicalParamId: 'media', mode: 'advanced',
+  placeholder: 'File reference, media ID, or public URL' },
+```
+
+When several fields are mutually exclusive alternatives, mark them all `required: false` and enforce
+"exactly one" at execution — a conditionally-required canonical pair rejects the workflow before the
+other paths ever get a chance to supply the value.
+
 **Critical constraints:**
 - `canonicalParamId` must NOT match any subblock's `id` in the same block
-- Values are stored under subblock `id`, not `canonicalParamId`
+- A canonical group is **block-wide**, not per-operation: `buildCanonicalIndex` keys groups by
+  `canonicalParamId` across every subblock, and a group has exactly one `basicId`. Two operations
+  that each need a file pair need two distinct `canonicalParamId` values.
+- All members of a group must share the same `required` status
 
 ### Normalizing File Input in tools.config
 
-Use `normalizeFileInput` to handle all input variants:
+Put the normalization in `tools.config.params`, never in `tools.config.tool` — `tool` runs at
+serialization, before variable resolution, so a `<block.output>` file reference is not yet a value
+there.
 
 ```typescript
 import { normalizeFileInput } from '@/blocks/utils'
@@ -251,34 +301,50 @@ import { normalizeFileInput } from '@/blocks/utils'
 tools: {
   access: ['service_upload'],
   config: {
-    tool: (params) => {
-      // Check all field IDs: uploadFile (basic), fileRef (advanced), fileContent (legacy)
-      const normalizedFile = normalizeFileInput(
-        params.uploadFile || params.fileRef || params.fileContent,
-        { single: true }
-      )
-      if (normalizedFile) {
-        params.file = normalizedFile
+    tool: (params) => `service_${params.operation}`,
+    params: (params) => {
+      // Read the CANONICAL id, not the subblock ids
+      const { file: fileParam, ...rest } = params
+      const file = normalizeFileInput(fileParam, { single: true })
+      return {
+        ...rest,
+        ...(file ? { file } : {}),
       }
-      return `service_${params.operation}`
     },
   },
 }
 ```
 
-**Why this pattern?**
-- Values come through as `params.uploadFile` or `params.fileRef` (the subblock IDs)
-- `canonicalParamId` only controls UI/schema mapping, not runtime values
-- `normalizeFileInput` handles JSON strings from advanced mode template resolution
+**Where the value actually lives at runtime.** The subblock `id` is where the UI *stores* the value,
+but it is not what the params function receives. `extractBlockParams`
+(`apps/sim/serializer/index.ts`) collapses each canonical group at serialization time:
+
+```typescript
+const sourceIds = [group.basicId, ...group.advancedIds].filter(Boolean)
+sourceIds.forEach((id) => delete params[id])   // subblock ids are deleted
+if (chosen !== undefined) params[group.canonicalId] = chosen
+```
+
+So by the time `tools.config.params(inputs)` runs (`executor/handlers/generic/generic-handler.ts`),
+`params.uploadFile` and `params.fileRef` are **gone** and the value is under `params.file`. Reading a
+subblock id there yields `undefined` and silently sends no file.
+
+Only the active mode's value survives — `getCanonicalValues` returns the basic value in basic mode
+and the first non-empty advanced value in advanced mode, so a stale value in the dormant mode can
+never leak. `normalizeFileInput` then handles the JSON string that advanced-mode template resolution
+produces.
+
+Note that `generic-handler` merges rather than replaces (`{ ...inputs, ...transformedParams }`), so
+omitting a key from the returned object does not strip it from what the tool receives. Tools simply
+ignore params they do not declare.
 
 ### File Input Types in `inputs`
 
-Use `type: 'json'` for file inputs:
+Declare the **canonical** id with `type: 'json'` — the subblock ids never reach `inputs`:
 
 ```typescript
 inputs: {
-  uploadFile: { type: 'json', description: 'Uploaded file (UserFile)' },
-  fileRef: { type: 'json', description: 'File reference from previous block' },
+  file: { type: 'json', description: 'File to upload (UserFile or reference)' },
   // Legacy field for backwards compatibility
   fileContent: { type: 'string', description: 'Legacy: base64 encoded content' },
 }
@@ -443,7 +509,7 @@ Maps multiple UI fields to a single serialized parameter:
 
 **Critical constraints:**
 - `canonicalParamId` must NOT match any other subblock's `id` in the same block (causes conflicts)
-- `canonicalParamId` must be unique per block (only one basic/advanced pair per canonicalParamId)
+- A `canonicalParamId` links exactly one basic/advanced pair for a single logical parameter. Do NOT reuse the same `canonicalParamId` for different parameters, even under mutually-exclusive conditions/operations
 - ONLY use `canonicalParamId` to link basic/advanced mode alternatives for the same logical parameter
 - Do NOT use it for any other purpose
 
@@ -533,7 +599,10 @@ tools: {
 Block outputs only support:
 - `type` - The data type ('string', 'number', 'boolean', 'json', 'array')
 - `description` - Human readable description
-- Nested object structure (for complex types)
+- `condition` - Optional visibility condition
+- `hiddenFromDisplay` - Optional flag to hide from the output display
+
+**Nested object/`properties` outputs are tool-output-only and will fail TypeScript at build time on block outputs.** For complex shapes use `type: 'json'` and describe the inner fields in the `description` string.
 
 ```typescript
 outputs: {
@@ -556,7 +625,7 @@ outputs: {
 
 ### Typed JSON Outputs
 
-When using `type: 'json'` and you know the object shape in advance, **describe the inner fields in the description** so downstream blocks know what properties are available. For well-known, stable objects, use nested output definitions instead:
+When using `type: 'json'` and you know the object shape in advance, **describe the inner fields in the description** so downstream blocks know what properties are available. Block outputs have no nested `properties` form — always keep the output flat and put the shape in the `description`:
 
 ```typescript
 outputs: {
@@ -568,26 +637,10 @@ outputs: {
     type: 'json',
     description: 'Zone plan information (id, name, price, currency, frequency, is_subscribed)',
   },
-
-  // BEST: Use nested output definition when the shape is stable and well-known
-  plan: {
-    id: { type: 'string', description: 'Plan identifier' },
-    name: { type: 'string', description: 'Plan name' },
-    price: { type: 'number', description: 'Plan price' },
-    currency: { type: 'string', description: 'Price currency' },
-  },
 }
 ```
 
-Use the nested pattern when:
-- The object has a small, stable set of fields (< 10)
-- Downstream blocks will commonly access specific properties
-- The API response shape is well-documented and unlikely to change
-
-Use `type: 'json'` with a descriptive string when:
-- The object has many fields or a dynamic shape
-- It represents a list/array of items
-- The shape varies by operation
+Nested object outputs (`plan: { id: { type: 'string' }, ... }`) are a **tool-output** feature only — `OutputFieldDefinition` for blocks does not allow them and they fail TypeScript at build time.
 
 If the output shape is unknown because the underlying tool response is undocumented, you MUST tell the user and stop. Unknown is not the same as variable. Never guess block outputs.
 
@@ -627,96 +680,20 @@ export const ServiceV2Block: BlockConfig = {
 }
 ```
 
-## Block Metadata (BlockMeta)
-
-Every integration block **must** export a `{Service}BlockMeta` object at the bottom of the block file. This metadata drives the integration catalog, tag filters, and workflow template suggestions shown to users.
-
-### Structure
-
-```typescript
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
-
-// ... block definition above ...
-
-export const {Service}BlockMeta = {
-  tags: ['messaging', 'automation'],   // Same tags as the block's tags field
-  url: 'https://{service}.com',         // Canonical homepage of the external service
-  templates: [                          // Optional but strongly encouraged
-    {
-      icon: {Service}Icon,
-      title: '{Service} use-case title',
-      prompt: 'Build a workflow that ...',
-      modules: ['agent', 'workflows'],  // Modules the template uses
-      category: 'productivity',         // Template category
-      tags: ['automation'],             // Template-level tags
-      alsoIntegrations: ['slack'],      // Other blocks referenced in the prompt (optional)
-    },
-  ],
-  skills: [                             // Optional but strongly encouraged
-    {
-      name: 'summarize-thread',         // kebab-case, becomes the created skill's name
-      description: 'One line: what it does and when to use it.',
-      content:
-        '# Summarize Thread\n\n...\n\n## Steps\n1. ...\n\n## Output\n...',  // markdown
-    },
-  ],
-} as const satisfies BlockMeta
-```
-
-### Rules
-
-- **Import `BlockMeta`** from `@/blocks/types` alongside `BlockConfig`
-- **`tags`** must match the `tags` array on the block config exactly
-- **`url`** is the canonical homepage of the external service the block integrates with (e.g. `'https://exa.ai'`, `'https://salesforce.com'`) — the catalog "link back to the tool". It is distinct from `BlockConfig.docsLink`, which points at Sim's own integration docs on `docs.sim.ai`. Use the service's real root domain over `https` (verify it actually resolves), no tracking params, no trailing slash. Omit `url` only for first-party/built-in blocks that have no external service (e.g. `agent`, `function`, `condition`, `api`, `response`)
-- **Templates are optional** but should be added for any integration that has a recognizable use case — aim for 2–4 templates per block
-- **Template `prompt`** should start with "Build a workflow that..." or "Create a workflow that..." and be concrete enough to generate a real workflow in Mothership
-- **Template `modules`** lists the Sim modules the template relies on: `'knowledge-base' | 'tables' | 'files' | 'workflows' | 'scheduled' | 'agent'`
-- **Template `category`** is one of: `'popular' | 'sales' | 'support' | 'engineering' | 'marketing' | 'productivity' | 'operations'`
-- **`alsoIntegrations`** names other block types (e.g. `'slack'`, `'linear'`) referenced in the template prompt — helps the catalog surface this template when those blocks are selected
-- Place the export **after** the main `{Service}Block` export, at the very bottom of the file
-
-#### `skills` — curated, ready-to-add agent skills
-
-`skills` is an optional array of `SuggestedSkill` (`{ name, description, content }`) shown on the integration's detail page; users click **Add** to create the skill in their workspace. Aim for 3–5 skills for mainstream services, 2–3 for niche/low-level ones.
-
-- **`name`** — kebab-case, lowercase letters/numbers/hyphens, ≤ 64 chars, unique within the integration, verb-led (e.g. `summarize-thread`).
-- **`description`** — one line, ≤ 1024 chars: what it does and when to use it.
-- **`content`** — markdown instructions for the agent (literal `\n` for newlines): a `# Title`, then `## Steps` and an output/guidance section. Keep ~600–2000 chars.
-- **Ground every skill in operations the block actually exposes.** Cross-check each skill's steps against the block's `tools.access` list — never describe an action the integration cannot perform (e.g. "receive messages" when the block only sends).
-- **Skills MUST be derived from real, popular use cases found online — never invented.** Before adding a skill, web-search the service's documented use cases (vendor use-case/solutions pages, official docs describing the workflow, reputable "top automations for X" articles). If you cannot source a use case as something people genuinely do with the service, do not add it. Do not hallucinate skills.
-
-### Register in the blocksMeta object
-
-After adding `{Service}BlockMeta` to the block file, register it in `apps/sim/blocks/registry.ts`:
-
-```typescript
-// Add import (alongside the block import, alphabetically)
-import { ServiceBlock, ServiceBlockMeta } from '@/blocks/blocks/service'
-
-// Add to blocksMeta object (alphabetically)
-export const blocksMeta = {
-  // ... existing entries ...
-  service: ServiceBlockMeta,
-}
-```
-
 ## Registering Blocks
 
-After creating the block, remind the user to:
-1. Import `{Service}Block` and `{Service}BlockMeta` in `apps/sim/blocks/registry.ts`
-2. Add to the `registry` object (alphabetically):
-3. Add to the `blocksMeta` object (alphabetically):
+After creating the block, remind the user to register it in `apps/sim/blocks/registry-maps.ts` (the data maps live here; `registry.ts` holds only the accessor functions). Add the import and an entry to each map alphabetically:
 
 ```typescript
 import { ServiceBlock, ServiceBlockMeta } from '@/blocks/blocks/service'
 
-export const registry: Record<string, BlockConfig> = {
+export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   // ... existing blocks ...
   service: ServiceBlock,
 }
 
-export const blocksMeta = {
-  // ... existing entries ...
+export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
+  // ... existing metas ...
   service: ServiceBlockMeta,
 }
 ```
@@ -837,6 +814,13 @@ Please provide the SVG and I'll convert it to a React component.
 You can usually find this in the service's brand/press kit page, or copy it from their website.
 ```
 
+When converting the SVG: a **monochrome** logo (single white or black mark) must
+use `fill='currentColor'`, never a hardcoded `#fff`/`#000000`. Block icons render
+both inside their `bgColor` tile and "bare" on a neutral page (the home Suggested
+actions list) in light and dark mode; a hardcoded white/black mark goes invisible
+bare on the matching background. Multi-color brand logos keep their own fills.
+Verify with `bun run check:bare-icons`.
+
 ## Advanced Mode for Optional Fields
 
 Optional fields that are rarely used should be set to `mode: 'advanced'` so they don't clutter the basic UI. This includes:
@@ -893,6 +877,48 @@ Use `wandConfig` for fields that are hard to fill out manually, such as timestam
 
 All tool IDs referenced in `tools.access` and returned by `tools.config.tool` MUST use `snake_case` (e.g., `x_create_tweet`, `slack_send_message`). Never use camelCase or PascalCase.
 
+## BlockMeta (Required)
+
+Every block file must export a `{Service}BlockMeta` alongside the block — **minimum 7 templates**. Look at existing examples in `apps/sim/blocks/blocks/` (e.g. `browser_use.ts`, `google_sheets.ts`) for the pattern.
+
+```typescript
+import type { BlockMeta } from '@/blocks/types'
+
+export const {Service}BlockMeta = {
+  tags: ['tag1', 'tag2'],                  // IntegrationTag[]
+  url: 'https://{service}.com',            // external service homepage (verify it resolves) — NOT docs.sim.ai
+  templates: [
+    {
+      icon: {Service}Icon,
+      title: '{Service} <use-case>',        // 2–5 words
+      prompt: 'Build a workflow that...',   // specific use case, 1–3 sentences
+      modules: ['agent', 'workflows'],      // 'agent' | 'workflows' | 'tables' | 'files' | 'scheduled' | 'knowledge-base'
+      category: 'operations',              // 'operations' | 'marketing' | 'sales' | 'engineering' | 'productivity' | 'support' | 'popular'
+      tags: ['automation'],
+      alsoIntegrations: ['slack'],         // optional — other block IDs referenced in the prompt
+      featured: true,                      // optional
+    },
+    // ... at least 6 more
+  ],
+  skills: [                                // SuggestedSkill[] — 3–5 mainstream, 2–3 niche
+    {
+      name: 'summarize-thread',            // kebab-case, ≤64 chars, unique, verb-led
+      description: 'One line: what it does and when to use it.',  // ≤1024 chars
+      content:
+        '# Summarize Thread\n\n...\n\n## Steps\n1. ...\n\n## Output\n...',  // markdown
+    },
+    // ... more
+  ],
+} as const satisfies BlockMeta
+```
+
+Derive templates from the service's real use cases. Each prompt should name a concrete trigger, transformation, and output — not a generic description of what the service does.
+
+`skills` are curated, ready-to-add agent skills shown on the integration's detail page (users click **Add** to create them in their workspace). Two hard rules:
+
+- **Ground every skill in operations the block actually exposes** — cross-check each skill's steps against `tools.access`. Never describe an action the integration cannot perform.
+- **Derive skills from real, popular use cases found online — never invent them.** Web-search the service's documented use cases (vendor use-case/solutions pages, official docs describing the workflow, reputable "top automations for X" articles) and only add a skill you can source as something people genuinely do with the service. Do not hallucinate skills.
+
 ## Checklist Before Finishing
 
 - [ ] `integrationType` is set to the correct `IntegrationType` enum value
@@ -906,16 +932,14 @@ All tool IDs referenced in `tools.access` and returned by `tools.config.tool` MU
 - [ ] Tools.access lists all tool IDs (snake_case)
 - [ ] Tools.config.tool returns correct tool ID (snake_case)
 - [ ] Outputs match tool outputs
-- [ ] Block registered in `registry.ts` blocks object (alphabetically)
-- [ ] `{Service}BlockMeta` exported at bottom of block file with `tags` and `templates`
-- [ ] `url` set on `{Service}BlockMeta` to the external service's verified homepage (omit only for first-party blocks with no external service)
-- [ ] `skills` added to `{Service}BlockMeta`, each grounded in the block's `tools.access` and derived from a real online-sourced use case (not invented)
-- [ ] `BlockMeta` imported from `@/blocks/types` alongside `BlockConfig`
-- [ ] Block meta registered in `registry.ts` blocksMeta object (alphabetically)
+- [ ] Block + meta registered in registry-maps.ts (`BLOCK_REGISTRY` / `BLOCK_META_REGISTRY`)
 - [ ] If icon missing: asked user to provide SVG
 - [ ] If triggers exist: `triggers` config set, trigger subBlocks spread
 - [ ] Optional/rarely-used fields set to `mode: 'advanced'`
 - [ ] Timestamps and complex inputs have `wandConfig` enabled
+- [ ] Exported `{Service}BlockMeta` with at least 7 templates
+- [ ] `url` set on `{Service}BlockMeta` to the external service's verified homepage (omit only for first-party blocks with no external service)
+- [ ] `skills` added to `{Service}BlockMeta`, each grounded in `tools.access` and sourced from a real online use case (not invented)
 
 ## Final Validation (Required)
 
@@ -929,4 +953,5 @@ After creating the block, you MUST validate it against every tool it references:
    - Type coercions in `tools.config.params` for any params that need conversion (Number(), Boolean(), JSON.parse())
 3. **Verify block outputs** cover the key fields returned by all tools
 4. **Verify conditions** — each subBlock should only show for the operations that actually use it
-5. **If any tool outputs are still unknown**, explicitly tell the user instead of guessing block outputs
+5. **Verify `{Service}BlockMeta` is exported** with at least 7 templates, each having `icon`, `title`, `prompt`, `modules`, `category`, and `tags`
+6. **If any tool outputs are still unknown**, explicitly tell the user instead of guessing block outputs

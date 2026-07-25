@@ -1,28 +1,21 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockGetSession,
   mockValidateEnterpriseAuditAccess,
   mockBuildOrgScopeCondition,
   mockGetOrgWorkspaceIds,
   mockQueryAuditLogs,
   mockBuildFilterConditions,
 } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
   mockValidateEnterpriseAuditAccess: vi.fn(),
   mockBuildOrgScopeCondition: vi.fn(),
   mockGetOrgWorkspaceIds: vi.fn(),
   mockQueryAuditLogs: vi.fn(),
   mockBuildFilterConditions: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
 }))
 
 vi.mock('@/app/api/v1/audit-logs/auth', () => ({
@@ -38,16 +31,20 @@ vi.mock('@/app/api/v1/audit-logs/query', () => ({
 
 import { GET } from '@/app/api/audit-logs/export/route'
 
+const mockGetSession = authMockFns.mockGetSession
+
 const ORG_ID = 'org-1'
 const MEMBER_IDS = ['admin-1']
 const SCOPE_SENTINEL = { type: 'org-scope-sentinel' }
 
 function makeRequest(query = '') {
+  const search = new URLSearchParams(query.startsWith('?') ? query.slice(1) : query)
+  search.set('organizationId', ORG_ID)
   return createMockRequest(
     'GET',
     undefined,
     {},
-    `http://localhost:3000/api/audit-logs/export${query}`
+    `http://localhost:3000/api/audit-logs/export?${search.toString()}`
   )
 }
 
@@ -105,6 +102,7 @@ describe('GET /api/audit-logs/export', () => {
     const response = await GET(makeRequest())
 
     expect(response.status).toBe(403)
+    expect(mockValidateEnterpriseAuditAccess).toHaveBeenCalledWith('admin-1', ORG_ID)
     expect(mockQueryAuditLogs).not.toHaveBeenCalled()
   })
 

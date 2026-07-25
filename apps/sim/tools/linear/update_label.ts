@@ -1,5 +1,6 @@
 import type { LinearUpdateLabelParams, LinearUpdateLabelResponse } from '@/tools/linear/types'
 import { LABEL_FULL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearUpdateLabelTool: ToolConfig<LinearUpdateLabelParams, LinearUpdateLabelResponse> =
@@ -50,7 +51,7 @@ export const linearUpdateLabelTool: ToolConfig<LinearUpdateLabelParams, LinearUp
         }
         return {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${params.accessToken}`,
+          Authorization: linearAuthorizationHeader(params.accessToken),
         }
       },
       body: (params) => {

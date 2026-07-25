@@ -4,6 +4,7 @@ import {
   knowledgeConnectorParamsSchema,
   successResponseSchema,
 } from '@/lib/api/contracts/knowledge/shared'
+import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const createConnectorBodySchema = z.object({
@@ -150,10 +151,22 @@ export const deleteKnowledgeConnectorContract = defineRouteContract({
   },
 })
 
+export const triggerKnowledgeConnectorSyncQuerySchema = z.object({
+  /**
+   * Force re-hydration: for connectors whose rendered content can drift without a
+   * hash change (e.g. Confluence transclusions), do a full listing and re-fetch +
+   * re-index every already-synced document rather than only hash-changed ones. The
+   * deletion-reconciliation safety guards stay armed. Defaults to the normal
+   * hash-gated sync.
+   */
+  rehydrate: booleanQueryFlagSchema.optional().default(false),
+})
+
 export const triggerKnowledgeConnectorSyncContract = defineRouteContract({
   method: 'POST',
   path: '/api/knowledge/[id]/connectors/[connectorId]/sync',
   params: knowledgeConnectorParamsSchema,
+  query: triggerKnowledgeConnectorSyncQuerySchema,
   response: {
     mode: 'json',
     schema: z.object({

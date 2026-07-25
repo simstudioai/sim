@@ -328,8 +328,12 @@ interface TextEditorProps {
   previewMode: PreviewMode
   autoFocus?: boolean
   onDirtyChange?: (isDirty: boolean) => void
-  onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
+  onSaveStatusChange?: (
+    status: 'idle' | 'saving' | 'saved' | 'error',
+    retry?: () => Promise<void>
+  ) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  discardRef?: React.MutableRefObject<(() => void) | null>
   streamingContent?: string
   isAgentEditing?: boolean
   disableStreamingAutoScroll: boolean
@@ -345,6 +349,7 @@ export const TextEditor = memo(function TextEditor({
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
+  discardRef,
   streamingContent,
   isAgentEditing,
   disableStreamingAutoScroll,
@@ -385,6 +390,7 @@ export const TextEditor = memo(function TextEditor({
     onDirtyChange,
     onSaveStatusChange,
     saveRef,
+    discardRef,
   })
   contentRef.current = content
 

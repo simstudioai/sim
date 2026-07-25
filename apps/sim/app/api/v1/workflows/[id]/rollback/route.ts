@@ -9,7 +9,6 @@ import {
 import { parseOptionalJsonBody, parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { captureServerEvent } from '@/lib/posthog/server'
 import { performActivateVersion } from '@/lib/workflows/orchestration'
 import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import { findPreviousDeploymentVersion } from '@/lib/workflows/persistence/utils'
@@ -81,9 +80,7 @@ export const POST = withRouteHandler(
         workflowId: id,
         version: targetVersion,
         userId,
-        workflow: workflow as Record<string, unknown>,
         requestId,
-        request,
       })
 
       if (!result.success) {
@@ -93,22 +90,17 @@ export const POST = withRouteHandler(
         )
       }
 
-      captureServerEvent(
-        userId,
-        'deployment_version_activated',
-        { workflow_id: id, workspace_id: workspaceId, version: targetVersion },
-        { groups: { workspace: workspaceId } }
-      )
-
       const limits = await getUserLimits(userId)
       const apiResponse = createApiResponse(
         {
           data: {
             id,
-            isDeployed: true,
+            isDeployed: Boolean(result.activeDeployment),
             deployedAt: result.deployedAt?.toISOString() ?? null,
             version: targetVersion,
             warnings: result.warnings ?? [],
+            activeDeployment: result.activeDeployment ?? null,
+            latestDeploymentAttempt: result.latestDeploymentAttempt ?? null,
           },
         },
         limits,

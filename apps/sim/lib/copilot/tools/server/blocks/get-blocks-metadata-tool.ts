@@ -10,6 +10,7 @@ import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { getBlock } from '@/blocks/registry'
 import { AuthMode, type BlockConfig, isHiddenFromDisplay } from '@/blocks/types'
+import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { tools as toolsRegistry } from '@/tools/registry'
@@ -162,6 +163,15 @@ export const getBlocksMetadataServerTool: BaseServerTool<
 
         if (blockConfig.hideFromToolbar) {
           logger.debug('Skipping block hidden from toolbar', { blockId })
+          continue
+        }
+
+        // getBlock is pure, so the viewer's visibility must be checked
+        // explicitly: unrevealed preview blocks and kill-switched types stay
+        // out of the agent's metadata (the router wraps this tool in
+        // withBlockVisibility).
+        if (isHiddenUnder(overlayVisibility(), blockConfig)) {
+          logger.debug('Skipping block gated by visibility', { blockId })
           continue
         }
 
@@ -772,6 +782,9 @@ function getStaticModelOptions(): { id: string; label?: string }[] {
     }
     if (provider?.models) {
       for (const model of provider.models) {
+        // Exclude retired models — the agent must not receive a model whose API
+        // calls fail (mirrors the user picker + VFS menu).
+        if (model.sunset?.status === 'deprecated') continue
         models.push({ id: model.id, label: model.id })
       }
     }

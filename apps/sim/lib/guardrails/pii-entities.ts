@@ -229,11 +229,43 @@ export function isEntitySupportedForLanguage(
   return PII_ENTITIES_BY_LANGUAGE[language].has(entity)
 }
 
-/** {@link PII_ENTITY_GROUPS} filtered to entities the language recognizes (empty groups dropped). */
-export function getEntityGroupsForLanguage(language: PIILanguage) {
+/**
+ * Entity types produced by the spaCy NER model (vs the regex/checksum pattern
+ * recognizers). The block-output redaction stage is restricted to the non-NER
+ * (regex) entities so it runs on the Presidio spaCy-free fast path without the
+ * per-leaf NER cost. Includes ORGANIZATION — which Presidio's spaCy recognizer
+ * emits but the user-facing catalog above does not list — so it too is stripped
+ * from block-output selections, keeping this in sync with the derived
+ * `NER_ENTITIES` in `apps/pii/server.py`. Typed as strings because ORGANIZATION
+ * isn't a catalog `PIIEntityType`.
+ */
+export const NER_PII_ENTITIES: ReadonlySet<string> = new Set<string>([
+  'PERSON',
+  'LOCATION',
+  'NRP',
+  'DATE_TIME',
+  'ORGANIZATION',
+])
+
+/** Drop the spaCy-NER entities ({@link NER_PII_ENTITIES}) from a selection. */
+export function stripNerEntities(entities: readonly string[]): string[] {
+  return entities.filter((e) => !NER_PII_ENTITIES.has(e))
+}
+
+/**
+ * {@link PII_ENTITY_GROUPS} filtered to entities the language recognizes (empty
+ * groups dropped). With `regexOnly`, the spaCy-NER entities are also excluded —
+ * used for the block-output stage.
+ */
+export function getEntityGroupsForLanguage(language: PIILanguage, opts?: { regexOnly?: boolean }) {
+  const regexOnly = opts?.regexOnly ?? false
   return PII_ENTITY_GROUPS.map((group) => ({
     label: group.label,
-    entities: group.entities.filter((e) => isEntitySupportedForLanguage(e.value, language)),
+    entities: group.entities.filter(
+      (e) =>
+        isEntitySupportedForLanguage(e.value, language) &&
+        (!regexOnly || !NER_PII_ENTITIES.has(e.value))
+    ),
   })).filter((group) => group.entities.length > 0)
 }
 
@@ -241,11 +273,25 @@ export function getEntityGroupsForLanguage(language: PIILanguage) {
 export const PII_STAGES = ['input', 'blockOutputs', 'logs'] as const
 export type PiiStageKey = (typeof PII_STAGES)[number]
 
+/**
+ * A user-supplied custom regex pattern. Matches are replaced with `replacement`
+ * wrapped in angle brackets (e.g. `EMPLOYEE_ID` → `<EMPLOYEE_ID>`), mirroring the
+ * built-in Presidio tokens; the internal entity id is never surfaced. `name` is a
+ * human label only.
+ */
+export interface CustomPiiPattern {
+  name: string
+  regex: string
+  replacement: string
+}
+
 /** Per-stage redaction policy. `enabled: false` makes the stage a no-op. */
 export interface PiiStagePolicy {
   enabled: boolean
   entityTypes: string[]
   language: PIILanguage
+  /** User-supplied custom regex patterns applied alongside `entityTypes`. */
+  customPatterns?: CustomPiiPattern[]
 }
 
 export type PiiStages = Record<PiiStageKey, PiiStagePolicy>
@@ -288,7 +334,24 @@ export const RISKY_PII_ENTITIES: ReadonlySet<PIIEntityType> = new Set<PIIEntityT
 
 /** A fully-disabled stage policy for new drafts. */
 export function emptyStagePolicy(): PiiStagePolicy {
-  return { enabled: false, entityTypes: [], language: DEFAULT_PII_LANGUAGE }
+  return { enabled: false, entityTypes: [], language: DEFAULT_PII_LANGUAGE, customPatterns: [] }
+}
+
+/** Coerce an untrusted value into a clean `CustomPiiPattern[]` (drops malformed rows). */
+export function sanitizeCustomPatterns(value: unknown): CustomPiiPattern[] {
+  if (!Array.isArray(value)) return []
+  const out: CustomPiiPattern[] = []
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') continue
+    const { name, regex, replacement } = raw as Record<string, unknown>
+    if (typeof regex !== 'string' || regex.length === 0) continue
+    out.push({
+      name: typeof name === 'string' ? name : '',
+      regex,
+      replacement: typeof replacement === 'string' ? replacement : '',
+    })
+  }
+  return out
 }
 
 /** A fully-disabled stage set for new drafts. */
@@ -316,12 +379,24 @@ export function normalizeRuleStages(rule: {
       ? policy.entityTypes.filter((t): t is string => typeof t === 'string')
       : [],
     language: coercePiiLanguage(policy?.language) ?? DEFAULT_PII_LANGUAGE,
+    customPatterns: sanitizeCustomPatterns(policy?.customPatterns),
   })
 
   if (rule.stages) {
+    // Block outputs are regex-only (no spaCy NER) — strip NER from any stored
+    // rule so hydrated drafts never carry it; a stage with neither regex entities
+    // nor custom patterns becomes disabled.
+    const blockOutputs = sanitize(rule.stages.blockOutputs)
+    const blockOutputsEntities = stripNerEntities(blockOutputs.entityTypes)
     return {
       input: sanitize(rule.stages.input),
-      blockOutputs: sanitize(rule.stages.blockOutputs),
+      blockOutputs: {
+        ...blockOutputs,
+        entityTypes: blockOutputsEntities,
+        enabled:
+          blockOutputs.enabled &&
+          (blockOutputsEntities.length > 0 || (blockOutputs.customPatterns?.length ?? 0) > 0),
+      },
       logs: sanitize(rule.stages.logs),
     }
   }

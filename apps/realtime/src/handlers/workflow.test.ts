@@ -4,10 +4,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IRoomManager } from '@/rooms'
 
-const { mockGetWorkflowState, mockVerifyWorkflowAccess } = vi.hoisted(() => ({
-  mockGetWorkflowState: vi.fn(),
-  mockVerifyWorkflowAccess: vi.fn(),
-}))
+const { mockGetWorkflowState, mockVerifyWorkflowAccess, mockResolveCurrentWorkflowRole } =
+  vi.hoisted(() => ({
+    mockGetWorkflowState: vi.fn(),
+    mockVerifyWorkflowAccess: vi.fn(),
+    mockResolveCurrentWorkflowRole: vi.fn(),
+  }))
 
 vi.mock('@sim/db', () => ({
   db: { select: vi.fn() },
@@ -20,6 +22,7 @@ vi.mock('@/database/operations', () => ({
 
 vi.mock('@/middleware/permissions', () => ({
   verifyWorkflowAccess: mockVerifyWorkflowAccess,
+  resolveCurrentWorkflowRole: mockResolveCurrentWorkflowRole,
 }))
 
 import { setupWorkflowHandlers } from '@/handlers/workflow'
@@ -86,6 +89,7 @@ describe('setupWorkflowHandlers', () => {
     vi.clearAllMocks()
     mockGetWorkflowState.mockResolvedValue({ id: 'workflow-1', state: {} })
     mockVerifyWorkflowAccess.mockResolvedValue({ hasAccess: true, role: 'admin' })
+    mockResolveCurrentWorkflowRole.mockResolvedValue('admin')
   })
 
   it('includes workflowId when authentication is missing', async () => {
@@ -147,6 +151,52 @@ describe('setupWorkflowHandlers', () => {
       code: 'ACCESS_DENIED',
       retryable: false,
     })
+  })
+
+  it('denies the join when access is revoked while the join is in flight', async () => {
+    mockResolveCurrentWorkflowRole.mockResolvedValue(null)
+
+    const { socket, handlers } = createSocket()
+    const roomManager = createRoomManager()
+
+    setupWorkflowHandlers(
+      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
+      roomManager
+    )
+
+    await handlers['join-workflow']({ workflowId: 'workflow-1', tabSessionId: 'tab-1' })
+
+    expect(socket.emit).toHaveBeenCalledWith('join-workflow-error', {
+      workflowId: 'workflow-1',
+      error: 'Access denied to workflow',
+      code: 'ACCESS_DENIED',
+      retryable: false,
+    })
+    expect(socket.join).not.toHaveBeenCalled()
+    expect(roomManager.addUserToRoom).not.toHaveBeenCalled()
+  })
+
+  it('joins with the re-validated role, passing the join-time role as fallback', async () => {
+    mockVerifyWorkflowAccess.mockResolvedValue({ hasAccess: true, role: 'write' })
+    mockResolveCurrentWorkflowRole.mockResolvedValue('read')
+
+    const { socket, handlers } = createSocket()
+    const roomManager = createRoomManager()
+
+    setupWorkflowHandlers(
+      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
+      roomManager
+    )
+
+    await handlers['join-workflow']({ workflowId: 'workflow-1', tabSessionId: 'tab-1' })
+
+    expect(mockResolveCurrentWorkflowRole).toHaveBeenCalledWith('user-1', 'workflow-1', 'write')
+    expect(socket.join).toHaveBeenCalledWith('workflow-1')
+    expect(roomManager.addUserToRoom).toHaveBeenCalledWith(
+      'workflow-1',
+      'socket-1',
+      expect.objectContaining({ role: 'read' })
+    )
   })
 
   it('marks workflow access verification failures as retryable', async () => {

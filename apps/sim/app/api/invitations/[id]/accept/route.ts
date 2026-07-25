@@ -1,4 +1,3 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { acceptInvitationContract } from '@/lib/api/contracts/invitations'
@@ -25,8 +24,10 @@ export const POST = withRouteHandler(
     const result = await acceptInvitation({
       userId: session.user.id,
       userEmail: session.user.email,
+      actorName: session.user.name ?? undefined,
       invitationId: id,
       token: parsed.data.body.token ?? null,
+      request,
     })
 
     if (!result.success) {
@@ -47,29 +48,6 @@ export const POST = withRouteHandler(
     }
 
     const inv = result.invitation
-
-    recordAudit({
-      workspaceId: result.acceptedWorkspaceIds[0] ?? null,
-      actorId: session.user.id,
-      actorName: session.user.name ?? undefined,
-      actorEmail: session.user.email ?? undefined,
-      action:
-        inv.kind === 'workspace'
-          ? AuditAction.INVITATION_ACCEPTED
-          : AuditAction.ORG_INVITATION_ACCEPTED,
-      resourceType:
-        inv.kind === 'workspace' ? AuditResourceType.WORKSPACE : AuditResourceType.ORGANIZATION,
-      resourceId: inv.organizationId ?? result.acceptedWorkspaceIds[0] ?? inv.id,
-      description: `Accepted ${inv.kind} invitation for ${inv.email}`,
-      metadata: {
-        invitationId: inv.id,
-        targetEmail: inv.email,
-        targetRole: inv.role,
-        kind: inv.kind,
-        workspaceIds: result.acceptedWorkspaceIds,
-      },
-      request,
-    })
 
     return NextResponse.json({
       success: true,

@@ -13,3 +13,9 @@ export function extractProviderIdentifierFromBody(provider: string, body: unknow
   const handler = getProviderHandler(provider)
   return handler.extractIdempotencyId?.(body) ?? null
 }
+
+/** Returns whether a provider accepts deliveries through the generic per-webhook path route. */
+export function acceptsPathWebhookDelivery(provider: string | null): boolean {
+  if (!provider) return true
+  return getProviderHandler(provider).ingressMode !== 'provider'
+}

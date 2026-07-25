@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { functionExecuteContract } from '@/lib/api/contracts'
@@ -15,10 +16,9 @@ import {
   validateWorkspaceFileWriteTarget,
   writeWorkspaceFileByPath,
 } from '@/lib/copilot/vfs/resource-writer'
-import { isE2bEnabled } from '@/lib/core/config/env-flags'
+import { isRemoteSandboxEnabled } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { executeInE2B, executeShellInE2B } from '@/lib/execution/e2b'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
@@ -35,7 +35,16 @@ import {
 } from '@/lib/execution/payloads/materialization.server'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
+import {
+  executeInSandbox,
+  executeShellInSandbox,
+  SIM_RESULT_PREFIX,
+} from '@/lib/execution/remote-sandbox'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
+import {
+  fetchWorkspaceFileBuffer,
+  resolveWorkspaceFileReference,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
@@ -110,13 +119,13 @@ const JS_RESERVED_WORDS = new Set([
   'public',
 ])
 
-type TypeScriptModule = typeof import('typescript')
+type TypeScriptModule = typeof import('@typescript/typescript6')
 
 let typescriptModulePromise: Promise<TypeScriptModule> | null = null
 
 async function loadTypeScriptModule(): Promise<TypeScriptModule> {
   if (!typescriptModulePromise) {
-    typescriptModulePromise = import('typescript').then(
+    typescriptModulePromise = import('@typescript/typescript6').then(
       (mod) => (mod?.default ?? mod) as TypeScriptModule,
       (error) => {
         typescriptModulePromise = null
@@ -899,6 +908,49 @@ async function functionJsonResponse<T>(
   )
 }
 
+/**
+ * Compares an about-to-be-exported buffer against the overwrite target's
+ * current content. `identical: true` means the export is a byte-for-byte no-op:
+ * either a legitimately idempotent regeneration, or the incident signature of
+ * code that never wrote to the declared sandboxPath (the file still holds the
+ * mounted input). Only the model can tell those apart, so callers surface the
+ * fact loudly in the receipt instead of failing the write. Comparison failures
+ * never block the write; the current content is only downloaded when the sizes
+ * already match.
+ */
+async function checkOverwriteTarget(
+  workspaceId: string,
+  targetPath: string,
+  buffer: Buffer
+): Promise<{ previousSize?: number; identical: boolean }> {
+  try {
+    const existing = await resolveWorkspaceFileReference(workspaceId, targetPath)
+    if (!existing) return { identical: false }
+    if (existing.size !== buffer.length) {
+      return { previousSize: existing.size, identical: false }
+    }
+    const current = await fetchWorkspaceFileBuffer(existing)
+    return { previousSize: existing.size, identical: current.equals(buffer) }
+  } catch {
+    return { identical: false }
+  }
+}
+
+function formatExportReceipt(bytes: number, previousSize: number | undefined, sha256: string) {
+  return `(${bytes} bytes${
+    previousSize !== undefined ? `, replaced ${previousSize} bytes` : ''
+  }, sha256:${sha256.slice(0, 16)})`
+}
+
+function exportUnchangedNote(sandboxPath?: string): string {
+  return (
+    'WARNING: content is byte-identical to the previous version — nothing changed.' +
+    (sandboxPath
+      ? ` If you expected new content, your code did not modify the sandbox file at "${sandboxPath}" (it still holds the mounted input); write the new content to exactly that path and export again.`
+      : ' If you expected new content, the code returned the same bytes as before.')
+  )
+}
+
 async function maybeExportSandboxFileToWorkspace(args: {
   authUserId: string
   workflowId?: string
@@ -982,7 +1034,16 @@ async function maybeExportSandboxFileToWorkspace(args: {
   const targetPath = overwriteFileId || outputPath
   const mode = outputMode ?? (overwriteFileId ? 'overwrite' : 'create')
 
+  let previousSize: number | undefined
+  let unchanged = false
+  if (mode === 'overwrite') {
+    const check = await checkOverwriteTarget(resolvedWorkspaceId, targetPath, fileBuffer)
+    previousSize = check.previousSize
+    unchanged = check.identical
+  }
+
   try {
+    const sha256 = sha256Hex(fileBuffer)
     const written = await writeWorkspaceFileByPath({
       workspaceId: resolvedWorkspaceId,
       userId: authUserId,
@@ -1001,17 +1062,28 @@ async function maybeExportSandboxFileToWorkspace(args: {
       mode,
       mimeType: resolvedMimeType,
       size: fileBuffer.length,
+      previousSize,
+      sha256,
+      unchanged,
     })
     return NextResponse.json({
       success: true,
       output: {
         result: {
-          message: `Sandbox file exported to ${written.vfsPath}`,
+          message: `Sandbox file exported to ${written.vfsPath} ${formatExportReceipt(
+            fileBuffer.length,
+            previousSize,
+            sha256
+          )}${unchanged ? ` — ${exportUnchangedNote(outputSandboxPath)}` : ''}`,
           fileId: written.id,
           fileName: written.name,
           vfsPath: written.vfsPath,
           downloadUrl: written.downloadUrl,
           sandboxPath: outputSandboxPath,
+          size: fileBuffer.length,
+          previousSize,
+          sha256,
+          unchanged,
         },
         stdout: cleanStdout(stdout),
         executionTime,
@@ -1200,6 +1272,14 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       const buffer = prepared.isBinary
         ? Buffer.from(prepared.content, 'base64')
         : Buffer.from(prepared.content, 'utf-8')
+      let previousSize: number | undefined
+      let unchanged = false
+      if (prepared.target.mode === 'overwrite') {
+        const check = await checkOverwriteTarget(resolvedWorkspaceId, prepared.target.path, buffer)
+        previousSize = check.previousSize
+        unchanged = check.identical
+      }
+      const sha256 = sha256Hex(buffer)
       const written = await writeWorkspaceFileByPath({
         workspaceId: resolvedWorkspaceId,
         userId: args.authUserId,
@@ -1214,8 +1294,18 @@ async function maybeExportSandboxFilesToWorkspace(args: {
         mode: prepared.file.mode ?? 'create',
         mimeType: prepared.resolvedMimeType,
         size: prepared.size,
+        previousSize,
+        sha256,
+        unchanged,
       })
-      writtenFiles.push({ ...written, sandboxPath: prepared.sandboxPath })
+      writtenFiles.push({
+        ...written,
+        sandboxPath: prepared.sandboxPath,
+        exportedBytes: buffer.length,
+        previousSize,
+        sha256,
+        unchanged,
+      })
     }
   } catch (error) {
     return NextResponse.json(
@@ -1232,11 +1322,27 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     )
   }
 
+  const unchangedFiles = writtenFiles.filter((file) => file.unchanged)
   return NextResponse.json({
     success: true,
     output: {
       result: {
-        message: `Exported ${writtenFiles.length} sandbox files`,
+        message: `Exported ${writtenFiles.length} sandbox files: ${writtenFiles
+          .map(
+            (file) =>
+              `${file.vfsPath} ${formatExportReceipt(
+                file.exportedBytes,
+                file.previousSize,
+                file.sha256
+              )}${file.unchanged ? ' [UNCHANGED]' : ''}`
+          )
+          .join('; ')}${
+          unchangedFiles.length > 0
+            ? ` — WARNING: ${unchangedFiles.map((file) => file.vfsPath).join(', ')} ${
+                unchangedFiles.length === 1 ? 'is' : 'are'
+              } byte-identical to the previous version (nothing changed). If you expected new content there, your code did not modify the corresponding sandbox file.`
+            : ''
+        }`,
         files: writtenFiles.map((file) => ({
           fileId: file.id,
           fileName: file.name,
@@ -1244,6 +1350,10 @@ async function maybeExportSandboxFilesToWorkspace(args: {
           backingVfsPath: file.backingVfsPath,
           downloadUrl: file.downloadUrl,
           sandboxPath: file.sandboxPath,
+          size: file.exportedBytes,
+          previousSize: file.previousSize,
+          sha256: file.sha256,
+          unchanged: file.unchanged,
         })),
       },
       stdout: cleanStdout(args.stdout),
@@ -1403,9 +1513,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
 
     if (lang === CodeLanguage.Shell) {
-      if (!isE2bEnabled) {
+      if (!isRemoteSandboxEnabled) {
         throw new Error(
-          'Shell execution requires E2B to be enabled. Please contact your administrator to enable E2B.'
+          'Shell execution requires a remote code sandbox to be enabled. Please contact your administrator to enable it.'
         )
       }
 
@@ -1418,7 +1528,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       }
 
       logger.info(`[${requestId}] E2B shell execution`, {
-        enabled: isE2bEnabled,
+        enabled: isRemoteSandboxEnabled,
         hasApiKey: Boolean(process.env.E2B_API_KEY),
         envVarCount: Object.keys(shellEnvs).length,
       })
@@ -1431,7 +1541,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         error: shellError,
         exportedFileContent,
         exportedFiles,
-      } = await executeShellInE2B({
+      } = await executeShellInSandbox({
         code: resolvedCode,
         envs: shellEnvs,
         timeoutMs: timeout,
@@ -1483,32 +1593,58 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       )
     }
 
-    if (lang === CodeLanguage.Python && !isE2bEnabled) {
+    if (lang === CodeLanguage.Python && !isRemoteSandboxEnabled) {
       throw new Error(
-        'Python execution requires E2B to be enabled. Please contact your administrator to enable E2B, or use JavaScript instead.'
+        'Python execution requires a remote code sandbox to be enabled. Please contact your administrator to enable it, or use JavaScript instead.'
       )
     }
 
-    if (lang === CodeLanguage.JavaScript && hasImports && !isE2bEnabled) {
+    if (lang === CodeLanguage.JavaScript && hasImports && !isRemoteSandboxEnabled) {
       throw new Error(
-        'JavaScript code with import statements requires E2B to be enabled. Please remove the import statements, or contact your administrator to enable E2B.'
+        'JavaScript code with import statements requires a remote code sandbox to be enabled. Please remove the import statements, or contact your administrator to enable it.'
       )
     }
 
-    const useE2B =
-      isE2bEnabled &&
+    const useRemoteSandbox =
+      isRemoteSandboxEnabled &&
       !isCustomTool &&
       (lang === CodeLanguage.Python || (lang === CodeLanguage.JavaScript && hasImports))
 
-    if (useE2B && containsLargeValueRef(contextVariables)) {
+    if (useRemoteSandbox && containsLargeValueRef(contextVariables)) {
       throw new Error(
-        'Large execution values require the JavaScript isolated-vm runtime. Remove imports, select a nested field, or read the value in a JavaScript function without E2B.'
+        'Large execution values require the JavaScript isolated-vm runtime. Remove imports, select a nested field, or read the value in a JavaScript function without a remote sandbox.'
       )
     }
 
-    if (useE2B) {
+    // Sandbox file mounts and sandboxPath exports only exist in the remote
+    // sandbox runtime; isolated-vm has no filesystem. Silently dropping a declared
+    // sandbox input/output here produced "export succeeded" responses with
+    // zero bytes written, so refuse the call instead. The remediation depends
+    // on WHY this call runs in isolated-vm — "switch to python" is a dead end
+    // when no remote sandbox is enabled or the call is a custom tool.
+    if (
+      !useRemoteSandbox &&
+      (outputSandboxPaths.length > 0 || outputSandboxPath || _sandboxFiles?.length)
+    ) {
+      const remediation = !isRemoteSandboxEnabled
+        ? "No remote code sandbox is enabled on this deployment, so there is no sandbox filesystem for any language. Pass input data via params and return output as the code's return value with outputs.files[].path (no sandboxPath)."
+        : isCustomTool
+          ? "custom tools always run in the isolated JavaScript VM, which has no sandbox filesystem. Pass input data via params and return output as the code's return value."
+          : 'plain JavaScript runs in the isolated VM, which has no sandbox filesystem. Use language "python" so the code runs in the remote sandbox, or drop sandboxPath and return the file content as the code\'s return value with outputs.files[].path.'
+      return functionJsonResponse(
+        {
+          success: false,
+          error: `Sandbox file inputs/outputs are unavailable for this call: ${remediation}`,
+          output: { result: null, stdout: '', executionTime: Date.now() - startTime },
+        },
+        routeContext,
+        { status: 422 }
+      )
+    }
+
+    if (useRemoteSandbox) {
       logger.info(`[${requestId}] E2B status`, {
-        enabled: isE2bEnabled,
+        enabled: isRemoteSandboxEnabled,
         hasApiKey: Boolean(process.env.E2B_API_KEY),
         language: lang,
       })
@@ -1543,7 +1679,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           '    const __sim_result = await (async () => {',
           `      ${codeBody.split('\n').join('\n      ')}`,
           '    })();',
-          "    console.log('__SIM_RESULT__=' + JSON.stringify(__sim_result));",
+          // Leading \n guarantees the marker starts a fresh line even when user
+          // code's last stdout write was not newline-terminated (chunks are
+          // concatenated verbatim on the parse side, so a glued marker would
+          // otherwise be missed silently).
+          `    console.log('\\n${SIM_RESULT_PREFIX}' + JSON.stringify(__sim_result));`,
           '  } catch (error) {',
           '    console.log(String((error && (error.stack || error.message)) || error));',
           '    throw error;',
@@ -1560,7 +1700,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           error: e2bError,
           exportedFileContent,
           exportedFiles,
-        } = await executeInE2B({
+        } = await executeInSandbox({
           code: codeForE2B,
           language: CodeLanguage.JavaScript,
           timeoutMs: timeout,
@@ -1635,7 +1775,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         'def __sim_main__():',
         ...resolvedCode.split('\n').map((l) => `    ${l}`),
         '__sim_result__ = __sim_main__()',
-        "print('__SIM_RESULT__=' + json.dumps(__sim_result__))",
+        // Leading \n: same fresh-line guarantee as the JS wrapper's marker.
+        `print('\\n${SIM_RESULT_PREFIX}' + json.dumps(__sim_result__))`,
       ].join('\n')
       const codeForE2B = prologue + wrapped
 
@@ -1647,7 +1788,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         error: e2bError,
         exportedFileContent,
         exportedFiles,
-      } = await executeInE2B({
+      } = await executeInSandbox({
         code: codeForE2B,
         language: CodeLanguage.Python,
         timeoutMs: timeout,

@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { redisConfigMock, redisConfigMockFns } from '@sim/testing'
+import { redisConfigMockFns } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockHasAbortMarker, mockClearAbortMarker, mockWriteAbortMarker } = vi.hoisted(() => ({
@@ -11,7 +11,6 @@ const { mockHasAbortMarker, mockClearAbortMarker, mockWriteAbortMarker } = vi.ho
   mockWriteAbortMarker: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 vi.mock('@/lib/copilot/request/session/buffer', () => ({
   hasAbortMarker: mockHasAbortMarker,
   clearAbortMarker: mockClearAbortMarker,

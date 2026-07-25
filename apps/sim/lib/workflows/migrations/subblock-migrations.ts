@@ -46,6 +46,14 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
     phoneType: '_removed_phoneType',
     expandApplicationFormDefinition: '_removed_expandApplicationFormDefinition',
     expandSurveyFormDefinitions: '_removed_expandSurveyFormDefinitions',
+    filterCandidateId: '_removed_filterCandidateId',
+  },
+  clickup: {
+    workspaceId: 'workspaceSelector',
+    spaceId: 'spaceSelector',
+    listSpaceId: 'listSpaceSelector',
+    folderId: 'folderSelector',
+    listId: 'listSelector',
   },
   apollo: {
     contact_ids_bulk: 'contacts',

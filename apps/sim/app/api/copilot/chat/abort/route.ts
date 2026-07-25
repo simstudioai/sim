@@ -7,7 +7,6 @@ import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { CopilotAbortOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
-import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
 import { withCopilotSpan, withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import {
@@ -15,8 +14,7 @@ import {
   releasePendingChatStream,
   waitForPendingChatStream,
 } from '@/lib/copilot/request/session'
-import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
-import { env } from '@/lib/core/config/env'
+import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotChatAbortAPI')
@@ -80,37 +78,13 @@ export const POST = withRouteHandler((request: NextRequest) =>
 
       let goAbortOk = false
       try {
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-        if (env.COPILOT_API_KEY) {
-          headers['x-api-key'] = env.COPILOT_API_KEY
-        }
-        Object.assign(headers, getMothershipSourceEnvHeaders())
-        const controller = new AbortController()
-        const timeout = setTimeout(
-          () => controller.abort('timeout:go_explicit_abort_fetch'),
-          GO_EXPLICIT_ABORT_TIMEOUT_MS
-        )
-        const mothershipBaseURL = await getMothershipBaseURL({ userId: authenticatedUserId })
-        const response = await fetchGo(`${mothershipBaseURL}/api/streams/explicit-abort`, {
-          method: 'POST',
-          headers,
-          signal: controller.signal,
-          body: JSON.stringify({
-            messageId: streamId,
-            userId: authenticatedUserId,
-            ...(chatId ? { chatId } : {}),
-            ...(workspaceId ? { workspaceId } : {}),
-          }),
-          spanName: 'sim → go /api/streams/explicit-abort',
-          operation: 'explicit_abort',
-          attributes: {
-            [TraceAttr.StreamId]: streamId,
-            ...(chatId ? { [TraceAttr.ChatId]: chatId } : {}),
-          },
-        }).finally(() => clearTimeout(timeout))
-        if (!response.ok) {
-          throw new Error(`Explicit abort marker request failed: ${response.status}`)
-        }
+        await requestExplicitStreamAbort({
+          streamId,
+          userId: authenticatedUserId,
+          chatId,
+          workspaceId,
+          timeoutMs: GO_EXPLICIT_ABORT_TIMEOUT_MS,
+        })
         goAbortOk = true
       } catch (err) {
         logger.warn('Explicit abort marker request failed after local abort', {

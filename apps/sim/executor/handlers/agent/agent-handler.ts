@@ -9,6 +9,7 @@ import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/ut
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
+import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
@@ -66,6 +67,10 @@ export class AgentBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: AgentInputs
   ): Promise<BlockOutput | StreamingExecution> {
+    const toolIndexByRef = new Map<ToolInput, number>(
+      (inputs.tools || []).map((tool, index) => [tool, index] as const)
+    )
+
     const filteredTools = await this.filterUnavailableMcpTools(ctx, inputs.tools || [])
     const filteredInputs = { ...inputs, tools: filteredTools }
 
@@ -80,7 +85,8 @@ export class AgentBlockHandler implements BlockHandler {
     const formattedTools = await this.formatTools(
       ctx,
       filteredInputs.tools || [],
-      block.canonicalModes
+      block.canonicalModes,
+      toolIndexByRef
     )
 
     const skillInputs = filteredInputs.skills ?? []
@@ -205,31 +211,38 @@ export class AgentBlockHandler implements BlockHandler {
     })
   }
 
+  /**
+   * `canonicalModes` overrides are keyed by each tool's position in the ORIGINAL, unfiltered
+   * tools array (matching what the editor wrote), not by `tool.type` - so two tool entries of
+   * the same type (e.g. two Table tools) resolve independently. `toolIndexByRef` preserves that
+   * original position across the mcp-availability filter and the mcp/other split below, both of
+   * which would otherwise renumber tools by their post-filter position.
+   */
   private async formatTools(
     ctx: ExecutionContext,
     inputTools: ToolInput[],
-    canonicalModes?: Record<string, 'basic' | 'advanced'>
+    canonicalModes?: Record<string, 'basic' | 'advanced'>,
+    toolIndexByRef?: Map<ToolInput, number>
   ): Promise<any[]> {
     if (!Array.isArray(inputTools)) return []
 
-    const filtered = inputTools.filter((tool) => {
-      const usageControl = tool.usageControl || 'auto'
-      return usageControl !== 'none'
-    })
+    const filtered = inputTools
+      .map((tool, localIndex) => ({ tool, toolIndex: toolIndexByRef?.get(tool) ?? localIndex }))
+      .filter(({ tool }) => (tool.usageControl || 'auto') !== 'none')
 
     const mcpTools: ToolInput[] = []
-    const otherTools: ToolInput[] = []
+    const otherTools: Array<{ tool: ToolInput; toolIndex: number }> = []
 
-    for (const tool of filtered) {
-      if (tool.type === 'mcp') {
-        mcpTools.push(tool)
+    for (const entry of filtered) {
+      if (entry.tool.type === 'mcp') {
+        mcpTools.push(entry.tool)
       } else {
-        otherTools.push(tool)
+        otherTools.push(entry)
       }
     }
 
     const otherResults = await Promise.all(
-      otherTools.map(async (tool) => {
+      otherTools.map(async ({ tool, toolIndex }) => {
         try {
           if (tool.type && tool.type !== 'custom-tool') {
             await validateBlockType(ctx.userId, ctx.workspaceId, tool.type, ctx)
@@ -237,7 +250,7 @@ export class AgentBlockHandler implements BlockHandler {
           if (tool.type === 'custom-tool' && (tool.schema || tool.customToolId)) {
             return await this.createCustomTool(ctx, tool)
           }
-          return this.transformBlockTool(ctx, tool, canonicalModes)
+          return this.transformBlockTool(ctx, tool, canonicalModes, toolIndex)
         } catch (error) {
           logger.error(`[AgentHandler] Error creating tool:`, { tool, error })
           return null
@@ -554,7 +567,8 @@ export class AgentBlockHandler implements BlockHandler {
   private async transformBlockTool(
     ctx: ExecutionContext,
     tool: ToolInput,
-    canonicalModes?: Record<string, 'basic' | 'advanced'>
+    canonicalModes?: Record<string, 'basic' | 'advanced'>,
+    toolIndex?: number
   ) {
     const transformedTool = await transformBlockTool(tool, {
       selectedOperation: tool.operation,
@@ -567,6 +581,9 @@ export class AgentBlockHandler implements BlockHandler {
         }),
       getTool,
       canonicalModes,
+      toolIndex,
+      resolveCustomBlockBinding: (blockType: string) =>
+        resolveCustomBlockToolBinding(blockType, ctx.workspaceId),
     })
 
     if (transformedTool) {
@@ -937,7 +954,10 @@ export class AgentBlockHandler implements BlockHandler {
       reasoningEffort: inputs.reasoningEffort,
       verbosity: inputs.verbosity,
       thinkingLevel: inputs.thinkingLevel,
+      promptCaching: inputs.promptCaching === true,
       previousInteractionId: inputs.previousInteractionId,
+      /** Agent-events remains the opt-in for exposing thinking and tool lifecycle events. */
+      agentEvents: streaming && ctx.metadata?.agentEvents === true,
     }
   }
 
@@ -1007,10 +1027,15 @@ export class AgentBlockHandler implements BlockHandler {
         blockNameMapping,
         isDeployedContext: ctx.isDeployedContext,
         callChain: ctx.callChain,
+        billingAttribution: ctx.metadata.billingAttribution,
         reasoningEffort: providerRequest.reasoningEffort,
         verbosity: providerRequest.verbosity,
         thinkingLevel: providerRequest.thinkingLevel,
+        promptCaching: providerRequest.promptCaching,
+        // Stable per-block identity; providers use it to route cache lookups.
+        blockId: block.id,
         previousInteractionId: providerRequest.previousInteractionId,
+        agentEvents: providerRequest.agentEvents,
         abortSignal: ctx.abortSignal,
       })
 
@@ -1070,8 +1095,7 @@ export class AgentBlockHandler implements BlockHandler {
     streamingExec: StreamingExecution
   ): StreamingExecution {
     return {
-      stream: streamingExec.stream,
-      execution: streamingExec.execution,
+      ...streamingExec,
       onFullContent: async (content: string) => {
         if (!content.trim()) return
         try {

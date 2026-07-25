@@ -12,16 +12,21 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAuthorizeCredentialUse } = vi.hoisted(() => ({
+const { mockAuthorizeCredentialUse, mockResolveServiceAccountToken } = vi.hoisted(() => ({
   mockAuthorizeCredentialUse: vi.fn(),
+  mockResolveServiceAccountToken: vi.fn(),
 }))
 
-vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
+vi.mock('@/app/api/auth/oauth/utils', () => ({
+  ...authOAuthUtilsMock,
+  resolveServiceAccountToken: mockResolveServiceAccountToken,
+}))
 
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUse: mockAuthorizeCredentialUse,
 }))
 
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { GET, POST } from '@/app/api/auth/oauth/token/route'
 
 describe('OAuth Token API Routes', () => {
@@ -193,6 +198,107 @@ describe('OAuth Token API Routes', () => {
 
       expect(response.status).toBe(401)
       expect(data).toHaveProperty('error', 'Failed to refresh access token')
+    })
+
+    describe('service account path', () => {
+      it('should thread authStyle from the resolver into the response', async () => {
+        authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
+          accountId: '',
+          credentialId: 'sa-credential-id',
+          credentialType: 'service_account',
+          providerId: 'pipedrive-service-account',
+          workspaceId: 'workspace-id',
+          usedCredentialTable: true,
+        })
+        mockAuthorizeCredentialUse.mockResolvedValueOnce({
+          ok: true,
+          authType: 'session',
+          requesterUserId: 'test-user-id',
+          workspaceId: 'workspace-id',
+        })
+        mockResolveServiceAccountToken.mockResolvedValueOnce({
+          accessToken: 'pasted-api-token',
+          authStyle: 'x-api-token',
+        })
+
+        const req = createMockRequest('POST', { credentialId: 'sa-credential-id' })
+
+        const response = await POST(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(200)
+        expect(data).toHaveProperty('accessToken', 'pasted-api-token')
+        expect(data).toHaveProperty('authStyle', 'x-api-token')
+      })
+
+      it('should omit authStyle for Bearer token-paste providers', async () => {
+        authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
+          accountId: '',
+          credentialId: 'sa-credential-id',
+          credentialType: 'service_account',
+          providerId: 'hubspot-service-account',
+          workspaceId: 'workspace-id',
+          usedCredentialTable: true,
+        })
+        mockAuthorizeCredentialUse.mockResolvedValueOnce({
+          ok: true,
+          authType: 'session',
+          requesterUserId: 'test-user-id',
+          workspaceId: 'workspace-id',
+        })
+        mockResolveServiceAccountToken.mockResolvedValueOnce({
+          accessToken: 'pat-token',
+        })
+
+        const req = createMockRequest('POST', { credentialId: 'sa-credential-id' })
+
+        const response = await POST(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(200)
+        expect(data).toHaveProperty('accessToken', 'pat-token')
+        expect(data).not.toHaveProperty('authStyle')
+      })
+
+      it.each([
+        ['invalid_credentials', 401],
+        ['site_not_found', 400],
+        ['provider_unavailable', 502],
+      ] as const)(
+        'surfaces the %s error code with status %i when the mint fails',
+        async (code, status) => {
+          authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
+            accountId: '',
+            credentialId: 'sa-credential-id',
+            credentialType: 'service_account',
+            providerId: 'salesforce-service-account',
+            workspaceId: 'workspace-id',
+            usedCredentialTable: true,
+          })
+          mockAuthorizeCredentialUse.mockResolvedValueOnce({
+            ok: true,
+            authType: 'session',
+            requesterUserId: 'test-user-id',
+            workspaceId: 'workspace-id',
+          })
+          mockResolveServiceAccountToken.mockRejectedValueOnce(
+            new TokenServiceAccountValidationError(code, status, { step: 'mint' })
+          )
+
+          const req = createMockRequest('POST', { credentialId: 'sa-credential-id' })
+          const response = await POST(req)
+          const data = await response.json()
+
+          expect(response.status).toBe(status)
+          // provider_unavailable is an infra failure, not a credential error, so
+          // it intentionally does not carry a client-actionable `code`.
+          if (code === 'provider_unavailable') {
+            expect(data).not.toHaveProperty('code')
+          } else {
+            expect(data).toHaveProperty('code', code)
+          }
+        }
+      )
     })
 
     describe('credentialAccountUserId + providerId path', () => {

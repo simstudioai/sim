@@ -8,7 +8,7 @@ import {
   checkTeamPlan,
   ENTITLED_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
-import type { DbClient } from '@/lib/db/types'
+import type { DbClient, DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('PlanLookup')
 
@@ -16,8 +16,8 @@ export type HighestPrioritySubscription = Awaited<ReturnType<typeof getHighestPr
 
 interface GetHighestPrioritySubscriptionOptions {
   onError?: 'return-null' | 'throw'
-  /** Read-routing client (primary or replica); defaults to the primary. */
-  executor?: DbClient
+  /** Primary/replica client or a caller-owned enforcement transaction. */
+  executor?: DbClient | DbOrTx
 }
 
 function pickHighestPrioritySubscription<TSubscription>(

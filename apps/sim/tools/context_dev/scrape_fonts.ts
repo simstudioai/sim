@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type {
   ContextDevScrapeFontsParams,
   ContextDevScrapeFontsResponse,
@@ -21,6 +22,8 @@ export const contextDevScrapeFontsTool: ToolConfig<
   name: 'Context.dev Scrape Fonts',
   description: 'Extract the font families, usage stats, and font files used by a domain.',
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevScrapeFontsParams>(),
 
   params: {
     domain: {

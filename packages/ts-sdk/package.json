@@ -42,7 +42,7 @@
     "@sim/tsconfig": "workspace:*",
     "@types/node": "^20.5.1",
     "@vitest/coverage-v8": "^4.1.0",
-    "typescript": "^5.7.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.0"
   },
   "engines": {

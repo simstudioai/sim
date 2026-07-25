@@ -1,0 +1,42 @@
+/**
+ * The FilterRunsGraphic's motion: the matched result rows stamp in top to
+ * bottom one after another — the audit tile's one-shot settle, never
+ * re-played. Under prefers-reduced-motion the rows render fully settled.
+ */
+
+.row0,
+.row1,
+.row2 {
+  animation: filter-runs-row-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.row0 {
+  animation-delay: 0.45s;
+}
+
+.row1 {
+  animation-delay: 0.6s;
+}
+
+.row2 {
+  animation-delay: 0.75s;
+}
+
+@keyframes filter-runs-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row0,
+  .row1,
+  .row2 {
+    animation: none;
+  }
+}

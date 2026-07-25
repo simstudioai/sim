@@ -433,7 +433,49 @@ describe('reduceEvent — error tag + compaction coverage', () => {
       (n) => n.kind === 'tool' && n.name === 'context_compaction'
     ) as ToolNode
     expect(compaction.status).toBe('success')
-    expect(compaction.uiTitle).toBe('Compacted context')
+    expect(compaction.uiTitle).toBe('Summarizing context')
+  })
+
+  it('pairs concurrent compactions only within their scoped subagent spans', () => {
+    const scopeA: Scope = {
+      lane: 'subagent',
+      spanId: 'S1',
+      parentSpanId: MAIN_SPAN,
+      parentToolCallId: 'tc-A',
+      agentId: 'workflow',
+    }
+    const scopeB: Scope = {
+      lane: 'subagent',
+      spanId: 'S2',
+      parentSpanId: MAIN_SPAN,
+      parentToolCallId: 'tc-B',
+      agentId: 'workflow',
+    }
+    const m = apply([
+      envelope(1, 'run', { kind: 'compaction_start' }, scopeA),
+      envelope(2, 'run', { kind: 'compaction_start' }, scopeB),
+      envelope(3, 'run', { kind: 'compaction_done' }, scopeA),
+    ])
+
+    expect(agent(m, 'S1').agentId).toBe('workflow')
+    expect(agent(m, 'S2').agentId).toBe('workflow')
+    expect(tool(m, 'compaction:1')).toEqual(
+      expect.objectContaining({
+        spanId: 'S1',
+        status: 'success',
+        uiTitle: 'Summarizing context',
+      })
+    )
+    expect(tool(m, 'compaction:2')).toEqual(
+      expect.objectContaining({
+        spanId: 'S2',
+        status: 'running',
+        uiTitle: 'Summarizing context',
+      })
+    )
+
+    reduceEvent(m, envelope(4, 'run', { kind: 'compaction_done' }, scopeB))
+    expect(tool(m, 'compaction:2').status).toBe('success')
   })
 })
 
@@ -482,5 +524,35 @@ describe('turn-terminal propagation', () => {
     const m = apply([toolCall(1, 'tc-1', 'search'), toolResult(2, 'tc-1', false)])
     applyTurnTerminal(m, 'complete')
     expect(tool(m, 'tc-1').status).toBe('error')
+  })
+})
+
+describe('reduceEvent — span-start owner reconciliation', () => {
+  it('corrects a nonempty mismatched provisional lane owner from the authoritative start', () => {
+    const model = createTurnModel()
+    // A content event races ahead of the span start; its scope names the
+    // FORWARDING caller (superagent), not the lane's real owner.
+    reduceEvent(
+      model,
+      envelope(
+        1,
+        'text',
+        { channel: 'assistant', text: 'early chunk' },
+        { lane: 'subagent', spanId: 'S1', agentId: 'superagent', parentToolCallId: 'd1' }
+      )
+    )
+    reduceEvent(
+      model,
+      envelope(
+        2,
+        'span',
+        { kind: 'subagent', event: 'start', agent: 'workflow', data: { tool_call_id: 'd1' } },
+        { lane: 'subagent', spanId: 'S1', parentToolCallId: 'd1' }
+      )
+    )
+    const laneId = model.agentBySpanId.get('S1')
+    const lane = laneId ? model.nodes.get(laneId) : undefined
+    if (!lane || lane.kind !== 'agent') throw new Error('expected agent lane for S1')
+    expect((lane as AgentNode).agentId).toBe('workflow')
   })
 })

@@ -8,6 +8,35 @@ export interface ValidationResult {
   error?: string
 }
 
+/** Result of validating a regex pattern's syntax and safety (independent of any input). */
+export interface RegexPatternValidation {
+  valid: boolean
+  error?: string
+}
+
+/**
+ * Validate a regex pattern's syntax and safety without matching it against input:
+ * it must compile (`new RegExp`) and pass `safe-regex2`'s catastrophic-backtracking
+ * screen. Shared by the custom-pattern editor UI and any pre-flight boundary check.
+ */
+export function validateRegexPattern(pattern: string): RegexPatternValidation {
+  if (pattern.length === 0) {
+    return { valid: false, error: 'Pattern cannot be empty' }
+  }
+  try {
+    new RegExp(pattern)
+  } catch (error) {
+    return { valid: false, error: `Invalid regex: ${(error as Error).message}` }
+  }
+  if (!safe(pattern)) {
+    return {
+      valid: false,
+      error: 'Pattern rejected: potentially unsafe (catastrophic backtracking)',
+    }
+  }
+  return { valid: true }
+}
+
 export function validateRegex(inputStr: string, pattern: string): ValidationResult {
   let regex: RegExp
   try {

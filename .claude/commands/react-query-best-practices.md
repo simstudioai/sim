@@ -1,6 +1,6 @@
 ---
 description: Audit React Query usage for best practices — key factories, staleTime, mutations, and server state ownership
-argument-hint: [scope] [fix=true|false]
+argument-hint: "[scope] [fix=true|false]"
 ---
 
 # React Query Best Practices

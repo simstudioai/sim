@@ -50,8 +50,10 @@ import { Tooltip } from '../tooltip/tooltip'
  *
  * @remarks
  * - `default` matches the standard Input component styling for consistent height.
+ *   Like `ChipInput`, it shows no focus ring — the surface stays calm and the
+ *   caret carries focus.
  * - `block` matches the multi-row "Description" textarea pattern: larger radius,
- *   top-aligned items, taller min-height, and no focus ring — for use inside
+ *   top-aligned items, and taller min-height — for use inside
  *   form sections where the tag input visually pairs with textarea fields.
  *   Uses `content-start` so wrapped flex lines pack tightly at `h-5` (20px) row
  *   pitch instead of being stretched by the `min-h-[112px]` floor; unused
@@ -64,7 +66,7 @@ const tagInputVariants = cva(
     variants: {
       variant: {
         default:
-          'items-center rounded-sm py-1.5 focus-within:outline-none focus-within:ring-1 focus-within:ring-[var(--brand-accent)] dark:bg-[var(--surface-5)]',
+          'items-center rounded-sm py-1.5 focus-within:outline-none dark:bg-[var(--surface-5)]',
         block:
           'min-h-[112px] content-start items-start rounded-lg py-2 focus-within:outline-none dark:bg-[var(--surface-4)]',
       },

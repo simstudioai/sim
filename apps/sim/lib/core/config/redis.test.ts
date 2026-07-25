@@ -14,6 +14,7 @@ MockRedisConstructor.mockImplementation(
   }
 )
 
+vi.unmock('@/lib/core/config/redis')
 vi.mock('@/lib/core/config/env', () => createEnvMock({ REDIS_URL: 'redis://localhost:6379' }))
 vi.mock('ioredis', () => ({
   default: MockRedisConstructor,

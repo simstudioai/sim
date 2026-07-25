@@ -22,18 +22,9 @@ export const anthropicProvider: ProviderConfig = {
     return executeAnthropicProviderRequest(request, {
       providerId: 'anthropic',
       providerLabel: 'Anthropic',
-      createClient: (apiKey, useNativeStructuredOutputs) => {
-        const cacheKey = `anthropic::${apiKey}::${useNativeStructuredOutputs ? 'beta' : 'default'}`
-        return getCachedProviderClient(
-          cacheKey,
-          () =>
-            new Anthropic({
-              apiKey,
-              defaultHeaders: useNativeStructuredOutputs
-                ? { 'anthropic-beta': 'structured-outputs-2025-11-13' }
-                : undefined,
-            })
-        )
+      createClient: (apiKey) => {
+        const cacheKey = `anthropic::${apiKey}`
+        return getCachedProviderClient(cacheKey, () => new Anthropic({ apiKey }))
       },
       logger,
     })

@@ -68,10 +68,10 @@ export interface McpSecurityPolicy {
 export interface McpToolSchemaProperty {
   type?: string | string[]
   description?: string
-  items?: McpToolSchemaProperty
+  items?: McpToolSchemaProperty | McpToolSchemaProperty[]
   properties?: Record<string, McpToolSchemaProperty>
   required?: string[]
-  enum?: Array<string | number | boolean | null>
+  enum?: unknown[]
   default?: unknown
   [key: string]: unknown
 }

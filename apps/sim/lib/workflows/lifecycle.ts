@@ -18,6 +18,8 @@ import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
+import { releaseWebhookPathClaims } from '@/lib/webhooks/path-claims'
+import { supersedeInFlightDeploymentOperations } from '@/lib/workflows/persistence/deployment-operations'
 import { getWorkflowById } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowLifecycle')
@@ -106,6 +108,9 @@ export async function archiveWorkflow(
     .where(and(eq(workflowMcpTool.workflowId, workflowId), isNull(workflowMcpTool.archivedAt)))
 
   await db.transaction(async (tx) => {
+    await supersedeInFlightDeploymentOperations(tx, workflowId)
+    await releaseWebhookPathClaims(tx, workflowId)
+
     await tx
       .update(workflowSchedule)
       .set({

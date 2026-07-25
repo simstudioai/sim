@@ -19,7 +19,7 @@
 # Global configuration
 global:
   imageRegistry: "ghcr.io"
-  storageClass: "managed-csi-premium"
+  storageClass: ""  # your cluster's StorageClass (empty = cluster default)
 
 # Main application with custom branding
 app:
@@ -31,7 +31,6 @@ app:
     # Application URLs (update with your domain)
     NEXT_PUBLIC_APP_URL: "https://sim.acme.ai"
     BETTER_AUTH_URL: "https://sim.acme.ai"
-    SOCKET_SERVER_URL: "https://sim-ws.acme.ai"
     NEXT_PUBLIC_SOCKET_URL: "https://sim-ws.acme.ai"
     
     # Security settings (REQUIRED)
@@ -101,6 +100,11 @@ ingress:
 # Auto-scaling
 autoscaling:
   enabled: true
+  # Keep realtime out of the HPA until REDIS_URL is set (Socket.IO Redis
+  # adapter) — multi-replica realtime without Redis silently drops cross-pod
+  # collaboration events.
+  realtime:
+    enabled: false
   minReplicas: 2
   maxReplicas: 10
   targetCPUUtilizationPercentage: 70

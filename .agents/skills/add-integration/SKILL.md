@@ -1,6 +1,7 @@
 ---
 name: add-integration
 description: Add a complete Sim integration from API docs, covering tools, block, icon, optional triggers, registrations, and integration conventions. Use when introducing a new service under `apps/sim/tools`, `apps/sim/blocks`, and `apps/sim/triggers`.
+argument-hint: <service-name> [api-docs-url]
 ---
 
 # Add Integration Skill
@@ -21,7 +22,7 @@ Adding an integration involves these steps in order:
 ## Step 1: Research the API
 
 Before writing any code:
-1. Use Context7 to find official documentation: `mcp__plugin_context7_context7__resolve-library-id`
+1. Use Context7 to find official documentation: `mcp__context7__resolve-library-id`, then fetch with `mcp__context7__query-docs`
 2. Or use WebFetch to read API docs directly
 3. Identify:
    - Authentication method (OAuth, API Key, both)
@@ -128,8 +129,8 @@ export const {service}{Action}Tool: ToolConfig<Params, Response> = {
 ### Block Structure
 ```typescript
 import { {Service}Icon } from '@/components/icons'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import type { BlockConfig } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { getScopesForService } from '@/lib/oauth/utils'
 
 export const {Service}Block: BlockConfig = {
@@ -139,6 +140,8 @@ export const {Service}Block: BlockConfig = {
   longDescription: '...',
   docsLink: 'https://docs.sim.ai/integrations/{service}',
   category: 'tools',
+  integrationType: IntegrationType.X,   // Primary category (see IntegrationType enum)
+  tags: ['oauth', 'api'],              // Cross-cutting tags (see IntegrationTag type)
   bgColor: '#HEXCOLOR',
   icon: {Service}Icon,
   authMode: AuthMode.OAuth,  // or AuthMode.ApiKey
@@ -177,31 +180,7 @@ export const {Service}Block: BlockConfig = {
 
   outputs: { /* ... */ },
 }
-
-export const {Service}BlockMeta = {
-  tags: ['tag1', 'tag2'],  // IntegrationTag values matching the service's capabilities
-  templates: [
-    {
-      icon: {Service}Icon,
-      title: '{Service} use-case title',
-      prompt: 'Build a workflow that ...',
-      modules: ['agent', 'workflows'],
-      category: 'productivity',
-      tags: ['automation'],
-      alsoIntegrations: ['slack'],  // Optional: other blocks referenced in the prompt
-    },
-  ],
-} as const satisfies BlockMeta
 ```
-
-### BlockMeta rules
-
-- **Tags**: Use `IntegrationTag` values from `@/blocks/types`. Do NOT add a `tags` field to the `BlockConfig` object — tags belong only in `BlockMeta`.
-- **`integrationType`**: Must be a valid `IntegrationType` enum value (AI, Analytics, Commerce, Communication, Databases, DevOps, Documents, Email, HR, Marketing, Observability, Productivity, Sales, Search, Security, Support). Never invent a value that doesn't exist in the enum.
-- **Templates**: Aim for 2–4 templates per integration. Prompts should be concrete enough to generate a real workflow in Mothership. Start with "Build a workflow that..." or "Create a workflow that...".
-- **`alsoIntegrations`**: List other block type IDs referenced in the template prompt (e.g. `'slack'`, `'linear'`).
-- Place `{Service}BlockMeta` at the very bottom of the file, after the main block export.
-- Register it in both the import and the `blocksMeta` object in `registry.ts`.
 
 ### Key SubBlock Patterns
 
@@ -234,7 +213,7 @@ export const {Service}BlockMeta = {
 ```typescript
 // Basic: Visual selector
 {
-  id: 'channel',
+  id: 'channelSelector',
   type: 'channel-selector',
   mode: 'basic',
   canonicalParamId: 'channel',
@@ -249,15 +228,46 @@ export const {Service}BlockMeta = {
 }
 ```
 
+Note neither subblock `id` is `channel` — the canonical id is a third name that both members map
+onto, and it is the only one that survives serialization.
+
 **Critical Canonical Param Rules:**
 - `canonicalParamId` must NOT match any subblock's `id` in the block
-- `canonicalParamId` must be unique per operation/condition context
-- Only use `canonicalParamId` to link basic/advanced alternatives for the same logical parameter
+- `canonicalParamId` must be unique **block-wide**, not per operation. `buildCanonicalIndex` keys
+  groups by `canonicalParamId` across all subblocks and a group holds exactly one `basicId`, so two
+  operations that each need their own pair must use two different canonical ids
+- Only use `canonicalParamId` to link basic/advanced alternatives for the same logical parameter.
+  A pair carries ONE concept — for files that means upload (basic) + file reference (advanced), as
+  in Gmail attachments (`blocks/blocks/gmail.ts`). Never overload the advanced side with alternate
+  identifiers like a URL or a provider asset ID; give those their own subblocks, mark all the
+  mutually exclusive sources `required: false`, and enforce "exactly one" at execution
 - `mode` only controls UI visibility, NOT serialization. Without `canonicalParamId`, both basic and advanced field values would be sent
 - Every subblock `id` must be unique within the block. Duplicate IDs cause conflicts even with different conditions
 - **Required consistency:** If one subblock in a canonical group has `required: true`, ALL subblocks in that group must have `required: true` (prevents bypassing validation by switching modes)
 - **Inputs section:** Must list canonical param IDs (e.g., `fileId`), NOT raw subblock IDs (e.g., `fileSelector`, `manualFileId`)
 - **Params function:** Must use canonical param IDs, NOT raw subblock IDs (raw IDs are deleted after canonical transformation)
+
+### BlockMeta (Required)
+
+Export a `{Service}BlockMeta` in the same file as the block — **minimum 7 templates**. See `.agents/skills/add-block/SKILL.md` → "BlockMeta (Required)" for valid `modules` and `category` values and the full pattern.
+
+```typescript
+export const {Service}BlockMeta = {
+  tags: ['tag1', 'tag2'],
+  templates: [
+    {
+      icon: {Service}Icon,
+      title: '{Service} <use-case>',
+      prompt: 'Build a workflow that...',  // concrete trigger → transformation → output
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation'],
+      alsoIntegrations: ['slack'],        // when the prompt references another service
+    },
+    // ... at least 6 more
+  ],
+} as const satisfies BlockMeta
+```
 
 ## Step 4: Add Icon
 
@@ -294,6 +304,31 @@ Once the user provides the SVG:
 1. Extract the SVG paths/content
 2. Create a React component that spreads props
 3. Ensure viewBox is preserved from the original SVG
+
+### Theme-safety (bare rendering) — REQUIRED
+
+The icon renders both inside its colored `bgColor` tile AND "bare" (no tile) on a
+neutral page — e.g. the home **Suggested actions** list — in both light and dark
+mode. A monochrome logo whose paths hardcode a single near-white or near-black
+fill is invisible bare on the matching background (white-on-white in light mode,
+black-on-black in dark mode).
+
+Rules when adding the SVG:
+
+- **Monochrome logos** (a single white or black mark): draw the shape with
+  `fill='currentColor'`, not `fill='#fff'` / `fill='#000000'`. It then inherits
+  white inside dark tiles, near-black inside light tiles (via
+  `getTileIconColorClass`), and the theme-aware `var(--text-icon)` bare — legible
+  everywhere. Do NOT set `iconColor` for these.
+- **Multi-color brand logos** (their own vivid fills): keep the hardcoded fills.
+  They read on any background. Only set `iconColor` (a vivid brand hex, never a
+  near-black/near-white tile color) if the bare icon should adopt a brand tint.
+- A large white shape with a tiny vivid accent (e.g. a logo where the body is the
+  white negative space) still vanishes bare — convert the body to `currentColor`.
+
+Verify with `bun run check:bare-icons` (also runs in CI). It flags purely
+monochrome hazards; for partial-accent logos, eyeball the suggested-actions list
+in both light and dark mode.
 
 ## Step 5: Create Triggers (Optional)
 
@@ -380,21 +415,23 @@ export const tools: Record<string, ToolConfig> = {
 }
 ```
 
-### Block Registry (`apps/sim/blocks/registry.ts`)
+### Block Registry (`apps/sim/blocks/registry-maps.ts`)
+
+The data maps (`BLOCK_REGISTRY` + `BLOCK_META_REGISTRY`) live in `registry-maps.ts`; `registry.ts` holds only the accessor functions. Add the import and an entry to each map alphabetically:
 
 ```typescript
-// Add import (alphabetically) — include BlockMeta
+// Add import (alphabetically)
 import { {Service}Block, {Service}BlockMeta } from '@/blocks/blocks/{service}'
 
-// Add to blocks registry (alphabetically)
-export const registry: Record<string, BlockConfig> = {
+// Add to the config map (alphabetically)
+export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   // ... existing blocks ...
   {service}: {Service}Block,
 }
 
-// Add to blocksMeta registry (alphabetically)
-export const blocksMeta = {
-  // ... existing entries ...
+// Add to the catalog-meta map (alphabetically)
+export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
+  // ... existing metas ...
   {service}: {Service}BlockMeta,
 }
 ```
@@ -456,6 +493,8 @@ If creating V2 versions (API-aligned outputs):
 
 ### Block
 - [ ] Created `blocks/blocks/{service}.ts`
+- [ ] Set `integrationType` to the correct `IntegrationType` enum value
+- [ ] Set `tags` array with all applicable `IntegrationTag` values
 - [ ] Defined operation dropdown with all operations
 - [ ] Added credential field with `requiredScopes: getScopesForService('{service}')`
 - [ ] Added conditional fields per operation
@@ -463,14 +502,10 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Configured tools.access with all tool IDs
 - [ ] Configured tools.config.tool selector
 - [ ] Defined outputs matching tool outputs
-- [ ] `integrationType` uses a valid `IntegrationType` enum value (no invented values)
-- [ ] No `tags` field on the `BlockConfig` object (tags live only in `BlockMeta`)
-- [ ] `{Service}BlockMeta` exported at bottom of file with `tags` and `templates`
-- [ ] `BlockMeta` type imported from `@/blocks/types` alongside `BlockConfig`
-- [ ] Block registered in `blocks/registry.ts` blocks object (alphabetically)
-- [ ] Block meta registered in `blocks/registry.ts` blocksMeta object (alphabetically)
+- [ ] Registered block + meta in `blocks/registry-maps.ts` (`BLOCK_REGISTRY` / `BLOCK_META_REGISTRY`)
 - [ ] If triggers: set `triggers.enabled` and `triggers.available`
 - [ ] If triggers: spread trigger subBlocks with `getTrigger()`
+- [ ] Exported `{Service}BlockMeta` with at least 7 templates
 
 ### OAuth Scopes (if OAuth service)
 - [ ] Defined scopes in `lib/oauth/oauth.ts` under `OAUTH_PROVIDERS`
@@ -482,6 +517,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Asked user to provide SVG
 - [ ] Added icon to `components/icons.tsx`
 - [ ] Icon spreads props correctly
+- [ ] Monochrome marks use `fill='currentColor'` (not hardcoded white/black) so the icon renders bare in light AND dark mode — verified with `bun run check:bare-icons`
 
 ### Triggers (if service supports webhooks)
 - [ ] Created `triggers/{service}/` directory
@@ -503,6 +539,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Verified `tools.config.params` correctly maps and coerces all param types
 - [ ] Verified every tool output and `transformResponse` path against documented or live-verified JSON responses
 - [ ] If any response schema remained unknown, explicitly told the user instead of guessing
+- [ ] `{Service}BlockMeta` exported with at least 7 templates, each having `icon`, `title`, `prompt`, `modules`, `category`, and `tags`
 
 ## Example Command
 
@@ -613,10 +650,10 @@ tools: {
 
 #### 3. Create Internal API Route
 
-Create `apps/sim/app/api/tools/{service}/{action}/route.ts`. Internal tool routes are HTTP boundaries and follow the same contract policy as public routes — define the request/response shape in `apps/sim/lib/api/contracts/{service}-tools.ts` (or an existing `internal-tools.ts` / `communication-tools.ts` aggregate) and validate with canonical helpers from `@/lib/api/server`. Never write a route-local Zod schema.
+Create `apps/sim/app/api/tools/{service}/{action}/route.ts`. Internal tool routes are HTTP boundaries and follow the same contract policy as public routes — define the request/response shape in `apps/sim/lib/api/contracts/tools/{service}.ts` (or an existing aggregate) and validate with canonical helpers from `@/lib/api/server`. Never write a route-local Zod schema.
 
 ```typescript
-// apps/sim/lib/api/contracts/{service}-tools.ts
+// apps/sim/lib/api/contracts/tools/{service}.ts
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
@@ -649,7 +686,7 @@ export type {Service}UploadResponse = z.output<typeof {service}UploadResponseSch
 // apps/sim/app/api/tools/{service}/upload/route.ts
 import { createLogger } from '@sim/logger'
 import { NextResponse, type NextRequest } from 'next/server'
-import { {service}UploadContract } from '@/lib/api/contracts/{service}-tools'
+import { {service}UploadContract } from '@/lib/api/contracts/tools/{service}'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -663,6 +700,7 @@ const logger = createLogger('{Service}UploadAPI')
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
+  // Auth always runs BEFORE parseRequest — never validate untrusted input before authenticating.
   const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
   if (!authResult.success) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
@@ -685,16 +723,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
     fileName = userFile.name
   } else if (data.fileContent) {
+    // Legacy: base64 string (backwards compatibility)
     fileBuffer = Buffer.from(data.fileContent, 'base64')
     fileName = 'file'
   } else {
     return NextResponse.json({ success: false, error: 'File required' }, { status: 400 })
   }
 
+  // Now call external API with fileBuffer
   const response = await fetch('https://api.{service}.com/upload', {
     method: 'POST',
     headers: { Authorization: `Bearer ${data.accessToken}` },
-    body: new Uint8Array(fileBuffer),
+    body: new Uint8Array(fileBuffer),  // Convert Buffer for fetch
   })
 
   // ... handle response

@@ -1,0 +1,1251 @@
+---
+title: ClickUp
+description: Interact with ClickUp
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="clickup"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Integrate ClickUp into the workflow. Create, read, update, and delete tasks, manage comments, tags, folders, and lists, upload attachments, and look up workspaces, members, and custom fields. Can also trigger workflows on ClickUp events like task, list, folder, space, and goal changes.
+
+
+
+## Actions
+
+### `clickup_create_task`
+
+Create a new task in a ClickUp list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | ID of the list to create the task in |
+| `name` | string | Yes | Name of the task |
+| `description` | string | No | Plain text description of the task |
+| `markdownContent` | string | No | Markdown description of the task \(overrides description\) |
+| `status` | string | No | Status to create the task with \(must exist in the list\) |
+| `priority` | number | No | Priority: 1 \(urgent\), 2 \(high\), 3 \(normal\), 4 \(low\) |
+| `dueDate` | number | No | Due date as a Unix timestamp in milliseconds |
+| `dueDateTime` | boolean | No | Whether the due date includes a time of day |
+| `startDate` | number | No | Start date as a Unix timestamp in milliseconds |
+| `startDateTime` | boolean | No | Whether the start date includes a time of day |
+| `assignees` | array | No | User IDs to assign to the task |
+| `tags` | array | No | Tag names to apply to the task |
+| `timeEstimate` | number | No | Time estimate in milliseconds |
+| `points` | number | No | Sprint points for the task |
+| `parent` | string | No | Parent task ID to create this task as a subtask |
+| `notifyAll` | boolean | No | When true, creation notifications are sent to everyone, including the task creator |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `task` | json | The created task |
+
+### `clickup_get_task`
+
+Retrieve a task from ClickUp by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to retrieve |
+| `includeSubtasks` | boolean | No | Include subtasks in the response |
+| `includeMarkdownDescription` | boolean | No | Return the task description in Markdown format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `task` | json | The requested task |
+
+### `clickup_update_task`
+
+Update an existing task in ClickUp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to update |
+| `name` | string | No | New name for the task |
+| `description` | string | No | New plain text description \(use a single space to clear\) |
+| `markdownContent` | string | No | New Markdown description \(takes precedence over description\) |
+| `status` | string | No | New status for the task \(must exist in the list\) |
+| `priority` | number | No | Priority: 1 \(urgent\), 2 \(high\), 3 \(normal\), 4 \(low\) |
+| `dueDate` | number | No | New due date as a Unix timestamp in milliseconds |
+| `dueDateTime` | boolean | No | Whether the due date includes a time of day |
+| `startDate` | number | No | New start date as a Unix timestamp in milliseconds |
+| `startDateTime` | boolean | No | Whether the start date includes a time of day |
+| `timeEstimate` | number | No | New time estimate in milliseconds |
+| `points` | number | No | New sprint points value |
+| `parent` | string | No | Parent task ID to move this task under \(cannot be cleared\) |
+| `archived` | boolean | No | Set to true to archive the task, false to unarchive |
+| `assigneesToAdd` | array | No | User IDs to add as assignees |
+| `assigneesToRemove` | array | No | User IDs to remove from assignees |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `task` | json | The updated task |
+
+### `clickup_delete_task`
+
+Delete a task from ClickUp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the deleted task |
+| `deleted` | boolean | Whether the task was deleted |
+
+### `clickup_get_tasks`
+
+List the tasks in a ClickUp list (100 tasks per page; increment page until an empty result to paginate)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | ID of the list to fetch tasks from |
+| `page` | number | No | Page to fetch \(starts at 0\) |
+| `orderBy` | string | No | Order by field: id, created, updated, or due_date |
+| `reverse` | boolean | No | Return tasks in reverse order |
+| `subtasks` | boolean | No | Include subtasks \(excluded by default\) |
+| `includeClosed` | boolean | No | Include closed tasks \(excluded by default\) |
+| `includeMarkdownDescription` | boolean | No | Return task descriptions in Markdown format |
+| `archived` | boolean | No | Return archived tasks |
+| `statuses` | array | No | Filter tasks by status names |
+| `assignees` | array | No | Filter tasks by assignee user IDs |
+| `tags` | array | No | Filter tasks by tag names |
+| `dueDateGt` | number | No | Only tasks due after this Unix timestamp in milliseconds |
+| `dueDateLt` | number | No | Only tasks due before this Unix timestamp in milliseconds |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tasks` | array | Tasks in the list |
+
+### `clickup_search_tasks`
+
+Search tasks across a ClickUp workspace with filters for lists, folders, spaces, statuses, assignees, tags, and due dates (100 tasks per page; increment page until an empty result to paginate)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(team\) to search tasks in |
+| `page` | number | No | Page to fetch \(starts at 0\) |
+| `orderBy` | string | No | Order by field: id, created, updated, or due_date |
+| `reverse` | boolean | No | Return tasks in reverse order |
+| `subtasks` | boolean | No | Include subtasks \(excluded by default\) |
+| `includeClosed` | boolean | No | Include closed tasks \(excluded by default\) |
+| `includeMarkdownDescription` | boolean | No | Return task descriptions in Markdown format |
+| `listIds` | array | No | Filter by list IDs |
+| `spaceIds` | array | No | Filter by space IDs |
+| `folderIds` | array | No | Filter by folder IDs |
+| `statuses` | array | No | Filter tasks by status names |
+| `assignees` | array | No | Filter tasks by assignee user IDs |
+| `tags` | array | No | Filter tasks by tag names |
+| `dueDateGt` | number | No | Only tasks due after this Unix timestamp in milliseconds |
+| `dueDateLt` | number | No | Only tasks due before this Unix timestamp in milliseconds |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tasks` | array | Tasks matching the filters |
+
+### `clickup_create_comment`
+
+Add a comment to a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to comment on |
+| `commentText` | string | Yes | Content of the comment |
+| `assignee` | number | No | User ID to assign the comment to |
+| `notifyAll` | boolean | No | When true, comment notifications are sent to everyone, including the comment creator |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the created comment |
+| `histId` | string | History ID of the created comment |
+| `date` | number | Creation timestamp of the comment \(Unix ms\) |
+
+### `clickup_get_comments`
+
+Retrieve comments on a ClickUp task, newest first (25 per page; paginate with start and startId)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to fetch comments from |
+| `start` | number | No | Unix timestamp \(ms\) of the reference comment for pagination \(use the date of the last comment from the previous page, together with startId\) |
+| `startId` | string | No | ID of the reference comment for pagination \(use the id of the last comment from the previous page, together with start\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comments` | array | Comments on the task, newest first |
+
+### `clickup_update_comment`
+
+Update the content, assignee, or resolved state of a ClickUp task comment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `commentId` | string | Yes | ID of the comment to update |
+| `commentText` | string | No | New content for the comment |
+| `assignee` | number | No | User ID to assign the comment to |
+| `resolved` | boolean | No | Whether the comment is resolved |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the updated comment |
+| `updated` | boolean | Whether the comment was updated |
+
+### `clickup_delete_comment`
+
+Delete a comment from a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `commentId` | string | Yes | ID of the comment to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the deleted comment |
+| `deleted` | boolean | Whether the comment was deleted |
+
+### `clickup_upload_attachment`
+
+Upload a file to a ClickUp task as an attachment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to attach the file to |
+| `file` | file | Yes | File to attach to the task |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attachment` | json | The created attachment |
+|   ↳ `id` | string | Attachment ID |
+|   ↳ `version` | string | Attachment version |
+|   ↳ `title` | string | Attachment title |
+|   ↳ `extension` | string | File extension |
+|   ↳ `url` | string | URL of the uploaded attachment |
+|   ↳ `date` | number | Upload timestamp \(Unix ms\) |
+|   ↳ `thumbnailSmall` | string | Small thumbnail URL |
+|   ↳ `thumbnailLarge` | string | Large thumbnail URL |
+| `files` | file[] | The uploaded attachment file |
+
+### `clickup_add_tag_to_task`
+
+Add an existing space tag to a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to tag |
+| `tagName` | string | Yes | Name of the tag to add \(must exist in the space\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskId` | string | ID of the tagged task |
+| `tagName` | string | Name of the tag that was added |
+
+### `clickup_remove_tag_from_task`
+
+Remove a tag from a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to remove the tag from |
+| `tagName` | string | Yes | Name of the tag to remove |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskId` | string | ID of the task |
+| `tagName` | string | Name of the tag that was removed |
+
+### `clickup_get_space_tags`
+
+List the task tags available in a ClickUp space
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spaceId` | string | Yes | ID of the space to list tags from |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | array | Tags available in the space |
+
+### `clickup_get_task_members`
+
+List the workspace members who have explicit access to a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to list members for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | Members with explicit access to the task |
+
+### `clickup_get_list_members`
+
+List the workspace members who have explicit access to a ClickUp list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | ID of the list to list members for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | Members with explicit access to the list |
+
+### `clickup_get_custom_fields`
+
+List the custom fields accessible in a ClickUp list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | ID of the list to fetch custom fields from |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fields` | array | Custom fields accessible in the list |
+|   ↳ `id` | string | Custom field ID |
+|   ↳ `name` | string | Custom field name |
+|   ↳ `type` | string | Custom field type \(e.g. text, number, drop_down\) |
+|   ↳ `typeConfig` | json | Type-specific configuration \(e.g. dropdown options\) |
+|   ↳ `dateCreated` | string | Creation timestamp \(Unix ms\) |
+|   ↳ `hideFromGuests` | boolean | Whether the field is hidden from guests |
+
+### `clickup_get_workspaces`
+
+List the ClickUp workspaces (teams) available to the connected account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workspaces` | array | Workspaces available to the connected account |
+|   ↳ `id` | string | Workspace ID |
+|   ↳ `name` | string | Workspace name |
+|   ↳ `color` | string | Workspace color |
+|   ↳ `avatar` | string | Workspace avatar URL |
+
+### `clickup_get_spaces`
+
+List the spaces in a ClickUp workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(team\) to list spaces from |
+| `archived` | boolean | No | Return archived spaces |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `spaces` | array | Spaces in the workspace |
+|   ↳ `id` | string | Space ID |
+|   ↳ `name` | string | Space name |
+|   ↳ `private` | boolean | Whether the space is private |
+|   ↳ `archived` | boolean | Whether the space is archived |
+|   ↳ `statuses` | array | Task statuses available in the space |
+|     ↳ `status` | string | Status name |
+|     ↳ `color` | string | Status color |
+|     ↳ `type` | string | Status type |
+
+### `clickup_get_folders`
+
+List the folders in a ClickUp space
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spaceId` | string | Yes | ID of the space to list folders from |
+| `archived` | boolean | No | Return archived folders |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folders` | array | Folders in the space |
+
+### `clickup_get_lists`
+
+List the lists in a ClickUp folder, or the folderless lists in a space when a space ID is provided instead
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `folderId` | string | No | ID of the folder to list lists from \(provide this or spaceId; folderId takes precedence when both are set\) |
+| `spaceId` | string | No | ID of the space to list folderless lists from \(provide this or folderId\) |
+| `archived` | boolean | No | Return archived lists |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lists` | array | Lists in the folder or space |
+
+### `clickup_create_folder`
+
+Create a new folder in a ClickUp space
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spaceId` | string | Yes | ID of the space to create the folder in |
+| `name` | string | Yes | Name of the folder |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folder` | json | The created folder |
+
+### `clickup_create_list`
+
+Create a new list in a ClickUp folder, or a folderless list in a space when a space ID is provided instead
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `folderId` | string | No | ID of the folder to create the list in \(provide this or spaceId; folderId takes precedence when both are set\) |
+| `spaceId` | string | No | ID of the space to create a folderless list in \(provide this or folderId\) |
+| `name` | string | Yes | Name of the list |
+| `content` | string | No | Plain text description of the list |
+| `markdownContent` | string | No | Markdown description of the list \(use instead of content\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `list` | json | The created list |
+
+### `clickup_set_custom_field_value`
+
+Set the value of a custom field on a ClickUp task (the value shape depends on the field type)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to set the custom field on |
+| `fieldId` | string | Yes | UUID of the custom field \(find it with the Get Custom Fields or Get Task operations\) |
+| `value` | json | Yes | Value to set. The shape depends on the field type: text/number fields take a plain value, label fields take an array of option UUIDs, dropdown fields take an option UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskId` | string | ID of the updated task |
+| `fieldId` | string | ID of the custom field that was set |
+
+### `clickup_remove_custom_field_value`
+
+Remove the value of a custom field from a ClickUp task (does not delete the field itself)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to remove the custom field value from |
+| `fieldId` | string | Yes | UUID of the custom field to clear |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskId` | string | ID of the updated task |
+| `fieldId` | string | ID of the custom field that was cleared |
+
+### `clickup_create_checklist`
+
+Add a new checklist to a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to add the checklist to |
+| `name` | string | Yes | Name of the checklist |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `checklist` | json | The created checklist |
+
+### `clickup_update_checklist`
+
+Rename or reorder a checklist on a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `checklistId` | string | Yes | UUID of the checklist to update |
+| `name` | string | No | New name for the checklist |
+| `position` | number | No | New position of the checklist on the task \(0 places it first\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the updated checklist |
+| `updated` | boolean | Whether the checklist was updated |
+
+### `clickup_delete_checklist`
+
+Delete a checklist from a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `checklistId` | string | Yes | UUID of the checklist to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the deleted checklist |
+| `deleted` | boolean | Whether the checklist was deleted |
+
+### `clickup_create_checklist_item`
+
+Add an item to a checklist on a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `checklistId` | string | Yes | UUID of the checklist to add the item to |
+| `name` | string | Yes | Name of the checklist item |
+| `assignee` | number | No | User ID to assign the item to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `checklist` | json | The updated checklist including its items |
+
+### `clickup_update_checklist_item`
+
+Update a checklist item on a ClickUp task — rename, assign, resolve, or nest it
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `checklistId` | string | Yes | UUID of the checklist containing the item |
+| `checklistItemId` | string | Yes | UUID of the checklist item to update |
+| `name` | string | No | New name for the checklist item |
+| `assignee` | number | No | User ID to assign the item to |
+| `resolved` | boolean | No | Whether the item is resolved |
+| `parent` | string | No | UUID of another checklist item to nest this item under |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `checklist` | json | The updated checklist including its items |
+
+### `clickup_delete_checklist_item`
+
+Delete an item from a checklist on a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `checklistId` | string | Yes | UUID of the checklist containing the item |
+| `checklistItemId` | string | Yes | UUID of the checklist item to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the deleted checklist item |
+| `deleted` | boolean | Whether the item was deleted |
+
+### `clickup_get_time_entries`
+
+List time entries in a ClickUp workspace within a date range (defaults to the last 30 days for the authenticated user)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(team\) to list time entries from |
+| `startDate` | number | No | Start of the date range as a Unix timestamp in milliseconds |
+| `endDate` | number | No | End of the date range as a Unix timestamp in milliseconds |
+| `assignee` | string | No | Filter by user IDs, comma-separated \(requires workspace owner/admin to view others\) |
+| `taskId` | string | No | Only entries for this task \(use at most one location filter\) |
+| `listId` | string | No | Only entries in this list \(use at most one location filter\) |
+| `folderId` | string | No | Only entries in this folder \(use at most one location filter\) |
+| `spaceId` | string | No | Only entries in this space \(use at most one location filter\) |
+| `includeTaskTags` | boolean | No | Include task tags in the response |
+| `includeLocationNames` | boolean | No | Include list, folder, and space names in the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeEntries` | array | Time entries in the date range |
+
+### `clickup_create_time_entry`
+
+Create a manual time entry in a ClickUp workspace, optionally linked to a task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(team\) to create the entry in |
+| `start` | number | Yes | Start of the entry as a Unix timestamp in milliseconds |
+| `duration` | number | Yes | Duration of the entry in milliseconds |
+| `description` | string | No | Description of the time entry |
+| `billable` | boolean | No | Whether the entry is billable |
+| `taskId` | string | No | Task ID to associate the entry with |
+| `assignee` | number | No | User ID to create the entry for \(workspace owners/admins only\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeEntry` | json | The created time entry |
+
+### `clickup_update_time_entry`
+
+Update a time entry in a ClickUp workspace — description, start/end times, task, or billable state
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(team\) the entry belongs to |
+| `timerId` | string | Yes | ID of the time entry to update |
+| `description` | string | No | New description for the entry |
+| `start` | number | No | New start \(Unix ms\); when provided, end must also be provided |
+| `end` | number | No | New end \(Unix ms\); when provided, start must also be provided |
+| `duration` | number | No | New duration in milliseconds |
+| `taskId` | string | No | Task ID to associate the entry with |
+| `billable` | boolean | No | Whether the entry is billable |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the updated time entry |
+| `updated` | boolean | Whether the entry was updated |
+
+### `clickup_delete_time_entry`
+
+Delete a time entry from a ClickUp workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(team\) the entry belongs to |
+| `timerId` | string | Yes | ID of the time entry to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeEntry` | json | The deleted time entry |
+
+### `clickup_start_timer`
+
+Start a timer for the authenticated user in a ClickUp workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(team\) to start the timer in |
+| `taskId` | string | No | Task ID to associate the timer with |
+| `description` | string | No | Description of the time entry |
+| `billable` | boolean | No | Whether the entry is billable |
+| `tags` | array | No | Time entry tag names to apply |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeEntry` | json | The started time entry \(duration is negative while running\) |
+
+### `clickup_stop_timer`
+
+Stop the authenticated user's currently running timer in a ClickUp workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(team\) the timer is running in |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeEntry` | json | The stopped time entry |
+
+### `clickup_get_running_timer`
+
+Get the currently running time entry in a ClickUp workspace (null when no timer is running)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(team\) to check |
+| `assignee` | number | No | User ID to check instead of the authenticated user \(owners/admins only\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeEntry` | json | The running time entry \(duration is negative while running\); null when no timer is running |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### ClickUp Folder Created
+
+Trigger workflow when a folder is created in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `folderId` | string | ID of the affected folder |
+
+
+---
+
+### ClickUp Folder Deleted
+
+Trigger workflow when a folder is deleted in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `folderId` | string | ID of the affected folder |
+
+
+---
+
+### ClickUp Folder Updated
+
+Trigger workflow when a folder is updated in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `folderId` | string | ID of the affected folder |
+
+
+---
+
+### ClickUp Goal Created
+
+Trigger workflow when a goal is created in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+
+
+---
+
+### ClickUp Goal Deleted
+
+Trigger workflow when a goal is deleted in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+
+
+---
+
+### ClickUp Goal Updated
+
+Trigger workflow when a goal is updated in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+
+
+---
+
+### ClickUp Key Result Created
+
+Trigger workflow when a key result is created in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+
+
+---
+
+### ClickUp Key Result Deleted
+
+Trigger workflow when a key result is deleted in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+
+
+---
+
+### ClickUp Key Result Updated
+
+Trigger workflow when a key result is updated in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+
+
+---
+
+### ClickUp List Created
+
+Trigger workflow when a list is created in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `listId` | string | ID of the affected list |
+
+
+---
+
+### ClickUp List Deleted
+
+Trigger workflow when a list is deleted in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `listId` | string | ID of the affected list |
+
+
+---
+
+### ClickUp List Updated
+
+Trigger workflow when a list is updated in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `listId` | string | ID of the affected list |
+
+
+---
+
+### ClickUp Space Created
+
+Trigger workflow when a space is created in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `spaceId` | string | ID of the affected space |
+
+
+---
+
+### ClickUp Space Deleted
+
+Trigger workflow when a space is deleted in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `spaceId` | string | ID of the affected space |
+
+
+---
+
+### ClickUp Space Updated
+
+Trigger workflow when a space is updated in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `spaceId` | string | ID of the affected space |
+
+
+---
+
+### ClickUp Task Assignee Updated
+
+Trigger workflow when the assignees of a task change in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `taskId` | string | ID of the affected task |
+
+
+---
+
+### ClickUp Task Comment Posted
+
+Trigger workflow when a comment is posted on a task in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `taskId` | string | ID of the affected task |
+
+
+---
+
+### ClickUp Task Comment Updated
+
+Trigger workflow when a task comment is updated in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `taskId` | string | ID of the affected task |
+
+
+---
+
+### ClickUp Task Created
+
+Trigger workflow when a task is created in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `taskId` | string | ID of the affected task |
+
+
+---
+
+### ClickUp Task Deleted
+
+Trigger workflow when a task is deleted in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `taskId` | string | ID of the affected task |
+
+
+---
+
+### ClickUp Task Due Date Updated
+
+Trigger workflow when the due date of a task changes in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `taskId` | string | ID of the affected task |
+
+
+---
+
+### ClickUp Task Moved
+
+Trigger workflow when a task is moved to a different list in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `taskId` | string | ID of the affected task |
+
+
+---
+
+### ClickUp Task Priority Updated
+
+Trigger workflow when the priority of a task changes in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `taskId` | string | ID of the affected task |
+
+
+---
+
+### ClickUp Task Status Updated
+
+Trigger workflow when the status of a task changes in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `taskId` | string | ID of the affected task |
+
+
+---
+
+### ClickUp Task Tag Updated
+
+Trigger workflow when the tags of a task change in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `taskId` | string | ID of the affected task |
+
+
+---
+
+### ClickUp Task Time Estimate Updated
+
+Trigger workflow when the time estimate of a task changes in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `taskId` | string | ID of the affected task |
+
+
+---
+
+### ClickUp Task Time Tracked Updated
+
+Trigger workflow when the tracked time of a task changes in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `taskId` | string | ID of the affected task |
+
+
+---
+
+### ClickUp Task Updated
+
+Trigger workflow when a task is updated in ClickUp
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `taskId` | string | ID of the affected task |
+
+
+---
+
+### ClickUp Webhook
+
+Trigger workflow on any ClickUp event (subscribes to all events)
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
+| `payload` | json | Full raw ClickUp webhook payload |
+| `taskId` | string | ID of the affected task \(task events only\) |
+| `listId` | string | ID of the affected list \(list events only\) |
+| `folderId` | string | ID of the affected folder \(folder events only\) |
+| `spaceId` | string | ID of the affected space \(space events only\) |
+

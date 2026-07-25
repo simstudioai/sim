@@ -1,5 +1,6 @@
 import type { LinearReadIssuesParams, LinearReadIssuesResponse } from '@/tools/linear/types'
 import { ISSUE_LIST_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT_PROPERTIES } from '@/tools/linear/types'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearReadIssuesResponse> = {
@@ -97,7 +98,7 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
       }
       return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+        Authorization: linearAuthorizationHeader(params.accessToken),
       }
     },
     body: (params) => {

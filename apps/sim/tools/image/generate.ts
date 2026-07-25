@@ -1,4 +1,5 @@
 import { FALAI_HOSTED_KEY_MARKUP_MULTIPLIER } from '@/lib/tools/falai-pricing'
+import { hostedKeyEnabledWhen } from '@/tools/hosting'
 import type { ImageGenerationParams, ImageGenerationResponse } from '@/tools/image/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -115,7 +116,11 @@ export const imageGenerateTool: ToolConfig<ImageGenerationParams, ImageGeneratio
   },
 
   hosting: {
-    enabled: (params) => params.provider === 'falai',
+    enabled: hostedKeyEnabledWhen<ImageGenerationParams>({
+      field: 'provider',
+      operator: 'equals',
+      value: 'falai',
+    }),
     envKeyPrefix: 'FALAI_API_KEY',
     apiKeyParam: 'apiKey',
     byokProviderId: 'falai',

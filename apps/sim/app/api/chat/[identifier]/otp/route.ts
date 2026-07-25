@@ -160,6 +160,8 @@ export const PUT = withRouteHandler(
           authType: chat.authType,
           password: chat.password,
           outputConfigs: chat.outputConfigs,
+          includeThinking: chat.includeThinking,
+          includeToolCalls: chat.includeToolCalls,
         })
         .from(chat)
         .where(
@@ -173,6 +175,10 @@ export const PUT = withRouteHandler(
       }
 
       const deployment = deploymentResult[0]
+
+      if (deployment.authType !== 'email') {
+        return createErrorResponse('This chat does not use email authentication', 400)
+      }
 
       const storedValue = await getOTP('chat', deployment.id, email)
       if (!storedValue) {
@@ -205,6 +211,8 @@ export const PUT = withRouteHandler(
         customizations: deployment.customizations,
         authType: deployment.authType,
         outputConfigs: deployment.outputConfigs,
+        includeThinking: deployment.includeThinking ?? false,
+        includeToolCalls: deployment.includeToolCalls ?? deployment.includeThinking ?? false,
       })
       setChatAuthCookie(response, deployment.id, deployment.authType, deployment.password)
 

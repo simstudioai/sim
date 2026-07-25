@@ -178,6 +178,7 @@ function makePlan(overrides: Partial<ForkPromotePlan> = {}): ForkPromotePlan {
     workflowIdMap: new Map(),
     archivedTargetIds: [],
     archivedTargets: [],
+    excludedTargets: [],
     references: [],
     unmappedRequired: [],
     unmappedOptional: [],
@@ -272,7 +273,10 @@ describe('promoteFork gates', () => {
       })
     ).rejects.toThrow('Not enough storage to copy the selected resources')
 
-    expect(mockAssertForkStorageHeadroom).toHaveBeenCalledWith({ userId: 'user-1', bytes: 999_999 })
+    expect(mockAssertForkStorageHeadroom).toHaveBeenCalledWith({
+      targetWorkspaceId: 'tgt-ws',
+      bytes: 999_999,
+    })
     // Fails fast: no source-state loads, no locked transaction, no writes of any kind.
     expect(mockLoadSourceDeployedStates).not.toHaveBeenCalled()
     expect(db.transaction).not.toHaveBeenCalled()

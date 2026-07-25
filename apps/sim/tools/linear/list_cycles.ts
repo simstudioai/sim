@@ -1,5 +1,6 @@
 import type { LinearListCyclesParams, LinearListCyclesResponse } from '@/tools/linear/types'
 import { CYCLE_FULL_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT } from '@/tools/linear/types'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListCyclesTool: ToolConfig<LinearListCyclesParams, LinearListCyclesResponse> = {
@@ -43,7 +44,7 @@ export const linearListCyclesTool: ToolConfig<LinearListCyclesParams, LinearList
       }
       return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+        Authorization: linearAuthorizationHeader(params.accessToken),
       }
     },
     body: (params) => {

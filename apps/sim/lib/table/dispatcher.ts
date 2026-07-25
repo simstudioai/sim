@@ -23,7 +23,13 @@ import { isExecCancelledAfter } from '@/lib/table/deps'
 import { appendTableEvent } from '@/lib/table/events'
 import { type DbExecutor, withSeqscanOff } from '@/lib/table/planner'
 import { buildFilterClause } from '@/lib/table/sql'
-import type { Filter, RowExecutionMetadata, RowExecutions, TableRow } from '@/lib/table/types'
+import type {
+  Filter,
+  RowExecutionMetadata,
+  RowExecutions,
+  TableDefinition,
+  TableRow,
+} from '@/lib/table/types'
 import {
   buildEnqueueItems,
   buildPendingRuns,
@@ -33,11 +39,6 @@ import {
 } from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableRunDispatcher')
-
-/** Window size matches the cell-execution concurrency cap so one window
- *  saturates the pool before the next is loaded — yields a row-major
- *  scan-line crawl (rows 1-20 finish before 21-40 start). */
-const WINDOW_SIZE = TABLE_CONCURRENCY_LIMIT
 
 const ACTIVE_DISPATCH_STATUSES = ['pending', 'dispatching'] as const
 
@@ -317,14 +318,23 @@ export async function readDispatch(dispatchId: string): Promise<DispatchRow | nu
 
 /** Drive `dispatcherStep` to completion. Shared between the trigger.dev task
  *  wrapper (`tableRunDispatcherTask`) and the in-process inline path so both
- *  runtimes use identical loop semantics + error logging. */
-export async function runDispatcherToCompletion(dispatchId: string): Promise<void> {
-  while ((await dispatcherStep(dispatchId)) === 'continue') {}
+ *  runtimes use identical loop semantics + error logging. `concurrency` is the
+ *  invoker's plan-resolved window size (see `resolveTableDispatchConcurrency`),
+ *  threaded via the task payload; absent on payloads from before the field
+ *  existed → legacy cap. */
+export async function runDispatcherToCompletion(
+  dispatchId: string,
+  concurrency?: number
+): Promise<void> {
+  while ((await dispatcherStep(dispatchId, concurrency)) === 'continue') {}
 }
 
 /** Run one window of the dispatcher state machine. Caller re-invokes (via the
  *  trigger.dev task wrapper) until the returned status is `'done'`. */
-export async function dispatcherStep(dispatchId: string): Promise<DispatcherStepResult> {
+export async function dispatcherStep(
+  dispatchId: string,
+  concurrency?: number
+): Promise<DispatcherStepResult> {
   const dispatch = await readDispatch(dispatchId)
   if (!dispatch) {
     logger.warn(`[${dispatchId}] dispatch row missing — aborting`)
@@ -373,6 +383,11 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
       ...(dispatch.limit ? { limit: dispatch.limit } : {}),
     })
   }
+
+  // Window size = the invoker's plan-resolved parallelism, so one window
+  // saturates the cell pool before the next is loaded — yields a row-major
+  // scan-line crawl. Payloads without the field fall back to the legacy cap.
+  const windowSize = concurrency ?? TABLE_CONCURRENCY_LIMIT
 
   const filters = [
     eq(userTableRows.tableId, dispatch.tableId),
@@ -423,7 +438,7 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
       .from(userTableRows)
       .where(and(...filters))
       .orderBy(asc(userTableRows.position))
-      .limit(WINDOW_SIZE)
+      .limit(windowSize)
   // Filtered scopes carry a jsonb predicate the planner can't estimate — left alone it
   // seq-scans the whole shared relation per window; keep it on the tenant's position index.
   const chunk = hasJsonbFilter
@@ -521,14 +536,14 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
   }
 
   if (windowRuns.length > 0) {
-    await stampQueuedForBatch(windowRuns)
+    await stampQueuedForBatch(windowRuns, table)
 
     // Backend-agnostic batch dispatch: trigger.dev wraps `batchTriggerAndWait`
     // (CRIU-checkpointed wait); database backend calls the cell-task runner
     // directly via Promise.all (skips async_jobs since we're awaiting in-
     // process anyway). Either way the parent dispatcher blocks until every
-    // cell in the window terminates — bounds queue depth at WINDOW_SIZE.
-    const items = await buildEnqueueItems(windowRuns)
+    // cell in the window terminates — bounds queue depth at the window size.
+    const items = await buildEnqueueItems(windowRuns, windowSize)
     const queue = await getJobQueue()
     try {
       await queue.batchEnqueueAndWait('workflow-group-cell', items)
@@ -641,18 +656,24 @@ async function completeDispatch(dispatch: DispatchRow, cursor: number): Promise<
  *  executionId) once it acquires the row's cascade lock — if another
  *  cell-task already holds the lock, this task bails and the pending stamp
  *  is later reconciled by whoever owns the cascade. */
-async function stampQueuedForBatch(pendingRuns: WorkflowGroupCellPayload[]): Promise<void> {
+async function stampQueuedForBatch(
+  pendingRuns: WorkflowGroupCellPayload[],
+  table: TableDefinition
+): Promise<void> {
   await Promise.allSettled(
     pendingRuns.map((runOpts) =>
-      writeWorkflowGroupState(runOpts, {
-        executionState: {
-          status: 'pending',
-          executionId: null,
-          jobId: null,
-          workflowId: runOpts.workflowId,
-          error: null,
-        },
-      })
+      writeWorkflowGroupState(
+        { ...runOpts, table },
+        {
+          executionState: {
+            status: 'pending',
+            executionId: null,
+            jobId: null,
+            workflowId: runOpts.workflowId,
+            error: null,
+          },
+        }
+      )
     )
   )
 }

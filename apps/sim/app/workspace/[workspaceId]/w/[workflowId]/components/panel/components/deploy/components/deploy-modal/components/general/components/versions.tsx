@@ -207,6 +207,20 @@ export function Versions({
       <div className='bg-[var(--surface-2)]'>
         {versions.map((v) => {
           const isSelected = selectedVersion === v.version
+          const operationStatus =
+            !v.isActive && v.latestOperationStatus !== 'active' ? v.latestOperationStatus : null
+          const isOperationPending =
+            operationStatus === 'preparing' || operationStatus === 'activating'
+          /** Exactly one parenthetical per row; selection already highlights the row. */
+          const rowLabel = v.isActive
+            ? 'live'
+            : isOperationPending
+              ? 'pending'
+              : operationStatus === 'failed'
+                ? 'failed'
+                : isSelected
+                  ? 'selected'
+                  : null
 
           return (
             <div
@@ -233,9 +247,23 @@ export function Versions({
                   <div
                     className={cn(
                       'size-[6px] shrink-0 rounded-xs',
-                      v.isActive ? 'bg-[var(--indicator-active)]' : 'bg-[var(--indicator-inactive)]'
+                      v.isActive
+                        ? 'bg-[var(--indicator-active)]'
+                        : isOperationPending
+                          ? 'bg-amber-400'
+                          : operationStatus === 'failed'
+                            ? 'bg-red-400'
+                            : 'bg-[var(--indicator-inactive)]'
                     )}
-                    title={v.isActive ? 'Live' : 'Inactive'}
+                    title={
+                      v.isActive
+                        ? 'Live'
+                        : isOperationPending
+                          ? 'Pending'
+                          : operationStatus === 'failed'
+                            ? 'Failed'
+                            : 'Inactive'
+                    }
                   />
                   {editingVersion === v.version ? (
                     <Input
@@ -269,11 +297,8 @@ export function Versions({
                         v{v.version}
                       </span>
                       {v.name && <span className='truncate'>{v.name}</span>}
-                      {v.isActive && (
-                        <span className='shrink-0 text-[var(--text-tertiary)]'>(live)</span>
-                      )}
-                      {isSelected && (
-                        <span className='shrink-0 text-[var(--text-tertiary)]'>(selected)</span>
+                      {rowLabel && (
+                        <span className='shrink-0 text-[var(--text-tertiary)]'>({rowLabel})</span>
                       )}
                     </span>
                   )}

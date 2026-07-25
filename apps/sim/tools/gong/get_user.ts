@@ -30,7 +30,7 @@ export const getUserTool: ToolConfig<GongGetUserParams, GongGetUserResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.gong.io/v2/users/${params.userId.trim()}`,
+    url: (params) => `https://api.gong.io/v2/users/${encodeURIComponent(params.userId.trim())}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -47,6 +47,7 @@ export const getUserTool: ToolConfig<GongGetUserParams, GongGetUserResponse> = {
     return {
       success: true,
       output: {
+        requestId: data.requestId ?? null,
         id: user.id ?? '',
         emailAddress: user.emailAddress ?? null,
         created: user.created ?? null,
@@ -68,6 +69,11 @@ export const getUserTool: ToolConfig<GongGetUserParams, GongGetUserResponse> = {
   },
 
   outputs: {
+    requestId: {
+      type: 'string',
+      description: 'A Gong request reference ID for troubleshooting purposes',
+      optional: true,
+    },
     id: { type: 'string', description: 'Unique numeric user ID (up to 20 digits)' },
     emailAddress: { type: 'string', description: 'User email address', optional: true },
     created: { type: 'string', description: 'User creation timestamp (ISO-8601)', optional: true },

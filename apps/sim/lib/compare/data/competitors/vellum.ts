@@ -289,6 +289,32 @@ export const vellumProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          "Partial: Vellum has no documented feature for publishing a workflow as a named, iconed block that appears in a shared toolbar for the whole organization. Its closest mechanism is the Deployed Subworkflow node, a dedicated 'Deployed Subworkflow' option in the Insert Node Panel that lets a builder insert an already-deployed workflow as a single node in their own separate workflow, wiring only its defined inputs/outputs rather than exposing the source workflow's internal nodes. Pointing it at the LATEST release tag means it automatically runs the source workflow's newest deployment with no separate republish step.",
+        detail:
+          "Unlike Sim's Custom Blocks, there is no documented step where a publisher assigns a custom name/icon that then surfaces the workflow as a first-class item in the general node toolbar alongside built-in nodes; consumers instead search for and link a specific deployed workflow through the Subworkflow node type. There is also no documented ability to hand-pick and rename a subset of outputs to expose, and no Enterprise-only gating or block-level allow/deny governance specific to this reuse mechanism beyond Vellum's general workspace-wide RBAC roles.",
+        shortValue:
+          'Partial: Deployed Subworkflow node, not a published named/iconed toolbar block',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/developers/workflows-sdk/api-reference/nodes/subworkflow-deployment-node',
+            label: 'Subworkflow Deployment Node - Vellum Documentation',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.vellum.ai/changelog/2025/2025-08',
+            label: 'Vellum Changelog: August 2025 (Insert Node Panel Subworkflow split)',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.vellum.ai/product/deployments/release-tags',
+            label: 'Release Tags - Vellum Documentation',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {

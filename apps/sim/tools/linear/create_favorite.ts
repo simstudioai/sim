@@ -1,4 +1,5 @@
 import type { LinearCreateFavoriteParams, LinearCreateFavoriteResponse } from '@/tools/linear/types'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearCreateFavoriteTool: ToolConfig<
@@ -51,7 +52,7 @@ export const linearCreateFavoriteTool: ToolConfig<
       }
       return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+        Authorization: linearAuthorizationHeader(params.accessToken),
       }
     },
     body: (params) => {

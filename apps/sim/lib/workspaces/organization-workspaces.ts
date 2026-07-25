@@ -1,13 +1,18 @@
+import { AuditAction, AuditResourceType, recordAuditBatch } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import {
-  ensureUserInOrganization,
-  reapplyPaidOrgJoinBillingForExistingMember,
+  acquireOrganizationMutationLock,
+  ensureUserInOrganizationTx,
+  reapplyPaidOrgJoinBillingForExistingMemberTx,
 } from '@/lib/billing/organizations/membership'
+import { changeWorkspaceStoragePayersInTx } from '@/lib/billing/storage/payer-transfer'
+import type { DbOrTx } from '@/lib/db/types'
+import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { getOrganizationOwnerId, WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
 const logger = createLogger('OrganizationWorkspaces')
@@ -16,6 +21,12 @@ export interface AttachOwnedWorkspacesToOrganizationResult {
   attachedWorkspaceIds: string[]
   addedMemberIds: string[]
   skippedMembers: Array<{ userId: string; reason: string }>
+}
+
+export interface AttachOwnedWorkspacesToOrganizationTxResult
+  extends AttachOwnedWorkspacesToOrganizationResult {
+  /** These best-effort derived-limit refreshes must run only after commit. */
+  usageLimitUserIds: string[]
 }
 
 export interface DetachOrganizationWorkspacesResult {
@@ -45,6 +56,20 @@ export class WorkspaceOrganizationMembershipConflictError extends Error {
  */
 type ExternalMemberPolicy = 'reject' | 'keep-external'
 
+/**
+ * Locks workspace rows before any membership billing path can lock user or
+ * organization payer rows.
+ */
+async function lockWorkspaceRowsForPayerChanges(tx: DbOrTx, workspaceIds: string[]): Promise<void> {
+  if (workspaceIds.length === 0) return
+  await tx
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(inArray(workspace.id, [...workspaceIds].sort()))
+    .orderBy(asc(workspace.id))
+    .for('update')
+}
+
 interface AttachOwnedWorkspacesToOrganizationParams {
   ownerUserId: string
   organizationId: string
@@ -59,117 +84,252 @@ export async function attachOwnedWorkspacesToOrganization({
   const ownedWorkspaces = await db
     .select({ id: workspace.id })
     .from(workspace)
-    .where(eq(workspace.ownerId, ownerUserId))
-
-  const billedAccountUserId = await getOrganizationOwnerId(organizationId)
-  if (!billedAccountUserId) {
-    logger.error('Attempted to attach workspaces to an organization without an owner', {
-      organizationId,
-      ownerUserId,
-    })
-    throw new Error(`Organization ${organizationId} has no owner membership`)
-  }
+    .where(
+      and(
+        eq(workspace.ownerId, ownerUserId),
+        isNull(workspace.organizationId),
+        ne(workspace.workspaceMode, WORKSPACE_MODE.ORGANIZATION),
+        isNull(workspace.archivedAt)
+      )
+    )
   const ownedWorkspaceIds = ownedWorkspaces.map((ownedWorkspace) => ownedWorkspace.id)
-  const uniqueWorkspaceMemberIds = await getWorkspaceMemberIds(ownedWorkspaceIds)
-  const { joinableUserIds, externalConflicts } = await partitionWorkspaceMembersByOrg(
-    uniqueWorkspaceMemberIds,
-    organizationId
-  )
-
-  if (externalMemberPolicy === 'reject' && externalConflicts.length > 0) {
-    logger.warn('Workspace attachment blocked by members in another organization', {
-      organizationId,
-      conflictCount: externalConflicts.length,
-      conflictingUserIds: externalConflicts.map((conflict) => conflict.userId),
-    })
-    throw new WorkspaceOrganizationMembershipConflictError(externalConflicts)
+  if (ownedWorkspaceIds.length === 0) {
+    return { attachedWorkspaceIds: [], addedMemberIds: [], skippedMembers: [] }
   }
 
-  const skippedMembers = externalConflicts.map((conflict) => ({
-    userId: conflict.userId,
-    reason: 'Already a member of another organization; kept as external workspace member',
-  }))
-
-  const addedMemberIds: string[] = []
-
-  for (const userId of joinableUserIds) {
-    const result = await ensureUserInOrganization({
-      userId,
-      organizationId,
-      role: userId === billedAccountUserId ? 'owner' : 'member',
-      skipSeatValidation: true,
+  const attached = await db.transaction(async (tx) => {
+    await lockWorkspaceRowsForPayerChanges(tx, ownedWorkspaceIds)
+    // Match admin move and invitation acceptance: workspace/invitation scope
+    // first, then organization. Membership and assignment now commit or roll
+    // back together, so a concurrent move cannot leave stray org members.
+    await acquireInvitationMutationLocks(tx, {
+      invitationIds: [],
+      workspaceIds: ownedWorkspaceIds,
     })
+    await acquireOrganizationMutationLock(tx, organizationId)
+    return attachOwnedWorkspacesToOrganizationTx(tx, {
+      ownerUserId,
+      organizationId,
+      workspaceIds: ownedWorkspaceIds,
+      externalMemberPolicy,
+      ownerMatch: 'owner',
+    })
+  })
 
-    if (!result.success) {
-      logger.error('Failed to sync workspace member into organization before attachment', {
+  for (const userId of attached.usageLimitUserIds) {
+    try {
+      await syncUsageLimitsFromSubscription(userId)
+    } catch (error) {
+      // Membership and workspace assignment have already committed. This
+      // refresh is derived/best-effort; surfacing a failure would invite a
+      // misleading retry that finds no remaining candidate workspaces.
+      logger.error('Failed to refresh usage limits after workspace attachment', {
         userId,
         organizationId,
-        ownerUserId,
-        error: result.error,
+        error,
       })
-      throw new Error(result.error || 'Failed to sync workspace member into organization')
-    }
-
-    if (result.alreadyMember) {
-      await reapplyPaidOrgJoinBillingForExistingMember(userId, organizationId)
-    } else {
-      addedMemberIds.push(userId)
-      await syncUsageLimitsFromSubscription(userId)
     }
   }
-
-  const attachedWorkspaceIds = await db.transaction(async (tx) => {
-    const touched: string[] = []
-    const now = new Date()
-
-    for (const ownedWorkspace of ownedWorkspaces) {
-      await tx
-        .update(workspace)
-        .set({
-          organizationId,
-          workspaceMode: WORKSPACE_MODE.ORGANIZATION,
-          billedAccountUserId,
-          updatedAt: now,
-        })
-        .where(eq(workspace.id, ownedWorkspace.id))
-
-      await tx
-        .insert(permissions)
-        .values({
-          id: generateId(),
-          userId: billedAccountUserId,
-          entityType: 'workspace',
-          entityId: ownedWorkspace.id,
-          permissionType: 'admin',
-          createdAt: now,
-          updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: [permissions.userId, permissions.entityType, permissions.entityId],
-          set: {
-            permissionType: 'admin',
-            updatedAt: now,
-          },
-        })
-
-      touched.push(ownedWorkspace.id)
-    }
-
-    return touched
-  })
 
   logger.info('Attached owned workspaces to organization', {
     ownerUserId,
     organizationId,
-    attachedWorkspaceCount: attachedWorkspaceIds.length,
-    addedMemberCount: addedMemberIds.length,
-    skippedMemberCount: skippedMembers.length,
+    attachedWorkspaceCount: attached.attachedWorkspaceIds.length,
+    addedMemberCount: attached.addedMemberIds.length,
+    skippedMemberCount: attached.skippedMembers.length,
   })
+
+  return {
+    attachedWorkspaceIds: attached.attachedWorkspaceIds,
+    addedMemberIds: attached.addedMemberIds,
+    skippedMembers: attached.skippedMembers,
+  }
+}
+
+/**
+ * Transaction-enlisted Pro→Team conversion path used by invitation
+ * acceptance. The caller supplies the exact workspace IDs whose deterministic
+ * invitation/workspace advisory locks it already holds. Subscription transfer,
+ * organization membership, workspace attachment, owner permission, and
+ * billing outbox rows therefore commit or roll back with the invitation.
+ *
+ * Usage-limit refreshes intentionally remain post-commit; their user IDs are
+ * returned to the caller instead of opening the global pool from inside the
+ * transaction.
+ */
+export async function attachOwnedWorkspacesToOrganizationTx(
+  tx: DbOrTx,
+  {
+    ownerUserId,
+    organizationId,
+    workspaceIds,
+    externalMemberPolicy = 'keep-external',
+    ownerMatch = 'billing-account',
+  }: {
+    ownerUserId: string
+    organizationId: string
+    workspaceIds: string[]
+    externalMemberPolicy?: ExternalMemberPolicy
+    ownerMatch?: 'owner' | 'billing-account'
+  }
+): Promise<AttachOwnedWorkspacesToOrganizationTxResult> {
+  if (workspaceIds.length === 0) {
+    return {
+      attachedWorkspaceIds: [],
+      addedMemberIds: [],
+      skippedMembers: [],
+      usageLimitUserIds: [],
+    }
+  }
+
+  // A workspace may have completed a different organization move while this
+  // acceptance was waiting for its advisory locks. Never turn that into an
+  // inter-organization transfer: attach only rows that are still non-org.
+  const ownedWorkspaces = await tx
+    .select({
+      id: workspace.id,
+      billedAccountUserId: workspace.billedAccountUserId,
+      organizationId: workspace.organizationId,
+    })
+    .from(workspace)
+    .where(
+      and(
+        ownerMatch === 'owner'
+          ? eq(workspace.ownerId, ownerUserId)
+          : eq(workspace.billedAccountUserId, ownerUserId),
+        inArray(workspace.id, workspaceIds),
+        isNull(workspace.organizationId),
+        ne(workspace.workspaceMode, WORKSPACE_MODE.ORGANIZATION),
+        isNull(workspace.archivedAt)
+      )
+    )
+    .orderBy(asc(workspace.id))
+    .for('update')
+
+  if (ownedWorkspaces.length === 0) {
+    return {
+      attachedWorkspaceIds: [],
+      addedMemberIds: [],
+      skippedMembers: [],
+      usageLimitUserIds: [],
+    }
+  }
+
+  const [ownerMembership] = await tx
+    .select({ userId: member.userId })
+    .from(member)
+    .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
+    .limit(1)
+  if (!ownerMembership) {
+    throw new Error(`Organization ${organizationId} has no owner membership`)
+  }
+
+  const ownedWorkspaceIds = ownedWorkspaces.map((row) => row.id)
+  const permissionRows = await tx
+    .select({ userId: permissions.userId })
+    .from(permissions)
+    .where(
+      and(eq(permissions.entityType, 'workspace'), inArray(permissions.entityId, ownedWorkspaceIds))
+    )
+  const workspaceMemberIds = [...new Set(permissionRows.map((row) => row.userId))].sort()
+  const memberships =
+    workspaceMemberIds.length > 0
+      ? await tx
+          .select({ userId: member.userId, organizationId: member.organizationId })
+          .from(member)
+          .where(inArray(member.userId, workspaceMemberIds))
+      : []
+  const membershipByUser = new Map(memberships.map((row) => [row.userId, row.organizationId]))
+  const skippedMembers = workspaceMemberIds
+    .filter((userId) => {
+      const currentOrganizationId = membershipByUser.get(userId)
+      return currentOrganizationId !== undefined && currentOrganizationId !== organizationId
+    })
+    .map((userId) => ({
+      userId,
+      reason: 'Already a member of another organization; kept as external workspace member',
+    }))
+  if (externalMemberPolicy === 'reject' && skippedMembers.length > 0) {
+    throw new WorkspaceOrganizationMembershipConflictError(
+      skippedMembers.map(({ userId }) => ({
+        userId,
+        organizationId: membershipByUser.get(userId) as string,
+      }))
+    )
+  }
+  const skippedUserIds = new Set(skippedMembers.map((row) => row.userId))
+  const joinableUserIds = workspaceMemberIds.filter((userId) => !skippedUserIds.has(userId))
+
+  const addedMemberIds: string[] = []
+  const usageLimitUserIds: string[] = []
+  for (const userId of joinableUserIds) {
+    const result = await ensureUserInOrganizationTx(tx, {
+      userId,
+      organizationId,
+      role: userId === ownerMembership.userId ? 'owner' : 'member',
+      skipSeatValidation: true,
+    })
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to sync workspace member into organization')
+    }
+    if (result.alreadyMember) {
+      await reapplyPaidOrgJoinBillingForExistingMemberTx(tx, userId, organizationId)
+    } else {
+      addedMemberIds.push(userId)
+      usageLimitUserIds.push(userId)
+    }
+  }
+
+  const now = new Date()
+  await changeWorkspaceStoragePayersInTx(
+    tx,
+    ownedWorkspaces.map((ownedWorkspace) => ({
+      workspaceId: ownedWorkspace.id,
+      organizationId,
+      billedAccountUserId: ownerMembership.userId,
+      expectedCurrentPayer: {
+        organizationId: ownedWorkspace.organizationId,
+        billedAccountUserId: ownedWorkspace.billedAccountUserId,
+      },
+    }))
+  )
+
+  const attachedWorkspaceRows = await tx
+    .update(workspace)
+    .set({
+      workspaceMode: WORKSPACE_MODE.ORGANIZATION,
+      organizationAssignedAt: now,
+      updatedAt: now,
+    })
+    .where(inArray(workspace.id, ownedWorkspaceIds))
+    .returning({ id: workspace.id })
+  const attachedWorkspaceIds = attachedWorkspaceRows.map((row) => row.id).sort()
+
+  if (attachedWorkspaceIds.length > 0) {
+    await tx
+      .insert(permissions)
+      .values(
+        attachedWorkspaceIds.map((workspaceId) => ({
+          id: generateId(),
+          userId: ownerMembership.userId,
+          entityType: 'workspace' as const,
+          entityId: workspaceId,
+          permissionType: 'admin' as const,
+          createdAt: now,
+          updatedAt: now,
+        }))
+      )
+      .onConflictDoUpdate({
+        target: [permissions.userId, permissions.entityType, permissions.entityId],
+        set: { permissionType: 'admin', updatedAt: now },
+      })
+  }
 
   return {
     attachedWorkspaceIds,
     addedMemberIds,
     skippedMembers,
+    usageLimitUserIds,
   }
 }
 
@@ -185,7 +345,11 @@ export async function detachOrganizationWorkspaces(
   }
 
   const organizationWorkspaces = await db
-    .select({ id: workspace.id, ownerId: workspace.ownerId })
+    .select({
+      id: workspace.id,
+      ownerId: workspace.ownerId,
+      billedAccountUserId: workspace.billedAccountUserId,
+    })
     .from(workspace)
     .where(
       and(
@@ -195,46 +359,83 @@ export async function detachOrganizationWorkspaces(
     )
 
   const detachedWorkspaceIds = await db.transaction(async (tx) => {
-    const touched: string[] = []
     const now = new Date()
+    const workspaceIds = organizationWorkspaces
+      .map((organizationWorkspace) => organizationWorkspace.id)
+      .sort()
+    await lockWorkspaceRowsForPayerChanges(tx, workspaceIds)
+    const payerChanges = organizationWorkspaces.map((organizationWorkspace) => ({
+      workspaceId: organizationWorkspace.id,
+      organizationId: null,
+      billedAccountUserId: organizationOwnerId ?? organizationWorkspace.ownerId,
+      expectedCurrentPayer: {
+        organizationId,
+        billedAccountUserId: organizationWorkspace.billedAccountUserId,
+      },
+    }))
 
-    for (const organizationWorkspace of organizationWorkspaces) {
-      const billedAccountUserId = organizationOwnerId ?? organizationWorkspace.ownerId
+    await changeWorkspaceStoragePayersInTx(tx, payerChanges)
 
-      await tx
-        .update(workspace)
-        .set({
-          organizationId: null,
-          workspaceMode: WORKSPACE_MODE.GRANDFATHERED_SHARED,
-          billedAccountUserId,
-          updatedAt: now,
-        })
-        .where(eq(workspace.id, organizationWorkspace.id))
+    if (workspaceIds.length === 0) return []
 
-      await tx
-        .insert(permissions)
-        .values({
+    await tx
+      .update(workspace)
+      .set({
+        workspaceMode: WORKSPACE_MODE.GRANDFATHERED_SHARED,
+        organizationAssignedAt: null,
+        updatedAt: now,
+      })
+      .where(inArray(workspace.id, workspaceIds))
+
+    await tx
+      .insert(permissions)
+      .values(
+        payerChanges.map(({ billedAccountUserId, workspaceId }) => ({
           id: generateId(),
           userId: billedAccountUserId,
-          entityType: 'workspace',
-          entityId: organizationWorkspace.id,
-          permissionType: 'admin',
+          entityType: 'workspace' as const,
+          entityId: workspaceId,
+          permissionType: 'admin' as const,
           createdAt: now,
           updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: [permissions.userId, permissions.entityType, permissions.entityId],
-          set: {
-            permissionType: 'admin',
-            updatedAt: now,
-          },
-        })
+        }))
+      )
+      .onConflictDoUpdate({
+        target: [permissions.userId, permissions.entityType, permissions.entityId],
+        set: {
+          permissionType: 'admin',
+          updatedAt: now,
+        },
+      })
 
-      touched.push(organizationWorkspace.id)
-    }
-
-    return touched
+    return [...workspaceIds].sort()
   })
+
+  const workspacesById = new Map(
+    organizationWorkspaces.map((organizationWorkspace) => [
+      organizationWorkspace.id,
+      organizationWorkspace,
+    ])
+  )
+  recordAuditBatch(
+    detachedWorkspaceIds.map((detachedWorkspaceId) => {
+      const detachedWorkspace = workspacesById.get(detachedWorkspaceId)
+      return {
+        workspaceId: detachedWorkspaceId,
+        actorId: null,
+        actorName: 'Billing System',
+        action: AuditAction.WORKSPACE_UPDATED,
+        resourceType: AuditResourceType.WORKSPACE,
+        resourceId: detachedWorkspaceId,
+        description: 'Workspace detached from organization after its subscription ended',
+        metadata: {
+          organizationId,
+          previousBilledAccountUserId: detachedWorkspace?.billedAccountUserId ?? null,
+          newBilledAccountUserId: organizationOwnerId ?? detachedWorkspace?.ownerId ?? null,
+        },
+      }
+    })
+  )
 
   logger.info('Detached organization workspaces', {
     organizationId,
@@ -246,53 +447,4 @@ export async function detachOrganizationWorkspaces(
     detachedWorkspaceIds,
     billedAccountUserId: organizationOwnerId,
   }
-}
-
-/**
- * Split workspace members into those who can join the target organization
- * (members of no org, or already members of this org) and those who already
- * belong to a different org (external conflicts). Single-org membership means
- * each user has at most one membership row, so the split is unambiguous.
- */
-async function partitionWorkspaceMembersByOrg(
-  userIds: string[],
-  organizationId: string
-): Promise<{
-  joinableUserIds: string[]
-  externalConflicts: Array<{ userId: string; organizationId: string }>
-}> {
-  if (userIds.length === 0) {
-    return { joinableUserIds: [], externalConflicts: [] }
-  }
-
-  const memberships = await db
-    .select({
-      userId: member.userId,
-      organizationId: member.organizationId,
-    })
-    .from(member)
-    .where(inArray(member.userId, userIds))
-
-  const externalConflicts = memberships.filter(
-    (membership) => membership.organizationId !== organizationId
-  )
-  const externalUserIds = new Set(externalConflicts.map((conflict) => conflict.userId))
-  const joinableUserIds = userIds.filter((userId) => !externalUserIds.has(userId))
-
-  return { joinableUserIds, externalConflicts }
-}
-
-async function getWorkspaceMemberIds(workspaceIds: string[]): Promise<string[]> {
-  if (workspaceIds.length === 0) {
-    return []
-  }
-
-  const rows = await db
-    .select({ userId: permissions.userId })
-    .from(permissions)
-    .where(
-      and(eq(permissions.entityType, 'workspace'), inArray(permissions.entityId, workspaceIds))
-    )
-
-  return [...new Set(rows.map((row) => row.userId))]
 }

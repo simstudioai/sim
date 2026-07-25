@@ -15,6 +15,7 @@ function hasVisibleText(textBody: TextBody): boolean {
   return false
 }
 
+import { isAllowedExternalUrl } from '@/lib/core/security/url-safety'
 import { emuToPx } from '../parser/units'
 import type { SafeXmlNode } from '../parser/xml-parser'
 import { renderCustomGeometry } from '../shapes/custom-geometry'
@@ -26,7 +27,6 @@ import {
 } from '../shapes/presets'
 import { applyTint, hexToRgb, rgbToHex } from '../utils/color'
 import { getOrCreateBlobUrl, resolveMediaPath } from '../utils/media'
-import { isAllowedExternalUrl } from '../utils/url-safety'
 import {
   resolveColor,
   resolveColorToCss,

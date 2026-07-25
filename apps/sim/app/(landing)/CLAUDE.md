@@ -34,8 +34,11 @@ Target: Lighthouse 95+ on mobile, LCP < 2.0s, CLS < 0.05, minimal hydration cost
 - **No heavy client libraries above the fold.** No animation frameworks (framer-motion etc.), no ReactFlow, no chart libs in the initial bundle. If a below-fold section truly needs one, load it with `next/dynamic` and a dimension-stable placeholder.
 - **Images via `next/image` always.** The LCP element (logo or hero visual) gets `priority`; everything below the fold lazy-loads (the default). Every image has explicit `width`/`height` - zero layout shift.
 - **Prefer CSS over JS.** Hover states, transitions, marquees, and reveal effects in CSS (`transition-*`, `animation`) rather than scroll listeners or animation libraries. Decorative motion respects `prefers-reduced-motion`.
-- **Static rendering.** The page is statically generated with `revalidate` (set in `page.tsx`). Never fetch per-request data in the page tree; anything dynamic (e.g. GitHub stars) is fetched at build/revalidate time on the server or deferred to a tiny client island.
+- **Static rendering.** The page is statically generated with `revalidate` (set in `page.tsx`). Never fetch per-request data in the page tree; anything dynamic (e.g. GitHub stars) is fetched at build/revalidate time or deferred to a client island. A `cookies()`/`headers()`/`unstable_noStore()` call anywhere in the tree - including the root `app/layout.tsx` - silently overrides every page's `revalidate` and forces the whole app dynamic. If a marketing page builds as `ƒ` instead of `○`/`●` (check `bun run build`'s route table), look upstream, not just at the page itself.
 - **Reserve space for everything.** Fixed dimensions or aspect ratios on all media, embeds, and async content. CLS budget is effectively zero.
+- **Decorative canvases and animations are non-interactive.** A hand-built product-demo animation or embedded ReactFlow canvas is presentation only - no drag handlers, no `nodesDraggable`/`panOnDrag`/`elementsSelectable` on ReactFlow. A visitor should never be able to click or drag a decorative element.
+- **Lazy-mount a heavy client island's second occurrence.** If the same animated component appears twice on a page, only the first (usually the hero) loads eagerly - the rest go through a small `'use client'` mount wrapper built on the shared `hooks/use-lazy-mount.ts` hook: `next/dynamic(..., { ssr: false })` gated by the hook's `IntersectionObserver`. See `components/product-demo/components/product-demo-visual-mount/` for the reference pattern, and `.claude/rules/sim-imports.md` for the barrel-cleanup step that must come with it.
+- **Don't prefetch authenticated-app routes from an always-visible CTA.** `<Link>` prefetches its target route's JS once it's in the viewport - a navbar/hero CTA to `/signup` or `/login` is always in view, so it downloads that route's bundle on every pageview. Pass `prefetch={false}` there. Leave the default on CTAs that only enter the viewport on scroll (prefetch-on-approach is the desired behavior there).
 
 ## SEO
 
@@ -72,6 +75,7 @@ Follow `.claude/rules/constitution.md` exactly: Sim is "the open-source AI works
 ├── page.tsx                             # route entry: metadata + <Landing />
 ├── landing.tsx                          # root composition: <main> section order
 ├── workflows/                           # a platform route: page.tsx (metadata) + workflows.tsx (config + shell)
+├── hooks/                               # cross-page client hooks (useLazyMount, …) - bare files, no folder/barrel
 └── components/
     ├── index.ts                         # top barrel
     ├── navbar/{navbar.tsx, index.ts, components/<chip>/…}   # <header><nav>: wordmark, dropdowns, stars, auth chips
@@ -81,13 +85,13 @@ Follow `.claude/rules/constitution.md` exactly: Sim is "the open-source AI works
     │   ├── landing-shell/               # light wrapper + skip link + Navbar(stars) + Footer; wraps every page
     │   ├── hero-cta/                    # the one email-capture + Sign-up CTA (hero + every platform hero)
     │   └── logos/                       # the one customer-logo set; layout='grid' (hero) | 'row' (platform)
-    └── platform-page/                   # the reusable platform-page layout (Workflows, Tables, Files, …)
-        ├── platform-page.tsx, index.ts, types.ts, constants.ts   # PlatformPage + the content contract + spacing
-        └── components/                  # platform-hero, platform-logos-row, platform-card-row (→ card, pill-cta),
-                                         #   platform-visual-frame, platform-structured-data
+    └── solutions-page/                  # the reusable solutions/platform layout (Workflows, Knowledge, Tables, Files, Logs, solutions/*)
+        ├── solutions-page.tsx, index.ts, types.ts, constants.ts  # SolutionsPage + the content contract + spacing
+        └── components/                  # solutions-hero, solutions-logos-row, solutions-card-row (→ card, pill-cta),
+                                         #   solutions-visual-frame, solutions-structured-data
 ```
 
-Each section component's TSDoc carries its layout spec - read it before implementing. Section components own their landmark (Navbar → `<header>`, Footer → `<footer>`, the rest → `<section>`); the shared `LandingShell` owns the page frame (light wrapper, skip link, navbar, footer, GitHub stars via `@/lib/github/stars` - fetched at build/revalidate time, never client-fetched), and the page's `<main>` owns the section order and rhythm. Platform routes consume `PlatformPage` with a single content `config` - see `platform-page/CLAUDE`-level TSDoc on `platform-page.tsx`. Sub-components of a section go in `components/<section>/components/`.
+Each section component's TSDoc carries its layout spec - read it before implementing. Section components own their landmark (Navbar → `<header>`, Footer → `<footer>`, the rest → `<section>`); the shared `LandingShell` owns the page frame (light wrapper, skip link, navbar, footer, GitHub stars via `@/lib/github/stars` - fetched at build/revalidate time, never client-fetched), and the page's `<main>` owns the section order and rhythm. Platform and solutions routes consume `SolutionsPage` with a single content `config` - see the TSDoc on `solutions-page.tsx`. Sub-components of a section go in `components/<section>/components/`.
 
 Absolute imports only in component code (`@/app/(landing)/components/...`); `index.ts` barrels use relative re-exports (`export { X } from './x'`), matching the workspace convention. Props interfaces for every component. No `utils.ts` until two files share a helper.
 

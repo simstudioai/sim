@@ -6,6 +6,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { getLimitEmailSubject, renderLimitThresholdEmail } from '@/components/emails/render'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { buildUpgradeHref, type UpgradeReason } from '@/lib/billing/upgrade-reasons'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
@@ -270,6 +271,7 @@ export async function maybeSendLimitThresholdEmail(params: {
  *   (the uploader for storage; the workspace's billed account for tables).
  * @param params.subscription - Pre-resolved subscription (may be `null`) to skip
  *   the `getHighestPrioritySubscription` lookup on hot paths; omit to fetch here.
+ * @param params.billingEntity - Exact workspace payer when already resolved.
  */
 export async function maybeNotifyLimit(params: {
   category: LimitCategory
@@ -282,13 +284,17 @@ export async function maybeNotifyLimit(params: {
   /** Re-arm only, never send — for usage-decrease callers. See {@link maybeSendLimitThresholdEmail}. */
   rearmOnly?: boolean
   subscription?: HighestPrioritySubscription | null
+  billingEntity?: BillingEntity
 }): Promise<void> {
   try {
-    const sub =
-      params.subscription === undefined
+    const sub = params.billingEntity
+      ? null
+      : params.subscription === undefined
         ? await getHighestPrioritySubscription(params.billedUserId)
         : params.subscription
-    const isOrg = Boolean(sub && isOrgScopedSubscription(sub, params.billedUserId))
+    const isOrg = params.billingEntity
+      ? params.billingEntity.type === 'organization'
+      : Boolean(sub && isOrgScopedSubscription(sub, params.billedUserId))
 
     const percent = params.limit > 0 ? (params.currentUsage / params.limit) * 100 : 0
     let userEmail: string | undefined
@@ -315,7 +321,9 @@ export async function maybeNotifyLimit(params: {
       userId: params.billedUserId,
       userEmail,
       userName,
-      organizationId: isOrg ? sub?.referenceId : undefined,
+      organizationId: isOrg
+        ? (params.billingEntity?.id ?? sub?.referenceId ?? undefined)
+        : undefined,
     })
   } catch (error) {
     logger.error('Failed to resolve scope for usage-limit notification', {

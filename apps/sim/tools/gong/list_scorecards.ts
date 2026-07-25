@@ -39,47 +39,58 @@ export const listScorecardsTool: ToolConfig<GongListScorecardsParams, GongListSc
         throw new Error(getGongErrorMessage(data, 'Failed to list scorecards'))
       }
       const scorecards = (data.scorecards ?? []).map((sc: Record<string, unknown>) => ({
-        scorecardId: sc.scorecardId ?? '',
+        scorecardId: sc.scorecardId ?? null,
         scorecardName: sc.scorecardName ?? '',
         workspaceId: sc.workspaceId ?? null,
         enabled: sc.enabled ?? false,
         updaterUserId: sc.updaterUserId ?? null,
         created: sc.created ?? null,
         updated: sc.updated ?? null,
+        reviewMethod: sc.reviewMethod ?? null,
         questions: ((sc.questions as Record<string, unknown>[] | undefined) ?? []).map(
           (q: Record<string, unknown>) => ({
-            questionId: q.questionId ?? '',
-            questionText: q.questionText ?? '',
+            questionId: q.questionId ?? null,
             questionRevisionId: q.questionRevisionId ?? null,
+            questionText: q.questionText ?? '',
             isOverall: q.isOverall ?? false,
-            created: q.created ?? null,
-            updated: q.updated ?? null,
-            updaterUserId: q.updaterUserId ?? null,
+            questionType: q.questionType ?? null,
+            answerGuide: q.answerGuide ?? null,
+            minRange: q.minRange ?? null,
+            maxRange: q.maxRange ?? null,
+            answerOptions: q.answerOptions ?? [],
           })
         ),
       }))
       return {
         success: true,
-        output: { scorecards },
+        output: {
+          requestId: data.requestId ?? null,
+          scorecards,
+        },
       }
     },
 
     outputs: {
+      requestId: {
+        type: 'string',
+        description: 'A Gong request reference ID for troubleshooting purposes',
+        optional: true,
+      },
       scorecards: {
         type: 'array',
         description: 'List of scorecard definitions with questions',
         items: {
           type: 'object',
           properties: {
-            scorecardId: { type: 'string', description: 'Unique identifier for the scorecard' },
+            scorecardId: { type: 'number', description: 'Unique identifier for the scorecard' },
             scorecardName: { type: 'string', description: 'Display name of the scorecard' },
             workspaceId: {
-              type: 'string',
+              type: 'number',
               description: 'Workspace identifier associated with this scorecard',
             },
             enabled: { type: 'boolean', description: 'Whether the scorecard is active' },
             updaterUserId: {
-              type: 'string',
+              type: 'number',
               description: 'ID of the user who last modified the scorecard',
             },
             created: {
@@ -90,33 +101,52 @@ export const listScorecardsTool: ToolConfig<GongListScorecardsParams, GongListSc
               type: 'string',
               description: 'Last update timestamp in ISO-8601 format',
             },
+            reviewMethod: {
+              type: 'string',
+              description: 'Review method configured for the scorecard',
+            },
             questions: {
               type: 'array',
               description: 'List of questions in the scorecard',
               items: {
                 type: 'object',
                 properties: {
-                  questionId: { type: 'string', description: 'Unique identifier for the question' },
-                  questionText: { type: 'string', description: 'The text content of the question' },
+                  questionId: { type: 'number', description: 'Unique identifier for the question' },
                   questionRevisionId: {
-                    type: 'string',
+                    type: 'number',
                     description: 'Identifier for the specific revision of the question',
                   },
+                  questionText: { type: 'string', description: 'The text content of the question' },
                   isOverall: {
                     type: 'boolean',
                     description: 'Whether this is the primary overall question',
                   },
-                  created: {
+                  questionType: {
                     type: 'string',
-                    description: 'Question creation timestamp in ISO-8601 format',
+                    description: 'The type of the question (e.g. range or select)',
                   },
-                  updated: {
+                  answerGuide: {
                     type: 'string',
-                    description: 'Question last update timestamp in ISO-8601 format',
+                    description: 'Guidance text describing how to answer the question',
                   },
-                  updaterUserId: {
-                    type: 'string',
-                    description: 'ID of the user who last modified the question',
+                  minRange: {
+                    type: 'number',
+                    description: 'Minimum score for range-type questions',
+                  },
+                  maxRange: {
+                    type: 'number',
+                    description: 'Maximum score for range-type questions',
+                  },
+                  answerOptions: {
+                    type: 'array',
+                    description: 'Selectable options for select-type questions',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'number', description: 'Identifier of the option' },
+                        text: { type: 'string', description: 'Display text of the option' },
+                      },
+                    },
                   },
                 },
               },

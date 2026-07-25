@@ -116,7 +116,7 @@ function getTestButtonLabel(
   if (testResult?.success) return 'Connection success'
   if (testResult?.authRequired) return 'Requires OAuth'
   if (testResult && !testResult.success) return 'No connection: retry'
-  return 'Test Connection'
+  return 'Test connection'
 }
 
 interface FormattedInputProps {
@@ -157,7 +157,7 @@ function FormattedInput({
         onChange={onChange}
         onScroll={handleScroll}
         onInput={handleScroll}
-        inputClassName='text-transparent caret-[var(--text-primary)]'
+        inputClassName='font-medium font-sans text-transparent caret-[var(--text-primary)]'
       />
       <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-2 py-1.5 font-medium font-sans text-sm'>
         <div className='whitespace-nowrap' style={{ transform: `translateX(-${scrollLeft}px)` }}>
@@ -609,8 +609,8 @@ export function McpServerFormModal({
   const isSubmitDisabled =
     isSubmitting || !isFormValid || isDomainBlocked || (mode === 'edit' && !hasChanges)
 
-  const title = mode === 'add' ? 'Add New MCP Server' : 'Edit MCP Server'
-  const submitLabel = mode === 'add' ? 'Add MCP' : 'Save'
+  const title = mode === 'add' ? 'Add MCP server' : 'Edit MCP server'
+  const submitLabel = mode === 'add' ? 'Add server' : 'Save'
 
   const handleToggleJsonMode = () => {
     if (testResult) clearTestResult()
@@ -622,7 +622,7 @@ export function McpServerFormModal({
   const secondaryAction: ChipModalFooterAction | undefined =
     mode === 'add'
       ? {
-          label: formMode === 'form' ? 'Edit JSON' : 'Edit Form',
+          label: formMode === 'form' ? 'Edit JSON' : 'Edit form',
           onClick: handleToggleJsonMode,
         }
       : formMode === 'form'

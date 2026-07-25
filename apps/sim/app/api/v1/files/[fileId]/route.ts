@@ -1,9 +1,11 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1DeleteFileContract, v1DownloadFileContract } from '@/lib/api/contracts/v1/files'
 import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { performDeleteWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import {
@@ -47,6 +49,29 @@ export const GET = withRouteHandler(async (request: NextRequest, context: FileRo
     }
 
     const buffer = await fetchWorkspaceFileBuffer(fileRecord)
+
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: AuditAction.FILE_DOWNLOADED,
+      resourceType: AuditResourceType.FILE,
+      resourceId: fileRecord.id,
+      resourceName: fileRecord.name,
+      description: `Downloaded file "${fileRecord.name}" via API`,
+      metadata: {
+        fileId: fileRecord.id,
+        fileName: fileRecord.name,
+        bytes: buffer.length,
+        source: 'api_v1',
+      },
+      request,
+    })
+    captureServerEvent(
+      userId,
+      'file_downloaded',
+      { workspace_id: workspaceId, is_bulk: false, file_count: 1 },
+      { groups: { workspace: workspaceId } }
+    )
 
     return new Response(new Uint8Array(buffer), {
       status: 200,

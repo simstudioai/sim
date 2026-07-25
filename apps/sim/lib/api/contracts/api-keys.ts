@@ -1,18 +1,26 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const apiKeySchema = z.object({
+const apiKeyMetadataSchema = z.object({
   id: z.string(),
   name: z.string(),
-  key: z.string(),
-  displayKey: z.string().optional(),
   lastUsed: z.string().nullable().optional(),
   createdAt: z.string(),
   expiresAt: z.string().nullable().optional(),
   createdBy: z.string().nullable().optional(),
 })
 
-export type ApiKey = z.output<typeof apiKeySchema>
+export const apiKeyListItemSchema = apiKeyMetadataSchema.extend({
+  displayKey: z.string(),
+})
+
+export const apiKeySchema = apiKeyMetadataSchema.extend({
+  key: z.string(),
+  displayKey: z.string().optional(),
+})
+
+export type ApiKey = z.output<typeof apiKeyListItemSchema>
+export type CreatedApiKey = z.output<typeof apiKeySchema>
 
 export const createApiKeyBodySchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
@@ -48,7 +56,7 @@ export const listPersonalApiKeysContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({
-      keys: z.array(apiKeySchema),
+      keys: z.array(apiKeyListItemSchema),
     }),
   },
 })
@@ -84,7 +92,7 @@ export const listWorkspaceApiKeysContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({
-      keys: z.array(apiKeySchema),
+      keys: z.array(apiKeyListItemSchema),
     }),
   },
 })
@@ -122,7 +130,9 @@ export const updateWorkspaceApiKeyContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({
-      key: apiKeySchema,
+      key: apiKeyMetadataSchema.extend({
+        updatedAt: z.string(),
+      }),
     }),
   },
 })

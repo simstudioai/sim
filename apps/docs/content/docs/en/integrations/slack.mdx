@@ -815,7 +815,7 @@ Set or clear the assistant thread status indicator (the loading shimmer) on a Sl
 | `botToken` | string | No | Bot token for Custom Bot |
 | `channel` | string | Yes | Channel ID containing the assistant thread \(e.g., C1234567890 or D1234567890\) |
 | `threadTs` | string | Yes | Thread timestamp \(thread_ts\) of the assistant thread \(e.g., 1405894322.002768\) |
-| `status` | string | Yes | Status text to display, e.g. 'Working on it…'. Pass an empty string to clear. |
+| `status` | string | No | Status text to display, e.g. 'Working on it…'. Omit or pass an empty string to clear the status. |
 | `loadingMessages` | json | No | Optional list of messages to rotate through as an animated loading indicator \(max 10\). |
 
 #### Output

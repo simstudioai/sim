@@ -1,50 +1,19 @@
 /**
  * @vitest-environment node
  */
-import { schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { member, workspace } from '@sim/db/schema'
+import { queueTableRows, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetUserOrganization,
   mockGetOrganizationSubscription,
   mockGetHighestPrioritySubscription,
-  mockDbResults,
-  mockFeatureFlags,
-} = vi.hoisted(() => {
-  const mockGetUserOrganization = vi.fn()
-  const mockGetOrganizationSubscription = vi.fn()
-  const mockGetHighestPrioritySubscription = vi.fn()
-  const mockDbResults: { value: any[] } = { value: [] }
-  const mockFeatureFlags = { isBillingEnabled: true }
-
-  return {
-    mockGetUserOrganization,
-    mockGetOrganizationSubscription,
-    mockGetHighestPrioritySubscription,
-    mockDbResults,
-    mockFeatureFlags,
-  }
-})
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn().mockImplementation(() => {
-      const chain: any = {}
-      chain.from = vi.fn().mockReturnValue(chain)
-      chain.where = vi.fn().mockReturnValue(chain)
-      chain.limit = vi
-        .fn()
-        .mockImplementation(() => Promise.resolve(mockDbResults.value.shift() || []))
-      chain.then = vi.fn().mockImplementation((callback: (rows: any[]) => unknown) => {
-        const result = mockDbResults.value.shift() || []
-        return Promise.resolve(callback ? callback(result) : result)
-      })
-      return chain
-    }),
-  },
+} = vi.hoisted(() => ({
+  mockGetUserOrganization: vi.fn(),
+  mockGetOrganizationSubscription: vi.fn(),
+  mockGetHighestPrioritySubscription: vi.fn(),
 }))
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
   getUserOrganization: mockGetUserOrganization,
@@ -58,12 +27,6 @@ vi.mock('@/lib/billing/core/plan', () => ({
   getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isBillingEnabled() {
-    return mockFeatureFlags.isBillingEnabled
-  },
-}))
-
 import {
   getWorkspaceCreationPolicy,
   getWorkspaceInvitePolicy,
@@ -71,18 +34,22 @@ import {
 } from '@/lib/workspaces/policy'
 import { UPGRADE_TO_INVITE_REASON } from '@/lib/workspaces/policy-constants'
 
+afterAll(resetDbChainMock)
+
+afterAll(resetEnvFlagsMock)
+
 describe('getWorkspaceCreationPolicy', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDbResults.value = []
-    mockFeatureFlags.isBillingEnabled = true
+    resetDbChainMock()
+    setEnvFlags({ isBillingEnabled: true })
     mockGetUserOrganization.mockResolvedValue(null)
     mockGetOrganizationSubscription.mockResolvedValue(null)
     mockGetHighestPrioritySubscription.mockResolvedValue(null)
   })
 
   it('blocks free users once they already own one non-organization workspace', async () => {
-    mockDbResults.value = [[{ value: 1 }]]
+    queueTableRows(workspace, [{ value: 1 }])
 
     const result = await getWorkspaceCreationPolicy({ userId: 'user-1' })
 
@@ -98,7 +65,7 @@ describe('getWorkspaceCreationPolicy', () => {
       plan: 'pro_6000',
       status: 'active',
     })
-    mockDbResults.value = [[{ value: 2 }]]
+    queueTableRows(workspace, [{ value: 2 }])
 
     const result = await getWorkspaceCreationPolicy({ userId: 'user-1' })
 
@@ -114,7 +81,7 @@ describe('getWorkspaceCreationPolicy', () => {
       plan: 'pro_25000',
       status: 'active',
     })
-    mockDbResults.value = [[{ value: 5 }]]
+    queueTableRows(workspace, [{ value: 5 }])
 
     const result = await getWorkspaceCreationPolicy({ userId: 'user-1' })
 
@@ -130,7 +97,7 @@ describe('getWorkspaceCreationPolicy', () => {
       plan: 'pro_25000',
       status: 'active',
     })
-    mockDbResults.value = [[{ value: 10 }]]
+    queueTableRows(workspace, [{ value: 10 }])
 
     const result = await getWorkspaceCreationPolicy({ userId: 'user-1' })
 
@@ -140,8 +107,8 @@ describe('getWorkspaceCreationPolicy', () => {
   })
 
   it('allows unlimited personal workspaces when billing is disabled', async () => {
-    mockFeatureFlags.isBillingEnabled = false
-    mockDbResults.value = [[{ value: 9 }]]
+    setEnvFlags({ isBillingEnabled: false })
+    queueTableRows(workspace, [{ value: 9 }])
 
     const result = await getWorkspaceCreationPolicy({ userId: 'user-1' })
 
@@ -153,13 +120,13 @@ describe('getWorkspaceCreationPolicy', () => {
   })
 
   it('without pinning, a null active org falls back to the caller membership org', async () => {
-    mockFeatureFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
     mockGetUserOrganization.mockResolvedValue({
       organizationId: 'user-org',
       role: 'admin',
       memberId: 'member-1',
     })
-    mockDbResults.value = [[{ userId: 'owner-1' }]]
+    queueTableRows(member, [{ userId: 'owner-1' }])
 
     const result = await getWorkspaceCreationPolicy({
       userId: 'user-1',
@@ -171,13 +138,13 @@ describe('getWorkspaceCreationPolicy', () => {
   })
 
   it('pins to the source org: a personal source (null) stays personal regardless of caller org', async () => {
-    mockFeatureFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
     mockGetUserOrganization.mockResolvedValue({
       organizationId: 'user-org',
       role: 'admin',
       memberId: 'member-1',
     })
-    mockDbResults.value = [[{ value: 0 }]]
+    queueTableRows(workspace, [{ value: 0 }])
 
     const result = await getWorkspaceCreationPolicy({
       userId: 'user-1',
@@ -202,7 +169,7 @@ describe('getWorkspaceCreationPolicy', () => {
       plan: 'team_6000',
       status: 'active',
     })
-    mockDbResults.value = [[{ userId: 'owner-1' }]]
+    queueTableRows(member, [{ userId: 'owner-1' }])
 
     const result = await getWorkspaceCreationPolicy({
       userId: 'user-1',
@@ -216,13 +183,13 @@ describe('getWorkspaceCreationPolicy', () => {
   })
 
   it('allows org admins to create organization workspaces when billing is disabled', async () => {
-    mockFeatureFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
     mockGetUserOrganization.mockResolvedValueOnce({
       organizationId: 'org-1',
       role: 'admin',
       memberId: 'member-1',
     })
-    mockDbResults.value = [[{ userId: 'owner-1' }]]
+    queueTableRows(member, [{ userId: 'owner-1' }])
 
     const result = await getWorkspaceCreationPolicy({
       userId: 'user-1',
@@ -247,7 +214,7 @@ describe('getWorkspaceCreationPolicy', () => {
       plan: 'enterprise',
       status: 'active',
     })
-    mockDbResults.value = [[{ userId: 'owner-1' }]]
+    queueTableRows(member, [{ userId: 'owner-1' }])
 
     const result = await getWorkspaceCreationPolicy({
       userId: 'user-1',
@@ -260,7 +227,8 @@ describe('getWorkspaceCreationPolicy', () => {
   })
 
   it('blocks users without org membership from creating workspaces in the active org context', async () => {
-    mockDbResults.value = [[], [{ userId: 'owner-1' }]]
+    queueTableRows(member, [])
+    queueTableRows(member, [{ userId: 'owner-1' }])
 
     const result = await getWorkspaceCreationPolicy({
       userId: 'external-user-1',
@@ -280,7 +248,8 @@ describe('getWorkspaceCreationPolicy', () => {
 describe('getWorkspaceInvitePolicy', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockFeatureFlags.isBillingEnabled = true
+    resetDbChainMock()
+    setEnvFlags({ isBillingEnabled: true })
     mockGetOrganizationSubscription.mockResolvedValue(null)
     mockGetHighestPrioritySubscription.mockResolvedValue(null)
   })
@@ -293,7 +262,7 @@ describe('getWorkspaceInvitePolicy', () => {
   } as const
 
   it('allows invites unconditionally when billing is disabled', async () => {
-    mockFeatureFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
 
     const result = await getWorkspaceInvitePolicy(baseState)
 

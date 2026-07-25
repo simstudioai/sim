@@ -22,7 +22,7 @@ interface SolutionsStructuredDataProps {
 }
 
 export function SolutionsStructuredData({ config }: SolutionsStructuredDataProps) {
-  const { module, path, hero, rows } = config
+  const { module, path, seoDescription, offersFreeTier = true, hero, rows } = config
   const url = `${SITE_URL}${path}`
   const featureList = Array.from(
     new Set(rows.flatMap((row) => row.cards.map((card) => card.title)))
@@ -36,7 +36,7 @@ export function SolutionsStructuredData({ config }: SolutionsStructuredDataProps
         '@id': `${url}#webpage`,
         url,
         name: hero.heading,
-        description: hero.summary,
+        description: seoDescription ?? hero.summary,
         isPartOf: { '@id': `${SITE_URL}#website` },
         about: { '@id': `${url}#application` },
         breadcrumb: { '@id': `${url}#breadcrumb` },
@@ -59,7 +59,9 @@ export function SolutionsStructuredData({ config }: SolutionsStructuredDataProps
         operatingSystem: 'Web',
         url,
         featureList,
-        offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+        ...(offersFreeTier && {
+          offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+        }),
       },
     ],
   }

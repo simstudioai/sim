@@ -9,12 +9,6 @@ const { getWorkspaceFileMock, resolveWorkspaceFileReferenceMock } = vi.hoisted((
   resolveWorkspaceFileReferenceMock: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {},
-}))
-
-vi.mock('@sim/db/schema', () => ({}))
-
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   getWorkspaceFile: getWorkspaceFileMock,
   resolveWorkspaceFileReference: resolveWorkspaceFileReferenceMock,

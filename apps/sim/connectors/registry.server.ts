@@ -2,6 +2,7 @@ import { airtableConnector } from '@/connectors/airtable'
 import { asanaConnector } from '@/connectors/asana'
 import { ashbyConnector } from '@/connectors/ashby'
 import { azureDevopsConnector } from '@/connectors/azure-devops'
+import { clickupConnector } from '@/connectors/clickup'
 import { confluenceConnector } from '@/connectors/confluence'
 import { discordConnector } from '@/connectors/discord'
 import { docusignConnector } from '@/connectors/docusign'
@@ -63,6 +64,7 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   asana: asanaConnector,
   ashby: ashbyConnector,
   azure_devops: azureDevopsConnector,
+  clickup: clickupConnector,
   confluence: confluenceConnector,
   discord: discordConnector,
   docusign: docusignConnector,

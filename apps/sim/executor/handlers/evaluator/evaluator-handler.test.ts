@@ -27,7 +27,7 @@ import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
 const mockGetProviderFromModel = getProviderFromModel as Mock
-const mockFetch = global.fetch as unknown as Mock
+const mockFetch = vi.fn()
 
 describe('EvaluatorBlockHandler', () => {
   let handler: EvaluatorBlockHandler
@@ -68,6 +68,9 @@ describe('EvaluatorBlockHandler', () => {
 
     // Reset mocks using vi
     vi.clearAllMocks()
+
+    // unstubGlobals removes any module-scope fetch stub before each test, so re-stub here
+    vi.stubGlobal('fetch', mockFetch)
 
     // Default mock implementations
     authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValue({
@@ -157,6 +160,34 @@ describe('EvaluatorBlockHandler', () => {
       },
       score1: 5,
       score2: 8,
+    })
+  })
+
+  it('bills the cost the provider proxy decided rather than recomputing it', async () => {
+    // The proxy already resolved key provenance and the margin; recomputing
+    // here would re-charge a BYOK caller the proxy correctly zeroed.
+    mockFetch.mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: JSON.stringify({ score1: 5, score2: 8 }),
+            model: 'mock-model',
+            tokens: { input: 50, output: 10, total: 60 },
+            cost: { input: 0.001, output: 0.0005, total: 0.0015 },
+            timing: { total: 200 },
+          }),
+      })
+    )
+
+    const result = await handler.execute(mockContext, mockBlock, {
+      content: 'This is the content to evaluate.',
+    })
+
+    expect((result as { cost: unknown }).cost).toEqual({
+      input: 0.001,
+      output: 0.0005,
+      total: 0.0015,
     })
   })
 

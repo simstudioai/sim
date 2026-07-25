@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type {
   ContextDevClassifyNaicsParams,
   ContextDevClassifyNaicsResponse,
@@ -21,6 +22,8 @@ export const contextDevClassifyNaicsTool: ToolConfig<
   name: 'Context.dev Classify NAICS',
   description: 'Classify a brand into NAICS industry codes from its domain or company name.',
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevClassifyNaicsParams>(),
 
   params: {
     input: {

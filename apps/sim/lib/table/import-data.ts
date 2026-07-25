@@ -14,7 +14,7 @@ import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
 import { nKeysBetween } from '@/lib/table/order-key'
 import { acquireRowOrderLock } from '@/lib/table/rows/ordering'
 import { batchInsertRowsWithTx, replaceTableRowsWithTx } from '@/lib/table/rows/service'
-import { addTableColumnsWithTx } from '@/lib/table/service'
+import { addTableColumnsWithTx, auditTableColumnsAdded } from '@/lib/table/service'
 import type {
   ReplaceRowsResult,
   RowData,
@@ -124,9 +124,18 @@ export async function deleteAllTableRows(tableId: string): Promise<void> {
 export async function addImportColumns(
   table: TableDefinition,
   additions: { name: string; type: string }[],
-  requestId: string
+  requestId: string,
+  actingUserId?: string
 ): Promise<TableDefinition> {
-  return db.transaction((trx) => addTableColumnsWithTx(trx, table, additions, requestId))
+  const updated = await db.transaction((trx) =>
+    addTableColumnsWithTx(trx, table, additions, requestId)
+  )
+  auditTableColumnsAdded(
+    table,
+    additions.map((c) => c.name),
+    actingUserId
+  )
+  return updated
 }
 
 /** Overwrites a table's schema during an import (used when inferring columns from the file). */
@@ -179,6 +188,14 @@ export async function importAppendRows(
     }
     return { inserted, table: working }
   })
+  // Audit post-commit — a mid-import rollback means the columns weren't added.
+  if (additions.length > 0) {
+    auditTableColumnsAdded(
+      table,
+      additions.map((c) => c.name),
+      ctx.userId
+    )
+  }
   notifyTableRowUsage({
     workspaceId: ctx.workspaceId,
     currentRowCount: table.rowCount,
@@ -218,6 +235,14 @@ export async function importReplaceRows(
       requestId
     )
   })
+  // Audit post-commit (see importAppendRows).
+  if (additions.length > 0) {
+    auditTableColumnsAdded(
+      table,
+      additions.map((c) => c.name),
+      data.userId
+    )
+  }
   notifyTableRowUsage({
     workspaceId: data.workspaceId,
     currentRowCount: 0,

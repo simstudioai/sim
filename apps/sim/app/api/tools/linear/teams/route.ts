@@ -86,7 +86,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const linearClient = new LinearClient({ accessToken })
+    const linearClient = accessToken.startsWith('lin_api_')
+      ? // Personal API keys use the SDK's apiKey option (bare Authorization
+        // header), matching linearAuthorizationHeader in @/tools/linear/utils.
+        new LinearClient({ apiKey: accessToken })
+      : new LinearClient({ accessToken })
     const allTeams = await fetchAllTeams(linearClient)
     const teams = allTeams.map((team: Team) => ({
       id: team.id,

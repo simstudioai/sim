@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentType, type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentType, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   ChipModal,
@@ -18,6 +18,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useSession } from '@/lib/auth/auth-client'
 import type { OAuthReturnContext } from '@/lib/credentials/client-state'
 import { ADD_CONNECTOR_SEARCH_PARAM, writeOAuthReturnContext } from '@/lib/credentials/client-state'
+import { defaultCredentialDisplayName } from '@/lib/credentials/display-name'
 import {
   getProviderIdFromServiceId,
   OAUTH_PROVIDERS,
@@ -30,18 +31,6 @@ import { useConnectOAuthService } from '@/hooks/queries/oauth/oauth-connections'
 
 const logger = createLogger('ConnectOAuthModal')
 
-/** Server-enforced max for `WorkspaceCredential.displayName` — see `lib/api/contracts/credentials.ts`. */
-const DISPLAY_NAME_MAX_LENGTH = 255
-
-/**
- * Reserved tail budget when truncating the username so the auto-numbering
- * disambiguator (e.g. `" 9999"`) always fits within {@link DISPLAY_NAME_MAX_LENGTH}.
- */
-const COLLISION_SUFFIX_RESERVATION = 5
-
-/** Upper bound for the auto-numbering search — pathological if ever reached. */
-const MAX_COLLISION_INDEX = 10000
-
 const EMPTY_SCOPES: readonly string[] = []
 
 type ServiceIcon = ComponentType<{ className?: string }>
@@ -49,44 +38,6 @@ type ServiceIcon = ComponentType<{ className?: string }>
 /** Scopes hidden from the permissions list — always present on Google flows. */
 function isHiddenScope(scope: string): boolean {
   return scope.includes('userinfo.email') || scope.includes('userinfo.profile')
-}
-
-/**
- * Default credential display name. Produces `"{Name}'s {Service}"` when the
- * user's name is known, falling back to `"My {Service}"` otherwise. The
- * username is truncated so the full string (including any auto-numbering
- * disambiguator) stays within {@link DISPLAY_NAME_MAX_LENGTH}.
- *
- * When the base name collides with an existing credential in `takenNames`,
- * `" 2"`, `" 3"`, ... are appended until an unused name is found. Comparison
- * is case-insensitive to match the duplicate-detection used elsewhere in the
- * modal.
- */
-function defaultDisplayName(
-  userName: string | null | undefined,
-  serviceName: string,
-  takenNames: ReadonlySet<string>
-): string {
-  const trimmed = userName?.trim()
-  let base: string
-  if (trimmed) {
-    const suffix = `'s ${serviceName}`
-    const nameBudget = Math.max(
-      0,
-      DISPLAY_NAME_MAX_LENGTH - suffix.length - COLLISION_SUFFIX_RESERVATION
-    )
-    const safeName = trimmed.length > nameBudget ? trimmed.slice(0, nameBudget) : trimmed
-    base = `${safeName}${suffix}`
-  } else {
-    base = `My ${serviceName}`
-  }
-
-  if (!takenNames.has(base.toLowerCase())) return base
-  for (let n = 2; n < MAX_COLLISION_INDEX; n++) {
-    const candidate = `${base} ${n}`
-    if (!takenNames.has(candidate.toLowerCase())) return candidate
-  }
-  return base
 }
 
 /**
@@ -255,7 +206,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
     }
     if (!isConnect || prefilled.current || credentialsLoading) return
     prefilled.current = true
-    setDisplayName(defaultDisplayName(userName, providerName, takenNames))
+    setDisplayName(defaultCredentialDisplayName(userName, providerName, takenNames))
     setDescription('')
     setValidationError(null)
     setSubmitError(null)
@@ -358,18 +309,6 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
     ? !displayName.trim() || isPending || Boolean(existingCredential)
     : isPending
 
-  /**
-   * Submits the connect form on Enter, mirroring the Connect button's enabled
-   * state and excluding the multi-line description. Restores the keyboard
-   * affordance the pre-consolidation workflow modal provided.
-   */
-  const handleBodyKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Enter' || !isConnect || isDisabled) return
-    if (event.target instanceof HTMLTextAreaElement) return
-    event.preventDefault()
-    void handleConnect()
-  }
-
   const displayNameError =
     validationError ??
     (existingCredential
@@ -383,7 +322,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
       <ChipModalHeader icon={ProviderIcon} onClose={handleClose}>
         {title}
       </ChipModalHeader>
-      <ChipModalBody onKeyDown={handleBodyKeyDown}>
+      <ChipModalBody>
         {!isConnect && (
           <p className='text-[var(--text-tertiary)] text-caption'>
             The "{props.toolName}" tool requires access to your account.

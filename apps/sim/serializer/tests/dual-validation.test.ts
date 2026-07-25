@@ -8,10 +8,31 @@
  * 2. Late validation (tool execution) - user-or-llm required fields
  */
 import { blocksMock } from '@sim/testing/mocks'
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
+import * as subblockVisibility from '@/lib/workflows/subblocks/visibility'
 import { Serializer } from '@/serializer/index'
 
 vi.mock('@/blocks', () => blocksMock)
+
+/**
+ * Under `isolate: false` another test file may have cached a partial
+ * `@/lib/core/config/env-flags` mock (one without `isHosted`) that
+ * `isSubBlockHidden`'s cached module instance still reads at call time,
+ * throwing "No isHosted export is defined". Passing `hosted` explicitly
+ * short-circuits that read (`options?.hosted ?? isHosted`) while keeping the
+ * original implementation, so behavior is identical to the real test env
+ * (`isHosted` is false there) in both fresh and reused module graphs.
+ */
+const originalIsSubBlockHidden = subblockVisibility.isSubBlockHidden
+const isSubBlockHiddenSpy = vi
+  .spyOn(subblockVisibility, 'isSubBlockHidden')
+  .mockImplementation((subBlock, options) =>
+    originalIsSubBlockHidden(subBlock, { hosted: false, ...options })
+  )
+
+afterAll(() => {
+  isSubBlockHiddenSpy.mockRestore()
+})
 
 /**
  * Validates required parameters after user and LLM parameter merge.

@@ -81,6 +81,22 @@ describe('POST /api/v1/workflows/[id]/rollback', () => {
     mockPerformActivateVersion.mockResolvedValue({
       success: true,
       deployedAt: new Date('2026-06-12T00:00:00Z'),
+      activeDeployment: {
+        deploymentVersionId: 'dv-4',
+        version: 4,
+        deployedAt: '2026-06-12T00:00:00.000Z',
+      },
+      latestDeploymentAttempt: {
+        id: 'op-1',
+        deploymentVersionId: 'dv-4',
+        version: 4,
+        action: 'activate',
+        status: 'active',
+        readiness: { webhooks: 'ready', schedules: 'ready', mcp: 'ready' },
+        requestedAt: '2026-06-12T00:00:00.000Z',
+        activatedAt: '2026-06-12T00:00:00.000Z',
+        error: null,
+      },
     })
   })
 
@@ -128,6 +144,8 @@ describe('POST /api/v1/workflows/[id]/rollback', () => {
       deployedAt: '2026-06-12T00:00:00.000Z',
       version: 4,
       warnings: [],
+      activeDeployment: expect.objectContaining({ deploymentVersionId: 'dv-4', version: 4 }),
+      latestDeploymentAttempt: expect.objectContaining({ id: 'op-1', status: 'active' }),
     })
   })
 

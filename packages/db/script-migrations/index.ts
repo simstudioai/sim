@@ -1,5 +1,7 @@
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
+import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
+import { backfillWorkspaceStorageUsage } from './0003_backfill_workspace_storage_usage'
 import type { ScriptMigration } from './types'
 
 export type { ScriptMigration } from './types'
@@ -9,7 +11,11 @@ export type { ScriptMigration } from './types'
  * once a later SQL migration supersedes it (accepting that deployments which
  * never ran it skip the backfill) — never renamed or reordered.
  */
-export const scriptMigrations: readonly ScriptMigration[] = [backfillTableOrderKeys]
+export const scriptMigrations: readonly ScriptMigration[] = [
+  backfillTableOrderKeys,
+  backfillPausedBillingAttribution,
+  backfillWorkspaceStorageUsage,
+]
 
 /**
  * Applies pending script migrations in registry order, recording each by name.

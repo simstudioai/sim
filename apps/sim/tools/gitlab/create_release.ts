@@ -28,7 +28,7 @@ export const gitlabCreateReleaseTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Project ID or URL-encoded path',
+      description: 'Project ID or path (e.g. mygroup/myproject)',
     },
     tagName: {
       type: 'string',
@@ -60,6 +60,19 @@ export const gitlabCreateReleaseTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'ISO 8601 date for an upcoming or historical release',
     },
+    tagMessage: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Annotation message to use if creating a new annotated tag',
+    },
+    assetLinks: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Release asset links: array of objects with name, url, and optional link_type (other, runbook, image, package)',
+    },
     milestones: {
       type: 'array',
       required: false,
@@ -81,6 +94,13 @@ export const gitlabCreateReleaseTool: ToolConfig<
     body: (params) => {
       const body: Record<string, unknown> = {
         tag_name: params.tagName,
+      }
+
+      if (params.tagMessage) body.tag_message = params.tagMessage
+      if (params.assetLinks) {
+        // Tolerate a single link object by wrapping it into the array GitLab expects.
+        const links = Array.isArray(params.assetLinks) ? params.assetLinks : [params.assetLinks]
+        if (links.length > 0) body.assets = { links }
       }
 
       if (params.name) body.name = params.name

@@ -1,7 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@sim/emcn'
+import {
+  Chip,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  TRIGGER_BORDER_CLASS,
+  useCopyToClipboard,
+} from '@sim/emcn'
 import { Duplicate } from '@sim/emcn/icons'
 import { Share2 } from 'lucide-react'
 import { LinkedInIcon, xIcon as XIcon } from '@/components/icons'
@@ -11,18 +18,9 @@ interface ShareButtonProps {
   title: string
 }
 
+/** Bordered `Chip` trigger with a copy-link / X / LinkedIn share menu — the one Share control used across blog, library, integration, and model pages. */
 export function ShareButton({ url, title }: ShareButtonProps) {
-  const [copied, setCopied] = useState(false)
-
-  const handleCopyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(url)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      /* clipboard unavailable */
-    }
-  }
+  const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
 
   const handleShareTwitter = () => {
     const tweetUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}`
@@ -37,17 +35,12 @@ export function ShareButton({ url, title }: ShareButtonProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type='button'
-          className='flex items-center gap-1.5 text-[var(--text-muted)] text-sm hover:text-[var(--text-primary)]'
-          aria-label='Share this post'
-        >
-          <Share2 className='size-4' />
-          <span>Share</span>
-        </button>
+        <Chip leftIcon={Share2} className={TRIGGER_BORDER_CLASS} aria-label='Share this page'>
+          Share
+        </Chip>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
-        <DropdownMenuItem onSelect={handleCopyLink}>
+        <DropdownMenuItem onSelect={() => copy(url)}>
           <Duplicate className='size-4' />
           {copied ? 'Copied!' : 'Copy link'}
         </DropdownMenuItem>

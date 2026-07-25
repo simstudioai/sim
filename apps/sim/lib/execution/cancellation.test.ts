@@ -1,4 +1,4 @@
-import { redisConfigMock, redisConfigMockFns } from '@sim/testing'
+import { redisConfigMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockRedisSet, mockPublish, mockSubscribe } = vi.hoisted(() => ({
@@ -9,7 +9,6 @@ const { mockRedisSet, mockPublish, mockSubscribe } = vi.hoisted(() => ({
 
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
 
-vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 vi.mock('@/lib/events/pubsub', () => ({
   createPubSubChannel: () => ({
     publish: mockPublish,

@@ -7,6 +7,11 @@ import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
+import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
+import {
+  assertBillingAttributionSnapshot,
+  type BillingAttributionSnapshot,
+} from '@/lib/billing/core/billing-attribution'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { IdempotencyService, webhookIdempotency } from '@/lib/core/idempotency'
@@ -24,7 +29,10 @@ import {
   wasExecutionFinalizedByCore,
 } from '@/lib/workflows/executor/execution-core'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
-import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
+import {
+  loadDeployedWorkflowState,
+  loadWorkflowDeploymentVersionState,
+} from '@/lib/workflows/persistence/utils'
 import { resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 import { WEBHOOK_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { getBlock } from '@/blocks'
@@ -227,6 +235,7 @@ export type WebhookExecutionPayload = {
   webhookId: string
   workflowId: string
   userId: string
+  billingAttribution: BillingAttributionSnapshot
   executionId?: string
   requestId?: string
   correlation?: AsyncExecutionCorrelation
@@ -235,26 +244,32 @@ export type WebhookExecutionPayload = {
   headers: Record<string, string>
   path: string
   blockId?: string
-  workspaceId?: string
+  /** Immutable deployment admitted by webhook ingress; absent on legacy queued jobs. */
+  deploymentVersionId?: string
+  workspaceId: string
   credentialId?: string
   /** Epoch ms when the webhook HTTP request was first received (for dispatch-latency metrics). */
   webhookReceivedAt?: number
   /** Epoch ms of the originating provider interaction (e.g. Slack x-slack-request-timestamp). */
   triggerTimestampMs?: number
-  /**
-   * Billing actor resolved by the webhook route, set ONLY for in-process inline
-   * execution that runs microseconds after resolution. The background pass reuses
-   * it to skip the redundant billed-account lookup. Deliberately absent on queued
-   * (Trigger.dev) and persisted payloads — a deferred run could outlive a
-   * billed-account change, so it re-resolves the current actor instead.
-   */
-  resolvedActorUserId?: string
 }
 
 export async function executeWebhookJob(payload: WebhookExecutionPayload) {
   const correlation = buildWebhookCorrelation(payload)
   const executionId = correlation.executionId
   const requestId = correlation.requestId
+  try {
+    const payloadBillingAttribution = assertBillingAttributionSnapshot(payload.billingAttribution)
+    if (
+      payloadBillingAttribution.actorUserId !== payload.userId ||
+      payloadBillingAttribution.workspaceId !== payload.workspaceId
+    ) {
+      throw new Error('Webhook job billing attribution does not match its actor and workspace')
+    }
+  } catch (error) {
+    await releaseExecutionSlot(executionId)
+    throw error
+  }
 
   return runWithRequestContext({ requestId }, async () => {
     logger.info(`[${requestId}] Starting webhook execution`, {
@@ -272,15 +287,26 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
       payload.provider
     )
 
+    let operationStarted = false
     const runOperation = async () => {
+      operationStarted = true
       return await executeWebhookJobInternal(payload, correlation)
     }
 
-    return await webhookIdempotency.executeWithIdempotency(
-      payload.provider,
-      idempotencyKey,
-      runOperation
-    )
+    try {
+      const result = await webhookIdempotency.executeWithIdempotency(
+        payload.provider,
+        idempotencyKey,
+        runOperation
+      )
+      if (!operationStarted) {
+        await releaseExecutionSlot(executionId)
+      }
+      return result
+    } catch (error) {
+      await releaseExecutionSlot(executionId)
+      throw error
+    }
   })
 }
 
@@ -375,22 +401,37 @@ async function executeWebhookJobInternal(
     skipUsageLimits: true,
     workspaceId: payload.workspaceId,
     loggingSession,
-    /**
-     * Reuse the route-resolved actor only for inline execution (set on the
-     * in-process payload). When absent — queued/Trigger.dev runs — preprocessing
-     * re-resolves the current billed account. Either way the ban and
-     * archived-workflow gates run fresh against the resolved actor.
-     */
-    resolvedActorUserId: payload.resolvedActorUserId,
+    billingAttribution: payload.billingAttribution,
   })
 
   if (!preprocessResult.success) {
     throw new Error(preprocessResult.error?.message || 'Preprocessing failed in background job')
   }
 
-  const { workflowRecord, executionTimeout } = preprocessResult
+  const { actorUserId, billingAttribution, workflowRecord, executionTimeout } = preprocessResult
   if (!workflowRecord) {
     throw new Error(`Workflow ${payload.workflowId} not found during preprocessing`)
+  }
+  if (!workflowRecord.isDeployed || workflowRecord.archivedAt) {
+    /**
+     * A queued delivery racing an undeploy/archive is an expected terminal
+     * condition, not a job fault: acknowledge and skip so workers do not
+     * record a failed job (or burn retries) for work that must never run.
+     */
+    logger.info(`[${requestId}] Skipping webhook execution for undeployed workflow`, {
+      workflowId: payload.workflowId,
+      archived: Boolean(workflowRecord.archivedAt),
+    })
+    await releaseExecutionSlot(executionId)
+    return {
+      success: false,
+      skipped: true,
+      workflowId: payload.workflowId,
+      executionId,
+      output: {},
+      executedAt: new Date().toISOString(),
+      provider: payload.provider,
+    }
   }
 
   const workspaceId = workflowRecord.workspaceId
@@ -405,8 +446,15 @@ async function executeWebhookJobInternal(
   let deploymentVersionId: string | undefined
 
   try {
+    const workflowStatePromise = payload.deploymentVersionId
+      ? loadWorkflowDeploymentVersionState(
+          payload.workflowId,
+          payload.deploymentVersionId,
+          workspaceId
+        )
+      : loadDeployedWorkflowState(payload.workflowId, workspaceId)
     const [workflowData, webhookRows, resolvedCredentialUserId] = await Promise.all([
-      loadDeployedWorkflowState(payload.workflowId, workspaceId),
+      workflowStatePromise,
       db.select().from(webhook).where(eq(webhook.id, payload.webhookId)).limit(1),
       payload.credentialId
         ? resolveCredentialAccountUserId(payload.credentialId)
@@ -471,7 +519,9 @@ async function executeWebhookJobInternal(
 
     if (skipMessage) {
       await loggingSession.safeStart({
-        userId: payload.userId,
+        userId: actorUserId,
+        actorUserId,
+        billingAttribution,
         workspaceId,
         variables: {},
         triggerData: {
@@ -563,7 +613,8 @@ async function executeWebhookJobInternal(
       executionId,
       workflowId: payload.workflowId,
       workspaceId,
-      userId: payload.userId,
+      userId: actorUserId!,
+      billingAttribution,
       sessionUserId: undefined,
       workflowUserId: workflowRecord.userId,
       triggerType: payload.provider || 'webhook',
@@ -677,7 +728,9 @@ async function executeWebhookJobInternal(
 
     try {
       await loggingSession.safeStart({
-        userId: payload.userId,
+        userId: actorUserId,
+        actorUserId,
+        billingAttribution,
         workspaceId,
         variables: {},
         triggerData: {

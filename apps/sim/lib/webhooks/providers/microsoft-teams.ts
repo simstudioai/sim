@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isMicrosoftContentUrl } from '@/lib/core/security/input-validation'
@@ -54,24 +55,37 @@ function validateMicrosoftTeamsSignature(
   }
 }
 
-function parseFirstNotification(
-  body: unknown
-): { subscriptionId: string; messageId: string } | null {
-  const obj = body as Record<string, unknown>
-  const value = obj.value as unknown[] | undefined
-  if (!Array.isArray(value) || value.length === 0) {
+/**
+ * Derive a stable per-delivery identifier from a Teams webhook body.
+ *
+ * Graph change notifications (chat subscriptions) are keyed by
+ * `subscriptionId:messageId`. Outgoing webhook activities (channel
+ * @mentions) carry no `value` array — they're keyed by the Bot Framework
+ * Activity's own unique `id` instead.
+ */
+function extractNotificationKey(body: unknown): string | null {
+  if (!isRecordLike(body)) {
     return null
   }
 
-  const notification = value[0] as Record<string, unknown>
-  const subscriptionId = notification.subscriptionId as string | undefined
-  const resourceData = notification.resourceData as Record<string, unknown> | undefined
-  const messageId = resourceData?.id as string | undefined
+  const value = body.value
+  if (Array.isArray(value) && value.length > 0) {
+    const notification = value[0]
+    if (!isRecordLike(notification)) {
+      return null
+    }
+    const subscriptionId = notification.subscriptionId
+    const resourceData = notification.resourceData
+    const messageId = isRecordLike(resourceData) ? resourceData.id : undefined
 
-  if (subscriptionId && messageId) {
-    return { subscriptionId, messageId }
+    if (typeof subscriptionId === 'string' && typeof messageId === 'string') {
+      return `${subscriptionId}:${messageId}`
+    }
+    return null
   }
-  return null
+
+  const activityId = body.id
+  return typeof activityId === 'string' && activityId ? activityId : null
 }
 
 async function fetchWithDNSPinning(
@@ -478,7 +492,17 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
   },
 
   verifyAuth({ webhook, request, rawBody, requestId, providerConfig }: AuthContext) {
-    if (providerConfig.hmacSecret) {
+    if (providerConfig.triggerId !== 'microsoftteams_chat_subscription') {
+      const hmacSecret = providerConfig.hmacSecret as string | undefined
+      if (!hmacSecret) {
+        logger.error(
+          `[${requestId}] Microsoft Teams outgoing webhook missing configured HMAC secret`
+        )
+        return new NextResponse('Unauthorized - Missing HMAC secret configuration', {
+          status: 401,
+        })
+      }
+
       const authHeader = request.headers.get('authorization')
 
       if (!authHeader || !authHeader.startsWith('HMAC ')) {
@@ -488,9 +512,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
         return new NextResponse('Unauthorized - Missing HMAC signature', { status: 401 })
       }
 
-      if (
-        !validateMicrosoftTeamsSignature(providerConfig.hmacSecret as string, authHeader, rawBody)
-      ) {
+      if (!validateMicrosoftTeamsSignature(hmacSecret, authHeader, rawBody)) {
         logger.warn(`[${requestId}] Microsoft Teams HMAC signature verification failed`)
         return new NextResponse('Unauthorized - Invalid HMAC signature', { status: 401 })
       }
@@ -541,15 +563,14 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
   },
 
   enrichHeaders({ body }: EventFilterContext, headers: Record<string, string>) {
-    const parsed = parseFirstNotification(body)
-    if (parsed) {
-      headers['x-teams-notification-id'] = `${parsed.subscriptionId}:${parsed.messageId}`
+    const key = extractNotificationKey(body)
+    if (key) {
+      headers['x-teams-notification-id'] = key
     }
   },
 
   extractIdempotencyId(body: unknown) {
-    const parsed = parseFirstNotification(body)
-    return parsed ? `${parsed.subscriptionId}:${parsed.messageId}` : null
+    return extractNotificationKey(body)
   },
 
   formatSuccessResponse(providerConfig: Record<string, unknown>) {
@@ -620,10 +641,16 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
           { method: 'GET', headers: { Authorization: `Bearer ${accessToken}` } }
         )
         if (checkRes.ok) {
+          const existingPayload = await checkRes.json()
           logger.info(
             `[${requestId}] Teams subscription ${existingSubscriptionId} already exists for webhook ${webhook.id}`
           )
-          return { providerConfigUpdates: { externalSubscriptionId: existingSubscriptionId } }
+          return {
+            providerConfigUpdates: {
+              externalSubscriptionId: existingSubscriptionId,
+              subscriptionExpiration: existingPayload.expirationDateTime,
+            },
+          }
         }
       } catch {
         logger.debug(`[${requestId}] Existing subscription check failed, will create new one`)
@@ -685,7 +712,12 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       logger.info(
         `[${requestId}] Successfully created Teams subscription ${payload.id} for webhook ${webhook.id}`
       )
-      return { providerConfigUpdates: { externalSubscriptionId: payload.id as string } }
+      return {
+        providerConfigUpdates: {
+          externalSubscriptionId: payload.id as string,
+          subscriptionExpiration: payload.expirationDateTime as string,
+        },
+      }
     } catch (error: unknown) {
       if (
         error instanceof Error &&
@@ -793,6 +825,10 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
     const timestamp = (b?.timestamp as string) || (b?.localTimestamp as string) || ''
     const from = (b?.from || {}) as Record<string, unknown>
     const conversation = (b?.conversation || {}) as Record<string, unknown>
+    const channelData = (b?.channelData || {}) as Record<string, unknown>
+    const channelDataTeam = (channelData.team || {}) as Record<string, unknown>
+    const channelDataChannel = (channelData.channel || {}) as Record<string, unknown>
+    const channelDataTenant = (channelData.tenant || {}) as Record<string, unknown>
 
     return {
       input: {
@@ -804,7 +840,13 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
         message: {
           raw: {
             attachments: b?.attachments || [],
-            channelData: b?.channelData || {},
+            channelData: {
+              team: { id: (channelDataTeam.id || '') as string },
+              tenant: { id: (channelDataTenant.id || '') as string },
+              channel: { id: (channelDataChannel.id || '') as string },
+              teamsTeamId: (channelData.teamsTeamId || channelDataTeam.id || '') as string,
+              teamsChannelId: (channelData.teamsChannelId || channelDataChannel.id || '') as string,
+            },
             conversation: b?.conversation || {},
             text: messageText,
             messageType: (b?.type || 'message') as string,

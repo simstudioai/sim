@@ -25,7 +25,8 @@ export const sendReactionTool: ToolConfig<WhatsAppSendReactionParams, WhatsAppSe
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'ID (wamid) of the message to react to',
+      description:
+        'ID (wamid) of the message to react to. Not delivered if the message is over 30 days old, deleted, not in this chat thread, or itself a reaction.',
     },
     emoji: {
       type: 'string',

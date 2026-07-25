@@ -10,7 +10,7 @@ import { member, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
+import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { USABLE_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 
 const logger = createLogger('V1AuditLogsAuth')
@@ -35,11 +35,18 @@ type AuthResult =
  * Returns the organization ID and all member user IDs on success,
  * or an error response on failure.
  */
-export async function validateEnterpriseAuditAccess(userId: string): Promise<AuthResult> {
+export async function validateEnterpriseAuditAccess(
+  userId: string,
+  targetOrganizationId?: string
+): Promise<AuthResult> {
   const [membership] = await db
     .select({ organizationId: member.organizationId, role: member.role })
     .from(member)
-    .where(eq(member.userId, userId))
+    .where(
+      targetOrganizationId
+        ? and(eq(member.userId, userId), eq(member.organizationId, targetOrganizationId))
+        : eq(member.userId, userId)
+    )
     .limit(1)
 
   if (!membership) {
@@ -59,8 +66,8 @@ export async function validateEnterpriseAuditAccess(userId: string): Promise<Aut
     }
   }
 
-  const billingStatus = await getEffectiveBillingStatus(userId)
-  if (billingStatus.billingBlocked) {
+  const billingBlocked = await isOrganizationBillingBlocked(membership.organizationId)
+  if (billingBlocked) {
     return {
       success: false,
       response: NextResponse.json(

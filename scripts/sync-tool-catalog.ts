@@ -91,7 +91,7 @@ function renderRuntimeSchemaModule(catalog: { tools: Record<string, unknown>[] }
       'parameters' in tool ? JSON.stringify(tool.parameters ?? null, null, 2) : 'undefined'
     const resultSchema =
       'resultSchema' in tool ? JSON.stringify(tool.resultSchema ?? null, null, 2) : 'undefined'
-    lines.push(`  [${id}]: {`)
+    lines.push(`  ${id}: {`)
     lines.push(
       `    parameters: ${parameters === 'null' ? 'undefined' : parameters.replace(/\n/g, '\n    ')},`
     )

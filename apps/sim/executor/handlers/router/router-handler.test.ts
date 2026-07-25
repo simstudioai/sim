@@ -30,7 +30,7 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 const mockGenerateRouterPrompt = generateRouterPrompt as Mock
 const mockGenerateRouterV2Prompt = generateRouterV2Prompt as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
-const mockFetch = global.fetch as unknown as Mock
+const mockFetch = vi.fn()
 
 describe('RouterBlockHandler', () => {
   let handler: RouterBlockHandler
@@ -94,6 +94,9 @@ describe('RouterBlockHandler', () => {
     }
 
     vi.clearAllMocks()
+
+    // unstubGlobals removes any module-scope fetch stub before each test, so re-stub here
+    vi.stubGlobal('fetch', mockFetch)
 
     authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValue({
       accountId: 'test-vertex-credential-id',
@@ -198,6 +201,34 @@ describe('RouterBlockHandler', () => {
         blockTitle: 'Option A',
       },
       selectedRoute: 'target-block-1',
+    })
+  })
+
+  it('bills the cost the provider proxy decided rather than recomputing it', async () => {
+    // The proxy already resolved key provenance and the margin; recomputing
+    // here would re-charge a BYOK caller the proxy correctly zeroed.
+    mockFetch.mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: 'target-block-1',
+            model: 'mock-model',
+            tokens: { input: 100, output: 5, total: 105 },
+            cost: { input: 0.004, output: 0.002, total: 0.006 },
+            timing: { total: 300 },
+          }),
+      })
+    )
+
+    const result = await handler.execute(mockContext, mockBlock, {
+      prompt: 'Choose the best option.',
+    })
+
+    expect((result as { cost: unknown }).cost).toEqual({
+      input: 0.004,
+      output: 0.002,
+      total: 0.006,
     })
   })
 
@@ -393,6 +424,9 @@ describe('RouterBlockHandler V2', () => {
     }
 
     vi.clearAllMocks()
+
+    // unstubGlobals removes any module-scope fetch stub before each test, so re-stub here
+    vi.stubGlobal('fetch', mockFetch)
 
     authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValue({
       accountId: 'test-vertex-credential-id',

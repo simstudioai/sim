@@ -2,7 +2,16 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { getGitLabApiBase, normalizeGitLabHost, UnsafeGitLabHostError } from '@/tools/gitlab/utils'
+import {
+  coerceGitLabAccessLevel,
+  coerceGitLabMinAccessLevel,
+  getGitLabApiBase,
+  getGitLabResourcePath,
+  hasGitLabAccessLevel,
+  InvalidGitLabAccessLevelError,
+  normalizeGitLabHost,
+  UnsafeGitLabHostError,
+} from '@/tools/gitlab/utils'
 
 describe('normalizeGitLabHost', () => {
   it('defaults to gitlab.com when the host is empty, blank, or not a string', () => {
@@ -67,5 +76,108 @@ describe('getGitLabApiBase', () => {
 
   it('propagates rejection of unsafe hosts', () => {
     expect(() => getGitLabApiBase('legit.com@evil.com')).toThrow(UnsafeGitLabHostError)
+  })
+})
+
+describe('getGitLabResourcePath', () => {
+  it('builds project and group path segments', () => {
+    expect(getGitLabResourcePath('project', 42)).toBe('projects/42')
+    expect(getGitLabResourcePath('group', 7)).toBe('groups/7')
+  })
+
+  it('URL-encodes namespaced paths and trims whitespace', () => {
+    expect(getGitLabResourcePath('project', '  mygroup/myproject  ')).toBe(
+      'projects/mygroup%2Fmyproject'
+    )
+    expect(getGitLabResourcePath('group', 'parent/child')).toBe('groups/parent%2Fchild')
+  })
+
+  it('does not double-encode a resourceId that is already URL-encoded', () => {
+    expect(getGitLabResourcePath('group', 'parent%2Fchild')).toBe('groups/parent%2Fchild')
+    expect(getGitLabResourcePath('project', '  rvt-sandbox%2Fplatform-eng  ')).toBe(
+      'projects/rvt-sandbox%2Fplatform-eng'
+    )
+  })
+
+  it('treats a bare, non-percent-encoding "%" as a literal character', () => {
+    expect(getGitLabResourcePath('group', '100%-done')).toBe('groups/100%25-done')
+  })
+})
+
+describe('coerceGitLabAccessLevel', () => {
+  it('accepts an integer already in the enum', () => {
+    expect(coerceGitLabAccessLevel(0)).toBe(0)
+    expect(coerceGitLabAccessLevel(30)).toBe(30)
+    expect(coerceGitLabAccessLevel(50)).toBe(50)
+  })
+
+  it('accepts a numeric string', () => {
+    expect(coerceGitLabAccessLevel('30')).toBe(30)
+    expect(coerceGitLabAccessLevel('  40  ')).toBe(40)
+  })
+
+  it('accepts a level name, case-insensitively', () => {
+    expect(coerceGitLabAccessLevel('Developer')).toBe(30)
+    expect(coerceGitLabAccessLevel('developer')).toBe(30)
+    expect(coerceGitLabAccessLevel('  MAINTAINER ')).toBe(40)
+    expect(coerceGitLabAccessLevel('No access')).toBe(0)
+    expect(coerceGitLabAccessLevel('Security Manager')).toBe(25)
+  })
+
+  it('throws for values outside the enum', () => {
+    expect(() => coerceGitLabAccessLevel(999)).toThrow(InvalidGitLabAccessLevelError)
+    expect(() => coerceGitLabAccessLevel(31)).toThrow(InvalidGitLabAccessLevelError)
+    expect(() => coerceGitLabAccessLevel('35')).toThrow(InvalidGitLabAccessLevelError)
+    expect(() => coerceGitLabAccessLevel('root')).toThrow(InvalidGitLabAccessLevelError)
+    expect(() => coerceGitLabAccessLevel('')).toThrow(InvalidGitLabAccessLevelError)
+    expect(() => coerceGitLabAccessLevel('   ')).toThrow(InvalidGitLabAccessLevelError)
+    expect(() => coerceGitLabAccessLevel(null)).toThrow(InvalidGitLabAccessLevelError)
+    expect(() => coerceGitLabAccessLevel(undefined)).toThrow(InvalidGitLabAccessLevelError)
+  })
+
+  it('names the offending value and valid levels in the error message', () => {
+    expect(() => coerceGitLabAccessLevel('boss')).toThrow(/Developer \(30\)/)
+  })
+})
+
+describe('coerceGitLabMinAccessLevel', () => {
+  it('returns undefined for absent or blank values', () => {
+    expect(coerceGitLabMinAccessLevel(undefined)).toBeUndefined()
+    expect(coerceGitLabMinAccessLevel(null)).toBeUndefined()
+    expect(coerceGitLabMinAccessLevel('')).toBeUndefined()
+  })
+
+  it('coerces valid filter levels from integer, numeric string, or name', () => {
+    expect(coerceGitLabMinAccessLevel(30)).toBe(30)
+    expect(coerceGitLabMinAccessLevel('30')).toBe(30)
+    expect(coerceGitLabMinAccessLevel('Developer')).toBe(30)
+    expect(coerceGitLabMinAccessLevel(5)).toBe(5)
+  })
+
+  it('rejects zero ("No access") — GitLab\'s filter floor is 5', () => {
+    expect(() => coerceGitLabMinAccessLevel(0)).toThrow(InvalidGitLabAccessLevelError)
+    expect(() => coerceGitLabMinAccessLevel('No access')).toThrow(InvalidGitLabAccessLevelError)
+  })
+
+  it('rejects out-of-enum values so they never reach GitLab', () => {
+    expect(() => coerceGitLabMinAccessLevel(31)).toThrow(InvalidGitLabAccessLevelError)
+    expect(() => coerceGitLabMinAccessLevel(999)).toThrow(InvalidGitLabAccessLevelError)
+    expect(() => coerceGitLabMinAccessLevel('35')).toThrow(InvalidGitLabAccessLevelError)
+    expect(() => coerceGitLabMinAccessLevel('root')).toThrow(InvalidGitLabAccessLevelError)
+  })
+})
+
+describe('hasGitLabAccessLevel', () => {
+  it('treats numeric zero ("No access") and its string form as provided', () => {
+    expect(hasGitLabAccessLevel(0)).toBe(true)
+    expect(hasGitLabAccessLevel('0')).toBe(true)
+    expect(hasGitLabAccessLevel(30)).toBe(true)
+    expect(hasGitLabAccessLevel('Developer')).toBe(true)
+  })
+
+  it('treats undefined, null, and the empty-string sentinel as not provided', () => {
+    expect(hasGitLabAccessLevel(undefined)).toBe(false)
+    expect(hasGitLabAccessLevel(null)).toBe(false)
+    expect(hasGitLabAccessLevel('')).toBe(false)
   })
 })

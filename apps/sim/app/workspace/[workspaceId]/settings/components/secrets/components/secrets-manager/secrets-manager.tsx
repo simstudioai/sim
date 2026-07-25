@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
+import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import {
   clearPendingCredentialCreateRequest,
   PENDING_CREDENTIAL_CREATE_REQUEST_EVENT,
@@ -19,6 +20,7 @@ import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/compone
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { isValidEnvVarName } from '@/executor/constants'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
 import {
@@ -197,7 +199,7 @@ interface WorkspaceVariableRowProps {
   onRenameEnd: (key: string, value: string) => void
   onValueChange: (key: string, value: string) => void
   onDelete: (key: string) => void
-  onViewDetails: (envKey: string) => void
+  onViewDetails?: (envKey: string) => void
 }
 
 function WorkspaceVariableRow({
@@ -243,7 +245,7 @@ function WorkspaceVariableRow({
       />
       <SecretRowMenu
         onCopyName={() => copyName(envKey)}
-        onViewDetails={hasCredential ? () => onViewDetails(envKey) : undefined}
+        onViewDetails={hasCredential && onViewDetails ? () => onViewDetails(envKey) : undefined}
         onDelete={canEdit ? () => onDelete(envKey) : undefined}
       />
     </div>
@@ -350,8 +352,10 @@ export function SecretsManager() {
   const queryClient = useQueryClient()
 
   const isWorkspaceAdmin = workspacePermissions?.viewer?.isAdmin ?? false
-  const canCreateWorkspaceSecret =
-    isWorkspaceAdmin || workspacePermissions?.viewer?.permissionType === 'write'
+  const canCreateWorkspaceSecret = canMutateWorkspaceSettingsSection('secrets', {
+    canEdit: isWorkspaceAdmin || workspacePermissions?.viewer?.permissionType === 'write',
+    canAdmin: isWorkspaceAdmin,
+  })
 
   const isLoading = isPersonalLoading || isWorkspaceLoading
 
@@ -359,7 +363,7 @@ export function SecretsManager() {
   const [newWorkspaceRows, setNewWorkspaceRows] = useState<UIEnvironmentVariable[]>([
     createEmptyEnvVar(),
   ])
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
   const [workspaceVars, setWorkspaceVars] = useState<Record<string, string>>({})
   const [renamingKey, setRenamingKey] = useState<string | null>(null)
@@ -987,7 +991,7 @@ export function SecretsManager() {
                     : Object.entries(workspaceVars)
                   ).map(([key, value]) => {
                     const cred = workspaceEnvKeyToCredential.get(key)
-                    const canEditRow = cred?.role === 'admin'
+                    const canEditRow = canCreateWorkspaceSecret && cred?.role === 'admin'
                     return (
                       <WorkspaceVariableRow
                         key={key}
@@ -1003,7 +1007,9 @@ export function SecretsManager() {
                         onRenameEnd={handleWorkspaceKeyRename}
                         onValueChange={handleWorkspaceValueChange}
                         onDelete={handleDeleteWorkspaceVar}
-                        onViewDetails={handleViewDetails}
+                        onViewDetails={
+                          canCreateWorkspaceSecret && cred ? handleViewDetails : undefined
+                        }
                       />
                     )
                   })}

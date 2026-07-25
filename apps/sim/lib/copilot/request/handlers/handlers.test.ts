@@ -75,6 +75,7 @@ describe('sse-handlers tool lifecycle', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    isSimExecuted.mockReturnValue(true)
     upsertAsyncToolCall.mockResolvedValue(null)
     markAsyncToolRunning.mockResolvedValue(null)
     completeAsyncToolCall.mockResolvedValue(null)
@@ -558,6 +559,103 @@ describe('sse-handlers tool lifecycle', () => {
     expect(context.subAgentToolCalls['parent-1']?.[0]?.id).toBe('sub-tool-scope-1')
   })
 
+  it('pairs compaction lifecycle events within each scoped subagent lane', async () => {
+    context.toolCalls.set('parent-A', {
+      id: 'parent-A',
+      name: 'workflow',
+      status: 'executing',
+    })
+    context.toolCalls.set('parent-B', {
+      id: 'parent-B',
+      name: 'workflow',
+      status: 'executing',
+    })
+    const sendCompaction = async (
+      kind: 'compaction_start' | 'compaction_done',
+      parentToolCallId: string,
+      spanId: string
+    ) => {
+      await subAgentHandlers.run(
+        {
+          type: MothershipStreamV1EventType.run,
+          scope: {
+            lane: 'subagent',
+            parentToolCallId,
+            spanId,
+            parentSpanId: 'main',
+            agentId: 'superagent',
+          },
+          payload: { kind },
+        } as StreamEvent,
+        context,
+        execContext,
+        { interactive: false, timeout: 1000 }
+      )
+    }
+
+    await sendCompaction(MothershipStreamV1RunKind.compaction_start, 'parent-A', 'span-A')
+    await sendCompaction(MothershipStreamV1RunKind.compaction_start, 'parent-B', 'span-B')
+    await sendCompaction(MothershipStreamV1RunKind.compaction_done, 'parent-A', 'span-A')
+
+    const compactions = context.contentBlocks.filter(
+      (block) => block.type === 'tool_call' && block.toolCall?.name === 'context_compaction'
+    )
+    expect(compactions).toHaveLength(2)
+
+    const laneA = compactions.find((block) => block.spanId === 'span-A')
+    const laneB = compactions.find((block) => block.spanId === 'span-B')
+    expect(laneA).toEqual(
+      expect.objectContaining({
+        calledBy: 'workflow',
+        parentToolCallId: 'parent-A',
+        parentSpanId: 'main',
+        endedAt: expect.any(Number),
+        toolCall: expect.objectContaining({ status: MothershipStreamV1ToolOutcome.success }),
+      })
+    )
+    expect(laneB?.toolCall?.status).toBe('executing')
+
+    await sendCompaction(MothershipStreamV1RunKind.compaction_done, 'parent-B', 'span-B')
+
+    expect(context.contentBlocks).toHaveLength(2)
+    expect(laneB?.toolCall?.status).toBe(MothershipStreamV1ToolOutcome.success)
+  })
+
+  it('pairs main-lane compaction start and done into one completed block', async () => {
+    await sseHandlers.run(
+      {
+        type: MothershipStreamV1EventType.run,
+        payload: { kind: MothershipStreamV1RunKind.compaction_start },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false }
+    )
+    const compactionId = context.contentBlocks[0]?.toolCall?.id
+
+    await sseHandlers.run(
+      {
+        type: MothershipStreamV1EventType.run,
+        payload: { kind: MothershipStreamV1RunKind.compaction_done },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false }
+    )
+
+    expect(context.contentBlocks).toHaveLength(1)
+    expect(context.contentBlocks[0]).toEqual(
+      expect.objectContaining({
+        endedAt: expect.any(Number),
+        toolCall: expect.objectContaining({
+          id: compactionId,
+          name: 'context_compaction',
+          status: MothershipStreamV1ToolOutcome.success,
+        }),
+      })
+    )
+  })
+
   it('keeps two concurrent subagent lanes separate for text and thinking', async () => {
     const send = (parent: string, channel: MothershipStreamV1TextChannel, text: string) =>
       subAgentHandlers.text(
@@ -928,6 +1026,127 @@ describe('sse-handlers tool lifecycle', () => {
     expect(executeTool).toHaveBeenCalledWith('gmail_read', { maxResults: 10 }, expect.any(Object))
     expect(context.toolCalls.get('tool-dynamic-sim')?.status).toBe(
       MothershipStreamV1ToolOutcome.success
+    )
+  })
+
+  it('rebinds a gateway call to the resolved integration operation and branded activity', async () => {
+    isSimExecuted.mockReturnValue(false)
+    executeTool.mockResolvedValueOnce({ success: true, output: { emails: [] } })
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gateway-gmail',
+          toolName: 'call_integration_tool',
+          executor: MothershipStreamV1ToolExecutor.go,
+          mode: MothershipStreamV1ToolMode.sync,
+          phase: MothershipStreamV1ToolPhase.call,
+          status: 'generating',
+          partial: true,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    expect(context.toolCalls.get('gateway-gmail')).toEqual(
+      expect.objectContaining({
+        name: 'call_integration_tool',
+        displayTitle: 'Calling integration',
+      })
+    )
+
+    for (const argumentsDelta of [
+      '{"toolId":"gmail_read_v2",',
+      '"description":"Searching for invoice emails",',
+    ]) {
+      await sseHandlers.tool(
+        {
+          type: MothershipStreamV1EventType.tool,
+          payload: {
+            toolCallId: 'gateway-gmail',
+            toolName: 'call_integration_tool',
+            argumentsDelta,
+            executor: MothershipStreamV1ToolExecutor.go,
+            mode: MothershipStreamV1ToolMode.sync,
+            phase: MothershipStreamV1ToolPhase.args_delta,
+          },
+        } satisfies StreamEvent,
+        context,
+        execContext,
+        { interactive: false, timeout: 1000 }
+      )
+    }
+
+    expect(context.toolCalls.get('gateway-gmail')).toEqual(
+      expect.objectContaining({
+        name: 'call_integration_tool',
+        displayTitle: 'Searching for invoice emails',
+        streamingArgs: '{"toolId":"gmail_read_v2","description":"Searching for invoice emails",',
+      })
+    )
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gateway-gmail',
+          toolName: 'call_integration_tool',
+          arguments: {
+            toolId: 'gmail_read_v2',
+            description: 'Searching for invoice emails',
+            arguments: { maxResults: 10 },
+          },
+          executor: MothershipStreamV1ToolExecutor.go,
+          mode: MothershipStreamV1ToolMode.sync,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    expect(context.toolCalls.get('gateway-gmail')).toEqual(
+      expect.objectContaining({
+        name: 'call_integration_tool',
+        displayTitle: 'Searching for invoice emails',
+      })
+    )
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gateway-gmail',
+          toolName: 'gmail_read_v2',
+          arguments: { maxResults: 10, credentialId: 'cred-gmail' },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await sleep(0)
+
+    expect(executeTool).toHaveBeenCalledTimes(1)
+    expect(executeTool).toHaveBeenCalledWith(
+      'gmail_read_v2',
+      { maxResults: 10, credentialId: 'cred-gmail' },
+      expect.any(Object)
+    )
+    expect(context.toolCalls.get('gateway-gmail')).toEqual(
+      expect.objectContaining({
+        name: 'gmail_read_v2',
+        displayTitle: 'Searching for invoice emails',
+        params: { maxResults: 10, credentialId: 'cred-gmail' },
+      })
     )
   })
 

@@ -1,5 +1,10 @@
-import type { DataRetentionSettings, PiiStagePolicy } from '@sim/db/schema'
-import { coercePiiLanguage, DEFAULT_PII_LANGUAGE } from '@/lib/guardrails/pii-entities'
+import type { CustomPiiPattern, DataRetentionSettings, PiiStagePolicy } from '@sim/db/schema'
+import {
+  coercePiiLanguage,
+  DEFAULT_PII_LANGUAGE,
+  sanitizeCustomPatterns,
+  stripNerEntities,
+} from '@/lib/guardrails/pii-entities'
 
 /** Resolved policy for one redaction stage. */
 export interface EffectivePiiStage {
@@ -8,6 +13,8 @@ export interface EffectivePiiStage {
   entityTypes: string[]
   /** Language whose Presidio recognizers apply when masking. */
   language: string
+  /** User-supplied custom regex patterns applied alongside `entityTypes`. */
+  customPatterns: CustomPiiPattern[]
 }
 
 /**
@@ -25,6 +32,7 @@ const DISABLED_STAGE: EffectivePiiStage = {
   enabled: false,
   entityTypes: [],
   language: DEFAULT_PII_LANGUAGE,
+  customPatterns: [],
 }
 
 export const DEFAULT_PII_REDACTION: EffectivePiiRedaction = {
@@ -44,13 +52,23 @@ function sanitizeEntityTypes(value: unknown): string[] {
  * rejects enabled-with-no-types), so an empty entity list always means "off" —
  * consistent across the UI, the contract, and the masking layer.
  */
-function toEffectiveStage(policy: PiiStagePolicy | undefined): EffectivePiiStage {
-  const types = sanitizeEntityTypes(policy?.entityTypes)
-  if (!policy?.enabled || types.length === 0) return DISABLED_STAGE
+function toEffectiveStage(
+  policy: PiiStagePolicy | undefined,
+  opts?: { regexOnly?: boolean }
+): EffectivePiiStage {
+  // Block outputs are regex-only. Strip any spaCy-NER entity defensively here so
+  // execution never masks block outputs with NER, even for rules stored before
+  // the restriction (the write path already strips via the API contract).
+  const types = opts?.regexOnly
+    ? stripNerEntities(sanitizeEntityTypes(policy?.entityTypes))
+    : sanitizeEntityTypes(policy?.entityTypes)
+  const customPatterns = sanitizeCustomPatterns(policy?.customPatterns)
+  if (!policy?.enabled || (types.length === 0 && customPatterns.length === 0)) return DISABLED_STAGE
   return {
     enabled: true,
     entityTypes: types,
     language: coercePiiLanguage(policy.language) ?? DEFAULT_PII_LANGUAGE,
+    customPatterns,
   }
 }
 
@@ -87,13 +105,14 @@ export function resolveEffectivePiiRedaction(params: {
         enabled: true,
         entityTypes: types,
         language: coercePiiLanguage(rule.language) ?? DEFAULT_PII_LANGUAGE,
+        customPatterns: [],
       },
     }
   }
 
   return {
     input: toEffectiveStage(rule.stages.input),
-    blockOutputs: toEffectiveStage(rule.stages.blockOutputs),
+    blockOutputs: toEffectiveStage(rule.stages.blockOutputs, { regexOnly: true }),
     logs: toEffectiveStage(rule.stages.logs),
   }
 }

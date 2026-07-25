@@ -1,1 +1,1 @@
-export { DemoScheduler } from './demo-scheduler'
+export { DemoScheduler, preloadCalEmbed } from './demo-scheduler'

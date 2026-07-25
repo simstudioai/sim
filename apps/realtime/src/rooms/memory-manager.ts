@@ -66,8 +66,9 @@ export class MemoryRoomManager implements IRoomManager {
     logger.debug(`Added user ${presence.userId} to workflow ${workflowId} (socket: ${socketId})`)
   }
 
-  async removeUserFromRoom(socketId: string, _workflowIdHint?: string): Promise<string | null> {
-    const workflowId = this.socketToWorkflow.get(socketId)
+  async removeUserFromRoom(socketId: string, workflowIdHint?: string): Promise<string | null> {
+    const currentWorkflowId = this.socketToWorkflow.get(socketId) ?? null
+    const workflowId = workflowIdHint ?? currentWorkflowId
 
     if (!workflowId) {
       return null
@@ -75,8 +76,9 @@ export class MemoryRoomManager implements IRoomManager {
 
     const room = this.workflowRooms.get(workflowId)
     if (room) {
-      room.users.delete(socketId)
-      room.activeConnections = Math.max(0, room.activeConnections - 1)
+      if (room.users.delete(socketId)) {
+        room.activeConnections = Math.max(0, room.activeConnections - 1)
+      }
 
       // Clean up empty rooms
       if (room.activeConnections === 0) {
@@ -85,8 +87,13 @@ export class MemoryRoomManager implements IRoomManager {
       }
     }
 
-    this.socketToWorkflow.delete(socketId)
-    this.userSessions.delete(socketId)
+    // Only clear the socket's own mappings when it is not mapped to a different
+    // room — removing a stale room's entry must not destroy the mapping of a
+    // room the socket has since moved to.
+    if (currentWorkflowId === null || currentWorkflowId === workflowId) {
+      this.socketToWorkflow.delete(socketId)
+      this.userSessions.delete(socketId)
+    }
 
     logger.debug(`Removed socket ${socketId} from workflow ${workflowId}`)
     return workflowId

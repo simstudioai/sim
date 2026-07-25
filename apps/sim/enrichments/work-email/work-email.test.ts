@@ -26,7 +26,6 @@ describe('work-email enrichment cascade', () => {
       'datagma',
       'leadmagic',
       'dropcontact',
-      'icypeas',
       'enrow',
     ])
   })
@@ -127,25 +126,6 @@ describe('work-email enrichment cascade', () => {
       expect(p.buildParams({ companyDomain: 'acme.com' })).toBeNull()
       expect(p.mapOutput({ email: 'j@acme.com' })).toEqual({ email: 'j@acme.com' })
       expect(p.mapOutput({})).toBeNull()
-    })
-  })
-
-  describe('icypeas', () => {
-    const p = provider('icypeas')
-    it('splits the name when possible and keeps mononym rows', () => {
-      expect(p.toolId).toBe('icypeas_find_email')
-      expect(p.buildParams(nameDomain)).toEqual({
-        firstname: 'John',
-        lastname: 'Doe',
-        domainOrCompany: 'acme.com',
-      })
-      // single-token name runs with firstname alone (lastname is optional)
-      expect(p.buildParams({ fullName: 'Cher', companyDomain: 'acme.com' })).toEqual({
-        firstname: 'Cher',
-        domainOrCompany: 'acme.com',
-      })
-      expect(p.buildParams({ fullName: 'John Doe' })).toBeNull()
-      expect(p.mapOutput({ email: 'j@acme.com' })).toEqual({ email: 'j@acme.com' })
     })
   })
 

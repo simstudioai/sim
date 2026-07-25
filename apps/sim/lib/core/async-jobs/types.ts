@@ -24,6 +24,7 @@ export type JobType =
   | 'workflow-execution'
   | 'schedule-execution'
   | 'webhook-execution'
+  | 'tiktok-webhook-ingress'
   | 'resume-execution'
   | 'workflow-group-cell'
   | 'cleanup-logs'
@@ -104,6 +105,36 @@ export interface EnqueueOptions {
    * by trigger.dev — runs there are cancelled by tag or jobId.
    */
   cancelKey?: string
+}
+
+export type AsyncJobEnqueueAcceptance = 'rejected' | 'unknown'
+
+interface AsyncJobEnqueueErrorOptions {
+  acceptance: AsyncJobEnqueueAcceptance
+  retryable: boolean
+  cause?: unknown
+}
+
+/**
+ * Describes whether a failed enqueue definitely did not create a job.
+ *
+ * `unknown` means the backend may have accepted the job before the response
+ * failed, so callers must preserve ownership and retry only with a stable ID.
+ */
+export class AsyncJobEnqueueError extends Error {
+  readonly acceptance: AsyncJobEnqueueAcceptance
+  readonly retryable: boolean
+
+  constructor(message: string, options: AsyncJobEnqueueErrorOptions) {
+    super(message, { cause: options.cause })
+    this.name = 'AsyncJobEnqueueError'
+    this.acceptance = options.acceptance
+    this.retryable = options.retryable
+  }
+}
+
+export function isAsyncJobEnqueueError(error: unknown): error is AsyncJobEnqueueError {
+  return error instanceof AsyncJobEnqueueError
 }
 
 /**

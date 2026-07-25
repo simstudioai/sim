@@ -39,6 +39,7 @@ import { MoreHorizontal, Pin } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { SlackIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { isMacPlatform } from '@/lib/core/utils/platform'
@@ -110,27 +111,33 @@ import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useProvidersStore } from '@/stores/providers'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
+
+const SLACK_COMMUNITY_URL =
+  'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA'
 
 export function SidebarTooltip({
   children,
   label,
   enabled,
   side = 'right',
+  shortcut,
 }: {
   children: React.ReactElement
   label: string
   enabled: boolean
   side?: 'right' | 'bottom'
+  shortcut?: string
 }) {
   if (!enabled) return children
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
       <Tooltip.Content side={side}>
-        <p>{label}</p>
+        {shortcut ? <Tooltip.Shortcut keys={shortcut}>{label}</Tooltip.Shortcut> : <p>{label}</p>}
       </Tooltip.Content>
     </Tooltip.Root>
   )
@@ -1072,16 +1079,21 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
     fileInputRef.current?.click()
   }
 
+  const requestLeave = useSettingsDirtyStore((s) => s.requestLeave)
+
   const handleWorkspaceSwitch = useCallback(
-    async (workspace: Workspace) => {
+    (workspace: Workspace) => {
       if (workspace.id === workspaceId) {
         setIsWorkspaceMenuOpen(false)
         return
       }
-      await switchWorkspace(workspace)
+      // Close the switcher first so the settings discard dialog (if any) is visible.
       setIsWorkspaceMenuOpen(false)
+      requestLeave(() => {
+        void switchWorkspace(workspace)
+      })
     },
-    [workspaceId, switchWorkspace]
+    [workspaceId, switchWorkspace, requestLeave]
   )
 
   const handleSidebarClick = (e: React.MouseEvent<HTMLElement>) => {
@@ -1162,6 +1174,11 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
     captureEvent(posthog, 'docs_opened', { source: 'help_menu' })
   }, [posthog])
 
+  const handleOpenSlackCommunity = useCallback(() => {
+    window.open(SLACK_COMMUNITY_URL, '_blank', 'noopener,noreferrer')
+    captureEvent(posthog, 'slack_community_opened', { source: 'help_menu' })
+  }, [posthog])
+
   const handleChatRenameBlur = useCallback(
     () => void chatFlyoutRename.saveRename(),
     [chatFlyoutRename.saveRename]
@@ -1228,6 +1245,12 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
           handleCreateWorkflow()
         },
       },
+      {
+        id: 'toggle-sidebar',
+        handler: () => {
+          toggleCollapsed()
+        },
+      },
     ])
   )
 
@@ -1278,7 +1301,12 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                 isCollapsed={isCollapsed}
                 onExpandSidebar={toggleCollapsed}
               />
-              <SidebarTooltip label='Collapse sidebar' enabled={!isCollapsed} side='bottom'>
+              <SidebarTooltip
+                label='Collapse sidebar'
+                enabled={!isCollapsed}
+                side='bottom'
+                shortcut={isMac ? '⌘B' : 'Ctrl+B'}
+              >
                 <button
                   type='button'
                   onClick={toggleCollapsed}
@@ -1650,6 +1678,10 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                       <DropdownMenuItem onSelect={handleOpenDocs}>
                         <BookOpen className='h-[14px] w-[14px]' />
                         Docs
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={handleOpenSlackCommunity}>
+                        <SlackIcon className='size-[14px]' />
+                        Slack Community
                       </DropdownMenuItem>
                       <DropdownMenuItem onSelect={handleOpenHelpFromMenu}>
                         <HelpCircle className='h-[14px] w-[14px]' />

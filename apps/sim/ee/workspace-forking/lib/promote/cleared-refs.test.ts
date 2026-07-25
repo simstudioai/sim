@@ -667,6 +667,63 @@ describe('collectForkClearedRefCandidates', () => {
     ])
   })
 
+  it('prefixes nested toolName onto dependent fieldLabel so two tools with Label stay distinct', () => {
+    vi.mocked(getBlock).mockImplementation((type) => {
+      if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
+      if (type === 'gmail')
+        return blockWith([
+          { id: 'credential', title: 'Credential', type: 'oauth-input' },
+          {
+            id: 'folder',
+            title: 'Label',
+            type: 'folder-selector',
+            dependsOn: ['credential'],
+            selectorKey: 'gmail.labels',
+          },
+        ])
+      return undefined as unknown as BlockConfig
+    })
+    const result = collectForkClearedRefCandidates(
+      params({
+        items: [
+          {
+            sourceWorkflowId: 'wf-src',
+            targetWorkflowId: 'wf-tgt',
+            mode: 'create',
+            sourceMeta: { name: 'New Workflow' },
+          },
+        ],
+        sourceStates: new Map([
+          [
+            'wf-src',
+            stateWith('agent', 'Agent', {
+              tools: {
+                type: 'tool-input',
+                value: [
+                  {
+                    type: 'gmail',
+                    title: 'Gmail 1',
+                    params: { credential: 'cred-src', folder: 'INBOX' },
+                  },
+                  {
+                    type: 'gmail',
+                    title: 'Gmail 2',
+                    params: { credential: 'cred-src', folder: 'SENT' },
+                  },
+                ],
+              },
+            }),
+          ],
+        ]),
+        sourceLabels: new Map([['credential:cred-src', 'Work Gmail']]),
+      })
+    )
+    expect(result.map((ref) => ref.fieldLabel).sort()).toEqual(['Gmail 1: Label', 'Gmail 2: Label'])
+    expect(result.every((ref) => ref.cause === 'dependent' && ref.blockLabel === 'Agent')).toBe(
+      true
+    )
+  })
+
   it('carries the knowledge-base parent on a document-selector dependent (so it can drop off)', () => {
     vi.mocked(getBlock).mockReturnValue(
       blockWith([

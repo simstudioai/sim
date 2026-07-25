@@ -62,11 +62,19 @@ export const listLibraryFoldersTool: ToolConfig<
     }))
     return {
       success: true,
-      output: { folders },
+      output: {
+        requestId: data.requestId ?? null,
+        folders,
+      },
     }
   },
 
   outputs: {
+    requestId: {
+      type: 'string',
+      description: 'A Gong request reference ID for troubleshooting purposes',
+      optional: true,
+    },
     folders: {
       type: 'array',
       description: 'List of library folders with id, name, and parent relationships',

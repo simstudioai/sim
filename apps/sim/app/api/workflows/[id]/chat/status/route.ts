@@ -52,6 +52,8 @@ export const GET = withRouteHandler(
           authType: chat.authType,
           allowedEmails: chat.allowedEmails,
           outputConfigs: chat.outputConfigs,
+          includeThinking: chat.includeThinking,
+          includeToolCalls: chat.includeToolCalls,
           password: chat.password,
           isActive: chat.isActive,
         })
@@ -71,6 +73,11 @@ export const GET = withRouteHandler(
               authType: deploymentResults[0].authType,
               allowedEmails: deploymentResults[0].allowedEmails,
               outputConfigs: deploymentResults[0].outputConfigs,
+              includeThinking: deploymentResults[0].includeThinking ?? false,
+              includeToolCalls:
+                deploymentResults[0].includeToolCalls ??
+                deploymentResults[0].includeThinking ??
+                false,
               hasPassword: Boolean(deploymentResults[0].password),
             }
           : null

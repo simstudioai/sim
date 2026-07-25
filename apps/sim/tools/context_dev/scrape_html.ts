@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type {
   ContextDevScrapeHtmlParams,
   ContextDevScrapeHtmlResponse,
@@ -20,6 +21,8 @@ export const contextDevScrapeHtmlTool: ToolConfig<
   name: 'Context.dev Scrape HTML',
   description: 'Scrape any URL and return the raw HTML content of the page.',
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevScrapeHtmlParams>(),
 
   params: {
     url: {

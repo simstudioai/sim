@@ -2,6 +2,8 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, workflowDeploymentVersion, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
+import { sha256Hex } from '@sim/security/hash'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/core/config/env'
@@ -10,54 +12,70 @@ import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { validateTriggerWebhookConfigForDeploy } from '@/lib/webhooks/deploy'
 import {
-  enqueueWorkflowDeploymentSideEffects,
+  DEPLOYMENT_ERROR_CODES,
+  type DeploymentComponentStatus,
+  isDeploymentOperationAction,
+  isDeploymentOperationStatus,
+  isNonRetryableDeploymentErrorCode,
+  parseDeploymentReadiness,
+} from '@/lib/workflows/deployment-lifecycle'
+import {
+  DEPLOYMENT_READINESS_COMPONENTS,
+  enqueueWorkflowDeploymentPreparation,
   enqueueWorkflowUndeploySideEffects,
+  notifySocketDeploymentChanged,
   processWorkflowDeploymentOutboxEvent,
 } from '@/lib/workflows/deployment-outbox'
 import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
 import {
-  activateWorkflowVersion,
-  deployWorkflow,
+  getWorkflowDeploymentStatus,
+  prepareWorkflowDeployment,
+  prepareWorkflowVersionActivation,
+  type WorkflowDeploymentOperation,
+  type WorkflowDeploymentStatus,
+} from '@/lib/workflows/persistence/deployment-operations'
+import {
+  loadWorkflowDeploymentSnapshot,
   saveWorkflowToNormalizedTables,
   undeployWorkflow,
 } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowSchedules } from '@/lib/workflows/schedules'
-import {
-  emitWorkflowDeployedEvent,
-  emitWorkflowUndeployedEvent,
-} from '@/lib/workspace-events/emitter'
+import { emitWorkflowUndeployedEvent } from '@/lib/workspace-events/emitter'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeployOrchestration')
 
-/**
- * Notifies the socket server that a workflow's deployment state has changed,
- * so all connected clients can refresh their deployment queries.
- */
-async function notifySocketDeploymentChanged(workflowId: string): Promise<void> {
-  try {
-    const response = await fetch(`${getSocketServerUrl()}/api/workflow-deployed`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': env.INTERNAL_API_SECRET,
-      },
-      body: JSON.stringify({ workflowId }),
-    })
-    if (!response.ok) {
-      logger.warn(
-        `Socket deployment notification failed (${response.status}) for workflow ${workflowId}`
-      )
-    }
-  } catch (error) {
-    logger.error('Error sending workflow deployed event to socket server', error)
+type DeploymentReadinessSummaryStatus = DeploymentComponentStatus | 'not_applicable'
+
+export interface ActiveDeploymentResult {
+  deploymentVersionId: string
+  version: number
+  deployedAt: string
+}
+
+export interface DeploymentAttemptResult {
+  id: string
+  deploymentVersionId: string
+  version: number
+  action: 'deploy' | 'activate'
+  status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+  readiness: {
+    webhooks: DeploymentReadinessSummaryStatus
+    schedules: DeploymentReadinessSummaryStatus
+    mcp: DeploymentReadinessSummaryStatus
   }
+  requestedAt: string
+  activatedAt?: string | null
+  error?: {
+    code: string
+    message: string
+    retryable: boolean
+  } | null
 }
 
 export interface PerformFullDeployParams {
   workflowId: string
   userId: string
-  workflowName?: string
   /**
    * Optional summary of what changed, stored on the created deployment version.
    * The copilot deploy tools require this; the UI deploy route sets it
@@ -72,11 +90,6 @@ export interface PerformFullDeployParams {
   versionName?: string
   requestId?: string
   /**
-   * Optional NextRequest for external webhook subscriptions.
-   * If not provided, a synthetic request is constructed from the base URL.
-   */
-  request?: NextRequest
-  /**
    * Override the actor ID used in audit logs and the `deployedBy` field.
    * Defaults to `userId`. Use `'admin-api'` for admin-initiated actions.
    */
@@ -88,21 +101,21 @@ export interface PerformFullDeployResult {
   deployedAt?: Date
   version?: number
   deploymentVersionId?: string
+  activeDeployment?: ActiveDeploymentResult | null
+  latestDeploymentAttempt?: DeploymentAttemptResult | null
   error?: string
   errorCode?: OrchestrationErrorCode
   warnings?: string[]
 }
 
 /**
- * Performs a full workflow deployment: creates a deployment version, queues
- * external side effects transactionally, processes that outbox event after
- * commit, and notifies clients. Both the deploy API route and the copilot
- * deploy tools must use this single function so behaviour stays consistent.
+ * Admits a deployment through the v2 prepare/activate protocol. The candidate
+ * version remains inactive until every required side effect is ready.
  */
 export async function performFullDeploy(
   params: PerformFullDeployParams
 ): Promise<PerformFullDeployResult> {
-  const { workflowId, userId, workflowName } = params
+  const { workflowId, userId } = params
   const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
 
@@ -116,99 +129,306 @@ export async function performFullDeploy(
     return { success: false, error: 'Workflow not found', errorCode: 'not_found' }
   }
 
-  const workflowData = workflowRecord as Record<string, unknown>
-  let outboxEventId: string | undefined
+  try {
+    return await performStableFullDeploy({
+      params,
+      actorId,
+      requestId,
+    })
+  } catch (error) {
+    logger.error(`[${requestId}] Deployment preparation failed`, { workflowId, error })
+    return {
+      success: false,
+      error: getErrorMessage(error, 'Failed to prepare workflow deployment'),
+      errorCode: 'internal',
+    }
+  }
+}
 
-  const deployResult = await deployWorkflow({
-    workflowId,
-    deployedBy: actorId,
-    workflowName: workflowName || workflowRecord.name || undefined,
-    description: params.versionDescription,
-    name: params.versionName,
-    validateWorkflowState: async (workflowState) => {
-      const scheduleValidation = validateWorkflowSchedules(workflowState.blocks)
-      if (!scheduleValidation.isValid) {
-        return {
-          success: false,
-          error: `Invalid schedule configuration: ${scheduleValidation.error}`,
-          errorCode: 'validation',
-        }
+async function performStableFullDeploy(params: {
+  params: PerformFullDeployParams
+  actorId: string
+  requestId: string
+}): Promise<PerformFullDeployResult> {
+  const workflowState = await loadWorkflowDeploymentSnapshot(params.params.workflowId)
+  if (!workflowState) {
+    return {
+      success: false,
+      error: 'Failed to load workflow state',
+      errorCode: 'validation',
+    }
+  }
+
+  const validation = await validateDeploymentState(workflowState.blocks)
+  if (!validation.success) return validation
+
+  let outboxEventId: string | undefined
+  const prepared = await prepareWorkflowDeployment({
+    workflowId: params.params.workflowId,
+    actorId: params.actorId,
+    requestHash: createDeploymentRequestHash({
+      action: 'deploy',
+      workflowId: params.params.workflowId,
+      userId: params.params.userId,
+      workflowState,
+      versionName: params.params.versionName ?? null,
+      versionDescription: params.params.versionDescription ?? null,
+    }),
+    idempotencyKey: params.requestId,
+    workflowState,
+    name: params.params.versionName,
+    description: params.params.versionDescription,
+    readinessComponents: DEPLOYMENT_READINESS_COMPONENTS,
+    onPrepareTransaction: async (tx, operation) => {
+      if (!operation.deploymentVersionId || operation.version === null) {
+        throw new Error('Prepared deployment operation is missing its target version')
       }
-      const triggerValidation = await validateTriggerWebhookConfigForDeploy(workflowState.blocks)
-      if (!triggerValidation.success) {
-        return {
-          success: false,
-          error: triggerValidation.error?.message || 'Invalid trigger configuration',
-          errorCode: 'validation',
-        }
-      }
-      return { success: true }
-    },
-    onDeployTransaction: async (tx, result) => {
-      outboxEventId = await enqueueWorkflowDeploymentSideEffects(tx, {
-        workflowId,
-        deploymentVersionId: result.deploymentVersionId,
-        userId,
-        requestId,
+      outboxEventId = await enqueueWorkflowDeploymentPreparation(tx, {
+        protocolVersion: operation.protocolVersion,
+        operationId: operation.id,
+        generation: operation.generation,
+        workflowId: operation.workflowId,
+        deploymentVersionId: operation.deploymentVersionId,
+        version: operation.version,
+        userId: params.params.userId,
+        requestId: params.requestId,
+        checkpoints: {},
       })
     },
   })
 
-  if (!deployResult.success) {
-    const error = deployResult.error || 'Failed to deploy workflow'
+  if (!prepared.success) {
     return {
       success: false,
-      error,
-      errorCode: deployResult.errorCode,
+      error: prepared.error,
+      errorCode: mapPrepareFailureCode(prepared.reason),
     }
   }
 
-  const deployedAt = deployResult.deployedAt!
-  const deploymentVersionId = deployResult.deploymentVersionId
-  const previousVersionId = deployResult.previousVersionId
-  const deploymentSnapshot = deployResult.currentState
-
-  if (!deploymentVersionId || !deploymentSnapshot) {
-    await undeployWorkflow({ workflowId })
-    return { success: false, error: 'Failed to resolve deployment version' }
+  const processResult = await processStableDeploymentPreparationNow(outboxEventId, params.requestId)
+  const deploymentStatus = await getWorkflowDeploymentStatus(params.params.workflowId)
+  const inlineFailure = buildInlinePreparationFailure(prepared.operation.id, deploymentStatus)
+  if (inlineFailure) return inlineFailure
+  const result = buildStableDeploymentResult(deploymentStatus, processResult)
+  /**
+   * The top-level version identifies the snapshot THIS call admitted, even
+   * while cutover is still pending — otherwise callers would attribute the
+   * deploy to the previous live version. `activeDeployment` keeps reporting
+   * what is actually live.
+   */
+  return {
+    ...result,
+    version: prepared.operation.version,
+    deploymentVersionId: prepared.operation.deploymentVersionId,
   }
+}
 
-  recordAudit({
-    workspaceId: (workflowData.workspaceId as string) || null,
-    actorId: actorId,
-    action: AuditAction.WORKFLOW_DEPLOYED,
-    resourceType: AuditResourceType.WORKFLOW,
-    resourceId: workflowId,
-    resourceName: (workflowData.name as string) || undefined,
-    description: `Deployed workflow "${(workflowData.name as string) || workflowId}"`,
-    metadata: {
-      deploymentVersionId,
-      version: deployResult.version,
-      previousVersionId: previousVersionId || undefined,
-    },
-    request: params.request,
-  })
+/**
+ * Surfaces a synchronous failure when the attempt created by this request
+ * already failed terminally, so callers get an error response instead of a
+ * success payload with a buried failed status.
+ */
+function buildInlinePreparationFailure(
+  operationId: string,
+  status: WorkflowDeploymentStatus
+): { success: false; error: string; errorCode: OrchestrationErrorCode } | null {
+  const latest = status.latestOperation
+  if (!latest || latest.id !== operationId || latest.status !== 'failed') return null
+  return {
+    success: false,
+    error: latest.errorMessage || 'Deployment preparation failed',
+    errorCode:
+      latest.errorCode === DEPLOYMENT_ERROR_CODES.webhookPathConflict
+        ? 'conflict'
+        : latest.errorCode === DEPLOYMENT_ERROR_CODES.invalidTriggerConfiguration
+          ? 'validation'
+          : 'internal',
+  }
+}
 
-  const sideEffectWarning = await processDeploymentSideEffectsNow(outboxEventId, requestId)
-  await notifySocketDeploymentChanged(workflowId)
+async function validateDeploymentState(
+  blocks: Record<string, BlockState>
+): Promise<
+  | { success: true }
+  | { success: false; error: string; errorCode: Extract<OrchestrationErrorCode, 'validation'> }
+> {
+  const scheduleValidation = validateWorkflowSchedules(blocks)
+  if (!scheduleValidation.isValid) {
+    return {
+      success: false,
+      error: `Invalid schedule configuration: ${scheduleValidation.error}`,
+      errorCode: 'validation',
+    }
+  }
+  const triggerValidation = await validateTriggerWebhookConfigForDeploy(blocks)
+  if (!triggerValidation.success) {
+    return {
+      success: false,
+      error: triggerValidation.error?.message || 'Invalid trigger configuration',
+      errorCode: 'validation',
+    }
+  }
+  return { success: true }
+}
 
-  const workspaceId = workflowData.workspaceId as string | null
-  if (workspaceId) {
-    void emitWorkflowDeployedEvent({
-      workflowId,
-      workflowName: (workflowData.name as string) || workflowId,
-      workspaceId,
-      version: deployResult.version ?? null,
+function createDeploymentRequestHash(value: Record<string, unknown>): string {
+  return sha256Hex(JSON.stringify(value))
+}
+
+function mapPrepareFailureCode(
+  reason:
+    | 'workflow_not_found'
+    | 'workflow_archived'
+    | 'deployment_version_not_found'
+    | 'idempotency_conflict'
+    | 'invalid_request'
+): OrchestrationErrorCode {
+  if (reason === 'workflow_not_found' || reason === 'deployment_version_not_found') {
+    return 'not_found'
+  }
+  if (reason === 'idempotency_conflict') return 'conflict'
+  return 'validation'
+}
+
+async function processStableDeploymentPreparationNow(
+  outboxEventId: string | undefined,
+  requestId: string
+): Promise<string | undefined> {
+  if (!outboxEventId) return undefined
+  try {
+    return await processWorkflowDeploymentOutboxEvent(outboxEventId)
+  } catch (error) {
+    logger.warn(`[${requestId}] Inline deployment preparation errored; outbox will retry`, {
+      outboxEventId,
+      error,
     })
+    return 'processing_error'
   }
+}
+
+function buildStableDeploymentResult(
+  status: WorkflowDeploymentStatus,
+  processResult: string | undefined
+): PerformFullDeployResult {
+  const activeDeployment = status.activeDeployment
+    ? {
+        deploymentVersionId: status.activeDeployment.deploymentVersionId,
+        version: status.activeDeployment.version,
+        deployedAt: status.activeDeployment.deployedAt.toISOString(),
+      }
+    : null
+  const latestDeploymentAttempt = summarizeDeploymentOperation(status.latestOperation)
+  const warning = getStableDeploymentWarning(
+    latestDeploymentAttempt,
+    processResult,
+    activeDeployment !== null
+  )
 
   return {
     success: true,
-    deployedAt,
-    version: deployResult.version,
-    deploymentVersionId,
-    warnings: sideEffectWarning ? [sideEffectWarning] : undefined,
+    deployedAt: status.activeDeployment?.deployedAt,
+    version: status.activeDeployment?.version,
+    deploymentVersionId: status.activeDeployment?.deploymentVersionId,
+    activeDeployment,
+    latestDeploymentAttempt,
+    warnings: warning ? [warning] : undefined,
   }
+}
+
+/**
+ * Returns the active deployment and latest attempt without mutating deployment state.
+ */
+export async function getWorkflowDeploymentSummary(workflowId: string): Promise<{
+  activeDeployment: ActiveDeploymentResult | null
+  latestDeploymentAttempt: DeploymentAttemptResult | null
+  warnings?: string[]
+}> {
+  const result = buildStableDeploymentResult(
+    await getWorkflowDeploymentStatus(workflowId),
+    undefined
+  )
+  return {
+    activeDeployment: result.activeDeployment ?? null,
+    latestDeploymentAttempt: result.latestDeploymentAttempt ?? null,
+    warnings: result.warnings,
+  }
+}
+
+function summarizeDeploymentOperation(
+  operation: WorkflowDeploymentOperation | null
+): DeploymentAttemptResult | null {
+  if (!operation) return null
+  if (
+    !isDeploymentOperationAction(operation.action) ||
+    !isDeploymentOperationStatus(operation.status)
+  ) {
+    return null
+  }
+  const readiness = parseDeploymentReadiness(operation.componentReadiness)
+  const componentStatus = (
+    component: (typeof DEPLOYMENT_READINESS_COMPONENTS)[number]
+  ): DeploymentReadinessSummaryStatus => readiness?.[component]?.status ?? 'not_applicable'
+
+  return {
+    id: operation.id,
+    deploymentVersionId: operation.deploymentVersionId,
+    version: operation.version,
+    action: operation.action,
+    status: operation.status,
+    readiness: {
+      webhooks: componentStatus('webhooks'),
+      schedules: componentStatus('schedules'),
+      mcp: componentStatus('mcp'),
+    },
+    requestedAt: operation.createdAt.toISOString(),
+    activatedAt:
+      operation.status === 'active' ? (operation.completedAt?.toISOString() ?? null) : null,
+    error:
+      operation.errorCode && operation.errorMessage
+        ? {
+            code: operation.errorCode,
+            message: operation.errorMessage,
+            retryable: !isNonRetryableDeploymentErrorCode(operation.errorCode),
+          }
+        : null,
+  }
+}
+
+function getStableDeploymentWarning(
+  attempt: DeploymentAttemptResult | null,
+  processResult: string | undefined,
+  hasActiveDeployment: boolean
+): string | undefined {
+  if (!attempt) return undefined
+  if (attempt.status === 'preparing' || attempt.status === 'activating') {
+    if (processResult === 'processing_error') {
+      return hasActiveDeployment
+        ? 'Deployment preparation hit an error and will retry automatically. The prior workflow version remains active until cutover.'
+        : 'Deployment preparation hit an error and will retry automatically. The workflow remains undeployed until activation.'
+    }
+    return hasActiveDeployment
+      ? 'Deployment preparation is queued and may finish shortly. The prior workflow version remains active until cutover.'
+      : 'Deployment preparation is queued and may finish shortly. The workflow remains undeployed until activation.'
+  }
+  if (attempt.status === 'failed') {
+    return hasActiveDeployment
+      ? 'Deployment preparation failed. The prior workflow version remains active.'
+      : 'Deployment preparation failed. The workflow remains undeployed.'
+  }
+  if (attempt.status === 'superseded') {
+    return 'This deployment attempt was superseded by a newer request.'
+  }
+  if (processResult === 'dead_letter' || processResult === 'not_found') {
+    return 'Deployment activation completed, but its post-activation event could not be retried automatically.'
+  }
+  if (
+    processResult === 'pending' ||
+    processResult === 'processing' ||
+    processResult === 'lease_lost'
+  ) {
+    return 'Deployment activation completed, and post-activation notifications are queued.'
+  }
+  return undefined
 }
 
 export interface PerformFullUndeployParams {
@@ -304,9 +524,7 @@ export interface PerformActivateVersionParams {
   workflowId: string
   version: number
   userId: string
-  workflow: Record<string, unknown>
   requestId?: string
-  request?: NextRequest
   /** Override the actor ID used in audit logs. Defaults to `userId`. */
   actorId?: string
 }
@@ -314,6 +532,8 @@ export interface PerformActivateVersionParams {
 export interface PerformActivateVersionResult {
   success: boolean
   deployedAt?: Date
+  activeDeployment?: ActiveDeploymentResult | null
+  latestDeploymentAttempt?: DeploymentAttemptResult | null
   error?: string
   errorCode?: OrchestrationErrorCode
   warnings?: string[]
@@ -339,15 +559,12 @@ export interface PerformRevertToVersionResult {
 }
 
 /**
- * Activates an existing deployment version: validates schedules, activates the
- * version, queues external side effects transactionally, processes that outbox
- * event after commit, and records an audit entry. Both the deployment version
- * PATCH handler and the admin activate route must use this function.
+ * Admits an existing version through the v2 prepare/activate protocol.
  */
 export async function performActivateVersion(
   params: PerformActivateVersionParams
 ): Promise<PerformActivateVersionResult> {
-  const { workflowId, version, userId, workflow } = params
+  const { workflowId, version, userId } = params
   const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
 
@@ -377,7 +594,15 @@ export async function performActivateVersion(
       .where(eq(workflowTable.id, workflowId))
       .limit(1)
 
-    return { success: true, deployedAt: workflowDeployment?.deployedAt ?? new Date(), warnings: [] }
+    const status = await getWorkflowDeploymentStatus(workflowId)
+    const stableResult = buildStableDeploymentResult(status, 'completed')
+    return {
+      success: true,
+      deployedAt: stableResult.deployedAt ?? workflowDeployment?.deployedAt ?? new Date(),
+      activeDeployment: stableResult.activeDeployment,
+      latestDeploymentAttempt: stableResult.latestDeploymentAttempt,
+      warnings: stableResult.warnings,
+    }
   }
 
   const deployedState = versionRow.state as { blocks?: Record<string, unknown> }
@@ -406,56 +631,88 @@ export async function performActivateVersion(
     }
   }
 
+  try {
+    return await performStableVersionActivation({
+      workflowId,
+      deploymentVersionId: versionRow.id,
+      version,
+      userId,
+      actorId,
+      requestId,
+    })
+  } catch (error) {
+    logger.error(`[${requestId}] Version activation preparation failed`, {
+      workflowId,
+      version,
+      error,
+    })
+    return {
+      success: false,
+      error: getErrorMessage(error, 'Failed to prepare version activation'),
+      errorCode: 'internal',
+    }
+  }
+}
+
+async function performStableVersionActivation(params: {
+  workflowId: string
+  deploymentVersionId: string
+  version: number
+  userId: string
+  actorId: string
+  requestId: string
+}): Promise<PerformActivateVersionResult> {
   let outboxEventId: string | undefined
-  const result = await activateWorkflowVersion({
-    workflowId,
-    version,
-    onActivateTransaction: async (tx, activation) => {
-      outboxEventId = await enqueueWorkflowDeploymentSideEffects(tx, {
-        workflowId,
-        deploymentVersionId: activation.deploymentVersionId,
-        userId,
-        requestId,
-        forceRecreateSubscriptions: true,
+  const prepared = await prepareWorkflowVersionActivation({
+    workflowId: params.workflowId,
+    deploymentVersionId: params.deploymentVersionId,
+    actorId: params.actorId,
+    requestHash: createDeploymentRequestHash({
+      action: 'activate',
+      workflowId: params.workflowId,
+      deploymentVersionId: params.deploymentVersionId,
+      version: params.version,
+      userId: params.userId,
+    }),
+    idempotencyKey: params.requestId,
+    readinessComponents: DEPLOYMENT_READINESS_COMPONENTS,
+    onPrepareTransaction: async (tx, operation) => {
+      if (!operation.deploymentVersionId || operation.version === null) {
+        throw new Error('Prepared activation operation is missing its target version')
+      }
+      outboxEventId = await enqueueWorkflowDeploymentPreparation(tx, {
+        protocolVersion: operation.protocolVersion,
+        operationId: operation.id,
+        generation: operation.generation,
+        workflowId: operation.workflowId,
+        deploymentVersionId: operation.deploymentVersionId,
+        version: operation.version,
+        userId: params.userId,
+        requestId: params.requestId,
+        checkpoints: {},
       })
     },
   })
-  if (!result.success) {
-    return { success: false, error: result.error || 'Failed to activate version' }
+
+  if (!prepared.success) {
+    return {
+      success: false,
+      error: prepared.error,
+      errorCode: mapPrepareFailureCode(prepared.reason),
+    }
   }
 
-  recordAudit({
-    workspaceId: (workflow.workspaceId as string) || null,
-    actorId: actorId,
-    action: AuditAction.WORKFLOW_DEPLOYMENT_ACTIVATED,
-    resourceType: AuditResourceType.WORKFLOW,
-    resourceId: workflowId,
-    description: `Activated deployment version ${version}`,
-    resourceName: (workflow.name as string) || undefined,
-    metadata: {
-      version,
-      deploymentVersionId: versionRow.id,
-      previousVersionId: result.previousVersionId || undefined,
-    },
-  })
-
-  const sideEffectWarning = await processDeploymentSideEffectsNow(outboxEventId, requestId)
-  await notifySocketDeploymentChanged(workflowId)
-
-  const activationWorkspaceId = (workflow.workspaceId as string) || null
-  if (activationWorkspaceId) {
-    void emitWorkflowDeployedEvent({
-      workflowId,
-      workflowName: (workflow.name as string) || workflowId,
-      workspaceId: activationWorkspaceId,
-      version,
-    })
-  }
-
+  const processResult = await processStableDeploymentPreparationNow(outboxEventId, params.requestId)
+  const status = await getWorkflowDeploymentStatus(params.workflowId)
+  const inlineFailure = buildInlinePreparationFailure(prepared.operation.id, status)
+  if (inlineFailure) return inlineFailure
+  const result = buildStableDeploymentResult(status, processResult)
   return {
-    success: true,
+    success: result.success,
     deployedAt: result.deployedAt,
-    warnings: sideEffectWarning ? [sideEffectWarning] : undefined,
+    activeDeployment: result.activeDeployment,
+    latestDeploymentAttempt: result.latestDeploymentAttempt,
+    warnings: result.warnings,
   }
 }
 

@@ -2,7 +2,9 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
-import { checkForForcedToolUsageOpenAI, createOpenAICompatibleStream } from '@/providers/utils'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import type { AgentStreamEvent } from '@/providers/stream-events'
+import { checkForForcedToolUsageOpenAI } from '@/providers/utils'
 
 const logger = createLogger('OpenRouterUtils')
 
@@ -86,9 +88,14 @@ export async function supportsNativeStructuredOutputs(modelId: string): Promise<
 
 export function createReadableStreamFromOpenAIStream(
   openaiStream: AsyncIterable<ChatCompletionChunk>,
-  onComplete?: (content: string, usage: CompletionUsage) => void
-): ReadableStream<Uint8Array> {
-  return createOpenAICompatibleStream(openaiStream, 'OpenRouter', onComplete)
+  onComplete?: (content: string, usage: CompletionUsage, thinking?: string) => void
+): ReadableStream<AgentStreamEvent> {
+  return createOpenAICompatibleAgentEventStream(openaiStream, {
+    providerName: 'OpenRouter',
+    onComplete: onComplete
+      ? (result) => onComplete(result.content, result.usage, result.thinking)
+      : undefined,
+  })
 }
 
 export function checkForForcedToolUsage(

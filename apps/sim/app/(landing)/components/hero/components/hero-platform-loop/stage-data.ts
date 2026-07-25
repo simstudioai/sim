@@ -120,10 +120,10 @@ export function verticalSmoothStep(sx: number, sy: number, tx: number, ty: numbe
   ].join(' ')
 }
 
-/** Handle anchor points for a block at a live position. */
-export function handleAnchors(block: BlockDef, pos: { x: number; y: number }) {
+/** Handle anchor points for a block at its fixed position. */
+export function handleAnchors(block: BlockDef) {
   return {
-    out: { x: pos.x + BLOCK_WIDTH / 2, y: pos.y + blockHeight(block) },
-    in: { x: pos.x + BLOCK_WIDTH / 2, y: pos.y },
+    out: { x: block.x + BLOCK_WIDTH / 2, y: block.y + blockHeight(block) },
+    in: { x: block.x + BLOCK_WIDTH / 2, y: block.y },
   }
 }

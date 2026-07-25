@@ -2,6 +2,7 @@ import type { ComponentType, ReactNode, Ref } from 'react'
 import { Badge, cn, handleKeyboardActivation, Tooltip } from '@sim/emcn'
 import { Handle, Position } from 'reactflow'
 import { HANDLE_POSITIONS } from '../dimensions'
+import { OverflowSpan } from '../lib/overflow-span'
 import { tileIconColorClass } from '../lib/tile-icon-color'
 import type { BlockRunStatus } from '../types'
 import { SubBlockRowView } from './sub-block-row-view'
@@ -69,6 +70,13 @@ export interface WorkflowBlockViewProps {
   /** Connection-cycle guard; reads fresh edge state on every call. */
   wouldCreateConnectionCycle: (source: string, target: string) => boolean
 
+  /** Sunset badge — editor-only. `legacy` shows an amber "legacy" badge, `deprecated`
+   * a red "deprecated" badge; clicking (gated on `canFixSunset`) invokes `onFixSunset`. */
+  sunsetStatus?: 'legacy' | 'deprecated'
+  sunsetTooltip?: string
+  canFixSunset?: boolean
+  onFixSunset?: () => void
+
   /** Child-workflow deploy badge state — editor-only; omit in read-only contexts. */
   isWorkflowSelector?: boolean
   childWorkflowId?: string
@@ -131,6 +139,10 @@ export function WorkflowBlockView({
   routerRows,
   routerContextValue,
   wouldCreateConnectionCycle,
+  sunsetStatus,
+  sunsetTooltip,
+  canFixSunset,
+  onFixSunset,
   isWorkflowSelector,
   childWorkflowId,
   childIsDeployed,
@@ -200,7 +212,7 @@ export function WorkflowBlockView({
         >
           <div className='relative z-10 flex min-w-0 flex-1 items-center gap-2.5'>
             <div
-              className='flex size-[24px] flex-shrink-0 items-center justify-center rounded-md'
+              className='flex size-[24px] flex-shrink-0 items-center justify-center overflow-hidden rounded-md [&_img]:size-full'
               style={{
                 background: isEnabled ? iconBgColor : 'gray',
               }}
@@ -212,17 +224,47 @@ export function WorkflowBlockView({
                 )}
               />
             </div>
-            <span
+            <OverflowSpan
+              value={name}
               className={cn(
                 'truncate font-medium text-md',
                 !isEnabled && runPathStatus !== 'success' && 'text-[var(--text-muted)]'
               )}
-              title={name}
-            >
-              {name}
-            </span>
+            />
           </div>
           <div className='relative z-10 flex flex-shrink-0 items-center gap-1'>
+            {sunsetStatus && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Badge
+                    variant={sunsetStatus === 'deprecated' ? 'red' : 'amber'}
+                    className={canFixSunset ? 'cursor-pointer' : 'cursor-not-allowed'}
+                    dot
+                    role={canFixSunset ? 'button' : undefined}
+                    tabIndex={canFixSunset ? 0 : undefined}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (canFixSunset) onFixSunset?.()
+                    }}
+                    onKeyDown={
+                      canFixSunset
+                        ? (e) => {
+                            e.stopPropagation()
+                            handleKeyboardActivation(e, () => onFixSunset?.())
+                          }
+                        : undefined
+                    }
+                  >
+                    {sunsetStatus}
+                  </Badge>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <span className='text-sm'>
+                    {canFixSunset ? sunsetTooltip : 'Edit access required to fix'}
+                  </span>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )}
             {isWorkflowSelector &&
               childWorkflowId &&
               typeof childIsDeployed === 'boolean' &&

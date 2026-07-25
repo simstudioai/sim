@@ -35,11 +35,12 @@ import {
   CUSTOM_BLOCK_TILE_COLOR,
   isCustomBlockType,
 } from '@/blocks/custom/build-config'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getCustomBlockIcon } from '@/blocks/custom/custom-block-icon'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import { getCanonicalBlocksByCategory } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
-import { useWhitelabelSettings } from '@/ee/whitelabeling/hooks/whitelabel'
+import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
 import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSandboxBlockConstraints } from '@/hooks/use-sandbox-block-constraints'
@@ -129,7 +130,7 @@ const ToolbarItem = memo(function ToolbarItem({
       onKeyDown={handleKeyDown}
     >
       <div
-        className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+        className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
         style={{ background: item.bgColor }}
       >
         {Icon && (
@@ -154,14 +155,32 @@ const ToolbarItem = memo(function ToolbarItem({
 let cachedTriggers: BlockItem[] | null = null
 
 /**
- * Gets triggers data, computing it once and caching for subsequent calls.
- * Non-integration triggers (Start, Schedule, Webhook) are prioritized first,
- * followed by all other triggers sorted alphabetically.
+ * Block-overlay version the caches below were built against. The registry's
+ * output is no longer static — a block-visibility hydrate (preview reveal /
+ * kill switch) bumps the shared overlay version — so the caches are keyed to
+ * it and dropped when it moves. -1 = never built.
  */
-function getTriggers(): BlockItem[] {
+let cachedAtOverlayVersion = -1
+
+/** Drop all three caches when the overlay version moved since they were built. */
+function syncCachesToOverlayVersion(version: number) {
+  if (cachedAtOverlayVersion === version) return
+  cachedAtOverlayVersion = version
+  cachedTriggers = null
+  cachedBlocks = null
+  cachedTools = null
+}
+
+/**
+ * Gets triggers data, computing it once per overlay version and caching for
+ * subsequent calls. Non-integration triggers (Start, Schedule, Webhook Trigger) are
+ * prioritized first, followed by all other triggers sorted alphabetically.
+ */
+function getTriggers(overlayVersion: number): BlockItem[] {
+  syncCachesToOverlayVersion(overlayVersion)
   if (cachedTriggers === null) {
     const allTriggers = getTriggersForSidebar()
-    const priorityOrder = ['Start', 'Schedule', 'Webhook']
+    const priorityOrder = ['Start', 'Schedule', 'Webhook Trigger']
 
     const sortedTriggers = allTriggers.sort((a, b) => {
       const aIndex = priorityOrder.indexOf(a.name)
@@ -250,12 +269,14 @@ function ensureBlockCaches() {
   cachedTools = toolItems
 }
 
-function getBlocks(): BlockItem[] {
+function getBlocks(overlayVersion: number): BlockItem[] {
+  syncCachesToOverlayVersion(overlayVersion)
   ensureBlockCaches()
   return cachedBlocks as BlockItem[]
 }
 
-function getTools(): BlockItem[] {
+function getTools(overlayVersion: number): BlockItem[] {
+  syncCachesToOverlayVersion(overlayVersion)
   ensureBlockCaches()
   return cachedTools as BlockItem[]
 }
@@ -451,13 +472,15 @@ export const Toolbar = memo(
     const workspaceId = params?.workspaceId as string | undefined
     const currentWorkflowId = params?.workflowId as string | undefined
     const { data: customBlocksData } = useCustomBlocks(workspaceId)
-    // No-icon custom blocks fall back to the org's whitelabel logo, then the glyph.
-    const { data: whitelabel } = useWhitelabelSettings(customBlocksData?.[0]?.organizationId)
-    const fallbackIconUrl = whitelabel?.logoUrl ?? null
+    /** No-icon custom blocks use the access-authorized workspace host logo, then the glyph. */
+    const fallbackIconUrl = useOrgBrandConfig().logoUrl ?? null
 
-    const allTriggers = getTriggers()
-    const allBlocks = getBlocks()
-    const allTools = getTools()
+    // Re-read the block lists whenever the overlay version bumps (custom-block
+    // or block-visibility hydrate) — the module caches are keyed to it.
+    const blockOverlayVersion = useCustomBlockOverlayVersion()
+    const allTriggers = getTriggers(blockOverlayVersion)
+    const allBlocks = getBlocks(blockOverlayVersion)
+    const allTools = getTools(blockOverlayVersion)
 
     // Published custom blocks are their own section. Exclude disabled blocks (still
     // resolvable so placed instances survive, but not offered for new placement) and

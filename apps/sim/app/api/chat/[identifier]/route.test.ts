@@ -10,10 +10,10 @@ import {
   executionPreprocessingMock,
   executionPreprocessingMockFns,
   loggingSessionMock,
+  loggingSessionMockFns,
   workflowsApiUtilsMock,
   workflowsApiUtilsMockFns,
 } from '@sim/testing'
-import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -36,6 +36,7 @@ function createMockNextRequest(
     method,
     headers: headersObj,
     nextUrl: parsedUrl,
+    signal: AbortSignal.timeout(60_000),
     cookies: {
       get: vi.fn().mockReturnValue(undefined),
     },
@@ -64,17 +65,13 @@ const createMockStream = () => {
   })
 }
 
-const {
-  mockValidateChatAuth,
-  mockSetChatAuthCookie,
-  mockValidateAuthToken,
-  mockAssertChatEmbedAllowed,
-} = vi.hoisted(() => ({
-  mockValidateChatAuth: vi.fn().mockResolvedValue({ authorized: true }),
-  mockSetChatAuthCookie: vi.fn(),
-  mockValidateAuthToken: vi.fn().mockReturnValue(false),
-  mockAssertChatEmbedAllowed: vi.fn().mockResolvedValue(null),
-}))
+const { mockValidateChatAuth, mockSetChatAuthCookie, mockValidateAuthToken, mockProcessChatFiles } =
+  vi.hoisted(() => ({
+    mockValidateChatAuth: vi.fn().mockResolvedValue({ authorized: true }),
+    mockSetChatAuthCookie: vi.fn(),
+    mockValidateAuthToken: vi.fn().mockReturnValue(false),
+    mockProcessChatFiles: vi.fn(),
+  }))
 
 const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
@@ -94,7 +91,6 @@ vi.mock('@/lib/core/security/deployment', () => ({
 vi.mock('@/app/api/chat/utils', () => ({
   validateChatAuth: mockValidateChatAuth,
   setChatAuthCookie: mockSetChatAuthCookie,
-  assertChatEmbedAllowed: mockAssertChatEmbedAllowed,
 }))
 
 vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
@@ -103,8 +99,15 @@ vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
+vi.mock('@/lib/uploads', () => ({
+  ChatFiles: {
+    processChatFiles: mockProcessChatFiles,
+  },
+}))
+
 vi.mock('@/lib/workflows/streaming/streaming', () => ({
   createStreamingResponse: vi.fn().mockImplementation(async () => createMockStream()),
+  agentStreamProtocolResponseHeaders: vi.fn().mockReturnValue({}),
 }))
 
 vi.mock('@/lib/workflows/executor/execute-workflow', () => ({
@@ -123,6 +126,7 @@ vi.mock('@/lib/core/utils/sse', () => ({
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import { preprocessExecution } from '@/lib/execution/preprocessing'
+import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { GET, POST } from '@/app/api/chat/[identifier]/route'
 
@@ -141,6 +145,8 @@ describe('Chat Identifier API Route', () => {
         primaryColor: '#000000',
       },
       outputConfigs: [{ blockId: 'block-1', path: 'output' }],
+      includeThinking: false,
+      includeToolCalls: null,
     },
   ]
 
@@ -168,6 +174,12 @@ describe('Chat Identifier API Route', () => {
     executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValue({
       success: true,
       actorUserId: 'test-user-id',
+      billingAttribution: {
+        actorUserId: 'test-user-id',
+        workspaceId: 'test-workspace-id',
+        billingEntity: { type: 'organization', id: 'test-organization-id' },
+        payerSubscription: null,
+      },
       workflowRecord: {
         id: 'test-workflow-id',
         userId: 'test-user-id',
@@ -175,19 +187,11 @@ describe('Chat Identifier API Route', () => {
         workspaceId: 'test-workspace-id',
         variables: {},
       },
-      userSubscription: {
-        plan: 'pro',
-        status: 'active',
-      },
-      rateLimitInfo: {
-        allowed: true,
-        remaining: 100,
-        resetAt: new Date(),
-      },
     })
 
     mockValidateChatAuth.mockResolvedValue({ authorized: true })
     mockValidateAuthToken.mockReturnValue(false)
+    mockProcessChatFiles.mockResolvedValue([])
     mockCreateErrorResponse.mockImplementation((message: string, status: number, code?: string) => {
       return new Response(
         JSON.stringify({
@@ -236,24 +240,7 @@ describe('Chat Identifier API Route', () => {
       expect(data).toHaveProperty('description', 'Test chat description')
       expect(data).toHaveProperty('customizations')
       expect(data.customizations).toHaveProperty('welcomeMessage', 'Welcome to the test chat')
-    })
-
-    it('should return 403 when embedding is blocked for a cross-origin caller', async () => {
-      mockAssertChatEmbedAllowed.mockResolvedValueOnce(
-        NextResponse.json(
-          { error: 'Embedding this chat on external sites requires a paid plan' },
-          {
-            status: 403,
-          }
-        )
-      )
-
-      const req = createMockNextRequest('GET', undefined, { origin: 'https://evil.example.com' })
-      const params = Promise.resolve({ identifier: 'test-chat' })
-
-      const response = await GET(req, { params })
-
-      expect(response.status).toBe(403)
+      expect(data).toHaveProperty('includeToolCalls', false)
     })
 
     it('should return 404 for non-existent identifier', async () => {
@@ -328,28 +315,6 @@ describe('Chat Identifier API Route', () => {
   })
 
   describe('POST endpoint', () => {
-    it('should return 403 when embedding is blocked for a cross-origin caller', async () => {
-      mockAssertChatEmbedAllowed.mockResolvedValueOnce(
-        NextResponse.json(
-          { error: 'Embedding this chat on external sites requires a paid plan' },
-          {
-            status: 403,
-          }
-        )
-      )
-
-      const req = createMockNextRequest(
-        'POST',
-        { input: 'Hello' },
-        { origin: 'https://evil.example.com' }
-      )
-      const params = Promise.resolve({ identifier: 'test-chat' })
-
-      const response = await POST(req, { params })
-
-      expect(response.status).toBe(403)
-    })
-
     it('should return chat config on successful authentication', async () => {
       const req = createMockNextRequest('POST', { password: 'test-password' })
       const params = Promise.resolve({ identifier: 'password-protected-chat' })
@@ -404,7 +369,6 @@ describe('Chat Identifier API Route', () => {
         error: {
           message: 'Workflow is not deployed',
           statusCode: 403,
-          logCreated: false,
         },
       })
 
@@ -437,12 +401,157 @@ describe('Chat Identifier API Route', () => {
       expect(createStreamingResponse).toHaveBeenCalledWith(
         expect.objectContaining({
           executeFn: expect.any(Function),
+          requestSignal: expect.any(AbortSignal),
+          requestHeaders: expect.anything(),
           streamConfig: expect.objectContaining({
             isSecureMode: true,
             workflowTriggerType: 'chat',
+            includeThinking: false,
+            includeToolCalls: false,
           }),
         })
       )
+    }, 10000)
+
+    it('preserves the legacy tool policy when includeToolCalls is null', async () => {
+      const thinkingChatResult = [
+        { ...mockChatResult[0], includeThinking: true, includeToolCalls: null },
+      ]
+      dbChainMockFns.select.mockImplementation((fields: Record<string, unknown>) => {
+        if (fields && fields.isDeployed !== undefined) {
+          return {
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockReturnValue({
+                limit: vi.fn().mockReturnValue(mockWorkflowResult),
+              }),
+            }),
+          }
+        }
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue(thinkingChatResult),
+            }),
+          }),
+        }
+      })
+
+      const req = createMockNextRequest(
+        'POST',
+        { input: 'Hello world' },
+        { 'X-Sim-Stream-Protocol': 'agent-events-v1' }
+      )
+      const response = await POST(req, { params: Promise.resolve({ identifier: 'test-chat' }) })
+      expect(response.status).toBe(200)
+
+      const options = vi.mocked(createStreamingResponse).mock.calls[0][0]
+      expect(options.streamConfig).toMatchObject({
+        includeThinking: true,
+        includeToolCalls: true,
+      })
+
+      await options.executeFn({
+        onStream: vi.fn(),
+        onBlockComplete: vi.fn(),
+        abortSignal: new AbortController().signal,
+      })
+      const executeOptions = vi.mocked(executeWorkflow).mock.calls[0][4]
+      expect(executeOptions).toMatchObject({
+        includeThinking: true,
+        includeToolCalls: true,
+        agentEvents: true,
+      })
+    }, 10000)
+
+    it('enables agent events for an independent tool-only policy', async () => {
+      const toolChatResult = [
+        { ...mockChatResult[0], includeThinking: false, includeToolCalls: true },
+      ]
+      dbChainMockFns.select.mockImplementation((fields: Record<string, unknown>) => {
+        if (fields && fields.isDeployed !== undefined) {
+          return {
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockReturnValue({
+                limit: vi.fn().mockReturnValue(mockWorkflowResult),
+              }),
+            }),
+          }
+        }
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue(toolChatResult),
+            }),
+          }),
+        }
+      })
+
+      const req = createMockNextRequest(
+        'POST',
+        { input: 'Hello world' },
+        { 'X-Sim-Stream-Protocol': 'agent-events-v1' }
+      )
+      const response = await POST(req, { params: Promise.resolve({ identifier: 'test-chat' }) })
+      expect(response.status).toBe(200)
+
+      const options = vi.mocked(createStreamingResponse).mock.calls[0][0]
+      expect(options.streamConfig).toMatchObject({
+        includeThinking: false,
+        includeToolCalls: true,
+      })
+
+      await options.executeFn({
+        onStream: vi.fn(),
+        onBlockComplete: vi.fn(),
+        abortSignal: new AbortController().signal,
+      })
+      const executeOptions = vi.mocked(executeWorkflow).mock.calls[0][4]
+      expect(executeOptions).toMatchObject({
+        includeThinking: false,
+        includeToolCalls: true,
+        agentEvents: true,
+      })
+    }, 10000)
+
+    it('keeps agent events off when the protocol header is missing, even with policy on', async () => {
+      const thinkingChatResult = [
+        { ...mockChatResult[0], includeThinking: true, includeToolCalls: false },
+      ]
+      dbChainMockFns.select.mockImplementation((fields: Record<string, unknown>) => {
+        if (fields && fields.isDeployed !== undefined) {
+          return {
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockReturnValue({
+                limit: vi.fn().mockReturnValue(mockWorkflowResult),
+              }),
+            }),
+          }
+        }
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue(thinkingChatResult),
+            }),
+          }),
+        }
+      })
+
+      const req = createMockNextRequest('POST', { input: 'Hello world' })
+      const response = await POST(req, { params: Promise.resolve({ identifier: 'test-chat' }) })
+      expect(response.status).toBe(200)
+
+      const options = vi.mocked(createStreamingResponse).mock.calls[0][0]
+      await options.executeFn({
+        onStream: vi.fn(),
+        onBlockComplete: vi.fn(),
+        abortSignal: new AbortController().signal,
+      })
+      const executeOptions = vi.mocked(executeWorkflow).mock.calls[0][4]
+      expect(executeOptions).toMatchObject({
+        includeThinking: true,
+        includeToolCalls: false,
+        agentEvents: false,
+      })
     }, 10000)
 
     it('should handle streaming response body correctly', async () => {
@@ -482,6 +591,33 @@ describe('Chat Identifier API Route', () => {
       const data = await response.json()
       expect(data).toHaveProperty('error')
       expect(data).toHaveProperty('message', 'Execution failed')
+    })
+
+    it('does not charge the workspace when chat file preprocessing fails', async () => {
+      mockProcessChatFiles.mockRejectedValueOnce(new Error('Upload failed'))
+
+      const req = createMockNextRequest('POST', {
+        input: 'Analyze this file',
+        files: [
+          {
+            name: 'document.txt',
+            type: 'text/plain',
+            size: 4,
+            data: 'data',
+          },
+        ],
+      })
+      const params = Promise.resolve({ identifier: 'test-chat' })
+
+      const response = await POST(req, { params })
+
+      expect(response.status).toBe(500)
+      expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          traceSpans: [],
+          skipCost: true,
+        })
+      )
     })
 
     it('should handle invalid JSON in request body', async () => {

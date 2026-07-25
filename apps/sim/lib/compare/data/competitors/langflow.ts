@@ -265,6 +265,26 @@ export const langflowProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          "No: Langflow has no documented mechanism to publish a deployed flow as an encapsulated, named block that appears org-wide in the component sidebar for other users to drop into their own separate flows. The closest features are narrower: grouping components and saving them creates a static snapshot copy in the creating user's own Core components menu, with no documented auto-sync back to a source flow's latest version; and the legacy Langflow Store lets a user publish a component or flow to a public, account-based marketplace rather than a governed, org-scoped, live-linked block. Its Run Flow component (see subWorkflows) is same-project subflow composition, not org-wide reuse by other users.",
+        detail:
+          "Neither mechanism matches Sim's model of a workspace admin publishing a deployed workflow as a block that all consumers see in the shared toolbar, auto-tracks the source's latest deployed version, and hides the source's internal steps and credentials.",
+        shortValue: 'No, only static component snapshots or a public component store',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.langflow.org/concepts-components',
+            label: 'Langflow Docs: Components overview (grouping and saving components)',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://github.com/langflow-ai/langflow/discussions/4406',
+            label: 'GitHub Discussion 4406: How to save a custom component to the sidebar?',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
