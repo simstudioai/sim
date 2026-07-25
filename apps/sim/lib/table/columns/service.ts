@@ -633,13 +633,18 @@ export async function updateColumnConstraints(
         .where(
           and(
             eq(userTableRows.tableId, data.tableId),
-            sql`(NOT (${userTableRows.data} ? ${columnKey}) OR ${userTableRows.data}->>${columnKey}::text IS NULL)`
+            // An emptied multi-select is stored as `[]`, which `->>` renders as
+            // the text '[]' rather than NULL. Write-path validation rejects an
+            // empty required multi-select, so it has to block the constraint too.
+            sql`(NOT (${userTableRows.data} ? ${columnKey})
+                 OR ${userTableRows.data}->>${columnKey}::text IS NULL
+                 OR ${userTableRows.data}->${columnKey}::text = '[]'::jsonb)`
           )
         )
 
       if (result.count > 0) {
         throw new Error(
-          `Cannot set column "${column.name}" as required: ${result.count} row(s) have null or missing values`
+          `Cannot set column "${column.name}" as required: ${result.count} row(s) have null, missing, or empty values`
         )
       }
     }
@@ -847,10 +852,11 @@ async function migrateCellsToSelectIds(
     await trx.execute(
       sql`UPDATE ${userTableRows}
           SET data = jsonb_set(data, ARRAY[${columnKey}::text],
-            jsonb_build_array(COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text), data->${columnKey}::text)))
+            CASE WHEN data->>${columnKey}::text = '' THEN '[]'::jsonb
+                 ELSE jsonb_build_array(COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text), data->${columnKey}::text))
+            END)
           WHERE table_id = ${tableId}
-            AND jsonb_typeof(data->${columnKey}::text) = 'string'
-            AND data->>${columnKey}::text <> ''`
+            AND jsonb_typeof(data->${columnKey}::text) = 'string'`
     )
     await trx.execute(
       sql`UPDATE ${userTableRows}
@@ -864,10 +870,15 @@ async function migrateCellsToSelectIds(
     return
   }
 
+  // A cleared cell is stored as '' — compatibility lets it through, so it has
+  // to land as null rather than an '' that fails option membership on the next
+  // write.
   await trx.execute(
     sql`UPDATE ${userTableRows}
         SET data = jsonb_set(data, ARRAY[${columnKey}::text],
-          COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text), data->${columnKey}::text))
+          CASE WHEN data->>${columnKey}::text = '' THEN 'null'::jsonb
+               ELSE COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text), data->${columnKey}::text)
+          END)
         WHERE table_id = ${tableId}
           AND jsonb_typeof(data->${columnKey}::text) = 'string'`
   )

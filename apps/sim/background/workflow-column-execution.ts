@@ -22,7 +22,7 @@ import { retryTableAdmission } from '@/lib/table/admission-retry'
 import { withCascadeLock } from '@/lib/table/cascade-lock'
 import { fillMissingColumns, mapInputValues, namedRowMapper } from '@/lib/table/cell-format'
 import { getColumnId } from '@/lib/table/column-keys'
-import { isExecCancelled } from '@/lib/table/deps'
+import { isEmptyCellValue, isExecCancelled } from '@/lib/table/deps'
 import { getMaxTableDispatchConcurrency } from '@/lib/table/dispatch-concurrency'
 import { appendTableEvent } from '@/lib/table/events'
 import type {
@@ -321,7 +321,7 @@ async function runWorkflowAndWriteTerminal(
       // is partially filled. Clear any prior output values so a stale result
       // doesn't linger (and doesn't mark the group `completed`-and-filled, which
       // would block the auto cascade from re-enriching once inputs return).
-      const isEmpty = (v: unknown) => v === undefined || v === null || v === ''
+      const isEmpty = isEmptyCellValue
       const missingRequired = enrichment.inputs.some(
         (i) => i.required && isEmpty(enrichInputs[i.id])
       )
