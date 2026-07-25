@@ -1759,20 +1759,22 @@ export function TableGrid({
     // With a view active its config owns the layout; otherwise the table's own
     // metadata does. Switching views re-seeds unconditionally so the incoming
     // view's layout replaces the outgoing one.
-    const source = viewLayout ?? tableData?.metadata
+    const source = viewLayout ?? tableData?.metadata ?? null
     const switchedView = viewLayoutKey !== seededLayoutKeyRef.current
-    if (!source) return
-    if (!source.columnWidths && !source.columnOrder && !source.pinnedColumns && !switchedView)
-      return
 
     if (!metadataSeededRef.current || switchedView) {
+      // A switch resets even when there is nothing to seed from — a table created
+      // with `metadata: null` would otherwise keep showing the outgoing view's
+      // layout, since layout written under a view never populates table metadata.
+      if (!source && !switchedView) return
       metadataSeededRef.current = true
       seededLayoutKeyRef.current = viewLayoutKey
-      setColumnWidths(source.columnWidths ?? {})
-      setColumnOrder(source.columnOrder ?? null)
-      setPinnedColumns(source.pinnedColumns ?? [])
+      setColumnWidths(source?.columnWidths ?? {})
+      setColumnOrder(source?.columnOrder ?? null)
+      setPinnedColumns(source?.pinnedColumns ?? [])
       return
     }
+    if (!source) return
     // After first load: only re-seed `columnOrder` when the *set of columns*
     // changes (e.g. a workflow group adds/removes outputs server-side). Pure
     // reorders are left alone so an in-flight optimistic drag isn't clobbered

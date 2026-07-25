@@ -142,17 +142,32 @@ const NO_VIEWS: TableViewWire[] = []
 type ViewModalState = { mode: 'create' } | { mode: 'rename'; viewId: string } | null
 
 /**
+ * Order-insensitive JSON, used to compare a locally-built config against one that
+ * has round-tripped through Postgres. `jsonb` does not preserve object key order
+ * (`{status,plan}` comes back `{plan,status}`), so a plain `JSON.stringify` would
+ * report any multi-key filter as permanently dirty. Array order is preserved —
+ * it is meaningful for `columnOrder`.
+ */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, entry]) => entry !== undefined)
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+  return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${stableStringify(entry)}`).join(',')}}`
+}
+
+/**
  * Structural equality for the parts of a view config the user edits directly.
  * Column layout (widths/order/pinning) is excluded — it auto-saves into the
  * active view as the user drags, so it can never be the thing that is "unsaved".
  *
- * Compares JSON rather than field-by-field because `filter` is an arbitrarily
- * nested predicate tree; key order is stable since both sides are built by the
- * same converters.
+ * Compares serialized form rather than field-by-field because `filter` is an
+ * arbitrarily nested predicate tree.
  */
 function isSameViewConfig(a: TableViewConfig, b: TableViewConfig): boolean {
   const normalize = (config: TableViewConfig) =>
-    JSON.stringify({
+    stableStringify({
       filter: config.filter ?? null,
       sort: config.sort ?? null,
       hiddenColumns: [...(config.hiddenColumns ?? [])].sort(),
