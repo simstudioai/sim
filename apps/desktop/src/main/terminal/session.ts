@@ -445,7 +445,11 @@ export class TerminalSession {
       // data the agent reads — it must stay true the instant a command starts.
       title: directory || 'Terminal',
       cwd: this.cwd,
-      running: this.foregroundCommand,
+      // Never an empty string. A shell can start a command without announcing
+      // its text, and "" would read as "nothing is running" to everything
+      // downstream while the terminal is in fact busy — the agent would treat
+      // it as free and the tab would render a blank label.
+      running: this.foregroundCommand === null ? null : this.foregroundCommand.trim() || 'command',
       interactive: this.altScreen,
       active,
     }

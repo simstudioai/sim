@@ -29,6 +29,14 @@ export interface TabStripItem {
    * the caller's job, since only it knows the underlying list.
    */
   pinned?: boolean
+  /**
+   * Fuller detail for the hover tooltip — a path the label abbreviates, the
+   * command a tab is running. Shown whenever present, not only when the label
+   * is clipped: it says something the tab cannot, so there is always a reason
+   * to hover. Without it the tooltip falls back to the title, and only appears
+   * when the title is actually cut off.
+   */
+  tooltip?: string
 }
 
 export interface TabStripProps {
@@ -41,6 +49,12 @@ export interface TabStripProps {
   /** Enables drag reordering. Receives the tab's final index. */
   onReorder?: (id: string, targetIndex: number) => void
   onTabContextMenu?: (event: ReactMouseEvent<HTMLDivElement>, id: string) => void
+  /**
+   * Called as a tab starts being dragged, to add whatever that tab means
+   * outside the strip to the drag. Supplying it also makes tabs draggable in a
+   * strip that cannot be reordered.
+   */
+  onTabDragStart?: (event: ReactDragEvent<HTMLDivElement>, id: string) => void
   /** Disables the new-tab button, with a tooltip explaining why. */
   maxTabs?: number
   newTabLabel?: string
@@ -177,8 +191,8 @@ function Tab({
             )}
           </Button>
         </Tooltip.Trigger>
-        {(tab.pinned || titleTruncated) && (
-          <Tooltip.Content side='bottom'>{tab.title}</Tooltip.Content>
+        {(tab.tooltip || tab.pinned || titleTruncated) && (
+          <Tooltip.Content side='bottom'>{tab.tooltip || tab.title}</Tooltip.Content>
         )}
       </Tooltip.Root>
       {closeable && (
@@ -220,6 +234,7 @@ export function TabStrip({
   onNew,
   onReorder,
   onTabContextMenu,
+  onTabDragStart,
   maxTabs,
   newTabLabel = 'New tab',
   children,
@@ -240,16 +255,24 @@ export function TabStrip({
 
   const handleDragStart = useCallback(
     (event: ReactDragEvent<HTMLDivElement>, id: string) => {
-      if (!reorderable) {
+      if (!reorderable && !onTabDragStart) {
         event.preventDefault()
         return
       }
-      draggedIdRef.current = id
-      setDraggedId(id)
-      event.dataTransfer.effectAllowed = 'move'
-      event.dataTransfer.setData('text/plain', id)
+      if (reorderable) {
+        draggedIdRef.current = id
+        setDraggedId(id)
+        // `move` while the tab can also be dropped elsewhere would forbid the
+        // copy that dropping outside the strip is; the owner widens it below.
+        event.dataTransfer.effectAllowed = 'move'
+        event.dataTransfer.setData('text/plain', id)
+      }
+      // The strip knows about ordering and nothing else. Anything a tab means
+      // outside it — the page it holds, the shell it runs — belongs to whoever
+      // owns the tabs, so they attach it.
+      onTabDragStart?.(event, id)
     },
-    [reorderable]
+    [reorderable, onTabDragStart]
   )
 
   const handleDragOver = useCallback(
@@ -301,7 +324,7 @@ export function TabStrip({
             key={tab.id}
             tab={tab}
             index={index}
-            draggable={reorderable}
+            draggable={reorderable || Boolean(onTabDragStart)}
             dragging={draggedId === tab.id}
             showDropBefore={dropTargetIndex === index && draggedIndex >= 0 && draggedIndex > index}
             showDropAfter={dropTargetIndex === index && draggedIndex >= 0 && draggedIndex < index}

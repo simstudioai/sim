@@ -43,3 +43,38 @@ describe('tabDropIndex', () => {
     expect(tabDropIndex(plain, 'b', 1)).toBeNull()
   })
 })
+
+describe('tab tooltips', () => {
+  /** Mirrors the render condition: tooltip text, and whether it is shown. */
+  function tooltipFor(tab: TabStripItem, titleTruncated: boolean) {
+    const shown = Boolean(tab.tooltip || tab.pinned || titleTruncated)
+    return shown ? (tab.tooltip ?? tab.title) : null
+  }
+
+  it('prefers the fuller detail a tab supplies over its label', () => {
+    // A terminal labelled with a basename can say where it actually is.
+    const tab: TabStripItem = { id: '1', title: 'sim', tooltip: '/Users/me/code/sim — bun test' }
+
+    expect(tooltipFor(tab, false)).toBe('/Users/me/code/sim — bun test')
+  })
+
+  it('shows that detail even when the label fits', () => {
+    // It says something the tab cannot, so there is always a reason to hover.
+    const tab: TabStripItem = { id: '1', title: 'sim', tooltip: '/Users/me/code/sim' }
+
+    expect(tooltipFor(tab, false)).not.toBeNull()
+  })
+
+  it('falls back to the title, and only when the title is clipped', () => {
+    const tab: TabStripItem = { id: '1', title: 'a very long tab title' }
+
+    expect(tooltipFor(tab, true)).toBe('a very long tab title')
+    expect(tooltipFor(tab, false)).toBeNull()
+  })
+
+  it('still explains a pinned tab, which renders with no label at all', () => {
+    const tab: TabStripItem = { id: '1', title: 'GitHub', pinned: true }
+
+    expect(tooltipFor(tab, false)).toBe('GitHub')
+  })
+})

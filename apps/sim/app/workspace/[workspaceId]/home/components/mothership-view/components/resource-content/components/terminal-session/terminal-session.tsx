@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
   useCallback,
   useEffect,
@@ -19,6 +20,7 @@ import { Terminal } from '@xterm/xterm'
 import { useTheme } from 'next-themes'
 import '@xterm/xterm/css/xterm.css'
 import { MAX_TERMINALS, type TerminalTabState } from '@sim/terminal-protocol'
+import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import {
   closeTerminal,
@@ -50,8 +52,25 @@ const logger = createLogger('TerminalSession')
  */
 const COMMAND_SETTLE_MS = 1_000
 
+/** Full working directory, plus whatever the shell is running in it. */
+function terminalTooltip(tab: TerminalTabState): string {
+  const where = tab.cwd ?? 'Terminal'
+  return tab.running ? `${where} — ${tab.running}` : where
+}
+
 function sameIds(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
   return a.size === b.size && [...a].every((id) => b.has(id))
+}
+
+/**
+ * Whether a tab should be named after what it is running rather than where it
+ * is. A full-screen program is named the moment it appears: the delay exists
+ * to stop `ls` flickering the label, and an editor or coding agent is not a
+ * transient command — it holds the terminal until it is quit, so there is
+ * nothing to wait out.
+ */
+function namesItsCommand(tab: TerminalTabState, settled: ReadonlySet<string>): boolean {
+  return Boolean(tab.running) && (tab.interactive || settled.has(tab.terminalId))
 }
 
 /**
@@ -513,12 +532,14 @@ export function TerminalSession() {
   const items = useMemo<TabStripItem[]>(
     () =>
       tabs.map((tab) => {
-        // A command only reaches the tab once it has run long enough to be
-        // worth naming; until then the tab stays as its directory.
-        const naming = settledCommands.has(tab.terminalId) ? tab.running : null
+        const naming = namesItsCommand(tab, settledCommands) ? tab.running : null
         return {
           id: tab.terminalId,
           title: naming ?? tab.title,
+          // The label is a basename, and the tab may be running something it
+          // is not naming yet, so hovering gives the whole picture: where the
+          // shell is, and what it is doing there.
+          tooltip: terminalTooltip(tab),
           icon:
             naming && !tab.interactive ? (
               <Loader className='size-[12px] shrink-0 animate-spin text-[var(--text-icon)]' />
@@ -559,6 +580,22 @@ export function TerminalSession() {
     void openTerminal(cwd ?? undefined)
   }, [])
 
+  // Dragging a terminal tab into the chat attaches it as context. This strip
+  // has no reordering, so supplying this is also what makes its tabs
+  // draggable at all.
+  const startTabDrag = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>, terminalId: string) => {
+      const tab = tabs.find((entry) => entry.terminalId === terminalId)
+      if (!tab) return
+      event.dataTransfer.effectAllowed = 'copy'
+      event.dataTransfer.setData(
+        SIM_RESOURCE_DRAG_TYPE,
+        JSON.stringify({ type: 'terminal', id: tab.terminalId, title: tab.title })
+      )
+    },
+    [tabs]
+  )
+
   const openTabContextMenu = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>, terminalId: string) => {
       window.getSelection()?.removeAllRanges()
@@ -576,6 +613,7 @@ export function TerminalSession() {
           onSelect={handleSwitch}
           onNew={handleNew}
           onTabContextMenu={openTabContextMenu}
+          onTabDragStart={startTabDrag}
           maxTabs={MAX_TERMINALS}
           newTabLabel='New terminal'
           onClose={handleClose}

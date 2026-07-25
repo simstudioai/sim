@@ -143,6 +143,24 @@ export async function processContextsServer(
           currentWorkspaceId
         )
       }
+      // Tabs resolve to a pointer, not their contents. The agent has tools
+      // that read a live tab, and by the time it acts the page may have
+      // navigated or the shell scrolled on — so naming the tab it should look
+      // at beats pasting a snapshot that was true when the message was sent.
+      if (ctx.kind === 'browser_tab' && ctx.tabId) {
+        return {
+          type: 'browser_tab',
+          tag: ctx.label ? `@${ctx.label}` : '@',
+          content: `The user pointed at an open browser tab: "${ctx.label}" (tabId ${ctx.tabId}). Act on THIS tab — switch to it with browser_switch_tab and read it with browser_snapshot rather than assuming which tab they meant.`,
+        }
+      }
+      if (ctx.kind === 'terminal_tab' && ctx.terminalId) {
+        return {
+          type: 'terminal_tab',
+          tag: ctx.label ? `@${ctx.label}` : '@',
+          content: `The user pointed at an open terminal: "${ctx.label}" (terminalId ${ctx.terminalId}). Act on THIS terminal — pass that terminalId to the terminal tool, and read its screen before assuming what is in it.`,
+        }
+      }
       if (ctx.kind === 'workflow_block' && ctx.workflowId && ctx.blockId) {
         return await processWorkflowBlockFromDb(
           ctx.workflowId,
