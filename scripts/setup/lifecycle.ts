@@ -282,9 +282,13 @@ async function down(install: Install): Promise<void> {
 }
 
 async function reset(install: Install | null): Promise<void> {
+  // Name the exact target: k8s acts on the ambient context, so spelling out which
+  // cluster (or compose file / dev containers) is about to be wiped keeps a reset
+  // from silently hitting the wrong same-named install after a context switch.
+  const target = install ? ` ${describeInstall(install)} will be removed.` : ''
   const ok = await p.confirm({
     message: theme.error(
-      'Reset archives your .env files and wipes managed data (volumes). Continue?'
+      `Reset archives your .env files and wipes managed data (volumes).${target} Continue?`
     ),
     initialValue: false,
   })

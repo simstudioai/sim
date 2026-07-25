@@ -128,7 +128,9 @@ function checkFiles(ctx: CheckContext): Finding[] {
             const values: Record<string, string> = {}
             for (const key of keys) {
               const value = ctx.env.sim.vars.get(key)
-              if (value) values[key] = value
+              // Skip placeholders so seeding never copies an .env.example stub
+              // into the new file (matches autofixForMissing).
+              if (value && !isPlaceholder(value)) values[key] = value
             }
             writeEnvValues(target, values)
           }
