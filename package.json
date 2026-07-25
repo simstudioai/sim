@@ -8,6 +8,9 @@
     "apps/*",
     "packages/*"
   ],
+  "bin": {
+    "sim": "./scripts/setup/index.ts"
+  },
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
@@ -56,6 +59,9 @@
     "mship:check": "bun run scripts/generate-mship-contracts.ts --check",
     "skills:sync": "bun run scripts/sync-skills.ts",
     "skills:check": "bun run scripts/sync-skills.ts --check",
+    "setup": "bun run scripts/setup/index.ts setup",
+    "sim": "bun run scripts/setup/index.ts",
+    "doctor": "bun run scripts/setup/index.ts doctor",
     "agent-stream-docs:generate": "bun run scripts/sync-agent-stream-docs.ts",
     "agent-stream-docs:check": "bun run scripts/sync-agent-stream-docs.ts --check",
     "prepare": "bun husky",
@@ -81,7 +87,9 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.0.0-beta.5",
+    "@clack/prompts": "1.7.0",
     "@octokit/rest": "^21.0.0",
+    "chalk": "5.6.2",
     "glob": "13.0.0",
     "husky": "9.1.7",
     "json-schema-to-typescript": "15.0.4",

@@ -35,7 +35,6 @@ describe('unified settings navigation', () => {
       { id: 'apikeys', label: 'Sim API keys', section: 'system' },
       { id: 'workflow-mcp-servers', label: 'MCP servers', section: 'system' },
       { id: 'byok', label: 'BYOK', section: 'system' },
-      { id: 'copilot', label: 'Chat keys', section: 'system' },
       { id: 'inbox', label: 'Sim mailer', section: 'system' },
       { id: 'recently-deleted', label: 'Recently deleted', section: 'system' },
       { id: 'sso', label: 'Single sign-on', section: 'enterprise' },

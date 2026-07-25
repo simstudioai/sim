@@ -1,5 +1,8 @@
 services:
   simstudio:
+    env_file:
+      - path: .env
+        required: false
     build:
       context: .
       dockerfile: docker/app.Dockerfile
@@ -39,6 +42,9 @@ services:
       start_period: 10s
 
   realtime:
+    env_file:
+      - path: .env
+        required: false
     build:
       context: .
       dockerfile: docker/realtime.Dockerfile

@@ -1,5 +1,8 @@
 services:
   simstudio:
+    env_file:
+      - path: .env
+        required: false
     image: ghcr.io/simstudioai/simstudio:latest
     restart: unless-stopped
     ports:
@@ -53,6 +56,9 @@ services:
       start_period: 10s
 
   realtime:
+    env_file:
+      - path: .env
+        required: false
     image: ghcr.io/simstudioai/realtime:latest
     restart: unless-stopped
     ports:
