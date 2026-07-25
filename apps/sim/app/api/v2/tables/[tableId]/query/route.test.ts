@@ -9,14 +9,14 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const { mockCheckAccess, mockQueryRows, mockCheckRateLimit, mockCheckWorkspaceScope } = vi.hoisted(
-  () => ({
+const { mockCheckAccess, mockQueryRows, mockCheckRateLimit, mockCheckWorkspaceScope, mockGate } =
+  vi.hoisted(() => ({
     mockCheckAccess: vi.fn(),
     mockQueryRows: vi.fn(),
     mockCheckRateLimit: vi.fn(),
     mockCheckWorkspaceScope: vi.fn(),
-  })
-)
+    mockGate: vi.fn(),
+  }))
 
 vi.mock('@/app/api/v1/middleware', async () => {
   const { NextResponse } = await import('next/server')
@@ -37,6 +37,7 @@ vi.mock('@/app/api/table/utils', async () => {
     checkAccess: mockCheckAccess,
     accessError: (result: { status: number }) =>
       NextResponse.json({ error: 'Access denied' }, { status: result.status }),
+    tablesV2GateError: mockGate,
   }
 })
 
@@ -103,6 +104,15 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
     mockCheckWorkspaceScope.mockResolvedValue(null)
     mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
     mockQueryRows.mockResolvedValue(EMPTY_RESULT)
+    mockGate.mockResolvedValue(null)
+  })
+
+  it('returns 404 when the tables-v2-api flag is off', async () => {
+    const { NextResponse } = await import('next/server')
+    mockGate.mockResolvedValue(NextResponse.json({ error: 'Not found' }, { status: 404 }))
+    const res = await callQuery({ workspaceId: 'workspace-1' })
+    expect(res.status).toBe(404)
+    expect(mockQueryRows).not.toHaveBeenCalled()
   })
 
   it('translates a name-keyed predicate to storage ids', async () => {

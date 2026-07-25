@@ -16,7 +16,7 @@ import { TableQueryValidationError } from '@/lib/table/errors'
 import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
 import { decodeCursor } from '@/lib/table/rows/cursor'
 import { queryRows } from '@/lib/table/rows/service'
-import { accessError, checkAccess } from '@/app/api/table/utils'
+import { accessError, checkAccess, tablesV2GateError } from '@/app/api/table/utils'
 import {
   checkRateLimit,
   checkWorkspaceScope,
@@ -71,6 +71,9 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Query
 
     const { tableId } = parsed.data.params
     const { workspaceId, sort, cursor: cursorToken, limit } = parsed.data.body
+
+    const gateError = await tablesV2GateError(userId, workspaceId)
+    if (gateError) return gateError
 
     const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
     if (scopeError) return scopeError

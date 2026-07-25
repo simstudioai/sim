@@ -7,11 +7,27 @@ import {
   deleteTableColumnBodySchema,
   updateTableColumnBodySchema,
 } from '@/lib/api/contracts/tables'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import type { MultipartError } from '@/lib/core/utils/multipart'
 import type { ColumnDefinition, Filter, TableDefinition } from '@/lib/table'
 import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { getWorkspaceOrganizationId } from '@/lib/workspaces/utils'
+
+/**
+ * Gate for the v2 tables HTTP API (`tables-v2-api` flag). Returns a 404 response
+ * when the flag is off for the caller — the surface behaves as if it doesn't
+ * exist — or `null` to proceed. Gated by userId + the workspace's org cohort.
+ */
+export async function tablesV2GateError(
+  userId: string,
+  workspaceId: string
+): Promise<NextResponse | null> {
+  const orgId = await getWorkspaceOrganizationId(workspaceId)
+  if (await isFeatureEnabled('tables-v2-api', { userId, orgId })) return null
+  return NextResponse.json({ error: 'Not found' }, { status: 404 })
+}
 
 /**
  * Validates a `filter` against the table's column schema, returning a 400 response on a bad field

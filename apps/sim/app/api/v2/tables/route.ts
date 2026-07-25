@@ -5,7 +5,7 @@ import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { listTables, type TableSchema } from '@/lib/table'
-import { normalizeColumn } from '@/app/api/table/utils'
+import { normalizeColumn, tablesV2GateError } from '@/app/api/table/utils'
 import {
   checkRateLimit,
   createRateLimitResponse,
@@ -33,6 +33,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
 
     const { workspaceId } = parsed.data.query
+
+    const gateError = await tablesV2GateError(userId, workspaceId)
+    if (gateError) return gateError
 
     const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId)
     if (accessError) return accessError

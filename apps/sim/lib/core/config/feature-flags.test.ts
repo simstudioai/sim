@@ -12,6 +12,7 @@ const { mockFetch, mockIsPlatformAdmin, envRef, flagRef } = vi.hoisted(() => ({
     APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
     FORKING_ENABLED: undefined as boolean | undefined,
     DEPLOY_AS_BLOCK: undefined as boolean | undefined,
+    TABLES_V2_API: undefined as boolean | undefined,
   },
   flagRef: { isAppConfigEnabled: false },
 }))
@@ -208,5 +209,31 @@ describe('isFeatureEnabled', () => {
       expect(await enabled('f', { userId: 'u1' })).toBe(false)
       expect(mockIsPlatformAdmin).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe('tables-v2-api flag', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    flagRef.isAppConfigEnabled = false
+    envRef.TABLES_V2_API = undefined
+  })
+
+  it('is off by default off-AppConfig, on when the fallback secret is set', async () => {
+    expect(await isFeatureEnabled('tables-v2-api')).toBe(false)
+    envRef.TABLES_V2_API = true
+    expect(await isFeatureEnabled('tables-v2-api')).toBe(true)
+  })
+
+  it('gates by org cohort via AppConfig', async () => {
+    withAppConfig({ 'tables-v2-api': { orgIds: ['org-1'] } })
+    expect(await isFeatureEnabled('tables-v2-api', { orgId: 'org-1' })).toBe(true)
+    expect(await isFeatureEnabled('tables-v2-api', { orgId: 'org-2' })).toBe(false)
+    expect(await isFeatureEnabled('tables-v2-api', { userId: 'u1' })).toBe(false)
+  })
+
+  it('global enabled turns it on for everyone', async () => {
+    withAppConfig({ 'tables-v2-api': { enabled: true } })
+    expect(await isFeatureEnabled('tables-v2-api')).toBe(true)
   })
 })

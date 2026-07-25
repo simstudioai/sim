@@ -13,7 +13,7 @@ import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/v
 import { decodeCursor } from '@/lib/table/rows/cursor'
 import { queryRows } from '@/lib/table/rows/service'
 import { rowWireTranslators } from '@/app/api/table/row-wire'
-import { accessError, checkAccess } from '@/app/api/table/utils'
+import { accessError, checkAccess, tablesV2GateError } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowQueryAPI')
 
@@ -39,6 +39,9 @@ export const POST = withRouteHandler(async (request: NextRequest, context: RowQu
     if (!parsed.success) return parsed.response
     const { params, body } = parsed.data
     const { tableId } = params
+
+    const gateError = await tablesV2GateError(authResult.userId, body.workspaceId)
+    if (gateError) return gateError
 
     const accessResult = await checkAccess(tableId, authResult.userId, 'read')
     if (!accessResult.ok) return accessError(accessResult, requestId, tableId)

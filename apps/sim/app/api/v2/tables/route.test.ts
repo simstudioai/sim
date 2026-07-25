@@ -31,6 +31,11 @@ vi.mock('@/lib/table', async () => {
   return { ...actual, listTables: mockListTables }
 })
 
+vi.mock('@/app/api/table/utils', () => ({
+  normalizeColumn: (col: Record<string, unknown>) => col,
+  tablesV2GateError: () => null,
+}))
+
 import { GET } from '@/app/api/v2/tables/route'
 
 function buildTable(): TableDefinition {

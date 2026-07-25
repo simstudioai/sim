@@ -420,6 +420,7 @@ export const env = createEnv({
     DATA_DRAINS_ENABLED:                  z.boolean().optional(),                 // Enable data drains on self-hosted (bypasses hosted requirements)
     FORKING_ENABLED:                      z.boolean().optional(),                 // Enable workspace forking on self-hosted (bypasses hosted requirements)
     DEPLOY_AS_BLOCK:                      z.boolean().optional(),                 // Enable deploy-as-block (publish a workflow as a reusable org-wide custom block)
+    TABLES_V2_API:                        z.boolean().optional(),                 // Enable the v2 tables HTTP API (public /api/v2/tables + internal /api/table/[tableId]/query predicate-grammar route)
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)

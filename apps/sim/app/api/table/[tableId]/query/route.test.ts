@@ -21,6 +21,7 @@ vi.mock('@/app/api/table/utils', async () => {
     checkAccess: mockCheckAccess,
     accessError: (result: { status: number }) =>
       NextResponse.json({ error: 'Access denied' }, { status: result.status }),
+    tablesV2GateError: () => null,
   }
 })
 
