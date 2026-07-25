@@ -83,6 +83,13 @@ interface RichMarkdownEditorProps {
   previewContextKey?: string
   /** Disable the `@` tag-insertion menu (existing tags still render). Defaults off — the file editor keeps tagging. */
   disableTagging?: boolean
+  /**
+   * Opt this surface into live collaborative editing. Set only by the Files page —
+   * the dedicated editing surface, which never streams agent output. The agent/Chat
+   * surface leaves it off, so collaboration and agent-streaming are disjoint by
+   * construction (they cannot both drive one editor and corrupt the shared doc).
+   */
+  collaborative?: boolean
 }
 
 /** Inline WYSIWYG markdown editor: agent output streams in read-only, then the same instance becomes editable on settle. */
@@ -101,6 +108,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   disableStreamingAutoScroll = false,
   previewContextKey,
   disableTagging,
+  collaborative = false,
 }: RichMarkdownEditorProps) {
   const { data: session, isPending: isSessionPending } = useSession()
   const userId = session?.user?.id ?? ''
@@ -163,6 +171,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
       streamIsIncremental={streamIsIncremental}
       disableStreamingAutoScroll={disableStreamingAutoScroll}
       disableTagging={disableTagging}
+      collaborative={collaborative}
       onChange={setDraftContent}
       onSaveShortcut={saveImmediately}
       onCollabReadyChange={setCollabReady}
@@ -186,6 +195,8 @@ interface LoadedRichMarkdownEditorProps {
   streamIsIncremental?: boolean
   disableStreamingAutoScroll?: boolean
   disableTagging?: boolean
+  /** See {@link RichMarkdownEditorProps.collaborative}. */
+  collaborative?: boolean
   onChange: (markdown: string) => void
   onSaveShortcut: () => Promise<void>
   /** Reports whether the collaborative document is synced+seeded (autosave gate). */
@@ -215,6 +226,7 @@ export function LoadedRichMarkdownEditor({
   streamIsIncremental,
   disableStreamingAutoScroll,
   disableTagging,
+  collaborative = false,
   onChange,
   onSaveShortcut,
   onCollabReadyChange,
@@ -231,11 +243,12 @@ export function LoadedRichMarkdownEditor({
    * Collaboration is decided once at mount from synchronously-available inputs
    * (`settledRef` is set just above) via `useState`-init, and never changes — TipTap
    * fixes the extension set at editor creation, so it cannot turn on later. Enabled
-   * only for an editable, round-trip-safe, non-streaming workspace document with a
-   * known user.
+   * only on a `collaborative` surface (the Files page, which never streams) for an
+   * editable, round-trip-safe, non-streaming workspace document with a known user.
    */
   const [collaborationEnabled] = useState(
     () =>
+      collaborative &&
       canEdit &&
       !streamingAtMountRef.current &&
       (settledRef.current?.verdict ?? false) &&
@@ -633,12 +646,9 @@ export function LoadedRichMarkdownEditor({
   }, [collaboration, editor, onCollabReadyChange, setCollabReady])
 
   /**
-   * Owns editability for the entire collaborative lifecycle: `useEditor`'s `editable`
-   * is only the initial value, and the streaming/settle effect stays inert in collab
-   * mode (they are mutually exclusive) — so re-apply here whenever `isEditable` flips,
-   * whether from collaboration readiness (synced + seeded) or a stream toggling
-   * `isStreaming`. `isEditable` already folds in `!isStreaming`, holding read-only for
-   * the duration of any agent stream over a collaborative document.
+   * Owns editability for the collaborative lifecycle: `useEditor`'s `editable` is only
+   * the initial value, and the streaming/settle effect stays inert in collab mode — so
+   * re-apply here whenever collaboration readiness (synced + seeded) flips `isEditable`.
    */
   useEffect(() => {
     if (!editor || !collaborationEnabled) return
@@ -669,13 +679,12 @@ export function LoadedRichMarkdownEditor({
   const lastStreamParseAtRef = useRef(0)
   useEffect(() => {
     if (!editor) return
-    // Collaboration and agent-streaming are mutually exclusive: when collaborating the
-    // Y.Doc is the sole source of truth, so this manual reconcile loop stays fully inert
-    // — its `setContent` would sync a full-document replace into the shared doc (the
-    // ySyncPlugin writes it regardless of `emitUpdate: false`), wiping peers' concurrent
-    // edits. A stream begun after a collaborative open therefore does not drive this
-    // editor; editability is owned by the reactive effect above, which holds it read-only
-    // while `isStreaming`.
+    // Collaboration and agent-streaming are disjoint surfaces: collaboration is enabled
+    // only on the Files page, which never streams agent output, so in collab mode this
+    // reconcile loop stays fully inert. It must not run even defensively — its
+    // `setContent` would sync a full-document replace into the shared Y.Doc (the
+    // ySyncPlugin writes it regardless of `emitUpdate: false`), wiping peers' edits.
+    // Editability is owned by the reactive effect above.
     if (collaborationEnabled) return
     const syncEditorBody = (body: string) => {
       if (body === lastSyncedBodyRef.current) return
