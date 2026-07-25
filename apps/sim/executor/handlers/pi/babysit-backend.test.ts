@@ -401,17 +401,23 @@ describe('runBabysitPiWithOptions', () => {
     expect(runCalls.some(({ command }) => command.includes('CURRENT_DIGEST='))).toBe(false)
   })
 
-  it('waits for pending checks without consuming an agent round', async () => {
+  it('waits for pending required checks despite optional failures without consuming a round', async () => {
     const pendingCheck = {
       ...failingCheck,
       disposition: 'pending' as const,
       status: 'IN_PROGRESS',
       conclusion: null,
     }
+    const optionalFailure = {
+      ...failingCheck,
+      key: 'check:optional-lint',
+      name: 'optional-lint',
+      required: false,
+    }
     const pendingChecks = {
       ...failingChecks,
-      checks: [pendingCheck],
-      failing: [],
+      checks: [pendingCheck, optionalFailure],
+      failing: [optionalFailure],
       pending: [pendingCheck],
       blockingFailing: [],
       blockingPending: [pendingCheck],

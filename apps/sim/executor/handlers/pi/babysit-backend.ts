@@ -650,7 +650,8 @@ export async function runBabysitPiWithOptions(
           return resultFor(totals, 'startup_failure', progress, threadsClean, false)
         }
 
-        const needsAgent = latestThreads!.actionable.length > 0 || latestChecks!.failing.length > 0
+        const needsAgent =
+          latestThreads!.actionable.length > 0 || latestChecks!.blockingFailing.length > 0
         if (!needsAgent) {
           const remaining = lifetime - (Date.now() - startedAt)
           if (remaining <= options.roundWaitMs + MIN_ROUND_BUDGET_MS) {
