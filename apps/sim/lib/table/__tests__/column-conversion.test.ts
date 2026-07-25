@@ -68,6 +68,20 @@ describe('isValueCompatibleWithType — select cardinality', () => {
   it('rejects a value that is not a declared option', () => {
     expect(isValueCompatibleWithType('gone', 'select', OPTIONS, false)).toBe(false)
   })
+
+  it('round-trips a multiselect through text', () => {
+    // multiselect → string flattens to `Alpha, Beta`; converting back must read
+    // that the same way the write-path coercion does, not as one unknown option.
+    const flattened = selectValueForConversion(multi, ['opt_a', 'opt_b'])
+    expect(flattened).toBe('Alpha, Beta')
+    expect(isValueCompatibleWithType(flattened, 'select', OPTIONS, true)).toBe(true)
+    // A single-select target genuinely can't hold both.
+    expect(isValueCompatibleWithType(flattened, 'select', OPTIONS, false)).toBe(false)
+  })
+
+  it('still rejects a comma string holding an undeclared option', () => {
+    expect(isValueCompatibleWithType('Alpha, Gone', 'select', OPTIONS, true)).toBe(false)
+  })
 })
 
 describe('isValueCompatibleWithType — string target', () => {

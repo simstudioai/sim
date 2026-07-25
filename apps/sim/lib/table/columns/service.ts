@@ -34,7 +34,11 @@ import type {
   UpdateColumnOptionsData,
   UpdateColumnTypeData,
 } from '@/lib/table/types'
-import { resolveSelectOptionId, validateColumnDefinition } from '@/lib/table/validation'
+import {
+  resolveSelectOptionId,
+  splitMultiSelectInput,
+  validateColumnDefinition,
+} from '@/lib/table/validation'
 import { assertValidSchema, stripGroupDeps } from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableColumnService')
@@ -881,11 +885,25 @@ async function migrateCellsToSelectIds(
   )
 
   if (multiple) {
+    // A string cell reaching a multi target is either one option name or the
+    // comma-joined form a multiselect converts to text as. Try the whole string
+    // first so an option whose own name contains a comma still wins, then split
+    // — mirroring `splitMultiSelectInput` on the write path, including its
+    // first-occurrence dedup.
     await trx.execute(
       sql`UPDATE ${userTableRows}
           SET data = jsonb_set(data, ARRAY[${columnKey}::text],
             CASE WHEN data->>${columnKey}::text = '' THEN '[]'::jsonb
-                 ELSE jsonb_build_array(COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text), data->${columnKey}::text))
+                 WHEN COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text)) IS NOT NULL
+                   THEN jsonb_build_array(COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text)))
+                 ELSE COALESCE((
+                   SELECT jsonb_agg(v ORDER BY ord) FROM (
+                     SELECT COALESCE(${idByRef}::jsonb -> btrim(part), ${idByRef}::jsonb -> lower(btrim(part)), to_jsonb(btrim(part))) AS v,
+                            min(o) AS ord
+                     FROM unnest(string_to_array(data->>${columnKey}::text, ',')) WITH ORDINALITY AS u(part, o)
+                     WHERE btrim(part) <> ''
+                     GROUP BY 1
+                   ) d), '[]'::jsonb)
             END)
           WHERE table_id = ${tableId}
             AND jsonb_typeof(data->${columnKey}::text) = 'string'`
@@ -1004,7 +1022,15 @@ export function isValueCompatibleWithType(
     case 'select': {
       // A cleared select cell is written as '' — still convertible.
       if (value === '') return true
-      const parts = Array.isArray(value) ? value : [value]
+      // Read the value exactly as the write-path coercion will. A multi target
+      // splits a comma-delimited string, so a multiselect → text → multiselect
+      // round-trip (text holding this feature's own `Bug, Docs` export shape)
+      // stays convertible instead of being rejected as one unknown option.
+      const parts = targetMultiple
+        ? splitMultiSelectInput(value as JsonValue)
+        : Array.isArray(value)
+          ? value
+          : [value]
       // A single-select target can't hold several options. `updateColumnOptions`
       // blocks the same transition; without this the next coerce would silently
       // keep only the first id.

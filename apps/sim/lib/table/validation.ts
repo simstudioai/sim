@@ -307,6 +307,23 @@ export function resolveSelectOptionId(value: JsonValue, options: SelectOption[])
 }
 
 /**
+ * Splits a raw value into the parts a multi-select cell should resolve. A cell
+ * may arrive as an array (canonical) or as a single comma-delimited string —
+ * the shape a multi cell exports, copies, and converts to text as — so both the
+ * write-path coercion and the column-conversion compatibility check read it
+ * through here rather than each deciding for itself. Option names that
+ * themselves contain commas are an accepted ambiguity.
+ */
+export function splitMultiSelectInput(value: JsonValue): JsonValue[] {
+  if (Array.isArray(value)) return value
+  if (typeof value !== 'string') return [value]
+  return value
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part !== '')
+}
+
+/**
  * Attempts to coerce a non-null value to a column's declared type. Returns the
  * coerced value when the value already matches or can be converted without
  * ambiguity (e.g. the string `"1999"` to the number `1999`), and `ok: false`
@@ -357,18 +374,7 @@ function coerceValueToColumnType(
     case 'select': {
       const options = column.options ?? []
       if (column.multiple) {
-        // A multi-select cell may arrive as an array (canonical) or a single
-        // comma-delimited string (CSV import / clipboard paste of the read
-        // format) — split the latter so each label resolves. Option names that
-        // themselves contain commas are an accepted ambiguity here.
-        const raw = Array.isArray(value)
-          ? value
-          : typeof value === 'string'
-            ? value
-                .split(',')
-                .map((part) => part.trim())
-                .filter((part) => part !== '')
-            : [value]
+        const raw = splitMultiSelectInput(value)
         const ids: string[] = []
         for (const entry of raw) {
           const id = resolveSelectOptionId(entry, options)
