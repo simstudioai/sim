@@ -6,6 +6,7 @@ import { archiveEnvFile, ROOT } from './env-files.ts'
 import { runComposeMode } from './modes/compose.ts'
 import { runDevMode } from './modes/dev.ts'
 import { runK8sMode } from './modes/k8s.ts'
+import { ensurePortsFree } from './ports.ts'
 import * as p from './prompter.ts'
 import { glyph, theme } from './theme.ts'
 
@@ -177,7 +178,16 @@ export async function runWizard(flags: WizardFlags): Promise<void> {
     spawnSync('open', [url], { stdio: 'ignore' })
   }
   if (startDevNow) {
-    const child = spawnSync('bun', ['run', devScript], { cwd: ROOT, stdio: 'inherit' })
-    process.exitCode = child.status ?? 0
+    // dev:full binds 3000 (app) and 3002 (realtime) — resolve any conflict
+    // (e.g. another worktree's dev server) before starting, instead of spawning
+    // a server that fails to bind. If the user leaves the ports, skip the start.
+    if (await ensurePortsFree([3000, 3002])) {
+      const child = spawnSync('bun', ['run', devScript], { cwd: ROOT, stdio: 'inherit' })
+      process.exitCode = child.status ?? 0
+    } else {
+      p.log.warn(
+        `Ports still in use — Sim wasn't started. Free them, then run ${theme.command(`bun run ${devScript}`)}.`
+      )
+    }
   }
 }

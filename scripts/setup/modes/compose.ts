@@ -1,8 +1,9 @@
 import { spawnSync } from 'node:child_process'
-import { type Detection, type PortOwnerInfo, portOpen, portOwner } from '../detect.ts'
+import type { Detection } from '../detect.ts'
 import { ensureDocker } from '../docker.ts'
 import { ROOT, readEnvFile, writeEnvValues } from '../env-files.ts'
 import { SetupError } from '../errors.ts'
+import { ensurePortsFree } from '../ports.ts'
 import { httpHealth, waitFor } from '../probes.ts'
 import * as p from '../prompter.ts'
 import {
@@ -17,86 +18,19 @@ import {
 } from '../steps.ts'
 import { glyph, theme } from '../theme.ts'
 
-interface BusyPort {
-  port: number
-  owner: PortOwnerInfo | null
-}
-
-function describe(busy: BusyPort): string {
-  return busy.owner
-    ? `:${busy.port} is held by ${busy.owner.command} (pid ${busy.owner.pid})`
-    : `:${busy.port} is in use`
-}
-
 /**
  * Compose publishes 3000 and 3002 — resolve conflicts before touching docker,
- * instead of letting `docker compose up` die halfway through startup.
+ * instead of letting `docker compose up` die halfway through startup. Aborting
+ * is fatal here: compose can't come up while the ports are held.
  */
-async function ensurePortsFree(composeFile: string): Promise<void> {
-  for (;;) {
-    const busy: BusyPort[] = []
-    for (const port of [3000, 3002]) {
-      if (await portOpen(port)) busy.push({ port, owner: portOwner(port) })
-    }
-    if (busy.length === 0) return
-
-    p.log.warn(`Sim needs ports 3000 and 3002, but ${busy.map(describe).join(' and ')}.`)
-    const dockerOwned = busy.filter((b) => b.owner?.isDocker)
-    if (dockerOwned.length > 0) {
-      p.log.info(
-        theme.muted(
-          'A docker-published port means a container holds it — find it with `docker ps` and stop it.'
-        )
-      )
-    }
-    const killable = busy.filter((b) => b.owner && !b.owner.isDocker)
-    const options: p.SelectOption<'recheck' | 'kill' | 'abort'>[] = [
-      { value: 'recheck', label: "I've stopped it — check again" },
-    ]
-    if (killable.length > 0) {
-      options.push({
-        value: 'kill',
-        label: 'Kill it for me',
-        hint: killable.map((b) => `${b.owner?.command} on :${b.port}`).join(', '),
-      })
-    }
-    options.push({ value: 'abort', label: 'Abort setup' })
-    const choice = await p.select({ message: 'How do you want to handle it?', options })
-
-    if (choice === 'kill') {
-      for (const b of killable) {
-        if (b.owner) process.kill(b.owner.pid, 'SIGKILL')
-      }
-      p.log.step(
-        `Killed ${killable.map((b) => `${b.owner?.command} (pid ${b.owner?.pid})`).join(', ')}`
-      )
-      // SIGKILL is async — the kernel releases the listening socket a beat after
-      // the process dies, so re-checking immediately would still see the port
-      // held. Wait for the killed ports to actually free before looping.
-      await waitFor(
-        async () => {
-          for (const b of killable) {
-            if (await portOpen(b.port)) return false
-          }
-          return true
-        },
-        5000,
-        250
-      )
-    } else if (choice === 'abort') {
-      throw new SetupError(
-        'ports 3000/3002 are in use',
-        [
-          `free the ports, then re-run: ${theme.command('bun run setup')}`,
-          `see what holds them: ${theme.command('lsof -nP -iTCP:3000 -sTCP:LISTEN')}`,
-          dockerOwned.length > 0
-            ? `stop the container publishing them: ${theme.command('docker ps')}`
-            : null,
-          `compose file in play: ${composeFile}`,
-        ].filter((h): h is string => h !== null)
-      )
-    }
-  }
+async function ensureComposePortsFree(composeFile: string): Promise<void> {
+  if (await ensurePortsFree([3000, 3002])) return
+  throw new SetupError('ports 3000/3002 are in use', [
+    `free the ports, then re-run: ${theme.command('bun run setup')}`,
+    `see what holds them: ${theme.command('lsof -nP -iTCP:3000 -sTCP:LISTEN')}`,
+    `stop a container publishing them: ${theme.command('docker ps')}`,
+    `compose file in play: ${composeFile}`,
+  ])
 }
 
 export async function runComposeMode(detection: Detection, quick: boolean): Promise<void> {
@@ -146,7 +80,7 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
   writeEnvValues('root', values)
   p.log.step('Wrote .env (compose reads it for variable substitution)')
 
-  await ensurePortsFree(composeFile)
+  await ensureComposePortsFree(composeFile)
 
   p.log.step(`Running docker compose -f ${composeFile} up -d`)
   const result = spawnSync('docker', ['compose', '-f', composeFile, 'up', '-d'], {
