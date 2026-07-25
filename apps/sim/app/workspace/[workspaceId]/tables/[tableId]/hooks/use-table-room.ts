@@ -86,7 +86,20 @@ export function useTableRoom(tableId: string): UseTableRoomResult {
         retryTimer = setTimeout(join, JOIN_RETRY_BASE_MS * retries)
       }
     }
-    const handlePresence = (users: TablePresenceUser[]) => setPresenceUsers(users ?? [])
+    const handlePresence = (users: TablePresenceUser[]) => {
+      // Take membership from the roster snapshot but keep the `cell` we already hold for
+      // a known socket: the snapshot can be a beat behind the lower-latency CELL_SELECTION
+      // deltas, so a blind replace could revert a fresher selection (it self-heals on the
+      // peer's next delta, but the revert flicker is avoidable).
+      setPresenceUsers((prev) => {
+        const cellBySocket = new Map(prev.map((user) => [user.socketId, user.cell]))
+        return (users ?? []).map((user) =>
+          cellBySocket.has(user.socketId)
+            ? { ...user, cell: cellBySocket.get(user.socketId) }
+            : user
+        )
+      })
+    }
     const handleCellSelection = (data: TableCellSelectionBroadcast) => {
       // Patch the matching roster entry's selection. The peer is always already in
       // the roster: the server broadcasts their join (→ presence-update) before they
@@ -125,11 +138,18 @@ export function useTableRoom(tableId: string): UseTableRoomResult {
   const trailingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingCellRef = useRef<TableCellSelection>(null)
 
+  // Reset the throttle when the table changes (or on unmount): a pending selection for
+  // the table we're leaving must not flush into the next table's room after a switch.
   useEffect(
     () => () => {
-      if (trailingTimerRef.current) clearTimeout(trailingTimerRef.current)
+      if (trailingTimerRef.current) {
+        clearTimeout(trailingTimerRef.current)
+        trailingTimerRef.current = null
+      }
+      pendingCellRef.current = null
+      lastEmitRef.current = 0
     },
-    []
+    [tableId]
   )
 
   const emitCellSelection = useCallback((cell: TableCellSelection) => {

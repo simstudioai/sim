@@ -132,18 +132,26 @@ export function RemoteSelectionOverlay({
     }
     const handleLeave = () => setHoveredSocketId(null)
 
-    measure()
+    // No measure() here — the re-measure layout effect below runs on mount and whenever
+    // `measure` changes (it depends on `scrollElement`), so it already covers the initial
+    // and scroll-element-changed measures without a redundant pass.
     scrollEl.addEventListener('scroll', schedule, { passive: true })
     scrollEl.addEventListener('pointermove', handleMove, { passive: true })
     scrollEl.addEventListener('pointerleave', handleLeave)
     const resizeObserver = new ResizeObserver(schedule)
     resizeObserver.observe(scrollEl)
+    // Re-measure when rows are added/removed/reordered/virtualized (a live refetch moves
+    // cells without a scroll/resize) — childList only, so a cell-content edit doesn't fire.
+    const tbody = scrollEl.querySelector('tbody')
+    const rowObserver = new MutationObserver(schedule)
+    if (tbody) rowObserver.observe(tbody, { childList: true })
 
     return () => {
       scrollEl.removeEventListener('scroll', schedule)
       scrollEl.removeEventListener('pointermove', handleMove)
       scrollEl.removeEventListener('pointerleave', handleLeave)
       resizeObserver.disconnect()
+      rowObserver.disconnect()
       if (raf) cancelAnimationFrame(raf)
     }
   }, [scrollElement, measure])
@@ -171,7 +179,7 @@ export function RemoteSelectionOverlay({
         >
           {hoveredSocketId === box.socketId && (
             <span
-              className='-top-[1.4em] absolute left-[-2px] whitespace-nowrap rounded-[3px] rounded-bl-none px-[5px] py-[1px] font-medium text-[#1a1a1a] text-[11px] leading-[1.4]'
+              className='-top-[1.4em] absolute left-[-2px] whitespace-nowrap rounded-[3px] rounded-bl-none px-[5px] py-[1px] font-medium text-[#1a1a1a] text-xs leading-[1.4]'
               style={{ backgroundColor: box.color }}
             >
               {box.userName}

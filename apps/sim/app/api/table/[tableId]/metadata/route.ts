@@ -7,7 +7,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { TableMetadata } from '@/lib/table'
 import { updateTableMetadata } from '@/lib/table'
-import { signalTableSchemaChanged } from '@/lib/table/events'
+import { signalTableMetadataChanged } from '@/lib/table/events'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableMetadataAPI')
@@ -49,7 +49,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
       validated.metadata,
       table.metadata as TableMetadata | null
     )
-    signalTableSchemaChanged(tableId)
+    signalTableMetadataChanged(tableId)
 
     return NextResponse.json({ success: true, data: { metadata: updated } })
   } catch (error) {

@@ -21,10 +21,9 @@ const MAX_CELL_ID_LENGTH = 200
 const tableRoom = (tableId: string): RoomRef => ({ type: ROOM_TYPES.TABLE, id: tableId })
 
 function isCellRef(value: unknown): value is TableCellRef {
-  const ref = value as TableCellRef | null
+  if (typeof value !== 'object' || value === null) return false
+  const ref = value as { rowId?: unknown; columnId?: unknown }
   return (
-    typeof ref === 'object' &&
-    ref !== null &&
     typeof ref.rowId === 'string' &&
     ref.rowId.length <= MAX_CELL_ID_LENGTH &&
     typeof ref.columnId === 'string' &&
