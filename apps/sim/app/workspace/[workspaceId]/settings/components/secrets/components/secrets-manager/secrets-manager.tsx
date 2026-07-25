@@ -1,9 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ChipInput, cn, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
@@ -35,14 +34,6 @@ import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const logger = createLogger('SecretsManager')
-
-/**
- * Salts the generated `name` attributes so password managers can't match them
- * against a known field. Generated once at module load rather than per render —
- * a value that changes every keystroke defeats autofill no better, but costs a
- * `crypto.getRandomValues()` call and a DOM attribute patch per field per render.
- */
-const AUTOFILL_SALT = generateShortId(8)
 
 const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto] items-center'
 const COL_SPAN_ALL = 'col-span-4'
@@ -225,6 +216,15 @@ function WorkspaceVariableRow({
   onDelete,
   onViewDetails,
 }: WorkspaceVariableRowProps) {
+  /**
+   * Salts the generated `name` attributes so password managers can't match them
+   * against a known field. `useId` is stable across SSR and hydration and across
+   * re-renders — a fresh `generateShortId()` per render would patch six DOM
+   * attributes on every keystroke, and a module-scope one would differ between
+   * the server and browser bundles.
+   */
+  const autofillSalt = useId()
+
   return (
     <div className='contents'>
       <ChipInput
@@ -235,7 +235,7 @@ function WorkspaceVariableRow({
           onPendingKeyChange(e.target.value)
         }}
         onBlur={() => onRenameEnd(envKey, value)}
-        name={`workspace_env_key_${envKey}_${AUTOFILL_SALT}`}
+        name={`workspace_env_key_${envKey}_${autofillSalt}`}
         autoComplete='off'
         autoCapitalize='off'
         spellCheck='false'
@@ -249,7 +249,7 @@ function WorkspaceVariableRow({
         value={value}
         onChange={(next) => onValueChange(envKey, next)}
         canEdit={canEdit}
-        name={`workspace_env_value_${envKey}_${AUTOFILL_SALT}`}
+        name={`workspace_env_value_${envKey}_${autofillSalt}`}
       />
       <SecretRowMenu
         onCopyName={() => copyName(envKey)}
@@ -273,6 +273,15 @@ function NewWorkspaceVariableRow({
   onUpdate,
   onPaste,
 }: NewWorkspaceVariableRowProps) {
+  /**
+   * Salts the generated `name` attributes so password managers can't match them
+   * against a known field. `useId` is stable across SSR and hydration and across
+   * re-renders — a fresh `generateShortId()` per render would patch six DOM
+   * attributes on every keystroke, and a module-scope one would differ between
+   * the server and browser bundles.
+   */
+  const autofillSalt = useId()
+
   const keyError = validateEnvVarKey(envVar.key)
   const hasContent = Boolean(envVar.key || envVar.value)
 
@@ -285,7 +294,7 @@ function NewWorkspaceVariableRow({
         onChange={(e) => onUpdate(index, 'key', e.target.value)}
         onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
         placeholder='API_KEY'
-        name={`new_workspace_key_${envVar.id || index}_${AUTOFILL_SALT}`}
+        name={`new_workspace_key_${envVar.id || index}_${autofillSalt}`}
         autoComplete='off'
         autoCapitalize='off'
         spellCheck='false'
@@ -299,7 +308,7 @@ function NewWorkspaceVariableRow({
         onChange={(next) => onUpdate(index, 'value', next)}
         onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
         placeholder='Enter value'
-        name={`new_workspace_value_${envVar.id || index}_${AUTOFILL_SALT}`}
+        name={`new_workspace_value_${envVar.id || index}_${autofillSalt}`}
         className='ml-0'
       />
       {hasContent ? (
@@ -328,6 +337,15 @@ function NewWorkspaceVariableRow({
 }
 
 export function SecretsManager() {
+  /**
+   * Salts the generated `name` attributes so password managers can't match them
+   * against a known field. `useId` is stable across SSR and hydration and across
+   * re-renders — a fresh `generateShortId()` per render would patch six DOM
+   * attributes on every keystroke, and a module-scope one would differ between
+   * the server and browser bundles.
+   */
+  const autofillSalt = useId()
+
   const params = useParams()
   const router = useRouter()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -873,7 +891,7 @@ export function SecretsManager() {
           onChange={(e) => updateEnvVar(originalIndex, 'key', e.target.value)}
           onPaste={(e) => handlePaste(e, originalIndex)}
           placeholder='API_KEY'
-          name={`env_variable_name_${envVar.id || originalIndex}_${AUTOFILL_SALT}`}
+          name={`env_variable_name_${envVar.id || originalIndex}_${autofillSalt}`}
           autoComplete='off'
           autoCapitalize='off'
           spellCheck='false'
@@ -889,7 +907,7 @@ export function SecretsManager() {
           unmasked={isConflicted}
           readOnly={isConflicted}
           placeholder={isConflicted ? 'Workspace override active' : 'Enter value'}
-          name={`env_variable_value_${envVar.id || originalIndex}_${AUTOFILL_SALT}`}
+          name={`env_variable_value_${envVar.id || originalIndex}_${autofillSalt}`}
           className={cn(isConflicted && 'cursor-not-allowed opacity-50')}
         />
         {hasContent ? (
