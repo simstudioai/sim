@@ -78,7 +78,6 @@ export interface WorkspaceMdData {
     role?: string | null
   }>
   envVariables: string[]
-  tasks?: Array<{ id: string; title: string; updatedAt: Date }>
   customTools?: Array<{ id: string; name: string }>
   customBlocks?: Array<{ type: string; name: string; description?: string }>
   mcpServers?: Array<{ id: string; name: string; url?: string | null; enabled: boolean }>
@@ -594,7 +593,11 @@ export function buildVfsSnapshot(data: WorkspaceMdData): VfsSnapshotV1 {
     .map((j) => ({
       id: j.id,
       ...(j.title ? { title: j.title } : {}),
-      ...(j.prompt ? { prompt: j.prompt } : {}),
+      // Match WORKSPACE.md's preview truncation — full prompts are large,
+      // volatile-ish, and readable on demand at jobs/{title}/meta.json.
+      ...(j.prompt
+        ? { prompt: j.prompt.length > 80 ? truncate(j.prompt, 77) : j.prompt }
+        : {}),
       ...(j.cronExpression ? { cronExpression: j.cronExpression } : {}),
       ...(j.status ? { status: j.status } : {}),
       ...(j.lifecycle ? { lifecycle: j.lifecycle } : {}),
@@ -645,6 +648,11 @@ export function buildVfsSnapshot(data: WorkspaceMdData): VfsSnapshotV1 {
     })),
     envVars: data.envVariables,
     customTools: (data.customTools ?? []).map((t) => ({ id: t.id, name: t.name })),
+    customBlocks: (data.customBlocks ?? []).map((b) => ({
+      type: b.type,
+      name: b.name,
+      ...(b.description ? { description: b.description } : {}),
+    })),
     mcpServers: (data.mcpServers ?? []).map((s) => ({
       id: s.id,
       name: s.name,

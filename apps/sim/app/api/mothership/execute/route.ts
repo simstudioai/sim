@@ -51,14 +51,26 @@ function encodeNdjson(value: unknown): Uint8Array {
   return ndjsonEncoder.encode(`${JSON.stringify(value)}\n`)
 }
 
-function buildExecuteResponsePayload(
+/**
+ * Server-owned tools whose invocation the CALLER must see, even though they are
+ * not client/integration tools. The scheduled-task runner branches on whether
+ * the agent called complete_scheduled_task; filtering it out of the response
+ * made that check permanently false, so a completed job was rescheduled by the
+ * runner's own post-run bookkeeping.
+ */
+export const CALLER_VISIBLE_SERVER_TOOLS = new Set(['complete_scheduled_task'])
+
+export function buildExecuteResponsePayload(
   result: Awaited<ReturnType<typeof runHeadlessCopilotLifecycle>>,
   effectiveChatId: string,
   integrationTools: Array<{ name: string }>
 ) {
   const clientToolNames = new Set(integrationTools.map((t) => t.name))
   const clientToolCalls = (result.toolCalls || []).filter(
-    (tc: { name: string }) => clientToolNames.has(tc.name) || tc.name.startsWith('mcp-')
+    (tc: { name: string }) =>
+      clientToolNames.has(tc.name) ||
+      tc.name.startsWith('mcp-') ||
+      CALLER_VISIBLE_SERVER_TOOLS.has(tc.name)
   )
 
   return {

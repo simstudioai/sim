@@ -50,6 +50,33 @@ describe('executeBrowserToolOnClient', () => {
     })
   })
 
+  // The desktop driver parses browser_wait_for.timeoutMs with a lenient num()
+  // that coerces numeric strings, then clamps to 120s. This side has to match:
+  // budgeting less time than the desktop actually waits makes the renderer
+  // abort first, which strands the native promise on the serialized tool queue
+  // and stalls every later browser call behind it.
+  it.each([
+    ['number', 30_000, 45_000],
+    ['numeric string', '30000', 45_000],
+    ['absent', undefined, 25_000],
+    ['non-numeric', 'soon', 25_000],
+    ['above the desktop clamp', 500_000, 135_000],
+  ])('budgets browser_wait_for above the desktop wait (%s)', async (_label, timeoutMs, expected) => {
+    mockExecuteBrowserTool.mockResolvedValue({ found: true })
+    const toolCallId = nextToolCallId()
+    const params = timeoutMs === undefined ? {} : { timeoutMs }
+
+    executeBrowserToolOnClient(toolCallId, 'browser_wait_for', params)
+    await flush()
+
+    expect(mockExecuteBrowserTool).toHaveBeenCalledWith(
+      toolCallId,
+      'browser_wait_for',
+      params,
+      expected
+    )
+  })
+
   it('rejects page-dependent tools up front when the session is closed', async () => {
     useBrowserSessionStore.getState().setSessionAlive(false)
     const toolCallId = nextToolCallId()

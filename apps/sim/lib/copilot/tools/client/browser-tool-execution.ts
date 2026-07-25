@@ -22,6 +22,13 @@ const logger = createLogger('CopilotBrowserToolExecution')
 const DEFAULT_TOOL_TIMEOUT_MS = 30_000
 const NAVIGATION_TOOL_TIMEOUT_MS = 45_000
 const WAIT_FOR_TIMEOUT_GRACE_MS = 15_000
+// Mirror the desktop driver's parse of browser_wait_for.timeoutMs exactly. It
+// coerces numeric strings and clamps to a maximum; reading the value more
+// strictly here would budget less time than the desktop actually waits, and the
+// renderer aborting first strands the native promise on the serialized tool
+// queue so every later browser call stalls behind it.
+const DEFAULT_WAIT_FOR_TIMEOUT_MS = 10_000
+const MAX_WAIT_FOR_TIMEOUT_MS = 120_000
 
 /**
  * Tools that can revive a closed browser session by opening a fresh tab.
@@ -92,7 +99,11 @@ function timeoutForTool(toolName: BrowserToolName, params: Record<string, unknow
     return NAVIGATION_TOOL_TIMEOUT_MS
   }
   if (toolName === 'browser_wait_for') {
-    const requested = typeof params.timeoutMs === 'number' ? params.timeoutMs : 10_000
+    const raw = Number(params.timeoutMs)
+    const requested =
+      Number.isFinite(raw) && raw > 0
+        ? Math.min(raw, MAX_WAIT_FOR_TIMEOUT_MS)
+        : DEFAULT_WAIT_FOR_TIMEOUT_MS
     return requested + WAIT_FOR_TIMEOUT_GRACE_MS
   }
   return DEFAULT_TOOL_TIMEOUT_MS

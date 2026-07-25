@@ -666,7 +666,6 @@ export class WorkspaceVFS {
               customBlocksSummary,
               mcpServersSummary,
               skillsSummary,
-              taskSummary,
               jobsSummary,
               wsRow,
               members,
@@ -680,10 +679,13 @@ export class WorkspaceVFS {
               timed('custom_blocks', this.materializeCustomBlocks(workspaceId)),
               timed('mcp_servers', this.materializeMcpServers(workspaceId)),
               timed('skills', this.materializeSkills(workspaceId)),
-              timed('tasks', this.materializeTasks(workspaceId, userId)),
               timed('jobs', this.materializeJobs(workspaceId)),
               timed('workspace_row', getWorkspaceWithOwner(workspaceId)),
               timed('members', getUsersWithPermissions(workspaceId)),
+              // Writes tasks/ files only — WORKSPACE.md has no Tasks section
+              // (recent chats reorder every turn and would bust the cached
+              // prompt prefix), so nothing is destructured from this one.
+              timed('tasks', this.materializeTasks(workspaceId, userId)),
             ])
 
             const workspaceMdData = {
@@ -695,7 +697,6 @@ export class WorkspaceVFS {
               files: fileSummary,
               oauthIntegrations: envSummary.oauthIntegrations,
               envVariables: envSummary.envVariables,
-              tasks: taskSummary,
               customTools: toolsSummary,
               customBlocks: customBlocksSummary,
               mcpServers: mcpServersSummary,
@@ -1969,13 +1970,11 @@ export class WorkspaceVFS {
   }
 
   /**
-   * Materialize mothership task chats as browsable conversation files.
-   * Returns a summary for WORKSPACE.md generation.
+   * Materialize mothership task chats as browsable conversation files under
+   * `tasks/{title}/`. Nothing is returned: the inventory deliberately has no
+   * Tasks section, so these files are reached through glob/read only.
    */
-  private async materializeTasks(
-    workspaceId: string,
-    userId: string
-  ): Promise<WorkspaceMdData['tasks']> {
+  private async materializeTasks(workspaceId: string, userId: string): Promise<void> {
     try {
       const taskRows = await db
         .select({
@@ -2044,18 +2043,11 @@ export class WorkspaceVFS {
           this.files.set(`${prefix}chat.json`, serializeTaskChat(messages))
         }
       }
-
-      return taskRows.map((t) => ({
-        id: t.id,
-        title: t.title || 'Untitled task',
-        updatedAt: t.updatedAt,
-      }))
     } catch (err) {
       logger.warn('Failed to materialize tasks', {
         workspaceId,
         error: toError(err).message,
       })
-      return []
     }
   }
 

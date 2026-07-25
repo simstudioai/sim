@@ -331,6 +331,28 @@ export function parseLastQuestionTag(content: string): QuestionTagData | null {
   return parseQuestionTagBody(last.slice('<question>'.length, -'</question>'.length))
 }
 
+/**
+ * Recovers the question text from a `<question>` body that failed validation.
+ * A well-formed tag with an invalid body renders as nothing, which silently
+ * drops the question the assistant was blocking on and leaves the message
+ * looking truncated. The prompts are still answerable in the chat input, so
+ * surfacing them as plain text degrades to a prose question instead of losing
+ * it. A body that is not even parseable JSON has nothing to recover.
+ */
+function recoverQuestionPrompts(body: string): string | null {
+  try {
+    const parsed = JSON.parse(body) as unknown
+    const items = Array.isArray(parsed) ? parsed : [parsed]
+    const prompts = items
+      .filter(isRecord)
+      .map((item) => (typeof item.prompt === 'string' ? item.prompt.trim() : ''))
+      .filter((prompt) => prompt.length > 0)
+    return prompts.length > 0 ? prompts.join('\n\n') : null
+  } catch {
+    return null
+  }
+}
+
 export function parseQuestionTagBody(body: string): QuestionTagData | null {
   try {
     const parsed = JSON.parse(body) as unknown
@@ -390,6 +412,7 @@ function parseSpecialTagData(
   tagName: (typeof SPECIAL_TAG_NAMES)[number],
   body: string
 ):
+  | { type: 'text'; content: string }
   | { type: 'thinking'; content: string }
   | { type: 'options'; data: OptionsTagData }
   | { type: 'usage_upgrade'; data: UsageUpgradeTagData }
@@ -430,7 +453,9 @@ function parseSpecialTagData(
 
   if (tagName === 'question') {
     const data = parseQuestionTagBody(body)
-    return data ? { type: 'question', data } : null
+    if (data) return { type: 'question', data }
+    const recovered = recoverQuestionPrompts(body)
+    return recovered ? { type: 'text', content: recovered } : null
   }
 
   return null

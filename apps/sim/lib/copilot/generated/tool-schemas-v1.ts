@@ -82,7 +82,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         instruction: {
           type: 'string',
-          description: 'What to extract, in plain language.',
+          description:
+            'What you intend to extract, in plain language. Echoed back unchanged; it does not filter or shape the returned text.',
         },
       },
       required: ['instruction'],
@@ -137,7 +138,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         url: {
           type: 'string',
           description:
-            'The absolute URL to navigate to, including scheme (https:// or http:// — localhost/local dev URLs are supported).',
+            'The absolute URL to navigate to, including scheme (https:// or http://). Must resolve to a public address — localhost and private/internal hosts are rejected.',
         },
       },
       required: ['url'],
@@ -176,7 +177,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         key: {
           type: 'string',
-          description: "Key or combination, e.g. 'Enter', 'Backspace', or 'Cmd+A'.",
+          description:
+            "Key or combination. Named keys (case-insensitive): Enter, Escape (Esc), Tab, Backspace, Delete, Space, ArrowUp/ArrowDown/ArrowLeft/ArrowRight (or Up/Down/Left/Right), Home, End, PageUp, PageDown. Any single character also works ('a', '5', '/'). Anything else — 'F5', 'Return', 'Insert' — is rejected. Join modifiers with '+': Control (Ctrl), Cmd (Command, Meta), Shift, Alt (Option), e.g. 'Cmd+A' or 'Control+Shift+K'. On macOS, Control maps to Cmd for the editing shortcuts A, C, X, V, and Z only, so 'Control+A' selects all on every platform.",
         },
       },
       required: ['key'],
@@ -229,7 +231,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         amount: {
           type: 'number',
-          description: 'Optional distance to scroll in pixels (default one viewport).',
+          description:
+            'Optional distance to scroll in pixels (default: 85% of the viewport height, so a little context carries over).',
         },
         direction: {
           type: 'string',
@@ -292,7 +295,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         text: {
           type: 'string',
-          description: "The text to type. Replaces the element's current content.",
+          description:
+            "The text to type. Replaces the element's current content. Must be non-empty — an empty string is rejected as a missing parameter; to clear a field, press Cmd+A then Backspace with browser_press_key.",
         },
       },
       required: ['elementId', 'text'],
@@ -309,7 +313,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         timeoutMs: {
           type: 'number',
-          description: 'Maximum time to wait, in milliseconds (default 10000).',
+          description: 'Maximum time to wait, in milliseconds (default 10000, capped at 120000).',
         },
       },
     },
@@ -948,14 +952,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         name: {
           type: 'string',
           description:
-            'Display name for the block, max 60 characters. When republishing an existing block, pass the current name to keep it or a new name to rename.',
+            'Display name for the block, max 60 characters. REQUIRED the first time a workflow is published. When republishing an existing block, omit it to keep the current name or pass a new one to rename. Ignored for undeploy.',
         },
         workflowId: {
           type: 'string',
           description: 'Workflow ID (defaults to active workflow)',
         },
       },
-      required: ['name'],
     },
     resultSchema: {
       type: 'object',
@@ -1015,6 +1018,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
+        action: {
+          type: 'string',
+          description:
+            '"deploy" (default) adds/updates the workflow as an MCP tool on the server; "undeploy" removes the workflow\'s tool from the server.',
+          enum: ['deploy', 'undeploy'],
+        },
         parameterDescriptions: {
           type: 'array',
           description: 'Array of parameter descriptions for the tool',
@@ -1303,7 +1312,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description: 'True when a provider returned a non-empty result.',
         },
         provider: {
-          type: 'string',
+          type: ['string', 'null'],
           description:
             'Internal label of the provider that produced the result (billing/diagnostics only — do NOT surface it to the user), or null on no match.',
         },
@@ -1642,7 +1651,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         timeout: {
           type: 'number',
           description:
-            'Maximum execution time in seconds. The sandbox stops execution and returns a timeout error after this duration. Defaults to 10 seconds; the platform execution limit still applies.',
+            'Maximum execution time in SECONDS (Sim converts to milliseconds). The sandbox stops execution and returns a timeout error after this duration. Defaults to 10 seconds and is capped at 300 seconds regardless of plan.',
           default: 10,
         },
         title: {
@@ -2296,7 +2305,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         toolTitle: {
           type: 'string',
           description:
-            'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "workflow configs" or "knowledge bases", not a full sentence like "Finding workflow configs".',
+            'Required target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "workflow configs" or "knowledge bases", not a full sentence like "Finding workflow configs".',
         },
       },
       required: ['pattern', 'toolTitle'],
@@ -2310,7 +2319,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         context: {
           type: 'number',
           description:
-            "Number of lines to show before and after each match. Only applies to output_mode 'content'.",
+            "Number of lines to show before and after each match (default 0). Only applies to output_mode 'content'.",
         },
         ignoreCase: {
           type: 'boolean',
@@ -2344,7 +2353,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         toolTitle: {
           type: 'string',
           description:
-            'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "Slack integrations" or "deployed workflows", not a full sentence like "Searching for Slack integrations".',
+            'Required target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "Slack integrations" or "deployed workflows", not a full sentence like "Searching for Slack integrations".',
         },
       },
       required: ['pattern', 'toolTitle'],
@@ -2542,8 +2551,9 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       type: 'object',
       properties: {
         data: {
-          type: 'object',
-          description: 'Operation-specific result payload.',
+          type: ['object', 'array'],
+          description:
+            'Operation-specific result payload. An object for most operations; list_tags and get_tag_usage return an array of tag definitions.',
         },
         message: {
           type: 'string',
@@ -2838,7 +2848,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             cron: {
               type: 'string',
               description:
-                "Cron expression for a recurring scheduled task (e.g. '0 9 * * *'). Set exactly one of cron or time: recurring -> cron; one-time -> time.",
+                "Cron expression for a recurring scheduled task (e.g. '0 9 * * *'). Provide cron, time, or both — with both, time anchors the recurring task's first fire.",
             },
             jobId: {
               type: 'string',
@@ -3747,7 +3757,9 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         topK: {
           type: 'number',
-          description: 'Number of results (max 10)',
+          description:
+            'Number of results to return (default 10). Not clamped — keep it small, since each result is a full doc chunk.',
+          default: 10,
         },
       },
       required: ['query'],
@@ -3813,8 +3825,9 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       type: 'object',
       properties: {
         data: {
-          type: 'object',
-          description: 'Operation-specific result payload.',
+          type: ['object', 'array'],
+          description:
+            'Operation-specific result payload. An object for search results; list_tags returns an array of tag definitions.',
         },
         message: {
           type: 'string',
@@ -3842,7 +3855,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         version: {
           type: 'string',
-          description: "Specific version (optional, e.g., '14', 'v2')",
+          description:
+            "Specific version, numeric only and WITHOUT a leading 'v' (e.g. '14', '2', '2.1') — the 'v' is added for you, so 'v2' resolves to nothing.",
         },
       },
       required: ['library_name', 'query'],
@@ -3895,7 +3909,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         limit: {
           type: 'integer',
-          description: 'Maximum number of unique pattern examples to return (defaults to 3).',
+          description: 'Maximum number of pattern examples to return per query (defaults to 3).',
         },
         queries: {
           type: 'array',
@@ -3987,12 +4001,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               },
               type: {
                 type: 'string',
-                description: 'Variable type. Required for add/edit; ignored for delete.',
+                description:
+                  'Variable type for add/edit. Defaults to the variable\'s existing type, or "plain" for a new one. Ignored for delete.',
                 enum: ['plain', 'number', 'boolean', 'array', 'object'],
               },
               value: {
                 type: 'string',
-                description: 'Variable value. Required for add/edit; ignored for delete.',
+                description:
+                  'Variable value for add/edit, coerced to the declared type. Omitting it leaves the variable with no value. Ignored for delete.',
               },
             },
             required: ['operation', 'name'],
@@ -4144,6 +4160,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 },
               },
             },
+            deploymentMode: {
+              type: 'string',
+              description:
+                "Which version of the backing workflow this group's per-row runs execute, for add_workflow_group and update_workflow_group. 'live' (default) runs the editable draft, so later edits take effect immediately. 'deployed' runs the workflow's latest active deployment, pinning rows to a published version — if that workflow has never been deployed the cell fails rather than falling back to the draft. Only meaningful for workflow groups; enrichment groups have no backing workflow.",
+              enum: ['live', 'deployed'],
+            },
             description: {
               type: 'string',
               description: "Table description (optional for 'create')",
@@ -4271,13 +4293,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             outputFormat: {
               type: 'string',
               description:
-                'Explicit format override for outputPath. Usually unnecessary — the file extension determines the format automatically. Only use this to force a different format than what the extension implies.',
+                'Explicit format override for outputPath. Only "csv" changes the file\'s CONTENT (rows serialized as a CSV table); "json", "txt", "md" and "html" all write the same pretty-printed JSON and change only the stored MIME type. Usually unnecessary — the extension already selects the format.',
               enum: ['json', 'csv', 'txt', 'md', 'html'],
             },
             outputPath: {
               type: 'string',
               description:
-                'Pipe query_rows results directly to a NEW workspace file. The format is auto-inferred from the file extension: .csv → CSV, .json → JSON, .md → Markdown, etc. Use a root output path like "files/export.csv" — nested output paths are not supported.',
+                'Write this call\'s result to a NEW workspace file instead of returning it. Applies to EVERY user_table operation, not just query_rows: on success the tool result is REPLACED by a file receipt (fileId, vfsPath, size), so the operation\'s own payload is no longer visible to you — set it only when the file IS the goal. Only ".csv" changes serialization (query_rows rows become a CSV table); ".json", ".txt", ".md" and ".html" all write pretty-printed JSON of the full { success, message, data } envelope and differ only in stored MIME type. Nested paths like "files/Reports/export.csv" work — missing parent folders are created automatically, and an existing path fails.',
             },
             outputs: {
               type: 'array',
@@ -4316,14 +4338,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'integer',
               description:
                 'Zero-based index at which to insert the row (optional, insert_row only). Rows at and below that index shift down. Omit to append at the end.',
-            },
-            positions: {
-              type: 'array',
-              description:
-                'Per-row insertion indices for batch_insert_rows (optional). Must be the same length as rows and contain no duplicates. Values are final positions in the resulting table — lower-index shifts are applied automatically. Omit to append all rows at the end.',
-              items: {
-                type: 'integer',
-              },
             },
             rowId: {
               type: 'string',
