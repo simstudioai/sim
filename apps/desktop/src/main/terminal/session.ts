@@ -47,6 +47,18 @@ const FLUSH_INTERVAL_MS = 8
  */
 const PAUSE_HIGH_WATER_CHARS = 512 * 1024
 
+/**
+ * How far a retained buffer may overshoot its limit before being trimmed.
+ *
+ * Trimming to the exact limit means copying the entire buffer on every chunk
+ * once it is full — a quarter of a megabyte per chunk, hundreds of times a
+ * second under heavy output, on the process that also feeds the renderer.
+ * That copying is what makes the panel stutter while something is printing.
+ * Letting the buffer overshoot and trimming in one go amortizes it to a single
+ * copy per slack-sized batch.
+ */
+const TRIM_SLACK_CHARS = 64_000
+
 /** Control keys mapped to the bytes a terminal actually sends. */
 const CONTROL_KEY_BYTES: Record<TerminalControlKey, string> = {
   'ctrl-c': '\u0003',
@@ -534,7 +546,7 @@ export class TerminalSession {
       this.trackAltScreen(text)
       this.emulator.write(text)
       this.scrollback += text
-      if (this.scrollback.length > MAX_SCROLLBACK_CHARS) {
+      if (this.scrollback.length > MAX_SCROLLBACK_CHARS + TRIM_SLACK_CHARS) {
         this.scrollback = this.scrollback.slice(-MAX_SCROLLBACK_CHARS)
       }
       if (this.pendingCommand?.capturing) {
@@ -614,7 +626,10 @@ export class TerminalSession {
       pending.output += text
       return
     }
-    pending.overflow = (pending.overflow + text).slice(-MAX_CAPTURE_CHARS)
+    pending.overflow += text
+    if (pending.overflow.length > MAX_CAPTURE_CHARS + TRIM_SLACK_CHARS) {
+      pending.overflow = pending.overflow.slice(-MAX_CAPTURE_CHARS)
+    }
   }
 
   /**

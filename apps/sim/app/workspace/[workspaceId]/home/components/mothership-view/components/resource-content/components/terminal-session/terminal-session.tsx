@@ -79,6 +79,30 @@ const DARK_THEME = {
 }
 
 /**
+ * Loads the WebGL renderer and drops it if its context dies.
+ *
+ * WebGL is a large win on heavy output, but the context can be lost long after
+ * it loads: a GPU process restart, a driver hiccup, the window moving between
+ * GPUs, or simply too many live contexts — each terminal tab holds its own and
+ * the browser silently drops the oldest past its limit. An addon left loaded
+ * after that keeps painting a dead surface while the buffer moves on, which is
+ * what makes rows freeze or tear mid-scroll. Disposing falls back to xterm's
+ * DOM renderer: slower, but it cannot go stale.
+ *
+ * There is no canvas tier because `@xterm/addon-canvas` has no release for
+ * xterm 6 — every published version, latest beta included, peers on xterm 5.
+ */
+function attachWebglRenderer(terminal: Terminal): void {
+  try {
+    const webgl = new WebglAddon()
+    webgl.onContextLoss(() => webgl.dispose())
+    terminal.loadAddon(webgl)
+  } catch {
+    // No usable WebGL on this machine; the DOM renderer stays in place.
+  }
+}
+
+/**
  * One terminal's xterm instance.
  *
  * Every open terminal stays mounted, including the ones behind other tabs, so
@@ -116,13 +140,7 @@ function TerminalView({ terminalId, active }: { terminalId: string; active: bool
     terminal.unicode.activeVersion = '11'
 
     terminal.open(host)
-    // WebGL is a big win on heavy output but is unavailable in some GPU
-    // configurations; the DOM renderer is a correct, slower fallback.
-    try {
-      terminal.loadAddon(new WebglAddon())
-    } catch {
-      // Canvas/DOM renderer remains in place.
-    }
+    attachWebglRenderer(terminal)
 
     terminalRef.current = terminal
     fitRef.current = fit
@@ -151,9 +169,8 @@ function TerminalView({ terminalId, active }: { terminalId: string; active: bool
     // widths — which is the flickering, scrolling, newline-spewing mess. Only
     // the size the drag settles on is worth telling the PTY about.
     //
-    // Hidden tabs are skipped because `invisible` keeps layout: without this
-    // every background terminal would repaint through the same sequence, for a
-    // resize nobody is watching. They refit when activated.
+    // Hidden tabs are skipped because they measure 0x0, and fitting that would
+    // resize their PTY to nonsense. They refit on activation.
     let resizeTimer: ReturnType<typeof setTimeout> | null = null
     const observer = new ResizeObserver(() => {
       if (resizeTimer) clearTimeout(resizeTimer)
@@ -205,7 +222,13 @@ function TerminalView({ terminalId, active }: { terminalId: string; active: bool
     return () => cancelAnimationFrame(frame)
   }, [active])
 
-  return <div ref={hostRef} className={cn('absolute inset-0 px-2 py-1', !active && 'invisible')} />
+  // An inactive tab is `display: none`, not merely invisible. xterm watches its
+  // element with an IntersectionObserver and pauses rendering once it stops
+  // intersecting — which `visibility: hidden` never does, since it still
+  // occupies its box. Left that way, every background terminal keeps painting
+  // output nobody is looking at, out of the active terminal's frame budget.
+  // xterm re-measures and does a full refresh when the element comes back.
+  return <div ref={hostRef} className={cn('absolute inset-0 px-2 py-1', !active && 'hidden')} />
 }
 
 /**
