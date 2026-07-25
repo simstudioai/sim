@@ -19,23 +19,35 @@ export const FINALIZE_TIMEOUT_MS = 10 * 60 * 1000
 export const MAX_DIFF_BYTES = 200_000
 export const PUSH_ERROR_MAX = 1000
 
-/** Floor for {@link PI_TIMEOUT_MS}, so a very short configured lifetime still leaves a usable turn. */
+/**
+ * Floor for {@link PI_TIMEOUT_MS}. Only reachable by configuring a sandbox
+ * lifetime too short to hold the commands around the turn, in which case the run
+ * was going to be reaped either way; the floor keeps the turn non-zero rather
+ * than making it useful.
+ */
 const MIN_PI_TIMEOUT_MS = 60 * 1000
 
 /**
  * How long one Pi CLI invocation may run. The platform's max execution timeout
- * is longer than the sandbox lives, so without this a hung CLI would sit there
- * until E2B reaped the sandbox and surface as an opaque SDK error.
+ * outlives the sandbox, so without this a hung CLI would sit there until E2B
+ * reaped the sandbox and surface as an opaque SDK error.
  *
- * The reserve matters as much as the cap: the sandbox clock starts at create,
- * and the clone runs before the agent while the commit and push run after it.
- * Capping at the bare lifetime would mean the sandbox always died first, taking
- * the agent's finished work with it unpushed. Reserving both surrounding command
- * budgets leaves the host time to finalize whatever the agent produced.
+ * The reserve matters as much as the cap. The sandbox clock starts at create,
+ * and three commands bracket the agent turn: the clone before it, then the
+ * commit and the push after it, the last two sharing
+ * {@link FINALIZE_TIMEOUT_MS}. Capping at the bare lifetime would mean the
+ * sandbox always died first, taking the agent's finished work with it unpushed.
+ *
+ * What is reserved is each command's timeout ceiling, not its measured elapsed
+ * time — a clone takes seconds in practice — so this is a budget that adds up,
+ * not a guarantee that the sandbox outlives the run.
  */
 export const PI_TIMEOUT_MS = Math.min(
   getMaxExecutionTimeout(),
-  Math.max(resolvePiSandboxLifetimeMs() - CLONE_TIMEOUT_MS - FINALIZE_TIMEOUT_MS, MIN_PI_TIMEOUT_MS)
+  Math.max(
+    resolvePiSandboxLifetimeMs() - CLONE_TIMEOUT_MS - 2 * FINALIZE_TIMEOUT_MS,
+    MIN_PI_TIMEOUT_MS
+  )
 )
 
 /**
@@ -43,9 +55,10 @@ export const PI_TIMEOUT_MS = Math.min(
  * emits it as its *last* line, after any `git remote set-url` rewrite — a digest
  * taken before that rewrite mismatches at push time and every push fails.
  *
- * Every mode that clones in order to push emits it; only Babysit re-verifies it
- * before pushing, because verification is not a pure tightening: a run that
- * legitimately writes repo-local config would fail its push.
+ * Every mode that clones in order to push emits it. No mode verifies it yet;
+ * Babysit will, and deliberately alone, because verification is not a pure
+ * tightening — a run that legitimately writes repo-local config would fail its
+ * push.
  */
 export const GIT_CONFIG_DIGEST_MARKER = '__GIT_CONFIG_DIGEST__='
 
@@ -84,8 +97,8 @@ if git diff --quiet "$BASE_SHA" HEAD; then echo "__NO_CHANGES__=1"; else echo "_
  * could send the token's userinfo to another host. Repository-local config —
  * the scope a root agent inside the checkout can actually write — still
  * rewrites the push URL, and stays open until a mode compares the
- * {@link GIT_CONFIG_DIGEST_MARKER} digest before pushing. Babysit does; Create
- * PR does not, and inherits the pre-existing exposure it always had.
+ * {@link GIT_CONFIG_DIGEST_MARKER} digest before pushing. No mode does yet;
+ * Babysit will, and Create PR will not, keeping the exposure it always had.
  *
  * Git is invoked by absolute path so a shim planted earlier on `$PATH` is not
  * what runs. Both sandbox images apt-install git on Debian (see
