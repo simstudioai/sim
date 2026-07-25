@@ -53,18 +53,45 @@ const AUTHORING_MODES: { field: 'mode'; value: Array<'cloud' | 'local'> } = {
 }
 const MEMORY_TYPES = ['conversation', 'sliding_window', 'sliding_window_tokens']
 
+const SEARCH_PROVIDER_OPTIONS = [
+  { label: 'None', id: 'none' },
+  { label: 'Exa', id: 'exa' },
+  { label: 'Serper', id: 'serper' },
+  { label: 'Parallel AI', id: 'parallel' },
+  { label: 'Firecrawl', id: 'firecrawl' },
+]
+
+/**
+ * Mirrors `getApiKeyCondition()` for the model key: the search key's visibility is computed rather
+ * than declarative. The never-matching sentinel is how `buildModelVisibilityCondition` hides the
+ * model key when nothing is selected, and it is what keeps the field hidden on a block saved before
+ * this field existed — such a block has no stored `searchProvider`, and the declarative negative
+ * form would show the field, because a scalar `not` condition evaluates `undefined !== 'none'` as
+ * true.
+ */
+function getSearchApiKeyCondition() {
+  return (values?: Record<string, unknown>) => {
+    const provider = typeof values?.searchProvider === 'string' ? values.searchProvider : ''
+    if (!provider || provider === 'none') {
+      return { field: 'searchProvider', value: '__no_search_provider__' }
+    }
+    return { field: 'searchProvider', value: provider }
+  }
+}
+
 export const PiBlock: BlockConfig<PiResponse> = {
   type: 'pi',
   name: 'Pi Coding Agent',
   description: 'Run an autonomous coding agent on a repo',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'The Pi Coding Agent runs the Pi harness against a real repository. Create PR spins up an isolated sandbox, clones a GitHub repo, edits with native shell + git, and opens a pull request. Review Code checks out a pinned PR snapshot with read-only tools and posts a structured review with optional inline comments. Local Dev edits files on your own machine over SSH. Create PR and Local Dev can reuse skills and multi-turn memory; Review Code runs without either because PR contents are untrusted.',
+    'The Pi Coding Agent runs the Pi harness against a real repository. Create PR spins up an isolated sandbox, clones a GitHub repo, edits with native shell + git, and opens a pull request. Review Code checks out a pinned PR snapshot with read-only tools and posts a structured review with optional inline comments. Local Dev edits files on your own machine over SSH. Create PR and Local Dev can reuse skills and multi-turn memory; Review Code runs without either because PR contents are untrusted. Any mode can optionally get one web_search tool backed by your own Exa, Serper, Parallel AI, or Firecrawl key; the agent writes its own queries, so repository content may reach the provider, and results are untrusted third-party data.',
   bestPractices: `
   - Use Create PR for hands-off changes against a GitHub repo where a reviewable PR is the deliverable.
   - Use Review Code to analyze an existing PR and leave summary + inline review comments.
   - Use Local Dev to edit a repo on your own machine; expose the machine on a public hostname/tunnel so Sim can reach it over SSH.
   - Create PR requires your own provider API key because the model runs in the sandbox. Review Code keeps the model key in Sim and can use either BYOK or a hosted key.
+  - Internet Search is off by default and always needs your own key for the selected provider, from the block field or Settings > BYOK. Leave it on None unless the task genuinely needs external information.
   `,
   category: 'blocks',
   integrationType: IntegrationType.AI,
@@ -121,6 +148,29 @@ export const PiBlock: BlockConfig<PiResponse> = {
     },
 
     ...getProviderCredentialSubBlocks(),
+
+    {
+      id: 'searchProvider',
+      title: 'Internet Search',
+      type: 'dropdown',
+      defaultValue: 'none',
+      options: SEARCH_PROVIDER_OPTIONS,
+      tooltip:
+        'Gives the agent a single web_search tool backed by the selected provider. Search always uses your own key for that provider, never a Sim-hosted one, because Create PR places the key inside the coding sandbox.',
+    },
+    {
+      id: 'searchApiKey',
+      title: 'Search API Key',
+      type: 'short-input',
+      password: true,
+      paramVisibility: 'user-only',
+      connectionDroppable: false,
+      placeholder: 'Falls back to the key stored in Settings > BYOK',
+      tooltip:
+        'Key for the selected search provider. Switching providers clears this field, so re-enter the key for the provider you picked.',
+      condition: getSearchApiKeyCondition(),
+      dependsOn: ['searchProvider'],
+    },
 
     {
       id: 'owner',
@@ -434,6 +484,11 @@ export const PiBlock: BlockConfig<PiResponse> = {
     conversationId: { type: 'string', description: 'Conversation ID for memory' },
     slidingWindowSize: { type: 'string', description: 'Number of messages for sliding window' },
     slidingWindowTokens: { type: 'string', description: 'Max tokens for token-based window' },
+    searchProvider: {
+      type: 'string',
+      description: 'Web search provider for the agent: none, exa, serper, parallel, or firecrawl',
+    },
+    searchApiKey: { type: 'string', description: 'API key for the selected search provider' },
     ...PROVIDER_CREDENTIAL_INPUTS,
   },
   outputs: {

@@ -22,7 +22,13 @@ vi.mock('@/providers/utils', () => ({
   shouldBillModelUsage: mockShouldBill,
 }))
 
-import { computePiCost, providerApiKeyEnvVar, resolvePiModelKey } from '@/executor/handlers/pi/keys'
+import {
+  computePiCost,
+  parsePiSearchProvider,
+  providerApiKeyEnvVar,
+  resolvePiModelKey,
+  resolvePiSearchKey,
+} from '@/executor/handlers/pi/keys'
 
 beforeAll(() => {
   envFlagsMockFns.getCostMultiplier.mockReturnValue(2)
@@ -207,5 +213,85 @@ describe('resolvePiModelKey', () => {
       })
     ).resolves.toEqual({ apiKey: 'sk-hosted', isBYOK: false })
     expect(mockGetApiKeyWithBYOK).toHaveBeenCalledWith('anthropic', 'claude', 'ws-1', undefined)
+  })
+})
+
+describe('parsePiSearchProvider', () => {
+  it('treats an absent value as none so blocks saved before the field keep running', () => {
+    expect(parsePiSearchProvider(undefined)).toBe('none')
+    expect(parsePiSearchProvider(null)).toBe('none')
+    expect(parsePiSearchProvider('')).toBe('none')
+    expect(parsePiSearchProvider('   ')).toBe('none')
+    expect(parsePiSearchProvider('none')).toBe('none')
+  })
+
+  it('accepts every offered provider', () => {
+    expect(parsePiSearchProvider('exa')).toBe('exa')
+    expect(parsePiSearchProvider('serper')).toBe('serper')
+    expect(parsePiSearchProvider('parallel')).toBe('parallel')
+    expect(parsePiSearchProvider('firecrawl')).toBe('firecrawl')
+    expect(parsePiSearchProvider(' exa ')).toBe('exa')
+  })
+
+  it('rejects an unrecognized value instead of silently disabling search', () => {
+    expect(() => parsePiSearchProvider('Exa')).toThrow(/Invalid Pi search provider/)
+    expect(() => parsePiSearchProvider('google')).toThrow(/Invalid Pi search provider/)
+    expect(() => parsePiSearchProvider('toString')).toThrow(/Invalid Pi search provider/)
+  })
+})
+
+describe('resolvePiSearchKey', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('prefers the block field and reports its source', async () => {
+    await expect(
+      resolvePiSearchKey({ provider: 'exa', workspaceId: 'ws-1', apiKey: 'exa-field' })
+    ).resolves.toEqual({ apiKey: 'exa-field', source: 'block' })
+    expect(mockGetBYOKKey).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the stored workspace key for the selected provider', async () => {
+    mockGetBYOKKey.mockResolvedValue({ apiKey: 'serper-stored', isBYOK: true })
+
+    await expect(resolvePiSearchKey({ provider: 'serper', workspaceId: 'ws-1' })).resolves.toEqual({
+      apiKey: 'serper-stored',
+      source: 'byok',
+    })
+    expect(mockGetBYOKKey).toHaveBeenCalledWith('ws-1', 'serper')
+  })
+
+  it('maps Parallel to its BYOK provider id', async () => {
+    mockGetBYOKKey.mockResolvedValue({ apiKey: 'parallel-stored', isBYOK: true })
+
+    await resolvePiSearchKey({ provider: 'parallel', workspaceId: 'ws-1' })
+    expect(mockGetBYOKKey).toHaveBeenCalledWith('ws-1', 'parallel_ai')
+  })
+
+  it('treats a whitespace-only key as absent, so no hosted key can be injected later', async () => {
+    mockGetBYOKKey.mockResolvedValue({ apiKey: '  firecrawl-stored  ', isBYOK: true })
+
+    await expect(
+      resolvePiSearchKey({ provider: 'firecrawl', workspaceId: 'ws-1', apiKey: '   ' })
+    ).resolves.toEqual({ apiKey: 'firecrawl-stored', source: 'byok' })
+    expect(mockGetBYOKKey).toHaveBeenCalledWith('ws-1', 'firecrawl')
+  })
+
+  it('never falls back to a Sim-hosted key', async () => {
+    mockGetBYOKKey.mockResolvedValue(null)
+
+    await expect(resolvePiSearchKey({ provider: 'exa', workspaceId: 'ws-1' })).rejects.toThrow(
+      /Exa search requires your own Exa API key/
+    )
+    expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
+  })
+
+  it('reports a blank stored key as missing rather than passing it on', async () => {
+    mockGetBYOKKey.mockResolvedValue({ apiKey: '   ', isBYOK: true })
+
+    await expect(resolvePiSearchKey({ provider: 'serper', workspaceId: 'ws-1' })).rejects.toThrow(
+      /Serper search requires your own Serper API key/
+    )
   })
 })

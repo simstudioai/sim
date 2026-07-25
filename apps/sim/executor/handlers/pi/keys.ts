@@ -6,6 +6,9 @@
  * block's API Key field, or a stored workspace BYOK key) because that mode runs
  * the model client in an untrusted sandbox. Cost uses the billing multiplier and
  * is zeroed for BYOK / non-billable models.
+ *
+ * Optional web search is keyed separately and more strictly: the block field or a
+ * stored workspace key, never a Sim-hosted one, in every mode.
  */
 
 import type { CreateAgentSessionOptions } from '@earendil-works/pi-coding-agent'
@@ -17,6 +20,7 @@ import {
   getPiWorkspaceBYOKProviderId,
   isPiSupportedProvider,
 } from '@/providers/pi-providers'
+import type { BYOKProviderId } from '@/tools/types'
 
 /** Resolved provider key and BYOK flag for a Pi run. */
 interface PiKeyResolution {
@@ -64,6 +68,77 @@ export async function resolvePiModelKey(params: ResolvePiModelKeyParams): Promis
     undefined
   )
   return { apiKey, isBYOK }
+}
+
+interface PiSearchProviderConfig {
+  /** User-facing name, used in setup errors and the review prompt. */
+  label: string
+  byokProviderId: BYOKProviderId
+  /** Sim tool the host-side adapter executes; also the id checked against workspace tool denylists. */
+  toolId: string
+}
+
+/** The search providers the Pi block offers, keyed by the `searchProvider` field value. */
+export const PI_SEARCH_PROVIDERS = {
+  exa: { label: 'Exa', byokProviderId: 'exa', toolId: 'exa_search' },
+  serper: { label: 'Serper', byokProviderId: 'serper', toolId: 'serper_search' },
+  parallel: { label: 'Parallel AI', byokProviderId: 'parallel_ai', toolId: 'parallel_search' },
+  firecrawl: { label: 'Firecrawl', byokProviderId: 'firecrawl', toolId: 'firecrawl_search' },
+} as const satisfies Record<string, PiSearchProviderConfig>
+
+export type PiSearchProvider = keyof typeof PI_SEARCH_PROVIDERS
+
+/** Where a resolved search key came from, carried into logs to diagnose a stale block field. */
+export type PiSearchKeySource = 'block' | 'byok'
+
+export interface PiSearchKeyResolution {
+  apiKey: string
+  source: PiSearchKeySource
+}
+
+/**
+ * Resolves the `searchProvider` field, distinguishing absent from invalid.
+ *
+ * Absent must mean `'none'`: the serializer never injects a subBlock `defaultValue`, so every Pi
+ * block saved before this field existed arrives without it, and treating that as "search on" would
+ * fail those runs. An unrecognized non-empty value throws instead of silently disabling search, so
+ * a renamed or mis-cased provider id is not a run where the agent quietly never searches.
+ */
+export function parsePiSearchProvider(value: unknown): PiSearchProvider | 'none' {
+  if (value === undefined || value === null) return 'none'
+  const raw = typeof value === 'string' ? value.trim() : String(value)
+  if (!raw || raw === 'none') return 'none'
+  if (Object.hasOwn(PI_SEARCH_PROVIDERS, raw)) return raw as PiSearchProvider
+  throw new Error(
+    `Invalid Pi search provider: ${raw}. Use one of none, ${Object.keys(PI_SEARCH_PROVIDERS).join(', ')}.`
+  )
+}
+
+/**
+ * Resolves the search key: the block's Search API Key field, else a stored workspace BYOK key,
+ * else an error. Never a Sim-hosted key in any mode, because Create PR places this key inside the
+ * coding sandbox and one uniform rule beats a mode-dependent one.
+ *
+ * Both sources are trimmed and a blank treated as absent. `executeTool` only skips hosted-key
+ * injection for a key with `trim().length > 0`, so a whitespace-only value would otherwise fall
+ * through to a rotating Sim-owned key on hosted deployments.
+ */
+export async function resolvePiSearchKey(params: {
+  provider: PiSearchProvider
+  workspaceId?: string
+  apiKey?: string
+}): Promise<PiSearchKeyResolution> {
+  const { label, byokProviderId } = PI_SEARCH_PROVIDERS[params.provider]
+
+  const fieldKey = params.apiKey?.trim()
+  if (fieldKey) return { apiKey: fieldKey, source: 'block' }
+
+  const stored = (await getBYOKKey(params.workspaceId, byokProviderId))?.apiKey.trim()
+  if (stored) return { apiKey: stored, source: 'byok' }
+
+  throw new Error(
+    `${label} search requires your own ${label} API key. Enter it in the block's Search API Key field, or store one in Settings > BYOK.`
+  )
 }
 
 /** Run cost, zeroed for BYOK keys and models Sim does not bill. */

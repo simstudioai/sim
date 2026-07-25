@@ -14,6 +14,11 @@ const {
   mockResolvePiModelId,
   mockIsPiSupportedProvider,
   mockGetProviderFromModel,
+  mockParseSearchProvider,
+  mockResolveSearchKey,
+  mockBuildSearchTool,
+  mockAssertPermissionsAllowed,
+  MockToolNotAllowedError,
 } = vi.hoisted(() => ({
   mockRunLocal: vi.fn(),
   mockRunCloud: vi.fn(),
@@ -25,11 +30,29 @@ const {
   mockResolvePiModelId: vi.fn(),
   mockIsPiSupportedProvider: vi.fn(),
   mockGetProviderFromModel: vi.fn(),
+  mockParseSearchProvider: vi.fn(),
+  mockResolveSearchKey: vi.fn(),
+  mockBuildSearchTool: vi.fn(),
+  mockAssertPermissionsAllowed: vi.fn(),
+  MockToolNotAllowedError: class ToolNotAllowedError extends Error {},
 }))
 
 vi.mock('@/executor/handlers/pi/keys', () => ({
   resolvePiModelKey: mockResolveKey,
   computePiCost: () => ({ input: 0, output: 0, total: 0 }),
+  parsePiSearchProvider: mockParseSearchProvider,
+  resolvePiSearchKey: mockResolveSearchKey,
+  PI_SEARCH_PROVIDERS: {
+    exa: { label: 'Exa', byokProviderId: 'exa', toolId: 'exa_search' },
+    serper: { label: 'Serper', byokProviderId: 'serper', toolId: 'serper_search' },
+  },
+}))
+vi.mock('@/executor/handlers/pi/search/tool', () => ({
+  buildPiSearchToolSpec: mockBuildSearchTool,
+}))
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  assertPermissionsAllowed: mockAssertPermissionsAllowed,
+  ToolNotAllowedError: MockToolNotAllowedError,
 }))
 vi.mock('@/executor/handlers/pi/context', () => ({
   resolvePiSkills: mockResolveSkills,
@@ -108,6 +131,10 @@ describe('PiBlockHandler', () => {
     mockIsPiSupportedProvider.mockReturnValue(true)
     mockResolvePiModelId.mockImplementation((_providerId: string, modelId: string) => modelId)
     mockResolveKey.mockResolvedValue({ apiKey: 'k', isBYOK: true })
+    mockParseSearchProvider.mockReturnValue('none')
+    mockResolveSearchKey.mockResolvedValue({ apiKey: 'search-key', source: 'byok' })
+    mockBuildSearchTool.mockReturnValue({ name: 'web_search' })
+    mockAssertPermissionsAllowed.mockResolvedValue(undefined)
     mockResolveSkills.mockResolvedValue([])
     mockLoadMemory.mockResolvedValue([])
     mockAppendMemory.mockResolvedValue(undefined)
@@ -262,6 +289,124 @@ describe('PiBlockHandler', () => {
       })
     ).rejects.toThrow(/COMMENT or REQUEST_CHANGES/)
     expect(mockRunCloudReview).not.toHaveBeenCalled()
+  })
+
+  describe('optional web search', () => {
+    it('leaves search out of the backend params when the provider is None', async () => {
+      await handler.execute(ctx(), block, localInputs())
+
+      expect(mockRunLocal.mock.calls[0][0]).not.toHaveProperty('search')
+      expect(mockAssertPermissionsAllowed).not.toHaveBeenCalled()
+      expect(mockResolveSearchKey).not.toHaveBeenCalled()
+      expect(mockBuildSearchTool).not.toHaveBeenCalled()
+    })
+
+    it('resolves the key and builds the host tool for Local Dev', async () => {
+      mockParseSearchProvider.mockReturnValue('exa')
+
+      await handler.execute(
+        ctx(),
+        block,
+        localInputs({ searchProvider: 'exa', searchApiKey: 'field-key' })
+      )
+
+      expect(mockResolveSearchKey).toHaveBeenCalledWith({
+        provider: 'exa',
+        workspaceId: 'ws',
+        apiKey: 'field-key',
+      })
+      expect(mockBuildSearchTool).toHaveBeenCalledWith(
+        expect.anything(),
+        { provider: 'exa', apiKey: 'search-key', keySource: 'byok' },
+        'local'
+      )
+      expect(mockRunLocal.mock.calls[0][0].search).toEqual({
+        provider: 'exa',
+        apiKey: 'search-key',
+        keySource: 'byok',
+        tool: { name: 'web_search' },
+      })
+    })
+
+    it('builds the host tool for Review Code too', async () => {
+      mockParseSearchProvider.mockReturnValue('serper')
+
+      await handler.execute(ctx(), block, {
+        mode: 'cloud_review',
+        task: 'review it',
+        model: 'claude',
+        owner: 'o',
+        repo: 'r',
+        githubToken: 'ghp',
+        pullNumber: '7',
+        searchProvider: 'serper',
+      })
+
+      expect(mockBuildSearchTool).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ provider: 'serper' }),
+        'cloud_review'
+      )
+      expect(mockRunCloudReview.mock.calls[0][0].search.tool).toEqual({ name: 'web_search' })
+    })
+
+    it('passes Create PR the key without a host tool, which the sandbox could never call', async () => {
+      mockParseSearchProvider.mockReturnValue('exa')
+
+      await handler.execute(ctx(), block, {
+        mode: 'cloud',
+        task: 'do it',
+        model: 'claude',
+        owner: 'o',
+        repo: 'r',
+        githubToken: 'ghp',
+        searchProvider: 'exa',
+      })
+
+      expect(mockBuildSearchTool).not.toHaveBeenCalled()
+      expect(mockRunCloud.mock.calls[0][0].search).toEqual({
+        provider: 'exa',
+        apiKey: 'search-key',
+        keySource: 'byok',
+      })
+    })
+
+    it('checks the tool denylist before touching the key', async () => {
+      mockParseSearchProvider.mockReturnValue('exa')
+      mockAssertPermissionsAllowed.mockRejectedValue(new MockToolNotAllowedError('denied'))
+
+      await expect(
+        handler.execute(ctx(), block, localInputs({ searchProvider: 'exa' }))
+      ).rejects.toThrow(/Exa search is not allowed based on your permission group settings/)
+
+      expect(mockAssertPermissionsAllowed).toHaveBeenCalledWith({
+        userId: 'user',
+        workspaceId: 'ws',
+        toolId: 'exa_search',
+        ctx: expect.anything(),
+      })
+      expect(mockResolveSearchKey).not.toHaveBeenCalled()
+      expect(mockRunLocal).not.toHaveBeenCalled()
+    })
+
+    it('fails the run before a sandbox is created when the key is missing', async () => {
+      mockParseSearchProvider.mockReturnValue('exa')
+      mockResolveSearchKey.mockRejectedValue(new Error('Exa search requires your own Exa API key.'))
+
+      await expect(
+        handler.execute(ctx(), block, {
+          mode: 'cloud',
+          task: 'do it',
+          model: 'claude',
+          owner: 'o',
+          repo: 'r',
+          githubToken: 'ghp',
+          searchProvider: 'exa',
+        })
+      ).rejects.toThrow(/requires your own Exa API key/)
+
+      expect(mockRunCloud).not.toHaveBeenCalled()
+    })
   })
 
   it('streams text when the block is selected for streaming output', async () => {

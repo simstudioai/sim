@@ -12,8 +12,20 @@ export const PROMPT_PATH = '/workspace/pi-prompt.txt'
 export const CLONE_TIMEOUT_MS = 10 * 60 * 1000
 export const PI_TIMEOUT_MS = getMaxExecutionTimeout()
 
-export const PI_SCRIPT = `cd ${REPO_DIR}
-pi -p --mode json --provider "$PI_PROVIDER" --model "$PI_MODEL" --thinking "$PI_THINKING" < ${PROMPT_PATH}`
+/**
+ * The Pi CLI invocation for Create PR. With no extension path it emits exactly what it always did.
+ *
+ * With one, `--no-extensions` drops any extension the cloned repository ships while leaving the
+ * explicit `-e` path loaded, so the loaded set is exactly Sim's own extension. That is deliberate —
+ * a repository must not be able to register tools into a run holding the workspace's keys — but it
+ * does mean enabling search also stops loading a repository's own Pi extensions, which is why the
+ * flag is not passed on the no-search path.
+ */
+export function buildPiScript(extensionPath?: string): string {
+  const extensionArgs = extensionPath ? ` --no-extensions -e ${extensionPath}` : ''
+  return `cd ${REPO_DIR}
+pi -p --mode json --provider "$PI_PROVIDER" --model "$PI_MODEL" --thinking "$PI_THINKING"${extensionArgs} < ${PROMPT_PATH}`
+}
 
 export function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return promise

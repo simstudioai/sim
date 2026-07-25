@@ -9,6 +9,10 @@
 import { createLogger } from '@sim/logger'
 import type { BlockOutput } from '@/blocks/types'
 import { parseOptionalNumberInput } from '@/blocks/utils'
+import {
+  assertPermissionsAllowed,
+  ToolNotAllowedError,
+} from '@/ee/access-control/utils/permission-check'
 import { BlockType } from '@/executor/constants'
 import type {
   PiBackendRun,
@@ -17,6 +21,7 @@ import type {
   PiLocalRunParams,
   PiRunParams,
   PiRunResult,
+  PiSearchConfig,
 } from '@/executor/handlers/pi/backend'
 import { runCloudPi } from '@/executor/handlers/pi/cloud-backend'
 import { runCloudReviewPi } from '@/executor/handlers/pi/cloud-review-backend'
@@ -27,8 +32,15 @@ import {
   resolvePiSkills,
 } from '@/executor/handlers/pi/context'
 import { streamTextForEvent } from '@/executor/handlers/pi/events'
-import { computePiCost, resolvePiModelKey } from '@/executor/handlers/pi/keys'
+import {
+  computePiCost,
+  PI_SEARCH_PROVIDERS,
+  parsePiSearchProvider,
+  resolvePiModelKey,
+  resolvePiSearchKey,
+} from '@/executor/handlers/pi/keys'
 import { runLocalPi } from '@/executor/handlers/pi/local-backend'
+import { buildPiSearchToolSpec } from '@/executor/handlers/pi/search/tool'
 import { buildSimToolSpecs } from '@/executor/handlers/pi/sim-tools'
 import type {
   BlockHandler,
@@ -97,6 +109,8 @@ export class PiBlockHandler implements BlockHandler {
       apiKey: asRawString(inputs.apiKey),
     })
 
+    const search = await this.resolveSearch(ctx, inputs, mode)
+
     const base = {
       model,
       piModel,
@@ -105,6 +119,7 @@ export class PiBlockHandler implements BlockHandler {
       isBYOK,
       task,
       thinkingLevel: asOptString(inputs.thinkingLevel),
+      ...(search ? { search } : {}),
     }
 
     if (mode === 'cloud_review') {
@@ -194,6 +209,57 @@ export class PiBlockHandler implements BlockHandler {
       prBody: asOptString(inputs.prBody),
     }
     return this.runPi(ctx, block, runCloudPi, params, memoryConfig)
+  }
+
+  /**
+   * Resolves optional web search before mode dispatch, so a missing key fails the run with a setup
+   * error instead of after a sandbox and a clone have been paid for.
+   *
+   * The host-side tool is built here rather than in a backend because it needs the
+   * {@link ExecutionContext}, which backends never receive — they see only `{ onEvent, signal }`.
+   * Create PR gets no tool: it registers a sandbox extension instead, so a spec built here could
+   * never execute.
+   */
+  private async resolveSearch(
+    ctx: ExecutionContext,
+    inputs: Record<string, any>,
+    mode: PiRunParams['mode']
+  ): Promise<PiSearchConfig | undefined> {
+    const provider = parsePiSearchProvider(inputs.searchProvider)
+    if (provider === 'none') return undefined
+
+    const { label, toolId } = PI_SEARCH_PROVIDERS[provider]
+
+    // Authorization before credentials, which is the order `executeTool` itself uses and is
+    // observable: reversed, a denied user's stored key is fetched and decrypted and they are told to
+    // add a key instead of being denied. The preflight is also the only denylist check Create PR
+    // gets, because its extension calls the provider directly and never reaches `executeTool`.
+    try {
+      await assertPermissionsAllowed({
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        toolId,
+        ctx,
+      })
+    } catch (error) {
+      if (error instanceof ToolNotAllowedError) {
+        throw new Error(
+          `${label} search is not allowed based on your permission group settings. Set Internet Search to None or ask an admin to allow it.`
+        )
+      }
+      throw error
+    }
+
+    const { apiKey, source } = await resolvePiSearchKey({
+      provider,
+      workspaceId: ctx.workspaceId,
+      apiKey: asOptString(inputs.searchApiKey),
+    })
+
+    const credentials = { provider, apiKey, keySource: source }
+    return mode === 'cloud'
+      ? credentials
+      : { ...credentials, tool: buildPiSearchToolSpec(ctx, credentials, mode) }
   }
 
   private isContentSelectedForStreaming(ctx: ExecutionContext, block: SerializedBlock): boolean {

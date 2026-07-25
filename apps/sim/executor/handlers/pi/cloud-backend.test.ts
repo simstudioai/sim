@@ -251,6 +251,113 @@ describe('runCloudPi', () => {
     expect(mockRun.mock.calls.some(([cmd]: [string]) => cmd.includes('push'))).toBe(false)
   })
 
+  describe('optional web search', () => {
+    const search = { provider: 'exa' as const, apiKey: 'sk-search', keySource: 'byok' as const }
+
+    it('runs the stock Pi command with no extension when search is off', async () => {
+      await runCloudPi(baseParams(), { onEvent: vi.fn() })
+
+      const [piCmd, piOpts] = mockRun.mock.calls[1]
+      expect(piCmd).not.toContain('sim-search-extension')
+      expect(piCmd).not.toContain('--no-extensions')
+      expect(piOpts.envs.SIM_SEARCH_PROVIDER).toBeUndefined()
+      expect(piOpts.envs.SIM_SEARCH_API_KEY).toBeUndefined()
+      expect(
+        mockWriteFile.mock.calls.some(([path]: [string]) => path.includes('search-extension'))
+      ).toBe(false)
+    })
+
+    it('installs the extension outside the checkout and loads only it', async () => {
+      await runCloudPi(baseParams({ search }), { onEvent: vi.fn() })
+
+      const [path, source] = mockWriteFile.mock.calls.find(([candidate]: [string]) =>
+        candidate.includes('search-extension')
+      )
+      expect(path).toBe('/workspace/sim-search-extension.ts')
+      expect(path.startsWith('/workspace/repo')).toBe(false)
+      expect(source).toContain('registerTool')
+
+      const [piCmd, piOpts] = mockRun.mock.calls[1]
+      // `--no-extensions` first, so a planted user- or repo-level extension cannot also load.
+      expect(piCmd).toContain('--no-extensions -e /workspace/sim-search-extension.ts')
+      expect(piOpts.envs.SIM_SEARCH_PROVIDER).toBe('exa')
+      expect(piOpts.envs.SIM_SEARCH_API_KEY).toBe('sk-search')
+    })
+
+    it('keeps the search key out of every other sandbox command', async () => {
+      await runCloudPi(baseParams({ search }), { onEvent: vi.fn() })
+
+      const [, cloneOpts] = mockRun.mock.calls[0]
+      const [, prepareOpts] = mockRun.mock.calls[2]
+      const [, pushOpts] = mockRun.mock.calls[3]
+      for (const opts of [cloneOpts, prepareOpts, pushOpts]) {
+        expect(JSON.stringify(opts.envs)).not.toContain('sk-search')
+      }
+    })
+
+    it('scrubs the search key from events, diff, changed files, and the PR body', async () => {
+      const onEvent = vi.fn()
+      mockReadFile.mockResolvedValue('+const key = "sk-search"')
+      mockRun.mockImplementation(
+        (command: string, options: { onStdout?: (chunk: string) => void }) => {
+          if (command.includes('git clone')) {
+            return Promise.resolve({
+              stdout: '__BASE_SHA__=abc123\n__DEFAULT_BRANCH__=main',
+              stderr: '',
+              exitCode: 0,
+            })
+          }
+          if (command.includes('pi -p')) {
+            options.onStdout?.(
+              '{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"found sk-search"}}\n'
+            )
+            return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
+          }
+          if (command.includes('push')) {
+            return Promise.resolve({ stdout: '__PUSHED__=1', stderr: '', exitCode: 0 })
+          }
+          return Promise.resolve({
+            stdout: '__CHANGED__=src/sk-search.ts\n__NEEDS_PUSH__=1',
+            stderr: '',
+            exitCode: 0,
+          })
+        }
+      )
+
+      const result = await runCloudPi(baseParams({ search }), { onEvent })
+
+      expect(onEvent).toHaveBeenCalledWith({ type: 'text', text: 'found ***' })
+      expect(result.totals.finalText).toBe('found ***')
+      expect(result.changedFiles).toEqual(['src/***.ts'])
+      expect(result.diff).toBe('+const key = "***"')
+      const prBody = mockExecuteTool.mock.calls[0][1].body
+      expect(prBody).not.toContain('sk-search')
+      expect(JSON.stringify({ result, onEvents: onEvent.mock.calls })).not.toContain('sk-search')
+    })
+
+    it('scrubs the search key from a failing Pi step', async () => {
+      mockRun.mockImplementation((command: string) => {
+        if (command.includes('git clone')) {
+          return Promise.resolve({ stdout: '__BASE_SHA__=abc', stderr: '', exitCode: 0 })
+        }
+        if (command.includes('pi -p')) {
+          return Promise.resolve({
+            stdout: '',
+            stderr: 'extension failed: bad key sk-search',
+            exitCode: 1,
+          })
+        }
+        return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
+      })
+
+      const error = (await runCloudPi(baseParams({ search }), { onEvent: vi.fn() }).catch(
+        (caught) => caught
+      )) as Error
+      expect(error.message).toMatch(/Pi agent failed/)
+      expect(error.message).not.toContain('sk-search')
+    })
+  })
+
   it('surfaces the real git push error when the push fails, with the token scrubbed', async () => {
     mockRun.mockImplementation((command: string) => {
       if (command.includes('git clone')) {

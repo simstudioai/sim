@@ -37,7 +37,7 @@ Review Code uses a disposable sandbox for the repository, but the Pi harness and
 - Requires sandbox execution. The provider key stays in Sim, so hosted keys and BYOK are both supported.
 - Needs a **GitHub token** that can clone the repo and submit reviews (see [Setup](#setup-cloud-code-review)).
 - Needs the **Pull Request Number** to review.
-- Does not load skills or memory, and never exposes shell, write, edit, or arbitrary network tools to the reviewer.
+- Does not load skills or memory, and never exposes shell, write, or edit tools to the reviewer. Its only network access is [Internet Search](#internet-search), and only when you select a provider.
 - Rechecks the PR immediately before submission and pins the review to the exact checked-out head commit.
 - The deliverable is a **submitted review** — read `reviewUrl` and `commentsPosted`.
 
@@ -62,6 +62,16 @@ The model that drives the agent. Defaults to `claude-sonnet-4-6`. The dropdown c
 ### API Key
 
 Your key for the chosen provider. On hosted Sim it is optional for Local Dev and Review Code runs (a hosted key is used and metered to your workspace). **Create PR requires your own key** because its model client runs in the sandbox. When the provider supports workspace BYOK, you can store the key in **Settings → BYOK** instead of entering it on the block.
+
+### Internet Search
+
+Off by default. Pick a provider — **Exa**, **Serper**, **Parallel AI**, or **Firecrawl** — and the agent gains a single `web_search` tool that returns a handful of results, each with a title, URL, snippet, and (where the provider reports one) a publication date. It works the same way in all three modes, and it is the agent's only network access in Review Code. The tool accepts at most 20 calls per run, which bounds accidental tool loops and the quota one run can consume.
+
+Search always uses **your own key** for the selected provider, never a Sim-hosted one, because Create PR places the key inside the coding sandbox. Enter it in **Search API Key** or store it in **Settings → BYOK**; the run fails with a setup error before any sandbox is created when neither is present. Switching providers clears the key field in the editor, so re-enter the key that belongs to the provider you picked.
+
+Results are third-party data. The agent is instructed to treat them as quoted evidence and never to follow instructions found inside them — the same posture Pi takes toward repository contents.
+
+Traffic goes both ways: the agent writes its own queries after reading the repository, so leave search on **None** in Review Code when the pull request comes from an untrusted fork of a private repo. Injected instructions in a diff could otherwise put repository text into a query sent to the provider.
 
 ### Repository (Create PR / Review Code)
 
@@ -176,6 +186,7 @@ Enable sandbox execution as for Create PR. BYOK is optional because the model cr
   { question: "Why does Local Dev need a public hostname?", answer: "Sim connects over raw SSH and blocks localhost, LAN, and private/reserved addresses for safety. Expose the machine with a TCP tunnel such as `ngrok tcp 22` and use the tunnel's host and port. Tailscale's private 100.x addresses won't work for the same reason." },
   { question: "What GitHub permissions does Create PR need?", answer: "A token that can clone, push, and open a PR. With a fine-grained token: select the repo and grant Contents: Read and write plus Pull requests: Read and write. With a classic token: the repo scope. For organization repos, the token must be SSO-authorized." },
   { question: "What GitHub permissions does Review Code need?", answer: "A token that can clone the repo and submit a review. With a fine-grained token: Contents: Read plus Pull requests: Read and write. Push permission is not required. With a classic token: the repo scope. For organization repos, the token must be SSO-authorized." },
+  { question: "Can the agent search the web?", answer: "Only if you pick a provider under Internet Search — Exa, Serper, Parallel AI, or Firecrawl. That adds one web_search tool in every mode, backed by your own key for that provider (on the block or in Settings → BYOK); Sim never supplies a search key. Leave it on None and the agent has no search tool at all." },
   { question: "Can I give it Gmail, Slack, or other integrations?", answer: "Yes, in Local Dev via the Tools field. Selected Sim tools run through Sim with your connected credentials, the same as the Agent block, so the agent can act beyond the repo while it codes. MCP and custom tools aren't supported yet." },
   { question: "Where do the changes or feedback go?", answer: "In Create PR, to a new branch and a pull request (read prUrl and branch). In Review Code, to a submitted GitHub review on the existing PR (read reviewUrl and commentsPosted). In Local Dev, the files are edited in place on the target machine — review them with git there. Create PR and Local Dev also return changedFiles and a diff." },
   { question: "What happens when memory or context gets large?", answer: "For Create PR and Local Dev, Sim trims memory before the run based on the memory type, and Pi compacts older turns as needed. Review Code does not load or save memory because a malicious PR could otherwise expose or poison prior context." },
