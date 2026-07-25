@@ -142,17 +142,14 @@ export interface SelectionSnapshot {
   } | null
 }
 
-/** Stable empty default so a grid without presence keeps a constant prop identity. */
-const EMPTY_REMOTE_SELECTIONS: RemoteTableSelection[] = []
-
 interface TableGridProps {
   workspaceId?: string
   tableId?: string
   embedded?: boolean
   /** Remote collaborators' cell selections, rendered as presence overlays. */
-  remoteSelections?: RemoteTableSelection[]
+  remoteSelections: RemoteTableSelection[]
   /** Broadcast the local viewer's cell selection to the table presence room. */
-  emitCellSelection?: (cell: TableCellSelection) => void
+  emitCellSelection: (cell: TableCellSelection) => void
   /**
    * Pixel width to reserve on the right of the table's scroll content for the
    * currently-open slideout panel (column config, workflow config, or log
@@ -298,7 +295,7 @@ export function TableGrid({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
   embedded,
-  remoteSelections = EMPTY_REMOTE_SELECTIONS,
+  remoteSelections,
   emitCellSelection,
   sidebarReservedPx,
   onOpenColumnConfig,
@@ -843,7 +840,6 @@ export function TableGrid({
   // on a real selection/editing change, not on every data update. `editing` marks the
   // active cell so peers darken it (the "someone is typing here" signal).
   useEffect(() => {
-    if (!emitCellSelection) return
     const currentRows = rowsRef.current
     const currentCols = columnsRef.current
     const resolve = (coord: CellCoord | null) => {

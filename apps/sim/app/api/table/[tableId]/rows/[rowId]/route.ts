@@ -147,10 +147,10 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     // Only `null` when a `cancellationGuard` is supplied and the SQL guard
     // rejects the write — this route doesn't pass one, so reaching null is a bug.
     if (!updatedRow) throw new Error('updateRow returned null without a cancellationGuard')
-    // Signal collaborators to refetch this row so the edit shows live (fire-and-forget;
-    // a Redis blip must not fail the write). Edits that also trigger a dispatch already
-    // emit dispatch/cell events; the debounced rows refetch coalesces the two.
-    void appendTableEvent({ kind: 'edit', tableId, rowId })
+    // Signal collaborators to refetch so the edit shows live (fire-and-forget; a Redis
+    // blip must not fail the write). Edits that also trigger a dispatch already emit
+    // dispatch/cell events; the debounced rows refetch coalesces the two.
+    void appendTableEvent({ kind: 'edit', tableId })
     // Auto-dispatch for user edits is handled inside `updateRow` (mode: 'new').
     // Firing a second mode: 'incomplete' dispatch here would race with the
     // `mode: 'new'` one AND bulk-clear sibling-group outputs (the incomplete

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getUserColor, withAlpha } from '@/lib/workspaces/colors'
 import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-room'
 
@@ -55,72 +55,70 @@ export function RemoteSelectionOverlay({
   const rootRef = useRef<HTMLDivElement>(null)
   const [boxes, setBoxes] = useState<SelectionBox[]>([])
   const [hoveredSocketId, setHoveredSocketId] = useState<string | null>(null)
+
+  // Latest data read by the subscribe-once effect + the pointer hit-test, so neither
+  // re-subscribes on every incoming selection delta.
   const boxesRef = useRef<SelectionBox[]>([])
   boxesRef.current = boxes
+  const remoteSelectionsRef = useRef(remoteSelections)
+  remoteSelectionsRef.current = remoteSelections
+  const columnIndexByIdRef = useRef(columnIndexById)
+  columnIndexByIdRef.current = columnIndexById
+  // Cached content-wrapper origin, refreshed on each measure (scroll/resize/data change),
+  // so the pointer hit-test never forces a layout read per mouse move.
+  const originRef = useRef({ top: 0, left: 0 })
 
-  useEffect(() => {
+  const measure = useCallback(() => {
     const scrollEl = scrollElement
     const root = rootRef.current
     if (!scrollEl || !root) return
+    const origin = root.getBoundingClientRect()
+    originRef.current = { top: origin.top, left: origin.left }
+    const next: SelectionBox[] = []
+    for (const selection of remoteSelectionsRef.current) {
+      const { anchor, focus, editing } = selection.cell
+      const rects = [
+        cellRect(scrollEl, anchor.rowId, columnIndexByIdRef.current.get(anchor.columnId)),
+        cellRect(scrollEl, focus.rowId, columnIndexByIdRef.current.get(focus.columnId)),
+      ].filter((rect): rect is DOMRect => rect !== undefined)
+      if (rects.length === 0) continue
+
+      const top = Math.min(...rects.map((r) => r.top)) - origin.top
+      const left = Math.min(...rects.map((r) => r.left)) - origin.left
+      const bottom = Math.max(...rects.map((r) => r.bottom)) - origin.top
+      const right = Math.max(...rects.map((r) => r.right)) - origin.left
+      next.push({
+        socketId: selection.socketId,
+        userName: selection.userName,
+        color: getUserColor(selection.userId),
+        editing: editing === true,
+        top,
+        left,
+        width: right - left,
+        height: bottom - top,
+      })
+    }
+    setBoxes(next)
+  }, [scrollElement])
+
+  // Subscribe once per scroll element: re-measure on scroll/resize, and hit-test pointer
+  // moves against the cached boxes/origin — no layout read per move, stays pointer-events-none.
+  useEffect(() => {
+    const scrollEl = scrollElement
+    if (!scrollEl) return
 
     let raf = 0
-    const measure = () => {
-      raf = 0
-      const origin = root.getBoundingClientRect()
-      const next: SelectionBox[] = []
-      for (const selection of remoteSelections) {
-        const { anchor, focus, editing } = selection.cell
-        const rects = [
-          cellRect(scrollEl, anchor.rowId, columnIndexById.get(anchor.columnId)),
-          cellRect(scrollEl, focus.rowId, columnIndexById.get(focus.columnId)),
-        ].filter((rect): rect is DOMRect => rect !== undefined)
-        if (rects.length === 0) continue
-
-        const top = Math.min(...rects.map((r) => r.top)) - origin.top
-        const left = Math.min(...rects.map((r) => r.left)) - origin.left
-        const bottom = Math.max(...rects.map((r) => r.bottom)) - origin.top
-        const right = Math.max(...rects.map((r) => r.right)) - origin.left
-        next.push({
-          socketId: selection.socketId,
-          userName: selection.userName,
-          color: getUserColor(selection.userId),
-          editing: editing === true,
-          top,
-          left,
-          width: right - left,
-          height: bottom - top,
-        })
-      }
-      setBoxes(next)
-    }
-
     const schedule = () => {
-      if (!raf) raf = requestAnimationFrame(measure)
+      if (!raf)
+        raf = requestAnimationFrame(() => {
+          raf = 0
+          measure()
+        })
     }
-
-    measure()
-    scrollEl.addEventListener('scroll', schedule, { passive: true })
-    const resizeObserver = new ResizeObserver(schedule)
-    resizeObserver.observe(scrollEl)
-
-    return () => {
-      scrollEl.removeEventListener('scroll', schedule)
-      resizeObserver.disconnect()
-      if (raf) cancelAnimationFrame(raf)
-    }
-  }, [remoteSelections, columnIndexById, scrollElement])
-
-  // Name-on-hover without blocking cell clicks: hit-test pointer moves against the
-  // measured boxes (the overlay stays pointer-events-none).
-  useEffect(() => {
-    const scrollEl = scrollElement
-    const root = rootRef.current
-    if (!scrollEl || !root) return
-
     const handleMove = (event: PointerEvent) => {
-      const origin = root.getBoundingClientRect()
-      const x = event.clientX - origin.left
-      const y = event.clientY - origin.top
+      const { top, left } = originRef.current
+      const x = event.clientX - left
+      const y = event.clientY - top
       const hit = boxesRef.current.find(
         (b) => x >= b.left && x <= b.left + b.width && y >= b.top && y <= b.top + b.height
       )
@@ -130,13 +128,26 @@ export function RemoteSelectionOverlay({
     }
     const handleLeave = () => setHoveredSocketId(null)
 
+    measure()
+    scrollEl.addEventListener('scroll', schedule, { passive: true })
     scrollEl.addEventListener('pointermove', handleMove, { passive: true })
     scrollEl.addEventListener('pointerleave', handleLeave)
+    const resizeObserver = new ResizeObserver(schedule)
+    resizeObserver.observe(scrollEl)
+
     return () => {
+      scrollEl.removeEventListener('scroll', schedule)
       scrollEl.removeEventListener('pointermove', handleMove)
       scrollEl.removeEventListener('pointerleave', handleLeave)
+      resizeObserver.disconnect()
+      if (raf) cancelAnimationFrame(raf)
     }
-  }, [scrollElement])
+  }, [scrollElement, measure])
+
+  // Re-measure when the selections or column layout change (listeners stay subscribed).
+  useEffect(() => {
+    measure()
+  }, [remoteSelections, columnIndexById, measure])
 
   return (
     <div ref={rootRef} className='pointer-events-none absolute inset-0 z-[8] overflow-hidden'>

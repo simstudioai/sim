@@ -28,6 +28,10 @@ const tableRoom = (tableId: string): RoomRef => ({ type: ROOM_TYPES.TABLE, id: t
  * only because a workflow room's name equals its id).
  */
 export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
+  // The socket's session (id/name/avatar) is immutable for its lifetime, so cache it
+  // after the first read to avoid a Redis lookup on every high-frequency selection delta.
+  let cachedSession: Awaited<ReturnType<IRoomManager['getUserSession']>> = null
+
   socket.on(TABLE_PRESENCE_EVENTS.JOIN, async ({ tableId, tabSessionId }: JoinTablePayload) => {
     try {
       const userId = socket.userId
@@ -190,8 +194,9 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
     async ({ cell }: { cell: TableCellSelection }) => {
       try {
         const room = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.TABLE)
-        const session = await roomManager.getUserSession(socket.id)
-        if (!room || !session) return
+        if (!room) return
+        cachedSession ??= await roomManager.getUserSession(socket.id)
+        if (!cachedSession) return
 
         // Persist so a later joiner sees this viewer's current selection in the join ack.
         await roomManager.updateUserActivity(room, socket.id, { cell })
@@ -199,9 +204,9 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
         // Relay the delta to peers (namespaced room → roomName, not room.id).
         socket.to(roomName(room)).emit(TABLE_PRESENCE_EVENTS.CELL_SELECTION, {
           socketId: socket.id,
-          userId: session.userId,
-          userName: session.userName,
-          avatarUrl: session.avatarUrl,
+          userId: cachedSession.userId,
+          userName: cachedSession.userName,
+          avatarUrl: cachedSession.avatarUrl,
           cell,
         })
       } catch (error) {

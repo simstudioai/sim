@@ -88,27 +88,13 @@ export function useTableRoom(tableId: string): UseTableRoomResult {
     }
     const handlePresence = (users: TablePresenceUser[]) => setPresenceUsers(users ?? [])
     const handleCellSelection = (data: TableCellSelectionBroadcast) => {
-      setPresenceUsers((prev) => {
-        let patched = false
-        const next = prev.map((user) => {
-          if (user.socketId !== data.socketId) return user
-          patched = true
-          return { ...user, cell: data.cell }
-        })
-        // A delta that arrives before the roster lists this peer: add them so their
-        // selection still renders (a later presence broadcast reconciles the roster).
-        if (patched) return next
-        return [
-          ...prev,
-          {
-            socketId: data.socketId,
-            userId: data.userId,
-            userName: data.userName,
-            avatarUrl: data.avatarUrl,
-            cell: data.cell,
-          },
-        ]
-      })
+      // Patch the matching roster entry's selection. The peer is always already in
+      // the roster: the server broadcasts their join (→ presence-update) before they
+      // can select, and Socket.IO preserves that order — so a delta for an unknown
+      // socket only means a dropped broadcast, which the next presence-update heals.
+      setPresenceUsers((prev) =>
+        prev.map((user) => (user.socketId === data.socketId ? { ...user, cell: data.cell } : user))
+      )
     }
 
     // Join now if the socket is already connected; `connect` covers (re)connects.
