@@ -149,3 +149,29 @@ describe('validatePredicate — leaves that would silently widen a bulk write', 
     ).not.toThrow()
   })
 })
+
+/**
+ * The copilot's `query_user_table` catalog entry still advertises the legacy
+ * `$`-grammar, so the agent sends `{ status: { $eq: 'x' } }`. That shape hit
+ * `validateLeaf` with `field: undefined` and came back as
+ * `Unknown filter column "undefined"` — a message that sends an LLM retrying
+ * column names instead of switching grammars.
+ */
+describe('validatePredicate — legacy $-grammar diagnostics', () => {
+  it('names the grammar mistake instead of blaming a phantom column', () => {
+    for (const legacy of [
+      { status: { $eq: 'active' } },
+      { $or: [{ status: 'a' }, { status: 'b' }] },
+      { wins: { $gte: 10 } },
+    ]) {
+      expect(() => validatePredicate(legacy as never, COLS)).toThrow(/legacy operator-object/)
+      expect(() => validatePredicate(legacy as never, COLS)).not.toThrow(/undefined/)
+    }
+  })
+
+  it('still rejects a plain non-predicate object clearly', () => {
+    expect(() => validatePredicate({ nonsense: 'x' } as never, COLS)).toThrow(
+      /must be a group .* or a condition/
+    )
+  })
+})

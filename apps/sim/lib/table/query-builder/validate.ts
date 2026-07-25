@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { NAME_PATTERN } from '@/lib/table/constants'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import type {
@@ -135,6 +136,22 @@ function validateNode(node: PredicateNode, typeByName: Map<string, ColumnType>):
     }
     for (const child of members) validateNode(child, typeByName)
     return
+  }
+  // Neither a group nor a leaf. Overwhelmingly this is the legacy `$`-grammar
+  // (`{ status: { $eq: 'x' } }`) — a shape `validateLeaf` would reject as
+  // `Unknown filter column "undefined"`, which tells an LLM caller nothing and
+  // sends it retrying column names forever. Name the actual mistake.
+  if (!('field' in node)) {
+    const keys = Object.keys(node)
+    const looksLegacy = keys.some(
+      (k) => k.startsWith('$') || isRecordLike((node as Record<string, unknown>)[k])
+    )
+    throw new TableQueryValidationError(
+      looksLegacy
+        ? 'Filter uses the legacy operator-object grammar. Use a predicate tree instead: { all: [{ field, op, value }] } (or "any" for OR), with bare operators like eq/gte/contains/in.'
+        : 'A filter node must be a group ({ all | any: [...] }) or a condition ({ field, op, value }).',
+      'INVALID_FILTER'
+    )
   }
   validateLeaf(node as Predicate, typeByName)
 }

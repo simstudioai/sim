@@ -2956,7 +2956,7 @@
             "name": "sort",
             "in": "query",
             "required": false,
-            "description": "JSON-encoded sort object. Example: {\"created_at\": \"desc\"}.",
+            "description": "JSON-encoded sort object. Example: {\"createdAt\": \"desc\"}. Built-in columns are camelCase: id, createdAt, updatedAt.",
             "schema": {
               "type": "string"
             }

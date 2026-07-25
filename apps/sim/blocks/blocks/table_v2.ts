@@ -190,7 +190,7 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
 - Omit Limit to get the entire matching result in one response — the query fails with a clear error if it exceeds 5MB (narrow with a filter or set a Limit).
 - With a Limit, pages can end at the Limit or the 5MB byte budget, whichever comes first — pass nextCursor back as the cursor and loop until it is null; never infer completion from page size.
 - Columns are scalar (string/number/boolean/date) or opaque json — there are no array columns; for substring use ilike with *x*.`,
-  docsLink: 'https://docs.simstudio.ai/tools/table',
+  docsLink: 'https://docs.sim.ai/integrations/table',
   category: 'blocks',
   // Unreleased: hidden from every discovery surface until revealed via the hosted
   // `block-visibility` AppConfig document or the `PREVIEW_BLOCKS` env allowlist.
