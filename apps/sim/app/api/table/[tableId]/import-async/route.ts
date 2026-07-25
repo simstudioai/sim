@@ -10,7 +10,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
-import { assertRowDelete, assertRowInsert } from '@/lib/table/mutation-locks'
+import { assertRowDelete, assertRowInsert, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import { getUserSettings } from '@/lib/users/queries'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
@@ -58,6 +58,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   // reports 423 here instead of holding the slot and failing inside the worker.
   assertRowInsert(table)
   if (mode === 'replace') assertRowDelete(table)
+  if (createColumns && createColumns.length > 0) assertSchemaMutable(table)
 
   const ext = fileName.split('.').pop()?.toLowerCase()
   if (ext !== 'csv' && ext !== 'tsv') {

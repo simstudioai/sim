@@ -3815,9 +3815,18 @@ export function TableGrid({
                                 onInsertRight={
                                   canMutateSchema ? handleInsertColumnRight : undefined
                                 }
-                                onDeleteColumn={canDestroyColumn ? handleDeleteColumn : undefined}
+                                // Pass the blocked handler rather than `undefined`:
+                                // `ColumnOptionsMenu` only mounts when all three
+                                // handlers exist, so withholding this one would
+                                // hide the whole menu — including Insert column,
+                                // which a delete lock alone must not affect.
+                                onDeleteColumn={
+                                  canDestroyColumn ? handleDeleteColumn : handleBlockedDeleteColumn
+                                }
                                 onDeleteGroup={
-                                  canDestroyColumn ? handleDeleteWorkflowGroup : undefined
+                                  canDestroyColumn
+                                    ? handleDeleteWorkflowGroup
+                                    : handleBlockedDeleteColumn
                                 }
                                 onViewWorkflow={
                                   workflowGroupById.get(g.groupId)?.type === 'enrichment'
@@ -3880,9 +3889,12 @@ export function TableGrid({
                             key={column.key}
                             column={column}
                             colIndex={idx}
-                            // Schema-locked disables the header menu (add/rename/delete
-                            // column, drag-reorder); pin stays via `onPinToggle` below.
-                            readOnly={!canMutateSchema}
+                            // Permission-only: `readOnly` swaps the whole header for a
+                            // static label, which would also kill pin, column-select and
+                            // open-config — all metadata, not schema. The schema lock is
+                            // enforced per-action instead (insert/delete below), and a
+                            // rename attempt surfaces the server's 423 as a toast.
+                            readOnly={!userPermissions.canEdit}
                             isRenaming={columnRename.editingId === column.key}
                             isColumnSelected={
                               isColumnSelection &&

@@ -142,7 +142,12 @@ export const PATCH = withRouteHandler(
       }
 
       if (validated.locks !== undefined) {
-        if (!(await isFeatureEnabled('table-locks'))) {
+        // With the flag off you may still CLEAR locks — otherwise flipping the
+        // kill switch would strand an already-locked table with no way to
+        // unlock it, while enforcement of those stored locks keeps running.
+        // Only turning a lock ON requires the feature to be enabled.
+        const isClearingOnly = Object.values(validated.locks).every((v) => v === false)
+        if (!isClearingOnly && !(await isFeatureEnabled('table-locks'))) {
           return NextResponse.json({ error: 'Table locks are not enabled' }, { status: 403 })
         }
         const adminResult = await checkAccess(tableId, authResult.userId, 'admin')

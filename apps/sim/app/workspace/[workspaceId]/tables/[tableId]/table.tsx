@@ -565,7 +565,10 @@ export function Table({
                 icon: Pencil,
                 onClick: handleStartTableRename,
               },
-              ...(userPermissions.canAdmin && tableLocksEnabled
+              // Reachable with the flag off when something is locked, so an
+              // admin can always clear locks (the route allows clearing).
+              ...(userPermissions.canAdmin &&
+              (tableLocksEnabled || lockedNouns(tableData.locks).length > 0)
                 ? [
                     {
                       label: 'Lock settings',
@@ -1040,9 +1043,14 @@ export function Table({
         <TableLockedModal
           action={blockedAction}
           locks={tableData.locks}
-          // Without the flag there is nothing an admin can change, so they get
-          // the same read-only notice as everyone else.
-          canAdmin={userPermissions.canAdmin === true && tableLocksEnabled}
+          // An admin can always reach the panel on a locked table — clearing
+          // locks stays allowed with the flag off, so the kill switch can't
+          // strand one. With the flag off and nothing locked there is nothing
+          // to change, so they get the same read-only notice as everyone else.
+          canAdmin={
+            userPermissions.canAdmin === true &&
+            (tableLocksEnabled || lockedNouns(tableData.locks).length > 0)
+          }
           onClose={() => setBlockedAction(null)}
           onOpenLockSettings={() => setShowLockSettings(true)}
         />
