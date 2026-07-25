@@ -473,6 +473,56 @@ function parseSpecialTagData(
  * Trailing partial opening tags (e.g. `<opt`, `<usage_`) are also stripped
  * during streaming to prevent flashing raw markup.
  */
+/**
+ * Tags whose body must be JSON. `thinking` is the exception — its body is prose
+ * (see {@link parseTextTagBody}), so a non-JSON body there says nothing about
+ * whether a close is still coming.
+ */
+const JSON_BODY_TAG_NAMES = new Set<(typeof SPECIAL_TAG_NAMES)[number]>([
+  'options',
+  'usage_upgrade',
+  'credential',
+  'mothership-error',
+  'workspace_resource',
+  'question',
+])
+
+/**
+ * True when an opening tag with no close yet can NEVER resolve, so the text
+ * after it should be shown immediately instead of held back until the stream
+ * ends.
+ *
+ * Without this, a message that merely mentions a tag in prose goes blank from
+ * that point on for the rest of the stream — the text is only restored once
+ * streaming stops. Two facts let us decide early:
+ *
+ * 1. Tags never nest. Any other special-tag marker inside the body — opening or
+ *    closing — means this opener was literal text, not a real tag.
+ * 2. JSON-bodied tags must start with `{` or `[`. The first non-space character
+ *    settles it, so prose after the marker is caught on the very next chunk.
+ *
+ * Both are conservative: they only fire on content that could not have parsed.
+ * A false positive would merely show text early that a later chunk resolves
+ * into a tag — the end-of-stream parse still produces the correct final render.
+ */
+function unclosedTagCannotResolve(
+  tagName: (typeof SPECIAL_TAG_NAMES)[number],
+  body: string
+): boolean {
+  for (const name of SPECIAL_TAG_NAMES) {
+    // A close for this tag is absent by definition here, so this catches a
+    // FOREIGN close; the open check catches nesting, including self-nesting.
+    if (body.includes(`</${name}>`) || body.includes(`<${name}>`)) return true
+  }
+
+  if (JSON_BODY_TAG_NAMES.has(tagName)) {
+    const firstChar = body.trimStart().charAt(0)
+    if (firstChar !== '' && firstChar !== '{' && firstChar !== '[') return true
+  }
+
+  return false
+}
+
 export function parseSpecialTags(content: string, isStreaming: boolean): ParsedSpecialContent {
   const segments: ContentSegment[] = []
   let hasPendingTag = false
@@ -526,14 +576,19 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
     const closeIdx = content.indexOf(closeTag, bodyStart)
 
     if (closeIdx === -1) {
-      if (isStreaming) {
+      // Hold the text back only while a close is still plausible. A completed
+      // message can never finish an unclosed tag, and mid-stream the heuristics
+      // in unclosedTagCannotResolve rule it out early — otherwise a tag merely
+      // mentioned in prose blanks the rest of the message until the stream ends.
+      const stillResolvable =
+        isStreaming &&
+        nearestTagName !== '' &&
+        !unclosedTagCannotResolve(nearestTagName, content.slice(bodyStart))
+      if (stillResolvable) {
         hasPendingTag = true
         cursor = content.length
         break
       }
-      // A completed message can never finish an unclosed tag — the marker was
-      // literal text mentioning the tag (e.g. "the `<workspace_resource>`
-      // chip"), not a real tag. Render the remainder instead of swallowing it.
       const remaining = content.slice(nearestStart)
       if (remaining.trim()) {
         segments.push({ type: 'text', content: remaining })

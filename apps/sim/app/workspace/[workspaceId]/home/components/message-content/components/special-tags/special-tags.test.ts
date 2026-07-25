@@ -149,6 +149,47 @@ describe('parseSpecialTags with <question>', () => {
     expect(segments).toEqual([{ type: 'text', content: 'Thinking about it. ' }])
   })
 
+  it('shows prose immediately mid-stream instead of blanking the rest', () => {
+    // The failure this replaces: everything after the marker stayed invisible
+    // for the remainder of the stream, then reappeared when it ended.
+    const content = 'The `<workspace_resource>` chip only renders for a real file.'
+    const { segments, hasPendingTag } = parseSpecialTags(content, true)
+    expect(hasPendingTag).toBe(false)
+    expect(segments.map((s) => ('content' in s ? s.content : s.type)).join('')).toContain(
+      'chip only renders for a real file.'
+    )
+  })
+
+  it('still suppresses a JSON-bodied tag that is genuinely mid-stream', () => {
+    const { segments, hasPendingTag } = parseSpecialTags(
+      'Here you go <workspace_resource>{"type":"file","id":"abc"',
+      true
+    )
+    expect(hasPendingTag).toBe(true)
+    expect(segments).toEqual([{ type: 'text', content: 'Here you go ' }])
+  })
+
+  it('bails when a foreign closing tag appears inside the body', () => {
+    // Tags never nest, so a close for a different tag proves the opener was text.
+    const { hasPendingTag } = parseSpecialTags(
+      'see <options>[{"title":"a","description":"b"}] </question> more',
+      true
+    )
+    expect(hasPendingTag).toBe(false)
+  })
+
+  it('bails on a nested opening tag', () => {
+    const { hasPendingTag } = parseSpecialTags('a <thinking>b <thinking> c', true)
+    expect(hasPendingTag).toBe(false)
+  })
+
+  it('keeps suppressing an unclosed thinking tag with prose — its body is not JSON', () => {
+    // Documents the deliberate gap: `thinking` bodies are prose, so the JSON
+    // heuristic cannot apply and only the nesting rule can rescue it.
+    const { hasPendingTag } = parseSpecialTags('a <thinking>still reasoning about', true)
+    expect(hasPendingTag).toBe(true)
+  })
+
   it('renders an unclosed tag as text once the message is complete', () => {
     const content =
       'The `<workspace_resource>` file chip only renders when its path points to a real file.'
