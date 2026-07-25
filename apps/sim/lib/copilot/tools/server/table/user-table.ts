@@ -29,6 +29,7 @@ import {
 import { namedRowMapper } from '@/lib/table/cell-format'
 import {
   buildIdByName,
+  columnMatchesRef,
   filterNamesToIds,
   rowDataNameToId,
   sortNamesToIds,
@@ -317,13 +318,27 @@ function limitError(limit: unknown): string | null {
  * cell data survives the update. Non-array input returns `undefined`, letting
  * downstream validation reject a malformed / missing option set.
  */
-export function normalizeSelectOptionsInput(raw: unknown): SelectOption[] | undefined {
+export function normalizeSelectOptionsInput(
+  raw: unknown,
+  existing: SelectOption[] = []
+): SelectOption[] | undefined {
   if (!Array.isArray(raw)) return undefined
+  // Cells reference the option id, so an edit that re-sends the same option by
+  // name must reuse its id — minting a fresh one would orphan every cell
+  // holding it, silently clearing the column.
+  const idByName = new Map<string, string>()
+  for (const option of existing) {
+    const key = option.name.toLowerCase()
+    if (!idByName.has(key)) idByName.set(key, option.id)
+  }
+  const resolveId = (name: string): string => idByName.get(name.toLowerCase()) ?? generateShortId()
+
   return raw.map((entry) => {
-    if (typeof entry === 'string') return { id: generateShortId(), name: entry }
+    if (typeof entry === 'string') return { id: resolveId(entry), name: entry }
     const e = (entry ?? {}) as { id?: unknown; name?: unknown }
-    const id = typeof e.id === 'string' && e.id.length > 0 ? e.id : generateShortId()
-    return { id, name: typeof e.name === 'string' ? e.name : String(e.name ?? '') }
+    const name = typeof e.name === 'string' ? e.name : String(e.name ?? '')
+    const id = typeof e.id === 'string' && e.id.length > 0 ? e.id : resolveId(name)
+    return { id, name }
   })
 }
 
@@ -1569,13 +1584,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const newType = (args as Record<string, unknown>).newType as string | undefined
           const uniqFlag = (args as Record<string, unknown>).unique as boolean | undefined
-          // Agent authors select options by name; generate their stable ids here.
-          const options = normalizeSelectOptionsInput((args as Record<string, unknown>).options)
+          const rawOptions = (args as Record<string, unknown>).options
           const multiple = (args as Record<string, unknown>).multiple as boolean | undefined
           if (
             newType === undefined &&
             uniqFlag === undefined &&
-            options === undefined &&
+            rawOptions === undefined &&
             multiple === undefined
           ) {
             return {
@@ -1588,6 +1602,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: `Table not found: ${args.tableId}` }
           }
           const requestId = generateId().slice(0, 8)
+          // The agent authors options by name; mint ids here, reusing the id of
+          // any option whose name already exists so its cells survive the edit.
+          const existingOptions =
+            tableForUpdate.schema.columns.find((c) => columnMatchesRef(c, colName))?.options ?? []
+          const options = normalizeSelectOptionsInput(rawOptions, existingOptions)
           let result: TableDefinition | undefined
           if (newType !== undefined) {
             if (!(COLUMN_TYPES as readonly string[]).includes(newType)) {
