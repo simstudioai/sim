@@ -80,8 +80,10 @@ export const ColumnsMenu = memo(function ColumnsMenu({
   return (
     <Popover size='md' open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
+        {/* `active` alone signals that something is hidden — the label stays fixed
+            so the bar doesn't reflow as columns are toggled. */}
         <Chip active={hiddenCount > 0} leftIcon={Columns3}>
-          {hiddenCount > 0 ? `Columns (${hiddenCount} hidden)` : 'Columns'}
+          Columns
         </Chip>
       </PopoverTrigger>
       <PopoverContent

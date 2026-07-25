@@ -979,22 +979,14 @@ export function Table({
         aside={
           <>
             {viewsEnabled && (
-              <>
-                <ViewsMenu
-                  views={views}
-                  activeViewId={activeView?.id ?? null}
-                  onSelect={handleSelectView}
-                  onRename={handleRenameView}
-                  onDelete={handleDeleteView}
-                  canEdit={userPermissions.canEdit}
-                />
-                <ColumnsMenu
-                  columns={columns}
-                  workflowGroups={tableWorkflowGroups}
-                  hiddenColumns={hiddenColumns}
-                  onChange={setHiddenColumns}
-                />
-              </>
+              <ViewsMenu
+                views={views}
+                activeViewId={activeView?.id ?? null}
+                onSelect={handleSelectView}
+                onRename={handleRenameView}
+                onDelete={handleDeleteView}
+                canEdit={userPermissions.canEdit}
+              />
             )}
             {embedded && (selection.totalRunning > 0 || selection.hasActiveDispatch) ? (
               <RunStatusControl
@@ -1005,6 +997,16 @@ export function Table({
               />
             ) : null}
           </>
+        }
+        asideEnd={
+          viewsEnabled ? (
+            <ColumnsMenu
+              columns={columns}
+              workflowGroups={tableWorkflowGroups}
+              hiddenColumns={hiddenColumns}
+              onChange={setHiddenColumns}
+            />
+          ) : undefined
         }
         trailing={
           viewsEnabled && isViewDirty && userPermissions.canEdit ? (

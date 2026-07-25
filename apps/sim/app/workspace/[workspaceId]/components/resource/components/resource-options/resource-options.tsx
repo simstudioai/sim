@@ -92,6 +92,12 @@ interface ResourceOptionsProps {
    */
   aside?: ReactNode
   /**
+   * Mirror of {@link aside} on the other side: rendered immediately to the RIGHT
+   * of the filter/sort cluster and still grouped with it — e.g. the table editor's
+   * Columns menu, which reads as the last item in the Filter/Sort/Columns row.
+   */
+  asideEnd?: ReactNode
+  /**
    * Control pinned to the far RIGHT of the bar, opposite the filter/sort cluster —
    * e.g. the table editor's Save-view button. Unlike `aside` it is a real action,
    * so it is separated from the menu group rather than joined to it.
@@ -105,6 +111,7 @@ export const ResourceOptions = memo(function ResourceOptions({
   filter,
   filterTags,
   aside,
+  asideEnd,
   trailing,
 }: ResourceOptionsProps) {
   /**
@@ -119,7 +126,13 @@ export const ResourceOptions = memo(function ResourceOptions({
   const popoverFilter = filter && filter.mode !== 'toggle' ? filter : null
 
   const hasContent =
-    search || sort || filter || aside || trailing || (filterTags && filterTags.length > 0)
+    search ||
+    sort ||
+    filter ||
+    aside ||
+    asideEnd ||
+    trailing ||
+    (filterTags && filterTags.length > 0)
   if (!hasContent) return null
 
   return (
@@ -187,6 +200,7 @@ export const ResourceOptions = memo(function ResourceOptions({
             ) : null}
             {sort && (isToggleFilter || !popoverFilter) && <SortDropdown config={sort} />}
           </div>
+          {asideEnd}
         </div>
         {trailing && <div className='ml-auto flex shrink-0 items-center gap-1.5'>{trailing}</div>}
       </div>
