@@ -84,6 +84,45 @@ describe('getToolDisplayTitle natural-language coverage', () => {
     )
   })
 
+  /**
+   * Tools that take a `query` but whose chip does not show it. This set may
+   * SHRINK, never grow — the assertion below is a subset check, so removing a
+   * tool or teaching one to show its query needs no update here.
+   *
+   * The point is to catch a specific silent regression: a tool that DID show
+   * its query losing that behavior. The neighbouring "has an intentional
+   * display title" test cannot catch it, because a bare fallback label like
+   * "Searching docs" satisfies it just as well as the useful one — a coarse
+   * check contented by a degraded state.
+   */
+  const TITLES_IGNORING_QUERY = new Set([
+    'search_documentation',
+    'search_library_docs',
+    // Has an argument-aware case, but reads toolTitle/title and never falls
+    // back to query.
+    'search_online',
+  ])
+
+  it('no tool silently stops showing its query in the chip', () => {
+    const hiddenToolNames = getHiddenToolNames()
+    const regressions = Object.entries(TOOL_CATALOG)
+      .filter(([name, entry]) => !hiddenToolNames.has(name) && !entry.internal)
+      .filter(([, entry]) => {
+        const properties = (entry.parameters as { properties?: Record<string, unknown> })
+          ?.properties
+        return properties !== undefined && 'query' in properties
+      })
+      .filter(([name]) => {
+        const withoutArgs = getToolDisplayTitle(name)
+        const withQuery = getToolDisplayTitle(name, { query: 'a distinctive query' })
+        return withoutArgs === withQuery
+      })
+      .map(([name]) => name)
+      .filter((name) => !TITLES_IGNORING_QUERY.has(name))
+
+    expect(regressions).toEqual([])
+  })
+
   it('has an intentional display title for every visible catalog tool', () => {
     const hiddenToolNames = getHiddenToolNames()
     const fallbackToolNames = Object.keys(TOOL_CATALOG).filter(
