@@ -117,7 +117,9 @@ describe.each(Object.keys(TOOLS) as PiSearchProvider[])('%s request parity', (pr
 
     expect(sandbox.url).toBe(host.url)
     expect(sandbox.headers).toEqual(host.headers)
-    expect(sandbox.body).toEqual(JSON.parse(JSON.stringify(host.body)))
+    // `sandbox.body` is already parsed off the wire; `toEqual` ignores members set to undefined, so
+    // comparing the host's object directly still compares what each path would send.
+    expect(sandbox.body).toEqual(host.body)
     expect(TOOLS[provider].request.method).toBe('POST')
   })
 })
