@@ -35,7 +35,7 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
     return createSuccessResponse({
       deployments: deployments.map((deployment) => ({
         ...deployment,
-        includeToolCalls: deployment.includeToolCalls ?? deployment.includeThinking,
+        includeToolCalls: deployment.includeToolCalls ?? false,
       })),
     })
   } catch (error) {

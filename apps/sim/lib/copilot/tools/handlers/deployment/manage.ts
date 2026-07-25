@@ -106,7 +106,7 @@ export async function executeCheckDeploymentStatus(
       allowedEmails: chatDeploy[0]?.allowedEmails || null,
       outputConfigs: chatDeploy[0]?.outputConfigs || null,
       includeThinking: chatDeploy[0]?.includeThinking ?? false,
-      includeToolCalls: chatDeploy[0]?.includeToolCalls ?? chatDeploy[0]?.includeThinking ?? false,
+      includeToolCalls: chatDeploy[0]?.includeToolCalls ?? false,
       welcomeMessage: chatCustomizations.welcomeMessage || null,
       primaryColor: chatCustomizations.primaryColor || null,
       hasPassword: Boolean(chatDeploy[0]?.password),
