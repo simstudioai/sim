@@ -3,6 +3,7 @@ import type {
   BrowserOmniboxFocusMode,
   BrowserPageState,
   BrowserPanelAction,
+  BrowserPanelAnchor,
   BrowserPanelBounds,
   BrowserPanelSnapshot,
   BrowserTabsState,
@@ -90,8 +91,13 @@ export interface SimDesktopBrowserAgentApi {
    * Report where the browser panel sits in the window (CSS pixels relative
    * to the viewport), or null when the panel is hidden/unmounted. The main
    * process keeps the embedded view glued to this rect.
+   *
+   * `anchor` declares how that rect derives from the viewport so the shell can
+   * re-evaluate it mid-resize rather than hold a stale rect; omit it and the
+   * shell falls back to the measured rect alone. Shells predating it ignore the
+   * argument.
    */
-  setPanelBounds(bounds: BrowserPanelBounds | null): void
+  setPanelBounds(bounds: BrowserPanelBounds | null, anchor?: BrowserPanelAnchor | null): void
   /**
    * Report whether renderer-owned browser chrome currently owns the user's
    * interaction context. Optional for compatibility with older desktop builds.

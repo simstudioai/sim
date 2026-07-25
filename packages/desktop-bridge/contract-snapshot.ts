@@ -33,6 +33,7 @@
 
 export const BROWSER_TOOL_NAMES = [
   'browser_navigate',
+  'browser_open_url',
   'browser_go_back',
   'browser_go_forward',
   'browser_open_tab',
@@ -57,7 +58,7 @@ export const BROWSER_TOOL_NAMES = [
 export type BrowserToolName = (typeof BROWSER_TOOL_NAMES)[number]
 
 /** Hard cap shared by the desktop browser session and its renderer chrome. */
-export const MAX_BROWSER_TABS = 5
+export const MAX_BROWSER_TABS = 8
 
 export const BROWSER_THEMES = ['system', 'light', 'dark'] as const
 
@@ -96,6 +97,36 @@ export interface BrowserPanelBounds {
   y: number
   width: number
   height: number
+}
+
+/**
+ * How the panel's rect derives from the window's viewport, so the shell can
+ * re-evaluate it during a live window resize instead of holding a measured
+ * rect that is one frame stale.
+ *
+ * The renderer declares the rule; the shell only evaluates it. That direction
+ * matters: the shell once *assumed* a rule (right-anchored at constant width)
+ * and was wrong by half the window's travel whenever the panel was fractional.
+ *
+ * `widthRatio` is the only thing the shell cannot work out for itself, so it is
+ * the only rule carried here. Everything else — the width residual, the right
+ * inset, the top and bottom insets — the shell derives from the rect reported
+ * alongside this, measured at exactly the viewport below.
+ */
+export interface BrowserPanelAnchor {
+  /** Viewport size (CSS px) the companion rect was measured at. */
+  viewportWidth: number
+  viewportHeight: number
+  /**
+   * How much the panel's width changes per pixel of viewport width: 0.5 while a
+   * half-width class governs it, 0 once a divider drag pins a fixed width.
+   *
+   * A rate, deliberately, not a share of the viewport — the panel is half of a
+   * parent box that excludes the sidebar, so its width is not 0.5 * viewport.
+   * The rate is what holds regardless, because that sidebar is a constant across
+   * a window resize, and the residual the shell derives absorbs the difference.
+   */
+  widthRatio: number
 }
 
 /** Last captured frame used while renderer overlays occlude the native view. */
@@ -145,6 +176,8 @@ export interface BrowserTabState {
   title: string
   loading: boolean
   active: boolean
+  /** Pinned tabs are ordered before regular tabs and cannot be closed. */
+  pinned?: boolean
 }
 
 /** Complete live tab list pushed by the desktop shell. */
@@ -193,11 +226,26 @@ export interface SimDesktopBrowserAgentApi {
   /** Browser-chrome commands from the panel (URL bar, back, reload, takeover Done). */
   panelAction(action: BrowserPanelAction): void
   /**
+   * Pin or unpin a live browser tab. Optional for compatibility with desktop
+   * builds predating durable pinned tabs.
+   */
+  setTabPinned?(tabId: string, pinned: boolean): void
+  /**
+   * Move a live tab to a final list index. Optional for compatibility with
+   * desktop builds predating tab reordering.
+   */
+  reorderTab?(tabId: string, targetIndex: number): void
+  /**
    * Report where the browser panel sits in the window (CSS pixels relative
    * to the viewport), or null when the panel is hidden/unmounted. The main
    * process keeps the embedded view glued to this rect.
+   *
+   * `anchor` declares how that rect derives from the viewport so the shell can
+   * re-evaluate it mid-resize rather than hold a stale rect; omit it and the
+   * shell falls back to the measured rect alone. Shells predating it ignore the
+   * argument.
    */
-  setPanelBounds(bounds: BrowserPanelBounds | null): void
+  setPanelBounds(bounds: BrowserPanelBounds | null, anchor?: BrowserPanelAnchor | null): void
   /**
    * Report whether renderer-owned browser chrome currently owns the user's
    * interaction context. Optional for compatibility with older desktop builds.
@@ -291,6 +339,7 @@ export type LocalFilesystemRequest =
   | { operation: 'mount_directory' }
   | { operation: 'list_mounts' }
   | { operation: 'forget_mount'; uri: string }
+  | { operation: 'reveal_mount'; uri: string }
   | { operation: 'list'; uri: string; requestId?: string }
   | {
       operation: 'glob'
@@ -326,6 +375,7 @@ export type LocalFilesystemData =
   | { mount: LocalFilesystemMount | null; cancelled: boolean }
   | { mounts: LocalFilesystemMount[] }
   | { forgotten: boolean }
+  | { revealed: boolean }
   | { entries: LocalFilesystemEntry[]; truncated: boolean }
   | { matches: LocalFilesystemGrepMatch[]; truncated: boolean }
   | { files: string[]; truncated: boolean }

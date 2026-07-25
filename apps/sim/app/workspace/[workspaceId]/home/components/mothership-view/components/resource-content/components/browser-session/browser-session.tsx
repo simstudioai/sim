@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { BrowserPanelAnchor } from '@sim/browser-protocol'
 import { isBrowserTheme } from '@sim/browser-protocol'
 import { Button, ChipInput } from '@sim/emcn'
 import { ArrowLeft, ArrowRight, Cursor, RefreshCw, Search } from '@sim/emcn/icons'
@@ -19,6 +20,7 @@ import {
 import { useBrowserPanelOcclusion } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserTabStrip } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-tab-strip'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
+import { MOTHERSHIP_WIDTH } from '@/stores/constants'
 
 /**
  * The browser panel. The real agent-browser page is a native view the
@@ -87,6 +89,27 @@ export function trackBrowserPanelFocus(
 /** Re-report unchanged bounds before the main-process visibility lease expires. */
 const PANEL_HEARTBEAT_INTERVAL_MS = 1_000
 
+/**
+ * Declares how the panel's width follows the viewport, so the shell can
+ * re-derive the rect during a live window resize instead of holding one that is
+ * a frame stale (which shows as a gap along the panel's left edge).
+ *
+ * Only the width rule has to cross the bridge: a divider drag pins an inline px
+ * width on the panel, otherwise its `w-1/2` class halves the viewport. The shell
+ * works the rest out from the rect reported alongside this.
+ */
+function describeAnchor(panel: HTMLElement | null): BrowserPanelAnchor | null {
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+  if (viewportWidth <= 0 || viewportHeight <= 0) return null
+  const pinned = panel?.style.width.endsWith('px') ?? false
+  return {
+    viewportWidth,
+    viewportHeight,
+    widthRatio: pinned ? 0 : MOTHERSHIP_WIDTH.DEFAULT_RATIO,
+  }
+}
+
 export function BrowserSession() {
   const { theme } = useTheme()
   const pageState = useBrowserSessionStore((state) => state.pageState)
@@ -151,6 +174,9 @@ export function BrowserSession() {
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
+    // Resolved once: the panel is a stable ancestor for this effect's lifetime,
+    // and only its inline width changes.
+    const panel = host.closest<HTMLElement>('[data-mothership-panel]')
 
     let rafId: number | null = null
     let forceNextReport = false
@@ -178,7 +204,7 @@ export function BrowserSession() {
       const key = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
       if (force || key !== last) {
         last = key
-        reportBrowserPanelBounds(bounds)
+        reportBrowserPanelBounds(bounds, describeAnchor(panel))
       }
     }
 

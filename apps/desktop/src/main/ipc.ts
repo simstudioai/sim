@@ -1,4 +1,9 @@
-import { type BrowserPanelBounds, isBrowserTheme, isBrowserToolName } from '@sim/browser-protocol'
+import {
+  type BrowserPanelAnchor,
+  type BrowserPanelBounds,
+  isBrowserTheme,
+  isBrowserToolName,
+} from '@sim/browser-protocol'
 import type {
   DesktopNotificationPayload,
   DesktopUpdateState,
@@ -84,6 +89,35 @@ export function parsePanelBounds(
   return undefined
 }
 
+/**
+ * Validates the optional panel anchor. Absent or malformed yields undefined, so
+ * the panel falls back to the measured rect alone — an anchor is an
+ * optimization, never a requirement.
+ */
+export function parsePanelAnchor(raw: unknown): BrowserPanelAnchor | undefined {
+  if (!isRecordLike(raw)) {
+    return undefined
+  }
+  const { viewportWidth, viewportHeight, widthRatio } = raw as {
+    viewportWidth?: unknown
+    viewportHeight?: unknown
+    widthRatio?: unknown
+  }
+  if (
+    typeof viewportWidth !== 'number' ||
+    typeof viewportHeight !== 'number' ||
+    typeof widthRatio !== 'number' ||
+    ![viewportWidth, viewportHeight, widthRatio].every(Number.isFinite) ||
+    viewportWidth <= 0 ||
+    viewportHeight <= 0 ||
+    widthRatio < 0 ||
+    widthRatio > 1
+  ) {
+    return undefined
+  }
+  return { viewportWidth, viewportHeight, widthRatio }
+}
+
 export function parseDesktopNotificationPayload(raw: unknown): DesktopNotificationPayload | null {
   if (typeof raw !== 'object' || raw === null) {
     return null
@@ -118,7 +152,11 @@ export interface IpcDeps {
   settings: DesktopSettingsService
   getWindowState: (sender: WebContents) => DesktopWindowState
   browserPanel: {
-    setBounds: (sender: WebContents, bounds: BrowserPanelBounds | null) => void
+    setBounds: (
+      sender: WebContents,
+      bounds: BrowserPanelBounds | null,
+      anchor?: BrowserPanelAnchor
+    ) => void
     setFocused: (sender: WebContents, focused: boolean) => void
     setOccluded: (sender: WebContents, occluded: boolean) => void
   }
@@ -419,10 +457,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       kind: 'send',
       gate: 'app-origin',
       passSender: true,
-      handler: (sender, raw) => {
+      handler: (sender, raw, rawAnchor) => {
         const bounds = parsePanelBounds(raw)
         if (bounds !== undefined) {
-          deps.browserPanel.setBounds(sender as WebContents, bounds)
+          deps.browserPanel.setBounds(sender as WebContents, bounds, parsePanelAnchor(rawAnchor))
         }
       },
     },

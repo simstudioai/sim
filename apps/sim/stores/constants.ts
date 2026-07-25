@@ -65,6 +65,12 @@ export const MOTHERSHIP_WIDTH = {
   MIN: 280,
   /** Maximum is 65% of viewport, enforced dynamically */
   MAX_PERCENTAGE: 0.65,
+  /**
+   * Share of the viewport the panel takes while unpinned — the `w-1/2` class in
+   * mothership-view. Also reported to the desktop shell so it can re-derive the
+   * panel rect mid-resize, so the two must agree.
+   */
+  DEFAULT_RATIO: 0.5,
 } as const
 
 /** Terminal block column width - minimum width for the logs column */

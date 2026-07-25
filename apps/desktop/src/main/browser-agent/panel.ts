@@ -11,7 +11,11 @@
  * startup. Tab state changes are pushed in by the session calling {@link layout};
  * this module never reaches back into it, so the import graph stays one-way.
  */
-import type { BrowserPanelBounds, BrowserPanelSnapshot } from '@sim/browser-protocol'
+import type {
+  BrowserPanelAnchor,
+  BrowserPanelBounds,
+  BrowserPanelSnapshot,
+} from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { BrowserWindow, WebContentsView } from 'electron'
@@ -51,6 +55,8 @@ let host: PanelHost = {
 
 /** Where the panel sits in the window (CSS px); null = panel hidden. */
 let panelBounds: BrowserPanelBounds | null = null
+/** How {@link panelBounds} derives from the viewport, when the renderer said. */
+let panelAnchor: BrowserPanelAnchor | null = null
 /** True while renderer-owned UI overlaps the native browser surface. */
 let panelOccluded = false
 let panelLeaseAt = 0
@@ -65,6 +71,10 @@ let panelOwnerWindow: BrowserWindow | null = null
 let attachedView: WebContentsView | null = null
 let lastAppliedBounds = ''
 let lastAppliedVisibility: boolean | null = null
+/** The host window whose `resize` currently drives {@link layout}, if any. */
+let resizeBoundWindow: BrowserWindow | null = null
+/** Captures nothing, so one instance serves every window it is bound to. */
+const onHostResize = () => layout()
 
 export function initPanel(panelHost: PanelHost): void {
   host = panelHost
@@ -119,6 +129,78 @@ export function isPanelVisible(): boolean {
 }
 
 /**
+ * Re-lays-out on the host window's own `resize` (~68/sec during a live drag, one
+ * per resize step) so the view tracks the frame it is actually in.
+ *
+ * @see layout — the resize is a trigger, never a source of bounds.
+ */
+function bindHostResize(win: BrowserWindow): void {
+  if (resizeBoundWindow === win) return
+  unbindHostResize()
+  win.on('resize', onHostResize)
+  resizeBoundWindow = win
+}
+
+function unbindHostResize(): void {
+  if (resizeBoundWindow && !resizeBoundWindow.isDestroyed()) {
+    resizeBoundWindow.removeListener('resize', onHostResize)
+  }
+  resizeBoundWindow = null
+}
+
+/**
+ * Re-derives the rect for a viewport the renderer has not measured yet, from the
+ * rule it declared plus the rect it measured at `anchor`'s own viewport.
+ * Everything but the width ratio falls out of that pair: the insets are
+ * size-invariant, and the width residual is whatever the ratio leaves over.
+ *
+ * Null when the viewport still matches the measured one, so the measurement
+ * wins wherever it is exact and a wrong ratio can only reach live-resize frames.
+ */
+function evaluateAnchor(
+  anchor: BrowserPanelAnchor | null,
+  measured: BrowserPanelBounds,
+  viewportWidth: number,
+  viewportHeight: number
+): BrowserPanelBounds | null {
+  if (
+    anchor === null ||
+    (viewportWidth === anchor.viewportWidth && viewportHeight === anchor.viewportHeight)
+  ) {
+    return null
+  }
+  const widthOffset = measured.width - anchor.viewportWidth * anchor.widthRatio
+  const rightInset = anchor.viewportWidth - (measured.x + measured.width)
+  const bottom = anchor.viewportHeight - (measured.y + measured.height)
+  const width = viewportWidth * anchor.widthRatio + widthOffset
+  return {
+    x: viewportWidth - rightInset - width,
+    y: measured.y,
+    width,
+    height: viewportHeight - measured.y - bottom,
+  }
+}
+
+/**
+ * Confines a rect to the window's content box, and owns the 1px floor for the
+ * whole path. Pure constraint — it needs no model of where the panel sits.
+ */
+function clampToContent(
+  rect: BrowserPanelBounds,
+  contentWidth: number,
+  contentHeight: number
+): BrowserPanelBounds {
+  const x = Math.min(Math.max(0, rect.x), Math.max(0, contentWidth - 1))
+  const y = Math.min(Math.max(0, rect.y), Math.max(0, contentHeight - 1))
+  return {
+    x,
+    y,
+    width: Math.max(1, Math.min(rect.width, contentWidth - x)),
+    height: Math.max(1, Math.min(rect.height, contentHeight - y)),
+  }
+}
+
+/**
  * Clears the tracked attachment before touching Electron objects so a stale
  * host or child view cannot leave layout permanently wedged after teardown.
  */
@@ -129,6 +211,7 @@ export function detachAttachedView(): void {
   hostedWindow = null
   lastAppliedBounds = ''
   lastAppliedVisibility = null
+  unbindHostResize()
   host.onViewDetached(view)
 
   if (!view || !win) return
@@ -198,6 +281,15 @@ function capturePanelSnapshot(): void {
  * compositor resize was the "swimming" the prediction was meant to prevent.
  * A divider drag still gets a predicted rect, from the renderer, where the
  * arithmetic is exact because only the panel's left edge moves.
+ *
+ * The window's `resize` does drive this function (see {@link bindHostResize}),
+ * but only as a trigger — it supplies no rect. The report the renderer already
+ * sent is re-clamped against the new content box, so a shrink can never leave
+ * the view overhanging the frame while that report is one frame stale. The
+ * clamp needs no model of where the panel sits, which is exactly what the
+ * reverted prediction did need. Bounds keep one writer and one dedup key, so
+ * the contention above cannot recur: on a grow the clamp is inert and the key
+ * is unchanged, costing no view mutation at all.
  */
 export function layout(): void {
   const win = panelWindow()
@@ -222,13 +314,24 @@ export function layout(): void {
       capturePanelSnapshot()
     }
   }
+  bindHostResize(win)
   const zoom = win.webContents.getZoomFactor()
-  const bounds = {
-    x: Math.round(panelBounds.x * zoom),
-    y: Math.round(panelBounds.y * zoom),
-    width: Math.max(1, Math.round(panelBounds.width * zoom)),
-    height: Math.max(1, Math.round(panelBounds.height * zoom)),
-  }
+  const [contentWidth, contentHeight] = win.getContentSize()
+  // The anchor is declared in the renderer's CSS pixels, so compare and
+  // evaluate there, then scale the result the same way a measured rect is.
+  const rect =
+    evaluateAnchor(panelAnchor, panelBounds, contentWidth / zoom, contentHeight / zoom) ??
+    panelBounds
+  const bounds = clampToContent(
+    {
+      x: Math.round(rect.x * zoom),
+      y: Math.round(rect.y * zoom),
+      width: Math.round(rect.width * zoom),
+      height: Math.round(rect.height * zoom),
+    },
+    contentWidth,
+    contentHeight
+  )
   const boundsKey = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
   if (boundsKey !== lastAppliedBounds) {
     lastAppliedBounds = boundsKey
@@ -248,7 +351,8 @@ export function layout(): void {
  */
 export function setPanelBounds(
   bounds: BrowserPanelBounds | null,
-  ownerWindow?: BrowserWindow
+  ownerWindow?: BrowserWindow,
+  anchor?: BrowserPanelAnchor
 ): void {
   // A closing window releases the panel from its `closed` handler, by which
   // point Electron has already destroyed it. That release has to be honoured
@@ -265,6 +369,7 @@ export function setPanelBounds(
     panelOwnerWindow = null
   }
   panelBounds = bounds
+  panelAnchor = bounds === null ? null : (anchor ?? null)
   if (bounds !== null) {
     host.ensureInitialTab()
   }

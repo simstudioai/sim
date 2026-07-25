@@ -441,13 +441,13 @@ function main(): void {
         isFullScreen: windowForContents(sender)?.isFullScreen() ?? false,
       }),
       browserPanel: {
-        setBounds: (sender, bounds) => {
+        setBounds: (sender, bounds, anchor) => {
           const win = windowForContents(sender)
           if (!win) return
           if (bounds !== null && !canReportPanelBounds(win, focusedAppWindow())) {
             return
           }
-          setBrowserAgentPanelBounds(bounds, win)
+          setBrowserAgentPanelBounds(bounds, win, anchor)
         },
         setFocused: (sender, focused) => {
           const win = windowForContents(sender)

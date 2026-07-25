@@ -3,6 +3,7 @@ import type {
   BrowserOmniboxFocusMode,
   BrowserPageState,
   BrowserPanelAction,
+  BrowserPanelAnchor,
   BrowserPanelBounds,
   BrowserPanelSnapshot,
   BrowserTabsState,
@@ -124,8 +125,11 @@ const api: SimDesktopApi = {
     reorderTab: (tabId: string, targetIndex: number): void => {
       ipcRenderer.send('browser-agent:reorder-tab', tabId, targetIndex)
     },
-    setPanelBounds: (bounds: BrowserPanelBounds | null): void => {
-      ipcRenderer.send('browser-agent:set-panel-bounds', bounds)
+    setPanelBounds: (
+      bounds: BrowserPanelBounds | null,
+      anchor?: BrowserPanelAnchor | null
+    ): void => {
+      ipcRenderer.send('browser-agent:set-panel-bounds', bounds, anchor ?? null)
     },
     setPanelFocused: (focused: boolean): void => {
       ipcRenderer.send('browser-agent:set-panel-focused', focused)

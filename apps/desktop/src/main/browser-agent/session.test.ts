@@ -69,6 +69,14 @@ async function freshSession(
   return session
 }
 
+/** The host `resize` listener panel.ts binds while a view is attached. */
+function hostResizeHandler(win: BrowserWindow): () => void {
+  const calls = (win as unknown as { on: ReturnType<typeof vi.fn> }).on.mock.calls
+  const handler = calls.find(([event]) => event === 'resize')?.[1]
+  if (typeof handler !== 'function') throw new Error('no host resize listener bound')
+  return handler as () => void
+}
+
 describe('browser-agent session', () => {
   let win: BrowserWindow
   let session: SessionModule
@@ -440,7 +448,7 @@ describe('browser-agent session', () => {
   // with the default half-width panel it applied a rect that disagreed with
   // the measurement by half the window's travel — twice per frame, because
   // the two writers shared a dedup key and kept invalidating each other.
-  it('applies renderer-measured bounds once and never resizes the view on its own', () => {
+  it('applies renderer-measured bounds once and invents no rect when the window grows', () => {
     const tab = session.ensureTab()
     const view = tab.view as unknown as MockView
     const mock = win as unknown as {
@@ -450,11 +458,16 @@ describe('browser-agent session', () => {
 
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     expect(view.setBounds).toHaveBeenCalledWith({ x: 100, y: 50, width: 800, height: 600 })
-    expect(mock.on.mock.calls.some(([event]) => event === 'resize')).toBe(false)
 
-    // The window growing changes nothing until the renderer measures it.
+    // The window's resize is a layout trigger, never a source of bounds. On a
+    // grow the clamp is inert, so the rect is unchanged and nothing is applied
+    // until the renderer measures — this is what keeps the reverted prediction
+    // from creeping back in.
+    const onResize = hostResizeHandler(win)
+
     view.setBounds.mockClear()
     mock.getContentSize.mockReturnValue([1380, 950])
+    onResize()
     expect(view.setBounds).not.toHaveBeenCalled()
 
     // A repeated identical report stays idempotent.
@@ -465,6 +478,98 @@ describe('browser-agent session', () => {
     panel.setPanelBounds({ x: 300, y: 50, width: 900, height: 700 })
     expect(view.setBounds).toHaveBeenCalledTimes(1)
     expect(view.setBounds).toHaveBeenCalledWith({ x: 300, y: 50, width: 900, height: 700 })
+  })
+
+  // A shrink outruns the renderer's measurement by a frame; without the clamp
+  // the stale rect is applied verbatim and the view overhangs the new frame.
+  it('confines the view to the content box when the window shrinks', () => {
+    const tab = session.ensureTab()
+    const view = tab.view as unknown as MockView
+    const mock = win as unknown as {
+      on: ReturnType<typeof vi.fn>
+      getContentSize: ReturnType<typeof vi.fn>
+    }
+
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const onResize = hostResizeHandler(win)
+
+    view.setBounds.mockClear()
+    mock.getContentSize.mockReturnValue([600, 400])
+    onResize()
+
+    expect(view.setBounds).toHaveBeenCalledTimes(1)
+    expect(view.setBounds).toHaveBeenCalledWith({ x: 100, y: 50, width: 500, height: 350 })
+
+    // Re-clamping the same stale rect is idempotent.
+    onResize()
+    expect(view.setBounds).toHaveBeenCalledTimes(1)
+  })
+
+  // The measured rect is a frame stale mid-drag, and for a half-width panel a
+  // window change of D moves the panel's left edge by D/2 — which the clamp
+  // cannot correct because it only truncates. The declared anchor is what moves
+  // x, closing the gap between the divider and the view's left edge.
+  it('re-derives the rect from the declared anchor while the window resizes', () => {
+    const tab = session.ensureTab()
+    const view = tab.view as unknown as MockView
+    const mock = win as unknown as {
+      on: ReturnType<typeof vi.fn>
+      getContentSize: ReturnType<typeof vi.fn>
+    }
+
+    // Half-width panel, right-flush, measured at a 1000x800 viewport.
+    mock.getContentSize.mockReturnValue([1000, 800])
+    panel.setPanelBounds({ x: 500, y: 40, width: 500, height: 760 }, undefined, {
+      viewportWidth: 1000,
+      viewportHeight: 800,
+      widthRatio: 0.5,
+    })
+    expect(view.setBounds).toHaveBeenLastCalledWith({ x: 500, y: 40, width: 500, height: 760 })
+
+    const onResize = hostResizeHandler(win)
+
+    // Window grows to 1200 wide: half-width means x moves to 600, not 500.
+    view.setBounds.mockClear()
+    mock.getContentSize.mockReturnValue([1200, 800])
+    onResize()
+    expect(view.setBounds).toHaveBeenCalledWith({ x: 600, y: 40, width: 600, height: 760 })
+
+    // Shrinking below the measured size derives it just as well, with no help
+    // from the clamp (600 wide → x 300, width 300, both inside the frame).
+    view.setBounds.mockClear()
+    mock.getContentSize.mockReturnValue([600, 800])
+    onResize()
+    expect(view.setBounds).toHaveBeenCalledWith({ x: 300, y: 40, width: 300, height: 760 })
+  })
+
+  it('prefers the measured rect over the anchor at the measured viewport', () => {
+    const tab = session.ensureTab()
+    const view = tab.view as unknown as MockView
+    const mock = win as unknown as { getContentSize: ReturnType<typeof vi.fn> }
+
+    // An anchor that disagrees with the measurement must not win while the
+    // viewport still matches: measurement is authoritative, so a wrong anchor
+    // can only ever affect the frames of a live resize.
+    mock.getContentSize.mockReturnValue([1000, 800])
+    panel.setPanelBounds({ x: 500, y: 40, width: 500, height: 760 }, undefined, {
+      viewportWidth: 1000,
+      viewportHeight: 800,
+      widthRatio: 0,
+    })
+
+    expect(view.setBounds).toHaveBeenLastCalledWith({ x: 500, y: 40, width: 500, height: 760 })
+  })
+
+  it('drops the resize listener when the view detaches', () => {
+    session.ensureTab()
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const onResize = hostResizeHandler(win)
+
+    panel.setPanelBounds(null)
+
+    expect(
+      (win as unknown as { removeListener: ReturnType<typeof vi.fn> }).removeListener
+    ).toHaveBeenCalledWith('resize', onResize)
   })
 
   it('creates one real default tab when the browser panel becomes visible', () => {
@@ -547,6 +652,10 @@ describe('browser-agent session', () => {
     ;(
       winZoomed as unknown as { webContents: { getZoomFactor: ReturnType<typeof vi.fn> } }
     ).webContents.getZoomFactor = vi.fn(() => 1.5)
+    // Roomy content box so the clamp stays inert and this covers zoom alone.
+    ;(winZoomed as unknown as { getContentSize: ReturnType<typeof vi.fn> }).getContentSize = vi.fn(
+      () => [2000, 1400]
+    )
     return freshSession(winZoomed).then((zoomedSession) => {
       const tab = zoomedSession.ensureTab()
       panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })

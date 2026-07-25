@@ -113,6 +113,9 @@ export const MothershipView = memo(
     return (
       <div
         ref={ref}
+        // Read by the browser panel to declare its resize anchor: an inline px
+        // width means a divider drag pinned it, otherwise `w-1/2` governs.
+        data-mothership-panel=''
         className={cn(
           'relative z-10 flex h-full flex-col overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width,border-width] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]',
           isCollapsed ? 'w-0 min-w-0 border-l-0' : 'w-1/2 border-l',

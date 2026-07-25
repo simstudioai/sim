@@ -85,6 +85,36 @@ export interface BrowserPanelBounds {
   height: number
 }
 
+/**
+ * How the panel's rect derives from the window's viewport, so the shell can
+ * re-evaluate it during a live window resize instead of holding a measured
+ * rect that is one frame stale.
+ *
+ * The renderer declares the rule; the shell only evaluates it. That direction
+ * matters: the shell once *assumed* a rule (right-anchored at constant width)
+ * and was wrong by half the window's travel whenever the panel was fractional.
+ *
+ * `widthRatio` is the only thing the shell cannot work out for itself, so it is
+ * the only rule carried here. Everything else — the width residual, the right
+ * inset, the top and bottom insets — the shell derives from the rect reported
+ * alongside this, measured at exactly the viewport below.
+ */
+export interface BrowserPanelAnchor {
+  /** Viewport size (CSS px) the companion rect was measured at. */
+  viewportWidth: number
+  viewportHeight: number
+  /**
+   * How much the panel's width changes per pixel of viewport width: 0.5 while a
+   * half-width class governs it, 0 once a divider drag pins a fixed width.
+   *
+   * A rate, deliberately, not a share of the viewport — the panel is half of a
+   * parent box that excludes the sidebar, so its width is not 0.5 * viewport.
+   * The rate is what holds regardless, because that sidebar is a constant across
+   * a window resize, and the residual the shell derives absorbs the difference.
+   */
+  widthRatio: number
+}
+
 /** Last captured frame used while renderer overlays occlude the native view. */
 export interface BrowserPanelSnapshot {
   dataUrl: string

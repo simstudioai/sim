@@ -97,7 +97,12 @@ describe('browser panel transport', () => {
     reportBrowserPanelBounds(updatedBounds)
     reportBrowserPanelOcclusion(false)
 
-    expect(setPanelBounds.mock.calls).toEqual([[initialBounds], [updatedBounds]])
+    // A caller with no anchor to declare keeps whatever was last retained —
+    // here there was never one, so the shell is told null both times.
+    expect(setPanelBounds.mock.calls).toEqual([
+      [initialBounds, null],
+      [updatedBounds, null],
+    ])
     expect(setPanelOccluded.mock.calls).toEqual([[true], [false]])
   })
 

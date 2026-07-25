@@ -16,6 +16,7 @@ import type {
   BrowserOmniboxFocusMode,
   BrowserPageState,
   BrowserPanelAction,
+  BrowserPanelAnchor,
   BrowserPanelBounds,
   BrowserTabsState,
   BrowserTheme,
@@ -148,11 +149,14 @@ export function onBrowserOmniboxFocus(
  * Reports the panel's current rect (viewport CSS pixels), or null when the
  * panel is hidden/unmounted. The embedded view tracks this rect.
  */
-export function reportBrowserPanelBounds(bounds: BrowserPanelBounds | null): void {
+export function reportBrowserPanelBounds(
+  bounds: BrowserPanelBounds | null,
+  anchor: BrowserPanelAnchor | null = null
+): void {
   latestPanelBounds = bounds
   const agent = bridge()
   if (!agent?.setPanelOccluded && panelOccluded && bounds !== null) return
-  agent?.setPanelBounds(bounds)
+  agent?.setPanelBounds(bounds, anchor)
 }
 
 /**
@@ -176,7 +180,13 @@ export function beginBrowserPanelDividerDrag(
     const dx = Math.round(dividerX - startDividerX)
     const width = base.width - dx
     if (width <= 0) return
-    reportBrowserPanelBounds({ x: base.x + dx, y: base.y, width, height: base.height })
+    // The drag has pinned an inline px width, so the rate is flat and the
+    // viewport is whatever it already was — statable exactly, which keeps the
+    // rect and its anchor from ever describing different states.
+    reportBrowserPanelBounds(
+      { x: base.x + dx, y: base.y, width, height: base.height },
+      { viewportWidth: window.innerWidth, viewportHeight: window.innerHeight, widthRatio: 0 }
+    )
   }
 }
 

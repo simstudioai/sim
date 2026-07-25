@@ -441,8 +441,27 @@ describe('registerIpcHandlers', () => {
 
     handler?.(appEvent, bounds)
     handler?.(appEvent, null)
-    expect(deps.browserPanel.setBounds).toHaveBeenNthCalledWith(1, appSender, bounds)
-    expect(deps.browserPanel.setBounds).toHaveBeenNthCalledWith(2, appSender, null)
+    expect(deps.browserPanel.setBounds).toHaveBeenNthCalledWith(1, appSender, bounds, undefined)
+    expect(deps.browserPanel.setBounds).toHaveBeenNthCalledWith(2, appSender, null, undefined)
+  })
+
+  it('forwards a well-formed panel anchor and drops a malformed one', () => {
+    const { on } = collectHandlers()
+    const handler = on.get('browser-agent:set-panel-bounds')
+    const bounds = { x: 100, y: 50, width: 800, height: 600 }
+    const anchor = { viewportWidth: 1600, viewportHeight: 900, widthRatio: 0.5 }
+
+    handler?.(appEvent, bounds, anchor)
+    expect(deps.browserPanel.setBounds).toHaveBeenLastCalledWith(appSender, bounds, anchor)
+
+    // A bad anchor must not take the bounds down with it — the rect still
+    // applies, the shell just loses the resize optimization.
+    handler?.(appEvent, bounds, { ...anchor, widthRatio: Number.NaN })
+    expect(deps.browserPanel.setBounds).toHaveBeenLastCalledWith(appSender, bounds, undefined)
+    handler?.(appEvent, bounds, { ...anchor, viewportWidth: 0 })
+    expect(deps.browserPanel.setBounds).toHaveBeenLastCalledWith(appSender, bounds, undefined)
+    handler?.(appEvent, bounds, 'nonsense')
+    expect(deps.browserPanel.setBounds).toHaveBeenLastCalledWith(appSender, bounds, undefined)
   })
 
   it('restricts browser theme updates to known app-origin preferences', () => {
