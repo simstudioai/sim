@@ -87,6 +87,8 @@ export interface WorkspaceCreationPolicy {
    * any membership as a mid-create join.
    */
   observedOrganizationId: string | null
+  /** Discriminant for blocked states the workspace mode cannot distinguish. */
+  blockedReasonCode?: 'organization-subscription-inactive'
 }
 
 interface GetWorkspaceCreationPolicyParams {
@@ -375,6 +377,31 @@ export async function getWorkspaceCreationPolicy({
         reason: null,
         status: 200,
         observedOrganizationId: membership?.organizationId ?? null,
+      }
+    }
+
+    /**
+     * Lapsed organization (no usable Team/Enterprise plan). A plain member
+     * gets NO personal fallback: letting them create workspaces here would
+     * hand them an estate outside every admin's view purely because billing
+     * lapsed — exactly the purview escape this regime closes. Owners and
+     * admins DO fall through to the personal regime below: they sit at the top
+     * of the hierarchy, so there is no purview to escape, and after a
+     * downgrade they are usually back on a personal plan they still pay for.
+     */
+    if (!isOrgAdminRole(orgRole)) {
+      return {
+        canCreate: false,
+        workspaceMode: WORKSPACE_MODE.ORGANIZATION,
+        organizationId,
+        billedAccountUserId: (await getOrganizationOwnerId(organizationId)) ?? userId,
+        maxWorkspaces: null,
+        currentWorkspaceCount: 0,
+        reason:
+          "Your organization's subscription is inactive. Ask an organization owner to reactivate it before creating workspaces.",
+        status: 403,
+        observedOrganizationId: membership?.organizationId ?? null,
+        blockedReasonCode: 'organization-subscription-inactive',
       }
     }
   }

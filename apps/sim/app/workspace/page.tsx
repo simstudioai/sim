@@ -172,9 +172,11 @@ export default function WorkspacePage() {
       <WorkspaceStatusCard
         title='No workspace access yet'
         description={
-          blockedPolicy.workspaceMode === 'organization'
-            ? "Your account is linked to an organization, but you don't have access to any of its workspaces. Ask an organization admin for workspace access, then check again — or sign out and back in if you recently left the organization."
-            : 'Your plan has reached its workspace limit and none of your workspaces are active. Upgrade your plan to create another workspace, or contact support to restore an archived one.'
+          blockedPolicy.blockedReasonCode === 'organization-subscription-inactive'
+            ? "Your organization's subscription is inactive, so new workspaces can't be created. Ask an organization owner to reactivate it."
+            : blockedPolicy.workspaceMode === 'organization'
+              ? "Your account is linked to an organization, but you don't have access to any of its workspaces. Ask an organization admin for workspace access, then check again — or sign out and back in if you recently left the organization."
+              : 'Your plan has reached its workspace limit and none of your workspaces are active. Upgrade your plan to create another workspace, or contact support to restore an archived one.'
         }
         primaryLabel='Check again'
         onPrimary={() => window.location.reload()}
