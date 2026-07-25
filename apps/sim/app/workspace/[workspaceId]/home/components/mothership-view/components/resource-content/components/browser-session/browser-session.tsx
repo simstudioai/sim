@@ -271,6 +271,10 @@ export function BrowserSession() {
     sendBrowserPanelAction('close-tab', { tabId })
   }, [])
 
+  const handleDuplicateTab = useCallback((tabId: string) => {
+    sendBrowserPanelAction('duplicate-tab', { tabId })
+  }, [])
+
   const handleSetTabPinned = useCallback((tabId: string, pinned: boolean) => {
     setBrowserTabPinned(tabId, pinned)
   }, [])
@@ -289,6 +293,7 @@ export function BrowserSession() {
             onNewTab={handleNewTab}
             onSwitchTab={handleSwitchTab}
             onCloseTab={handleCloseTab}
+            onDuplicateTab={handleDuplicateTab}
             onSetTabPinned={handleSetTabPinned}
             onReorderTab={handleReorderTab}
             pinningSupported={tabPinningSupported}

@@ -14,6 +14,7 @@ interface BrowserTabStripProps {
   onNewTab: () => void
   onSwitchTab: (tabId: string) => void
   onCloseTab: (tabId: string) => void
+  onDuplicateTab: (tabId: string) => void
   onSetTabPinned: (tabId: string, pinned: boolean) => void
   onReorderTab: (tabId: string, targetIndex: number) => void
   pinningSupported: boolean
@@ -58,7 +59,8 @@ function BrowserTabIcon({ tab }: { tab: BrowserTabState }) {
 
 /**
  * The browser panel's tab strip: the shared {@link TabStrip} plus the two
- * things only the browser has — favicons, and a pin/unpin context menu. The
+ * things only the browser has — favicons, and a right-click menu carrying
+ * pin/unpin alongside the duplicate and close every tab strip offers. The
  * active Electron view remains the only native view attached over the panel;
  * selecting a tab switches which live view is attached.
  */
@@ -68,6 +70,7 @@ export function BrowserTabStrip({
   onNewTab,
   onSwitchTab,
   onCloseTab,
+  onDuplicateTab,
   onSetTabPinned,
   onReorderTab,
   pinningSupported,
@@ -98,15 +101,10 @@ export function BrowserTabStrip({
   const openTabContextMenu = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>, tabId: string) => {
       window.getSelection()?.removeAllRanges()
-      if (!pinningSupported) {
-        event.preventDefault()
-        event.stopPropagation()
-        return
-      }
       setContextTabId(tabId)
       handleContextMenu(event)
     },
-    [handleContextMenu, pinningSupported]
+    [handleContextMenu]
   )
 
   return (
@@ -120,7 +118,7 @@ export function BrowserTabStrip({
       {...(reorderingSupported ? { onReorder: onReorderTab } : {})}
     >
       <ContextMenu
-        isOpen={isContextMenuOpen && Boolean(contextTab) && pinningSupported}
+        isOpen={isContextMenuOpen && Boolean(contextTab)}
         position={contextMenuPosition}
         menuRef={contextMenuRef}
         onClose={closeContextMenu}
@@ -129,11 +127,17 @@ export function BrowserTabStrip({
             ? () => onSetTabPinned(contextTab.tabId, !contextTab.pinned)
             : undefined
         }
+        onDuplicate={contextTab ? () => onDuplicateTab(contextTab.tabId) : undefined}
+        // A pinned tab has no close affordance in the strip either.
+        {...(contextTab && !contextTab.pinned
+          ? { onCloseTab: () => onCloseTab(contextTab.tabId), showCloseTab: true }
+          : {})}
         onDelete={() => {}}
         showPin={Boolean(contextTab) && pinningSupported}
         isPinned={Boolean(contextTab?.pinned)}
         showRename={false}
-        showDuplicate={false}
+        showDuplicate={Boolean(contextTab)}
+        disableDuplicate={tabs.length >= MAX_BROWSER_TABS}
         showDelete={false}
       />
     </TabStrip>

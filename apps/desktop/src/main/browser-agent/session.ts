@@ -524,6 +524,27 @@ export function reopenClosedTab(): AgentTab | null {
   return tab
 }
 
+/**
+ * Opens a copy of a tab at the same URL. A duplicate is a fresh load rather
+ * than a clone of the original's session history: the history belongs to the
+ * WebContents, and there is no way to fork it.
+ */
+export function duplicateTab(tabId: string): AgentTab | null {
+  restorePinnedTabs()
+  const source = tabs.find((entry) => entry.id === tabId)
+  if (!source || listTabs().length >= MAX_BROWSER_TABS) return null
+
+  const url = sanitizeRestorableUrl(source.view.webContents.getURL())
+  const tab = addTabInternal()
+  if (url && url !== 'about:blank') {
+    // Sanitized to http(s) without embedded credentials above, and the
+    // partition's onBeforeRequest still runs the full SSRF check on the load —
+    // same reasoning as reopenClosedTab, and this is likewise a user action.
+    void tab.view.webContents.loadURL(url).catch(() => {})
+  }
+  return tab
+}
+
 export function switchTab(tabId: string): AgentTab {
   restorePinnedTabs()
   const tab = tabs.find((entry) => entry.id === tabId)

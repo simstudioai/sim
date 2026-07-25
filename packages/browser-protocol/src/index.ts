@@ -135,12 +135,13 @@ export interface BrowserPanelAction {
     | 'back'
     | 'forward'
     | 'new-tab'
+    | 'duplicate-tab'
     | 'switch-tab'
     | 'close-tab'
     | 'takeover-done'
   /** Absolute URL for `navigate` (typed into the panel's URL bar). */
   url?: string
-  /** Stable tab id for `switch-tab` and `close-tab`. */
+  /** Stable tab id for `duplicate-tab`, `switch-tab`, and `close-tab`. */
   tabId?: string
 }
 

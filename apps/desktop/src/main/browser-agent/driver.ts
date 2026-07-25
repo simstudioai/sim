@@ -807,6 +807,12 @@ export async function handlePanelAction(action: BrowserPanelAction): Promise<voi
     session.addTab()
     return
   }
+  if (action.action === 'duplicate-tab') {
+    if (typeof action.tabId === 'string') {
+      session.duplicateTab(action.tabId)
+    }
+    return
+  }
   if (action.action === 'switch-tab') {
     if (typeof action.tabId === 'string') {
       session.switchTab(action.tabId)

@@ -83,8 +83,8 @@ export function resizeTerminal(terminalId: string, cols: number, rows: number): 
   bridge()?.resize(terminalId, cols, rows)
 }
 
-export async function openTerminal(): Promise<void> {
-  await bridge()?.openTerminal()
+export async function openTerminal(cwd?: string): Promise<void> {
+  await bridge()?.openTerminal(cwd)
 }
 
 export async function switchTerminal(terminalId: string): Promise<void> {

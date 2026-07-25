@@ -22,6 +22,7 @@ import {
   SquareArrowUpRight,
   Trash,
   Unlock,
+  X,
 } from '@sim/emcn/icons'
 import { Pin, PinOff } from 'lucide-react'
 
@@ -52,6 +53,12 @@ interface ContextMenuProps {
   onDuplicate?: () => void
   onExport?: () => void
   onDelete: () => void
+  /**
+   * Closes the item rather than deleting it — for tabs, where the destructive
+   * action is "close this one", not "delete it forever". Named for the item so
+   * it cannot be confused with `onClose`, which dismisses this menu.
+   */
+  onCloseTab?: () => void
   showOpenInNewTab?: boolean
   showMarkAsRead?: boolean
   showMarkAsUnread?: boolean
@@ -78,6 +85,7 @@ interface ContextMenuProps {
   disableLock?: boolean
   isLocked?: boolean
   showDelete?: boolean
+  showCloseTab?: boolean
   onUploadLogo?: () => void
   showUploadLogo?: boolean
   disableUploadLogo?: boolean
@@ -103,6 +111,7 @@ export function ContextMenu({
   onDuplicate,
   onExport,
   onDelete,
+  onCloseTab,
   showOpenInNewTab = false,
   showMarkAsRead = false,
   showMarkAsUnread = false,
@@ -129,6 +138,7 @@ export function ContextMenu({
   disableLock = false,
   isLocked = false,
   showDelete = true,
+  showCloseTab = false,
   onUploadLogo,
   showUploadLogo = false,
   disableUploadLogo = false,
@@ -325,7 +335,7 @@ export function ContextMenu({
         )}
 
         {(hasNavigationSection || hasStatusSection || hasEditSection || hasCopySection) &&
-          (showLeave || showDelete) && <DropdownMenuSeparator />}
+          (showLeave || showDelete || (showCloseTab && onCloseTab)) && <DropdownMenuSeparator />}
         {showLeave && onLeave && (
           <DropdownMenuItem
             disabled={disableLeave}
@@ -348,6 +358,17 @@ export function ContextMenu({
           >
             <Trash />
             Delete
+          </DropdownMenuItem>
+        )}
+        {showCloseTab && onCloseTab && (
+          <DropdownMenuItem
+            onSelect={() => {
+              onCloseTab()
+              onClose()
+            }}
+          >
+            <X />
+            Close
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>
