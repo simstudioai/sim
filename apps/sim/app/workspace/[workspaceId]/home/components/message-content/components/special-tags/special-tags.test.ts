@@ -176,6 +176,16 @@ describe('parseSpecialTags with <question>', () => {
     )
   })
 
+  it('still parses a valid tag that follows a rejected one', () => {
+    // Before the rewrite, rejecting an unclosed tag abandoned the rest of the
+    // message, so this <options> tag was never parsed at all.
+    const { segments } = parseSpecialTags(
+      'I use <thinking> loosely here. Anyway: <options>[{"title":"A","description":"d"}]</options> done.',
+      false
+    )
+    expect(segments.map((segment) => segment.type)).toContain('options')
+  })
+
   it('keeps prose a tag wrapped instead of a payload', () => {
     // Verbatim from a real message (trace 1206fd8a): a matched pair whose body
     // is plain prose, never an attempted JSON payload. The sentence read
@@ -279,9 +289,22 @@ describe('parseSpecialTags with <question>', () => {
     expect(parseSpecialTags(streaming, true).hasPendingTag).toBe(false)
   })
 
-  it('bails on a nested opening tag', () => {
-    const { hasPendingTag } = parseSpecialTags('a <thinking>b <thinking> c', true)
-    expect(hasPendingTag).toBe(false)
+  it('rejects an opener a nested one disproves, then judges the inner on its own', () => {
+    // Each opener is evaluated independently. The first is disproved by the
+    // nested opener and its text is released immediately; the second is a fresh
+    // candidate that nothing has ruled out yet, so it holds mid-stream.
+    const streaming = parseSpecialTags('a <thinking>b <thinking> c', true)
+    expect(streaming.hasPendingTag).toBe(true)
+    expect(
+      streaming.segments.map((segment) => ('content' in segment ? segment.content : '')).join('')
+    ).toBe('a <thinking>b ')
+
+    // Once the stream ends nothing can close it, so the whole line is shown.
+    const done = parseSpecialTags('a <thinking>b <thinking> c', false)
+    expect(done.hasPendingTag).toBe(false)
+    expect(
+      done.segments.map((segment) => ('content' in segment ? segment.content : '')).join('')
+    ).toBe('a <thinking>b <thinking> c')
   })
 
   it('keeps suppressing an unclosed thinking tag with prose — its body is not JSON', () => {
@@ -296,14 +319,13 @@ describe('parseSpecialTags with <question>', () => {
       'The `<workspace_resource>` file chip only renders when its path points to a real file.'
     const { segments, hasPendingTag } = parseSpecialTags(content, false)
     expect(hasPendingTag).toBe(false)
-    expect(segments).toEqual([
-      { type: 'text', content: 'The `' },
-      {
-        type: 'text',
-        content:
-          '<workspace_resource>` file chip only renders when its path points to a real file.',
-      },
-    ])
+    // Asserted on the joined text, not segment boundaries: the renderer
+    // concatenates adjacent text segments, so how the span is split is not
+    // observable to a reader.
+    expect(segments.every((segment) => segment.type === 'text')).toBe(true)
+    expect(segments.map((segment) => ('content' in segment ? segment.content : '')).join('')).toBe(
+      content
+    )
   })
 
   it('strips a trailing partial opening tag while streaming', () => {

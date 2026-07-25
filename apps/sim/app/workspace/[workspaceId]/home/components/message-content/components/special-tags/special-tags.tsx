@@ -604,10 +604,82 @@ function unclosedTagCannotResolve(
   return false
 }
 
+/**
+ * How one opening tag resolved. Naming the four outcomes is the point: the
+ * parser previously decided each case inline, which is how "drop it" quietly
+ * became the fallback for situations that were never malformed payloads.
+ */
+type TagResolution =
+  /** Body parsed; emit the typed segment and resume after the closing tag. */
+  | { outcome: 'segment'; segment: ContentSegment; resumeAt: number }
+  /** Provably not a tag; render the span verbatim and resume after it. */
+  | { outcome: 'literal'; resumeAt: number }
+  /** A well-formed payload that failed its shape guard — dropped deliberately. */
+  | { outcome: 'discard'; resumeAt: number }
+  /** Still streaming and a close remains plausible; suppress the remainder. */
+  | { outcome: 'pending' }
+
+/**
+ * True when a failed body was never an attempted payload — so the markers were
+ * literal text and the span must be shown rather than swallowed.
+ *
+ * Either the close we matched belongs to a different opener (the body carries
+ * tag markers), or the tag wrapped prose that was never JSON to begin with.
+ */
+function bodyIsLiteralText(tagName: (typeof SPECIAL_TAG_NAMES)[number], body: string): boolean {
+  if (TAG_SHAPED_MARKER.test(body)) return true
+  return JSON_BODY_TAG_NAMES.has(tagName) && !isViableJsonPrefix(body)
+}
+
+function resolveTagAt(
+  content: string,
+  openIndex: number,
+  tagName: (typeof SPECIAL_TAG_NAMES)[number],
+  isStreaming: boolean
+): TagResolution {
+  const openTag = `<${tagName}>`
+  const closeTag = `</${tagName}>`
+  const bodyStart = openIndex + openTag.length
+  const closeIdx = content.indexOf(closeTag, bodyStart)
+
+  if (closeIdx === -1) {
+    if (isStreaming && !unclosedTagCannotResolve(tagName, content.slice(bodyStart))) {
+      return { outcome: 'pending' }
+    }
+    // Nothing can close it, so only the opener itself is literal. Resuming just
+    // past it (rather than abandoning the message) keeps a genuinely valid tag
+    // later in the same reply parseable.
+    return { outcome: 'literal', resumeAt: bodyStart }
+  }
+
+  const resumeAt = closeIdx + closeTag.length
+  const body = content.slice(bodyStart, closeIdx)
+
+  const parsed = parseSpecialTagData(tagName, body)
+  if (parsed) return { outcome: 'segment', segment: parsed, resumeAt }
+
+  if (bodyIsLiteralText(tagName, body)) return { outcome: 'literal', resumeAt }
+
+  // A well-formed value that failed its shape guard is a broken emission from
+  // the agent; showing the user raw JSON there would be worse than nothing.
+  return { outcome: 'discard', resumeAt }
+}
+
+/**
+ * Splits streamed text into renderable segments, extracting complete special
+ * tags and deciding what to do with the ones that never resolve.
+ *
+ * Adjacent text segments are concatenated by the renderer, so emitting a span
+ * as several pieces is display-neutral.
+ */
 export function parseSpecialTags(content: string, isStreaming: boolean): ParsedSpecialContent {
   const segments: ContentSegment[] = []
   let hasPendingTag = false
   let cursor = 0
+
+  const pushText = (text: string) => {
+    if (text.trim()) segments.push({ type: 'text', content: text })
+  }
 
   while (cursor < content.length) {
     let nearestStart = -1
@@ -621,10 +693,11 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
       }
     }
 
-    if (nearestStart === -1) {
+    if (nearestStart === -1 || nearestTagName === '') {
       let remaining = content.slice(cursor)
 
       if (isStreaming) {
+        // Hide a half-arrived opening marker so it does not flash as text.
         const partial = remaining.match(/<[a-z_-]*$/i)
         if (partial) {
           const fragment = partial[0].slice(1)
@@ -638,75 +711,26 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
         }
       }
 
-      if (remaining.trim()) {
-        segments.push({ type: 'text', content: remaining })
-      }
+      pushText(remaining)
       break
     }
 
-    if (nearestStart > cursor) {
-      const text = content.slice(cursor, nearestStart)
-      if (text.trim()) {
-        segments.push({ type: 'text', content: text })
-      }
-    }
+    pushText(content.slice(cursor, nearestStart))
 
-    const openTag = `<${nearestTagName}>`
-    const closeTag = `</${nearestTagName}>`
-    const bodyStart = nearestStart + openTag.length
-    const closeIdx = content.indexOf(closeTag, bodyStart)
+    const resolution = resolveTagAt(content, nearestStart, nearestTagName, isStreaming)
 
-    if (closeIdx === -1) {
-      // Hold the text back only while a close is still plausible. A completed
-      // message can never finish an unclosed tag, and mid-stream the heuristics
-      // in unclosedTagCannotResolve rule it out early — otherwise a tag merely
-      // mentioned in prose blanks the rest of the message until the stream ends.
-      const stillResolvable =
-        isStreaming &&
-        nearestTagName !== '' &&
-        !unclosedTagCannotResolve(nearestTagName, content.slice(bodyStart))
-      if (stillResolvable) {
-        hasPendingTag = true
-        cursor = content.length
-        break
-      }
-      const remaining = content.slice(nearestStart)
-      if (remaining.trim()) {
-        segments.push({ type: 'text', content: remaining })
-      }
+    if (resolution.outcome === 'pending') {
+      hasPendingTag = true
       break
     }
 
-    const body = content.slice(bodyStart, closeIdx)
-    if (!nearestTagName) {
-      cursor = closeIdx + closeTag.length
-      continue
-    }
-    const parsedTag = parseSpecialTagData(nearestTagName, body)
-    if (parsedTag) {
-      segments.push(parsedTag)
-    } else if (
-      // The close we matched was not this opener's: the model was explaining tag
-      // syntax and a later example closed an earlier opener, making paragraphs
-      // of prose the "body".
-      TAG_SHAPED_MARKER.test(body) ||
-      // Or the tag wrapped prose that was never an attempted payload at all.
-      (JSON_BODY_TAG_NAMES.has(nearestTagName) && !isViableJsonPrefix(body))
-    ) {
-      // Either way the markers were literal text, so dropping the span loses
-      // real content and resumes mid-sentence. Emit it verbatim — Streamdown
-      // escapes the markers, so it reads as literal text.
-      //
-      // A body that IS a well-formed JSON value and merely fails its shape
-      // guard keeps being dropped: that is a genuinely malformed payload from
-      // the agent, and showing the user raw JSON there would be a regression.
-      const literal = content.slice(nearestStart, closeIdx + closeTag.length)
-      if (literal.trim()) {
-        segments.push({ type: 'text', content: literal })
-      }
+    if (resolution.outcome === 'segment') {
+      segments.push(resolution.segment)
+    } else if (resolution.outcome === 'literal') {
+      pushText(content.slice(nearestStart, resolution.resumeAt))
     }
 
-    cursor = closeIdx + closeTag.length
+    cursor = resolution.resumeAt
   }
 
   if (segments.length === 0 && !hasPendingTag) {
