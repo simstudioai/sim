@@ -21,7 +21,7 @@ const logger = createLogger('SecurityPolicy')
  * never cached; it is read fresh at enforcement time (see `session-policy.ts`),
  * which is what keeps a stale version from ever pairing with a stale policy.
  */
-export const SECURITY_POLICY_VERSION_CACHE_TTL_MS = 60 * 1000
+const SECURITY_POLICY_VERSION_CACHE_TTL_MS = 60 * 1000
 const SECURITY_POLICY_VERSION_CACHE_MAX_ENTRIES = 5_000
 
 const MEMBERSHIP_CACHE_TTL_MS = 60 * 1000
@@ -91,24 +91,23 @@ export async function getSecurityPolicyVersion(
   if (cached !== undefined) return cached
 
   try {
-    const startedAt = Date.now()
-    let version = await readStoredVersion(organizationId)
-
-    // The post-read guard below can only out-rank this value while the entry
-    // that would out-rank it still exists. A read that outlived the cache TTL
-    // has watched that entry expire, so it could carry a pre-bump version with
-    // nothing left to catch it. Read once more instead of trusting it.
-    if (Date.now() - startedAt >= SECURITY_POLICY_VERSION_CACHE_TTL_MS) {
-      logger.warn('Security policy version read outlived the cache TTL; re-reading', {
-        organizationId,
-      })
-      version = await readStoredVersion(organizationId)
-    }
+    const version = await readStoredVersion(organizationId)
 
     // Re-check after the await. The counter only ever increments, so a value
     // that landed while this read was in flight is newer — neither store nor
     // return ours, or a late read would re-serve a pre-bump version and keep
     // cookies matched past a revocation.
+    //
+    // This narrows the window; it cannot close it. A read still in flight when
+    // the newer entry expires finds no floor to lose against, and no amount of
+    // re-reading fixes that — the replacement read can be slow across a later
+    // bump in exactly the same way. Closing it needs a floor that outlives the
+    // cache, which means cross-process state (see the deferred Redis
+    // invalidation follow-up), not more retries here. The residual is bounded:
+    // a stale read that wins serves a pre-bump version for at most one more
+    // TTL, so worst-case propagation is two TTLs rather than one — a slower
+    // instance of the latency this feature already documents, not a new class
+    // of failure.
     const concurrent = versionCache.get(organizationId)
     if (concurrent !== undefined && concurrent > version) return concurrent
 
