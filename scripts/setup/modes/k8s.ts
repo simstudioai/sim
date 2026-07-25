@@ -4,6 +4,7 @@ import type { Detection } from '../detect.ts'
 import { ensureDocker } from '../docker.ts'
 import { generateSecret, ROOT } from '../env-files.ts'
 import { SetupError } from '../errors.ts'
+import { waitFor } from '../probes.ts'
 import * as p from '../prompter.ts'
 import { glyph, theme } from '../theme.ts'
 
@@ -42,6 +43,19 @@ const LOCAL_SERVER_HOSTS = new Set([
 export function isLocalKubeContext(context: string): boolean {
   const server = contextServerHost(context)
   return server !== null && LOCAL_SERVER_HOSTS.has(server)
+}
+
+/**
+ * Liveness probe — a kubeconfig entry can outlive a stopped or deleted cluster
+ * (kind clusters are Docker containers that don't restart on their own), so a
+ * context looking local is no guarantee its API server answers.
+ */
+function clusterReachable(context: string): boolean {
+  return (
+    spawnSync('kubectl', ['cluster-info', '--context', context, '--request-timeout=5s'], {
+      stdio: 'ignore',
+    }).status === 0
+  )
 }
 
 /** The API server host a context points at, or null if kubectl can't resolve it. */
@@ -92,11 +106,20 @@ async function ensureLocalContext(detection: Detection): Promise<string> {
     // cluster on a blind Enter.
     const server = contextServerHost(context)
     if (server && LOCAL_SERVER_HOSTS.has(server)) {
-      const useIt = await p.confirm({
-        message: `Use current kube context "${context}"?`,
-        initialValue: true,
-      })
-      if (useIt) return context
+      if (!clusterReachable(context)) {
+        // The context is local but its cluster isn't answering — stopped or
+        // deleted. Don't offer it (helm would just fail); fall through to the
+        // kind path, which starts a stopped "sim" cluster or creates one.
+        p.log.warn(
+          `Context "${context}" points at a local cluster that isn't responding — it looks stopped or deleted. The wizard will start or recreate a kind cluster instead.`
+        )
+      } else {
+        const useIt = await p.confirm({
+          message: `Use current kube context "${context}"?`,
+          initialValue: true,
+        })
+        if (useIt) return context
+      }
     } else {
       p.log.warn(
         `Context "${context}" is named like a local cluster, but its API server${server ? ` (${server})` : ''} does not look local. Continuing would deploy the generated secrets there.`
@@ -125,7 +148,28 @@ async function ensureLocalContext(detection: Detection): Promise<string> {
     .filter(Boolean)
   if (clusters.includes('sim')) {
     run('kind', ['export', 'kubeconfig', '--name', 'sim'], 'kind export kubeconfig failed')
-    p.log.step('Reusing existing kind cluster "sim"')
+    if (clusterReachable('kind-sim')) {
+      p.log.step('Reusing existing kind cluster "sim"')
+    } else {
+      // The cluster exists in kind but isn't answering — its node containers are
+      // stopped (a Docker/machine restart). Start them and wait for the API.
+      const spin = p.spinner()
+      spin.start('kind cluster "sim" is stopped — starting it…')
+      const nodes = run('kind', ['get', 'nodes', '--name', 'sim'], 'kind get nodes failed')
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+      for (const node of nodes) spawnSync('docker', ['start', node], { stdio: 'ignore' })
+      const up = await waitFor(() => Promise.resolve(clusterReachable('kind-sim')), 60_000, 2000)
+      if (!up) {
+        spin.stop(`${glyph.fail} kind cluster "sim" would not start`)
+        throw new SetupError('the kind cluster "sim" exists but will not come up.', [
+          `inspect it: ${theme.command('docker ps -a --filter name=sim-control-plane')}`,
+          `recreate it: ${theme.command('kind delete cluster --name sim')}, then re-run ${theme.command('bun run setup')}`,
+        ])
+      }
+      spin.stop('kind cluster "sim" started')
+    }
   } else {
     const spin = p.spinner()
     spin.start('Creating kind cluster "sim"…')
