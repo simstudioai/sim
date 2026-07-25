@@ -763,6 +763,12 @@ export function validateColumnDefinition(column: ColumnDefinition): ValidationRe
 
   if (column.type === 'select') {
     errors.push(...validateSelectOptions(column))
+    // Uniqueness on a select compares the stored option id, so it caps each
+    // option at one row for the whole table — and the UI hides the toggle, so a
+    // constraint set through the API or an agent could never be cleared.
+    if (column.unique) {
+      errors.push(`Column "${column.name}" of type "select" cannot be unique`)
+    }
   } else if (column.options !== undefined) {
     errors.push(`Column "${column.name}" cannot define options for type "${column.type}"`)
   }

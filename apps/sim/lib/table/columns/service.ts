@@ -655,6 +655,12 @@ export async function updateColumnConstraints(
       }
     }
 
+    if (data.unique === true && column.type === 'select') {
+      throw new Error(
+        `Cannot set column "${column.name}" as unique: select columns compare stored option ids, which would allow only one row per option.`
+      )
+    }
+
     if (data.unique === true && !column.unique) {
       const duplicates = (await trx.execute(
         sql`SELECT ${userTableRows.data}->>${columnKey}::text AS val, count(*) AS cnt FROM ${userTableRows} WHERE table_id = ${data.tableId} AND ${userTableRows.data} ? ${columnKey} AND ${userTableRows.data}->>${columnKey}::text IS NOT NULL GROUP BY val HAVING count(*) > 1 LIMIT 1`
@@ -765,8 +771,28 @@ export async function updateColumnOptions(
     // scalar, so leaving cells un-normalized would silently drop every
     // pre-toggle row out of its own column's filters.
     const nextMultiple = !!(data.multiple ?? column.multiple)
+    const keptIds = new Set(data.options.map((o) => o.id))
+    const removedAny = (column.options ?? []).some((o) => !keptIds.has(o.id))
+
+    if (nextMultiple !== !!column.multiple || removedAny) {
+      const timeoutMs = scaledStatementTimeoutMs(table.rowCount ?? 0, {
+        baseMs: 60_000,
+        perRowMs: 2,
+      })
+      await setTableTxTimeouts(trx, { statementMs: timeoutMs, idleMs: timeoutMs })
+    }
+
     if (nextMultiple !== !!column.multiple) {
       await migrateCellsToSelectIds(trx, data.tableId, columnKey, data.options, nextMultiple)
+    }
+
+    // Drop ids for options that no longer exist. The grid already renders them
+    // as empty, but they stay real to everything else: write-path validation
+    // rejects them (so an unrelated edit to that row fails on a required
+    // column), emptiness checks and `is empty` filters count them as filled,
+    // and dependent groups treat the row as satisfied.
+    if (removedAny) {
+      await clearRemovedSelectOptions(trx, data.tableId, columnKey, data.options, nextMultiple)
     }
 
     await trx
@@ -896,6 +922,46 @@ async function migrateCellsToSelectIds(
           COALESCE(${idByRef}::jsonb -> (data->${columnKey}::text->>0), ${idByRef}::jsonb -> lower(data->${columnKey}::text->>0), data->${columnKey}::text->0, 'null'::jsonb))
         WHERE table_id = ${tableId}
           AND jsonb_typeof(data->${columnKey}::text) = 'array'`
+  )
+}
+
+/**
+ * Clears stored ids that are no longer in a `select` column's option set.
+ *
+ * A single cell holding a removed option becomes null; a multi cell drops just
+ * the removed elements. Kept set-based off a jsonb array of the surviving ids.
+ */
+async function clearRemovedSelectOptions(
+  trx: DbTransaction,
+  tableId: string,
+  columnKey: string,
+  options: SelectOption[],
+  multiple: boolean
+): Promise<void> {
+  const keptIds = JSON.stringify(options.map((o) => o.id))
+
+  if (multiple) {
+    await trx.execute(
+      sql`UPDATE ${userTableRows}
+          SET data = jsonb_set(data, ARRAY[${columnKey}::text], COALESCE((
+                SELECT jsonb_agg(e)
+                FROM jsonb_array_elements(data->${columnKey}::text) e
+                WHERE ${keptIds}::jsonb @> jsonb_build_array(e)
+              ), '[]'::jsonb))
+          WHERE table_id = ${tableId}
+            AND jsonb_typeof(data->${columnKey}::text) = 'array'
+            AND NOT (${keptIds}::jsonb @> (data->${columnKey}::text))`
+    )
+    return
+  }
+
+  await trx.execute(
+    sql`UPDATE ${userTableRows}
+        SET data = jsonb_set(data, ARRAY[${columnKey}::text], 'null'::jsonb)
+        WHERE table_id = ${tableId}
+          AND jsonb_typeof(data->${columnKey}::text) = 'string'
+          AND data->>${columnKey}::text <> ''
+          AND NOT (${keptIds}::jsonb @> jsonb_build_array(data->${columnKey}::text))`
   )
 }
 
