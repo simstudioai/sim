@@ -12,6 +12,7 @@ import {
   rowQueryBodySchema,
   updateRowsByFilterBodySchema,
 } from '@/lib/api/contracts/tables'
+import { validatePredicate } from '@/lib/table/query-builder/validate'
 
 describe('rowQueryBodySchema', () => {
   it('accepts a predicate/sort object, leaves limit unbounded, has no offset', () => {
@@ -145,6 +146,79 @@ describe('predicate depth / size guard', () => {
             ],
           },
         ],
+      }).success
+    ).toBe(true)
+  })
+})
+
+/**
+ * Zod strips unrecognized keys by default, so before the schemas were made
+ * strict a hybrid node parsed clean against the group branch with its leaf half
+ * silently deleted — turning "delete archived rows for tenant acme" into
+ * "delete EVERY row for tenant acme". `validatePredicate`'s hybrid guard could
+ * not catch it: the keys were gone before it ran.
+ */
+describe('hybrid group+leaf nodes are rejected, not silently narrowed', () => {
+  const hybrid = {
+    all: [{ field: 'tenant_id', op: 'eq', value: 'acme' }],
+    field: 'status',
+    op: 'eq',
+    value: 'archived',
+  }
+
+  it('rejects rather than dropping the leaf half', () => {
+    const result = predicateSchema.safeParse(hybrid)
+    expect(result.success).toBe(false)
+    // The dangerous outcome: parsing succeeds having quietly widened the filter.
+    expect(result.success ? result.data : null).not.toEqual({ all: hybrid.all })
+  })
+
+  /**
+   * The bulk schemas union the predicate tree with the legacy `$`-object, and
+   * that legacy branch accepts any non-empty object — so it absorbs the hybrid
+   * and the SCHEMA cannot reject it. Crucially the legacy branch does NOT strip,
+   * so `all` survives, the route's `isTablePredicate` check routes it back to
+   * `validatePredicate`, and the hybrid guard there rejects it (→ 400 via
+   * `route.ts:325`). Asserted here so a future change to either layer that
+   * removes one of them fails loudly.
+   */
+  it('keeps the hybrid intact through the bulk schemas so the runtime guard can see it', () => {
+    for (const parsed of [
+      deleteTableRowsBodySchema.safeParse({ workspaceId: 'ws-1', filter: hybrid }),
+      updateRowsByFilterBodySchema.safeParse({
+        workspaceId: 'ws-1',
+        filter: hybrid,
+        data: { active: false },
+      }),
+    ]) {
+      expect(parsed.success).toBe(true)
+      // The leaf half must NOT have been silently dropped on the way through.
+      expect(parsed.success && parsed.data.filter).toMatchObject({
+        all: hybrid.all,
+        field: 'status',
+      })
+    }
+  })
+
+  it('and validatePredicate then rejects it', () => {
+    expect(() =>
+      validatePredicate(hybrid as never, [
+        { name: 'tenant_id', type: 'string' },
+        { name: 'status', type: 'string' },
+      ])
+    ).toThrow(/not both/)
+  })
+
+  it('rejects an unknown key on a leaf (a typo must not be dropped)', () => {
+    expect(
+      predicateSchema.safeParse({ all: [{ field: 'a', op: 'eq', vlaue: 'typo' }] }).success
+    ).toBe(false)
+  })
+
+  it('still accepts well-formed nodes', () => {
+    expect(
+      predicateSchema.safeParse({
+        all: [{ field: 'a', op: 'eq', value: 1 }, { any: [{ field: 'b', op: 'isNull' }] }],
       }).success
     ).toBe(true)
   })

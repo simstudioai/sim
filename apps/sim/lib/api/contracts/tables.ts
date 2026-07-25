@@ -319,7 +319,17 @@ function predicateTreeTooLarge(root: unknown): string | null {
  * (unknown column, json-op rejection) is enforced server-side by
  * `validatePredicate` once the table's columns are known.
  */
-const predicateLeafSchema = z.object({
+/**
+ * Both node shapes are `strictObject`, and that is load-bearing rather than
+ * fussiness. Zod strips unrecognized keys by default, so a hybrid node carrying
+ * BOTH a group key and a leaf's `field`/`op`/`value` parsed clean against the
+ * group branch with the leaf half silently deleted. On the bulk paths that turns
+ * "delete archived rows for tenant acme" into "delete every row for tenant acme".
+ * `validatePredicate`'s hybrid guard could never catch it — the keys were gone
+ * before it ran. Strict on BOTH branches is required: strict on the group alone
+ * would just fall through to the leaf branch, which is the more dangerous reading.
+ */
+const predicateLeafSchema = z.strictObject({
   field: z.string().min(1, 'field is required').max(128),
   op: z.enum(FILTER_OPS),
   value: z.unknown().optional(),
@@ -333,13 +343,13 @@ const predicateTreeSchema: z.ZodType<TablePredicate> = z.lazy(() =>
   z.union([
     // `.min(1)`: an empty group compiles to no WHERE clause, which on the bulk
     // delete/update paths reads as "match everything" rather than "match nothing".
-    z.object({
+    z.strictObject({
       all: z
         .array(predicateNodeSchema)
         .min(1, 'A filter group must contain at least one condition')
         .max(MAX_PREDICATE_GROUP_SIZE),
     }),
-    z.object({
+    z.strictObject({
       any: z
         .array(predicateNodeSchema)
         .min(1, 'A filter group must contain at least one condition')
