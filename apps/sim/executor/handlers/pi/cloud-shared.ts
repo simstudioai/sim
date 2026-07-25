@@ -19,14 +19,24 @@ export const FINALIZE_TIMEOUT_MS = 10 * 60 * 1000
 export const MAX_DIFF_BYTES = 200_000
 export const PUSH_ERROR_MAX = 1000
 
+/** Floor for {@link PI_TIMEOUT_MS}, so a very short configured lifetime still leaves a usable turn. */
+const MIN_PI_TIMEOUT_MS = 60 * 1000
+
 /**
- * How long one Pi CLI invocation may run. Bounded by the sandbox lifetime: the
- * platform's max execution timeout is longer, so an uncapped hung CLI would sit
- * there until the sandbox was reaped and surface as an opaque SDK error rather
- * than as a timeout. The sandbox clock starts at create and the clone runs
- * first, so this bounds the command rather than guaranteeing it times out.
+ * How long one Pi CLI invocation may run. The platform's max execution timeout
+ * is longer than the sandbox lives, so without this a hung CLI would sit there
+ * until E2B reaped the sandbox and surface as an opaque SDK error.
+ *
+ * The reserve matters as much as the cap: the sandbox clock starts at create,
+ * and the clone runs before the agent while the commit and push run after it.
+ * Capping at the bare lifetime would mean the sandbox always died first, taking
+ * the agent's finished work with it unpushed. Reserving both surrounding command
+ * budgets leaves the host time to finalize whatever the agent produced.
  */
-export const PI_TIMEOUT_MS = Math.min(getMaxExecutionTimeout(), resolvePiSandboxLifetimeMs())
+export const PI_TIMEOUT_MS = Math.min(
+  getMaxExecutionTimeout(),
+  Math.max(resolvePiSandboxLifetimeMs() - CLONE_TIMEOUT_MS - FINALIZE_TIMEOUT_MS, MIN_PI_TIMEOUT_MS)
+)
 
 /**
  * Marker carrying a digest of the cloned repository's git config. A clone script
@@ -67,8 +77,15 @@ if git diff --quiet "$BASE_SHA" HEAD; then echo "__NO_CHANGES__=1"; else echo "_
  * The only token-bearing command. It neutralizes repository-configured hooks,
  * credential helpers, and fsmonitor before pushing agent-authored changes, and
  * must be run with `GIT_CONFIG_NOSYSTEM=1` and `GIT_CONFIG_GLOBAL=/dev/null` in
- * its env — those cover config-driven URL rewriting, which would send the
- * token's userinfo to another host and which the `-c` flags do not reach.
+ * its env, which the `-c` flags cannot substitute for.
+ *
+ * Be precise about what that pair buys. It closes system- and global-scope
+ * config, so it removes two of the three places a `url.*.insteadOf` rewrite
+ * could send the token's userinfo to another host. Repository-local config —
+ * the scope a root agent inside the checkout can actually write — still
+ * rewrites the push URL, and stays open until a mode compares the
+ * {@link GIT_CONFIG_DIGEST_MARKER} digest before pushing. Babysit does; Create
+ * PR does not, and inherits the pre-existing exposure it always had.
  *
  * Git is invoked by absolute path so a shim planted earlier on `$PATH` is not
  * what runs. Both sandbox images apt-install git on Debian (see

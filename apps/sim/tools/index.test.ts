@@ -1019,6 +1019,7 @@ describe('Automatic Internal Route Detection', () => {
       expect.objectContaining({ stripAuthOnRedirect: true })
     )
 
+    Reflect.deleteProperty(tools, 'test_redirecting_download')
     Object.assign(tools, originalTools)
   })
 
@@ -1048,6 +1049,7 @@ describe('Automatic Internal Route Detection', () => {
       expect.objectContaining({ stripAuthOnRedirect: undefined })
     )
 
+    Reflect.deleteProperty(tools, 'test_plain_external')
     Object.assign(tools, originalTools)
   })
 

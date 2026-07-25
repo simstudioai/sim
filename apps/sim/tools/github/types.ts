@@ -2156,11 +2156,8 @@ export type StatusCheckRollupContext =
       detailsUrl: string | null
       /** REST id of the check run; the Actions job id for an Actions check run. */
       databaseId: number | null
-      /**
-       * Whether the check gates the merge. GraphQL declares this non-null, so a
-       * null only means GitHub stopped reporting it — treat it as blocking.
-       */
-      isRequired: boolean | null
+      /** Whether the check gates the merge for the pull request that was asked about. */
+      isRequired: boolean
       /**
        * The check run's reported output. GraphQL exposes these as flat fields on
        * `CheckRun`, unlike REST's nested `output` object, and GitHub Actions
@@ -2177,8 +2174,7 @@ export type StatusCheckRollupContext =
       state: string
       description: string | null
       targetUrl: string | null
-      /** See the `CheckRun` variant: null means unknown, not "not required". */
-      isRequired: boolean | null
+      isRequired: boolean
     }
 
 export interface StatusCheckRollupParams extends BaseGitHubParams {

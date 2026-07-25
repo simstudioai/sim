@@ -155,6 +155,8 @@ The one case neither layer can rescue is a *first* prompt that already exceeds t
 Create PR runs in a sandbox image with the Pi CLI and git baked in.
 
 1. **Enable sandbox execution.** On self-hosted Sim, set `E2B_ENABLED=true`, `E2B_API_KEY`, `E2B_PI_TEMPLATE_ID` (the Pi template id), and `NEXT_PUBLIC_E2B_ENABLED=true` (this reveals Create PR and Review Code in the UI). Build the template with `bun run apps/sim/scripts/build-pi-e2b-template.ts`. Both modes stay hidden until `NEXT_PUBLIC_E2B_ENABLED` is set.
+
+   Sim asks E2B to keep a Pi sandbox alive for just under an hour, because E2B caps a sandbox at 1 hour on Hobby accounts (24 hours on Pro) and rejects a longer one outright. Set `PI_SANDBOX_LIFETIME_MS` to lower that; it cannot raise it. A run that outlives the sandbox loses its work before the push, and an orphaned sandbox — one whose Sim process died mid-run — bills until the lifetime expires.
 2. **Bring your own model key.** Set the provider API key in the block's API Key field, or store it in **Settings → BYOK** when the provider supports workspace BYOK.
 3. **Create a GitHub token** with permission to clone, push, and open a PR:
    - *Fine-grained:* select the repo, then **Contents: Read and write** + **Pull requests: Read and write**.

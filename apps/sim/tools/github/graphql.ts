@@ -1,3 +1,8 @@
+/**
+ * Shared plumbing for the GitHub GraphQL tools: the endpoint, its headers, and
+ * the two response shapes every query has to handle the same way.
+ */
+
 import { isRecord, readGitHubErrorMessage } from '@/tools/github/response-parsers'
 
 export const GITHUB_GRAPHQL_URL = 'https://api.github.com/graphql'

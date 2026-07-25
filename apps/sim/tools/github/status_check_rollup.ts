@@ -7,9 +7,9 @@ import {
 } from '@/tools/github/graphql'
 import {
   isRecord,
-  nullableBoolean,
   nullableNumber,
   nullableString,
+  requiredBoolean,
   requiredNumber,
   requiredString,
 } from '@/tools/github/response-parsers'
@@ -85,7 +85,7 @@ function parseRollupContext(value: unknown, index: number): StatusCheckRollupCon
       conclusion: nullableString(value, 'conclusion', context),
       detailsUrl: nullableString(value, 'detailsUrl', context),
       databaseId: nullableNumber(value, 'databaseId', context),
-      isRequired: nullableBoolean(value, 'isRequired', context),
+      isRequired: requiredBoolean(value, 'isRequired', context),
       title: nullableString(value, 'title', context),
       summary: nullableString(value, 'summary', context),
     }
@@ -97,7 +97,7 @@ function parseRollupContext(value: unknown, index: number): StatusCheckRollupCon
       state: requiredString(value, 'state', context),
       description: nullableString(value, 'description', context),
       targetUrl: nullableString(value, 'targetUrl', context),
-      isRequired: nullableBoolean(value, 'isRequired', context),
+      isRequired: requiredBoolean(value, 'isRequired', context),
     }
   }
   // Stopping beats guessing: a caller buckets unknown states as blocking, and it
@@ -131,7 +131,6 @@ const ROLLUP_CONTEXT_PROPERTIES = {
   isRequired: {
     type: 'boolean',
     description: 'Whether the check is required to merge this pull request',
-    nullable: true,
   },
   title: {
     type: 'string',

@@ -123,7 +123,6 @@ describe('github_status_check_rollup', () => {
           conclusion: null,
           detailsUrl: null,
           databaseId: null,
-          isRequired: null,
         }),
         statusContext({ description: null, targetUrl: null }),
       ])
@@ -133,9 +132,17 @@ describe('github_status_check_rollup', () => {
       conclusion: null,
       detailsUrl: null,
       databaseId: null,
-      isRequired: null,
     })
     expect(result.output.contexts[1]).toMatchObject({ description: null, targetUrl: null })
+  })
+
+  it('fails on a missing requiredness signal rather than reading it as optional', async () => {
+    // GraphQL declares isRequired non-null on both variants, so an absent value
+    // means something changed — and defaulting it would quietly let a failing
+    // required check stop blocking the green verdict.
+    await expect(parse(rollupPayload([actionsCheckRun({ isRequired: null })]))).rejects.toThrow(
+      /isRequired must be a boolean/
+    )
   })
 
   it('keeps a third-party app output that is actually populated', async () => {
