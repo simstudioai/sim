@@ -393,15 +393,6 @@ export function useTableEventStream({
             void queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
             scheduleRowsInvalidate()
           }
-          // A collaborator changed UI metadata (widths, display): refetch only the
-          // definition (exact) — no rows — mirroring the local metadata-mutation
-          // invalidation, so a resize doesn't force every peer to refetch row data.
-          else if (entry.event?.kind === 'metadata') {
-            void queryClient.invalidateQueries({
-              queryKey: tableKeys.detail(tableId),
-              exact: true,
-            })
-          }
         } catch (err) {
           logger.warn('Failed to parse table event', { tableId, err })
         }

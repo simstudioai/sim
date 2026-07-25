@@ -88,9 +88,11 @@ export function useTableRoom(tableId: string): UseTableRoomResult {
     }
     const handlePresence = (users: TablePresenceUser[]) => {
       // Take membership from the roster snapshot but keep the `cell` we already hold for
-      // a known socket: the snapshot can be a beat behind the lower-latency CELL_SELECTION
-      // deltas, so a blind replace could revert a fresher selection (it self-heals on the
-      // peer's next delta, but the revert flicker is avoidable).
+      // a known socket. Trade-off: a snapshot can lag the lower-latency CELL_SELECTION
+      // deltas, so a blind replace could revert a fresher selection (the common case).
+      // The cost is that a *dropped* delta is no longer healed by the next snapshot, only
+      // by the peer's next delta — fine, since deltas flow continuously during selection
+      // and a cleared selection also sends `null` via delta.
       setPresenceUsers((prev) => {
         const cellBySocket = new Map(prev.map((user) => [user.socketId, user.cell]))
         return (users ?? []).map((user) =>

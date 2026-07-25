@@ -7,7 +7,6 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { TableMetadata } from '@/lib/table'
 import { updateTableMetadata } from '@/lib/table'
-import { signalTableMetadataChanged } from '@/lib/table/events'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableMetadataAPI')
@@ -49,7 +48,10 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
       validated.metadata,
       table.metadata as TableMetadata | null
     )
-    signalTableMetadataChanged(tableId)
+    // UI metadata (column widths/pins/display) is seeded once into local grid state and
+    // is not re-applied on refetch, so it is intentionally NOT propagated live — a live
+    // width/pin sync would need reconciliation that doesn't clobber a local in-progress
+    // resize (a deliberate follow-up), not a no-op refetch.
 
     return NextResponse.json({ success: true, data: { metadata: updated } })
   } catch (error) {

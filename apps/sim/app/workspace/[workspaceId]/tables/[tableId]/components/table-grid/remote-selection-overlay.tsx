@@ -140,6 +140,10 @@ export function RemoteSelectionOverlay({
     scrollEl.addEventListener('pointerleave', handleLeave)
     const resizeObserver = new ResizeObserver(schedule)
     resizeObserver.observe(scrollEl)
+    // Also observe the content layer (this overlay fills it): a column resize or a
+    // row-count change grows/shrinks the content without resizing the scroll container,
+    // yet moves cell rects — so measure off the content, not just the viewport.
+    if (rootRef.current) resizeObserver.observe(rootRef.current)
     // Re-measure when rows are added/removed/reordered/virtualized (a live refetch moves
     // cells without a scroll/resize) — childList only, so a cell-content edit doesn't fire.
     const tbody = scrollEl.querySelector('tbody')

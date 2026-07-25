@@ -127,13 +127,6 @@ export type TableEvent =
       kind: 'schema'
       tableId: string
     }
-  | {
-      /** A user changed UI table metadata (column widths, display settings) — not the
-       *  schema or rows. Signals collaborators to refetch only the table definition, so
-       *  the change shows live without a needless row refetch (e.g. on a column resize). */
-      kind: 'metadata'
-      tableId: string
-    }
 
 export interface TableEventEntry {
   eventId: number
@@ -179,14 +172,6 @@ export function signalTableRowsChanged(tableId: string): void {
  */
 export function signalTableSchemaChanged(tableId: string): void {
   void appendTableEvent({ kind: 'schema', tableId })
-}
-
-/**
- * Signal collaborators that a user changed UI table metadata (widths, display settings)
- * so they refetch only the definition — not the rows. Fire-and-forget.
- */
-export function signalTableMetadataChanged(tableId: string): void {
-  void appendTableEvent({ kind: 'metadata', tableId })
 }
 
 /**
