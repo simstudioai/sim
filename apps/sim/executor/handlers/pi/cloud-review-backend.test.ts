@@ -515,6 +515,15 @@ describe('runCloudReviewPi', () => {
     })
   })
 
+  it('refuses a PR that is no longer open, before creating a sandbox', async () => {
+    mockExecuteTool.mockResolvedValue({ success: true, output: snapshot({ state: 'closed' }) })
+
+    await expect(runCloudReviewPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(
+      /only open PRs can be reviewed/
+    )
+    expect(mockRun).not.toHaveBeenCalled()
+  })
+
   it('rejects malformed repository coordinates before making an authenticated request', async () => {
     await expect(
       runCloudReviewPi(baseParams({ owner: '../octo' }), { onEvent: vi.fn() })

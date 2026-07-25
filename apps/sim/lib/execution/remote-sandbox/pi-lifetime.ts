@@ -16,9 +16,12 @@ export const PI_SANDBOX_MAX_LIFETIME_MS = 59 * 60 * 1000
 
 /**
  * The lifetime requested for a Pi sandbox, always clamped to
- * {@link PI_SANDBOX_MAX_LIFETIME_MS}. Defaults to the cap because the sandbox is
- * killed explicitly when the run finishes — the lifetime is a ceiling that stops
- * an orphan from living forever, not a budget that costs anything to raise.
+ * {@link PI_SANDBOX_MAX_LIFETIME_MS}. Defaults to the cap: a run that finishes
+ * kills its sandbox explicitly, so for the normal path the lifetime is a ceiling
+ * rather than a budget. It is not entirely free — if the web process dies
+ * mid-run the orphaned sandbox now bills until this ceiling instead of the SDK's
+ * five minutes — but five minutes is short enough to kill live runs, which is
+ * the bug this replaces.
  *
  * `PI_SANDBOX_LIFETIME_MS` lowers it (a Pro account can raise the constant, but
  * the env var may only reduce it, so a misconfigured value cannot make every

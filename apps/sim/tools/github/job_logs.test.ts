@@ -51,20 +51,9 @@ describe('github_job_logs', () => {
     ).rejects.toThrow(/maxCharacters must be an integer between 1 and 200000/)
   })
 
-  it('decodes multi-byte characters split across stream chunks', async () => {
-    // '✓' is three bytes; splitting it across two chunks would yield U+FFFD if the
-    // decoder were not run in streaming mode.
-    const encoded = new TextEncoder().encode('ok ✓ done')
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(encoded.slice(0, 4))
-        controller.enqueue(encoded.slice(4))
-        controller.close()
-      },
-    })
-
-    const result = await jobLogsTool.transformResponse!(new Response(stream), BASE_PARAMS)
-
-    expect(result.output.logs).toBe('ok ✓ done')
+  it('drops the GitHub token on the redirect to third-party blob storage', () => {
+    // The tool fetch follows redirects itself rather than through the fetch spec,
+    // so without this the PAT would be replayed to the storage host.
+    expect(jobLogsTool.request.stripAuthOnRedirect).toBe(true)
   })
 })

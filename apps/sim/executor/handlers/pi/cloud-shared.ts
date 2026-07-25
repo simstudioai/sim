@@ -20,9 +20,11 @@ export const MAX_DIFF_BYTES = 200_000
 export const PUSH_ERROR_MAX = 1000
 
 /**
- * How long one Pi CLI invocation may run. Capped at the sandbox's own lifetime:
- * the platform's max execution timeout is longer, so an uncapped hung CLI would
- * outlive the sandbox and surface as an opaque SDK error instead of a timeout.
+ * How long one Pi CLI invocation may run. Bounded by the sandbox lifetime: the
+ * platform's max execution timeout is longer, so an uncapped hung CLI would sit
+ * there until the sandbox was reaped and surface as an opaque SDK error rather
+ * than as a timeout. The sandbox clock starts at create and the clone runs
+ * first, so this bounds the command rather than guaranteeing it times out.
  */
 export const PI_TIMEOUT_MS = Math.min(getMaxExecutionTimeout(), resolvePiSandboxLifetimeMs())
 
@@ -31,9 +33,9 @@ export const PI_TIMEOUT_MS = Math.min(getMaxExecutionTimeout(), resolvePiSandbox
  * emits it as its *last* line, after any `git remote set-url` rewrite — a digest
  * taken before that rewrite mismatches at push time and every push fails.
  *
- * Every mode emits it; only Babysit re-verifies it before pushing, because
- * verification is not a pure tightening: a run that legitimately writes
- * repo-local config would fail its push.
+ * Every mode that clones in order to push emits it; only Babysit re-verifies it
+ * before pushing, because verification is not a pure tightening: a run that
+ * legitimately writes repo-local config would fail its push.
  */
 export const GIT_CONFIG_DIGEST_MARKER = '__GIT_CONFIG_DIGEST__='
 

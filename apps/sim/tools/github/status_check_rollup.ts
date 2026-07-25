@@ -1,4 +1,5 @@
 import {
+  GITHUB_GRAPHQL_MAX_PAGE_SIZE,
   GITHUB_GRAPHQL_URL,
   githubGraphQlHeaders,
   parsePageInfo,
@@ -20,7 +21,7 @@ import type {
 import type { ToolConfig } from '@/tools/types'
 
 const CONTEXT = 'GitHub status check rollup response'
-const CONTEXTS_PER_PAGE = 100
+const CONTEXTS_PER_PAGE = GITHUB_GRAPHQL_MAX_PAGE_SIZE
 
 /**
  * The merged check state for one commit, pinned by SHA rather than by branch.
@@ -52,7 +53,8 @@ const ROLLUP_QUERY = `
                   detailsUrl
                   databaseId
                   isRequired(pullRequestNumber: $number)
-                  output { title summary }
+                  title
+                  summary
                 }
                 ... on StatusContext {
                   context
@@ -70,23 +72,6 @@ const ROLLUP_QUERY = `
   }
 `
 
-/**
- * GitHub Actions leaves the whole `output` block null on every check run it
- * creates, and populates none of its fields when it does not, so this is the
- * common case rather than the exceptional one.
- */
-function parseCheckRunOutput(
-  value: unknown,
-  context: string
-): { title: string | null; summary: string | null } | null {
-  if (value === null || value === undefined) return null
-  if (!isRecord(value)) throw new Error(`${context} must be an object or null`)
-  return {
-    title: nullableString(value, 'title', context),
-    summary: nullableString(value, 'summary', context),
-  }
-}
-
 function parseRollupContext(value: unknown, index: number): StatusCheckRollupContext {
   const context = `${CONTEXT}.contexts[${index}]`
   if (!isRecord(value)) throw new Error(`${context} must be an object`)
@@ -101,7 +86,8 @@ function parseRollupContext(value: unknown, index: number): StatusCheckRollupCon
       detailsUrl: nullableString(value, 'detailsUrl', context),
       databaseId: nullableNumber(value, 'databaseId', context),
       isRequired: nullableBoolean(value, 'isRequired', context),
-      output: parseCheckRunOutput(value.output, `${context}.output`),
+      title: nullableString(value, 'title', context),
+      summary: nullableString(value, 'summary', context),
     }
   }
   if (typename === 'StatusContext') {
@@ -147,14 +133,15 @@ const ROLLUP_CONTEXT_PROPERTIES = {
     description: 'Whether the check is required to merge this pull request',
     nullable: true,
   },
-  output: {
-    type: 'object',
-    description: 'Reported output; null on every GitHub Actions check run',
+  title: {
+    type: 'string',
+    description: 'Reported output title; null on every GitHub Actions check run',
     nullable: true,
-    properties: {
-      title: { type: 'string', description: 'Output title', nullable: true },
-      summary: { type: 'string', description: 'Output summary', nullable: true },
-    },
+  },
+  summary: {
+    type: 'string',
+    description: 'Reported output summary; null on every GitHub Actions check run',
+    nullable: true,
   },
   context: { type: 'string', description: 'Status context name (StatusContext variant only)' },
   state: { type: 'string', description: 'Status state (StatusContext variant only)' },

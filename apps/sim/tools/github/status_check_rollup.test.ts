@@ -36,17 +36,22 @@ function rollupPayload(nodes: unknown[], overrides: Record<string, unknown> = {}
   }
 }
 
-/** An Actions check run: GitHub Actions leaves the whole `output` block null. */
+/**
+ * Shaped after a real `statusCheckRollup` node captured from api.github.com.
+ * GraphQL puts `title`/`summary` flat on `CheckRun` — there is no nested
+ * `output` object, which is REST's shape — and GitHub Actions leaves both null.
+ */
 function actionsCheckRun(overrides: Record<string, unknown> = {}) {
   return {
     __typename: 'CheckRun',
-    name: 'ci / test',
+    name: 'Test and Build / Lint and Test',
     status: 'COMPLETED',
     conclusion: 'FAILURE',
-    detailsUrl: 'https://github.com/octo/demo/actions/runs/1/job/2',
-    databaseId: 2,
+    detailsUrl: 'https://github.com/octo/demo/actions/runs/30151931961/job/89663652943',
+    databaseId: 89663652943,
     isRequired: true,
-    output: null,
+    title: null,
+    summary: null,
     ...overrides,
   }
 }
@@ -54,10 +59,10 @@ function actionsCheckRun(overrides: Record<string, unknown> = {}) {
 function statusContext(overrides: Record<string, unknown> = {}) {
   return {
     __typename: 'StatusContext',
-    context: 'vercel',
+    context: 'Vercel',
     state: 'SUCCESS',
-    description: 'Deployment has completed',
-    targetUrl: 'https://vercel.com/octo/demo',
+    description: 'Skipped - Not affected',
+    targetUrl: 'https://vercel.com/octo/demo/2ZjPVEUCzk5uRDsnHBh8aXVP9XNm',
     isRequired: false,
     ...overrides,
   }
@@ -77,6 +82,10 @@ describe('github_status_check_rollup', () => {
     expect(body.query).toContain('object(oid: $sha)')
     expect(body.query).toContain('isRequired(pullRequestNumber: $number)')
     expect(body.query).toContain('contexts(first: 100, after: $cursor)')
+    // GraphQL's CheckRun has flat `title`/`summary`; selecting REST's nested
+    // `output { ... }` is rejected with "Field 'output' doesn't exist on type
+    // 'CheckRun'" — as an HTTP 200 errors payload, so no fixture would catch it.
+    expect(body.query).not.toContain('output {')
     expect(body.variables).toEqual({
       owner: 'octo',
       repo: 'demo',
@@ -86,20 +95,22 @@ describe('github_status_check_rollup', () => {
     })
   })
 
-  it('parses a check run whose output block is entirely null', async () => {
+  it('parses an Actions check run, whose reported output is always null', async () => {
     const result = await parse(rollupPayload([actionsCheckRun()]))
 
     expect(result.success).toBe(true)
     expect(result.output.contexts).toEqual([
       {
         __typename: 'CheckRun',
-        name: 'ci / test',
+        name: 'Test and Build / Lint and Test',
         status: 'COMPLETED',
         conclusion: 'FAILURE',
-        detailsUrl: 'https://github.com/octo/demo/actions/runs/1/job/2',
-        databaseId: 2,
+        detailsUrl: 'https://github.com/octo/demo/actions/runs/30151931961/job/89663652943',
+        // The job id in detailsUrl is databaseId, which is what github_job_logs takes.
+        databaseId: 89663652943,
         isRequired: true,
-        output: null,
+        title: null,
+        summary: null,
       },
     ])
   })
@@ -113,7 +124,6 @@ describe('github_status_check_rollup', () => {
           detailsUrl: null,
           databaseId: null,
           isRequired: null,
-          output: { title: null, summary: null },
         }),
         statusContext({ description: null, targetUrl: null }),
       ])
@@ -124,7 +134,6 @@ describe('github_status_check_rollup', () => {
       detailsUrl: null,
       databaseId: null,
       isRequired: null,
-      output: { title: null, summary: null },
     })
     expect(result.output.contexts[1]).toMatchObject({ description: null, targetUrl: null })
   })
@@ -134,13 +143,35 @@ describe('github_status_check_rollup', () => {
       rollupPayload([
         actionsCheckRun({
           name: 'codecov/patch',
-          output: { title: '80% of diff hit', summary: 'Coverage dropped' },
+          title: '80% of diff hit',
+          summary: 'Coverage dropped',
         }),
       ])
     )
 
     expect(result.output.contexts[0]).toMatchObject({
-      output: { title: '80% of diff hit', summary: 'Coverage dropped' },
+      title: '80% of diff hit',
+      summary: 'Coverage dropped',
+    })
+  })
+
+  it('returns check runs and legacy statuses from the one merged read', async () => {
+    // The merge is the reason this tool exists: Actions reports as check runs
+    // while providers like Vercel still post only legacy commit statuses, and a
+    // reader of either source alone would miss the other.
+    const result = await parse(rollupPayload([actionsCheckRun(), statusContext()]))
+
+    expect(result.output.contexts.map((entry) => entry.__typename)).toEqual([
+      'CheckRun',
+      'StatusContext',
+    ])
+    expect(result.output.contexts[1]).toEqual({
+      __typename: 'StatusContext',
+      context: 'Vercel',
+      state: 'SUCCESS',
+      description: 'Skipped - Not affected',
+      targetUrl: 'https://vercel.com/octo/demo/2ZjPVEUCzk5uRDsnHBh8aXVP9XNm',
+      isRequired: false,
     })
   })
 

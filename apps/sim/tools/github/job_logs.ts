@@ -13,47 +13,22 @@ function resolveMaxCharacters(value: number | undefined): number {
 }
 
 /**
- * Keeps only the last `maxCharacters` of the log while streaming it, so a
- * multi-hundred-megabyte job log costs a bounded amount of memory. The tail is
- * what matters: a failing job reports its error at the end.
+ * The tail is what matters: a failing job reports its error at the end.
+ *
+ * Reading the whole body first is safe because the tool executor already caps a
+ * response at 10 MB and hands `transformResponse` a buffer, so a log larger than
+ * that fails with the executor's size-limit error before reaching here — which
+ * is the honest outcome, since a truncated head would read as a passing job.
  */
-async function readLogTail(
-  response: Response,
+function logTail(
+  text: string,
   maxCharacters: number
-): Promise<{ logs: string; totalCharacters: number; truncated: boolean }> {
-  const stream = response.body
-  if (!stream) {
-    const text = await response.text()
-    return {
-      logs: text.slice(-maxCharacters),
-      totalCharacters: text.length,
-      truncated: text.length > maxCharacters,
-    }
+): { logs: string; totalCharacters: number; truncated: boolean } {
+  return {
+    logs: text.slice(-maxCharacters),
+    totalCharacters: text.length,
+    truncated: text.length > maxCharacters,
   }
-
-  const reader = stream.getReader()
-  const decoder = new TextDecoder()
-  let tail = ''
-  let totalCharacters = 0
-
-  try {
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      const chunk = decoder.decode(value, { stream: true })
-      totalCharacters += chunk.length
-      tail = (tail + chunk).slice(-maxCharacters)
-    }
-    const trailing = decoder.decode()
-    if (trailing) {
-      totalCharacters += trailing.length
-      tail = (tail + trailing).slice(-maxCharacters)
-    }
-  } finally {
-    reader.releaseLock()
-  }
-
-  return { logs: tail, totalCharacters, truncated: totalCharacters > maxCharacters }
 }
 
 export const jobLogsTool: ToolConfig<JobLogsParams, JobLogsResponse> = {
@@ -98,8 +73,8 @@ export const jobLogsTool: ToolConfig<JobLogsParams, JobLogsResponse> = {
   },
 
   request: {
-    // GitHub answers with a 302 to a short-lived blob URL carrying the plain-text
-    // log; fetch follows it. This is the per-job endpoint, not the run-level zip.
+    // The per-job endpoint, not the run-level zip archive. GitHub answers with a
+    // 302 to a short-lived blob URL that carries its own signature.
     url: (params) =>
       `https://api.github.com/repos/${params.owner}/${params.repo}/actions/jobs/${params.job_id}/logs`,
     method: 'GET',
@@ -108,12 +83,15 @@ export const jobLogsTool: ToolConfig<JobLogsParams, JobLogsResponse> = {
       Authorization: `Bearer ${params.apiKey}`,
       'X-GitHub-Api-Version': '2022-11-28',
     }),
+    // The redirect target is third-party blob storage. Sim's tool fetch follows
+    // redirects itself rather than through the fetch spec, so without this the
+    // GitHub token would be replayed to that host.
+    stripAuthOnRedirect: true,
   },
 
   transformResponse: async (response, params) => {
     const maxCharacters = resolveMaxCharacters(params?.maxCharacters)
-    const tail = await readLogTail(response, maxCharacters)
-    return { success: true, output: tail }
+    return { success: true, output: logTail(await response.text(), maxCharacters) }
   },
 
   outputs: {
