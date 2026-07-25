@@ -1039,6 +1039,7 @@ export function serializeBuiltinTriggerSchema(block: BlockConfig): string {
       name: block.name,
       description: block.description,
       longDescription: block.longDescription || undefined,
+      bestPractices: block.bestPractices || undefined,
       category: 'builtin',
       triggers: block.triggers || undefined,
       subBlocks: block.subBlocks.map(serializeSubBlock),
