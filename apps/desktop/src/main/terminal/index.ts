@@ -38,6 +38,7 @@ import {
   awaitRun,
   capturePane,
   closeRunWindow,
+  killPane,
   listPanes,
   resolveAttachment,
   sendKey,
@@ -391,7 +392,12 @@ export class TerminalService {
       case 'switch':
         return this.switchTerminal(this.requireId(args))
       case 'close':
-        return this.closeTerminal(this.requireId(args))
+        // A named pane is a tmux thing and needs the session resolved below;
+        // without one, close means the Sim terminal.
+        if (typeof args.pane !== 'string' || !args.pane.trim()) {
+          return this.closeTerminal(this.requireId(args))
+        }
+        break
       default:
         break
     }
@@ -409,6 +415,27 @@ export class TerminalService {
           home: homedir(),
           terminalId: session.terminalId,
         } satisfies TerminalCwdResult
+      case 'close': {
+        if (!tmux) {
+          throw new TerminalError(
+            'NO_TMUX',
+            'That terminal is a plain shell, so it has no panes. Close the terminal itself by omitting `pane`.'
+          )
+        }
+        const target = await this.resolvePane(tmux.session, args, session)
+        const killed = await killPane(target, session.env)
+        if (!killed.ok) {
+          throw new TerminalError(
+            'NO_SUCH_PANE',
+            killed.stderr.trim() || `tmux could not close pane ${target}.`
+          )
+        }
+        return {
+          closed: target,
+          terminalId: session.terminalId,
+          panes: await listPanes(tmux.session, session.env),
+        }
+      }
       case 'handoff':
         return this.handoff(session, args)
       case 'panes': {

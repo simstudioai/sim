@@ -206,3 +206,34 @@ describe('handing the terminal to the user', () => {
     expect(response.code).toBe('SESSION_CLOSED')
   })
 })
+
+describe('closing', () => {
+  it('closes the Sim terminal when no pane is named', async () => {
+    const terminal = service()
+    terminal.start({ cols: 80, rows: 24 })
+    const second = terminal.openTerminal()
+
+    const response = await terminal.executeTool('call-1', 'close', {
+      terminalId: second.activeTerminalId as string,
+    })
+
+    expect(response.ok).toBe(true)
+    expect(terminal.getTabs().tabs).toHaveLength(1)
+  })
+
+  it('refuses to close a pane in a terminal that has no tmux', async () => {
+    // Naming a pane in a plain shell is a mistake worth saying out loud, not
+    // silently closing the whole terminal instead.
+    const terminal = service()
+    const started = terminal.start({ cols: 80, rows: 24 })
+
+    const response = await terminal.executeTool('call-1', 'close', {
+      terminalId: started.activeTerminalId as string,
+      pane: 'main:1.0',
+    })
+
+    expect(response.ok).toBe(false)
+    expect(response.code).toBe('NO_TMUX')
+    expect(terminal.getTabs().tabs).toHaveLength(1)
+  })
+})
