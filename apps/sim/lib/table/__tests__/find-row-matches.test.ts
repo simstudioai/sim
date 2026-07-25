@@ -36,7 +36,7 @@ vi.mock('@/lib/table/validation', () => ({
   checkBatchUniqueConstraintsDb: vi.fn(async () => ({ valid: true, errors: [] })),
 }))
 
-import { findRowMatches } from '@/lib/table/rows/service'
+import { buildSelectFindNameExpr, findRowMatches } from '@/lib/table/rows/service'
 import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
 
 const COLUMNS: ColumnDefinition[] = [
@@ -109,5 +109,53 @@ describe('findRowMatches', () => {
       COLUMNS
     )
     expect(buildSortClause).toHaveBeenCalledWith({ name: 'asc' }, expect.any(String), COLUMNS)
+  })
+})
+
+describe('buildSelectFindNameExpr', () => {
+  const options = [{ id: 'opt_a', name: 'Alpha' }]
+
+  it('gates the array expansion on the cell actually being an array', () => {
+    // `jsonb_array_elements_text` throws "cannot extract elements from a scalar"
+    // on a JSON null — which is what a cleared/cut multiselect cell holds — so an
+    // unguarded expansion took down Find for the whole table. Verified against
+    // Postgres; this asserts the guard survives in the emitted SQL.
+    const expr = buildSelectFindNameExpr([
+      { id: 'tags', name: 'tags', type: 'select', multiple: true, options },
+    ]) as string
+    expect(expr).toContain("jsonb_typeof(o.data->'tags') = 'array'")
+    const guardAt = expr.indexOf("jsonb_typeof(o.data->'tags') = 'array'")
+    const expandAt = expr.indexOf('jsonb_array_elements_text')
+    expect(guardAt).toBeGreaterThan(-1)
+    expect(expandAt).toBeGreaterThan(guardAt)
+  })
+
+  it('joins multiselect names in stored order', () => {
+    // Sort and export both spell the ordering out via WITH ORDINALITY; Find has
+    // to agree or a search for the label the grid shows can miss the row.
+    const expr = buildSelectFindNameExpr([
+      { id: 'tags', name: 'tags', type: 'select', multiple: true, options },
+    ]) as string
+    expect(expr).toContain('WITH ORDINALITY')
+    expect(expr).toContain("', ' ORDER BY e.ord")
+  })
+
+  it('keeps a scalar left over from a single→multi toggle searchable', () => {
+    const expr = buildSelectFindNameExpr([
+      { id: 'tags', name: 'tags', type: 'select', multiple: true, options },
+    ]) as string
+    // The non-array arm falls back to the single mapping rather than NULL.
+    expect(expr).toContain("CASE kv.value WHEN 'opt_a' THEN 'Alpha' ELSE kv.value END")
+  })
+
+  it('needs no expansion for a single-select column', () => {
+    const expr = buildSelectFindNameExpr([
+      { id: 'status', name: 'status', type: 'select', options },
+    ]) as string
+    expect(expr).not.toContain('jsonb_array_elements_text')
+  })
+
+  it('returns null when the schema has no select columns', () => {
+    expect(buildSelectFindNameExpr(COLUMNS)).toBeNull()
   })
 })

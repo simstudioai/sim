@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { cn, toast, useToast } from '@sim/emcn'
 import { Loader, TableX } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -42,6 +43,7 @@ import {
 import type { ColumnConfig } from '../column-config-sidebar'
 import { ContextMenu } from '../context-menu'
 import { NewColumnDropdown } from '../new-column-dropdown'
+import { resolveSelectOptions } from '../select-field'
 import type { WorkflowConfig } from '../workflow-sidebar'
 import { ExpandedCellPopover } from './cells'
 import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
@@ -243,10 +245,47 @@ interface TableGridProps {
   >
 }
 
-/** Serialize a cell value to its tab-separated clipboard representation. */
-function cellToText(value: unknown): string {
+/**
+ * Serialize a cell value to its tab-separated clipboard representation. A
+ * `select` cell stores option ids, so resolve them to the option name(s)
+ * (comma-joined for multi) — the clipboard shows the label, not the id.
+ */
+function cellToText(value: unknown, column?: DisplayColumn): string {
   if (value === null || value === undefined) return ''
+  if (column?.type === 'select') {
+    return resolveSelectOptions(column, value)
+      .map((o) => o.name)
+      .join(', ')
+  }
   return typeof value === 'object' ? JSON.stringify(value) : String(value)
+}
+
+/**
+ * Value-equality for a cell's stored value vs a pending edit. Primitives compare
+ * with `===`; arrays/objects (multiselect id arrays, json) compare structurally
+ * so a no-op edit — e.g. opening a multiselect and closing it unchanged — isn't
+ * treated as a change and doesn't write a row update or push an undo entry.
+ */
+function cellValuesEqual(a: unknown, b: unknown, column?: DisplayColumn): boolean {
+  if (a === b) return true
+  // An untouched multiselect cell is stored as null, but the editor commits `[]`
+  // for an empty selection — without this, opening and dismissing one unchanged
+  // would write a row update and push an undo entry. Multiselect only: on a json
+  // cell `[]` and null are genuinely different values, and treating them as equal
+  // would silently drop the edit that clears a stored `[]` (or writes one).
+  if (column?.type === 'select' && column.multiple) {
+    if (isEmptySelection(a) && isEmptySelection(b)) return true
+  }
+  if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
+    return JSON.stringify(a) === JSON.stringify(b)
+  }
+  return false
+}
+
+/** An empty multiselect, however it was stored: absent, null, or `[]`. */
+function isEmptySelection(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length === 0
+  return value === null || value === undefined
 }
 
 /**
@@ -398,6 +437,11 @@ export function TableGrid({
     ensureAllRowsLoaded,
     ensureRowsLoadedUpTo,
     refetchRows,
+    // Server-bound scopes use this, not `queryOptions.filter` — a condition the
+    // current schema invalidated is pruned from the rows query, so a bulk action
+    // carrying the raw filter would target a predicate the grid isn't showing
+    // (and one the server rejects outright).
+    filter: effectiveFilter,
   } = useTable({ workspaceId, tableId, queryOptions })
 
   const { data: tableRunState } = useTableRunState(tableId)
@@ -529,7 +573,7 @@ export function TableGrid({
   ) {
     // Table-scoped runs (Run all / Run empty / Run N empty) honor the active
     // filter; an explicit rowIds scope (Run selected) already names its rows.
-    const filter = rowIds ? undefined : (queryOptions.filter ?? undefined)
+    const filter = rowIds ? undefined : (effectiveFilter ?? undefined)
     onRunColumn(groupId, runMode, rowIds, limit, filter)
   }
 
@@ -823,7 +867,7 @@ export function TableGrid({
     workspaceId,
     tableId,
     q: submittedQuery,
-    filter: queryOptions.filter,
+    filter: effectiveFilter,
     sort: queryOptions.sort,
   })
 
@@ -1432,6 +1476,12 @@ export function TableGrid({
           }
         } else if (column.type === 'date') {
           text = storageToDisplay(String(val), { seconds: true })
+        } else if (column.type === 'select') {
+          // Cells store option ids; measure the rendered pill labels instead so
+          // auto-fit doesn't size the column to opaque ids.
+          text = resolveSelectOptions(column, val)
+            .map((o) => o.name)
+            .join(', ')
         } else {
           text = String(val)
         }
@@ -2008,6 +2058,16 @@ export function TableGrid({
         return
       }
 
+      // Select: open the inline option dropdown when editable; never the big
+      // text popover. Read-only cells do nothing (like booleans).
+      if (column?.type === 'select') {
+        if (canEditRef.current) {
+          setEditingCell({ rowId, columnName })
+          setInitialCharacter(null)
+        }
+        return
+      }
+
       // Workflow-output cell with no value → let the user write over the status pill.
       if (column?.workflowGroupId && canEditRef.current) {
         const row = rowsRef.current.find((r) => r.id === rowId)
@@ -2494,8 +2554,9 @@ export function TableGrid({
         } catch (error) {
           // Rejects if the row load failed or the payload is too large for the
           // clipboard — either way nothing landed, so report a plain failure
-          // rather than implying a size cap was hit.
-          logger.error(`Failed to ${verbLower} rows`, { error })
+          // rather than implying a size cap was hit. Log the message explicitly:
+          // a DOMException (e.g. lost transient activation) serializes to `{}`.
+          logger.error(`Failed to ${verbLower} rows`, { error: getErrorMessage(error) })
           dismissToastRef.current(loadingToastId)
           toast.error(`Failed to ${verbLower} — please try again`)
           return
@@ -2569,7 +2630,7 @@ export function TableGrid({
               ? () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS)
               : async () => ({ rows: rowsRef.current, hasMore: false }),
           selectRow: (row) => rowSelectionIncludes(rowSel, row.id),
-          buildCells: (row) => cols.map((col) => cellToText(row.data[col.key])),
+          buildCells: (row) => cols.map((col) => cellToText(row.data[col.key], col)),
           verb: 'Copied',
           estimatedCount: rowSel.kind === 'some' ? rowSel.ids.size : selectAllTotalRef.current,
         })
@@ -2590,10 +2651,12 @@ export function TableGrid({
           const name = cols[c]?.key
           if (name) colNames.push(name)
         }
+        const colByKey = new Map(cols.map((c) => [c.key, c]))
         writeSelectionToClipboard({
           loadRows: () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS),
           selectRow: () => true,
-          buildCells: (row) => colNames.map((name) => cellToText(row.data[name])),
+          buildCells: (row) =>
+            colNames.map((name) => cellToText(row.data[name], colByKey.get(name))),
           verb: 'Copied',
           estimatedCount: selectAllTotalRef.current,
         })
@@ -2606,7 +2669,7 @@ export function TableGrid({
         for (let c = sel.startCol; c <= sel.endCol; c++) {
           if (c >= cols.length) break
           const row = currentRows[r]
-          cells.push(row ? cellToText(row.data[cols[c].key]) : '')
+          cells.push(row ? cellToText(row.data[cols[c].key], cols[c]) : '')
         }
         lines.push(cells.join('\t'))
       }
@@ -2631,7 +2694,7 @@ export function TableGrid({
               ? () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS)
               : async () => ({ rows: rowsRef.current, hasMore: false }),
           selectRow: (row) => rowSelectionIncludes(rowSel, row.id),
-          buildCells: (row) => cols.map((col) => cellToText(row.data[col.key])),
+          buildCells: (row) => cols.map((col) => cellToText(row.data[col.key], col)),
           verb: 'Cut',
           estimatedCount: rowSel.kind === 'some' ? rowSel.ids.size : selectAllTotalRef.current,
           afterCopy: (copied) =>
@@ -2657,10 +2720,12 @@ export function TableGrid({
           const name = cols[c]?.key
           if (name) colNames.push(name)
         }
+        const colByKey = new Map(cols.map((c) => [c.key, c]))
         writeSelectionToClipboard({
           loadRows: () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS),
           selectRow: () => true,
-          buildCells: (row) => colNames.map((name) => cellToText(row.data[name])),
+          buildCells: (row) =>
+            colNames.map((name) => cellToText(row.data[name], colByKey.get(name))),
           verb: 'Cut',
           estimatedCount: selectAllTotalRef.current,
           afterCopy: (copied) => clearCutRows(copied, colNames),
@@ -2680,7 +2745,7 @@ export function TableGrid({
         for (let c = sel.startCol; c <= sel.endCol; c++) {
           if (c < cols.length) {
             const colName = cols[c].key
-            cells.push(cellToText(row.data[colName]))
+            cells.push(cellToText(row.data[colName], cols[c]))
             previousData[colName] = row.data[colName] ?? null
             updates[colName] = null
           }
@@ -2887,7 +2952,8 @@ export function TableGrid({
 
       const oldValue = row.data[columnName] ?? null
       const normalizedValue = value ?? null
-      const changed = oldValue !== normalizedValue
+      const column = columnsRef.current.find((c) => c.key === columnName)
+      const changed = !cellValuesEqual(oldValue, normalizedValue, column)
 
       if (changed) {
         pushUndoRef.current({
@@ -3151,6 +3217,10 @@ export function TableGrid({
           columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
           columnUnique: entry.def?.unique ?? false,
           columnRequired: entry.def?.required ?? false,
+          // Without these a deleted select column can't be re-created — it is
+          // invalid with no options, and the saved cell data is option ids.
+          ...(entry.def?.options ? { columnOptions: entry.def.options } : {}),
+          ...(entry.def?.multiple ? { columnMultiple: true } : {}),
           cellData,
           previousOrder: orderSnapshot,
           previousWidth,
@@ -3309,7 +3379,7 @@ export function TableGrid({
    *  mirroring the action bar's Play/Refresh; deselected rows are excluded. */
   const runSelection = (runMode: RunMode) => {
     if (contextMenuIsSelectAll) {
-      const filter = queryOptions.filter ?? undefined
+      const filter = effectiveFilter ?? undefined
       const excluded =
         rowSelection.kind === 'all' && rowSelection.excluded
           ? [...rowSelection.excluded]
@@ -3332,7 +3402,7 @@ export function TableGrid({
         rowSelection.kind === 'all' && rowSelection.excluded
           ? [...rowSelection.excluded]
           : undefined
-      onStopAllRows(queryOptions.filter ?? undefined, excluded)
+      onStopAllRows(effectiveFilter ?? undefined, excluded)
     } else {
       onStopRows(contextMenuRowIds)
     }
@@ -3460,7 +3530,7 @@ export function TableGrid({
           rowIds: rows.map((r) => r.id),
           allRows: true,
           rowCount: Math.max(0, selectAllTotalRef.current - excluded),
-          filter: queryOptions.filter ?? undefined,
+          filter: effectiveFilter ?? undefined,
           excludeRowIds: rowSelection.excluded ? [...rowSelection.excluded] : undefined,
         }
       }
@@ -3485,7 +3555,14 @@ export function TableGrid({
     }
     if (rowIds.length === 0) return null
     return { groupIds: [...groupIdsInRect], rowIds, allRows: false, rowCount: rowIds.length }
-  }, [rowSelection, normalizedSelection, rows, displayColumns, tableWorkflowGroupIds])
+  }, [
+    rowSelection,
+    normalizedSelection,
+    rows,
+    displayColumns,
+    tableWorkflowGroupIds,
+    effectiveFilter,
+  ])
 
   const selectionStats = useMemo<SelectionSnapshot['selectionStats']>(() => {
     if (!selectedRunScope) {
@@ -3661,7 +3738,7 @@ export function TableGrid({
                                 onSelectGroup={handleGroupSelect}
                                 onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
                                 onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
-                                hasActiveFilter={Boolean(queryOptions.filter)}
+                                hasActiveFilter={Boolean(effectiveFilter)}
                                 selectedRowIds={selectedRowIds}
                                 onInsertLeft={
                                   userPermissions.canEdit ? handleInsertColumnLeft : undefined

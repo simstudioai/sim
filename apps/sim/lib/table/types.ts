@@ -26,6 +26,15 @@ export interface ColumnOption {
   label: string
 }
 
+/**
+ * One choice in a `select`/`multiselect` column. `id` is stable — cell data
+ * references it, so renaming an option never rewrites rows.
+ */
+export interface SelectOption {
+  id: string
+  name: string
+}
+
 export interface ColumnDefinition {
   /**
    * Stable storage key for this column. Row data, metadata, workflow-group
@@ -45,6 +54,13 @@ export interface ColumnDefinition {
    * `row.data[getColumnId(col)]` is populated by the group's per-cell run.
    */
   workflowGroupId?: string
+  /**
+   * Declared options for a `select` column. Cells store option ids — a single
+   * id when `multiple` is falsy, an array of ids when `multiple` is true.
+   */
+  options?: SelectOption[]
+  /** When true, a `select` column accepts several options per cell (string[]). */
+  multiple?: boolean
 }
 
 /** One group output → one plain column. */
@@ -644,6 +660,32 @@ export interface UpdateColumnTypeData {
   tableId: string
   columnName: string
   newType: (typeof COLUMN_TYPES)[number]
+  /** Options to set when changing to a `select` type. */
+  options?: SelectOption[]
+  /** Whether the `select` column accepts multiple options per cell. */
+  multiple?: boolean
+  /**
+   * The `required` value the same request is about to set, when it changes type
+   * and constraints together. Those are separate transactions, so the
+   * conversion has to validate against the constraint the column will END UP
+   * with — otherwise it commits and the constraint write then fails.
+   */
+  required?: boolean
+}
+
+export interface UpdateColumnOptionsData {
+  tableId: string
+  columnName: string
+  options: SelectOption[]
+  /** Toggle single/multi selection alongside the options update. */
+  multiple?: boolean
+  /**
+   * The `required` value the same request is about to set. The constraint write
+   * is a separate transaction, so the options update has to validate against
+   * the constraint the column will END UP with — otherwise it clears cells and
+   * the constraint write then fails, leaving the removal committed.
+   */
+  required?: boolean
 }
 
 export interface UpdateColumnConstraintsData {

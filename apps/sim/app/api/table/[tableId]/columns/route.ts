@@ -15,8 +15,10 @@ import {
   deleteColumn,
   renameColumn,
   updateColumnConstraints,
+  updateColumnOptions,
   updateColumnType,
 } from '@/lib/table'
+import { columnMatchesRef } from '@/lib/table/column-keys'
 import { accessError, checkAccess, normalizeColumn, rootErrorMessage } from '@/app/api/table/utils'
 
 const logger = createLogger('TableColumnsAPI')
@@ -68,7 +70,8 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
       msg.includes('already exists') ||
       msg.includes('maximum column') ||
       msg.includes('Invalid column') ||
-      msg.includes('exceeds maximum')
+      msg.includes('exceeds maximum') ||
+      msg.includes('option')
     ) {
       return NextResponse.json({ error: msg }, { status: 400 })
     }
@@ -116,9 +119,50 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       )
     }
 
-    if (updates.type) {
+    // A payload that repeats the current type must not go through
+    // `updateColumnType` — it early-returns on an unchanged type and would drop
+    // any `options` alongside it. Only a real type change routes there; an
+    // unchanged type with options routes to the options-only update.
+    const currentColumn = table.schema.columns.find((c) =>
+      columnMatchesRef(c, validated.columnName)
+    )
+    const typeChanging = updates.type !== undefined && updates.type !== currentColumn?.type
+
+    // Every write below is its own locked transaction, so any of them paired
+    // with a constraint write that is going to fail commits and then errors.
+    // Gate on the type the column ENDS UP with, not on whether the type is
+    // changing: an options-only update on an existing select column carries the
+    // same hazard as a conversion does.
+    const resultingType = updates.type ?? currentColumn?.type
+    if (updates.unique === true && resultingType === 'select') {
+      return NextResponse.json({ error: 'Cannot set a select column as unique' }, { status: 400 })
+    }
+
+    if (typeChanging) {
       updatedTable = await updateColumnType(
-        { tableId, columnName: updates.name ?? validated.columnName, newType: updates.type },
+        {
+          tableId,
+          columnName: updates.name ?? validated.columnName,
+          newType: updates.type as NonNullable<typeof updates.type>,
+          ...(updates.options !== undefined ? { options: updates.options } : {}),
+          ...(updates.multiple !== undefined ? { multiple: updates.multiple } : {}),
+          // Forwarded so the conversion validates against the constraint this
+          // same request is about to set, not the column's current one.
+          ...(updates.required !== undefined ? { required: updates.required } : {}),
+        },
+        requestId
+      )
+    } else if (updates.options !== undefined || updates.multiple !== undefined) {
+      updatedTable = await updateColumnOptions(
+        {
+          tableId,
+          columnName: updates.name ?? validated.columnName,
+          options: updates.options ?? currentColumn?.options ?? [],
+          ...(updates.multiple !== undefined ? { multiple: updates.multiple } : {}),
+          // Forwarded so the removal guard validates against the constraint this
+          // same request is about to set, not the column's current one.
+          ...(updates.required !== undefined ? { required: updates.required } : {}),
+        },
         requestId
       )
     }
@@ -162,7 +206,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       msg.includes('Invalid column') ||
       msg.includes('exceeds maximum') ||
       msg.includes('incompatible') ||
-      msg.includes('duplicate')
+      msg.includes('duplicate') ||
+      msg.includes('option')
     ) {
       return NextResponse.json({ error: msg }, { status: 400 })
     }

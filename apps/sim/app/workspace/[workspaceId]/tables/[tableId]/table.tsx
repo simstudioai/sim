@@ -272,7 +272,16 @@ export function Table({
 
   // Single source of truth for `useTable` — drives both the grid render and
   // the wrapper's slideouts/modals. The grid receives the bundle as props.
-  const { tableData, columns, tableWorkflowGroups, workflows } = useTable({
+  const {
+    tableData,
+    columns,
+    tableWorkflowGroups,
+    workflows,
+    // Server-bound scopes use this: a filter condition the current schema
+    // invalidated is pruned from the rows query, so the delete must target the
+    // same predicate the grid is displaying.
+    filter: effectiveFilter,
+  } = useTable({
     workspaceId,
     tableId,
     queryOptions,
@@ -640,10 +649,13 @@ export function Table({
   const filterConfig = useMemo(
     () => ({
       mode: 'toggle' as const,
-      active: filterOpen || !!queryOptions.filter,
+      // The pruned filter, not the raw one: a condition the current schema
+      // invalidated is not applied to the grid, so showing the chip as active
+      // (and reopening that rule) would claim a filter the rows do not reflect.
+      active: filterOpen || !!effectiveFilter,
       onToggle: handleToggleFilter,
     }),
-    [filterOpen, queryOptions.filter, handleToggleFilter]
+    [filterOpen, effectiveFilter, handleToggleFilter]
   )
 
   return (
@@ -698,7 +710,7 @@ export function Table({
       {filterOpen && (
         <TableFilter
           columns={columns}
-          filter={queryOptions.filter}
+          filter={effectiveFilter}
           onApply={handleFilterApply}
           onClose={() => setFilterOpen(false)}
         />
@@ -878,7 +890,7 @@ export function Table({
         title='Delete rows'
         text={`Delete ${deletingAll ? deletingAll.estimatedCount.toLocaleString() : 0} ${
           deletingAll?.estimatedCount === 1 ? 'row' : 'rows'
-        }${queryOptions.filter ? ' matching the current filter' : ''}? This can't be undone.`}
+        }${effectiveFilter ? ' matching the current filter' : ''}? This can't be undone.`}
         confirm={{
           label: 'Delete',
           pending: deleteRowsAsyncMutation.isPending,
@@ -887,7 +899,7 @@ export function Table({
             if (!deletingAll) return
             const { excludeRowIds, estimatedCount } = deletingAll
             deleteRowsAsyncMutation.mutate({
-              filter: queryOptions.filter ?? undefined,
+              filter: effectiveFilter ?? undefined,
               sort: queryOptions.sort,
               excludeRowIds: excludeRowIds.length > 0 ? excludeRowIds : undefined,
               estimatedCount,

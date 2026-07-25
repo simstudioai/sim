@@ -763,6 +763,43 @@ export interface FindRowMatch {
 const FIND_MATCH_LIMIT = 1000
 
 /**
+ * Builds a SQL text expression that resolves a scanned select cell (`kv.value`,
+ * keyed by `kv.key`) to its option **name(s)** — the label the user searches by,
+ * not the stored id. Single-select maps the id to its name; multiselect joins the
+ * array's option names. Non-select keys resolve to NULL. Returns `null` when the
+ * schema has no select columns (caller keeps the plain id match). Option ids/names
+ * are trusted schema data, escaped and embedded literally; the row alias is `o`.
+ */
+export function buildSelectFindNameExpr(columns: ColumnDefinition[]): string | null {
+  const selectColumns = columns.filter((c) => c.type === 'select')
+  if (selectColumns.length === 0) return null
+  const esc = (s: string) => s.replace(/'/g, "''")
+  const whens = selectColumns
+    .map((col) => {
+      const id = esc(getColumnId(col))
+      const caseWhens = (col.options ?? [])
+        .map((o) => `WHEN '${esc(o.id)}' THEN '${esc(o.name)}'`)
+        .join(' ')
+      const single = caseWhens ? `CASE kv.value ${caseWhens} ELSE kv.value END` : 'kv.value'
+      if (col.multiple) {
+        const elem = caseWhens ? `CASE e.v ${caseWhens} ELSE e.v END` : 'e.v'
+        // `jsonb_array_elements_text` throws "cannot extract elements from a
+        // scalar" on a JSON null — which a multiselect cell becomes when it is
+        // cleared, cut, or has its last option removed — so the array arm has to
+        // be gated on the cell actually being an array. Anything else falls back
+        // to the single mapping, which also keeps a scalar left over from a
+        // single→multi toggle searchable. Mirrors `buildSelectNameOrderExpr`.
+        // `ORDER BY e.ord` keeps the joined label in stored order, so Find matches
+        // the same text the grid renders, sorts by, and exports.
+        return `WHEN kv.key = '${id}' THEN CASE WHEN jsonb_typeof(o.data->'${id}') = 'array' THEN (SELECT string_agg(${elem}, ', ' ORDER BY e.ord) FROM jsonb_array_elements_text(o.data->'${id}') WITH ORDINALITY AS e(v, ord)) ELSE ${single} END`
+      }
+      return `WHEN kv.key = '${id}' THEN ${single}`
+    })
+    .join(' ')
+  return `CASE ${whens} ELSE NULL END`
+}
+
+/**
  * Case-insensitive substring search across every cell of a table's rows. Each
  * matching cell becomes a {@link FindRowMatch} carrying its row id, column, and
  * 0-based ordinal in the filtered+sorted view (so the client can page up to and
@@ -806,6 +843,12 @@ export async function findRowMatches(
 
   const orderBySql = buildRowOrderBySql(options.sort, tableName, columns)
   const pattern = `%${escapeLikePattern(options.q)}%`
+  // Select cells store option ids; also match the resolved option name so a search
+  // for the visible label finds the cell (the raw-id match below is kept too).
+  const selectNameExpr = buildSelectFindNameExpr(columns)
+  const nameMatchClause = selectNameExpr
+    ? sql` OR (${sql.raw(selectNameExpr)}) ILIKE ${pattern}`
+    : sql``
 
   const result = await db.transaction(async (trx) => {
     // Planner flags, not correctness: `enable_* = off` only penalizes a plan shape, so a
@@ -834,7 +877,7 @@ export async function findRowMatches(
       SELECT o.ordinal, o.id, kv.key AS column_name
       FROM ordered o
       CROSS JOIN LATERAL jsonb_each_text(o.data) kv
-      WHERE kv.value ILIKE ${pattern}
+      WHERE (kv.value ILIKE ${pattern}${nameMatchClause})
         AND ${inArray(sql`kv.key`, columnIds)}
       ORDER BY o.ordinal
       LIMIT ${FIND_MATCH_LIMIT + 1}

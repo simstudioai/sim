@@ -6,13 +6,9 @@ import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
-import {
-  buildIdByName,
-  buildNameById,
-  rowDataIdToName,
-  rowDataNameToId,
-  upsertRow,
-} from '@/lib/table'
+import { upsertRow } from '@/lib/table'
+import { namedRowMapper } from '@/lib/table/cell-format'
+import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -63,7 +59,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
     }
 
     const idByName = buildIdByName(table.schema as TableSchema)
-    const nameById = buildNameById(table.schema as TableSchema)
+    const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
     const upsertResult = await upsertRow(
       {
         tableId,
@@ -81,7 +77,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
       data: {
         row: {
           id: upsertResult.row.id,
-          data: rowDataIdToName(upsertResult.row.data, nameById),
+          data: toNamedRow(upsertResult.row.data),
           createdAt:
             upsertResult.row.createdAt instanceof Date
               ? upsertResult.row.createdAt.toISOString()

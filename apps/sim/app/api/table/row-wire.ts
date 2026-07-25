@@ -1,13 +1,13 @@
 import { AuthType, type AuthTypeValue } from '@/lib/auth/hybrid'
 import type { Filter, RowData, Sort, TableSchema } from '@/lib/table'
+import { namedRowMapper } from '@/lib/table/cell-format'
 import {
   buildIdByName,
-  buildNameById,
   filterNamesToIds,
-  rowDataIdToName,
   rowDataNameToId,
   sortNamesToIds,
-} from '@/lib/table'
+} from '@/lib/table/column-keys'
+import { resolveFilterSelectValues } from '@/lib/table/select-values'
 
 export interface RowWireTranslators {
   /** Inbound row data: wire keys → storage column ids. */
@@ -36,11 +36,12 @@ export function rowWireTranslators(
     return { dataIn: identity, dataOut: identity, filterIn: identity, sortIn: identity }
   }
   const idByName = buildIdByName(schema)
-  const nameById = buildNameById(schema)
   return {
+    dataOut: namedRowMapper(schema.columns),
     dataIn: (data) => rowDataNameToId(data, idByName),
-    dataOut: (data) => rowDataIdToName(data, nameById),
-    filterIn: (filter) => filterNamesToIds(filter, idByName),
+    // Rekey field refs name → id, then resolve select operand names → ids.
+    filterIn: (filter) =>
+      resolveFilterSelectValues(filterNamesToIds(filter, idByName), schema.columns),
     sortIn: (sort) => sortNamesToIds(sort, idByName),
   }
 }

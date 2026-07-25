@@ -21,6 +21,7 @@ import type {
   TableDefinition,
   WorkflowGroup,
 } from '@/lib/table/types'
+import { coerceRowValues } from '@/lib/table/validation'
 
 const logger = createLogger('WorkflowCellWrite')
 
@@ -97,8 +98,17 @@ export async function writeWorkflowGroupState(
     return 'skipped'
   }
 
-  const eventOutputs = payload.eventOutputs ?? dataPatch
-  const hasOutputs = eventOutputs && Object.keys(eventOutputs).length > 0
+  // The SSE snapshot must carry what was persisted, not the raw block output.
+  // `updateRow` coerces its own merged copy, so the patch object here still
+  // holds the workflow's value — for a `select` column that's the option *name*
+  // ("Open"), which the grid resolves as an option id, finds nothing, and
+  // renders as an empty cell until the next refetch. Coerce a copy: the patch
+  // object itself is identity-compared for the progress writer's retry
+  // bookkeeping, so it must not be mutated.
+  const rawEventOutputs = payload.eventOutputs ?? dataPatch
+  const hasOutputs = rawEventOutputs && Object.keys(rawEventOutputs).length > 0
+  const eventOutputs = hasOutputs ? { ...rawEventOutputs } : rawEventOutputs
+  if (hasOutputs && eventOutputs) coerceRowValues(eventOutputs, table.schema)
   const runningBlockIds = payload.executionState.runningBlockIds
   const blockErrors = payload.executionState.blockErrors
   void appendTableEvent({
