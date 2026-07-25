@@ -97,7 +97,7 @@ describe('sanitizeValueForJsonb', () => {
   })
 
   it('sanitizes object keys', () => {
-    expect(sanitizeValueForJsonb({ ['k\uDC00']: 1 })).toEqual({ ['k\uFFFD']: 1 })
+    expect(sanitizeValueForJsonb({ 'k\uDC00': 1 })).toEqual({ 'k\uFFFD': 1 })
   })
 
   it('returns the same reference when nothing needs rewriting', () => {

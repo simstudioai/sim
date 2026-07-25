@@ -5,7 +5,6 @@ import {
   normalizeWorkspaceFileItemName,
 } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
-  FileConflictError,
   getWorkspaceFileByName,
   resolveWorkspaceFileReference,
   updateWorkspaceFileContent,
@@ -41,14 +40,14 @@ export type WorkspaceFileWriteValidation =
   | {
       mode: 'create'
       vfsPath: string
-          fileName: string
+      fileName: string
       /** Null for root targets AND for parent chains that don't exist yet — validation is read-only; missing folders are created at write time. */
       folderId: string | null
     }
   | {
       mode: 'overwrite'
       vfsPath: string
-          existingFileId: string
+      existingFileId: string
     }
 
 function displayFolderPath(segments: string[]): string {

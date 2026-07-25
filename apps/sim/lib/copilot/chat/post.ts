@@ -205,9 +205,7 @@ const ChatMessageSchema = z.object({
 })
 
 type UnifiedChatRequest = z.infer<typeof ChatMessageSchema>
-type BrowserSessions = NonNullable<
-  UnifiedChatRequest['desktopCapabilities']
->['browserSessions']
+type BrowserSessions = NonNullable<UnifiedChatRequest['desktopCapabilities']>['browserSessions']
 type UnifiedChatBranch =
   | {
       kind: 'workflow'

@@ -595,9 +595,7 @@ export function buildVfsSnapshot(data: WorkspaceMdData): VfsSnapshotV1 {
       ...(j.title ? { title: j.title } : {}),
       // Match WORKSPACE.md's preview truncation — full prompts are large,
       // volatile-ish, and readable on demand at jobs/{title}/meta.json.
-      ...(j.prompt
-        ? { prompt: j.prompt.length > 80 ? truncate(j.prompt, 77) : j.prompt }
-        : {}),
+      ...(j.prompt ? { prompt: j.prompt.length > 80 ? truncate(j.prompt, 77) : j.prompt } : {}),
       ...(j.cronExpression ? { cronExpression: j.cronExpression } : {}),
       ...(j.status ? { status: j.status } : {}),
       ...(j.lifecycle ? { lifecycle: j.lifecycle } : {}),

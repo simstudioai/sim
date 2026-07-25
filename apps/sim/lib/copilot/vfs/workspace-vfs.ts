@@ -82,7 +82,6 @@ import {
 } from '@/lib/copilot/vfs/serializers'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { isE2BDocEnabled, isHosted } from '@/lib/core/config/env-flags'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
@@ -1656,12 +1655,12 @@ export class WorkspaceVFS {
       }
 
       return files.map((f) => ({
-          id: f.id,
-          name: f.name,
-          type: f.type,
-          size: f.size,
-          folderPath: f.folderPath ?? null,
-        }))
+        id: f.id,
+        name: f.name,
+        type: f.type,
+        size: f.size,
+        folderPath: f.folderPath ?? null,
+      }))
     } catch (err) {
       logger.error('Failed to materialize files; refusing to serve an incomplete VFS', {
         workspaceId,

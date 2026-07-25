@@ -27,8 +27,7 @@ vi.mock('./doc-compiled-store', () => ({
   loadCompiledDoc: mockLoadCompiledDoc,
   storeCompiledDoc: vi.fn(),
 }))
-vi.mock('@/lib/core/config/feature-flags', () => ({
-}))
+vi.mock('@/lib/core/config/feature-flags', () => ({}))
 vi.mock('@/lib/core/config/env-flags', () => ({
   get isE2BDocEnabled() {
     return e2bFlag.value
@@ -164,7 +163,6 @@ describe('resolveServableDocBytes', () => {
   })
 
   it('returns raw XLSX source when there is no workspaceId (xlsx has no isolated-vm path)', async () => {
-
     const result = await resolveServableDocBytes({
       rawBuffer: XLSX_SOURCE,
       fileName: 'sheet.xlsx',
