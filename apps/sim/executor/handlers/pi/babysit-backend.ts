@@ -88,6 +88,7 @@ const MAX_FAILING_CHECKS_IN_PROMPT = 20
 const MAX_REVIEW_PROMPT_BYTES = 250_000
 const MAX_CHECK_PROMPT_BYTES = 400_000
 const MIN_ROUND_BUDGET_MS = 5 * 60 * 1000
+const ROUND_FINALIZATION_RESERVE_MS = 2 * FINALIZE_TIMEOUT_MS
 
 const BABYSIT_GUIDANCE =
   'You are fixing an existing pull request in a long-lived automated sandbox. Make only minimal ' +
@@ -248,12 +249,6 @@ function buildRoundPrompt(
     detailsUrl: check.detailsUrl,
     diagnostics: diagnostics.get(check.key),
   }))
-  if (checks.failing.length > MAX_FAILING_CHECKS_IN_PROMPT) {
-    throw new BabysitGitHubError(
-      'bounds_exceeded',
-      `Babysit found ${checks.failing.length} failing checks; at most ${MAX_FAILING_CHECKS_IN_PROMPT} fit in one trusted round.`
-    )
-  }
   const reviewJson = untrustedJson(reviewPayload)
   const checkJson = untrustedJson(checkPayload)
   if (new TextEncoder().encode(reviewJson).byteLength > MAX_REVIEW_PROMPT_BYTES) {
@@ -340,7 +335,8 @@ async function runRoundAgent(
   signal: AbortSignal,
   prompt: string,
   secrets: readonly string[],
-  keyEnvVar: string
+  keyEnvVar: string,
+  timeoutMs: number
 ): Promise<PiRunTotals> {
   await raceAbort(
     runner.run(`rm -f ${BABYSIT_ROUND_PATH}`, { timeoutMs: FINALIZE_TIMEOUT_MS }),
@@ -379,7 +375,7 @@ async function runRoundAgent(
               }
             : {}),
         },
-        timeoutMs: PI_TIMEOUT_MS,
+        timeoutMs,
         onStdout: handleChunk,
       }
     ),
@@ -656,7 +652,10 @@ export async function runBabysitPiWithOptions(
           latestThreads!.actionable.length > 0 || latestChecks!.blockingFailing.length > 0
         if (!needsAgent) {
           const remaining = lifetime - (Date.now() - startedAt)
-          if (remaining <= options.roundWaitMs + MIN_ROUND_BUDGET_MS) {
+          if (
+            remaining <=
+            options.roundWaitMs + MIN_ROUND_BUDGET_MS + ROUND_FINALIZATION_RESERVE_MS
+          ) {
             const reason = outstandingReason(
               'budget_exhausted',
               latestThreads!,
@@ -699,7 +698,10 @@ export async function runBabysitPiWithOptions(
           )
           return resultFor(totals, reason, progress, threadsClean, latestChecks!.checksGreen)
         }
-        if (Date.now() - startedAt + MIN_ROUND_BUDGET_MS > lifetime) {
+        if (
+          Date.now() - startedAt + MIN_ROUND_BUDGET_MS + ROUND_FINALIZATION_RESERVE_MS >
+          lifetime
+        ) {
           const reason = outstandingReason(
             'budget_exhausted',
             latestThreads!,
@@ -707,6 +709,18 @@ export async function runBabysitPiWithOptions(
             awaitingReview
           )
           return resultFor(totals, reason, progress, threadsClean, latestChecks!.checksGreen)
+        }
+        if (latestChecks!.failing.length > MAX_FAILING_CHECKS_IN_PROMPT) {
+          progress.notes.push(
+            `Babysit found ${latestChecks!.failing.length} failing checks; at most ${MAX_FAILING_CHECKS_IN_PROMPT} fit in one trusted round.`
+          )
+          return resultFor(
+            totals,
+            'bounds_exceeded',
+            progress,
+            threadsClean,
+            latestChecks!.checksGreen
+          )
         }
 
         const diagnostics = await fetchBabysitCheckDiagnostics(
@@ -716,6 +730,19 @@ export async function runBabysitPiWithOptions(
           signal
         )
         const prompt = buildRoundPrompt(params, latestThreads!, latestChecks!, diagnostics, secrets)
+        const agentTimeoutMs = Math.min(
+          PI_TIMEOUT_MS,
+          lifetime - (Date.now() - startedAt) - ROUND_FINALIZATION_RESERVE_MS
+        )
+        if (agentTimeoutMs < MIN_ROUND_BUDGET_MS) {
+          const reason = outstandingReason(
+            'budget_exhausted',
+            latestThreads!,
+            latestChecks!,
+            awaitingReview
+          )
+          return resultFor(totals, reason, progress, threadsClean, latestChecks!.checksGreen)
+        }
         progress.rounds += 1
         context.onEvent({ type: 'text', text: `Babysit round ${progress.rounds} started.\n` })
         try {
@@ -726,7 +753,8 @@ export async function runBabysitPiWithOptions(
             signal,
             prompt,
             secrets,
-            keyEnvVar
+            keyEnvVar,
+            agentTimeoutMs
           )
           mergeRoundTotals(totals, roundTotals)
         } catch (error) {
@@ -926,7 +954,8 @@ export async function runBabysitPiWithOptions(
         const remainingBeforeWait = lifetime - (Date.now() - startedAt)
         if (
           options.roundWaitMs > 0 &&
-          remainingBeforeWait > options.roundWaitMs + MIN_ROUND_BUDGET_MS
+          remainingBeforeWait >
+            options.roundWaitMs + MIN_ROUND_BUDGET_MS + ROUND_FINALIZATION_RESERVE_MS
         ) {
           await sleepUntilAborted(options.roundWaitMs, signal)
           if (signal.aborted) throw new Error('Pi run aborted')

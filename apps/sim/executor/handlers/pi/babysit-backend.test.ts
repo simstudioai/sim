@@ -142,7 +142,7 @@ function params(overrides: Partial<PiBabysitRunParams> = {}): PiBabysitRunParams
     pullNumber: 7,
     maxRounds: 3,
     reviewMentions: [],
-    executionBudgetMs: 20 * 60 * 1000,
+    executionBudgetMs: 40 * 60 * 1000,
     ...overrides,
   }
 }
@@ -156,15 +156,23 @@ function makeRunner(options: {
   pushResult?: ReturnType<typeof commandResult>
   roundFile?: string
 }) {
-  const runCalls: Array<{ command: string; envs?: Record<string, string> }> = []
+  const runCalls: Array<{
+    command: string
+    envs?: Record<string, string>
+    timeoutMs?: number
+  }> = []
   let prepareCall = 0
   const runner = {
     run: vi.fn(
       async (
         command: string,
-        runOptions: { envs?: Record<string, string>; onStdout?: (chunk: string) => void }
+        runOptions: {
+          envs?: Record<string, string>
+          onStdout?: (chunk: string) => void
+          timeoutMs?: number
+        }
       ) => {
-        runCalls.push({ command, envs: runOptions.envs })
+        runCalls.push({ command, envs: runOptions.envs, timeoutMs: runOptions.timeoutMs })
         if (command.includes('git clone')) {
           return commandResult('__GIT_CONFIG_DIGEST__=digest-1\n')
         }
@@ -253,6 +261,40 @@ describe('runBabysitPiWithOptions', () => {
     expect(mockWithPiSandbox).not.toHaveBeenCalled()
   })
 
+  it('refuses excess failing checks before fetching discarded diagnostics', async () => {
+    const failures = Array.from({ length: 21 }, (_, index) => ({
+      ...failingCheck,
+      key: `check:ci-${index}`,
+      name: `ci-${index}`,
+    }))
+    mockFetchSnapshot.mockResolvedValue(snapshot)
+    mockFetchThreads.mockResolvedValue({
+      actionable: [],
+      skipped: [],
+      totalUnresolved: 0,
+      latestReview: null,
+    })
+    mockFetchChecks.mockResolvedValue({
+      ...failingChecks,
+      checks: failures,
+      failing: failures,
+      blockingFailing: failures,
+      contextRequirements: new Map(failures.map((check) => [check.key, true])),
+    })
+    const { runner, runCalls } = makeRunner({})
+    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+
+    const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() })
+
+    expect(result).toMatchObject({
+      stopReason: 'bounds_exceeded',
+      rounds: 0,
+      commitsPushed: 0,
+    })
+    expect(mockFetchDiagnostics).not.toHaveBeenCalled()
+    expect(runCalls.some(({ command }) => command.includes('pi -p --mode json'))).toBe(false)
+  })
+
   it('advances the pin after one exact hardened push and resolves the round', async () => {
     mockFetchSnapshot
       .mockResolvedValueOnce(snapshot)
@@ -274,14 +316,22 @@ describe('runBabysitPiWithOptions', () => {
       })
     mockFetchChecks.mockResolvedValueOnce(failingChecks).mockResolvedValueOnce(greenChecks)
 
-    const runCalls: Array<{ command: string; envs?: Record<string, string> }> = []
+    const runCalls: Array<{
+      command: string
+      envs?: Record<string, string>
+      timeoutMs?: number
+    }> = []
     const runner = {
       run: vi.fn(
         async (
           command: string,
-          options: { envs?: Record<string, string>; onStdout?: (chunk: string) => void }
+          options: {
+            envs?: Record<string, string>
+            onStdout?: (chunk: string) => void
+            timeoutMs?: number
+          }
         ) => {
-          runCalls.push({ command, envs: options.envs })
+          runCalls.push({ command, envs: options.envs, timeoutMs: options.timeoutMs })
           if (command.includes('git clone')) {
             return commandResult('__GIT_CONFIG_DIGEST__=digest-1\n')
           }
@@ -331,6 +381,8 @@ describe('runBabysitPiWithOptions', () => {
     expect(piCall?.command).toContain(
       '--no-extensions --no-prompt-templates --no-skills --no-approve'
     )
+    expect(piCall?.timeoutMs).toBeGreaterThan(19 * 60 * 1000)
+    expect(piCall?.timeoutMs).toBeLessThanOrEqual(20 * 60 * 1000)
     expect(piCall?.envs).not.toHaveProperty('GITHUB_TOKEN')
     const pushCall = runCalls.find(({ command }) => command.includes('CURRENT_DIGEST='))
     expect(pushCall?.command.indexOf('CURRENT_DIGEST=')).toBeLessThan(
