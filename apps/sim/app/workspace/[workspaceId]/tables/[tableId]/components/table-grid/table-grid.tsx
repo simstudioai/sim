@@ -10,7 +10,13 @@ import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
-import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
+import type {
+  ColumnDefinition,
+  Filter,
+  TableMetadata,
+  TableRow as TableRowType,
+  WorkflowGroup,
+} from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -214,6 +220,16 @@ interface TableGridProps {
    * panel's Columns section edits the same list and the active view persists it.
    */
   hiddenColumns?: string[]
+  /** Active view's stored layout. When set it owns column order/width/pinning
+   *  instead of the table's shared `metadata`. */
+  viewLayout?: TableMetadata | null
+  /** Identity of `viewLayout`'s source (the view id, or `null` for "All"). Changing
+   *  it re-seeds the grid — comparing the config object itself would re-seed on
+   *  every refetch. */
+  viewLayoutKey?: string | null
+  /** Routes layout writes to the active view. Falls back to the table-metadata
+   *  mutation when absent. */
+  onPersistLayout?: (patch: TableMetadata) => void
   /**
    * Ref the grid populates with its `handleColumnRename` so the wrapper's
    * sidebars can fire a column rename back into the grid (rewrites local
@@ -313,6 +329,9 @@ export function TableGrid({
   onSelectionChange,
   queryOptions,
   hiddenColumns,
+  viewLayout,
+  viewLayoutKey = null,
+  onPersistLayout,
   columnRenameSinkRef,
   afterDeleteRowsSinkRef,
   afterDeleteAllSinkRef,
@@ -370,6 +389,8 @@ export function TableGrid({
   const pinnedColumnsRef = useRef(pinnedColumns)
   pinnedColumnsRef.current = pinnedColumns
   const metadataSeededRef = useRef(false)
+  /** Which layout source the grid last seeded from, so a view switch re-seeds. */
+  const seededLayoutKeyRef = useRef<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const theadRef = useRef<HTMLTableSectionElement>(null)
@@ -1735,32 +1756,28 @@ export function TableGrid({
   }, [tableData?.id])
 
   useEffect(() => {
-    if (!tableData?.metadata) return
-    if (
-      !tableData.metadata.columnWidths &&
-      !tableData.metadata.columnOrder &&
-      !tableData.metadata.pinnedColumns
-    )
+    // With a view active its config owns the layout; otherwise the table's own
+    // metadata does. Switching views re-seeds unconditionally so the incoming
+    // view's layout replaces the outgoing one.
+    const source = viewLayout ?? tableData?.metadata
+    const switchedView = viewLayoutKey !== seededLayoutKeyRef.current
+    if (!source) return
+    if (!source.columnWidths && !source.columnOrder && !source.pinnedColumns && !switchedView)
       return
-    // First load: seed all from the server and remember we've seeded.
-    if (!metadataSeededRef.current) {
+
+    if (!metadataSeededRef.current || switchedView) {
       metadataSeededRef.current = true
-      if (tableData.metadata.columnWidths) {
-        setColumnWidths(tableData.metadata.columnWidths)
-      }
-      if (tableData.metadata.columnOrder) {
-        setColumnOrder(tableData.metadata.columnOrder)
-      }
-      if (tableData.metadata.pinnedColumns) {
-        setPinnedColumns(tableData.metadata.pinnedColumns)
-      }
+      seededLayoutKeyRef.current = viewLayoutKey
+      setColumnWidths(source.columnWidths ?? {})
+      setColumnOrder(source.columnOrder ?? null)
+      setPinnedColumns(source.pinnedColumns ?? [])
       return
     }
     // After first load: only re-seed `columnOrder` when the *set of columns*
     // changes (e.g. a workflow group adds/removes outputs server-side). Pure
     // reorders are left alone so an in-flight optimistic drag isn't clobbered
     // by a refetch returning the pre-drag order.
-    const serverOrder = tableData.metadata.columnOrder
+    const serverOrder = source.columnOrder
     if (serverOrder) {
       const localOrder = columnOrderRef.current
       const serverSet = new Set(serverOrder)
@@ -1771,7 +1788,7 @@ export function TableGrid({
         setColumnOrder(serverOrder)
       }
     }
-  }, [tableData?.metadata])
+  }, [tableData?.metadata, viewLayout, viewLayoutKey])
 
   useEffect(() => {
     if (!isColumnSelection || !selectionAnchor) return
@@ -2057,7 +2074,7 @@ export function TableGrid({
   batchUpdateAsyncRef.current = batchUpdateRowsMutation.mutateAsync
 
   const updateMetadataRef = useRef(updateMetadataMutation.mutate)
-  updateMetadataRef.current = updateMetadataMutation.mutate
+  updateMetadataRef.current = onPersistLayout ?? updateMetadataMutation.mutate
 
   const deleteWorkflowGroupRef = useRef(deleteWorkflowGroupMutation.mutate)
   deleteWorkflowGroupRef.current = deleteWorkflowGroupMutation.mutate

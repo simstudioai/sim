@@ -1339,6 +1339,13 @@ export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext)
       })
       return response.data.view
     },
+    // Without this the edited view's cached config stays stale until the refetch,
+    // so `isViewDirty` re-reads true and the Save chip flashes back after a save.
+    onSuccess: (view) => {
+      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) =>
+        prev?.map((existing) => (existing.id === view.id ? view : existing))
+      )
+    },
     onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
   })
 }

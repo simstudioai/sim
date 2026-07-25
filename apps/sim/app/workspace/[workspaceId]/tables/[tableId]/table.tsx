@@ -15,6 +15,7 @@ import type {
   Filter,
   Sort,
   SortDirection,
+  TableMetadata,
   TableRow as TableRowType,
   TableViewConfig,
   WorkflowGroup,
@@ -373,7 +374,7 @@ export function Table({
         if (defaultView) {
           seededViewIdRef.current = defaultView.id
           setTableParams({ view: defaultView.id })
-          applyViewConfig(defaultView.config)
+          applyViewConfig(defaultView.config, sortColumn !== null)
           return
         }
         // No view to adopt. Deliberately does NOT apply an empty config — that
@@ -410,9 +411,11 @@ export function Table({
     setTableParams,
   ])
 
+  /** A view update replaces `config` wholesale, so the layout the grid auto-saves
+   *  is spread back in — otherwise Save would drop it. */
   const currentViewConfig = useMemo<TableViewConfig>(
-    () => ({ filter, sort: sortQuery, hiddenColumns }),
-    [filter, sortQuery, hiddenColumns]
+    () => ({ ...activeView?.config, filter, sort: sortQuery, hiddenColumns }),
+    [activeView, filter, sortQuery, hiddenColumns]
   )
 
   /**
@@ -439,6 +442,20 @@ export function Table({
   const handleRenameView = useCallback((viewId: string) => {
     setViewModal({ mode: 'rename', viewId })
   }, [])
+
+  /** Column order/width/pinning auto-saves into the active view as the user drags,
+   *  which is why `isSameViewConfig` excludes layout from the dirty check. With no
+   *  view active the grid keeps writing the table's shared metadata. */
+  const handlePersistLayout = useCallback(
+    (patch: TableMetadata) => {
+      if (!activeView) return
+      updateViewMutation.mutate(
+        { viewId: activeView.id, config: { ...activeView.config, ...patch } },
+        { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save layout')) }
+      )
+    },
+    [activeView]
+  )
 
   const handleSaveView = () => {
     if (activeView) {
@@ -972,6 +989,9 @@ export function Table({
         onSelectionChange={onSelectionChange}
         queryOptions={queryOptions}
         hiddenColumns={hiddenColumns}
+        viewLayout={activeView?.config ?? null}
+        viewLayoutKey={activeView?.id ?? null}
+        onPersistLayout={activeView ? handlePersistLayout : undefined}
         columnRenameSinkRef={columnRenameSinkRef}
         afterDeleteRowsSinkRef={afterDeleteRowsSinkRef}
         afterDeleteAllSinkRef={afterDeleteAllSinkRef}
