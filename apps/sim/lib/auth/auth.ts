@@ -695,7 +695,10 @@ export const auth = betterAuth({
             return {
               data: {
                 ...session,
-                expiresAt,
+                // Only ever narrows an existing expiry — never introduces an
+                // `expiresAt: undefined` key that would blank out the value
+                // Better Auth already put on the row.
+                ...(expiresAt ? { expiresAt } : {}),
                 ...(membershipOrgId ? { activeOrganizationId: membershipOrgId } : {}),
               },
             }

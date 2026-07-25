@@ -8,7 +8,6 @@ import {
   invalidateMembershipCache,
 } from '@/lib/auth/security-policy'
 import { resolveOrganizationEnterprisePlan } from '@/lib/billing/core/subscription'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('SessionPolicy')
 
@@ -25,6 +24,20 @@ const NO_POLICY: ResolvedSessionPolicy = {
 }
 
 /**
+ * Entitlement is billing state, so it is cached independently of the org
+ * security record: a policy save must invalidate the policy, but it says
+ * nothing about the plan. The TTL matters because saving a policy or revoking
+ * org-wide makes every member session refresh at once — without it, each of
+ * those refreshes would re-run the plan check and stampede the billing tables.
+ * Staleness is harmless in both directions: a just-downgraded org keeps
+ * enforcing for one TTL, and a just-upgraded one starts one TTL late.
+ */
+const ENTITLEMENT_CACHE_TTL_MS = 60 * 1000
+const MAX_ENTITLEMENT_CACHE_ENTRIES = 5_000
+
+const entitlementCache = new Map<string, { entitled: boolean; fetchedAt: number }>()
+
+/**
  * Whether stored session bounds should be enforced for this org. Mirroring
  * data-retention's plan-gated effective settings, a hosted org that leaves the
  * Enterprise plan stops enforcing its stored limits automatically, since the
@@ -38,15 +51,27 @@ const NO_POLICY: ResolvedSessionPolicy = {
  * `lib/logs/execution/logger.ts`.
  */
 async function isPolicyEnforced(organizationId: string, hasBounds: boolean): Promise<boolean> {
-  if (!hasBounds || !isBillingEnabled) return true
+  // Orgs with nothing stored are the common case and need no plan check at all.
+  if (!hasBounds) return true
+
+  const cached = entitlementCache.get(organizationId)
+  if (cached && Date.now() - cached.fetchedAt < ENTITLEMENT_CACHE_TTL_MS) {
+    return cached.entitled
+  }
+
   try {
-    return await resolveOrganizationEnterprisePlan(organizationId)
+    const entitled = await resolveOrganizationEnterprisePlan(organizationId)
+    // Entitled orgs are few, so a wholesale clear at the cap is enough — no
+    // eviction policy needed for a set this small and this slow-moving.
+    if (entitlementCache.size >= MAX_ENTITLEMENT_CACHE_ENTRIES) entitlementCache.clear()
+    entitlementCache.set(organizationId, { entitled, fetchedAt: Date.now() })
+    return entitled
   } catch (error) {
     logger.error('Enterprise entitlement check failed; enforcing stored session policy', {
       organizationId,
       error,
     })
-    return true
+    return cached?.entitled ?? true
   }
 }
 

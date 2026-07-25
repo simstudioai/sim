@@ -60,18 +60,28 @@ interface OrgSecurityCacheEntry extends OrgSecurityRecord {
 const orgSecurityCache = new Map<string, OrgSecurityCacheEntry>()
 
 /**
- * Evicts down to `maxEntries`, expired entries first. Map iteration follows
+ * Fraction of the cap an over-capacity prune evicts down to. Trimming to a low
+ * water mark rather than exactly to the cap is what keeps eviction amortized
+ * O(1): pruning back to the cap would leave the very next insert over again,
+ * so every subsequent write would rescan the whole map.
+ */
+const PRUNE_TARGET_RATIO = 0.9
+
+/**
+ * Evicts down to a low water mark, expired entries first. Map iteration follows
  * insertion order and {@link touch} re-inserts on every refresh, so whatever
  * remains at the head is the least recently refreshed.
  */
 function prune(cache: Map<string, { fetchedAt: number }>, maxEntries: number): void {
   if (cache.size <= maxEntries) return
+  const target = Math.floor(maxEntries * PRUNE_TARGET_RATIO)
   const cutoff = Date.now() - SECURITY_POLICY_CACHE_TTL_MS
   for (const [key, entry] of cache) {
+    if (cache.size <= target) break
     if (entry.fetchedAt < cutoff) cache.delete(key)
   }
   for (const key of cache.keys()) {
-    if (cache.size <= maxEntries) break
+    if (cache.size <= target) break
     cache.delete(key)
   }
 }

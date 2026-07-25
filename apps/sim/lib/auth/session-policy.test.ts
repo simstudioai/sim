@@ -147,6 +147,23 @@ describe('getSessionPolicy', () => {
     })
   })
 
+  it('amortizes the entitlement check across repeated resolutions', async () => {
+    const orgId = nextOrgId()
+    const bounded = {
+      version: 1,
+      sessionPolicySettings: { maxSessionHours: 8, idleTimeoutHours: null },
+    }
+    queueTableRows(organization, [bounded])
+    queueTableRows(organization, [bounded])
+
+    // A policy save makes every member session refresh at once; the plan check
+    // must not run once per refreshing session.
+    await getSessionPolicy(orgId)
+    await getSessionPolicy(orgId, { bypassCache: true })
+
+    expect(mockResolveEnterprisePlan).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps enforcing when the entitlement check itself fails', async () => {
     queueTableRows(organization, [
       { version: 1, sessionPolicySettings: { maxSessionHours: 8, idleTimeoutHours: null } },
