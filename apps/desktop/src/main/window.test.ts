@@ -135,6 +135,14 @@ describe('createMainWindow', () => {
     >
 
     expect(MockBrowserWindow.lastOptions?.title).toBe('Sim')
+    // The overlay is what publishes `titlebar-area-*` to the page, so the web
+    // app can reserve the traffic-light lane from the platform rather than from
+    // pixels that shrink under page zoom while the OS-drawn lights do not.
+    expect(MockBrowserWindow.lastOptions).toMatchObject({
+      titleBarStyle: 'hiddenInset',
+      titleBarOverlay: true,
+      trafficLightPosition: { x: 12, y: 12 },
+    })
 
     const pageTitleHandler = windowEventCalls.find(
       ([event]) => event === 'page-title-updated'

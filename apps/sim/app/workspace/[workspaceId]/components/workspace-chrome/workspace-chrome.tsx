@@ -176,7 +176,7 @@ export function WorkspaceChrome({
         aria-hidden
         className={cn(
           'desktop-window-drag-region desktop-workspace-window-drag-region',
-          isCollapsed ? 'h-9' : 'h-2'
+          isCollapsed ? 'h-[var(--desktop-title-bar-height)]' : 'h-2'
         )}
       />
       <div
@@ -222,10 +222,10 @@ export function WorkspaceChrome({
           <button
             type='button'
             onClick={toggleSidebar}
-            className='absolute top-1 left-[83px] z-30 hidden h-[30px] w-[30px] items-center justify-center rounded-lg [-webkit-app-region:no-drag] hover-hover:bg-[var(--surface-active)] [[data-sim-desktop-title-bar=inset]_&]:flex'
+            className='absolute top-[var(--desktop-title-bar-control-offset)] left-[var(--desktop-title-bar-inset-x)] z-30 hidden size-[var(--desktop-title-bar-control-size)] items-center justify-center rounded-lg transition-colors [-webkit-app-region:no-drag] hover-hover:bg-[var(--surface-active)] [[data-sim-desktop-title-bar=inset]_&]:flex'
             aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            <PanelLeft className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+            <PanelLeft className='size-[var(--desktop-title-bar-control-icon-size)] text-[var(--text-icon)]' />
           </button>
         </SidebarTooltip>
       )}

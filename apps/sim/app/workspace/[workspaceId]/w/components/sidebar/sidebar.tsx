@@ -1272,9 +1272,9 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
           <div className='flex h-full flex-col'>
             <div
               aria-hidden
-              className='absolute inset-x-0 top-0 hidden h-9 [-webkit-app-region:drag] [[data-sim-desktop-title-bar=inset]_&]:block'
+              className='desktop-window-drag-region desktop-workspace-window-drag-region h-[var(--desktop-title-bar-height)]'
             />
-            <div className='relative flex flex-shrink-0 items-center px-2 pt-3 [[data-sim-desktop-title-bar=inset]_&]:pt-9'>
+            <div className='relative flex flex-shrink-0 items-center px-2 pt-3 [[data-sim-desktop-title-bar=inset]_&]:pt-[var(--desktop-title-bar-height)]'>
               <WorkspaceHeader
                 activeWorkspace={activeWorkspace}
                 workspaceId={workspaceId}
@@ -1312,7 +1312,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                   aria-label='Collapse sidebar'
                   tabIndex={isCollapsed ? -1 : undefined}
                 >
-                  <PanelLeft className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                  <PanelLeft className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
                 </button>
               </SidebarTooltip>
             </div>
