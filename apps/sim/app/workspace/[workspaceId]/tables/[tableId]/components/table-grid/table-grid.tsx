@@ -357,6 +357,8 @@ export function TableGrid({
   const columnWidthsRef = useRef(columnWidths)
   columnWidthsRef.current = columnWidths
   const [resizingColumn, setResizingColumn] = useState<string | null>(null)
+  const resizingColumnRef = useRef(resizingColumn)
+  resizingColumnRef.current = resizingColumn
   const [columnOrder, setColumnOrder] = useState<string[] | null>(null)
   const columnOrderRef = useRef(columnOrder)
   columnOrderRef.current = columnOrder
@@ -1780,20 +1782,32 @@ export function TableGrid({
       }
       return
     }
-    // After first load: only re-seed `columnOrder` when the *set of columns*
-    // changes (e.g. a workflow group adds/removes outputs server-side). Pure
-    // reorders are left alone so an in-flight optimistic drag isn't clobbered
-    // by a refetch returning the pre-drag order.
+    // After first load a collaborator (or our own committed edit) reshaped the layout.
+    // Re-apply it live, but never clobber the gesture the local user is mid-way through —
+    // their in-progress value leads the server's. Each field is guarded by reference:
+    // React Query structural sharing keeps an unchanged sub-object referentially stable,
+    // so an unrelated change (e.g. a peer's pin) doesn't re-apply widths/order.
+    // Width: keep the column being actively resized on its live local value.
+    const serverWidths = tableData.metadata.columnWidths
+    if (serverWidths && serverWidths !== columnWidthsRef.current) {
+      const resizing = resizingColumnRef.current
+      const localWidth = resizing ? columnWidthsRef.current[resizing] : undefined
+      setColumnWidths(
+        resizing && localWidth !== undefined
+          ? { ...serverWidths, [resizing]: localWidth }
+          : serverWidths
+      )
+    }
+    // Pins toggle instantly (no in-progress gesture) — apply on change.
+    const serverPins = tableData.metadata.pinnedColumns
+    if (serverPins && serverPins !== pinnedColumnsRef.current) {
+      setPinnedColumns(serverPins)
+    }
+    // Order: apply unless a local column drag is in flight (an optimistic reorder would
+    // otherwise be reverted to the pre-drag order the refetch returns).
     const serverOrder = tableData.metadata.columnOrder
-    if (serverOrder) {
-      const localOrder = columnOrderRef.current
-      const serverSet = new Set(serverOrder)
-      const localSet = new Set(localOrder ?? [])
-      const setChanged =
-        !localOrder || serverSet.size !== localSet.size || serverOrder.some((n) => !localSet.has(n))
-      if (setChanged) {
-        setColumnOrder(serverOrder)
-      }
+    if (serverOrder && serverOrder !== columnOrderRef.current && !dragColumnNameRef.current) {
+      setColumnOrder(serverOrder)
     }
   }, [tableData?.metadata])
 

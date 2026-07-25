@@ -394,6 +394,12 @@ export function useTableEventStream({
             void queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
             scheduleRowsInvalidate()
           }
+          // A collaborator changed the column layout (width/pin/order): refetch the
+          // definition alone (it carries the metadata) — the grid re-applies it without
+          // a rows refetch. Exact, so rows/run-state stay put.
+          else if (entry.event?.kind === 'metadata') {
+            void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
+          }
         } catch (err) {
           logger.warn('Failed to parse table event', { tableId, err })
         }

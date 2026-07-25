@@ -127,6 +127,15 @@ export type TableEvent =
       kind: 'schema'
       tableId: string
     }
+  | {
+      /** A user changed the table's UI metadata (column width, pin, or order). Signals
+       *  collaborators to re-apply the new layout live. Lighter than {@link kind}
+       *  `schema`: only the definition carries metadata, so peers refetch the definition
+       *  alone — no rows/run-state refetch. Value-less, same refetch-in-own-format
+       *  rationale as {@link kind} `edit`. */
+      kind: 'metadata'
+      tableId: string
+    }
 
 export interface TableEventEntry {
   eventId: number
@@ -172,6 +181,15 @@ export function signalTableRowsChanged(tableId: string): void {
  */
 export function signalTableSchemaChanged(tableId: string): void {
   void appendTableEvent({ kind: 'schema', tableId })
+}
+
+/**
+ * Signal collaborators that a user changed the table's UI metadata (column width, pin,
+ * or order) so they re-apply the new layout live. Fire-and-forget for the same reason as
+ * {@link signalTableRowsChanged}.
+ */
+export function signalTableMetadataChanged(tableId: string): void {
+  void appendTableEvent({ kind: 'metadata', tableId })
 }
 
 /**
