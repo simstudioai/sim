@@ -54,13 +54,6 @@ const EXTENSIONS = createMarkdownEditorExtensions({
 /** Throttle the per-frame full re-parse above this body size so a large streaming file can't saturate the main thread. */
 const STREAM_REPARSE_THROTTLE_THRESHOLD = 40_000
 const STREAM_REPARSE_THROTTLE_MS = 120
-/**
- * How long a collaborative editor waits for the realtime provider before falling back
- * to a read-only render of the loaded content. Long enough that a normally-connecting
- * socket always attaches first (so this only trips on a genuine realtime outage), and
- * matched to the server's seed election deadline.
- */
-const COLLAB_ESTABLISH_GRACE_MS = 10_000
 
 interface RichMarkdownEditorProps {
   file: WorkspaceFileRecord
@@ -610,20 +603,9 @@ export function LoadedRichMarkdownEditor({
       })
     }
 
-    // Realtime-establish grace: on a genuine outage (socket never connects), show the
-    // loaded content read-only after a grace period so the user reads their file instead
-    // of a blank editor. The socket object exists even while disconnected, so gate on the
-    // live connection state — a connected-but-slow sync must not seed here (it would race
-    // the server's seeder election). `seedFromLoaded` also self-guards on
-    // `initialContentLoaded`, so a completed sync makes this a no-op; a reconnect re-runs
-    // this effect onto the normal server-seeded sync path.
-    const graceTimer = setTimeout(() => {
-      if (!provider || !provider.isConnected) seedFromLoaded()
-    }, COLLAB_ESTABLISH_GRACE_MS)
-
     if (!provider) {
       setReady(false)
-      return () => clearTimeout(graceTimer)
+      return
     }
 
     const report = () => setReady(provider.synced && config.get('initialContentLoaded') === true)
@@ -643,7 +625,6 @@ export function LoadedRichMarkdownEditor({
     if (provider.joinError) onJoinError(provider.joinError)
 
     return () => {
-      clearTimeout(graceTimer)
       provider.off('seed-request', onProgress)
       provider.off('synced', onProgress)
       provider.off('join-error', onJoinError)

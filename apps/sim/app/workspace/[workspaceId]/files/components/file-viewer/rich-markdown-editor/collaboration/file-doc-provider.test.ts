@@ -61,14 +61,6 @@ describe('FileDocProvider', () => {
     })
   })
 
-  it('reflects the socket connection state via isConnected', () => {
-    const online = createProvider(true)
-    expect(online.provider.isConnected).toBe(true)
-
-    const offline = createProvider(false)
-    expect(offline.provider.isConnected).toBe(false)
-  })
-
   it('waits for connect before joining when the socket is offline', () => {
     const { emit, fire } = createProvider(false)
     expect(emit).not.toHaveBeenCalledWith(FILE_DOC_EVENTS.JOIN, expect.anything())

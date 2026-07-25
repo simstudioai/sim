@@ -80,11 +80,6 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     if (socket.connected) this.join()
   }
 
-  /** Whether the underlying socket is currently connected. */
-  get isConnected(): boolean {
-    return this.socket.connected
-  }
-
   /** Join the room, binding our client id so the server only accepts awareness we own. */
   private join = () => {
     if (this.fatal) return
