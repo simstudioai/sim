@@ -30,8 +30,18 @@ export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesG
   const hasSentinelRef = useRef(false)
 
   useEffect(() => {
-    // The caller is navigating away — popping the seeded entry would cancel it.
-    if (isReleased) return
+    // The caller is navigating away — popping the seeded entry would cancel it. But
+    // Back during that window consumes the entry with no listener left to re-push
+    // it, so track that: a later rearm() must seed a fresh one rather than trust a
+    // stale ref and leave the surface unguarded.
+    if (isReleased) {
+      if (!hasSentinelRef.current) return
+      const handleSentinelConsumed = () => {
+        hasSentinelRef.current = false
+      }
+      window.addEventListener('popstate', handleSentinelConsumed)
+      return () => window.removeEventListener('popstate', handleSentinelConsumed)
+    }
     if (!isDirty) {
       // Clean again while still mounted (saved/reverted): pop the seeded entry so
       // it can't pile up across edit/save cycles. This runs in the effect body,
