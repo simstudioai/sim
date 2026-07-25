@@ -7,6 +7,7 @@ const {
   mockRunLocal,
   mockRunCloud,
   mockRunCloudReview,
+  mockRunBabysit,
   mockResolveKey,
   mockResolveSkills,
   mockLoadMemory,
@@ -23,6 +24,7 @@ const {
   mockRunLocal: vi.fn(),
   mockRunCloud: vi.fn(),
   mockRunCloudReview: vi.fn(),
+  mockRunBabysit: vi.fn(),
   mockResolveKey: vi.fn(),
   mockResolveSkills: vi.fn(),
   mockLoadMemory: vi.fn(),
@@ -67,6 +69,9 @@ vi.mock('@/executor/handlers/pi/cloud-backend', () => ({ runCloudPi: mockRunClou
 vi.mock('@/executor/handlers/pi/cloud-review-backend', () => ({
   runCloudReviewPi: mockRunCloudReview,
 }))
+vi.mock('@/executor/handlers/pi/babysit-backend', () => ({
+  runBabysitPi: mockRunBabysit,
+}))
 vi.mock('@/providers/pi-providers', () => ({
   isPiSupportedProvider: mockIsPiSupportedProvider,
   resolvePiModelId: mockResolvePiModelId,
@@ -78,7 +83,7 @@ vi.mock('@/blocks/utils', () => ({
   parseOptionalNumberInput: (
     value: unknown,
     label: string,
-    options: { integer?: boolean; min?: number } = {}
+    options: { integer?: boolean; min?: number; max?: number } = {}
   ) => {
     if (value === undefined || value === null || value === '') return undefined
     const parsed = Number(value)
@@ -89,11 +94,14 @@ vi.mock('@/blocks/utils', () => ({
     if (options.min !== undefined && parsed < options.min) {
       throw new Error(`${label} must be at least ${options.min}`)
     }
+    if (options.max !== undefined && parsed > options.max) {
+      throw new Error(`${label} must be at most ${options.max}`)
+    }
     return parsed
   },
 }))
 
-import { PiBlockHandler } from '@/executor/handlers/pi/pi-handler'
+import { PiBlockHandler, parsePiReviewMentions } from '@/executor/handlers/pi/pi-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -152,6 +160,15 @@ describe('PiBlockHandler', () => {
       totals: { finalText: 'looks good', inputTokens: 0, outputTokens: 0, toolCalls: [] },
       reviewUrl: 'https://github.com/o/r/pull/7#pullrequestreview-1',
       commentsPosted: 2,
+    })
+    mockRunBabysit.mockResolvedValue({
+      totals: { finalText: 'partial', inputTokens: 0, outputTokens: 0, toolCalls: [] },
+      rounds: 0,
+      threadsClean: false,
+      checksGreen: false,
+      threadsResolved: 0,
+      commitsPushed: 0,
+      stopReason: 'awaiting_checks',
     })
   })
 
@@ -234,6 +251,71 @@ describe('PiBlockHandler', () => {
     expect(output.reviewUrl).toBe('https://github.com/o/r/pull/7#pullrequestreview-1')
     expect(output.commentsPosted).toBe(2)
     expect(output.content).toBe('looks good')
+  })
+
+  it('routes Babysit with optional task, bounded inputs, skills, and no memory', async () => {
+    mockResolveSkills.mockResolvedValue([{ name: 'style', content: 'Be concise.' }])
+    const output = (await handler.execute(ctx({ executionId: 'execution-1' }), block, {
+      mode: 'babysit',
+      task: '',
+      model: 'claude',
+      owner: 'o',
+      repo: 'r',
+      githubToken: 'ghp',
+      pullNumber: '7',
+      maxRounds: '4',
+      reviewMentions: '@greptile, @cursor review',
+      skills: [{ skillId: 'skill-1' }],
+      memoryType: 'conversation',
+      conversationId: 'stale-memory',
+    })) as Record<string, unknown>
+
+    const params = mockRunBabysit.mock.calls[0][0]
+    expect(params).toMatchObject({
+      mode: 'babysit',
+      task: '',
+      pullNumber: 7,
+      maxRounds: 4,
+      reviewMentions: ['@greptile', '@cursor review'],
+      initialMessages: [],
+      executionId: 'execution-1',
+    })
+    expect(params.skills).toEqual([{ name: 'style', content: 'Be concise.' }])
+    expect(mockLoadMemory).not.toHaveBeenCalled()
+    expect(mockAppendMemory).not.toHaveBeenCalled()
+    expect(output).toMatchObject({
+      rounds: 0,
+      threadsClean: false,
+      checksGreen: false,
+      threadsResolved: 0,
+      commitsPushed: 0,
+      stopReason: 'awaiting_checks',
+    })
+  })
+
+  it('defaults maxRounds to three and rejects values above ten', async () => {
+    const inputs = {
+      mode: 'babysit',
+      model: 'claude',
+      owner: 'o',
+      repo: 'r',
+      githubToken: 'ghp',
+      pullNumber: '7',
+    }
+    await handler.execute(ctx(), block, inputs)
+    expect(mockRunBabysit.mock.calls[0][0].maxRounds).toBe(3)
+
+    await expect(handler.execute(ctx(), block, { ...inputs, maxRounds: '11' })).rejects.toThrow(
+      /at most 10/
+    )
+  })
+
+  it('parses review mentions as a bounded, trimmed list', () => {
+    expect(parsePiReviewMentions(' one, , two ')).toEqual(['one', 'two'])
+    expect(parsePiReviewMentions('')).toEqual([])
+    expect(() => parsePiReviewMentions(Array.from({ length: 11 }, () => 'x').join(','))).toThrow(
+      /at most 10/
+    )
   })
 
   it('requires SSH fields in Local Dev', async () => {
@@ -365,6 +447,27 @@ describe('PiBlockHandler', () => {
 
       expect(mockBuildSearchTool).not.toHaveBeenCalled()
       expect(mockRunCloud.mock.calls[0][0].search).toEqual({
+        provider: 'exa',
+        apiKey: 'search-key',
+        keySource: 'byok',
+      })
+    })
+
+    it('passes Babysit the key without constructing a host search tool', async () => {
+      mockParseSearchProvider.mockReturnValue('exa')
+
+      await handler.execute(ctx(), block, {
+        mode: 'babysit',
+        model: 'claude',
+        owner: 'o',
+        repo: 'r',
+        githubToken: 'ghp',
+        pullNumber: '7',
+        searchProvider: 'exa',
+      })
+
+      expect(mockBuildSearchTool).not.toHaveBeenCalled()
+      expect(mockRunBabysit.mock.calls[0][0].search).toEqual({
         provider: 'exa',
         apiKey: 'search-key',
         keySource: 'byok',

@@ -4,31 +4,31 @@ overview: Add a fourth Pi mode, Babysit, that drives an open PR's review threads
 todos:
   - id: shared-extraction
     content: Move the reusable Create PR scripts/constants and Review Code's PR snapshot helpers into shared modules, harden the token-bearing push, and keep existing behavior unchanged
-    status: pending
+    status: completed
   - id: github-tools
     content: Add the four GraphQL tools (list/reply/resolve review threads plus the status-check rollup) and the REST job-log reader under apps/sim/tools/github/, extend the PR parser with the head repo, register them, and unit-test them
-    status: pending
+    status: completed
   - id: sandbox-lifetime
-    content: Add a clamped sandbox lifetime option, map it to E2B timeoutMs and Daytona autoStopInterval, and verify a Pi run past five minutes survives
-    status: pending
+    content: Add a clamped sandbox lifetime option for E2B, keep Daytona's inactivity timeout unchanged, and verify a Pi run past five minutes survives
+    status: in_progress
   - id: block-and-handler
     content: Add the babysit mode, fields, conditions, and outputs to pi.ts, plus PiBabysitRunParams, handler dispatch, mode-before-task parsing, search routing, cancellation plumbing, and the BYOK key-mode entry
-    status: pending
+    status: completed
   - id: babysit-github
     content: "Implement babysit-github.ts: strict snapshot fetch and validation, paginated fully-trusted thread reads, fail-closed check state and diagnostics for the pinned SHA, two-phase replies and resolves, re-review issue comments, and the review-landed signal"
-    status: pending
+    status: completed
   - id: round-contract
     content: "Implement babysit-round.ts: the typebox round-file schema, parser, scrubbing, and host-side thread-id membership check"
-    status: pending
+    status: completed
   - id: babysit-backend
     content: "Implement babysit-backend.ts: the clone, the round loop with its advancing head pin, one-commit enforcement, exact-refspec push, replies, cancellation-aware waits, stop conditions, and the final report"
-    status: pending
+    status: completed
   - id: tests
     content: Write the babysit test suites and the pi.ts/pi-handler/keys additions, then run the full gate set
-    status: pending
+    status: in_progress
   - id: docs-and-review
     content: Document Babysit in pi.mdx and every place that enumerates the three modes
-    status: pending
+    status: completed
 isProject: false
 ---
 

@@ -7,6 +7,7 @@ import {
   PI_SANDBOX_MIN_LIFETIME_MS,
 } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import {
+  buildPiScript,
   CLONE_TIMEOUT_MS,
   FINALIZE_TIMEOUT_MS,
   MIN_PI_TIMEOUT_MS,
@@ -33,5 +34,27 @@ describe('PI_TIMEOUT_MS', () => {
     expect(PI_SANDBOX_MIN_LIFETIME_MS).toBeGreaterThanOrEqual(
       CLONE_TIMEOUT_MS + 2 * FINALIZE_TIMEOUT_MS + MIN_PI_TIMEOUT_MS
     )
+  })
+})
+
+describe('buildPiScript', () => {
+  it('disables every repository-supplied Pi resource for Babysit with or without search', () => {
+    for (const script of [
+      buildPiScript(undefined, { disableRepositoryResources: true }),
+      buildPiScript('/workspace/search.ts', { disableRepositoryResources: true }),
+    ]) {
+      expect(script).toContain('--no-extensions')
+      expect(script).toContain('--no-prompt-templates')
+      expect(script).toContain('--no-skills')
+      expect(script).toContain('--no-approve')
+    }
+    expect(buildPiScript('/workspace/search.ts', { disableRepositoryResources: true })).toContain(
+      '-e /workspace/search.ts'
+    )
+  })
+
+  it('preserves the Create PR command when no hardening option is passed', () => {
+    expect(buildPiScript()).not.toContain('--no-extensions')
+    expect(buildPiScript()).not.toContain('--no-prompt-templates')
   })
 })

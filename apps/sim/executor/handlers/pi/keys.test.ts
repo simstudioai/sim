@@ -188,6 +188,29 @@ describe('resolvePiModelKey', () => {
     expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
   })
 
+  it('Babysit has the same BYOK-only key boundary as Create PR', async () => {
+    mockGetBYOKKey.mockResolvedValueOnce({ apiKey: 'sk-workspace', isBYOK: true })
+    await expect(
+      resolvePiModelKey({
+        providerId: 'anthropic',
+        model: 'claude',
+        mode: 'babysit',
+        workspaceId: 'ws-1',
+      })
+    ).resolves.toEqual({ apiKey: 'sk-workspace', isBYOK: true })
+
+    mockGetBYOKKey.mockResolvedValueOnce(null)
+    await expect(
+      resolvePiModelKey({
+        providerId: 'anthropic',
+        model: 'claude',
+        mode: 'babysit',
+        workspaceId: 'ws-1',
+      })
+    ).rejects.toThrow(/Babysit requires your own provider API key/)
+    expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
+  })
+
   it('cloud_review mode preserves a direct user key as BYOK', async () => {
     const result = await resolvePiModelKey({
       providerId: 'anthropic',

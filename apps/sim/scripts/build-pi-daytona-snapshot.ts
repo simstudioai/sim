@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 /**
- * Builds the Daytona snapshot used by Create PR and Review Code — the failover
+ * Builds the Daytona snapshot used by Create PR, Review Code, and Babysit — the failover
  * counterpart of `build-pi-e2b-template.ts`.
  *
  * Both renderers consume `pi-sandbox-packages.ts`, so the two providers cannot

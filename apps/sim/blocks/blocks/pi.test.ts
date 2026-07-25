@@ -65,3 +65,46 @@ describe('Pi block search fields', () => {
     expect(PiBlock.inputs.searchApiKey).toBeDefined()
   })
 })
+
+describe('Pi Babysit block surface', () => {
+  it('declares bounded-round inputs and all result outputs', () => {
+    const maxRounds = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'maxRounds')
+    const mentions = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'reviewMentions')
+
+    expect(maxRounds).toMatchObject({
+      type: 'short-input',
+      defaultValue: '3',
+      condition: { field: 'mode', value: 'babysit' },
+    })
+    expect(mentions).toMatchObject({
+      type: 'short-input',
+      defaultValue: '',
+      mode: 'advanced',
+      condition: { field: 'mode', value: 'babysit' },
+    })
+    for (const output of [
+      'rounds',
+      'threadsClean',
+      'checksGreen',
+      'threadsResolved',
+      'commitsPushed',
+      'stopReason',
+    ]) {
+      expect(PiBlock.outputs[output]).toMatchObject({
+        condition: { field: 'mode', value: 'babysit' },
+      })
+    }
+  })
+
+  it('makes task optional only for Babysit and exposes skills but not tools or memory', () => {
+    const task = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'task')
+    const skills = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'skills')
+    const tools = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'tools')
+    const memory = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'memoryType')
+
+    expect(task?.required).toEqual({ field: 'mode', value: 'babysit', not: true })
+    expect(evaluateSubBlockCondition(skills?.condition, { mode: 'babysit' })).toBe(true)
+    expect(evaluateSubBlockCondition(tools?.condition, { mode: 'babysit' })).toBe(false)
+    expect(evaluateSubBlockCondition(memory?.condition, { mode: 'babysit' })).toBe(false)
+  })
+})

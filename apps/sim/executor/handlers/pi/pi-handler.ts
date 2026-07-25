@@ -14,7 +14,9 @@ import {
   ToolNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
 import { BlockType } from '@/executor/constants'
+import { runBabysitPi } from '@/executor/handlers/pi/babysit-backend'
 import type {
+  PiBabysitRunParams,
   PiBackendRun,
   PiCloudReviewRunParams,
   PiCloudRunParams,
@@ -55,6 +57,9 @@ import type { SerializedBlock } from '@/serializer/types'
 const logger = createLogger('PiBlockHandler')
 const DEFAULT_MODEL = 'claude-sonnet-4-6'
 const REVIEW_EVENTS = ['COMMENT', 'REQUEST_CHANGES'] as const
+const MAX_REVIEW_MENTIONS = 10
+const MAX_REVIEW_MENTION_LENGTH = 200
+const MAX_REVIEW_MENTIONS_INPUT_LENGTH = 2_000
 
 function asOptString(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
@@ -71,8 +76,38 @@ function isReviewEvent(value: string): value is PiCloudReviewRunParams['reviewEv
 }
 
 function parsePiMode(value: unknown): PiRunParams['mode'] {
-  if (value === 'cloud' || value === 'cloud_review' || value === 'local') return value
+  if (value === 'cloud' || value === 'cloud_review' || value === 'local' || value === 'babysit') {
+    return value
+  }
   throw new Error(`Invalid Pi mode: ${String(value)}`)
+}
+
+/** Parses the bounded, comma-separated issue comments used to request re-review. */
+export function parsePiReviewMentions(value: unknown): string[] {
+  if (value === undefined || value === null || value === '') return []
+  if (typeof value !== 'string') {
+    throw new Error('Invalid reviewMentions: expected a comma-separated string.')
+  }
+  if (value.length > MAX_REVIEW_MENTIONS_INPUT_LENGTH) {
+    throw new Error(
+      `reviewMentions must be at most ${MAX_REVIEW_MENTIONS_INPUT_LENGTH} characters.`
+    )
+  }
+
+  const mentions = value
+    .split(',')
+    .map((mention) => mention.trim())
+    .filter(Boolean)
+  if (mentions.length > MAX_REVIEW_MENTIONS) {
+    throw new Error(`reviewMentions may contain at most ${MAX_REVIEW_MENTIONS} entries.`)
+  }
+  const tooLong = mentions.find((mention) => mention.length > MAX_REVIEW_MENTION_LENGTH)
+  if (tooLong) {
+    throw new Error(
+      `Each reviewMentions entry must be at most ${MAX_REVIEW_MENTION_LENGTH} characters.`
+    )
+  }
+  return mentions
 }
 
 export class PiBlockHandler implements BlockHandler {
@@ -85,10 +120,10 @@ export class PiBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput | StreamingExecution> {
-    const task = asOptString(inputs.task)
-    if (!task) throw new Error('Task is required')
-    const model = asOptString(inputs.model) ?? DEFAULT_MODEL
     const mode = parsePiMode(inputs.mode)
+    const task = asOptString(inputs.task) ?? ''
+    if (mode !== 'babysit' && !task) throw new Error('Task is required')
+    const model = asOptString(inputs.model) ?? DEFAULT_MODEL
 
     const providerId = getProviderFromModel(model)
     if (!isPiSupportedProvider(providerId)) {
@@ -150,6 +185,43 @@ export class PiBlockHandler implements BlockHandler {
       }
       return this.runPi(ctx, block, runCloudReviewPi, params)
     }
+    const skills = await resolvePiSkills(inputs.skills, ctx.workspaceId)
+
+    if (mode === 'babysit') {
+      const owner = asOptString(inputs.owner)
+      const repo = asOptString(inputs.repo)
+      const githubToken = asRawString(inputs.githubToken)
+      const pullNumber = parseOptionalNumberInput(inputs.pullNumber, 'pullNumber', {
+        integer: true,
+        min: 1,
+      })
+      const maxRounds =
+        parseOptionalNumberInput(inputs.maxRounds, 'maxRounds', {
+          integer: true,
+          min: 1,
+          max: 10,
+        }) ?? 3
+      if (!owner || !repo || !githubToken || pullNumber === undefined) {
+        throw new Error(
+          'Babysit requires repository owner, name, a GitHub token, and a pull request number'
+        )
+      }
+      const params: PiBabysitRunParams = {
+        ...base,
+        mode: 'babysit',
+        owner,
+        repo,
+        githubToken,
+        pullNumber,
+        maxRounds,
+        reviewMentions: parsePiReviewMentions(inputs.reviewMentions),
+        skills,
+        initialMessages: [],
+        ...(ctx.executionId ? { executionId: ctx.executionId } : {}),
+      }
+      return this.runPi(ctx, block, runBabysitPi, params)
+    }
+
     const memoryConfig: PiMemoryConfig = {
       memoryType: asOptString(inputs.memoryType) as PiMemoryConfig['memoryType'],
       conversationId: asOptString(inputs.conversationId),
@@ -159,7 +231,7 @@ export class PiBlockHandler implements BlockHandler {
     }
     const contextualBase = {
       ...base,
-      skills: await resolvePiSkills(inputs.skills, ctx.workspaceId),
+      skills,
       initialMessages: await loadPiMemory(ctx, memoryConfig),
     }
 
@@ -257,7 +329,7 @@ export class PiBlockHandler implements BlockHandler {
     })
 
     const credentials = { provider, apiKey, keySource: source }
-    return mode === 'cloud'
+    return mode === 'cloud' || mode === 'babysit'
       ? credentials
       : { ...credentials, tool: buildPiSearchToolSpec(ctx, credentials, mode) }
   }
@@ -292,6 +364,14 @@ export class PiBlockHandler implements BlockHandler {
       ...(typeof result.commentsPosted === 'number'
         ? { commentsPosted: result.commentsPosted }
         : {}),
+      ...(typeof result.rounds === 'number' ? { rounds: result.rounds } : {}),
+      ...(typeof result.threadsClean === 'boolean' ? { threadsClean: result.threadsClean } : {}),
+      ...(typeof result.checksGreen === 'boolean' ? { checksGreen: result.checksGreen } : {}),
+      ...(typeof result.threadsResolved === 'number'
+        ? { threadsResolved: result.threadsResolved }
+        : {}),
+      ...(typeof result.commitsPushed === 'number' ? { commitsPushed: result.commitsPushed } : {}),
+      ...(typeof result.stopReason === 'string' ? { stopReason: result.stopReason } : {}),
       tokens: {
         input: totals.inputTokens,
         output: totals.outputTokens,

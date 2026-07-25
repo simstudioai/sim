@@ -29,7 +29,9 @@ function snapshot(overrides: Record<string, unknown> = {}) {
     body: 'Does the thing',
     html_url: 'https://github.com/octo/demo/pull/7',
     state: 'open',
-    head: { sha: HEAD_SHA },
+    merged: false,
+    mergeable: true,
+    head: { sha: HEAD_SHA, ref: 'feature', repo_full_name: 'octo/demo' },
     base: { sha: BASE_SHA, ref: 'staging' },
     ...overrides,
   }

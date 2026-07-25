@@ -64,8 +64,8 @@ export const PI_TIMEOUT_MS =
  * emits it as its *last* line, after any `git remote set-url` rewrite — a digest
  * taken before that rewrite mismatches at push time and every push fails.
  *
- * Every mode that clones in order to push emits it. No mode verifies it yet;
- * Babysit will, and deliberately alone, because verification is not a pure
+ * Every mode that clones in order to push emits it. Babysit verifies it,
+ * deliberately alone, because verification is not a pure
  * tightening — a run that legitimately writes repo-local config would fail its
  * push.
  */
@@ -105,9 +105,9 @@ if git diff --quiet "$BASE_SHA" HEAD; then echo "__NO_CHANGES__=1"; else echo "_
  * config, so it removes two of the three places a `url.*.insteadOf` rewrite
  * could send the token's userinfo to another host. Repository-local config —
  * the scope a root agent inside the checkout can actually write — still
- * rewrites the push URL, and stays open until a mode compares the
- * {@link GIT_CONFIG_DIGEST_MARKER} digest before pushing. No mode does yet;
- * Babysit will, and Create PR will not, keeping the exposure it always had.
+ * rewrites the push URL. Babysit compares the
+ * {@link GIT_CONFIG_DIGEST_MARKER} digest before pushing; Create PR does not,
+ * keeping the exposure it always had.
  *
  * Git is invoked by absolute path so a shim planted earlier on `$PATH` is not
  * what runs. Both sandbox images apt-install git on Debian (see
@@ -123,18 +123,29 @@ export const PUSH_SCRIPT = `cd ${REPO_DIR}
 /usr/bin/git -c core.hooksPath=/dev/null -c credential.helper= -c core.fsmonitor= push "https://x-access-token:$GITHUB_TOKEN@github.com/$REPO_OWNER/$REPO_NAME.git" "HEAD:refs/heads/$BRANCH" >/dev/null 2>${PUSH_ERR_PATH} && echo "__PUSHED__=1"`
 
 /**
- * The Pi CLI invocation for Create PR. With no extension path it emits exactly what it always did.
+ * The Pi CLI invocation for the sandbox modes. With no options it emits exactly what Create PR
+ * always did.
  *
  * With one, `--no-extensions` drops any extension the cloned repository ships while leaving the
  * explicit `-e` path loaded, so the loaded set is exactly Sim's own extension. That is deliberate —
  * a repository must not be able to register tools into a run holding the workspace's keys — but it
  * does mean enabling search also stops loading a repository's own Pi extensions, which is why the
- * flag is not passed on the no-search path.
+ * flag is not passed on Create PR's no-search path. Babysit supplies
+ * `disableRepositoryResources` in every round, which also disables repository prompt templates,
+ * skills, and project trust.
  */
-export function buildPiScript(extensionPath?: string): string {
-  const extensionArgs = extensionPath ? ` --no-extensions -e ${extensionPath}` : ''
+export function buildPiScript(
+  extensionPath?: string,
+  options?: { disableRepositoryResources?: boolean }
+): string {
+  const repositoryArgs = options?.disableRepositoryResources
+    ? ' --no-extensions --no-prompt-templates --no-skills --no-approve'
+    : extensionPath
+      ? ' --no-extensions'
+      : ''
+  const extensionArgs = extensionPath ? ` -e ${extensionPath}` : ''
   return `cd ${REPO_DIR}
-pi -p --mode json --provider "$PI_PROVIDER" --model "$PI_MODEL" --thinking "$PI_THINKING"${extensionArgs} < ${PROMPT_PATH}`
+pi -p --mode json --provider "$PI_PROVIDER" --model "$PI_MODEL" --thinking "$PI_THINKING"${repositoryArgs}${extensionArgs} < ${PROMPT_PATH}`
 }
 
 export function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {

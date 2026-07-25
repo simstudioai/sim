@@ -28,7 +28,7 @@ interface PiKeyResolution {
   isBYOK: boolean
 }
 
-type PiKeyMode = 'cloud' | 'cloud_review' | 'local'
+type PiKeyMode = 'cloud' | 'cloud_review' | 'local' | 'babysit'
 
 interface ResolvePiModelKeyParams {
   providerId: PiSupportedProvider
@@ -46,7 +46,8 @@ export async function resolvePiModelKey(params: ResolvePiModelKeyParams): Promis
     return { apiKey: params.apiKey, isBYOK: true }
   }
 
-  if (params.mode === 'cloud') {
+  if (params.mode === 'cloud' || params.mode === 'babysit') {
+    const modeLabel = params.mode === 'babysit' ? 'Babysit' : 'Create PR'
     const workspaceBYOKProviderId = getPiWorkspaceBYOKProviderId(providerId)
     if (params.workspaceId && workspaceBYOKProviderId) {
       const byok = await getBYOKKey(params.workspaceId, workspaceBYOKProviderId)
@@ -56,8 +57,8 @@ export async function resolvePiModelKey(params: ResolvePiModelKeyParams): Promis
     }
     throw new Error(
       workspaceBYOKProviderId
-        ? 'Create PR requires your own provider API key (BYOK). Enter it in the API Key field, or store one in Settings > BYOK.'
-        : 'Create PR requires your own provider API key (BYOK). Enter it in the API Key field.'
+        ? `${modeLabel} requires your own provider API key (BYOK). Enter it in the API Key field, or store one in Settings > BYOK.`
+        : `${modeLabel} requires your own provider API key (BYOK). Enter it in the API Key field.`
     )
   }
 

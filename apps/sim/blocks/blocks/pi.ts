@@ -19,6 +19,12 @@ interface PiResponse extends ToolResponse {
     branch?: string
     reviewUrl?: string
     commentsPosted?: number
+    rounds?: number
+    threadsClean?: boolean
+    checksGreen?: boolean
+    threadsResolved?: number
+    commitsPushed?: number
+    stopReason?: string
     tokens?: {
       input?: number
       output?: number
@@ -42,12 +48,21 @@ const CLOUD_REVIEW: { field: 'mode'; value: 'cloud_review' } = {
   field: 'mode',
   value: 'cloud_review',
 }
-const CLOUD_ANY: { field: 'mode'; value: Array<'cloud' | 'cloud_review'> } = {
+const BABYSIT: { field: 'mode'; value: 'babysit' } = { field: 'mode', value: 'babysit' }
+const CLOUD_ANY: { field: 'mode'; value: Array<'cloud' | 'cloud_review' | 'babysit'> } = {
   field: 'mode',
-  value: ['cloud', 'cloud_review'],
+  value: ['cloud', 'cloud_review', 'babysit'],
+}
+const EXISTING_PR: { field: 'mode'; value: Array<'cloud_review' | 'babysit'> } = {
+  field: 'mode',
+  value: ['cloud_review', 'babysit'],
 }
 const LOCAL: { field: 'mode'; value: 'local' } = { field: 'mode', value: 'local' }
-const AUTHORING_MODES: { field: 'mode'; value: Array<'cloud' | 'local'> } = {
+const AUTHORING_MODES: { field: 'mode'; value: Array<'cloud' | 'local' | 'babysit'> } = {
+  field: 'mode',
+  value: ['cloud', 'local', 'babysit'],
+}
+const MEMORY_MODES: { field: 'mode'; value: Array<'cloud' | 'local'> } = {
   field: 'mode',
   value: ['cloud', 'local'],
 }
@@ -85,12 +100,13 @@ export const PiBlock: BlockConfig<PiResponse> = {
   description: 'Run an autonomous coding agent on a repo',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'The Pi Coding Agent runs the Pi harness against a real repository. Create PR spins up an isolated sandbox, clones a GitHub repo, edits with native shell + git, and opens a pull request. Review Code checks out a pinned PR snapshot with read-only tools and posts a structured review with optional inline comments. Local Dev edits files on your own machine over SSH. Create PR and Local Dev can reuse skills and multi-turn memory; Review Code runs without either because PR contents are untrusted. Any mode can optionally get one web_search tool backed by your own Exa, Serper, Parallel AI, or Firecrawl key; the agent writes its own queries, so repository content may reach the provider, and results are untrusted third-party data.',
+    'The Pi Coding Agent runs the Pi harness against a real repository. Create PR opens a new pull request, Review Code posts a structured review, Babysit drives an existing pull request through trusted review threads and required checks in bounded rounds, and Local Dev edits files over SSH. Create PR, Babysit, and Local Dev can reuse skills; only Create PR and Local Dev use conversation memory. Any mode can optionally get one web_search tool backed by your own key.',
   bestPractices: `
   - Use Create PR for hands-off changes against a GitHub repo where a reviewable PR is the deliverable.
   - Use Review Code to analyze an existing PR and leave summary + inline review comments.
+  - Use Babysit to fix and answer trusted review threads and required checks on an existing same-repository PR.
   - Use Local Dev to edit a repo on your own machine; expose the machine on a public hostname/tunnel so Sim can reach it over SSH.
-  - Create PR requires your own provider API key because the model runs in the sandbox. Review Code keeps the model key in Sim and can use either BYOK or a hosted key.
+  - Create PR and Babysit require your own provider API key because the model runs in the sandbox. Review Code keeps the model key in Sim and can use either BYOK or a hosted key.
   - Internet Search is off by default and always needs your own key for the selected provider, from the block field or Settings > BYOK. Leave it on None unless the task genuinely needs external information.
   `,
   category: 'blocks',
@@ -102,7 +118,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       id: 'mode',
       title: 'Mode',
       type: 'dropdown',
-      /** Create PR and Review Code require E2B and stay hidden when it is disabled. */
+      /** Create PR, Review Code, and Babysit require E2B and stay hidden when it is disabled. */
       value: () => (isTruthy(getEnv('NEXT_PUBLIC_E2B_ENABLED')) ? 'cloud' : 'local'),
       options: () => {
         const options = [
@@ -123,6 +139,11 @@ export const PiBlock: BlockConfig<PiResponse> = {
               label: 'Review Code',
               id: 'cloud_review',
               description: 'Reviews an existing PR and posts GitHub review comments',
+            },
+            {
+              label: 'Babysit',
+              id: 'babysit',
+              description: 'Fixes review threads and failing checks on an existing PR',
             }
           )
         }
@@ -134,7 +155,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       title: 'Task',
       type: 'long-input',
       placeholder: 'Describe what the coding agent should do...',
-      required: true,
+      required: { field: 'mode', value: 'babysit', not: true },
     },
     {
       id: 'model',
@@ -196,7 +217,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       paramVisibility: 'user-only',
       placeholder: 'GitHub personal access token',
       tooltip:
-        'Personal access token used for GitHub access. Create PR needs clone/push/PR permissions; Review Code needs clone + review permissions.',
+        'Personal access token used for GitHub access. Create PR needs clone/push/PR permissions; Review Code needs clone + review permissions; Babysit also needs check/Actions reads, thread writes, issue comments, and push access.',
       required: true,
       condition: CLOUD_ANY,
     },
@@ -246,7 +267,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       type: 'short-input',
       placeholder: 'e.g., 42',
       required: true,
-      condition: CLOUD_REVIEW,
+      condition: EXISTING_PR,
     },
     {
       id: 'reviewEvent',
@@ -260,6 +281,26 @@ export const PiBlock: BlockConfig<PiResponse> = {
       tooltip:
         'How GitHub records the submitted review. Comment is neutral; Request changes marks the pull request as changes requested.',
       condition: CLOUD_REVIEW,
+    },
+    {
+      id: 'maxRounds',
+      title: 'Maximum Rounds',
+      type: 'short-input',
+      defaultValue: '3',
+      placeholder: '3',
+      tooltip: 'Maximum number of agent fixing rounds, from 1 to 10.',
+      condition: BABYSIT,
+    },
+    {
+      id: 'reviewMentions',
+      title: 'Re-review Mentions',
+      type: 'short-input',
+      defaultValue: '',
+      placeholder: '@greptile, @cursor review',
+      tooltip:
+        'Comma-separated issue comments to post after a pushed fix. Leave empty to skip requesting and waiting for re-review.',
+      mode: 'advanced',
+      condition: BABYSIT,
     },
 
     {
@@ -399,7 +440,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
         { label: 'Sliding window (tokens)', id: 'sliding_window_tokens' },
       ],
       mode: 'advanced',
-      condition: AUTHORING_MODES,
+      condition: MEMORY_MODES,
     },
     {
       id: 'conversationId',
@@ -452,19 +493,24 @@ export const PiBlock: BlockConfig<PiResponse> = {
   inputs: {
     mode: {
       type: 'string',
-      description: 'Execution mode: Create PR, Review Code, or Local Dev',
+      description: 'Execution mode: Create PR, Review Code, Babysit, or Local Dev',
     },
     task: { type: 'string', description: 'Instruction for the coding agent' },
     model: { type: 'string', description: 'AI model to use' },
-    owner: { type: 'string', description: 'GitHub repository owner (Create PR and Review Code)' },
-    repo: { type: 'string', description: 'GitHub repository name (Create PR and Review Code)' },
-    githubToken: { type: 'string', description: 'GitHub token (Create PR and Review Code)' },
+    owner: { type: 'string', description: 'GitHub repository owner' },
+    repo: { type: 'string', description: 'GitHub repository name' },
+    githubToken: { type: 'string', description: 'GitHub token' },
     baseBranch: { type: 'string', description: 'Base branch for the PR (Create PR)' },
     branchName: { type: 'string', description: 'Branch to create (Create PR)' },
     draft: { type: 'boolean', description: 'Open the PR as a draft (Create PR)' },
     prTitle: { type: 'string', description: 'Pull request title (Create PR)' },
     prBody: { type: 'string', description: 'Pull request body (Create PR)' },
-    pullNumber: { type: 'number', description: 'Pull request number (Review Code)' },
+    pullNumber: { type: 'number', description: 'Pull request number (Review Code or Babysit)' },
+    maxRounds: { type: 'number', description: 'Maximum Babysit fixing rounds (1-10)' },
+    reviewMentions: {
+      type: 'string',
+      description: 'Comma-separated issue comments requesting re-review after a Babysit push',
+    },
     reviewEvent: {
       type: 'string',
       description: 'GitHub review event: COMMENT or REQUEST_CHANGES',
@@ -515,6 +561,36 @@ export const PiBlock: BlockConfig<PiResponse> = {
       type: 'number',
       description: 'Number of inline review comments posted',
       condition: CLOUD_REVIEW,
+    },
+    rounds: {
+      type: 'number',
+      description: 'Babysit fixing rounds consumed',
+      condition: BABYSIT,
+    },
+    threadsClean: {
+      type: 'boolean',
+      description: 'Whether all actionable review threads are resolved',
+      condition: BABYSIT,
+    },
+    checksGreen: {
+      type: 'boolean',
+      description: 'Whether required checks are green with none pending',
+      condition: BABYSIT,
+    },
+    threadsResolved: {
+      type: 'number',
+      description: 'Review threads resolved by Babysit',
+      condition: BABYSIT,
+    },
+    commitsPushed: {
+      type: 'number',
+      description: 'Commits pushed by Babysit',
+      condition: BABYSIT,
+    },
+    stopReason: {
+      type: 'string',
+      description: 'Why the Babysit run stopped',
+      condition: BABYSIT,
     },
     tokens: { type: 'json', description: 'Token usage statistics' },
     cost: { type: 'json', description: 'Cost of the run' },

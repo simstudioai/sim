@@ -138,7 +138,9 @@ function snapshot(overrides: Record<string, unknown> = {}) {
     body: 'Does the thing',
     html_url: 'https://github.com/octo/demo/pull/7',
     state: 'open',
-    head: { sha: HEAD_SHA },
+    merged: false,
+    mergeable: true,
+    head: { sha: HEAD_SHA, ref: 'feature', repo_full_name: 'octo/demo' },
     base: { sha: BASE_SHA, ref: 'staging' },
     ...overrides,
   }
@@ -284,7 +286,17 @@ describe('runCloudReviewPi', () => {
         metadataFetches += 1
         return Promise.resolve({
           success: true,
-          output: snapshot(metadataFetches === 2 ? { head: { sha: 'c'.repeat(40) } } : {}),
+          output: snapshot(
+            metadataFetches === 2
+              ? {
+                  head: {
+                    sha: 'c'.repeat(40),
+                    ref: 'feature',
+                    repo_full_name: 'octo/demo',
+                  },
+                }
+              : {}
+          ),
         })
       }
       if (toolId === 'github_create_pr_review_v2') {

@@ -1,7 +1,7 @@
 /**
- * Shared pull-request reads for the Pi cloud modes. Review Code, the only
- * consumer today, pins a snapshot before cloning and re-validates it before
- * submitting; Babysit will pin one per round. Keeping the coordinate validation,
+ * Shared pull-request reads for the Pi cloud modes. Review Code pins a snapshot
+ * before cloning and re-validates it before submitting; Babysit pins one per
+ * round. Keeping the coordinate validation,
  * fetch, and parse here stops the two from drifting on checks that decide which
  * repository a credential is pointed at and which commit a write lands on.
  */
@@ -9,7 +9,9 @@
 import { executeTool } from '@/tools'
 import {
   isRecord,
+  nullableBoolean,
   nullableString,
+  requiredBoolean,
   requiredRecord,
   requiredTrimmedString,
 } from '@/tools/github/response-parsers'
@@ -32,12 +34,16 @@ export interface PullRequestCoordinates {
 
 export interface PullRequestSnapshot {
   headSha: string
+  headRef: string
+  headRepoFullName: string | null
   baseSha: string
   baseRef: string
   title: string
   body: string
   htmlUrl: string
   state: string
+  merged: boolean
+  mergeable: boolean | null
 }
 
 function requiredSha(record: Record<string, unknown>, field: string, context: string): string {
@@ -58,12 +64,16 @@ export function parsePullRequestSnapshot(value: unknown): PullRequestSnapshot {
 
   return {
     headSha: requiredSha(head, 'sha', headContext),
+    headRef: requiredTrimmedString(head, 'ref', headContext),
+    headRepoFullName: nullableString(head, 'repo_full_name', headContext),
     baseSha: requiredSha(base, 'sha', baseContext),
     baseRef: requiredTrimmedString(base, 'ref', baseContext),
     title: requiredTrimmedString(value, 'title', PULL_REQUEST_RESPONSE_CONTEXT),
     body: nullableString(value, 'body', PULL_REQUEST_RESPONSE_CONTEXT) ?? '',
     htmlUrl: requiredTrimmedString(value, 'html_url', PULL_REQUEST_RESPONSE_CONTEXT),
     state: requiredTrimmedString(value, 'state', PULL_REQUEST_RESPONSE_CONTEXT),
+    merged: requiredBoolean(value, 'merged', PULL_REQUEST_RESPONSE_CONTEXT),
+    mergeable: nullableBoolean(value, 'mergeable', PULL_REQUEST_RESPONSE_CONTEXT),
   }
 }
 
