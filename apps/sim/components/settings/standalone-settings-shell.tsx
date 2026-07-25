@@ -76,10 +76,23 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
     aliases: ORGANIZATION_SETTINGS_PATH_ALIASES,
   })
   const activeSection = plane === 'account' ? accountSection : organizationSection
+  /**
+   * The sidebar highlights only an exact nav match. A nested route that is not
+   * itself a nav item (e.g. /account/settings/chat-keys) would otherwise fall back
+   * to `defaultSection` and light up an unrelated sibling — reading as though the
+   * page lived inside it. The section above keeps its default for the title
+   * provider, which every page can still override.
+   */
+  const accountSidebarSection = parseSettingsPathSection({
+    path: pathname,
+    items: ACCOUNT_SETTINGS_ITEMS,
+    defaultSection: null,
+    aliases: ACCOUNT_SETTINGS_PATH_ALIASES,
+  })
   const sidebar =
     plane === 'account' ? (
       <SettingsSidebar
-        activeSection={accountSection}
+        activeSection={accountSidebarSection}
         backHref='/workspace'
         groups={ACCOUNT_SETTINGS_GROUPS}
         hrefForSection={getAccountSettingsHref}

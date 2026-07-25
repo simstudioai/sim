@@ -179,6 +179,9 @@ describe('settings navigation boundaries', () => {
     expect(parseAccountPath('/account/settings/apikeys', null)).toBe('api-keys')
     expect(parseAccountPath('/account/settings/not-a-section', null)).toBeNull()
     expect(parseAccountPath('/account/settings', 'general')).toBe('general')
+    // Chat keys is a real page but deliberately not a nav item — with a null
+    // default it must resolve to nothing so the sidebar highlights no sibling.
+    expect(parseAccountPath('/account/settings/chat-keys', null)).toBeNull()
   })
 
   it('parses canonical, aliased, and invalid organization settings paths', () => {
