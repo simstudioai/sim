@@ -19,28 +19,62 @@ import {
 } from '../steps.ts'
 import { glyph, theme } from '../theme.ts'
 
+const REQUIRED_PORTS = [3000, 3002] as const
+
+/**
+ * Host ports this compose project currently publishes. Read from the containers
+ * rather than assumed from the file, because what matters is what is bound right
+ * now — a project with only db/redis up publishes neither app port, so those
+ * still need the conflict check.
+ */
+function composePublishedPorts(composeFile: string): Set<number> {
+  const ids = spawnSync('docker', ['compose', '-f', composeFile, 'ps', '-q'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  })
+  const containers = ids.status === 0 ? ids.stdout.split('\n').filter(Boolean) : []
+  if (containers.length === 0) return new Set()
+
+  const inspect = spawnSync(
+    'docker',
+    [
+      'inspect',
+      ...containers,
+      '--format',
+      '{{range $port, $bindings := .HostConfig.PortBindings}}{{range $bindings}}{{.HostPort}} {{end}}{{end}}',
+    ],
+    { encoding: 'utf8' }
+  )
+  if (inspect.status !== 0) return new Set()
+  const published = new Set<number>()
+  for (const token of inspect.stdout.split(/\s+/)) {
+    const port = Number(token)
+    if (Number.isInteger(port) && port > 0) published.add(port)
+  }
+  return published
+}
+
 /**
  * Compose publishes 3000 and 3002 — resolve conflicts before touching docker,
  * instead of letting `docker compose up` die halfway through startup. Aborting
  * is fatal here: compose can't come up while the ports are held.
  */
 async function ensureComposePortsFree(composeFile: string): Promise<void> {
-  // This stack already holding 3000/3002 is not a conflict — `docker compose up
-  // -d` reconciles its own containers. Without this, re-running setup against a
-  // running install reports its own realtime container as a blocker and offers
-  // to kill Docker's listener, which is never the right move. A genuinely
-  // foreign process still gets caught below, and a foreign *container* surfaces
-  // as a clear bind error from compose itself.
-  const ours = spawnSync('docker', ['compose', '-f', composeFile, 'ps', '-q'], {
-    cwd: ROOT,
-    encoding: 'utf8',
-  })
-  if (ours.status === 0 && ours.stdout.trim()) {
-    p.log.step('Existing Sim containers hold :3000/:3002 — compose will reconcile them')
-    return
+  // A port this stack already publishes is not a conflict — `docker compose up
+  // -d` reconciles its own containers, and reporting the install's own realtime
+  // container as a blocker (offering to kill Docker's listener) is never right.
+  // Skip only the ports this project actually publishes: leftover db/redis
+  // containers must not wave through a foreign process sitting on 3000, which
+  // would otherwise surface as a raw compose bind error instead of the prompt.
+  const ours = composePublishedPorts(composeFile)
+  const toCheck = REQUIRED_PORTS.filter((port) => !ours.has(port))
+  if (toCheck.length < REQUIRED_PORTS.length) {
+    const skipped = REQUIRED_PORTS.filter((port) => ours.has(port))
+    p.log.step(`Existing Sim containers hold :${skipped.join(', :')} — compose will reconcile them`)
   }
-  if (await ensurePortsFree([3000, 3002])) return
-  throw new SetupError('ports 3000/3002 are in use', [
+  if (toCheck.length === 0) return
+  if (await ensurePortsFree(toCheck)) return
+  throw new SetupError(`ports ${toCheck.map((port) => `:${port}`).join('/')} are in use`, [
     `free the ports, then re-run: ${theme.command('bun run setup')}`,
     `see what holds them: ${theme.command('lsof -nP -iTCP:3000 -sTCP:LISTEN')}`,
     `stop a container publishing them: ${theme.command('docker ps')}`,

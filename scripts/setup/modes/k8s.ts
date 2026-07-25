@@ -386,16 +386,30 @@ export async function runK8sMode(detection: Detection): Promise<void> {
 
   p.note(
     [
-      `open ${APP_URL} (needs the port-forward below)`,
+      `open ${APP_URL} (needs both forwards below)`,
       `pods:      kubectl --context ${shq(context)} -n ${NAMESPACE} get pods`,
       `app logs:  kubectl --context ${shq(context)} -n ${NAMESPACE} logs deploy/${RELEASE}-app --tail 50`,
-      `forward:   kubectl --context ${shq(context)} -n ${NAMESPACE} port-forward svc/${RELEASE}-app 3000:3000`,
+      // Both, always: the app alone loads but the editor's socket has nothing to
+      // reach, which is the reconnect failure this change set exists to fix.
+      ...forwardCommands(context).map(
+        (command, index) => `${index === 0 ? 'forward:  ' : '          '} ${command}`
+      ),
       `tear down: helm uninstall ${RELEASE} --kube-context ${shq(context)} -n ${NAMESPACE}`,
     ].join('\n'),
     'Reach your cluster'
   )
 
   await offerPortForward(context)
+}
+
+/**
+ * Both forwards, in the order a user should run them. Kept in one place so the
+ * printed instructions and what the wizard actually runs cannot drift — the app
+ * alone leaves the editor's socket dead.
+ */
+function forwardCommands(context: string): string[] {
+  const scope = `kubectl --context ${shq(context)} -n ${NAMESPACE} port-forward`
+  return [`${scope} svc/${RELEASE}-app 3000:3000`, `${scope} svc/${RELEASE}-realtime 3002:3002`]
 }
 
 /**
@@ -414,7 +428,15 @@ async function offerPortForward(context: string): Promise<void> {
     initialValue: true,
   })
   if (!forward) {
-    p.log.info(theme.muted('Skipped — run the forward command above when you want to reach it.'))
+    p.log.info(
+      theme.muted(
+        `Skipped — run both forwards when you want to reach it (the second keeps the editor's socket alive):\n${forwardCommands(
+          context
+        )
+          .map((command) => `  ${command}`)
+          .join('\n')}`
+      )
+    )
     return
   }
 
