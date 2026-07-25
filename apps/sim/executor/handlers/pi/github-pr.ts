@@ -1,9 +1,9 @@
 /**
- * Shared pull-request reads for the Pi cloud modes. Review Code pins a snapshot
- * before cloning and re-validates it before submitting; Babysit pins one per
- * round. Keeping the coordinate validation, fetch, and parse here stops the two
- * from drifting on checks that decide which repository a credential is pointed
- * at and which commit a write lands on.
+ * Shared pull-request reads for the Pi cloud modes. Review Code, the only
+ * consumer today, pins a snapshot before cloning and re-validates it before
+ * submitting; Babysit will pin one per round. Keeping the coordinate validation,
+ * fetch, and parse here stops the two from drifting on checks that decide which
+ * repository a credential is pointed at and which commit a write lands on.
  */
 
 import { executeTool } from '@/tools'

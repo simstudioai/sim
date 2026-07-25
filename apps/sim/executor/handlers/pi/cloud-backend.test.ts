@@ -153,9 +153,9 @@ describe('runCloudPi', () => {
     expect(lines.at(-1)).toContain('__GIT_CONFIG_DIGEST__=')
     expect(lines.at(-2)).toContain('git remote set-url origin')
 
-    // Emitting the marker is additive for every mode; only Babysit verifies it,
-    // because verification would fail any run that legitimately writes
-    // repository-local git config.
+    // Emitting the marker is additive for every mode. No mode verifies it yet;
+    // Babysit will, and deliberately alone, because verification would fail any
+    // run that legitimately writes repository-local git config.
     expect(pushCmd).not.toContain('__GIT_CONFIG_DIGEST__=')
   })
 

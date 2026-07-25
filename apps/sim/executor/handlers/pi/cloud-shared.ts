@@ -21,9 +21,9 @@ export const PUSH_ERROR_MAX = 1000
 
 /**
  * Floor for {@link PI_TIMEOUT_MS}. Only reachable by configuring a sandbox
- * lifetime too short to hold the commands around the turn, in which case the run
- * was going to be reaped either way; the floor keeps the turn non-zero rather
- * than making it useful.
+ * lifetime too short to reserve every surrounding command's worst-case ceiling.
+ * Such a run can still finish, since those ceilings are pessimistic, so the floor
+ * leaves a short turn rather than refusing one.
  */
 const MIN_PI_TIMEOUT_MS = 60 * 1000
 
