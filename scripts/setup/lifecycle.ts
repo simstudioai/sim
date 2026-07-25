@@ -155,6 +155,21 @@ function composeInstalls(): ComposeInstall[] {
   return installs
 }
 
+/**
+ * Compose args for an op on a detected install. `-p` is not optional: without it
+ * Compose re-derives the project from the working directory, and that name is
+ * frequently NOT the one `compose ls` reported — a directory is lowercased and
+ * stripped of dots (`Sim.Demo` becomes `simdemo`), and an explicit `-p` or
+ * COMPOSE_PROJECT_NAME at creation time diverges outright. Acting on a
+ * re-derived name means `stop`/`down`/`reset` can target a different project
+ * than the one named in the confirm — and `reset` runs `down -v`. Pinning the
+ * recorded name makes the op hit exactly what was detected; cwd stays because
+ * the file's own relative paths (build contexts, env_file) resolve against it.
+ */
+function composeArgs(install: ComposeInstall, ...verb: string[]): string[] {
+  return ['compose', '-p', install.project, '-f', install.file, ...verb]
+}
+
 /** Dev mode owns the split env files and, usually, the managed Postgres/Redis. */
 function devInstall(detection: Detection): DevInstall | null {
   const postgres = detection.dbContainer?.managed ?? false
@@ -240,7 +255,7 @@ function start(install: Install): void {
   if (install.kind === 'compose') {
     const spin = p.spinner()
     spin.start('Starting containers…')
-    dockerRun(['compose', '-f', install.file, 'up', '-d'], 'docker compose up failed', install.dir)
+    dockerRun(composeArgs(install, 'up', '-d'), 'docker compose up failed', install.dir)
     spin.stop('Containers up')
     p.note(
       [`open ${APP_URL}`, 'follow logs:  sim logs', 'stop:         sim stop'].join('\n'),
@@ -265,7 +280,7 @@ function stop(install: Install): void {
   if (install.kind === 'compose') {
     const spin = p.spinner()
     spin.start('Stopping containers…')
-    dockerRun(['compose', '-f', install.file, 'stop'], 'docker compose stop failed', install.dir)
+    dockerRun(composeArgs(install, 'stop'), 'docker compose stop failed', install.dir)
     spin.stop('Containers stopped (data kept)')
     p.note(['start again:  sim start', 'remove:       sim down'].join('\n'), 'Stopped')
     return
@@ -295,11 +310,7 @@ function restart(install: Install): void {
   if (install.kind === 'compose') {
     const spin = p.spinner()
     spin.start('Restarting containers…')
-    dockerRun(
-      ['compose', '-f', install.file, 'restart'],
-      'docker compose restart failed',
-      install.dir
-    )
+    dockerRun(composeArgs(install, 'restart'), 'docker compose restart failed', install.dir)
     spin.stop('Containers restarted')
     p.note(`open ${APP_URL}`, 'Running')
     return
@@ -316,7 +327,7 @@ function restart(install: Install): void {
 
 function showLogs(install: Install): void {
   if (install.kind === 'compose') {
-    dockerInherit(['compose', '-f', install.file, 'logs', '-f', '--tail', '100'], install.dir)
+    dockerInherit(composeArgs(install, 'logs', '-f', '--tail', '100'), install.dir)
     return
   }
   if (install.kind === 'dev') {
@@ -347,7 +358,7 @@ async function down(install: Install): Promise<void> {
     return
   }
   if (install.kind === 'compose') {
-    dockerRun(['compose', '-f', install.file, 'down'], 'docker compose down failed', install.dir)
+    dockerRun(composeArgs(install, 'down'), 'docker compose down failed', install.dir)
     p.log.step('Containers removed (volumes kept)')
     return
   }
@@ -390,11 +401,7 @@ async function reset(install: Install | null): Promise<void> {
     if (backup) p.log.step(`Archived ${backup}`)
   }
   if (install?.kind === 'compose') {
-    dockerRun(
-      ['compose', '-f', install.file, 'down', '-v'],
-      'docker compose down -v failed',
-      install.dir
-    )
+    dockerRun(composeArgs(install, 'down', '-v'), 'docker compose down -v failed', install.dir)
     p.log.step('Containers and volumes removed')
   } else if (install?.kind === 'dev') {
     const names = managedNames(install)
