@@ -743,17 +743,70 @@ export async function updateColumnOptions(
 
     const columnKey = getColumnId(column)
 
-    // Switching multiple → single would silently drop all but the first option
-    // in any multi-valued cell — block it instead, mirroring the type-change
-    // compatibility guard.
-    const willBeMultiple = data.multiple ?? column.multiple
-    if (column.multiple && !willBeMultiple) {
+    const { multiple: _prevMultiple, ...columnRest } = column
+    const updatedColumn = {
+      ...columnRest,
+      options: data.options,
+      ...((data.multiple ?? column.multiple) ? { multiple: true } : {}),
+    }
+    const columnValidation = validateColumnDefinition(updatedColumn)
+    if (!columnValidation.valid) {
+      throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
+    }
+
+    const updatedColumns = schema.columns.map((c, i) => (i === columnIndex ? updatedColumn : c))
+    const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
+    const now = new Date()
+
+    const nextMultiple = !!(data.multiple ?? column.multiple)
+    const wasMultiple = !!column.multiple
+    const keptIds = new Set(data.options.map((o) => o.id))
+    const removedAny = (column.options ?? []).some((o) => !keptIds.has(o.id))
+    const togglingCardinality = nextMultiple !== wasMultiple
+
+    if (togglingCardinality || removedAny) {
       const timeoutMs = scaledStatementTimeoutMs(table.rowCount ?? 0, {
         baseMs: 60_000,
         perRowMs: 2,
       })
       await setTableTxTimeouts(trx, { statementMs: timeoutMs, idleMs: timeoutMs })
+    }
 
+    // Removal runs FIRST, before the multi→single guard and the shape migration.
+    // Both of those read the cells: the guard would otherwise count options this
+    // same request is dropping, and the migration keeps a multi cell's FIRST
+    // element — which could be a removed id sitting ahead of a kept one, so the
+    // surviving option would be discarded and the dead one kept.
+    //
+    // Cells are still in their pre-toggle shape here, so this passes the CURRENT
+    // cardinality, not the target one.
+    if (removedAny) {
+      // On a required column, clearing is not an option: it would leave rows the
+      // write path rejects, and `updateColumnConstraints` refuses to CREATE that
+      // state, so producing it here would be inconsistent. Make the caller
+      // reassign those rows first.
+      if (column.required) {
+        const strandedCount = await countCellsLosingTheirOptions(
+          trx,
+          data.tableId,
+          columnKey,
+          data.options,
+          wasMultiple
+        )
+        if (strandedCount > 0) {
+          throw new Error(
+            `Cannot remove options from required column "${column.name}": ${strandedCount} row(s) would be left empty. Reassign those rows to a remaining option first.`
+          )
+        }
+      }
+      await clearRemovedSelectOptions(trx, data.tableId, columnKey, data.options, wasMultiple)
+    }
+
+    // Switching multiple → single drops all but the first option in any cell
+    // that still holds several — block it rather than silently losing data.
+    // Counted after the removal above, so dropping surplus options and turning
+    // multiselect off in one save is allowed when every cell ends up with one.
+    if (wasMultiple && !nextMultiple) {
       const rows = await trx
         .select({ data: userTableRows.data })
         .from(userTableRows)
@@ -774,66 +827,12 @@ export async function updateColumnOptions(
       }
     }
 
-    const { multiple: _prevMultiple, ...columnRest } = column
-    const updatedColumn = {
-      ...columnRest,
-      options: data.options,
-      ...((data.multiple ?? column.multiple) ? { multiple: true } : {}),
-    }
-    const columnValidation = validateColumnDefinition(updatedColumn)
-    if (!columnValidation.valid) {
-      throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
-    }
-
-    const updatedColumns = schema.columns.map((c, i) => (i === columnIndex ? updatedColumn : c))
-    const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
-    const now = new Date()
-
     // A single↔multi toggle changes the stored shape (scalar id vs array of
     // ids). Multi filters compile to array containment, which never matches a
     // scalar, so leaving cells un-normalized would silently drop every
     // pre-toggle row out of its own column's filters.
-    const nextMultiple = !!(data.multiple ?? column.multiple)
-    const keptIds = new Set(data.options.map((o) => o.id))
-    const removedAny = (column.options ?? []).some((o) => !keptIds.has(o.id))
-
-    if (nextMultiple !== !!column.multiple || removedAny) {
-      const timeoutMs = scaledStatementTimeoutMs(table.rowCount ?? 0, {
-        baseMs: 60_000,
-        perRowMs: 2,
-      })
-      await setTableTxTimeouts(trx, { statementMs: timeoutMs, idleMs: timeoutMs })
-    }
-
-    if (nextMultiple !== !!column.multiple) {
+    if (togglingCardinality) {
       await migrateCellsToSelectIds(trx, data.tableId, columnKey, data.options, nextMultiple)
-    }
-
-    // Drop ids for options that no longer exist. The grid already renders them
-    // as empty, but they stay real to everything else: write-path validation
-    // rejects them (so an unrelated edit to that row fails on a required
-    // column), emptiness checks and `is empty` filters count them as filled,
-    // and dependent groups treat the row as satisfied.
-    if (removedAny) {
-      // On a required column, clearing is not an option: it would leave rows the
-      // write path rejects, and `updateColumnConstraints` refuses to CREATE that
-      // state, so producing it here would be inconsistent. Make the caller
-      // reassign those rows first.
-      if (column.required) {
-        const strandedCount = await countCellsLosingTheirOptions(
-          trx,
-          data.tableId,
-          columnKey,
-          data.options,
-          nextMultiple
-        )
-        if (strandedCount > 0) {
-          throw new Error(
-            `Cannot remove options from required column "${column.name}": ${strandedCount} row(s) would be left empty. Reassign those rows to a remaining option first.`
-          )
-        }
-      }
-      await clearRemovedSelectOptions(trx, data.tableId, columnKey, data.options, nextMultiple)
     }
 
     await trx

@@ -782,14 +782,16 @@ export function buildSelectFindNameExpr(columns: ColumnDefinition[]): string | n
         .join(' ')
       const single = caseWhens ? `CASE kv.value ${caseWhens} ELSE kv.value END` : 'kv.value'
       if (col.multiple) {
-        const elem = caseWhens ? `CASE e ${caseWhens} ELSE e END` : 'e'
+        const elem = caseWhens ? `CASE e.v ${caseWhens} ELSE e.v END` : 'e.v'
         // `jsonb_array_elements_text` throws "cannot extract elements from a
         // scalar" on a JSON null — which a multiselect cell becomes when it is
         // cleared, cut, or has its last option removed — so the array arm has to
         // be gated on the cell actually being an array. Anything else falls back
         // to the single mapping, which also keeps a scalar left over from a
         // single→multi toggle searchable. Mirrors `buildSelectNameOrderExpr`.
-        return `WHEN kv.key = '${id}' THEN CASE WHEN jsonb_typeof(o.data->'${id}') = 'array' THEN (SELECT string_agg(${elem}, ', ') FROM jsonb_array_elements_text(o.data->'${id}') e) ELSE ${single} END`
+        // `ORDER BY e.ord` keeps the joined label in stored order, so Find matches
+        // the same text the grid renders, sorts by, and exports.
+        return `WHEN kv.key = '${id}' THEN CASE WHEN jsonb_typeof(o.data->'${id}') = 'array' THEN (SELECT string_agg(${elem}, ', ' ORDER BY e.ord) FROM jsonb_array_elements_text(o.data->'${id}') WITH ORDINALITY AS e(v, ord)) ELSE ${single} END`
       }
       return `WHEN kv.key = '${id}' THEN ${single}`
     })

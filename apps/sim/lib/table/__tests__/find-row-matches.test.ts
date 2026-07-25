@@ -132,6 +132,16 @@ describe('buildSelectFindNameExpr', () => {
     expect(expandAt).toBeGreaterThan(guardAt)
   })
 
+  it('joins multiselect names in stored order', () => {
+    // Sort and export both spell the ordering out via WITH ORDINALITY; Find has
+    // to agree or a search for the label the grid shows can miss the row.
+    const expr = buildSelectFindNameExpr([
+      { id: 'tags', name: 'tags', type: 'select', multiple: true, options },
+    ]) as string
+    expect(expr).toContain('WITH ORDINALITY')
+    expect(expr).toContain("', ' ORDER BY e.ord")
+  })
+
   it('keeps a scalar left over from a single→multi toggle searchable', () => {
     const expr = buildSelectFindNameExpr([
       { id: 'tags', name: 'tags', type: 'select', multiple: true, options },
