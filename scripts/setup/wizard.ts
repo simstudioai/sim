@@ -162,10 +162,10 @@ export async function runWizard(flags: WizardFlags): Promise<void> {
   p.note(
     [
       mode === 'k8s' ? `port-forward, then open ${url}` : `open ${url}`,
-      'manage it:  sim start · sim stop · sim status · sim logs',
-      'check your setup:  sim doctor',
+      'manage it:  bun run sim start · stop · status · logs',
+      'check your setup:  bun run sim doctor',
       mode === 'dev' && !startDevNow ? `start Sim:  bun run ${devScript}` : null,
-      `run "sim" anywhere: ${theme.command('bun link')} once (otherwise ${theme.command('bun run sim <cmd>')})`,
+      `prefer a bare "sim"? ${theme.command('bun link')} once (needs ~/.bun/bin on PATH)`,
     ]
       .filter(Boolean)
       .join('\n'),

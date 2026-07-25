@@ -91,18 +91,20 @@ bun run setup
 
 When it finishes, open [http://localhost:3000](http://localhost:3000).
 
-Manage your install with the `sim` CLI — run `bun link` once so `sim` works anywhere (or prefix `bun run`):
+Manage your install with `bun run sim`:
 
 ```bash
-sim start | stop | restart   # bring your install up / down / cycle
-sim status                    # what's installed and healthy
-sim logs                      # follow logs
-sim doctor                    # diagnose configuration problems
-sim down                      # remove containers (data kept)
-sim reset                     # archive .env and wipe managed data
+bun run sim start | stop | restart   # bring your install up / down / cycle
+bun run sim status                    # what's installed and healthy
+bun run sim logs                      # follow logs
+bun run sim doctor                    # diagnose configuration problems
+bun run sim down                      # remove containers (data kept)
+bun run sim reset                     # archive .env and wipe managed data
 ```
 
 `sim` detects how you're running (Docker Compose, local dev, or Kubernetes) and acts accordingly.
+
+Prefer a bare `sim`? Run `bun link` once — but note `sim` lands in `~/.bun/bin`, which Homebrew's bun doesn't add to your PATH, so you may need `export PATH="$HOME/.bun/bin:$PATH"` in your shell profile.
 
 Sim also supports local models via [Ollama](https://ollama.ai) and [vLLM](https://docs.vllm.ai/). See the [self-hosting docs](https://docs.sim.ai/self-hosting/docker) for details.
 
