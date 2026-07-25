@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { DB_CONTAINER, type Detection, REDIS_CONTAINER, runDetection } from './detect.ts'
 import { archiveEnvFile, ROOT } from './env-files.ts'
@@ -91,6 +92,33 @@ interface ComposeProject {
 }
 
 /**
+ * Markers that a compose file is actually Sim's: the published app image
+ * (docker-compose.prod.yml) or the app Dockerfile this repo builds
+ * (docker-compose.local.yml).
+ */
+const SIM_COMPOSE_MARKERS = ['ghcr.io/simstudioai/simstudio', 'docker/app.Dockerfile'] as const
+
+/**
+ * `docker-compose.prod.yml` is a common filename, so the name alone cannot say a
+ * project is ours — and `sim reset` runs `compose down -v`, which would destroy
+ * an unrelated stack's volumes. Read the file Docker recorded for the project and
+ * require a Sim marker inside it. The old ROOT-scoped `-f` probe was implicitly
+ * safe because it could only ever see the local project; discovering projects
+ * globally means identifying them by content instead.
+ */
+function isSimComposeFile(file: string): boolean {
+  if (!(COMPOSE_FILES as readonly string[]).includes(path.basename(file))) return false
+  try {
+    const contents = readFileSync(file, 'utf8')
+    return SIM_COMPOSE_MARKERS.some((marker) => contents.includes(marker))
+  } catch {
+    // Unreadable or deleted since the stack started — better to not manage it
+    // than to guess from the filename.
+    return false
+  }
+}
+
+/**
  * Ask Docker which compose projects exist rather than guessing from the working
  * directory. Compose derives a project name from the directory it was started
  * in, so probing `-f <file> ps` only ever finds a stack when you happen to stand
@@ -98,8 +126,7 @@ interface ComposeProject {
  * — and it reports the same stack once per candidate file, since both files map
  * to the same directory-derived project. `compose ls` records the real project
  * and the exact config file, so one running stack yields exactly one install
- * wherever it was started from. Projects whose compose file isn't one of ours
- * (a devcontainer, an unrelated app) are filtered out by filename.
+ * wherever it was started from.
  */
 function composeInstalls(): ComposeInstall[] {
   const raw = dockerText(['compose', 'ls', '-a', '--format', 'json'])
@@ -116,7 +143,7 @@ function composeInstalls(): ComposeInstall[] {
     const file = (project.ConfigFiles ?? '')
       .split(',')
       .map((entry) => entry.trim())
-      .find((entry) => (COMPOSE_FILES as readonly string[]).includes(path.basename(entry)))
+      .find(isSimComposeFile)
     if (!file) continue
     installs.push({
       kind: 'compose',
