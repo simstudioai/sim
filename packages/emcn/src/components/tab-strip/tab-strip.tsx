@@ -282,8 +282,15 @@ export function TabStrip({
 
   return (
     <div className='flex h-[34px] shrink-0 select-none items-end gap-1 border-[var(--border)] border-b bg-transparent px-2 pt-1'>
+      {/*
+        The row is sized by its tabs rather than filling the strip, so the new-tab
+        button that follows sits beside the last tab instead of against the far
+        edge. Once the tabs no longer fit, the row shrinks (min-w-0 permits it)
+        and scrolls horizontally instead of growing, which pins the button back
+        at the right edge rather than pushing it out of view.
+      */}
       <div
-        className='flex min-w-0 flex-1 select-none items-end gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+        className='flex min-w-0 shrink select-none items-end gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
         onDragOver={(event) => {
           if (draggedIdRef.current) event.preventDefault()
         }}

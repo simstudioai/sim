@@ -16,6 +16,13 @@ export interface MenuDeps {
   newChat: () => void
   closeFocusedBrowserTab: (win: BrowserWindow | null) => boolean
   reopenClosedBrowserTab: (win: BrowserWindow | null) => boolean
+  /**
+   * Terminal counterparts. Menu accelerators are global, so Cmd-W and
+   * Cmd-Shift-T reach here whatever the user is looking at; each panel gets
+   * asked whether the keystroke was meant for it before the window acts.
+   */
+  closeFocusedTerminal: () => boolean
+  reopenClosedTerminal: () => boolean
   toggleSidebar: () => void
   signOut: () => void
   checkForUpdates: () => void
@@ -101,6 +108,7 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
           label: 'Reopen Closed Tab',
           accelerator: 'CmdOrCtrl+Shift+T',
           click: (_item, focusedWindow) => {
+            if (deps.reopenClosedTerminal()) return
             const win =
               focusedWindow instanceof BrowserWindow ? focusedWindow : deps.getMainWindow()
             deps.reopenClosedBrowserTab(win)
@@ -110,6 +118,7 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
           label: 'Close Window',
           accelerator: 'CmdOrCtrl+W',
           click: (_item, focusedWindow) => {
+            if (deps.closeFocusedTerminal()) return
             const win =
               focusedWindow instanceof BrowserWindow ? focusedWindow : deps.getMainWindow()
             if (deps.closeFocusedBrowserTab(win)) return

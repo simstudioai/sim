@@ -46,7 +46,8 @@ export type LegacyTerminalToolName = (typeof LEGACY_TERMINAL_TOOL_NAMES)[number]
  * The first group acts on a shell — or, when that shell has tmux attached, on
  * a pane inside it. The second group manages Sim's own tabs. `panes` is the
  * one tmux-only operation: tmux owns its windows and splits, so the agent
- * inspects them rather than Sim mirroring them into the tab strip.
+ * inspects them rather than Sim mirroring them into the tab strip. `handoff`
+ * gives the terminal to the user and waits.
  */
 export const TERMINAL_OPERATIONS = [
   'run',
@@ -59,6 +60,7 @@ export const TERMINAL_OPERATIONS = [
   'switch',
   'close',
   'panes',
+  'handoff',
 ] as const
 
 export type TerminalOperation = (typeof TERMINAL_OPERATIONS)[number]
@@ -122,6 +124,13 @@ export const MAX_RUN_WAIT_MS = 120_000
  */
 export const PROMPT_IDLE_MS = 2_500
 
+/**
+ * Ceiling on one batch of keystrokes. Long enough to cross a menu, short
+ * enough that a mistaken batch cannot run away with the program — every key
+ * after the first is sent without seeing what the last one did.
+ */
+export const MAX_INPUT_KEYS = 20
+
 /** Control keys the agent may send to a running foreground process. */
 export const TERMINAL_CONTROL_KEYS = [
   'ctrl-c',
@@ -161,6 +170,13 @@ export interface TerminalToolArgs {
   text?: string
   /** `input`: a key to press instead of text. */
   key?: TerminalControlKey
+  /**
+   * `input`: several keys pressed in order, for stepping through a menu
+   * ("down", "down", "enter") without a round trip per keystroke. Each is a
+   * real keypress with a pause between, so the program redraws as it would
+   * under a person's hands. Capped at {@link MAX_INPUT_KEYS}.
+   */
+  keys?: TerminalControlKey[]
   /** `read`: trailing lines to return. */
   lines?: number
   /** `kill`: which signal. Defaults to SIGINT. */
@@ -181,6 +197,8 @@ export interface TerminalToolArgs {
    * pane. Ignored when the terminal is a plain shell.
    */
   pane?: string
+  /** `handoff`: what the user needs to do, shown on the chip they click. */
+  reason?: string
 }
 
 export interface TerminalToolCall {
@@ -229,6 +247,12 @@ export interface TerminalRunResult {
 }
 
 export interface TerminalReadResult {
+  /**
+   * The screen as text. When a row is highlighted the way a menu marks its
+   * selection, it is prefixed `[selected] ` — a TUI that indicates the current
+   * row with colour alone is otherwise invisible in plain text, leaving the
+   * agent unable to tell where it is before it starts pressing keys.
+   */
   output: string
   cwd: string | null
   terminalId: string
@@ -283,6 +307,26 @@ export interface TerminalPaneState {
   command: string
   cwd: string | null
   active: boolean
+}
+
+/**
+ * The outcome of handing a terminal to the user.
+ *
+ * Resolves when the command that was blocking finishes, so the agent picks up
+ * where it left off rather than having to guess whether the user is done. A
+ * command still going after the user says they have finished comes back with
+ * `running` set, which is the same poll-it signal a long `run` returns.
+ */
+export interface TerminalHandoffResult {
+  terminalId: string
+  reason: string
+  /** True when the user pressed the hand-back button rather than the command just ending. */
+  handedBack: boolean
+  /** The command still holding the terminal, or null when it is back at a prompt. */
+  running: string | null
+  /** The screen as it stands now. */
+  output: string
+  cwd: string | null
 }
 
 export interface TerminalPanesResult {

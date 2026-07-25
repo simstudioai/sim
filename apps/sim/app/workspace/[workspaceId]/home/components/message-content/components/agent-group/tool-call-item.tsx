@@ -5,6 +5,7 @@ import {
   BrowserRequestTakeover,
   CallIntegrationTool,
   Read as ReadTool,
+  Terminal as TerminalTool,
   Wait as WaitTool,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -44,6 +45,19 @@ interface ToolCallItemProps {
   toolCallId?: string
   /** When the call started, used to count down a running `wait`. */
   startedAt?: number
+}
+
+function stringParam(params: Record<string, unknown> | undefined, key: string): string {
+  const value = params?.[key]
+  return typeof value === 'string' ? value : ''
+}
+
+/** Reads a field out of the terminal tool's nested `args` object. */
+function nestedStringParam(params: Record<string, unknown> | undefined, key: string): string {
+  const args = params?.args
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return ''
+  const value = (args as Record<string, unknown>)[key]
+  return typeof value === 'string' ? value : ''
 }
 
 /**
@@ -160,6 +174,17 @@ export function ToolCallItem({
   const showTakeoverAction =
     toolName === BrowserRequestTakeover.id && isExecuting && isBrowserAgentAvailable()
 
+  // A waiting terminal handoff swaps its row for the hand-back chip, the same
+  // way a browser takeover does: the row would otherwise spin with nothing
+  // saying the shell is blocked on the user.
+  const terminalHandoff =
+    toolName === TerminalTool.id && isExecuting && stringParam(params, 'operation') === 'handoff'
+      ? {
+          terminalId: nestedStringParam(params, 'terminalId'),
+          reason: nestedStringParam(params, 'reason'),
+        }
+      : null
+
   const BlockIcon = (readBlock ?? gatewayBlock ?? getBlockByToolName(toolName))?.icon
 
   // A gated row is replaced outright by its permission card, the same way an
@@ -172,6 +197,20 @@ export function ToolCallItem({
           toolName={toolName}
           displayTitle={liveTitle}
           params={params}
+        />
+      </div>
+    )
+  }
+
+  if (terminalHandoff) {
+    return (
+      <div className='pl-6'>
+        <CredentialDisplay
+          data={{
+            type: 'terminal_handoff',
+            value: terminalHandoff.terminalId,
+            name: terminalHandoff.reason,
+          }}
         />
       </div>
     )

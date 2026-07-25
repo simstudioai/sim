@@ -626,6 +626,12 @@ function terminalTitle(args: ToolArgs): string {
       ? (nested as Record<string, unknown>)
       : undefined
   if (operation === 'run') return runningCommandTitle(stringArg(inner, 'command'))
+  if (operation === 'handoff') {
+    // Matches the browser takeover row: the reason is the whole point of the
+    // row, since it is what the user has to act on.
+    const reason = stringArg(inner, 'reason')
+    return reason ? `Waiting for you: ${reason}` : 'Waiting for you in the terminal'
+  }
   return TERMINAL_OPERATION_TITLES[operation] ?? 'Using terminal'
 }
 

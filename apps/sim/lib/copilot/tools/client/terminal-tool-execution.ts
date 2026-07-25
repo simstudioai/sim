@@ -69,7 +69,9 @@ function eventAgeMs(eventTs: string | undefined): number | null {
 const QUICK_TOOL_TIMEOUT_MS = 15_000
 
 function timeoutForOperation(operation: TerminalOperation): number | null {
-  return operation === 'run' ? null : QUICK_TOOL_TIMEOUT_MS
+  // `run` waits on a command and `handoff` waits on a person; neither has a
+  // deadline this side can usefully impose.
+  return operation === 'run' || operation === 'handoff' ? null : QUICK_TOOL_TIMEOUT_MS
 }
 
 /**

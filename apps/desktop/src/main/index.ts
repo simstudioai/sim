@@ -484,6 +484,8 @@ function main(): void {
       newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
       closeFocusedBrowserTab: (win) => closeFocusedBrowserTab(win),
       reopenClosedBrowserTab: (win) => reopenClosedBrowserTab(win),
+      closeFocusedTerminal: () => terminal.closeFocusedTerminal(),
+      reopenClosedTerminal: () => terminal.reopenClosedTerminal(),
       toggleSidebar: () => getMainWindow()?.webContents.send('desktop:command', 'toggle-sidebar'),
       signOut: signOutFromMenu,
       checkForUpdates: () =>

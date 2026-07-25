@@ -253,6 +253,16 @@ export interface SimDesktopTerminalApi {
    * subscribers, or at none at all.
    */
   getScrollback(terminalId: string): Promise<string>
+  /**
+   * Reports whether the terminal panel owns keyboard focus, so global menu
+   * accelerators can tell a Cmd-W meant for a terminal from one meant for the
+   * window.
+   */
+  setFocused(focused: boolean): void
+  /**
+   * The user finishing a handoff — the hand-back chip on the waiting tool row.
+   */
+  finishHandoff(terminalId: string): void
   /** Subscribe to the open-terminal list and which one is active. */
   onTabs(callback: (state: TerminalTabsState) => void): () => void
   /** Subscribe to command start/end, used for agent attribution in the panel. */

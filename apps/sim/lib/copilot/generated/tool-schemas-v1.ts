@@ -3993,7 +3993,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             key: {
               type: 'string',
               description:
-                'For input: a key to press instead of text. Use "enter" to submit something already typed.',
+                'For input: a single key to press instead of text. Use "enter" to submit something already typed.',
               enum: [
                 'ctrl-c',
                 'ctrl-d',
@@ -4007,6 +4007,26 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 'tab',
               ],
             },
+            keys: {
+              type: 'array',
+              description:
+                'For input: several keys pressed in order, e.g. ["down","down","enter"] to walk down a menu and choose. Each is a real keypress with a pause between, so the program redraws as it would under a person\'s hands. Only batch when you already know where the highlight is — read the screen first, and press one key at a time when you do not. Max 20.',
+              items: {
+                type: 'string',
+                enum: [
+                  'ctrl-c',
+                  'ctrl-d',
+                  'ctrl-z',
+                  'enter',
+                  'up',
+                  'down',
+                  'left',
+                  'right',
+                  'escape',
+                  'tab',
+                ],
+              },
+            },
             lines: {
               type: 'number',
               description: 'For read: how many trailing lines to return. Defaults to 200.',
@@ -4015,6 +4035,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'string',
               description:
                 "Which tmux pane to act on, as a target from the panes operation (session:window.pane). Defaults to that session's active pane. Ignored when the terminal is a plain shell.",
+            },
+            reason: {
+              type: 'string',
+              description:
+                'For handoff: what the user needs to do, shown on the button they click (e.g. "Enter your sudo password"). Say what is being asked, not that you are waiting.',
             },
             signal: {
               type: 'string',
@@ -4042,7 +4067,19 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         operation: {
           type: 'string',
           description: 'What to do.',
-          enum: ['run', 'read', 'input', 'kill', 'cwd', 'list', 'new', 'switch', 'close', 'panes'],
+          enum: [
+            'run',
+            'read',
+            'input',
+            'kill',
+            'cwd',
+            'list',
+            'new',
+            'switch',
+            'close',
+            'panes',
+            'handoff',
+          ],
         },
       },
       required: ['operation'],
