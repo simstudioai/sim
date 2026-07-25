@@ -29,6 +29,38 @@ function isLocalContext(context: string): boolean {
   return LOCAL_CONTEXT_PREFIXES.some((prefix) => context === prefix || context.startsWith(prefix))
 }
 
+const LOCAL_SERVER_HOSTS = new Set([
+  '127.0.0.1',
+  'localhost',
+  '0.0.0.0',
+  '::1',
+  'kubernetes.docker.internal',
+  'host.docker.internal',
+])
+
+/** The API server host a context points at, or null if kubectl can't resolve it. */
+function contextServerHost(context: string): string | null {
+  const result = spawnSync(
+    'kubectl',
+    [
+      'config',
+      'view',
+      '--minify',
+      '--context',
+      context,
+      '-o',
+      'jsonpath={.clusters[0].cluster.server}',
+    ],
+    { encoding: 'utf8' }
+  )
+  if (result.status !== 0) return null
+  try {
+    return new URL(result.stdout.trim()).hostname
+  } catch {
+    return null
+  }
+}
+
 /**
  * POSIX-quote a value for a copyable shell hint. A kube-context passes only a
  * prefix check, so it can still contain whitespace or shell metacharacters that
@@ -48,13 +80,28 @@ async function ensureLocalContext(detection: Detection): Promise<string> {
   }
   const context = detection.kubeContext
   if (context && isLocalContext(context)) {
-    const useIt = await p.confirm({
-      message: `Use current kube context "${context}"?`,
-      initialValue: true,
-    })
-    if (useIt) return context
-  }
-  if (context && !isLocalContext(context)) {
+    // The name is only a hint — a remote cluster can be named like a local one
+    // (e.g. "kind-prod"). Verify the API server is a loopback/host address before
+    // defaulting to "yes", so generated secrets can't silently ship to a remote
+    // cluster on a blind Enter.
+    const server = contextServerHost(context)
+    if (server && LOCAL_SERVER_HOSTS.has(server)) {
+      const useIt = await p.confirm({
+        message: `Use current kube context "${context}"?`,
+        initialValue: true,
+      })
+      if (useIt) return context
+    } else {
+      p.log.warn(
+        `Context "${context}" is named like a local cluster, but its API server${server ? ` (${server})` : ''} does not look local. Continuing would deploy the generated secrets there.`
+      )
+      const useIt = await p.confirm({
+        message: `Deploy to "${context}" anyway?`,
+        initialValue: false,
+      })
+      if (useIt) return context
+    }
+  } else if (context) {
     p.log.warn(
       `Current context "${context}" does not look like a local cluster. Deploying to remote clusters is not supported by the wizard yet — switch to a kind/docker-desktop context, or drive helm directly (see helm/sim/examples/values-production.yaml).`
     )

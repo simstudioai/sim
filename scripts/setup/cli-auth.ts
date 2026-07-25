@@ -6,7 +6,11 @@ import { generateShortId } from '@sim/utils/id'
 import * as p from './prompter.ts'
 import { link, theme } from './theme.ts'
 
-const WAIT_MS = 180_000
+// Generous enough for a first-time user to create an account, wait for the email
+// OTP, land back on /cli/auth, and approve — a few minutes is routine. The
+// server-side approval record has its own short TTL, so a long client wait only
+// costs cheap, rate-limited polls.
+const WAIT_MS = 900_000
 const POLL_INTERVAL_MS = 2000
 
 function openBrowser(url: string): void {
