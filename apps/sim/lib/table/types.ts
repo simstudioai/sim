@@ -348,6 +348,43 @@ export interface TableBackfillJobPayload {
   overwrite: boolean
 }
 
+/**
+ * The four independent mutation verbs a table lock can guard. `schema` covers
+ * column/workflow-group structure; `insert`/`update`/`delete` cover row data.
+ * Shared by the DB columns, the wire contract, the {@link TableLockedError},
+ * and the settings UI so all four agree on one source of truth.
+ */
+export const TABLE_LOCK_KINDS = ['schema', 'insert', 'update', 'delete'] as const
+export type TableLockKind = (typeof TABLE_LOCK_KINDS)[number]
+
+/**
+ * Per-table mutation locks. Each flag independently forbids one verb. Enforced
+ * at the `lib/table` service layer (see `lib/table/mutation-locks.ts`).
+ * Append-only = `{ update: true, delete: true }`; read-only = all four true.
+ */
+export interface TableLocks {
+  schemaLocked: boolean
+  insertLocked: boolean
+  updateLocked: boolean
+  deleteLocked: boolean
+}
+
+/** Maps each verb to the {@link TableLocks} flag that guards it. */
+export const TABLE_LOCK_FLAGS: Record<TableLockKind, keyof TableLocks> = {
+  schema: 'schemaLocked',
+  insert: 'insertLocked',
+  update: 'updateLocked',
+  delete: 'deleteLocked',
+}
+
+/** A fully-unlocked lock set — the state every new table is created in. */
+export const UNLOCKED_TABLE_LOCKS: TableLocks = {
+  schemaLocked: false,
+  insertLocked: false,
+  updateLocked: false,
+  deleteLocked: false,
+}
+
 export interface TableDefinition {
   id: string
   name: string
@@ -358,6 +395,8 @@ export interface TableDefinition {
   maxRows: number
   workspaceId: string
   createdBy: string
+  /** Per-table mutation locks; absent-as-all-false is normalized on read. */
+  locks: TableLocks
   archivedAt?: Date | string | null
   createdAt: Date | string
   updatedAt: Date | string

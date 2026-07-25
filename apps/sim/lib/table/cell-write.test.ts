@@ -47,6 +47,7 @@ const TABLE: TableDefinition = {
   maxRows: 100,
   workspaceId: 'workspace-1',
   createdBy: 'user-1',
+  locks: { schemaLocked: false, insertLocked: false, updateLocked: false, deleteLocked: false },
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   updatedAt: new Date('2026-01-01T00:00:00.000Z'),
 }
@@ -140,7 +141,7 @@ describe('writeWorkflowGroupState', () => {
       },
       TABLE,
       CONTEXT.requestId,
-      { dataWriteMode: 'patch' }
+      { dataWriteMode: 'patch', computedWrite: true }
     )
     expect(mockAppendTableEvent).toHaveBeenCalledWith(
       expect.objectContaining({

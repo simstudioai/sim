@@ -127,6 +127,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           },
           rowCount: table.rowCount,
           maxRows: table.maxRows,
+          locks: table.locks,
           createdAt:
             table.createdAt instanceof Date
               ? table.createdAt.toISOString()
@@ -206,6 +207,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         },
         rowCount: t.rowCount,
         maxRows: t.maxRows,
+        locks: t.locks,
         workspaceId: t.workspaceId,
         createdBy: t.createdBy,
         createdAt: t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),

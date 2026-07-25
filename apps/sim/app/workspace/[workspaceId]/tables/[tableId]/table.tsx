@@ -2,12 +2,13 @@
 
 import { useCallback, useMemo, useReducer, useRef, useState } from 'react'
 import { Chip, ChipConfirmModal, toast } from '@sim/emcn'
-import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@sim/emcn/icons'
+import { Download, Lock, Pencil, Table as TableIcon, Trash, Upload } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
@@ -47,6 +48,7 @@ import {
   ColumnConfigSidebar,
   EnrichmentDetails,
   EnrichmentsSidebar,
+  LockSettingsModal,
   NewColumnDropdown,
   RowModal,
   RunStatusControl,
@@ -61,6 +63,12 @@ import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
 import { COLUMN_TYPE_ICONS } from './components/table-grid/headers'
 import { useTable, useTableEventStream } from './hooks'
 import {
+  type BlockedTableAction,
+  describeBlockedAction,
+  describeLocks,
+  lockedNouns,
+} from './lock-copy'
+import {
   DEFAULT_TABLE_DETAIL_SORT_DIRECTION,
   tableDetailParsers,
   tableDetailUrlKeys,
@@ -69,6 +77,17 @@ import type { QueryOptions } from './types'
 import { generateColumnName } from './utils'
 
 const logger = createLogger('Table')
+
+/**
+ * Client mirror of the server's `table-locks` flag. Hides the settings entry
+ * point when locks can't be set, so the panel never opens onto a Save that
+ * 403s. An already-locked table still shows its state regardless, so the
+ * gating stays legible if the flag is turned off after locks were applied.
+ */
+const tableLocksEnabled = isTruthy(getEnv('NEXT_PUBLIC_TABLE_LOCKS'))
+
+/** Blocked-action toasts carry a button, so they linger past the 5s default. */
+const BLOCKED_TOAST_MS = 8000
 
 interface TableProps {
   /** When set, the table renders without its page header / breadcrumbs / page-level
@@ -155,6 +174,10 @@ export function Table({
 
   const [slideout, dispatch] = useReducer(slideoutReducer, { kind: 'none' })
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
+  const [showLockSettings, setShowLockSettings] = useState(false)
+  // Id of the last blocked-action toast, so a user who keeps typing into a
+  // locked cell replaces one notice rather than stacking a column of them.
+  const blockedToastIdRef = useRef<string | null>(null)
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
   const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
   const [deletingRows, setDeletingRows] = useState<DeletedRowSnapshot[]>([])
@@ -550,10 +573,23 @@ export function Table({
                 icon: Pencil,
                 onClick: handleStartTableRename,
               },
+              // Reachable with the flag off when something is locked, so an
+              // admin can always clear locks (the route allows clearing).
+              ...(userPermissions.canAdmin &&
+              (tableLocksEnabled || lockedNouns(tableData.locks).length > 0)
+                ? [
+                    {
+                      label: 'Lock settings',
+                      icon: Lock,
+                      onClick: () => setShowLockSettings(true),
+                    },
+                  ]
+                : []),
               {
                 label: 'Delete',
                 icon: Trash,
                 onClick: onRequestDeleteTable,
+                disabled: userPermissions.canEdit !== true || tableData.locks.deleteLocked,
               },
             ],
           }
@@ -561,6 +597,8 @@ export function Table({
     ],
     [
       handleNavigateBack,
+      userPermissions.canAdmin,
+      userPermissions.canEdit,
       tableData,
       tableHeaderRename.editingId,
       tableHeaderRename.editValue,
@@ -572,31 +610,89 @@ export function Table({
     ]
   )
 
-  const headerActions = useMemo(
-    () =>
-      tableData
-        ? [
-            {
-              label: 'Import CSV',
-              icon: Upload,
-              onClick: onRequestImportCsv,
-              disabled: userPermissions.canEdit !== true,
-            },
-            {
-              label: 'Export CSV',
-              icon: Download,
-              onClick: () => void handleExportCsv(),
-              disabled: tableData.rowCount === 0,
-            },
-          ]
-        : undefined,
-    [tableData, userPermissions.canEdit, handleExportCsv, onRequestImportCsv]
+  // An admin can always reach the settings on a locked table — clearing locks
+  // stays allowed with the flag off, so the kill switch can't strand one. With
+  // the flag off and nothing locked there is nothing to change, so the toast is
+  // a plain notice with no action.
+  const canOpenLockSettings =
+    userPermissions.canAdmin === true &&
+    (tableLocksEnabled || (tableData ? lockedNouns(tableData.locks).length > 0 : false))
+
+  /**
+   * Explains why a table mutation is unavailable. A toast rather than a modal:
+   * being told you can't edit shouldn't cost a dismiss click, and admins still
+   * get a direct route to the settings via the action button.
+   */
+  const showBlockedToast = useCallback(
+    (action: BlockedTableAction) => {
+      if (!tableData) return
+      if (blockedToastIdRef.current) toast.dismiss(blockedToastIdRef.current)
+      const { title, text } = describeBlockedAction(action, tableData.locks)
+      blockedToastIdRef.current = toast.warning(title, {
+        description: text,
+        ...(canOpenLockSettings
+          ? {
+              action: { label: 'Lock settings', onClick: () => setShowLockSettings(true) },
+              // An action would otherwise pin the toast open until dismissed.
+              duration: BLOCKED_TOAST_MS,
+            }
+          : {}),
+      })
+    },
+    [tableData, canOpenLockSettings]
   )
 
+  const headerActions = useMemo(() => {
+    if (!tableData) return undefined
+    const anyLocked = lockedNouns(tableData.locks).length > 0
+    // Name the mode when locked so the state is legible on open; admins get the
+    // entry point on an unlocked table only where the feature is enabled —
+    // otherwise the panel opens and Save 403s against the server-side gate.
+    const lockLabel = anyLocked ? describeLocks(tableData.locks).name : 'Lock settings'
+    return [
+      ...(anyLocked || (userPermissions.canAdmin && tableLocksEnabled)
+        ? [
+            {
+              label: lockLabel,
+              icon: Lock,
+              onClick: () =>
+                userPermissions.canAdmin ? setShowLockSettings(true) : showBlockedToast('status'),
+            },
+          ]
+        : []),
+      {
+        label: 'Import CSV',
+        icon: Upload,
+        onClick: onRequestImportCsv,
+        // An import always inserts, so the insert lock disables it outright
+        // rather than letting the dialog run to a server-side 423.
+        disabled: userPermissions.canEdit !== true || tableData.locks.insertLocked,
+      },
+      {
+        label: 'Export CSV',
+        icon: Download,
+        onClick: () => void handleExportCsv(),
+        disabled: tableData.rowCount === 0,
+      },
+    ]
+  }, [
+    tableData,
+    userPermissions.canEdit,
+    userPermissions.canAdmin,
+    handleExportCsv,
+    onRequestImportCsv,
+    showBlockedToast,
+  ])
+
+  // Adding a column is a schema change. The trigger stays visible when the
+  // table is schema-locked and explains itself instead of disappearing.
+  const canMutateSchema = userPermissions.canEdit && !tableData?.locks.schemaLocked
   const createTrigger = userPermissions.canEdit ? (
     <NewColumnDropdown
       trigger='header'
       disabled={false}
+      blocked={!canMutateSchema}
+      onBlocked={() => showBlockedToast('add-column')}
       onPickType={handleAddColumnOfType}
       onPickWorkflow={handleAddWorkflowColumn}
       onPickEnrichment={onOpenEnrichments}
@@ -719,6 +815,8 @@ export function Table({
         workspaceId={workspaceId}
         tableId={tableId}
         embedded={embedded}
+        locks={tableData?.locks}
+        onBlockedAction={showBlockedToast}
         sidebarReservedPx={sidebarReservedPx}
         onOpenColumnConfig={onOpenColumnConfig}
         onOpenWorkflowConfig={onOpenWorkflowConfig}
@@ -971,6 +1069,15 @@ export function Table({
             pending: deleteTableMutation.isPending,
             pendingLabel: 'Deleting...',
           }}
+        />
+      )}
+      {tableData && userPermissions.canAdmin && (
+        <LockSettingsModal
+          isOpen={showLockSettings}
+          onClose={() => setShowLockSettings(false)}
+          workspaceId={workspaceId}
+          tableId={tableData.id}
+          locks={tableData.locks}
         />
       )}
     </Resource>

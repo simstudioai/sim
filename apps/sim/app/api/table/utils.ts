@@ -11,7 +11,26 @@ import type { MultipartError } from '@/lib/core/utils/multipart'
 import type { ColumnDefinition, Filter, TableDefinition } from '@/lib/table'
 import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
+import { TableLockedError } from '@/lib/table/mutation-locks'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+
+/**
+ * Maps a {@link TableLockedError} thrown by the service layer to a 423 response
+ * carrying `{ error, lock }`; returns `null` for any other error so the caller
+ * falls through to its existing handling. Call this as the FIRST statement of a
+ * table route's catch block — otherwise `rowWriteErrorResponse` (and the other
+ * substring funnels) turn the lock error into a generic 500.
+ *
+ * The body deliberately omits a `details` array: the client's `isValidationError`
+ * treats any `ApiClientError` with array-valued `details` as a field-validation
+ * error and swallows its toast, so a lock rejection must not carry one.
+ */
+export function tableLockErrorResponse(error: unknown): NextResponse | null {
+  if (error instanceof TableLockedError) {
+    return NextResponse.json({ error: error.message, lock: error.lock }, { status: 423 })
+  }
+  return null
+}
 
 /**
  * Validates a `filter` against the table's column schema, returning a 400 response on a bad field
@@ -78,6 +97,11 @@ const ROW_WRITE_ERROR_PATTERNS = [
  * unrecognized and the caller should log it and return its generic 500.
  */
 export function rowWriteErrorResponse(error: unknown): NextResponse | null {
+  // A lock violation is a 423, not a 400/500 — check before the pattern match,
+  // which would otherwise let it fall through to the caller's generic 500.
+  const lockResponse = tableLockErrorResponse(error)
+  if (lockResponse) return lockResponse
+
   const message = rootErrorMessage(error)
 
   if (ROW_WRITE_ERROR_PATTERNS.some((p) => message.includes(p)) || /^Row .+?:/.test(message)) {

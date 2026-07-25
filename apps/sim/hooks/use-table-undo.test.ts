@@ -13,6 +13,10 @@ vi.mock('react', () => ({
 const mockMutate = vi.fn()
 const mockMutateAsync = vi.fn()
 
+vi.mock('@sim/emcn', () => ({
+  toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }),
+}))
+
 vi.mock('@/hooks/queries/tables', () => ({
   useUpdateTableRow: vi.fn(() => ({ mutate: mockMutate })),
   useCreateTableRow: vi.fn(() => ({ mutate: mockMutate })),
@@ -49,7 +53,10 @@ const storeState = {
 }
 
 vi.mock('@/stores/table/store', () => ({
-  useTableUndoStore: vi.fn((selector: (s: typeof storeState) => unknown) => selector(storeState)),
+  useTableUndoStore: Object.assign(
+    vi.fn((selector: (s: typeof storeState) => unknown) => selector(storeState)),
+    { getState: () => storeState }
+  ),
   runWithoutRecording: (fn: () => unknown) => Promise.resolve(fn()),
 }))
 
