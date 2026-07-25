@@ -609,7 +609,10 @@ export function LoadedRichMarkdownEditor({
     provider.on('synced', onProgress)
     provider.on('join-error', onJoinError)
     config.observe(report)
+    // Catch a seed-request / fatal join-error that fired before this subscription
+    // (both are latched on the provider).
     onProgress()
+    if (provider.joinError) onJoinError(provider.joinError)
 
     return () => {
       provider.off('seed-request', onProgress)
@@ -732,12 +735,12 @@ export function LoadedRichMarkdownEditor({
       // entirely. `setTextSelection` (not `.focus()`) so this never steals DOM focus from whatever the
       // user is doing outside the editor.
       editor.commands.setTextSelection(editor.state.doc.content.size)
-      editor.setEditable(canEdit && settledRef.current.verdict)
+      editor.setEditable(canEdit && settledRef.current.verdict && collabReady)
       if (isInitialSettle && autoFocus) editor.commands.focus('end')
       return
     }
     syncEditorBody(splitFrontmatter(content).body)
-    if (settledRef.current) editor.setEditable(canEdit && settledRef.current.verdict)
+    if (settledRef.current) editor.setEditable(canEdit && settledRef.current.verdict && collabReady)
   }, [
     editor,
     content,
@@ -746,6 +749,7 @@ export function LoadedRichMarkdownEditor({
     autoFocus,
     disableStreamingAutoScroll,
     collaborationEnabled,
+    collabReady,
   ])
 
   useEffect(

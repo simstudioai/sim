@@ -183,19 +183,22 @@ describe('FileDocProvider', () => {
     expect(emittedMessages(emit).some((m) => m[0] === FILE_DOC_MESSAGE_TYPE.AWARENESS)).toBe(false)
   })
 
-  it('stops attempting to join after a non-retryable error', () => {
-    const { emit, fire } = createProvider(true)
+  it('stops attempting to join and latches joinError after a non-retryable error', () => {
+    const { provider, emit, fire } = createProvider(true)
     emit.mockClear()
 
-    fire(FILE_DOC_EVENTS.JOIN_ERROR, {
+    const error = {
       fileId: 'file-1',
       error: 'Access denied',
       code: 'ACCESS_DENIED',
       retryable: false,
-    })
+    }
+    fire(FILE_DOC_EVENTS.JOIN_ERROR, error)
     fire('connect')
 
     expect(emit).not.toHaveBeenCalledWith(FILE_DOC_EVENTS.JOIN, expect.anything())
+    // Latched so a consumer subscribing after the event can still detect the failure.
+    expect(provider.joinError).toEqual(error)
   })
 
   it('still rejoins on reconnect after a retryable error', () => {

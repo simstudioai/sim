@@ -49,6 +49,12 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
    * so consumers read this flag on subscription rather than relying on the event.
    */
   shouldSeed = false
+  /**
+   * The latched non-retryable join rejection, or `null`. Like {@link shouldSeed},
+   * the `join-error` event is transient and can fire before a consumer subscribes,
+   * so consumers read this on subscription to detect a fatal failure they missed.
+   */
+  joinError: JoinFileDocError | null = null
 
   private disposed = false
   /** Set on a non-retryable join rejection (e.g. lost write access) so the
@@ -108,7 +114,10 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
    */
   private handleJoinError = (data: JoinFileDocError) => {
     if (data.fileId !== this.fileId) return
-    if (data.retryable === false) this.fatal = true
+    if (data.retryable === false) {
+      this.fatal = true
+      this.joinError = data
+    }
     this.emit('join-error', [data])
   }
 
