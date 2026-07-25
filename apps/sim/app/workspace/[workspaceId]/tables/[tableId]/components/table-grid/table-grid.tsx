@@ -572,6 +572,8 @@ export function TableGrid({
   canEditCellRef.current = canEditCell
   const canManualAddRowRef = useRef(canManualAddRow)
   canManualAddRowRef.current = canManualAddRow
+  const canInsertFullRowRef = useRef(canInsertFullRow)
+  canInsertFullRowRef.current = canInsertFullRow
   // Read by the closure-free double-click handler to tell "locked" apart from
   // "no write permission" — only the former gets the explanation modal.
   const updateLockedRef = useRef(locks?.updateLocked)
@@ -2346,6 +2348,12 @@ export function TableGrid({
       if (e.key === ' ' && !e.shiftKey) {
         if (!canEditRef.current) return
         e.preventDefault()
+        // Space opens the same row editor as double-click, so it follows the
+        // update lock too — otherwise the form fills in and only 423s on save.
+        if (updateLockedRef.current) {
+          onBlockedActionRef.current('edit-cell')
+          return
+        }
         const row = currentRows[anchor.rowIndex]
         if (row) {
           onOpenRowModalRef.current(row)
@@ -2840,10 +2848,7 @@ export function TableGrid({
     const handlePaste = (e: ClipboardEvent) => {
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
-      // Paste overwrites the selected cells (an edit). Under an update lock we
-      // block it wholesale — the append-into-new-rows variant is a rarer path
-      // the user can still reach via the Add row button.
-      if (!canEditCellRef.current) return
+      if (!canEditRef.current) return
 
       const currentAnchor = selectionAnchorRef.current
       if (!currentAnchor || editingCellRef.current) return
@@ -2897,6 +2902,20 @@ export function TableGrid({
         } else {
           createBatchRows.push(rowData)
         }
+      }
+
+      // A paste can do two different things at once: overwrite existing rows
+      // (an update) and extend past the last row (a full-row insert). Gate each
+      // against its own lock, and refuse the whole paste rather than applying
+      // half of it — so a full-row paste-append still works on an append-only
+      // table, while an overwrite on that same table explains itself.
+      if (updateBatch.length > 0 && !canEditCellRef.current) {
+        onBlockedActionRef.current('edit-cell')
+        return
+      }
+      if (createBatchRows.length > 0 && !canInsertFullRowRef.current) {
+        onBlockedActionRef.current('add-row')
+        return
       }
 
       if (updateBatch.length > 0) {

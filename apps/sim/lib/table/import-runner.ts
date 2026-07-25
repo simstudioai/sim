@@ -29,6 +29,7 @@ import {
 } from '@/lib/table/import-data'
 import { markJobFailed, markJobReady, updateJobProgress } from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowInsert } from '@/lib/table/mutation-locks'
+import type { DbTransaction } from '@/lib/table/planner'
 import { nextImportStartOrderKey, nextImportStartPosition } from '@/lib/table/rows/ordering'
 import { getTableById } from '@/lib/table/service'
 import { deleteFile, downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
@@ -103,11 +104,17 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     // fails up front instead of after `deleteAllTableRows` has already wiped it.
     // (The sync replace path gets this for free from `replaceTableRowsWithTx`,
     // which asserts both in one place; this path deletes and inserts separately.)
-    // Checked once, unlike the delete/update runners which re-check per page: a
-    // lock landing mid-import should let the file finish, since a half-imported
-    // table has to be cleaned up with the very deletes the lock now forbids.
     assertRowInsert(table)
     if (mode === 'replace') assertRowDelete(table)
+
+    // Re-asserted inside every batch's insert transaction, under the same
+    // advisory lock `updateTableLocks` writes with, so enabling the insert lock
+    // mid-import stops it at the next batch instead of letting the rest of the
+    // file through. Rows already committed stay — as with an explicit cancel.
+    const revalidateInsert = async (trx: DbTransaction) => {
+      const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
+      if (fresh) assertRowInsert(fresh)
+    }
 
     // Total byte size for the progress estimate — a cheap HEAD, no download. May be null on
     // the local dev provider, in which case the bar stays indeterminate (rows still show).
@@ -244,7 +251,8 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
           afterOrderKey: lastOrderKey,
         },
         { ...table, schema },
-        requestId
+        requestId,
+        revalidateInsert
       )
       notifyTableRowUsage({
         workspaceId,

@@ -13,7 +13,11 @@ import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
 import { assertRowDelete, assertRowInsert, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import { nKeysBetween } from '@/lib/table/order-key'
-import { acquireRowOrderLock } from '@/lib/table/rows/ordering'
+import {
+  acquireRowOrderLock,
+  guardBatch,
+  type MutationRevalidator,
+} from '@/lib/table/rows/ordering'
 import { batchInsertRowsWithTx, replaceTableRowsWithTx } from '@/lib/table/rows/service'
 import { addTableColumnsWithTx, auditTableColumnsAdded } from '@/lib/table/service'
 import type {
@@ -61,7 +65,9 @@ export interface BulkImportBatch {
 export async function bulkInsertImportBatch(
   data: BulkImportBatch,
   table: TableDefinition,
-  requestId: string
+  requestId: string,
+  /** Re-asserts the insert lock inside the write transaction. See {@link guardBatch}. */
+  revalidate?: MutationRevalidator
 ): Promise<{ inserted: number; lastOrderKey: string | null }> {
   assertRowInsert(table)
 
@@ -107,7 +113,10 @@ export async function bulkInsertImportBatch(
     ...(data.userId ? { createdBy: data.userId } : {}),
   }))
 
-  await db.insert(userTableRows).values(rowsToInsert)
+  await db.transaction(async (trx) => {
+    await guardBatch(trx, data.tableId, revalidate)
+    await trx.insert(userTableRows).values(rowsToInsert)
+  })
   logger.info(`[${requestId}] Bulk-imported ${rowsToInsert.length} rows into table ${data.tableId}`)
   return {
     inserted: rowsToInsert.length,

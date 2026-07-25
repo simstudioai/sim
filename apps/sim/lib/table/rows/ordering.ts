@@ -409,7 +409,7 @@ export type MutationRevalidator = (trx: DbTransaction) => Promise<void>
  * waits for this batch to finish. Without it, the caller's proof would only
  * describe the lock state at some earlier point in the run.
  */
-async function guardBatch(
+export async function guardBatch(
   trx: DbTransaction,
   tableId: string,
   revalidate: MutationRevalidator | undefined
