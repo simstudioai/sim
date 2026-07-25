@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { LRUCache } from 'lru-cache'
 import { isOrganizationsEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('SecurityPolicy')
@@ -21,62 +22,42 @@ const logger = createLogger('SecurityPolicy')
  * which is what keeps a stale version from ever pairing with a stale policy.
  */
 export const SECURITY_POLICY_VERSION_CACHE_TTL_MS = 60 * 1000
+const SECURITY_POLICY_VERSION_CACHE_MAX_ENTRIES = 5_000
+
+const MEMBERSHIP_CACHE_TTL_MS = 60 * 1000
+const MEMBERSHIP_CACHE_MAX_ENTRIES = 20_000
 
 /**
- * Entry caps. Both maps only ever grow through explicit writes, so without a
- * bound a long-lived process accumulates one entry per distinct org/user it has
- * ever served.
+ * Negative (non-member) membership results use a much shorter TTL than
+ * positive ones: a user's cached `null` would otherwise let them dodge a new
+ * org's policy for the full TTL after joining through ANY path — including
+ * ones outside this codebase (Better Auth SSO JIT provisioning writes `member`
+ * rows straight through the adapter, and this app registers no `member`
+ * database hook that could observe it). Positive results change only through
+ * leave/transfer, which invalidate explicitly.
  */
-const MAX_VERSION_CACHE_ENTRIES = 5_000
-const MAX_MEMBERSHIP_CACHE_ENTRIES = 20_000
-
-/**
- * Fraction of the cap an over-capacity prune evicts down to. Trimming to a low
- * water mark rather than exactly to the cap is what keeps eviction amortized
- * O(1): pruning back to the cap would leave the very next insert over again, so
- * every subsequent write would rescan the whole map.
- */
-const PRUNE_TARGET_RATIO = 0.9
+const NEGATIVE_MEMBERSHIP_CACHE_TTL_MS = 15 * 1000
 
 const DEFAULT_VERSION = 1
 
+const versionCache = new LRUCache<string, number>({
+  max: SECURITY_POLICY_VERSION_CACHE_MAX_ENTRIES,
+  ttl: SECURITY_POLICY_VERSION_CACHE_TTL_MS,
+})
+
 /**
- * Evicts down to a low water mark, expired entries first. Map iteration follows
- * insertion order and {@link touch} re-inserts on every refresh, so whatever
- * remains at the head is the least recently refreshed.
+ * Boxed because a resolved non-member is a cached VALUE, not a cache miss, and
+ * `LRUCache` constrains values to non-nullish types — so `null` cannot be
+ * stored directly and would be indistinguishable from a miss if it could.
  */
-function prune(cache: Map<string, { fetchedAt: number }>, maxEntries: number): void {
-  if (cache.size <= maxEntries) return
-  const target = Math.floor(maxEntries * PRUNE_TARGET_RATIO)
-  const cutoff = Date.now() - SECURITY_POLICY_VERSION_CACHE_TTL_MS
-  for (const [key, entry] of cache) {
-    if (cache.size <= target) break
-    if (entry.fetchedAt < cutoff) cache.delete(key)
-  }
-  for (const key of cache.keys()) {
-    if (cache.size <= target) break
-    cache.delete(key)
-  }
+interface MembershipCacheEntry {
+  organizationId: string | null
 }
 
-/** Re-inserts so insertion order tracks recency of refresh, then prunes. */
-function touch<T extends { fetchedAt: number }>(
-  cache: Map<string, T>,
-  key: string,
-  entry: T,
-  maxEntries: number
-): void {
-  cache.delete(key)
-  cache.set(key, entry)
-  prune(cache, maxEntries)
-}
-
-interface VersionCacheEntry {
-  version: number
-  fetchedAt: number
-}
-
-const versionCache = new Map<string, VersionCacheEntry>()
+const membershipCache = new LRUCache<string, MembershipCacheEntry>({
+  max: MEMBERSHIP_CACHE_MAX_ENTRIES,
+  ttl: MEMBERSHIP_CACHE_TTL_MS,
+})
 
 /**
  * Resolves the org's security-policy version — the shared monotonic counter
@@ -95,9 +76,7 @@ export async function getSecurityPolicyVersion(
   if (!organizationId) return DEFAULT_VERSION
 
   const cached = versionCache.get(organizationId)
-  if (cached && Date.now() - cached.fetchedAt < SECURITY_POLICY_VERSION_CACHE_TTL_MS) {
-    return cached.version
-  }
+  if (cached !== undefined) return cached
 
   try {
     const [row] = await db
@@ -107,19 +86,14 @@ export async function getSecurityPolicyVersion(
       .limit(1)
 
     const version = row?.version ?? DEFAULT_VERSION
-    // The counter only ever increments, so a read resolving LOWER than what is
-    // already cached started before the newer one. Neither store it nor return
-    // it: a late value would re-serve a pre-bump version, keeping cookies
-    // matched and letting revoked sessions stay on the cookie cache.
-    const current = versionCache.get(organizationId)
-    if (current && current.version > version) return current.version
+    // Re-check after the await. The counter only ever increments, so a value
+    // that landed while this read was in flight is newer — neither store nor
+    // return ours, or a late read would re-serve a pre-bump version and keep
+    // cookies matched past a revocation.
+    const concurrent = versionCache.get(organizationId)
+    if (concurrent !== undefined && concurrent > version) return concurrent
 
-    touch(
-      versionCache,
-      organizationId,
-      { version, fetchedAt: Date.now() },
-      MAX_VERSION_CACHE_ENTRIES
-    )
+    versionCache.set(organizationId, version)
     return version
   } catch (error) {
     logger.error('Failed to resolve security policy version; using default', {
@@ -141,27 +115,9 @@ export async function getSecurityPolicyVersion(
  */
 export function setSecurityPolicyVersion(organizationId: string, version: number): void {
   const current = versionCache.get(organizationId)
-  if (current && current.version > version) return
-  touch(versionCache, organizationId, { version, fetchedAt: Date.now() }, MAX_VERSION_CACHE_ENTRIES)
+  if (current !== undefined && current > version) return
+  versionCache.set(organizationId, version)
 }
-
-interface MembershipCacheEntry {
-  organizationId: string | null
-  fetchedAt: number
-}
-
-const membershipCache = new Map<string, MembershipCacheEntry>()
-
-/**
- * Negative (non-member) membership results use a much shorter TTL than
- * positive ones: a user's cached `null` would otherwise let them dodge a new
- * org's policy for the full TTL after joining through ANY path — including
- * ones outside this codebase (Better Auth SSO JIT provisioning writes `member`
- * rows straight through the adapter, and this app registers no `member`
- * database hook that could observe it). Positive results change only through
- * leave/transfer, which invalidate explicitly.
- */
-const NEGATIVE_MEMBERSHIP_CACHE_TTL_MS = 15 * 1000
 
 /** Drops the cached membership for a user (call when they join/leave an org). */
 export function invalidateMembershipCache(userId: string): void {
@@ -187,12 +143,7 @@ export async function getMemberOrganizationId(
   if (!userId) return null
 
   const cached = membershipCache.get(userId)
-  if (cached) {
-    const ttl = cached.organizationId
-      ? SECURITY_POLICY_VERSION_CACHE_TTL_MS
-      : NEGATIVE_MEMBERSHIP_CACHE_TTL_MS
-    if (Date.now() - cached.fetchedAt < ttl) return cached.organizationId
-  }
+  if (cached) return cached.organizationId
 
   const [row] = await db
     .select({ organizationId: member.organizationId })
@@ -201,11 +152,10 @@ export async function getMemberOrganizationId(
     .limit(1)
 
   const organizationId = row?.organizationId ?? null
-  touch(
-    membershipCache,
+  membershipCache.set(
     userId,
-    { organizationId, fetchedAt: Date.now() },
-    MAX_MEMBERSHIP_CACHE_ENTRIES
+    { organizationId },
+    organizationId ? undefined : { ttl: NEGATIVE_MEMBERSHIP_CACHE_TTL_MS }
   )
   return organizationId
 }
