@@ -11,6 +11,7 @@ import { userTableRows } from '@sim/db/schema'
 import { and, asc, desc, eq, gt, inArray, lt, lte, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
+import type { MutationProof } from '@/lib/table/mutation-locks'
 import { keyBetween, nKeysBetween } from '@/lib/table/order-key'
 import { type DbExecutor, type DbTransaction, withSeqscanOff } from '@/lib/table/planner'
 import { setTableTxTimeouts } from '@/lib/table/tx'
@@ -194,6 +195,8 @@ export async function insertOrderedRow(params: {
   beforeRowId?: string
   createdBy?: string
   now: Date
+  /** Proof the caller asserted the insert lock (see `mutation-locks.ts`). */
+  proof: MutationProof<'insert'>
 }): Promise<{
   id: string
   data: RowData
@@ -252,6 +255,8 @@ export async function deleteOrderedRow(params: {
   tableId: string
   rowId: string
   workspaceId: string
+  /** Proof the caller asserted the delete lock (see `mutation-locks.ts`). */
+  proof: MutationProof<'delete'>
 }): Promise<boolean> {
   const { tableId, rowId, workspaceId } = params
   return db.transaction(async (trx) => {
@@ -280,6 +285,8 @@ export async function deleteOrderedRowsByIds(params: {
   tableId: string
   workspaceId: string
   rowIds: string[]
+  /** Proof the caller asserted the delete lock (see `mutation-locks.ts`). */
+  proof: MutationProof<'delete'>
 }): Promise<{ id: string }[]> {
   const { tableId, workspaceId, rowIds } = params
   if (rowIds.length === 0) return []
@@ -401,7 +408,9 @@ export async function selectRowDataPage(params: {
 export async function deletePageByIds(
   tableId: string,
   workspaceId: string,
-  rowIds: string[]
+  rowIds: string[],
+  /** Proof the caller asserted the delete lock (see `mutation-locks.ts`). */
+  _proof: MutationProof<'delete'>
 ): Promise<number> {
   let deleted = 0
   for (let i = 0; i < rowIds.length; i += TABLE_LIMITS.DELETE_BATCH_SIZE) {
@@ -433,7 +442,9 @@ export async function updatePageByIds(
   tableId: string,
   workspaceId: string,
   rowIds: string[],
-  patchJson: string
+  patchJson: string,
+  /** Proof the caller asserted the update lock (see `mutation-locks.ts`). */
+  _proof: MutationProof<'update'>
 ): Promise<number> {
   const now = new Date()
   let updated = 0

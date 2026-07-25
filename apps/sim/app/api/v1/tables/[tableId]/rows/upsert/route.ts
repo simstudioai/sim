@@ -9,7 +9,7 @@ import type { RowData, TableSchema } from '@/lib/table'
 import { upsertRow } from '@/lib/table'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
-import { accessError, checkAccess } from '@/app/api/table/utils'
+import { accessError, checkAccess, tableLockErrorResponse } from '@/app/api/table/utils'
 import {
   checkRateLimit,
   checkWorkspaceScope,
@@ -92,6 +92,8 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
       },
     })
   } catch (error) {
+    const lockError = tableLockErrorResponse(error)
+    if (lockError) return lockError
     const validationResponse = validationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 

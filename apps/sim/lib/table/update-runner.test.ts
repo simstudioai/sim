@@ -99,14 +99,16 @@ describe('runTableUpdate', () => {
       'tbl_1',
       'ws_1',
       ['a', 'b'],
-      expect.any(String)
+      expect.any(String),
+      expect.anything()
     )
     expect(mockUpdatePageByIds).toHaveBeenNthCalledWith(
       2,
       'tbl_1',
       'ws_1',
       ['c'],
-      expect.any(String)
+      expect.any(String),
+      expect.anything()
     )
     expect(mockMarkJobReady).toHaveBeenCalledWith('tbl_1', 'job_1')
     expect(mockAppendTableEvent).toHaveBeenCalledWith(

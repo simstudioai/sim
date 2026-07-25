@@ -159,7 +159,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         // the same ids).
         schema = withGeneratedColumnIds({ columns: inferred.columns.map(normalizeColumn) })
         headerToColumn = inferred.headerToColumn
-        await setTableSchemaForImport(tableId, schema)
+        await setTableSchemaForImport(table, schema)
         return
       }
 
@@ -204,7 +204,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       // Replace deletes existing rows only after schema/mapping validation passes, so an
       // invalid or empty file fails the import with the old rows still intact (a mid-stream
       // insert failure after this point leaves a partial replace — replace is destructive).
-      if (mode === 'replace') await deleteAllTableRows(tableId)
+      if (mode === 'replace') await deleteAllTableRows(table)
     }
 
     const flush = async (rows: Record<string, unknown>[]) => {

@@ -44,6 +44,7 @@ import {
   checkAccess,
   csvProxyBodyCapResponse,
   multipartErrorResponse,
+  tableLockErrorResponse,
 } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportCSVExisting')
@@ -408,6 +409,8 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       throw err
     }
   } catch (error) {
+    const lockError = tableLockErrorResponse(error)
+    if (lockError) return lockError
     if (isMultipartError(error)) return multipartErrorResponse(error)
 
     const message = toError(error).message

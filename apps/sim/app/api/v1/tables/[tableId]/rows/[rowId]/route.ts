@@ -13,10 +13,10 @@ import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
-import { updateRow } from '@/lib/table'
+import { deleteRow, updateRow } from '@/lib/table'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
-import { accessError, checkAccess } from '@/app/api/table/utils'
+import { accessError, checkAccess, tableLockErrorResponse } from '@/app/api/table/utils'
 import {
   checkRateLimit,
   checkWorkspaceScope,
@@ -179,6 +179,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       },
     })
   } catch (error) {
+    const lockError = tableLockErrorResponse(error)
+    if (lockError) return lockError
     const validationResponse = validationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
@@ -232,20 +234,9 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const [deletedRow] = await db
-      .delete(userTableRows)
-      .where(
-        and(
-          eq(userTableRows.id, rowId),
-          eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, workspaceId)
-        )
-      )
-      .returning({ id: userTableRows.id })
-
-    if (!deletedRow) {
-      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
-    }
+    // Route through the service (not a raw `db.delete`) so the delete lock is
+    // enforced — the raw path would return 200 on a locked table.
+    await deleteRow(result.table, rowId, requestId)
 
     return NextResponse.json({
       success: true,
@@ -255,6 +246,11 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
       },
     })
   } catch (error) {
+    const lockError = tableLockErrorResponse(error)
+    if (lockError) return lockError
+    if (error instanceof Error && error.message === 'Row not found') {
+      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
+    }
     logger.error(`[${requestId}] Error deleting row:`, error)
     return NextResponse.json({ error: 'Failed to delete row' }, { status: 500 })
   }

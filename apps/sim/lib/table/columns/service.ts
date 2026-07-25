@@ -15,6 +15,7 @@ import { createLogger } from '@sim/logger'
 import { and, count, eq, sql } from 'drizzle-orm'
 import { columnMatchesRef, generateColumnId, getColumnId } from '@/lib/table/column-keys'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
 import { selectValueToNames } from '@/lib/table/select-values'
@@ -67,6 +68,7 @@ export async function addTableColumn(
   requestId: string
 ): Promise<TableDefinition> {
   return withLockedTable(tableId, async (table, trx) => {
+    assertSchemaMutable(table)
     if (!NAME_PATTERN.test(column.name)) {
       throw new Error(
         `Invalid column name "${column.name}". Must start with a letter or underscore and contain only alphanumeric characters and underscores.`
@@ -178,6 +180,7 @@ export async function renameColumn(
   requestId: string
 ): Promise<TableDefinition> {
   return withLockedTable(data.tableId, async (table, trx) => {
+    assertSchemaMutable(table)
     if (!NAME_PATTERN.test(data.newName)) {
       throw new Error(
         `Invalid column name "${data.newName}". Column names must start with a letter or underscore, followed by alphanumeric characters or underscores.`
@@ -312,6 +315,7 @@ export async function deleteColumn(
   requestId: string
 ): Promise<TableDefinition> {
   const { def, stripKey } = await withLockedTable(data.tableId, async (table, trx) => {
+    assertColumnDestructive(table)
     const schema = table.schema
     const columnIndex = schema.columns.findIndex((c) => columnMatchesRef(c, data.columnName))
     if (columnIndex === -1) {
@@ -390,6 +394,7 @@ export async function deleteColumns(
   requestId: string
 ): Promise<TableDefinition> {
   const { def, stripKeys } = await withLockedTable(data.tableId, async (table, trx) => {
+    assertColumnDestructive(table)
     const schema = table.schema
     const namesToDelete = new Set<string>()
     const idsToDelete = new Set<string>()
@@ -482,6 +487,8 @@ export async function updateColumnType(
   requestId: string
 ): Promise<TableDefinition> {
   return withLockedTable(data.tableId, async (table, trx) => {
+    // Retype reinterprets every stored value under a new type — destructive.
+    assertColumnDestructive(table)
     // Scale both statement and idle timeouts to row count: the compatibility
     // check below iterates every row in Node between the row SELECT and the
     // schema UPDATE, leaving the transaction idle for that gap. The default 5s
@@ -645,6 +652,7 @@ export async function updateColumnConstraints(
   requestId: string
 ): Promise<TableDefinition> {
   return withLockedTable(data.tableId, async (table, trx) => {
+    assertSchemaMutable(table)
     // Scale both statement and idle timeouts to row count: the required/unique
     // validation runs between separate queries inside this transaction, leaving
     // it briefly idle. Match `updateColumnType` so the default 5s

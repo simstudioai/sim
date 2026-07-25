@@ -25,6 +25,12 @@ import {
 } from '@/lib/table/billing'
 import { getColumnId } from '@/lib/table/column-keys'
 import { getMaxPageBytes, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
+import {
+  assertRowDelete,
+  assertRowInsert,
+  assertRowUpdate,
+  patchColumnIds,
+} from '@/lib/table/mutation-locks'
 import { nKeysBetween } from '@/lib/table/order-key'
 import { type DbExecutor, type DbTransaction, withSeqscanOff } from '@/lib/table/planner'
 import {
@@ -99,6 +105,8 @@ export async function insertRow(
   table: TableDefinition,
   requestId: string
 ): Promise<TableRow> {
+  const insertProof = assertRowInsert(table)
+
   // Validate row size
   const sizeValidation = validateRowSize(data.data)
   if (!sizeValidation.valid) {
@@ -140,6 +148,7 @@ export async function insertRow(
     beforeRowId: data.beforeRowId,
     createdBy: data.userId,
     now,
+    proof: insertProof,
   })
 
   notifyTableRowUsage({
@@ -231,6 +240,8 @@ export async function batchInsertRowsWithTx(
   table: TableDefinition,
   requestId: string
 ): Promise<TableRow[]> {
+  assertRowInsert(table)
+
   for (let i = 0; i < data.rows.length; i++) {
     const row = data.rows[i]
 
@@ -382,6 +393,9 @@ export async function replaceTableRowsWithTx(
   table: TableDefinition,
   requestId: string
 ): Promise<ReplaceRowsResult> {
+  assertRowDelete(table)
+  assertRowInsert(table)
+
   if (data.tableId !== table.id) {
     throw new Error(`Table ID mismatch: ${data.tableId} vs ${table.id}`)
   }
@@ -626,6 +640,7 @@ export async function upsertRow(
     }
 
     if (matchedRowId) {
+      assertRowUpdate(table, patchColumnIds(data.data))
       const [updatedRow] = await trx
         .update(userTableRows)
         .set({ data: data.data, updatedAt: now })
@@ -647,6 +662,8 @@ export async function upsertRow(
         operation: 'update' as const,
       }
     }
+
+    assertRowInsert(table)
 
     if (wouldExceedRowLimit(rowLimit, table.rowCount, 1)) {
       throw new TableRowLimitError(rowLimit)
@@ -1165,6 +1182,8 @@ export async function updateRow(
   requestId: string,
   options: UpdateRowOptions = {}
 ): Promise<TableRow | null> {
+  assertRowUpdate(table, patchColumnIds(data.data))
+
   // Get existing row
   const existingRow = await getRowById(data.tableId, data.rowId, data.workspaceId)
   if (!existingRow) {
@@ -1347,15 +1366,20 @@ export async function updateRow(
  * @throws Error if row not found
  */
 export async function deleteRow(
-  tableId: string,
+  table: TableDefinition,
   rowId: string,
-  workspaceId: string,
   requestId: string
 ): Promise<void> {
-  const deleted = await deleteOrderedRow({ tableId, rowId, workspaceId })
+  const proof = assertRowDelete(table)
+  const deleted = await deleteOrderedRow({
+    tableId: table.id,
+    rowId,
+    workspaceId: table.workspaceId,
+    proof,
+  })
   if (!deleted) throw new Error('Row not found')
 
-  logger.info(`[${requestId}] Deleted row ${rowId} from table ${tableId}`)
+  logger.info(`[${requestId}] Deleted row ${rowId} from table ${table.id}`)
 }
 
 /**
@@ -1371,6 +1395,8 @@ export async function updateRowsByFilter(
   data: BulkUpdateData,
   requestId: string
 ): Promise<BulkOperationResult> {
+  assertRowUpdate(table, patchColumnIds(data.data))
+
   const tableName = USER_TABLE_ROWS_SQL_NAME
 
   const filterClause = buildFilterClause(data.filter, tableName, table.schema.columns)
@@ -1512,6 +1538,12 @@ export async function batchUpdateRows(
   if (data.updates.length === 0) {
     return { affectedCount: 0, affectedRowIds: [] }
   }
+
+  // Also the workflow-column backfill write path.
+  assertRowUpdate(
+    table,
+    data.updates.flatMap((u) => patchColumnIds(u.data))
+  )
 
   const rowIds = data.updates.map((u) => u.rowId)
   const existingRows = await db
@@ -1712,6 +1744,8 @@ export async function deleteRowsByFilter(
   data: BulkDeleteData,
   requestId: string
 ): Promise<BulkOperationResult> {
+  const proof = assertRowDelete(table)
+
   const tableName = USER_TABLE_ROWS_SQL_NAME
 
   // Build filter clause
@@ -1748,6 +1782,7 @@ export async function deleteRowsByFilter(
     tableId: table.id,
     workspaceId: table.workspaceId,
     rowIds,
+    proof,
   })
 
   logger.info(`[${requestId}] Deleted ${matchingRows.length} rows from table ${table.id}`)
@@ -1766,15 +1801,19 @@ export async function deleteRowsByFilter(
  * @returns Deletion result with deleted/missing row IDs
  */
 export async function deleteRowsByIds(
+  table: TableDefinition,
   data: BulkDeleteByIdsData,
   requestId: string
 ): Promise<BulkDeleteByIdsResult> {
+  const proof = assertRowDelete(table)
+
   const uniqueRequestedRowIds = Array.from(new Set(data.rowIds))
 
   const deletedRows = await deleteOrderedRowsByIds({
     tableId: data.tableId,
     workspaceId: data.workspaceId,
     rowIds: uniqueRequestedRowIds,
+    proof,
   })
 
   const deletedIds = deletedRows.map((r) => r.id)

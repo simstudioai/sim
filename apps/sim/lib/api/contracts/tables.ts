@@ -9,6 +9,7 @@ import type {
   RowData,
   Sort,
   TableDefinition,
+  TableLocks,
   TableMetadata,
   TableRow,
   TableRowsCursor,
@@ -170,6 +171,35 @@ export const renameTableBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   name: tableNameSchema,
 })
+
+/** Full per-table lock set (all four flags). */
+export const tableLocksSchema = z.object({
+  schemaLocked: z.boolean(),
+  insertLocked: z.boolean(),
+  updateLocked: z.boolean(),
+  deleteLocked: z.boolean(),
+}) satisfies z.ZodType<TableLocks>
+
+/**
+ * PATCH /api/table/[tableId] body. Both fields are optional but at least one
+ * must be present. `name` is a `write`-level rename; `locks` is an
+ * admin-only governance change (a partial — only the toggled flags are sent).
+ */
+export const updateTableBodySchema = z
+  .object({
+    workspaceId: z.string().min(1, 'Workspace ID is required'),
+    name: tableNameSchema.optional(),
+    locks: tableLocksSchema.partial().optional(),
+  })
+  .superRefine((body, ctx) => {
+    if (body.name === undefined && body.locks === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide a new name or lock changes',
+        path: ['name'],
+      })
+    }
+  })
 
 export const createTableColumnBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
@@ -514,6 +544,26 @@ export const renameTableContract = defineRouteContract({
     schema: successResponseSchema(z.object({ table: tableDefinitionSchema })),
   },
 })
+
+/**
+ * Superset of {@link renameTableContract} on the same PATCH endpoint: accepts a
+ * `name` rename and/or a `locks` change. The route applies its own permission
+ * split — `name` needs workspace `write`, `locks` needs `admin`.
+ */
+export const updateTableContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/table/[tableId]',
+  params: tableIdParamsSchema,
+  body: updateTableBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ table: tableDefinitionSchema })),
+  },
+})
+
+export type TableLocksInput = z.input<typeof tableLocksSchema>
+export type UpdateTableBody = z.input<typeof updateTableBodySchema>
+export type UpdateTableResponse = ContractJsonResponse<typeof updateTableContract>
 
 export const deleteTableContract = defineRouteContract({
   method: 'DELETE',

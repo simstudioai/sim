@@ -11,6 +11,7 @@ import {
   markJobReady,
   updateJobProgress,
 } from '@/lib/table/jobs/service'
+import { unsafeMutationProof } from '@/lib/table/mutation-locks'
 import { selectRowDataPage, updatePageByIds } from '@/lib/table/rows/ordering'
 import { getTableById } from '@/lib/table/service'
 import { buildFilterClause } from '@/lib/table/sql'
@@ -67,6 +68,11 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
     const table = await getTableById(tableId, { includeArchived: true })
     if (!table) throw new Error(`Update target table ${tableId} not found`)
 
+    // The update lock is asserted at the enqueue site; an admitted job runs to
+    // completion (committed pages stay; admin cancels to stop). Trusted
+    // continuation — see delete-runner for the full rationale.
+    const updateProof = unsafeMutationProof<'update'>()
+
     const filterClause = buildFilterClause(filter, USER_TABLE_ROWS_SQL_NAME, table.schema.columns)
     if (!filterClause) throw new Error('Filter is required for bulk update')
 
@@ -121,7 +127,8 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
         tableId,
         workspaceId,
         page.map((r) => r.id),
-        patchJson
+        patchJson,
+        updateProof
       )
 
       if (

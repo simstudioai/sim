@@ -74,8 +74,20 @@ describe('runTableDelete', () => {
 
     await runTableDelete(basePayload({ filter: { status: 'old' } }))
 
-    expect(mockDeletePageByIds).toHaveBeenNthCalledWith(1, 'tbl_1', 'ws_1', ['a', 'b'])
-    expect(mockDeletePageByIds).toHaveBeenNthCalledWith(2, 'tbl_1', 'ws_1', ['c'])
+    expect(mockDeletePageByIds).toHaveBeenNthCalledWith(
+      1,
+      'tbl_1',
+      'ws_1',
+      ['a', 'b'],
+      expect.anything()
+    )
+    expect(mockDeletePageByIds).toHaveBeenNthCalledWith(
+      2,
+      'tbl_1',
+      'ws_1',
+      ['c'],
+      expect.anything()
+    )
     expect(mockMarkJobReady).toHaveBeenCalledWith('tbl_1', 'job_1')
     expect(mockAppendTableEvent).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'job', type: 'delete', status: 'ready', progress: 3 })
@@ -104,7 +116,7 @@ describe('runTableDelete', () => {
     await runTableDelete(basePayload({ excludeRowIds: ['keep'] }))
 
     expect(mockDeletePageByIds).toHaveBeenCalledTimes(1)
-    expect(mockDeletePageByIds).toHaveBeenCalledWith('tbl_1', 'ws_1', ['x'])
+    expect(mockDeletePageByIds).toHaveBeenCalledWith('tbl_1', 'ws_1', ['x'], expect.anything())
     // Second page is queried after the last id of the first page (cursor advanced past 'keep').
     expect(mockSelectRowIdPage).toHaveBeenNthCalledWith(
       2,

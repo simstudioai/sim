@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useReducer, useRef, useState } from 'react'
 import { Chip, ChipConfirmModal, toast } from '@sim/emcn'
-import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@sim/emcn/icons'
+import { Download, Lock, Pencil, Table as TableIcon, Trash, Upload } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
@@ -43,10 +43,12 @@ import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import {
+  type BlockedTableAction,
   type ColumnConfig,
   ColumnConfigSidebar,
   EnrichmentDetails,
   EnrichmentsSidebar,
+  LockSettingsModal,
   NewColumnDropdown,
   RowModal,
   RunStatusControl,
@@ -54,12 +56,14 @@ import {
   TableActionBar,
   TableFilter,
   TableGrid,
+  TableLockedModal,
   type WorkflowConfig,
   WorkflowSidebar,
 } from './components'
 import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
 import { COLUMN_TYPE_ICONS } from './components/table-grid/headers'
 import { useTable, useTableEventStream } from './hooks'
+import { describeLocks, lockedNouns } from './lock-copy'
 import {
   DEFAULT_TABLE_DETAIL_SORT_DIRECTION,
   tableDetailParsers,
@@ -155,6 +159,8 @@ export function Table({
 
   const [slideout, dispatch] = useReducer(slideoutReducer, { kind: 'none' })
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
+  const [showLockSettings, setShowLockSettings] = useState(false)
+  const [blockedAction, setBlockedAction] = useState<BlockedTableAction | null>(null)
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
   const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
   const [deletingRows, setDeletingRows] = useState<DeletedRowSnapshot[]>([])
@@ -550,10 +556,20 @@ export function Table({
                 icon: Pencil,
                 onClick: handleStartTableRename,
               },
+              ...(userPermissions.canAdmin
+                ? [
+                    {
+                      label: 'Lock settings',
+                      icon: Lock,
+                      onClick: () => setShowLockSettings(true),
+                    },
+                  ]
+                : []),
               {
                 label: 'Delete',
                 icon: Trash,
                 onClick: onRequestDeleteTable,
+                disabled: userPermissions.canEdit !== true || tableData.locks.deleteLocked,
               },
             ],
           }
@@ -561,6 +577,8 @@ export function Table({
     ],
     [
       handleNavigateBack,
+      userPermissions.canAdmin,
+      userPermissions.canEdit,
       tableData,
       tableHeaderRename.editingId,
       tableHeaderRename.editValue,
@@ -572,31 +590,53 @@ export function Table({
     ]
   )
 
-  const headerActions = useMemo(
-    () =>
-      tableData
+  const headerActions = useMemo(() => {
+    if (!tableData) return undefined
+    const anyLocked = lockedNouns(tableData.locks).length > 0
+    // Name the mode when locked so the state is legible on open; admins always
+    // get the entry point, even on an unlocked table.
+    const lockLabel = anyLocked ? describeLocks(tableData.locks).name : 'Lock settings'
+    return [
+      ...(anyLocked || userPermissions.canAdmin
         ? [
             {
-              label: 'Import CSV',
-              icon: Upload,
-              onClick: onRequestImportCsv,
-              disabled: userPermissions.canEdit !== true,
-            },
-            {
-              label: 'Export CSV',
-              icon: Download,
-              onClick: () => void handleExportCsv(),
-              disabled: tableData.rowCount === 0,
+              label: lockLabel,
+              icon: Lock,
+              onClick: () =>
+                userPermissions.canAdmin ? setShowLockSettings(true) : setBlockedAction('status'),
             },
           ]
-        : undefined,
-    [tableData, userPermissions.canEdit, handleExportCsv, onRequestImportCsv]
-  )
+        : []),
+      {
+        label: 'Import CSV',
+        icon: Upload,
+        onClick: onRequestImportCsv,
+        disabled: userPermissions.canEdit !== true,
+      },
+      {
+        label: 'Export CSV',
+        icon: Download,
+        onClick: () => void handleExportCsv(),
+        disabled: tableData.rowCount === 0,
+      },
+    ]
+  }, [
+    tableData,
+    userPermissions.canEdit,
+    userPermissions.canAdmin,
+    handleExportCsv,
+    onRequestImportCsv,
+  ])
 
+  // Adding a column is a schema change. The trigger stays visible when the
+  // table is schema-locked and explains itself instead of disappearing.
+  const canMutateSchema = userPermissions.canEdit && !tableData?.locks.schemaLocked
   const createTrigger = userPermissions.canEdit ? (
     <NewColumnDropdown
       trigger='header'
       disabled={false}
+      blocked={!canMutateSchema}
+      onBlocked={() => setBlockedAction('add-column')}
       onPickType={handleAddColumnOfType}
       onPickWorkflow={handleAddWorkflowColumn}
       onPickEnrichment={onOpenEnrichments}
@@ -719,6 +759,8 @@ export function Table({
         workspaceId={workspaceId}
         tableId={tableId}
         embedded={embedded}
+        locks={tableData?.locks}
+        onBlockedAction={setBlockedAction}
         sidebarReservedPx={sidebarReservedPx}
         onOpenColumnConfig={onOpenColumnConfig}
         onOpenWorkflowConfig={onOpenWorkflowConfig}
@@ -971,6 +1013,24 @@ export function Table({
             pending: deleteTableMutation.isPending,
             pendingLabel: 'Deleting...',
           }}
+        />
+      )}
+      {tableData && userPermissions.canAdmin && (
+        <LockSettingsModal
+          isOpen={showLockSettings}
+          onClose={() => setShowLockSettings(false)}
+          workspaceId={workspaceId}
+          tableId={tableData.id}
+          locks={tableData.locks}
+        />
+      )}
+      {tableData && (
+        <TableLockedModal
+          action={blockedAction}
+          locks={tableData.locks}
+          canAdmin={userPermissions.canAdmin === true}
+          onClose={() => setBlockedAction(null)}
+          onOpenLockSettings={() => setShowLockSettings(true)}
         />
       )}
     </Resource>

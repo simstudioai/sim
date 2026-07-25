@@ -11,6 +11,7 @@ import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
+import { assertRowDelete, assertRowInsert, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import { nKeysBetween } from '@/lib/table/order-key'
 import { acquireRowOrderLock } from '@/lib/table/rows/ordering'
 import { batchInsertRowsWithTx, replaceTableRowsWithTx } from '@/lib/table/rows/service'
@@ -62,6 +63,8 @@ export async function bulkInsertImportBatch(
   table: TableDefinition,
   requestId: string
 ): Promise<{ inserted: number; lastOrderKey: string | null }> {
+  assertRowInsert(table)
+
   for (let i = 0; i < data.rows.length; i++) {
     const sizeValidation = validateRowSize(data.rows[i])
     if (!sizeValidation.valid) {
@@ -113,8 +116,9 @@ export async function bulkInsertImportBatch(
 }
 
 /** Deletes every row of a table (set-based; the statement-level trigger zeroes `row_count`). */
-export async function deleteAllTableRows(tableId: string): Promise<void> {
-  await db.delete(userTableRows).where(eq(userTableRows.tableId, tableId))
+export async function deleteAllTableRows(table: TableDefinition): Promise<void> {
+  assertRowDelete(table)
+  await db.delete(userTableRows).where(eq(userTableRows.tableId, table.id))
 }
 
 /**
@@ -139,11 +143,15 @@ export async function addImportColumns(
 }
 
 /** Overwrites a table's schema during an import (used when inferring columns from the file). */
-export async function setTableSchemaForImport(tableId: string, schema: TableSchema): Promise<void> {
+export async function setTableSchemaForImport(
+  table: TableDefinition,
+  schema: TableSchema
+): Promise<void> {
+  assertSchemaMutable(table)
   await db
     .update(userTableDefinitions)
     .set({ schema, updatedAt: new Date() })
-    .where(eq(userTableDefinitions.id, tableId))
+    .where(eq(userTableDefinitions.id, table.id))
 }
 
 /**

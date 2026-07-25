@@ -18,7 +18,12 @@ import {
   updateColumnType,
 } from '@/lib/table'
 import { columnMatchesRef } from '@/lib/table/column-keys'
-import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
+import {
+  accessError,
+  checkAccess,
+  normalizeColumn,
+  tableLockErrorResponse,
+} from '@/app/api/table/utils'
 import {
   checkRateLimit,
   checkWorkspaceScope,
@@ -84,6 +89,8 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
       },
     })
   } catch (error) {
+    const lockError = tableLockErrorResponse(error)
+    if (lockError) return lockError
     const validationResponse = validationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
@@ -231,6 +238,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       },
     })
   } catch (error) {
+    const lockError = tableLockErrorResponse(error)
+    if (lockError) return lockError
     const validationResponse = validationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
@@ -312,6 +321,8 @@ export const DELETE = withRouteHandler(
         },
       })
     } catch (error) {
+      const lockError = tableLockErrorResponse(error)
+      if (lockError) return lockError
       const validationResponse = validationErrorResponseFromError(error)
       if (validationResponse) return validationResponse
 

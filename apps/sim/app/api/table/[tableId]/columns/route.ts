@@ -19,7 +19,13 @@ import {
   updateColumnType,
 } from '@/lib/table'
 import { columnMatchesRef } from '@/lib/table/column-keys'
-import { accessError, checkAccess, normalizeColumn, rootErrorMessage } from '@/app/api/table/utils'
+import {
+  accessError,
+  checkAccess,
+  normalizeColumn,
+  rootErrorMessage,
+  tableLockErrorResponse,
+} from '@/app/api/table/utils'
 
 const logger = createLogger('TableColumnsAPI')
 
@@ -61,6 +67,8 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
       },
     })
   } catch (error) {
+    const lockError = tableLockErrorResponse(error)
+    if (lockError) return lockError
     if (isZodError(error)) {
       return validationErrorResponse(error, 'Invalid request data')
     }
@@ -190,6 +198,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       },
     })
   } catch (error) {
+    const lockError = tableLockErrorResponse(error)
+    if (lockError) return lockError
     if (isZodError(error)) {
       return validationErrorResponse(error, 'Invalid request data')
     }
@@ -255,6 +265,8 @@ export const DELETE = withRouteHandler(
         },
       })
     } catch (error) {
+      const lockError = tableLockErrorResponse(error)
+      if (lockError) return lockError
       if (isZodError(error)) {
         return validationErrorResponse(error, 'Invalid request data')
       }

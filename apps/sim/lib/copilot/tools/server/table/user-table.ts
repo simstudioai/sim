@@ -47,6 +47,7 @@ import {
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
+import { assertRowDelete, assertRowUpdate, patchColumnIds } from '@/lib/table/mutation-locks'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -773,7 +774,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          await deleteRow(args.tableId, args.rowId, workspaceId, requestId)
+          const deleteRowTable = await getTableById(args.tableId)
+          if (!deleteRowTable) {
+            return { success: false, message: `Table ${args.tableId} not found` }
+          }
+          await deleteRow(deleteRowTable, args.rowId, requestId)
 
           return {
             success: true,
@@ -841,6 +846,9 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 affectedCount: target,
                 maxRows: args.limit,
               }
+              // Gate the update lock at enqueue — the background worker is a
+              // trusted continuation and does not re-check.
+              assertRowUpdate(table, patchColumnIds(idData))
               assertNotAborted()
               const claimed = await markTableJobRunning(table.id, jobId, 'update', payload)
               if (!claimed) {
@@ -934,6 +942,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               const payload: TableDeleteJobPayload = bounded
                 ? { filter: idFilter, cutoff: cutoff.toISOString(), maxRows: args.limit }
                 : { filter: idFilter, cutoff: cutoff.toISOString(), doomedCount }
+              // Gate the delete lock at enqueue — the worker is a trusted continuation.
+              assertRowDelete(table)
               assertNotAborted()
               const claimed = await markTableJobRunning(table.id, jobId, 'delete', payload)
               if (!claimed) {
@@ -1090,7 +1100,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
+          const batchDeleteTable = await getTableById(args.tableId)
+          if (!batchDeleteTable) {
+            return { success: false, message: `Table ${args.tableId} not found` }
+          }
           const result = await deleteRowsByIds(
+            batchDeleteTable,
             { tableId: args.tableId, rowIds, workspaceId },
             requestId
           )

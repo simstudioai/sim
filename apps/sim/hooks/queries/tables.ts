@@ -16,7 +16,11 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { extractValidationIssues, isValidationError } from '@/lib/api/client/errors'
+import {
+  extractValidationIssues,
+  isApiClientError,
+  isValidationError,
+} from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import {
@@ -61,12 +65,14 @@ import {
   type TableFindMatch,
   type TableIdParamsInput,
   type TableJobSummary,
+  type TableLocksInput,
   type TableRowParamsInput,
   type TableRowsQueryInput,
   type UpdateTableColumnBodyInput,
   type UpdateTableRowBodyInput,
   type UpdateWorkflowGroupBodyInput,
   updateTableColumnContract,
+  updateTableContract,
   updateTableMetadataContract,
   updateTableRowContract,
   updateWorkflowGroupContract,
@@ -546,6 +552,7 @@ export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) 
       })
     },
     onError: (error) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -581,6 +588,52 @@ export function useRenameTable(workspaceId: string) {
 }
 
 /**
+ * Toggle a table's mutation locks (admin-only; the server enforces the role).
+ * Optimistically patches the detail cache so the settings switches respond
+ * instantly, reconciling on settle. Uses `exact` on the detail invalidation so
+ * the rows pages (nested under detail) aren't needlessly refetched.
+ */
+export function useUpdateTableLocks(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      tableId,
+      locks,
+    }: {
+      tableId: string
+      locks: Partial<TableLocksInput>
+    }) => {
+      return requestJson(updateTableContract, {
+        params: { tableId },
+        body: { workspaceId, locks },
+      })
+    },
+    onMutate: async ({ tableId, locks }) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
+      const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      if (previousDetail) {
+        queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
+          ...previousDetail,
+          locks: { ...previousDetail.locks, ...locks },
+        })
+      }
+      return { previousDetail }
+    },
+    onError: (error, { tableId }, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
+      }
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, { tableId }) => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    },
+  })
+}
+
+/**
  * Delete a table from a workspace.
  */
 export function useDeleteTable(workspaceId: string) {
@@ -593,7 +646,8 @@ export function useDeleteTable(workspaceId: string) {
         query: { workspaceId },
       })
     },
-    onError: (error) => {
+    onError: (error, tableId) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -625,6 +679,26 @@ function notifyRowWriteError(error: Error, onUpgrade: () => void): void {
     return
   }
   toast.error(error.message, { duration: 5000 })
+}
+
+/**
+ * Self-heals a 423 lock rejection: refreshes the (now-known-stale) table
+ * definition so the grid's gating catches up, refreshes the list, toasts the
+ * lock reason, and reports whether it handled the error. Call FIRST in a row
+ * mutation's `onError` — a lock set by another user (or Mothership) since this
+ * grid loaded is otherwise invisible until a manual refresh. `exact` avoids
+ * refetching every rows page (rowsRoot nests under detail).
+ */
+function handleTableLockRejection(
+  error: unknown,
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string
+): boolean {
+  if (!isApiClientError(error) || error.status !== 423) return false
+  void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
+  void queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+  toast.error(error.message, { duration: 5000 })
+  return true
 }
 
 export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) {
@@ -674,8 +748,10 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
         predicate: (query) => !isDefaultOrderRowsQuery(query.queryKey),
       })
     },
-    onError: (error) =>
-      notifyRowWriteError(error, () => router.push(buildUpgradeHref(workspaceId, 'tables'))),
+    onError: (error) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
+      notifyRowWriteError(error, () => router.push(buildUpgradeHref(workspaceId, 'tables')))
+    },
     onSettled: () => {
       // `reconcileCreatedRow` (onSuccess) is the source of truth for the rows
       // cache + its `totalCount`; only refresh the count surfaces here so a late
@@ -853,8 +929,10 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
         },
       })
     },
-    onError: (error) =>
-      notifyRowWriteError(error, () => router.push(buildUpgradeHref(workspaceId, 'tables'))),
+    onError: (error) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
+      notifyRowWriteError(error, () => router.push(buildUpgradeHref(workspaceId, 'tables')))
+    },
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
     },
@@ -938,6 +1016,7 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
       if (context?.didBumpRunState) {
         queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
       }
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -1011,6 +1090,7 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
       if (context?.didBumpRunState) {
         queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
       }
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -1031,6 +1111,7 @@ export function useDeleteTableRow({ workspaceId, tableId }: RowMutationContext) 
       })
     },
     onError: (error) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -1079,6 +1160,7 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
       return { deletedRowIds }
     },
     onError: (error) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -1174,6 +1256,7 @@ export function useDeleteTableRowsAsync({ workspaceId, tableId }: RowMutationCon
       if (context?.previousDetail) {
         queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
       }
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -1242,6 +1325,7 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
       if (context?.previousDetail) {
         queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
       }
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -1446,7 +1530,8 @@ export function useRestoreTable() {
         params: { tableId },
       })
     },
-    onError: (error) => {
+    onError: (error, tableId) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -1794,6 +1879,7 @@ export function useExportTableAsync({ workspaceId, tableId }: RowMutationContext
       void queryClient.invalidateQueries({ queryKey: tableKeys.exportJobs(workspaceId) })
     },
     onError: (error) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -1905,6 +1991,7 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
           queryClient.setQueryData(key, data)
         }
       }
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -2136,12 +2223,15 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
       const bumped = await bumpRunState(queryClient, tableId, stampedByRow)
       return { snapshots, runStateSnapshot: bumped?.snapshot, didBumpRunState: bumped !== null }
     },
-    onError: (_err, _variables, context) => {
+    onError: (error, _variables, context) => {
       if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
       // Roll back the optimistic counter bump (snapshot may be undefined).
       if (context?.didBumpRunState) {
         queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
       }
+      if (handleTableLockRejection(error, queryClient, tableId)) return
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
     },
     onSuccess: (data, { groupIds, runMode = 'all', rowIds, limit }, context) => {
       // Seed the dispatch into the overlay (drives resolveCellExec for
@@ -2202,6 +2292,7 @@ export function useAddWorkflowGroup({ workspaceId, tableId }: RowMutationContext
       })
     },
     onError: (error) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -2235,6 +2326,7 @@ export function useUpdateWorkflowGroup({ workspaceId, tableId }: RowMutationCont
       })
     },
     onError: (error) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -2259,6 +2351,7 @@ export function useDeleteWorkflowGroup({ workspaceId, tableId }: RowMutationCont
       })
     },
     onError: (error) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },

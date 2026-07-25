@@ -11,6 +11,7 @@ import {
   markJobReady,
   updateJobProgress,
 } from '@/lib/table/jobs/service'
+import { unsafeMutationProof } from '@/lib/table/mutation-locks'
 import { deletePageByIds, selectRowIdPage } from '@/lib/table/rows/ordering'
 import { getTableById } from '@/lib/table/service'
 import { buildFilterClause } from '@/lib/table/sql'
@@ -66,6 +67,13 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
     const table = await getTableById(tableId, { includeArchived: true })
     if (!table) throw new Error(`Delete target table ${tableId} not found`)
 
+    // The delete lock is asserted at the enqueue site (delete-async route), which
+    // is what gates *starting* the job. A job already admitted runs to completion
+    // — committed pages are never rolled back, and an admin cancels it to stop —
+    // so the runner is a trusted continuation and does not re-assert (which would
+    // also retry-storm this maxAttempts:3 task on a mid-job lock).
+    const deleteProof = unsafeMutationProof<'delete'>()
+
     const filterClause = filter
       ? buildFilterClause(filter, USER_TABLE_ROWS_SQL_NAME, table.schema.columns)
       : undefined
@@ -102,7 +110,7 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
 
       const toDelete = excluded.size > 0 ? page.filter((id) => !excluded.has(id)) : page
       if (toDelete.length > 0) {
-        processed += await deletePageByIds(tableId, workspaceId, toDelete)
+        processed += await deletePageByIds(tableId, workspaceId, toDelete, deleteProof)
       }
 
       if (

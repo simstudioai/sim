@@ -211,7 +211,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    await deleteRow(tableId, rowId, validated.workspaceId, requestId)
+    await deleteRow(table, rowId, requestId)
 
     return NextResponse.json({
       success: true,
