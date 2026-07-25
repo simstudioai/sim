@@ -88,6 +88,12 @@ export function useCreateDataDrain() {
       logger.info('Created data drain', { drainId: drain.id, organizationId })
       return drain
     },
+    // Seed the list so the caller can navigate straight to the new drain's detail
+    // without that handoff depending on the invalidation refetch succeeding.
+    onSuccess: (drain, variables) =>
+      queryClient.setQueryData<DataDrain[]>(dataDrainKeys.list(variables.organizationId), (prev) =>
+        prev?.some((d) => d.id === drain.id) ? prev : [...(prev ?? []), drain]
+      ),
     onSettled: (_drain, _error, variables) =>
       queryClient.invalidateQueries({ queryKey: dataDrainKeys.list(variables.organizationId) }),
   })
