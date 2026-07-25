@@ -66,23 +66,23 @@ async function selectMode(detection: Detection, flags: WizardFlags): Promise<Wiz
       {
         value: 'compose',
         label: 'Docker Compose',
-        // Self-host or just try Sim without touching the code.
-        hint: `Run a bundled Sim — self-hosting or evaluating · ${composeState}`,
+        hint: `Run bundled Sim, fastest way to start · ${composeState}`,
       },
       {
         value: 'dev',
         label: 'Local dev (bun run dev:full)',
-        // Iterate on the source with hot reload.
-        hint: 'Work on Sim itself — contributing · app :3000 + realtime :3002',
+        hint: 'Work on Sim itself · app :3000 + realtime :3002',
       },
       {
         value: 'k8s',
         label: 'Kubernetes (helm)',
-        // Rehearse a real cluster deploy on kind / Docker Desktop.
-        hint: `Test a production-style deploy — self-hosting on k8s · ${k8sState}`,
+        hint: `Test a production-style k8s deploy · ${k8sState}`,
       },
     ],
-    initialValue: detection.dockerRunning ? 'compose' : 'dev',
+    // Always Compose: it is the fastest path and the one most people want. A
+    // stopped Docker is not a reason to steer them to a source checkout — the
+    // compose path offers to start Docker Desktop itself.
+    initialValue: 'compose',
   })
 }
 
