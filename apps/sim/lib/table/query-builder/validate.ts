@@ -109,6 +109,16 @@ function validateNode(node: PredicateNode, typeByName: Map<string, ColumnType>):
       'INVALID_FILTER'
     )
   }
+  // A node carrying BOTH a group key and `field` is ambiguous: the engine and this
+  // validator read it group-first while `predicateToFilter`/`predicateNamesToIds`
+  // read it leaf-first, so the gate would validate one predicate and the bulk-write
+  // path would execute a different one. Reject rather than pick a winner.
+  if (('all' in node || 'any' in node) && 'field' in node) {
+    throw new TableQueryValidationError(
+      'A filter node must be either a group ({ all | any: [...] }) or a condition ({ field, op, value }), not both.',
+      'INVALID_FILTER'
+    )
+  }
   if ('all' in node || 'any' in node) {
     const members = 'all' in node ? node.all : node.any
     if (!Array.isArray(members)) {

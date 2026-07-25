@@ -184,9 +184,10 @@ export function predicateNamesToIds(
   idByName: ReadonlyMap<string, string>
 ): TablePredicate {
   const remap = (node: PredicateNode): PredicateNode => {
-    if ('field' in node) return { ...node, field: idByName.get(node.field) ?? node.field }
+    // Group-first, matching isPredicateGroup/validateNode/buildPredicateNode.
     if ('all' in node) return { all: node.all.map(remap) }
-    return { any: node.any.map(remap) }
+    if ('any' in node) return { any: node.any.map(remap) }
+    return { ...node, field: idByName.get(node.field) ?? node.field }
   }
   return remap(predicate) as TablePredicate
 }

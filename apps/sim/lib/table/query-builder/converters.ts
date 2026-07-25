@@ -268,7 +268,21 @@ export function filterRulesToPredicate(rules: FilterRule[]): TablePredicate | nu
       groups.push(current)
       current = []
     }
-    if (!rule.column) continue
+    if (!rule.column) {
+      // A predicate-shaped member ({field, op, value}) means the caller mixed the
+      // two grammars — most likely an agent writing predicate leaves into the
+      // visual builder. Silently skipping it would DROP that condition and widen
+      // the result, which on a bulk delete/update is destructive.
+      if (isRecordLike(rule) && ('field' in rule || 'op' in rule)) {
+        throw new TableQueryValidationError(
+          'Filter looks like a predicate condition but was supplied as a builder rule. ' +
+            'Provide the whole filter as a predicate object ({ all | any: [...] }) instead of mixing shapes.',
+          'INVALID_FILTER'
+        )
+      }
+      // A genuinely blank builder row (no column picked yet) contributes nothing.
+      continue
+    }
     current.push(ruleToPredicate(rule))
   }
   if (current.length > 0) groups.push(current)
@@ -356,9 +370,11 @@ function predicateLeafToFilterValue(p: Predicate): Filter[string] {
  */
 export function predicateToFilter(predicate: TablePredicate): Filter {
   const nodeToFilter = (node: Predicate | TablePredicate): Filter => {
-    if ('field' in node) return { [node.field]: predicateLeafToFilterValue(node) }
+    // Group-first, matching isPredicateGroup/validateNode/buildPredicateNode. A
+    // leaf-first test would execute a different predicate than the one validated.
     if ('all' in node) return { $and: node.all.map(nodeToFilter) }
-    return { $or: node.any.map(nodeToFilter) }
+    if ('any' in node) return { $or: node.any.map(nodeToFilter) }
+    return { [node.field]: predicateLeafToFilterValue(node) }
   }
   return nodeToFilter(predicate)
 }

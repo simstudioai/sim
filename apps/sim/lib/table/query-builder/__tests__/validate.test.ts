@@ -124,6 +124,21 @@ describe('validatePredicate — leaves that would silently widen a bulk write', 
     }
   })
 
+  it('rejects a hybrid group+leaf node instead of silently picking one', () => {
+    // Read group-first by the engine, leaf-first by predicateToFilter — so the gate
+    // would validate one predicate and the bulk-write path execute another.
+    expect(() =>
+      validatePredicate(
+        {
+          all: [{ field: 'status', op: 'eq', value: 'benign' }],
+          field: 'nope',
+          op: 'isNotNull',
+        } as never,
+        COLS
+      )
+    ).toThrow(/not both/)
+  })
+
   it('caps in/nin list length', () => {
     const huge = Array.from({ length: 1001 }, (_, i) => `v${i}`)
     expect(() =>

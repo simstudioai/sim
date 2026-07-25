@@ -257,3 +257,23 @@ it('does not throw "rules is not iterable" for a non-array builder value', () =>
   expect(filterRulesToPredicate({} as unknown as FilterRule[])).toBeNull()
   expect(filterRulesToPredicate(undefined as unknown as FilterRule[])).toBeNull()
 })
+
+it('rejects predicate-shaped members rather than dropping them', () => {
+  // Mixing grammars used to silently discard the predicate-shaped leaf, widening
+  // the filter — "delete archived rows for tenant acme" became "…for every tenant".
+  expect(() =>
+    filterRulesToPredicate([
+      { field: 'tenant_id', op: 'eq', value: 'acme' },
+      rule({ column: 'status', operator: 'eq', value: 'archived' }),
+    ] as unknown as FilterRule[])
+  ).toThrow(/predicate condition/)
+})
+
+it('still ignores a genuinely blank builder row', () => {
+  expect(
+    filterRulesToPredicate([
+      rule({ column: '', operator: 'eq', value: '' }),
+      rule({ column: 'status', operator: 'eq', value: 'archived' }),
+    ])
+  ).toEqual({ all: [{ field: 'status', op: 'eq', value: 'archived' }] })
+})
