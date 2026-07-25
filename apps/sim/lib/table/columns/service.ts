@@ -558,6 +558,12 @@ export async function updateColumnType(
             type: data.newType,
             options: data.options ?? c.options,
             ...(targetMultiple ? { multiple: true } : {}),
+            // Select columns carry no unique constraint: it would compare the
+            // stored option id, capping each option at one row table-wide, and
+            // the UI hides the toggle so it could never be cleared again. Drop
+            // it here rather than in each caller — the sidebar was the only one
+            // clearing it, leaving the v1 and agent paths to strand it.
+            unique: false,
           }
         : { ...rest, type: data.newType }
     })
