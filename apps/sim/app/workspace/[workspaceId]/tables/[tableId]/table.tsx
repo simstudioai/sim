@@ -72,6 +72,7 @@ import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
 import { COLUMN_TYPE_ICONS } from './components/table-grid/headers'
 import { useTable, useTableEventStream } from './hooks'
 import {
+  ALL_VIEW_PARAM,
   DEFAULT_TABLE_DETAIL_SORT_DIRECTION,
   tableDetailParsers,
   tableDetailUrlKeys,
@@ -382,6 +383,10 @@ export function Table({
         seededViewIdRef.current = null
         return
       }
+      if (activeViewId === ALL_VIEW_PARAM) {
+        seededViewIdRef.current = null
+        return
+      }
       // A `?view=` that resolves to nothing (deleted view, stale bookmark) falls
       // back to "All" without touching state, for the same reason. An explicit
       // `?sort=` alongside `?view=` also wins over the view's stored sort.
@@ -394,7 +399,7 @@ export function Table({
     // "Save as view" the URL names the new view before the list has refetched, and
     // clearing there would wipe the very filter that was just saved. Only an
     // explicit switch to "All" (`activeViewId === null`) resets.
-    if (activeViewId !== null && !activeView) return
+    if (activeViewId !== null && activeViewId !== ALL_VIEW_PARAM && !activeView) return
 
     const nextViewId = activeView?.id ?? null
     if (seededViewIdRef.current === nextViewId) return
@@ -411,6 +416,30 @@ export function Table({
     setTableParams,
   ])
 
+  /**
+   * Live state pruned the same way `pruneViewConfig` prunes the stored config on
+   * read. Without this, deleting a hidden or sorted column leaves the local ids
+   * behind while the server drops them, so the dirty check never balances again —
+   * Save writes the stale id, the response comes back pruned, and the chip is
+   * stuck on. Guarded on the schema being loaded so an empty first render doesn't
+   * prune everything.
+   */
+  const liveColumnIds = useMemo(() => new Set(columns.map(getColumnId)), [columns])
+  const effectiveHiddenColumns = useMemo(
+    () =>
+      columns.length === 0 ? hiddenColumns : hiddenColumns.filter((id) => liveColumnIds.has(id)),
+    [columns.length, hiddenColumns, liveColumnIds]
+  )
+  const effectiveSort = useMemo<Sort | null>(
+    () =>
+      !sortQuery || columns.length === 0
+        ? sortQuery
+        : Object.keys(sortQuery).every((id) => liveColumnIds.has(id))
+          ? sortQuery
+          : null,
+    [sortQuery, columns.length, liveColumnIds]
+  )
+
   /** The payload for creating a view, and the left-hand side of the dirty check.
    *  Carries the current layout so "Save as view" from "All" captures the widths /
    *  order / pins the grid is rendering (they live in the table's shared metadata
@@ -420,10 +449,10 @@ export function Table({
     () => ({
       ...(activeView?.config ?? tableData?.metadata),
       filter,
-      sort: sortQuery,
-      hiddenColumns,
+      sort: effectiveSort,
+      hiddenColumns: effectiveHiddenColumns,
     }),
-    [activeView, tableData?.metadata, filter, sortQuery, hiddenColumns]
+    [activeView, tableData?.metadata, filter, effectiveSort, effectiveHiddenColumns]
   )
 
   /**
@@ -433,7 +462,7 @@ export function Table({
    */
   const isViewDirty = activeView
     ? !isSameViewConfig(currentViewConfig, activeView.config)
-    : Boolean(filter) || Boolean(sortQuery) || hiddenColumns.length > 0
+    : Boolean(filter) || Boolean(effectiveSort) || effectiveHiddenColumns.length > 0
 
   /** Rename targets a live view rather than a snapshot, so a concurrent rename or
    *  delete can't leave the modal editing stale data. */
@@ -442,7 +471,7 @@ export function Table({
 
   const handleSelectView = useCallback(
     (viewId: string | null) => {
-      setTableParams({ view: viewId })
+      setTableParams({ view: viewId ?? ALL_VIEW_PARAM })
     },
     [setTableParams]
   )
@@ -474,7 +503,14 @@ export function Table({
       // still in flight (and vice versa). `null`/`[]` merge as explicit values, so
       // clearing a filter or unhiding every column still persists as a removal.
       updateViewMutation.mutate(
-        { viewId: activeView.id, configPatch: { filter, sort: sortQuery, hiddenColumns } },
+        {
+          viewId: activeView.id,
+          configPatch: {
+            filter,
+            sort: effectiveSort,
+            hiddenColumns: effectiveHiddenColumns,
+          },
+        },
         { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save view')) }
       )
       return
@@ -511,7 +547,7 @@ export function Table({
     (viewId: string) => {
       deleteViewMutation.mutate(viewId, {
         onSuccess: () => {
-          if (viewId === activeViewId) setTableParams({ view: null })
+          if (viewId === activeViewId) setTableParams({ view: ALL_VIEW_PARAM })
         },
         onError: (error) => toast.error(getErrorMessage(error, 'Failed to delete view')),
       })
@@ -1002,7 +1038,7 @@ export function Table({
         onStopRow={onStopRow}
         onSelectionChange={onSelectionChange}
         queryOptions={queryOptions}
-        hiddenColumns={hiddenColumns}
+        hiddenColumns={effectiveHiddenColumns}
         viewLayout={activeView?.config ?? null}
         viewLayoutKey={activeView?.id ?? null}
         onPersistLayout={activeView ? handlePersistLayout : undefined}
