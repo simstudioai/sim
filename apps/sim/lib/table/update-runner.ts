@@ -7,6 +7,7 @@ import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { appendTableEvent } from '@/lib/table/events'
 import {
   getJobProgress,
+  markJobCanceled,
   markJobFailed,
   markJobReady,
   updateJobProgress,
@@ -68,9 +69,19 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
     const table = await getTableById(tableId, { includeArchived: true })
     if (!table) throw new Error(`Update target table ${tableId} not found`)
 
-    // The update lock is asserted at the enqueue site; an admitted job runs to
-    // completion (committed pages stay; admin cancels to stop). Trusted
-    // continuation — see delete-runner for the full rationale.
+    // A lock set between admission and this worker starting (queue delay, or a
+    // retry re-entering here) means nothing has been written yet — honor it and
+    // stop. See `delete-runner.ts` for the full rationale, including why a
+    // mid-flight lock does NOT abort a run that has already committed pages.
+    if (table.locks?.updateLocked) {
+      logger.info(`[${requestId}] Update job stopped — table was update-locked before it started`, {
+        tableId,
+        jobId,
+      })
+      await markJobCanceled(tableId, jobId)
+      void appendTableEvent({ kind: 'job', type: 'update', tableId, jobId, status: 'canceled' })
+      return
+    }
     const updateProof = unsafeMutationProof<'update'>()
 
     const filterClause = buildFilterClause(filter, USER_TABLE_ROWS_SQL_NAME, table.schema.columns)

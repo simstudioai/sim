@@ -15,7 +15,7 @@ import { lockedNouns } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock
  * Why the locked-table modal opened. `'status'` is the informational case (the
  * header lock chip); the rest are actions the user just tried and couldn't do.
  */
-export type BlockedTableAction = 'add-row' | 'add-column' | 'edit-cell' | 'status'
+export type BlockedTableAction = 'add-row' | 'add-column' | 'delete-column' | 'edit-cell' | 'status'
 
 /**
  * Copy for the action the user attempted. Explains what is blocked and — for
@@ -40,6 +40,18 @@ function describe(action: BlockedTableAction, locks: TableLocks): { title: strin
         title: 'Changing columns is locked',
         text: 'Columns cannot be added, renamed, retyped, or removed until an admin unlocks it.',
       }
+    case 'delete-column':
+      // Reachable with the schema lock off but the delete lock on — removing a
+      // column clears its value from every row, so it needs both.
+      return locks.schemaLocked
+        ? {
+            title: 'Changing columns is locked',
+            text: 'Columns cannot be added, renamed, retyped, or removed until an admin unlocks it.',
+          }
+        : {
+            title: 'Deleting columns is locked',
+            text: 'Removing a column also deletes its value from every row, so it is blocked while this table is delete-locked.',
+          }
     case 'edit-cell':
       return {
         title: 'Editing rows is locked',

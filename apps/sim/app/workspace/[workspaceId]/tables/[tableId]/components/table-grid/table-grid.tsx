@@ -554,6 +554,10 @@ export function TableGrid({
   const canEditCell = userPermissions.canEdit && !locks?.updateLocked
   const canDeleteRow = userPermissions.canEdit && !locks?.deleteLocked
   const canMutateSchema = userPermissions.canEdit && !locks?.schemaLocked
+  // Dropping or retyping a column rewrites every row's data, so `assertColumnDestructive`
+  // requires the delete lock clear too — mirror that here or the affordance
+  // stays live on an append-only table and only fails on click.
+  const canDestroyColumn = canMutateSchema && !locks?.deleteLocked
   // Manual grid entry is "add an empty row, then type into its cells" — the
   // typing is an update. So a *useful* manual add needs BOTH insert and update
   // unlocked; on an append-only table (update locked) it would leave a blank
@@ -1244,6 +1248,11 @@ export function TableGrid({
     }
     void handleAppendRow()
   }, [handleAppendRow])
+
+  /** Stable stand-in for `handleDeleteColumn` when a lock forbids the drop. */
+  const handleBlockedDeleteColumn = useCallback(() => {
+    onBlockedActionRef.current('delete-column')
+  }, [])
 
   const handleRowContextMenu = useCallback(
     (e: React.MouseEvent, row: TableRowType) => {
@@ -3803,9 +3812,9 @@ export function TableGrid({
                                 onInsertRight={
                                   canMutateSchema ? handleInsertColumnRight : undefined
                                 }
-                                onDeleteColumn={canMutateSchema ? handleDeleteColumn : undefined}
+                                onDeleteColumn={canDestroyColumn ? handleDeleteColumn : undefined}
                                 onDeleteGroup={
-                                  canMutateSchema ? handleDeleteWorkflowGroup : undefined
+                                  canDestroyColumn ? handleDeleteWorkflowGroup : undefined
                                 }
                                 onViewWorkflow={
                                   workflowGroupById.get(g.groupId)?.type === 'enrichment'
@@ -3887,7 +3896,9 @@ export function TableGrid({
                             onColumnSelect={handleColumnSelect}
                             onInsertLeft={handleInsertColumnLeft}
                             onInsertRight={handleInsertColumnRight}
-                            onDeleteColumn={handleDeleteColumn}
+                            onDeleteColumn={
+                              canDestroyColumn ? handleDeleteColumn : handleBlockedDeleteColumn
+                            }
                             onResizeStart={handleColumnResizeStart}
                             onResize={handleColumnResize}
                             onResizeEnd={handleColumnResizeEnd}

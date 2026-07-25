@@ -11,6 +11,7 @@ const {
   mockUpdateJobProgress,
   mockMarkJobReady,
   mockMarkJobFailed,
+  mockMarkJobCanceled,
   mockAppendTableEvent,
   mockBuildFilterClause,
 } = vi.hoisted(() => ({
@@ -21,6 +22,7 @@ const {
   mockUpdateJobProgress: vi.fn(),
   mockMarkJobReady: vi.fn(),
   mockMarkJobFailed: vi.fn(),
+  mockMarkJobCanceled: vi.fn(),
   mockAppendTableEvent: vi.fn(),
   mockBuildFilterClause: vi.fn(),
 }))
@@ -33,6 +35,7 @@ vi.mock('@/lib/table/jobs/service', () => ({
   updateJobProgress: mockUpdateJobProgress,
   markJobReady: mockMarkJobReady,
   markJobFailed: mockMarkJobFailed,
+  markJobCanceled: mockMarkJobCanceled,
 }))
 vi.mock('@/lib/table/rows/ordering', () => ({
   selectRowIdPage: mockSelectRowIdPage,
@@ -47,7 +50,13 @@ vi.mock('@/lib/table/constants', () => ({
 
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
 
-const table = { id: 'tbl_1', workspaceId: 'ws_1', schema: { columns: [] } }
+const UNLOCKED = {
+  schemaLocked: false,
+  insertLocked: false,
+  updateLocked: false,
+  deleteLocked: false,
+}
+const table = { id: 'tbl_1', workspaceId: 'ws_1', schema: { columns: [] }, locks: UNLOCKED }
 const cutoff = new Date('2026-06-05T00:00:00Z')
 
 function basePayload(overrides = {}) {
@@ -64,6 +73,22 @@ describe('runTableDelete', () => {
     mockMarkJobFailed.mockResolvedValue(undefined)
     mockDeletePageByIds.mockImplementation((_t, _w, ids: string[]) => Promise.resolve(ids.length))
     mockBuildFilterClause.mockReturnValue({})
+  })
+
+  it('cancels without deleting when the table was delete-locked before the run started', async () => {
+    // The lock is asserted at enqueue, but a queued or retried job can start
+    // after an admin locks the table — nothing is written yet, so honor it.
+    mockGetTableById.mockResolvedValue({ ...table, locks: { ...UNLOCKED, deleteLocked: true } })
+    mockSelectRowIdPage.mockResolvedValue(['a', 'b'])
+
+    await expect(runTableDelete(basePayload())).resolves.toBeUndefined()
+
+    expect(mockDeletePageByIds).not.toHaveBeenCalled()
+    expect(mockMarkJobCanceled).toHaveBeenCalledWith('tbl_1', 'job_1')
+    expect(mockMarkJobReady).not.toHaveBeenCalled()
+    expect(mockAppendTableEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'job', type: 'delete', status: 'canceled' })
+    )
   })
 
   it('deletes every matching page then marks the job ready', async () => {

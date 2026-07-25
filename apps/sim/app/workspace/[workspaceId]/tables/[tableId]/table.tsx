@@ -8,6 +8,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
@@ -73,6 +74,14 @@ import type { QueryOptions } from './types'
 import { generateColumnName } from './utils'
 
 const logger = createLogger('Table')
+
+/**
+ * Client mirror of the server's `table-locks` flag. Hides the settings entry
+ * point when locks can't be set, so the panel never opens onto a Save that
+ * 403s. An already-locked table still shows its state regardless, so the
+ * gating stays legible if the flag is turned off after locks were applied.
+ */
+const tableLocksEnabled = isTruthy(getEnv('NEXT_PUBLIC_TABLE_LOCKS'))
 
 interface TableProps {
   /** When set, the table renders without its page header / breadcrumbs / page-level
@@ -556,7 +565,7 @@ export function Table({
                 icon: Pencil,
                 onClick: handleStartTableRename,
               },
-              ...(userPermissions.canAdmin
+              ...(userPermissions.canAdmin && tableLocksEnabled
                 ? [
                     {
                       label: 'Lock settings',
@@ -593,11 +602,12 @@ export function Table({
   const headerActions = useMemo(() => {
     if (!tableData) return undefined
     const anyLocked = lockedNouns(tableData.locks).length > 0
-    // Name the mode when locked so the state is legible on open; admins always
-    // get the entry point, even on an unlocked table.
+    // Name the mode when locked so the state is legible on open; admins get the
+    // entry point on an unlocked table only where the feature is enabled —
+    // otherwise the panel opens and Save 403s against the server-side gate.
     const lockLabel = anyLocked ? describeLocks(tableData.locks).name : 'Lock settings'
     return [
-      ...(anyLocked || userPermissions.canAdmin
+      ...(anyLocked || (userPermissions.canAdmin && tableLocksEnabled)
         ? [
             {
               label: lockLabel,
@@ -1028,7 +1038,9 @@ export function Table({
         <TableLockedModal
           action={blockedAction}
           locks={tableData.locks}
-          canAdmin={userPermissions.canAdmin === true}
+          // Without the flag there is nothing an admin can change, so they get
+          // the same read-only notice as everyone else.
+          canAdmin={userPermissions.canAdmin === true && tableLocksEnabled}
           onClose={() => setBlockedAction(null)}
           onOpenLockSettings={() => setShowLockSettings(true)}
         />

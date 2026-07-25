@@ -7,6 +7,7 @@ import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { appendTableEvent } from '@/lib/table/events'
 import {
   getJobProgress,
+  markJobCanceled,
   markJobFailed,
   markJobReady,
   updateJobProgress,
@@ -67,11 +68,23 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
     const table = await getTableById(tableId, { includeArchived: true })
     if (!table) throw new Error(`Delete target table ${tableId} not found`)
 
-    // The delete lock is asserted at the enqueue site (delete-async route), which
-    // is what gates *starting* the job. A job already admitted runs to completion
-    // — committed pages are never rolled back, and an admin cancels it to stop —
-    // so the runner is a trusted continuation and does not re-assert (which would
-    // also retry-storm this maxAttempts:3 task on a mid-job lock).
+    // A lock set between admission and this worker actually starting (queue
+    // delay, or a retry re-entering here) means nothing has been deleted yet —
+    // honor it and stop. Returning rather than throwing releases the job slot
+    // without burning this task's remaining `maxAttempts` on a deterministic
+    // failure. Past this point the run continues even if a lock lands
+    // mid-flight: committed pages are never rolled back, so aborting would
+    // leave the same half-done state as a cancel that nobody asked for — an
+    // admin stops it explicitly via `POST /api/table/[tableId]/job/cancel`.
+    if (table.locks?.deleteLocked) {
+      logger.info(`[${requestId}] Delete job stopped — table was delete-locked before it started`, {
+        tableId,
+        jobId,
+      })
+      await markJobCanceled(tableId, jobId)
+      void appendTableEvent({ kind: 'job', type: 'delete', tableId, jobId, status: 'canceled' })
+      return
+    }
     const deleteProof = unsafeMutationProof<'delete'>()
 
     const filterClause = filter
