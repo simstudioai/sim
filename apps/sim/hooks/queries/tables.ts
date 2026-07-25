@@ -1183,6 +1183,24 @@ export function useDeleteTableRowsAsync({ workspaceId, tableId }: RowMutationCon
 type UpdateColumnParams = Omit<UpdateTableColumnBodyInput, 'workspaceId'>
 
 /**
+ * Whether an update drops a `select` option the column currently declares —
+ * the one options edit the server answers by rewriting cells.
+ */
+function removesSelectOption(
+  previousDetail: TableDefinition | undefined,
+  { columnName, updates }: UpdateColumnParams
+): boolean {
+  if (updates.options === undefined || previousDetail === undefined) return false
+  const lower = columnName.toLowerCase()
+  const column = previousDetail.schema.columns.find(
+    (c) => getColumnId(c) === columnName || c.name.toLowerCase() === lower
+  )
+  if (!column?.options?.length) return false
+  const keptIds = new Set(updates.options.map((o) => o.id))
+  return column.options.some((o) => !keptIds.has(o.id))
+}
+
+/**
  * Update a column (rename, type change, or constraint update).
  */
 export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
@@ -1227,13 +1245,17 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
-    onSettled: (_data, _error, variables) => {
-      // A type change, or a select single↔multi toggle, rewrites stored cells
-      // server-side (option ids ↔ names, scalar ↔ array). Those need the rows
-      // refetched too — the schema-only path would leave the grid rendering the
-      // pre-migration values. Everything else really is metadata-only.
+    onSettled: (_data, _error, variables, context) => {
+      // A type change, a select single↔multi toggle, or removing an option
+      // rewrites stored cells server-side (option ids ↔ names, scalar ↔ array,
+      // removed ids cleared). Those need the rows refetched too — the
+      // schema-only path would leave the cache holding pre-migration values,
+      // which the grid hides but emptiness checks, filters, and dependent-group
+      // eligibility still act on. Everything else really is metadata-only.
       const rewritesRows =
-        variables.updates.type !== undefined || variables.updates.multiple !== undefined
+        variables.updates.type !== undefined ||
+        variables.updates.multiple !== undefined ||
+        removesSelectOption(context?.previousDetail, variables)
       if (rewritesRows) invalidateTableSchema(queryClient, tableId)
       else invalidateTableSchemaOnly(queryClient, tableId)
     },
