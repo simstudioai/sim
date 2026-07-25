@@ -8,9 +8,11 @@
  * - Default order → keyset on `(order_key, id)` (`{ k, i }`), an index seek.
  * - Sorted views → whole-view offset (`{ o }`), because `(order_key, id)`
  *   keyset can't seek a data-column ordering.
- * - Keyset page whose last row lacks an `orderKey` (not yet backfilled) →
- *   compound (`{ k, i, o }`): seek to the last keyed anchor, then OFFSET past
- *   the unkeyed rows consumed after it.
+ * - Keyset page whose last row lacks an `orderKey` (rows predating the backfill,
+ *   or forked rows that inherited a NULL key) → compound (`{ k, i, o }`): seek to
+ *   the last keyed anchor, then OFFSET past the unkeyed rows consumed after it.
+ *   This only resolves correctly because the seek admits `order_key IS NULL`
+ *   rows; a bare `(order_key, id) > (…)` excludes them and strands the tail.
  */
 
 import { TableQueryValidationError } from '@/lib/table/errors'

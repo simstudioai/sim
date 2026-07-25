@@ -1008,7 +1008,8 @@ export async function queryRows(
   }
 
   // Keyset seeks are only authoritative when the page order IS the
-  // `(order_key, id)` index order: no custom sort (order keys are always present).
+  // `(order_key, id)` index order: no custom sort. Order keys are NOT guaranteed
+  // present — unkeyed rows sort last and the seek admits them explicitly.
   const keysetValid = !sort
 
   // Count and page drain are independent reads — run them concurrently so the
@@ -1164,10 +1165,17 @@ async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetc
 
   const runBatch = (batchSeek: TableRowsCursor | undefined, batchOffset: number, ask: number) => {
     const buildQuery = (executor: DbExecutor) => {
+      // `order_key` is nullable (rows predating the backfill, and forked rows that
+      // inherit a NULL key). A bare row-constructor comparison evaluates to NULL for
+      // those rows, so they are dropped by WHERE — and because NULLs sort LAST under
+      // `ORDER BY order_key, id`, the entire unkeyed tail becomes unreachable and the
+      // drain terminates early reporting `hasMore: false`. Admitting NULLs keeps the
+      // seek set exactly "the tail after the anchor", which is also what the compound
+      // `{k,i,o}` cursor's `offsetFromAnchor` accounting assumes.
       const seekWhere = batchSeek
         ? and(
             baseWhere,
-            sql`(${userTableRows.orderKey}, ${userTableRows.id}) > (${batchSeek.orderKey}, ${batchSeek.id})`
+            sql`(${userTableRows.orderKey} IS NULL OR (${userTableRows.orderKey}, ${userTableRows.id}) > (${batchSeek.orderKey}, ${batchSeek.id}))`
           )
         : baseWhere
       const query = executor

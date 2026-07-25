@@ -27,6 +27,7 @@ import {
 } from '@/lib/billing/storage'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbOrTx } from '@/lib/db/types'
+import { nKeysBetween } from '@/lib/table/order-key'
 import type { TableSchema } from '@/lib/table/types'
 import {
   deleteFile,
@@ -822,6 +823,21 @@ export async function copyForkResourceContent(params: {
     try {
       let copied = 0
       let afterId: string | null = null
+      // `order_key` is nullable, and spreading `...row` would inherit NULLs into a
+      // brand-new tableId that the one-shot backfill script-migration never revisits
+      // (it snapshots the pending set up front) — leaving rows the keyset pager has to
+      // special-case forever. Mint keys for the unkeyed ones instead. They sort last in
+      // the source (NULLS LAST, id tiebreak) and this loop pages by id, so consuming a
+      // pre-generated run appended after the source's max key preserves visual order.
+      const [{ maxKey = null, unkeyed = 0 } = {}] = await db
+        .select({
+          maxKey: sql<string | null>`max(${userTableRows.orderKey})`,
+          unkeyed: sql<number>`count(*) filter (where ${userTableRows.orderKey} is null)`,
+        })
+        .from(userTableRows)
+        .where(eq(userTableRows.tableId, table.sourceId))
+      const mintedKeys = unkeyed > 0 ? nKeysBetween(maxKey, null, Number(unkeyed)) : []
+      let mintedIdx = 0
       for (;;) {
         const where: SQL<unknown> | undefined =
           afterId === null
@@ -840,6 +856,7 @@ export async function copyForkResourceContent(params: {
             id: generateId(),
             tableId: table.childId,
             workspaceId: childWorkspaceId,
+            orderKey: row.orderKey ?? mintedKeys[mintedIdx++] ?? null,
             // Repoint resource-chip URLs in cell data at the child copies (no-op when no maps).
             data: contentRefMaps ? remapTableRowResourceUrls(row.data, contentRefMaps) : row.data,
           }))
