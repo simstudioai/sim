@@ -733,14 +733,8 @@ function closeTabFromUser(tabId: string): void {
   active.view.webContents.focus()
 }
 
-/**
- * Wipes the embedded browser's profile: open tabs, the in-memory list behind
- * Reopen Closed Tab, the persisted pinned tabs, and all site data and cache in
- * the agent partition. Sim sign-out runs this so the next account signing in
- * on this machine cannot inherit the previous user's authenticated sessions,
- * pinned tabs, or browsing trail.
- */
-export async function clearProfileStorage(): Promise<void> {
+/** Destroys every live view and forgets which one was active. */
+function closeLiveTabs(): void {
   detachAttachedView()
   for (const tab of tabs.splice(0)) {
     if (!tab.view.webContents.isDestroyed()) {
@@ -750,6 +744,33 @@ export async function clearProfileStorage(): Promise<void> {
   recentlyClosedTabUrls.length = 0
   activeTabId = null
   clearFocusedBrowserTab()
+}
+
+/**
+ * Ends the live session without touching the profile or the pinned-tab list on
+ * disk, so the strip comes back intact next time. Turning the agent browser
+ * off in settings runs this; a sign-out wipe runs {@link clearProfileStorage}.
+ */
+export function closeSession(): void {
+  closeLiveTabs()
+  // Left unrestored so the next opening reads the pinned strip from disk
+  // rather than the emptied in-memory copy. Persistence is gated on the same
+  // flag, so nothing can save over that list in the meantime.
+  pinnedTabsRestored = false
+  events?.onTabsChanged()
+  events?.onSessionClosed()
+  layout()
+}
+
+/**
+ * Wipes the embedded browser's profile: open tabs, the in-memory list behind
+ * Reopen Closed Tab, the persisted pinned tabs, and all site data and cache in
+ * the agent partition. Sim sign-out runs this so the next account signing in
+ * on this machine cannot inherit the previous user's authenticated sessions,
+ * pinned tabs, or browsing trail.
+ */
+export async function clearProfileStorage(): Promise<void> {
+  closeLiveTabs()
   // Stays true so a later restore cannot re-read the list being erased here.
   pinnedTabsRestored = true
   pinnedTabPersistence?.save([])

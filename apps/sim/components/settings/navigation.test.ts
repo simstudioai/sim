@@ -27,6 +27,8 @@ describe('settings navigation boundaries', () => {
     expect(buildUnifiedSettingsNavigation().map(({ id }) => id)).toEqual([
       'general',
       'desktop',
+      'browser',
+      'terminal',
       'access-control',
       'audit-logs',
       'forks',

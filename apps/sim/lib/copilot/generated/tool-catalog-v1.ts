@@ -115,11 +115,15 @@ export interface ToolCatalogEntry {
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
     | 'table'
+    | 'terminal_close'
     | 'terminal_cwd'
     | 'terminal_input'
     | 'terminal_kill'
+    | 'terminal_list'
+    | 'terminal_new'
     | 'terminal_read'
     | 'terminal_run'
+    | 'terminal_switch'
     | 'update_deployment_version'
     | 'update_scheduled_task_history'
     | 'update_workspace_mcp_server'
@@ -238,11 +242,15 @@ export interface ToolCatalogEntry {
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
     | 'table'
+    | 'terminal_close'
     | 'terminal_cwd'
     | 'terminal_input'
     | 'terminal_kill'
+    | 'terminal_list'
+    | 'terminal_new'
     | 'terminal_read'
     | 'terminal_run'
+    | 'terminal_switch'
     | 'update_deployment_version'
     | 'update_scheduled_task_history'
     | 'update_workspace_mcp_server'
@@ -252,6 +260,7 @@ export interface ToolCatalogEntry {
     | 'workspace_file'
   parameters: unknown
   requiredPermission?: 'admin' | 'write'
+  requiresApproval?: boolean
   resultSchema?: unknown
   route: 'client' | 'go' | 'sim' | 'subagent'
   subagentId?:
@@ -687,6 +696,7 @@ export const CallIntegrationTool: ToolCatalogEntry = {
     required: ['toolId', 'description', 'arguments'],
     type: 'object',
   },
+  requiresApproval: true,
 }
 
 export const CheckDeploymentStatus: ToolCatalogEntry = {
@@ -906,6 +916,7 @@ export const DeleteWorkspaceMcpServer: ToolCatalogEntry = {
     required: ['serverId'],
   },
   requiredPermission: 'admin',
+  requiresApproval: true,
 }
 
 export const Deploy: ToolCatalogEntry = {
@@ -1006,6 +1017,7 @@ export const DeployApi: ToolCatalogEntry = {
     ],
   },
   requiredPermission: 'admin',
+  requiresApproval: true,
 }
 
 export const DeployChat: ToolCatalogEntry = {
@@ -1151,6 +1163,7 @@ export const DeployChat: ToolCatalogEntry = {
     ],
   },
   requiredPermission: 'admin',
+  requiresApproval: true,
 }
 
 export const DeployCustomBlock: ToolCatalogEntry = {
@@ -1361,6 +1374,7 @@ export const DeployMcp: ToolCatalogEntry = {
     required: ['deploymentType', 'deploymentStatus'],
   },
   requiredPermission: 'admin',
+  requiresApproval: true,
 }
 
 export const DiffWorkflows: ToolCatalogEntry = {
@@ -1899,6 +1913,7 @@ export const FunctionExecute: ToolCatalogEntry = {
     required: ['code'],
   },
   requiredPermission: 'write',
+  requiresApproval: true,
   capabilities: ['file_input', 'directory_input', 'file_output', 'table_input', 'table_output'],
 }
 
@@ -3368,6 +3383,7 @@ export const PromoteToLive: ToolCatalogEntry = {
     required: ['version'],
   },
   requiredPermission: 'admin',
+  requiresApproval: true,
 }
 
 export const QueryLogs: ToolCatalogEntry = {
@@ -3622,6 +3638,7 @@ export const Redeploy: ToolCatalogEntry = {
     ],
   },
   requiredPermission: 'admin',
+  requiresApproval: true,
 }
 
 export const Respond: ToolCatalogEntry = {
@@ -3842,6 +3859,7 @@ export const RunCode: ToolCatalogEntry = {
     required: ['code'],
   },
   requiredPermission: 'write',
+  requiresApproval: true,
   capabilities: ['file_input', 'directory_input', 'table_input'],
 }
 
@@ -3920,6 +3938,7 @@ export const RunWorkflow: ToolCatalogEntry = {
     },
   },
   clientExecutable: true,
+  requiresApproval: true,
 }
 
 export const RunWorkflowUntilBlock: ToolCatalogEntry = {
@@ -3968,6 +3987,7 @@ export const RunWorkflowUntilBlock: ToolCatalogEntry = {
     required: ['stopAfterBlockId'],
   },
   clientExecutable: true,
+  requiresApproval: true,
 }
 
 export const ScheduledTask: ToolCatalogEntry = {
@@ -4325,12 +4345,33 @@ export const Table: ToolCatalogEntry = {
   internal: true,
 }
 
+export const TerminalClose: ToolCatalogEntry = {
+  id: 'terminal_close',
+  name: 'terminal_close',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: { terminalId: { type: 'string', description: 'Id from terminal_list.' } },
+    required: ['terminalId'],
+  },
+  clientExecutable: true,
+}
+
 export const TerminalCwd: ToolCatalogEntry = {
   id: 'terminal_cwd',
   name: 'terminal_cwd',
   route: 'client',
   mode: 'async',
-  parameters: { type: 'object', properties: {} },
+  parameters: {
+    type: 'object',
+    properties: {
+      terminalId: {
+        type: 'string',
+        description: 'Which terminal to describe. Defaults to the active one.',
+      },
+    },
+  },
   clientExecutable: true,
 }
 
@@ -4359,10 +4400,14 @@ export const TerminalInput: ToolCatalogEntry = {
           'tab',
         ],
       },
+      terminalId: {
+        type: 'string',
+        description: 'Which terminal to type into. Defaults to the active one.',
+      },
       text: {
         type: 'string',
         description:
-          'Literal text to type. A trailing newline is sent as Enter, so a single call can type and submit; send text without one when you want to type now and submit separately.',
+          'Literal text to type. A trailing newline is sent as Enter, so a single call can type and submit; send text without one when you want to type now and submit separately. Confirm from the returned screen that it submitted.',
       },
     },
   },
@@ -4382,6 +4427,37 @@ export const TerminalKill: ToolCatalogEntry = {
         description: 'Signal to send. Defaults to SIGINT.',
         enum: ['SIGINT', 'SIGTERM', 'SIGKILL'],
       },
+      terminalId: {
+        type: 'string',
+        description: 'Which terminal to signal. Defaults to the active one.',
+      },
+    },
+  },
+  clientExecutable: true,
+}
+
+export const TerminalList: ToolCatalogEntry = {
+  id: 'terminal_list',
+  name: 'terminal_list',
+  route: 'client',
+  mode: 'async',
+  parameters: { type: 'object', properties: {} },
+  clientExecutable: true,
+}
+
+export const TerminalNew: ToolCatalogEntry = {
+  id: 'terminal_new',
+  name: 'terminal_new',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      cwd: {
+        type: 'string',
+        description:
+          "Absolute path to open in. Defaults to the active terminal's working directory.",
+      },
     },
   },
   clientExecutable: true,
@@ -4396,6 +4472,10 @@ export const TerminalRead: ToolCatalogEntry = {
     type: 'object',
     properties: {
       lines: { type: 'number', description: 'How many trailing lines to return. Defaults to 200.' },
+      terminalId: {
+        type: 'string',
+        description: 'Which terminal to read. Defaults to the active one.',
+      },
     },
   },
   clientExecutable: true,
@@ -4414,6 +4494,11 @@ export const TerminalRun: ToolCatalogEntry = {
         description:
           'The command line to run, exactly as it would be typed at the prompt. Shell syntax (pipes, &&, quoting, redirection) is supported because a real shell interprets it.',
       },
+      terminalId: {
+        type: 'string',
+        description:
+          'Which terminal to run in. Defaults to the active one, which is what the user is looking at.',
+      },
       waitSeconds: {
         type: 'number',
         description:
@@ -4421,6 +4506,20 @@ export const TerminalRun: ToolCatalogEntry = {
       },
     },
     required: ['command'],
+  },
+  clientExecutable: true,
+  requiresApproval: true,
+}
+
+export const TerminalSwitch: ToolCatalogEntry = {
+  id: 'terminal_switch',
+  name: 'terminal_switch',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: { terminalId: { type: 'string', description: 'Id from terminal_list.' } },
+    required: ['terminalId'],
   },
   clientExecutable: true,
 }
@@ -5391,11 +5490,15 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [SetEnvironmentVariables.id]: SetEnvironmentVariables,
   [SetGlobalWorkflowVariables.id]: SetGlobalWorkflowVariables,
   [Table.id]: Table,
+  [TerminalClose.id]: TerminalClose,
   [TerminalCwd.id]: TerminalCwd,
   [TerminalInput.id]: TerminalInput,
   [TerminalKill.id]: TerminalKill,
+  [TerminalList.id]: TerminalList,
+  [TerminalNew.id]: TerminalNew,
   [TerminalRead.id]: TerminalRead,
   [TerminalRun.id]: TerminalRun,
+  [TerminalSwitch.id]: TerminalSwitch,
   [UpdateDeploymentVersion.id]: UpdateDeploymentVersion,
   [UpdateScheduledTaskHistory.id]: UpdateScheduledTaskHistory,
   [UpdateWorkspaceMcpServer.id]: UpdateWorkspaceMcpServer,

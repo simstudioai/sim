@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import {
   ClipboardList,
+  Cursor,
   Database,
   HexSimple,
   Key,
@@ -78,6 +79,8 @@ export interface SettingsNavigationItem<Section extends string = string> {
 export type UnifiedSettingsSection =
   | 'general'
   | 'desktop'
+  | 'browser'
+  | 'terminal'
   | 'secrets'
   | 'access-control'
   | 'custom-blocks'
@@ -106,8 +109,16 @@ export type UnifiedNavigationSection =
   | 'subscription'
   | 'tools'
   | 'system'
+  | 'desktop'
   | 'enterprise'
   | 'superuser'
+
+/**
+ * A bridge surface the desktop shell must expose for a section to be worth
+ * showing. Gated on the surface, never on the user's device toggle — the
+ * Browser and Terminal pages are where that toggle is flipped back on.
+ */
+export type DesktopSettingsSurface = 'settings' | 'browser' | 'terminal'
 
 export interface UnifiedSettingsNavigationItem {
   id: UnifiedSettingsSection
@@ -123,7 +134,7 @@ export interface UnifiedSettingsNavigationItem {
   selfHostedOverride?: boolean
   requiresSuperUser?: boolean
   requiresAdminRole?: boolean
-  requiresDesktop?: boolean
+  requiresDesktopSurface?: DesktopSettingsSurface
   allowNonOrgAdmin?: boolean
   showWhenLocked?: boolean
   hideForEnterprise?: boolean
@@ -303,8 +314,28 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'desktop',
       description: 'Manage notifications, startup, local folders, and updates.',
-      group: 'system',
-      requiresDesktop: true,
+      group: 'desktop',
+      requiresDesktopSurface: 'settings',
+    },
+  },
+  {
+    label: 'Browser',
+    icon: Cursor,
+    unified: {
+      id: 'browser',
+      description: 'Control the browser Chat drives and the data it keeps.',
+      group: 'desktop',
+      requiresDesktopSurface: 'browser',
+    },
+  },
+  {
+    label: 'Terminal',
+    icon: TerminalWindow,
+    unified: {
+      id: 'terminal',
+      description: 'Control the shells Chat runs commands in.',
+      group: 'desktop',
+      requiresDesktopSurface: 'terminal',
     },
   },
   {

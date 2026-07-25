@@ -8,9 +8,10 @@
  * geometry and chrome: it reports where the browser panel sits (the main
  * process glues the real page over that rect, so the panel is natively
  * interactive) and receives page-state pushes for the panel header.
- * Availability of this bridge is what gates advertising `browserCapable` to
- * the copilot — in a regular web browser there is no bridge and the browser
- * subagent is never offered.
+ * Availability of this bridge, plus the device switch on the Browser settings
+ * page, is what gates advertising `browserCapable` to the copilot — in a
+ * regular web browser there is no bridge and the browser subagent is never
+ * offered.
  */
 import type {
   BrowserOmniboxFocusMode,
@@ -23,7 +24,7 @@ import type {
   BrowserToolName,
 } from '@sim/browser-protocol'
 import type { SimDesktopBrowserAgentApi } from '@sim/desktop-bridge'
-import { getDesktopBridge } from '@/lib/desktop'
+import { getDesktopBridge, isBrowserAgentEnabled } from '@/lib/desktop'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 let initialized = false
@@ -68,7 +69,7 @@ export function initBrowserAgentTransport(): void {
 
 /** True when browser tools can run (gates the copilot's browserCapable flag). */
 export function isBrowserAgentAvailable(): boolean {
-  return bridge() !== null
+  return isBrowserAgentEnabled()
 }
 
 /**

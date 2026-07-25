@@ -13,7 +13,11 @@ import { isSafeInternalPath } from '@/main/config'
  * `setPreference` union plus preferences added after the first release, which
  * ride their own optional bridge setters but share this channel.
  */
-export type DesktopSettingKey = DesktopPreferenceKey | 'trayEnabled'
+export type DesktopSettingKey =
+  | DesktopPreferenceKey
+  | 'trayEnabled'
+  | 'browserEnabled'
+  | 'terminalEnabled'
 
 const PREFERENCE_KEYS: ReadonlySet<string> = new Set<DesktopSettingKey>([
   'notificationsEnabled',
@@ -22,6 +26,8 @@ const PREFERENCE_KEYS: ReadonlySet<string> = new Set<DesktopSettingKey>([
   'launchAtLogin',
   'autoDownloadUpdates',
   'trayEnabled',
+  'browserEnabled',
+  'terminalEnabled',
 ])
 
 export function isDesktopPreferenceKey(value: unknown): value is DesktopSettingKey {
@@ -42,6 +48,10 @@ interface DesktopSettingsServiceDeps {
   setAutoDownloadUpdates: (enabled: boolean) => void
   /** Installs or tears down the menu-bar status item immediately. */
   setTrayEnabled: (enabled: boolean) => void
+  /** Ends the running agent-browser session when the surface is turned off. */
+  setBrowserEnabled: (enabled: boolean) => void
+  /** Ends every open agent shell when the surface is turned off. */
+  setTerminalEnabled: (enabled: boolean) => void
 }
 
 function readPreferences(config: ConfigStore): DesktopPreferences {
@@ -52,6 +62,8 @@ function readPreferences(config: ConfigStore): DesktopPreferences {
     launchAtLogin: config.get('launchAtLogin') ?? false,
     autoDownloadUpdates: config.get('autoDownloadUpdates') ?? true,
     trayEnabled: config.get('trayEnabled') ?? true,
+    browserEnabled: config.get('browserEnabled') ?? true,
+    terminalEnabled: config.get('terminalEnabled') ?? true,
   }
 }
 
@@ -76,12 +88,24 @@ export function createDesktopSettingsService(
     getPreferences: () => readPreferences(deps.config),
     setPreference(key, value) {
       deps.config.set(key, value)
-      if (key === 'launchAtLogin') {
-        applyLaunchAtLogin(value)
-      } else if (key === 'autoDownloadUpdates') {
-        deps.setAutoDownloadUpdates(value)
-      } else if (key === 'trayEnabled') {
-        deps.setTrayEnabled(value)
+      switch (key) {
+        case 'launchAtLogin':
+          applyLaunchAtLogin(value)
+          break
+        case 'autoDownloadUpdates':
+          deps.setAutoDownloadUpdates(value)
+          break
+        case 'trayEnabled':
+          deps.setTrayEnabled(value)
+          break
+        case 'browserEnabled':
+          deps.setBrowserEnabled(value)
+          break
+        case 'terminalEnabled':
+          deps.setTerminalEnabled(value)
+          break
+        default:
+          break
       }
       return readPreferences(deps.config)
     },

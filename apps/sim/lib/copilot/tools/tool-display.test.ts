@@ -17,6 +17,7 @@ import {
   getToolCompletedTitle,
   getToolDisplayTitle,
   getToolStatusDisplayTitle,
+  getWaitCountdownTitle,
   humanizeToolName,
   mvDisplayVerb,
 } from '@/lib/copilot/tools/tool-display'
@@ -469,5 +470,111 @@ describe('getToolDisplayTitle for context management', () => {
   it('describes compaction in user-facing language', () => {
     expect(getToolDisplayTitle('context_compaction')).toBe('Summarizing context')
     expect(getToolStatusDisplayTitle('Summarizing context', 'success')).toBe('Summarized context')
+  })
+})
+
+describe('wait titles', () => {
+  // The row is on screen for the whole pause, so a bare "Wait" reads as a
+  // stall. The duration is the entire content of this tool.
+  it('names the duration it is pausing for', () => {
+    expect(getToolDisplayTitle('wait', { seconds: 30 })).toBe('Waiting 30s')
+  })
+
+  it('includes the reason when the model gives one', () => {
+    expect(getToolDisplayTitle('wait', { seconds: 15, reason: 'the test suite to finish' })).toBe(
+      'Waiting 15s for the test suite to finish'
+    )
+  })
+
+  it('degrades to a bare verb rather than printing a bogus duration', () => {
+    expect(getToolDisplayTitle('wait', {})).toBe('Waiting')
+    expect(getToolDisplayTitle('wait', { seconds: 0 })).toBe('Waiting')
+    expect(getToolDisplayTitle('wait', { seconds: 'soon' })).toBe('Waiting')
+  })
+
+  it('rounds a fractional duration instead of showing decimals', () => {
+    expect(getToolDisplayTitle('wait', { seconds: 2.4 })).toBe('Waiting 2s')
+  })
+
+  it('reads as past tense once the pause is over', () => {
+    expect(getToolCompletedTitle('Waiting 30s')).toBe('Waited 30s')
+    expect(getToolCompletedTitle('Waiting 15s for the test suite to finish')).toBe(
+      'Waited 15s for the test suite to finish'
+    )
+  })
+})
+
+describe('terminal titles', () => {
+  it('names the command being run', () => {
+    expect(getToolDisplayTitle('terminal_run', { command: 'bun test' })).toBe('Running bun test')
+  })
+
+  it('collapses newlines so a multi-line command stays one row', () => {
+    expect(getToolDisplayTitle('terminal_run', { command: 'cd apps/sim\n  bun test' })).toBe(
+      'Running cd apps/sim bun test'
+    )
+  })
+
+  it('truncates a long command rather than wrapping the row', () => {
+    const title = getToolDisplayTitle('terminal_run', { command: 'echo '.repeat(40) })
+    expect(title.length).toBeLessThanOrEqual('Running '.length + 48)
+    expect(title.endsWith('…')).toBe(true)
+  })
+
+  it('falls back to a generic label before the command has streamed in', () => {
+    expect(getToolDisplayTitle('terminal_run', {})).toBe('Running command')
+  })
+
+  it('reads as past tense once each terminal action settles', () => {
+    expect(getToolCompletedTitle('Running bun test')).toBe('Ran bun test')
+    expect(getToolCompletedTitle('Stopping command')).toBe('Stopped command')
+    expect(getToolCompletedTitle('Reading terminal')).toBe('Read terminal')
+  })
+})
+
+describe('wait countdown', () => {
+  const args = { seconds: 30, reason: 'Claude Code to finish the summary' }
+
+  it('starts at the full duration', () => {
+    expect(getWaitCountdownTitle(args, 0)).toBe('Waiting 30s for Claude Code to finish the summary')
+  })
+
+  it('counts down as the pause runs', () => {
+    expect(getWaitCountdownTitle(args, 5_000)).toBe(
+      'Waiting 25s for Claude Code to finish the summary'
+    )
+    expect(getWaitCountdownTitle(args, 29_000)).toBe(
+      'Waiting 1s for Claude Code to finish the summary'
+    )
+  })
+
+  it('holds a whole second rather than ticking on partial ones', () => {
+    expect(getWaitCountdownTitle(args, 999)).toBe(getWaitCountdownTitle(args, 0))
+    expect(getWaitCountdownTitle(args, 1_001)).toBe(getWaitCountdownTitle(args, 1_999))
+  })
+
+  it('drops the number at zero instead of freezing on "0s"', () => {
+    // The row can outlive its own countdown while the turn picks back up, and
+    // a stuck "0s" reads as broken.
+    expect(getWaitCountdownTitle(args, 30_000)).toBe(
+      'Waiting for Claude Code to finish the summary'
+    )
+    expect(getWaitCountdownTitle(args, 90_000)).toBe(
+      'Waiting for Claude Code to finish the summary'
+    )
+  })
+
+  it('never counts up from a clock that jumped backwards', () => {
+    expect(getWaitCountdownTitle(args, -5_000)).toBe(
+      'Waiting 30s for Claude Code to finish the summary'
+    )
+  })
+
+  it('stays a bare verb when there is no duration to count', () => {
+    expect(getWaitCountdownTitle({}, 3_000)).toBe('Waiting')
+  })
+
+  it('matches the static title at zero elapsed', () => {
+    expect(getWaitCountdownTitle(args, 0)).toBe(getToolDisplayTitle('wait', args))
   })
 })

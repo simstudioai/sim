@@ -1,12 +1,16 @@
 /**
- * Shared types for the Sim agent terminal — the interactive shell built into
+ * Shared types for the Sim agent terminal — the interactive shells built into
  * the Sim desktop app.
  *
- * The Sim web app (renderer) drives a real PTY through the desktop preload
+ * The Sim web app (renderer) drives real PTYs through the desktop preload
  * bridge (`window.simDesktop.terminal`); the Electron main process owns the
- * `node-pty` process and streams its bytes back for xterm.js to render. The
- * user and the agent share one shell, so `cd`, exported variables, and
- * scrollback are common to both.
+ * `node-pty` processes and streams their bytes back for xterm.js to render.
+ * The user and the agent share the same shells, so `cd`, exported variables,
+ * and scrollback are common to both.
+ *
+ * Several terminals can be open at once, each its own shell with its own
+ * working directory and scrollback, exactly like tabs in a terminal app. One is
+ * active at a time; agent tools act on the active one unless they name another.
  *
  * Tool names and parameter shapes mirror the mothership tool catalog
  * (`copilot/internal/tools/catalog/terminal` in the mothership repo) — that
@@ -20,6 +24,10 @@ export const TERMINAL_TOOL_NAMES = [
   'terminal_read',
   'terminal_kill',
   'terminal_cwd',
+  'terminal_list',
+  'terminal_new',
+  'terminal_switch',
+  'terminal_close',
 ] as const
 
 export type TerminalToolName = (typeof TERMINAL_TOOL_NAMES)[number]
@@ -31,13 +39,20 @@ export function isTerminalToolName(name: string): name is TerminalToolName {
 }
 
 /**
+ * Ceiling on concurrently open terminals. Each is a live shell process with its
+ * own emulator and scrollback, so the cap bounds both memory and the number of
+ * things the user has to keep track of.
+ */
+export const MAX_TERMINALS = 8
+
+/**
  * Largest command output handed back to the model, in characters. Output past
  * this is middle-elided (head and tail kept) because the interesting parts of
  * a long build log are the command echo and the failure at the end.
  */
 export const MAX_TOOL_OUTPUT_CHARS = 30_000
 
-/** Scrollback the main process retains for `terminal_read` and panel revival. */
+/** Scrollback the main process retains per terminal for reads and repaints. */
 export const MAX_SCROLLBACK_CHARS = 256_000
 
 /**
@@ -59,6 +74,8 @@ export const MAX_CAPTURE_CHARS = 512_000
  */
 export const DEFAULT_RUN_WAIT_MS = 30_000
 
+export const MAX_RUN_WAIT_MS = 120_000
+
 /**
  * How long output must be silent, with the cursor left mid-line, before the
  * command is treated as sitting on a prompt and handed straight back.
@@ -69,8 +86,6 @@ export const DEFAULT_RUN_WAIT_MS = 30_000
  * last line properly, so neither trips this.
  */
 export const PROMPT_IDLE_MS = 2_500
-
-export const MAX_RUN_WAIT_MS = 120_000
 
 /** Control keys the agent may send to a running foreground process. */
 export const TERMINAL_CONTROL_KEYS = [
@@ -94,23 +109,37 @@ export function isTerminalControlKey(value: unknown): value is TerminalControlKe
   return typeof value === 'string' && TERMINAL_CONTROL_KEY_SET.has(value)
 }
 
-export interface TerminalRunParams {
+/**
+ * Every tool takes an optional `terminalId`. Omitting it targets the active
+ * terminal, which is what the user is looking at and what a single-terminal
+ * conversation always means.
+ */
+interface TerminalTargeted {
+  terminalId?: string
+}
+
+export interface TerminalRunParams extends TerminalTargeted {
   command: string
   waitSeconds?: number
 }
 
-export interface TerminalInputParams {
+export interface TerminalInputParams extends TerminalTargeted {
   text?: string
   key?: TerminalControlKey
 }
 
-export interface TerminalReadParams {
+export interface TerminalReadParams extends TerminalTargeted {
   /** Trailing lines of scrollback to return. */
   lines?: number
 }
 
-export interface TerminalKillParams {
+export interface TerminalKillParams extends TerminalTargeted {
   signal?: 'SIGINT' | 'SIGTERM' | 'SIGKILL'
+}
+
+export interface TerminalNewParams {
+  /** Directory to open in. Defaults to the active terminal's cwd. */
+  cwd?: string
 }
 
 /**
@@ -140,6 +169,7 @@ export interface TerminalRunResult {
   exitCode: number | null
   durationMs: number
   cwd: string | null
+  terminalId: string
   /** True when output was elided to fit {@link MAX_TOOL_OUTPUT_CHARS}. */
   truncated: boolean
   /**
@@ -153,6 +183,7 @@ export interface TerminalRunResult {
 export interface TerminalReadResult {
   output: string
   cwd: string | null
+  terminalId: string
   truncated: boolean
   /**
    * The command still holding the terminal, or null when the shell is back at
@@ -167,6 +198,29 @@ export interface TerminalCwdResult {
   cwd: string | null
   shellName: string | null
   home: string | null
+  terminalId: string
+}
+
+/** One open terminal, as shown in the tab strip. */
+export interface TerminalTabState {
+  terminalId: string
+  /** Short label for the tab: the running command, else the cwd's basename. */
+  title: string
+  cwd: string | null
+  /** Command holding the foreground, when one is running. */
+  running: string | null
+  /**
+   * True while a full-screen program owns the terminal. Distinct from merely
+   * `running`: a build is transient work, an editor or coding agent is an open
+   * application that will sit there until it is quit.
+   */
+  interactive: boolean
+  active: boolean
+}
+
+export interface TerminalTabsState {
+  tabs: TerminalTabState[]
+  activeTerminalId: string | null
 }
 
 /** The result of one terminal tool invocation, as returned over the bridge. */
@@ -179,7 +233,7 @@ export interface TerminalToolResponse {
 
 export type TerminalErrorCode =
   | 'SESSION_CLOSED'
-  /** Another command already holds the foreground. */
+  /** Another command already holds the foreground in that terminal. */
   | 'BUSY'
   | 'TIMEOUT'
   /**
@@ -188,6 +242,10 @@ export type TerminalErrorCode =
    */
   | 'NO_SHELL_INTEGRATION'
   | 'SPAWN_FAILED'
+  /** No terminal with that id — the ids come from terminal_list. */
+  | 'NO_SUCH_TERMINAL'
+  /** Already at {@link MAX_TERMINALS}. */
+  | 'TOO_MANY_TERMINALS'
   | 'INVALID_REQUEST'
 
 export interface TerminalStartOptions {
@@ -195,20 +253,10 @@ export interface TerminalStartOptions {
   rows: number
 }
 
-/** Live session state pushed to the panel header. */
-export interface TerminalSessionState {
-  alive: boolean
-  cwd: string | null
-  shellName: string | null
-  /**
-   * True once integration markers have been seen. Until then the panel is a
-   * usable terminal but the agent cannot run commands in it.
-   */
-  shellIntegration: boolean
-  /** Command holding the foreground, when one is running. */
-  foregroundCommand: string | null
-  cols: number
-  rows: number
+/** One batch of PTY bytes, tagged with the terminal that produced it. */
+export interface TerminalOutputEvent {
+  terminalId: string
+  data: string
 }
 
 /**
@@ -217,6 +265,7 @@ export interface TerminalSessionState {
  * `toolCallId`), so the agent's `terminal_read` and the user's view agree.
  */
 export interface TerminalCommandEvent {
+  terminalId: string
   phase: 'start' | 'end'
   command: string
   /** Set when the agent initiated this command rather than the user. */

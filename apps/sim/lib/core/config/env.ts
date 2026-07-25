@@ -53,6 +53,8 @@ export const env = createEnv({
     COPILOT_BILLING_ATTRIBUTION_V1_ENABLED: z.boolean().optional(),
     /** Rejects markerless old-Go billing traffic only when explicitly enabled. */
     COPILOT_BILLING_PROTOCOL_REQUIRED:     z.boolean().optional(),
+    /** Gates risky copilot tools behind an Allow / Skip prompt. Off by default. */
+    COPILOT_TOOL_PERMISSIONS_ENABLED:      z.boolean().optional(),
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
     COPILOT_SOURCE_ENV:                    z.enum(['dev', 'staging', 'prod']).optional(), // Source Sim environment sent to mothership for callbacks
     COPILOT_DEV_URL:                       z.string().url().optional(),            // Sim agent API URL for the dev mothership environment

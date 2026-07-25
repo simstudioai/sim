@@ -4,12 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChipConfirmModal, chipVariants, cn } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
+import type { DesktopSettingsSurface } from '@/components/settings/navigation'
 import { ORGANIZATION_PLANE_UNIFIED_SECTIONS } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { isHosted } from '@/lib/core/config/env-flags'
-import { hasDesktopSettings } from '@/lib/desktop'
+import { hasBrowserAgent, hasDesktopSettings, hasTerminal } from '@/lib/desktop'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
@@ -58,7 +59,11 @@ export function SettingsSidebar({
   const showDiscardDialog = pendingLeave !== null
 
   const [hasOverflowTop, setHasOverflowTop] = useState(false)
-  const [desktopSettingsAvailable, setDesktopSettingsAvailable] = useState(false)
+  const [desktopSurfaces, setDesktopSurfaces] = useState<Record<DesktopSettingsSurface, boolean>>({
+    settings: false,
+    browser: false,
+    terminal: false,
+  })
 
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
@@ -91,7 +96,7 @@ export function SettingsSidebar({
 
   const navigationItems = useMemo(() => {
     return allNavigationItems.filter((item) => {
-      if (item.requiresDesktop && !desktopSettingsAvailable) {
+      if (item.requiresDesktopSurface && !desktopSurfaces[item.requiresDesktopSurface]) {
         return false
       }
 
@@ -192,7 +197,7 @@ export function SettingsSidebar({
     generalSettings?.superUserModeEnabled,
     forkingAvailable,
     canAdminWorkspace,
-    desktopSettingsAvailable,
+    desktopSurfaces,
   ])
 
   const activeSection = useMemo(() => {
@@ -221,6 +226,12 @@ export function SettingsSidebar({
         case 'desktop':
           void import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop')
           break
+        case 'browser':
+          void import('@/app/workspace/[workspaceId]/settings/components/browser/browser')
+          break
+        case 'terminal':
+          void import('@/app/workspace/[workspaceId]/settings/components/terminal/terminal')
+          break
       }
     },
     [queryClient, workspaceId]
@@ -243,7 +254,11 @@ export function SettingsSidebar({
   }, [cancelLeave])
 
   useEffect(() => {
-    setDesktopSettingsAvailable(hasDesktopSettings())
+    setDesktopSurfaces({
+      settings: hasDesktopSettings(),
+      browser: hasBrowserAgent(),
+      terminal: hasTerminal(),
+    })
   }, [])
 
   useEffect(() => {

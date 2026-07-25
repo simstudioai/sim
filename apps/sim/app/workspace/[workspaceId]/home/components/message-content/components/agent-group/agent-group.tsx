@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown, cn, Expandable, ExpandableContent } from '@sim/emcn'
 import { ShimmerText } from '@/components/ui'
 import { useSmoothText } from '@/hooks/use-smooth-text'
-import type { ToolCallData } from '../../../../types'
+import { type ToolCallData, ToolCallStatus } from '../../../../types'
 import { getAgentIcon, isToolDone } from '../../utils'
 import { renderInlineMarkdown } from './inline-markdown'
 import { ToolCallItem } from './tool-call-item'
@@ -38,6 +38,15 @@ interface AgentGroupProps {
   isCurrentSection?: boolean
   /** The subagent lane is still open (no subagent_end yet) — i.e. actively running. */
   isLaneOpen?: boolean
+}
+
+/** True when any row in this group (or a nested one) is waiting on a permission decision. */
+function hasAwaitingApproval(items: AgentGroupItem[]): boolean {
+  return items.some((item) => {
+    if (item.type === 'tool') return item.data.status === ToolCallStatus.awaiting_approval
+    // Text rows carry no tool calls, so only nested groups need recursing into.
+    return item.type === 'agent_group' ? hasAwaitingApproval(item.group.items) : false
+  })
 }
 
 export function isAgentGroupResolved(items: AgentGroupItem[]): boolean {
@@ -80,7 +89,10 @@ export function AgentGroup({
   // (isStreaming false) collapses everything; a manual toggle pins the choice.
   const autoExpanded = isStreaming && (isCurrentSection || isLaneOpen || !resolved)
   const [manualExpanded, setManualExpanded] = useState<boolean | null>(null)
-  const expanded = manualExpanded ?? autoExpanded
+  // An outstanding permission prompt overrides a manual collapse: the turn
+  // cannot proceed until it is answered, so hiding it would deadlock the chat
+  // with nothing on screen to explain why.
+  const expanded = hasAwaitingApproval(items) || (manualExpanded ?? autoExpanded)
 
   return (
     <div className='flex flex-col gap-1.5'>
@@ -127,11 +139,13 @@ export function AgentGroup({
                     return (
                       <ToolCallItem
                         key={item.data.id}
+                        toolCallId={item.data.id}
                         toolName={item.data.toolName}
                         displayTitle={item.data.displayTitle}
                         status={item.data.status}
                         params={item.data.params}
                         streamingArgs={item.data.streamingArgs}
+                        startedAt={item.data.startedAt}
                       />
                     )
                   }

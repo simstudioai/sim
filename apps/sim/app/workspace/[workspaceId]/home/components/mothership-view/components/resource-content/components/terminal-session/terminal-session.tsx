@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { TerminalWindow } from '@sim/emcn/icons'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { cn, TabStrip, type TabStripItem } from '@sim/emcn'
+import { Loader, TerminalWindow } from '@sim/emcn/icons'
 import { FitAddon } from '@xterm/addon-fit'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -9,16 +10,27 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import { useTheme } from 'next-themes'
 import '@xterm/xterm/css/xterm.css'
+import { MAX_TERMINALS } from '@sim/terminal-protocol'
 import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import {
+  closeTerminal,
   onTerminalData,
   onTerminalReplay,
+  openTerminal,
   resizeTerminal,
   startTerminalSession,
+  switchTerminal,
   writeToTerminal,
 } from '@/lib/terminal/transport'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
+
+/**
+ * How long the panel must stop changing size before the PTY is told about it.
+ * Long enough to cover a divider drag, short enough that a deliberate resize
+ * still feels immediate.
+ */
+const RESIZE_SETTLE_MS = 120
 
 const LIGHT_THEME = {
   background: '#ffffff',
@@ -67,26 +79,20 @@ const DARK_THEME = {
 }
 
 /**
- * The terminal panel. Unlike the browser panel, nothing native is overlaid
- * here: xterm.js renders the PTY's bytes in the DOM, so the panel is an
- * ordinary React subtree that happens to be a fully functioning terminal.
+ * One terminal's xterm instance.
+ *
+ * Every open terminal stays mounted, including the ones behind other tabs, so
+ * switching is instant and scrollback is never rebuilt. Only the active one is
+ * visible, and only it is measured — `fit()` against a hidden element reads a
+ * zero-sized box and would resize the PTY to nonsense.
  */
-export function TerminalSession() {
+function TerminalView({ terminalId, active }: { terminalId: string; active: boolean }) {
   const { resolvedTheme } = useTheme()
   const hostRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
-  const session = useCopilotTerminalStore((state) => state.session)
-  const { removeResource } = useMothershipResources()
-  const [startError, setStartError] = useState<string | null>(null)
-
-  const start = useCallback(async (cols: number, rows: number) => {
-    try {
-      await startTerminalSession({ cols, rows })
-      setStartError(null)
-    } catch (error) {
-      setStartError((error as Error).message)
-    }
-  }, [])
+  const fitRef = useRef<FitAddon | null>(null)
+  const activeRef = useRef(active)
+  activeRef.current = active
 
   useEffect(() => {
     const host = hostRef.current
@@ -119,32 +125,52 @@ export function TerminalSession() {
     }
 
     terminalRef.current = terminal
+    fitRef.current = fit
 
-    fit.fit()
-    const disposeData = terminal.onData((data) => writeToTerminal(data))
-    const disposeResize = terminal.onResize(({ cols, rows }) => resizeTerminal(cols, rows))
-    const unsubscribeData = onTerminalData((data) => terminal.write(data))
+    const disposeData = terminal.onData((data) => writeToTerminal(terminalId, data))
+    const disposeResize = terminal.onResize(({ cols, rows }) =>
+      resizeTerminal(terminalId, cols, rows)
+    )
+    const unsubscribeData = onTerminalData((id, data) => {
+      if (id === terminalId) terminal.write(data)
+    })
     // The desktop app owns the scrollback, so a panel mounting over a shell
-    // that was already running repaints from it rather than from anything the
-    // renderer kept. Resetting first makes the repaint idempotent, so bytes
-    // that arrived before it cannot show up twice.
-    const unsubscribeReplay = onTerminalReplay((data) => {
+    // that was already running repaints from it. Resetting first makes the
+    // repaint idempotent, so bytes that arrived before it cannot show up twice.
+    const unsubscribeReplay = onTerminalReplay((id, data) => {
+      if (id !== terminalId) return
       terminal.reset()
       if (data) terminal.write(data)
     })
 
+    // Resizing is debounced, and deliberately not applied to hidden tabs.
+    //
+    // Every distinct column count reaches the shell as a SIGWINCH and makes it
+    // repaint its prompt. Dragging the panel divider produces a new width each
+    // frame, so fitting on every observation walks the shell through dozens of
+    // widths — which is the flickering, scrolling, newline-spewing mess. Only
+    // the size the drag settles on is worth telling the PTY about.
+    //
+    // Hidden tabs are skipped because `invisible` keeps layout: without this
+    // every background terminal would repaint through the same sequence, for a
+    // resize nobody is watching. They refit when activated.
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null
     const observer = new ResizeObserver(() => {
-      try {
-        fit.fit()
-      } catch {
-        // Zero-sized while the panel animates; the next observation refits.
-      }
+      if (resizeTimer) clearTimeout(resizeTimer)
+      resizeTimer = setTimeout(() => {
+        resizeTimer = null
+        if (!activeRef.current) return
+        try {
+          fit.fit()
+        } catch {
+          // Zero-sized while animating; the next observation refits.
+        }
+      }, RESIZE_SETTLE_MS)
     })
     observer.observe(host)
 
-    void start(terminal.cols, terminal.rows)
-
     return () => {
+      if (resizeTimer) clearTimeout(resizeTimer)
       observer.disconnect()
       unsubscribeData()
       unsubscribeReplay()
@@ -152,11 +178,12 @@ export function TerminalSession() {
       disposeResize.dispose()
       terminal.dispose()
       terminalRef.current = null
+      fitRef.current = null
     }
-    // Theme changes are applied through the separate effect below so the
-    // terminal is never torn down (and its buffer never lost) for a repaint.
+    // Theme is applied by the effect below so the terminal is never torn down
+    // (and its buffer never lost) for a repaint.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [start])
+  }, [terminalId])
 
   useEffect(() => {
     const terminal = terminalRef.current
@@ -164,35 +191,104 @@ export function TerminalSession() {
     terminal.options.theme = resolvedTheme === 'dark' ? DARK_THEME : LIGHT_THEME
   }, [resolvedTheme])
 
-  // `exit`, Ctrl-D, or a crashed shell ends the session, and a panel with no
-  // shell behind it has nothing to show and no way back — so it closes itself.
-  // Gated on having been alive so the pre-start null state never closes it.
-  const wasAlive = useRef(false)
   useEffect(() => {
-    if (session?.alive) {
-      wasAlive.current = true
+    if (!active) return
+    // Measure after the browser has laid the newly shown terminal out.
+    const frame = requestAnimationFrame(() => {
+      try {
+        fitRef.current?.fit()
+        terminalRef.current?.focus()
+      } catch {
+        // Panel still animating; the ResizeObserver refits.
+      }
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [active])
+
+  return <div ref={hostRef} className={cn('absolute inset-0 px-2 py-1', !active && 'invisible')} />
+}
+
+/**
+ * The terminal panel. Unlike the browser panel, nothing native is overlaid
+ * here: xterm.js renders each PTY's bytes in the DOM, so the panel is an
+ * ordinary React subtree that happens to be a set of working terminals.
+ */
+export function TerminalSession() {
+  const { tabs, activeTerminalId } = useCopilotTerminalStore((state) => state.tabs)
+  const { removeResource } = useMothershipResources()
+  const [startError, setStartError] = useState<string | null>(null)
+
+  useEffect(() => {
+    startTerminalSession({ cols: 80, rows: 24 })
+      .then(() => setStartError(null))
+      .catch((error: Error) => setStartError(error.message))
+  }, [])
+
+  // Closing the last terminal closes the panel: there is nothing left to show
+  // and no way back from inside it.
+  const hasStarted = useRef(false)
+  useEffect(() => {
+    if (tabs.length > 0) {
+      hasStarted.current = true
       return
     }
-    if (session && !session.alive && wasAlive.current) {
-      wasAlive.current = false
+    if (hasStarted.current) {
+      hasStarted.current = false
       removeResource('terminal', TERMINAL_SESSION_RESOURCE_ID)
     }
-  }, [session, removeResource])
+  }, [tabs.length, removeResource])
+
+  // The spinner means "transient work in progress", which is why a full-screen
+  // program does not get one: an editor or coding agent owns the terminal until
+  // it is quit, and spinning for the hour it is open would say the wrong thing.
+  // It is the only sign that something is running in a tab nobody is looking at.
+  const items = useMemo<TabStripItem[]>(
+    () =>
+      tabs.map((tab) => ({
+        id: tab.terminalId,
+        title: tab.title,
+        icon:
+          tab.running && !tab.interactive ? (
+            <Loader className='size-[12px] shrink-0 animate-spin text-[var(--text-icon)]' />
+          ) : (
+            <TerminalWindow className='size-[12px] shrink-0 text-[var(--text-icon)]' />
+          ),
+        active: tab.terminalId === activeTerminalId,
+      })),
+    [tabs, activeTerminalId]
+  )
+
+  const handleNew = useCallback(() => {
+    void openTerminal()
+  }, [])
+  const handleSwitch = useCallback((terminalId: string) => {
+    void switchTerminal(terminalId)
+  }, [])
+  const handleClose = useCallback((terminalId: string) => {
+    void closeTerminal(terminalId)
+  }, [])
 
   return (
     <div className='flex h-full flex-col overflow-hidden bg-[var(--bg)]'>
-      <div className='flex shrink-0 items-center gap-2 border-[var(--border)] border-b px-2.5 py-1.5'>
-        <TerminalWindow className='size-[14px] shrink-0 text-[var(--text-tertiary)]' />
-        <span className='min-w-0 flex-1 truncate font-mono text-[var(--text-secondary)] text-small'>
-          {session?.cwd ?? 'No shell running'}
-        </span>
-        {session?.foregroundCommand && (
-          <span className='shrink-0 text-[var(--text-muted)] text-small'>Running…</span>
-        )}
-      </div>
+      {tabs.length > 0 && (
+        <TabStrip
+          tabs={items}
+          onSelect={handleSwitch}
+          onNew={handleNew}
+          maxTabs={MAX_TERMINALS}
+          newTabLabel='New terminal'
+          {...(tabs.length > 1 ? { onClose: handleClose } : {})}
+        />
+      )}
 
       <div className='relative min-h-0 flex-1'>
-        <div ref={hostRef} className='absolute inset-0 px-2 py-1' />
+        {tabs.map((tab) => (
+          <TerminalView
+            key={tab.terminalId}
+            terminalId={tab.terminalId}
+            active={tab.terminalId === activeTerminalId}
+          />
+        ))}
         {startError && (
           <div className='absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[var(--bg)] px-6 text-center'>
             <TerminalWindow className='size-[18px] text-[var(--text-tertiary)]' />

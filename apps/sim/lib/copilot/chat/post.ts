@@ -192,6 +192,18 @@ const ChatMessageSchema = z.object({
       localFilesystem: z.boolean().optional(),
       browser: z.boolean().optional(),
       terminal: z.boolean().optional(),
+      terminals: z
+        .array(
+          z.object({
+            id: z.string().max(64),
+            cwd: z.string().max(1024).optional(),
+            running: z.string().max(1024).optional(),
+            interactive: z.boolean().optional(),
+            active: z.boolean().optional(),
+          })
+        )
+        .max(8)
+        .optional(),
       browserSessions: z
         .array(
           z.object({
@@ -212,6 +224,7 @@ const ChatMessageSchema = z.object({
 
 type UnifiedChatRequest = z.infer<typeof ChatMessageSchema>
 type BrowserSessions = NonNullable<UnifiedChatRequest['desktopCapabilities']>['browserSessions']
+type Terminals = NonNullable<UnifiedChatRequest['desktopCapabilities']>['terminals']
 type UnifiedChatBranch =
   | {
       kind: 'workflow'
@@ -251,6 +264,7 @@ type UnifiedChatBranch =
         desktopLocalFilesystem?: boolean
         browserCapable?: boolean
         terminalCapable?: boolean
+        terminals?: Terminals
         browserSessions?: BrowserSessions
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
@@ -286,6 +300,7 @@ type UnifiedChatBranch =
         desktopLocalFilesystem?: boolean
         browserCapable?: boolean
         terminalCapable?: boolean
+        terminals?: Terminals
         browserSessions?: BrowserSessions
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
@@ -724,6 +739,7 @@ async function resolveBranch(params: {
             desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
             browserCapable: payloadParams.browserCapable,
             terminalCapable: payloadParams.terminalCapable,
+            terminals: payloadParams.terminals,
             browserSessions: payloadParams.browserSessions,
           },
           { selectedModel }
@@ -785,6 +801,7 @@ async function resolveBranch(params: {
           desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
           browserCapable: payloadParams.browserCapable,
           terminalCapable: payloadParams.terminalCapable,
+          terminals: payloadParams.terminals,
           browserSessions: payloadParams.browserSessions,
         },
         { selectedModel: '' }
@@ -1123,6 +1140,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 browserCapable:
                   body.desktopCapabilities?.browser === true || body.browserCapable === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
+                terminals: body.desktopCapabilities?.terminals,
                 browserSessions: body.desktopCapabilities?.browserSessions,
               })
             : branch.buildPayload({
@@ -1143,6 +1161,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 browserCapable:
                   body.desktopCapabilities?.browser === true || body.browserCapable === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
+                terminals: body.desktopCapabilities?.terminals,
                 browserSessions: body.desktopCapabilities?.browserSessions,
               })
         },

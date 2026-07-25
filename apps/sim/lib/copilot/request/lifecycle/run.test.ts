@@ -13,7 +13,8 @@ const {
   mockGetMothershipSourceEnvHeaders,
   mockPrepareExecutionContext,
   mockRunStreamLoop,
-  mockToolWatchdogTimeoutMs,
+  mockPendingToolWaitBudgetMs,
+  mockGetAutoAllowedTools,
   mockUpdateRunStatus,
   mockEnv,
   mockFlags,
@@ -25,7 +26,8 @@ const {
   mockGetMothershipSourceEnvHeaders: vi.fn(),
   mockPrepareExecutionContext: vi.fn(),
   mockRunStreamLoop: vi.fn(),
-  mockToolWatchdogTimeoutMs: vi.fn(() => 60_000),
+  mockPendingToolWaitBudgetMs: vi.fn(() => 60_000),
+  mockGetAutoAllowedTools: vi.fn(async () => new Set<string>()),
   mockUpdateRunStatus: vi.fn(),
   mockEnv: {
     COPILOT_API_KEY: undefined as string | undefined,
@@ -33,6 +35,7 @@ const {
   mockFlags: {
     isHosted: false,
     isCopilotBillingAttributionV1Enabled: false,
+    isCopilotToolPermissionsEnabled: false,
   },
 }))
 
@@ -100,9 +103,18 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   get isCopilotBillingAttributionV1Enabled() {
     return mockFlags.isCopilotBillingAttributionV1Enabled
   },
+  get isCopilotToolPermissionsEnabled() {
+    return mockFlags.isCopilotToolPermissionsEnabled
+  },
   get isHosted() {
     return mockFlags.isHosted
   },
+}))
+
+vi.mock('@/lib/copilot/persistence/tool-permission/auto-allow', () => ({
+  getAutoAllowedTools: mockGetAutoAllowedTools,
+  addAutoAllowedTool: vi.fn(),
+  addChatAutoAllowedTool: vi.fn(),
 }))
 
 vi.mock('@/lib/environment/utils', () => ({
@@ -120,7 +132,7 @@ vi.mock('@/lib/copilot/request/tools/billing', () => ({
 vi.mock('@/lib/copilot/request/tools/executor', () => ({
   executeToolAndReport: vi.fn(),
   forceFailHungToolCall: mockForceFailHungToolCall,
-  toolWatchdogTimeoutMs: mockToolWatchdogTimeoutMs,
+  pendingToolWaitBudgetMs: mockPendingToolWaitBudgetMs,
 }))
 
 import {
@@ -140,8 +152,90 @@ describe('runCopilotLifecycle', () => {
     mockEnv.COPILOT_API_KEY = undefined
     mockFlags.isHosted = false
     mockFlags.isCopilotBillingAttributionV1Enabled = false
+    mockFlags.isCopilotToolPermissionsEnabled = false
+    mockGetAutoAllowedTools.mockResolvedValue(new Set<string>())
     mockGetMothershipBaseURL.mockResolvedValue('http://mothership.test')
     mockGetMothershipSourceEnvHeaders.mockReturnValue({})
+  })
+
+  describe('tool permission feature flag', () => {
+    const runMothershipTurn = () =>
+      runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-flag' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          goRoute: '/api/mothership',
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+            chatId: 'chat-1',
+            decryptedEnvVars: {},
+          },
+        }
+      )
+
+    it('stays entirely inert while the flag is off', async () => {
+      let captured: StreamingContext | undefined
+      mockRunStreamLoop.mockImplementation(async (_u, _o, context: StreamingContext) => {
+        captured = context
+      })
+
+      await runMothershipTurn()
+
+      expect(captured?.toolPermissions.enabled).toBe(false)
+      // Never even reads the preference tables when disabled.
+      expect(mockGetAutoAllowedTools).not.toHaveBeenCalled()
+    })
+
+    it('arms the gate and loads the allow list once the flag is on', async () => {
+      mockFlags.isCopilotToolPermissionsEnabled = true
+      mockGetAutoAllowedTools.mockResolvedValue(new Set(['terminal_run']))
+      let captured: StreamingContext | undefined
+      mockRunStreamLoop.mockImplementation(async (_u, _o, context: StreamingContext) => {
+        captured = context
+      })
+
+      await runMothershipTurn()
+
+      expect(captured?.toolPermissions.enabled).toBe(true)
+      expect(captured?.toolPermissions.autoAllowed.has('terminal_run')).toBe(true)
+      expect(mockGetAutoAllowedTools).toHaveBeenCalledWith('user-1', 'chat-1')
+    })
+
+    it('stays off for the workflow-scoped copilot even with the flag on', async () => {
+      // That panel has no permission card, so gating there would hang the turn
+      // on a prompt nothing draws.
+      mockFlags.isCopilotToolPermissionsEnabled = true
+      let captured: StreamingContext | undefined
+      mockRunStreamLoop.mockImplementation(async (_u, _o, context: StreamingContext) => {
+        captured = context
+      })
+
+      await runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-flag-2' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          goRoute: '/api/copilot',
+          executionContext: {
+            userId: 'user-1',
+            workflowId: 'wf-1',
+            workspaceId: 'ws-1',
+            chatId: 'chat-1',
+            decryptedEnvVars: {},
+          },
+        }
+      )
+
+      expect(captured?.toolPermissions.enabled).toBe(false)
+      expect(mockGetAutoAllowedTools).not.toHaveBeenCalled()
+    })
   })
 
   it('runs cancelled completion persistence when a stream throws after abort', async () => {

@@ -13,7 +13,12 @@ import { isTerminalToolName } from '@sim/terminal-protocol'
 import { isRecordLike } from '@sim/utils/object'
 import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 import { ipcMain } from 'electron'
-import { executeTool, getKnownSessions, handlePanelAction } from '@/main/browser-agent/driver'
+import {
+  clearBrowserProfile,
+  executeTool,
+  getKnownSessions,
+  handlePanelAction,
+} from '@/main/browser-agent/driver'
 import {
   getTabsState,
   reorderTab,
@@ -176,21 +181,33 @@ export interface IpcDeps {
  */
 type ChannelGate = 'app-origin' | 'local-page' | 'any'
 
+/**
+ * A desktop surface the user can switch off. Channels that drive one are
+ * refused while it is off, so the gate holds even if renderer-side checks are
+ * stale or bypassed. Channels that only read or reset the surface's settings
+ * stay open — otherwise turning it back on would be impossible.
+ */
+type ChannelFeature = 'browser' | 'terminal'
+
+interface ChannelSpecBase {
+  gate: ChannelGate
+  passSender?: boolean
+  requires?: ChannelFeature
+}
+
 type ChannelSpec =
-  | {
+  | (ChannelSpecBase & {
       kind: 'invoke'
-      gate: ChannelGate
-      passSender?: boolean
-      /** Returned to the caller when the gate rejects the sender. */
+      /** Requires an in-progress user gesture in the calling page. */
+      needsUserActivation?: boolean
+      /** Returned to the caller when a gate rejects the call. */
       denied: unknown
       handler: (...args: unknown[]) => unknown
-    }
-  | {
+    })
+  | (ChannelSpecBase & {
       kind: 'send'
-      gate: ChannelGate
-      passSender?: boolean
       handler: (...args: unknown[]) => void
-    }
+    })
 
 function isLocalPageSender(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
   try {
@@ -392,6 +409,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-agent:execute-tool': {
       kind: 'invoke',
       gate: 'app-origin',
+      requires: 'browser',
       denied: { ok: false, error: 'Browser automation is not allowed from this page.' },
       handler: (tool, params) => {
         if (typeof tool !== 'string' || !isBrowserToolName(tool)) {
@@ -404,18 +422,32 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-agent:get-tabs-state': {
       kind: 'invoke',
       gate: 'app-origin',
+      requires: 'browser',
       denied: { tabs: [], activeTabId: null },
       handler: () => getTabsState(),
     },
+    // Reads and wipes the stored browsing trail, so both stay available while
+    // the browser is switched off — that is exactly when someone clears it.
     'browser-agent:get-known-sessions': {
       kind: 'invoke',
       gate: 'app-origin',
       denied: { sessions: [] },
       handler: () => getKnownSessions(),
     },
+    'browser-agent:clear-browsing-data': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      needsUserActivation: true,
+      denied: { sessions: [] },
+      handler: async () => {
+        await clearBrowserProfile()
+        return getKnownSessions()
+      },
+    },
     'browser-agent:panel-action': {
       kind: 'send',
       gate: 'app-origin',
+      requires: 'browser',
       handler: (action) => {
         if (
           typeof action !== 'object' ||
@@ -430,6 +462,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-agent:set-tab-pinned': {
       kind: 'send',
       gate: 'app-origin',
+      requires: 'browser',
       handler: (tabId, pinned) => {
         if (typeof tabId !== 'string' || typeof pinned !== 'boolean') return
         try {
@@ -440,6 +473,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-agent:reorder-tab': {
       kind: 'send',
       gate: 'app-origin',
+      requires: 'browser',
       handler: (tabId, targetIndex) => {
         if (
           typeof tabId !== 'string' ||
@@ -456,6 +490,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-agent:set-panel-bounds': {
       kind: 'send',
       gate: 'app-origin',
+      requires: 'browser',
       passSender: true,
       handler: (sender, raw, rawAnchor) => {
         const bounds = parsePanelBounds(raw)
@@ -467,6 +502,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-agent:set-panel-focused': {
       kind: 'send',
       gate: 'app-origin',
+      requires: 'browser',
       passSender: true,
       handler: (sender, focused) => {
         if (typeof focused === 'boolean') {
@@ -477,6 +513,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-agent:set-panel-occluded': {
       kind: 'send',
       gate: 'app-origin',
+      requires: 'browser',
       passSender: true,
       handler: (sender, occluded) => {
         if (typeof occluded === 'boolean') {
@@ -487,6 +524,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-agent:set-theme': {
       kind: 'send',
       gate: 'app-origin',
+      requires: 'browser',
       handler: (theme) => {
         if (isBrowserTheme(theme)) {
           setBrowserTheme(theme)
@@ -496,6 +534,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'terminal:start': {
       kind: 'invoke',
       gate: 'app-origin',
+      requires: 'terminal',
       denied: { ok: false, code: 'ACCESS_DENIED', error: 'Not allowed from this page.' },
       handler: (raw) => {
         const options = isRecordLike(raw) ? raw : {}
@@ -504,7 +543,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         try {
           return {
             ok: true,
-            state: deps.terminal.start({
+            tabs: deps.terminal.start({
               cols: Number.isFinite(cols) && cols > 0 ? Math.floor(cols) : 80,
               rows: Number.isFinite(rows) && rows > 0 ? Math.floor(rows) : 24,
             }),
@@ -522,6 +561,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'terminal:execute-tool': {
       kind: 'invoke',
       gate: 'app-origin',
+      requires: 'terminal',
       denied: { ok: false, error: 'Terminal access is not allowed from this page.' },
       handler: (toolCallId, tool, params) => {
         if (
@@ -534,25 +574,61 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         return deps.terminal.executeTool(toolCallId, tool, isRecordLike(params) ? params : {})
       },
     },
-    'terminal:get-state': {
+    'terminal:get-tabs': {
       kind: 'invoke',
       gate: 'app-origin',
-      denied: null,
-      handler: () => deps.terminal.getState(),
+      requires: 'terminal',
+      denied: { tabs: [], activeTerminalId: null },
+      handler: () => deps.terminal.getTabs(),
+    },
+    'terminal:open': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      denied: { tabs: [], activeTerminalId: null },
+      handler: (cwd) => deps.terminal.openTerminal(typeof cwd === 'string' ? cwd : undefined),
+    },
+    'terminal:switch': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      denied: { tabs: [], activeTerminalId: null },
+      handler: (terminalId) =>
+        typeof terminalId === 'string'
+          ? deps.terminal.switchTerminal(terminalId)
+          : deps.terminal.getTabs(),
+    },
+    'terminal:close': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      denied: { tabs: [], activeTerminalId: null },
+      handler: (terminalId) =>
+        typeof terminalId === 'string'
+          ? deps.terminal.closeTerminal(terminalId)
+          : deps.terminal.getTabs(),
     },
     'terminal:write': {
       kind: 'send',
       gate: 'app-origin',
-      handler: (data) => {
-        if (typeof data === 'string') deps.terminal.write(data)
+      requires: 'terminal',
+      handler: (terminalId, data) => {
+        if (typeof terminalId === 'string' && typeof data === 'string') {
+          deps.terminal.write(terminalId, data)
+        }
       },
     },
     'terminal:resize': {
       kind: 'send',
       gate: 'app-origin',
-      handler: (cols, rows) => {
-        if (typeof cols === 'number' && typeof rows === 'number') {
-          deps.terminal.resize(Math.floor(cols), Math.floor(rows))
+      requires: 'terminal',
+      handler: (terminalId, cols, rows) => {
+        if (
+          typeof terminalId === 'string' &&
+          typeof cols === 'number' &&
+          typeof rows === 'number'
+        ) {
+          deps.terminal.resize(terminalId, Math.floor(cols), Math.floor(rows))
         }
       },
     },
@@ -575,10 +651,22 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     return isLocalPageSender(event)
   }
 
+  const featureAllowed = (feature: ChannelFeature | undefined): boolean => {
+    if (!feature) return true
+    const preferences = deps.settings.getPreferences()
+    // Absent means on: the surfaces predate the preference.
+    return feature === 'browser'
+      ? preferences.browserEnabled !== false
+      : preferences.terminalEnabled !== false
+  }
+
   for (const [channel, spec] of Object.entries(channels)) {
     if (spec.kind === 'invoke') {
       ipcMain.handle(channel, async (event, ...args) => {
-        if (!senderAllowed(event, spec.gate)) return spec.denied
+        if (!senderAllowed(event, spec.gate) || !featureAllowed(spec.requires)) return spec.denied
+        if (spec.needsUserActivation && !(await rendererHasActiveUserGesture(event))) {
+          return spec.denied
+        }
         let handlerArgs = args
         if (channel === 'browser-agent:execute-tool') {
           const requestedTool = args[1]
@@ -643,7 +731,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       })
     } else {
       ipcMain.on(channel, (event, ...args) => {
-        if (senderAllowed(event, spec.gate)) {
+        if (senderAllowed(event, spec.gate) && featureAllowed(spec.requires)) {
           spec.handler(...(spec.passSender ? [event.sender, ...args] : args))
         }
       })

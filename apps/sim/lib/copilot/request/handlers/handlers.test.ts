@@ -6,11 +6,14 @@ import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TraceCollector } from '@/lib/copilot/request/trace'
 
-const { isSimExecuted, executeTool, ensureHandlersRegistered } = vi.hoisted(() => ({
-  isSimExecuted: vi.fn().mockReturnValue(true),
-  executeTool: vi.fn().mockResolvedValue({ success: true, output: { ok: true } }),
-  ensureHandlersRegistered: vi.fn(),
-}))
+const { isSimExecuted, executeTool, ensureHandlersRegistered, toolRequiresApproval } = vi.hoisted(
+  () => ({
+    isSimExecuted: vi.fn().mockReturnValue(true),
+    executeTool: vi.fn().mockResolvedValue({ success: true, output: { ok: true } }),
+    ensureHandlersRegistered: vi.fn(),
+    toolRequiresApproval: vi.fn().mockReturnValue(false),
+  })
+)
 
 const { upsertAsyncToolCall, markAsyncToolRunning, completeAsyncToolCall, markAsyncToolDelivered } =
   vi.hoisted(() => ({
@@ -29,6 +32,7 @@ vi.mock('@/lib/copilot/tool-executor', () => ({
   executeTool,
   ensureHandlersRegistered,
   getToolEntry: vi.fn().mockReturnValue(undefined),
+  toolRequiresApproval,
 }))
 
 vi.mock('@/lib/copilot/async-runs/repository', () => ({
@@ -105,6 +109,7 @@ describe('sse-handlers tool lifecycle', () => {
       streamComplete: false,
       wasAborted: false,
       errors: [],
+      toolPermissions: { enabled: false, autoAllowed: new Set() },
     }
     execContext = {
       userId: 'user-1',
@@ -138,6 +143,60 @@ describe('sse-handlers tool lifecycle', () => {
       args: {},
       status: MothershipStreamV1AsyncToolRecordStatus.pending,
     })
+  })
+
+  it('persists a gated sim tool and stamps the frame so a reload can still answer it', async () => {
+    toolRequiresApproval.mockReturnValue(true)
+    context.runId = 'run-1'
+    context.toolPermissions = { enabled: true, autoAllowed: new Set() }
+
+    const event = {
+      type: MothershipStreamV1EventType.tool,
+      payload: {
+        toolCallId: 'deploy-1',
+        toolName: 'deploy_api',
+        arguments: { versionName: 'v2' },
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
+        phase: MothershipStreamV1ToolPhase.call,
+      },
+    } satisfies StreamEvent
+
+    await prePersistClientExecutableToolCall(event, context, {})
+
+    // A sim-routed tool normally gets no durable row at all; a gated one must,
+    // because the decision is posted against it after a reload.
+    expect(upsertAsyncToolCall).toHaveBeenCalledWith({
+      runId: 'run-1',
+      toolCallId: 'deploy-1',
+      toolName: 'deploy_api',
+      args: { versionName: 'v2' },
+      status: MothershipStreamV1AsyncToolRecordStatus.pending,
+    })
+    expect(event.payload.status).toBe('awaiting_approval')
+  })
+
+  it('leaves an already always-allowed tool ungated', async () => {
+    toolRequiresApproval.mockReturnValue(true)
+    context.runId = 'run-1'
+    context.toolPermissions = { enabled: true, autoAllowed: new Set(['deploy_api']) }
+
+    const event = {
+      type: MothershipStreamV1EventType.tool,
+      payload: {
+        toolCallId: 'deploy-2',
+        toolName: 'deploy_api',
+        arguments: {},
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
+        phase: MothershipStreamV1ToolPhase.call,
+      },
+    } satisfies StreamEvent
+
+    await prePersistClientExecutableToolCall(event, context, {})
+
+    expect(event.payload.status).toBeUndefined()
+    expect(upsertAsyncToolCall).not.toHaveBeenCalled()
   })
 
   it('keeps non-browser client tools in the established running state', async () => {

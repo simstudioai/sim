@@ -86,6 +86,8 @@ export interface DesktopSettings {
   notificationsOnlyWhenUnfocused?: boolean
   launchAtLogin?: boolean
   autoDownloadUpdates?: boolean
+  browserEnabled?: boolean
+  terminalEnabled?: boolean
   /**
    * Where the agent terminal last was. A shell that always reopened in the
    * home directory would drop the user back at square one every session, and
@@ -175,6 +177,8 @@ const DEFAULT_SETTINGS: DesktopSettings = {
   notificationsOnlyWhenUnfocused: true,
   launchAtLogin: false,
   autoDownloadUpdates: true,
+  browserEnabled: true,
+  terminalEnabled: true,
 }
 
 export interface ConfigStore {

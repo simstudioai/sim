@@ -1,29 +1,26 @@
-import type {
-  TerminalCommandEvent,
-  TerminalSessionState,
-} from '@sim/terminal-protocol'
+import type { TerminalCommandEvent, TerminalTabsState } from '@sim/terminal-protocol'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
 /**
- * Renderer-side view of the agent terminal. Deliberately holds no PTY output:
- * xterm.js owns the byte stream and its own scrollback, and pushing hundreds of
- * chunks a second through React state would stall the UI.
+ * Renderer-side view of the agent terminals. Deliberately holds no PTY output:
+ * each xterm instance owns its own byte stream and scrollback, and pushing
+ * hundreds of chunks a second through React state would stall the UI.
  *
  * Named `copilot-terminal` because `stores/terminal` is the workflow editor's
  * execution-log panel, which is unrelated.
  */
 interface CopilotTerminalState {
-  session: TerminalSessionState | null
+  tabs: TerminalTabsState
   /** Tool call ids whose commands the agent is currently running. */
   agentCommandIds: string[]
-  setSessionState: (state: TerminalSessionState) => void
+  setTabs: (tabs: TerminalTabsState) => void
   applyCommandEvent: (event: TerminalCommandEvent) => void
   reset: () => void
 }
 
 const initialState = {
-  session: null as TerminalSessionState | null,
+  tabs: { tabs: [], activeTerminalId: null } as TerminalTabsState,
   agentCommandIds: [] as string[],
 }
 
@@ -31,8 +28,7 @@ export const useCopilotTerminalStore = create<CopilotTerminalState>()(
   devtools(
     (set) => ({
       ...initialState,
-      setSessionState: (session) =>
-        set(() => (session.alive ? { session } : { session, agentCommandIds: [] })),
+      setTabs: (tabs) => set({ tabs }),
       applyCommandEvent: (event) =>
         set((state) => {
           if (!event.toolCallId) return {}

@@ -12,6 +12,7 @@ import {
   setPanelOccluded as setBrowserAgentPanelOccluded,
 } from '@/main/browser-agent/panel'
 import {
+  closeSession as closeAgentBrowserSession,
   closeFocusedTab as closeFocusedBrowserTab,
   reopenFocusedTab as reopenClosedBrowserTab,
   setPanelFocused as setBrowserAgentPanelFocused,
@@ -356,6 +357,15 @@ function main(): void {
     openMainWindowAt: (route) => void openMainWindowAt(route),
     setAutoDownloadUpdates: (enabled) => updater?.setAutoDownload(enabled),
     setTrayEnabled,
+    // Switching a surface off ends what it is already running; the pages and
+    // shells would otherwise keep going in the background. The profile and the
+    // pinned strip survive, so switching back on resumes rather than restarts.
+    setBrowserEnabled: (enabled) => {
+      if (!enabled) closeAgentBrowserSession()
+    },
+    setTerminalEnabled: (enabled) => {
+      if (!enabled) terminal.dispose()
+    },
   })
 
   /**
@@ -422,9 +432,9 @@ function main(): void {
     )
     await localFilesystem.initialize()
     terminal.setSink({
-      data: (data) => broadcast('terminal:data', data),
-      replay: (data) => broadcast('terminal:replay', data),
-      state: (state) => broadcast('terminal:state', state),
+      data: (terminalId, data) => broadcast('terminal:data', terminalId, data),
+      replay: (terminalId, data) => broadcast('terminal:replay', terminalId, data),
+      tabs: (state) => broadcast('terminal:tabs', state),
       command: (event) => broadcast('terminal:command', event),
     })
     registerIpcHandlers({

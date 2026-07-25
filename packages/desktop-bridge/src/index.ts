@@ -13,22 +13,22 @@ import type {
 } from '@sim/browser-protocol'
 import type {
   TerminalCommandEvent,
-  TerminalSessionState,
   TerminalStartOptions,
+  TerminalTabsState,
   TerminalToolName,
   TerminalToolResponse,
 } from '@sim/terminal-protocol'
 
 /**
- * The agent-terminal surface of the preload bridge. A real PTY runs in the
- * Electron main process, starting in the user's home directory; the renderer
- * paints its bytes with xterm.js and forwards keystrokes back. The user and
- * the agent share the one shell, so working directory and environment stay
- * consistent between them.
+ * The agent-terminal surface of the preload bridge. Real PTYs run in the
+ * Electron main process; the renderer paints their bytes with xterm.js and
+ * forwards keystrokes back. Several terminals can be open at once, each its own
+ * shell, and the user and the agent share them — so working directory and
+ * environment stay consistent between the two.
  */
 export interface SimDesktopTerminalApi {
-  /** Start the session, or adopt the running one. */
-  start(options: TerminalStartOptions): Promise<TerminalSessionState>
+  /** Open the first terminal, or adopt the ones already running. */
+  start(options: TerminalStartOptions): Promise<TerminalTabsState>
   /**
    * Execute one terminal tool. Resolves with the tool's outcome; never
    * rejects for tool-level failures (those ride `ok: false`).
@@ -38,23 +38,27 @@ export interface SimDesktopTerminalApi {
     tool: TerminalToolName,
     params: Record<string, unknown>
   ): Promise<TerminalToolResponse>
-  /** Forward the user's keystrokes to the PTY. */
-  write(data: string): void
-  resize(cols: number, rows: number): void
-  getState(): Promise<TerminalSessionState>
-  /** End the shell. A new one starts on the next `start`. */
+  /** Forward the user's keystrokes to one terminal's PTY. */
+  write(terminalId: string, data: string): void
+  resize(terminalId: string, cols: number, rows: number): void
+  /** Open an additional terminal and make it active. */
+  openTerminal(cwd?: string): Promise<TerminalTabsState>
+  switchTerminal(terminalId: string): Promise<TerminalTabsState>
+  closeTerminal(terminalId: string): Promise<TerminalTabsState>
+  getTabs(): Promise<TerminalTabsState>
+  /** End every shell. A new one starts on the next `start`. */
   dispose(): void
   /** Subscribe to PTY output batches. Returns an unsubscribe function. */
-  onData(callback: (data: string) => void): () => void
+  onData(callback: (terminalId: string, data: string) => void): () => void
   /**
    * Subscribe to full-scrollback repaints, sent when the panel attaches to a
    * shell that was already running. Reset the terminal before writing it.
    * Optional for compatibility with shells predating scrollback replay; without
    * it the panel simply starts empty over a live shell.
    */
-  onReplay?(callback: (data: string) => void): () => void
-  /** Subscribe to session state (cwd, liveness, foreground command). */
-  onState(callback: (state: TerminalSessionState) => void): () => void
+  onReplay?(callback: (terminalId: string, data: string) => void): () => void
+  /** Subscribe to the open-terminal list and which one is active. */
+  onTabs(callback: (state: TerminalTabsState) => void): () => void
   /** Subscribe to command start/end, used for agent attribution in the panel. */
   onCommand(callback: (event: TerminalCommandEvent) => void): () => void
 }
@@ -135,6 +139,12 @@ export interface SimDesktopBrowserAgentApi {
    * in the dedicated profile. Optional for compatibility with older shells.
    */
   getKnownSessions?(): Promise<BrowserKnownSessionsState>
+  /**
+   * Wipe the dedicated profile — cookies, storage, cache, and the remembered
+   * browsing trail — and resolve the resulting (empty) session list. Optional
+   * for compatibility with older shells.
+   */
+  clearBrowsingData?(): Promise<BrowserKnownSessionsState>
   /**
    * Subscribe to live tab-list changes. Optional for compatibility with older
    * installed desktop versions.
@@ -284,6 +294,14 @@ export interface DesktopPreferences {
    * Optional because shells predating the preference don't report it.
    */
   trayEnabled?: boolean
+  /**
+   * Let Chat drive the built-in agent browser on this device. Optional
+   * because shells predating the preference don't report it; absent means the
+   * surface is simply always on, which is how those shells behave.
+   */
+  browserEnabled?: boolean
+  /** Let Chat run commands in local shells. Same compatibility caveat. */
+  terminalEnabled?: boolean
 }
 
 /**
@@ -292,9 +310,13 @@ export interface DesktopPreferences {
  * capability installed shells lack (their setPreference is typed over fewer
  * keys), which the bridge contract audit rejects. Preferences added later get
  * their own optional setter (e.g. {@link SimDesktopSettingsApi.setTrayEnabled})
- * so the web app can feature-detect them.
+ * so the web app can feature-detect them — and must be excluded here, or they
+ * widen this union right back.
  */
-export type DesktopPreferenceKey = Exclude<keyof DesktopPreferences, 'trayEnabled'>
+export type DesktopPreferenceKey = Exclude<
+  keyof DesktopPreferences,
+  'trayEnabled' | 'browserEnabled' | 'terminalEnabled'
+>
 
 export interface DesktopNotificationPayload {
   title: string
@@ -320,6 +342,16 @@ export interface SimDesktopSettingsApi {
    * a toggle.
    */
   setTrayEnabled?(enabled: boolean): Promise<DesktopPreferences>
+  /**
+   * Turns the agent browser on or off for this device; disabling it also ends
+   * the running session. Optional — feature-detect before rendering a toggle.
+   */
+  setBrowserEnabled?(enabled: boolean): Promise<DesktopPreferences>
+  /**
+   * Turns the agent terminal on or off for this device; disabling it also
+   * ends every open shell. Optional, like {@link setBrowserEnabled}.
+   */
+  setTerminalEnabled?(enabled: boolean): Promise<DesktopPreferences>
 }
 
 /**

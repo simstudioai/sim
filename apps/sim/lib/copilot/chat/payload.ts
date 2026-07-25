@@ -55,6 +55,13 @@ interface BuildPayloadParams {
   desktopLocalFilesystem?: boolean
   browserCapable?: boolean
   terminalCapable?: boolean
+  terminals?: Array<{
+    id: string
+    cwd?: string
+    running?: string
+    interactive?: boolean
+    active?: boolean
+  }>
   browserSessions?: BrowserKnownSession[]
 }
 
@@ -432,6 +439,9 @@ export async function buildCopilotRequestPayload(
             ...(params.desktopLocalFilesystem ? { localFilesystem: true } : {}),
             ...(params.browserCapable ? { browser: true } : {}),
             ...(params.terminalCapable ? { terminal: true } : {}),
+            ...(params.terminalCapable && params.terminals?.length
+              ? { terminals: params.terminals }
+              : {}),
             ...(params.browserCapable && params.browserSessions?.length
               ? { browserSessions: params.browserSessions }
               : {}),

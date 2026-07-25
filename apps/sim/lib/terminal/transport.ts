@@ -1,20 +1,21 @@
 /**
- * Transport for the agent terminal: a real PTY in the Sim desktop app, reached
+ * Transport for the agent terminals: real PTYs in the Sim desktop app, reached
  * through the preload bridge (`window.simDesktop.terminal`).
  *
- * The shell process lives in the Electron main process; the renderer paints its
- * bytes with xterm.js and forwards keystrokes back, so the user and the agent
- * share one session. Availability of this bridge is what gates advertising
+ * The shell processes live in the Electron main process; the renderer paints
+ * their bytes with xterm.js and forwards keystrokes back, so the user and the
+ * agent share the same terminals. Availability of this bridge, plus the device
+ * switch on the Terminal settings page, is what gates advertising
  * `terminalCapable` to the copilot — in a regular web browser there is no
  * bridge and the terminal tools are never offered.
  */
 import type { SimDesktopTerminalApi } from '@sim/desktop-bridge'
 import type {
-  TerminalSessionState,
   TerminalStartOptions,
+  TerminalTabsState,
   TerminalToolName,
 } from '@sim/terminal-protocol'
-import { getDesktopBridge } from '@/lib/desktop'
+import { getDesktopBridge, isTerminalEnabled } from '@/lib/desktop'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 
 let initialized = false
@@ -25,12 +26,13 @@ function bridge(): SimDesktopTerminalApi | null {
 
 /** True when terminal tools can run (gates the copilot's terminalCapable flag). */
 export function isTerminalAvailable(): boolean {
-  return bridge() !== null
+  return isTerminalEnabled()
 }
 
 /**
- * Idempotently wires session-state and command pushes into the store. Output is deliberately not routed here: xterm.js subscribes to it
- * directly so bytes never pass through React state.
+ * Idempotently wires tab and command pushes into the store. Output is
+ * deliberately not routed here: each xterm subscribes to it directly so bytes
+ * never pass through React state.
  */
 export function initTerminalTransport(): void {
   if (initialized) return
@@ -38,34 +40,34 @@ export function initTerminalTransport(): void {
   if (!terminal) return
   initialized = true
 
-  terminal.onState((state) => {
-    useCopilotTerminalStore.getState().setSessionState(state)
+  terminal.onTabs((tabs) => {
+    useCopilotTerminalStore.getState().setTabs(tabs)
   })
   terminal.onCommand((event) => {
     useCopilotTerminalStore.getState().applyCommandEvent(event)
   })
   void terminal
-    .getState()
-    .then((state) => useCopilotTerminalStore.getState().setSessionState(state))
+    .getTabs()
+    .then((tabs) => useCopilotTerminalStore.getState().setTabs(tabs))
     .catch(() => {})
 }
 
-/** Subscribes to raw PTY output. Returns an unsubscribe function. */
-export function onTerminalData(callback: (data: string) => void): () => void {
+/** Subscribes to raw PTY output for every terminal. */
+export function onTerminalData(callback: (terminalId: string, data: string) => void): () => void {
   return bridge()?.onData(callback) ?? (() => {})
 }
 
 /**
- * Subscribes to full-scrollback repaints, sent when attaching to a shell that
- * was already running. The panel clears before writing.
+ * Subscribes to full-scrollback repaints, sent when attaching to shells that
+ * were already running. The panel resets that terminal before writing.
  */
-export function onTerminalReplay(callback: (data: string) => void): () => void {
+export function onTerminalReplay(callback: (terminalId: string, data: string) => void): () => void {
   return bridge()?.onReplay?.(callback) ?? (() => {})
 }
 
 export async function startTerminalSession(
   options: TerminalStartOptions
-): Promise<TerminalSessionState> {
+): Promise<TerminalTabsState> {
   const terminal = bridge()
   if (!terminal) {
     throw new Error('The Sim desktop terminal is unavailable.')
@@ -73,16 +75,24 @@ export async function startTerminalSession(
   return terminal.start(options)
 }
 
-export function writeToTerminal(data: string): void {
-  bridge()?.write(data)
+export function writeToTerminal(terminalId: string, data: string): void {
+  bridge()?.write(terminalId, data)
 }
 
-export function resizeTerminal(cols: number, rows: number): void {
-  bridge()?.resize(cols, rows)
+export function resizeTerminal(terminalId: string, cols: number, rows: number): void {
+  bridge()?.resize(terminalId, cols, rows)
 }
 
-export function disposeTerminalSession(): void {
-  bridge()?.dispose()
+export async function openTerminal(): Promise<void> {
+  await bridge()?.openTerminal()
+}
+
+export async function switchTerminal(terminalId: string): Promise<void> {
+  await bridge()?.switchTerminal(terminalId)
+}
+
+export async function closeTerminal(terminalId: string): Promise<void> {
+  await bridge()?.closeTerminal(terminalId)
 }
 
 /** Executes one terminal tool in the desktop main process. */

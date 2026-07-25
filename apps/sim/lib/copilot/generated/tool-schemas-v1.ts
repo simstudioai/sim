@@ -3972,10 +3972,28 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  terminal_close: {
+    parameters: {
+      type: 'object',
+      properties: {
+        terminalId: {
+          type: 'string',
+          description: 'Id from terminal_list.',
+        },
+      },
+      required: ['terminalId'],
+    },
+    resultSchema: undefined,
+  },
   terminal_cwd: {
     parameters: {
       type: 'object',
-      properties: {},
+      properties: {
+        terminalId: {
+          type: 'string',
+          description: 'Which terminal to describe. Defaults to the active one.',
+        },
+      },
     },
     resultSchema: undefined,
   },
@@ -4000,10 +4018,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'tab',
           ],
         },
+        terminalId: {
+          type: 'string',
+          description: 'Which terminal to type into. Defaults to the active one.',
+        },
         text: {
           type: 'string',
           description:
-            'Literal text to type. A trailing newline is sent as Enter, so a single call can type and submit; send text without one when you want to type now and submit separately.',
+            'Literal text to type. A trailing newline is sent as Enter, so a single call can type and submit; send text without one when you want to type now and submit separately. Confirm from the returned screen that it submitted.',
         },
       },
     },
@@ -4018,6 +4040,30 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description: 'Signal to send. Defaults to SIGINT.',
           enum: ['SIGINT', 'SIGTERM', 'SIGKILL'],
         },
+        terminalId: {
+          type: 'string',
+          description: 'Which terminal to signal. Defaults to the active one.',
+        },
+      },
+    },
+    resultSchema: undefined,
+  },
+  terminal_list: {
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    resultSchema: undefined,
+  },
+  terminal_new: {
+    parameters: {
+      type: 'object',
+      properties: {
+        cwd: {
+          type: 'string',
+          description:
+            "Absolute path to open in. Defaults to the active terminal's working directory.",
+        },
       },
     },
     resultSchema: undefined,
@@ -4029,6 +4075,10 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         lines: {
           type: 'number',
           description: 'How many trailing lines to return. Defaults to 200.',
+        },
+        terminalId: {
+          type: 'string',
+          description: 'Which terminal to read. Defaults to the active one.',
         },
       },
     },
@@ -4043,6 +4093,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description:
             'The command line to run, exactly as it would be typed at the prompt. Shell syntax (pipes, &&, quoting, redirection) is supported because a real shell interprets it.',
         },
+        terminalId: {
+          type: 'string',
+          description:
+            'Which terminal to run in. Defaults to the active one, which is what the user is looking at.',
+        },
         waitSeconds: {
           type: 'number',
           description:
@@ -4050,6 +4105,19 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['command'],
+    },
+    resultSchema: undefined,
+  },
+  terminal_switch: {
+    parameters: {
+      type: 'object',
+      properties: {
+        terminalId: {
+          type: 'string',
+          description: 'Id from terminal_list.',
+        },
+      },
+      required: ['terminalId'],
     },
     resultSchema: undefined,
   },

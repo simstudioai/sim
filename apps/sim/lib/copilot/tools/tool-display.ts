@@ -555,6 +555,52 @@ export function humanizeToolName(name: string): string {
   return humanizeDisplayIdentifier(name)
 }
 
+/** One shape, so the live countdown and the settled title never diverge. */
+function formatWaitTitle(seconds: number, reason: string): string {
+  const duration = seconds > 0 ? ` ${seconds}s` : ''
+  return reason ? `Waiting${duration} for ${reason}` : `Waiting${duration}`
+}
+
+function requestedWaitSeconds(args: ToolArgs): number {
+  const raw = args?.seconds
+  return typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? Math.round(raw) : 0
+}
+
+/**
+ * The duration is the whole content of a pause: without it the row is an
+ * unexplained stall, which is what the user is staring at while it runs.
+ */
+function waitTitle(args: ToolArgs): string {
+  return formatWaitTitle(requestedWaitSeconds(args), stringArg(args, 'reason'))
+}
+
+/**
+ * The title of a pause that is still running, counting down what is left.
+ *
+ * A number that never changes next to a spinner looks the same as a hung turn,
+ * and a pause is the one row where the user is doing nothing but watching it.
+ * At zero the number is dropped rather than frozen at "0s", because the pause
+ * itself is over and what remains is the turn picking back up.
+ */
+export function getWaitCountdownTitle(args: ToolArgs, elapsedMs: number): string {
+  const elapsedSeconds = Math.max(0, Math.floor(elapsedMs / 1000))
+  const remaining = Math.max(0, requestedWaitSeconds(args) - elapsedSeconds)
+  return formatWaitTitle(remaining, stringArg(args, 'reason'))
+}
+
+/** Past this a command wraps the row; the terminal panel still shows it in full. */
+const MAX_COMMAND_TITLE_LENGTH = 48
+
+function terminalRunTitle(args: ToolArgs): string {
+  const command = stringArg(args, 'command').replace(/\s+/g, ' ')
+  if (!command) return 'Running command'
+  const shortened =
+    command.length > MAX_COMMAND_TITLE_LENGTH
+      ? `${command.slice(0, MAX_COMMAND_TITLE_LENGTH - 1)}…`
+      : command
+  return `Running ${shortened}`
+}
+
 /**
  * Resolve a tool-call display title from its name and arguments. Argument-aware
  * cases come first, then the static map, then a humanized fallback. This never
@@ -587,6 +633,26 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       return materializeFileTitle(args)
     case 'open_resource':
       return openResourceTitle(args)
+    case 'wait':
+      return waitTitle(args)
+    case 'terminal_run':
+      return terminalRunTitle(args)
+    case 'terminal_read':
+      return 'Reading terminal'
+    case 'terminal_input':
+      return 'Typing into terminal'
+    case 'terminal_kill':
+      return 'Stopping command'
+    case 'terminal_cwd':
+      return 'Checking terminal'
+    case 'terminal_list':
+      return 'Listing terminals'
+    case 'terminal_new':
+      return 'Opening terminal'
+    case 'terminal_switch':
+      return 'Switching terminal'
+    case 'terminal_close':
+      return 'Closing terminal'
     case 'restore_resource': {
       const type = stringArg(args, 'type')
       return `Restoring ${type ? resourceTypeLabel(type) : 'resource'}`
@@ -894,6 +960,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Searching: 'Searched',
   Selecting: 'Selected',
   Setting: 'Set',
+  Stopping: 'Stopped',
   Summarizing: 'Summarized',
   Switching: 'Switched',
   Syncing: 'Synced',

@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import {
   type CopilotAsyncToolStatus,
   type CopilotRunStatus,
+  type CopilotToolPermissionDecision,
   copilotAsyncToolCalls,
   copilotRunCheckpoints,
   copilotRuns,
@@ -192,6 +193,8 @@ export async function getRunSegment(runId: string) {
           id: copilotRuns.id,
           userId: copilotRuns.userId,
           status: copilotRuns.status,
+          // Needed to scope an "allow for this chat" decision to its chat.
+          chatId: copilotRuns.chatId,
         })
         .from(copilotRuns)
         .where(eq(copilotRuns.id, runId))
@@ -443,6 +446,47 @@ export async function completeAsyncToolCall(input: {
     error: input.error ?? null,
     completedAt: new Date(),
   })
+}
+
+/**
+ * Records the user's answer to a tool permission prompt, exactly once.
+ *
+ * The `IS NULL` guard is what makes a decision final: two tabs (or a click
+ * plus an "allow all") racing on the same prompt resolve to whichever write
+ * lands first, and the loser gets `null` back rather than overwriting an
+ * answer the orchestrator may already have acted on.
+ */
+export async function recordToolPermissionDecision(
+  toolCallId: string,
+  decision: CopilotToolPermissionDecision
+) {
+  return withDbSpan(
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: toolCallId,
+      [TraceAttr.CopilotAsyncToolPermissionDecision]: decision,
+    },
+    async () => {
+      const now = new Date()
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          permissionDecision: decision,
+          permissionDecidedAt: now,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            isNull(copilotAsyncToolCalls.permissionDecision)
+          )
+        )
+        .returning()
+      return row ?? null
+    }
+  )
 }
 
 export async function markAsyncToolDelivered(toolCallId: string) {

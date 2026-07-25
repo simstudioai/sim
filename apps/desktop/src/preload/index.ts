@@ -26,8 +26,8 @@ import type {
 } from '@sim/desktop-bridge'
 import type {
   TerminalCommandEvent,
-  TerminalSessionState,
   TerminalStartOptions,
+  TerminalTabsState,
   TerminalToolName,
   TerminalToolResponse,
 } from '@sim/terminal-protocol'
@@ -92,6 +92,10 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('desktop:settings:notify', payload),
     setTrayEnabled: (enabled: boolean): Promise<DesktopPreferences> =>
       ipcRenderer.invoke('desktop:settings:set', 'trayEnabled', enabled),
+    setBrowserEnabled: (enabled: boolean): Promise<DesktopPreferences> =>
+      ipcRenderer.invoke('desktop:settings:set', 'browserEnabled', enabled),
+    setTerminalEnabled: (enabled: boolean): Promise<DesktopPreferences> =>
+      ipcRenderer.invoke('desktop:settings:set', 'terminalEnabled', enabled),
   },
   updates: {
     getState: (): Promise<DesktopUpdateState> => ipcRenderer.invoke('desktop:updates:get-state'),
@@ -165,6 +169,8 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('browser-agent:get-tabs-state'),
     getKnownSessions: (): Promise<BrowserKnownSessionsState> =>
       ipcRenderer.invoke('browser-agent:get-known-sessions'),
+    clearBrowsingData: (): Promise<BrowserKnownSessionsState> =>
+      ipcRenderer.invoke('browser-agent:clear-browsing-data'),
     onTabsState: (callback: (state: BrowserTabsState) => void): (() => void) => {
       const listener = (_event: unknown, state: BrowserTabsState) => callback(state)
       ipcRenderer.on('browser-agent:tabs-state', listener)
@@ -181,16 +187,16 @@ const api: SimDesktopApi = {
     },
   },
   terminal: {
-    start: async (options: TerminalStartOptions): Promise<TerminalSessionState> => {
+    start: async (options: TerminalStartOptions): Promise<TerminalTabsState> => {
       const response = (await ipcRenderer.invoke('terminal:start', options)) as
-        | { ok: true; state: TerminalSessionState }
+        | { ok: true; tabs: TerminalTabsState }
         | { ok: false; code?: string; error?: string }
       if (!response?.ok) {
         const failure = new Error(response?.error ?? 'Could not open a terminal.')
         failure.name = response?.code ?? 'SPAWN_FAILED'
         throw failure
       }
-      return response.state
+      return response.tabs
     },
     executeTool: (
       toolCallId: string,
@@ -198,35 +204,43 @@ const api: SimDesktopApi = {
       params: Record<string, unknown>
     ): Promise<TerminalToolResponse> =>
       ipcRenderer.invoke('terminal:execute-tool', toolCallId, tool, params),
-    write: (data: string): void => {
-      ipcRenderer.send('terminal:write', data)
+    write: (terminalId: string, data: string): void => {
+      ipcRenderer.send('terminal:write', terminalId, data)
     },
-    resize: (cols: number, rows: number): void => {
-      ipcRenderer.send('terminal:resize', cols, rows)
+    resize: (terminalId: string, cols: number, rows: number): void => {
+      ipcRenderer.send('terminal:resize', terminalId, cols, rows)
     },
-    getState: (): Promise<TerminalSessionState> => ipcRenderer.invoke('terminal:get-state'),
+    openTerminal: (cwd?: string): Promise<TerminalTabsState> =>
+      ipcRenderer.invoke('terminal:open', cwd),
+    switchTerminal: (terminalId: string): Promise<TerminalTabsState> =>
+      ipcRenderer.invoke('terminal:switch', terminalId),
+    closeTerminal: (terminalId: string): Promise<TerminalTabsState> =>
+      ipcRenderer.invoke('terminal:close', terminalId),
+    getTabs: (): Promise<TerminalTabsState> => ipcRenderer.invoke('terminal:get-tabs'),
     dispose: (): void => {
       ipcRenderer.send('terminal:dispose')
     },
-    onData: (callback: (data: string) => void): (() => void) => {
-      const listener = (_event: unknown, data: string) => callback(data)
+    onData: (callback: (terminalId: string, data: string) => void): (() => void) => {
+      const listener = (_event: unknown, terminalId: string, data: string) =>
+        callback(terminalId, data)
       ipcRenderer.on('terminal:data', listener)
       return () => {
         ipcRenderer.removeListener('terminal:data', listener)
       }
     },
-    onReplay: (callback: (data: string) => void): (() => void) => {
-      const listener = (_event: unknown, data: string) => callback(data)
+    onReplay: (callback: (terminalId: string, data: string) => void): (() => void) => {
+      const listener = (_event: unknown, terminalId: string, data: string) =>
+        callback(terminalId, data)
       ipcRenderer.on('terminal:replay', listener)
       return () => {
         ipcRenderer.removeListener('terminal:replay', listener)
       }
     },
-    onState: (callback: (state: TerminalSessionState) => void): (() => void) => {
-      const listener = (_event: unknown, state: TerminalSessionState) => callback(state)
-      ipcRenderer.on('terminal:state', listener)
+    onTabs: (callback: (state: TerminalTabsState) => void): (() => void) => {
+      const listener = (_event: unknown, state: TerminalTabsState) => callback(state)
+      ipcRenderer.on('terminal:tabs', listener)
       return () => {
-        ipcRenderer.removeListener('terminal:state', listener)
+        ipcRenderer.removeListener('terminal:tabs', listener)
       }
     },
     onCommand: (callback: (event: TerminalCommandEvent) => void): (() => void) => {

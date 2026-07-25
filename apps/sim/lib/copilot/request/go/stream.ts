@@ -377,7 +377,7 @@ export async function runStreamLoop(
           state: filePreviewAdapterState,
         })
 
-        await prePersistClientExecutableToolCall(streamEvent, context)
+        await prePersistClientExecutableToolCall(streamEvent, context, options)
 
         try {
           await options.onEvent?.(streamEvent)

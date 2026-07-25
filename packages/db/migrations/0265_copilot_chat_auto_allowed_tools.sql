@@ -1,0 +1,1 @@
+ALTER TABLE "copilot_chats" ADD COLUMN "auto_allowed_tools" jsonb DEFAULT '[]' NOT NULL;

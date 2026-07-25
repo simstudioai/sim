@@ -2387,6 +2387,9 @@ export const copilotChats = pgTable(
     previewYaml: text('preview_yaml'),
     config: jsonb('config'),
     resources: jsonb('resources').notNull().default('[]'),
+    // Copilot tool ids the user allowed for the rest of this chat only, as
+    // opposed to the account-wide list on `settings.copilotAutoAllowedTools`.
+    autoAllowedTools: jsonb('auto_allowed_tools').notNull().default('[]'),
     lastSeenAt: timestamp('last_seen_at'),
     pinned: boolean('pinned').notNull().default(false),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -2541,8 +2544,17 @@ export const copilotAsyncToolStatusEnum = pgEnum('copilot_async_tool_status', [
   'delivered',
 ])
 
+export const copilotToolPermissionDecisionEnum = pgEnum('copilot_tool_permission_decision', [
+  'allow',
+  'allow_chat',
+  'always_allow',
+  'skip',
+])
+
 export type CopilotRunStatus = (typeof copilotRunStatusEnum.enumValues)[number]
 export type CopilotAsyncToolStatus = (typeof copilotAsyncToolStatusEnum.enumValues)[number]
+export type CopilotToolPermissionDecision =
+  (typeof copilotToolPermissionDecisionEnum.enumValues)[number]
 
 export const copilotRuns = pgTable(
   'copilot_runs',
@@ -2634,6 +2646,11 @@ export const copilotAsyncToolCalls = pgTable(
     status: copilotAsyncToolStatusEnum('status').notNull().default('pending'),
     result: jsonb('result'),
     error: text('error'),
+    // Set only for tools declaring requiresApproval in the mothership tool
+    // catalog. A null decision on such a tool means the prompt is still
+    // outstanding, which is what lets it survive a reload.
+    permissionDecision: copilotToolPermissionDecisionEnum('permission_decision'),
+    permissionDecidedAt: timestamp('permission_decided_at'),
     claimedAt: timestamp('claimed_at'),
     claimedBy: text('claimed_by'),
     completedAt: timestamp('completed_at'),

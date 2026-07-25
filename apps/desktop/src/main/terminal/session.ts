@@ -21,7 +21,7 @@ import {
   type TerminalControlKey,
   type TerminalReadResult,
   type TerminalRunResult,
-  type TerminalSessionState,
+  type TerminalTabState,
 } from '@sim/terminal-protocol'
 import { Terminal as HeadlessTerminal } from '@xterm/headless'
 import {
@@ -61,16 +61,32 @@ const CONTROL_KEY_BYTES: Record<TerminalControlKey, string> = {
   tab: '\t',
 }
 
+/** Enter, as a keyboard sends it: carriage return, never linefeed. */
+const ENTER = '\r'
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 /**
- * Converts model-authored text into what a keyboard would actually send.
+ * Splits model-authored text into the separate writes a keyboard would produce.
  *
- * Enter is carriage return on a terminal, never linefeed. Models write "\n",
- * and a full-screen program reading raw input treats LF as "insert a line"
- * while CR submits — so text sent with "\n" lands in the input box and just
- * sits there. CRLF collapses to a single CR so one Enter is not sent twice.
+ * Enter has to be its own write. A full-screen program reads stdin in chunks
+ * and treats one chunk as one input event, so "message\r" written in a single
+ * call is read as text that happens to end in a carriage return: it lands in
+ * the composer and is never submitted, because the program's Enter handler
+ * only fires for a chunk that *is* Enter. Returning the breaks as their own
+ * chunks lets the caller space them out in time, which is what forces the
+ * program to see two events instead of one.
  */
-export function toKeystrokes(text: string): string {
-  return text.replace(/\r\n|\n/g, '\r')
+export function toInputChunks(text: string): string[] {
+  const chunks: string[] = []
+  const lines = text.replace(/\r\n|\r/g, '\n').split('\n')
+  lines.forEach((line, index) => {
+    if (line) chunks.push(line)
+    if (index < lines.length - 1) chunks.push(ENTER)
+  })
+  return chunks
 }
 
 /** Strips CSI/OSC sequences so the model reads text rather than escape codes. */
@@ -102,9 +118,25 @@ function elide(value: string, limit: number): { text: string; truncated: boolean
  * repaints rather than text, and it will not exit on its own.
  */
 const ALT_SCREEN_ENTER = '\u001b[?1049h'
+/** Restoring the normal screen: the full-screen program has quit. */
+const ALT_SCREEN_EXIT = '\u001b[?1049l'
 
 /** How often a running command is checked for having stopped mid-line. */
 const PROMPT_POLL_INTERVAL_MS = 500
+
+/**
+ * Gap held between the writes of one typed message. Long enough that the
+ * program gets a separate stdin read per chunk rather than coalescing them
+ * into a single paste-like event, which is the whole point of splitting them.
+ */
+const KEYSTROKE_GAP_MS = 150
+
+/**
+ * Cap on waiting for a program to finish redrawing after each chunk. A TUI
+ * with an animating spinner never goes quiet, so the settle wait needs a
+ * ceiling or typing would stall on it.
+ */
+const KEYSTROKE_SETTLE_MAX_MS = 1_000
 
 interface PendingCommand {
   command: string
@@ -123,12 +155,13 @@ interface PendingCommand {
 }
 
 export interface TerminalSessionCallbacks {
-  onData(data: string): void
-  onState(state: TerminalSessionState): void
+  onData(terminalId: string, data: string): void
+  onState(): void
   onCommand(event: TerminalCommandEvent): void
 }
 
 export interface TerminalSessionOptions {
+  terminalId: string
   cwd: string
   cols: number
   rows: number
@@ -141,6 +174,7 @@ export class TerminalSession {
   private readonly integrationDir: string
   private readonly callbacks: TerminalSessionCallbacks
   private readonly shellName: string
+  readonly terminalId: string
 
   private scrollback = ''
   /**
@@ -156,14 +190,17 @@ export class TerminalSession {
    */
   private readonly emulator: HeadlessTerminal
   private pendingOutput = ''
+  /** When the program last painted anything; the basis for the settle wait. */
+  private lastOutputAt = 0
   private flushTimer: NodeJS.Timeout | null = null
   private paused = false
   private disposed = false
 
   private cwd: string
-  private cols: number
-  private rows: number
+  private columns: number
+  private lines: number
   private shellIntegration = false
+  private altScreen = false
   private foregroundCommand: string | null = null
   private pendingCommand: PendingCommand | null = null
   /** Command line reported by the shell but not yet bracketed by output-start. */
@@ -178,9 +215,10 @@ export class TerminalSession {
     shellName: string
   ) {
     this.callbacks = options.callbacks
+    this.terminalId = options.terminalId
     this.cwd = options.cwd
-    this.cols = options.cols
-    this.rows = options.rows
+    this.columns = options.cols
+    this.lines = options.rows
     this.pty = pty
     this.emulator = new HeadlessTerminal({
       cols: options.cols,
@@ -226,15 +264,45 @@ export class TerminalSession {
     return new TerminalSession(options, pty, integrationDir, nonce, shell ?? shellPath)
   }
 
-  get state(): TerminalSessionState {
+  get alive(): boolean {
+    return !this.disposed
+  }
+
+  get cols(): number {
+    return this.columns
+  }
+
+  get rows(): number {
+    return this.lines
+  }
+
+  get currentCwd(): string | null {
+    return this.cwd
+  }
+
+  get shell(): string | null {
+    return this.shellName
+  }
+
+  get foreground(): string | null {
+    return this.foregroundCommand
+  }
+
+  /**
+   * Tab-strip view of this terminal. The label prefers the running command,
+   * which is what the user is actually waiting on, and falls back to the
+   * directory name — the two things that distinguish one terminal from another
+   * at a glance.
+   */
+  tabState(active: boolean): TerminalTabState {
+    const directory = this.cwd ? (this.cwd.split('/').filter(Boolean).pop() ?? '/') : null
     return {
-      alive: !this.disposed,
+      terminalId: this.terminalId,
+      title: this.foregroundCommand?.trim() || directory || 'Terminal',
       cwd: this.cwd,
-      shellName: this.shellName,
-      shellIntegration: this.shellIntegration,
-      foregroundCommand: this.foregroundCommand,
-      cols: this.cols,
-      rows: this.rows,
+      running: this.foregroundCommand,
+      interactive: this.altScreen,
+      active,
     }
   }
 
@@ -277,10 +345,37 @@ export class TerminalSession {
     this.write(CONTROL_KEY_BYTES[key])
   }
 
+  /**
+   * Types text the way a person would: each line and each Enter as its own
+   * write, spaced out so the program reads them as separate keystrokes and
+   * gets a chance to redraw between them. See {@link toInputChunks} for why
+   * sending it all at once leaves the text unsubmitted.
+   */
+  async type(text: string): Promise<void> {
+    const chunks = toInputChunks(text)
+    for (let index = 0; index < chunks.length; index += 1) {
+      if (this.disposed) return
+      if (index > 0) await this.settleBetweenKeystrokes()
+      this.write(chunks[index])
+    }
+  }
+
+  /** Holds a gap, then lets any resulting redraw finish before the next write. */
+  private async settleBetweenKeystrokes(): Promise<void> {
+    await delay(KEYSTROKE_GAP_MS)
+    const deadline = Date.now() + KEYSTROKE_SETTLE_MAX_MS
+    while (!this.disposed) {
+      const quietFor = Date.now() - this.lastOutputAt
+      const remaining = Math.min(KEYSTROKE_GAP_MS - quietFor, deadline - Date.now())
+      if (remaining <= 0) return
+      await delay(remaining)
+    }
+  }
+
   resize(cols: number, rows: number): void {
     if (this.disposed || cols <= 0 || rows <= 0) return
-    this.cols = cols
-    this.rows = rows
+    this.columns = cols
+    this.lines = rows
     try {
       this.emulator.resize(cols, rows)
       this.pty.resize(cols, rows)
@@ -332,7 +427,7 @@ export class TerminalSession {
       }
       this.foregroundCommand = command
       this.emitState()
-      this.callbacks.onCommand({ phase: 'start', command, toolCallId })
+      this.callbacks.onCommand({ terminalId: this.terminalId, phase: 'start', command, toolCallId })
 
       // Ctrl-U clears anything half-typed at the prompt so the agent's command
       // is not appended to a partial line. Safe because a command only starts
@@ -369,7 +464,13 @@ export class TerminalSession {
     let lastRow = buffer.length - 1
     while (lastRow >= 0 && rowAt(lastRow).trim() === '') lastRow--
     if (lastRow < 0) {
-      return { output: '', cwd: this.cwd, truncated: false, running: this.foregroundCommand }
+      return {
+        output: '',
+        cwd: this.cwd,
+        terminalId: this.terminalId,
+        truncated: false,
+        running: this.foregroundCommand,
+      }
     }
 
     const wanted = lines > 0 ? lines : lastRow + 1
@@ -383,6 +484,7 @@ export class TerminalSession {
     return {
       output: text,
       cwd: this.cwd,
+      terminalId: this.terminalId,
       truncated: truncated || firstRow > 0,
       running: this.foregroundCommand,
     }
@@ -428,6 +530,8 @@ export class TerminalSession {
     }
 
     if (text) {
+      this.lastOutputAt = Date.now()
+      this.trackAltScreen(text)
       this.emulator.write(text)
       this.scrollback += text
       if (this.scrollback.length > MAX_SCROLLBACK_CHARS) {
@@ -470,7 +574,7 @@ export class TerminalSession {
         const command = this.announcedCommand ?? ''
         this.foregroundCommand = command
         this.emitState()
-        this.callbacks.onCommand({ phase: 'start', command })
+        this.callbacks.onCommand({ terminalId: this.terminalId, phase: 'start', command })
         break
       }
       case 'output-end':
@@ -483,6 +587,21 @@ export class TerminalSession {
         }
         break
     }
+  }
+
+  /**
+   * Follows the alternate-screen switches so the tab can tell an open
+   * application from a command that is merely slow. Entering is what makes a
+   * program full-screen; leaving means it has quit and given the shell back.
+   */
+  private trackAltScreen(text: string): void {
+    const entered = text.lastIndexOf(ALT_SCREEN_ENTER)
+    const exited = text.lastIndexOf(ALT_SCREEN_EXIT)
+    if (entered === -1 && exited === -1) return
+    const next = entered > exited
+    if (next === this.altScreen) return
+    this.altScreen = next
+    this.emitState()
   }
 
   /**
@@ -514,6 +633,7 @@ export class TerminalSession {
       exitCode: null,
       durationMs: Date.now() - pending.startedAt,
       cwd: this.cwd,
+      terminalId: this.terminalId,
       truncated: false,
     }))
   }
@@ -552,6 +672,7 @@ export class TerminalSession {
         exitCode: null,
         durationMs: Date.now() - pending.startedAt,
         cwd: this.cwd,
+        terminalId: this.terminalId,
         truncated,
         ...(awaitingInput ? { awaitingInput: true } : {}),
       }
@@ -599,9 +720,11 @@ export class TerminalSession {
         exitCode,
         durationMs,
         cwd: this.cwd,
+        terminalId: this.terminalId,
         truncated,
       })
       this.callbacks.onCommand({
+        terminalId: this.terminalId,
         phase: 'end',
         command: pending.command,
         toolCallId: pending.toolCallId,
@@ -610,6 +733,7 @@ export class TerminalSession {
       })
     } else if (command !== null) {
       this.callbacks.onCommand({
+        terminalId: this.terminalId,
         phase: 'end',
         command,
         ...(exitCode === null ? {} : { exitCode }),
@@ -618,6 +742,7 @@ export class TerminalSession {
 
     this.foregroundCommand = null
     this.announcedCommand = null
+    this.altScreen = false
     this.emitState()
   }
 
@@ -637,7 +762,7 @@ export class TerminalSession {
     if (!this.pendingOutput) return
     const data = this.pendingOutput
     this.pendingOutput = ''
-    this.callbacks.onData(data)
+    this.callbacks.onData(this.terminalId, data)
     if (this.paused) {
       this.paused = false
       this.pty.resume()
@@ -659,6 +784,6 @@ export class TerminalSession {
   }
 
   private emitState(): void {
-    this.callbacks.onState(this.state)
+    this.callbacks.onState()
   }
 }

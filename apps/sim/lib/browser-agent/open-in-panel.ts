@@ -13,7 +13,7 @@
  * that Google/Microsoft refuse — connect chips use the system-browser
  * handoff (`beginOAuthConnect`) instead.
  */
-import { hasBrowserAgent } from '@/lib/desktop'
+import { isBrowserAgentEnabled } from '@/lib/desktop'
 
 const OPEN_IN_BROWSER_PANEL_EVENT = 'sim:open-in-browser-panel'
 
@@ -23,7 +23,7 @@ interface OpenInBrowserPanelDetail {
 
 /** True when a click on this href should divert into the embedded panel. */
 export function shouldOpenInBrowserPanel(href: string | undefined): href is string {
-  return Boolean(href) && /^https?:\/\//i.test(href as string) && hasBrowserAgent()
+  return Boolean(href) && /^https?:\/\//i.test(href as string) && isBrowserAgentEnabled()
 }
 
 /** Requests the chat surface to open the panel on this URL (fire-and-forget). */

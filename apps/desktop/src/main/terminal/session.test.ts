@@ -1,28 +1,41 @@
 import { describe, expect, it } from 'vitest'
-import { stripAnsi, toKeystrokes } from '@/main/terminal/session'
+import { stripAnsi, toInputChunks } from '@/main/terminal/session'
 
-describe('toKeystrokes', () => {
+describe('toInputChunks', () => {
+  it('separates Enter from the text so the text is actually submitted', () => {
+    // A full-screen program reads one stdin chunk as one input event: "hi\r"
+    // arriving together is read as text, lands in the composer, and never
+    // submits. Enter has to be its own chunk.
+    expect(toInputChunks('hi\n')).toEqual(['hi', '\r'])
+  })
+
   it('sends Enter as carriage return, not linefeed', () => {
-    // A full-screen program reading raw input treats LF as "insert a line" and
-    // CR as "submit", so text sent with \n types but never sends.
-    expect(toKeystrokes('hi\n')).toBe('hi\r')
+    expect(toInputChunks('hi\n')[1]).toBe('\r')
   })
 
   it('collapses CRLF so one Enter is not sent twice', () => {
-    expect(toKeystrokes('hi\r\n')).toBe('hi\r')
+    expect(toInputChunks('hi\r\n')).toEqual(['hi', '\r'])
   })
 
-  it('converts every line break in multi-line input', () => {
-    expect(toKeystrokes('one\ntwo\nthree')).toBe('one\rtwo\rthree')
+  it('treats a bare carriage return as one Enter', () => {
+    expect(toInputChunks('hi\r')).toEqual(['hi', '\r'])
   })
 
-  it('leaves text without line breaks untouched', () => {
-    expect(toKeystrokes('y')).toBe('y')
-    expect(toKeystrokes('')).toBe('')
+  it('breaks multi-line input into alternating text and Enter', () => {
+    expect(toInputChunks('one\ntwo\nthree')).toEqual(['one', '\r', 'two', '\r', 'three'])
   })
 
-  it('preserves an existing carriage return', () => {
-    expect(toKeystrokes('hi\r')).toBe('hi\r')
+  it('keeps a blank line as an Enter rather than an empty write', () => {
+    expect(toInputChunks('\n')).toEqual(['\r'])
+    expect(toInputChunks('a\n\nb')).toEqual(['a', '\r', '\r', 'b'])
+  })
+
+  it('leaves text without line breaks as a single chunk', () => {
+    expect(toInputChunks('y')).toEqual(['y'])
+  })
+
+  it('sends nothing for empty text', () => {
+    expect(toInputChunks('')).toEqual([])
   })
 })
 

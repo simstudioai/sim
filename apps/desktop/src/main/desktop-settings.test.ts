@@ -19,14 +19,27 @@ function makeService() {
   const openMainWindowAt = vi.fn()
   const setAutoDownloadUpdates = vi.fn()
   const setTrayEnabled = vi.fn()
+  const setBrowserEnabled = vi.fn()
+  const setTerminalEnabled = vi.fn()
   const service = createDesktopSettingsService({
     config,
     getMainWindow: () => window,
     openMainWindowAt,
     setAutoDownloadUpdates,
     setTrayEnabled,
+    setBrowserEnabled,
+    setTerminalEnabled,
   })
-  return { config, window, openMainWindowAt, setAutoDownloadUpdates, setTrayEnabled, service }
+  return {
+    config,
+    window,
+    openMainWindowAt,
+    setAutoDownloadUpdates,
+    setTrayEnabled,
+    setBrowserEnabled,
+    setTerminalEnabled,
+    service,
+  }
 }
 
 describe('desktop settings service', () => {
@@ -57,6 +70,21 @@ describe('desktop settings service', () => {
     expect(config.get('trayEnabled')).toBe(false)
     expect(setTrayEnabled).toHaveBeenCalledWith(false)
     expect(service.getPreferences().trayEnabled).toBe(false)
+  })
+
+  it('tears down the browser and terminal when their surfaces are switched off', () => {
+    const { config, service, setBrowserEnabled, setTerminalEnabled } = makeService()
+    expect(service.getPreferences()).toMatchObject({
+      browserEnabled: true,
+      terminalEnabled: true,
+    })
+
+    service.setPreference('browserEnabled', false)
+    service.setPreference('terminalEnabled', false)
+    expect(config.get('browserEnabled')).toBe(false)
+    expect(config.get('terminalEnabled')).toBe(false)
+    expect(setBrowserEnabled).toHaveBeenCalledWith(false)
+    expect(setTerminalEnabled).toHaveBeenCalledWith(false)
   })
 
   it('applies login-item changes only for packaged builds', () => {

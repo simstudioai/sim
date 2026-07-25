@@ -122,7 +122,7 @@ export function deriveMessagePhase({
   return 'settled'
 }
 
-type ToolDisplayState = 'spinner' | 'cancelled' | 'interrupted' | 'icon'
+type ToolDisplayState = 'spinner' | 'awaiting_approval' | 'cancelled' | 'interrupted' | 'icon'
 
 export function resolveToolDisplayState(status: ToolCallStatus): ToolDisplayState {
   // Pure projection of the tool's own status. A row spins iff it is genuinely
@@ -130,6 +130,9 @@ export function resolveToolDisplayState(status: ToolCallStatus): ToolDisplayStat
   // gating — deterministic terminals (tool `result`, turn propagation) guarantee
   // a row never lingers `executing` after its work is done.
   if (status === 'executing') return 'spinner'
+  // Waiting on a person, not on work: the row renders a permission card rather
+  // than a spinner, so it must not read as in-progress.
+  if (status === 'awaiting_approval') return 'awaiting_approval'
   if (status === 'cancelled') return 'cancelled'
   if (status === 'interrupted') return 'interrupted'
   return 'icon'

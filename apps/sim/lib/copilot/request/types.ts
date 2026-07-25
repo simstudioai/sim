@@ -10,7 +10,7 @@ import type { ToolExecutionContext, ToolExecutionResult } from '@/lib/copilot/to
 
 export type { StreamEvent }
 
-export type LocalToolCallStatus = 'pending' | 'executing'
+export type LocalToolCallStatus = 'pending' | 'executing' | 'awaiting_approval'
 export type ToolCallStatus = LocalToolCallStatus | MothershipStreamV1ToolOutcome
 
 const TERMINAL_TOOL_STATUSES: ReadonlySet<ToolCallStatus> = new Set<MothershipStreamV1ToolOutcome>(
@@ -171,6 +171,16 @@ export interface StreamingContext {
   activeFileIntents: Map<string, ActiveFileIntent>
   trace: TraceCollector
   subAgentTraceSpans?: Map<string, RequestTraceV1Span>
+  /**
+   * Per-request state for the tool permission gate. `autoAllowed` starts from
+   * the user's saved always-allow list and is added to in place when they pick
+   * "always allow" mid-turn, so a later call to the same tool in this same turn
+   * is not prompted a second time.
+   */
+  toolPermissions: {
+    enabled: boolean
+    autoAllowed: Set<string>
+  }
 }
 
 interface FileAttachment {
