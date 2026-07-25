@@ -679,6 +679,13 @@ export interface UpdateColumnOptionsData {
   options: SelectOption[]
   /** Toggle single/multi selection alongside the options update. */
   multiple?: boolean
+  /**
+   * The `required` value the same request is about to set. The constraint write
+   * is a separate transaction, so the options update has to validate against
+   * the constraint the column will END UP with — otherwise it clears cells and
+   * the constraint write then fails, leaving the removal committed.
+   */
+  required?: boolean
 }
 
 export interface UpdateColumnConstraintsData {

@@ -649,10 +649,13 @@ export function Table({
   const filterConfig = useMemo(
     () => ({
       mode: 'toggle' as const,
-      active: filterOpen || !!queryOptions.filter,
+      // The pruned filter, not the raw one: a condition the current schema
+      // invalidated is not applied to the grid, so showing the chip as active
+      // (and reopening that rule) would claim a filter the rows do not reflect.
+      active: filterOpen || !!effectiveFilter,
       onToggle: handleToggleFilter,
     }),
-    [filterOpen, queryOptions.filter, handleToggleFilter]
+    [filterOpen, effectiveFilter, handleToggleFilter]
   )
 
   return (
@@ -707,7 +710,7 @@ export function Table({
       {filterOpen && (
         <TableFilter
           columns={columns}
-          filter={queryOptions.filter}
+          filter={effectiveFilter}
           onApply={handleFilterApply}
           onClose={() => setFilterOpen(false)}
         />

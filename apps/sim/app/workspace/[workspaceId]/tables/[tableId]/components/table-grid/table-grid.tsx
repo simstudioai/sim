@@ -3738,7 +3738,7 @@ export function TableGrid({
                                 onSelectGroup={handleGroupSelect}
                                 onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
                                 onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
-                                hasActiveFilter={Boolean(queryOptions.filter)}
+                                hasActiveFilter={Boolean(effectiveFilter)}
                                 selectedRowIds={selectedRowIds}
                                 onInsertLeft={
                                   userPermissions.canEdit ? handleInsertColumnLeft : undefined

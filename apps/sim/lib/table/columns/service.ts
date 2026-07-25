@@ -763,6 +763,19 @@ export async function updateColumnOptions(
     const keptIds = new Set(data.options.map((o) => o.id))
     const removedAny = (column.options ?? []).some((o) => !keptIds.has(o.id))
     const togglingCardinality = nextMultiple !== wasMultiple
+    const targetRequired = !!(data.required ?? column.required)
+
+    // Newly imposing `required` in the same request: rows that are ALREADY empty
+    // would fail the separate constraint write after this one commits, so they
+    // have to be caught here, through the same predicate that write will use.
+    if (targetRequired && !column.required) {
+      const emptyCount = await countEmptyCells(trx, data.tableId, columnKey)
+      if (emptyCount > 0) {
+        throw new Error(
+          `Cannot make column "${column.name}" required: ${emptyCount} row(s) have null, missing, or empty values. Fill them first.`
+        )
+      }
+    }
 
     if (togglingCardinality || removedAny) {
       const timeoutMs = scaledStatementTimeoutMs(table.rowCount ?? 0, {
@@ -785,7 +798,13 @@ export async function updateColumnOptions(
       // write path rejects, and `updateColumnConstraints` refuses to CREATE that
       // state, so producing it here would be inconsistent. Make the caller
       // reassign those rows first.
-      if (column.required) {
+      //
+      // Gated on the constraint the column ENDS UP with, which may be arriving
+      // in this same request: validating against the current flag both blocks a
+      // removal paired with `required: false` that is about to be fine, and lets
+      // a removal paired with `required: true` clear cells and then fail the
+      // constraint write, leaving this change committed behind an error.
+      if (targetRequired) {
         const strandedCount = await countCellsLosingTheirOptions(
           trx,
           data.tableId,
