@@ -40,7 +40,7 @@ function toChatConfigResponse(deployment: ChatConfigSource) {
     authType: deployment.authType,
     outputConfigs: deployment.outputConfigs,
     includeThinking: deployment.includeThinking ?? false,
-    includeToolCalls: deployment.includeToolCalls ?? deployment.includeThinking ?? false,
+    includeToolCalls: deployment.includeToolCalls ?? false,
   }
 }
 
@@ -281,7 +281,7 @@ export const POST = withRouteHandler(
         }
 
         const includeThinking = deployment.includeThinking ?? false
-        const includeToolCalls = deployment.includeToolCalls ?? includeThinking
+        const includeToolCalls = deployment.includeToolCalls ?? false
         const agentEvents = shouldEmitAgentStreamEvents({
           includeThinking,
           includeToolCalls,

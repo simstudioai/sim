@@ -6,6 +6,7 @@ import {
   AGENT_STREAM_PROTOCOL_HEADER,
   AGENT_STREAM_PROTOCOL_V1,
   clientAcceptsAgentStreamProtocol,
+  hasAgentStreamPolicy,
   isChatChunkFrame,
   isChatChunkResetFrame,
   isChatToolFrame,
@@ -17,7 +18,7 @@ function headers(init?: Record<string, string>): Headers {
 }
 
 describe('clientAcceptsAgentStreamProtocol', () => {
-  it('depends on the header alone, never on a deployment policy', () => {
+  it('depends on the header alone, never on a policy', () => {
     expect(
       clientAcceptsAgentStreamProtocol(
         headers({ [AGENT_STREAM_PROTOCOL_HEADER]: AGENT_STREAM_PROTOCOL_V1 })
@@ -27,6 +28,19 @@ describe('clientAcceptsAgentStreamProtocol', () => {
       clientAcceptsAgentStreamProtocol(headers({ [AGENT_STREAM_PROTOCOL_HEADER]: ' V1 ' }))
     ).toBe(false)
     expect(clientAcceptsAgentStreamProtocol(headers())).toBe(false)
+  })
+
+  it('tolerates casing and comma lists from proxies', () => {
+    expect(
+      clientAcceptsAgentStreamProtocol(
+        headers({ [AGENT_STREAM_PROTOCOL_HEADER]: ' Agent-Events-V1 ' })
+      )
+    ).toBe(true)
+    expect(
+      clientAcceptsAgentStreamProtocol(
+        headers({ [AGENT_STREAM_PROTOCOL_HEADER]: 'text, agent-events-v1' })
+      )
+    ).toBe(true)
   })
 })
 
@@ -59,74 +73,66 @@ describe('chunk_reset frame guard', () => {
 })
 
 describe('shouldEmitAgentStreamEvents', () => {
-  it('defaults to false when policy is off and header is missing', () => {
+  const negotiated = () => headers({ [AGENT_STREAM_PROTOCOL_HEADER]: AGENT_STREAM_PROTOCOL_V1 })
+
+  it('is off when neither policy is set', () => {
     expect(
       shouldEmitAgentStreamEvents({
         includeThinking: false,
         includeToolCalls: false,
-        requestHeaders: headers(),
+        requestHeaders: negotiated(),
       })
     ).toBe(false)
     expect(
       shouldEmitAgentStreamEvents({
         includeThinking: undefined,
         includeToolCalls: undefined,
-        requestHeaders: headers(),
+        requestHeaders: negotiated(),
       })
     ).toBe(false)
   })
 
-  it('requires the protocol header and at least one event policy', () => {
+  it('is on when either policy is set on a negotiated client', () => {
     expect(
       shouldEmitAgentStreamEvents({
         includeThinking: true,
         includeToolCalls: false,
-        requestHeaders: headers(),
-      })
-    ).toBe(false)
-
-    expect(
-      shouldEmitAgentStreamEvents({
-        includeThinking: false,
-        includeToolCalls: false,
-        requestHeaders: headers({ [AGENT_STREAM_PROTOCOL_HEADER]: AGENT_STREAM_PROTOCOL_V1 }),
-      })
-    ).toBe(false)
-
-    expect(
-      shouldEmitAgentStreamEvents({
-        includeThinking: true,
-        includeToolCalls: false,
-        requestHeaders: headers({ [AGENT_STREAM_PROTOCOL_HEADER]: AGENT_STREAM_PROTOCOL_V1 }),
+        requestHeaders: negotiated(),
       })
     ).toBe(true)
-
     expect(
       shouldEmitAgentStreamEvents({
         includeThinking: false,
         includeToolCalls: true,
-        requestHeaders: headers({ [AGENT_STREAM_PROTOCOL_HEADER]: AGENT_STREAM_PROTOCOL_V1 }),
+        requestHeaders: negotiated(),
       })
     ).toBe(true)
   })
 
-  it('accepts case-insensitive header values and comma lists', () => {
+  /**
+   * Frames have no defined shape for a client that never declared a version,
+   * so policy alone is not enough.
+   */
+  it('is off without the protocol header even when policy is on', () => {
     expect(
       shouldEmitAgentStreamEvents({
         includeThinking: true,
-        includeToolCalls: false,
-        requestHeaders: headers({ [AGENT_STREAM_PROTOCOL_HEADER]: ' Agent-Events-V1 ' }),
-      })
-    ).toBe(true)
-
-    expect(
-      shouldEmitAgentStreamEvents({
-        includeThinking: false,
         includeToolCalls: true,
-        requestHeaders: headers({
-          [AGENT_STREAM_PROTOCOL_HEADER]: 'text, agent-events-v1',
-        }),
+        requestHeaders: headers(),
       })
-    ).toBe(true)
+    ).toBe(false)
+  })
+})
+
+describe('hasAgentStreamPolicy', () => {
+  /**
+   * Surfaces where the caller sets the policy use this to reject an
+   * un-negotiated request instead of silently dropping the flags.
+   */
+  it('reports the policy independently of negotiation', () => {
+    expect(hasAgentStreamPolicy({ includeThinking: true, includeToolCalls: false })).toBe(true)
+    expect(hasAgentStreamPolicy({ includeThinking: false, includeToolCalls: true })).toBe(true)
+    expect(hasAgentStreamPolicy({ includeThinking: false, includeToolCalls: false })).toBe(false)
+    expect(hasAgentStreamPolicy({ includeThinking: undefined, includeToolCalls: null })).toBe(false)
   })
 })
