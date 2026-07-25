@@ -122,6 +122,81 @@ async function promptExternalDsn(): Promise<string> {
   }
 }
 
+const DB_VOLUME = 'sim-postgres-data'
+
+/** True once initdb has run in the volume — PG_VERSION only exists after bootstrap. */
+function volumeInitialized(): boolean {
+  if (spawnSync('docker', ['volume', 'inspect', DB_VOLUME], { stdio: 'ignore' }).status !== 0) {
+    return false
+  }
+  // Read the marker from inside the volume; the image is already local, so this
+  // costs nothing extra and beats assuming "volume exists" means "bootstrapped"
+  // (a failed first run leaves an empty volume behind).
+  return (
+    spawnSync(
+      'docker',
+      [
+        'run',
+        '--rm',
+        '-v',
+        `${DB_VOLUME}:/pgdata`,
+        '--entrypoint',
+        'test',
+        'pgvector/pgvector:pg17',
+        '-f',
+        '/pgdata/PG_VERSION',
+      ],
+      { stdio: 'ignore' }
+    ).status === 0
+  )
+}
+
+/**
+ * The volume already holds a cluster whose password we cannot read back. Either
+ * the user supplies it, or the data goes — silently generating a new password
+ * would produce a container that never authenticates.
+ */
+async function resolveExistingVolume(): Promise<string> {
+  p.log.warn(
+    `The ${DB_VOLUME} volume already contains a database, but its password is not recoverable — Postgres ignores POSTGRES_PASSWORD on an existing data directory.`
+  )
+  const choice = await p.select({
+    message: 'How should the wizard proceed?',
+    options: [
+      {
+        value: 'password',
+        label: 'Keep the data — I have its password',
+        hint: 'from a previous .env, or your notes',
+      },
+      {
+        value: 'wipe',
+        label: 'Delete the old data and start fresh',
+        hint: `removes the ${DB_VOLUME} volume — this cannot be undone`,
+      },
+    ],
+    initialValue: 'password',
+  })
+  if (choice === 'password') {
+    return p.password({
+      message: `Password for the existing ${DB_VOLUME} database`,
+      validate: (value) => (value ? undefined : 'required'),
+    })
+  }
+  const sure = await p.confirm({
+    message: theme.error(`Permanently delete the ${DB_VOLUME} volume and all its data?`),
+    initialValue: false,
+  })
+  if (!sure) {
+    throw new SetupError('kept the existing database volume, so setup cannot continue.', [
+      're-run and supply the password, or remove it yourself:',
+      theme.command(`docker volume rm ${DB_VOLUME}`),
+    ])
+  }
+  docker(['volume', 'rm', DB_VOLUME])
+  p.log.step(`Removed ${DB_VOLUME}`)
+  return generateSecret().slice(0, 24)
+}
+
 /**
  * Provisions the managed container, reconciling with one that already exists
  * rather than colliding on the name. Recreating is always an explicit choice —
@@ -142,14 +217,24 @@ async function startManagedContainer(detection: Detection): Promise<string> {
       throw new SetupError(`the existing ${DB_CONTAINER} container is not usable.`, [
         `inspect: ${theme.command(`docker logs ${DB_CONTAINER}`)}`,
         `remove it: ${theme.command(`docker rm -f ${DB_CONTAINER}`)}`,
-        `start clean: ${theme.command('docker volume rm sim-postgres-data')} drops its data too`,
+        `start clean: ${theme.command(`docker volume rm ${DB_VOLUME}`)} drops its data too`,
       ])
     }
     docker(['rm', '-f', DB_CONTAINER])
   }
 
-  const password = generateSecret().slice(0, 24)
   const hostPort = detection.postgresPortOpen ? 5433 : 5432
+  // POSTGRES_PASSWORD only applies when initdb runs on an empty data directory.
+  // The volume outlives the container (sim down keeps it, so does `docker rm`),
+  // so once the container is gone the password it was created with is
+  // unrecoverable — inspectManagedContainer reads it from the container, not the
+  // volume. Running with a freshly generated password against an initialized
+  // volume starts a healthy Postgres that rejects every connection with
+  // "password authentication failed", which surfaces as a bogus "container did
+  // not become healthy". Ask instead of guessing.
+  const password = volumeInitialized()
+    ? await resolveExistingVolume()
+    : generateSecret().slice(0, 24)
   const dsn = `postgresql://postgres:${password}@localhost:${hostPort}/simstudio`
   docker([
     'run',
@@ -159,7 +244,7 @@ async function startManagedContainer(detection: Detection): Promise<string> {
     '--label',
     'managed-by=sim-setup',
     '-v',
-    'sim-postgres-data:/var/lib/postgresql/data',
+    `${DB_VOLUME}:/var/lib/postgresql/data`,
     '-e',
     `POSTGRES_PASSWORD=${password}`,
     '-e',
