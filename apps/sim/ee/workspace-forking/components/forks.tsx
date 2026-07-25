@@ -404,7 +404,7 @@ export function Forks() {
           workspaceId={workspaceId}
           otherWorkspaceId={parent.id}
           otherWorkspaceName={parent.name}
-          onBack={() => setSelectedForkId(null, { history: 'replace' })}
+          onBack={() => void setSelectedForkId(null, { history: 'replace' })}
           actions={parentHeaderActions}
         />
       ) : forkView === 'activity' ? (
