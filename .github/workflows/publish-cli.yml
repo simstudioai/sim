@@ -41,7 +41,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: packages/cli
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Build package
         working-directory: packages/cli
