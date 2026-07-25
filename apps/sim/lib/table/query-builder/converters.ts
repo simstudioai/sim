@@ -4,6 +4,7 @@
 
 import { generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
+import { TableQueryValidationError } from '@/lib/table/errors'
 import type {
   Filter,
   FilterOp,
@@ -323,7 +324,27 @@ function predicateLeafToFilterValue(p: Predicate): Filter[string] {
   // Valueless null checks carry a dummy `true` so the key survives JSON transport.
   if (p.op === 'isNull') return { $isNull: true } as Filter[string]
   if (p.op === 'isNotNull') return { $isNotNull: true } as Filter[string]
-  if (p.op === 'eq') return p.value as Filter[string]
+
+  // Fail loud rather than emit a leaf `buildFilterClause` silently discards. It skips
+  // an `undefined` condition and any array-valued one, so a dropped leaf WIDENS the
+  // result — and on the bulk delete/update paths a predicate whose only leaf is
+  // dropped compiles to no WHERE at all. `op:'eq'` with an array is the realistic
+  // trigger (an LLM reaching for `in` and writing `eq`).
+  if (!VALUELESS_OPS.has(p.op) && p.value === undefined) {
+    throw new TableQueryValidationError(
+      `Operator "${p.op}" on column "${p.field}" requires a value.`,
+      'INVALID_FILTER'
+    )
+  }
+  if (p.op === 'eq') {
+    if (Array.isArray(p.value)) {
+      throw new TableQueryValidationError(
+        `Operator "eq" on column "${p.field}" does not accept an array — use "in" to match any of several values.`,
+        'INVALID_FILTER'
+      )
+    }
+    return p.value as Filter[string]
+  }
   return { [`$${p.op}`]: p.value } as Filter[string]
 }
 

@@ -288,8 +288,20 @@ const predicateNodeSchema: z.ZodType<PredicateNode> = z.lazy(() =>
 
 export const predicateSchema: z.ZodType<TablePredicate> = z.lazy(() =>
   z.union([
-    z.object({ all: z.array(predicateNodeSchema).max(MAX_PREDICATE_GROUP_SIZE) }),
-    z.object({ any: z.array(predicateNodeSchema).max(MAX_PREDICATE_GROUP_SIZE) }),
+    // `.min(1)`: an empty group compiles to no WHERE clause, which on the bulk
+    // delete/update paths reads as "match everything" rather than "match nothing".
+    z.object({
+      all: z
+        .array(predicateNodeSchema)
+        .min(1, 'A filter group must contain at least one condition')
+        .max(MAX_PREDICATE_GROUP_SIZE),
+    }),
+    z.object({
+      any: z
+        .array(predicateNodeSchema)
+        .min(1, 'A filter group must contain at least one condition')
+        .max(MAX_PREDICATE_GROUP_SIZE),
+    }),
   ])
 )
 const predicateGroupSchema = predicateSchema

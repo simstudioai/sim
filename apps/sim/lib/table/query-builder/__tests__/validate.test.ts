@@ -97,3 +97,40 @@ describe('validateSortSpec', () => {
     }
   })
 })
+
+/**
+ * These shapes pass structural validation but compile to a clause the legacy
+ * `$`-grammar discards — which turns a bulk delete/update into "match everything".
+ */
+describe('validatePredicate — leaves that would silently widen a bulk write', () => {
+  it('rejects a scalar op given an array (the eq-instead-of-in mistake)', () => {
+    expect(() =>
+      validatePredicate({ all: [{ field: 'status', op: 'eq', value: ['a', 'b'] }] }, COLS)
+    ).toThrow(/does not accept an array — use "in"/)
+  })
+
+  it('rejects a value-taking op with no value', () => {
+    expect(() => validatePredicate({ all: [{ field: 'status', op: 'eq' }] }, COLS)).toThrow(
+      /requires a value/
+    )
+    expect(() => validatePredicate({ all: [{ field: 'wins', op: 'gte' }] }, COLS)).toThrow(
+      /requires a value/
+    )
+  })
+
+  it('still allows the valueless ops', () => {
+    for (const op of ['isNull', 'isNotNull', 'isEmpty', 'isNotEmpty'] as const) {
+      expect(() => validatePredicate({ all: [{ field: 'status', op }] }, COLS)).not.toThrow()
+    }
+  })
+
+  it('caps in/nin list length', () => {
+    const huge = Array.from({ length: 1001 }, (_, i) => `v${i}`)
+    expect(() =>
+      validatePredicate({ all: [{ field: 'status', op: 'in', value: huge }] }, COLS)
+    ).toThrow(/at most 1000 values/)
+    expect(() =>
+      validatePredicate({ all: [{ field: 'status', op: 'in', value: huge.slice(0, 1000) }] }, COLS)
+    ).not.toThrow()
+  })
+})

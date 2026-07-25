@@ -22,6 +22,15 @@ import type {
 /** Equality/containment ops that are meaningless on a `json` column (they never match). */
 const CONTAINMENT_OPS = new Set<FilterOp>(['eq', 'ne', 'in', 'nin'])
 
+/** Ops that legitimately carry no `value`. */
+const VALUELESS_OPS = new Set<FilterOp>(['isEmpty', 'isNotEmpty', 'isNull', 'isNotNull'])
+
+/**
+ * Cap on `in`/`nin` list length. Each element becomes its own containment clause,
+ * so an unbounded list is a cheap memory/CPU amplifier from a small request body.
+ */
+const MAX_IN_LIST_SIZE = 1000
+
 /** System timestamp columns are filterable/sortable but are not in `schema.columns`. */
 const SYSTEM_COLUMN_TYPES: ReadonlyArray<[string, ColumnType]> = [
   ['createdAt', 'date'],
@@ -57,12 +66,34 @@ function validateLeaf(leaf: Predicate, typeByName: Map<string, ColumnType>): voi
       'INVALID_FILTER'
     )
   }
-  if (
-    (leaf.op === 'in' || leaf.op === 'nin') &&
-    (!Array.isArray(leaf.value) || leaf.value.length === 0)
-  ) {
+  if (leaf.op === 'in' || leaf.op === 'nin') {
+    if (!Array.isArray(leaf.value) || leaf.value.length === 0) {
+      throw new TableQueryValidationError(
+        `Operator "${leaf.op}" on column "${leaf.field}" requires a non-empty array value.`,
+        'INVALID_FILTER'
+      )
+    }
+    if (leaf.value.length > MAX_IN_LIST_SIZE) {
+      throw new TableQueryValidationError(
+        `Operator "${leaf.op}" on column "${leaf.field}" accepts at most ${MAX_IN_LIST_SIZE} values, got ${leaf.value.length}.`,
+        'INVALID_FILTER'
+      )
+    }
+    return
+  }
+  // A value-taking op with no value, or a scalar op handed an array, compiles to a
+  // clause the legacy `$`-grammar silently discards — which WIDENS a bulk delete or
+  // update. Reject here so the copilot path (no Zod) fails the same way the HTTP
+  // boundary does.
+  if (!VALUELESS_OPS.has(leaf.op) && leaf.value === undefined) {
     throw new TableQueryValidationError(
-      `Operator "${leaf.op}" on column "${leaf.field}" requires a non-empty array value.`,
+      `Operator "${leaf.op}" on column "${leaf.field}" requires a value.`,
+      'INVALID_FILTER'
+    )
+  }
+  if (Array.isArray(leaf.value)) {
+    throw new TableQueryValidationError(
+      `Operator "${leaf.op}" on column "${leaf.field}" does not accept an array — use "in" to match any of several values.`,
       'INVALID_FILTER'
     )
   }

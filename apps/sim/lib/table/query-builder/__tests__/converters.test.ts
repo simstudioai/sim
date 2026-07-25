@@ -219,6 +219,21 @@ describe('predicateToFilter (v2 → legacy)', () => {
       $or: [{ a: { $empty: true } }, { b: { $empty: false } }],
     })
   })
+
+  /**
+   * The conversion is only safe if it is lossless: `buildFilterClause` skips an
+   * `undefined` condition and any array-valued one, so a leaf that converts to
+   * either DISAPPEARS from the WHERE — and a predicate whose only leaf disappears
+   * compiles to no WHERE at all, turning a bulk delete into a table wipe.
+   */
+  it('throws rather than emit a leaf the legacy compiler would discard', () => {
+    expect(() =>
+      predicateToFilter({ all: [{ field: 'status', op: 'eq', value: ['a', 'b'] }] })
+    ).toThrow(/does not accept an array/)
+    expect(() => predicateToFilter({ all: [{ field: 'status', op: 'eq' }] })).toThrow(
+      /requires a value/
+    )
+  })
 })
 
 describe('sortRulesToSortSpec (v2)', () => {
