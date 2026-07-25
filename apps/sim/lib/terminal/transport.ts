@@ -59,11 +59,12 @@ export function onTerminalData(callback: (terminalId: string, data: string) => v
 }
 
 /**
- * Subscribes to full-scrollback repaints, sent when attaching to shells that
- * were already running. The panel resets that terminal before writing.
+ * Everything already on a terminal's screen, for a new view to paint itself
+ * from. Empty when the desktop bridge is unavailable, which leaves the view
+ * blank rather than failing the mount.
  */
-export function onTerminalReplay(callback: (terminalId: string, data: string) => void): () => void {
-  return bridge()?.onReplay?.(callback) ?? (() => {})
+export async function getTerminalScrollback(terminalId: string): Promise<string> {
+  return (await bridge()?.getScrollback(terminalId)) ?? ''
 }
 
 export async function startTerminalSession(
