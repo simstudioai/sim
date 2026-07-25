@@ -65,12 +65,12 @@ export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesG
 
   const handleBackClick = useCallback(
     (event: MouseEvent<HTMLAnchorElement>) => {
-      if (isDirty) {
+      if (isDirty && !isReleased) {
         event.preventDefault()
         setShowUnsavedAlert(true)
       }
     },
-    [isDirty]
+    [isDirty, isReleased]
   )
 
   const confirmDiscard = useCallback(() => {
@@ -79,11 +79,12 @@ export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesG
   }, [router, backHref])
 
   /**
-   * Retires the guard: no unload warning, no browser Back trap, and no pop of the
-   * seeded entry when the form goes clean. Call it before navigating away on a
-   * successful save, and navigate with `router.replace` so the seeded entry is the
-   * one consumed. An operation that goes clean before it resolves (an optimistic
-   * delete) must release up front and {@link rearm} if it fails.
+   * Retires the guard: no unload warning, no Back trap (browser or the in-app back
+   * link), and no pop of the seeded entry when the form goes clean. Call it before
+   * navigating away on a successful save, and navigate with `router.replace` so the
+   * seeded entry is the one consumed. An operation that goes clean before it
+   * resolves (an optimistic delete) must release up front and {@link rearm} if it
+   * fails.
    */
   const release = useCallback(() => setIsReleased(true), [])
 
