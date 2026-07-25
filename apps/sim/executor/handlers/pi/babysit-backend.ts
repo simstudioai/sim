@@ -49,6 +49,7 @@ import {
   GIT_CONFIG_DIGEST_LINE,
   GIT_CONFIG_DIGEST_MARKER,
   MAX_DIFF_BYTES,
+  MIN_PI_TIMEOUT_MS,
   PI_TIMEOUT_MS,
   PROMPT_PATH,
   PUSH_ERROR_MAX,
@@ -87,7 +88,7 @@ const MAX_CHANGED_FILES = 50
 const MAX_FAILING_CHECKS_IN_PROMPT = 20
 const MAX_REVIEW_PROMPT_BYTES = 250_000
 const MAX_CHECK_PROMPT_BYTES = 400_000
-const MIN_ROUND_BUDGET_MS = 5 * 60 * 1000
+const MIN_ROUND_BUDGET_MS = MIN_PI_TIMEOUT_MS
 const ROUND_FINALIZATION_RESERVE_MS = 2 * FINALIZE_TIMEOUT_MS
 const SANDBOX_KEEPALIVE_INTERVAL_MS = 4 * 60 * 1000
 
@@ -173,6 +174,16 @@ interface RoundFinalize {
   newSha: string
   changedFiles: string[]
   diff: string
+}
+
+class BabysitFinalizeError extends Error {
+  constructor(
+    public readonly reason: BabysitStopReason,
+    message: string
+  ) {
+    super(message)
+    this.name = 'BabysitFinalizeError'
+  }
 }
 
 function untrustedJson(value: unknown): string {
@@ -416,14 +427,18 @@ async function finalizeRound(
     signal
   )
   if (prepare.exitCode !== 0) {
-    throw new Error(
+    throw new BabysitFinalizeError(
+      'agent_failure',
       `Babysit finalize refused repository state: ${truncate(prepare.stderr || prepare.stdout, PUSH_ERROR_MAX)}`
     )
   }
   const noChanges = prepare.stdout.includes('__NO_CHANGES__=1')
   const needsPush = prepare.stdout.includes('__NEEDS_PUSH__=1')
   if (noChanges === needsPush)
-    throw new Error('Babysit finalize returned inconsistent change state')
+    throw new BabysitFinalizeError(
+      'agent_failure',
+      'Babysit finalize returned inconsistent change state'
+    )
   if (noChanges) {
     return { commitPushed: false, newSha: roundBaseSha, changedFiles: [], diff: '' }
   }
@@ -435,15 +450,25 @@ async function finalizeRound(
   const changedFiles = extractMarkerValues(prepare.stdout, '__CHANGED__=')
   const newSha = extractMarkerValues(prepare.stdout, '__NEW_SHA__=')[0]
   if (!newSha || !Number.isSafeInteger(cumulativeDiffBytes)) {
-    throw new Error('Babysit finalize omitted its commit or diff bounds')
+    throw new BabysitFinalizeError(
+      'agent_failure',
+      'Babysit finalize omitted its commit or diff bounds'
+    )
   }
   if (cumulativeChangedFiles.length > MAX_CHANGED_FILES || cumulativeDiffBytes > MAX_DIFF_BYTES) {
-    throw new Error('Babysit cumulative change bounds were exceeded')
+    throw new BabysitFinalizeError(
+      'bounds_exceeded',
+      'Babysit cumulative change bounds were exceeded'
+    )
   }
   if (cumulativeChangedFiles.some((file) => file === '.github' || file.startsWith('.github/'))) {
-    throw new Error('Babysit refuses to push changes under .github/')
+    throw new BabysitFinalizeError(
+      'refused_content',
+      'Babysit refuses to push changes under .github/'
+    )
   }
 
+  const diff = scrubPiSecrets(await runner.readFile(DIFF_PATH), secrets)
   assertBabysitPinned(snapshot, await fetchBabysitSnapshot(params, signal))
   const push = await raceAbort(
     runner.run(BABYSIT_PUSH_SCRIPT, {
@@ -462,14 +487,14 @@ async function finalizeRound(
     signal
   )
   if (!push.stdout.includes('__PUSHED__=1')) {
-    throw new Error(
+    throw new BabysitFinalizeError(
+      'push_rejected',
       `git push failed: ${truncate(
         scrubGitSecrets(push.stderr || push.stdout || 'unknown error', params.githubToken),
         PUSH_ERROR_MAX
       )}`
     )
   }
-  const diff = scrubPiSecrets(await runner.readFile(DIFF_PATH), secrets)
   return { commitPushed: true, newSha, changedFiles, diff }
 }
 
@@ -567,7 +592,7 @@ export async function runBabysitPiWithOptions(
   if (lifetime < MIN_ROUND_BUDGET_MS) {
     cancellation.cleanup()
     throw new Error(
-      'Babysit needs at least five minutes of runtime; use an async trigger and a longer Pi sandbox lifetime.'
+      'Babysit needs at least one minute of runtime; use an async trigger and a longer Pi sandbox lifetime.'
     )
   }
 
@@ -813,13 +838,9 @@ export async function runBabysitPiWithOptions(
           const reason: BabysitStopReason =
             error instanceof BabysitGitHubError
               ? error.reason
-              : message.includes('.github/')
-                ? 'refused_content'
-                : message.includes('bounds')
-                  ? 'bounds_exceeded'
-                  : message.includes('push failed')
-                    ? 'push_rejected'
-                    : 'refused_content'
+              : error instanceof BabysitFinalizeError
+                ? error.reason
+                : 'agent_failure'
           return resultFor(totals, reason, progress, threadsClean, latestChecks!.checksGreen)
         }
 

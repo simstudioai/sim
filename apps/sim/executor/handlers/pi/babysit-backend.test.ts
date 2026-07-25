@@ -519,6 +519,30 @@ describe('runBabysitPiWithOptions', () => {
     })
   })
 
+  it('reports missing finalize protocol markers as an agent failure', async () => {
+    mockFetchSnapshot.mockResolvedValue(snapshot)
+    mockFetchThreads.mockResolvedValue({
+      actionable: [trustedThread],
+      skipped: [],
+      totalUnresolved: 1,
+      latestReview: null,
+    })
+    mockFetchChecks.mockResolvedValue(greenChecks)
+    const { runner, runCalls } = makeRunner({
+      prepareStdout: '__NEEDS_PUSH__=1\n',
+    })
+    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+
+    const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() })
+
+    expect(result).toMatchObject({
+      stopReason: 'agent_failure',
+      rounds: 1,
+      commitsPushed: 0,
+    })
+    expect(runCalls.some(({ command }) => command.includes('CURRENT_DIGEST='))).toBe(false)
+  })
+
   it('stops on head movement at the pre-push phase boundary', async () => {
     mockFetchSnapshot
       .mockResolvedValueOnce(snapshot)
