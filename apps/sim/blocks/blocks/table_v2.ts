@@ -192,6 +192,11 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
 - Columns are scalar (string/number/boolean/date) or opaque json — there are no array columns; for substring use ilike with *x*.`,
   docsLink: 'https://docs.simstudio.ai/tools/table',
   category: 'blocks',
+  // Unreleased: hidden from every discovery surface until revealed via the hosted
+  // `block-visibility` AppConfig document or the `PREVIEW_BLOCKS` env allowlist.
+  // Placed instances always execute. At GA: drop this, add the BlockMeta + docs,
+  // and mark v1 `table` superseded.
+  preview: true,
   bgColor: '#10B981',
   icon: TableIcon,
   subBlocks: [

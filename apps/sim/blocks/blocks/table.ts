@@ -181,9 +181,6 @@ export const TableBlock: BlockConfig<TableQueryResponse> = {
   type: 'table',
   name: 'Table',
   description: 'User-defined data tables',
-  // Superseded by the v2 Table block (`table_v2`). Existing v1 blocks keep
-  // working; new workflows pick it up from the toolbar instead.
-  hideFromToolbar: true,
   longDescription:
     'Create and manage custom data tables. Store, query, and manipulate structured data within workflows.',
   docsLink: 'https://docs.simstudio.ai/tools/table',
