@@ -2,8 +2,11 @@ apiVersion: v2
 name: sim
 description: A Helm chart for Sim - the open-source AI workspace where teams build, deploy, and manage AI agents
 type: application
-version: 1.1.0
-appVersion: "0.6.73"
+version: 1.1.1
+# Must match the published GHCR image tags, which carry a "v" prefix
+# (ghcr.io/simstudioai/simstudio:v0.7.45). This is the default tag for every
+# image in the chart, so a mismatch here is an ImagePullBackOff for all of them.
+appVersion: "v0.7.45"
 kubeVersion: ">=1.25.0-0"
 home: https://sim.ai
 icon: https://raw.githubusercontent.com/simstudioai/sim/main/apps/sim/public/logo/primary/primary.svg
