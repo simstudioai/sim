@@ -10,7 +10,7 @@ import {
   useState,
 } from 'react'
 import { cn, TabStrip, type TabStripItem, toast } from '@sim/emcn'
-import { Loader, TerminalWindow } from '@sim/emcn/icons'
+import { TerminalWindow } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { FitAddon } from '@xterm/addon-fit'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
@@ -525,10 +525,12 @@ export function TerminalSession() {
     }
   }, [tabs.length, removeResource])
 
-  // The spinner means "transient work in progress", which is why a full-screen
-  // program does not get one: an editor or coding agent owns the terminal until
-  // it is quit, and spinning for the hour it is open would say the wrong thing.
-  // It is the only sign that something is running in a tab nobody is looking at.
+  // Every tab carries the same glyph. A spinner would have to mean "transient
+  // work", and nothing here can tell that from a coding agent sitting open for
+  // an hour: the alternate screen is the only signal available, and the tools
+  // people leave running — Claude Code, Codex — draw inline without it. A
+  // spinner that is wrong for the longest-lived tabs is worse than none, and
+  // the tab already says what it is running.
   const items = useMemo<TabStripItem[]>(
     () =>
       tabs.map((tab) => {
@@ -540,12 +542,7 @@ export function TerminalSession() {
           // is not naming yet, so hovering gives the whole picture: where the
           // shell is, and what it is doing there.
           tooltip: terminalTooltip(tab),
-          icon:
-            naming && !tab.interactive ? (
-              <Loader className='size-[12px] shrink-0 animate-spin text-[var(--text-icon)]' />
-            ) : (
-              <TerminalWindow className='size-[12px] shrink-0 text-[var(--text-icon)]' />
-            ),
+          icon: <TerminalWindow className='size-[12px] shrink-0 text-[var(--text-icon)]' />,
           active: tab.terminalId === activeTerminalId,
         }
       }),
