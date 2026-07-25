@@ -88,7 +88,15 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
     if (validationResponse) return validationResponse
 
     if (error instanceof Error) {
-      if (error.message.includes('already exists') || error.message.includes('maximum column')) {
+      // Same caller-error set the internal columns route maps — an invalid
+      // select option set is a bad request, not a server fault.
+      if (
+        error.message.includes('already exists') ||
+        error.message.includes('maximum column') ||
+        error.message.includes('Invalid column') ||
+        error.message.includes('exceeds maximum') ||
+        error.message.includes('option')
+      ) {
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
       if (error.message === 'Table not found') {

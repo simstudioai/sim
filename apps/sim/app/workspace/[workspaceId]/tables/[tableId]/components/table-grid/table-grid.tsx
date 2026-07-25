@@ -3207,6 +3207,10 @@ export function TableGrid({
           columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
           columnUnique: entry.def?.unique ?? false,
           columnRequired: entry.def?.required ?? false,
+          // Without these a deleted select column can't be re-created — it is
+          // invalid with no options, and the saved cell data is option ids.
+          ...(entry.def?.options ? { columnOptions: entry.def.options } : {}),
+          ...(entry.def?.multiple ? { columnMultiple: true } : {}),
           cellData,
           previousOrder: orderSnapshot,
           previousWidth,
