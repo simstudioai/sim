@@ -31,7 +31,11 @@ function cellRect(
   columnIndex: number | undefined
 ): DOMRect | undefined {
   if (columnIndex === undefined) return undefined
-  const cell = scrollEl.querySelector(`[data-row-id="${rowId}"][data-col="${columnIndex}"]`)
+  // `rowId` is a remote peer's value — escape it so a hostile id can't break the
+  // selector and throw (`columnIndex` is a local numeric index, already safe).
+  const cell = scrollEl.querySelector(
+    `[data-row-id="${CSS.escape(rowId)}"][data-col="${columnIndex}"]`
+  )
   return cell?.getBoundingClientRect()
 }
 

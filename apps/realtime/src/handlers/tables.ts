@@ -4,6 +4,7 @@ import { ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms
 import {
   type JoinTablePayload,
   TABLE_PRESENCE_EVENTS,
+  type TableCellRef,
   type TableCellSelection,
 } from '@sim/realtime-protocol/table-presence'
 import { resolveAvatarUrl } from '@/handlers/avatar'
@@ -13,8 +14,42 @@ import { filterVisiblePresence, sweepStalePresence } from '@/rooms/presence-visi
 
 const logger = createLogger('TablePresenceHandlers')
 
+/** Longest accepted row/column id — real ids are UUIDs/short ids; this bounds a hostile payload. */
+const MAX_CELL_ID_LENGTH = 200
+
 /** The table presence room ref for a table id. */
 const tableRoom = (tableId: string): RoomRef => ({ type: ROOM_TYPES.TABLE, id: tableId })
+
+function isCellRef(value: unknown): value is TableCellRef {
+  const ref = value as TableCellRef | null
+  return (
+    typeof ref === 'object' &&
+    ref !== null &&
+    typeof ref.rowId === 'string' &&
+    ref.rowId.length <= MAX_CELL_ID_LENGTH &&
+    typeof ref.columnId === 'string' &&
+    ref.columnId.length <= MAX_CELL_ID_LENGTH
+  )
+}
+
+/**
+ * Validate + whitelist an untrusted peer's selection before it is stored and
+ * rebroadcast (it ultimately flows into a DOM query on every viewer). Returns the
+ * normalized selection — `null` for a legitimately cleared selection — or `undefined`
+ * for anything malformed, so the caller drops it. Only the known fields survive, so a
+ * hostile client can't amplify an oversized object through the room.
+ */
+function normalizeCellSelection(cell: unknown): TableCellSelection | undefined {
+  if (cell === null) return null
+  if (typeof cell !== 'object') return undefined
+  const candidate = cell as { anchor?: unknown; focus?: unknown; editing?: unknown }
+  if (!isCellRef(candidate.anchor) || !isCellRef(candidate.focus)) return undefined
+  return {
+    anchor: { rowId: candidate.anchor.rowId, columnId: candidate.anchor.columnId },
+    focus: { rowId: candidate.focus.rowId, columnId: candidate.focus.columnId },
+    ...(candidate.editing === true ? { editing: true } : {}),
+  }
+}
 
 /**
  * Live cell-selection presence for the table grid. Mirrors the workspace-files
@@ -28,10 +63,6 @@ const tableRoom = (tableId: string): RoomRef => ({ type: ROOM_TYPES.TABLE, id: t
  * only because a workflow room's name equals its id).
  */
 export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
-  // The socket's session (id/name/avatar) is immutable for its lifetime, so cache it
-  // after the first read to avoid a Redis lookup on every high-frequency selection delta.
-  let cachedSession: Awaited<ReturnType<IRoomManager['getUserSession']>> = null
-
   socket.on(TABLE_PRESENCE_EVENTS.JOIN, async ({ tableId, tabSessionId }: JoinTablePayload) => {
     try {
       const userId = socket.userId
@@ -189,29 +220,27 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
     }
   })
 
-  socket.on(
-    TABLE_PRESENCE_EVENTS.CELL_SELECTION,
-    async ({ cell }: { cell: TableCellSelection }) => {
-      try {
-        const room = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.TABLE)
-        if (!room) return
-        cachedSession ??= await roomManager.getUserSession(socket.id)
-        if (!cachedSession) return
+  socket.on(TABLE_PRESENCE_EVENTS.CELL_SELECTION, async ({ cell }: { cell: unknown }) => {
+    try {
+      // Drop a malformed/oversized selection from an untrusted peer before it is stored
+      // or rebroadcast (`undefined` = invalid; `null` = a legitimately cleared selection).
+      const selection = normalizeCellSelection(cell)
+      if (selection === undefined) return
 
-        // Persist so a later joiner sees this viewer's current selection in the join ack.
-        await roomManager.updateUserActivity(room, socket.id, { cell })
+      const room = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.TABLE)
+      if (!room) return
 
-        // Relay the delta to peers (namespaced room → roomName, not room.id).
-        socket.to(roomName(room)).emit(TABLE_PRESENCE_EVENTS.CELL_SELECTION, {
-          socketId: socket.id,
-          userId: cachedSession.userId,
-          userName: cachedSession.userName,
-          avatarUrl: cachedSession.avatarUrl,
-          cell,
-        })
-      } catch (error) {
-        logger.error(`Error handling table cell selection for socket ${socket.id}:`, error)
-      }
+      // Persist so a later joiner sees this viewer's current selection in the join ack.
+      await roomManager.updateUserActivity(room, socket.id, { cell: selection })
+
+      // Relay to peers (namespaced room → roomName, not room.id). Peers already know this
+      // socket's identity from the presence roster, so the delta carries only id + cell.
+      socket.to(roomName(room)).emit(TABLE_PRESENCE_EVENTS.CELL_SELECTION, {
+        socketId: socket.id,
+        cell: selection,
+      })
+    } catch (error) {
+      logger.error(`Error handling table cell selection for socket ${socket.id}:`, error)
     }
-  )
+  })
 }

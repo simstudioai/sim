@@ -92,8 +92,12 @@ export interface JoinTableSuccess {
 
 /**
  * A single remote viewer's cell-selection delta, relayed to peers on
- * {@link TABLE_PRESENCE_EVENTS.CELL_SELECTION}. Lower-latency than a full
- * presence broadcast for the frequent case of just moving the selection — the
- * same viewer shape as {@link TablePresenceUser}, but with `cell` always present.
+ * {@link TABLE_PRESENCE_EVENTS.CELL_SELECTION}. Lower-latency than a full presence
+ * broadcast for the frequent case of just moving the selection. Carries only the
+ * socket id + selection — peers already hold the viewer's identity (name, color) from
+ * the presence roster, so it is not repeated on this high-frequency channel.
  */
-export type TableCellSelectionBroadcast = TablePresenceUser & { cell: TableCellSelection }
+export interface TableCellSelectionBroadcast {
+  socketId: string
+  cell: TableCellSelection
+}

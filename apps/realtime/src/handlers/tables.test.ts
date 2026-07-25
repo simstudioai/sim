@@ -150,13 +150,10 @@ describe('setupTablesHandlers', () => {
     expect(roomManager.broadcastPresenceUpdate).toHaveBeenCalledWith(TABLE_ROOM)
   })
 
-  it('persists and relays a cell selection to the namespaced room', async () => {
+  it('persists and relays a cell selection to the namespaced room (id + cell only)', async () => {
     const { socket, handlers, toEmit } = createSocket()
     const roomManager = createRoomManager({
       getRoomForSocket: vi.fn().mockResolvedValue(TABLE_ROOM),
-      getUserSession: vi
-        .fn()
-        .mockResolvedValue({ userId: 'user-1', userName: 'Test User', avatarUrl: 'avatar.png' }),
     })
     setupTablesHandlers(socket as unknown as SetupArg, roomManager)
 
@@ -170,10 +167,24 @@ describe('setupTablesHandlers', () => {
     expect(roomManager.updateUserActivity).toHaveBeenCalledWith(TABLE_ROOM, 'socket-1', { cell })
     // Namespaced room → broadcast targets roomName(room), not the bare id.
     expect(socket.to).toHaveBeenCalledWith('table:table-1')
-    expect(toEmit).toHaveBeenCalledWith(
-      TABLE_PRESENCE_EVENTS.CELL_SELECTION,
-      expect.objectContaining({ socketId: 'socket-1', userId: 'user-1', cell })
-    )
+    // The delta carries only the socket id + cell — identity comes from the roster.
+    expect(toEmit).toHaveBeenCalledWith(TABLE_PRESENCE_EVENTS.CELL_SELECTION, {
+      socketId: 'socket-1',
+      cell,
+    })
+  })
+
+  it('drops a malformed cell selection without storing or relaying it', async () => {
+    const { socket, handlers, toEmit } = createSocket()
+    const roomManager = createRoomManager({
+      getRoomForSocket: vi.fn().mockResolvedValue(TABLE_ROOM),
+    })
+    setupTablesHandlers(socket as unknown as SetupArg, roomManager)
+
+    await handlers[TABLE_PRESENCE_EVENTS.CELL_SELECTION]({ cell: { anchor: 'x"]' } })
+
+    expect(roomManager.updateUserActivity).not.toHaveBeenCalled()
+    expect(toEmit).not.toHaveBeenCalled()
   })
 
   it('leaves the table room on leave', async () => {

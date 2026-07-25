@@ -383,13 +383,14 @@ export function useTableEventStream({
           // last-write value shows live, in this client's own wire format.
           else if (entry.event?.kind === 'edit') scheduleRowsInvalidate()
           // A collaborator changed the table structure: refetch the definition (exact —
-          // not the whole detail subtree) + rows, mirroring the local column-mutation
-          // invalidation, so new/renamed/removed columns show live.
+          // not the whole detail subtree), the rows, and the tables list (its column/row
+          // counts) — mirroring the local column-mutation invalidation set.
           else if (entry.event?.kind === 'schema') {
             void queryClient.invalidateQueries({
               queryKey: tableKeys.detail(tableId),
               exact: true,
             })
+            void queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
             scheduleRowsInvalidate()
           }
         } catch (err) {

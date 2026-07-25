@@ -149,19 +149,22 @@ export async function appendTableEvent(event: TableEvent): Promise<TableEventEnt
   })
 }
 
+// The mutating client receives its own signal too (the stream carries no originator id)
+// and self-refetches — harmless, since signals fire after the write commits, so the
+// refetch returns the just-written state.
+
 /**
- * Signal collaborators that a user changed row data (a cell edit, or an added/
- * deleted/upserted/batch-written row) so they refetch the rows live. Fire-and-forget
- * — a Redis blip must never fail the write that triggered it.
+ * Signal collaborators that a user changed row data so they refetch the rows live.
+ * Fire-and-forget — a Redis blip must never fail the write that triggered it.
  */
 export function signalTableRowsChanged(tableId: string): void {
   void appendTableEvent({ kind: 'edit', tableId })
 }
 
 /**
- * Signal collaborators that a user changed the table structure (a column, workflow
- * group, rename, or import that reshapes the schema) so they refetch the definition +
- * rows live. Fire-and-forget for the same reason as {@link signalTableRowsChanged}.
+ * Signal collaborators that a user changed the table structure so they refetch the
+ * definition + rows live. Fire-and-forget for the same reason as
+ * {@link signalTableRowsChanged}.
  */
 export function signalTableSchemaChanged(tableId: string): void {
   void appendTableEvent({ kind: 'schema', tableId })

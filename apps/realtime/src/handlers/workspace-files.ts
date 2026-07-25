@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { authorizeRoom } from '@sim/platform-authz/rooms'
 import { ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
-import type { AuthenticatedSocket } from '@/middleware/auth'
 import { resolveAvatarUrl } from '@/handlers/avatar'
+import type { AuthenticatedSocket } from '@/middleware/auth'
 import type { IRoomManager, UserPresence } from '@/rooms'
 import { filterVisiblePresence, sweepStalePresence } from '@/rooms/presence-visibility'
 
