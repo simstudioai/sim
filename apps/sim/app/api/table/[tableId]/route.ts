@@ -18,6 +18,7 @@ import {
 } from '@/lib/table'
 import { getWorkspaceTableLimits } from '@/lib/table/billing'
 import { TABLE_LOCK_FLAGS, TABLE_LOCK_KINDS } from '@/lib/table/types'
+import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import {
   accessError,
   checkAccess,
@@ -154,8 +155,20 @@ export const PATCH = withRouteHandler(
           const flag = TABLE_LOCK_FLAGS[kind]
           return validated.locks?.[flag] === true && !table.locks[flag]
         })
-        if (enablesALock && !(await isFeatureEnabled('table-locks'))) {
-          return NextResponse.json({ error: 'Table locks are not enabled' }, { status: 403 })
+        if (enablesALock) {
+          // Resolve with the same context the page uses to decide whether to
+          // show the panel — keyed on the workspace's host organization, not
+          // the viewer's active one. Without it an org- or user-targeted
+          // rollout would open the panel and then 403 on save. Looked up only
+          // on the enabling path, so an unlock never pays for it.
+          const workspace = await getWorkspaceWithOwner(table.workspaceId)
+          const enabled = await isFeatureEnabled('table-locks', {
+            userId: authResult.userId,
+            orgId: workspace?.organizationId ?? undefined,
+          })
+          if (!enabled) {
+            return NextResponse.json({ error: 'Table locks are not enabled' }, { status: 403 })
+          }
         }
         const adminResult = await checkAccess(tableId, authResult.userId, 'admin')
         if (!adminResult.ok) {
