@@ -1627,16 +1627,20 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               requestId
             )
           } else if (options !== undefined || multiple !== undefined) {
-            // Editing an existing select column's option set / mode without a type change.
-            if (options === undefined) {
+            // Editing an existing select column's option set / mode without a
+            // type change. `multiple` alone is a valid update — the catalog
+            // documents it as independent — so fall back to the column's current
+            // options rather than demanding the caller resend the whole list.
+            const nextOptions = options ?? existingOptions
+            if (nextOptions.length === 0) {
               return {
                 success: false,
-                message: 'options is required when updating a select column',
+                message: `Column "${colName}" is not a select column. Pass newType: "select" with options to convert it.`,
               }
             }
             assertNotAborted()
             result = await updateColumnOptions(
-              { tableId: args.tableId, columnName: colName, options, multiple },
+              { tableId: args.tableId, columnName: colName, options: nextOptions, multiple },
               requestId
             )
           }

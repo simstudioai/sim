@@ -52,7 +52,11 @@ export function SelectValueEditor({
         }}
         options={options}
         showAllOption={false}
-        placeholder='Select options'
+        // In multiple mode ChipDropdown ignores `placeholder` and renders
+        // `allLabel` when nothing is selected — which would read as if every
+        // option were chosen. There is no "All" entry here, so this is the
+        // empty label.
+        allLabel='Select options'
         align={align}
         fullWidth={fullWidth}
         matchTriggerWidth={false}

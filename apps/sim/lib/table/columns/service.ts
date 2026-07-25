@@ -16,9 +16,11 @@ import { and, count, eq, sql } from 'drizzle-orm'
 import { columnMatchesRef, generateColumnId, getColumnId } from '@/lib/table/column-keys'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
+import { selectValueToNames } from '@/lib/table/select-values'
 import { withLockedTable } from '@/lib/table/service'
 import { scaledStatementTimeoutMs, setTableTxTimeouts } from '@/lib/table/tx'
 import type {
+  ColumnDefinition,
   DeleteColumnData,
   JsonValue,
   RenameColumnData,
@@ -521,6 +523,10 @@ export async function updateColumnType(
     const isSelectType = data.newType === 'select'
     const targetOptions = data.options ?? column.options ?? []
     const targetMultiple = data.multiple ?? column.multiple
+    // Leaving `select` behind: stored cells hold option ids, which mean nothing
+    // once the column is text/number/etc. Check compatibility against the option
+    // NAME — that's what the cell will actually become (migrated below).
+    const convertingAwayFromSelect = column.type === 'select' && !isSelectType
 
     let incompatibleCount = 0
     for (const row of rows) {
@@ -528,7 +534,9 @@ export async function updateColumnType(
       const value = rowData[columnKey]
       if (value === null || value === undefined) continue
 
-      if (!isValueCompatibleWithType(value, data.newType, targetOptions)) {
+      const effective = convertingAwayFromSelect ? selectValueForConversion(column, value) : value
+
+      if (!isValueCompatibleWithType(effective, data.newType, targetOptions, !!targetMultiple)) {
         incompatibleCount++
       }
     }
@@ -560,6 +568,33 @@ export async function updateColumnType(
 
     const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
     const now = new Date()
+
+    // Rewrite the stored option ids to their names before the column stops
+    // being a select — otherwise every cell would render an opaque `opt_…` id,
+    // and a multi cell would keep an array no other type can represent. One
+    // statement per shape rather than a per-row update, using a jsonb id→name
+    // map; ids with no surviving option fall through unchanged.
+    if (convertingAwayFromSelect) {
+      const nameById = JSON.stringify(
+        Object.fromEntries((column.options ?? []).map((o) => [o.id, o.name]))
+      )
+      await trx.execute(
+        sql`UPDATE ${userTableRows}
+            SET data = jsonb_set(data, ARRAY[${columnKey}::text],
+              COALESCE(${nameById}::jsonb -> (data->>${columnKey}::text), data->${columnKey}::text))
+            WHERE table_id = ${data.tableId}
+              AND jsonb_typeof(data->${columnKey}::text) = 'string'`
+      )
+      await trx.execute(
+        sql`UPDATE ${userTableRows}
+            SET data = jsonb_set(data, ARRAY[${columnKey}::text], COALESCE(to_jsonb((
+                  SELECT string_agg(COALESCE(${nameById}::jsonb ->> e, e), ', ')
+                  FROM jsonb_array_elements_text(data->${columnKey}::text) e
+                )), 'null'::jsonb))
+            WHERE table_id = ${data.tableId}
+              AND jsonb_typeof(data->${columnKey}::text) = 'array'`
+      )
+    }
 
     await trx
       .update(userTableDefinitions)
@@ -747,25 +782,49 @@ export async function updateColumnOptions(
 }
 
 /**
+ * The value a `select` cell becomes when its column converts to another type:
+ * the option **name**, since the stored id is meaningless outside the column.
+ * Multi-select flattens to a comma-joined string — the same shape a multi cell
+ * exports as — and an empty or fully-orphaned cell becomes null.
+ */
+export function selectValueForConversion(column: ColumnDefinition, value: unknown): JsonValue {
+  const names = selectValueToNames(column, value)
+  if (Array.isArray(names)) return names.length > 0 ? names.join(', ') : null
+  return names
+}
+
+/**
  * Checks if a value is compatible with a target column type. For `select`,
  * `targetOptions` is the option set the column will carry after the change: a
  * value is compatible only if every part of it resolves to one of those options
  * (by id or name). This blocks a conversion that would otherwise strand or
  * silently drop values on the next row write.
+ *
+ * Callers converting *away* from `select` must pass the resolved option
+ * name(s), not the stored ids — see {@link selectValueForConversion}.
  */
-function isValueCompatibleWithType(
+export function isValueCompatibleWithType(
   value: unknown,
   targetType: (typeof COLUMN_TYPES)[number],
-  targetOptions: SelectOption[] = []
+  targetOptions: SelectOption[] = [],
+  targetMultiple = false
 ): boolean {
-  if (value === null || value === undefined || value === '') return true
+  if (value === null || value === undefined) return true
 
   switch (targetType) {
     case 'string':
-      return true
+      // Arrays and objects can't become text — the write-path coercion rejects
+      // them and would null the cell. Multi-select values are flattened before
+      // this check, so anything still structured here is genuinely lossy.
+      return typeof value !== 'object'
     case 'select': {
-      // Single or multi, every part of the value must resolve to an option.
+      // A cleared select cell is written as '' — still convertible.
+      if (value === '') return true
       const parts = Array.isArray(value) ? value : [value]
+      // A single-select target can't hold several options. `updateColumnOptions`
+      // blocks the same transition; without this the next coerce would silently
+      // keep only the first id.
+      if (!targetMultiple && parts.length > 1) return false
       return parts.every((v) => resolveSelectOptionId(v as JsonValue, targetOptions) !== null)
     }
     case 'number': {

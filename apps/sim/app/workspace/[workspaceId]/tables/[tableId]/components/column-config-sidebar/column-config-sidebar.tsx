@@ -162,6 +162,9 @@ function ColumnConfigBody({
       const typeChanged = !!existingColumn && existingColumn.type !== typeInput
       const uniqueChanged =
         !wantsOptions && !!existingColumn && !!existingColumn.unique !== uniqueInput
+      // Select columns don't offer a Unique control, so converting a unique
+      // column to select would strand the constraint with no way to clear it.
+      const uniqueCleared = wantsOptions && !!existingColumn?.unique
       const optionsChanged =
         wantsOptions && !optionsEqual(existingColumn?.options ?? [], trimmedOptions)
       const multipleChanged = wantsOptions && !!existingColumn?.multiple !== multipleInput
@@ -176,6 +179,7 @@ function ColumnConfigBody({
         ...(renamed ? { name: trimmedName } : {}),
         ...(typeChanged ? { type: typeInput } : {}),
         ...(uniqueChanged ? { unique: uniqueInput } : {}),
+        ...(uniqueCleared ? { unique: false } : {}),
         ...(wantsOptions && (typeChanged || optionsChanged) ? { options: trimmedOptions } : {}),
         ...(wantsOptions && (typeChanged || multipleChanged) ? { multiple: multipleInput } : {}),
       }

@@ -268,10 +268,20 @@ function cellToText(value: unknown, column?: DisplayColumn): string {
  */
 function cellValuesEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true
+  // An untouched multiselect cell is stored as null, but the editor commits `[]`
+  // for an empty selection — without this, opening and dismissing one unchanged
+  // would write a row update and push an undo entry.
+  if (isEmptySelection(a) && isEmptySelection(b)) return true
   if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
     return JSON.stringify(a) === JSON.stringify(b)
   }
   return false
+}
+
+/** An empty multiselect, however it was stored: absent, null, or `[]`. */
+function isEmptySelection(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length === 0
+  return value === null || value === undefined
 }
 
 /**
