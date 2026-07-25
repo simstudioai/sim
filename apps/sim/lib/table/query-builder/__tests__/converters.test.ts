@@ -122,6 +122,51 @@ describe('filterToRules', () => {
   })
 })
 
+describe('select option ids survive as text', () => {
+  const numericIdColumn: ColumnDefinition = {
+    id: 'status',
+    name: 'status',
+    type: 'select',
+    options: [
+      { id: '1', name: 'Open' },
+      { id: 'true', name: 'Closed' },
+    ],
+  }
+
+  it('does not coerce a numeric- or boolean-looking option id', () => {
+    // Option ids are caller-supplied strings; `parseScalar` would turn these
+    // into 1 / true, and JSONB containment against the stored string then
+    // matches nothing while the picker still shows a valid option.
+    expect(
+      filterRulesToFilter([rule({ column: 'status', value: '1' })], [numericIdColumn])
+    ).toEqual({ status: '1' })
+    expect(
+      filterRulesToFilter([rule({ column: 'status', value: 'true' })], [numericIdColumn])
+    ).toEqual({ status: 'true' })
+  })
+
+  it('keeps each element of an $in list as text', () => {
+    expect(
+      filterRulesToFilter(
+        [rule({ column: 'status', operator: 'in', value: '1, true' })],
+        [numericIdColumn]
+      )
+    ).toEqual({ status: { $in: ['1', 'true'] } })
+  })
+
+  it('still coerces on a non-select column', () => {
+    const age: ColumnDefinition = { id: 'age', name: 'age', type: 'number' }
+    expect(filterRulesToFilter([rule({ column: 'age', value: '30' })], [age])).toEqual({ age: 30 })
+  })
+
+  it('survives the prune round-trip without coercion', () => {
+    const filter = { status: '1' }
+    // Nothing to prune here, but the pruned path re-serializes through the
+    // converter — that round-trip must not turn the id back into a number.
+    expect(pruneFilterForColumns(filter, [numericIdColumn])).toEqual({ status: '1' })
+  })
+})
+
 describe('pruneFilterForColumns', () => {
   const single: ColumnDefinition = {
     id: 'col_s',

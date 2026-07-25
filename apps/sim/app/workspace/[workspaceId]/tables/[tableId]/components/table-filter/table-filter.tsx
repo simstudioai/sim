@@ -112,8 +112,8 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
     const validRules = rulesRef.current.filter(
       (r) => r.column && (r.value || VALUELESS_OPERATORS.has(r.operator))
     )
-    onApply(filterRulesToFilter(validRules))
-  }, [onApply])
+    onApply(filterRulesToFilter(validRules, columns))
+  }, [columns, onApply])
 
   const handleClear = useCallback(() => {
     setRules([createRule(columns)])
