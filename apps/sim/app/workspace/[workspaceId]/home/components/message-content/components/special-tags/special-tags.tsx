@@ -488,6 +488,44 @@ const JSON_BODY_TAG_NAMES = new Set<(typeof SPECIAL_TAG_NAMES)[number]>([
 ])
 
 /**
+ * Strip the contents of JSON string literals from `body`, replacing them with
+ * spaces so every other index is preserved.
+ *
+ * A JSON tag body can legitimately quote tag syntax — a `<question>` asking
+ * which tag to use, or a `<workspace_resource>` whose title mentions one. Those
+ * markers live inside a string and say nothing about whether the tag will
+ * close, so the nesting rule must not see them. Tracks escapes so a `\"` inside
+ * a string does not end it early. Handles an unterminated trailing string, which
+ * is the normal state mid-stream.
+ */
+function blankJsonStringLiterals(body: string): string {
+  let out = ''
+  let inString = false
+  let escaped = false
+
+  for (const char of body) {
+    if (escaped) {
+      escaped = false
+      out += ' '
+      continue
+    }
+    if (char === '\\' && inString) {
+      escaped = true
+      out += ' '
+      continue
+    }
+    if (char === '"') {
+      inString = !inString
+      out += '"'
+      continue
+    }
+    out += inString ? ' ' : char
+  }
+
+  return out
+}
+
+/**
  * True when an opening tag with no close yet can NEVER resolve, so the text
  * after it should be shown immediately instead of held back until the stream
  * ends.
@@ -509,10 +547,15 @@ function unclosedTagCannotResolve(
   tagName: (typeof SPECIAL_TAG_NAMES)[number],
   body: string
 ): boolean {
+  // For a JSON-bodied tag, ignore markers inside string literals: quoting tag
+  // syntax is legitimate content, and treating it as evidence would bail on a
+  // tag that goes on to close correctly — showing raw JSON that then snaps into
+  // a rendered card.
+  const scannable = JSON_BODY_TAG_NAMES.has(tagName) ? blankJsonStringLiterals(body) : body
   for (const name of SPECIAL_TAG_NAMES) {
     // A close for this tag is absent by definition here, so this catches a
     // FOREIGN close; the open check catches nesting, including self-nesting.
-    if (body.includes(`</${name}>`) || body.includes(`<${name}>`)) return true
+    if (scannable.includes(`</${name}>`) || scannable.includes(`<${name}>`)) return true
   }
 
   if (JSON_BODY_TAG_NAMES.has(tagName)) {

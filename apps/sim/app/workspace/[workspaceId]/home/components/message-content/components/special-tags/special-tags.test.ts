@@ -178,6 +178,29 @@ describe('parseSpecialTags with <question>', () => {
     expect(hasPendingTag).toBe(false)
   })
 
+  it('does not bail on tag syntax quoted inside a JSON string', () => {
+    // The false positive this guards: a question whose text legitimately quotes
+    // another tag. Bailing would show raw JSON that later snaps into a card.
+    const streaming = 'ok <question>[{"type":"single_select","prompt":"Use the </options> tag?"'
+    expect(parseSpecialTags(streaming, true).hasPendingTag).toBe(true)
+  })
+
+  it('resolves that same question correctly once it closes', () => {
+    // The other half of the guarantee: the body the streaming case refused to
+    // bail on does render as a question card, so nothing flickered for nothing.
+    const complete =
+      'ok <question>[{"type":"single_select","prompt":"Use the </options> tag?","options":[{"id":"y","label":"Yes"},{"id":"n","label":"No"}]}]</question>'
+    const { segments } = parseSpecialTags(complete, false)
+    expect(segments.some((s) => s.type === 'question')).toBe(true)
+  })
+
+  it('still bails on a marker outside the JSON strings', () => {
+    // Escapes must not end the string early, and a marker in real body position
+    // is still evidence.
+    const streaming = 'ok <question>[{"prompt":"a \\" quote"} </options>'
+    expect(parseSpecialTags(streaming, true).hasPendingTag).toBe(false)
+  })
+
   it('bails on a nested opening tag', () => {
     const { hasPendingTag } = parseSpecialTags('a <thinking>b <thinking> c', true)
     expect(hasPendingTag).toBe(false)
