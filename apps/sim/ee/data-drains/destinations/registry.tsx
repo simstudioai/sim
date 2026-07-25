@@ -277,6 +277,7 @@ const datadogFormSpec: DestinationFormSpec<DatadogState> = {
     <>
       <SettingRow label='Site'>
         <ChipSelect
+          aria-label='Site'
           value={state.site}
           onChange={(v) => setState({ ...state, site: v as DatadogState['site'] })}
           options={DATADOG_SITE_OPTIONS}

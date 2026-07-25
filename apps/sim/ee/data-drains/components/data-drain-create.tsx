@@ -127,6 +127,7 @@ export function DataDrainCreate({ organizationId, onBack, onCreated }: DataDrain
               </SettingRow>
               <SettingRow label='Source'>
                 <ChipSelect
+                  aria-label='Source'
                   value={source}
                   onChange={(v) => setSource(v as (typeof SOURCE_TYPES)[number])}
                   options={SOURCE_OPTIONS}
@@ -135,6 +136,7 @@ export function DataDrainCreate({ organizationId, onBack, onCreated }: DataDrain
               </SettingRow>
               <SettingRow label='Cadence'>
                 <ChipSelect
+                  aria-label='Cadence'
                   value={cadence}
                   onChange={(v) => setCadence(v as (typeof CADENCE_TYPES)[number])}
                   options={CADENCE_OPTIONS}
@@ -148,6 +150,7 @@ export function DataDrainCreate({ organizationId, onBack, onCreated }: DataDrain
             <div className='flex flex-col gap-4'>
               <SettingRow label='Type'>
                 <ChipSelect
+                  aria-label='Destination type'
                   value={destinationType}
                   onChange={(v) => handleDestinationChange(v as (typeof DESTINATION_TYPES)[number])}
                   options={DESTINATION_OPTIONS}
