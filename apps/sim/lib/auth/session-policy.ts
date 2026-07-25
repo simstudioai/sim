@@ -1,17 +1,16 @@
 import { db } from '@sim/db'
-import type { SessionPolicySettings } from '@sim/db/schema'
-import { organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
-import { getMemberOrganizationId, invalidateMembershipCache } from '@/lib/auth/security-policy'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
+import {
+  getMemberOrganizationId,
+  getOrgSecurityRecord,
+  invalidateMembershipCache,
+} from '@/lib/auth/security-policy'
+import { resolveOrganizationEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('SessionPolicy')
-
-/** How long a resolved org session policy is served from process memory. */
-export const SESSION_POLICY_CACHE_TTL_MS = 60 * 1000
 
 const HOUR_MS = 60 * 60 * 1000
 
@@ -20,67 +19,64 @@ export interface ResolvedSessionPolicy {
   idleTimeoutHours: number | null
 }
 
-interface PolicyCacheEntry {
-  policy: ResolvedSessionPolicy
-  fetchedAt: number
-}
-
-const policyCache = new Map<string, PolicyCacheEntry>()
-
 const NO_POLICY: ResolvedSessionPolicy = {
   maxSessionHours: null,
   idleTimeoutHours: null,
 }
 
 /**
- * Resolves the EFFECTIVE session policy for an organization, served from a
- * short TTL cache. Returns a no-op policy for personal (org-less) sessions
- * and — mirroring data-retention's plan-gated effective settings — for
- * hosted orgs no longer on an Enterprise plan: stored limits stop enforcing
- * automatically on downgrade, since the enterprise-gated settings UI can no
- * longer manage them.
+ * Whether stored session bounds should be enforced for this org. Mirroring
+ * data-retention's plan-gated effective settings, a hosted org that leaves the
+ * Enterprise plan stops enforcing its stored limits automatically, since the
+ * enterprise-gated settings UI can no longer manage them.
+ *
+ * A FAILED entitlement read enforces instead of skipping: bounds are only
+ * writable by an entitled org (the PUT route gates on it), so their presence is
+ * the source of truth when the plan check itself is unavailable. Fail-open here
+ * would let a transient billing-read blip silently disable a security control —
+ * the same reasoning the PII-redaction path documents in
+ * `lib/logs/execution/logger.ts`.
  */
-export async function getSessionPolicy(
-  organizationId: string | null | undefined
-): Promise<ResolvedSessionPolicy> {
-  if (!organizationId) return NO_POLICY
-
-  const cached = policyCache.get(organizationId)
-  if (cached && Date.now() - cached.fetchedAt < SESSION_POLICY_CACHE_TTL_MS) {
-    return cached.policy
-  }
-
+async function isPolicyEnforced(organizationId: string, hasBounds: boolean): Promise<boolean> {
+  if (!hasBounds || !isBillingEnabled) return true
   try {
-    const [row] = await db
-      .select({ settings: organization.sessionPolicySettings })
-      .from(organization)
-      .where(eq(organization.id, organizationId))
-      .limit(1)
-
-    const settings: SessionPolicySettings = row?.settings ?? {}
-    const hasBounds = Boolean(settings.maxSessionHours || settings.idleTimeoutHours)
-    const isEntitled =
-      !hasBounds || !isBillingEnabled || (await isOrganizationOnEnterprisePlan(organizationId))
-    const policy: ResolvedSessionPolicy = isEntitled
-      ? {
-          maxSessionHours: settings.maxSessionHours ?? null,
-          idleTimeoutHours: settings.idleTimeoutHours ?? null,
-        }
-      : NO_POLICY
-    policyCache.set(organizationId, { policy, fetchedAt: Date.now() })
-    return policy
+    return await resolveOrganizationEnterprisePlan(organizationId)
   } catch (error) {
-    logger.error('Failed to resolve session policy; applying no policy', {
+    logger.error('Enterprise entitlement check failed; enforcing stored session policy', {
       organizationId,
       error,
     })
-    return NO_POLICY
+    return true
   }
 }
 
-/** Drops the cached policy for an org so the next read is fresh. */
-export function invalidateSessionPolicyCache(organizationId: string): void {
-  policyCache.delete(organizationId)
+/**
+ * Resolves the EFFECTIVE session policy for an organization. Returns a no-op
+ * policy for personal (org-less) sessions and for orgs that are no longer
+ * entitled.
+ *
+ * The stored settings come from the shared org security record, so the policy a
+ * caller sees is always the one that matches the cookie-cache version it sees.
+ * Pass `bypassCache` on paths that must not act on a policy up to one cache TTL
+ * old — notably session CREATE, which (unlike a refresh) is not already preceded
+ * by a version-mismatch read and would otherwise mint an unclamped session from
+ * a stale record.
+ */
+export async function getSessionPolicy(
+  organizationId: string | null | undefined,
+  options: { bypassCache?: boolean } = {}
+): Promise<ResolvedSessionPolicy> {
+  if (!organizationId) return NO_POLICY
+
+  const { sessionPolicySettings } = await getOrgSecurityRecord(organizationId, options)
+  const settings = sessionPolicySettings ?? {}
+  const hasBounds = Boolean(settings.maxSessionHours || settings.idleTimeoutHours)
+  if (!(await isPolicyEnforced(organizationId, hasBounds))) return NO_POLICY
+
+  return {
+    maxSessionHours: settings.maxSessionHours ?? null,
+    idleTimeoutHours: settings.idleTimeoutHours ?? null,
+  }
 }
 
 /**
@@ -136,7 +132,8 @@ interface ClampableSession {
  */
 export async function clampExpiryForSession(
   session: ClampableSession,
-  freshMembershipOrgId?: string | null
+  freshMembershipOrgId?: string | null,
+  options: { bypassPolicyCache?: boolean } = {}
 ): Promise<Date | undefined> {
   // Better Auth context values can cross a serialization boundary — normalize
   // date fields in case they arrive as ISO strings rather than Dates.
@@ -150,7 +147,9 @@ export async function clampExpiryForSession(
       : await getMemberOrganizationId(session.userId)
   if (!organizationId) return expiresAt
 
-  const policy = await getSessionPolicy(organizationId)
+  const policy = await getSessionPolicy(organizationId, {
+    bypassCache: options.bypassPolicyCache,
+  })
   const createdAt = session.createdAt ? new Date(session.createdAt) : new Date()
   return clampSessionExpiry(policy, createdAt, expiresAt)
 }
@@ -196,7 +195,10 @@ export async function applySessionPolicyToNewMember(
 ): Promise<void> {
   try {
     invalidateMembershipCache(userId)
-    const policy = await getSessionPolicy(organizationId)
+    // Bypass the cache: a user joining moments after a policy save must be
+    // clamped to the policy that was just written, not a pre-save record this
+    // process may still be holding.
+    const policy = await getSessionPolicy(organizationId, { bypassCache: true })
     const bounds = clampBoundsSql(policy)
     if (!bounds) return
 

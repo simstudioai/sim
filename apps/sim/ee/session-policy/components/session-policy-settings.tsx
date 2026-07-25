@@ -190,7 +190,7 @@ export function SessionPolicySettings({ organizationId }: SessionPolicySettingsP
           <HourField
             id='idle-timeout-hours'
             title='Idle timeout (hours)'
-            hint={`Sessions expire after this many hours without activity. Minimum ${MIN_IDLE_TIMEOUT_HOURS} hours.`}
+            hint={`Sessions expire within this many hours of a member's last activity. Activity is recorded at most once per 24 hours, so members may be signed out up to a day earlier than the value you set — never later. Minimum ${MIN_IDLE_TIMEOUT_HOURS} hours.`}
             value={idleTimeoutHours}
             onChange={setIdleTimeoutHours}
           />

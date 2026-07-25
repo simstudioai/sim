@@ -21,11 +21,10 @@ const { mockIsEnterprise, mockEagerClamp, mockRecordAudit } = vi.hoisted(() => (
 
 vi.mock('@/lib/auth/session-policy', () => ({
   eagerClampOrgSessions: mockEagerClamp,
-  invalidateSessionPolicyCache: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/security-policy', () => ({
-  invalidateSecurityPolicyVersionCache: vi.fn(),
+  invalidateOrgSecurityCache: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/core/subscription', () => ({

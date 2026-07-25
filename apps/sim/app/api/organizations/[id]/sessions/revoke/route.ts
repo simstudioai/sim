@@ -8,7 +8,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { revokeOrganizationSessionsContract } from '@/lib/api/contracts/organization'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { invalidateSecurityPolicyVersionCache } from '@/lib/auth/security-policy'
+import { invalidateOrgSecurityCache } from '@/lib/auth/security-policy'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -105,7 +105,7 @@ export const POST = withRouteHandler(
         .where(eq(organization.id, organizationId))
       return deleted
     })
-    invalidateSecurityPolicyVersionCache(organizationId)
+    invalidateOrgSecurityCache(organizationId)
 
     logger.info('Revoked organization sessions', {
       organizationId,

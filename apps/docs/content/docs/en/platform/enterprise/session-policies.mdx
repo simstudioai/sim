@@ -27,7 +27,9 @@ Use this to enforce periodic re-authentication — for example, a value of `168`
 
 ### Idle timeout
 
-Signs a member out after this many hours without activity. Activity extends the session, so members who use Sim regularly stay signed in; dormant sessions expire.
+Signs a member out after a period without activity. Activity extends the session, so members who use Sim regularly stay signed in; dormant sessions expire.
+
+Activity is recorded at most once per 24 hours, so the actual sign-out lands between (value − 24) and (value) hours after a member's last use — never later. A value of `48` means a dormant session ends somewhere between 24 and 48 hours after last activity.
 
 Accepts 48 to 8760 hours. The 48-hour minimum exists because session activity is recorded at most once per day — a shorter window could sign out members who are actively working.
 
@@ -71,6 +73,11 @@ Use this after a security incident, an offboarding wave, or before tightening a 
       question: 'Why is the minimum idle timeout 48 hours?',
       answer:
         'Session activity is recorded at most once per 24 hours for performance. The minimum is twice that window so a member who stays active always registers activity before the idle limit can expire their session.',
+    },
+    {
+      question: 'Why was a member signed out earlier than the idle timeout I set?',
+      answer:
+        'Because activity is recorded at most once per 24 hours, the last recorded activity can be up to a day older than a member\'s actual last use. Sign-out therefore lands between (value − 24) and (value) hours after they stop working. It never lands later than the value you set, so the policy is never exceeded.',
     },
   ]}
 />

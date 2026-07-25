@@ -661,40 +661,54 @@ export const auth = betterAuth({
             }
           }
 
+          // Resolved separately from the clamp below: when this lookup fails we
+          // still clamp (falling back to the cached membership) rather than
+          // minting a full-length session off a transient read error.
+          let membershipOrgId: string | null | undefined
           try {
-            // Find the first organization this user is a member of
             const members = await db
               .select({ organizationId: schema.member.organizationId })
               .from(schema.member)
               .where(eq(schema.member.userId, session.userId))
               .limit(1)
-
-            if (members.length > 0) {
-              logger.info('Found organization for user', {
-                userId: session.userId,
-                organizationId: members[0].organizationId,
-              })
-
-              const expiresAt = await clampExpiryForSession(session, members[0].organizationId)
-
-              return {
-                data: {
-                  ...session,
-                  expiresAt,
-                  activeOrganizationId: members[0].organizationId,
-                },
-              }
-            }
-            logger.info('No organizations found for user', {
-              userId: session.userId,
-            })
-            return { data: session }
+            membershipOrgId = members[0]?.organizationId ?? null
+            logger.info(
+              membershipOrgId ? 'Found organization for user' : 'No organizations found for user',
+              { userId: session.userId, organizationId: membershipOrgId ?? undefined }
+            )
           } catch (error) {
-            logger.error('Error setting active organization', {
+            logger.error('Error resolving organization for new session; using cached membership', {
               error,
               userId: session.userId,
             })
-            return { data: session }
+            membershipOrgId = undefined
+          }
+
+          try {
+            // Session creation is rare and, unlike a sliding refresh, is not
+            // already preceded by a cookie-version mismatch read — so it must
+            // read the policy fresh or a just-tightened policy could be missed
+            // for the life of the session.
+            const expiresAt = await clampExpiryForSession(session, membershipOrgId, {
+              bypassPolicyCache: true,
+            })
+            return {
+              data: {
+                ...session,
+                expiresAt,
+                ...(membershipOrgId ? { activeOrganizationId: membershipOrgId } : {}),
+              },
+            }
+          } catch (error) {
+            logger.error('Error clamping new session to org policy', {
+              error,
+              userId: session.userId,
+            })
+            return {
+              data: membershipOrgId
+                ? { ...session, activeOrganizationId: membershipOrgId }
+                : session,
+            }
           }
         },
       },
