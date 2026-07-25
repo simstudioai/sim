@@ -1,6 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type MouseEvent as ReactMouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { cn, TabStrip, type TabStripItem } from '@sim/emcn'
 import { Loader, TerminalWindow } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -24,6 +31,8 @@ import {
   writeToTerminal,
 } from '@/lib/terminal/transport'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
+import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
+import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 
 const logger = createLogger('TerminalSession')
@@ -294,6 +303,16 @@ export function TerminalSession() {
     [tabs, activeTerminalId]
   )
 
+  const [contextTerminalId, setContextTerminalId] = useState<string | null>(null)
+  const {
+    isOpen: isContextMenuOpen,
+    position: contextMenuPosition,
+    menuRef: contextMenuRef,
+    handleContextMenu,
+    closeMenu: closeContextMenu,
+  } = useContextMenu()
+  const contextTab = tabs.find((tab) => tab.terminalId === contextTerminalId)
+
   const handleNew = useCallback(() => {
     void openTerminal()
   }, [])
@@ -304,6 +323,21 @@ export function TerminalSession() {
     void closeTerminal(terminalId)
   }, [])
 
+  // A duplicate is a new shell in the same directory, not a copy of the
+  // session: scrollback and whatever is running belong to the original pty.
+  const handleDuplicate = useCallback((cwd: string | null) => {
+    void openTerminal(cwd ?? undefined)
+  }, [])
+
+  const openTabContextMenu = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>, terminalId: string) => {
+      window.getSelection()?.removeAllRanges()
+      setContextTerminalId(terminalId)
+      handleContextMenu(event)
+    },
+    [handleContextMenu]
+  )
+
   return (
     <div className='flex h-full flex-col overflow-hidden bg-[var(--bg)]'>
       {tabs.length > 0 && (
@@ -311,10 +345,29 @@ export function TerminalSession() {
           tabs={items}
           onSelect={handleSwitch}
           onNew={handleNew}
+          onTabContextMenu={openTabContextMenu}
           maxTabs={MAX_TERMINALS}
           newTabLabel='New terminal'
           {...(tabs.length > 1 ? { onClose: handleClose } : {})}
-        />
+        >
+          <ContextMenu
+            isOpen={isContextMenuOpen && Boolean(contextTab)}
+            position={contextMenuPosition}
+            menuRef={contextMenuRef}
+            onClose={closeContextMenu}
+            onDuplicate={contextTab ? () => handleDuplicate(contextTab.cwd) : undefined}
+            // The last terminal has no close affordance in the strip either:
+            // closing it would leave the panel with nothing to show.
+            {...(contextTab && tabs.length > 1
+              ? { onCloseTab: () => handleClose(contextTab.terminalId), showCloseTab: true }
+              : {})}
+            onDelete={() => {}}
+            showRename={false}
+            showDuplicate={Boolean(contextTab)}
+            disableDuplicate={tabs.length >= MAX_TERMINALS}
+            showDelete={false}
+          />
+        </TabStrip>
       )}
 
       <div className='relative min-h-0 flex-1'>
