@@ -30,11 +30,10 @@ const NO_POLICY: ResolvedSessionPolicy = {
  * downgrade. `isOrganizationOnEnterprisePlan` swallows its errors and returns
  * `false`, which is correct for feature gating (fail closed) but would silently
  * stop ENFORCING here — the fail-open trap the PII-redaction path documents in
- * `lib/logs/execution/logger.ts`. Only reached when bounds are actually stored,
- * so non-enterprise orgs never pay for it.
+ * `lib/logs/execution/logger.ts`. Callers only reach this when bounds are
+ * actually stored, so non-enterprise orgs never pay for it.
  */
-async function isPolicyEnforced(organizationId: string, hasBounds: boolean): Promise<boolean> {
-  if (!hasBounds) return true
+async function isEntitledToEnforce(organizationId: string): Promise<boolean> {
   try {
     return await resolveOrganizationEnterprisePlan(organizationId)
   } catch (error) {
@@ -78,13 +77,15 @@ export async function getSessionPolicy(
     .limit(1)
 
   const settings = row?.settings ?? {}
-  const hasBounds = Boolean(settings.maxSessionHours || settings.idleTimeoutHours)
-  if (!(await isPolicyEnforced(organizationId, hasBounds))) return NO_POLICY
-
-  return {
+  const bounds: ResolvedSessionPolicy = {
     maxSessionHours: settings.maxSessionHours ?? null,
     idleTimeoutHours: settings.idleTimeoutHours ?? null,
   }
+
+  if (!bounds.maxSessionHours && !bounds.idleTimeoutHours) return NO_POLICY
+  if (!(await isEntitledToEnforce(organizationId))) return NO_POLICY
+
+  return bounds
 }
 
 /**

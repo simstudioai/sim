@@ -81,7 +81,7 @@ export const POST = withRouteHandler(
     // Delete and version bump commit atomically: a bump failure must roll the
     // delete back, or members would stay authenticated from the cookie cache
     // for up to 24h with their DB sessions already gone.
-    const revokeResult = await db.transaction(async (tx) => {
+    const { revoked, version } = await db.transaction(async (tx) => {
       const deleted = await tx
         .delete(sessionTable)
         .where(
@@ -104,12 +104,9 @@ export const POST = withRouteHandler(
         .set({ securityPolicyVersion: sql`${organization.securityPolicyVersion} + 1` })
         .where(eq(organization.id, organizationId))
         .returning({ securityPolicyVersion: organization.securityPolicyVersion })
-      return { deleted, version: bumped?.securityPolicyVersion }
+      return { revoked: deleted, version: bumped?.securityPolicyVersion }
     })
-    const revoked = revokeResult.deleted
-    if (revokeResult.version !== undefined) {
-      setSecurityPolicyVersion(organizationId, revokeResult.version)
-    }
+    if (version !== undefined) setSecurityPolicyVersion(organizationId, version)
 
     logger.info('Revoked organization sessions', {
       organizationId,

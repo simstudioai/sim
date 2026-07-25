@@ -149,7 +149,7 @@ describe('org sessions revoke route', () => {
       queueTableRows(organization, [{ name: 'Acme' }])
     })
 
-    it('reports the revoked count, bumps the version, and invalidates the cache', async () => {
+    it('reports the revoked count, bumps the version, and publishes it', async () => {
       dbChainMockFns.returning
         .mockResolvedValueOnce([{ id: 's-1' }, { id: 's-2' }])
         .mockResolvedValueOnce([{ securityPolicyVersion: 5 }])

@@ -33,7 +33,7 @@ describe('security policy', () => {
   })
 
   describe('getSecurityPolicyVersion', () => {
-    it('caches the version and re-reads after invalidation', async () => {
+    it('caches the version and serves a newly published one without a re-read', async () => {
       const orgId = nextOrgId()
       queueTableRows(organization, [{ version: 3 }])
 

@@ -150,10 +150,7 @@ export const PUT = withRouteHandler(
           updatedAt: new Date(),
         })
         .where(eq(organization.id, organizationId))
-        .returning({
-          id: organization.id,
-          securityPolicyVersion: organization.securityPolicyVersion,
-        })
+        .returning({ securityPolicyVersion: organization.securityPolicyVersion })
       if (!row) return null
       await eagerClampOrgSessions(organizationId, merged, tx)
       return row

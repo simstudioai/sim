@@ -661,9 +661,10 @@ export const auth = betterAuth({
             }
           }
 
-          // Resolved separately from the clamp below: when this lookup fails we
-          // still clamp (falling back to the cached membership) rather than
-          // minting a full-length session off a transient read error.
+          // Resolved separately from the clamp below so the two failures stay
+          // distinguishable: `null` means "confirmed not in an org", while
+          // `undefined` means "could not tell". The clamp retries through the
+          // membership cache, and the catch below branches on which one it got.
           let membershipOrgId: string | null | undefined
           try {
             const members = await db
@@ -677,7 +678,7 @@ export const auth = betterAuth({
               { userId: session.userId, organizationId: membershipOrgId ?? undefined }
             )
           } catch (error) {
-            logger.error('Error resolving organization for new session; using cached membership', {
+            logger.error('Could not resolve organization for new session', {
               error,
               userId: session.userId,
             })
