@@ -218,14 +218,69 @@ describe('parseSpecialTags with <question>', () => {
   it('still drops a marker-free malformed payload rather than showing raw JSON', () => {
     // The complement of the case above: no tag markers in the body, so this is
     // a genuinely broken emission from the agent, not swallowed prose.
-    const { segments } = parseSpecialTags(
+    const { segments, hasPendingTag } = parseSpecialTags(
       'Before. <question>{"type":"single_select"}</question> After.',
       false
     )
+    expect(hasPendingTag).toBe(false)
     expect(segments).toEqual([
       { type: 'text', content: 'Before. ' },
       { type: 'text', content: ' After.' },
     ])
+  })
+
+  it('drops that same payload even when its JSON quotes tag syntax', () => {
+    // The marker scan must blank JSON strings the way the streaming path does.
+    // Scanning the raw body sees `</options>` inside the prompt, calls the span
+    // literal text, and renders the raw payload — the outcome `discard` exists
+    // to prevent.
+    const { segments } = parseSpecialTags(
+      'A <question>[{"type":"single_select","prompt":"use </options> here?"}]</question> B',
+      false
+    )
+    expect(segments).toEqual([
+      { type: 'text', content: 'A ' },
+      { type: 'text', content: ' B' },
+    ])
+  })
+
+  it('does not flash the payload while the closing tag is still arriving', () => {
+    // Each frame below is a real mid-stream state: the JSON value has closed, so
+    // without tolerating an arriving close the trailing `</opt` reads as stray
+    // content and the whole payload is released as text until the final `>`.
+    for (const fragment of ['<', '</', '</o', '</opt', '</options']) {
+      const { segments, hasPendingTag } = parseSpecialTags(
+        `see <options>[{"title":"a","description":"b"}]${fragment}`,
+        true
+      )
+      expect(hasPendingTag).toBe(true)
+      expect(segments.map((s) => ('content' in s ? s.content : '')).join('')).toBe('see ')
+    }
+  })
+
+  it('still rejects a close whose name is wrong rather than merely unfinished', () => {
+    // The counterpart to the case above: `</workflow_resource>` can never grow
+    // into `</workspace_resource>`, so it settles immediately instead of hiding
+    // the rest of the message for the remainder of the stream.
+    const { hasPendingTag } = parseSpecialTags(
+      'see <workspace_resource>{"type":"file","path":"a.md"}</workflow_resource> and then prose.',
+      true
+    )
+    expect(hasPendingTag).toBe(false)
+  })
+
+  it('keeps a valid tag whose close an earlier broken tag would borrow', () => {
+    // The first opener misspells its close, so it reaches forward and matches
+    // the SECOND tag's close, swallowing a perfectly good resource into one
+    // literal span. Resuming past the opener re-scans the interior instead.
+    const raw =
+      'See <workspace_resource>{"type":"file","path":"a.md"}</workflow_resource>\n' +
+      'and a real one: <workspace_resource>{"type":"file","path":"b.md","title":"b"}</workspace_resource>'
+    const { segments } = parseSpecialTags(raw, false)
+    expect(segments.some((s) => s.type === 'workspace_resource')).toBe(true)
+    expect(segments.map((s) => ('content' in s ? s.content : '')).join('')).toContain(
+      '</workflow_resource>'
+    )
   })
 
   it('still renders a matched pair whose body IS valid', () => {
@@ -275,10 +330,10 @@ describe('parseSpecialTags with <question>', () => {
 
   it('bails when a foreign closing tag appears inside the body', () => {
     // Tags never nest, so a close for a different tag proves the opener was text.
-    const { hasPendingTag } = parseSpecialTags(
-      'see <options>[{"title":"a","description":"b"}] </question> more',
-      true
-    )
+    // The array is left UNCLOSED on purpose: with a closed value the JSON rule
+    // would independently reject the trailing content, and this test would still
+    // pass with the nesting rule deleted. Unclosed, only nesting can explain it.
+    const { hasPendingTag } = parseSpecialTags('see <options>[{"title":"a" </question> more', true)
     expect(hasPendingTag).toBe(false)
   })
 
@@ -348,18 +403,6 @@ describe('parseSpecialTags with <question>', () => {
     const { segments, hasPendingTag } = parseSpecialTags('Let me ask. <ques', true)
     expect(hasPendingTag).toBe(true)
     expect(segments).toEqual([{ type: 'text', content: 'Let me ask. ' }])
-  })
-
-  it('drops a question tag with an invalid body but keeps surrounding text', () => {
-    const { segments, hasPendingTag } = parseSpecialTags(
-      'Before. <question>{"type":"single_select"}</question> After.',
-      false
-    )
-    expect(hasPendingTag).toBe(false)
-    expect(segments).toEqual([
-      { type: 'text', content: 'Before. ' },
-      { type: 'text', content: ' After.' },
-    ])
   })
 })
 

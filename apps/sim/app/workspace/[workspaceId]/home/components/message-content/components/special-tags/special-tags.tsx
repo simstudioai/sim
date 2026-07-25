@@ -465,33 +465,42 @@ function parseSpecialTagData(
 }
 
 /**
- * Parses inline special tags (`<options>`, `<usage_upgrade>`, `<workspace_resource>`) from streamed
- * text content. Complete tags are extracted into typed segments; incomplete
- * tags (still streaming) are suppressed from display and flagged via
- * `hasPendingTag` so the caller can show a loading indicator.
- *
- * Trailing partial opening tags (e.g. `<opt`, `<usage_`) are also stripped
- * during streaming to prevent flashing raw markup.
- */
-/**
  * Any tag-shaped marker, including names that are not special tags at all — the
  * model inventing `</workflow_resource>` is exactly the case that matters.
  */
 const TAG_SHAPED_MARKER = /<\/?[a-zA-Z][\w-]*>/
 
 /**
- * Tags whose body must be JSON. `thinking` is the exception — its body is prose
- * (see {@link parseTextTagBody}), so a non-JSON body there says nothing about
- * whether a close is still coming.
+ * The one tag whose body is prose rather than JSON (see {@link parseTextTagBody}),
+ * so a non-JSON body there says nothing about whether a close is still coming.
  */
-const JSON_BODY_TAG_NAMES = new Set<(typeof SPECIAL_TAG_NAMES)[number]>([
-  'options',
-  'usage_upgrade',
-  'credential',
-  'mothership-error',
-  'workspace_resource',
-  'question',
-])
+const PROSE_BODY_TAG_NAME: (typeof SPECIAL_TAG_NAMES)[number] = 'thinking'
+
+/**
+ * Tags whose body must be JSON.
+ *
+ * Derived from {@link SPECIAL_TAG_NAMES} rather than hand-listed: a new tag is
+ * JSON-bodied by default, so forgetting to update this set cannot silently
+ * downgrade it to the weaker prose heuristics. Opting a tag out is an explicit
+ * edit to {@link PROSE_BODY_TAG_NAME}.
+ */
+const JSON_BODY_TAG_NAMES: ReadonlySet<(typeof SPECIAL_TAG_NAMES)[number]> = new Set(
+  SPECIAL_TAG_NAMES.filter((name) => name !== PROSE_BODY_TAG_NAME)
+)
+
+/**
+ * How much of an unclosed body to inspect per parse.
+ *
+ * Both rules in {@link unclosedTagCannotResolve} decide on their FIRST piece of
+ * evidence — the first foreign marker, or the first character that breaks JSON
+ * viability — so a bounded window reaches the same verdict as the full remainder
+ * for any real payload. Unbounded, the check is O(remaining length) and runs
+ * once per opener inside a parse that re-runs for every streamed chunk, so a
+ * long reply repeatedly mentioning a tag name in prose costs seconds of
+ * main-thread time. Evidence past the window only defers the decision to a later
+ * chunk, which is the same conservative direction the rules already take.
+ */
+const MAX_UNCLOSED_BODY_SCAN = 4096
 
 /**
  * Strip the contents of JSON string literals from `body`, replacing them with
@@ -544,7 +553,15 @@ function blankJsonStringLiterals(body: string): string {
  * do not affect the depth count.
  */
 function isViableJsonPrefix(body: string): boolean {
-  const scannable = blankJsonStringLiterals(body)
+  return isViableJsonPrefixOf(blankJsonStringLiterals(body))
+}
+
+/**
+ * {@link isViableJsonPrefix} for a body whose string literals are already
+ * blanked. Callers that had to blank the body for their own scan pass the result
+ * straight through instead of paying for a second pass over the same text.
+ */
+function isViableJsonPrefixOf(scannable: string): boolean {
   if (scannable.trim() === '') return true
 
   const firstChar = scannable.trimStart().charAt(0)
@@ -577,8 +594,10 @@ function isViableJsonPrefix(body: string): boolean {
  *
  * 1. Tags never nest. Any other special-tag marker inside the body — opening or
  *    closing — means this opener was literal text, not a real tag.
- * 2. JSON-bodied tags must start with `{` or `[`. The first non-space character
- *    settles it, so prose after the marker is caught on the very next chunk.
+ * 2. A JSON body must stay a viable JSON prefix. Depth is tracked rather than
+ *    testing the first character alone, so a body whose top-level value has
+ *    already closed is caught the moment stray content follows it — including a
+ *    misspelled close like `</workflow_resource>`, which no marker rule sees.
  *
  * Both are conservative: they only fire on content that could not have parsed.
  * A false positive would merely show text early that a later chunk resolves
@@ -588,20 +607,42 @@ function unclosedTagCannotResolve(
   tagName: (typeof SPECIAL_TAG_NAMES)[number],
   body: string
 ): boolean {
+  const pending = dropArrivingClose(body, `</${tagName}>`)
   // For a JSON-bodied tag, ignore markers inside string literals: quoting tag
   // syntax is legitimate content, and treating it as evidence would bail on a
   // tag that goes on to close correctly — showing raw JSON that then snaps into
   // a rendered card.
-  const scannable = JSON_BODY_TAG_NAMES.has(tagName) ? blankJsonStringLiterals(body) : body
+  const isJsonBodied = JSON_BODY_TAG_NAMES.has(tagName)
+  const scannable = isJsonBodied ? blankJsonStringLiterals(pending) : pending
   for (const name of SPECIAL_TAG_NAMES) {
     // A close for this tag is absent by definition here, so this catches a
     // FOREIGN close; the open check catches nesting, including self-nesting.
     if (scannable.includes(`</${name}>`) || scannable.includes(`<${name}>`)) return true
   }
 
-  if (JSON_BODY_TAG_NAMES.has(tagName) && !isViableJsonPrefix(body)) return true
+  if (isJsonBodied && !isViableJsonPrefixOf(scannable)) return true
 
   return false
+}
+
+/**
+ * Drop a trailing fragment that could still grow into `closeTag`.
+ *
+ * Mid-stream the closing marker arrives a character at a time, so a body sits at
+ * `]</opt` for several frames before `</options>` completes. That fragment is an
+ * arriving close, not stray content — counting it as fatal is what made a
+ * perfectly valid tag show its raw payload as text until the final `>` landed.
+ *
+ * Only a fragment at the very END is dropped, so evidence that the close is
+ * genuinely wrong still lands immediately: a misspelled `</workflow_resource>`
+ * is not a prefix of `</workspace_resource>`, and a truncated `</workspac`
+ * followed by prose stops being one the moment the prose arrives.
+ */
+function dropArrivingClose(body: string, closeTag: string): string {
+  for (let n = Math.min(closeTag.length - 1, body.length); n > 0; n--) {
+    if (body.endsWith(closeTag.slice(0, n))) return body.slice(0, -n)
+  }
+  return body
 }
 
 /**
@@ -620,30 +661,76 @@ type TagResolution =
   | { outcome: 'pending' }
 
 /**
- * True when a failed body was never an attempted payload — so the markers were
- * literal text and the span must be shown rather than swallowed.
+ * Why a failed body was never an attempted payload — so the markers were literal
+ * text and the span must be shown rather than swallowed. `null` means the body
+ * really was a payload that failed its shape guard.
  *
- * Either the close we matched belongs to a different opener (the body carries
- * tag markers), or the tag wrapped prose that was never JSON to begin with.
+ * The two reasons resume differently, which is why they are distinguished
+ * rather than collapsed into a boolean (see {@link resolveTagAt}).
  */
-function bodyIsLiteralText(tagName: (typeof SPECIAL_TAG_NAMES)[number], body: string): boolean {
-  if (TAG_SHAPED_MARKER.test(body)) return true
-  return JSON_BODY_TAG_NAMES.has(tagName) && !isViableJsonPrefix(body)
+type LiteralTextReason =
+  /** The body carries tag markers, so the close we matched belongs elsewhere. */
+  | 'foreign-markers'
+  /** The tag wrapped prose that was never JSON to begin with. */
+  | 'never-a-payload'
+
+function literalTextReason(
+  tagName: (typeof SPECIAL_TAG_NAMES)[number],
+  body: string
+): LiteralTextReason | null {
+  const isJsonBodied = JSON_BODY_TAG_NAMES.has(tagName)
+  // Markers inside a JSON string are content, not evidence — a `<question>` may
+  // legitimately quote tag syntax in its prompt. Scanning the raw body here
+  // would classify a broken payload as literal text and render it as raw JSON,
+  // which is exactly what `discard` exists to prevent. Mirrors the same blanking
+  // in unclosedTagCannotResolve, which judges the same body mid-stream.
+  const scannable = isJsonBodied ? blankJsonStringLiterals(body) : body
+  if (TAG_SHAPED_MARKER.test(scannable)) return 'foreign-markers'
+  if (isJsonBodied && !isViableJsonPrefixOf(scannable)) return 'never-a-payload'
+  return null
+}
+
+/**
+ * `content.indexOf(needle, from)` memoized per needle.
+ *
+ * The opener scan and the close lookup search the same handful of markers over
+ * and over as the cursor advances. A needle absent from the message resolves to
+ * -1 once and is never searched again; a present one is re-searched only when
+ * the cursor passes its last hit. Unmemoized, each lookup rescans to the end of
+ * the buffer for every opener, which is quadratic on a message that mentions a
+ * tag name many times — and this parse re-runs for every streamed chunk.
+ *
+ * Safe because `from` only ever increases within a parse: a cached -1 stays -1,
+ * and a cached hit at or after `from` is still the first hit at or after `from`.
+ */
+function memoizedIndexOf(
+  cache: Map<string, number>,
+  content: string,
+  needle: string,
+  from: number
+): number {
+  const cached = cache.get(needle)
+  if (cached !== undefined && (cached === -1 || cached >= from)) return cached
+  const idx = content.indexOf(needle, from)
+  cache.set(needle, idx)
+  return idx
 }
 
 function resolveTagAt(
   content: string,
   openIndex: number,
   tagName: (typeof SPECIAL_TAG_NAMES)[number],
-  isStreaming: boolean
+  isStreaming: boolean,
+  closeCache: Map<string, number>
 ): TagResolution {
   const openTag = `<${tagName}>`
   const closeTag = `</${tagName}>`
   const bodyStart = openIndex + openTag.length
-  const closeIdx = content.indexOf(closeTag, bodyStart)
+  const closeIdx = memoizedIndexOf(closeCache, content, closeTag, bodyStart)
 
   if (closeIdx === -1) {
-    if (isStreaming && !unclosedTagCannotResolve(tagName, content.slice(bodyStart))) {
+    const inspectable = content.slice(bodyStart, bodyStart + MAX_UNCLOSED_BODY_SCAN)
+    if (isStreaming && !unclosedTagCannotResolve(tagName, inspectable)) {
       return { outcome: 'pending' }
     }
     // Nothing can close it, so only the opener itself is literal. Resuming just
@@ -658,7 +745,16 @@ function resolveTagAt(
   const parsed = parseSpecialTagData(tagName, body)
   if (parsed) return { outcome: 'segment', segment: parsed, resumeAt }
 
-  if (bodyIsLiteralText(tagName, body)) return { outcome: 'literal', resumeAt }
+  const reason = literalTextReason(tagName, body)
+  if (reason === 'foreign-markers') {
+    // A marker in the body proves the close we matched opened somewhere else —
+    // this opener reached past its own missing close and borrowed a later tag's.
+    // Resuming past the OPENER instead of past that borrowed close re-scans the
+    // interior, so the genuine tag inside still renders instead of being
+    // swallowed into one literal span.
+    return { outcome: 'literal', resumeAt: bodyStart }
+  }
+  if (reason === 'never-a-payload') return { outcome: 'literal', resumeAt }
 
   // A well-formed value that failed its shape guard is a broken emission from
   // the agent; showing the user raw JSON there would be worse than nothing.
@@ -667,7 +763,10 @@ function resolveTagAt(
 
 /**
  * Splits streamed text into renderable segments, extracting complete special
- * tags and deciding what to do with the ones that never resolve.
+ * tags and deciding what to do with the ones that never resolve. Incomplete
+ * tags are suppressed and flagged via `hasPendingTag` so the caller can show a
+ * loading indicator, and a trailing partial opening marker (`<opt`, `<usage_`)
+ * is stripped during streaming so it never flashes as raw markup.
  *
  * Adjacent text segments are concatenated by the renderer, so emitting a span
  * as several pieces is display-neutral.
@@ -681,12 +780,15 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
     if (text.trim()) segments.push({ type: 'text', content: text })
   }
 
+  const openerCache = new Map<string, number>()
+  const closeCache = new Map<string, number>()
+
   while (cursor < content.length) {
     let nearestStart = -1
     let nearestTagName: (typeof SPECIAL_TAG_NAMES)[number] | '' = ''
 
     for (const name of SPECIAL_TAG_NAMES) {
-      const idx = content.indexOf(`<${name}>`, cursor)
+      const idx = memoizedIndexOf(openerCache, content, `<${name}>`, cursor)
       if (idx !== -1 && (nearestStart === -1 || idx < nearestStart)) {
         nearestStart = idx
         nearestTagName = name
@@ -717,7 +819,7 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
 
     pushText(content.slice(cursor, nearestStart))
 
-    const resolution = resolveTagAt(content, nearestStart, nearestTagName, isStreaming)
+    const resolution = resolveTagAt(content, nearestStart, nearestTagName, isStreaming, closeCache)
 
     if (resolution.outcome === 'pending') {
       hasPendingTag = true
