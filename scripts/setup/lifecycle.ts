@@ -4,7 +4,7 @@ import path from 'node:path'
 import { DB_CONTAINER, type Detection, REDIS_CONTAINER, runDetection } from './detect.ts'
 import { archiveEnvFile, ROOT } from './env-files.ts'
 import { SetupError } from './errors.ts'
-import { isLocalKubeContext } from './modes/k8s.ts'
+import { forwardCommands, isLocalKubeContext } from './modes/k8s.ts'
 import { httpHealth } from './probes.ts'
 import * as p from './prompter.ts'
 import { glyph, theme } from './theme.ts'
@@ -224,11 +224,15 @@ function managedNames(install: DevInstall): string[] {
   return names
 }
 
+/**
+ * Reuses the wizard's forward commands rather than restating them — reaching a
+ * ClusterIP release needs both, and an app-only hint here would leave the
+ * editor's socket dead exactly the way the setup path used to.
+ */
 function k8sReachHints(context: string): string {
-  const c = shq(context)
   return [
-    `kubectl --context ${c} -n ${K8S_NAMESPACE} port-forward svc/${K8S_RELEASE}-app 3000:3000`,
-    `kubectl --context ${c} -n ${K8S_NAMESPACE} get pods`,
+    ...forwardCommands(context),
+    `kubectl --context ${shq(context)} -n ${K8S_NAMESPACE} get pods`,
   ].join('\n')
 }
 

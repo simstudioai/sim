@@ -407,7 +407,7 @@ export async function runK8sMode(detection: Detection): Promise<void> {
  * printed instructions and what the wizard actually runs cannot drift — the app
  * alone leaves the editor's socket dead.
  */
-function forwardCommands(context: string): string[] {
+export function forwardCommands(context: string): string[] {
   const scope = `kubectl --context ${shq(context)} -n ${NAMESPACE} port-forward`
   return [`${scope} svc/${RELEASE}-app 3000:3000`, `${scope} svc/${RELEASE}-realtime 3002:3002`]
 }
@@ -444,11 +444,29 @@ async function offerPortForward(context: string): Promise<void> {
   const realtime = spawn(
     'kubectl',
     [...scope, 'port-forward', `svc/${RELEASE}-realtime`, '3002:3002'],
-    { stdio: 'ignore' }
+    // stderr is kept so a failure can be explained; a silently dead second
+    // forward looks exactly like a working setup until the editor won't connect.
+    { stdio: ['ignore', 'ignore', 'pipe'] }
   )
+  let realtimeError = ''
+  realtime.stderr?.on('data', (chunk) => {
+    realtimeError += chunk
+  })
+  // Only an exit we did not ask for is a problem — the kill below also fires this.
+  let stopping = false
+  realtime.once('exit', (code) => {
+    if (stopping || code === 0) return
+    p.log.warn(
+      `The realtime forward (:3002) stopped — the editor's socket will not connect. ${
+        realtimeError.trim() || `Check that :3002 is free and svc/${RELEASE}-realtime exists.`
+      }`
+    )
+  })
+
   p.log.step(`Forwarding ${APP_URL} (app) and :3002 (realtime) — Ctrl-C to stop`)
   spawnSync('kubectl', [...scope, 'port-forward', `svc/${RELEASE}-app`, '3000:3000'], {
     stdio: 'inherit',
   })
+  stopping = true
   realtime.kill()
 }
