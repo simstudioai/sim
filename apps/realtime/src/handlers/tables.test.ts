@@ -187,6 +187,37 @@ describe('setupTablesHandlers', () => {
     expect(toEmit).not.toHaveBeenCalled()
   })
 
+  it('aborts a stale join whose authorize resolves after a newer join', async () => {
+    const { socket, handlers } = createSocket()
+    const roomManager = createRoomManager()
+    // First join's authorize hangs until released; the second resolves immediately.
+    let releaseA: (value: unknown) => void = () => {}
+    const pendingA = new Promise((resolve) => {
+      releaseA = resolve
+    })
+    mockAuthorizeRoom.mockReturnValueOnce(pendingA).mockResolvedValue({
+      allowed: true,
+      status: 200,
+      workspaceId: 'ws-1',
+      workspacePermission: 'admin',
+    })
+    setupTablesHandlers(socket as unknown as SetupArg, roomManager)
+
+    const joinA = handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-A' })
+    await handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-B' })
+    releaseA({ allowed: true, status: 200, workspaceId: 'ws-1', workspacePermission: 'admin' })
+    await joinA
+
+    // The newer join (B) wins; the stale A join aborts before touching room state.
+    expect(socket.join).toHaveBeenCalledWith('table:table-B')
+    expect(socket.join).not.toHaveBeenCalledWith('table:table-A')
+    expect(roomManager.addUserToRoom).not.toHaveBeenCalledWith(
+      { type: ROOM_TYPES.TABLE, id: 'table-A' },
+      expect.anything(),
+      expect.anything()
+    )
+  })
+
   it('leaves the table room on leave', async () => {
     const { socket, handlers } = createSocket()
     const roomManager = createRoomManager({

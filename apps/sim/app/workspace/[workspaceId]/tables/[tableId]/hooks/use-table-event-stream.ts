@@ -382,14 +382,15 @@ export function useTableEventStream({
           // A collaborator's manual edit: refetch rows (debounced) so the winning
           // last-write value shows live, in this client's own wire format.
           else if (entry.event?.kind === 'edit') scheduleRowsInvalidate()
-          // A collaborator changed the table structure: refetch the definition (exact —
-          // not the whole detail subtree), the rows, and the tables list (its column/row
-          // counts) — mirroring the local column-mutation invalidation set.
+          // A collaborator changed the table structure: mirror the local
+          // invalidateTableSchema set — the definition (exact, so rows stay on the
+          // debounce), the run-state + enrichment sibling queries under detail (a group
+          // delete/restructure can otherwise leave a stale running badge or enrichment
+          // panel), the tables list (column/row counts), and the debounced rows.
           else if (entry.event?.kind === 'schema') {
-            void queryClient.invalidateQueries({
-              queryKey: tableKeys.detail(tableId),
-              exact: true,
-            })
+            void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
+            void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
+            void queryClient.invalidateQueries({ queryKey: tableKeys.enrichmentDetails(tableId) })
             void queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
             scheduleRowsInvalidate()
           }

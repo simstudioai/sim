@@ -62,7 +62,13 @@ function normalizeCellSelection(cell: unknown): TableCellSelection | undefined {
  * only because a workflow room's name equals its id).
  */
 export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
+  // Monotonic per-socket join counter: each JOIN captures its number and, after the async
+  // authorize, aborts if a newer JOIN has started — a fast table switch A→B can otherwise
+  // let A's late handler leave B and strand the socket in room A while the client views B.
+  let joinGeneration = 0
+
   socket.on(TABLE_PRESENCE_EVENTS.JOIN, async ({ tableId, tabSessionId }: JoinTablePayload) => {
+    const joinAttempt = (joinGeneration += 1)
     try {
       const userId = socket.userId
       const userName = socket.userName
@@ -123,6 +129,10 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
         })
         return
       }
+
+      // A newer JOIN started on this socket during authorize (or the socket dropped):
+      // abort so a stale join can't leave the room the client has since moved to.
+      if (joinGeneration !== joinAttempt || socket.disconnected) return
 
       // Leave a previously-joined table room if switching tables.
       const currentRoom = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.TABLE)
