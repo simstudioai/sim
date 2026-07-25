@@ -22,8 +22,7 @@ export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorPr
   const trailingRef = useRef<HTMLInputElement>(null)
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null)
 
-  // Focus a freshly materialized option once it has rendered, cursor at end.
-  // The new row and `pendingFocusId` land in the same commit, so its ref is
+  // The new row and `pendingFocusId` land in the same commit, so the ref is
   // registered by the time this effect runs.
   useEffect(() => {
     if (!pendingFocusId) return

@@ -211,8 +211,7 @@ const FilterRuleRow = memo(function FilterRuleRow({
       ? MULTI_SELECT_COMPARISON_OPERATORS
       : SINGLE_SELECT_COMPARISON_OPERATORS
 
-  // Select value picker: label by option name, send the stored option id. A
-  // stale id (option since deleted) is kept selectable so the rule still shows.
+  // A stale id (option since deleted) stays selectable so the rule still shows.
   const selectValueOptions = isSelect
     ? (() => {
         const opts = (selectedColumn.options ?? []).map((o) => ({ value: o.id, label: o.name }))

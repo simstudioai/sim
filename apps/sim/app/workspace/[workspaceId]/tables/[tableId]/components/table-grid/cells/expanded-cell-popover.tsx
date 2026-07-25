@@ -30,9 +30,6 @@ const EXPANDED_CELL_HEIGHT = 280
 /**
  * Anchored cell editor. Floats over the double-clicked cell, minimum width
  * {@link EXPANDED_CELL_MIN_WIDTH}, fixed height, internally scrollable.
- *
- * Workflow and boolean cells are read-only here — workflow cells are driven
- * by the scheduler, booleans toggle inline.
  */
 export function ExpandedCellPopover({
   expandedCell,
