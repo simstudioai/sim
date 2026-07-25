@@ -697,9 +697,21 @@ export const auth = betterAuth({
               },
             }
           } catch (error) {
-            // Allow the sign-in: refusing it would turn a policy-read blip into
-            // an org-wide outage. The session keeps Better Auth's default
-            // expiry and the next refresh clamps it.
+            // DELIBERATE TRADE, not an oversight. Reaching here means both the
+            // direct membership read and the cached fallback failed, so the
+            // governing org — and therefore the policy — is unknown. The
+            // alternative, refusing the sign-in, would turn a `member` read
+            // failure into a total authentication outage for EVERY user,
+            // including the overwhelming majority who belong to no org and have
+            // no policy to enforce. That is a worse outcome than a bounded
+            // enforcement delay.
+            //
+            // The delay is bounded: this session takes the DB path at its next
+            // cookie-cache expiry (24h) and the update hook clamps it then —
+            // retroactively, since the max-lifetime bound is measured from
+            // `createdAt`, so an over-long session expires immediately on that
+            // refresh. Any admin action (policy save, sign-out-all) bumps the
+            // security-policy version and closes the window at once.
             logger.error('Error clamping new session to org policy; session not clamped', {
               error,
               userId: session.userId,

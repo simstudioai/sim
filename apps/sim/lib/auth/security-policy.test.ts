@@ -15,7 +15,7 @@ import {
   getSecurityPolicyVersion,
   getSessionCookieCacheVersion,
   invalidateMembershipCache,
-  invalidateSecurityPolicyVersionCache,
+  setSecurityPolicyVersion,
 } from '@/lib/auth/security-policy'
 
 /** Module-level caches persist across cases, so every case uses a fresh id. */
@@ -41,9 +41,10 @@ describe('security policy', () => {
       expect(await getSecurityPolicyVersion(orgId)).toBe(3)
       expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
 
-      invalidateSecurityPolicyVersionCache(orgId)
-      queueTableRows(organization, [{ version: 4 }])
+      setSecurityPolicyVersion(orgId, 4)
       expect(await getSecurityPolicyVersion(orgId)).toBe(4)
+      // Published authoritatively by the writer — no extra read needed.
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
     })
 
     it('returns the default without querying for an org-less session', async () => {
@@ -56,21 +57,23 @@ describe('security policy', () => {
       expect(await getSecurityPolicyVersion(nextOrgId())).toBe(1)
     })
 
-    it('never lets a late read overwrite a newer version', async () => {
+    it('never lets a late read serve or store a superseded version', async () => {
       const orgId = nextOrgId()
-      queueTableRows(organization, [{ version: 9 }])
-      expect(await getSecurityPolicyVersion(orgId)).toBe(9)
+      setSecurityPolicyVersion(orgId, 10)
 
-      invalidateSecurityPolicyVersionCache(orgId)
-      queueTableRows(organization, [{ version: 9 }])
-      await getSecurityPolicyVersion(orgId)
-      // A read that started before the bump resolving late must not re-seed the
-      // pre-bump value and delay cookie invalidation another TTL.
-      invalidateSecurityPolicyVersionCache(orgId)
-      queueTableRows(organization, [{ version: 10 }])
-      expect(await getSecurityPolicyVersion(orgId)).toBe(10)
+      // A read that started before the bump resolves late. It must neither be
+      // returned nor cached, or cookies would stay matched to the old version
+      // and revoked sessions would keep serving from the cookie cache.
       queueTableRows(organization, [{ version: 9 }])
       expect(await getSecurityPolicyVersion(orgId)).toBe(10)
+      expect(await getSecurityPolicyVersion(orgId)).toBe(10)
+    })
+
+    it('ignores a published version older than what is cached', async () => {
+      const orgId = nextOrgId()
+      setSecurityPolicyVersion(orgId, 7)
+      setSecurityPolicyVersion(orgId, 6)
+      expect(await getSecurityPolicyVersion(orgId)).toBe(7)
     })
 
     it('falls back to the default when the read fails', async () => {

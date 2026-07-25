@@ -108,18 +108,18 @@ export async function getSecurityPolicyVersion(
 
     const version = row?.version ?? DEFAULT_VERSION
     // The counter only ever increments, so a read resolving LOWER than what is
-    // already cached started before the newer one and must not overwrite it — a
-    // late write would otherwise re-serve a pre-bump version and delay cookie
-    // invalidation for a further TTL.
+    // already cached started before the newer one. Neither store it nor return
+    // it: a late value would re-serve a pre-bump version, keeping cookies
+    // matched and letting revoked sessions stay on the cookie cache.
     const current = versionCache.get(organizationId)
-    if (!current || version >= current.version) {
-      touch(
-        versionCache,
-        organizationId,
-        { version, fetchedAt: Date.now() },
-        MAX_VERSION_CACHE_ENTRIES
-      )
-    }
+    if (current && current.version > version) return current.version
+
+    touch(
+      versionCache,
+      organizationId,
+      { version, fetchedAt: Date.now() },
+      MAX_VERSION_CACHE_ENTRIES
+    )
     return version
   } catch (error) {
     logger.error('Failed to resolve security policy version; using default', {
@@ -130,9 +130,19 @@ export async function getSecurityPolicyVersion(
   }
 }
 
-/** Drops the cached version for an org so the next read is fresh. */
-export function invalidateSecurityPolicyVersionCache(organizationId: string): void {
-  versionCache.delete(organizationId)
+/**
+ * Publishes the authoritative version a write just committed.
+ *
+ * Deliberately a SET rather than a delete. Deleting would leave no floor for the
+ * monotonic guard above, so a read that started before the bump could land
+ * afterwards and re-seed the pre-bump version for a full TTL — exactly the
+ * cookie-invalidation delay the bump exists to avoid. Callers already have the
+ * new value from their `RETURNING` clause, so this also saves a redundant read.
+ */
+export function setSecurityPolicyVersion(organizationId: string, version: number): void {
+  const current = versionCache.get(organizationId)
+  if (current && current.version > version) return
+  touch(versionCache, organizationId, { version, fetchedAt: Date.now() }, MAX_VERSION_CACHE_ENTRIES)
 }
 
 interface MembershipCacheEntry {

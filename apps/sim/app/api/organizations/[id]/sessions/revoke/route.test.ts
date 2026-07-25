@@ -13,14 +13,14 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsEnterprise, mockRecordAudit, mockInvalidateVersionCache } = vi.hoisted(() => ({
+const { mockIsEnterprise, mockRecordAudit, mockSetVersion } = vi.hoisted(() => ({
   mockIsEnterprise: vi.fn(),
   mockRecordAudit: vi.fn(),
-  mockInvalidateVersionCache: vi.fn(),
+  mockSetVersion: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/security-policy', () => ({
-  invalidateSecurityPolicyVersionCache: mockInvalidateVersionCache,
+  setSecurityPolicyVersion: mockSetVersion,
 }))
 
 vi.mock('@/lib/billing/core/subscription', () => ({
@@ -135,7 +135,9 @@ describe('org sessions revoke route', () => {
     it('allows admins as well as owners', async () => {
       queueTableRows(member, [{ role: 'admin' }])
       queueTableRows(organization, [{ name: 'Acme' }])
-      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 's-1' }])
+      dbChainMockFns.returning
+        .mockResolvedValueOnce([{ id: 's-1' }])
+        .mockResolvedValueOnce([{ securityPolicyVersion: 5 }])
       const response = await POST(createMockRequest('POST'), routeContext)
       expect(response.status).toBe(200)
     })
@@ -148,7 +150,9 @@ describe('org sessions revoke route', () => {
     })
 
     it('reports the revoked count, bumps the version, and invalidates the cache', async () => {
-      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 's-1' }, { id: 's-2' }])
+      dbChainMockFns.returning
+        .mockResolvedValueOnce([{ id: 's-1' }, { id: 's-2' }])
+        .mockResolvedValueOnce([{ securityPolicyVersion: 5 }])
 
       const response = await POST(createMockRequest('POST'), routeContext)
 
@@ -157,7 +161,7 @@ describe('org sessions revoke route', () => {
       expect(dbChainMockFns.set).toHaveBeenCalledWith(
         expect.objectContaining({ securityPolicyVersion: expect.anything() })
       )
-      expect(mockInvalidateVersionCache).toHaveBeenCalledWith(ORG_ID)
+      expect(mockSetVersion).toHaveBeenCalledWith(ORG_ID, 5)
       expect(mockRecordAudit).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'organization.sessions.revoked',
@@ -168,7 +172,9 @@ describe('org sessions revoke route', () => {
     })
 
     it("never deletes the caller's own session", async () => {
-      dbChainMockFns.returning.mockResolvedValueOnce([])
+      dbChainMockFns.returning
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ securityPolicyVersion: 5 }])
       await POST(createMockRequest('POST'), routeContext)
 
       expect(deleteConditions()).toContainEqual(
@@ -177,7 +183,9 @@ describe('org sessions revoke route', () => {
     })
 
     it('spares impersonation sessions', async () => {
-      dbChainMockFns.returning.mockResolvedValueOnce([])
+      dbChainMockFns.returning
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ securityPolicyVersion: 5 }])
       await POST(createMockRequest('POST'), routeContext)
 
       expect(deleteConditions()).toContainEqual(
@@ -186,7 +194,9 @@ describe('org sessions revoke route', () => {
     })
 
     it('scopes the delete to members of the organization', async () => {
-      dbChainMockFns.returning.mockResolvedValueOnce([])
+      dbChainMockFns.returning
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ securityPolicyVersion: 5 }])
       await POST(createMockRequest('POST'), routeContext)
 
       expect(deleteConditions()).toContainEqual(
@@ -196,7 +206,9 @@ describe('org sessions revoke route', () => {
 
     it("also spares the impersonator's own sessions when the caller is impersonating", async () => {
       authenticateAs({ impersonatedBy: 'platform-admin-1' })
-      dbChainMockFns.returning.mockResolvedValueOnce([])
+      dbChainMockFns.returning
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ securityPolicyVersion: 5 }])
 
       await POST(createMockRequest('POST'), routeContext)
 
@@ -210,7 +222,9 @@ describe('org sessions revoke route', () => {
     })
 
     it('adds no impersonator exclusion for an ordinary caller', async () => {
-      dbChainMockFns.returning.mockResolvedValueOnce([])
+      dbChainMockFns.returning
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ securityPolicyVersion: 5 }])
       await POST(createMockRequest('POST'), routeContext)
 
       const userIdExclusions = deleteConditions().filter(
@@ -220,7 +234,9 @@ describe('org sessions revoke route', () => {
     })
 
     it('singularizes the audit description for a single session', async () => {
-      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 's-1' }])
+      dbChainMockFns.returning
+        .mockResolvedValueOnce([{ id: 's-1' }])
+        .mockResolvedValueOnce([{ securityPolicyVersion: 5 }])
       await POST(createMockRequest('POST'), routeContext)
 
       expect(mockRecordAudit).toHaveBeenCalledWith(
