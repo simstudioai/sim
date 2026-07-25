@@ -27,9 +27,9 @@ const RECENT_CHATS_TOTAL = 30
 const CHATS_FETCH_TIMEOUT_MS = 5000
 const TRAY_ICON_SCALE_FACTOR = 2
 const TRAY_SUBSCRIPT_GLYPHS = {
-  L: ['100', '100', '100', '100', '111'],
-  D: ['110', '101', '101', '101', '110'],
-  S: ['111', '100', '111', '001', '111'],
+  L: ['1000', '1000', '1000', '1000', '1000', '1111'],
+  D: ['1110', '1001', '1001', '1001', '1001', '1110'],
+  S: ['1111', '1000', '1110', '0001', '0001', '1110'],
 } as const
 
 type TrayEnvironmentMarker = keyof typeof TRAY_SUBSCRIPT_GLYPHS

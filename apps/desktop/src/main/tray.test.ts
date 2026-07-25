@@ -147,7 +147,7 @@ describe('tray environment marker', () => {
 
     expect(marked).not.toBe(source)
     const [bitmap, options] = vi.mocked(nativeImage.createFromBitmap).mock.calls.at(-1) ?? []
-    expect(options).toEqual({ width: 72, height: 32, scaleFactor: 2 })
+    expect(options).toEqual({ width: 74, height: 32, scaleFactor: 2 })
     expect(Buffer.isBuffer(bitmap)).toBe(true)
     expect((bitmap as Buffer).some((value) => value === 255)).toBe(true)
   })
