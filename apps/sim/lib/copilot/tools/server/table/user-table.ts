@@ -1620,6 +1620,16 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               message: `Invalid column type "${newType}". Must be one of: ${COLUMN_TYPES.join(', ')}`,
             }
           }
+          // The type change and the constraint write are separate locked
+          // transactions, so asking for both would convert the column and only
+          // then fail the constraint, leaving the conversion committed behind an
+          // error. Same guard the HTTP column routes apply.
+          if (typeChanging && newType === 'select' && uniqFlag === true) {
+            return {
+              success: false,
+              message: `Cannot set column "${colName}" as unique: select columns cannot be unique.`,
+            }
+          }
           if (typeChanging) {
             assertNotAborted()
             result = await updateColumnType(

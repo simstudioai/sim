@@ -2,7 +2,13 @@
 
 import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import type { ColumnDefinition, TableDefinition, TableRow, WorkflowGroup } from '@/lib/table'
+import type {
+  ColumnDefinition,
+  Filter,
+  TableDefinition,
+  TableRow,
+  WorkflowGroup,
+} from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { pruneFilterForColumns } from '@/lib/table/query-builder/converters'
 import type { FlattenOutputsBlockInput } from '@/lib/workflows/blocks/flatten-outputs'
@@ -39,6 +45,13 @@ export interface UseTableReturn {
   rows: TableRow[]
   /** Filter-scoped total row count (server COUNT(*) for the active filter); null until loaded. */
   rowTotal: number | null
+  /**
+   * The filter actually sent to the server: `queryOptions.filter` minus any
+   * condition the current schema makes invalid. Anything server-bound —
+   * select-all run/stop/delete — must scope with THIS, not the raw filter, or
+   * the action targets a predicate the grid isn't displaying.
+   */
+  filter: Filter | null
   isLoadingRows: boolean
   refetchRows: () => void
   /**
@@ -248,6 +261,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     isLoadingTable,
     rows,
     rowTotal,
+    filter,
     isLoadingRows,
     refetchRows,
     fetchNextPage: fetchNextPageWrapped,
