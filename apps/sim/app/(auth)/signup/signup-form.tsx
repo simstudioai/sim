@@ -346,6 +346,10 @@ function SignupFormContent({
         sessionStorage.setItem('verificationEmail', emailValue)
         if (redirectUrl) {
           sessionStorage.setItem(POST_AUTH_REDIRECT_STORAGE_KEY, redirectUrl)
+        } else {
+          // Clear any leftover from an earlier signup in this tab — otherwise a
+          // signup with no callbackUrl inherits the previous CLI/invite destination.
+          sessionStorage.removeItem(POST_AUTH_REDIRECT_STORAGE_KEY)
         }
       }
 

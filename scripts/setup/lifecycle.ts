@@ -69,6 +69,8 @@ interface DevInstall {
 interface K8sInstall {
   kind: 'k8s'
   context: string
+  /** False when the context's API server is outside the local allowlist — flagged before destructive ops. */
+  local: boolean
 }
 type Install = ComposeInstall | DevInstall | K8sInstall
 
@@ -92,19 +94,24 @@ function devInstall(detection: Detection): DevInstall | null {
   return { kind: 'dev', postgres, redis }
 }
 
+/**
+ * Detection is factual: a release either exists on the current context or it
+ * doesn't. Setup lets the user explicitly confirm a context whose API server is
+ * outside the local allowlist, so gating detection on locality would strand that
+ * release — `status`/`start`/`stop`/`down`/`reset` would all claim there is no
+ * Kubernetes install. Instead the locality is recorded and surfaced: every
+ * destructive path names the target (and flags a non-local one) before acting.
+ */
 function k8sInstall(detection: Detection): K8sInstall | null {
   const context = detection.kubeContext
-  // Only manage k8s on a verified-local context. The ambient current-context can
-  // change after setup, and the wizard only ever deploys to a local cluster — so
-  // gating on locality stops `down`/`reset` from uninstalling a same-named release
-  // from a remote cluster the user happens to be pointed at.
-  if (!context || !isLocalKubeContext(context)) return null
+  if (!context) return null
   const status = spawnSync(
     'helm',
     ['status', K8S_RELEASE, '--kube-context', context, '-n', K8S_NAMESPACE],
     { stdio: 'ignore' }
   )
-  return status.status === 0 ? { kind: 'k8s', context } : null
+  if (status.status !== 0) return null
+  return { kind: 'k8s', context, local: isLocalKubeContext(context) }
 }
 
 function detectInstalls(detection: Detection): Install[] {
@@ -119,7 +126,10 @@ function detectInstalls(detection: Detection): Install[] {
 function describeInstall(install: Install): string {
   if (install.kind === 'compose') return `Docker Compose (${install.file})`
   if (install.kind === 'dev') return 'Local dev (managed Postgres/Redis)'
-  return `Kubernetes (context ${install.context})`
+  // Naming a non-local cluster is the guard against acting on the wrong one after
+  // an ambient context switch — every destructive confirm renders this string.
+  const scope = install.local ? '' : ' — NOT a verified-local cluster'
+  return `Kubernetes (context ${install.context}${scope})`
 }
 
 /** One install → use it; several → let the user pick; none → null. */
@@ -309,11 +319,23 @@ async function reset(install: Install | null): Promise<void> {
     spawnSync('docker', ['volume', 'rm', POSTGRES_VOLUME], { cwd: ROOT, stdio: 'ignore' })
     p.log.step('Managed containers and Postgres volume removed')
   } else if (install?.kind === 'k8s') {
-    spawnSync(
+    const uninstall = spawnSync(
       'helm',
       ['uninstall', K8S_RELEASE, '--kube-context', install.context, '-n', K8S_NAMESPACE],
       { stdio: 'inherit' }
     )
+    // Env files are already archived, so a failed uninstall leaves a live release
+    // with no local config — the worst thing to do is call that a success.
+    if (uninstall.status !== 0) {
+      throw new SetupError(
+        `env files were archived, but helm uninstall failed — the ${K8S_RELEASE} release is still running.`,
+        [
+          `retry: ${theme.command(`helm uninstall ${K8S_RELEASE} --kube-context ${shq(install.context)} -n ${K8S_NAMESPACE}`)}`,
+          `check the release: ${theme.command(`helm status ${K8S_RELEASE} --kube-context ${shq(install.context)} -n ${K8S_NAMESPACE}`)}`,
+        ]
+      )
+    }
+    p.log.step(`Uninstalled ${K8S_RELEASE}`)
   }
   p.note(`start fresh with ${theme.command('sim setup')}`, 'Reset complete')
 }

@@ -210,6 +210,9 @@ export function useVerification({
     setStatus('verified')
 
     const destination = resolveRedirectUrl(searchParams.get('redirectAfter'))
+    // Single-use: consume the stored destination here too, or it survives this
+    // flow and reapplies to a later sign-in in the same tab.
+    sessionStorage.removeItem(POST_AUTH_REDIRECT_STORAGE_KEY)
 
     const handleRedirect = async () => {
       try {
