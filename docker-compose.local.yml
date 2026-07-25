@@ -26,10 +26,7 @@ services:
       - SIM_AGENT_API_URL=${SIM_AGENT_API_URL:-}
       - OLLAMA_URL=${OLLAMA_URL:-http://localhost:11434}
       - SOCKET_SERVER_URL=${SOCKET_SERVER_URL:-http://realtime:3002}
-      # Published on 3002 with no proxy in front, so the browser must target it
-      # directly; empty would fall back to the page origin, where /socket.io
-      # answers 308 and the socket reconnects forever.
-      - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-http://localhost:3002}
+      - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-}
     depends_on:
       db:
         condition: service_healthy

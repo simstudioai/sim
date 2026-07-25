@@ -35,14 +35,12 @@ services:
       - SIM_AGENT_API_URL=${SIM_AGENT_API_URL:-}
       - OLLAMA_URL=${OLLAMA_URL:-http://localhost:11434}
       - SOCKET_SERVER_URL=${SOCKET_SERVER_URL:-http://realtime:3002}
-      # NEXT_PUBLIC_SOCKET_URL is read by the browser. This stack publishes the
-      # app on 3000 and realtime on 3002 with no reverse proxy between them, so
-      # it must point at 3002 — left empty the client falls back to the page
-      # origin, where /socket.io answers 308 instead of a handshake and the
-      # socket reconnects forever. Override when a proxy fronts both on one
-      # origin (set it to that origin, or empty to use the page origin), or when
-      # realtime is elsewhere (e.g. wss://socket.example.com).
-      - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-http://localhost:3002}
+      # NEXT_PUBLIC_SOCKET_URL is read by the browser. Leave it unset for this
+      # stack: the client already falls back to localhost:3002 for a localhost
+      # page, and a proxied deployment needs the page-origin fallback that an
+      # explicit value would suppress. Set it only when realtime is on a
+      # different host:port (e.g. wss://socket.example.com).
+      - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-}
       - ADMISSION_GATE_MAX_INFLIGHT=${ADMISSION_GATE_MAX_INFLIGHT:-500}
     depends_on:
       db:

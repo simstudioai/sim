@@ -9,6 +9,18 @@ import { glyph, theme } from './theme.ts'
 
 const DEFAULT_DSN = 'postgresql://postgres:postgres@localhost:5432/simstudio'
 
+/** Postgres' wire message when the password is wrong — a live server, not a dead one. */
+const AUTH_FAILURE = /password authentication failed/i
+
+/**
+ * Percent-encodes the password so characters that are structural in a URL
+ * (`@`, `:`, `/`, `#`, `?`) can't re-parse the DSN into a different host — which
+ * would fail a password that is actually correct.
+ */
+function buildDsn(password: string, hostPort: string | number): string {
+  return `postgresql://postgres:${encodeURIComponent(password)}@localhost:${hostPort}/simstudio`
+}
+
 export function docker(args: string[]): void {
   const result = spawnSync('docker', args, { encoding: 'utf8' })
   if (result.status !== 0) {
@@ -63,7 +75,9 @@ function inspectManagedContainer(): ManagedContainer | null {
 
   return {
     running: running === 'true',
-    dsn: `postgresql://postgres:${password}@localhost:${hostPort}/simstudio`,
+    // Read back from the container env verbatim, so it may be a password the
+    // user supplied for an existing volume — encode it like any other.
+    dsn: buildDsn(password, hostPort),
   }
 }
 
@@ -235,7 +249,9 @@ async function startManagedContainer(detection: Detection): Promise<string> {
   const password = volumeInitialized()
     ? await resolveExistingVolume()
     : generateSecret().slice(0, 24)
-  const dsn = `postgresql://postgres:${password}@localhost:${hostPort}/simstudio`
+  // A user-supplied password can contain @ : / # — raw interpolation would
+  // re-parse the DSN into a different host and fail a password that is correct.
+  const dsn = buildDsn(password, hostPort)
   docker([
     'run',
     '-d',
@@ -255,9 +271,31 @@ async function startManagedContainer(detection: Detection): Promise<string> {
   ])
   const spin = p.spinner()
   spin.start(`Starting ${DB_CONTAINER} container on :${hostPort}…`)
-  const healthy = await waitFor(async () => (await pgProbe(dsn)).ok, 45_000, 1500)
+  let lastError = ''
+  const healthy = await waitFor(
+    async () => {
+      const probe = await pgProbe(dsn)
+      if (!probe.ok) lastError = probe.error ?? ''
+      return probe.ok
+    },
+    45_000,
+    1500
+  )
   if (!healthy) {
     spin.stop(`${glyph.fail} container did not become healthy`)
+    // Postgres running and refusing the password is a different failure from
+    // Postgres never starting, and it is the likely one on the keep-the-volume
+    // path. Reporting it as "did not become healthy" is the exact confusion
+    // this whole change set exists to remove.
+    if (AUTH_FAILURE.test(lastError)) {
+      throw new SetupError(
+        `Postgres started, but rejected that password for the existing ${DB_VOLUME} volume.`,
+        [
+          're-run and enter the password the volume was created with',
+          `or discard the old data: ${theme.command(`docker rm -f ${DB_CONTAINER} && docker volume rm ${DB_VOLUME}`)}`,
+        ]
+      )
+    }
     const logs = spawnSync('docker', ['logs', '--tail', '20', DB_CONTAINER], { encoding: 'utf8' })
     throw new SetupError(
       `the Postgres container failed to start. Last logs:\n${logs.stdout}${logs.stderr}`,
