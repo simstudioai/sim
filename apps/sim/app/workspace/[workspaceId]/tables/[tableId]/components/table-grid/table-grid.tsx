@@ -266,12 +266,16 @@ function cellToText(value: unknown, column?: DisplayColumn): string {
  * so a no-op edit — e.g. opening a multiselect and closing it unchanged — isn't
  * treated as a change and doesn't write a row update or push an undo entry.
  */
-function cellValuesEqual(a: unknown, b: unknown): boolean {
+function cellValuesEqual(a: unknown, b: unknown, column?: DisplayColumn): boolean {
   if (a === b) return true
   // An untouched multiselect cell is stored as null, but the editor commits `[]`
   // for an empty selection — without this, opening and dismissing one unchanged
-  // would write a row update and push an undo entry.
-  if (isEmptySelection(a) && isEmptySelection(b)) return true
+  // would write a row update and push an undo entry. Multiselect only: on a json
+  // cell `[]` and null are genuinely different values, and treating them as equal
+  // would silently drop the edit that clears a stored `[]` (or writes one).
+  if (column?.type === 'select' && column.multiple) {
+    if (isEmptySelection(a) && isEmptySelection(b)) return true
+  }
   if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
     return JSON.stringify(a) === JSON.stringify(b)
   }
@@ -2943,7 +2947,8 @@ export function TableGrid({
 
       const oldValue = row.data[columnName] ?? null
       const normalizedValue = value ?? null
-      const changed = !cellValuesEqual(oldValue, normalizedValue)
+      const column = columnsRef.current.find((c) => c.key === columnName)
+      const changed = !cellValuesEqual(oldValue, normalizedValue, column)
 
       if (changed) {
         pushUndoRef.current({

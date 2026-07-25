@@ -874,15 +874,21 @@ async function migrateCellsToSelectIds(
   options: SelectOption[],
   multiple: boolean
 ): Promise<void> {
-  const idByRef = JSON.stringify(
-    Object.fromEntries(
-      options.flatMap((o) => [
-        [o.name.toLowerCase(), o.id] as const,
-        [o.name, o.id] as const,
-        [o.id, o.id] as const,
-      ])
-    )
-  )
+  // Ids are written last so an id always outranks any option's name, matching
+  // `resolveSelectOptionId`'s id-before-name precedence. A single flat pass
+  // would let a later option whose *name* equals an earlier option's *id*
+  // overwrite that id entry and repoint its cells at the wrong option.
+  // A Map, not plain-object assignment: an option named `__proto__` would set
+  // the prototype instead of an own key and drop out of the serialized map.
+  const refs = new Map<string, string>()
+  for (const o of options) {
+    refs.set(o.name.toLowerCase(), o.id)
+    refs.set(o.name, o.id)
+  }
+  for (const o of options) {
+    refs.set(o.id, o.id)
+  }
+  const idByRef = JSON.stringify(Object.fromEntries(refs))
 
   if (multiple) {
     // A string cell reaching a multi target is either one option name or the
