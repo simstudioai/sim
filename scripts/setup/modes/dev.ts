@@ -118,10 +118,13 @@ export async function runDevMode(
 
   const simAfter = readEnvFile('sim')
   const values: Record<string, string> = {}
+  // Before the key is minted: a half-set override mints against one environment
+  // and validates against the other, and warning afterwards is too late — the
+  // bad key is already stored, and the next run offers to keep it.
+  Object.assign(values, mothershipOverride())
   const copilotKey = await promptCopilotKey(simAfter.vars.get('COPILOT_API_KEY'))
   if (copilotKey) values.COPILOT_API_KEY = copilotKey
   Object.assign(values, await promptLlmKeys(detection, !quick))
-  Object.assign(values, mothershipOverride())
 
   // Redis is set up in every mode, quick included. Storage falls back to
   // PostgreSQL without it, but the pub/sub channels (live Chat task-status,

@@ -106,10 +106,13 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
 
   const root = readEnvFile('root')
   const values = collectSecrets(root)
+  // Before the key is minted: a half-set override mints against one environment
+  // and validates against the other, and warning afterwards is too late — the
+  // bad key is already stored, and the next run offers to keep it.
+  Object.assign(values, mothershipOverride())
   const copilotKey = await promptCopilotKey(root.vars.get('COPILOT_API_KEY'))
   if (copilotKey) values.COPILOT_API_KEY = copilotKey
   Object.assign(values, await promptLlmKeys(detection, !quick))
-  Object.assign(values, mothershipOverride())
   if (!quick) {
     const storage = await promptStorage(root.vars, true)
     if (storage) Object.assign(values, storage)
