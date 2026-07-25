@@ -8,6 +8,7 @@ import { httpHealth, waitFor } from '../probes.ts'
 import * as p from '../prompter.ts'
 import {
   collectSecrets,
+  mothershipOverride,
   promptCopilotKey,
   promptEmail,
   promptLlmKeys,
@@ -60,6 +61,7 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
   const copilotKey = await promptCopilotKey(root.vars.get('COPILOT_API_KEY'))
   if (copilotKey) values.COPILOT_API_KEY = copilotKey
   Object.assign(values, await promptLlmKeys(detection, !quick))
+  Object.assign(values, mothershipOverride())
   if (!quick) {
     const storage = await promptStorage(root.vars, true)
     if (storage) Object.assign(values, storage)

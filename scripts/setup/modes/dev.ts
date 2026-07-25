@@ -10,6 +10,7 @@ import * as p from '../prompter.ts'
 import { ensureRedis, resolveRedis } from '../redis.ts'
 import {
   collectSecrets,
+  mothershipOverride,
   promptCopilotKey,
   promptEmail,
   promptLlmKeys,
@@ -120,6 +121,7 @@ export async function runDevMode(
   const copilotKey = await promptCopilotKey(simAfter.vars.get('COPILOT_API_KEY'))
   if (copilotKey) values.COPILOT_API_KEY = copilotKey
   Object.assign(values, await promptLlmKeys(detection, !quick))
+  Object.assign(values, mothershipOverride())
 
   // Redis is set up in every mode, quick included. Storage falls back to
   // PostgreSQL without it, but the pub/sub channels (live Chat task-status,

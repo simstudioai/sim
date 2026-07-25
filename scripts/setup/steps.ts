@@ -65,6 +65,32 @@ export async function promptCopilotKey(existing?: string): Promise<string | null
   return key
 }
 
+/**
+ * Escape hatch for Sim devs pointing an install at a non-prod mothership:
+ *
+ *   SIM_CLI_AUTH_ORIGIN=https://www.staging.sim.ai \
+ *   SIM_AGENT_API_URL=https://www.staging.copilot.sim.ai \
+ *   bun run setup
+ *
+ * The two belong together — SIM_CLI_AUTH_ORIGIN decides where the Chat key is
+ * minted, SIM_AGENT_API_URL decides which backend validates it, and a key from
+ * one environment is rejected by the other. Persisting the URL keeps later
+ * `docker compose up` / dev runs on the same backend instead of silently
+ * reverting to prod once the shell that exported it is gone.
+ */
+export function mothershipOverride(): Record<string, string> {
+  const agentUrl = process.env.SIM_AGENT_API_URL
+  const authOrigin = process.env.SIM_CLI_AUTH_ORIGIN
+  if (authOrigin && !agentUrl) {
+    p.log.warn(
+      `SIM_CLI_AUTH_ORIGIN points the Chat key handoff at ${authOrigin}, but SIM_AGENT_API_URL is unset — the app will validate that key against production and reject it. Set both, or neither.`
+    )
+  }
+  if (!agentUrl) return {}
+  p.log.step(`Using mothership ${agentUrl} (SIM_AGENT_API_URL)`)
+  return { SIM_AGENT_API_URL: agentUrl }
+}
+
 export async function promptLlmKeys(
   detection: Detection,
   custom: boolean
