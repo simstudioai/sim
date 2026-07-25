@@ -30,8 +30,7 @@ export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesG
   const hasSentinelRef = useRef(false)
 
   useEffect(() => {
-    // Released: the caller is navigating away, so leave the seeded entry alone —
-    // popping it would cancel that navigation.
+    // The caller is navigating away — popping the seeded entry would cancel it.
     if (isReleased) return
     if (!isDirty) {
       // Clean again while still mounted (saved/reverted): pop the seeded entry so
@@ -80,12 +79,23 @@ export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesG
   }, [router, backHref])
 
   /**
-   * Retires the guard for the rest of this mount: no unload warning, no Back
-   * trap, and no pop of the seeded entry when the form goes clean. Call it
-   * immediately before navigating away on a successful save, and navigate with
-   * `router.replace` so the seeded entry is the one consumed.
+   * Retires the guard: no unload warning, no browser Back trap, and no pop of the
+   * seeded entry when the form goes clean. Call it before navigating away on a
+   * successful save, and navigate with `router.replace` so the seeded entry is the
+   * one consumed. An operation that goes clean before it resolves (an optimistic
+   * delete) must release up front and {@link rearm} if it fails.
    */
   const release = useCallback(() => setIsReleased(true), [])
 
-  return { showUnsavedAlert, setShowUnsavedAlert, handleBackClick, confirmDiscard, release }
+  /** Restores guarding after a released operation failed and the surface stays. */
+  const rearm = useCallback(() => setIsReleased(false), [])
+
+  return {
+    showUnsavedAlert,
+    setShowUnsavedAlert,
+    handleBackClick,
+    confirmDiscard,
+    release,
+    rearm,
+  }
 }

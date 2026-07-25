@@ -74,9 +74,8 @@ export function SkillCreate({ workspaceId }: SkillCreateProps) {
       })
       setErrors({})
       toast.success(`Created "${nameDraft}"`)
-      // Retire the guard before navigating — otherwise the form going clean pops
-      // its seeded history entry and lands us back on this create form. `replace`
-      // consumes that entry instead of stacking another.
+      // Detach the guard so its Back trap can't fire mid-navigation; `replace` then
+      // consumes the seeded entry rather than stacking another.
       guard.release()
       router.replace(created ? `${skillsHref}/${created.id}` : skillsHref)
     } catch (error) {
