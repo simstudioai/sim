@@ -53,7 +53,14 @@ async function isEntitledToEnforce(organizationId: string): Promise<boolean> {
  * its stored rules at enforcement time (`lib/logs/execution/logger.ts`,
  * `lib/workflows/executor/execution-core.ts`). This is not a hot path: it runs
  * on sign-in and on a sliding session refresh, which the 24h cookie cache
- * limits to roughly once per user per day — one indexed point lookup each.
+ * limits to roughly once per user per day.
+ *
+ * Cost is one indexed lookup for an org with no bounds stored — the common
+ * case. An org that DOES store bounds additionally pays the entitlement check
+ * (owner lookup + block status + subscription), so about four reads. That is
+ * affordable per sign-in, but it lands all at once for every member when a
+ * policy save or org-wide revocation invalidates the whole org's cookie caches
+ * together; watch it if enterprise orgs grow much larger.
  *
  * A cache here is what made an earlier version of this code incorrect. Better
  * Auth rewrites `expiresAt` to `now + 30d` on every refresh, so a refresh that

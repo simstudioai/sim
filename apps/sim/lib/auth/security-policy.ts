@@ -105,7 +105,10 @@ export async function getSecurityPolicyVersion(
 }
 
 /**
- * Publishes the authoritative version a write just committed.
+ * Seeds THIS process with the version a write just committed. Other instances
+ * still pick it up on their own next read, so org-wide propagation remains
+ * bounded by {@link SECURITY_POLICY_VERSION_CACHE_TTL_MS} — this only removes
+ * the calling instance's own re-read.
  *
  * Deliberately a SET rather than a delete. Deleting would leave no floor for the
  * monotonic guard above, so a read that started before the bump could land

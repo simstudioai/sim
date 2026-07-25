@@ -34,8 +34,12 @@ import {
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { getRequestedSignInProviderId, isSignInProviderAllowed } from '@/lib/auth/constants'
-import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
-import { clampExpiryForSession } from '@/lib/auth/session-policy'
+import {
+  getMemberOrganizationId,
+  getSessionCookieCacheVersion,
+  invalidateMembershipCache,
+} from '@/lib/auth/security-policy'
+import { applySessionPolicyToNewMember, clampExpiryForSession } from '@/lib/auth/session-policy'
 import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
@@ -661,28 +665,29 @@ export const auth = betterAuth({
             }
           }
 
-          // Resolved separately from the clamp below so the two failures stay
-          // distinguishable: `null` means "confirmed not in an org", while
-          // `undefined` means "could not tell". The clamp retries through the
-          // membership cache, and the catch below branches on which one it got.
-          let membershipOrgId: string | null | undefined
+          // Membership is resolved ONCE, here, and the clamp is handed the
+          // result. Resolving it in two places let the catch below branch on a
+          // stale local while the clamp had actually resolved the org from
+          // cache — failing open on a path documented as failing closed.
+          let membershipOrgId: string | null
           try {
-            const members = await db
-              .select({ organizationId: schema.member.organizationId })
-              .from(schema.member)
-              .where(eq(schema.member.userId, session.userId))
-              .limit(1)
-            membershipOrgId = members[0]?.organizationId ?? null
+            membershipOrgId = await getMemberOrganizationId(session.userId)
             logger.info(
               membershipOrgId ? 'Found organization for user' : 'No organizations found for user',
               { userId: session.userId, organizationId: membershipOrgId ?? undefined }
             )
           } catch (error) {
-            logger.error('Could not resolve organization for new session', {
+            // The governing org is genuinely unknown, so a member is
+            // indistinguishable from the majority of users who belong to no org.
+            // Failing closed would take authentication down for everyone to
+            // protect a policy most of them do not have. Allow, unclamped: the
+            // after-hook above re-applies the policy once membership resolves,
+            // and the update hook clamps retroactively from `createdAt`.
+            logger.error('Could not resolve organization for new session; session not clamped', {
               error,
               userId: session.userId,
             })
-            membershipOrgId = undefined
+            return { data: session }
           }
 
           try {
@@ -698,15 +703,15 @@ export const auth = betterAuth({
               },
             }
           } catch (error) {
-            // Two different failures land here, and they get opposite answers.
-            //
-            // Org KNOWN: membership resolved, so this user is definitely
-            // governed by an org — only the policy read failed. Fail closed.
-            // The blast radius is org members during a window where the
-            // `organization` read fails but the `member` read just succeeded,
-            // which is narrow, loud, and self-clearing. Minting a full-length
-            // session for a member whose policy we could not read is the one
-            // outcome this feature exists to prevent.
+            // Membership already resolved above, so reaching here means only
+            // the POLICY read failed. For a member that is fail-closed: this
+            // user is definitely governed by an org, so the "would break
+            // sign-in for non-members too" argument does not apply. The blast
+            // radius is org members during a window where the `organization`
+            // read fails but the `member` read just succeeded — narrow, loud,
+            // and self-clearing. Minting a full-length session for a member
+            // whose policy we could not read is the one outcome this feature
+            // exists to prevent.
             if (membershipOrgId) {
               logger.error('Refusing session: org session policy could not be resolved', {
                 error,
@@ -718,17 +723,9 @@ export const auth = betterAuth({
               })
             }
 
-            // Org UNKNOWN: both the direct membership read and the cached
-            // fallback failed, so we cannot tell a governed member from the
-            // overwhelming majority of users who belong to no org at all.
-            // Failing closed here would turn a `member` read failure into a
-            // total authentication outage for everyone, to protect a policy
-            // that most of them do not have. Allow, and let it self-correct:
-            // the session takes the DB path at its next cookie-cache expiry
-            // and the update hook clamps it retroactively (the max-lifetime
-            // bound is measured from `createdAt`, so an over-long session
-            // expires immediately on that refresh). Any admin action bumps the
-            // security-policy version and closes the window at once.
+            // Confirmed non-member: the clamp short-circuits before any policy
+            // read for a null org, so this is defence in depth rather than a
+            // live path. A user with no org has no policy to violate, so allow.
             logger.error('Error clamping new session to org policy; session not clamped', {
               error,
               userId: session.userId,
@@ -764,7 +761,9 @@ export const auth = betterAuth({
               error,
               userId: current.userId,
             })
-            return { data: { ...data, expiresAt: current.expiresAt } }
+            // Normalized like the happy path above: Better Auth context values
+            // can cross a serialization boundary, and the column is a timestamp.
+            return { data: { ...data, expiresAt: new Date(current.expiresAt) } }
           }
         },
       },
@@ -1065,6 +1064,47 @@ export const auth = betterAuth({
       }
 
       return
+    }),
+    /**
+     * Re-applies the org session policy to a session that was created before
+     * its `member` row existed.
+     *
+     * SSO JIT provisioning does exactly that: the callback creates the session
+     * first and only then writes `member` straight through the adapter
+     * (`@better-auth/sso` calls `handleOAuthUserInfo` before
+     * `assignOrganizationFromProvider`, and bypasses the organization plugin's
+     * `addMember`, so no member hook fires). The session-create hook therefore
+     * sees no membership and mints Better Auth's full 30-day expiry — and
+     * because a 30-day expiry reads as "not due for refresh", the sliding
+     * refresh would not re-clamp it for another day. On a first SSO sign-in
+     * into an org with session bounds, that is a real policy bypass.
+     *
+     * Runs only for sessions created WITHOUT an org (the sole case that can be
+     * affected) and is best-effort — a failure here must never break sign-in.
+     */
+    after: createAuthMiddleware(async (ctx) => {
+      const created = ctx.context.newSession
+      if (!created?.session || created.session.activeOrganizationId) return
+      if ((created.session as { impersonatedBy?: string | null }).impersonatedBy) return
+
+      try {
+        // Drop the negative membership entry the create hook just cached, so
+        // the row written moments ago by the provisioning path is visible.
+        invalidateMembershipCache(created.user.id)
+        const organizationId = await getMemberOrganizationId(created.user.id)
+        if (!organizationId) return
+
+        logger.info('Applying org session policy to a session created pre-membership', {
+          userId: created.user.id,
+          organizationId,
+        })
+        await applySessionPolicyToNewMember(created.user.id, organizationId)
+      } catch (error) {
+        logger.error('Failed to apply org session policy after session creation', {
+          error,
+          userId: created.user.id,
+        })
+      }
     }),
   },
   plugins: [
