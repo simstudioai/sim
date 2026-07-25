@@ -3466,6 +3466,23 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  search_documentation: {
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'The search query',
+        },
+        topK: {
+          type: 'number',
+          description: 'Number of results (default 10, max 25)',
+        },
+      },
+      required: ['query'],
+    },
+    resultSchema: undefined,
+  },
   search_integration_tools: {
     parameters: {
       properties: {

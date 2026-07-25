@@ -86,6 +86,7 @@ export interface ToolCatalogEntry {
     | 'scrape_page'
     | 'search'
     | 'search_docs'
+    | 'search_documentation'
     | 'search_integration_tools'
     | 'search_knowledge_base'
     | 'search_library_docs'
@@ -184,6 +185,7 @@ export interface ToolCatalogEntry {
     | 'scrape_page'
     | 'search'
     | 'search_docs'
+    | 'search_documentation'
     | 'search_integration_tools'
     | 'search_knowledge_base'
     | 'search_library_docs'
@@ -3679,6 +3681,22 @@ export const SearchDocs: ToolCatalogEntry = {
   },
 }
 
+export const SearchDocumentation: ToolCatalogEntry = {
+  id: 'search_documentation',
+  name: 'search_documentation',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      query: { type: 'string', description: 'The search query' },
+      topK: { type: 'number', description: 'Number of results (default 10, max 25)' },
+    },
+    required: ['query'],
+  },
+  hidden: true,
+}
+
 export const SearchIntegrationTools: ToolCatalogEntry = {
   id: 'search_integration_tools',
   name: 'search_integration_tools',
@@ -4934,6 +4952,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [ScrapePage.id]: ScrapePage,
   [Search.id]: Search,
   [SearchDocs.id]: SearchDocs,
+  [SearchDocumentation.id]: SearchDocumentation,
   [SearchIntegrationTools.id]: SearchIntegrationTools,
   [SearchKnowledgeBase.id]: SearchKnowledgeBase,
   [SearchLibraryDocs.id]: SearchLibraryDocs,
