@@ -125,9 +125,10 @@ else
   test "$(git rev-list --count "$ROUND_BASE_SHA"..HEAD)" = "1"
   test "$(git symbolic-ref --short HEAD)" = "$HEAD_REF"
   test "$(git rev-parse "refs/heads/$HEAD_REF")" = "$(git rev-parse HEAD)"
-  git diff --name-only "$INITIAL_HEAD_SHA" HEAD | sed "s/^/__CHANGED__=/"
-  git diff "$INITIAL_HEAD_SHA" HEAD > ${DIFF_PATH}
-  wc -c < ${DIFF_PATH} | tr -d ' ' | sed "s/^/__DIFF_BYTES__=/"
+  git diff --name-only "$INITIAL_HEAD_SHA" HEAD | sed "s/^/__CUMULATIVE_CHANGED__=/"
+  git diff "$INITIAL_HEAD_SHA" HEAD | wc -c | tr -d ' ' | sed "s/^/__CUMULATIVE_DIFF_BYTES__=/"
+  git diff --name-only "$ROUND_BASE_SHA" HEAD | sed "s/^/__CHANGED__=/"
+  git diff "$ROUND_BASE_SHA" HEAD > ${DIFF_PATH}
   git rev-parse HEAD | sed "s/^/__NEW_SHA__=/"
   test -z "$(git status --porcelain)"
   echo "__NEEDS_PUSH__=1"
@@ -427,16 +428,19 @@ async function finalizeRound(
     return { commitPushed: false, newSha: roundBaseSha, changedFiles: [], diff: '' }
   }
 
+  const cumulativeChangedFiles = extractMarkerValues(prepare.stdout, '__CUMULATIVE_CHANGED__=')
+  const cumulativeDiffBytes = Number(
+    extractMarkerValues(prepare.stdout, '__CUMULATIVE_DIFF_BYTES__=')[0]
+  )
   const changedFiles = extractMarkerValues(prepare.stdout, '__CHANGED__=')
-  const diffBytes = Number(extractMarkerValues(prepare.stdout, '__DIFF_BYTES__=')[0])
   const newSha = extractMarkerValues(prepare.stdout, '__NEW_SHA__=')[0]
-  if (!newSha || !Number.isSafeInteger(diffBytes)) {
+  if (!newSha || !Number.isSafeInteger(cumulativeDiffBytes)) {
     throw new Error('Babysit finalize omitted its commit or diff bounds')
   }
-  if (changedFiles.length > MAX_CHANGED_FILES || diffBytes > MAX_DIFF_BYTES) {
+  if (cumulativeChangedFiles.length > MAX_CHANGED_FILES || cumulativeDiffBytes > MAX_DIFF_BYTES) {
     throw new Error('Babysit cumulative change bounds were exceeded')
   }
-  if (changedFiles.some((file) => file === '.github' || file.startsWith('.github/'))) {
+  if (cumulativeChangedFiles.some((file) => file === '.github' || file.startsWith('.github/'))) {
     throw new Error('Babysit refuses to push changes under .github/')
   }
 
@@ -1026,7 +1030,17 @@ export async function runBabysitPiWithOptions(
               : observedCheckSignature && lastAttempt.repeats >= 1
                 ? 'stuck_checks'
                 : undefined
-          if (reason) return resultFor(totals, reason, progress, false, false)
+          if (reason) {
+            const observedThreadsClean =
+              latestThreads.actionable.length === 0 && latestThreads.skipped.length === 0
+            return resultFor(
+              totals,
+              reason,
+              progress,
+              observedThreadsClean,
+              latestChecks.checksGreen
+            )
+          }
           lastAttempt = { ...observedAttempt, repeats: lastAttempt.repeats + 1 }
         } else {
           lastAttempt = { ...observedAttempt, repeats: 1 }

@@ -70,6 +70,7 @@ import { DIFF_PATH } from '@/executor/handlers/pi/cloud-shared'
 
 const OLD_SHA = 'a'.repeat(40)
 const NEW_SHA = 'c'.repeat(40)
+const SECOND_SHA = 'd'.repeat(40)
 const snapshot = {
   headSha: OLD_SHA,
   headRef: 'feature',
@@ -160,6 +161,7 @@ function makeRunner(options: {
   prepareStdout?: string | string[]
   pushResult?: ReturnType<typeof commandResult>
   roundFile?: string
+  diff?: string | string[]
 }) {
   const runCalls: Array<{
     command: string
@@ -167,6 +169,7 @@ function makeRunner(options: {
     timeoutMs?: number
   }> = []
   let prepareCall = 0
+  let diffRead = 0
   const runner = {
     run: vi.fn(
       async (
@@ -191,7 +194,7 @@ function makeRunner(options: {
             : options.prepareStdout
           return commandResult(
             configuredPrepare ??
-              `__CHANGED__=src/a.ts\n__DIFF_BYTES__=20\n__NEW_SHA__=${NEW_SHA}\n__NEEDS_PUSH__=1\n`
+              `__CUMULATIVE_CHANGED__=src/a.ts\n__CUMULATIVE_DIFF_BYTES__=20\n__CHANGED__=src/a.ts\n__NEW_SHA__=${NEW_SHA}\n__NEEDS_PUSH__=1\n`
           )
         }
         if (command.includes('CURRENT_DIGEST=')) {
@@ -202,7 +205,12 @@ function makeRunner(options: {
     ),
     writeFile: vi.fn(),
     readFile: vi.fn(async (path: string) => {
-      if (path === DIFF_PATH) return 'diff --git a/src/a.ts b/src/a.ts'
+      if (path === DIFF_PATH) {
+        if (Array.isArray(options.diff)) {
+          return options.diff[diffRead++] ?? options.diff.at(-1) ?? ''
+        }
+        return options.diff ?? 'diff --git a/src/a.ts b/src/a.ts'
+      }
       if (path === BABYSIT_ROUND_PATH) {
         return (
           options.roundFile ??
@@ -347,7 +355,7 @@ describe('runBabysitPiWithOptions', () => {
           }
           if (command.includes('git -c core.hooksPath=/dev/null add -A')) {
             return commandResult(
-              `__CHANGED__=src/a.ts\n__DIFF_BYTES__=20\n__NEW_SHA__=${NEW_SHA}\n__NEEDS_PUSH__=1\n`
+              `__CUMULATIVE_CHANGED__=src/a.ts\n__CUMULATIVE_DIFF_BYTES__=20\n__CHANGED__=src/a.ts\n__NEW_SHA__=${NEW_SHA}\n__NEEDS_PUSH__=1\n`
             )
           }
           if (command.includes('CURRENT_DIGEST=')) return commandResult('__PUSHED__=1\n')
@@ -402,6 +410,63 @@ describe('runBabysitPiWithOptions', () => {
     })
   })
 
+  it('reports only the last pushed round while enforcing cumulative markers', async () => {
+    mockFetchSnapshot
+      .mockResolvedValueOnce(snapshot)
+      .mockResolvedValueOnce(snapshot)
+      .mockResolvedValueOnce({ ...snapshot, headSha: NEW_SHA })
+      .mockResolvedValueOnce({ ...snapshot, headSha: NEW_SHA })
+      .mockResolvedValueOnce({ ...snapshot, headSha: NEW_SHA })
+      .mockResolvedValueOnce({ ...snapshot, headSha: SECOND_SHA })
+      .mockResolvedValueOnce({ ...snapshot, headSha: SECOND_SHA })
+    mockFetchThreads.mockResolvedValue({
+      actionable: [],
+      skipped: [],
+      totalUnresolved: 0,
+      latestReview: null,
+    })
+    mockFetchChecks
+      .mockResolvedValueOnce(failingChecks)
+      .mockResolvedValueOnce(failingChecks)
+      .mockResolvedValueOnce(greenChecks)
+    mockReplyAndResolve.mockResolvedValue({
+      repliesPosted: 0,
+      threadsResolved: 0,
+      replyFailures: [],
+      resolveFailures: [],
+      headMoved: false,
+      awaitingConfirmation: false,
+    })
+    const { runner, runCalls } = makeRunner({
+      prepareStdout: [
+        `__CUMULATIVE_CHANGED__=src/a.ts\n__CUMULATIVE_DIFF_BYTES__=20\n__CHANGED__=src/a.ts\n__NEW_SHA__=${NEW_SHA}\n__NEEDS_PUSH__=1\n`,
+        `__CUMULATIVE_CHANGED__=src/a.ts\n__CUMULATIVE_CHANGED__=src/b.ts\n__CUMULATIVE_DIFF_BYTES__=40\n__CHANGED__=src/b.ts\n__NEW_SHA__=${SECOND_SHA}\n__NEEDS_PUSH__=1\n`,
+      ],
+      roundFile: JSON.stringify({ threads: [] }),
+      diff: ['round-one-diff', 'round-two-diff'],
+    })
+    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+
+    const result = await runBabysitPiWithOptions(
+      params(),
+      { onEvent: vi.fn() },
+      { convergenceWaitMs: 0, roundWaitMs: 0 }
+    )
+
+    expect(result).toMatchObject({
+      stopReason: 'clean',
+      rounds: 2,
+      commitsPushed: 2,
+      changedFiles: ['src/b.ts'],
+      diff: 'round-two-diff',
+    })
+    expect(
+      runCalls
+        .filter(({ command }) => command.includes('CURRENT_DIGEST='))
+        .map(({ envs }) => envs?.PINNED_SHA)
+    ).toEqual([OLD_SHA, NEW_SHA])
+  })
+
   it('refuses .github changes before the credentialed push', async () => {
     mockFetchSnapshot.mockResolvedValue(snapshot)
     mockFetchThreads.mockResolvedValue({
@@ -412,7 +477,7 @@ describe('runBabysitPiWithOptions', () => {
     })
     mockFetchChecks.mockResolvedValue(greenChecks)
     const { runner, runCalls } = makeRunner({
-      prepareStdout: `__CHANGED__=.github/workflows/ci.yml\n__DIFF_BYTES__=20\n__NEW_SHA__=${NEW_SHA}\n__NEEDS_PUSH__=1\n`,
+      prepareStdout: `__CUMULATIVE_CHANGED__=.github/workflows/ci.yml\n__CUMULATIVE_DIFF_BYTES__=20\n__CHANGED__=.github/workflows/ci.yml\n__NEW_SHA__=${NEW_SHA}\n__NEEDS_PUSH__=1\n`,
     })
     mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
 
@@ -672,8 +737,44 @@ describe('runBabysitPiWithOptions', () => {
       rounds: 2,
       commitsPushed: 0,
       threadsResolved: 0,
+      threadsClean: false,
+      checksGreen: true,
     })
     expect(mockFetchThreads).toHaveBeenCalledTimes(3)
+  })
+
+  it('preserves clean threads when checks are stuck', async () => {
+    mockFetchSnapshot.mockResolvedValue(snapshot)
+    mockFetchThreads.mockResolvedValue({
+      actionable: [],
+      skipped: [],
+      totalUnresolved: 0,
+      latestReview: null,
+    })
+    mockFetchChecks.mockResolvedValue(failingChecks)
+    mockReplyAndResolve.mockResolvedValue({
+      repliesPosted: 0,
+      threadsResolved: 0,
+      replyFailures: [],
+      resolveFailures: [],
+      headMoved: false,
+      awaitingConfirmation: false,
+    })
+    const { runner } = makeRunner({
+      prepareStdout: '__NO_CHANGES__=1\n',
+      roundFile: JSON.stringify({ threads: [] }),
+    })
+    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+
+    const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() }, { roundWaitMs: 0 })
+
+    expect(result).toMatchObject({
+      stopReason: 'stuck_checks',
+      rounds: 2,
+      commitsPushed: 0,
+      threadsClean: true,
+      checksGreen: false,
+    })
   })
 
   it('does not count a push round toward unchanged-pin stuck detection', async () => {
@@ -698,7 +799,7 @@ describe('runBabysitPiWithOptions', () => {
     })
     const { runner } = makeRunner({
       prepareStdout: [
-        `__CHANGED__=src/a.ts\n__DIFF_BYTES__=20\n__NEW_SHA__=${NEW_SHA}\n__NEEDS_PUSH__=1\n`,
+        `__CUMULATIVE_CHANGED__=src/a.ts\n__CUMULATIVE_DIFF_BYTES__=20\n__CHANGED__=src/a.ts\n__NEW_SHA__=${NEW_SHA}\n__NEEDS_PUSH__=1\n`,
         '__NO_CHANGES__=1\n',
         '__NO_CHANGES__=1\n',
       ],
