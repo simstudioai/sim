@@ -63,7 +63,9 @@ async function isEntitledToEnforce(organizationId: string): Promise<boolean> {
  * than trying to keep two caches coherent.
  *
  * Throws if the read fails. Callers pick their own failure posture: the session
- * UPDATE hook refuses to extend, the CREATE hook allows the sign-in.
+ * UPDATE hook keeps the current expiry rather than extending it, and the CREATE
+ * hook refuses the sign-in when the governing org is known but allows it when
+ * membership itself could not be resolved.
  */
 export async function getSessionPolicy(
   organizationId: string | null | undefined

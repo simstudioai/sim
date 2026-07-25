@@ -21,7 +21,7 @@ const logger = createLogger('SecurityPolicy')
  * never cached; it is read fresh at enforcement time (see `session-policy.ts`),
  * which is what keeps a stale version from ever pairing with a stale policy.
  */
-export const SECURITY_POLICY_VERSION_CACHE_TTL_MS = 60 * 1000
+const SECURITY_POLICY_VERSION_CACHE_TTL_MS = 60 * 1000
 const SECURITY_POLICY_VERSION_CACHE_MAX_ENTRIES = 5_000
 
 const MEMBERSHIP_CACHE_TTL_MS = 60 * 1000
@@ -155,7 +155,7 @@ export async function getMemberOrganizationId(
   membershipCache.set(
     userId,
     { organizationId },
-    organizationId ? undefined : { ttl: NEGATIVE_MEMBERSHIP_CACHE_TTL_MS }
+    { ttl: organizationId ? MEMBERSHIP_CACHE_TTL_MS : NEGATIVE_MEMBERSHIP_CACHE_TTL_MS }
   )
   return organizationId
 }
