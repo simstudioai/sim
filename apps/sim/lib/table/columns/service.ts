@@ -15,6 +15,7 @@ import { createLogger } from '@sim/logger'
 import { and, count, eq, sql } from 'drizzle-orm'
 import { columnMatchesRef, generateColumnId, getColumnId } from '@/lib/table/column-keys'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import type { DbTransaction } from '@/lib/table/planner'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
 import { selectValueToNames } from '@/lib/table/select-values'
 import { withLockedTable } from '@/lib/table/service'
@@ -569,31 +570,10 @@ export async function updateColumnType(
     const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
     const now = new Date()
 
-    // Rewrite the stored option ids to their names before the column stops
-    // being a select — otherwise every cell would render an opaque `opt_…` id,
-    // and a multi cell would keep an array no other type can represent. One
-    // statement per shape rather than a per-row update, using a jsonb id→name
-    // map; ids with no surviving option fall through unchanged.
     if (convertingAwayFromSelect) {
-      const nameById = JSON.stringify(
-        Object.fromEntries((column.options ?? []).map((o) => [o.id, o.name]))
-      )
-      await trx.execute(
-        sql`UPDATE ${userTableRows}
-            SET data = jsonb_set(data, ARRAY[${columnKey}::text],
-              COALESCE(${nameById}::jsonb -> (data->>${columnKey}::text), data->${columnKey}::text))
-            WHERE table_id = ${data.tableId}
-              AND jsonb_typeof(data->${columnKey}::text) = 'string'`
-      )
-      await trx.execute(
-        sql`UPDATE ${userTableRows}
-            SET data = jsonb_set(data, ARRAY[${columnKey}::text], COALESCE(to_jsonb((
-                  SELECT string_agg(COALESCE(${nameById}::jsonb ->> e, e), ', ')
-                  FROM jsonb_array_elements_text(data->${columnKey}::text) e
-                )), 'null'::jsonb))
-            WHERE table_id = ${data.tableId}
-              AND jsonb_typeof(data->${columnKey}::text) = 'array'`
-      )
+      await migrateSelectCellsToNames(trx, data.tableId, columnKey, column.options ?? [])
+    } else if (isSelectType) {
+      await migrateCellsToSelectIds(trx, data.tableId, columnKey, targetOptions, !!targetMultiple)
     }
 
     await trx
@@ -721,6 +701,8 @@ export async function updateColumnOptions(
       throw new Error(`Cannot set options on column "${column.name}" of type "${column.type}"`)
     }
 
+    const columnKey = getColumnId(column)
+
     // Switching multiple → single would silently drop all but the first option
     // in any multi-valued cell — block it instead, mirroring the type-change
     // compatibility guard.
@@ -732,7 +714,6 @@ export async function updateColumnOptions(
       })
       await setTableTxTimeouts(trx, { statementMs: timeoutMs, idleMs: timeoutMs })
 
-      const columnKey = getColumnId(column)
       const rows = await trx
         .select({ data: userTableRows.data })
         .from(userTableRows)
@@ -768,6 +749,15 @@ export async function updateColumnOptions(
     const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
     const now = new Date()
 
+    // A single↔multi toggle changes the stored shape (scalar id vs array of
+    // ids). Multi filters compile to array containment, which never matches a
+    // scalar, so leaving cells un-normalized would silently drop every
+    // pre-toggle row out of its own column's filters.
+    const nextMultiple = !!(data.multiple ?? column.multiple)
+    if (nextMultiple !== !!column.multiple) {
+      await migrateCellsToSelectIds(trx, data.tableId, columnKey, data.options, nextMultiple)
+    }
+
     await trx
       .update(userTableDefinitions)
       .set({ schema: updatedSchema, updatedAt: now })
@@ -779,6 +769,103 @@ export async function updateColumnOptions(
 
     return { ...table, schema: updatedSchema, updatedAt: now }
   })
+}
+
+/**
+ * Rewrites a column's cells from stored option **ids** to option **names**, for
+ * a column that is ceasing to be a `select`. A multi cell joins comma-separated
+ * — the same shape it exports as. Ids with no surviving option pass through
+ * unchanged rather than being blanked.
+ *
+ * Set-based: one statement per stored shape, driven by a jsonb id→name map, so
+ * cost is independent of row count.
+ */
+async function migrateSelectCellsToNames(
+  trx: DbTransaction,
+  tableId: string,
+  columnKey: string,
+  options: SelectOption[]
+): Promise<void> {
+  const nameById = JSON.stringify(Object.fromEntries(options.map((o) => [o.id, o.name])))
+  await trx.execute(
+    sql`UPDATE ${userTableRows}
+        SET data = jsonb_set(data, ARRAY[${columnKey}::text],
+          COALESCE(${nameById}::jsonb -> (data->>${columnKey}::text), data->${columnKey}::text))
+        WHERE table_id = ${tableId}
+          AND jsonb_typeof(data->${columnKey}::text) = 'string'`
+  )
+  await trx.execute(
+    sql`UPDATE ${userTableRows}
+        SET data = jsonb_set(data, ARRAY[${columnKey}::text], COALESCE(to_jsonb((
+              SELECT string_agg(COALESCE(${nameById}::jsonb ->> e, e), ', ')
+              FROM jsonb_array_elements_text(data->${columnKey}::text) e
+            )), 'null'::jsonb))
+        WHERE table_id = ${tableId}
+          AND jsonb_typeof(data->${columnKey}::text) = 'array'`
+  )
+}
+
+/**
+ * Rewrites a column's cells into the canonical `select` storage shape: the
+ * option **id**, wrapped in an array when the column is `multiple`.
+ *
+ * Needed in both directions of a select change. Converting *to* select, cells
+ * hold option names (that is what made them compatible) but every reader —
+ * pills, filters, exports — resolves by id. Toggling single→multi, cells hold a
+ * scalar id while multi filters compile to array containment, which a scalar
+ * never matches. Either way the cell silently drops out until it is re-edited.
+ *
+ * The map keys both ids and names so it is idempotent: an already-canonical id
+ * maps to itself.
+ */
+async function migrateCellsToSelectIds(
+  trx: DbTransaction,
+  tableId: string,
+  columnKey: string,
+  options: SelectOption[],
+  multiple: boolean
+): Promise<void> {
+  const idByRef = JSON.stringify(
+    Object.fromEntries(options.flatMap((o) => [[o.id, o.id] as const, [o.name, o.id] as const]))
+  )
+
+  if (multiple) {
+    await trx.execute(
+      sql`UPDATE ${userTableRows}
+          SET data = jsonb_set(data, ARRAY[${columnKey}::text],
+            jsonb_build_array(COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), data->${columnKey}::text)))
+          WHERE table_id = ${tableId}
+            AND jsonb_typeof(data->${columnKey}::text) = 'string'
+            AND data->>${columnKey}::text <> ''`
+    )
+    await trx.execute(
+      sql`UPDATE ${userTableRows}
+          SET data = jsonb_set(data, ARRAY[${columnKey}::text], COALESCE((
+                SELECT jsonb_agg(COALESCE(${idByRef}::jsonb -> e, to_jsonb(e)))
+                FROM jsonb_array_elements_text(data->${columnKey}::text) e
+              ), '[]'::jsonb))
+          WHERE table_id = ${tableId}
+            AND jsonb_typeof(data->${columnKey}::text) = 'array'`
+    )
+    return
+  }
+
+  await trx.execute(
+    sql`UPDATE ${userTableRows}
+        SET data = jsonb_set(data, ARRAY[${columnKey}::text],
+          COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), data->${columnKey}::text))
+        WHERE table_id = ${tableId}
+          AND jsonb_typeof(data->${columnKey}::text) = 'string'`
+  )
+  // Compatibility already rejected multi-valued cells for a single target, so
+  // any array here holds at most one option.
+  await trx.execute(
+    sql`UPDATE ${userTableRows}
+        SET data = jsonb_set(data, ARRAY[${columnKey}::text],
+          COALESCE(${idByRef}::jsonb -> (data->${columnKey}::text->>0), data->${columnKey}::text->0, 'null'::jsonb))
+        WHERE table_id = ${tableId}
+          AND jsonb_typeof(data->${columnKey}::text) = 'array'`
+  )
 }
 
 /**

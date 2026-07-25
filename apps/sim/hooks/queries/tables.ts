@@ -213,11 +213,13 @@ function invalidateTableSchema(queryClient: ReturnType<typeof useQueryClient>, t
 }
 
 /**
- * Invalidate only the schema, not the rows. Column-definition changes
- * (add/rename/type/options/constraints) are metadata-only server-side — the
- * stored row data never changes — so cells re-render from the refetched schema
- * without a (potentially large) rows refetch. Deleting a column strips keys from
- * row data, so it must use {@link invalidateTableSchema} instead.
+ * Invalidate only the schema, not the rows — so cells re-render from the
+ * refetched schema without a (potentially large) rows refetch.
+ *
+ * Only for changes that are genuinely metadata-only server-side (rename,
+ * constraints, a select's option labels). Anything that rewrites stored cells
+ * must use {@link invalidateTableSchema}: deleting a column strips keys, a type
+ * change migrates select ids ↔ names, and a single↔multi toggle rewraps them.
  */
 function invalidateTableSchemaOnly(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -1225,8 +1227,15 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
-    onSettled: () => {
-      invalidateTableSchemaOnly(queryClient, tableId)
+    onSettled: (_data, _error, variables) => {
+      // A type change, or a select single↔multi toggle, rewrites stored cells
+      // server-side (option ids ↔ names, scalar ↔ array). Those need the rows
+      // refetched too — the schema-only path would leave the grid rendering the
+      // pre-migration values. Everything else really is metadata-only.
+      const rewritesRows =
+        variables.updates.type !== undefined || variables.updates.multiple !== undefined
+      if (rewritesRows) invalidateTableSchema(queryClient, tableId)
+      else invalidateTableSchemaOnly(queryClient, tableId)
     },
   })
 }
