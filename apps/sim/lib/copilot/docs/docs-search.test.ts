@@ -89,6 +89,15 @@ describe('searchDocs path scoping', () => {
     expect(whereText()).toContain('workflows/%')
   })
 
+  it('includes a section overview stored in either on-disk layout', async () => {
+    await searchDocs('cron', { path: 'docs/workflows' })
+    const text = whereText()
+    // `workflows/index.mdx` is inside the subtree; a sibling `workflows.mdx` is not,
+    // and fumadocs accepts either, so the scope must name it explicitly.
+    expect(text).toContain('workflows/%')
+    expect(text).toContain('workflows.mdx')
+  })
+
   it('rejects a path outside the docs corpus', async () => {
     await expect(searchDocs('cron', { path: 'files/report.pdf' })).rejects.toThrow(
       DocsSearchScopeError
