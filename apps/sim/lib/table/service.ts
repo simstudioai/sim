@@ -586,7 +586,7 @@ export async function updateTableMetadata(
   tableId: string,
   metadata: TableMetadata,
   existingMetadata?: TableMetadata | null
-): Promise<TableMetadata> {
+): Promise<{ metadata: TableMetadata; schemaChanged: boolean }> {
   const merged: TableMetadata = { ...(existingMetadata ?? {}), ...metadata }
 
   // When `columnOrder` is in the patch, scrub any workflow-group dependency
@@ -635,7 +635,7 @@ export async function updateTableMetadata(
     .set(nextSchema ? { metadata: merged, schema: nextSchema } : { metadata: merged })
     .where(eq(userTableDefinitions.id, tableId))
 
-  return merged
+  return { metadata: merged, schemaChanged: nextSchema !== null }
 }
 
 /**
