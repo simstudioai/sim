@@ -3,6 +3,7 @@ import { sha256Base64Url } from '@sim/security/hash'
 import { generateSecureToken } from '@sim/security/tokens'
 import { sleep } from '@sim/utils/helpers'
 import { generateShortId } from '@sim/utils/id'
+import { parseRetryAfter } from '@sim/utils/retry'
 import * as p from './prompter.ts'
 import { link, theme } from './theme.ts'
 
@@ -108,6 +109,13 @@ async function pollOnce(origin: string, request: string, verifier: string): Prom
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ request, verifier }),
     })
+    // Behind a shared NAT the per-IP bucket can be hit — honor Retry-After and
+    // back off instead of hammering the endpoint every interval.
+    if (response.status === 429) {
+      const retryMs = parseRetryAfter(response.headers.get('retry-after'))
+      if (retryMs) await sleep(retryMs)
+      return null
+    }
     if (!response.ok) return null
 
     const data = (await response.json()) as PollResponse
