@@ -7,10 +7,11 @@ export const StartTriggerBlock: BlockConfig = {
   name: 'Start',
   description: 'Unified workflow entry point for chat, manual and API runs',
   longDescription:
-    'Collect structured inputs and power manual runs, API executions, and deployed chat experiences from a single start block.',
+    'Single workflow entry point: define structured inputs for manual runs and API executions, and receive messages from deployed chat.',
   bestPractices: `
-  - The Start block always exposes "input", "conversationId", and "files" fields for chat compatibility.
-  - Add custom input format fields to collect additional structured data.
+  - The Start block always exposes "input", "conversationId", and "files" — deployed chat sends the user's message as "input".
+  - Add custom input format fields to define the payload manual runs and API executions send.
+  - Input format fields are supplied by the caller — typed into the Run panel inside the editor, or sent as JSON in an API request body. Deploying does not render them as a fillable page: the deployed surfaces are an API endpoint, a chat UI, and MCP tools.
   - Test manual runs by pre-filling default values inside the input format fields.
   `,
   category: 'triggers',
