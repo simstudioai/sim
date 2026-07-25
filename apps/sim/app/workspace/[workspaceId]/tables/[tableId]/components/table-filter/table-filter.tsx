@@ -6,16 +6,13 @@ import { Plus, X } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import type { ColumnDefinition, Filter, FilterRule } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
-import { COMPARISON_OPERATORS, VALUELESS_OPERATORS } from '@/lib/table/query-builder/constants'
+import {
+  COMPARISON_OPERATORS,
+  MULTI_SELECT_FILTER_OPERATORS,
+  SINGLE_SELECT_FILTER_OPERATORS,
+  VALUELESS_OPERATORS,
+} from '@/lib/table/query-builder/constants'
 import { filterRulesToFilter, filterToRules } from '@/lib/table/query-builder/converters'
-
-/**
- * Operators a `select` column supports (values are opaque option ids). A
- * multi-select cell holds several ids, so it asks about membership — equality
- * against the whole array can never be true.
- */
-const SINGLE_SELECT_FILTER_OPERATORS = new Set(['eq', 'ne', 'isEmpty', 'isNotEmpty'])
-const MULTI_SELECT_FILTER_OPERATORS = new Set(['contains', 'ncontains', 'isEmpty', 'isNotEmpty'])
 
 const SINGLE_SELECT_COMPARISON_OPERATORS = COMPARISON_OPERATORS.filter((o) =>
   SINGLE_SELECT_FILTER_OPERATORS.has(o.value)

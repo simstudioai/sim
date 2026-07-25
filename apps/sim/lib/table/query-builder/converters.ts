@@ -4,7 +4,13 @@
 
 import { generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
+import { columnMatchesRef } from '@/lib/table/column-keys'
+import {
+  MULTI_SELECT_FILTER_OPERATORS,
+  SINGLE_SELECT_FILTER_OPERATORS,
+} from '@/lib/table/query-builder/constants'
 import type {
+  ColumnDefinition,
   Filter,
   FilterRule,
   JsonValue,
@@ -61,6 +67,36 @@ export function filterToRules(filter: Filter | null): FilterRule[] {
   }
 
   return parseFilterGroup(filter)
+}
+
+/**
+ * Drops filter conditions a `select` column no longer accepts.
+ *
+ * The server rejects an unsupported operator on a select column outright, so a
+ * filter applied before a column became `select` — or before its `multiple`
+ * flag flipped — would make every subsequent query throw and leave the grid
+ * stuck until the user cleared the filter by hand. Pruning the dead condition
+ * instead degrades to a broader result set, which is recoverable.
+ *
+ * Only conditions on a column we can positively identify as `select` are
+ * dropped; an unresolved column name is left for the server to judge.
+ */
+export function pruneFilterForColumns(
+  filter: Filter | null,
+  columns: ColumnDefinition[]
+): Filter | null {
+  if (!filter) return null
+
+  const rules = filterToRules(filter)
+  const kept = rules.filter((rule) => {
+    const column = columns.find((c) => columnMatchesRef(c, rule.column))
+    if (column?.type !== 'select') return true
+    const allowed = column.multiple ? MULTI_SELECT_FILTER_OPERATORS : SINGLE_SELECT_FILTER_OPERATORS
+    return allowed.has(rule.operator)
+  })
+
+  if (kept.length === rules.length) return filter
+  return filterRulesToFilter(kept)
 }
 
 /** Converts a single UI sort rule to a Sort object for API queries. */

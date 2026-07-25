@@ -6,8 +6,12 @@
  * valueless `$empty` operator that maps to two distinct UI operators.
  */
 import { describe, expect, it } from 'vitest'
-import { filterRulesToFilter, filterToRules } from '@/lib/table/query-builder/converters'
-import type { FilterRule } from '@/lib/table/types'
+import {
+  filterRulesToFilter,
+  filterToRules,
+  pruneFilterForColumns,
+} from '@/lib/table/query-builder/converters'
+import type { ColumnDefinition, FilterRule } from '@/lib/table/types'
 
 function rule(overrides: Partial<FilterRule>): FilterRule {
   return {
@@ -115,5 +119,49 @@ describe('filterToRules', () => {
     const rules = filterToRules(original)
     expect(rules).toHaveLength(2)
     expect(filterRulesToFilter(rules)).toEqual(original)
+  })
+})
+
+describe('pruneFilterForColumns', () => {
+  const single: ColumnDefinition = {
+    id: 'col_s',
+    name: 'status',
+    type: 'select',
+    options: [{ id: 'opt_a', name: 'Open' }],
+  }
+  const multi: ColumnDefinition = { ...single, multiple: true }
+  const text: ColumnDefinition = { id: 'col_t', name: 'name', type: 'string' }
+
+  it('drops an operator the column no longer accepts', () => {
+    // `contains` was valid while `status` was text; as a single-select it is not.
+    expect(pruneFilterForColumns({ status: { $contains: 'Op' } }, [single])).toBeNull()
+    // ...and `eq` is the one a multiselect rejects.
+    expect(pruneFilterForColumns({ status: 'opt_a' }, [multi])).toBeNull()
+  })
+
+  it('keeps the operators each cardinality does accept', () => {
+    const eq = { status: 'opt_a' }
+    expect(pruneFilterForColumns(eq, [single])).toBe(eq)
+    const contains = { status: { $contains: 'opt_a' } }
+    expect(pruneFilterForColumns(contains, [multi])).toBe(contains)
+  })
+
+  it('keeps sibling conditions when one is pruned', () => {
+    const pruned = pruneFilterForColumns(
+      { status: { $contains: 'Op' }, name: { $contains: 'ada' } },
+      [single, text]
+    )
+    expect(pruned).toEqual({ name: { $contains: 'ada' } })
+  })
+
+  it('leaves non-select and unresolved columns for the server to judge', () => {
+    const onText = { name: { $contains: 'ada' } }
+    expect(pruneFilterForColumns(onText, [text])).toBe(onText)
+    const unknown = { gone: { $contains: 'x' } }
+    expect(pruneFilterForColumns(unknown, [single])).toBe(unknown)
+  })
+
+  it('returns the same object when nothing is pruned', () => {
+    expect(pruneFilterForColumns(null, [single])).toBeNull()
   })
 })

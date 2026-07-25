@@ -28,6 +28,20 @@ export const COMPARISON_OPERATORS = [
  */
 export const VALUELESS_OPERATORS = new Set<string>(['isEmpty', 'isNotEmpty'])
 
+/**
+ * Operators a `select` column supports (values are opaque option ids). A
+ * multi-select cell holds several ids, so it asks about membership — equality
+ * against the whole array can never be true. Mirrors the server-side whitelist
+ * in `lib/table/sql.ts`, which rejects anything else outright.
+ */
+export const SINGLE_SELECT_FILTER_OPERATORS = new Set<string>(['eq', 'ne', 'isEmpty', 'isNotEmpty'])
+export const MULTI_SELECT_FILTER_OPERATORS = new Set<string>([
+  'contains',
+  'ncontains',
+  'isEmpty',
+  'isNotEmpty',
+])
+
 export const LOGICAL_OPERATORS = [
   { value: 'and', label: 'and' },
   { value: 'or', label: 'or' },

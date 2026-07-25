@@ -4,6 +4,7 @@ import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ColumnDefinition, TableDefinition, TableRow, WorkflowGroup } from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
+import { pruneFilterForColumns } from '@/lib/table/query-builder/converters'
 import type { FlattenOutputsBlockInput } from '@/lib/workflows/blocks/flatten-outputs'
 import { getBlock } from '@/blocks'
 import {
@@ -78,6 +79,16 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
   const queryClient = useQueryClient()
   const { data: tableData, isLoading: isLoadingTable } = useTableQuery(workspaceId, tableId)
 
+  // Applied filters outlive the schema they were built against: converting a
+  // column to `select`, or toggling its `multiple`, can strand an operator the
+  // server rejects outright, which would fail every subsequent rows query. Prune
+  // here, above every consumer of the rows query key, so the paged helpers below
+  // can't rebuild the key from the unpruned filter and drift.
+  const filter = useMemo(
+    () => pruneFilterForColumns(queryOptions.filter ?? null, tableData?.schema?.columns ?? []),
+    [queryOptions.filter, tableData?.schema?.columns]
+  )
+
   const {
     data: rowsData,
     isLoading: isLoadingRows,
@@ -89,7 +100,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     workspaceId,
     tableId,
     pageSize: TABLE_LIMITS.MAX_QUERY_LIMIT,
-    filter: queryOptions.filter,
+    filter,
     sort: queryOptions.sort,
     enabled: Boolean(workspaceId && tableId),
   })
@@ -118,7 +129,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
       workspaceId,
       tableId,
       pageSize: TABLE_LIMITS.MAX_QUERY_LIMIT,
-      filter: queryOptions.filter,
+      filter,
       sort: queryOptions.sort,
     })
 
@@ -140,7 +151,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     }
 
     return queryClient.getQueryData(opts.queryKey)?.pages.flatMap((p) => p.rows) ?? []
-  }, [workspaceId, tableId, queryOptions.filter, queryOptions.sort, queryClient, fetchNextPage])
+  }, [workspaceId, tableId, filter, queryOptions.sort, queryClient, fetchNextPage])
 
   const ensureRowsLoadedUpTo = useCallback(
     async (maxRows: number): Promise<{ rows: TableRow[]; hasMore: boolean }> => {
@@ -150,7 +161,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
         workspaceId,
         tableId,
         pageSize: TABLE_LIMITS.MAX_QUERY_LIMIT,
-        filter: queryOptions.filter,
+        filter,
         sort: queryOptions.sort,
       })
 
@@ -176,7 +187,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
         hasMore: all.length > maxRows || hasMoreTableRows(pages),
       }
     },
-    [workspaceId, tableId, queryOptions.filter, queryOptions.sort, queryClient, fetchNextPage]
+    [workspaceId, tableId, filter, queryOptions.sort, queryClient, fetchNextPage]
   )
 
   const fetchNextPageWrapped = useCallback(async () => {
