@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
-import type { Filter } from '@/lib/table'
+import type { Filter, TableDefinition } from '@/lib/table'
 import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { appendTableEvent } from '@/lib/table/events'
 import {
@@ -68,27 +68,31 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
     const table = await getTableById(tableId, { includeArchived: true })
     if (!table) throw new Error(`Delete target table ${tableId} not found`)
 
-    // A lock set between admission and this worker actually starting (queue
-    // delay, or a retry re-entering here) means nothing has been deleted yet —
-    // honor it and stop. Returning rather than throwing releases the job slot
-    // without burning this task's remaining `maxAttempts` on a deterministic
-    // failure. Past this point the run continues even if a lock lands
-    // mid-flight: committed pages are never rolled back, so aborting would
-    // leave the same half-done state as a cancel that nobody asked for — an
-    // admin stops it explicitly via `POST /api/table/[tableId]/job/cancel`.
-    let deleteProof: MutationProof<'delete'>
-    try {
-      deleteProof = assertRowDelete(table)
-    } catch (err) {
-      if (!(err instanceof TableLockedError)) throw err
-      logger.info(`[${requestId}] Delete job stopped — table was delete-locked before it started`, {
-        tableId,
-        jobId,
-      })
-      await markJobCanceled(tableId, jobId)
-      void appendTableEvent({ kind: 'job', type: 'delete', tableId, jobId, status: 'canceled' })
-      return
+    // Gate the run on the delete lock, then re-gate it before every page (see
+    // the loop below) so enabling the lock mid-job stops the deletion rather
+    // than merely preventing the next one. Returning rather than throwing
+    // releases the job slot without burning this task's remaining
+    // `maxAttempts` on a deterministic failure.
+    const stopIfLocked = async (
+      fresh: TableDefinition,
+      processedSoFar: number
+    ): Promise<MutationProof<'delete'> | null> => {
+      try {
+        return assertRowDelete(fresh)
+      } catch (err) {
+        if (!(err instanceof TableLockedError)) throw err
+        logger.info(`[${requestId}] Delete job stopped — table is delete-locked`, {
+          tableId,
+          jobId,
+          processedSoFar,
+        })
+        await markJobCanceled(tableId, jobId)
+        void appendTableEvent({ kind: 'job', type: 'delete', tableId, jobId, status: 'canceled' })
+        return null
+      }
     }
+
+    if ((await stopIfLocked(table, 0)) === null) return
 
     const filterClause = filter
       ? buildFilterClause(filter, USER_TABLE_ROWS_SQL_NAME, table.schema.columns)
@@ -111,6 +115,16 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
       const owns = await updateJobProgress(tableId, processed, jobId)
       if (!owns) throw new JobSupersededError()
 
+      // Re-read the lock state before every page. One indexed lookup per
+      // DELETE_PAGE_SIZE rows is cheap next to the page's delete, and it makes
+      // the delete lock a real stop button for a running job instead of a
+      // check that went stale the moment the worker started. Pages already
+      // committed stay committed — the same contract as an explicit cancel.
+      const current = await getTableById(tableId, { includeArchived: true })
+      if (!current) throw new JobSupersededError()
+      const pageProof = await stopIfLocked(current, processed)
+      if (pageProof === null) return
+
       const page = await selectRowIdPage({
         tableId,
         workspaceId,
@@ -126,7 +140,7 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
 
       const toDelete = excluded.size > 0 ? page.filter((id) => !excluded.has(id)) : page
       if (toDelete.length > 0) {
-        processed += await deletePageByIds(tableId, workspaceId, toDelete, deleteProof)
+        processed += await deletePageByIds(tableId, workspaceId, toDelete, pageProof)
       }
 
       if (

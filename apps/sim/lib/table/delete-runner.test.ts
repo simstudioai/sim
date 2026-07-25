@@ -91,6 +91,22 @@ describe('runTableDelete', () => {
     )
   })
 
+  it('stops mid-run when the delete lock is enabled between pages', async () => {
+    mockGetTableById
+      .mockResolvedValueOnce(table)
+      .mockResolvedValueOnce(table)
+      .mockResolvedValue({ ...table, locks: { ...UNLOCKED, deleteLocked: true } })
+    mockSelectRowIdPage.mockResolvedValueOnce(['a', 'b'])
+
+    await expect(runTableDelete(basePayload())).resolves.toBeUndefined()
+
+    // First page committed before the lock landed; the second never runs.
+    expect(mockDeletePageByIds).toHaveBeenCalledTimes(1)
+    expect(mockDeletePageByIds).toHaveBeenCalledWith('tbl_1', 'ws_1', ['a', 'b'], expect.anything())
+    expect(mockMarkJobCanceled).toHaveBeenCalledWith('tbl_1', 'job_1')
+    expect(mockMarkJobReady).not.toHaveBeenCalled()
+  })
+
   it('deletes every matching page then marks the job ready', async () => {
     mockSelectRowIdPage
       .mockResolvedValueOnce(['a', 'b'])

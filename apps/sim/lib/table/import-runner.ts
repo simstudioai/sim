@@ -103,6 +103,9 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     // fails up front instead of after `deleteAllTableRows` has already wiped it.
     // (The sync replace path gets this for free from `replaceTableRowsWithTx`,
     // which asserts both in one place; this path deletes and inserts separately.)
+    // Checked once, unlike the delete/update runners which re-check per page: a
+    // lock landing mid-import should let the file finish, since a half-imported
+    // table has to be cleaned up with the very deletes the lock now forbids.
     assertRowInsert(table)
     if (mode === 'replace') assertRowDelete(table)
 

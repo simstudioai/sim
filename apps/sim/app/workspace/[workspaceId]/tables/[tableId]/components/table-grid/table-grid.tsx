@@ -1257,6 +1257,11 @@ export function TableGrid({
     onBlockedActionRef.current('delete-column')
   }, [])
 
+  /** Stable stand-in for the insert-column handlers when the schema is locked. */
+  const handleBlockedAddColumn = useCallback(() => {
+    onBlockedActionRef.current('add-column')
+  }, [])
+
   const handleRowContextMenu = useCallback(
     (e: React.MouseEvent, row: TableRowType) => {
       setEditingCell(null)
@@ -3811,15 +3816,17 @@ export function TableGrid({
                                 onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
                                 hasActiveFilter={Boolean(effectiveFilter)}
                                 selectedRowIds={selectedRowIds}
-                                onInsertLeft={canMutateSchema ? handleInsertColumnLeft : undefined}
-                                onInsertRight={
-                                  canMutateSchema ? handleInsertColumnRight : undefined
+                                // Every locked action passes its blocked handler rather
+                                // than `undefined`: `ColumnOptionsMenu` only mounts when
+                                // all three handlers exist, so withholding one would hide
+                                // the whole menu — and each item should explain the lock
+                                // rather than silently vanish or fail with a 423 toast.
+                                onInsertLeft={
+                                  canMutateSchema ? handleInsertColumnLeft : handleBlockedAddColumn
                                 }
-                                // Pass the blocked handler rather than `undefined`:
-                                // `ColumnOptionsMenu` only mounts when all three
-                                // handlers exist, so withholding this one would
-                                // hide the whole menu — including Insert column,
-                                // which a delete lock alone must not affect.
+                                onInsertRight={
+                                  canMutateSchema ? handleInsertColumnRight : handleBlockedAddColumn
+                                }
                                 onDeleteColumn={
                                   canDestroyColumn ? handleDeleteColumn : handleBlockedDeleteColumn
                                 }
@@ -3909,8 +3916,12 @@ export function TableGrid({
                             onRenameSubmit={columnRename.submitRename}
                             onRenameCancel={columnRename.cancelRename}
                             onColumnSelect={handleColumnSelect}
-                            onInsertLeft={handleInsertColumnLeft}
-                            onInsertRight={handleInsertColumnRight}
+                            onInsertLeft={
+                              canMutateSchema ? handleInsertColumnLeft : handleBlockedAddColumn
+                            }
+                            onInsertRight={
+                              canMutateSchema ? handleInsertColumnRight : handleBlockedAddColumn
+                            }
                             onDeleteColumn={
                               canDestroyColumn ? handleDeleteColumn : handleBlockedDeleteColumn
                             }

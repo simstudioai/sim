@@ -1174,6 +1174,12 @@ export interface UpdateRowOptions {
    * retaining the same merged-row validation and returned shape.
    */
   dataWriteMode?: 'replace' | 'patch'
+  /**
+   * Marks the write as the workflow/enrichment engine filling its own output
+   * cells, which exempts it from the update lock. Set by `cell-write.ts` only —
+   * see {@link assertRowUpdate}.
+   */
+  computedWrite?: boolean
 }
 
 export async function updateRow(
@@ -1182,7 +1188,7 @@ export async function updateRow(
   requestId: string,
   options: UpdateRowOptions = {}
 ): Promise<TableRow | null> {
-  assertRowUpdate(table, patchColumnIds(data.data))
+  assertRowUpdate(table, patchColumnIds(data.data), { computedWrite: options.computedWrite })
 
   // Get existing row
   const existingRow = await getRowById(data.tableId, data.rowId, data.workspaceId)

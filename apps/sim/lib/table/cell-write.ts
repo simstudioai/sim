@@ -84,7 +84,9 @@ export async function writeWorkflowGroupState(
       },
       table,
       requestId,
-      { dataWriteMode: 'patch' }
+      // `computedWrite` is what lets a workflow column keep populating on an
+      // update-locked table; the lock still covers user-authored columns.
+      { dataWriteMode: 'patch', computedWrite: true }
     )
   } else {
     result = await db.transaction((trx) =>

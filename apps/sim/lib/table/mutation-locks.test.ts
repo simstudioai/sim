@@ -75,19 +75,28 @@ describe('mutation-locks', () => {
       expect(() => assertRowUpdate(makeTable({ updateLocked: true }), [])).not.toThrow()
     })
 
-    it('permits a patch touching only workflow-group output columns', () => {
+    it('permits a computed write touching only workflow-group output columns', () => {
       const table = makeTable({ updateLocked: true }, [
         { id: 'col_wf', name: 'Enriched', type: 'string', workflowGroupId: 'grp_1' },
       ])
-      expect(() => assertRowUpdate(table, ['col_wf'])).not.toThrow()
+      expect(() => assertRowUpdate(table, ['col_wf'], { computedWrite: true })).not.toThrow()
     })
 
-    it('blocks a patch touching a user-authored column', () => {
+    it('blocks an ordinary caller patching a workflow-group output column', () => {
+      const table = makeTable({ updateLocked: true }, [
+        { id: 'col_wf', name: 'Enriched', type: 'string', workflowGroupId: 'grp_1' },
+      ])
+      expect(() => assertRowUpdate(table, ['col_wf'])).toThrow(TableLockedError)
+    })
+
+    it('blocks a computed write that also touches a user-authored column', () => {
       const table = makeTable({ updateLocked: true }, [
         { id: 'col_wf', name: 'Enriched', type: 'string', workflowGroupId: 'grp_1' },
         { id: 'col_user', name: 'Name', type: 'string' },
       ])
-      expect(() => assertRowUpdate(table, ['col_wf', 'col_user'])).toThrow(TableLockedError)
+      expect(() => assertRowUpdate(table, ['col_wf', 'col_user'], { computedWrite: true })).toThrow(
+        TableLockedError
+      )
     })
   })
 

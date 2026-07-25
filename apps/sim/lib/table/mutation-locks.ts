@@ -104,17 +104,23 @@ export function assertRowDelete(table: TableDefinition): MutationProof<'delete'>
  *   executions-only write — cancellation, error/completed status stamps, and
  *   usage-limit pre-stamp clears. These are not row edits; blocking them would
  *   strand cells in `running` forever, so they always pass.
- * - A patch that touches **only workflow-group output columns** is a computed
- *   write (enrichment / workflow column), not a user edit, so it passes even on
- *   an update-locked table. A patch touching any user-authored column is blocked.
+ * - A **computed write** (`computedWrite: true`) that touches only workflow-group
+ *   output columns is the workflow/enrichment engine filling its own cells, not
+ *   a user edit, so it passes. The opt-in is what makes this safe: it is set
+ *   only by `cell-write.ts`, so an ordinary API caller cannot get the exemption
+ *   by aiming a PATCH at a workflow output column. A computed write that
+ *   touches any user-authored column is still blocked.
  */
 export function assertRowUpdate(
   table: TableDefinition,
-  columnIds?: readonly string[]
+  columnIds?: readonly string[],
+  options: UpdateAssertOptions = {}
 ): MutationProof<'update'> {
   if (!table.locks?.updateLocked) return proofFor<'update'>()
   if (!columnIds || columnIds.length === 0) return proofFor<'update'>()
-  if (patchTouchesOnlyWorkflowColumns(table, columnIds)) return proofFor<'update'>()
+  if (options.computedWrite && patchTouchesOnlyWorkflowColumns(table, columnIds)) {
+    return proofFor<'update'>()
+  }
   logBlocked(table, 'update')
   throw new TableLockedError('update')
 }
@@ -141,6 +147,15 @@ export function assertColumnDestructive(table: TableDefinition): void {
     logBlocked(table, 'delete')
     throw new TableLockedError('delete')
   }
+}
+
+export interface UpdateAssertOptions {
+  /**
+   * Set only by the workflow/enrichment cell-write path. Unlocks the
+   * workflow-output carve-out in {@link assertRowUpdate}; every other caller
+   * leaves it unset and is held to the full update lock.
+   */
+  computedWrite?: boolean
 }
 
 /**

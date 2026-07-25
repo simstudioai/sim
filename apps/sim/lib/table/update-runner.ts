@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
-import type { Filter, RowData } from '@/lib/table'
+import type { Filter, RowData, TableDefinition } from '@/lib/table'
 import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { appendTableEvent } from '@/lib/table/events'
 import {
@@ -74,28 +74,33 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
     const table = await getTableById(tableId, { includeArchived: true })
     if (!table) throw new Error(`Update target table ${tableId} not found`)
 
-    // A lock set between admission and this worker starting (queue delay, or a
-    // retry re-entering here) means nothing has been written yet — honor it and
-    // stop. Runs through `assertRowUpdate` rather than reading `updateLocked`
-    // directly so the enqueue site and the worker apply identical rules,
-    // including the workflow-column exemption: a patch touching only
-    // workflow-group outputs is allowed under an update lock, and cancelling it
-    // here would contradict the enqueue assert that just let it through.
-    // See `delete-runner.ts` for why a mid-flight lock does NOT abort a run
-    // that has already committed pages.
-    let updateProof: MutationProof<'update'>
-    try {
-      updateProof = assertRowUpdate(table, patchColumnIds(data))
-    } catch (err) {
-      if (!(err instanceof TableLockedError)) throw err
-      logger.info(`[${requestId}] Update job stopped — table was update-locked before it started`, {
-        tableId,
-        jobId,
-      })
-      await markJobCanceled(tableId, jobId)
-      void appendTableEvent({ kind: 'job', type: 'update', tableId, jobId, status: 'canceled' })
-      return
+    // Gate the run on the update lock, then re-gate it before every page (see
+    // the loop below), so enabling the lock stops a job that is already
+    // running. Runs through `assertRowUpdate` rather than reading
+    // `updateLocked` directly so the enqueue site and the worker apply
+    // identical rules. This is a user-driven bulk patch, so it deliberately
+    // does not pass `computedWrite` — the workflow-output carve-out belongs to
+    // the cell-write path alone.
+    const stopIfLocked = async (
+      fresh: TableDefinition,
+      processedSoFar: number
+    ): Promise<MutationProof<'update'> | null> => {
+      try {
+        return assertRowUpdate(fresh, patchColumnIds(data))
+      } catch (err) {
+        if (!(err instanceof TableLockedError)) throw err
+        logger.info(`[${requestId}] Update job stopped — table is update-locked`, {
+          tableId,
+          jobId,
+          processedSoFar,
+        })
+        await markJobCanceled(tableId, jobId)
+        void appendTableEvent({ kind: 'job', type: 'update', tableId, jobId, status: 'canceled' })
+        return null
+      }
     }
+
+    if ((await stopIfLocked(table, 0)) === null) return
 
     const filterClause = buildFilterClause(filter, USER_TABLE_ROWS_SQL_NAME, table.schema.columns)
     if (!filterClause) throw new Error('Filter is required for bulk update')
@@ -117,6 +122,14 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
     while (processed < budget) {
       const owns = await updateJobProgress(tableId, processed, jobId)
       if (!owns) throw new JobSupersededError()
+
+      // Re-read the lock before every page so enabling the update lock stops a
+      // running job, not just the next one — one indexed lookup per page of
+      // rows. Pages already applied stay applied, as with an explicit cancel.
+      const current = await getTableById(tableId, { includeArchived: true })
+      if (!current) throw new JobSupersededError()
+      const pageProof = await stopIfLocked(current, processed)
+      if (pageProof === null) return
 
       const page = await selectRowDataPage({
         tableId,
@@ -152,7 +165,7 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
         workspaceId,
         page.map((r) => r.id),
         patchJson,
-        updateProof
+        pageProof
       )
 
       if (
