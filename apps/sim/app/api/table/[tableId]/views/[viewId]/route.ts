@@ -51,6 +51,9 @@ export const PATCH = withRouteHandler(
         isDefault,
         columns,
       })
+      if (!view) {
+        return NextResponse.json({ error: 'View not found' }, { status: 404 })
+      }
 
       return NextResponse.json({ success: true, data: { view } })
     } catch (error) {

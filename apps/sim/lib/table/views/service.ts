@@ -161,7 +161,7 @@ export interface UpdateTableViewData {
  * overlapping partial writes — a column resize landing while a pin is in flight —
  * can't each replace the whole blob from their own stale snapshot.
  */
-export async function updateTableView(data: UpdateTableViewData): Promise<TableView> {
+export async function updateTableView(data: UpdateTableViewData): Promise<TableView | null> {
   const patch: Partial<typeof tableViews.$inferInsert> = { updatedAt: new Date() }
   if (data.name !== undefined) patch.name = normalizeName(data.name)
   if (data.config !== undefined) patch.config = data.config
@@ -193,7 +193,9 @@ export async function updateTableView(data: UpdateTableViewData): Promise<TableV
     return updated
   })
 
-  if (!row) throw new TableViewValidationError('View not found')
+  // `null`, not a validation error: an absent view is a missing resource, and the
+  // route maps it to 404 the same way `deleteTableView`'s `false` does.
+  if (!row) return null
 
   return toTableView(row, data.columns)
 }
