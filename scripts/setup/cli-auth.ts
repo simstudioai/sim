@@ -13,8 +13,14 @@ function openBrowser(url: string): void {
   if (process.env.SIM_SETUP_NO_BROWSER) return
   if (process.platform === 'win32') {
     // `start` is a cmd builtin, not an executable — spawning it directly ENOENTs.
-    // The empty '' is start's window-title argument, which it needs before the URL.
-    spawnSync('cmd', ['/c', 'start', '', url], { stdio: 'ignore' })
+    // cmd re-parses the command line and would treat `&` in the query string as a
+    // command separator, truncating the URL; quote it (the query is URL-encoded, so
+    // it never contains a `"`) and pass args verbatim so Node doesn't re-quote them.
+    // `""` is start's window-title placeholder, required before the URL.
+    spawnSync('cmd', ['/c', 'start', '""', `"${url}"`], {
+      stdio: 'ignore',
+      windowsVerbatimArguments: true,
+    })
     return
   }
   const command = process.platform === 'darwin' ? 'open' : 'xdg-open'
