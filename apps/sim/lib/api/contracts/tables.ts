@@ -1453,14 +1453,27 @@ export const updateTableViewBodySchema = z
   .object({
     workspaceId: z.string().min(1, 'Workspace ID is required'),
     name: viewNameSchema.optional(),
+    /** Full replace. Use for an explicit Save, where dropping a removed filter is the point. */
     config: tableViewConfigSchema.optional(),
+    /**
+     * Shallow-merged into the stored config server-side (jsonb `||`), so concurrent
+     * partial writes can't clobber each other from a stale client snapshot. Use for
+     * the grid's incremental layout saves.
+     */
+    configPatch: tableViewConfigSchema.optional(),
     isDefault: z.boolean().optional(),
   })
   .refine(
     (value) =>
-      value.name !== undefined || value.config !== undefined || value.isDefault !== undefined,
-    { message: 'Provide at least one of name, config, or isDefault' }
+      value.name !== undefined ||
+      value.config !== undefined ||
+      value.configPatch !== undefined ||
+      value.isDefault !== undefined,
+    { message: 'Provide at least one of name, config, configPatch, or isDefault' }
   )
+  .refine((value) => !(value.config !== undefined && value.configPatch !== undefined), {
+    message: 'config and configPatch are mutually exclusive',
+  })
 
 export const updateTableViewContract = defineRouteContract({
   method: 'PATCH',

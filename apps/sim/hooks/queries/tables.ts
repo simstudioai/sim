@@ -1319,7 +1319,10 @@ export function useCreateTableView({ workspaceId, tableId }: RowMutationContext)
 interface UpdateTableViewParams {
   viewId: string
   name?: string
+  /** Full replace (explicit Save). Mutually exclusive with `configPatch`. */
   config?: TableViewConfigInput
+  /** Server-side shallow merge — used for the grid's incremental layout writes. */
+  configPatch?: TableViewConfigInput
   isDefault?: boolean
 }
 
@@ -1332,10 +1335,10 @@ export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext)
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ viewId, name, config, isDefault }: UpdateTableViewParams) => {
+    mutationFn: async ({ viewId, name, config, configPatch, isDefault }: UpdateTableViewParams) => {
       const response = await requestJson(updateTableViewContract, {
         params: { tableId, viewId },
-        body: { workspaceId, name, config, isDefault },
+        body: { workspaceId, name, config, configPatch, isDefault },
       })
       return response.data.view
     },

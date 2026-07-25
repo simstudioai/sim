@@ -13,7 +13,7 @@ import { db } from '@sim/db'
 import { tableViews } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, ne } from 'drizzle-orm'
+import { and, asc, eq, ne, sql } from 'drizzle-orm'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { ColumnDefinition, TableViewConfig } from '@/lib/table/types'
 
@@ -144,7 +144,10 @@ export interface UpdateTableViewData {
   viewId: string
   tableId: string
   name?: string
+  /** Full replace — an explicit Save, where removing a filter must persist. */
   config?: TableViewConfig
+  /** Shallow-merged into the stored config. Mutually exclusive with `config`. */
+  configPatch?: TableViewConfig
   isDefault?: boolean
   columns: ColumnDefinition[]
 }
@@ -153,11 +156,18 @@ export interface UpdateTableViewData {
  * Patches a view. `isDefault: true` clears the table's existing default in the
  * same transaction — the `table_views_table_default_unique` partial index rejects
  * a second default, so the clear cannot be skipped or reordered after the set.
+ *
+ * `configPatch` merges in the database (`||`) rather than client-side, so two
+ * overlapping partial writes — a column resize landing while a pin is in flight —
+ * can't each replace the whole blob from their own stale snapshot.
  */
 export async function updateTableView(data: UpdateTableViewData): Promise<TableView> {
   const patch: Partial<typeof tableViews.$inferInsert> = { updatedAt: new Date() }
   if (data.name !== undefined) patch.name = normalizeName(data.name)
   if (data.config !== undefined) patch.config = data.config
+  if (data.configPatch !== undefined) {
+    patch.config = sql`${tableViews.config} || ${JSON.stringify(data.configPatch)}::jsonb`
+  }
   if (data.isDefault !== undefined) patch.isDefault = data.isDefault
 
   const row = await db.transaction(async (tx) => {

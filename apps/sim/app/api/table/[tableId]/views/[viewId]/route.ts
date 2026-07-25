@@ -32,7 +32,7 @@ export const PATCH = withRouteHandler(
       if (!parsed.success) return parsed.response
 
       const { tableId, viewId } = parsed.data.params
-      const { workspaceId, name, config, isDefault } = parsed.data.body
+      const { workspaceId, name, config, configPatch, isDefault } = parsed.data.body
 
       const result = await checkAccess(tableId, authResult.userId, 'write')
       if (!result.ok) return accessError(result, requestId, tableId)
@@ -42,7 +42,15 @@ export const PATCH = withRouteHandler(
       }
 
       const columns = (result.table.schema as TableSchema).columns ?? []
-      const view = await updateTableView({ viewId, tableId, name, config, isDefault, columns })
+      const view = await updateTableView({
+        viewId,
+        tableId,
+        name,
+        config,
+        configPatch,
+        isDefault,
+        columns,
+      })
 
       return NextResponse.json({ success: true, data: { view } })
     } catch (error) {

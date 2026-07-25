@@ -411,11 +411,18 @@ export function Table({
     setTableParams,
   ])
 
-  /** A view update replaces `config` wholesale, so the layout the grid auto-saves
-   *  is spread back in — otherwise Save would drop it. */
+  /** Save replaces `config` wholesale, so the current layout is spread back in.
+   *  With a view active that's the view's own stored layout; on "All" it's the
+   *  table metadata the grid is currently rendering from — without which "Save as
+   *  view" would create a layout-less view and then reset the grid to defaults. */
   const currentViewConfig = useMemo<TableViewConfig>(
-    () => ({ ...activeView?.config, filter, sort: sortQuery, hiddenColumns }),
-    [activeView, filter, sortQuery, hiddenColumns]
+    () => ({
+      ...(activeView?.config ?? tableData?.metadata),
+      filter,
+      sort: sortQuery,
+      hiddenColumns,
+    }),
+    [activeView, tableData?.metadata, filter, sortQuery, hiddenColumns]
   )
 
   /**
@@ -444,13 +451,15 @@ export function Table({
   }, [])
 
   /** Column order/width/pinning auto-saves into the active view as the user drags,
-   *  which is why `isSameViewConfig` excludes layout from the dirty check. With no
-   *  view active the grid keeps writing the table's shared metadata. */
+   *  which is why `isSameViewConfig` excludes layout from the dirty check. Sent as
+   *  a `configPatch` so the server merges it — two overlapping layout writes must
+   *  not each replace the whole blob from their own snapshot. With no view active
+   *  the grid keeps writing the table's shared metadata. */
   const handlePersistLayout = useCallback(
     (patch: TableMetadata) => {
       if (!activeView) return
       updateViewMutation.mutate(
-        { viewId: activeView.id, config: { ...activeView.config, ...patch } },
+        { viewId: activeView.id, configPatch: patch },
         { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save layout')) }
       )
     },
