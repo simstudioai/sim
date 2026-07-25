@@ -50,6 +50,44 @@ describe('executeBrowserToolOnClient', () => {
     })
   })
 
+  // The copilot serializes a result carrying this `attachment` shape into a
+  // real image content block, so the data URL has to be reshaped rather than
+  // passed through — an inline data URL would be charged against the tool
+  // result budget as text and shown to the model as a base64 string.
+  it('reshapes a screenshot into an image attachment the model can see', async () => {
+    mockExecuteBrowserTool.mockResolvedValue({
+      dataUrl: 'data:image/jpeg;base64,/9j/4AAQ',
+      url: 'https://example.com/pricing',
+      width: 1024,
+      height: 640,
+    })
+    const toolCallId = nextToolCallId()
+
+    executeBrowserToolOnClient(toolCallId, 'browser_screenshot', {})
+    await flush()
+
+    const [, , , reported] = mockReportCompletion.mock.calls[0]
+    expect(reported.attachment).toEqual({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/jpeg', data: '/9j/4AAQ' },
+    })
+    expect(reported.content).toContain('https://example.com/pricing')
+    expect(reported.dataUrl).toBeUndefined()
+    expect(reported.width).toBe(1024)
+  })
+
+  it('falls back to a note when a screenshot is not a usable data URL', async () => {
+    mockExecuteBrowserTool.mockResolvedValue({ dataUrl: 'not-a-data-url', url: 'https://x.dev' })
+    const toolCallId = nextToolCallId()
+
+    executeBrowserToolOnClient(toolCallId, 'browser_screenshot', {})
+    await flush()
+
+    const [, , , reported] = mockReportCompletion.mock.calls[0]
+    expect(reported.attachment).toBeUndefined()
+    expect(reported.note).toContain('could not be encoded')
+  })
+
   // The desktop driver parses browser_wait_for.timeoutMs with a lenient num()
   // that coerces numeric strings, then clamps to 120s. This side has to match:
   // budgeting less time than the desktop actually waits makes the renderer
@@ -61,21 +99,24 @@ describe('executeBrowserToolOnClient', () => {
     ['absent', undefined, 25_000],
     ['non-numeric', 'soon', 25_000],
     ['above the desktop clamp', 500_000, 135_000],
-  ])('budgets browser_wait_for above the desktop wait (%s)', async (_label, timeoutMs, expected) => {
-    mockExecuteBrowserTool.mockResolvedValue({ found: true })
-    const toolCallId = nextToolCallId()
-    const params = timeoutMs === undefined ? {} : { timeoutMs }
+  ])(
+    'budgets browser_wait_for above the desktop wait (%s)',
+    async (_label, timeoutMs, expected) => {
+      mockExecuteBrowserTool.mockResolvedValue({ found: true })
+      const toolCallId = nextToolCallId()
+      const params = timeoutMs === undefined ? {} : { timeoutMs }
 
-    executeBrowserToolOnClient(toolCallId, 'browser_wait_for', params)
-    await flush()
+      executeBrowserToolOnClient(toolCallId, 'browser_wait_for', params)
+      await flush()
 
-    expect(mockExecuteBrowserTool).toHaveBeenCalledWith(
-      toolCallId,
-      'browser_wait_for',
-      params,
-      expected
-    )
-  })
+      expect(mockExecuteBrowserTool).toHaveBeenCalledWith(
+        toolCallId,
+        'browser_wait_for',
+        params,
+        expected
+      )
+    }
+  )
 
   it('rejects page-dependent tools up front when the session is closed', async () => {
     useBrowserSessionStore.getState().setSessionAlive(false)

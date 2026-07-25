@@ -109,10 +109,21 @@ function timeoutForTool(toolName: BrowserToolName, params: Record<string, unknow
   return DEFAULT_TOOL_TIMEOUT_MS
 }
 
+/** Splits a `data:<media type>;base64,<data>` URL into its parts. */
+function parseBase64DataUrl(dataUrl: string): { mediaType: string; data: string } | null {
+  const match = /^data:([^;,]+);base64,(.+)$/s.exec(dataUrl)
+  if (!match) return null
+  return { mediaType: match[1], data: match[2] }
+}
+
 /**
- * Tool results feed the model as text; images are not supported on that path
- * yet, so a screenshot's data URL is dropped and the model gets a short
- * factual note instead of half a megabyte of base64.
+ * Reshapes a screenshot into the `attachment` contract the copilot serializes
+ * into a real image content block, so the model sees the page rather than a
+ * note about it. The data URL itself never goes inline: `content` is the text
+ * the model reads beside the image, and the bytes travel under `attachment`.
+ *
+ * A malformed data URL degrades to the text note rather than shipping an
+ * attachment the provider would reject.
  */
 function sanitizeResultForModel(
   toolName: BrowserToolName,
@@ -122,10 +133,22 @@ function sanitizeResultForModel(
     return result === undefined ? undefined : { value: result }
   }
   if (toolName === 'browser_screenshot' && typeof result.dataUrl === 'string') {
-    const { dataUrl: _dataUrl, ...rest } = result
+    const { dataUrl, ...rest } = result
+    const image = parseBase64DataUrl(dataUrl)
+    if (!image) {
+      return {
+        ...rest,
+        note: 'The screenshot could not be encoded. Use browser_snapshot or browser_read_text instead.',
+      }
+    }
+    const location = typeof rest.url === 'string' && rest.url ? ` of ${rest.url}` : ''
     return {
       ...rest,
-      note: 'Screenshot captured. Visual inspection is not available to you in this build — use browser_snapshot or browser_read_text to inspect content.',
+      content: `Screenshot${location}. This is the rendered viewport only — it carries no element ids, so use browser_snapshot before interacting.`,
+      attachment: {
+        type: 'image',
+        source: { type: 'base64', media_type: image.mediaType, data: image.data },
+      },
     }
   }
   return result

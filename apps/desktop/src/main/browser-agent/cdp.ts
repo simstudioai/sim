@@ -98,11 +98,53 @@ function handleDebuggerEvent(
   }
 }
 
-/** Full-quality screenshot via CDP (works while the view is hidden). */
+/**
+ * Longest edge of a captured frame, in pixels. The image is sent to the model
+ * as a base64 image block, so its encoded size is charged against the tool
+ * result budget — an unbounded capture on a retina display is several hundred
+ * kilobytes and buys no legibility the model can use.
+ */
+const MAX_SCREENSHOT_EDGE = 1024
+const SCREENSHOT_QUALITY = 70
+
+interface CdpViewport {
+  clientWidth: number
+  clientHeight: number
+}
+
+/**
+ * Screenshot via CDP (works while the view is hidden), bounded in resolution.
+ *
+ * `clip.scale` is relative to CSS pixels, so passing the CSS viewport with a
+ * scale of 1 already sidesteps the device pixel ratio — an unclipped capture
+ * on a 2x display returns a 2x image. Scaling further down keeps the longest
+ * edge within {@link MAX_SCREENSHOT_EDGE}. Falls back to an unclipped capture
+ * when layout metrics are unavailable.
+ */
 export async function captureScreenshot(contents: WebContents): Promise<string> {
+  const metrics = await send<{
+    cssLayoutViewport?: CdpViewport
+    layoutViewport?: CdpViewport
+  }>(contents, 'Page.getLayoutMetrics').catch(() => null)
+
+  const viewport = metrics?.cssLayoutViewport ?? metrics?.layoutViewport
+  const width = viewport?.clientWidth ?? 0
+  const height = viewport?.clientHeight ?? 0
+  const clip =
+    width > 0 && height > 0
+      ? {
+          x: 0,
+          y: 0,
+          width,
+          height,
+          scale: Math.min(1, MAX_SCREENSHOT_EDGE / Math.max(width, height)),
+        }
+      : undefined
+
   const result = await send<{ data: string }>(contents, 'Page.captureScreenshot', {
     format: 'jpeg',
-    quality: 80,
+    quality: SCREENSHOT_QUALITY,
+    ...(clip ? { clip } : {}),
   })
   return `data:image/jpeg;base64,${result.data}`
 }
