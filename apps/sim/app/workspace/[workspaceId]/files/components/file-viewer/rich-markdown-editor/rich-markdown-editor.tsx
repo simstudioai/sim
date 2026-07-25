@@ -54,6 +54,13 @@ const EXTENSIONS = createMarkdownEditorExtensions({
 /** Throttle the per-frame full re-parse above this body size so a large streaming file can't saturate the main thread. */
 const STREAM_REPARSE_THROTTLE_THRESHOLD = 40_000
 const STREAM_REPARSE_THROTTLE_MS = 120
+/**
+ * How long a collaborative editor waits for the realtime provider before falling back
+ * to a read-only render of the loaded content. Long enough that a normally-connecting
+ * socket always attaches first (so this only trips on a genuine realtime outage), and
+ * matched to the server's seed election deadline.
+ */
+const COLLAB_ESTABLISH_GRACE_MS = 10_000
 
 interface RichMarkdownEditorProps {
   file: WorkspaceFileRecord
@@ -573,7 +580,7 @@ export function LoadedRichMarkdownEditor({
       return
     }
     const { provider, doc } = collaboration
-    if (!provider || !editor) {
+    if (!editor) {
       setReady(false)
       return
     }
@@ -589,6 +596,17 @@ export function LoadedRichMarkdownEditor({
         config.set('initialContentLoaded', true)
       })
     }
+
+    if (!provider) {
+      // Realtime is not yet available (socket still connecting, or a full outage). Stay
+      // read-only + gated. If the provider never arrives, a grace timer seeds the loaded
+      // content so the user reads their file instead of a blank editor; a reconnect
+      // re-runs this effect with a live provider onto the normal server-seeded sync path.
+      setReady(false)
+      const graceTimer = setTimeout(seedFromLoaded, COLLAB_ESTABLISH_GRACE_MS)
+      return () => clearTimeout(graceTimer)
+    }
+
     const report = () => setReady(provider.synced && config.get('initialContentLoaded') === true)
     const onProgress = () => {
       if (provider.shouldSeed && provider.synced) seedFromLoaded()
@@ -615,15 +633,17 @@ export function LoadedRichMarkdownEditor({
   }, [collaboration, editor, onCollabReadyChange, setCollabReady])
 
   /**
-   * Apply editability reactively for the collaborative steady state: `useEditor`'s
-   * `editable` is only the initial value, and the streaming/settle effect (which owns
-   * editability while and just after a stream) is skipped otherwise — so re-apply
-   * here when collaboration readiness flips the editor from read-only to editable.
+   * Owns editability for the entire collaborative lifecycle: `useEditor`'s `editable`
+   * is only the initial value, and the streaming/settle effect stays inert in collab
+   * mode (they are mutually exclusive) — so re-apply here whenever `isEditable` flips,
+   * whether from collaboration readiness (synced + seeded) or a stream toggling
+   * `isStreaming`. `isEditable` already folds in `!isStreaming`, holding read-only for
+   * the duration of any agent stream over a collaborative document.
    */
   useEffect(() => {
-    if (!editor || !collaborationEnabled || isStreaming) return
+    if (!editor || !collaborationEnabled) return
     if (editor.isEditable !== isEditable) editor.setEditable(isEditable)
-  }, [editor, collaborationEnabled, isStreaming, isEditable])
+  }, [editor, collaborationEnabled, isEditable])
 
   /**
    * Wire the `/Image` slash command to the hidden picker (per-editor storage, since the extension set is
@@ -649,14 +669,14 @@ export function LoadedRichMarkdownEditor({
   const lastStreamParseAtRef = useRef(0)
   useEffect(() => {
     if (!editor) return
-    // When collaborating, the Y.Doc is the source of truth for at-rest content, so
-    // skip this manual reconcile loop in steady state. But an agent stream that starts
-    // after a collaborative open must still run — both while streaming (`isStreaming`)
-    // and through its settle (`wasStreamingRef`, true until the settle branch consumes
-    // it) — so the agent's output is shown, flows into the shared doc via `setContent`,
-    // and the editor is re-enabled on settle. Collab and streaming are mutually
-    // exclusive at mount, so this only affects a stream begun after a collaborative open.
-    if (collaborationEnabled && !isStreaming && !wasStreamingRef.current) return
+    // Collaboration and agent-streaming are mutually exclusive: when collaborating the
+    // Y.Doc is the sole source of truth, so this manual reconcile loop stays fully inert
+    // — its `setContent` would sync a full-document replace into the shared doc (the
+    // ySyncPlugin writes it regardless of `emitUpdate: false`), wiping peers' concurrent
+    // edits. A stream begun after a collaborative open therefore does not drive this
+    // editor; editability is owned by the reactive effect above, which holds it read-only
+    // while `isStreaming`.
+    if (collaborationEnabled) return
     const syncEditorBody = (body: string) => {
       if (body === lastSyncedBodyRef.current) return
       lastSyncedBodyRef.current = body
