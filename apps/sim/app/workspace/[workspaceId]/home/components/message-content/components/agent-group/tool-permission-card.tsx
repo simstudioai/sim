@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
   ShieldCheck,
   Tooltip,
+  toast,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
@@ -28,6 +29,19 @@ interface ToolPermissionCardProps {
   /** The same human phrase the ordinary tool row would show, e.g. "Run bun test". */
   displayTitle: string
   params?: Record<string, unknown>
+}
+
+/**
+ * A decision the server will never accept, however many times we resend it:
+ * the tool call is unknown to it, or the permissions feature is off.
+ */
+function isGoneError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    (error as { status?: unknown }).status === 404
+  )
 }
 
 /**
@@ -62,6 +76,7 @@ export function ToolPermissionCard({
 }: ToolPermissionCardProps) {
   const queryClient = useQueryClient()
   const [submitting, setSubmitting] = useState<Decision | null>(null)
+  const [expired, setExpired] = useState(false)
 
   const register = useToolPermissionStore((state) => state.register)
   const unregister = useToolPermissionStore((state) => state.unregister)
@@ -93,9 +108,18 @@ export function ToolPermissionCard({
           void queryClient.invalidateQueries({ queryKey: generalSettingsKeys.settings() })
         }
       } catch (error) {
-        // The decision never landed, so put the cards back rather than leaving
-        // the user staring at a dead prompt the turn is still blocked on.
         logger.error('Failed to submit tool permission decision', { toolCallId, decision, error })
+        // A 404 means there is nothing left to answer — the turn ended, the
+        // server restarted, or permissions were switched off under us. Retrying
+        // cannot help, so retire the prompt instead of leaving buttons that do
+        // nothing but log.
+        if (isGoneError(error)) {
+          setExpired(true)
+          return
+        }
+        // Anything else may be transient. Put the cards back so the user can
+        // try again, since the turn is still blocked on this answer.
+        toast.error('Could not record your choice. Please try again.')
         clearSubmitted(ids)
         setSubmitting(null)
       }
@@ -105,6 +129,17 @@ export function ToolPermissionCard({
 
   const preview = argsPreview(params)
   const busy = submitting !== null || isSubmitted
+
+  if (expired) {
+    return (
+      <div className='flex items-center gap-1.5'>
+        <ShieldCheck className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+        <span className='truncate text-[var(--text-tertiary)] text-sm'>
+          {displayTitle} — this request is no longer active
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div className='flex flex-col gap-1'>

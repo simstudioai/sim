@@ -182,21 +182,28 @@ export async function prePersistClientExecutableToolCall(
   const ui = getToolCallUI(data)
   const catalogEntry = getToolEntry(data.toolName)
   const isInternal = ui.internal === true || catalogEntry?.internal === true
-  if (isInternal) return
 
-  // Go stamps this for resolved integration operations; Sim stamps it below
-  // for catalog-declared tools. Normalizing here means the dispatch path only
-  // ever has to read the frame.
+  // Go stamps this for resolved integration operations; Sim stamps it below for
+  // catalog-declared tools. Normalizing here means the dispatch path only ever
+  // has to read the frame.
+  //
+  // Resolved before the internal short-circuit on purpose: a stamp that
+  // survives to the client with nothing gating it behind renders a card whose
+  // buttons answer into the void.
   const frameRequestsApproval = data.status === TOOL_AWAITING_APPROVAL_STATUS
-  const gated = toolCallNeedsApproval(data.toolName, context, options ?? {}, frameRequestsApproval)
+  const gated =
+    !isInternal &&
+    toolCallNeedsApproval(data.toolName, context, options ?? {}, frameRequestsApproval)
   if (gated) {
     data.status = TOOL_AWAITING_APPROVAL_STATUS
   } else if (frameRequestsApproval) {
-    // Go asked for a prompt the user has already answered for good, or this
-    // surface cannot ask. Clear the stamp so the row renders as a normal call
-    // instead of a card nothing is waiting on.
+    // Go asked for a prompt this surface will not hold — the feature is off,
+    // the tool is internal, or the user already allowed it for good. Clear the
+    // stamp so the row renders as an ordinary call.
     data.status = undefined
   }
+
+  if (isInternal) return
 
   if (!gated) {
     if (!ui.clientExecutable) return

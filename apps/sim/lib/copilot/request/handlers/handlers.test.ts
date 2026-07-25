@@ -176,6 +176,59 @@ describe('sse-handlers tool lifecycle', () => {
     expect(event.payload.status).toBe('awaiting_approval')
   })
 
+  it('clears a Go-stamped approval frame when the gate is off', async () => {
+    // Go stamps integration calls regardless of Sim's feature flag. Forwarding
+    // that stamp with nothing gating behind it would draw a card whose buttons
+    // answer into a disabled endpoint.
+    toolRequiresApproval.mockReturnValue(false)
+    context.runId = 'run-1'
+    context.toolPermissions = { enabled: false, autoAllowed: new Set() }
+
+    const event = {
+      type: MothershipStreamV1EventType.tool,
+      payload: {
+        toolCallId: 'gmail-1',
+        toolName: 'gmail_read_v2',
+        arguments: {},
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
+        phase: MothershipStreamV1ToolPhase.call,
+        status: 'awaiting_approval',
+      },
+    } as unknown as StreamEvent
+
+    await prePersistClientExecutableToolCall(event, context, {})
+
+    expect((event.payload as { status?: string }).status).toBeUndefined()
+    expect(upsertAsyncToolCall).not.toHaveBeenCalled()
+  })
+
+  it('clears a Go-stamped approval frame on an internal tool', async () => {
+    toolRequiresApproval.mockReturnValue(true)
+    context.runId = 'run-1'
+    context.toolPermissions = { enabled: true, autoAllowed: new Set() }
+
+    const event = {
+      type: MothershipStreamV1EventType.tool,
+      payload: {
+        toolCallId: 'internal-1',
+        toolName: 'deploy',
+        arguments: {},
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
+        phase: MothershipStreamV1ToolPhase.call,
+        status: 'awaiting_approval',
+        ui: { internal: true },
+      },
+    } as unknown as StreamEvent
+
+    await prePersistClientExecutableToolCall(event, context, {})
+
+    // An internal tool draws no row at all, so it can never host a prompt.
+    expect((event.payload as { status?: string }).status).toBeUndefined()
+    expect(upsertAsyncToolCall).not.toHaveBeenCalled()
+  })
+
   it('leaves an already always-allowed tool ungated', async () => {
     toolRequiresApproval.mockReturnValue(true)
     context.runId = 'run-1'
