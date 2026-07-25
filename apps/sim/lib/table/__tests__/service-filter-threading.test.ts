@@ -7,7 +7,7 @@
  * timestamp for dates) are always available at the SQL builder layer — the
  * latent bug that PR #4657 was originally fixing.
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock, setEnv } from '@sim/testing'
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TABLE_LIMITS } from '@/lib/table/constants'
@@ -159,6 +159,9 @@ describe('queryRows byte budget', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    // The bounded-page byte cut is opt-in; pin it on rather than inheriting
+    // whatever the developer's local `.env` happens to set.
+    setEnv({ TABLE_MAX_PAGE_BYTES: TABLE_LIMITS.MAX_QUERY_RESULT_BYTES })
   })
 
   const row = (i: number, blobBytes: number) => ({
@@ -217,6 +220,36 @@ describe('queryRows byte budget', () => {
     })
   })
 
+  it('does NOT byte-cut a bounded page when TABLE_MAX_PAGE_BYTES is unset', async () => {
+    // Default-off: a short page is only safe for a client that terminates on
+    // `nextCursor === null`. A pre-existing v1 pager stopping at
+    // `rows.length < limit` would read the cut as end-of-data and truncate.
+    setEnv({ TABLE_MAX_PAGE_BYTES: undefined })
+    const perRow = Math.floor(TABLE_LIMITS.MAX_QUERY_RESULT_BYTES * 0.6)
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValueOnce([row(1, perRow), row(2, perRow)])
+
+    const result = await queryRows(
+      TABLE,
+      { limit: 5, includeTotal: false, withExecutions: false },
+      'req-1'
+    )
+
+    expect(result.rows).toHaveLength(2)
+    expect(result.nextCursor).toBeNull()
+  })
+
+  it('still fails fast on an UNBOUNDED query with TABLE_MAX_PAGE_BYTES unset', async () => {
+    setEnv({ TABLE_MAX_PAGE_BYTES: undefined })
+    const perRow = Math.floor(TABLE_LIMITS.MAX_QUERY_RESULT_BYTES * 0.6)
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValueOnce([row(1, perRow), row(2, perRow)])
+
+    await expect(
+      queryRows(TABLE, { includeTotal: false, withExecutions: false }, 'req-1')
+    ).rejects.toThrow(/exceeds the 5MB limit/)
+  })
+
   it('returns a single over-budget row alone on a bounded page', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([])
     dbChainMockFns.limit.mockResolvedValueOnce([
@@ -240,6 +273,68 @@ describe('queryRows byte budget', () => {
     1,
     Math.floor((4 * TABLE_LIMITS.MAX_QUERY_RESULT_BYTES) / TABLE_LIMITS.MAX_ROW_SIZE_BYTES)
   )
+
+  /**
+   * The seek predicate that pages the drain. `order_key` is nullable (rows
+   * predating the backfill, forked rows), and a bare
+   * `(order_key, id) > (:k, :i)` evaluates to NULL for those rows, so WHERE drops
+   * them. Because NULLs sort last, the whole unkeyed tail then becomes
+   * unreachable and the drain reports `hasMore: false` — 52 of 121 rows returned
+   * with no error, reproduced against a real table.
+   */
+  it('seeks with a NULL-admitting comparison so unkeyed rows stay reachable', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    await queryRows(
+      TABLE,
+      {
+        after: { orderKey: 'a5', id: 'row_5' },
+        limit: 10,
+        includeTotal: false,
+        withExecutions: false,
+      },
+      'req-1'
+    )
+
+    const seekWhere = JSON.stringify(dbChainMockFns.where.mock.calls.at(-1))
+    expect(seekWhere).toMatch(/is null/i)
+    expect(seekWhere).toContain('a5')
+    expect(seekWhere).toContain('row_5')
+  })
+
+  it('resumes exactly at the last returned row when the cursor is fed back', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    // limit 2 + witness row_3 → page ends at row_2 with a resume cursor.
+    dbChainMockFns.limit.mockResolvedValueOnce([row(1, 8), row(2, 8), row(3, 8)])
+
+    const page1 = await queryRows(
+      TABLE,
+      { limit: 2, includeTotal: false, withExecutions: false },
+      'req-1'
+    )
+    expect(page1.rows.map((r) => r.id)).toEqual(['row_1', 'row_2'])
+
+    const cursor = decodeCursor(page1.nextCursor as string)
+    expect(cursor).toEqual({ after: { orderKey: 'a2', id: 'row_2' } })
+
+    vi.clearAllMocks()
+    resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValueOnce([row(3, 8), row(4, 8)])
+
+    const page2 = await queryRows(
+      TABLE,
+      { ...cursor, limit: 2, includeTotal: false, withExecutions: false },
+      'req-2'
+    )
+
+    // No gap (row_3 is the first row past the anchor) and no duplicate of row_2.
+    expect(page2.rows.map((r) => r.id)).toEqual(['row_3', 'row_4'])
+    const seekWhere = JSON.stringify(dbChainMockFns.where.mock.calls.at(-1))
+    expect(seekWhere).toContain('a2')
+    expect(seekWhere).toContain('row_2')
+  })
 
   it('caps the first unbounded batch and asks limit+1 when a limit is set', async () => {
     await queryRows(TABLE, { includeTotal: false, withExecutions: false }, 'req-1')

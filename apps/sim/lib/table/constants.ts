@@ -73,6 +73,21 @@ export const DEFAULT_TABLE_PLAN_LIMITS = {
 } as const
 
 /**
+ * Byte budget at which a **bounded** page (one with an explicit `limit`) is cut
+ * short, or `null` when disabled — the default. Opt in with `TABLE_MAX_PAGE_BYTES`.
+ *
+ * Off by default because a short page is only safe for a client that terminates
+ * on `nextCursor === null`; a pre-existing v1 pager terminating on
+ * `rows.length < limit` would read the cut as end-of-data and silently truncate.
+ * Unbounded queries (no `limit`) are unaffected — they always fail fast at
+ * `TABLE_LIMITS.MAX_QUERY_RESULT_BYTES` rather than return a partial result.
+ */
+export function getMaxPageBytes(): number | null {
+  const value = envNumber(env.TABLE_MAX_PAGE_BYTES, 0, { min: 0, integer: true })
+  return value > 0 ? value : null
+}
+
+/**
  * Maximum serialized size in bytes of a single row. Defaults to
  * `TABLE_LIMITS.MAX_ROW_SIZE_BYTES`; overridable via the
  * `TABLE_MAX_ROW_SIZE_BYTES` env var (server-only, read at call time).
@@ -171,8 +186,6 @@ export const FILTER_OPS = [
   'ilike',
   'nlike',
   'nilike',
-  'match',
-  'imatch',
   'isEmpty',
   'isNotEmpty',
   'isNull',

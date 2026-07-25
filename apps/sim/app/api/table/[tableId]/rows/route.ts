@@ -9,7 +9,7 @@ import {
   updateRowsByFilterBodySchema,
 } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
-import { isZodError, validationErrorResponse } from '@/lib/api/server/validation'
+import { isZodError, parseJsonBody, validationErrorResponse } from '@/lib/api/server/validation'
 import { type AuthTypeValue, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -344,12 +344,12 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
-      let body: unknown
-      try {
-        body = await request.json()
-      } catch {
-        return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
-      }
+      // Bulk write bodies carry caller-supplied row data, so they can legitimately
+      // be large — but not unbounded. `parseJsonBody` applies the platform cap
+      // (413 past it) that a raw `request.json()` on this destructive surface skips.
+      const parsedBody = await parseJsonBody(request)
+      if (!parsedBody.success) return parsedBody.response
+      const body = parsedBody.data
 
       const validated = updateRowsByFilterBodySchema.parse(body)
 
@@ -442,12 +442,12 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
-      let body: unknown
-      try {
-        body = await request.json()
-      } catch {
-        return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
-      }
+      // Bulk write bodies carry caller-supplied row data, so they can legitimately
+      // be large — but not unbounded. `parseJsonBody` applies the platform cap
+      // (413 past it) that a raw `request.json()` on this destructive surface skips.
+      const parsedBody = await parseJsonBody(request)
+      if (!parsedBody.success) return parsedBody.response
+      const body = parsedBody.data
 
       const validated = deleteTableRowsBodySchema.parse(body)
 
@@ -539,12 +539,12 @@ export const PATCH = withRouteHandler(
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
-      let body: unknown
-      try {
-        body = await request.json()
-      } catch {
-        return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
-      }
+      // Bulk write bodies carry caller-supplied row data, so they can legitimately
+      // be large — but not unbounded. `parseJsonBody` applies the platform cap
+      // (413 past it) that a raw `request.json()` on this destructive surface skips.
+      const parsedBody = await parseJsonBody(request)
+      if (!parsedBody.success) return parsedBody.response
+      const body = parsedBody.data
 
       const validated = batchUpdateTableRowsBodySchema.parse(body)
 

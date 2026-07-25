@@ -34,11 +34,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const { workspaceId } = parsed.data.query
 
-    const gateError = await tablesV2GateError(userId, workspaceId)
-    if (gateError) return gateError
-
     const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId)
     if (accessError) return accessError
+
+    // After authz: the gate reads the workspace's org off the primary DB, and its
+    // 404 would otherwise distinguish "not in the rollout cohort" from "no access".
+    const gateError = await tablesV2GateError(userId, workspaceId)
+    if (gateError) return gateError
 
     const tables = await listTables(workspaceId)
 

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  *
- * v2 query route: PostgREST string parsing, unconditional name→id translation
+ * v2 query route: predicate parsing, unconditional name→id translation
  * (session auth included — the string grammar is name-keyed for every caller),
  * cursor validation, and the response envelope.
  */
@@ -10,9 +10,10 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const { mockCheckAccess, mockQueryRows } = vi.hoisted(() => ({
+const { mockCheckAccess, mockQueryRows, mockGate } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
   mockQueryRows: vi.fn(),
+  mockGate: vi.fn(),
 }))
 
 vi.mock('@/app/api/table/utils', async () => {
@@ -21,7 +22,7 @@ vi.mock('@/app/api/table/utils', async () => {
     checkAccess: mockCheckAccess,
     accessError: (result: { status: number }) =>
       NextResponse.json({ error: 'Access denied' }, { status: result.status }),
-    tablesV2GateError: () => null,
+    tablesV2GateError: mockGate,
   }
 })
 
@@ -91,6 +92,24 @@ describe('POST /api/table/[tableId]/query', () => {
     vi.clearAllMocks()
     mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
     mockQueryRows.mockResolvedValue(EMPTY_RESULT)
+    mockGate.mockResolvedValue(null)
+  })
+
+  it('returns 404 when the tables-v2-api flag is off', async () => {
+    const { NextResponse } = await import('next/server')
+    authAs('session')
+    mockGate.mockResolvedValue(NextResponse.json({ error: 'Not found' }, { status: 404 }))
+    const res = await callQuery({ workspaceId: 'workspace-1' })
+    expect(res.status).toBe(404)
+    expect(mockQueryRows).not.toHaveBeenCalled()
+  })
+
+  it('runs the flag gate only after the access check, so it cannot leak a cohort oracle', async () => {
+    authAs('session')
+    mockCheckAccess.mockResolvedValue({ ok: false, status: 403 })
+    const res = await callQuery({ workspaceId: 'workspace-1' })
+    expect(res.status).toBe(403)
+    expect(mockGate).not.toHaveBeenCalled()
   })
 
   it('translates predicate/sort column names to storage ids for SESSION auth too', async () => {

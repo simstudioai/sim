@@ -265,10 +265,53 @@ const filterSchema = domainObjectSchema<Filter>()
 
 /* --------------------------- v2 predicate grammar --------------------------- */
 
+/**
+ * Body cap for the row-query routes. A query body is a predicate tree plus a
+ * cursor; the largest legitimate one — a 100-member predicate with 1000-element
+ * `in` lists — is comfortably under 1 MB. The 50 MB platform default would let a
+ * caller buffer two orders of magnitude more before any schema check runs.
+ */
+export const TABLE_QUERY_MAX_BODY_BYTES = 1024 * 1024
+
 /** Max members in one `all`/`any` group — a generous bound against pathological trees. */
 const MAX_PREDICATE_GROUP_SIZE = 100
 /** Max sort keys — more than a few is already a smell. */
 const MAX_SORT_KEYS = 16
+/** Max nesting levels of `all`/`any` groups. Ten is already unreadable. */
+const MAX_PREDICATE_DEPTH = 10
+/** Max nodes in the whole tree, so a wide-but-shallow tree can't amplify either. */
+const MAX_PREDICATE_NODES = 500
+
+/**
+ * Iterative depth/size walk over an unvalidated predicate tree. Runs BEFORE the
+ * recursive Zod schema: a few thousand nested `{all:[...]}` levels overflow the
+ * stack inside `safeParse`, and a `RangeError` from a parser is a 500, not a 400.
+ * The walk itself must stay iterative for the same reason.
+ */
+function predicateTreeTooLarge(root: unknown): string | null {
+  const stack: Array<{ node: unknown; depth: number }> = [{ node: root, depth: 1 }]
+  let nodes = 0
+
+  while (stack.length > 0) {
+    const { node, depth } = stack.pop()!
+    if (++nodes > MAX_PREDICATE_NODES) {
+      return `Filter has too many conditions (max ${MAX_PREDICATE_NODES})`
+    }
+    if (depth > MAX_PREDICATE_DEPTH) {
+      return `Filter nesting is too deep (max ${MAX_PREDICATE_DEPTH} levels)`
+    }
+    if (typeof node !== 'object' || node === null) continue
+    const group = node as { all?: unknown; any?: unknown }
+    const members = Array.isArray(group.all)
+      ? group.all
+      : Array.isArray(group.any)
+        ? group.any
+        : null
+    if (!members) continue
+    for (const member of members) stack.push({ node: member, depth: depth + 1 })
+  }
+  return null
+}
 
 /**
  * v2 filter wire format: the typed `{ all | any: [...] }` predicate tree (same
@@ -286,7 +329,7 @@ const predicateNodeSchema: z.ZodType<PredicateNode> = z.lazy(() =>
   z.union([predicateGroupSchema, predicateLeafSchema])
 )
 
-export const predicateSchema: z.ZodType<TablePredicate> = z.lazy(() =>
+const predicateTreeSchema: z.ZodType<TablePredicate> = z.lazy(() =>
   z.union([
     // `.min(1)`: an empty group compiles to no WHERE clause, which on the bulk
     // delete/update paths reads as "match everything" rather than "match nothing".
@@ -304,7 +347,23 @@ export const predicateSchema: z.ZodType<TablePredicate> = z.lazy(() =>
     }),
   ])
 )
-const predicateGroupSchema = predicateSchema
+const predicateGroupSchema = predicateTreeSchema
+
+/**
+ * The boundary predicate schema: depth/size guard first, then the recursive
+ * structural parse. The guard is only applied at the top level — every nested
+ * group is strictly shallower, so re-checking inside the recursion would be
+ * redundant work on the hot path.
+ */
+export const predicateSchema = z
+  .unknown()
+  .superRefine((value, ctx) => {
+    const problem = predicateTreeTooLarge(value)
+    if (problem) ctx.addIssue({ code: 'custom', message: problem })
+  })
+  // double-cast-allowed: the pipe's inferred input is `unknown`, and letting TS
+  // widen the recursive lazy union through it makes typecheck OOM
+  .pipe(predicateTreeSchema) as unknown as z.ZodType<TablePredicate>
 
 /** v2 sort wire format: an ordered list of `{ field, direction }`. */
 export const sortSpecSchema: z.ZodType<SortSpec> = z

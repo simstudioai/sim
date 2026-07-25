@@ -1,10 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { TABLE_QUERY_MAX_BODY_BYTES } from '@/lib/api/contracts/tables'
 import { V2_DEFAULT_ROW_LIMIT, v2QueryRowsContract } from '@/lib/api/contracts/v2/tables'
 import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { PredicateNode, Sort, TablePredicate, TableSchema } from '@/lib/table'
+import type { Sort, TablePredicate, TableSchema } from '@/lib/table'
 import {
   buildIdByName,
   buildNameById,
@@ -36,27 +37,9 @@ interface QueryRouteParams {
 }
 
 /**
- * Regex ops (`match`/`imatch`) are gated off the public surface — a
- * catastrophic-backtracking pattern can pin a shared-pool connection. Walks the
- * predicate tree and throws on any regex leaf.
- */
-function assertNoRegexOps(node: PredicateNode): void {
-  if ('all' in node || 'any' in node) {
-    for (const child of 'all' in node ? node.all : node.any) assertNoRegexOps(child)
-    return
-  }
-  if (node.op === 'match' || node.op === 'imatch') {
-    throw new TableQueryValidationError(
-      'Regex filters (match/imatch) are not supported on the public API — use like/ilike for pattern match.',
-      'INVALID_FILTER'
-    )
-  }
-}
-
-/**
  * POST /api/v2/tables/[tableId]/query — public row query. Typed `predicate`/`sort`
  * objects + opaque cursor pagination. Default page {@link V2_DEFAULT_ROW_LIMIT};
- * `limit=0` = unbounded (whole result or 400). Regex ops are gated off.
+ * `limit=0` = unbounded (whole result or 400).
  */
 export const POST = withRouteHandler(async (request: NextRequest, context: QueryRouteParams) => {
   const requestId = generateRequestId()
@@ -66,14 +49,13 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Query
     if (!rateLimit.allowed) return createRateLimitResponse(rateLimit)
 
     const userId = rateLimit.userId!
-    const parsed = await parseRequest(v2QueryRowsContract, request, context)
+    const parsed = await parseRequest(v2QueryRowsContract, request, context, {
+      maxBodyBytes: TABLE_QUERY_MAX_BODY_BYTES,
+    })
     if (!parsed.success) return parsed.response
 
     const { tableId } = parsed.data.params
     const { workspaceId, sort, cursor: cursorToken, limit } = parsed.data.body
-
-    const gateError = await tablesV2GateError(userId, workspaceId)
-    if (gateError) return gateError
 
     const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
     if (scopeError) return scopeError
@@ -85,6 +67,11 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Query
     if (workspaceId !== table.workspaceId) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
+
+    // After authz: the gate reads the workspace's org off the primary DB, and its
+    // 404 would otherwise distinguish "not in the rollout cohort" from "no access".
+    const gateError = await tablesV2GateError(userId, workspaceId)
+    if (gateError) return gateError
 
     const schema = table.schema as TableSchema
     const cursor = cursorToken ? decodeCursor(cursorToken) : undefined
@@ -105,7 +92,6 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Query
     const nameById = buildNameById(schema)
     let predicate: TablePredicate | undefined = parsed.data.body.predicate
     if (predicate) {
-      assertNoRegexOps(predicate)
       validatePredicate(predicate, schema.columns)
       predicate = predicateNamesToIds(predicate, idByName)
     }

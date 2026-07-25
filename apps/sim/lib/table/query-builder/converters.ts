@@ -146,14 +146,7 @@ function applyLogicalOperators(groups: FilterRule[][]): FilterRule[] {
 }
 
 const ARRAY_OPERATORS = new Set(['in', 'nin'])
-const TEXT_MATCH_OPERATORS = new Set([
-  'contains',
-  'ncontains',
-  'startsWith',
-  'endsWith',
-  'match',
-  'imatch',
-])
+const TEXT_MATCH_OPERATORS = new Set(['contains', 'ncontains', 'startsWith', 'endsWith'])
 
 function parseValue(value: string, operator: string): JsonValue {
   if (ARRAY_OPERATORS.has(operator)) {

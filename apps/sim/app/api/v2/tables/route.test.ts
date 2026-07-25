@@ -7,11 +7,14 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const { mockListTables, mockCheckRateLimit, mockValidateWorkspaceAccess } = vi.hoisted(() => ({
-  mockListTables: vi.fn(),
-  mockCheckRateLimit: vi.fn(),
-  mockValidateWorkspaceAccess: vi.fn(),
-}))
+const { mockListTables, mockCheckRateLimit, mockValidateWorkspaceAccess, mockGate } = vi.hoisted(
+  () => ({
+    mockListTables: vi.fn(),
+    mockCheckRateLimit: vi.fn(),
+    mockValidateWorkspaceAccess: vi.fn(),
+    mockGate: vi.fn(),
+  })
+)
 
 vi.mock('@/app/api/v1/middleware', async () => {
   const { NextResponse } = await import('next/server')
@@ -33,7 +36,7 @@ vi.mock('@/lib/table', async () => {
 
 vi.mock('@/app/api/table/utils', () => ({
   normalizeColumn: (col: Record<string, unknown>) => col,
-  tablesV2GateError: () => null,
+  tablesV2GateError: mockGate,
 }))
 
 import { GET } from '@/app/api/v2/tables/route'
@@ -66,6 +69,25 @@ describe('GET /api/v2/tables', () => {
     mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'user-1', keyType: 'workspace' })
     mockValidateWorkspaceAccess.mockResolvedValue(null)
     mockListTables.mockResolvedValue([buildTable()])
+    mockGate.mockResolvedValue(null)
+  })
+
+  it('returns 404 when the tables-v2-api flag is off', async () => {
+    const { NextResponse } = await import('next/server')
+    mockGate.mockResolvedValue(NextResponse.json({ error: 'Not found' }, { status: 404 }))
+    const res = await callList('workspaceId=workspace-1')
+    expect(res.status).toBe(404)
+    expect(mockListTables).not.toHaveBeenCalled()
+  })
+
+  it('runs the flag gate only after the access check, so it cannot leak a cohort oracle', async () => {
+    const { NextResponse } = await import('next/server')
+    mockValidateWorkspaceAccess.mockResolvedValue(
+      NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    )
+    const res = await callList('workspaceId=workspace-1')
+    expect(res.status).toBe(403)
+    expect(mockGate).not.toHaveBeenCalled()
   })
 
   it('returns a typed table summary with a private cache header', async () => {

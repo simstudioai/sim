@@ -73,8 +73,6 @@ const ALLOWED_OPERATORS = new Set([
   '$ilike',
   '$nlike',
   '$nilike',
-  '$match',
-  '$imatch',
   '$empty',
   '$isNull',
   '$isNotNull',
@@ -479,11 +477,6 @@ export function fieldPredicate(
     case 'isNotEmpty':
       return buildEmptyClause(tableName, field, false)
 
-    case 'match':
-      return buildRegexClause(tableName, field, value as string, false)
-    case 'imatch':
-      return buildRegexClause(tableName, field, value as string, true)
-
     case 'isNull':
       return buildNullClause(tableName, field, true)
     case 'isNotNull':
@@ -536,13 +529,15 @@ function buildLogicalClause(
 }
 
 /**
- * Row-level system columns exposed for filter/sort: their wire name → the real
- * `timestamptz` column. Not stored in `data`, so they need real-column SQL, not
- * the `data->>'field'` extraction every other builder uses.
+ * Row columns that are addressable in filters/sorts but live on the row itself
+ * rather than inside the JSONB `data` blob. The docs advertise all three as
+ * filterable and sortable; without this dispatch they compile to a `data->>'…'`
+ * extraction of a key that never exists, so they silently match nothing.
  */
-const SYSTEM_COLUMNS: Readonly<Record<string, string>> = {
-  createdAt: 'created_at',
-  updatedAt: 'updated_at',
+const SYSTEM_COLUMNS: Readonly<Record<string, { column: string; kind: 'timestamp' | 'text' }>> = {
+  createdAt: { column: 'created_at', kind: 'timestamp' },
+  updatedAt: { column: 'updated_at', kind: 'timestamp' },
+  id: { column: 'id', kind: 'text' },
 }
 
 function isSystemColumn(field: string): boolean {
@@ -550,9 +545,9 @@ function isSystemColumn(field: string): boolean {
 }
 
 /**
- * Builds a predicate against a `timestamptz` system column. Values are ISO
- * strings cast to `timestamptz`. Only comparison/equality/null ops make sense;
- * text/pattern ops are rejected with an actionable error.
+ * Builds a predicate against a system column. Timestamp columns bind ISO strings
+ * normalized to UTC wall clock; the text column (`id`) binds as text and also
+ * accepts the pattern ops. Anything else is rejected with an actionable error.
  */
 function buildSystemColumnClause(
   tableName: string,
@@ -560,28 +555,83 @@ function buildSystemColumnClause(
   op: FilterOp,
   value: JsonValue | undefined
 ): SQL | undefined {
-  const col = sql.raw(`${tableName}.${SYSTEM_COLUMNS[field]}`)
-  const ts = (v: JsonValue | undefined) => sql`${String(v)}::timestamptz`
+  const spec = SYSTEM_COLUMNS[field]
+  const col = sql.raw(`${tableName}.${spec.column}`)
+  // `created_at`/`updated_at` are `timestamp WITHOUT time zone` holding UTC wall
+  // clock. A bare `::timestamptz` comparison promotes the column using the session
+  // `TimeZone` GUC, so identical queries return different rows per environment and
+  // day-boundary ranges land off by the offset. Normalizing the bound to UTC wall
+  // clock is session-independent and still honors an explicit offset in the input.
+  const ts = (v: JsonValue | undefined) => sql`${String(v)}::timestamptz AT TIME ZONE 'UTC'`
+  const bind = spec.kind === 'timestamp' ? ts : (v: JsonValue | undefined) => sql`${String(v)}`
+  /**
+   * Mirrors the JSONB pattern builders: `*` is the caller's only wildcard, an
+   * empty pattern is rejected (it would collapse to `%` and match every row),
+   * and the negated forms keep NULL cells so "does not contain X" retains them.
+   */
+  const like = (
+    v: JsonValue | undefined,
+    pattern: (escaped: string) => string,
+    ci: boolean,
+    negate = false
+  ) => {
+    const text = String(v ?? '')
+    if (text.length === 0) {
+      throw new TableQueryValidationError(
+        `Operator "${op}" on column "${field}" requires a non-empty value`
+      )
+    }
+    const p = pattern(escapeLikePattern(text))
+    const match = ci ? sql`${col} ILIKE ${p}` : sql`${col} LIKE ${p}`
+    return negate ? sql`NOT (${match})` : match
+  }
+
+  // The text system column (`id`) additionally supports the pattern ops;
+  // timestamps fall through to the unsupported-operator error below.
+  if (spec.kind === 'text') {
+    const star = (e: string) => e.replace(/\*/g, '%')
+    switch (op) {
+      case 'like':
+        return like(value, star, false)
+      case 'ilike':
+        return like(value, star, true)
+      case 'nlike':
+        return like(value, star, false, true)
+      case 'nilike':
+        return like(value, star, true, true)
+      case 'contains':
+        return like(value, (e) => `%${e}%`, true)
+      case 'ncontains':
+        return like(value, (e) => `%${e}%`, true, true)
+      case 'startsWith':
+        return like(value, (e) => `${e}%`, true)
+      case 'endsWith':
+        return like(value, (e) => `%${e}`, true)
+      default:
+        break
+    }
+  }
+
   switch (op) {
     case 'eq':
-      return sql`${col} = ${ts(value)}`
+      return sql`${col} = ${bind(value)}`
     case 'ne':
-      return sql`${col} <> ${ts(value)}`
+      return sql`${col} <> ${bind(value)}`
     case 'gt':
-      return sql`${col} > ${ts(value)}`
+      return sql`${col} > ${bind(value)}`
     case 'gte':
-      return sql`${col} >= ${ts(value)}`
+      return sql`${col} >= ${bind(value)}`
     case 'lt':
-      return sql`${col} < ${ts(value)}`
+      return sql`${col} < ${bind(value)}`
     case 'lte':
-      return sql`${col} <= ${ts(value)}`
+      return sql`${col} <= ${bind(value)}`
     case 'in': {
       if (!Array.isArray(value) || value.length === 0) return undefined
-      return sql`${col} IN (${sql.join(value.map(ts), sql.raw(', '))})`
+      return sql`${col} IN (${sql.join(value.map(bind), sql.raw(', '))})`
     }
     case 'nin': {
       if (!Array.isArray(value) || value.length === 0) return undefined
-      return sql`${col} NOT IN (${sql.join(value.map(ts), sql.raw(', '))})`
+      return sql`${col} NOT IN (${sql.join(value.map(bind), sql.raw(', '))})`
     }
     case 'isNull':
     case 'isEmpty':
@@ -591,7 +641,7 @@ function buildSystemColumnClause(
       return sql`${col} IS NOT NULL`
     default:
       throw new TableQueryValidationError(
-        `Operator "${op}" is not supported on the timestamp column "${field}" — use eq, neq, gt, gte, lt, lte, in, is.null.`
+        `Operator "${op}" is not supported on the built-in column "${field}" — use eq, ne, gt, gte, lt, lte, in, nin, isNull, isNotNull.`
       )
   }
 }
@@ -609,11 +659,12 @@ function buildContainmentClause(tableName: string, field: string, value: JsonVal
  * to `timestamptz` so date strings compare chronologically and timezone offsets
  * in ISO strings (e.g. `2024-01-01T00:00:00Z`) are preserved rather than
  * silently stripped (which would make results depend on the server's TimeZone
- * setting). Unknown/other types
- * fall back to `numeric` (legacy default — preserves behavior for ad-hoc fields
- * with no schema entry). The right-hand value is cast explicitly because
- * drizzle parameterizes it as `text`; without the cast, Postgres would compare
- * `text <op> text` and silently produce lexicographic results.
+ * setting). `string` columns compare lexicographically as text. `boolean`/`json`
+ * columns have no meaningful ordering and are rejected. Columns with no schema
+ * entry fall back to `numeric` (legacy default — preserves behavior for ad-hoc
+ * fields). The right-hand value is cast explicitly because drizzle parameterizes
+ * it as `text`; without the cast, Postgres would compare `text <op> text` and
+ * silently produce lexicographic results.
  *
  * Cannot use the GIN index — falls back to a sequential scan over the table's
  * rows (bounded by the btree prefix on `table_id`).
@@ -626,6 +677,18 @@ function buildComparisonClause(
   columnType: ColumnType | undefined
 ): SQL {
   const escapedField = field.replace(/'/g, "''")
+
+  if (columnType === 'boolean' || columnType === 'json') {
+    throw new TableQueryValidationError(
+      `Range operator on column "${field}" (${columnType}) is not supported — ${columnType} values have no ordering.`
+    )
+  }
+
+  if (columnType === 'string') {
+    const cell = sql.raw(`${tableName}.data->>'${escapedField}'`)
+    return sql`${cell} ${sql.raw(operator)} ${String(value)}`
+  }
+
   const cast = jsonbCastForType(columnType) ?? 'numeric'
   validateComparisonValue(field, columnType, cast, value)
   const cell = sql.raw(`(${tableName}.data->>'${escapedField}')::${cast}`)
@@ -640,7 +703,7 @@ export function escapeLikePattern(value: string): string {
 }
 
 /**
- * General LIKE/ILIKE pattern match (PostgREST `like`/`ilike`). The caller's `*`
+ * General LIKE/ILIKE pattern match (the `like`/`ilike` ops). The caller's `*`
  * is the only wildcard — it maps to SQL `%`; any literal `%`/`_`/`\` in the
  * value is escaped so it matches itself. Empty/exact patterns are allowed (an
  * empty pattern matches only the empty string, not every row, so it's not the
@@ -739,25 +802,6 @@ function buildEmptyClause(tableName: string, field: string, isEmpty: boolean): S
 }
 
 /**
- * Builds a POSIX regex match against a JSONB cell (`~` case-sensitive, `~*`
- * case-insensitive). The pattern is parameterized (no interpolation); Postgres
- * validates it at runtime. Negation surfaces null cells, mirroring `$ne`/
- * `$ncontains`. Cannot use the GIN index — sequential scan bounded by the
- * `table_id` btree prefix.
- */
-function buildRegexClause(
-  tableName: string,
-  field: string,
-  value: string,
-  caseInsensitive: boolean
-): SQL {
-  const escapedField = field.replace(/'/g, "''")
-  const cell = sql.raw(`${tableName}.data->>'${escapedField}'`)
-  const pattern = String(value)
-  return caseInsensitive ? sql`${cell} ~* ${pattern}` : sql`${cell} ~ ${pattern}`
-}
-
-/**
  * Strict null check on a JSONB cell — distinct from `isEmpty`/`isNotEmpty`,
  * which also treat the empty string as empty. `isNull` matches an absent key or
  * JSON null (both surfaced as SQL NULL by `->>`); the negation requires the cell
@@ -789,7 +833,7 @@ function buildSortFieldClause(
   const directionSql = direction.toUpperCase()
 
   if (isSystemColumn(field)) {
-    return sql.raw(`${tableName}.${SYSTEM_COLUMNS[field]} ${directionSql}`)
+    return sql.raw(`${tableName}.${SYSTEM_COLUMNS[field].column} ${directionSql}`)
   }
 
   const jsonbExtract = `${tableName}.data->>'${escapedField}'`

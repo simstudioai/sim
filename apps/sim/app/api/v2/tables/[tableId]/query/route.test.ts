@@ -2,7 +2,7 @@
  * @vitest-environment node
  *
  * Public v2 query POST: typed predicate name→id translation, bounded-default vs
- * explicit-unbounded limit, regex gating, cursor validation, workspace scoping,
+ * explicit-unbounded limit, cursor validation, workspace scoping,
  * and name-keyed row output.
  */
 import { NextRequest } from 'next/server'
@@ -115,6 +115,13 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
     expect(mockQueryRows).not.toHaveBeenCalled()
   })
 
+  it('runs the flag gate only after the access check, so it cannot leak a cohort oracle', async () => {
+    mockCheckAccess.mockResolvedValue({ ok: false, status: 403 })
+    const res = await callQuery({ workspaceId: 'workspace-1' })
+    expect(res.status).toBe(403)
+    expect(mockGate).not.toHaveBeenCalled()
+  })
+
   it('translates a name-keyed predicate to storage ids', async () => {
     const res = await callQuery({
       workspaceId: 'workspace-1',
@@ -150,13 +157,14 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
     expect(mockQueryRows).not.toHaveBeenCalled()
   })
 
-  it('gates regex ops (match/imatch) off the public surface', async () => {
+  it('rejects the removed regex ops at the contract boundary', async () => {
+    // `match`/`imatch` are no longer in FILTER_OPS — a catastrophic-backtracking
+    // pattern can pin a shared-pool connection, and nothing shipped depends on them.
     const res = await callQuery({
       workspaceId: 'workspace-1',
       predicate: { all: [{ field: 'name', op: 'match', value: '^jo' }] },
     })
     expect(res.status).toBe(400)
-    expect((await res.json()).error).toMatch(/Regex filters.*not supported/)
     expect(mockQueryRows).not.toHaveBeenCalled()
   })
 

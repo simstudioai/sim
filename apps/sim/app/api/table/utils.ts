@@ -19,6 +19,11 @@ import { getWorkspaceOrganizationId } from '@/lib/workspaces/utils'
  * Gate for the v2 tables HTTP API (`tables-v2-api` flag). Returns a 404 response
  * when the flag is off for the caller — the surface behaves as if it doesn't
  * exist — or `null` to proceed. Gated by userId + the workspace's org cohort.
+ *
+ * **Call this AFTER the authz check, never before.** Ahead of authz it does a
+ * primary-DB read keyed on a caller-supplied `workspaceId`, and the 404-vs-403
+ * split tells an unauthorized caller whether that workspace's org is in the
+ * rollout cohort.
  */
 export async function tablesV2GateError(
   userId: string,

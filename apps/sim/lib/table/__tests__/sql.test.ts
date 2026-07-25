@@ -546,13 +546,38 @@ describe('fieldPredicate (shared leaf)', () => {
     expect(render(fieldPredicate(TABLE, 'name', 'like', '50%*', undefined))).toContain('50\\%%')
   })
 
-  it('match / imatch emit POSIX regex (~ / ~*)', () => {
-    const m = render(fieldPredicate(TABLE, 'name', 'match', '^jo.*n$', undefined))
-    expect(m).toContain("data->>'name'")
-    expect(m).toContain('~')
-    expect(m).not.toContain('~*')
-    expect(m).toContain('^jo.*n$')
-    expect(render(fieldPredicate(TABLE, 'name', 'imatch', 'foo', undefined))).toContain('~*')
+  it('nlike / nilike negate the match and keep null cells', () => {
+    // "does not match X" must retain rows where the cell is absent — otherwise a
+    // negated filter silently drops every row with an empty value for that column.
+    const nlike = render(fieldPredicate(TABLE, 'name', 'nlike', 'jo*n', undefined))
+    expect(nlike).toContain('NOT LIKE')
+    expect(nlike).not.toContain('NOT ILIKE')
+    expect(nlike).toContain('jo%n')
+    expect(nlike).toContain('IS NULL')
+
+    const nilike = render(fieldPredicate(TABLE, 'name', 'nilike', '*foo*', undefined))
+    expect(nilike).toContain('NOT ILIKE')
+    expect(nilike).toContain('IS NULL')
+  })
+
+  it('reaches nlike / nilike through the legacy $-grammar too', () => {
+    expect(render(buildFilterClause({ name: { $nlike: 'jo*' } }, TABLE, NO_COLUMNS))).toContain(
+      'NOT LIKE'
+    )
+    expect(render(buildFilterClause({ name: { $nilike: 'jo*' } }, TABLE, NO_COLUMNS))).toContain(
+      'NOT ILIKE'
+    )
+  })
+
+  it('no longer accepts the regex ops (removed from FILTER_OPS)', () => {
+    for (const op of ['match', 'imatch'] as const) {
+      expect(() => fieldPredicate(TABLE, 'name', op as never, '^jo', undefined)).toThrow(
+        'Invalid operator'
+      )
+    }
+    expect(() => buildFilterClause({ name: { $match: '^jo' } }, TABLE, NO_COLUMNS)).toThrow(
+      'Invalid operator'
+    )
   })
 
   it('validates the field name', () => {
@@ -587,6 +612,111 @@ describe('fieldPredicate (shared leaf)', () => {
     )
     expect(inClause).toContain(`${TABLE}.created_at`)
     expect(inClause).toContain('::timestamptz')
+  })
+})
+
+/**
+ * Regression coverage for #5920 — "filtering on built-in columns silently
+ * returns zero rows". Three distinct defects fed that report: the missing
+ * system-column dispatch (fixed above), `id` never being a system column at
+ * all, and the session-dependent `timestamptz` promotion that shifts every
+ * bound by the server's `TimeZone` GUC.
+ */
+describe('system columns (#5920)', () => {
+  it('normalizes timestamp bounds to UTC wall clock, not the session TimeZone', () => {
+    // `created_at`/`updated_at` are `timestamp WITHOUT time zone` holding UTC.
+    // Without `AT TIME ZONE 'UTC'` the comparison result depends on the server's
+    // TimeZone setting, so a UTC-3 day range (the reporter's exact query) lands
+    // off by the offset at both boundaries.
+    for (const field of ['createdAt', 'updatedAt'] as const) {
+      const out = render(fieldPredicate(TABLE, field, 'gte', '2026-07-24T03:00:00.000Z', 'date'))
+      expect(out).toContain("::timestamptz AT TIME ZONE 'UTC'")
+    }
+  })
+
+  it('filters id as the real text column, with no timestamptz cast', () => {
+    const out = render(fieldPredicate(TABLE, 'id', 'eq', 'row-123', 'string'))
+    expect(out).toContain(`${TABLE}.id =`)
+    expect(out).not.toContain("data->>'id'")
+    expect(out).not.toContain('timestamptz')
+  })
+
+  it('supports the pattern ops on id (text), which are meaningless on timestamps', () => {
+    expect(render(fieldPredicate(TABLE, 'id', 'contains', 'abc', 'string'))).toContain(
+      `${TABLE}.id ILIKE`
+    )
+    expect(render(fieldPredicate(TABLE, 'id', 'startsWith', 'abc', 'string'))).toContain(
+      `${TABLE}.id ILIKE`
+    )
+    expect(render(fieldPredicate(TABLE, 'id', 'like', 'ab*', 'string'))).toContain(
+      `${TABLE}.id LIKE`
+    )
+    expect(render(fieldPredicate(TABLE, 'id', 'ncontains', 'abc', 'string'))).toContain('NOT (')
+
+    expect(() => fieldPredicate(TABLE, 'createdAt', 'contains', 'abc', 'date')).toThrow(
+      /not supported on the built-in column "createdAt"/
+    )
+  })
+
+  it('rejects an empty pattern on id rather than matching every row', () => {
+    expect(() => fieldPredicate(TABLE, 'id', 'contains', '', 'string')).toThrow(
+      /requires a non-empty value/
+    )
+  })
+
+  it('supports id in ranges and membership', () => {
+    expect(render(fieldPredicate(TABLE, 'id', 'gt', 'row-100', 'string'))).toContain(
+      `${TABLE}.id >`
+    )
+    const inClause = render(fieldPredicate(TABLE, 'id', 'in', ['a', 'b'], 'string'))
+    expect(inClause).toContain(`${TABLE}.id IN (`)
+  })
+
+  it('sorts id as a direct column ref', () => {
+    expect(render(buildSortClause({ id: 'asc' }, TABLE, NO_COLUMNS))).toBe(`${TABLE}.id ASC`)
+  })
+
+  it('maps isEmpty/isNotEmpty to IS NULL / IS NOT NULL (not inverted)', () => {
+    expect(render(fieldPredicate(TABLE, 'createdAt', 'isEmpty', undefined, 'date'))).toContain(
+      'IS NULL'
+    )
+    expect(render(fieldPredicate(TABLE, 'createdAt', 'isNotEmpty', undefined, 'date'))).toContain(
+      'IS NOT NULL'
+    )
+  })
+
+  it('reaches the same clause through the legacy $-grammar', () => {
+    // The v1 API path in the bug report goes through buildFilterClause, so the
+    // shared `fieldPredicate` leaf must cover it identically.
+    const out = render(
+      buildFilterClause(
+        { createdAt: { $gte: '2026-07-24T03:00:00.000Z', $lte: '2026-07-25T02:59:59.999Z' } },
+        TABLE,
+        NO_COLUMNS
+      )
+    )
+    expect(out).toContain(`${TABLE}.created_at >=`)
+    expect(out).toContain(`${TABLE}.created_at <=`)
+    expect(out).toContain("AT TIME ZONE 'UTC'")
+    expect(out).not.toContain('requires a number')
+  })
+})
+
+describe('range operators on non-numeric column types', () => {
+  it('compares string columns lexicographically as text (no numeric cast)', () => {
+    const cols: ColumnDefinition[] = [{ name: 'name', type: 'string' }]
+    const out = render(buildFilterClause({ name: { $gte: 'M' } }, TABLE, cols))
+    expect(out).toContain(`${TABLE}.data->>'name' >=`)
+    expect(out).not.toContain('::numeric')
+  })
+
+  it('rejects ranges on boolean / json columns with a type-naming message', () => {
+    for (const type of ['boolean', 'json'] as const) {
+      const cols: ColumnDefinition[] = [{ name: 'flag', type }]
+      expect(() => buildFilterClause({ flag: { $gt: 1 } }, TABLE, cols)).toThrow(
+        new RegExp(`\\(${type}\\) is not supported`)
+      )
+    }
   })
 })
 

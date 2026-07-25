@@ -33,7 +33,12 @@ export const LOGICAL_OPERATORS = [
   { value: 'or', label: 'or' },
 ] as const
 
-export const SORT_DIRECTIONS = [
+/**
+ * Direction picker options for the sort-builder UI. Distinct from the wire-level
+ * `SORT_DIRECTIONS` tuple in `lib/table/constants.ts` — both are star-exported
+ * through `lib/table/index.ts`, and a duplicate name resolves to nothing there.
+ */
+export const SORT_DIRECTION_OPTIONS = [
   { value: 'asc', label: 'ascending' },
   { value: 'desc', label: 'descending' },
 ] as const

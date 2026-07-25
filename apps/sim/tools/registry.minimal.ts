@@ -28,19 +28,6 @@ import {
 import { guardrailsValidateTool } from '@/tools/guardrails'
 import { httpRequestTool } from '@/tools/http'
 import {
-  tableBatchInsertRowsTool,
-  tableDeleteRowsByFilterTool,
-  tableDeleteRowTool,
-  tableGetRowTool,
-  tableGetSchemaTool,
-  tableInsertRowTool,
-  tableQueryRowsTool,
-  tableQueryRowsV2Tool,
-  tableUpdateRowsByFilterTool,
-  tableUpdateRowTool,
-  tableUpsertRowTool,
-} from '@/tools/table'
-import {
   slackAddReactionTool,
   slackArchiveConversationTool,
   slackCanvasTool,
@@ -84,6 +71,19 @@ import {
   slackUpdateMessageTool,
   slackUpdateViewTool,
 } from '@/tools/slack'
+import {
+  tableBatchInsertRowsTool,
+  tableDeleteRowsByFilterTool,
+  tableDeleteRowTool,
+  tableGetRowTool,
+  tableGetSchemaTool,
+  tableInsertRowTool,
+  tableQueryRowsTool,
+  tableQueryRowsV2Tool,
+  tableUpdateRowsByFilterTool,
+  tableUpdateRowTool,
+  tableUpsertRowTool,
+} from '@/tools/table'
 import type { ToolConfig } from '@/tools/types'
 import { customBlockExecutorTool, workflowExecutorTool } from '@/tools/workflow'
 

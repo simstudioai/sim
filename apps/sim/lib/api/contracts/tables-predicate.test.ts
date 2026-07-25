@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   deleteTableRowsBodySchema,
+  predicateSchema,
   rowQueryBodySchema,
   updateRowsByFilterBodySchema,
 } from '@/lib/api/contracts/tables'
@@ -98,6 +99,52 @@ describe('bulk schemas accept either a predicate tree or the legacy filter objec
         workspaceId: 'ws-1',
         filter: { all: [{ field: 'wins', op: 'gte', value: 10 }] },
         data: { active: false },
+      }).success
+    ).toBe(true)
+  })
+})
+
+/**
+ * The predicate tree is parsed by a recursive `z.lazy` union. A few thousand
+ * nested groups overflow the stack inside `safeParse`, and a `RangeError`
+ * escaping a parser is a 500 on a public endpoint, not a 400.
+ */
+describe('predicate depth / size guard', () => {
+  it('rejects a deeply nested tree with a validation issue, not a RangeError', () => {
+    let node: unknown = { all: [{ field: 'a', op: 'eq', value: 1 }] }
+    for (let i = 0; i < 5000; i++) node = { all: [node] }
+
+    const result = predicateSchema.safeParse(node)
+
+    expect(result.success).toBe(false)
+    expect(JSON.stringify(result.error?.issues)).toMatch(/nesting is too deep/)
+  })
+
+  it('rejects a wide-but-shallow tree past the node cap', () => {
+    const node = {
+      all: Array.from({ length: 60 }, () => ({
+        all: Array.from({ length: 60 }, () => ({ field: 'a', op: 'eq', value: 1 })),
+      })),
+    }
+
+    const result = predicateSchema.safeParse(node)
+
+    expect(result.success).toBe(false)
+    expect(JSON.stringify(result.error?.issues)).toMatch(/too many conditions/)
+  })
+
+  it('still accepts a realistic nested predicate', () => {
+    expect(
+      predicateSchema.safeParse({
+        all: [
+          { field: 'status', op: 'eq', value: 'active' },
+          {
+            any: [
+              { field: 'wins', op: 'gte', value: 10 },
+              { field: 'name', op: 'contains', value: 'jo' },
+            ],
+          },
+        ],
       }).success
     ).toBe(true)
   })

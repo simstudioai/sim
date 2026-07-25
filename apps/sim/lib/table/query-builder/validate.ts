@@ -14,7 +14,7 @@ import type {
  * Schema-aware validation for the typed predicate/sort wire. The engine
  * (`buildPredicateClause`) trusts its input, so this is the boundary gate that
  * every caller-supplied filter/sort passes through — the same checks the old
- * PostgREST parser did inline, now grammar-agnostic and applied to the object
+ * parser used to do inline, now grammar-agnostic and applied to the object
  * directly (predicates are column-NAME-keyed at the boundary, translated to ids
  * afterwards).
  */
@@ -31,10 +31,16 @@ const VALUELESS_OPS = new Set<FilterOp>(['isEmpty', 'isNotEmpty', 'isNull', 'isN
  */
 const MAX_IN_LIST_SIZE = 1000
 
-/** System timestamp columns are filterable/sortable but are not in `schema.columns`. */
+/**
+ * Row-level system columns are filterable/sortable but are not in
+ * `schema.columns`. Must stay in sync with `SYSTEM_COLUMNS` in `lib/table/sql.ts`
+ * — a name here with no SQL dispatch there compiles to a `data->>` extraction
+ * that silently matches nothing.
+ */
 const SYSTEM_COLUMN_TYPES: ReadonlyArray<[string, ColumnType]> = [
   ['createdAt', 'date'],
   ['updatedAt', 'date'],
+  ['id', 'string'],
 ]
 
 function buildTypeByName(columns: ColumnDefinition[]): Map<string, ColumnType> {
@@ -62,7 +68,7 @@ function validateLeaf(leaf: Predicate, typeByName: Map<string, ColumnType>): voi
   }
   if (typeByName.get(leaf.field) === 'json' && CONTAINMENT_OPS.has(leaf.op)) {
     throw new TableQueryValidationError(
-      `Operator "${leaf.op}" is not supported on json column "${leaf.field}" — use like/ilike for text match or is.null.`,
+      `Operator "${leaf.op}" is not supported on json column "${leaf.field}" — use like/ilike for text match, or isNull/isNotNull.`,
       'INVALID_FILTER'
     )
   }

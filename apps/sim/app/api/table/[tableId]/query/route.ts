@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { rowQueryContract } from '@/lib/api/contracts/tables'
+import { rowQueryContract, TABLE_QUERY_MAX_BODY_BYTES } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
 import { isZodError, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
@@ -35,13 +35,12 @@ export const POST = withRouteHandler(async (request: NextRequest, context: RowQu
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const parsed = await parseRequest(rowQueryContract, request, context)
+    const parsed = await parseRequest(rowQueryContract, request, context, {
+      maxBodyBytes: TABLE_QUERY_MAX_BODY_BYTES,
+    })
     if (!parsed.success) return parsed.response
     const { params, body } = parsed.data
     const { tableId } = params
-
-    const gateError = await tablesV2GateError(authResult.userId, body.workspaceId)
-    if (gateError) return gateError
 
     const accessResult = await checkAccess(tableId, authResult.userId, 'read')
     if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
@@ -53,6 +52,11 @@ export const POST = withRouteHandler(async (request: NextRequest, context: RowQu
       )
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
+
+    // After authz: the gate reads the workspace's org off the primary DB, and its
+    // 404 would otherwise distinguish "not in the rollout cohort" from "no access".
+    const gateError = await tablesV2GateError(authResult.userId, body.workspaceId)
+    if (gateError) return gateError
 
     const schema = table.schema as TableSchema
     const wire = rowWireTranslators(authResult.authType, schema)

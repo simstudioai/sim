@@ -24,7 +24,7 @@ import {
   wouldExceedRowLimit,
 } from '@/lib/table/billing'
 import { getColumnId } from '@/lib/table/column-keys'
-import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
+import { getMaxPageBytes, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { nKeysBetween } from '@/lib/table/order-key'
 import {
@@ -1044,6 +1044,7 @@ export async function queryRows(
     startOffset: offset,
     limit,
     budgetBytes: TABLE_LIMITS.MAX_QUERY_RESULT_BYTES,
+    pageCutBytes: getMaxPageBytes() ?? undefined,
   })
 
   const [fetched, totalCount] = await Promise.all([drainPromise, countPromise])
@@ -1109,7 +1110,13 @@ interface BoundedFetchParams {
   /** Inbound offset — the whole-view offset, or the past-anchor offset of a compound cursor. */
   startOffset: number
   limit?: number
+  /** Drain ceiling: sizes batches, and the fail-fast bound for an unbounded query. */
   budgetBytes: number
+  /**
+   * Opt-in byte cut for a **bounded** page (`TABLE_MAX_PAGE_BYTES`); `undefined`
+   * disables it, so a bounded page always returns its full `limit`.
+   */
+  pageCutBytes?: number
 }
 
 interface BoundedFetchResult {
@@ -1128,9 +1135,15 @@ const MAX_QUERY_BATCHES = 1000
 
 /**
  * Drains rows in adaptively-sized bounded batches until the caller's `limit`
- * or the byte budget cuts the page. Never issues an unbounded SELECT: the
+ * or the byte ceiling ends the page. Never issues an unbounded SELECT: the
  * first batch is capped so its worst-case bytes stay within ~4× the budget at
  * the max row size, and later batches are sized from the observed average.
+ *
+ * Byte ceiling: an **unbounded** query (no `limit`) always fails fast at
+ * `budgetBytes` — returning part of a result that promised everything would be
+ * silent truncation. A **bounded** page cuts short only when `pageCutBytes` is
+ * set (`TABLE_MAX_PAGE_BYTES`), because a short page is only safe for clients
+ * that terminate on `nextCursor === null` rather than on page fullness.
  *
  * Advance strategy: when `keysetValid`, the loop re-anchors on each consumed
  * keyed row and seeks `(order_key, id) > (anchor)` — delete-tolerant and an
@@ -1142,9 +1155,13 @@ const MAX_QUERY_BATCHES = 1000
  * alone exceeds the budget.
  */
 async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetchResult> {
-  const { baseWhere, orderBy, sorted, keysetValid, limit, budgetBytes } = params
+  const { baseWhere, orderBy, sorted, keysetValid, limit, budgetBytes, pageCutBytes } = params
 
   const firstBatchCap = Math.max(1, Math.floor((4 * budgetBytes) / TABLE_LIMITS.MAX_ROW_SIZE_BYTES))
+
+  // The byte ceiling that ends the drain: an unbounded query fails fast at the
+  // budget; a bounded page cuts only when the operator opted in.
+  const cutBytes = limit === undefined ? budgetBytes : pageCutBytes
 
   const rows: Array<typeof userTableRows.$inferSelect> = []
   let bytes = 0
@@ -1157,7 +1174,11 @@ async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetc
   const nextBatchRows = (): number => {
     if (rows.length === 0) return Math.min(limit ?? firstBatchCap, firstBatchCap)
     const avg = Math.max(1, bytes / rows.length)
-    const remaining = budgetBytes - bytes
+    // Bytes we may still fetch this batch. When a cut is active it's the
+    // remainder of that cut; otherwise each batch gets a fresh budget's worth,
+    // so a large bounded page keeps draining in real steps instead of degrading
+    // to one row per query once cumulative bytes pass the budget.
+    const remaining = Math.max(1, cutBytes === undefined ? budgetBytes : cutBytes - bytes)
     const byAverage = Math.ceil(remaining / avg) + 1
     const varianceCap = Math.ceil((8 * remaining) / Math.max(maxRowBytes, 1))
     return Math.max(1, Math.min(byAverage, TABLE_LIMITS.QUERY_BATCH_MAX_ROWS, varianceCap))
@@ -1205,17 +1226,17 @@ async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetc
     let cut = false
     for (const row of batch) {
       const rowBytes = Buffer.byteLength(JSON.stringify(row.data))
-      if (rows.length > 0 && bytes + rowBytes > budgetBytes) {
+      if (cutBytes !== undefined && rows.length > 0 && bytes + rowBytes > cutBytes) {
         // Unbounded queries promise the ENTIRE result — a partial page would be
         // silent truncation, so fail fast instead (the drain has only fetched
         // ~budget bytes at this point, never the whole table).
         if (limit === undefined) {
           throw new TableQueryValidationError(
-            `Query result exceeds the ${Math.floor(budgetBytes / (1024 * 1024))}MB limit. Add a filter or a limit to narrow the result.`,
+            `Query result exceeds the ${Math.floor(cutBytes / (1024 * 1024))}MB limit. Add a filter or a limit to narrow the result.`,
             'TABLE_QUERY_RESULT_TOO_LARGE'
           )
         }
-        // Bounded page: byte cut with `row` as the witness. Requires a
+        // Bounded page, byte cut opted in: `row` is the witness. Requires a
         // non-empty page so a single over-budget row is still returned alone.
         hasMore = true
         cut = true
