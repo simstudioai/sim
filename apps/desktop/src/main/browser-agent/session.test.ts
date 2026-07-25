@@ -434,12 +434,45 @@ describe('browser-agent session', () => {
     expect(content.addChildView).toHaveBeenCalledWith(tab.view)
     expect(view.setBounds).toHaveBeenCalledWith({ x: 100, y: 50, width: 800, height: 600 })
 
-    // Panel hidden: the view detaches.
+    // Panel hidden: the view stops painting but stays attached. Detaching
+    // would give up its compositor surface, and rebuilding that on the way
+    // back is the blank repaint that reads as the page having reloaded —
+    // which is every switch to another resource and back.
     const removeChildView = (
       win as unknown as { contentView: { removeChildView: ReturnType<typeof vi.fn> } }
     ).contentView.removeChildView
+    view.setVisible.mockClear()
     panel.setPanelBounds(null)
-    expect(removeChildView).toHaveBeenCalledWith(tab.view)
+    expect(view.setVisible).toHaveBeenCalledWith(false)
+    expect(removeChildView).not.toHaveBeenCalled()
+
+    // Showing it again reuses the attached view rather than re-adding it.
+    content.addChildView.mockClear()
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    expect(view.setVisible).toHaveBeenLastCalledWith(true)
+    expect(content.addChildView).not.toHaveBeenCalled()
+  })
+
+  it('detaches the previous view when another tab becomes active', () => {
+    const first = session.ensureTab()
+    panel.setPanelBounds({ x: 0, y: 0, width: 800, height: 600 })
+    const content = (
+      win as unknown as {
+        contentView: {
+          addChildView: ReturnType<typeof vi.fn>
+          removeChildView: ReturnType<typeof vi.fn>
+        }
+      }
+    ).contentView
+    content.addChildView.mockClear()
+    content.removeChildView.mockClear()
+
+    const second = session.addTab()
+
+    // Hiding keeps a view attached, but a tab switch still has to detach:
+    // two native views stacked in the window would composite over each other.
+    expect(content.removeChildView).toHaveBeenCalledWith(first.view)
+    expect(content.addChildView).toHaveBeenCalledWith(second.view)
   })
 
   // The measured report is the sole writer of bounds. A main-process
@@ -560,7 +593,7 @@ describe('browser-agent session', () => {
     expect(view.setBounds).toHaveBeenLastCalledWith({ x: 500, y: 40, width: 500, height: 760 })
   })
 
-  it('drops the resize listener when the view detaches', () => {
+  it('drops the resize listener while the panel is hidden', () => {
     session.ensureTab()
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     const onResize = hostResizeHandler(win)
@@ -835,12 +868,14 @@ describe('browser-agent session', () => {
         win as unknown as { contentView: { removeChildView: ReturnType<typeof vi.fn> } }
       ).contentView
       contentView.removeChildView.mockClear()
+      const view = session.requireTab().view as unknown as MockView
+      view.setVisible.mockClear()
 
       // The renderer goes silent — crashed, unmounted, or wedged. Without the
       // lease the native view keeps floating over whatever replaced the panel.
       await vi.advanceTimersByTimeAsync(6_000)
 
-      expect(contentView.removeChildView).toHaveBeenCalled()
+      expect(view.setVisible).toHaveBeenCalledWith(false)
     } finally {
       vi.useRealTimers()
     }

@@ -226,6 +226,26 @@ export function detachAttachedView(): void {
 }
 
 /**
+ * Stops the attached view painting without giving up its compositor surface,
+ * so showing it again is immediate. A hidden view takes no input either, which
+ * is what lets renderer UI sit where it used to be.
+ */
+function hideAttachedView(): void {
+  const view = attachedView
+  if (!view || lastAppliedVisibility === false) return
+  lastAppliedVisibility = false
+  // Nothing to re-lay-out while hidden; the showing path rebinds.
+  unbindHostResize()
+  try {
+    if (!view.webContents.isDestroyed()) view.setVisible(false)
+  } catch (error) {
+    logger.warn('Could not hide embedded browser view', {
+      error: getErrorMessage(error, 'unknown'),
+    })
+  }
+}
+
+/**
  * Detaches only when this exact view is the attached one. Closing a background
  * tab must not pull the visible tab out of the window.
  */
@@ -297,12 +317,22 @@ export function layout(): void {
   const showing = active !== null && panelBounds !== null && win !== null
   const activeViewChanged = showing && attachedView !== active?.view
 
-  if (!showing || hostedWindow !== win || attachedView !== active?.view) {
-    if (attachedView) {
-      detachAttachedView()
-    }
+  // Detach only when the attached view cannot stay where it is: no tab is
+  // active, a different tab took over, or the hosting window changed.
+  //
+  // A panel that is merely hidden keeps its view attached and invisible, for
+  // the same reason occlusion does (see setPanelOccluded): removing the view
+  // gives up its compositor surface, and rebuilding that on the way back is a
+  // blank repaint that reads as the page having reloaded. Every switch to
+  // another resource and back hides the panel, so that was every switch.
+  if (
+    attachedView !== null &&
+    (active === null || win === null || hostedWindow !== win || attachedView !== active.view)
+  ) {
+    detachAttachedView()
   }
   if (!showing || !active || !win || panelBounds === null) {
+    hideAttachedView()
     return
   }
 

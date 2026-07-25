@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cn, TabStrip, type TabStripItem } from '@sim/emcn'
 import { Loader, TerminalWindow } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
 import { FitAddon } from '@xterm/addon-fit'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -24,6 +25,8 @@ import {
 } from '@/lib/terminal/transport'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
+
+const logger = createLogger('TerminalSession')
 
 /**
  * How long the panel must stop changing size before the PTY is told about it.
@@ -89,16 +92,26 @@ const DARK_THEME = {
  * what makes rows freeze or tear mid-scroll. Disposing falls back to xterm's
  * DOM renderer: slower, but it cannot go stale.
  *
- * There is no canvas tier because `@xterm/addon-canvas` has no release for
- * xterm 6 — every published version, latest beta included, peers on xterm 5.
+ * There is deliberately no canvas tier in between. `@xterm/addon-canvas` has
+ * had no release since 2024 and none at all for xterm 6, while core xterm and
+ * this addon ship in lockstep; adopting it would mean moving the core library
+ * back a major version onto a renderer that is no longer published.
  */
 function attachWebglRenderer(terminal: Terminal): void {
   try {
     const webgl = new WebglAddon()
-    webgl.onContextLoss(() => webgl.dispose())
+    webgl.onContextLoss(() => {
+      logger.warn('Terminal WebGL context lost; falling back to the DOM renderer')
+      webgl.dispose()
+    })
     terminal.loadAddon(webgl)
-  } catch {
-    // No usable WebGL on this machine; the DOM renderer stays in place.
+  } catch (error) {
+    // The DOM renderer stays in place. Logged rather than swallowed: it is a
+    // large, silent performance cliff, and "the terminal feels slow" is
+    // otherwise indistinguishable from every other cause of slowness.
+    logger.warn('Terminal WebGL unavailable; using the slower DOM renderer', {
+      error: (error as Error).message,
+    })
   }
 }
 
