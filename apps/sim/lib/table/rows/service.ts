@@ -770,7 +770,7 @@ const FIND_MATCH_LIMIT = 1000
  * schema has no select columns (caller keeps the plain id match). Option ids/names
  * are trusted schema data, escaped and embedded literally; the row alias is `o`.
  */
-function buildSelectFindNameExpr(columns: ColumnDefinition[]): string | null {
+export function buildSelectFindNameExpr(columns: ColumnDefinition[]): string | null {
   const selectColumns = columns.filter((c) => c.type === 'select')
   if (selectColumns.length === 0) return null
   const esc = (s: string) => s.replace(/'/g, "''")
@@ -780,11 +780,17 @@ function buildSelectFindNameExpr(columns: ColumnDefinition[]): string | null {
       const caseWhens = (col.options ?? [])
         .map((o) => `WHEN '${esc(o.id)}' THEN '${esc(o.name)}'`)
         .join(' ')
+      const single = caseWhens ? `CASE kv.value ${caseWhens} ELSE kv.value END` : 'kv.value'
       if (col.multiple) {
         const elem = caseWhens ? `CASE e ${caseWhens} ELSE e END` : 'e'
-        return `WHEN kv.key = '${id}' THEN (SELECT string_agg(${elem}, ', ') FROM jsonb_array_elements_text(o.data->'${id}') e)`
+        // `jsonb_array_elements_text` throws "cannot extract elements from a
+        // scalar" on a JSON null — which a multiselect cell becomes when it is
+        // cleared, cut, or has its last option removed — so the array arm has to
+        // be gated on the cell actually being an array. Anything else falls back
+        // to the single mapping, which also keeps a scalar left over from a
+        // single→multi toggle searchable. Mirrors `buildSelectNameOrderExpr`.
+        return `WHEN kv.key = '${id}' THEN CASE WHEN jsonb_typeof(o.data->'${id}') = 'array' THEN (SELECT string_agg(${elem}, ', ') FROM jsonb_array_elements_text(o.data->'${id}') e) ELSE ${single} END`
       }
-      const single = caseWhens ? `CASE kv.value ${caseWhens} ELSE kv.value END` : 'kv.value'
       return `WHEN kv.key = '${id}' THEN ${single}`
     })
     .join(' ')
