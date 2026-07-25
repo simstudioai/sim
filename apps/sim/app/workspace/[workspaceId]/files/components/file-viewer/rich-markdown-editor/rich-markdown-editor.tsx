@@ -220,8 +220,6 @@ export function LoadedRichMarkdownEditor({
   if (!streamingAtMountRef.current && settledRef.current === null) {
     settledRef.current = lockSettled(content)
   }
-  const isEditable = canEdit && !isStreaming && (settledRef.current?.verdict ?? false)
-
   /**
    * Collaboration is decided ONCE at mount (TipTap fixes the extension set at
    * editor creation, so it cannot turn on later): only an editable, round-trip-safe,
@@ -237,6 +235,17 @@ export function LoadedRichMarkdownEditor({
       Boolean(userId) &&
       (file.storageContext ?? 'workspace') === 'workspace'
   )
+  /**
+   * Whether the collaborative document is safe to edit + persist: synced and seeded,
+   * or degraded to writable after a recoverable collaboration failure. Starts
+   * `false` for a collaborative document — so the editor is read-only and autosave
+   * gated until the shared content has arrived (a user must not type into an empty,
+   * unsynced doc, which the seed would then discard) — and `true` for a local one.
+   */
+  const [collabReady, setCollabReady] = useState(!collaborationEnabled)
+  const isEditable =
+    canEdit && !isStreaming && (settledRef.current?.verdict ?? false) && collabReady
+
   const collaboration = useFileDocCollaboration({
     fileId: file.id,
     userId,
@@ -544,21 +553,28 @@ export function LoadedRichMarkdownEditor({
    *   re-election can never duplicate content — the relay's exactly-once contract);
    * - **gate** the parent's autosave until the doc is synced AND seeded, so an
    *   empty/still-syncing doc can never overwrite the real file's markdown mirror;
-   * - **degrade** to local editing on a fatal join (seed the loaded content and
-   *   ungate autosave, so the file stays editable — edits persist through the
-   *   mirror, only live sync is off).
+   * - **degrade** on a fatal join: seed the loaded content so it is shown, and — for
+   *   a NON-permission failure (the user can still save) — mark it writable so the
+   *   file stays editable locally (edits persist through the mirror, only live sync
+   *   is off). A permission denial stays read-only (the save would 403 too).
    *
-   * Non-collaborative documents are never gated. `provider.shouldSeed` is latched,
-   * so a SEED_REQUEST that arrived before this subscription is not missed.
+   * `ready` (synced+seeded, or degraded-writable) gates BOTH the editor's editability
+   * (a user must never type into an empty/unsynced doc) and the parent's autosave.
+   * Non-collaborative documents are never gated. `provider.shouldSeed` is latched, so
+   * a SEED_REQUEST that arrived before this subscription is not missed.
    */
   useEffect(() => {
+    const setReady = (ready: boolean) => {
+      setCollabReady(ready)
+      onCollabReadyChange(ready)
+    }
     if (!collaboration) {
-      onCollabReadyChange(true)
+      setReady(true)
       return
     }
     const { provider, doc } = collaboration
     if (!provider || !editor) {
-      onCollabReadyChange(false)
+      setReady(false)
       return
     }
     const config = doc.getMap('config')
@@ -575,17 +591,17 @@ export function LoadedRichMarkdownEditor({
       })
     }
     const report = () =>
-      onCollabReadyChange(
-        degraded || (provider.synced && config.get('initialContentLoaded') === true)
-      )
+      setReady(degraded || (provider.synced && config.get('initialContentLoaded') === true))
     const onProgress = () => {
       if (provider.shouldSeed && provider.synced) seedFromLoaded()
       report()
     }
     const onJoinError = (error: JoinFileDocError) => {
       if (error.retryable !== false) return
-      degraded = true
+      // Show the loaded content, but only mark it writable when the failure isn't a
+      // permission denial — a denied user can't save either, so it stays read-only.
       seedFromLoaded()
+      if (error.code !== 'ACCESS_DENIED') degraded = true
       report()
     }
 
@@ -602,7 +618,18 @@ export function LoadedRichMarkdownEditor({
       config.unobserve(report)
       onCollabReadyChange(true)
     }
-  }, [collaboration, editor, onCollabReadyChange])
+  }, [collaboration, editor, onCollabReadyChange, setCollabReady])
+
+  /**
+   * Apply editability reactively for the collaborative steady state: `useEditor`'s
+   * `editable` is only the initial value, and the streaming/settle effect (which owns
+   * editability while and just after a stream) is skipped otherwise — so re-apply
+   * here when collaboration readiness flips the editor from read-only to editable.
+   */
+  useEffect(() => {
+    if (!editor || !collaborationEnabled || isStreaming) return
+    if (editor.isEditable !== isEditable) editor.setEditable(isEditable)
+  }, [editor, collaborationEnabled, isStreaming, isEditable])
 
   /**
    * Wire the `/Image` slash command to the hidden picker (per-editor storage, since the extension set is
