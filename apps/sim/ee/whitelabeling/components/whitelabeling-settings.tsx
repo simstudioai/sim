@@ -353,27 +353,16 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
                     )}
                   </button>
                 </DropZone>
-                <div className='flex gap-2'>
+                {logoUpload.previewUrl && (
                   <Button
-                    variant='outline'
+                    variant='ghost'
                     size='sm'
-                    onClick={logoUpload.handleThumbnailClick}
-                    disabled={logoUpload.isUploading}
-                    className='text-small'
+                    onClick={logoUpload.handleRemove}
+                    className='text-[var(--text-muted)] text-small hover:text-[var(--text-primary)]'
                   >
-                    {logoUpload.previewUrl ? 'Change' : 'Upload'}
+                    <X className='size-[14px]' />
                   </Button>
-                  {logoUpload.previewUrl && (
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={logoUpload.handleRemove}
-                      className='text-[var(--text-muted)] text-small hover:text-[var(--text-primary)]'
-                    >
-                      <X className='size-[14px]' />
-                    </Button>
-                  )}
-                </div>
+                )}
                 <input
                   ref={logoUpload.fileInputRef}
                   type='file'
@@ -411,27 +400,16 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
                     )}
                   </button>
                 </DropZone>
-                <div className='flex gap-2'>
+                {wordmarkUpload.previewUrl && (
                   <Button
-                    variant='outline'
+                    variant='ghost'
                     size='sm'
-                    onClick={wordmarkUpload.handleThumbnailClick}
-                    disabled={wordmarkUpload.isUploading}
-                    className='text-small'
+                    onClick={wordmarkUpload.handleRemove}
+                    className='text-[var(--text-muted)] text-small hover:text-[var(--text-primary)]'
                   >
-                    {wordmarkUpload.previewUrl ? 'Change' : 'Upload'}
+                    <X className='size-[14px]' />
                   </Button>
-                  {wordmarkUpload.previewUrl && (
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={wordmarkUpload.handleRemove}
-                      className='text-[var(--text-muted)] text-small hover:text-[var(--text-primary)]'
-                    >
-                      <X className='size-[14px]' />
-                    </Button>
-                  )}
-                </div>
+                )}
                 <input
                   ref={wordmarkUpload.fileInputRef}
                   type='file'
