@@ -186,6 +186,22 @@ describe('parseSpecialTags with <question>', () => {
     expect(segments.map((segment) => segment.type)).toContain('options')
   })
 
+  it('loses nothing when the model writes no closing tag at all', () => {
+    // Verbatim from a real message (trace 220cc02d). No close tag exists, so no
+    // marker rule can fire — but the JSON value completes and prose follows,
+    // which settles it at the first space. Asserted as LOSSLESS: mid-stream and
+    // complete, every character survives.
+    const raw =
+      'The dataset lives in <workspace_resource>{"type": "file", "path": "files/notes.md"} and I keep coming back to it whenever I need a quick reference. It never quite has everything.'
+    const join = (result: ReturnType<typeof parseSpecialTags>) =>
+      result.segments.map((segment) => ('content' in segment ? segment.content : '')).join('')
+
+    const streaming = parseSpecialTags(raw, true)
+    expect(streaming.hasPendingTag).toBe(false)
+    expect(join(streaming)).toBe(raw)
+    expect(join(parseSpecialTags(raw, false))).toBe(raw)
+  })
+
   it('keeps prose a tag wrapped instead of a payload', () => {
     // Verbatim from a real message (trace 1206fd8a): a matched pair whose body
     // is plain prose, never an attempted JSON payload. The sentence read
