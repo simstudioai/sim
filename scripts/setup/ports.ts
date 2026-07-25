@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { type PortOwnerInfo, portOpen, portOwner } from './detect.ts'
 import { waitFor } from './probes.ts'
 import * as p from './prompter.ts'
@@ -54,12 +55,30 @@ export async function ensurePortsFree(ports: number[]): Promise<boolean> {
 
     if (choice === 'abort') return false
     if (choice === 'kill') {
+      const killed: string[] = []
       for (const b of killable) {
-        if (b.owner) process.kill(b.owner.pid, 'SIGKILL')
+        if (!b.owner) continue
+        const label = `${b.owner.command} (pid ${b.owner.pid})`
+        try {
+          process.kill(b.owner.pid, 'SIGKILL')
+          killed.push(label)
+        } catch (error) {
+          // The owner list came from an lsof snapshot, so the process may have
+          // exited in between — that is the outcome we wanted, not a failure.
+          // A signal we're not allowed to send is worth saying out loud, but
+          // never fatal: the loop re-probes and offers the choice again.
+          const code = (error as NodeJS.ErrnoException).code
+          if (code === 'ESRCH') killed.push(`${label} — already gone`)
+          else if (code === 'EPERM') {
+            p.log.warn(
+              `Not allowed to kill ${label} — stop it yourself, then choose "check again".`
+            )
+          } else {
+            p.log.warn(`Could not kill ${label}: ${getErrorMessage(error)}`)
+          }
+        }
       }
-      p.log.step(
-        `Killed ${killable.map((b) => `${b.owner?.command} (pid ${b.owner?.pid})`).join(', ')}`
-      )
+      if (killed.length > 0) p.log.step(`Killed ${killed.join(', ')}`)
       // SIGKILL is async — the kernel releases the listening socket a beat after
       // the process dies, so re-checking immediately would still see the port
       // held. Wait for the killed ports to actually free before looping.

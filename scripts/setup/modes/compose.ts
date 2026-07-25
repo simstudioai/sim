@@ -25,6 +25,20 @@ import { glyph, theme } from '../theme.ts'
  * is fatal here: compose can't come up while the ports are held.
  */
 async function ensureComposePortsFree(composeFile: string): Promise<void> {
+  // This stack already holding 3000/3002 is not a conflict — `docker compose up
+  // -d` reconciles its own containers. Without this, re-running setup against a
+  // running install reports its own realtime container as a blocker and offers
+  // to kill Docker's listener, which is never the right move. A genuinely
+  // foreign process still gets caught below, and a foreign *container* surfaces
+  // as a clear bind error from compose itself.
+  const ours = spawnSync('docker', ['compose', '-f', composeFile, 'ps', '-q'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  })
+  if (ours.status === 0 && ours.stdout.trim()) {
+    p.log.step('Existing Sim containers hold :3000/:3002 — compose will reconcile them')
+    return
+  }
   if (await ensurePortsFree([3000, 3002])) return
   throw new SetupError('ports 3000/3002 are in use', [
     `free the ports, then re-run: ${theme.command('bun run setup')}`,
