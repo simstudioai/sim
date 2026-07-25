@@ -3768,6 +3768,54 @@ export const userTableRows = pgTable(
 )
 
 /**
+ * Saved presets for a user-defined table — a named filter + sort + column layout.
+ * Workspace-shared: anyone who can read the table sees every view, and `write` is
+ * required to create, update, or delete one. The absence of a view is the built-in
+ * "All" state, so a table is always reachable unfiltered without a seeded row.
+ *
+ * A dedicated table rather than a key on `user_table_definitions.metadata`: that
+ * column is written read-modify-write with a shallow merge, so a stale snapshot
+ * from any concurrent column resize would silently drop a view saved in between.
+ * Per-view rows make each save an independent insert.
+ */
+export const tableViews = pgTable(
+  'table_views',
+  {
+    id: text('id').primaryKey(),
+    tableId: text('table_id')
+      .notNull()
+      .references(() => userTableDefinitions.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    /**
+     * @remarks
+     * `TableViewConfig` — `{ filter, sort, hiddenColumns, columnOrder, columnWidths,
+     * pinnedColumns }`. Every column reference is keyed by stable column id, so a
+     * rename never touches a saved view; ids of deleted columns are pruned on read.
+     */
+    config: jsonb('config').notNull().default('{}'),
+    isDefault: boolean('is_default').notNull().default(false),
+    /**
+     * Nullable with `set null` rather than the `cascade` used for table ownership:
+     * a view is workspace-shared, so it must outlive the member who created it.
+     */
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    /** Covers the only read path: list a table's views in creation order. */
+    tableCreatedIdx: index('table_views_table_created_idx').on(table.tableId, table.createdAt),
+    /** At most one default view per table, enforced in the DB. */
+    defaultViewUnique: uniqueIndex('table_views_table_default_unique')
+      .on(table.tableId)
+      .where(sql`is_default = true`),
+  })
+)
+
+/**
  * Background data-mutation jobs on a user table (CSV import, bulk filtered delete). One row per
  * job. A detached worker streams progress into `rows_processed` and flips `status` to a terminal
  * state; cancel flips `status` to `'canceled'` and the worker bails at its next ownership check.

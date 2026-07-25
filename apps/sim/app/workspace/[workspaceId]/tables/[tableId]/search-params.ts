@@ -21,10 +21,28 @@ export const DEFAULT_TABLE_DETAIL_SORT_DIRECTION = 'asc'
 export const tableDetailParsers = {
   sort: parseAsString,
   dir: parseAsStringLiteral(SORT_DIRECTIONS).withDefault(DEFAULT_TABLE_DETAIL_SORT_DIRECTION),
+  /**
+   * Active saved view id. Nullable with no default: `null` is the built-in "All"
+   * state (no view), which is behaviourally distinct from any saved view and is
+   * what a table with zero views always shows.
+   *
+   * Only the id lives here — the view's filter/sort/layout are looked up from the
+   * loaded list, per the store-the-id-derive-the-object convention. A table's
+   * default view is resolved on mount and written back explicitly, so a shared
+   * link keeps pointing at the same view even if someone changes the default.
+   */
+  view: parseAsString,
 } as const
 
-/** Sort view-state: clean URLs, no back-stack churn. */
+/**
+ * Sort + view state: clean URLs, no back-stack churn.
+ *
+ * The wire key is `table-view`, not `view` — these parsers also bind to the home
+ * surface via the embedded mothership table, where a bare `view` would collide
+ * with any future view-mode param there.
+ */
 export const tableDetailUrlKeys = {
   history: 'replace',
   clearOnDefault: true,
+  urlKeys: { view: 'table-view' },
 } as const

@@ -34,12 +34,14 @@ import {
   cancelTableRunsContract,
   createTableContract,
   createTableRowContract,
+  createTableViewContract,
   type DeleteTableRowsAsyncBody,
   deleteTableColumnContract,
   deleteTableContract,
   deleteTableRowContract,
   deleteTableRowsAsyncContract,
   deleteTableRowsContract,
+  deleteTableViewContract,
   deleteWorkflowGroupContract,
   exportDownloadContract,
   exportTableAsyncContract,
@@ -53,6 +55,7 @@ import {
   listTableJobsContract,
   listTableRowsContract,
   listTablesContract,
+  listTableViewsContract,
   type RunLimit,
   type RunMode,
   renameTableContract,
@@ -63,12 +66,15 @@ import {
   type TableJobSummary,
   type TableRowParamsInput,
   type TableRowsQueryInput,
+  type TableViewConfigInput,
+  type TableViewWire,
   type UpdateTableColumnBodyInput,
   type UpdateTableRowBodyInput,
   type UpdateWorkflowGroupBodyInput,
   updateTableColumnContract,
   updateTableMetadataContract,
   updateTableRowContract,
+  updateTableViewContract,
   updateWorkflowGroupContract,
 } from '@/lib/api/contracts/tables'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
@@ -98,6 +104,7 @@ import { runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import {
   TABLE_LIST_STALE_TIME,
+  TABLE_VIEWS_STALE_TIME,
   type TableQueryScope,
   tableKeys,
 } from '@/hooks/queries/utils/table-keys'
@@ -1253,6 +1260,106 @@ export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationCont
       // exact: rowsRoot nests under detail, so a prefix match would needlessly refetch all rows
       queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
     },
+  })
+}
+
+/**
+ * Saved views on a table. The built-in "All" entry is the absence of a view and
+ * is rendered client-side, so this list contains only user-created views and is
+ * legitimately empty for a table nobody has saved a view on.
+ */
+export function useTableViews({
+  workspaceId,
+  tableId,
+  enabled = true,
+}: RowMutationContext & {
+  /** Carries the `table-views` flag, so a gated-off table never fetches. */
+  enabled?: boolean
+}) {
+  // rq-lint-allow: tableId is a globally-unique id; workspaceId is only an authz scope on the fetch and cannot collide across workspaces
+  return useQuery({
+    queryKey: tableKeys.views(tableId),
+    queryFn: async ({ signal }) => {
+      const response = await requestJson(listTableViewsContract, {
+        params: { tableId },
+        query: { workspaceId },
+        signal,
+      })
+      return response.data.views
+    },
+    enabled: enabled && Boolean(workspaceId && tableId),
+    staleTime: TABLE_VIEWS_STALE_TIME,
+  })
+}
+
+export function useCreateTableView({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ name, config }: { name: string; config: TableViewConfigInput }) => {
+      const response = await requestJson(createTableViewContract, {
+        params: { tableId },
+        body: { workspaceId, name, config },
+      })
+      return response.data.view
+    },
+    // Seed the new view into the list before the refetch lands, so the URL can
+    // select it immediately without naming a view the dropdown doesn't have yet.
+    onSuccess: (view) => {
+      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) =>
+        prev ? [...prev, view] : [view]
+      )
+    },
+    // Returned so the mutation stays pending until the refetch settles — otherwise
+    // the Save chip re-enables and flashes dirty against a stale cached config.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
+  })
+}
+
+interface UpdateTableViewParams {
+  viewId: string
+  name?: string
+  config?: TableViewConfigInput
+  isDefault?: boolean
+}
+
+/**
+ * Patches one view — overwrite its config, rename it, or promote it to default.
+ * `isDefault: true` demotes the previous default server-side, so the whole list
+ * is invalidated rather than just the edited row.
+ */
+export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ viewId, name, config, isDefault }: UpdateTableViewParams) => {
+      const response = await requestJson(updateTableViewContract, {
+        params: { tableId, viewId },
+        body: { workspaceId, name, config, isDefault },
+      })
+      return response.data.view
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
+  })
+}
+
+export function useDeleteTableView({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (viewId: string) => {
+      await requestJson(deleteTableViewContract, {
+        params: { tableId, viewId },
+        body: { workspaceId },
+      })
+      return viewId
+    },
+    onSuccess: (viewId) => {
+      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) =>
+        prev?.filter((view) => view.id !== viewId)
+      )
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
   })
 }
 

@@ -210,6 +210,11 @@ interface TableGridProps {
   /** Filter + sort. Lifted to wrapper so a single `useTable` call serves both. */
   queryOptions: QueryOptions
   /**
+   * **Column ids** to hide from the grid. Owned by the wrapper because the filter
+   * panel's Columns section edits the same list and the active view persists it.
+   */
+  hiddenColumns?: string[]
+  /**
    * Ref the grid populates with its `handleColumnRename` so the wrapper's
    * sidebars can fire a column rename back into the grid (rewrites local
    * `columnWidths` / `columnOrder` keys). The wrapper just forwards the call.
@@ -307,6 +312,7 @@ export function TableGrid({
   onStopRow,
   onSelectionChange,
   queryOptions,
+  hiddenColumns,
   columnRenameSinkRef,
   afterDeleteRowsSinkRef,
   afterDeleteAllSinkRef,
@@ -642,8 +648,18 @@ export function TableGrid({
         ordered.push(col)
       }
     }
+    // Hidden columns are dropped BEFORE expansion so a workflow group's
+    // `groupSize` / `isGroupStart` are computed over the surviving children —
+    // expanding first would leave the spanning header claiming columns that no
+    // longer render. Hiding every child of a group therefore removes its header
+    // entirely, and hiding a plain column between two children of the same group
+    // merges what were two header spans back into one.
+    if (hiddenColumns && hiddenColumns.length > 0) {
+      const hidden = new Set(hiddenColumns)
+      ordered = ordered.filter((col) => !hidden.has(getColumnId(col)))
+    }
     return expandToDisplayColumns(ordered, tableWorkflowGroups)
-  }, [columns, columnOrder, tableWorkflowGroups])
+  }, [columns, columnOrder, hiddenColumns, tableWorkflowGroups])
 
   const workflowGroupById = useMemo(
     () => new Map(tableWorkflowGroups.map((g) => [g.id, g])),

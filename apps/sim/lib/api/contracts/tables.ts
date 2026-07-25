@@ -12,6 +12,7 @@ import type {
   TableMetadata,
   TableRow,
   TableRowsCursor,
+  TableViewConfig,
 } from '@/lib/table'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
@@ -144,6 +145,7 @@ export const tableMetadataSchema = z.object({
   columnWidths: z.record(z.string(), z.number().positive()).optional(),
   columnOrder: z.array(z.string()).optional(),
   pinnedColumns: z.array(z.string()).optional(),
+  hiddenColumns: z.array(z.string()).optional(),
 }) satisfies z.ZodType<TableMetadata>
 
 export const updateTableMetadataBodySchema = z.object({
@@ -1379,3 +1381,114 @@ export const tableEventStreamContract = defineRouteContract({
     mode: 'stream',
   },
 })
+
+/**
+ * A saved view's stored shape: `TableMetadata`'s column layout plus the row
+ * predicate and sort. Every column reference is a stable column id, so a rename
+ * never invalidates a view.
+ */
+export const tableViewConfigSchema = tableMetadataSchema.extend({
+  filter: filterSchema.nullable().optional(),
+  sort: domainObjectSchema<Sort>().nullable().optional(),
+}) satisfies z.ZodType<TableViewConfig>
+
+export const tableViewSchema = z.object({
+  id: z.string(),
+  tableId: z.string(),
+  name: z.string(),
+  config: tableViewConfigSchema,
+  isDefault: z.boolean(),
+  createdBy: z.string().nullable(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+})
+
+/** Free-form display label — no character set or length restriction, unlike the
+ *  identifier-shaped table/column names. Only emptiness is rejected, since a
+ *  blank name renders as an unselectable gap in the views dropdown. */
+const viewNameSchema = z.string().trim().min(1, 'View name is required')
+
+export const tableViewParamsSchema = tableIdParamsSchema.extend({
+  viewId: z.string().min(1),
+})
+
+export const listTableViewsQuerySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+})
+
+export const listTableViewsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/[tableId]/views',
+  params: tableIdParamsSchema,
+  query: listTableViewsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ views: z.array(tableViewSchema) })),
+  },
+})
+
+export const createTableViewBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  name: viewNameSchema,
+  config: tableViewConfigSchema,
+})
+
+export const createTableViewContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/views',
+  params: tableIdParamsSchema,
+  body: createTableViewBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ view: tableViewSchema })),
+  },
+})
+
+/**
+ * Every field is optional so the three call sites — overwrite a view's config,
+ * rename it, promote it to default — share one endpoint and send only what they
+ * change. `isDefault: true` demotes the table's existing default server-side.
+ */
+export const updateTableViewBodySchema = z
+  .object({
+    workspaceId: z.string().min(1, 'Workspace ID is required'),
+    name: viewNameSchema.optional(),
+    config: tableViewConfigSchema.optional(),
+    isDefault: z.boolean().optional(),
+  })
+  .refine(
+    (value) =>
+      value.name !== undefined || value.config !== undefined || value.isDefault !== undefined,
+    { message: 'Provide at least one of name, config, or isDefault' }
+  )
+
+export const updateTableViewContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/table/[tableId]/views/[viewId]',
+  params: tableViewParamsSchema,
+  body: updateTableViewBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ view: tableViewSchema })),
+  },
+})
+
+export const deleteTableViewBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+})
+
+export const deleteTableViewContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/table/[tableId]/views/[viewId]',
+  params: tableViewParamsSchema,
+  body: deleteTableViewBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ deleted: z.literal(true) })),
+  },
+})
+
+export type TableViewWire = z.output<typeof tableViewSchema>
+export type TableViewConfigInput = z.input<typeof tableViewConfigSchema>
+export type CreateTableViewBody = z.input<typeof createTableViewBodySchema>
+export type UpdateTableViewBody = z.input<typeof updateTableViewBodySchema>
