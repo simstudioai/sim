@@ -685,17 +685,21 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
     const parsedTag = parseSpecialTagData(nearestTagName, body)
     if (parsedTag) {
       segments.push(parsedTag)
-    } else if (TAG_SHAPED_MARKER.test(body)) {
-      // The body failed to parse AND contains tag markers, which means the
-      // close we matched was not this opener's — the model was explaining tag
-      // syntax and a later example like `<workspace_resource>...</workspace_resource>`
-      // closed an earlier opener, making paragraphs of prose the "body".
-      // Dropping that silently loses the text and resumes mid-sentence, so emit
-      // it verbatim. Streamdown escapes the markers, so it reads as literal text.
+    } else if (
+      // The close we matched was not this opener's: the model was explaining tag
+      // syntax and a later example closed an earlier opener, making paragraphs
+      // of prose the "body".
+      TAG_SHAPED_MARKER.test(body) ||
+      // Or the tag wrapped prose that was never an attempted payload at all.
+      (JSON_BODY_TAG_NAMES.has(nearestTagName) && !isViableJsonPrefix(body))
+    ) {
+      // Either way the markers were literal text, so dropping the span loses
+      // real content and resumes mid-sentence. Emit it verbatim — Streamdown
+      // escapes the markers, so it reads as literal text.
       //
-      // A marker-free body that merely fails validation is a genuinely
-      // malformed payload from the agent; that keeps being dropped rather than
-      // showing the user raw JSON.
+      // A body that IS a well-formed JSON value and merely fails its shape
+      // guard keeps being dropped: that is a genuinely malformed payload from
+      // the agent, and showing the user raw JSON there would be a regression.
       const literal = content.slice(nearestStart, closeIdx + closeTag.length)
       if (literal.trim()) {
         segments.push({ type: 'text', content: literal })

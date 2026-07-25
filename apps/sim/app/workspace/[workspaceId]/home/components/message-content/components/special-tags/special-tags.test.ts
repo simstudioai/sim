@@ -176,6 +176,19 @@ describe('parseSpecialTags with <question>', () => {
     )
   })
 
+  it('keeps prose a tag wrapped instead of a payload', () => {
+    // Verbatim from a real message (trace 1206fd8a): a matched pair whose body
+    // is plain prose, never an attempted JSON payload. The sentence read
+    // "...once I wired up to handle the welcome sequence" with the subject gone.
+    const raw =
+      'once I wired up <workspace_resource>the gmail-agent workflow</workspace_resource> to handle the welcome sequence.'
+    const rendered = parseSpecialTags(raw, false)
+      .segments.map((segment) => ('content' in segment ? segment.content : ''))
+      .join('')
+    expect(rendered).toContain('the gmail-agent workflow')
+    expect(rendered).toContain('to handle the welcome sequence')
+  })
+
   it('still drops a marker-free malformed payload rather than showing raw JSON', () => {
     // The complement of the case above: no tag markers in the body, so this is
     // a genuinely broken emission from the agent, not swallowed prose.
