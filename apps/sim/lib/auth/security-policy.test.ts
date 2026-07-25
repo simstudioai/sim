@@ -76,7 +76,19 @@ describe('security policy', () => {
       expect(await getSecurityPolicyVersion(orgId)).toBe(7)
     })
 
-    it('falls back to the default when the read fails', async () => {
+    it('prefers a version published mid-flight over the default when the read fails', async () => {
+      const orgId = nextOrgId()
+      // A revoke/policy save publishes the bump while this read is in flight,
+      // then the read fails. Returning the default would reproduce the exact
+      // version a pre-bump cookie carries and keep it matching.
+      dbChainMockFns.limit.mockImplementationOnce(() => {
+        setSecurityPolicyVersion(orgId, 6)
+        throw new Error('connection reset')
+      })
+      expect(await getSecurityPolicyVersion(orgId)).toBe(6)
+    })
+
+    it('falls back to the default when the read fails and nothing is cached', async () => {
       dbChainMockFns.limit.mockImplementationOnce(() => {
         throw new Error('connection reset')
       })

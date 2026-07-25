@@ -66,9 +66,12 @@ const membershipCache = new LRUCache<string, MembershipCacheEntry>({
  * planned consumers): any feature that needs cached session cookies to
  * re-validate bumps this one counter.
  *
- * A failed read falls back to the default rather than the last known value.
- * That errs toward MORE revalidation, not less: a version that reads lower than
- * the stored one mismatches the cookie and forces a database session read.
+ * A failed read prefers whatever this process last knew over the default. The
+ * default is not the safe fallback it looks like: it is the version a
+ * never-bumped org carries, so returning it can MATCH a pre-bump cookie and
+ * keep a just-revoked session serving from the cookie cache. A retained or
+ * freshly published value can only be equal or higher, so it either forces the
+ * same revalidation or more of it.
  */
 export async function getSecurityPolicyVersion(
   organizationId: string | null | undefined
@@ -96,11 +99,11 @@ export async function getSecurityPolicyVersion(
     versionCache.set(organizationId, version)
     return version
   } catch (error) {
-    logger.error('Failed to resolve security policy version; using default', {
-      organizationId,
-      error,
-    })
-    return DEFAULT_VERSION
+    logger.error('Failed to resolve security policy version', { organizationId, error })
+    // A publish, or a concurrent read, may have landed while this one was in
+    // flight. Prefer it — the default could reproduce exactly the version a
+    // pre-bump cookie carries, leaving a revoked session on the cookie cache.
+    return versionCache.get(organizationId) ?? DEFAULT_VERSION
   }
 }
 
