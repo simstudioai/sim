@@ -8,7 +8,6 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
@@ -78,14 +77,6 @@ import { generateColumnName } from './utils'
 
 const logger = createLogger('Table')
 
-/**
- * Client mirror of the server's `table-locks` flag. Hides the settings entry
- * point when locks can't be set, so the panel never opens onto a Save that
- * 403s. An already-locked table still shows its state regardless, so the
- * gating stays legible if the flag is turned off after locks were applied.
- */
-const tableLocksEnabled = isTruthy(getEnv('NEXT_PUBLIC_TABLE_LOCKS'))
-
 /** Blocked-action toasts carry a button, so they linger past the 5s default. */
 const BLOCKED_TOAST_MS = 8000
 
@@ -96,6 +87,13 @@ interface TableProps {
   /** Identifiers — only set in embedded mode. Page mode reads from `useParams()`. */
   workspaceId?: string
   tableId?: string
+  /**
+   * Whether an admin may CHANGE locks, resolved server-side by the page (the
+   * flag's gating lives in AppConfig and has no client counterpart). Defaults
+   * to false so embedded renders, which have no server resolution, fail closed
+   * — enforcement of stored locks is unaffected either way.
+   */
+  tableLocksEnabled?: boolean
 }
 
 /**
@@ -152,6 +150,7 @@ export function Table({
   embedded,
   workspaceId: propWorkspaceId,
   tableId: propTableId,
+  tableLocksEnabled = false,
 }: TableProps = {}) {
   const params = useParams()
   const router = useRouter()
@@ -644,16 +643,15 @@ export function Table({
 
   const headerActions = useMemo(() => {
     if (!tableData) return undefined
+    // Header space is for state, not for settings: the chip appears only once
+    // something is actually locked, and names the mode so it reads at a glance.
+    // Reaching the panel on an unlocked table is the dropdown's job.
     const anyLocked = lockedNouns(tableData.locks).length > 0
-    // Name the mode when locked so the state is legible on open; admins get the
-    // entry point on an unlocked table only where the feature is enabled —
-    // otherwise the panel opens and Save 403s against the server-side gate.
-    const lockLabel = anyLocked ? describeLocks(tableData.locks).name : 'Lock settings'
     return [
-      ...(anyLocked || (userPermissions.canAdmin && tableLocksEnabled)
+      ...(anyLocked
         ? [
             {
-              label: lockLabel,
+              label: describeLocks(tableData.locks).name,
               icon: Lock,
               onClick: () =>
                 userPermissions.canAdmin ? setShowLockSettings(true) : showBlockedToast('status'),

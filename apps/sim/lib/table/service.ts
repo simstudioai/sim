@@ -27,6 +27,8 @@ import type { DbTransaction } from '@/lib/table/planner'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import {
   type CreateTableData,
+  TABLE_LOCK_FLAGS,
+  TABLE_LOCK_KINDS,
   type TableDefinition,
   type TableLocks,
   type TableMetadata,
@@ -627,9 +629,13 @@ export async function updateTableLocks(
   tableId: string,
   partial: Partial<TableLocks>,
   actingUserId: string,
-  requestId: string
+  requestId: string,
+  /** Forwarded to the audit record for IP / user-agent capture. */
+  request?: { headers: { get(name: string): string | null } }
 ): Promise<TableDefinition> {
+  let previousLocks: TableLocks = UNLOCKED_TABLE_LOCKS
   const updated = await withLockedTable(tableId, async (table, trx) => {
+    previousLocks = table.locks
     const nextLocks: TableLocks = { ...table.locks, ...partial }
     const now = new Date()
     await trx
@@ -639,6 +645,18 @@ export async function updateTableLocks(
     return { ...table, locks: nextLocks, updatedAt: now }
   })
 
+  // Name the transitions in the description so the audit list is readable
+  // without expanding metadata — "who locked my production table" is the
+  // question this feature exists to answer.
+  const flipped = TABLE_LOCK_KINDS.filter(
+    (kind) => previousLocks[TABLE_LOCK_FLAGS[kind]] !== updated.locks[TABLE_LOCK_FLAGS[kind]]
+  )
+  const description = flipped.length
+    ? `Table locks changed: ${flipped
+        .map((kind) => `${kind} ${updated.locks[TABLE_LOCK_FLAGS[kind]] ? 'locked' : 'unlocked'}`)
+        .join(', ')}`
+    : 'Updated table locks (no change)'
+
   recordAudit({
     workspaceId: updated.workspaceId,
     actorId: actingUserId,
@@ -646,8 +664,9 @@ export async function updateTableLocks(
     resourceType: AuditResourceType.TABLE,
     resourceId: tableId,
     resourceName: updated.name,
-    description: 'Updated table locks',
-    metadata: { op: 'update_locks', locks: updated.locks },
+    description,
+    metadata: { op: 'update_locks', before: previousLocks, after: updated.locks },
+    ...(request ? { request } : {}),
   })
 
   await appendTableEvent({ kind: 'definition', tableId, reason: 'locks' }).catch((error) => {
