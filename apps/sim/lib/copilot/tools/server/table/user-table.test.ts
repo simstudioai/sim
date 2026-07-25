@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
 
 const {
+  mockUpdateColumnType,
+  mockUpdateColumnOptions,
   mockResolveWorkspaceFileReference,
   mockDownloadWorkspaceFile,
   mockGetTableById,
@@ -25,6 +27,8 @@ const {
   mockRunTableUpdate,
   fakeEnrichment,
 } = vi.hoisted(() => ({
+  mockUpdateColumnType: vi.fn(),
+  mockUpdateColumnOptions: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
   mockDownloadWorkspaceFile: vi.fn(),
   mockGetTableById: vi.fn(),
@@ -92,7 +96,8 @@ vi.mock('@/lib/table/columns/service', () => ({
   deleteColumns: vi.fn(),
   renameColumn: vi.fn(),
   updateColumnConstraints: vi.fn(),
-  updateColumnType: vi.fn(),
+  updateColumnType: mockUpdateColumnType,
+  updateColumnOptions: mockUpdateColumnOptions,
 }))
 
 vi.mock('@/lib/table/rows/service', () => ({
@@ -1058,5 +1063,78 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     expect(result.success).toBe(true)
     expect(mockQueryRows).not.toHaveBeenCalled()
     expect(mockUpdateRowsByFilter).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('userTableServerTool.update_column — select routing', () => {
+  const selectTable = buildTable({
+    schema: {
+      columns: [
+        {
+          id: 'col_status',
+          name: 'status',
+          type: 'select',
+          options: [{ id: 'opt_open', name: 'Open' }],
+        },
+      ],
+    },
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetTableById.mockResolvedValue(selectTable)
+    mockUpdateColumnOptions.mockResolvedValue(selectTable)
+    mockUpdateColumnType.mockResolvedValue(selectTable)
+  })
+
+  it('routes an unchanged type with options to updateColumnOptions', async () => {
+    // `updateColumnType` early-returns when the type is unchanged, so routing
+    // there would silently drop the new option set and still report success.
+    await userTableServerTool.execute(
+      {
+        operation: 'update_column',
+        args: {
+          tableId: 'tbl_1',
+          columnName: 'status',
+          newType: 'select',
+          options: ['Open', 'Closed'],
+        },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' } as never
+    )
+
+    expect(mockUpdateColumnType).not.toHaveBeenCalled()
+    expect(mockUpdateColumnOptions).toHaveBeenCalledTimes(1)
+    expect(
+      mockUpdateColumnOptions.mock.calls[0][0].options.map((o: { name: string }) => o.name)
+    ).toEqual(['Open', 'Closed'])
+  })
+
+  it('routes a genuine type change to updateColumnType', async () => {
+    await userTableServerTool.execute(
+      {
+        operation: 'update_column',
+        args: { tableId: 'tbl_1', columnName: 'status', newType: 'string' },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' } as never
+    )
+
+    expect(mockUpdateColumnType).toHaveBeenCalledTimes(1)
+    expect(mockUpdateColumnOptions).not.toHaveBeenCalled()
+  })
+
+  it('accepts a multiple-only toggle by reusing the current options', async () => {
+    await userTableServerTool.execute(
+      {
+        operation: 'update_column',
+        args: { tableId: 'tbl_1', columnName: 'status', multiple: true },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' } as never
+    )
+
+    expect(mockUpdateColumnOptions).toHaveBeenCalledTimes(1)
+    const arg = mockUpdateColumnOptions.mock.calls[0][0]
+    expect(arg.multiple).toBe(true)
+    expect(arg.options).toEqual([{ id: 'opt_open', name: 'Open' }])
   })
 })

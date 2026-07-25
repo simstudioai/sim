@@ -1604,17 +1604,23 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           // The agent authors options by name; mint ids here, reusing the id of
           // any option whose name already exists so its cells survive the edit.
-          const existingOptions =
-            tableForUpdate.schema.columns.find((c) => columnMatchesRef(c, colName))?.options ?? []
+          const currentColumn = tableForUpdate.schema.columns.find((c) =>
+            columnMatchesRef(c, colName)
+          )
+          const existingOptions = currentColumn?.options ?? []
           const options = normalizeSelectOptionsInput(rawOptions, existingOptions)
+          // An agent restating the current type alongside new options must not
+          // go through `updateColumnType` — it early-returns on an unchanged
+          // type and would drop them. Mirrors the HTTP columns route.
+          const typeChanging = newType !== undefined && newType !== currentColumn?.type
           let result: TableDefinition | undefined
-          if (newType !== undefined) {
-            if (!(COLUMN_TYPES as readonly string[]).includes(newType)) {
-              return {
-                success: false,
-                message: `Invalid column type "${newType}". Must be one of: ${COLUMN_TYPES.join(', ')}`,
-              }
+          if (newType !== undefined && !(COLUMN_TYPES as readonly string[]).includes(newType)) {
+            return {
+              success: false,
+              message: `Invalid column type "${newType}". Must be one of: ${COLUMN_TYPES.join(', ')}`,
             }
+          }
+          if (typeChanging) {
             assertNotAborted()
             result = await updateColumnType(
               {
@@ -1654,7 +1660,9 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           return {
             success: true,
             message: `Updated column "${colName}"`,
-            data: { schema: result?.schema },
+            // A payload that only restates the current type is a no-op; still
+            // report the live schema rather than an undefined one.
+            data: { schema: (result ?? tableForUpdate).schema },
           }
         }
 
