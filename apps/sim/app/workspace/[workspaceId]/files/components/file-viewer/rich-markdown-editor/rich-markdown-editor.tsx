@@ -629,12 +629,13 @@ export function LoadedRichMarkdownEditor({
   useEffect(() => {
     if (!editor) return
     // When collaborating, the Y.Doc is the source of truth for at-rest content, so
-    // skip this manual reconcile loop — EXCEPT while an agent is streaming, where the
-    // stream (and its settle) must still run so the agent's output is shown and
-    // reconciled (it flows into the shared doc via `setContent`). Collab and streaming
-    // are mutually exclusive at mount, so this only matters for a stream that starts
-    // after a collaborative open.
-    if (collaborationEnabled && !isStreaming) return
+    // skip this manual reconcile loop in steady state. But an agent stream that starts
+    // after a collaborative open must still run — both while streaming (`isStreaming`)
+    // and through its settle (`wasStreamingRef`, true until the settle branch consumes
+    // it) — so the agent's output is shown, flows into the shared doc via `setContent`,
+    // and the editor is re-enabled on settle. Collab and streaming are mutually
+    // exclusive at mount, so this only affects a stream begun after a collaborative open.
+    if (collaborationEnabled && !isStreaming && !wasStreamingRef.current) return
     const syncEditorBody = (body: string) => {
       if (body === lastSyncedBodyRef.current) return
       lastSyncedBodyRef.current = body
