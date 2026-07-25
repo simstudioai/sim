@@ -157,11 +157,13 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     )
     const typeChanging = updates.type !== undefined && updates.type !== currentColumn?.type
 
-    // The type change and the constraint write are separate locked transactions,
-    // so a payload asking for both would convert the column (clearing unique on
-    // the way) and only then fail the constraint — leaving the conversion
-    // committed behind an error response. Reject the pair up front.
-    if (typeChanging && updates.type === 'select' && updates.unique === true) {
+    // Every write below is its own locked transaction, so any of them paired
+    // with a constraint write that is going to fail commits and then errors.
+    // Gate on the type the column ENDS UP with, not on whether the type is
+    // changing: an options-only update on an existing select column carries the
+    // same hazard as a conversion does.
+    const resultingType = updates.type ?? currentColumn?.type
+    if (updates.unique === true && resultingType === 'select') {
       return NextResponse.json({ error: 'Cannot set a select column as unique' }, { status: 400 })
     }
 
