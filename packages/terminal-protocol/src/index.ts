@@ -18,7 +18,15 @@
  * the source of truth for how those calls travel to the desktop main process.
  */
 
-export const TERMINAL_TOOL_NAMES = [
+/** The single tool the model calls; what it does is in `operation`. */
+export const TERMINAL_TOOL_NAME = 'terminal'
+
+/**
+ * Names this surface used to expose, one tool per operation. Kept so rows in
+ * conversations recorded before the consolidation still render with a real
+ * title instead of a humanized tool name.
+ */
+export const LEGACY_TERMINAL_TOOL_NAMES = [
   'terminal_run',
   'terminal_input',
   'terminal_read',
@@ -30,12 +38,39 @@ export const TERMINAL_TOOL_NAMES = [
   'terminal_close',
 ] as const
 
-export type TerminalToolName = (typeof TERMINAL_TOOL_NAMES)[number]
+export type LegacyTerminalToolName = (typeof LEGACY_TERMINAL_TOOL_NAMES)[number]
 
-const TERMINAL_TOOL_NAME_SET: ReadonlySet<string> = new Set(TERMINAL_TOOL_NAMES)
+/**
+ * What one `terminal` call does.
+ *
+ * The first group acts on a shell — or, when that shell has tmux attached, on
+ * a pane inside it. The second group manages Sim's own tabs. `panes` is the
+ * one tmux-only operation: tmux owns its windows and splits, so the agent
+ * inspects them rather than Sim mirroring them into the tab strip.
+ */
+export const TERMINAL_OPERATIONS = [
+  'run',
+  'read',
+  'input',
+  'kill',
+  'cwd',
+  'list',
+  'new',
+  'switch',
+  'close',
+  'panes',
+] as const
 
-export function isTerminalToolName(name: string): name is TerminalToolName {
-  return TERMINAL_TOOL_NAME_SET.has(name)
+export type TerminalOperation = (typeof TERMINAL_OPERATIONS)[number]
+
+const TERMINAL_OPERATION_SET: ReadonlySet<string> = new Set(TERMINAL_OPERATIONS)
+
+export function isTerminalOperation(value: unknown): value is TerminalOperation {
+  return typeof value === 'string' && TERMINAL_OPERATION_SET.has(value)
+}
+
+export function isTerminalToolName(name: string): boolean {
+  return name === TERMINAL_TOOL_NAME
 }
 
 /**
@@ -109,37 +144,48 @@ export function isTerminalControlKey(value: unknown): value is TerminalControlKe
   return typeof value === 'string' && TERMINAL_CONTROL_KEY_SET.has(value)
 }
 
+export type TerminalSignal = 'SIGINT' | 'SIGTERM' | 'SIGKILL'
+
 /**
- * Every tool takes an optional `terminalId`. Omitting it targets the active
- * terminal, which is what the user is looking at and what a single-terminal
- * conversation always means.
+ * Arguments for every operation, flattened into one object.
+ *
+ * A flat bag rather than a discriminated union because it has to survive a
+ * round trip through a JSON tool schema, where the model supplies whichever
+ * fields its chosen operation needs. Each operation validates the ones it
+ * requires and ignores the rest.
  */
-interface TerminalTargeted {
-  terminalId?: string
-}
-
-export interface TerminalRunParams extends TerminalTargeted {
-  command: string
-  waitSeconds?: number
-}
-
-export interface TerminalInputParams extends TerminalTargeted {
+export interface TerminalToolArgs {
+  /** `run`: the command line to execute. */
+  command?: string
+  /** `input`: literal text to type. */
   text?: string
+  /** `input`: a key to press instead of text. */
   key?: TerminalControlKey
-}
-
-export interface TerminalReadParams extends TerminalTargeted {
-  /** Trailing lines of scrollback to return. */
+  /** `read`: trailing lines to return. */
   lines?: number
-}
-
-export interface TerminalKillParams extends TerminalTargeted {
-  signal?: 'SIGINT' | 'SIGTERM' | 'SIGKILL'
-}
-
-export interface TerminalNewParams {
-  /** Directory to open in. Defaults to the active terminal's cwd. */
+  /** `kill`: which signal. Defaults to SIGINT. */
+  signal?: TerminalSignal
+  /** `new`: directory to open in. Defaults to the active terminal's cwd. */
   cwd?: string
+  /** `run`: how long to wait before handing back a still-running command. */
+  waitSeconds?: number
+  /**
+   * Which terminal to act on. Omitting it targets the active one, which is
+   * what the user is looking at and what a single-terminal conversation
+   * always means.
+   */
+  terminalId?: string
+  /**
+   * Which tmux pane to act on, as a tmux target (`session:window.pane`), for
+   * a terminal that has tmux attached. Omitting it uses that session's active
+   * pane. Ignored when the terminal is a plain shell.
+   */
+  pane?: string
+}
+
+export interface TerminalToolCall {
+  operation: TerminalOperation
+  args?: TerminalToolArgs
 }
 
 /**
@@ -170,6 +216,8 @@ export interface TerminalRunResult {
   durationMs: number
   cwd: string | null
   terminalId: string
+  /** Set when the command ran in tmux: the target it ran under. */
+  pane?: string
   /** True when output was elided to fit {@link MAX_TOOL_OUTPUT_CHARS}. */
   truncated: boolean
   /**
@@ -184,6 +232,8 @@ export interface TerminalReadResult {
   output: string
   cwd: string | null
   terminalId: string
+  /** Set when the read came from tmux: the pane it captured. */
+  pane?: string
   truncated: boolean
   /**
    * The command still holding the terminal, or null when the shell is back at
@@ -216,6 +266,29 @@ export interface TerminalTabState {
    */
   interactive: boolean
   active: boolean
+  /**
+   * The tmux session attached in this terminal, when one is. Its windows and
+   * panes are tmux's to manage — `panes` lists them; Sim's tab strip stays a
+   * count of the shells Sim opened.
+   */
+  tmuxSession?: string | null
+}
+
+/** One tmux pane, as reported by the `panes` operation. */
+export interface TerminalPaneState {
+  /** tmux target (`session:window.pane`), usable as the `pane` argument. */
+  target: string
+  windowName: string
+  /** The process tmux reports in the pane; a bare shell means it is idle. */
+  command: string
+  cwd: string | null
+  active: boolean
+}
+
+export interface TerminalPanesResult {
+  terminalId: string
+  session: string
+  panes: TerminalPaneState[]
 }
 
 export interface TerminalTabsState {
@@ -246,6 +319,10 @@ export type TerminalErrorCode =
   | 'NO_SUCH_TERMINAL'
   /** Already at {@link MAX_TERMINALS}. */
   | 'TOO_MANY_TERMINALS'
+  /** The operation needs tmux, and this terminal has no tmux attached. */
+  | 'NO_TMUX'
+  /** No pane with that target — the targets come from the `panes` operation. */
+  | 'NO_SUCH_PANE'
   | 'INVALID_REQUEST'
 
 export interface TerminalStartOptions {

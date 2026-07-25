@@ -8,7 +8,11 @@
  * server-side waiter.
  */
 import { createLogger } from '@sim/logger'
-import type { TerminalToolName } from '@sim/terminal-protocol'
+import {
+  isTerminalOperation,
+  type TerminalOperation,
+  type TerminalToolArgs,
+} from '@sim/terminal-protocol'
 import { toError } from '@sim/utils/errors'
 import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/copilot/async-runs/lifecycle'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
@@ -64,37 +68,62 @@ function eventAgeMs(eventTs: string | undefined): number | null {
  */
 const QUICK_TOOL_TIMEOUT_MS = 15_000
 
-function timeoutForTool(toolName: TerminalToolName): number | null {
-  return toolName === 'terminal_run' ? null : QUICK_TOOL_TIMEOUT_MS
+function timeoutForOperation(operation: TerminalOperation): number | null {
+  return operation === 'run' ? null : QUICK_TOOL_TIMEOUT_MS
+}
+
+/**
+ * Splits a `terminal` tool call into its operation and arguments. The model
+ * supplies both inside one params object, and an unrecognized operation is
+ * rejected here rather than sent to the desktop, so a malformed call fails
+ * with a useful message instead of a bridge error.
+ */
+function parseCall(params: Record<string, unknown>): {
+  operation: TerminalOperation
+  args: TerminalToolArgs
+} | null {
+  const operation = params.operation
+  if (!isTerminalOperation(operation)) return null
+  const args = params.args
+  return {
+    operation,
+    args:
+      args && typeof args === 'object' && !Array.isArray(args) ? (args as TerminalToolArgs) : {},
+  }
 }
 
 /**
  * Fire-and-forget entry point invoked by the stream tool-event handler when a
- * `terminal_*` client tool call arrives.
+ * `terminal` client tool call arrives.
  *
  * @param eventTs - the stream envelope's emission timestamp; stale events
  * (replays after reconnect/reload) are dropped rather than re-executed.
  */
 export function executeTerminalToolOnClient(
   toolCallId: string,
-  toolName: TerminalToolName,
   params: Record<string, unknown>,
   eventTs?: string
 ): void {
+  const call = parseCall(params)
+  if (!call) {
+    logger.warn('Ignoring terminal tool call with no recognized operation', { toolCallId })
+    return
+  }
+  const operation = call.operation
   if (hasAlreadyExecuted(toolCallId)) {
-    logger.info('Skipping already-executed terminal tool (replay)', { toolCallId, toolName })
+    logger.info('Skipping already-executed terminal tool (replay)', { toolCallId, operation })
     return
   }
   const age = eventAgeMs(eventTs)
   if (age !== null && age > MAX_EVENT_AGE_MS) {
-    logger.info('Skipping stale terminal tool event', { toolCallId, toolName, age })
+    logger.info('Skipping stale terminal tool event', { toolCallId, operation, age })
     return
   }
   markExecuted(toolCallId)
-  void doExecuteTerminalTool(toolCallId, toolName, params).catch((err) => {
+  void doExecuteTerminalTool(toolCallId, operation, call.args).catch((err) => {
     logger.error('Unhandled error in client-side terminal tool execution', {
       toolCallId,
-      toolName,
+      operation,
       error: toError(err).message,
     })
   })
@@ -102,8 +131,8 @@ export function executeTerminalToolOnClient(
 
 async function doExecuteTerminalTool(
   toolCallId: string,
-  toolName: TerminalToolName,
-  params: Record<string, unknown>
+  operation: TerminalOperation,
+  args: TerminalToolArgs
 ): Promise<void> {
   // If the user leaves the page mid-command the awaited result is lost; tell
   // the waiter so the turn fails fast instead of hanging until its timeout.
@@ -127,11 +156,11 @@ async function doExecuteTerminalTool(
     window.addEventListener('pagehide', onPageHide)
   }
 
-  logger.info('Executing terminal tool via the desktop terminal', { toolCallId, toolName })
+  logger.info('Executing terminal operation via the desktop terminal', { toolCallId, operation })
 
   try {
-    const timeoutMs = timeoutForTool(toolName)
-    const invocation = executeTerminalTool(toolCallId, toolName, params)
+    const timeoutMs = timeoutForOperation(operation)
+    const invocation = executeTerminalTool(toolCallId, operation, args)
     const result =
       timeoutMs === null
         ? await invocation
@@ -158,7 +187,7 @@ async function doExecuteTerminalTool(
       error.name === 'REJECTED'
         ? ASYNC_TOOL_CONFIRMATION_STATUS.cancelled
         : ASYNC_TOOL_CONFIRMATION_STATUS.error
-    logger.warn('Terminal tool failed', { toolCallId, toolName, error: error.message })
+    logger.warn('Terminal operation failed', { toolCallId, operation, error: error.message })
     await reportClientToolCompletion(toolCallId, status, error.message, {
       error: error.message,
       ...(error.name ? { code: error.name } : {}),

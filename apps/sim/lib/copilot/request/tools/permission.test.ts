@@ -39,7 +39,12 @@ function makeContext() {
 }
 
 function makeToolCall(): ToolCallState {
-  return { id: 'call-1', name: 'terminal_run', status: 'pending', params: { command: 'ls' } }
+  return {
+    id: 'call-1',
+    name: 'terminal',
+    status: 'pending',
+    params: { operation: 'run', args: { command: 'ls' } },
+  }
 }
 
 function gate(
@@ -65,24 +70,37 @@ function gate(
 }
 
 describe('toolCallNeedsApproval', () => {
+  const runCall = { operation: 'run', args: { command: 'ls' } }
+
   it('gates a tool the catalog marks as requiring approval', () => {
-    expect(toolCallNeedsApproval('terminal_run', makeContext(), {})).toBe(true)
+    expect(toolCallNeedsApproval('terminal', makeContext(), {}, false, runCall)).toBe(true)
+  })
+
+  it('does not gate terminal operations that only look at the screen', () => {
+    // The catalog flag is per tool, but a card for every `read` would train
+    // the user to click through the ones that matter.
+    const context = makeContext()
+    for (const operation of ['read', 'list', 'cwd', 'panes']) {
+      expect(toolCallNeedsApproval('terminal', context, {}, false, { operation })).toBe(false)
+    }
   })
 
   it('does not gate a tool the user already always-allowed', () => {
     const context = makeContext()
-    context.toolPermissions.autoAllowed.add('terminal_run')
-    expect(toolCallNeedsApproval('terminal_run', context, {})).toBe(false)
+    context.toolPermissions.autoAllowed.add('terminal')
+    expect(toolCallNeedsApproval('terminal', context, {}, false, runCall)).toBe(false)
   })
 
   it('never gates a non-interactive run, which has nobody to answer the prompt', () => {
-    expect(toolCallNeedsApproval('terminal_run', makeContext(), { interactive: false })).toBe(false)
+    expect(
+      toolCallNeedsApproval('terminal', makeContext(), { interactive: false }, false, runCall)
+    ).toBe(false)
   })
 
   it('does not gate when the surface has the gate turned off', () => {
     const context = makeContext()
     context.toolPermissions.enabled = false
-    expect(toolCallNeedsApproval('terminal_run', context, {})).toBe(false)
+    expect(toolCallNeedsApproval('terminal', context, {}, false, runCall)).toBe(false)
   })
 
   it('gates a resolved integration operation off the frame Go stamped', () => {
@@ -166,7 +184,7 @@ describe('gated tools are askable', () => {
       'run_code',
       'run_workflow',
       'run_workflow_until_block',
-      'terminal_run',
+      'terminal',
     ])
   })
 })
@@ -260,7 +278,7 @@ describe('runGatedToolExecution', () => {
     await gate(context, toolCall, execute, [])
 
     expect(execute).toHaveBeenCalledTimes(1)
-    expect(context.toolPermissions.autoAllowed.has('terminal_run')).toBe(true)
+    expect(context.toolPermissions.autoAllowed.has('terminal')).toBe(true)
   })
 
   it('does not suppress later prompts for a one-off allow', async () => {
@@ -270,8 +288,8 @@ describe('runGatedToolExecution', () => {
 
     await gate(context, toolCall, () => Promise.resolve({ status: 'success' }), [])
 
-    expect(context.toolPermissions.autoAllowed.has('terminal_run')).toBe(false)
-    expect(toolCallNeedsApproval('terminal_run', context, {})).toBe(true)
+    expect(context.toolPermissions.autoAllowed.has('terminal')).toBe(false)
+    expect(toolCallNeedsApproval('terminal', context, {}, false, { operation: 'run' })).toBe(true)
   })
 
   it('remembers always-allow for the rest of the turn', async () => {
@@ -284,8 +302,8 @@ describe('runGatedToolExecution', () => {
 
     await gate(context, toolCall, () => Promise.resolve({ status: 'success' }), [])
 
-    expect(context.toolPermissions.autoAllowed.has('terminal_run')).toBe(true)
-    expect(toolCallNeedsApproval('terminal_run', context, {})).toBe(false)
+    expect(context.toolPermissions.autoAllowed.has('terminal')).toBe(true)
+    expect(toolCallNeedsApproval('terminal', context, {}, false, { operation: 'run' })).toBe(false)
   })
 
   it('cancels rather than runs when the prompt is never answered', async () => {

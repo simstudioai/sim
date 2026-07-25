@@ -8,8 +8,8 @@ import {
   useState,
 } from 'react'
 import { isBrowserToolName } from '@sim/browser-protocol'
-import { isTerminalToolName } from '@sim/terminal-protocol'
 import { createLogger } from '@sim/logger'
+import { isTerminalToolName } from '@sim/terminal-protocol'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId, generateShortId } from '@sim/utils/id'
@@ -65,7 +65,6 @@ import {
   TERMINAL_SESSION_RESOURCE_ID,
 } from '@/lib/copilot/resources/types'
 import { executeBrowserToolOnClient } from '@/lib/copilot/tools/client/browser-tool-execution'
-import { executeTerminalToolOnClient } from '@/lib/copilot/tools/client/terminal-tool-execution'
 import { executeLocalFilesystemTool } from '@/lib/copilot/tools/client/local-filesystem'
 import {
   bindRunToolToExecution,
@@ -74,12 +73,13 @@ import {
   markRunToolManuallyStopped,
   reportManualRunToolStop,
 } from '@/lib/copilot/tools/client/run-tool-execution'
+import { executeTerminalToolOnClient } from '@/lib/copilot/tools/client/terminal-tool-execution'
 import { setCurrentChatTraceparent } from '@/lib/copilot/tools/client/trace-context'
 import { isUserLocalVfsToolCall } from '@/lib/copilot/tools/local-filesystem'
-import { initTerminalTransport } from '@/lib/terminal/transport'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import { readSSELines } from '@/lib/core/utils/sse'
 import { getDesktopBridge, getDesktopChatCapabilities } from '@/lib/desktop'
+import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import {
@@ -1702,7 +1702,7 @@ export function useChat(
       openTerminalResource()
       // Replay/exactly-once guarding lives in executeTerminalToolOnClient
       // (sessionStorage-backed, so reloads cannot re-run a command).
-      executeTerminalToolOnClient(toolCallId, toolName, toolArgs, eventTs)
+      executeTerminalToolOnClient(toolCallId, toolArgs, eventTs)
     },
     [openTerminalResource]
   )

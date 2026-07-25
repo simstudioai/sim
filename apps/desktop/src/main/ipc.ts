@@ -9,7 +9,11 @@ import type {
   DesktopUpdateState,
   DesktopWindowState,
 } from '@sim/desktop-bridge'
-import { isTerminalToolName } from '@sim/terminal-protocol'
+import {
+  isTerminalOperation,
+  isTerminalToolName,
+  type TerminalToolArgs,
+} from '@sim/terminal-protocol'
 import { isRecordLike } from '@sim/utils/object'
 import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 import { ipcMain } from 'electron'
@@ -571,7 +575,12 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         ) {
           return { ok: false, error: `Unknown terminal tool: ${String(tool)}` }
         }
-        return deps.terminal.executeTool(toolCallId, tool, isRecordLike(params) ? params : {})
+        const call = isRecordLike(params) ? params : {}
+        if (!isTerminalOperation(call.operation)) {
+          return { ok: false, error: `Unknown terminal operation: ${String(call.operation)}` }
+        }
+        const args = isRecordLike(call.args) ? (call.args as TerminalToolArgs) : {}
+        return deps.terminal.executeTool(toolCallId, call.operation, args)
       },
     },
     'terminal:get-tabs': {

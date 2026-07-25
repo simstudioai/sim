@@ -11,9 +11,10 @@
  */
 import type { SimDesktopTerminalApi } from '@sim/desktop-bridge'
 import type {
+  TerminalOperation,
   TerminalStartOptions,
   TerminalTabsState,
-  TerminalToolName,
+  TerminalToolArgs,
 } from '@sim/terminal-protocol'
 import { getDesktopBridge, isTerminalEnabled } from '@/lib/desktop'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
@@ -95,17 +96,17 @@ export async function closeTerminal(terminalId: string): Promise<void> {
   await bridge()?.closeTerminal(terminalId)
 }
 
-/** Executes one terminal tool in the desktop main process. */
+/** Executes one terminal operation in the desktop main process. */
 export async function executeTerminalTool(
   toolCallId: string,
-  tool: TerminalToolName,
-  params: Record<string, unknown>
+  operation: TerminalOperation,
+  args: TerminalToolArgs
 ): Promise<unknown> {
   const terminal = bridge()
   if (!terminal) {
     throw new Error('The Sim desktop terminal is unavailable.')
   }
-  const response = await terminal.executeTool(toolCallId, tool, params)
+  const response = await terminal.executeTool(toolCallId, operation, args)
   if (!response.ok) {
     const error = new Error(response.error || 'The terminal reported an error')
     if (response.code) error.name = response.code

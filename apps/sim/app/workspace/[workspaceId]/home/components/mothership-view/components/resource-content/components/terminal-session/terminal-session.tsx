@@ -198,7 +198,10 @@ function TerminalView({ terminalId, active }: { terminalId: string; active: bool
       if (resizeTimer) clearTimeout(resizeTimer)
       resizeTimer = setTimeout(() => {
         resizeTimer = null
-        if (!activeRef.current) return
+        // A zero-sized host means this terminal is off screen — either behind
+        // another tab or with the whole panel hidden behind another resource —
+        // not that it shrank. Fitting to that would resize the pty to nonsense.
+        if (!activeRef.current || host.clientWidth <= 0 || host.clientHeight <= 0) return
         try {
           fit.fit()
         } catch {
@@ -234,6 +237,8 @@ function TerminalView({ terminalId, active }: { terminalId: string; active: bool
     if (!active) return
     // Measure after the browser has laid the newly shown terminal out.
     const frame = requestAnimationFrame(() => {
+      const host = hostRef.current
+      if (!host || host.clientWidth <= 0 || host.clientHeight <= 0) return
       try {
         fitRef.current?.fit()
         terminalRef.current?.focus()

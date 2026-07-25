@@ -128,6 +128,11 @@ export function BrowserSession() {
   pageUrlRef.current = pageState?.url ?? ''
   /** Non-null while the user is editing the URL bar; otherwise it mirrors the page. */
   const [urlDraft, setUrlDraft] = useState<string | null>(null)
+  /**
+   * Whether the panel is actually on screen. The panel stays mounted while
+   * another resource is showing, so "mounted" no longer implies "visible".
+   */
+  const [panelVisible, setPanelVisible] = useState(false)
 
   useEffect(() => {
     if (isBrowserTheme(theme)) {
@@ -135,11 +140,14 @@ export function BrowserSession() {
     }
   }, [theme])
 
+  // Claiming focus is tied to being on screen, not to being mounted: a hidden
+  // panel that announced itself as focused would take keystrokes meant for
+  // whichever resource is actually showing.
   useEffect(() => {
     const panel = panelRef.current
-    if (!panel) return
+    if (!panel || !panelVisible) return
     return trackBrowserPanelFocus(panel, reportBrowserPanelFocused)
-  }, [])
+  }, [panelVisible])
 
   useEffect(() => {
     let focusRaf: number | null = null
@@ -195,12 +203,14 @@ export function BrowserSession() {
       // floats above all renderer content — hides now instead of lingering
       // at its last sliver of a rect until the visibility lease expires.
       if (bounds.width <= 0 || bounds.height <= 0) {
+        setPanelVisible(false)
         if (last !== 'hidden') {
           last = 'hidden'
           reportBrowserPanelBounds(null)
         }
         return
       }
+      setPanelVisible(true)
       const key = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
       if (force || key !== last) {
         last = key

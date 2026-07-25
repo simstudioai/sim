@@ -24,12 +24,14 @@ import type {
   LocalFilesystemResponse,
   SimDesktopApi,
 } from '@sim/desktop-bridge'
-import type {
-  TerminalCommandEvent,
-  TerminalStartOptions,
-  TerminalTabsState,
-  TerminalToolName,
-  TerminalToolResponse,
+import {
+  TERMINAL_TOOL_NAME,
+  type TerminalCommandEvent,
+  type TerminalOperation,
+  type TerminalStartOptions,
+  type TerminalTabsState,
+  type TerminalToolArgs,
+  type TerminalToolResponse,
 } from '@sim/terminal-protocol'
 import { contextBridge, ipcRenderer } from 'electron'
 
@@ -198,12 +200,18 @@ const api: SimDesktopApi = {
       }
       return response.tabs
     },
+    // The tool name rides alongside the call because the main process
+    // re-fetches the server's authorized arguments by tool call id and uses
+    // those, not these — what the renderer passes is only a request.
     executeTool: (
       toolCallId: string,
-      tool: TerminalToolName,
-      params: Record<string, unknown>
+      operation: TerminalOperation,
+      args: TerminalToolArgs
     ): Promise<TerminalToolResponse> =>
-      ipcRenderer.invoke('terminal:execute-tool', toolCallId, tool, params),
+      ipcRenderer.invoke('terminal:execute-tool', toolCallId, TERMINAL_TOOL_NAME, {
+        operation,
+        args,
+      }),
     write: (terminalId: string, data: string): void => {
       ipcRenderer.send('terminal:write', terminalId, data)
     },

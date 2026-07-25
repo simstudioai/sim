@@ -591,14 +591,42 @@ export function getWaitCountdownTitle(args: ToolArgs, elapsedMs: number): string
 /** Past this a command wraps the row; the terminal panel still shows it in full. */
 const MAX_COMMAND_TITLE_LENGTH = 48
 
-function terminalRunTitle(args: ToolArgs): string {
-  const command = stringArg(args, 'command').replace(/\s+/g, ' ')
+function runningCommandTitle(rawCommand: string): string {
+  const command = rawCommand.replace(/\s+/g, ' ')
   if (!command) return 'Running command'
   const shortened =
     command.length > MAX_COMMAND_TITLE_LENGTH
       ? `${command.slice(0, MAX_COMMAND_TITLE_LENGTH - 1)}…`
       : command
   return `Running ${shortened}`
+}
+
+const TERMINAL_OPERATION_TITLES: Record<string, string> = {
+  read: 'Reading terminal',
+  input: 'Typing into terminal',
+  kill: 'Stopping command',
+  cwd: 'Checking terminal',
+  list: 'Listing terminals',
+  new: 'Opening terminal',
+  switch: 'Switching terminal',
+  close: 'Closing terminal',
+  panes: 'Listing tmux panes',
+}
+
+/**
+ * The terminal tool carries what it does in `operation`, so the row title has
+ * to come from the arguments rather than the tool name — otherwise every shell
+ * action in the transcript reads simply "Terminal".
+ */
+function terminalTitle(args: ToolArgs): string {
+  const operation = stringArg(args, 'operation')
+  const nested = args?.args
+  const inner: ToolArgs =
+    nested && typeof nested === 'object' && !Array.isArray(nested)
+      ? (nested as Record<string, unknown>)
+      : undefined
+  if (operation === 'run') return runningCommandTitle(stringArg(inner, 'command'))
+  return TERMINAL_OPERATION_TITLES[operation] ?? 'Using terminal'
 }
 
 /**
@@ -635,8 +663,13 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       return openResourceTitle(args)
     case 'wait':
       return waitTitle(args)
+    case 'terminal':
+      return terminalTitle(args)
+    // The surface used to be one tool per operation. Conversations recorded
+    // then still reference those names, so they keep their titles rather than
+    // regressing to a humanized "Terminal Run".
     case 'terminal_run':
-      return terminalRunTitle(args)
+      return runningCommandTitle(stringArg(args, 'command'))
     case 'terminal_read':
       return 'Reading terminal'
     case 'terminal_input':
@@ -970,6 +1003,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Typing: 'Typed',
   Undeploying: 'Undeployed',
   Updating: 'Updated',
+  Using: 'Used',
   Validating: 'Validated',
   Viewing: 'Viewed',
   Waiting: 'Waited',

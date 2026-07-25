@@ -101,6 +101,34 @@ export function toInputChunks(text: string): string[] {
   return chunks
 }
 
+/**
+ * Sequences that make a terminal answer back, removed from replayed history.
+ *
+ * A repaint feeds recorded bytes to a live emulator, and xterm cannot tell
+ * them from a program talking to it now: it dutifully replies to every query
+ * in the recording, and those replies are written to the pty as if the user
+ * had typed them. The original asker is long gone, so they land on the shell
+ * prompt as junk — `1;2c0;276;0c10;rgb:1f1f/...` sitting in front of the
+ * cursor. Answering history is meaningless, so history is stripped of the
+ * questions. Live output is untouched: a program waiting on a reply must get
+ * one.
+ *
+ * Covers device attributes (CSI c), device status reports (CSI n), the OSC
+ * colour queries, and XTVERSION. `CSI > q` is matched with its `>` so cursor
+ * style (`CSI q`) survives.
+ */
+const TERMINAL_QUERIES = [
+  /\u001b\[[?>=]?[0-9;]*c/g,
+  /\u001b\[\??[0-9;]*n/g,
+  /\u001b\][0-9]+;\?(?:\u0007|\u001b\\)/g,
+  /\u001b\[>[0-9;]*q/g,
+  /\u001bP\+q[^\u001b]*\u001b\\/g,
+]
+
+export function stripTerminalQueries(value: string): string {
+  return TERMINAL_QUERIES.reduce((text, pattern) => text.replace(pattern, ''), value)
+}
+
 /** Strips CSI/OSC sequences so the model reads text rather than escape codes. */
 export function stripAnsi(value: string): string {
   return value
@@ -114,7 +142,7 @@ export function stripAnsi(value: string): string {
  * Keeps the head and tail of oversized output. A long build log's useful parts
  * are the start and the failure at the end; the middle is filler.
  */
-function elide(value: string, limit: number): { text: string; truncated: boolean } {
+export function elide(value: string, limit: number): { text: string; truncated: boolean } {
   if (value.length <= limit) return { text: value, truncated: false }
   const half = Math.floor(limit / 2)
   const omitted = value.length - half * 2
@@ -182,6 +210,8 @@ export interface TerminalSessionOptions {
 
 export class TerminalSession {
   private readonly pty: IPty
+  /** The environment the shell was spawned with, for tmux to reuse. */
+  private readonly shellEnv: NodeJS.ProcessEnv
   private readonly parser: ShellIntegrationParser
   private readonly integrationDir: string
   private readonly callbacks: TerminalSessionCallbacks
@@ -224,7 +254,8 @@ export class TerminalSession {
     pty: IPty,
     integrationDir: string,
     nonce: string,
-    shellName: string
+    shellName: string,
+    shellEnv: NodeJS.ProcessEnv
   ) {
     this.callbacks = options.callbacks
     this.terminalId = options.terminalId
@@ -232,6 +263,7 @@ export class TerminalSession {
     this.columns = options.cols
     this.lines = options.rows
     this.pty = pty
+    this.shellEnv = shellEnv
     this.emulator = new HeadlessTerminal({
       cols: options.cols,
       rows: options.rows,
@@ -264,16 +296,33 @@ export class TerminalSession {
       ? buildShellLaunch(shell, integrationDir, nonce, env)
       : { args: ['-l'], env: {} }
 
+    const shellEnv = { ...env, ...launch.env, TERM: 'xterm-256color', TERM_PROGRAM: 'Sim' }
     const pty = spawn(shellPath, launch.args, {
       name: 'xterm-256color',
       cols: options.cols,
       rows: options.rows,
       cwd: options.cwd,
-      env: { ...env, ...launch.env, TERM: 'xterm-256color', TERM_PROGRAM: 'Sim' },
+      env: shellEnv,
     })
 
     logger.info('Started terminal session', { shell: shellPath, instrumented: shell !== null })
-    return new TerminalSession(options, pty, integrationDir, nonce, shell ?? shellPath)
+    return new TerminalSession(options, pty, integrationDir, nonce, shell ?? shellPath, shellEnv)
+  }
+
+  /**
+   * The shell's process id. tmux clients launched from this shell descend
+   * from it, which is how a terminal is matched to its tmux session.
+   */
+  get pid(): number {
+    return this.pty.pid
+  }
+
+  /**
+   * The shell's environment. tmux invocations made on this terminal's behalf
+   * reuse it so they reach the same server socket the user's client is on.
+   */
+  get env(): NodeJS.ProcessEnv {
+    return this.shellEnv
   }
 
   get alive(): boolean {
@@ -461,7 +510,7 @@ export class TerminalSession {
       clearTimeout(this.flushTimer)
       this.flushTimer = null
     }
-    return this.scrollback
+    return stripTerminalQueries(this.scrollback)
   }
 
   readScrollback(lines: number): TerminalReadResult {

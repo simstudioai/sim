@@ -115,15 +115,7 @@ export interface ToolCatalogEntry {
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
     | 'table'
-    | 'terminal_close'
-    | 'terminal_cwd'
-    | 'terminal_input'
-    | 'terminal_kill'
-    | 'terminal_list'
-    | 'terminal_new'
-    | 'terminal_read'
-    | 'terminal_run'
-    | 'terminal_switch'
+    | 'terminal'
     | 'update_deployment_version'
     | 'update_scheduled_task_history'
     | 'update_workspace_mcp_server'
@@ -242,15 +234,7 @@ export interface ToolCatalogEntry {
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
     | 'table'
-    | 'terminal_close'
-    | 'terminal_cwd'
-    | 'terminal_input'
-    | 'terminal_kill'
-    | 'terminal_list'
-    | 'terminal_new'
-    | 'terminal_read'
-    | 'terminal_run'
-    | 'terminal_switch'
+    | 'terminal'
     | 'update_deployment_version'
     | 'update_scheduled_task_history'
     | 'update_workspace_mcp_server'
@@ -4345,183 +4329,87 @@ export const Table: ToolCatalogEntry = {
   internal: true,
 }
 
-export const TerminalClose: ToolCatalogEntry = {
-  id: 'terminal_close',
-  name: 'terminal_close',
-  route: 'client',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: { terminalId: { type: 'string', description: 'Id from terminal_list.' } },
-    required: ['terminalId'],
-  },
-  clientExecutable: true,
-}
-
-export const TerminalCwd: ToolCatalogEntry = {
-  id: 'terminal_cwd',
-  name: 'terminal_cwd',
+export const Terminal: ToolCatalogEntry = {
+  id: 'terminal',
+  name: 'terminal',
   route: 'client',
   mode: 'async',
   parameters: {
     type: 'object',
     properties: {
-      terminalId: {
+      args: {
+        type: 'object',
+        description: 'Inputs for the operation. Pass only the fields that operation uses.',
+        properties: {
+          command: {
+            type: 'string',
+            description:
+              'For run: the command line, exactly as it would be typed at the prompt. Shell syntax (pipes, &&, quoting, redirection) works because a real shell interprets it.',
+          },
+          cwd: {
+            type: 'string',
+            description:
+              "For new: absolute path to open in. Defaults to the active terminal's directory.",
+          },
+          key: {
+            type: 'string',
+            description:
+              'For input: a key to press instead of text. Use "enter" to submit something already typed.',
+            enum: [
+              'ctrl-c',
+              'ctrl-d',
+              'ctrl-z',
+              'enter',
+              'up',
+              'down',
+              'left',
+              'right',
+              'escape',
+              'tab',
+            ],
+          },
+          lines: {
+            type: 'number',
+            description: 'For read: how many trailing lines to return. Defaults to 200.',
+          },
+          pane: {
+            type: 'string',
+            description:
+              "Which tmux pane to act on, as a target from the panes operation (session:window.pane). Defaults to that session's active pane. Ignored when the terminal is a plain shell.",
+          },
+          signal: {
+            type: 'string',
+            description:
+              'For kill: which signal. Defaults to SIGINT, the equivalent of the user pressing Ctrl-C.',
+            enum: ['SIGINT', 'SIGTERM', 'SIGKILL'],
+          },
+          terminalId: {
+            type: 'string',
+            description:
+              'Which terminal to act on, from the list operation. Defaults to the active one, which is what the user is looking at. Required by switch and close.',
+          },
+          text: {
+            type: 'string',
+            description:
+              'For input: literal text to type. A trailing newline submits it. Check the returned screen to confirm it submitted rather than sitting unsent in an input box.',
+          },
+          waitSeconds: {
+            type: 'number',
+            description:
+              'For run: how long to wait before handing back a still-running command. Defaults to 30, capped at 120. Raising it does not make a command finish sooner, it only delays your first look at it.',
+          },
+        },
+      },
+      operation: {
         type: 'string',
-        description: 'Which terminal to describe. Defaults to the active one.',
+        description: 'What to do.',
+        enum: ['run', 'read', 'input', 'kill', 'cwd', 'list', 'new', 'switch', 'close', 'panes'],
       },
     },
-  },
-  clientExecutable: true,
-}
-
-export const TerminalInput: ToolCatalogEntry = {
-  id: 'terminal_input',
-  name: 'terminal_input',
-  route: 'client',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      key: {
-        type: 'string',
-        description:
-          'A control key to send instead of text. Use "enter" to submit something already typed.',
-        enum: [
-          'ctrl-c',
-          'ctrl-d',
-          'ctrl-z',
-          'enter',
-          'up',
-          'down',
-          'left',
-          'right',
-          'escape',
-          'tab',
-        ],
-      },
-      terminalId: {
-        type: 'string',
-        description: 'Which terminal to type into. Defaults to the active one.',
-      },
-      text: {
-        type: 'string',
-        description:
-          'Literal text to type. A trailing newline is sent as Enter, so a single call can type and submit; send text without one when you want to type now and submit separately. Confirm from the returned screen that it submitted.',
-      },
-    },
-  },
-  clientExecutable: true,
-}
-
-export const TerminalKill: ToolCatalogEntry = {
-  id: 'terminal_kill',
-  name: 'terminal_kill',
-  route: 'client',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      signal: {
-        type: 'string',
-        description: 'Signal to send. Defaults to SIGINT.',
-        enum: ['SIGINT', 'SIGTERM', 'SIGKILL'],
-      },
-      terminalId: {
-        type: 'string',
-        description: 'Which terminal to signal. Defaults to the active one.',
-      },
-    },
-  },
-  clientExecutable: true,
-}
-
-export const TerminalList: ToolCatalogEntry = {
-  id: 'terminal_list',
-  name: 'terminal_list',
-  route: 'client',
-  mode: 'async',
-  parameters: { type: 'object', properties: {} },
-  clientExecutable: true,
-}
-
-export const TerminalNew: ToolCatalogEntry = {
-  id: 'terminal_new',
-  name: 'terminal_new',
-  route: 'client',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      cwd: {
-        type: 'string',
-        description:
-          "Absolute path to open in. Defaults to the active terminal's working directory.",
-      },
-    },
-  },
-  clientExecutable: true,
-}
-
-export const TerminalRead: ToolCatalogEntry = {
-  id: 'terminal_read',
-  name: 'terminal_read',
-  route: 'client',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      lines: { type: 'number', description: 'How many trailing lines to return. Defaults to 200.' },
-      terminalId: {
-        type: 'string',
-        description: 'Which terminal to read. Defaults to the active one.',
-      },
-    },
-  },
-  clientExecutable: true,
-}
-
-export const TerminalRun: ToolCatalogEntry = {
-  id: 'terminal_run',
-  name: 'terminal_run',
-  route: 'client',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      command: {
-        type: 'string',
-        description:
-          'The command line to run, exactly as it would be typed at the prompt. Shell syntax (pipes, &&, quoting, redirection) is supported because a real shell interprets it.',
-      },
-      terminalId: {
-        type: 'string',
-        description:
-          'Which terminal to run in. Defaults to the active one, which is what the user is looking at.',
-      },
-      waitSeconds: {
-        type: 'number',
-        description:
-          'How long to wait before handing back a still-running command as status "running". Defaults to 30, capped at 120. Raising it does not make a command finish sooner — it only delays your first look at it.',
-      },
-    },
-    required: ['command'],
+    required: ['operation'],
   },
   clientExecutable: true,
   requiresApproval: true,
-}
-
-export const TerminalSwitch: ToolCatalogEntry = {
-  id: 'terminal_switch',
-  name: 'terminal_switch',
-  route: 'client',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: { terminalId: { type: 'string', description: 'Id from terminal_list.' } },
-    required: ['terminalId'],
-  },
-  clientExecutable: true,
 }
 
 export const UpdateDeploymentVersion: ToolCatalogEntry = {
@@ -5298,6 +5186,34 @@ export const SearchKnowledgeBaseOperationValues = [
   SearchKnowledgeBaseOperation.listTags,
 ] as const
 
+export const TerminalOperation = {
+  run: 'run',
+  read: 'read',
+  input: 'input',
+  kill: 'kill',
+  cwd: 'cwd',
+  list: 'list',
+  new: 'new',
+  switch: 'switch',
+  close: 'close',
+  panes: 'panes',
+} as const
+
+export type TerminalOperation = (typeof TerminalOperation)[keyof typeof TerminalOperation]
+
+export const TerminalOperationValues = [
+  TerminalOperation.run,
+  TerminalOperation.read,
+  TerminalOperation.input,
+  TerminalOperation.kill,
+  TerminalOperation.cwd,
+  TerminalOperation.list,
+  TerminalOperation.new,
+  TerminalOperation.switch,
+  TerminalOperation.close,
+  TerminalOperation.panes,
+] as const
+
 export const UserTableOperation = {
   create: 'create',
   createFromFile: 'create_from_file',
@@ -5490,15 +5406,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [SetEnvironmentVariables.id]: SetEnvironmentVariables,
   [SetGlobalWorkflowVariables.id]: SetGlobalWorkflowVariables,
   [Table.id]: Table,
-  [TerminalClose.id]: TerminalClose,
-  [TerminalCwd.id]: TerminalCwd,
-  [TerminalInput.id]: TerminalInput,
-  [TerminalKill.id]: TerminalKill,
-  [TerminalList.id]: TerminalList,
-  [TerminalNew.id]: TerminalNew,
-  [TerminalRead.id]: TerminalRead,
-  [TerminalRun.id]: TerminalRun,
-  [TerminalSwitch.id]: TerminalSwitch,
+  [Terminal.id]: Terminal,
   [UpdateDeploymentVersion.id]: UpdateDeploymentVersion,
   [UpdateScheduledTaskHistory.id]: UpdateScheduledTaskHistory,
   [UpdateWorkspaceMcpServer.id]: UpdateWorkspaceMcpServer,

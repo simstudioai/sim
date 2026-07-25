@@ -123,8 +123,8 @@ describe('tool events (dispatch → model + side effects)', () => {
       executor: 'client',
       mode: 'async',
       toolCallId: 'term-1',
-      toolName: 'terminal_run',
-      arguments: { command: 'rm -rf build' },
+      toolName: 'terminal',
+      arguments: { operation: 'run', args: { command: 'rm -rf build' } },
       status: 'awaiting_approval',
     })
     dispatchStreamEvent(ctx, gatedCall)
@@ -140,8 +140,8 @@ describe('tool events (dispatch → model + side effects)', () => {
         executor: 'client',
         mode: 'async',
         toolCallId: 'term-1',
-        toolName: 'terminal_run',
-        arguments: { command: 'rm -rf build' },
+        toolName: 'terminal',
+        arguments: { operation: 'run', args: { command: 'rm -rf build' } },
         status: 'executing',
       })
     )
@@ -149,8 +149,8 @@ describe('tool events (dispatch → model + side effects)', () => {
     expect(toolNode(ctx, 'term-1').status).toBe('running')
     expect(startClientTerminalTool).toHaveBeenCalledWith(
       'term-1',
-      'terminal_run',
-      { command: 'rm -rf build' },
+      'terminal',
+      { operation: 'run', args: { command: 'rm -rf build' } },
       expect.anything()
     )
   })
@@ -166,8 +166,8 @@ describe('tool events (dispatch → model + side effects)', () => {
         executor: 'client',
         mode: 'async',
         toolCallId: 'term-2',
-        toolName: 'terminal_run',
-        arguments: { command: 'rm -rf build' },
+        toolName: 'terminal',
+        arguments: { operation: 'run', args: { command: 'rm -rf build' } },
         status: 'awaiting_approval',
       })
     )
@@ -178,7 +178,7 @@ describe('tool events (dispatch → model + side effects)', () => {
         executor: 'client',
         mode: 'async',
         toolCallId: 'term-2',
-        toolName: 'terminal_run',
+        toolName: 'terminal',
         success: true,
         status: 'skipped',
         output: { skipped: true, reason: 'user_declined' },

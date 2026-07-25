@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { TERMINAL_TOOL_NAME } from '@sim/terminal-protocol'
 import type { AsyncCompletionSignal } from '@/lib/copilot/async-runs/lifecycle'
 import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/copilot/constants'
 import {
@@ -29,6 +30,19 @@ import { getToolEntry, toolRequiresApproval } from '@/lib/copilot/tool-executor'
 const logger = createLogger('CopilotToolPermissionGate')
 
 /**
+ * Whether a `terminal` call is one worth stopping for.
+ *
+ * The catalog's approval flag is per tool, but the terminal tool covers both
+ * running commands and merely looking at the screen. Only running one is
+ * consequential; gating `read` or `list` would put a card in front of the user
+ * every time the agent glanced at a terminal, which trains them to click
+ * through the ones that matter.
+ */
+function terminalOperationNeedsApproval(args: Record<string, unknown> | undefined): boolean {
+  return args?.operation === 'run'
+}
+
+/**
  * A human can take as long as they like to answer, so the wait is bounded only
  * by the overall orchestration budget rather than a per-tool watchdog.
  */
@@ -52,13 +66,16 @@ export function toolCallNeedsApproval(
    * Go stamps this for resolved integration operations, whose definitions are
    * request-local and so never appear in the generated catalog.
    */
-  frameRequestsApproval = false
+  frameRequestsApproval = false,
+  /** The call's arguments, for a tool whose gate depends on what it is doing. */
+  args?: Record<string, unknown>
 ): boolean {
   if (!context.toolPermissions.enabled) return false
   if (options.interactive === false) return false
 
   if (!frameRequestsApproval) {
     if (!toolRequiresApproval(toolName)) return false
+    if (toolName === TERMINAL_TOOL_NAME && !terminalOperationNeedsApproval(args)) return false
     // A go-routed tool executes inside mothership and never reaches Sim's
     // dispatch, so there is nothing here to hold. Stamping the frame anyway
     // would draw a card for work that already happened, with no waiter behind

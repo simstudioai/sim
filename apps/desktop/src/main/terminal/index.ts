@@ -17,16 +17,31 @@ import {
   isTerminalControlKey,
   MAX_RUN_WAIT_MS,
   MAX_TERMINALS,
+  MAX_TOOL_OUTPUT_CHARS,
   type TerminalCommandEvent,
   type TerminalCwdResult,
   type TerminalErrorCode,
+  type TerminalOperation,
+  type TerminalPanesResult,
   type TerminalStartOptions,
   type TerminalTabsState,
-  type TerminalToolName,
+  type TerminalToolArgs,
   type TerminalToolResponse,
 } from '@sim/terminal-protocol'
 import { isRecordLike } from '@sim/utils/object'
-import { TerminalSession } from '@/main/terminal/session'
+import { elide, TerminalSession } from '@/main/terminal/session'
+import {
+  activePane,
+  awaitRun,
+  capturePane,
+  closeRunWindow,
+  listPanes,
+  resolveAttachment,
+  sendKey,
+  sendText,
+  startRun,
+  TMUX_KEY_NAMES,
+} from '@/main/terminal/tmux'
 
 const logger = createLogger('DesktopTerminal')
 
@@ -45,6 +60,18 @@ const INPUT_SCREEN_LINES = 60
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** How long to hold the turn before handing a still-running command back. */
+function resolveWaitMs(waitSeconds: number | undefined): number {
+  const requested = Number(waitSeconds)
+  return Number.isFinite(requested) && requested > 0
+    ? Math.min(requested * 1000, MAX_RUN_WAIT_MS)
+    : DEFAULT_RUN_WAIT_MS
+}
+
+function elideOutput(value: string): { text: string; truncated: boolean } {
+  return elide(value, MAX_TOOL_OUTPUT_CHARS)
 }
 
 const EMPTY_TABS: TerminalTabsState = { tabs: [], activeTerminalId: null }
@@ -181,104 +208,246 @@ export class TerminalService {
 
   async executeTool(
     toolCallId: string,
-    tool: TerminalToolName,
-    params: Record<string, unknown>
+    operation: TerminalOperation,
+    args: TerminalToolArgs
   ): Promise<TerminalToolResponse> {
     try {
-      const result = await this.dispatch(toolCallId, tool, params)
+      const result = await this.dispatch(toolCallId, operation, args ?? {})
       return { ok: true, result }
     } catch (error) {
       if (error instanceof TerminalError) {
-        logger.warn('Terminal tool refused', { toolCallId, tool, code: error.code })
+        logger.warn('Terminal operation refused', { toolCallId, operation, code: error.code })
         return { ok: false, error: error.message, code: error.code }
       }
       const message = (error as Error).message
-      logger.error('Terminal tool failed', { toolCallId, tool, error: message })
+      logger.error('Terminal operation failed', { toolCallId, operation, error: message })
       return { ok: false, error: message }
     }
   }
 
   private async dispatch(
     toolCallId: string,
-    tool: TerminalToolName,
-    params: Record<string, unknown>
+    operation: TerminalOperation,
+    args: TerminalToolArgs
   ): Promise<unknown> {
-    switch (tool) {
-      case 'terminal_list':
+    switch (operation) {
+      case 'list':
         return this.getTabs()
-      case 'terminal_new':
-        return this.openTerminal(typeof params.cwd === 'string' ? params.cwd : undefined)
-      case 'terminal_switch':
-        return this.switchTerminal(this.requireId(params))
-      case 'terminal_close':
-        return this.closeTerminal(this.requireId(params))
+      case 'new':
+        return this.openTerminal(typeof args.cwd === 'string' ? args.cwd : undefined)
+      case 'switch':
+        return this.switchTerminal(this.requireId(args))
+      case 'close':
+        return this.closeTerminal(this.requireId(args))
       default:
         break
     }
 
-    const session = this.requireSession(params)
+    const session = this.requireSession(args)
+    // Resolved once per call: a tab either has tmux attached or it does not,
+    // and every operation below behaves differently depending on which.
+    const tmux = await resolveAttachment(session.pid, session.env)
 
-    switch (tool) {
-      case 'terminal_cwd':
+    switch (operation) {
+      case 'cwd':
         return {
           cwd: session.currentCwd,
           shellName: session.shell,
           home: homedir(),
           terminalId: session.terminalId,
         } satisfies TerminalCwdResult
-      case 'terminal_run':
-        return this.run(toolCallId, session, params)
-      case 'terminal_read': {
-        const lines = Number(params.lines)
-        return session.readScrollback(Number.isFinite(lines) && lines > 0 ? lines : 200)
-      }
-      case 'terminal_input': {
-        // Input is only ever delivered to a program that already holds the
-        // foreground. At a bare shell prompt these bytes would be a command
-        // line, and running commands that way would bypass the capture and
-        // status tracking that terminal_run provides.
-        if (!session.isBusy) {
+      case 'panes': {
+        if (!tmux) {
           throw new TerminalError(
-            'INVALID_REQUEST',
-            'Nothing is running in that terminal, so there is nothing to type into. Use terminal_run to run a command.'
+            'NO_TMUX',
+            'That terminal is a plain shell, not a tmux session, so it has no panes.'
           )
         }
-        // Every input returns the screen it produced. Reporting only "sent"
-        // lets the model assume its message went through and start waiting on
-        // a reply to text still sitting unsubmitted in a composer; the screen
-        // is the evidence of what the program actually did with the input.
-        if (isTerminalControlKey(params.key)) {
-          session.sendKey(params.key)
-          await delay(INPUT_ECHO_MS)
-          return { sent: params.key, ...session.readScrollback(INPUT_SCREEN_LINES) }
-        }
-        if (typeof params.text === 'string') {
-          await session.type(params.text)
-          await delay(INPUT_ECHO_MS)
-          return { sent: params.text, ...session.readScrollback(INPUT_SCREEN_LINES) }
-        }
-        throw new TerminalError('INVALID_REQUEST', 'terminal_input needs either `text` or `key`.')
+        return {
+          terminalId: session.terminalId,
+          session: tmux.session,
+          panes: await listPanes(tmux.session, session.env),
+        } satisfies TerminalPanesResult
       }
-      case 'terminal_kill': {
-        const signal = params.signal
-        const resolved =
-          signal === 'SIGTERM' || signal === 'SIGKILL' || signal === 'SIGINT' ? signal : 'SIGINT'
-        session.kill(resolved)
-        return { signal: resolved, terminalId: session.terminalId }
+      case 'run':
+        return tmux
+          ? this.runInTmux(session, tmux.session, args)
+          : this.run(toolCallId, session, args)
+      case 'read': {
+        const requested = Number(args.lines)
+        const lines = Number.isFinite(requested) && requested > 0 ? requested : 200
+        if (!tmux) return session.readScrollback(lines)
+        const target = await this.resolvePane(tmux.session, args, session)
+        const captured = await capturePane(target, lines, session.env)
+        if (!captured.ok) {
+          throw new TerminalError(
+            'NO_SUCH_PANE',
+            captured.stderr.trim() || `tmux could not read pane ${target}.`
+          )
+        }
+        return {
+          output: captured.stdout,
+          cwd: session.currentCwd,
+          terminalId: session.terminalId,
+          pane: target,
+          truncated: false,
+          running: null,
+        }
+      }
+      case 'input':
+        return tmux
+          ? this.inputToTmux(session, tmux.session, args)
+          : this.inputToShell(session, args)
+      case 'kill': {
+        const signal =
+          args.signal === 'SIGTERM' || args.signal === 'SIGKILL' || args.signal === 'SIGINT'
+            ? args.signal
+            : 'SIGINT'
+        // Inside tmux a signal has to arrive as a keypress in the pane. Killing
+        // the pty would take down the tmux client instead, detaching the user's
+        // whole session rather than stopping the one thing they asked about.
+        if (tmux) {
+          const target = await this.resolvePane(tmux.session, args, session)
+          await sendKey(target, signal === 'SIGKILL' ? 'C-\\' : 'C-c', session.env)
+          return { signal, terminalId: session.terminalId, pane: target }
+        }
+        session.kill(signal)
+        return { signal, terminalId: session.terminalId }
       }
       default:
-        throw new TerminalError('INVALID_REQUEST', `Unknown terminal tool: ${tool}`)
+        throw new TerminalError('INVALID_REQUEST', `Unknown terminal operation: ${operation}`)
+    }
+  }
+
+  /** The pane a call names, or the session's active one. */
+  private async resolvePane(
+    session: string,
+    args: TerminalToolArgs,
+    terminal: TerminalSession
+  ): Promise<string> {
+    if (typeof args.pane === 'string' && args.pane.trim()) return args.pane.trim()
+    const active = await activePane(session, terminal.env)
+    if (!active) {
+      throw new TerminalError('NO_SUCH_PANE', `tmux session "${session}" has no active pane.`)
+    }
+    return active
+  }
+
+  /**
+   * Types into a tmux pane rather than the pty.
+   *
+   * Writing to the pty would reach whichever pane tmux happens to have focused
+   * and would be invisible to any targeting the caller asked for; send-keys
+   * addresses a pane directly. Unlike the plain-shell path this is allowed at
+   * an idle prompt, because in tmux there is no foreground command to gate on
+   * and typing a command into a pane is the normal way to drive one.
+   */
+  private async inputToTmux(
+    terminal: TerminalSession,
+    session: string,
+    args: TerminalToolArgs
+  ): Promise<unknown> {
+    const target = await this.resolvePane(session, args, terminal)
+    if (typeof args.key === 'string' && isTerminalControlKey(args.key)) {
+      await sendKey(target, TMUX_KEY_NAMES[args.key] ?? args.key, terminal.env)
+    } else if (typeof args.text === 'string') {
+      await sendText(target, args.text, terminal.env)
+      // Enter is a separate send-keys for the same reason it is a separate pty
+      // write: a program reading one chunk treats text plus a carriage return
+      // as text, and the message sits unsubmitted.
+      if (/[\r\n]$/.test(args.text)) await sendKey(target, 'Enter', terminal.env)
+    } else {
+      throw new TerminalError('INVALID_REQUEST', 'input needs either `text` or `key`.')
+    }
+
+    await delay(INPUT_ECHO_MS)
+    const captured = await capturePane(target, INPUT_SCREEN_LINES, terminal.env)
+    return {
+      sent: args.key ?? args.text,
+      terminalId: terminal.terminalId,
+      pane: target,
+      output: captured.stdout,
+    }
+  }
+
+  private async inputToShell(session: TerminalSession, args: TerminalToolArgs): Promise<unknown> {
+    // Input is only ever delivered to a program that already holds the
+    // foreground. At a bare shell prompt these bytes would be a command
+    // line, and running commands that way would bypass the capture and
+    // status tracking that `run` provides.
+    if (!session.isBusy) {
+      throw new TerminalError(
+        'INVALID_REQUEST',
+        'Nothing is running in that terminal, so there is nothing to type into. Use the run operation to run a command.'
+      )
+    }
+    // Every input returns the screen it produced. Reporting only "sent"
+    // lets the model assume its message went through and start waiting on
+    // a reply to text still sitting unsubmitted in a composer; the screen
+    // is the evidence of what the program actually did with the input.
+    if (isTerminalControlKey(args.key)) {
+      session.sendKey(args.key)
+      await delay(INPUT_ECHO_MS)
+      return { sent: args.key, ...session.readScrollback(INPUT_SCREEN_LINES) }
+    }
+    if (typeof args.text === 'string') {
+      await session.type(args.text)
+      await delay(INPUT_ECHO_MS)
+      return { sent: args.text, ...session.readScrollback(INPUT_SCREEN_LINES) }
+    }
+    throw new TerminalError('INVALID_REQUEST', 'input needs either `text` or `key`.')
+  }
+
+  /**
+   * Runs a command inside a tmux session, in its own window.
+   *
+   * The user's panes are theirs; borrowing one would type over whatever they
+   * are doing. A dedicated window is still visible to them — they can switch
+   * to it and watch — while output and the exit status come back through
+   * files, so the result is structured even though shell integration cannot
+   * see through tmux.
+   */
+  private async runInTmux(
+    terminal: TerminalSession,
+    session: string,
+    args: TerminalToolArgs
+  ): Promise<unknown> {
+    const command = typeof args.command === 'string' ? args.command.trim() : ''
+    if (!command) throw new TerminalError('INVALID_REQUEST', 'run needs a `command`.')
+
+    const started = Date.now()
+    const handle = await startRun(session, command, terminal.currentCwd, terminal.env)
+    if ('error' in handle) throw new TerminalError('SPAWN_FAILED', handle.error)
+
+    const waitMs = resolveWaitMs(args.waitSeconds)
+    const outcome = await awaitRun(handle, waitMs)
+    if (outcome.done) {
+      await closeRunWindow(handle, terminal.env)
+      handle.dispose()
+    }
+
+    const { text, truncated } = elideOutput(outcome.output)
+    return {
+      command,
+      output: text,
+      status: outcome.done ? 'completed' : 'running',
+      exitCode: outcome.exitCode,
+      durationMs: Date.now() - started,
+      cwd: terminal.currentCwd,
+      terminalId: terminal.terminalId,
+      pane: handle.window,
+      truncated,
     }
   }
 
   private async run(
     toolCallId: string,
     session: TerminalSession,
-    params: Record<string, unknown>
+    args: TerminalToolArgs
   ): Promise<unknown> {
-    const command = typeof params.command === 'string' ? params.command.trim() : ''
+    const command = typeof args.command === 'string' ? args.command.trim() : ''
     if (!command) {
-      throw new TerminalError('INVALID_REQUEST', 'terminal_run needs a `command`.')
+      throw new TerminalError('INVALID_REQUEST', 'run needs a `command`.')
     }
     if (!session.hasShellIntegration) {
       await session.waitForShellIntegration(SHELL_INTEGRATION_TIMEOUT_MS)
@@ -292,19 +461,11 @@ export class TerminalService {
     if (session.isBusy) {
       throw new TerminalError(
         'BUSY',
-        `"${session.foreground}" is still running in that terminal. Poll it with terminal_read, stop it with terminal_kill, or open another terminal with terminal_new.`
+        `"${session.foreground}" is still running in that terminal. Poll it with the read operation, stop it with kill, or open another terminal with new.`
       )
     }
 
-    // How long to hold the turn before handing a still-running command back
-    // for the agent to poll.
-    const requested = Number(params.waitSeconds)
-    const waitMs =
-      Number.isFinite(requested) && requested > 0
-        ? Math.min(requested * 1000, MAX_RUN_WAIT_MS)
-        : DEFAULT_RUN_WAIT_MS
-
-    return session.runCommand(command, toolCallId, waitMs)
+    return session.runCommand(command, toolCallId, resolveWaitMs(args.waitSeconds))
   }
 
   private spawn(cwd: string, cols: number, rows: number): TerminalSession {
@@ -341,8 +502,8 @@ export class TerminalService {
    * dispatches the tool in the same tick, so the panel's own `start` usually
    * lands after the tool arrives.
    */
-  private requireSession(params: Record<string, unknown>): TerminalSession {
-    const requested = typeof params.terminalId === 'string' ? params.terminalId : null
+  private requireSession(args: TerminalToolArgs): TerminalSession {
+    const requested = typeof args.terminalId === 'string' ? args.terminalId : null
     if (requested) {
       const session = this.sessions.get(requested)
       if (!session?.alive) {
@@ -361,12 +522,12 @@ export class TerminalService {
     return spawned
   }
 
-  private requireId(params: Record<string, unknown>): string {
-    const terminalId = typeof params.terminalId === 'string' ? params.terminalId.trim() : ''
+  private requireId(args: TerminalToolArgs): string {
+    const terminalId = typeof args.terminalId === 'string' ? args.terminalId.trim() : ''
     if (!terminalId) {
       throw new TerminalError(
         'INVALID_REQUEST',
-        'This tool needs a `terminalId` from terminal_list.'
+        'This operation needs a `terminalId` from the list operation.'
       )
     }
     return terminalId

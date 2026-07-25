@@ -193,7 +193,13 @@ export async function prePersistClientExecutableToolCall(
   const frameRequestsApproval = data.status === TOOL_AWAITING_APPROVAL_STATUS
   const gated =
     !isInternal &&
-    toolCallNeedsApproval(data.toolName, context, options ?? {}, frameRequestsApproval)
+    toolCallNeedsApproval(
+      data.toolName,
+      context,
+      options ?? {},
+      frameRequestsApproval,
+      data.arguments
+    )
   if (gated) {
     data.status = TOOL_AWAITING_APPROVAL_STATUS
   } else if (frameRequestsApproval) {
@@ -654,7 +660,7 @@ async function dispatchToolExecution(
     return fireToolExecution()
   }
 
-  if (toolCallNeedsApproval(toolName, context, options, frameRequestsApproval)) {
+  if (toolCallNeedsApproval(toolName, context, options, frameRequestsApproval, args)) {
     registerPendingToolPromise(
       context,
       toolCallId,

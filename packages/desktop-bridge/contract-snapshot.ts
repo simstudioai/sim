@@ -209,9 +209,10 @@ export interface BrowserKnownSessionsState {
 
 import type {
   TerminalCommandEvent,
+  TerminalOperation,
   TerminalStartOptions,
   TerminalTabsState,
-  TerminalToolName,
+  TerminalToolArgs,
   TerminalToolResponse,
 } from '@sim/terminal-protocol'
 
@@ -226,13 +227,13 @@ export interface SimDesktopTerminalApi {
   /** Open the first terminal, or adopt the ones already running. */
   start(options: TerminalStartOptions): Promise<TerminalTabsState>
   /**
-   * Execute one terminal tool. Resolves with the tool's outcome; never
-   * rejects for tool-level failures (those ride `ok: false`).
+   * Execute one terminal operation. Resolves with the outcome; never rejects
+   * for tool-level failures (those ride `ok: false`).
    */
   executeTool(
     toolCallId: string,
-    tool: TerminalToolName,
-    params: Record<string, unknown>
+    operation: TerminalOperation,
+    args: TerminalToolArgs
   ): Promise<TerminalToolResponse>
   /** Forward the user's keystrokes to one terminal's PTY. */
   write(terminalId: string, data: string): void

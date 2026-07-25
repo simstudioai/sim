@@ -505,30 +505,48 @@ describe('wait titles', () => {
 })
 
 describe('terminal titles', () => {
+  const call = (operation: string, args?: Record<string, unknown>) =>
+    getToolDisplayTitle('terminal', { operation, ...(args ? { args } : {}) })
+
   it('names the command being run', () => {
-    expect(getToolDisplayTitle('terminal_run', { command: 'bun test' })).toBe('Running bun test')
+    expect(call('run', { command: 'bun test' })).toBe('Running bun test')
+  })
+
+  it('titles each operation rather than reading as a bare "Terminal"', () => {
+    expect(call('read')).toBe('Reading terminal')
+    expect(call('input')).toBe('Typing into terminal')
+    expect(call('kill')).toBe('Stopping command')
+    expect(call('list')).toBe('Listing terminals')
+    expect(call('new')).toBe('Opening terminal')
+    expect(call('panes')).toBe('Listing tmux panes')
   })
 
   it('collapses newlines so a multi-line command stays one row', () => {
-    expect(getToolDisplayTitle('terminal_run', { command: 'cd apps/sim\n  bun test' })).toBe(
-      'Running cd apps/sim bun test'
-    )
+    expect(call('run', { command: 'cd apps/sim\n  bun test' })).toBe('Running cd apps/sim bun test')
   })
 
   it('truncates a long command rather than wrapping the row', () => {
-    const title = getToolDisplayTitle('terminal_run', { command: 'echo '.repeat(40) })
+    const title = call('run', { command: 'echo '.repeat(40) })
     expect(title.length).toBeLessThanOrEqual('Running '.length + 48)
     expect(title.endsWith('…')).toBe(true)
   })
 
-  it('falls back to a generic label before the command has streamed in', () => {
-    expect(getToolDisplayTitle('terminal_run', {})).toBe('Running command')
+  it('falls back to a generic label before the arguments have streamed in', () => {
+    expect(call('run')).toBe('Running command')
+    expect(getToolDisplayTitle('terminal', {})).toBe('Using terminal')
+  })
+
+  it('still titles rows from before the tools were consolidated', () => {
+    // Persisted transcripts reference the old one-tool-per-operation names.
+    expect(getToolDisplayTitle('terminal_run', { command: 'bun test' })).toBe('Running bun test')
+    expect(getToolDisplayTitle('terminal_read')).toBe('Reading terminal')
   })
 
   it('reads as past tense once each terminal action settles', () => {
     expect(getToolCompletedTitle('Running bun test')).toBe('Ran bun test')
     expect(getToolCompletedTitle('Stopping command')).toBe('Stopped command')
     expect(getToolCompletedTitle('Reading terminal')).toBe('Read terminal')
+    expect(getToolCompletedTitle('Using terminal')).toBe('Used terminal')
   })
 })
 
