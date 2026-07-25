@@ -114,7 +114,7 @@ export function describeBlockedAction(
     case 'edit-cell':
       return {
         title: 'Editing rows is locked',
-        text: 'Existing cell values can’t be changed until an admin unlocks this table. Workflow and enrichment columns still populate.',
+        text: 'Existing cell values can’t be changed until an admin unlocks this table.',
       }
     case 'status': {
       const nouns = lockedNouns(locks)
