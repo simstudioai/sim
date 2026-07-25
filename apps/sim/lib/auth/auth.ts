@@ -697,30 +697,42 @@ export const auth = betterAuth({
               },
             }
           } catch (error) {
-            // DELIBERATE TRADE, not an oversight. Reaching here means both the
-            // direct membership read and the cached fallback failed, so the
-            // governing org — and therefore the policy — is unknown. The
-            // alternative, refusing the sign-in, would turn a `member` read
-            // failure into a total authentication outage for EVERY user,
-            // including the overwhelming majority who belong to no org and have
-            // no policy to enforce. That is a worse outcome than a bounded
-            // enforcement delay.
+            // Two different failures land here, and they get opposite answers.
             //
-            // The delay is bounded: this session takes the DB path at its next
-            // cookie-cache expiry (24h) and the update hook clamps it then —
-            // retroactively, since the max-lifetime bound is measured from
-            // `createdAt`, so an over-long session expires immediately on that
-            // refresh. Any admin action (policy save, sign-out-all) bumps the
+            // Org KNOWN: membership resolved, so this user is definitely
+            // governed by an org — only the policy read failed. Fail closed.
+            // The blast radius is org members during a window where the
+            // `organization` read fails but the `member` read just succeeded,
+            // which is narrow, loud, and self-clearing. Minting a full-length
+            // session for a member whose policy we could not read is the one
+            // outcome this feature exists to prevent.
+            if (membershipOrgId) {
+              logger.error('Refusing session: org session policy could not be resolved', {
+                error,
+                userId: session.userId,
+                organizationId: membershipOrgId,
+              })
+              throw new APIError('INTERNAL_SERVER_ERROR', {
+                message: 'Could not verify your organization session policy. Please try again.',
+              })
+            }
+
+            // Org UNKNOWN: both the direct membership read and the cached
+            // fallback failed, so we cannot tell a governed member from the
+            // overwhelming majority of users who belong to no org at all.
+            // Failing closed here would turn a `member` read failure into a
+            // total authentication outage for everyone, to protect a policy
+            // that most of them do not have. Allow, and let it self-correct:
+            // the session takes the DB path at its next cookie-cache expiry
+            // and the update hook clamps it retroactively (the max-lifetime
+            // bound is measured from `createdAt`, so an over-long session
+            // expires immediately on that refresh). Any admin action bumps the
             // security-policy version and closes the window at once.
             logger.error('Error clamping new session to org policy; session not clamped', {
               error,
               userId: session.userId,
             })
-            return {
-              data: membershipOrgId
-                ? { ...session, activeOrganizationId: membershipOrgId }
-                : session,
-            }
+            return { data: session }
           }
         },
       },
