@@ -438,7 +438,12 @@ export class TerminalSession {
     const directory = this.cwd ? (this.cwd.split('/').filter(Boolean).pop() ?? '/') : null
     return {
       terminalId: this.terminalId,
-      title: this.foregroundCommand?.trim() || directory || 'Terminal',
+      // The directory, always: whether to show the running command instead is
+      // a presentation choice, and the panel makes it (it holds a label back
+      // until a command has run long enough to be worth naming). Reporting the
+      // command here would also mean gating `running` to match, and that is
+      // data the agent reads — it must stay true the instant a command starts.
+      title: directory || 'Terminal',
       cwd: this.cwd,
       running: this.foregroundCommand,
       interactive: this.altScreen,
