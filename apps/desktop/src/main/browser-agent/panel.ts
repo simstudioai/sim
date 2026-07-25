@@ -65,18 +65,6 @@ let panelOwnerWindow: BrowserWindow | null = null
 let attachedView: WebContentsView | null = null
 let lastAppliedBounds = ''
 let lastAppliedVisibility: boolean | null = null
-/**
- * The panel's geometry relative to the window content box (DIP), captured at
- * the last renderer-reported layout. Used to reposition the view synchronously
- * on window `resize` — the renderer's report round-trips layout → observe →
- * IPC and trails a live drag by several frames, which reads as the browser
- * "swimming" inside the window. The panel is right-anchored with a fixed width
- * (vertically it stretches between fixed top and bottom chrome), so the
- * prediction translates the view with the right window edge at constant width
- * and stretches only its height; the next renderer report is authoritative and
- * corrects any drift.
- */
-let panelAnchor: { y: number; right: number; bottom: number; width: number } | null = null
 
 export function initPanel(panelHost: PanelHost): void {
   host = panelHost
@@ -130,25 +118,6 @@ export function isPanelVisible(): boolean {
   return panelBounds !== null
 }
 
-function predictPanelBoundsForResize(): void {
-  const win = hostedWindow
-  const view = attachedView
-  if (!win || !view || win.isDestroyed() || panelAnchor === null) return
-  const [contentWidth, contentHeight] = win.getContentSize()
-  const width = Math.max(1, Math.min(panelAnchor.width, contentWidth - panelAnchor.right))
-  const bounds = {
-    x: Math.max(0, contentWidth - panelAnchor.right - width),
-    y: panelAnchor.y,
-    width,
-    height: Math.max(1, contentHeight - panelAnchor.y - panelAnchor.bottom),
-  }
-  const boundsKey = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
-  if (boundsKey !== lastAppliedBounds) {
-    lastAppliedBounds = boundsKey
-    view.setBounds(bounds)
-  }
-}
-
 /**
  * Clears the tracked attachment before touching Electron objects so a stale
  * host or child view cannot leave layout permanently wedged after teardown.
@@ -160,12 +129,8 @@ export function detachAttachedView(): void {
   hostedWindow = null
   lastAppliedBounds = ''
   lastAppliedVisibility = null
-  panelAnchor = null
   host.onViewDetached(view)
 
-  if (win) {
-    win.removeListener('resize', predictPanelBoundsForResize)
-  }
   if (!view || !win) return
   try {
     if (win.isDestroyed() || view.webContents.isDestroyed()) return
@@ -222,6 +187,17 @@ function capturePanelSnapshot(): void {
  * (re-parenting if that window was recreated), and detaches it when the panel
  * is hidden. CSS pixels scale to DIP by the page's zoom factor. Idempotent:
  * repeated calls with unchanged inputs perform no view mutations.
+ *
+ * The renderer's measured report is the ONLY writer of bounds. This module
+ * used to also predict a rect on the window's own `resize` event, on the
+ * premise that the panel was right-anchored at a constant width — true only
+ * after a divider drag pins an inline pixel width. The panel's default is
+ * `w-1/2`, so the prediction was wrong by half the frame's window travel and,
+ * because it shared this dedup key, the two writers each invalidated the
+ * other's key and applied a different rect twice per frame. That double
+ * compositor resize was the "swimming" the prediction was meant to prevent.
+ * A divider drag still gets a predicted rect, from the renderer, where the
+ * arithmetic is exact because only the panel's left edge moves.
  */
 export function layout(): void {
   const win = panelWindow()
@@ -240,9 +216,6 @@ export function layout(): void {
 
   if (attachedView !== active.view) {
     win.contentView.addChildView(active.view)
-    if (hostedWindow !== win) {
-      win.on('resize', predictPanelBoundsForResize)
-    }
     hostedWindow = win
     attachedView = active.view
     if (panelOccluded && activeViewChanged) {
@@ -255,13 +228,6 @@ export function layout(): void {
     y: Math.round(panelBounds.y * zoom),
     width: Math.max(1, Math.round(panelBounds.width * zoom)),
     height: Math.max(1, Math.round(panelBounds.height * zoom)),
-  }
-  const [contentWidth, contentHeight] = win.getContentSize()
-  panelAnchor = {
-    y: bounds.y,
-    right: contentWidth - bounds.x - bounds.width,
-    bottom: contentHeight - bounds.y - bounds.height,
-    width: bounds.width,
   }
   const boundsKey = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
   if (boundsKey !== lastAppliedBounds) {

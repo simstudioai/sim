@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import { session } from 'electron'
+import { nativeImage, session } from 'electron'
 import {
+  addTrayEnvironmentSubscript,
   buildTrayMenuTemplate,
   chatRoute,
   installTray,
@@ -12,6 +13,7 @@ import {
   type RecentChat,
   settingsRoute,
   type TrayDeps,
+  trayEnvironmentMarker,
 } from '@/main/tray'
 // Same module instance the vi.mock factory returns, with mock-typed statics.
 import { Tray } from '@/test/electron-mock'
@@ -131,6 +133,26 @@ describe('routes', () => {
   })
 })
 
+describe('tray environment marker', () => {
+  it('marks only non-production channels', () => {
+    expect(trayEnvironmentMarker('prod')).toBeNull()
+    expect(trayEnvironmentMarker('local')).toBe('L')
+    expect(trayEnvironmentMarker('dev')).toBe('D')
+    expect(trayEnvironmentMarker('staging')).toBe('S')
+  })
+
+  it('adds a crisp subscript representation without modifying the source icon', () => {
+    const source = nativeImage.createFromPath('/tmp/simTemplate.png')
+    const marked = addTrayEnvironmentSubscript(source, 'D')
+
+    expect(marked).not.toBe(source)
+    const [bitmap, options] = vi.mocked(nativeImage.createFromBitmap).mock.calls.at(-1) ?? []
+    expect(options).toEqual({ width: 72, height: 32, scaleFactor: 2 })
+    expect(Buffer.isBuffer(bitmap)).toBe(true)
+    expect((bitmap as Buffer).some((value) => value === 255)).toBe(true)
+  })
+})
+
 describe('buildTrayMenuTemplate', () => {
   it('shows recents inline, then actions and quit', () => {
     const deps = makeDeps()
@@ -214,6 +236,7 @@ describe('buildTrayMenuTemplate', () => {
 describe('installTray', () => {
   beforeEach(() => {
     Tray.instances.length = 0
+    vi.mocked(nativeImage.createFromBitmap).mockClear()
   })
 
   it('fetches fresh chats on click and pops the menu', async () => {
@@ -254,5 +277,29 @@ describe('installTray', () => {
     )?.[1] as () => void
     clickHandler()
     await vi.waitFor(() => expect(tray.popUpContextMenu).toHaveBeenCalledTimes(1))
+  })
+
+  it('marks dev, staging, and local status items while leaving production unchanged', () => {
+    vi.mocked(session.fromPartition).mockReturnValue({
+      fetch: vi.fn(async () => {
+        throw new Error('offline')
+      }),
+    } as never)
+
+    installTray(makeDeps())
+    expect(nativeImage.createFromBitmap).not.toHaveBeenCalled()
+    expect(Tray.instances.at(-1)?.setToolTip).toHaveBeenCalledWith('Sim')
+
+    installTray(makeDeps({ appOrigin: () => 'https://dev.sim.ai' }))
+    expect(nativeImage.createFromBitmap).toHaveBeenCalledTimes(1)
+    expect(Tray.instances.at(-1)?.setToolTip).toHaveBeenCalledWith('Sim Dev')
+
+    installTray(makeDeps({ appOrigin: () => 'https://staging.sim.ai' }))
+    expect(nativeImage.createFromBitmap).toHaveBeenCalledTimes(2)
+    expect(Tray.instances.at(-1)?.setToolTip).toHaveBeenCalledWith('Sim Staging')
+
+    installTray(makeDeps({ appOrigin: () => 'http://localhost:3000' }))
+    expect(nativeImage.createFromBitmap).toHaveBeenCalledTimes(3)
+    expect(Tray.instances.at(-1)?.setToolTip).toHaveBeenCalledWith('Sim Local')
   })
 })

@@ -4,7 +4,12 @@ import { sleep } from '@sim/utils/helpers'
 import { truncate } from '@sim/utils/string'
 import type { MenuItemConstructorOptions, NativeImage } from 'electron'
 import { app, Menu, nativeImage, session, Tray } from 'electron'
-import { isSafeInternalPath } from '@/main/config'
+import {
+  APP_NAME_FOR_CHANNEL,
+  channelForOrigin,
+  type DesktopChannel,
+  isSafeInternalPath,
+} from '@/main/config'
 
 const logger = createLogger('DesktopTray')
 
@@ -20,6 +25,78 @@ const RECENT_CHATS_TOTAL = 30
 // immediately), so a slow dev-server compile just delays the NEXT open's
 // recents instead of dropping them.
 const CHATS_FETCH_TIMEOUT_MS = 5000
+const TRAY_ICON_SCALE_FACTOR = 2
+const TRAY_SUBSCRIPT_GLYPHS = {
+  L: ['100', '100', '100', '100', '111'],
+  D: ['110', '101', '101', '101', '110'],
+  S: ['111', '100', '111', '001', '111'],
+} as const
+
+type TrayEnvironmentMarker = keyof typeof TRAY_SUBSCRIPT_GLYPHS
+
+export function trayEnvironmentMarker(channel: DesktopChannel): TrayEnvironmentMarker | null {
+  switch (channel) {
+    case 'local':
+      return 'L'
+    case 'dev':
+      return 'D'
+    case 'staging':
+      return 'S'
+    default:
+      return null
+  }
+}
+
+/**
+ * Adds a compact lower-right environment letter to the monochrome status
+ * icon. A single crisp 2x bitmap is enough for the macOS-only desktop target;
+ * template-image rendering lets the OS tint both the Sim mark and subscript.
+ */
+export function addTrayEnvironmentSubscript(
+  source: NativeImage,
+  marker: TrayEnvironmentMarker
+): NativeImage {
+  const sourceSize = source.getSize()
+  const sourceWidth = sourceSize.width * TRAY_ICON_SCALE_FACTOR
+  const sourceHeight = sourceSize.height * TRAY_ICON_SCALE_FACTOR
+  const sourceBitmap = source.toBitmap({ scaleFactor: TRAY_ICON_SCALE_FACTOR })
+  const glyph = TRAY_SUBSCRIPT_GLYPHS[marker]
+  const glyphWidth = glyph[0].length
+  const targetLogicalWidth = sourceSize.width + glyphWidth + 1
+  const targetWidth = targetLogicalWidth * TRAY_ICON_SCALE_FACTOR
+  const targetBitmap = Buffer.alloc(targetWidth * sourceHeight * 4)
+
+  for (let y = 0; y < sourceHeight; y++) {
+    sourceBitmap.copy(
+      targetBitmap,
+      y * targetWidth * 4,
+      y * sourceWidth * 4,
+      (y + 1) * sourceWidth * 4
+    )
+  }
+
+  const glyphX = (sourceSize.width + 1) * TRAY_ICON_SCALE_FACTOR
+  const glyphY = (sourceSize.height - glyph.length) * TRAY_ICON_SCALE_FACTOR
+  for (let row = 0; row < glyph.length; row++) {
+    for (let column = 0; column < glyphWidth; column++) {
+      if (glyph[row][column] !== '1') continue
+      for (let dy = 0; dy < TRAY_ICON_SCALE_FACTOR; dy++) {
+        for (let dx = 0; dx < TRAY_ICON_SCALE_FACTOR; dx++) {
+          const x = glyphX + column * TRAY_ICON_SCALE_FACTOR + dx
+          const y = glyphY + row * TRAY_ICON_SCALE_FACTOR + dy
+          const offset = (y * targetWidth + x) * 4
+          targetBitmap[offset + 3] = 255
+        }
+      }
+    }
+  }
+
+  return nativeImage.createFromBitmap(targetBitmap, {
+    width: targetWidth,
+    height: sourceHeight,
+    scaleFactor: TRAY_ICON_SCALE_FACTOR,
+  })
+}
 const CHATS_API_PATH = '/api/copilot/chats'
 
 /**
@@ -237,15 +314,18 @@ export interface TrayHandle {
  */
 export function installTray(deps: TrayDeps): TrayHandle | null {
   const iconPath = join(app.getAppPath(), 'static', 'tray', 'simTemplate.png')
-  const icon = nativeImage.createFromPath(iconPath)
-  if (icon.isEmpty()) {
+  const sourceIcon = nativeImage.createFromPath(iconPath)
+  if (sourceIcon.isEmpty()) {
     logger.error('Tray icon missing; skipping tray install', { iconPath })
     return null
   }
+  const channel = channelForOrigin(deps.appOrigin())
+  const marker = trayEnvironmentMarker(channel)
+  const icon = marker ? addTrayEnvironmentSubscript(sourceIcon, marker) : sourceIcon
   icon.setTemplateImage(true)
 
   const tray = new Tray(icon)
-  tray.setToolTip('Sim')
+  tray.setToolTip(APP_NAME_FOR_CHANNEL[channel])
 
   let cachedChats: RecentChat[] = []
   let refreshing = false

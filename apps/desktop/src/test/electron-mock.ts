@@ -83,6 +83,8 @@ export const nativeImage = {
   createFromPath: vi.fn(() => ({
     isEmpty: vi.fn(() => false),
     setTemplateImage: vi.fn(),
+    getSize: vi.fn(() => ({ width: 32, height: 16 })),
+    toBitmap: vi.fn(() => Buffer.alloc(64 * 32 * 4)),
   })),
   createEmpty: vi.fn(() => ({
     isEmpty: vi.fn(() => true),

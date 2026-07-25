@@ -122,19 +122,42 @@ export function useMothershipResize() {
     }
   }, [])
 
-  // Re-clamp panel width when the viewport is resized (inline px width can exceed max after narrowing)
+  // Re-clamp panel width when the viewport is resized (inline px width can exceed max after narrowing).
+  // Coalesced to one frame and read off the inline style rather than the box:
+  // resize events can outpace the display during a live window-edge drag, and
+  // a getBoundingClientRect in the handler forces a layout flush per event.
+  // The clamp also has to land without animating — the transition on the panel
+  // would otherwise make the embedded browser view chase a moving rect for
+  // 200ms after the drag stops.
   useEffect(() => {
-    const handleWindowResize = () => {
+    let rafId: number | null = null
+
+    const clampWidth = () => {
+      rafId = null
       const el = mothershipRef.current
-      if (!el || !el.style.width) return
+      const pinned = el?.style.width
+      if (!el || !pinned) return
       const maxWidth = window.innerWidth * MOTHERSHIP_WIDTH.MAX_PERCENTAGE
-      const current = el.getBoundingClientRect().width
-      if (current > maxWidth) {
-        el.style.width = `${maxWidth}px`
-      }
+      if (Number.parseFloat(pinned) <= maxWidth) return
+      const prevTransition = el.style.transition
+      el.style.transition = 'none'
+      el.style.width = `${maxWidth}px`
+      // Force the clamped width to be picked up before transitions come back,
+      // so restoring the property cannot animate from the pre-clamp width.
+      void el.offsetWidth
+      el.style.transition = prevTransition
     }
+
+    const handleWindowResize = () => {
+      if (rafId !== null) return
+      rafId = requestAnimationFrame(clampWidth)
+    }
+
     window.addEventListener('resize', handleWindowResize)
-    return () => window.removeEventListener('resize', handleWindowResize)
+    return () => {
+      window.removeEventListener('resize', handleWindowResize)
+      if (rafId !== null) cancelAnimationFrame(rafId)
+    }
   }, [])
 
   /** Remove inline width so the collapse CSS class retakes control */

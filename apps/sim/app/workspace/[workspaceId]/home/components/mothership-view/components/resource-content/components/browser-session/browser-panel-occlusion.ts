@@ -52,11 +52,22 @@ function elementContainsOverlay(node: Node): boolean {
   )
 }
 
+/**
+ * Attribute changes get the cheap self-check only. A subtree scan there would
+ * be the dominant cost of a resize frame — the virtualizer rewrites `style` on
+ * every visible transcript row, and each scan walks a fully rendered markdown
+ * body to conclude nothing changed — and it cannot find anything new: an
+ * overlay already inside that subtree was registered when it was inserted, so
+ * the only attribute change that can introduce one is the marker landing on
+ * the target itself, which `matches` covers.
+ */
 function mutationTouchesOverlay(mutation: MutationRecord): boolean {
   if (mutation.type === 'childList') {
     return [...mutation.addedNodes, ...mutation.removedNodes].some(elementContainsOverlay)
   }
-  return elementContainsOverlay(mutation.target)
+  return (
+    mutation.target instanceof Element && mutation.target.matches(NATIVE_SURFACE_OVERLAY_SELECTOR)
+  )
 }
 
 /**
@@ -78,7 +89,12 @@ export function useBrowserPanelOcclusion(hostRef: RefObject<HTMLElement | null>)
 
     const checkOcclusion = () => {
       if (disposed) return
-      const nextOccluded = isPanelObscuredByOverlay(host, host.getBoundingClientRect(), overlays)
+      // Measuring the host is a forced layout, and it used to happen even with
+      // nothing open — the rect is an eager argument, so the empty-set answer
+      // was reached only after paying for it. Nothing is open for the whole of
+      // a window resize, which is exactly when the flush is most expensive.
+      const nextOccluded =
+        overlays.size > 0 && isPanelObscuredByOverlay(host, host.getBoundingClientRect(), overlays)
       if (nextOccluded === lastOccluded) return
       lastOccluded = nextOccluded
       setOccluded(nextOccluded)
