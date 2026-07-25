@@ -558,6 +558,9 @@ export function TableGrid({
   // requires the delete lock clear too — mirror that here or the affordance
   // stays live on an append-only table and only fails on click.
   const canDestroyColumn = canMutateSchema && !locks?.deleteLocked
+  // Duplicate inserts a full copied row in one shot, so unlike the blank-row
+  // paths it needs the insert lock only — it is valid on an append-only table.
+  const canInsertFullRow = userPermissions.canEdit && !locks?.insertLocked
   // Manual grid entry is "add an empty row, then type into its cells" — the
   // typing is an update. So a *useful* manual add needs BOTH insert and update
   // unlocked; on an append-only table (update locked) it would leave a blank
@@ -4055,9 +4058,7 @@ export function TableGrid({
             )}
           </div>
           {!isLoadingTable && !isLoadingRows && userPermissions.canEdit && (
-            <AddRowButton
-              onClick={canManualAddRow ? handleAppendRow : () => onBlockedAction('add-row')}
-            />
+            <AddRowButton onClick={handleAddRowClick} />
           )}
         </div>
       </div>
@@ -4095,6 +4096,7 @@ export function TableGrid({
         workflowCellScoped={Boolean(contextMenuGroupId)}
         disableEdit={!canEditCell}
         disableInsert={!canManualAddRow}
+        disableDuplicate={!canInsertFullRow}
         disableDelete={!canDeleteRow}
       />
 
@@ -4104,7 +4106,7 @@ export function TableGrid({
         rows={rows}
         columns={displayColumns}
         onSave={handleInlineSave}
-        canEdit={userPermissions.canEdit}
+        canEdit={canEditCell}
         scrollContainer={scrollRef.current}
       />
     </div>

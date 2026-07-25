@@ -621,7 +621,9 @@ export function Table({
         label: 'Import CSV',
         icon: Upload,
         onClick: onRequestImportCsv,
-        disabled: userPermissions.canEdit !== true,
+        // An import always inserts, so the insert lock disables it outright
+        // rather than letting the dialog run to a server-side 423.
+        disabled: userPermissions.canEdit !== true || tableData.locks.insertLocked,
       },
       {
         label: 'Export CSV',

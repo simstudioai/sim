@@ -48,6 +48,12 @@ interface ContextMenuProps {
   workflowCellScoped?: boolean
   disableEdit?: boolean
   disableInsert?: boolean
+  /**
+   * Duplicate is a one-shot insert carrying the copied row's data, so it needs
+   * only the insert lock — unlike the blank-row inserts above it, which also
+   * need the update lock to be fillable.
+   */
+  disableDuplicate?: boolean
   disableDelete?: boolean
 }
 
@@ -71,6 +77,7 @@ export function ContextMenu({
   workflowCellScoped = false,
   disableEdit = false,
   disableInsert = false,
+  disableDuplicate = false,
   disableDelete = false,
 }: ContextMenuProps) {
   const count = selectedRowCount.toLocaleString()
@@ -132,20 +139,23 @@ export function ContextMenu({
             View execution
           </DropdownMenuItem>
         )}
+        {/* Not gated on `disableEdit`: these write only workflow-output columns,
+            which the update lock exempts, and Stop is a cancel rather than a
+            write. Their handlers are already withheld without edit permission. */}
         {hasWorkflowColumns && onRunWorkflows && (
-          <DropdownMenuItem disabled={disableEdit} onSelect={onRunWorkflows}>
+          <DropdownMenuItem onSelect={onRunWorkflows}>
             <PlayOutline />
             {runLabel}
           </DropdownMenuItem>
         )}
         {hasWorkflowColumns && onRefreshWorkflows && (
-          <DropdownMenuItem disabled={disableEdit} onSelect={onRefreshWorkflows}>
+          <DropdownMenuItem onSelect={onRefreshWorkflows}>
             <RefreshCw />
             {refreshLabel}
           </DropdownMenuItem>
         )}
         {hasWorkflowColumns && onStopWorkflows && runningInSelectionCount > 0 && (
-          <DropdownMenuItem disabled={disableEdit} onSelect={onStopWorkflows}>
+          <DropdownMenuItem onSelect={onStopWorkflows}>
             <Square className='size-[14px] text-[var(--text-icon)]' />
             {stopLabel}
           </DropdownMenuItem>
@@ -158,7 +168,10 @@ export function ContextMenu({
           <ArrowDown />
           Insert row below
         </DropdownMenuItem>
-        <DropdownMenuItem disabled={disableInsert || selectedRowCount > 1} onSelect={onDuplicate}>
+        <DropdownMenuItem
+          disabled={disableDuplicate || selectedRowCount > 1}
+          onSelect={onDuplicate}
+        >
           <Duplicate />
           Duplicate row
         </DropdownMenuItem>

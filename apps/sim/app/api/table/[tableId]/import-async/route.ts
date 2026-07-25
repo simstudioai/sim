@@ -10,6 +10,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
+import { assertRowDelete, assertRowInsert } from '@/lib/table/mutation-locks'
 import { getUserSettings } from '@/lib/users/queries'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
@@ -52,6 +53,11 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   if (table.archivedAt) {
     return NextResponse.json({ error: 'Cannot import into an archived table' }, { status: 400 })
   }
+
+  // Gate the locks before claiming the single write-job slot, so a locked table
+  // reports 423 here instead of holding the slot and failing inside the worker.
+  assertRowInsert(table)
+  if (mode === 'replace') assertRowDelete(table)
 
   const ext = fileName.split('.').pop()?.toLowerCase()
   if (ext !== 'csv' && ext !== 'tsv') {

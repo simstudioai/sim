@@ -287,8 +287,11 @@ export async function updateWorkflowGroup(
 
   const { updatedTable, added, remappedColumnIds, newOutputs, previousAutoRun } =
     await withLockedTable(data.tableId, async (table, trx) => {
-      // May drop/remap output columns and strip their row data — destructive.
-      assertColumnDestructive(table)
+      // Any group patch edits the schema; the stronger destructive assert is
+      // applied below, only once we know this patch actually drops or remaps
+      // output columns (a rename / autoRun / mapping-only edit must not need
+      // the delete lock clear).
+      assertSchemaMutable(table)
       await setTableTxTimeouts(trx, { statementMs: 60_000 })
 
       const schema = table.schema
@@ -403,6 +406,11 @@ export async function updateWorkflowGroup(
       }
 
       const removedColumnIds = new Set(removed.map((o) => o.columnName))
+      // Both paths strip values out of every row below, so they need the delete
+      // lock clear as well as the schema lock — same rule as a column drop.
+      if (removedColumnIds.size > 0 || remappedColumnIds.size > 0) {
+        assertColumnDestructive(table)
+      }
       let nextColumns = schema.columns
         .filter((c) => !removedColumnIds.has(getColumnId(c)))
         .map((c) => {
