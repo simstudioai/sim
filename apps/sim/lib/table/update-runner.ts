@@ -18,6 +18,7 @@ import {
   patchColumnIds,
   TableLockedError,
 } from '@/lib/table/mutation-locks'
+import type { DbTransaction } from '@/lib/table/planner'
 import { selectRowDataPage, updatePageByIds } from '@/lib/table/rows/ordering'
 import { getTableById } from '@/lib/table/service'
 import { buildFilterClause } from '@/lib/table/sql'
@@ -81,6 +82,16 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
     // identical rules. This is a user-driven bulk patch, so it deliberately
     // does not pass `computedWrite` — the workflow-output carve-out belongs to
     // the cell-write path alone.
+    const cancelForLock = async (processedSoFar: number): Promise<void> => {
+      logger.info(`[${requestId}] Update job stopped — table is update-locked`, {
+        tableId,
+        jobId,
+        processedSoFar,
+      })
+      await markJobCanceled(tableId, jobId)
+      void appendTableEvent({ kind: 'job', type: 'update', tableId, jobId, status: 'canceled' })
+    }
+
     const stopIfLocked = async (
       fresh: TableDefinition,
       processedSoFar: number
@@ -89,18 +100,19 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
         return assertRowUpdate(fresh, patchColumnIds(data))
       } catch (err) {
         if (!(err instanceof TableLockedError)) throw err
-        logger.info(`[${requestId}] Update job stopped — table is update-locked`, {
-          tableId,
-          jobId,
-          processedSoFar,
-        })
-        await markJobCanceled(tableId, jobId)
-        void appendTableEvent({ kind: 'job', type: 'update', tableId, jobId, status: 'canceled' })
+        await cancelForLock(processedSoFar)
         return null
       }
     }
 
     if ((await stopIfLocked(table, 0)) === null) return
+
+    // Runs inside each batch's transaction, under the same advisory lock the
+    // lock toggle holds, so no page can be written after a lock commits.
+    const revalidate = async (trx: DbTransaction) => {
+      const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
+      if (fresh) assertRowUpdate(fresh, patchColumnIds(data))
+    }
 
     const filterClause = buildFilterClause(filter, USER_TABLE_ROWS_SQL_NAME, table.schema.columns)
     if (!filterClause) throw new Error('Filter is required for bulk update')
@@ -123,9 +135,10 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
       const owns = await updateJobProgress(tableId, processed, jobId)
       if (!owns) throw new JobSupersededError()
 
-      // Re-read the lock before every page so enabling the update lock stops a
-      // running job, not just the next one — one indexed lookup per page of
-      // rows. Pages already applied stay applied, as with an explicit cancel.
+      // Cheap early-out before selecting a page we may not be allowed to
+      // write. The authoritative gate is `revalidate` below, which re-asserts
+      // inside each batch transaction. Pages already applied stay applied, as
+      // with an explicit cancel.
       const current = await getTableById(tableId, { includeArchived: true })
       if (!current) throw new JobSupersededError()
       const pageProof = await stopIfLocked(current, processed)
@@ -160,13 +173,23 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
         }
       }
 
-      processed += await updatePageByIds(
-        tableId,
-        workspaceId,
-        page.map((r) => r.id),
-        patchJson,
-        pageProof
-      )
+      try {
+        processed += await updatePageByIds(
+          tableId,
+          workspaceId,
+          page.map((r) => r.id),
+          patchJson,
+          pageProof,
+          revalidate
+        )
+      } catch (err) {
+        if (!(err instanceof TableLockedError)) throw err
+        // A lock landed between batches. Batches already committed stay
+        // applied; `processed` undercounts them, which only affects the final
+        // progress number on an already-canceled job.
+        await cancelForLock(processed)
+        return
+      }
 
       if (
         processed - lastReported >= PROGRESS_INTERVAL_ROWS ||

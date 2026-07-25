@@ -1532,6 +1532,14 @@ export async function updateRowsByFilter(
   }
 }
 
+export interface BatchUpdateRowsOptions {
+  /**
+   * Marks the batch as workflow/enrichment output cells (the backfill runner),
+   * exempting it from the update lock. See {@link assertRowUpdate}.
+   */
+  computedWrite?: boolean
+}
+
 /**
  * Updates multiple rows with per-row data in a single transaction.
  * Avoids the race condition of parallel update_row calls overwriting each other.
@@ -1539,16 +1547,19 @@ export async function updateRowsByFilter(
 export async function batchUpdateRows(
   data: BatchUpdateByIdData,
   table: TableDefinition,
-  requestId: string
+  requestId: string,
+  options: BatchUpdateRowsOptions = {}
 ): Promise<BulkOperationResult> {
   if (data.updates.length === 0) {
     return { affectedCount: 0, affectedRowIds: [] }
   }
 
-  // Also the workflow-column backfill write path.
+  // Doubles as the workflow-output backfill write path, which passes
+  // `computedWrite` so a rebuild keeps working on an update-locked table.
   assertRowUpdate(
     table,
-    data.updates.flatMap((u) => patchColumnIds(u.data))
+    data.updates.flatMap((u) => patchColumnIds(u.data)),
+    { computedWrite: options.computedWrite }
   )
 
   const rowIds = data.updates.map((u) => u.rowId)

@@ -396,6 +396,32 @@ export async function selectRowDataPage(params: {
 }
 
 /**
+ * Re-verifies the table's locks from inside a write transaction. Supplied by
+ * the background runners; see {@link deletePageByIds}.
+ */
+export type MutationRevalidator = (trx: DbTransaction) => Promise<void>
+
+/**
+ * Takes the table's schema advisory lock and runs `revalidate` inside the
+ * caller's transaction. The lock toggle (`updateTableLocks`) writes under the
+ * same key, so check-then-write becomes atomic with respect to a lock change:
+ * a lock committed before this call is seen and throws; one committed after it
+ * waits for this batch to finish. Without it, the caller's proof would only
+ * describe the lock state at some earlier point in the run.
+ */
+async function guardBatch(
+  trx: DbTransaction,
+  tableId: string,
+  revalidate: MutationRevalidator | undefined
+): Promise<void> {
+  if (!revalidate) return
+  await trx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_schema:${tableId}`}, 0))`
+  )
+  await revalidate(trx)
+}
+
+/**
  * Deletes one page of rows for the async delete-job worker, committing each `DELETE_BATCH_SIZE`
  * chunk in its own short transaction. One statement per transaction bounds how long the
  * statement-level row_count trigger's lock on the definition row is held (a page-wide transaction
@@ -410,13 +436,16 @@ export async function deletePageByIds(
   workspaceId: string,
   rowIds: string[],
   /** Proof the caller asserted the delete lock (see `mutation-locks.ts`). */
-  _proof: MutationProof<'delete'>
+  _proof: MutationProof<'delete'>,
+  /** Re-asserts the lock inside each batch transaction. See {@link guardBatch}. */
+  revalidate?: MutationRevalidator
 ): Promise<number> {
   let deleted = 0
   for (let i = 0; i < rowIds.length; i += TABLE_LIMITS.DELETE_BATCH_SIZE) {
     const batch = rowIds.slice(i, i + TABLE_LIMITS.DELETE_BATCH_SIZE)
     const rows = await db.transaction(async (trx) => {
       await setTableTxTimeouts(trx, { statementMs: 60_000 })
+      await guardBatch(trx, tableId, revalidate)
       return trx
         .delete(userTableRows)
         .where(
@@ -444,7 +473,9 @@ export async function updatePageByIds(
   rowIds: string[],
   patchJson: string,
   /** Proof the caller asserted the update lock (see `mutation-locks.ts`). */
-  _proof: MutationProof<'update'>
+  _proof: MutationProof<'update'>,
+  /** Re-asserts the lock inside each batch transaction. See {@link guardBatch}. */
+  revalidate?: MutationRevalidator
 ): Promise<number> {
   const now = new Date()
   let updated = 0
@@ -452,6 +483,7 @@ export async function updatePageByIds(
     const batch = rowIds.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
     const rows = await db.transaction(async (trx) => {
       await setTableTxTimeouts(trx, { statementMs: 60_000 })
+      await guardBatch(trx, tableId, revalidate)
       return trx
         .update(userTableRows)
         .set({ data: sql`${userTableRows.data} || ${patchJson}::jsonb`, updatedAt: now })

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import type { TableLockKind, TableLocks } from '@/lib/table/types'
+import { TABLE_LOCK_FLAGS, type TableLockKind, type TableLocks } from '@/lib/table/types'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
@@ -56,13 +56,6 @@ function undoActionVerbs(action: TableUndoAction, direction: 'undo' | 'redo'): T
   }
 }
 
-const LOCK_FLAG_BY_KIND: Record<TableLockKind, keyof TableLocks> = {
-  insert: 'insertLocked',
-  update: 'updateLocked',
-  delete: 'deleteLocked',
-  schema: 'schemaLocked',
-}
-
 /** The first lock (if any) that would block replaying `action` in `direction`. */
 function undoActionBlockedBy(
   action: TableUndoAction,
@@ -70,7 +63,7 @@ function undoActionBlockedBy(
   locks: TableLocks | undefined
 ): TableLockKind | null {
   if (!locks) return null
-  return undoActionVerbs(action, direction).find((kind) => locks[LOCK_FLAG_BY_KIND[kind]]) ?? null
+  return undoActionVerbs(action, direction).find((kind) => locks[TABLE_LOCK_FLAGS[kind]]) ?? null
 }
 
 const BLOCKED_UNDO_MESSAGE: Record<TableLockKind, string> = {

@@ -17,6 +17,7 @@ import {
   updateTableLocks,
 } from '@/lib/table'
 import { getWorkspaceTableLimits } from '@/lib/table/billing'
+import { TABLE_LOCK_FLAGS, TABLE_LOCK_KINDS } from '@/lib/table/types'
 import {
   accessError,
   checkAccess,
@@ -145,9 +146,15 @@ export const PATCH = withRouteHandler(
         // With the flag off you may still CLEAR locks — otherwise flipping the
         // kill switch would strand an already-locked table with no way to
         // unlock it, while enforcement of those stored locks keeps running.
-        // Only turning a lock ON requires the feature to be enabled.
-        const isClearingOnly = Object.values(validated.locks).every((v) => v === false)
-        if (!isClearingOnly && !(await isFeatureEnabled('table-locks'))) {
+        // Only a lock actually transitioning off→on needs the feature enabled;
+        // comparing against the stored state (rather than "every value is
+        // false") is what lets the settings UI, which always submits the full
+        // four-flag draft, clear one lock while another stays on.
+        const enablesALock = TABLE_LOCK_KINDS.some((kind) => {
+          const flag = TABLE_LOCK_FLAGS[kind]
+          return validated.locks?.[flag] === true && !table.locks[flag]
+        })
+        if (enablesALock && !(await isFeatureEnabled('table-locks'))) {
           return NextResponse.json({ error: 'Table locks are not enabled' }, { status: 403 })
         }
         const adminResult = await checkAccess(tableId, authResult.userId, 'admin')

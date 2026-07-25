@@ -13,6 +13,7 @@ import {
   updateJobProgress,
 } from '@/lib/table/jobs/service'
 import { assertRowDelete, type MutationProof, TableLockedError } from '@/lib/table/mutation-locks'
+import type { DbTransaction } from '@/lib/table/planner'
 import { deletePageByIds, selectRowIdPage } from '@/lib/table/rows/ordering'
 import { getTableById } from '@/lib/table/service'
 import { buildFilterClause } from '@/lib/table/sql'
@@ -73,6 +74,16 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
     // than merely preventing the next one. Returning rather than throwing
     // releases the job slot without burning this task's remaining
     // `maxAttempts` on a deterministic failure.
+    const cancelForLock = async (processedSoFar: number): Promise<void> => {
+      logger.info(`[${requestId}] Delete job stopped — table is delete-locked`, {
+        tableId,
+        jobId,
+        processedSoFar,
+      })
+      await markJobCanceled(tableId, jobId)
+      void appendTableEvent({ kind: 'job', type: 'delete', tableId, jobId, status: 'canceled' })
+    }
+
     const stopIfLocked = async (
       fresh: TableDefinition,
       processedSoFar: number
@@ -81,18 +92,19 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
         return assertRowDelete(fresh)
       } catch (err) {
         if (!(err instanceof TableLockedError)) throw err
-        logger.info(`[${requestId}] Delete job stopped — table is delete-locked`, {
-          tableId,
-          jobId,
-          processedSoFar,
-        })
-        await markJobCanceled(tableId, jobId)
-        void appendTableEvent({ kind: 'job', type: 'delete', tableId, jobId, status: 'canceled' })
+        await cancelForLock(processedSoFar)
         return null
       }
     }
 
     if ((await stopIfLocked(table, 0)) === null) return
+
+    // Runs inside each batch's transaction, under the same advisory lock the
+    // lock toggle holds, so no page can be written after a lock commits.
+    const revalidate = async (trx: DbTransaction) => {
+      const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
+      if (fresh) assertRowDelete(fresh)
+    }
 
     const filterClause = filter
       ? buildFilterClause(filter, USER_TABLE_ROWS_SQL_NAME, table.schema.columns)
@@ -115,11 +127,11 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
       const owns = await updateJobProgress(tableId, processed, jobId)
       if (!owns) throw new JobSupersededError()
 
-      // Re-read the lock state before every page. One indexed lookup per
-      // DELETE_PAGE_SIZE rows is cheap next to the page's delete, and it makes
-      // the delete lock a real stop button for a running job instead of a
-      // check that went stale the moment the worker started. Pages already
-      // committed stay committed — the same contract as an explicit cancel.
+      // Cheap early-out before selecting a page we may not be allowed to
+      // write. The authoritative gate is `revalidate` below, which re-asserts
+      // inside each batch transaction; this read only avoids the wasted page
+      // fetch. Pages already committed stay committed — the same contract as
+      // an explicit cancel.
       const current = await getTableById(tableId, { includeArchived: true })
       if (!current) throw new JobSupersededError()
       const pageProof = await stopIfLocked(current, processed)
@@ -140,7 +152,16 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
 
       const toDelete = excluded.size > 0 ? page.filter((id) => !excluded.has(id)) : page
       if (toDelete.length > 0) {
-        processed += await deletePageByIds(tableId, workspaceId, toDelete, pageProof)
+        try {
+          processed += await deletePageByIds(tableId, workspaceId, toDelete, pageProof, revalidate)
+        } catch (err) {
+          if (!(err instanceof TableLockedError)) throw err
+          // A lock landed between batches. Batches already committed stay
+          // deleted; `processed` undercounts them, which only affects the
+          // final progress number on an already-canceled job.
+          await cancelForLock(processed)
+          return
+        }
       }
 
       if (

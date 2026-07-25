@@ -125,7 +125,8 @@ describe('runTableUpdate', () => {
       'ws_1',
       ['a', 'b'],
       expect.any(String),
-      expect.anything()
+      expect.anything(),
+      expect.any(Function)
     )
     expect(mockUpdatePageByIds).toHaveBeenNthCalledWith(
       2,
@@ -133,7 +134,8 @@ describe('runTableUpdate', () => {
       'ws_1',
       ['c'],
       expect.any(String),
-      expect.anything()
+      expect.anything(),
+      expect.any(Function)
     )
     expect(mockMarkJobReady).toHaveBeenCalledWith('tbl_1', 'job_1')
     expect(mockAppendTableEvent).toHaveBeenCalledWith(

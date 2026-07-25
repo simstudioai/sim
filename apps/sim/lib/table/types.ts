@@ -369,6 +369,14 @@ export interface TableLocks {
   deleteLocked: boolean
 }
 
+/** Maps each verb to the {@link TableLocks} flag that guards it. */
+export const TABLE_LOCK_FLAGS: Record<TableLockKind, keyof TableLocks> = {
+  schema: 'schemaLocked',
+  insert: 'insertLocked',
+  update: 'updateLocked',
+  delete: 'deleteLocked',
+}
+
 /** A fully-unlocked lock set — the state every new table is created in. */
 export const UNLOCKED_TABLE_LOCKS: TableLocks = {
   schemaLocked: false,
