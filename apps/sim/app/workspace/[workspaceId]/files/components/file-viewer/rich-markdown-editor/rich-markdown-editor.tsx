@@ -529,8 +529,10 @@ export function LoadedRichMarkdownEditor({
   })
   editorInstanceRef.current = editor
 
-  // The loaded markdown to seed the shared doc from, held by pointer so the parse
-  // runs once at seed time rather than every render.
+  /**
+   * The loaded markdown to seed the shared doc from, held by pointer so the parse
+   * runs once at seed time rather than every render.
+   */
   const seedContentRef = useRef(content)
   seedContentRef.current = content
 

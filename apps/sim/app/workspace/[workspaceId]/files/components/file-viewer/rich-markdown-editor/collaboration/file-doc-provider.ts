@@ -74,9 +74,9 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     if (socket.connected) this.join()
   }
 
+  /** Join the room, binding our client id so the server only accepts awareness we own. */
   private join = () => {
     if (this.fatal) return
-    // Bind our client id at join so the server only accepts awareness we own.
     this.socket.emit(FILE_DOC_EVENTS.JOIN, { fileId: this.fileId, clientId: this.doc.clientID })
   }
 
@@ -90,18 +90,24 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     this.join()
   }
 
+  /**
+   * Handle the join ack. Membership is now registered, so it is safe to send — an
+   * earlier send could be dropped because the server registers the room before this
+   * ack — so the initial sync + local awareness exchange begins here.
+   */
   private handleJoinSuccess = (data: JoinFileDocSuccess) => {
     if (data.fileId !== this.fileId) return
-    // We are now a member of the room, so it is safe to send messages (an earlier
-    // send could be dropped: the server registers the room before this ack).
     this.sendSyncStep1()
     this.sendLocalAwareness()
   }
 
+  /**
+   * Handle a join rejection. A non-retryable rejection (access denied, invalid)
+   * won't succeed on retry, so latch {@link fatal} to stop (re)joining and let the
+   * owner fall back to the non-collaborative view.
+   */
   private handleJoinError = (data: JoinFileDocError) => {
     if (data.fileId !== this.fileId) return
-    // A non-retryable rejection (access denied, invalid) won't succeed on retry;
-    // stop (re)joining and let the owner fall back to the non-collaborative view.
     if (data.retryable === false) this.fatal = true
     this.emit('join-error', [data])
   }
