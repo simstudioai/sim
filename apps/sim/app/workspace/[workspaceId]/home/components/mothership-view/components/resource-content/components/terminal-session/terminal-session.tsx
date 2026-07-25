@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
   useCallback,
   useEffect,
@@ -9,7 +10,7 @@ import {
   useState,
 } from 'react'
 import { cn, TabStrip, type TabStripItem, toast } from '@sim/emcn'
-import { Loader, TerminalWindow } from '@sim/emcn/icons'
+import { TerminalWindow } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { FitAddon } from '@xterm/addon-fit'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
@@ -18,13 +19,15 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import { useTheme } from 'next-themes'
 import '@xterm/xterm/css/xterm.css'
-import { MAX_TERMINALS } from '@sim/terminal-protocol'
+import { MAX_TERMINALS, type TerminalTabState } from '@sim/terminal-protocol'
+import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import {
   closeTerminal,
   getTerminalScrollback,
   onTerminalData,
   openTerminal,
+  reportTerminalFocused,
   resizeTerminal,
   startTerminalSession,
   switchTerminal,
@@ -37,6 +40,78 @@ import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sideb
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 
 const logger = createLogger('TerminalSession')
+
+/**
+ * How long a command must run before the tab names it.
+ *
+ * A tab that says what it is busy with is useful for a build you left running
+ * in the background, and pure noise for `ls` — swapping the label and spinning
+ * the icon for thirty milliseconds reads as a glitch. Waiting a beat keeps the
+ * signal and drops the flicker.
+ */
+const COMMAND_SETTLE_MS = 1_000
+
+/** Full working directory, plus whatever the shell is running in it. */
+function terminalTooltip(tab: TerminalTabState): string {
+  const where = tab.cwd ?? 'Terminal'
+  return tab.running ? `${where} — ${tab.running}` : where
+}
+
+function sameIds(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+  return a.size === b.size && [...a].every((id) => b.has(id))
+}
+
+/**
+ * Whether a tab should be named after what it is running rather than where it
+ * is. A full-screen program is named the moment it appears: the delay exists
+ * to stop `ls` flickering the label, and an editor or coding agent is not a
+ * transient command — it holds the terminal until it is quit, so there is
+ * nothing to wait out.
+ */
+function namesItsCommand(tab: TerminalTabState, settled: ReadonlySet<string>): boolean {
+  return Boolean(tab.running) && (tab.interactive || settled.has(tab.terminalId))
+}
+
+/**
+ * The terminals whose command has been running long enough to show. Returns a
+ * stable set, so a tab strip that would render identically does not re-render.
+ */
+function useSettledCommands(tabs: TerminalTabState[]): ReadonlySet<string> {
+  const [settled, setSettled] = useState<ReadonlySet<string>>(() => new Set())
+  const startedAt = useRef(new Map<string, number>())
+
+  useEffect(() => {
+    const started = startedAt.current
+    const live = new Set(tabs.map((tab) => tab.terminalId))
+    for (const id of [...started.keys()]) {
+      if (!live.has(id)) started.delete(id)
+    }
+    for (const tab of tabs) {
+      if (!tab.running) started.delete(tab.terminalId)
+      else if (!started.has(tab.terminalId)) started.set(tab.terminalId, Date.now())
+    }
+
+    const recompute = () => {
+      const now = Date.now()
+      const next = new Set<string>()
+      let soonest = Number.POSITIVE_INFINITY
+      for (const [id, at] of started) {
+        const elapsed = now - at
+        if (elapsed >= COMMAND_SETTLE_MS) next.add(id)
+        else soonest = Math.min(soonest, COMMAND_SETTLE_MS - elapsed)
+      }
+      setSettled((current) => (sameIds(current, next) ? current : next))
+      return soonest
+    }
+
+    const soonest = recompute()
+    if (!Number.isFinite(soonest)) return
+    const timer = setTimeout(recompute, Math.max(0, soonest))
+    return () => clearTimeout(timer)
+  }, [tabs])
+
+  return settled
+}
 
 /**
  * How long the panel must stop changing size before the PTY is told about it.
@@ -133,6 +208,33 @@ function attachWebglRenderer(terminal: Terminal): void {
  * visible, and only it is measured — `fit()` against a hidden element reads a
  * zero-sized box and would resize the PTY to nonsense.
  */
+/**
+ * Shortcuts a terminal answers itself, before xterm turns them into bytes for
+ * the shell.
+ *
+ * Only the ones with no menu item: Cmd-W and Cmd-Shift-T are global menu
+ * accelerators, so they never reach here and are handled in the main process
+ * against the focused panel instead. Returning false stops xterm from also
+ * sending the keystroke on to the pty, which would otherwise put a stray
+ * control character in front of whatever the user was typing.
+ */
+function handleTerminalShortcut(event: KeyboardEvent, terminal: Terminal): boolean {
+  const primary = event.metaKey || (event.ctrlKey && !event.altKey)
+  if (event.type !== 'keydown' || !primary || event.shiftKey || event.altKey) return true
+  switch (event.key.toLowerCase()) {
+    case 't':
+      void openTerminal()
+      return false
+    case 'k':
+      // What Cmd-K means in every other macOS terminal: wipe the screen and
+      // the scrollback, leaving the prompt.
+      terminal.clear()
+      return false
+    default:
+      return true
+  }
+}
+
 function TerminalView({
   terminalId,
   active,
@@ -176,6 +278,14 @@ function TerminalView({
 
     terminalRef.current = terminal
     fitRef.current = fit
+    terminal.attachCustomKeyEventHandler((event) => handleTerminalShortcut(event, terminal))
+
+    // Focus is reported so the main process can route menu accelerators: a
+    // Cmd-W typed into a shell should close that shell, not the window.
+    const reportFocused = () => reportTerminalFocused(true)
+    const reportBlurred = () => reportTerminalFocused(false)
+    terminal.textarea?.addEventListener('focus', reportFocused)
+    terminal.textarea?.addEventListener('blur', reportBlurred)
 
     const disposeData = terminal.onData((data) => writeToTerminal(terminalId, data))
     const disposeResize = terminal.onResize(({ cols, rows }) =>
@@ -197,7 +307,18 @@ function TerminalView({
     })
 
     void getTerminalScrollback(terminalId)
-      .catch(() => '')
+      .catch((error: Error) => {
+        // Logged rather than swallowed: a failure here is indistinguishable
+        // on screen from a shell that has printed nothing, so the panel comes
+        // up blank over a live terminal with no clue why. The usual cause is
+        // a desktop build older than this renderer, which has no scrollback
+        // channel to answer with.
+        logger.warn('Could not read terminal scrollback; the panel will start empty', {
+          terminalId,
+          error: error.message,
+        })
+        return ''
+      })
       .then((scrollback) => {
         if (disposed) return
         terminal.reset()
@@ -237,6 +358,9 @@ function TerminalView({
 
     return () => {
       disposed = true
+      reportTerminalFocused(false)
+      terminal.textarea?.removeEventListener('focus', reportFocused)
+      terminal.textarea?.removeEventListener('blur', reportBlurred)
       if (resizeTimer) clearTimeout(resizeTimer)
       observer.disconnect()
       unsubscribeData()
@@ -365,6 +489,7 @@ function TerminalView({
  */
 export function TerminalSession() {
   const { tabs, activeTerminalId } = useCopilotTerminalStore((state) => state.tabs)
+  const settledCommands = useSettledCommands(tabs)
   const { removeResource } = useMothershipResources()
   const [startError, setStartError] = useState<string | null>(null)
 
@@ -388,24 +513,28 @@ export function TerminalSession() {
     }
   }, [tabs.length, removeResource])
 
-  // The spinner means "transient work in progress", which is why a full-screen
-  // program does not get one: an editor or coding agent owns the terminal until
-  // it is quit, and spinning for the hour it is open would say the wrong thing.
-  // It is the only sign that something is running in a tab nobody is looking at.
+  // Every tab carries the same glyph. A spinner would have to mean "transient
+  // work", and nothing here can tell that from a coding agent sitting open for
+  // an hour: the alternate screen is the only signal available, and the tools
+  // people leave running — Claude Code, Codex — draw inline without it. A
+  // spinner that is wrong for the longest-lived tabs is worse than none, and
+  // the tab already says what it is running.
   const items = useMemo<TabStripItem[]>(
     () =>
-      tabs.map((tab) => ({
-        id: tab.terminalId,
-        title: tab.title,
-        icon:
-          tab.running && !tab.interactive ? (
-            <Loader className='size-[12px] shrink-0 animate-spin text-[var(--text-icon)]' />
-          ) : (
-            <TerminalWindow className='size-[12px] shrink-0 text-[var(--text-icon)]' />
-          ),
-        active: tab.terminalId === activeTerminalId,
-      })),
-    [tabs, activeTerminalId]
+      tabs.map((tab) => {
+        const naming = namesItsCommand(tab, settledCommands) ? tab.running : null
+        return {
+          id: tab.terminalId,
+          title: naming ?? tab.title,
+          // The label is a basename, and the tab may be running something it
+          // is not naming yet, so hovering gives the whole picture: where the
+          // shell is, and what it is doing there.
+          tooltip: terminalTooltip(tab),
+          icon: <TerminalWindow className='size-[12px] shrink-0 text-[var(--text-icon)]' />,
+          active: tab.terminalId === activeTerminalId,
+        }
+      }),
+    [tabs, activeTerminalId, settledCommands]
   )
 
   const [contextTerminalId, setContextTerminalId] = useState<string | null>(null)
@@ -424,6 +553,8 @@ export function TerminalSession() {
   const handleSwitch = useCallback((terminalId: string) => {
     void switchTerminal(terminalId)
   }, [])
+  // Closing the only terminal resets it rather than emptying the panel; the
+  // desktop app decides that, so the button means the same thing at any count.
   const handleClose = useCallback((terminalId: string) => {
     void closeTerminal(terminalId)
   }, [])
@@ -433,6 +564,22 @@ export function TerminalSession() {
   const handleDuplicate = useCallback((cwd: string | null) => {
     void openTerminal(cwd ?? undefined)
   }, [])
+
+  // Dragging a terminal tab into the chat attaches it as context. This strip
+  // has no reordering, so supplying this is also what makes its tabs
+  // draggable at all.
+  const startTabDrag = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>, terminalId: string) => {
+      const tab = tabs.find((entry) => entry.terminalId === terminalId)
+      if (!tab) return
+      event.dataTransfer.effectAllowed = 'copy'
+      event.dataTransfer.setData(
+        SIM_RESOURCE_DRAG_TYPE,
+        JSON.stringify({ type: 'terminal', id: tab.terminalId, title: tab.title })
+      )
+    },
+    [tabs]
+  )
 
   const openTabContextMenu = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>, terminalId: string) => {
@@ -451,9 +598,10 @@ export function TerminalSession() {
           onSelect={handleSwitch}
           onNew={handleNew}
           onTabContextMenu={openTabContextMenu}
+          onTabDragStart={startTabDrag}
           maxTabs={MAX_TERMINALS}
           newTabLabel='New terminal'
-          {...(tabs.length > 1 ? { onClose: handleClose } : {})}
+          onClose={handleClose}
         >
           <ContextMenu
             isOpen={isContextMenuOpen && Boolean(contextTab)}
@@ -461,9 +609,7 @@ export function TerminalSession() {
             menuRef={contextMenuRef}
             onClose={closeContextMenu}
             onDuplicate={contextTab ? () => handleDuplicate(contextTab.cwd) : undefined}
-            // The last terminal has no close affordance in the strip either:
-            // closing it would leave the panel with nothing to show.
-            {...(contextTab && tabs.length > 1
+            {...(contextTab
               ? { onCloseTab: () => handleClose(contextTab.terminalId), showCloseTab: true }
               : {})}
             onDelete={() => {}}

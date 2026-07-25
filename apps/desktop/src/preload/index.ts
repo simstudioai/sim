@@ -238,6 +238,12 @@ const api: SimDesktopApi = {
     },
     getScrollback: (terminalId: string): Promise<string> =>
       ipcRenderer.invoke('terminal:scrollback', terminalId),
+    setFocused: (focused: boolean): void => {
+      ipcRenderer.send('terminal:focused', focused)
+    },
+    finishHandoff: (terminalId: string): void => {
+      ipcRenderer.send('terminal:handoff-done', terminalId)
+    },
     onTabs: (callback: (state: TerminalTabsState) => void): (() => void) => {
       const listener = (_event: unknown, state: TerminalTabsState) => callback(state)
       ipcRenderer.on('terminal:tabs', listener)

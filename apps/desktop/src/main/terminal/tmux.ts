@@ -370,6 +370,18 @@ export async function awaitRun(handle: TmuxRunHandle, waitMs: number): Promise<T
   }
 }
 
+/**
+ * Closes a pane, taking whatever runs in it with it.
+ *
+ * The way to be rid of a program that will not take an interrupt — a coding
+ * agent, an editor with unsaved state, anything that treats Ctrl-C as "cancel
+ * the current thing" rather than "quit". tmux tidies up after it: emptying a
+ * window closes the window, and emptying the last window ends the session.
+ */
+export async function killPane(target: string, env: NodeJS.ProcessEnv): Promise<TmuxCommandResult> {
+  return runTmux(['kill-pane', '-t', target], env)
+}
+
 /** Closes a window opened by {@link startRun}. */
 export async function closeRunWindow(handle: TmuxRunHandle, env: NodeJS.ProcessEnv): Promise<void> {
   if (!handle.window) return

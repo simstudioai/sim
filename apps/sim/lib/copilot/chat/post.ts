@@ -152,6 +152,8 @@ const ChatContextSchema = z.object({
     'integration',
     'skill',
     'mcp',
+    'browser_tab',
+    'terminal_tab',
   ]),
   label: z.string(),
   chatId: z.string().optional(),
@@ -167,6 +169,8 @@ const ChatContextSchema = z.object({
   skillId: z.string().optional(),
   serverId: z.string().optional(),
   scheduleId: z.string().optional(),
+  tabId: z.string().optional(),
+  terminalId: z.string().optional(),
 })
 
 const ChatMessageSchema = z.object({

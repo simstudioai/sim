@@ -583,6 +583,20 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         return deps.terminal.executeTool(toolCallId, call.operation, args)
       },
     },
+    'terminal:handoff-done': {
+      kind: 'send',
+      gate: 'app-origin',
+      requires: 'terminal',
+      handler: (terminalId) => {
+        if (typeof terminalId === 'string') deps.terminal.finishHandoff(terminalId)
+      },
+    },
+    'terminal:focused': {
+      kind: 'send',
+      gate: 'app-origin',
+      requires: 'terminal',
+      handler: (focused) => deps.terminal.setPanelFocused(focused === true),
+    },
     'terminal:scrollback': {
       kind: 'invoke',
       gate: 'app-origin',

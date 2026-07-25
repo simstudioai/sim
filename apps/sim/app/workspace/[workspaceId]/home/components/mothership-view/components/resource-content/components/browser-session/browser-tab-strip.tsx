@@ -1,9 +1,16 @@
 'use client'
 
-import { type MouseEvent as ReactMouseEvent, useCallback, useMemo, useState } from 'react'
+import {
+  type DragEvent as ReactDragEvent,
+  type MouseEvent as ReactMouseEvent,
+  useCallback,
+  useMemo,
+  useState,
+} from 'react'
 import { type BrowserTabState, MAX_BROWSER_TABS } from '@sim/browser-protocol'
 import { TabStrip, type TabStripItem } from '@sim/emcn'
 import { Link, Loader } from '@sim/emcn/icons'
+import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { faviconUrl } from '@/lib/core/utils/favicon'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -98,6 +105,22 @@ export function BrowserTabStrip({
     [tabs, activeTabId]
   )
 
+  // Dragging a tab into the chat attaches it as context. `copyMove` because
+  // the strip already set `move` for its own reordering, and a drop target
+  // asking for `copy` is refused outright unless copying is allowed too.
+  const startTabDrag = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>, tabId: string) => {
+      const tab = tabs.find((entry) => entry.tabId === tabId)
+      if (!tab) return
+      event.dataTransfer.effectAllowed = 'copyMove'
+      event.dataTransfer.setData(
+        SIM_RESOURCE_DRAG_TYPE,
+        JSON.stringify({ type: 'browser', id: tab.tabId, title: tabTitle(tab) })
+      )
+    },
+    [tabs]
+  )
+
   const openTabContextMenu = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>, tabId: string) => {
       window.getSelection()?.removeAllRanges()
@@ -114,6 +137,7 @@ export function BrowserTabStrip({
       onClose={onCloseTab}
       onNew={onNewTab}
       onTabContextMenu={openTabContextMenu}
+      onTabDragStart={startTabDrag}
       maxTabs={MAX_BROWSER_TABS}
       {...(reorderingSupported ? { onReorder: onReorderTab } : {})}
     >

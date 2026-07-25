@@ -13,7 +13,7 @@ import {
   Tooltip,
   toast,
 } from '@sim/emcn'
-import { Cursor } from '@sim/emcn/icons'
+import { Cursor, TerminalWindow } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { ThinkingLoader } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
@@ -24,6 +24,7 @@ import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { getDesktopBridge } from '@/lib/desktop'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
+import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { QuestionDisplay } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
 import type {
@@ -74,6 +75,7 @@ export const CREDENTIAL_TAG_TYPES = [
   'secret_input',
   'folder_access',
   'browser_takeover',
+  'terminal_handoff',
 ] as const
 
 export type CredentialTagType = (typeof CREDENTIAL_TAG_TYPES)[number]
@@ -89,7 +91,7 @@ export interface CredentialTagData {
   /**
    * Env-var key name to save the pasted secret under (secret_input), e.g.
    * "OPENAI_API_KEY"; the folder hint for folder_access; the takeover reason
-   * for browser_takeover.
+   * for browser_takeover; what the user needs to do for terminal_handoff.
    */
   name?: string
   /** Where a secret_input value is persisted. Defaults to "workspace". */
@@ -231,9 +233,13 @@ function isCredentialTagData(value: unknown): value is CredentialTagData {
     }
     return typeof value.name === 'string' && value.name.trim().length > 0
   }
-  // folder_access and browser_takeover are value-less action chips (optional
-  // `name` carries the folder hint / takeover reason).
-  if (value.type === 'folder_access' || value.type === 'browser_takeover') {
+  // folder_access, browser_takeover and terminal_handoff are value-less action
+  // chips (optional `name` carries the folder hint / reason).
+  if (
+    value.type === 'folder_access' ||
+    value.type === 'browser_takeover' ||
+    value.type === 'terminal_handoff'
+  ) {
     return value.name === undefined || typeof value.name === 'string'
   }
   // A sim_key chip is platform-filled: the model only marks where the workspace
@@ -1079,6 +1085,45 @@ function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
   )
 }
 
+/**
+ * Inline hand-back chip rendered while a terminal handoff waits on the user —
+ * a command sitting on a prompt only they can answer. Without it the tool row
+ * just spins: the command is blocked in a panel the user may not even be
+ * looking at, with nothing saying it wants them. Clicking tells the waiting
+ * handoff they are done; the terminal id rides in `value` so the click reaches
+ * the right shell. Renders nothing outside the desktop app.
+ */
+function TerminalHandoffDisplay({ data }: { data: CredentialTagData }) {
+  const [handedBack, setHandedBack] = useState(false)
+
+  if (!isTerminalAvailable()) return null
+
+  const reason = (data.name ?? '').trim()
+  const label = handedBack
+    ? 'Handed control back to Sim'
+    : reason || 'Finish in the terminal, then hand control back'
+
+  return (
+    <button
+      type='button'
+      onClick={() => {
+        if (handedBack) return
+        setHandedBack(true)
+        finishTerminalHandoff(data.value ?? '')
+      }}
+      disabled={handedBack}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors',
+        !handedBack && 'hover-hover:bg-[var(--surface-5)]'
+      )}
+    >
+      <TerminalWindow className='size-[16px] shrink-0' />
+      <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
+      {!handedBack && <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
+    </button>
+  )
+}
+
 export function CredentialDisplay({ data }: { data: CredentialTagData }) {
   if (data.type === 'secret_input') {
     return <SecretInputDisplay data={data} />
@@ -1090,6 +1135,10 @@ export function CredentialDisplay({ data }: { data: CredentialTagData }) {
 
   if (data.type === 'browser_takeover') {
     return <BrowserTakeoverDisplay data={data} />
+  }
+
+  if (data.type === 'terminal_handoff') {
+    return <TerminalHandoffDisplay data={data} />
   }
 
   if (data.type === 'link') {

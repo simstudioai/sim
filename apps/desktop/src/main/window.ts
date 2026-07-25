@@ -170,12 +170,16 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
     minWidth: MIN_WIDTH,
     minHeight: MIN_HEIGHT,
     // No separate title bar: the page renders full-bleed to the window's top
-    // edge with the traffic lights inset over it (Codex-style). Position is
-    // explicit so the web app can reserve a matching top-left area.
+    // edge with the traffic lights inset over it (Codex-style).
     ...(platform === 'darwin'
       ? {
           titleBarStyle: 'hiddenInset' as const,
+          // Explicit so the published `titlebar-area-*` geometry is stable.
           trafficLightPosition: { x: 12, y: 12 },
+          // Publishes the traffic lights' geometry (81x38 DIP) as the
+          // `titlebar-area-*` CSS env vars, which Chromium rescales under page
+          // zoom so the reserved lane holds its physical size.
+          titleBarOverlay: true,
         }
       : {}),
     show: false,

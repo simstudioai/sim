@@ -536,6 +536,13 @@ describe('terminal titles', () => {
     expect(getToolDisplayTitle('terminal', {})).toBe('Using terminal')
   })
 
+  it('names what the user has to do when the terminal is handed over', () => {
+    expect(call('handoff', { reason: 'Enter your sudo password' })).toBe(
+      'Waiting for you: Enter your sudo password'
+    )
+    expect(call('handoff')).toBe('Waiting for you in the terminal')
+  })
+
   it('still titles rows from before the tools were consolidated', () => {
     // Persisted transcripts reference the old one-tool-per-operation names.
     expect(getToolDisplayTitle('terminal_run', { command: 'bun test' })).toBe('Running bun test')

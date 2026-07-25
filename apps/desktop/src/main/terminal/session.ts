@@ -23,7 +23,12 @@ import {
   type TerminalRunResult,
   type TerminalTabState,
 } from '@sim/terminal-protocol'
-import { Terminal as HeadlessTerminal } from '@xterm/headless'
+import {
+  Terminal as HeadlessTerminal,
+  type IBuffer,
+  type IBufferCell,
+  type IBufferLine,
+} from '@xterm/headless'
 import { readProcessCwd } from '@/main/terminal/process-cwd'
 import {
   buildShellLaunch,
@@ -128,6 +133,60 @@ const TERMINAL_QUERIES = [
 
 export function stripTerminalQueries(value: string): string {
   return TERMINAL_QUERIES.reduce((text, pattern) => text.replace(pattern, ''), value)
+}
+
+/** Marks the row a menu has selected, for a reader that cannot see colour. */
+const SELECTED_ROW_PREFIX = '[selected] '
+
+/**
+ * Share of a row's cells that must be painted for it to count as highlighted.
+ * High enough that a few coloured words in ordinary output do not qualify —
+ * a selected row is painted end to end.
+ */
+const PAINTED_ROW_RATIO = 0.6
+
+/**
+ * The row a menu has selected, or null when nothing looks selected.
+ *
+ * A TUI marks its current row by painting it — reverse video, or a background
+ * colour — and plain text throws all of that away, so an agent reading the
+ * screen cannot tell where it is before it starts pressing arrows.
+ *
+ * Painted rows are not always selections, though: a tmux status bar, a vim
+ * status line and an htop header are all painted end to end. Those live at the
+ * edges of the screen, so edge rows are set aside when something else is
+ * painted too. If that still leaves more than one, the cursor breaks the tie,
+ * and failing that nothing is marked — a missing label is recoverable, a label
+ * on the wrong row sends the agent somewhere it did not intend to go.
+ */
+export function findSelectedRow(buffer: IBuffer): number | null {
+  const painted: number[] = []
+  const cell = buffer.getNullCell()
+  for (let row = 0; row < buffer.length; row++) {
+    const line = buffer.getLine(row)
+    if (line && isPaintedRow(line, cell)) painted.push(row)
+  }
+  if (painted.length === 0) return null
+  if (painted.length === 1) return painted[0]
+
+  const top = buffer.baseY
+  const bottom = buffer.baseY + buffer.viewportY + buffer.length - 1
+  const inner = painted.filter((row) => row !== top && row !== bottom && row !== buffer.length - 1)
+  if (inner.length === 1) return inner[0]
+
+  const cursorRow = buffer.baseY + buffer.cursorY
+  const candidates = inner.length > 0 ? inner : painted
+  return candidates.includes(cursorRow) ? cursorRow : null
+}
+
+/** Whether a row is drawn highlighted: reverse video, or a filled background. */
+function isPaintedRow(line: IBufferLine, cell: IBufferCell): boolean {
+  let painted = 0
+  for (let column = 0; column < line.length; column++) {
+    line.getCell(column, cell)
+    if (cell.isInverse() || !cell.isBgDefault()) painted++
+  }
+  return line.length > 0 && painted / line.length >= PAINTED_ROW_RATIO
 }
 
 /** Strips CSI/OSC sequences so the model reads text rather than escape codes. */
@@ -379,9 +438,18 @@ export class TerminalSession {
     const directory = this.cwd ? (this.cwd.split('/').filter(Boolean).pop() ?? '/') : null
     return {
       terminalId: this.terminalId,
-      title: this.foregroundCommand?.trim() || directory || 'Terminal',
+      // The directory, always: whether to show the running command instead is
+      // a presentation choice, and the panel makes it (it holds a label back
+      // until a command has run long enough to be worth naming). Reporting the
+      // command here would also mean gating `running` to match, and that is
+      // data the agent reads — it must stay true the instant a command starts.
+      title: directory || 'Terminal',
       cwd: this.cwd,
-      running: this.foregroundCommand,
+      // Never an empty string. A shell can start a command without announcing
+      // its text, and "" would read as "nothing is running" to everything
+      // downstream while the terminal is in fact busy — the agent would treat
+      // it as free and the tab would render a blank label.
+      running: this.foregroundCommand === null ? null : this.foregroundCommand.trim() || 'command',
       interactive: this.altScreen,
       active,
     }
@@ -424,6 +492,22 @@ export class TerminalSession {
 
   sendKey(key: TerminalControlKey): void {
     this.write(CONTROL_KEY_BYTES[key])
+  }
+
+  /**
+   * Presses keys in order, spaced the way typed text is.
+   *
+   * Same reasoning as {@link type}: a program reads one stdin chunk as one
+   * event, so three arrows written together can arrive as a single keystroke.
+   * The pause also lets a menu redraw between presses, which is what makes a
+   * batch land on the row a person pressing the same keys would reach.
+   */
+  async pressKeys(keys: TerminalControlKey[]): Promise<void> {
+    for (let index = 0; index < keys.length; index += 1) {
+      if (this.disposed) return
+      if (index > 0) await this.settleBetweenKeystrokes()
+      this.sendKey(keys[index])
+    }
   }
 
   /**
@@ -535,6 +619,7 @@ export class TerminalSession {
 
   readScrollback(lines: number): TerminalReadResult {
     const buffer = this.emulator.buffer.active
+    const selected = findSelectedRow(buffer)
     // `buffer.active` is the alternate buffer while a full-screen program is
     // up and the normal one otherwise, so this reads correctly either way.
     const rowAt = (row: number) => buffer.getLine(row)?.translateToString(true) ?? ''
@@ -558,7 +643,7 @@ export class TerminalSession {
     const firstRow = Math.max(0, lastRow - wanted + 1)
     const rendered: string[] = []
     for (let row = firstRow; row <= lastRow; row++) {
-      rendered.push(rowAt(row))
+      rendered.push(row === selected ? `${SELECTED_ROW_PREFIX}${rowAt(row)}` : rowAt(row))
     }
 
     const { text, truncated } = elide(rendered.join('\n'), MAX_TOOL_OUTPUT_CHARS)

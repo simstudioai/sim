@@ -15,12 +15,15 @@ import { createLogger } from '@sim/logger'
 import {
   DEFAULT_RUN_WAIT_MS,
   isTerminalControlKey,
+  MAX_INPUT_KEYS,
   MAX_RUN_WAIT_MS,
   MAX_TERMINALS,
   MAX_TOOL_OUTPUT_CHARS,
   type TerminalCommandEvent,
+  type TerminalControlKey,
   type TerminalCwdResult,
   type TerminalErrorCode,
+  type TerminalHandoffResult,
   type TerminalOperation,
   type TerminalPanesResult,
   type TerminalStartOptions,
@@ -35,6 +38,7 @@ import {
   awaitRun,
   capturePane,
   closeRunWindow,
+  killPane,
   listPanes,
   resolveAttachment,
   sendKey,
@@ -65,6 +69,27 @@ const INPUT_SCREEN_LINES = 60
  */
 const CWD_POLL_MS = 1_000
 
+/** Pause between keys sent to a tmux pane, matching the pty keystroke gap. */
+const TMUX_KEY_GAP_MS = 150
+
+/** How often a handoff checks whether the user or the command has finished. */
+const HANDOFF_POLL_MS = 500
+
+/**
+ * Ceiling on a handoff. A person can take as long as they like — they may
+ * have walked away mid-install — so this only exists so a forgotten handoff
+ * cannot hold a turn open forever.
+ */
+const HANDOFF_MAX_MS = 12 * 60 * 60 * 1000
+
+/**
+ * Grace given to a command that is still running after the user hands back.
+ * Answering a prompt usually finishes the job within seconds; anything longer
+ * is an ordinary long-running command, and comes back as `running` for the
+ * agent to poll rather than holding the turn.
+ */
+const HANDOFF_SETTLE_MS = 5_000
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -79,6 +104,16 @@ function resolveWaitMs(waitSeconds: number | undefined): number {
 
 function elideOutput(value: string): { text: string; truncated: boolean } {
   return elide(value, MAX_TOOL_OUTPUT_CHARS)
+}
+
+/**
+ * The keys an input call wants pressed, in order. A lone `key` is the same
+ * thing with one element, so both arrive here as one list.
+ */
+function requestedKeys(args: TerminalToolArgs): TerminalControlKey[] {
+  const batch = Array.isArray(args.keys) ? args.keys : []
+  const keys = batch.length > 0 ? batch : isTerminalControlKey(args.key) ? [args.key] : []
+  return keys.filter(isTerminalControlKey).slice(0, MAX_INPUT_KEYS)
 }
 
 const EMPTY_TABS: TerminalTabsState = { tabs: [], activeTerminalId: null }
@@ -119,6 +154,12 @@ export class TerminalService {
   private sink: TerminalSink | null = null
   private lastEmittedTabs: string | null = null
   private cwdTimer: NodeJS.Timeout | null = null
+  /** True while the user's keyboard focus is in the terminal panel. */
+  private panelFocused = false
+  /** Directories of recently closed terminals, newest first, for reopening. */
+  private readonly recentlyClosedCwds: string[] = []
+  /** Terminals handed to the user; the value is whether they have handed back. */
+  private readonly handoffs = new Map<string, boolean>()
 
   constructor(private readonly options: TerminalServiceOptions = {}) {}
 
@@ -215,20 +256,93 @@ export class TerminalService {
     return this.getTabs()
   }
 
+  /**
+   * Closes a terminal, or resets it when it is the only one left.
+   *
+   * Emptying the panel is not an option the close button should have: the
+   * resource IS a terminal, so a panel with no shell in it is a dead end the
+   * user has to close and reopen to escape. Replacing the last shell with a
+   * fresh one in the same directory gives the button a sensible meaning at
+   * every count — the same shape as closing a browser's last tab, which
+   * leaves you a tab rather than an empty window.
+   *
+   * A shell that exits on its own is different and still closes the panel:
+   * that is the user saying they are done, not asking for a clean one.
+   */
   closeTerminal(terminalId: string): TerminalTabsState {
     const session = this.sessions.get(terminalId)
     if (!session) {
       throw new TerminalError('NO_SUCH_TERMINAL', unknownTerminal(terminalId))
     }
+    const closedCwd = session.currentCwd
+    const cols = session.cols
+    const rows = session.rows
     const order = [...this.sessions.keys()]
     const index = order.indexOf(terminalId)
     session.dispose()
     this.sessions.delete(terminalId)
+
+    if (this.sessions.size === 0) {
+      this.spawn(this.resolveCwd(closedCwd), cols, rows)
+      return this.getTabs()
+    }
+
+    this.rememberClosed(closedCwd)
     if (this.activeId === terminalId) {
       this.activeId = order[index + 1] ?? order[index - 1] ?? null
     }
     this.emitTabs()
     return this.getTabs()
+  }
+
+  /**
+   * Reopens the most recently closed terminal, in the directory it was in.
+   *
+   * A shell cannot be restored the way a browser tab can — its processes are
+   * gone and its scrollback with them — so this reopens where it was working,
+   * which is the part that is expensive for the user to retype.
+   */
+  reopenClosedTerminal(): boolean {
+    if (!this.panelFocused) return false
+    const cwd = this.recentlyClosedCwds.shift()
+    if (cwd === undefined || this.sessions.size >= MAX_TERMINALS) return false
+    this.openTerminal(cwd ?? undefined)
+    return true
+  }
+
+  /** Closes the active terminal, but only while the panel owns interaction focus. */
+  closeFocusedTerminal(): boolean {
+    if (!this.panelFocused || !this.activeId) return false
+    this.closeTerminal(this.activeId)
+    return true
+  }
+
+  /**
+   * Whether the terminal panel owns keyboard focus. Menu accelerators are
+   * global, so Cmd-W has to know whether the user is looking at a terminal or
+   * at something else in the window before deciding what to close.
+   */
+  setPanelFocused(focused: boolean): void {
+    this.panelFocused = focused
+  }
+
+  private rememberClosed(cwd: string | null): void {
+    this.recentlyClosedCwds.unshift(cwd ?? '')
+    if (this.recentlyClosedCwds.length > MAX_TERMINALS) {
+      this.recentlyClosedCwds.length = MAX_TERMINALS
+    }
+  }
+
+  /** A directory that still exists, else the usual starting point. */
+  private resolveCwd(candidate: string | null): string {
+    if (candidate) {
+      try {
+        if (statSync(candidate).isDirectory()) return candidate
+      } catch {
+        // Deleted while the shell was open; fall through.
+      }
+    }
+    return this.startingCwd()
   }
 
   write(terminalId: string, data: string): void {
@@ -278,7 +392,12 @@ export class TerminalService {
       case 'switch':
         return this.switchTerminal(this.requireId(args))
       case 'close':
-        return this.closeTerminal(this.requireId(args))
+        // A named pane is a tmux thing and needs the session resolved below;
+        // without one, close means the Sim terminal.
+        if (typeof args.pane !== 'string' || !args.pane.trim()) {
+          return this.closeTerminal(this.requireId(args))
+        }
+        break
       default:
         break
     }
@@ -296,6 +415,29 @@ export class TerminalService {
           home: homedir(),
           terminalId: session.terminalId,
         } satisfies TerminalCwdResult
+      case 'close': {
+        if (!tmux) {
+          throw new TerminalError(
+            'NO_TMUX',
+            'That terminal is a plain shell, so it has no panes. Close the terminal itself by omitting `pane`.'
+          )
+        }
+        const target = await this.resolvePane(tmux.session, args, session)
+        const killed = await killPane(target, session.env)
+        if (!killed.ok) {
+          throw new TerminalError(
+            'NO_SUCH_PANE',
+            killed.stderr.trim() || `tmux could not close pane ${target}.`
+          )
+        }
+        return {
+          closed: target,
+          terminalId: session.terminalId,
+          panes: await listPanes(tmux.session, session.env),
+        }
+      }
+      case 'handoff':
+        return this.handoff(session, args)
       case 'panes': {
         if (!tmux) {
           throw new TerminalError(
@@ -359,6 +501,60 @@ export class TerminalService {
     }
   }
 
+  /**
+   * Gives the terminal to the user and waits for them.
+   *
+   * A command sitting on a prompt it cannot answer — a password, a decision
+   * that is not the agent's to make — otherwise leaves the tool call spinning
+   * with nothing on screen to explain why. This surfaces a chip in the chat
+   * saying what is needed, and resolves when the command that was blocking
+   * finishes, so the agent resumes knowing the outcome rather than guessing
+   * whether the user got to it.
+   */
+  private async handoff(session: TerminalSession, args: TerminalToolArgs): Promise<unknown> {
+    const reason = typeof args.reason === 'string' ? args.reason.trim() : ''
+    const terminalId = session.terminalId
+    this.handoffs.set(terminalId, false)
+
+    const settled = (handedBack: boolean): TerminalHandoffResult => {
+      const view = session.readScrollback(INPUT_SCREEN_LINES)
+      return {
+        terminalId,
+        reason,
+        handedBack,
+        running: session.foreground,
+        output: view.output,
+        cwd: session.currentCwd,
+      }
+    }
+
+    try {
+      const deadline = Date.now() + HANDOFF_MAX_MS
+      let handedBackAt: number | null = null
+      while (Date.now() < deadline) {
+        await delay(HANDOFF_POLL_MS)
+        if (!session.alive) {
+          throw new TerminalError('SESSION_CLOSED', 'That terminal was closed during the handoff.')
+        }
+        // The command finishing is the real end of the handoff, whether or not
+        // the user pressed anything: it means the prompt got answered.
+        if (!session.isBusy) return settled(this.handoffs.get(terminalId) === true)
+        if (this.handoffs.get(terminalId) === true) {
+          handedBackAt ??= Date.now()
+          if (Date.now() - handedBackAt >= HANDOFF_SETTLE_MS) return settled(true)
+        }
+      }
+      return settled(this.handoffs.get(terminalId) === true)
+    } finally {
+      this.handoffs.delete(terminalId)
+    }
+  }
+
+  /** The user pressing the hand-back button on a waiting handoff. */
+  finishHandoff(terminalId: string): void {
+    if (this.handoffs.has(terminalId)) this.handoffs.set(terminalId, true)
+  }
+
   /** The pane a call names, or the session's active one. */
   private async resolvePane(
     session: string,
@@ -388,8 +584,14 @@ export class TerminalService {
     args: TerminalToolArgs
   ): Promise<unknown> {
     const target = await this.resolvePane(session, args, terminal)
-    if (typeof args.key === 'string' && isTerminalControlKey(args.key)) {
-      await sendKey(target, TMUX_KEY_NAMES[args.key] ?? args.key, terminal.env)
+    const keys = requestedKeys(args)
+    if (keys.length > 0) {
+      for (let index = 0; index < keys.length; index += 1) {
+        // Paced like the pty path: a pane redraws between presses, so a batch
+        // lands where the same keys pressed by hand would.
+        if (index > 0) await delay(TMUX_KEY_GAP_MS)
+        await sendKey(target, TMUX_KEY_NAMES[keys[index]] ?? keys[index], terminal.env)
+      }
     } else if (typeof args.text === 'string') {
       await sendText(target, args.text, terminal.env)
       // Enter is a separate send-keys for the same reason it is a separate pty
@@ -397,13 +599,13 @@ export class TerminalService {
       // as text, and the message sits unsubmitted.
       if (/[\r\n]$/.test(args.text)) await sendKey(target, 'Enter', terminal.env)
     } else {
-      throw new TerminalError('INVALID_REQUEST', 'input needs either `text` or `key`.')
+      throw new TerminalError('INVALID_REQUEST', 'input needs `text`, `key`, or `keys`.')
     }
 
     await delay(INPUT_ECHO_MS)
     const captured = await capturePane(target, INPUT_SCREEN_LINES, terminal.env)
     return {
-      sent: args.key ?? args.text,
+      sent: keys.length > 0 ? keys.join(', ') : args.text,
       terminalId: terminal.terminalId,
       pane: target,
       output: captured.stdout,
@@ -425,17 +627,18 @@ export class TerminalService {
     // lets the model assume its message went through and start waiting on
     // a reply to text still sitting unsubmitted in a composer; the screen
     // is the evidence of what the program actually did with the input.
-    if (isTerminalControlKey(args.key)) {
-      session.sendKey(args.key)
+    const keys = requestedKeys(args)
+    if (keys.length > 0) {
+      await session.pressKeys(keys)
       await delay(INPUT_ECHO_MS)
-      return { sent: args.key, ...session.readScrollback(INPUT_SCREEN_LINES) }
+      return { sent: keys.join(', '), ...session.readScrollback(INPUT_SCREEN_LINES) }
     }
     if (typeof args.text === 'string') {
       await session.type(args.text)
       await delay(INPUT_ECHO_MS)
       return { sent: args.text, ...session.readScrollback(INPUT_SCREEN_LINES) }
     }
-    throw new TerminalError('INVALID_REQUEST', 'input needs either `text` or `key`.')
+    throw new TerminalError('INVALID_REQUEST', 'input needs `text`, `key`, or `keys`.')
   }
 
   /**

@@ -63,6 +63,20 @@ export function onTerminalData(callback: (terminalId: string, data: string) => v
  * from. Empty when the desktop bridge is unavailable, which leaves the view
  * blank rather than failing the mount.
  */
+/**
+ * Tells the desktop app whether a terminal owns keyboard focus. Menu
+ * accelerators are global, so Cmd-W has to know whether the user is typing in
+ * a shell before it decides what to close.
+ */
+export function reportTerminalFocused(focused: boolean): void {
+  bridge()?.setFocused?.(focused)
+}
+
+/** Tells a waiting handoff that the user is done in the terminal. */
+export function finishTerminalHandoff(terminalId: string): void {
+  bridge()?.finishHandoff?.(terminalId)
+}
+
 export async function getTerminalScrollback(terminalId: string): Promise<string> {
   return (await bridge()?.getScrollback(terminalId)) ?? ''
 }

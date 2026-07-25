@@ -20,6 +20,8 @@ function makeDeps(): MenuDeps {
     openSettings: vi.fn(),
     newWindow: vi.fn(),
     newChat: vi.fn(),
+    closeFocusedTerminal: vi.fn(() => false),
+    reopenClosedTerminal: vi.fn(() => false),
     closeFocusedBrowserTab: vi.fn(() => false),
     reopenClosedBrowserTab: vi.fn(() => false),
     toggleSidebar: vi.fn(),
