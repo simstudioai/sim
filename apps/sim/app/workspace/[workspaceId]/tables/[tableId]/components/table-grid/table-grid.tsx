@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { cn, toast, useToast } from '@sim/emcn'
 import { Loader, TableX } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import type { TableCellSelection } from '@sim/realtime-protocol/table-presence'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -14,6 +15,7 @@ import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup 
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-room'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import {
   useAddTableColumn,
@@ -47,6 +49,7 @@ import { ExpandedCellPopover } from './cells'
 import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
 import { DataRow } from './data-row'
 import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
+import { RemoteSelectionOverlay } from './remote-selection-overlay'
 import { TableFind } from './table-find'
 import { AddRowButton, SelectAllCheckbox, TableColGroup } from './table-primitives'
 import type { DisplayColumn } from './types'
@@ -139,10 +142,17 @@ export interface SelectionSnapshot {
   } | null
 }
 
+/** Stable empty default so a grid without presence keeps a constant prop identity. */
+const EMPTY_REMOTE_SELECTIONS: RemoteTableSelection[] = []
+
 interface TableGridProps {
   workspaceId?: string
   tableId?: string
   embedded?: boolean
+  /** Remote collaborators' cell selections, rendered as presence overlays. */
+  remoteSelections?: RemoteTableSelection[]
+  /** Broadcast the local viewer's cell selection to the table presence room. */
+  emitCellSelection?: (cell: TableCellSelection) => void
   /**
    * Pixel width to reserve on the right of the table's scroll content for the
    * currently-open slideout panel (column config, workflow config, or log
@@ -288,6 +298,8 @@ export function TableGrid({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
   embedded,
+  remoteSelections = EMPTY_REMOTE_SELECTIONS,
+  emitCellSelection,
   sidebarReservedPx,
   onOpenColumnConfig,
   onOpenWorkflowConfig,
@@ -645,6 +657,13 @@ export function TableGrid({
     return expandToDisplayColumns(ordered, tableWorkflowGroups)
   }, [columns, columnOrder, tableWorkflowGroups])
 
+  /** Column id → its rendered index (matches the cells' `data-col`), for placing overlays. */
+  const columnIndexById = useMemo(() => {
+    const map = new Map<string, number>()
+    displayColumns.forEach((col, index) => map.set(col.key, index))
+    return map
+  }, [displayColumns])
+
   const workflowGroupById = useMemo(
     () => new Map(tableWorkflowGroups.map((g) => [g.id, g])),
     [tableWorkflowGroups]
@@ -818,6 +837,29 @@ export function TableGrid({
   focusRowIdRef.current = selectionFocus
     ? (rowsRef.current[selectionFocus.rowIndex]?.id ?? null)
     : null
+
+  // Broadcast the local viewer's cell selection to the presence room. Resolves the
+  // index-based selection to stable (rowId, columnId) through refs so it re-emits only
+  // on a real selection/editing change, not on every data update. `editing` marks the
+  // active cell so peers darken it (the "someone is typing here" signal).
+  useEffect(() => {
+    if (!emitCellSelection) return
+    const currentRows = rowsRef.current
+    const currentCols = columnsRef.current
+    const resolve = (coord: CellCoord | null) => {
+      if (!coord) return null
+      const rowId = currentRows[coord.rowIndex]?.id
+      const columnId = currentCols[coord.colIndex]?.key
+      return rowId && columnId ? { rowId, columnId } : null
+    }
+    const anchor = resolve(selectionAnchor)
+    const focus = resolve(selectionFocus)
+    if (!anchor || !focus) {
+      emitCellSelection(null)
+      return
+    }
+    emitCellSelection({ anchor, focus, editing: editingCell !== null })
+  }, [selectionAnchor, selectionFocus, editingCell, emitCellSelection])
 
   const { data: findData, isFetching: isFindFetching } = useFindTableRows({
     workspaceId,
@@ -3885,6 +3927,13 @@ export function TableGrid({
                     })()}
               </tbody>
             </table>
+            {remoteSelections.length > 0 && (
+              <RemoteSelectionOverlay
+                remoteSelections={remoteSelections}
+                columnIndexById={columnIndexById}
+                scrollElement={scrollRef.current}
+              />
+            )}
             {resizingColumn && (
               <div
                 className='-translate-x-[1.5px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]'
