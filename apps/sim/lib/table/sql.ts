@@ -40,8 +40,8 @@ type ColumnMap = ReadonlyMap<string, ColumnDefinition>
  * can never be true (`{"t":["a"]} @> {"t":"a"}` is false in Postgres), so
  * allowing it would silently match nothing.
  */
-const SINGLE_SELECT_OPERATORS = new Set(['$eq', '$ne', '$in', '$nin', '$empty'])
-const MULTI_SELECT_OPERATORS = new Set(['$contains', '$ncontains', '$empty'])
+export const SINGLE_SELECT_OPERATORS = new Set(['$eq', '$ne', '$in', '$nin', '$empty'])
+export const MULTI_SELECT_OPERATORS = new Set(['$contains', '$ncontains', '$empty'])
 
 /**
  * Returns the Postgres cast needed to compare a JSONB text value of the given

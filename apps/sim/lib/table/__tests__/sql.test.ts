@@ -13,7 +13,17 @@
  * substrings like `::timestamptz` against the generated SQL.
  */
 import { describe, expect, it } from 'vitest'
-import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
+import {
+  MULTI_SELECT_FILTER_OPERATORS,
+  SINGLE_SELECT_FILTER_OPERATORS,
+  UI_TO_WIRE_OPERATOR,
+} from '@/lib/table/query-builder/constants'
+import {
+  buildFilterClause,
+  buildSortClause,
+  MULTI_SELECT_OPERATORS,
+  SINGLE_SELECT_OPERATORS,
+} from '@/lib/table/sql'
 import type { ColumnDefinition, Filter, Sort } from '@/lib/table/types'
 
 type SqlNode =
@@ -527,6 +537,25 @@ describe('SQL Builder', () => {
       // The scalar arm survives for values left over from a single→multi toggle.
       expect(out).toContain('CASE')
       expect(out.trim().endsWith('ASC NULLS LAST')).toBe(true)
+    })
+  })
+
+  describe('select operator whitelists stay in step with the filter UI', () => {
+    // The picker offers exactly the UI set and `pruneFilterForColumns` DROPS
+    // anything outside it, so a UI set narrower than the server's silently
+    // discards a filter the server would have accepted (this shipped: `in`/`nin`
+    // were missing from the single-select set). Assert the mapping instead of
+    // trusting the two lists to be kept in sync by hand.
+    const toWire = (op: string) => UI_TO_WIRE_OPERATOR[op] ?? `$${op}`
+
+    it('single-select UI operators map onto the server whitelist exactly', () => {
+      const mapped = new Set([...SINGLE_SELECT_FILTER_OPERATORS].map(toWire))
+      expect(mapped).toEqual(SINGLE_SELECT_OPERATORS)
+    })
+
+    it('multi-select UI operators map onto the server whitelist exactly', () => {
+      const mapped = new Set([...MULTI_SELECT_FILTER_OPERATORS].map(toWire))
+      expect(mapped).toEqual(MULTI_SELECT_OPERATORS)
     })
   })
 
