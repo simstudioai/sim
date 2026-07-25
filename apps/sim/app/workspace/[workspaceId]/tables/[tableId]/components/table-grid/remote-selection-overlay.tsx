@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { getUserColor, withAlpha } from '@/lib/workspaces/colors'
 import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-room'
 
@@ -145,7 +145,8 @@ export function RemoteSelectionOverlay({
   }, [scrollElement, measure])
 
   // Re-measure when the selections or column layout change (listeners stay subscribed).
-  useEffect(() => {
+  // Layout effect so positions update before paint — no one-frame lag as a peer moves.
+  useLayoutEffect(() => {
     measure()
   }, [remoteSelections, columnIndexById, measure])
 
@@ -166,7 +167,7 @@ export function RemoteSelectionOverlay({
         >
           {hoveredSocketId === box.socketId && (
             <span
-              className='-top-[1.4em] absolute left-[-2px] whitespace-nowrap rounded-[3px] rounded-bl-none px-[5px] py-[1px] font-medium text-[11px] text-white leading-[1.4]'
+              className='-top-[1.4em] absolute left-[-2px] whitespace-nowrap rounded-[3px] rounded-bl-none px-[5px] py-[1px] font-medium text-[#1a1a1a] text-[11px] leading-[1.4]'
               style={{ backgroundColor: box.color }}
             >
               {box.userName}

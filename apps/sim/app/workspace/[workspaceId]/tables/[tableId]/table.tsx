@@ -155,7 +155,7 @@ export function Table({
   useTableEventStream({ tableId, workspaceId, onUsageLimitReached })
 
   // Live table presence (avatars + cell-selection highlights). Scoped to the
-  // dedicated tables page — the embedded/mothership surface passes no id, disabling it.
+  // dedicated tables page — the embedded surface passes no id, disabling it.
   const {
     otherUsers: presenceUsers,
     remoteSelections,
