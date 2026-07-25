@@ -26,7 +26,8 @@ export const skillsKeys = {
   all: ['skills'] as const,
   lists: () => [...skillsKeys.all, 'list'] as const,
   list: (workspaceId: string) => [...skillsKeys.lists(), workspaceId] as const,
-  members: (skillId?: string) => [...skillsKeys.all, 'members', skillId ?? ''] as const,
+  memberLists: () => [...skillsKeys.all, 'members'] as const,
+  members: (skillId?: string) => [...skillsKeys.memberLists(), skillId ?? ''] as const,
 }
 
 /**
@@ -88,17 +89,18 @@ export function useCreateSkill() {
       })
 
       logger.info(`Created skill: ${s.name}`)
-      return data
+      // The upsert responds with the caller's whole skill list (built-ins
+      // included), not just the new row. Resolve the created row here — by name,
+      // which is unique per workspace and which a same-named built-in is filtered
+      // out of — so consumers get an id instead of re-deriving one.
+      return { skills: data, created: data.find((skill) => skill.name === s.name) ?? null }
     },
-    onSuccess: (data, variables) => {
-      queryClient.setQueryData<SkillDefinition[]>(
-        skillsKeys.list(variables.workspaceId),
-        (prev) => {
-          const byId = new Map((prev ?? []).map((skill) => [skill.id, skill]))
-          for (const skill of data) byId.set(skill.id, skill)
-          return Array.from(byId.values())
-        }
-      )
+    onSuccess: ({ skills }, variables) => {
+      // The response is the same authoritative list GET /api/skills returns for
+      // this caller, so seed the cache with it verbatim. Merging by id would keep
+      // the previous ordering and append the new skill at the bottom until the
+      // refetch lands.
+      queryClient.setQueryData<SkillDefinition[]>(skillsKeys.list(variables.workspaceId), skills)
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: skillsKeys.list(variables.workspaceId) })
@@ -169,8 +171,9 @@ export function useUpdateSkill() {
       }
     },
     onSettled: (_data, _error, variables) => {
+      // Only name/description/content go over the wire here, none of which can
+      // change the editor roster — no need to invalidate it.
       queryClient.invalidateQueries({ queryKey: skillsKeys.list(variables.workspaceId) })
-      queryClient.invalidateQueries({ queryKey: skillsKeys.members(variables.skillId) })
     },
   })
 }

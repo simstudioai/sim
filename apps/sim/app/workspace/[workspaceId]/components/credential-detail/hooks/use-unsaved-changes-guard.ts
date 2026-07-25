@@ -26,9 +26,13 @@ interface UseUnsavedChangesGuardParams {
 export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesGuardParams) {
   const router = useRouter()
   const [showUnsavedAlert, setShowUnsavedAlert] = useState(false)
+  const [isReleased, setIsReleased] = useState(false)
   const hasSentinelRef = useRef(false)
 
   useEffect(() => {
+    // Released: the caller is navigating away, so leave the seeded entry alone —
+    // popping it would cancel that navigation.
+    if (isReleased) return
     if (!isDirty) {
       // Clean again while still mounted (saved/reverted): pop the seeded entry so
       // it can't pile up across edit/save cycles. This runs in the effect body,
@@ -58,7 +62,7 @@ export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesG
       window.removeEventListener('beforeunload', handleBeforeUnload)
       window.removeEventListener('popstate', handlePopState)
     }
-  }, [isDirty])
+  }, [isDirty, isReleased])
 
   const handleBackClick = useCallback(
     (event: MouseEvent<HTMLAnchorElement>) => {
@@ -75,5 +79,13 @@ export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesG
     router.push(backHref)
   }, [router, backHref])
 
-  return { showUnsavedAlert, setShowUnsavedAlert, handleBackClick, confirmDiscard }
+  /**
+   * Retires the guard for the rest of this mount: no unload warning, no Back
+   * trap, and no pop of the seeded entry when the form goes clean. Call it
+   * immediately before navigating away on a successful save, and navigate with
+   * `router.replace` so the seeded entry is the one consumed.
+   */
+  const release = useCallback(() => setIsReleased(true), [])
+
+  return { showUnsavedAlert, setShowUnsavedAlert, handleBackClick, confirmDiscard, release }
 }

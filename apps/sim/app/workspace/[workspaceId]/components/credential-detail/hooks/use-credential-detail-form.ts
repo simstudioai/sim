@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -30,11 +30,16 @@ export function useCredentialDetailForm({
 
   const [displayNameDraft, setDisplayNameDraft] = useState('')
   const [descriptionDraft, setDescriptionDraft] = useState('')
+  const [prevCredentialId, setPrevCredentialId] = useState<string | null>(null)
 
-  useEffect(() => {
-    setDisplayNameDraft(credential?.displayName ?? '')
-    setDescriptionDraft(credential?.description ?? '')
-  }, [credential?.id, credential?.displayName, credential?.description])
+  // Seed drafts when the credential first resolves (or the route id changes); a
+  // background refetch of the same credential must not clobber an in-progress
+  // edit — nor silently reset isDirty, which pops the guard's history sentinel.
+  if (credential && credential.id !== prevCredentialId) {
+    setPrevCredentialId(credential.id)
+    setDisplayNameDraft(credential.displayName ?? '')
+    setDescriptionDraft(credential.description ?? '')
+  }
 
   const isDisplayNameDirty = credential ? displayNameDraft !== credential.displayName : false
   const isDescriptionDirty = credential

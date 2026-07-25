@@ -44,7 +44,11 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
   const router = useRouter()
   const skillsHref = `/workspace/${workspaceId}/skills`
 
-  const { data: skills = [], isPending: skillsLoading } = useSkills(workspaceId)
+  const { data: skills = [], isPending, isPlaceholderData } = useSkills(workspaceId)
+  // `keepPreviousData` can serve another workspace's list while this one loads
+  // (the key is workspace-scoped), which reads as success with no match — treat
+  // that as loading so the detail never flashes "Skill not found."
+  const skillsLoading = isPending || isPlaceholderData
   const updateSkill = useUpdateSkill()
   const deleteSkill = useDeleteSkill()
   const skill = skills.find((s) => s.id === skillId) ?? null
@@ -112,6 +116,7 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
         },
       })
       setErrors({})
+      toast.success(`Saved "${nameDraft}"`)
     } catch (error) {
       if (isSkillNameConflictError(error)) {
         setErrors({ name: getErrorMessage(error, 'This skill name is already taken.') })
@@ -129,8 +134,14 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
     setShowDeleteConfirm(false)
     try {
       await deleteSkill.mutateAsync({ workspaceId, skillId: skill.id })
-      router.push(skillsHref)
+      // The skill is gone from the list cache, so this surface is about to have no
+      // entity to guard — retire it before navigating, as the create page does.
+      guard.release()
+      router.replace(skillsHref)
     } catch (error) {
+      toast.error("Couldn't delete skill", {
+        description: getErrorMessage(error, 'Please try again in a moment.'),
+      })
       logger.error('Failed to delete skill', error)
     }
   }
