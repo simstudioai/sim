@@ -103,6 +103,7 @@ export interface BabysitCheckState {
 export interface BabysitReplyResolveResult {
   repliesPosted: number
   threadsResolved: number
+  resolvedThreadIds: string[]
   replyFailures: string[]
   resolveFailures: string[]
   headMoved: boolean
@@ -575,6 +576,7 @@ export async function replyAndResolveBabysitThreads(
       return {
         repliesPosted: replySuccesses.length,
         threadsResolved: 0,
+        resolvedThreadIds: [],
         replyFailures,
         resolveFailures: [],
         headMoved: false,
@@ -584,15 +586,21 @@ export async function replyAndResolveBabysitThreads(
     assertBabysitPinned(pin, current)
   } catch (error) {
     if (signal?.aborted) throw error
+    const laggingHeadMoved =
+      error instanceof BabysitGitHubError && error.reason === 'head_moved' && !!laggingHeadSha
     return {
       repliesPosted: replySuccesses.length,
       threadsResolved: 0,
+      resolvedThreadIds: [],
       replyFailures,
       resolveFailures: [],
-      headMoved: error instanceof BabysitGitHubError && error.reason === 'head_moved',
-      awaitingConfirmation: false,
+      headMoved:
+        error instanceof BabysitGitHubError && error.reason === 'head_moved' && !laggingHeadMoved,
+      awaitingConfirmation: laggingHeadMoved,
       ...(error instanceof BabysitGitHubError
-        ? { stopReason: error.reason }
+        ? laggingHeadMoved
+          ? {}
+          : { stopReason: error.reason }
         : {
             phaseError: scrubPiSecrets(
               getErrorMessage(error, 'Failed to revalidate the pull request after replying'),
@@ -602,7 +610,7 @@ export async function replyAndResolveBabysitThreads(
     }
   }
 
-  let threadsResolved = 0
+  const resolvedThreadIds: string[] = []
   const resolveFailures: string[] = []
   for (const decision of replySuccesses.filter((item) => item.resolvable)) {
     try {
@@ -611,7 +619,7 @@ export async function replyAndResolveBabysitThreads(
         { threadId: decision.threadId, apiKey: params.githubToken },
         { signal }
       )
-      if (result.success) threadsResolved += 1
+      if (result.success) resolvedThreadIds.push(decision.threadId)
       else resolveFailures.push(decision.threadId)
     } catch (error) {
       if (signal?.aborted) throw error
@@ -620,7 +628,8 @@ export async function replyAndResolveBabysitThreads(
   }
   return {
     repliesPosted: replySuccesses.length,
-    threadsResolved,
+    threadsResolved: resolvedThreadIds.length,
+    resolvedThreadIds,
     replyFailures,
     resolveFailures,
     headMoved: false,

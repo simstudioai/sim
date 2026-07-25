@@ -236,6 +236,7 @@ describe('runBabysitPiWithOptions', () => {
     mockReplyAndResolve.mockResolvedValue({
       repliesPosted: 1,
       threadsResolved: 1,
+      resolvedThreadIds: ['thread-1'],
       replyFailures: [],
       resolveFailures: [],
       headMoved: false,
@@ -644,6 +645,43 @@ describe('runBabysitPiWithOptions', () => {
       threadsResolved: 0,
     })
     expect(mockReplyAndResolve.mock.calls[0][4]).toBe(OLD_SHA)
+  })
+
+  it('preserves known clean flags when the pin moves after successful writes', async () => {
+    const noChecksGreen = {
+      ...greenChecks,
+      checks: [],
+      contextRequirements: new Map<string, boolean>(),
+    }
+    mockFetchSnapshot
+      .mockResolvedValueOnce(snapshot)
+      .mockResolvedValueOnce(snapshot)
+      .mockResolvedValueOnce({ ...snapshot, headSha: NEW_SHA })
+      .mockResolvedValueOnce({ ...snapshot, headSha: SECOND_SHA })
+    mockFetchThreads.mockResolvedValue({
+      actionable: [trustedThread],
+      skipped: [],
+      totalUnresolved: 1,
+      latestReview: null,
+    })
+    mockFetchChecks.mockResolvedValue(noChecksGreen)
+    const { runner } = makeRunner({})
+    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+
+    const result = await runBabysitPiWithOptions(
+      params({ reviewMentions: ['@review-bot'] }),
+      { onEvent: vi.fn() },
+      { convergenceWaitMs: 0, roundWaitMs: 0 }
+    )
+
+    expect(result).toMatchObject({
+      stopReason: 'head_moved',
+      rounds: 1,
+      commitsPushed: 1,
+      threadsResolved: 1,
+      threadsClean: true,
+      checksGreen: true,
+    })
   })
 
   it('reports a confirmed push when the convergence read fails transiently', async () => {

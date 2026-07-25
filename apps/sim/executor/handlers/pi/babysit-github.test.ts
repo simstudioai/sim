@@ -340,6 +340,47 @@ describe('Babysit GitHub orchestration', () => {
     )
   })
 
+  it('reports awaiting confirmation when a third SHA appears after a lagging push', async () => {
+    const thirdSha = 'd'.repeat(40)
+    mockExecuteTool.mockImplementation(async (toolId: string) => {
+      if (toolId === 'github_reply_review_thread') {
+        return { success: true, output: { id: 'reply' } }
+      }
+      if (toolId === 'github_pr_v2') {
+        return {
+          success: true,
+          output: snapshot({
+            head: { sha: thirdSha, ref: 'feature', repo_full_name: 'octo/demo' },
+          }),
+        }
+      }
+      throw new Error(`Unexpected tool ${toolId}`)
+    })
+
+    const result = await replyAndResolveBabysitThreads(
+      params,
+      { headSha: NEXT_SHA, headRef: 'feature', baseRef: 'main' },
+      [
+        {
+          threadId: 'one',
+          classification: 'fixed',
+          reply: 'Fixed.',
+          resolvable: true,
+        },
+      ],
+      undefined,
+      HEAD_SHA
+    )
+
+    expect(result).toMatchObject({
+      repliesPosted: 1,
+      threadsResolved: 0,
+      headMoved: false,
+      awaitingConfirmation: true,
+    })
+    expect(result.stopReason).toBeUndefined()
+  })
+
   it('retains successful reply counts when between-phase revalidation fails', async () => {
     mockExecuteTool.mockImplementation(async (toolId: string) => {
       if (toolId === 'github_reply_review_thread') {

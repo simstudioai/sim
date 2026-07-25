@@ -598,6 +598,7 @@ export async function runBabysitPiWithOptions(
 
   let latestThreads: BabysitThreadsState | undefined
   let latestChecks: BabysitCheckState | undefined
+  let lastKnownChecksGreen = false
   let githubWriteOccurred = false
   try {
     if (signal.aborted) throw new Error('Pi run aborted')
@@ -617,6 +618,7 @@ export async function runBabysitPiWithOptions(
     }
     latestThreads = await fetchBabysitThreads(params, signal)
     latestChecks = await fetchBabysitCheckState(params, pinnedHeadSha, undefined, signal)
+    lastKnownChecksGreen = latestChecks.checksGreen
     const initialRequirements = latestChecks.contextRequirements
     if (latestChecks.startupFailure) {
       const threadsClean =
@@ -726,6 +728,7 @@ export async function runBabysitPiWithOptions(
             initialRequirements,
             signal
           )
+          lastKnownChecksGreen = latestChecks.checksGreen
           if (reviewRequest && !reviewRequest.landed) {
             reviewRequest.landed = await babysitReviewLandedSince(
               params,
@@ -853,6 +856,7 @@ export async function runBabysitPiWithOptions(
           githubWriteOccurred = true
           progress.changedFiles = finalized.changedFiles
           progress.diff = finalized.diff
+          lastKnownChecksGreen = ![...initialRequirements.values()].some((required) => required)
           let convergence: Awaited<ReturnType<typeof waitForHeadConvergence>>
           try {
             convergence = await waitForHeadConvergence(
@@ -938,6 +942,16 @@ export async function runBabysitPiWithOptions(
           laggingHeadSha
         )
         progress.threadsResolved += writeResult.threadsResolved
+        const resolvedThreadIds = new Set(writeResult.resolvedThreadIds ?? [])
+        if (resolvedThreadIds.size > 0) {
+          latestThreads = {
+            ...latestThreads,
+            actionable: latestThreads.actionable.filter(
+              (thread) => !resolvedThreadIds.has(thread.id)
+            ),
+            totalUnresolved: Math.max(0, latestThreads.totalUnresolved - resolvedThreadIds.size),
+          }
+        }
         githubWriteOccurred ||= writeResult.repliesPosted > 0 || writeResult.threadsResolved > 0
         if (writeResult.replyFailures.length) {
           progress.notes.push(`${writeResult.replyFailures.length} thread replies failed.`)
@@ -951,7 +965,15 @@ export async function runBabysitPiWithOptions(
           )
         }
         if (writeResult.stopReason) {
-          return resultFor(totals, writeResult.stopReason, progress, threadsClean, false)
+          const knownThreadsClean =
+            latestThreads.actionable.length === 0 && latestThreads.skipped.length === 0
+          return resultFor(
+            totals,
+            writeResult.stopReason,
+            progress,
+            knownThreadsClean,
+            lastKnownChecksGreen
+          )
         }
         if (writeResult.phaseError) {
           progress.notes.push(
@@ -964,15 +986,27 @@ export async function runBabysitPiWithOptions(
             totals,
             finalized.commitPushed ? 'pushed_awaiting_confirmation' : 'agent_failure',
             progress,
-            threadsClean,
-            false
+            latestThreads.actionable.length === 0 && latestThreads.skipped.length === 0,
+            lastKnownChecksGreen
           )
         }
         if (writeResult.headMoved) {
-          return resultFor(totals, 'head_moved', progress, threadsClean, false)
+          return resultFor(
+            totals,
+            'head_moved',
+            progress,
+            latestThreads.actionable.length === 0 && latestThreads.skipped.length === 0,
+            lastKnownChecksGreen
+          )
         }
         if (writeResult.awaitingConfirmation) {
-          return resultFor(totals, 'pushed_awaiting_confirmation', progress, threadsClean, false)
+          return resultFor(
+            totals,
+            'pushed_awaiting_confirmation',
+            progress,
+            latestThreads.actionable.length === 0 && latestThreads.skipped.length === 0,
+            lastKnownChecksGreen
+          )
         }
 
         if (finalized.commitPushed && params.reviewMentions.length > 0) {
@@ -1016,6 +1050,7 @@ export async function runBabysitPiWithOptions(
           initialRequirements,
           signal
         )
+        lastKnownChecksGreen = latestChecks.checksGreen
         if (reviewRequest) {
           reviewRequest.landed = await babysitReviewLandedSince(
             params,
@@ -1089,7 +1124,7 @@ export async function runBabysitPiWithOptions(
         githubError.reason as BabysitStopReason,
         progress,
         threadsClean,
-        latestChecks?.checksGreen ?? false
+        lastKnownChecksGreen
       )
     }
     if (githubWriteOccurred) {
@@ -1103,8 +1138,10 @@ export async function runBabysitPiWithOptions(
         totals,
         progress.commitsPushed > 0 ? 'pushed_awaiting_confirmation' : 'agent_failure',
         progress,
-        false,
-        false
+        !!latestThreads &&
+          latestThreads.actionable.length === 0 &&
+          latestThreads.skipped.length === 0,
+        lastKnownChecksGreen
       )
     }
     throw createScrubbedPiError(error, secrets, 'Babysit failed')
