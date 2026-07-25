@@ -125,9 +125,16 @@ export async function bulkInsertImportBatch(
 }
 
 /** Deletes every row of a table (set-based; the statement-level trigger zeroes `row_count`). */
-export async function deleteAllTableRows(table: TableDefinition): Promise<void> {
+export async function deleteAllTableRows(
+  table: TableDefinition,
+  /** Re-asserts the delete lock inside the write transaction. See {@link guardBatch}. */
+  revalidate?: MutationRevalidator
+): Promise<void> {
   assertRowDelete(table)
-  await db.delete(userTableRows).where(eq(userTableRows.tableId, table.id))
+  await db.transaction(async (trx) => {
+    await guardBatch(trx, table.id, revalidate)
+    await trx.delete(userTableRows).where(eq(userTableRows.tableId, table.id))
+  })
 }
 
 /**
@@ -138,11 +145,14 @@ export async function addImportColumns(
   table: TableDefinition,
   additions: { name: string; type: string }[],
   requestId: string,
-  actingUserId?: string
+  actingUserId?: string,
+  /** Re-asserts the schema lock inside the write transaction. See {@link guardBatch}. */
+  revalidate?: MutationRevalidator
 ): Promise<TableDefinition> {
-  const updated = await db.transaction((trx) =>
-    addTableColumnsWithTx(trx, table, additions, requestId)
-  )
+  const updated = await db.transaction(async (trx) => {
+    await guardBatch(trx, table.id, revalidate)
+    return addTableColumnsWithTx(trx, table, additions, requestId)
+  })
   auditTableColumnsAdded(
     table,
     additions.map((c) => c.name),
@@ -154,13 +164,18 @@ export async function addImportColumns(
 /** Overwrites a table's schema during an import (used when inferring columns from the file). */
 export async function setTableSchemaForImport(
   table: TableDefinition,
-  schema: TableSchema
+  schema: TableSchema,
+  /** Re-asserts the schema lock inside the write transaction. See {@link guardBatch}. */
+  revalidate?: MutationRevalidator
 ): Promise<void> {
   assertSchemaMutable(table)
-  await db
-    .update(userTableDefinitions)
-    .set({ schema, updatedAt: new Date() })
-    .where(eq(userTableDefinitions.id, table.id))
+  await db.transaction(async (trx) => {
+    await guardBatch(trx, table.id, revalidate)
+    await trx
+      .update(userTableDefinitions)
+      .set({ schema, updatedAt: new Date() })
+      .where(eq(userTableDefinitions.id, table.id))
+  })
 }
 
 /**

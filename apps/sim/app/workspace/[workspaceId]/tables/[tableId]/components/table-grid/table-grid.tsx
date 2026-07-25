@@ -2305,7 +2305,14 @@ export function TableGrid({
       const totalRows = currentRows.length
 
       if (e.shiftKey && e.key === 'Enter') {
-        if (!canManualAddRowRef.current) return
+        if (!canEditRef.current) return
+        // Same manual-add path as the Add row button, so it owes the same
+        // explanation rather than silently doing nothing on a locked table.
+        if (!canManualAddRowRef.current) {
+          e.preventDefault()
+          onBlockedActionRef.current('add-row')
+          return
+        }
         const row = currentRows[anchor.rowIndex]
         if (!row) return
         e.preventDefault()

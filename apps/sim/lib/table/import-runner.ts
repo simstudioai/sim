@@ -28,7 +28,7 @@ import {
   setTableSchemaForImport,
 } from '@/lib/table/import-data'
 import { markJobFailed, markJobReady, updateJobProgress } from '@/lib/table/jobs/service'
-import { assertRowDelete, assertRowInsert } from '@/lib/table/mutation-locks'
+import { assertRowDelete, assertRowInsert, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
 import { nextImportStartOrderKey, nextImportStartPosition } from '@/lib/table/rows/ordering'
 import { getTableById } from '@/lib/table/service'
@@ -115,6 +115,16 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
       if (fresh) assertRowInsert(fresh)
     }
+    /** Same guard for the replace-mode wipe, which lands before the first batch. */
+    const revalidateDelete = async (trx: DbTransaction) => {
+      const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
+      if (fresh) assertRowDelete(fresh)
+    }
+    /** Same guard for the inferred-schema write and `createColumns`. */
+    const revalidateSchema = async (trx: DbTransaction) => {
+      const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
+      if (fresh) assertSchemaMutable(fresh)
+    }
 
     // Total byte size for the progress estimate — a cheap HEAD, no download. May be null on
     // the local dev provider, in which case the bar stays indeterminate (rows still show).
@@ -178,7 +188,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         // the same ids).
         schema = withGeneratedColumnIds({ columns: inferred.columns.map(normalizeColumn) })
         headerToColumn = inferred.headerToColumn
-        await setTableSchemaForImport(table, schema)
+        await setTableSchemaForImport(table, schema, revalidateSchema)
         return
       }
 
@@ -207,7 +217,13 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
           additions.push({ name: columnName, type: inferColumnType(sample.map((r) => r[header])) })
           updatedMapping[header] = columnName
         }
-        const updated = await addImportColumns(table, additions, requestId, userId)
+        const updated = await addImportColumns(
+          table,
+          additions,
+          requestId,
+          userId,
+          revalidateSchema
+        )
         targetSchema = updated.schema
         effectiveMapping = updatedMapping
       }
@@ -223,7 +239,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       // Replace deletes existing rows only after schema/mapping validation passes, so an
       // invalid or empty file fails the import with the old rows still intact (a mid-stream
       // insert failure after this point leaves a partial replace — replace is destructive).
-      if (mode === 'replace') await deleteAllTableRows(table)
+      if (mode === 'replace') await deleteAllTableRows(table, revalidateDelete)
     }
 
     const flush = async (rows: Record<string, unknown>[]) => {
