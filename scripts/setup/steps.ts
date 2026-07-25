@@ -13,6 +13,9 @@ import * as p from './prompter.ts'
 import { link, theme } from './theme.ts'
 import { FLAG_TWINS, hasMailProvider, LOGIN_PROVIDERS, SELF_HOST_UNLOCKS } from './twins.ts'
 
+/** Where the Chat key is minted when SIM_CLI_AUTH_ORIGIN is unset. */
+const DEFAULT_CLI_AUTH_ORIGIN = 'https://www.sim.ai'
+
 /** Reuses existing valid secrets (never regenerates them) and generates the rest. */
 export function collectSecrets(existing: EnvFile): Record<string, string> {
   const secrets: Record<string, string> = {}
@@ -57,7 +60,7 @@ export async function promptCopilotKey(existing?: string): Promise<string | null
     p.log.info(theme.muted('Skipping — Chat stays disabled until COPILOT_API_KEY is set.'))
     return null
   }
-  const key = await browserKeyFlow(process.env.SIM_CLI_AUTH_ORIGIN ?? 'https://www.sim.ai')
+  const key = await browserKeyFlow(process.env.SIM_CLI_AUTH_ORIGIN ?? DEFAULT_CLI_AUTH_ORIGIN)
   if (!key) {
     p.log.warn('No key received — re-run bun run setup to retry, or set COPILOT_API_KEY yourself.')
     return null
@@ -81,9 +84,16 @@ export async function promptCopilotKey(existing?: string): Promise<string | null
 export function mothershipOverride(): Record<string, string> {
   const agentUrl = process.env.SIM_AGENT_API_URL
   const authOrigin = process.env.SIM_CLI_AUTH_ORIGIN
+  // Either half alone produces the same cross-environment rejection, just in
+  // opposite directions — mint here, validate there. Warning on only one of them
+  // would leave the other silent while the copy claims both matter.
   if (authOrigin && !agentUrl) {
     p.log.warn(
-      `SIM_CLI_AUTH_ORIGIN points the Chat key handoff at ${authOrigin}, but SIM_AGENT_API_URL is unset — the app will validate that key against production and reject it. Set both, or neither.`
+      `SIM_CLI_AUTH_ORIGIN mints the Chat key at ${authOrigin}, but SIM_AGENT_API_URL is unset — the app validates against production, which will reject that key. Set both, or neither.`
+    )
+  } else if (agentUrl && !authOrigin) {
+    p.log.warn(
+      `SIM_AGENT_API_URL points the app at ${agentUrl}, but SIM_CLI_AUTH_ORIGIN is unset — the Chat key is minted at ${DEFAULT_CLI_AUTH_ORIGIN}, which that backend will reject. Set both, or neither.`
     )
   }
   if (!agentUrl) return {}
