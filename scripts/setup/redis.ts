@@ -80,6 +80,37 @@ async function promptRedisUrl(existing?: string): Promise<string> {
 }
 
 /**
+ * Non-interactive Redis for quick mode: adopt whatever already answers, else
+ * start the managed container. Quick's contract is sensible defaults with no
+ * questions, and Redis is not optional enough to skip — pub/sub (live Chat
+ * status, table events) has no PostgreSQL fallback. Returns null only when
+ * nothing answers and Docker is unavailable, so the caller can warn instead of
+ * failing the whole setup.
+ */
+export async function ensureRedis(detection: Detection, existing?: string): Promise<string | null> {
+  if (existing && (await redisPing(existing)).ok) return existing
+  if (detection.redisPortOpen && (await redisPing(LOCAL_URL)).ok) {
+    p.log.step(`Using the Redis already on :6379`)
+    return LOCAL_URL
+  }
+  if (detection.redisContainer?.managed) {
+    if (detection.redisContainer.state === 'stopped') docker(['start', REDIS_CONTAINER])
+    const managedUrl = managedRedisUrl()
+    if (managedUrl && (await waitFor(async () => (await redisPing(managedUrl)).ok, 15_000, 500))) {
+      p.log.step(`Reusing ${REDIS_CONTAINER}`)
+      return managedUrl
+    }
+  }
+  if (!(await ensureDocker(false))) {
+    p.log.warn(
+      'Docker is unavailable, so Redis was not configured — live Chat status and table events will not stream.'
+    )
+    return null
+  }
+  return startManagedRedis(detection)
+}
+
+/**
  * Redis ladder, mirroring the Postgres one: reuse what's running (with
  * consent), restart/start a wizard-managed container, or take a URL.
  */

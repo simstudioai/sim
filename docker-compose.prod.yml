@@ -30,19 +30,22 @@ services:
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - API_ENCRYPTION_KEY=${API_ENCRYPTION_KEY:-}
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
-      - REDIS_URL=${REDIS_URL:-}
-      - COPILOT_API_KEY=${COPILOT_API_KEY}
-      - SIM_AGENT_API_URL=${SIM_AGENT_API_URL}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - COPILOT_API_KEY=${COPILOT_API_KEY:-}
+      - SIM_AGENT_API_URL=${SIM_AGENT_API_URL:-}
       - OLLAMA_URL=${OLLAMA_URL:-http://localhost:11434}
       - SOCKET_SERVER_URL=${SOCKET_SERVER_URL:-http://realtime:3002}
-      # NEXT_PUBLIC_SOCKET_URL is read by the browser. Leaving it unset lets the
-      # client default to the page's own origin (assumes the reverse proxy routes
-      # /socket.io). Set it explicitly only when the realtime service is on a
-      # different host:port from the app (e.g. wss://socket.example.com).
+      # NEXT_PUBLIC_SOCKET_URL is read by the browser. Leave it unset for this
+      # stack: the client already falls back to localhost:3002 for a localhost
+      # page, and a proxied deployment needs the page-origin fallback that an
+      # explicit value would suppress. Set it only when realtime is on a
+      # different host:port (e.g. wss://socket.example.com).
       - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-}
       - ADMISSION_GATE_MAX_INFLIGHT=${ADMISSION_GATE_MAX_INFLIGHT:-500}
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       migrations:
         condition: service_completed_successfully
@@ -74,9 +77,11 @@ services:
       - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
-      - REDIS_URL=${REDIS_URL:-}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:3002/health']
@@ -95,6 +100,20 @@ services:
         condition: service_healthy
     command: ['bun', 'run', 'db:migrate']
     restart: 'no'
+
+  # Backs pub/sub (live Chat task-status and table events) and the shared caches.
+  # The app falls back to PostgreSQL for storage when REDIS_URL is unset, but the
+  # pub/sub channels have no fallback — without Redis, live status never streams.
+  # Not published to the host: only the app and realtime containers need it, and
+  # binding 6379 would collide with a Redis already running locally.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   db:
     image: pgvector/pgvector:pg17

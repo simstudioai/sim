@@ -21,14 +21,16 @@ services:
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-dev-encryption-key-at-least-32-chars}
       - API_ENCRYPTION_KEY=${API_ENCRYPTION_KEY:-}
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-dev-internal-api-secret-min-32-chars}
-      - REDIS_URL=${REDIS_URL:-}
-      - COPILOT_API_KEY=${COPILOT_API_KEY}
-      - SIM_AGENT_API_URL=${SIM_AGENT_API_URL}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - COPILOT_API_KEY=${COPILOT_API_KEY:-}
+      - SIM_AGENT_API_URL=${SIM_AGENT_API_URL:-}
       - OLLAMA_URL=${OLLAMA_URL:-http://localhost:11434}
       - SOCKET_SERVER_URL=${SOCKET_SERVER_URL:-http://realtime:3002}
       - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-}
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       migrations:
         condition: service_completed_successfully
@@ -55,9 +57,11 @@ services:
       - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-dev-secret-at-least-32-characters-long}
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-dev-internal-api-secret-min-32-chars}
-      - REDIS_URL=${REDIS_URL:-}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
     ports:
@@ -85,6 +89,20 @@ services:
         condition: service_healthy
     command: ['bun', 'run', 'db:migrate']
     restart: 'no'
+
+  # Backs pub/sub (live Chat task-status and table events) and the shared caches.
+  # The app falls back to PostgreSQL for storage when REDIS_URL is unset, but the
+  # pub/sub channels have no fallback — without Redis, live status never streams.
+  # Not published to the host: only the app and realtime containers need it, and
+  # binding 6379 would collide with a Redis already running locally.
+  redis:
+    image: redis:7-alpine
+    restart: always
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   db:
     image: pgvector/pgvector:pg17

@@ -1,8 +1,10 @@
 import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { DB_CONTAINER, type Detection, REDIS_CONTAINER, runDetection } from './detect.ts'
 import { archiveEnvFile, ROOT } from './env-files.ts'
 import { SetupError } from './errors.ts'
-import { isLocalKubeContext } from './modes/k8s.ts'
+import { forwardCommands, isLocalKubeContext } from './modes/k8s.ts'
 import { httpHealth } from './probes.ts'
 import * as p from './prompter.ts'
 import { glyph, theme } from './theme.ts'
@@ -38,20 +40,25 @@ function shq(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
+/** Is the Docker daemon reachable? Distinguishes "nothing installed" from "can't see". */
+function dockerReachable(): boolean {
+  return spawnSync('docker', ['info'], { stdio: 'ignore' }).status === 0
+}
+
 /** Non-throwing docker probe; returns trimmed stdout or null on any failure. */
-function dockerText(args: string[]): string | null {
-  const result = spawnSync('docker', args, { cwd: ROOT, encoding: 'utf8' })
+function dockerText(args: string[], cwd: string = ROOT): string | null {
+  const result = spawnSync('docker', args, { cwd, encoding: 'utf8' })
   return result.status === 0 ? result.stdout.trim() : null
 }
 
 /** Docker command whose output the user should see (up, logs); returns exit code. */
-function dockerInherit(args: string[]): number {
-  return spawnSync('docker', args, { cwd: ROOT, stdio: 'inherit' }).status ?? 1
+function dockerInherit(args: string[], cwd: string = ROOT): number {
+  return spawnSync('docker', args, { cwd, stdio: 'inherit' }).status ?? 1
 }
 
 /** Docker command that must succeed; throws a SetupError with stderr on failure. */
-function dockerRun(args: string[], failMessage: string): void {
-  const result = spawnSync('docker', args, { cwd: ROOT, encoding: 'utf8' })
+function dockerRun(args: string[], failMessage: string, cwd: string = ROOT): void {
+  const result = spawnSync('docker', args, { cwd, encoding: 'utf8' })
   if (result.status !== 0) {
     throw new SetupError(`${failMessage}: ${result.stderr.trim() || result.stdout.trim()}`)
   }
@@ -59,7 +66,11 @@ function dockerRun(args: string[], failMessage: string): void {
 
 interface ComposeInstall {
   kind: 'compose'
+  /** Absolute path to the compose file Docker recorded for the project. */
   file: string
+  /** Directory the stack was brought up from — every compose op runs here. */
+  dir: string
+  project: string
 }
 interface DevInstall {
   kind: 'dev'
@@ -74,15 +85,89 @@ interface K8sInstall {
 }
 type Install = ComposeInstall | DevInstall | K8sInstall
 
+interface ComposeProject {
+  Name: string
+  Status: string
+  ConfigFiles: string
+}
+
 /**
- * A compose project brought up from ROOT reuses the same project name at `ps`,
- * so probing each candidate compose file recovers exactly which one owns
- * containers — no need to guess the project name or persist the choice.
+ * Markers that a compose file is actually Sim's: the published app image
+ * (docker-compose.prod.yml) or the app Dockerfile this repo builds
+ * (docker-compose.local.yml).
+ */
+const SIM_COMPOSE_MARKERS = ['ghcr.io/simstudioai/simstudio', 'docker/app.Dockerfile'] as const
+
+/**
+ * `docker-compose.prod.yml` is a common filename, so the name alone cannot say a
+ * project is ours — and `sim reset` runs `compose down -v`, which would destroy
+ * an unrelated stack's volumes. Read the file Docker recorded for the project and
+ * require a Sim marker inside it. The old ROOT-scoped `-f` probe was implicitly
+ * safe because it could only ever see the local project; discovering projects
+ * globally means identifying them by content instead.
+ */
+function isSimComposeFile(file: string): boolean {
+  if (!(COMPOSE_FILES as readonly string[]).includes(path.basename(file))) return false
+  try {
+    const contents = readFileSync(file, 'utf8')
+    return SIM_COMPOSE_MARKERS.some((marker) => contents.includes(marker))
+  } catch {
+    // Unreadable or deleted since the stack started — better to not manage it
+    // than to guess from the filename.
+    return false
+  }
+}
+
+/**
+ * Ask Docker which compose projects exist rather than guessing from the working
+ * directory. Compose derives a project name from the directory it was started
+ * in, so probing `-f <file> ps` only ever finds a stack when you happen to stand
+ * in the checkout that launched it — a globally linked `sim` would never see one
+ * — and it reports the same stack once per candidate file, since both files map
+ * to the same directory-derived project. `compose ls` records the real project
+ * and the exact config file, so one running stack yields exactly one install
+ * wherever it was started from.
  */
 function composeInstalls(): ComposeInstall[] {
-  return COMPOSE_FILES.filter((file) => dockerText(['compose', '-f', file, 'ps', '-aq'])).map(
-    (file) => ({ kind: 'compose', file })
-  )
+  const raw = dockerText(['compose', 'ls', '-a', '--format', 'json'])
+  if (!raw) return []
+  let projects: ComposeProject[]
+  try {
+    projects = JSON.parse(raw)
+  } catch {
+    return []
+  }
+  const installs: ComposeInstall[] = []
+  for (const project of projects) {
+    // ConfigFiles is a comma-separated list when a stack was started with -f more than once.
+    const file = (project.ConfigFiles ?? '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .find(isSimComposeFile)
+    if (!file) continue
+    installs.push({
+      kind: 'compose',
+      file,
+      dir: path.dirname(file),
+      project: project.Name,
+    })
+  }
+  return installs
+}
+
+/**
+ * Compose args for an op on a detected install. `-p` is not optional: without it
+ * Compose re-derives the project from the working directory, and that name is
+ * frequently NOT the one `compose ls` reported — a directory is lowercased and
+ * stripped of dots (`Sim.Demo` becomes `simdemo`), and an explicit `-p` or
+ * COMPOSE_PROJECT_NAME at creation time diverges outright. Acting on a
+ * re-derived name means `stop`/`down`/`reset` can target a different project
+ * than the one named in the confirm — and `reset` runs `down -v`. Pinning the
+ * recorded name makes the op hit exactly what was detected; cwd stays because
+ * the file's own relative paths (build contexts, env_file) resolve against it.
+ */
+function composeArgs(install: ComposeInstall, ...verb: string[]): string[] {
+  return ['compose', '-p', install.project, '-f', install.file, ...verb]
 }
 
 /** Dev mode owns the split env files and, usually, the managed Postgres/Redis. */
@@ -124,7 +209,8 @@ function detectInstalls(detection: Detection): Install[] {
 }
 
 function describeInstall(install: Install): string {
-  if (install.kind === 'compose') return `Docker Compose (${install.file})`
+  if (install.kind === 'compose')
+    return `Docker Compose (project ${install.project} in ${install.dir})`
   if (install.kind === 'dev') return 'Local dev (managed Postgres/Redis)'
   // Naming a non-local cluster is the guard against acting on the wrong one after
   // an ambient context switch — every destructive confirm renders this string.
@@ -153,11 +239,15 @@ function managedNames(install: DevInstall): string[] {
   return names
 }
 
+/**
+ * Reuses the wizard's forward commands rather than restating them — reaching a
+ * ClusterIP release needs both, and an app-only hint here would leave the
+ * editor's socket dead exactly the way the setup path used to.
+ */
 function k8sReachHints(context: string): string {
-  const c = shq(context)
   return [
-    `kubectl --context ${c} -n ${K8S_NAMESPACE} port-forward svc/${K8S_RELEASE}-app 3000:3000`,
-    `kubectl --context ${c} -n ${K8S_NAMESPACE} get pods`,
+    ...forwardCommands(context),
+    `kubectl --context ${shq(context)} -n ${K8S_NAMESPACE} get pods`,
   ].join('\n')
 }
 
@@ -165,7 +255,7 @@ function start(install: Install): void {
   if (install.kind === 'compose') {
     const spin = p.spinner()
     spin.start('Starting containers…')
-    dockerRun(['compose', '-f', install.file, 'up', '-d'], 'docker compose up failed')
+    dockerRun(composeArgs(install, 'up', '-d'), 'docker compose up failed', install.dir)
     spin.stop('Containers up')
     p.note(
       [`open ${APP_URL}`, 'follow logs:  sim logs', 'stop:         sim stop'].join('\n'),
@@ -190,7 +280,7 @@ function stop(install: Install): void {
   if (install.kind === 'compose') {
     const spin = p.spinner()
     spin.start('Stopping containers…')
-    dockerRun(['compose', '-f', install.file, 'stop'], 'docker compose stop failed')
+    dockerRun(composeArgs(install, 'stop'), 'docker compose stop failed', install.dir)
     spin.stop('Containers stopped (data kept)')
     p.note(['start again:  sim start', 'remove:       sim down'].join('\n'), 'Stopped')
     return
@@ -220,7 +310,7 @@ function restart(install: Install): void {
   if (install.kind === 'compose') {
     const spin = p.spinner()
     spin.start('Restarting containers…')
-    dockerRun(['compose', '-f', install.file, 'restart'], 'docker compose restart failed')
+    dockerRun(composeArgs(install, 'restart'), 'docker compose restart failed', install.dir)
     spin.stop('Containers restarted')
     p.note(`open ${APP_URL}`, 'Running')
     return
@@ -237,7 +327,7 @@ function restart(install: Install): void {
 
 function showLogs(install: Install): void {
   if (install.kind === 'compose') {
-    dockerInherit(['compose', '-f', install.file, 'logs', '-f', '--tail', '100'])
+    dockerInherit(composeArgs(install, 'logs', '-f', '--tail', '100'), install.dir)
     return
   }
   if (install.kind === 'dev') {
@@ -268,7 +358,7 @@ async function down(install: Install): Promise<void> {
     return
   }
   if (install.kind === 'compose') {
-    dockerRun(['compose', '-f', install.file, 'down'], 'docker compose down failed')
+    dockerRun(composeArgs(install, 'down'), 'docker compose down failed', install.dir)
     p.log.step('Containers removed (volumes kept)')
     return
   }
@@ -311,7 +401,7 @@ async function reset(install: Install | null): Promise<void> {
     if (backup) p.log.step(`Archived ${backup}`)
   }
   if (install?.kind === 'compose') {
-    dockerRun(['compose', '-f', install.file, 'down', '-v'], 'docker compose down -v failed')
+    dockerRun(composeArgs(install, 'down', '-v'), 'docker compose down -v failed', install.dir)
     p.log.step('Containers and volumes removed')
   } else if (install?.kind === 'dev') {
     const names = managedNames(install)
@@ -343,14 +433,29 @@ async function reset(install: Install | null): Promise<void> {
 async function status(): Promise<void> {
   const detection = await runDetection()
   const installs = detectInstalls(detection)
+  const docker = dockerReachable()
   console.log(`\n${theme.heading('◆ Sim status')}\n`)
+  // Every container probe goes through Docker, so when the daemon is down the
+  // honest answer is "unknown", not "absent" — and a compose stack is invisible
+  // entirely. Saying "no install detected" there sends the user to re-run setup
+  // for what is really a stopped Docker Desktop.
+  if (!docker) {
+    console.log(
+      ` ${glyph.warn} Docker is not reachable — container and Compose state below is unknown.`
+    )
+    console.log(`   ${theme.muted('start Docker Desktop (or OrbStack), then re-run this.')}\n`)
+  }
   if (installs.length === 0) {
-    console.log(` ${glyph.warn} No Sim install detected — run ${theme.command('sim setup')}.`)
+    console.log(
+      docker
+        ? ` ${glyph.warn} No Sim install detected — run ${theme.command('sim setup')}.`
+        : ` ${glyph.warn} No install detected, but that may just be Docker being down.`
+    )
     return
   }
   for (const install of installs) console.log(` ${glyph.pass} ${describeInstall(install)}`)
   const containerState = (state: { state: 'running' | 'stopped' } | null) =>
-    state ? state.state : 'absent'
+    docker ? (state ? state.state : 'absent') : 'unknown (docker down)'
   console.log()
   console.log(` postgres (${DB_CONTAINER}):  ${containerState(detection.dbContainer)}`)
   console.log(` redis (${REDIS_CONTAINER}):     ${containerState(detection.redisContainer)}`)

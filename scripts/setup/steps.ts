@@ -13,6 +13,9 @@ import * as p from './prompter.ts'
 import { link, theme } from './theme.ts'
 import { FLAG_TWINS, hasMailProvider, LOGIN_PROVIDERS, SELF_HOST_UNLOCKS } from './twins.ts'
 
+/** Where the Chat key is minted when SIM_CLI_AUTH_ORIGIN is unset. */
+const DEFAULT_CLI_AUTH_ORIGIN = 'https://www.sim.ai'
+
 /** Reuses existing valid secrets (never regenerates them) and generates the rest. */
 export function collectSecrets(existing: EnvFile): Record<string, string> {
   const secrets: Record<string, string> = {}
@@ -57,12 +60,45 @@ export async function promptCopilotKey(existing?: string): Promise<string | null
     p.log.info(theme.muted('Skipping — Chat stays disabled until COPILOT_API_KEY is set.'))
     return null
   }
-  const key = await browserKeyFlow(process.env.SIM_CLI_AUTH_ORIGIN ?? 'https://www.sim.ai')
+  const key = await browserKeyFlow(process.env.SIM_CLI_AUTH_ORIGIN ?? DEFAULT_CLI_AUTH_ORIGIN)
   if (!key) {
     p.log.warn('No key received — re-run bun run setup to retry, or set COPILOT_API_KEY yourself.')
     return null
   }
   return key
+}
+
+/**
+ * Escape hatch for Sim devs pointing an install at a non-prod mothership:
+ *
+ *   SIM_CLI_AUTH_ORIGIN=https://www.staging.sim.ai \
+ *   SIM_AGENT_API_URL=https://www.staging.copilot.sim.ai \
+ *   bun run setup
+ *
+ * The two belong together — SIM_CLI_AUTH_ORIGIN decides where the Chat key is
+ * minted, SIM_AGENT_API_URL decides which backend validates it, and a key from
+ * one environment is rejected by the other. Persisting the URL keeps later
+ * `docker compose up` / dev runs on the same backend instead of silently
+ * reverting to prod once the shell that exported it is gone.
+ */
+export function mothershipOverride(): Record<string, string> {
+  const agentUrl = process.env.SIM_AGENT_API_URL
+  const authOrigin = process.env.SIM_CLI_AUTH_ORIGIN
+  // Either half alone produces the same cross-environment rejection, just in
+  // opposite directions — mint here, validate there. Warning on only one of them
+  // would leave the other silent while the copy claims both matter.
+  if (authOrigin && !agentUrl) {
+    p.log.warn(
+      `SIM_CLI_AUTH_ORIGIN mints the Chat key at ${authOrigin}, but SIM_AGENT_API_URL is unset — the app validates against production, which will reject that key. Set both, or neither.`
+    )
+  } else if (agentUrl && !authOrigin) {
+    p.log.warn(
+      `SIM_AGENT_API_URL points the app at ${agentUrl}, but SIM_CLI_AUTH_ORIGIN is unset — the Chat key is minted at ${DEFAULT_CLI_AUTH_ORIGIN}, which that backend will reject. Set both, or neither.`
+    )
+  }
+  if (!agentUrl) return {}
+  p.log.step(`Using mothership ${agentUrl} (SIM_AGENT_API_URL)`)
+  return { SIM_AGENT_API_URL: agentUrl }
 }
 
 export async function promptLlmKeys(

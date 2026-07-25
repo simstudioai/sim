@@ -7,9 +7,10 @@ import { ROOT, readEnvFile, writeEnvValues } from '../env-files.ts'
 import { SetupError } from '../errors.ts'
 import { pgProbe } from '../probes.ts'
 import * as p from '../prompter.ts'
-import { resolveRedis } from '../redis.ts'
+import { ensureRedis, resolveRedis } from '../redis.ts'
 import {
   collectSecrets,
+  mothershipOverride,
   promptCopilotKey,
   promptEmail,
   promptLlmKeys,
@@ -62,8 +63,8 @@ async function runMigrations(dsn: string): Promise<void> {
 async function promptRedis(detection: Detection, existing?: string): Promise<string | null> {
   const wants = await p.confirm({
     message:
-      'Configure Redis? (only needed for multi-replica — single instance runs fine without it)',
-    initialValue: Boolean(existing),
+      'Configure Redis? (powers live Chat status and table events; storage falls back to Postgres)',
+    initialValue: true,
   })
   if (!wants) return null
   return resolveRedis(detection, existing)
@@ -117,16 +118,28 @@ export async function runDevMode(
 
   const simAfter = readEnvFile('sim')
   const values: Record<string, string> = {}
+  // Before the key is minted: a half-set override mints against one environment
+  // and validates against the other, and warning afterwards is too late — the
+  // bad key is already stored, and the next run offers to keep it.
+  Object.assign(values, mothershipOverride())
   const copilotKey = await promptCopilotKey(simAfter.vars.get('COPILOT_API_KEY'))
   if (copilotKey) values.COPILOT_API_KEY = copilotKey
   Object.assign(values, await promptLlmKeys(detection, !quick))
 
+  // Redis is set up in every mode, quick included. Storage falls back to
+  // PostgreSQL without it, but the pub/sub channels (live Chat task-status,
+  // table events) have no fallback — skipping it silently produces an install
+  // where live updates never arrive. Quick configures it with no questions at
+  // all; custom keeps the opt-out and the where-should-it-live ladder.
+  const redisUrl = quick
+    ? await ensureRedis(detection, simAfter.vars.get('REDIS_URL'))
+    : await promptRedis(detection, simAfter.vars.get('REDIS_URL'))
+  if (redisUrl) {
+    values.REDIS_URL = redisUrl
+    writeEnvValues('realtime', { REDIS_URL: redisUrl })
+  }
+
   if (!quick) {
-    const redisUrl = await promptRedis(detection, simAfter.vars.get('REDIS_URL'))
-    if (redisUrl) {
-      values.REDIS_URL = redisUrl
-      writeEnvValues('realtime', { REDIS_URL: redisUrl })
-    }
     const trigger = await promptTrigger()
     if (trigger) Object.assign(values, trigger)
     const storage = await promptStorage(simAfter.vars, false)

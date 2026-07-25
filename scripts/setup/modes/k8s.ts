@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { Detection } from '../detect.ts'
 import { ensureDocker } from '../docker.ts'
@@ -8,6 +8,7 @@ import { waitFor } from '../probes.ts'
 import * as p from '../prompter.ts'
 import { glyph, theme } from '../theme.ts'
 
+const APP_URL = 'http://localhost:3000'
 const RELEASE = 'sim-dev'
 const NAMESPACE = 'sim-dev'
 const LOCAL_CONTEXT_PREFIXES = ['kind-', 'docker-desktop', 'minikube', 'orbstack']
@@ -179,6 +180,102 @@ async function ensureLocalContext(detection: Detection): Promise<string> {
   return 'kind-sim'
 }
 
+interface PodProgress {
+  ready: number
+  total: number
+  detail: string
+}
+
+/**
+ * One-line summary of what the cluster is doing, for the install spinner. Only
+ * long-running workloads count — the chart's CronJobs spawn short-lived pods
+ * that finish as Completed, and counting those makes "ready" jitter downward
+ * for reasons that have nothing to do with the install.
+ */
+function podProgress(context: string): PodProgress | null {
+  const result = spawnSync(
+    'kubectl',
+    [
+      'get',
+      'pods',
+      '--context',
+      context,
+      '-n',
+      NAMESPACE,
+      '-o',
+      'jsonpath={range .items[*]}{.status.phase}{"\\t"}{.metadata.ownerReferences[0].kind}{"\\t"}{range .status.containerStatuses[*]}{.ready},{.state.waiting.reason}{" "}{end}{"\\n"}{end}',
+    ],
+    { encoding: 'utf8' }
+  )
+  if (result.status !== 0) return null
+  const rows = result.stdout.split('\n').filter(Boolean)
+  if (rows.length === 0) return null
+
+  let ready = 0
+  let total = 0
+  let pulling = 0
+  let crashing = 0
+  for (const row of rows) {
+    const [, ownerKind = '', containers = ''] = row.split('\t')
+    if (ownerKind === 'Job') continue
+    total++
+    if (containers.includes('true,')) ready++
+    if (containers.includes('ContainerCreating') || containers.includes('PodInitializing'))
+      pulling++
+    if (containers.includes('CrashLoopBackOff') || containers.includes('ImagePullBackOff'))
+      crashing++
+  }
+  if (total === 0) return null
+  const notes: string[] = []
+  if (pulling > 0) notes.push(`${pulling} starting`)
+  // Restarts while Postgres comes up are normal on a cold cluster; say so rather
+  // than let a silent spinner imply nothing is happening.
+  if (crashing > 0) notes.push(`${crashing} restarting`)
+  return { ready, total, detail: notes.join(' · ') }
+}
+
+/**
+ * `helm --wait` blocks for minutes with no output, so a slow image pull is
+ * indistinguishable from a wedged install — the reason the old spinner was
+ * unsatisfying. Run helm asynchronously and poll the cluster so the spinner
+ * reports what is actually happening.
+ */
+async function helmInstall(
+  args: string[],
+  input: string,
+  context: string,
+  spin: ReturnType<typeof p.spinner>
+): Promise<void> {
+  const child = spawn('helm', args, { cwd: ROOT, stdio: ['pipe', 'pipe', 'pipe'] })
+  child.stdin.write(input)
+  child.stdin.end()
+
+  let stderr = ''
+  let stdout = ''
+  child.stdout.on('data', (chunk) => {
+    stdout += chunk
+  })
+  child.stderr.on('data', (chunk) => {
+    stderr += chunk
+  })
+
+  const ticker = setInterval(() => {
+    const progress = podProgress(context)
+    if (!progress) return
+    const suffix = progress.detail ? ` · ${progress.detail}` : ''
+    spin.message(`${progress.ready}/${progress.total} pods ready${suffix}`)
+  }, 3000)
+
+  const code = await new Promise<number>((resolve) => {
+    child.once('close', (status) => resolve(status ?? 1))
+  })
+  clearInterval(ticker)
+
+  if (code !== 0) {
+    throw new Error(`helm upgrade --install failed: ${stderr.trim() || stdout.trim()}`)
+  }
+}
+
 function existingReleaseSecrets(context: string): Record<string, string> | null {
   const scope = ['--kube-context', context, '-n', NAMESPACE]
   const status = spawnSync('helm', ['status', RELEASE, ...scope], { stdio: 'ignore' })
@@ -239,8 +336,7 @@ export async function runK8sMode(detection: Detection): Promise<void> {
   const spin = p.spinner()
   spin.start('helm upgrade --install (first run pulls images — this can take several minutes)…')
   try {
-    run(
-      'helm',
+    await helmInstall(
       [
         'upgrade',
         '--install',
@@ -259,8 +355,9 @@ export async function runK8sMode(detection: Detection): Promise<void> {
         '--timeout',
         '15m',
       ],
-      'helm upgrade --install failed',
-      secretValues(secrets)
+      secretValues(secrets),
+      context,
+      spin
     )
   } catch (error) {
     spin.stop(`${glyph.fail} helm install failed`)
@@ -289,10 +386,87 @@ export async function runK8sMode(detection: Detection): Promise<void> {
 
   p.note(
     [
-      `kubectl --context ${shq(context)} -n ${NAMESPACE} port-forward svc/${RELEASE}-app 3000:3000`,
-      `kubectl --context ${shq(context)} -n ${NAMESPACE} get pods`,
-      `helm uninstall ${RELEASE} --kube-context ${shq(context)} -n ${NAMESPACE}   # tear down`,
+      `open ${APP_URL} (needs both forwards below)`,
+      `pods:      kubectl --context ${shq(context)} -n ${NAMESPACE} get pods`,
+      `app logs:  kubectl --context ${shq(context)} -n ${NAMESPACE} logs deploy/${RELEASE}-app --tail 50`,
+      // Both, always: the app alone loads but the editor's socket has nothing to
+      // reach, which is the reconnect failure this change set exists to fix.
+      ...forwardCommands(context).map(
+        (command, index) => `${index === 0 ? 'forward:  ' : '          '} ${command}`
+      ),
+      `tear down: helm uninstall ${RELEASE} --kube-context ${shq(context)} -n ${NAMESPACE}`,
     ].join('\n'),
     'Reach your cluster'
   )
+
+  await offerPortForward(context)
+}
+
+/**
+ * Both forwards, in the order a user should run them. Kept in one place so the
+ * printed instructions and what the wizard actually runs cannot drift — the app
+ * alone leaves the editor's socket dead.
+ */
+export function forwardCommands(context: string): string[] {
+  const scope = `kubectl --context ${shq(context)} -n ${NAMESPACE} port-forward`
+  return [`${scope} svc/${RELEASE}-app 3000:3000`, `${scope} svc/${RELEASE}-realtime 3002:3002`]
+}
+
+/**
+ * The services are ClusterIP, so a healthy release is still unreachable from the
+ * host — "Sim is ready" with nothing on :3000 is the least satisfying way to end
+ * a setup. Offer the forward the same way dev mode offers to start the server,
+ * and run it in the foreground so Ctrl-C ends it.
+ *
+ * Realtime needs its own forward (one resource per invocation) or the editor's
+ * socket fails; it runs as a child in this process group, so the terminal's
+ * Ctrl-C reaches it too, and it is killed explicitly once the app forward exits.
+ */
+async function offerPortForward(context: string): Promise<void> {
+  const forward = await p.confirm({
+    message: `Port-forward now so you can open ${APP_URL}?`,
+    initialValue: true,
+  })
+  if (!forward) {
+    p.log.info(
+      theme.muted(
+        `Skipped — run both forwards when you want to reach it (the second keeps the editor's socket alive):\n${forwardCommands(
+          context
+        )
+          .map((command) => `  ${command}`)
+          .join('\n')}`
+      )
+    )
+    return
+  }
+
+  const scope = ['--context', context, '-n', NAMESPACE]
+  const realtime = spawn(
+    'kubectl',
+    [...scope, 'port-forward', `svc/${RELEASE}-realtime`, '3002:3002'],
+    // stderr is kept so a failure can be explained; a silently dead second
+    // forward looks exactly like a working setup until the editor won't connect.
+    { stdio: ['ignore', 'ignore', 'pipe'] }
+  )
+  let realtimeError = ''
+  realtime.stderr?.on('data', (chunk) => {
+    realtimeError += chunk
+  })
+  // Only an exit we did not ask for is a problem — the kill below also fires this.
+  let stopping = false
+  realtime.once('exit', (code) => {
+    if (stopping || code === 0) return
+    p.log.warn(
+      `The realtime forward (:3002) stopped — the editor's socket will not connect. ${
+        realtimeError.trim() || `Check that :3002 is free and svc/${RELEASE}-realtime exists.`
+      }`
+    )
+  })
+
+  p.log.step(`Forwarding ${APP_URL} (app) and :3002 (realtime) — Ctrl-C to stop`)
+  spawnSync('kubectl', [...scope, 'port-forward', `svc/${RELEASE}-app`, '3000:3000'], {
+    stdio: 'inherit',
+  })
+  stopping = true
+  realtime.kill()
 }
