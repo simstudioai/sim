@@ -12,7 +12,7 @@ import {
   markJobReady,
   updateJobProgress,
 } from '@/lib/table/jobs/service'
-import { unsafeMutationProof } from '@/lib/table/mutation-locks'
+import { assertRowDelete, type MutationProof, TableLockedError } from '@/lib/table/mutation-locks'
 import { deletePageByIds, selectRowIdPage } from '@/lib/table/rows/ordering'
 import { getTableById } from '@/lib/table/service'
 import { buildFilterClause } from '@/lib/table/sql'
@@ -76,7 +76,11 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
     // mid-flight: committed pages are never rolled back, so aborting would
     // leave the same half-done state as a cancel that nobody asked for — an
     // admin stops it explicitly via `POST /api/table/[tableId]/job/cancel`.
-    if (table.locks?.deleteLocked) {
+    let deleteProof: MutationProof<'delete'>
+    try {
+      deleteProof = assertRowDelete(table)
+    } catch (err) {
+      if (!(err instanceof TableLockedError)) throw err
       logger.info(`[${requestId}] Delete job stopped — table was delete-locked before it started`, {
         tableId,
         jobId,
@@ -85,7 +89,6 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
       void appendTableEvent({ kind: 'job', type: 'delete', tableId, jobId, status: 'canceled' })
       return
     }
-    const deleteProof = unsafeMutationProof<'delete'>()
 
     const filterClause = filter
       ? buildFilterClause(filter, USER_TABLE_ROWS_SQL_NAME, table.schema.columns)

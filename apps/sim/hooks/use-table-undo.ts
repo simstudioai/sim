@@ -26,47 +26,51 @@ const logger = createLogger('useTableUndo')
  * re-inserts), so the verb depends on direction. Column ops are always `schema`;
  * rename/reorder touch no locked verb (`null`).
  */
-function undoActionVerb(action: TableUndoAction, direction: 'undo' | 'redo'): TableLockKind | null {
+function undoActionVerbs(action: TableUndoAction, direction: 'undo' | 'redo'): TableLockKind[] {
+  const undoing = direction === 'undo'
   switch (action.type) {
     case 'update-cell':
     case 'update-cells':
     case 'clear-cells':
-      return 'update'
+      return ['update']
     case 'create-row':
     case 'create-rows':
-      return direction === 'undo' ? 'delete' : 'insert'
+      return undoing ? ['delete'] : ['insert']
     case 'delete-rows':
-      return direction === 'undo' ? 'insert' : 'delete'
+      return undoing ? ['insert'] : ['delete']
+    // Dropping or retyping a column clears its value from every row, so those
+    // directions need the delete lock clear too — mirroring
+    // `assertColumnDestructive`. Undoing a delete-column re-adds the column and
+    // writes the saved cells back, which is a row update.
     case 'create-column':
+      return undoing ? ['schema', 'delete'] : ['schema']
     case 'delete-column':
-    case 'rename-column':
+      return undoing ? ['schema', 'update'] : ['schema', 'delete']
     case 'update-column-type':
+      return ['schema', 'delete']
+    case 'rename-column':
     case 'toggle-column-constraint':
-      return 'schema'
+      return ['schema']
     default:
-      return null
+      return []
   }
 }
 
-/** The lock (if any) that would block replaying `action` in `direction`. */
+const LOCK_FLAG_BY_KIND: Record<TableLockKind, keyof TableLocks> = {
+  insert: 'insertLocked',
+  update: 'updateLocked',
+  delete: 'deleteLocked',
+  schema: 'schemaLocked',
+}
+
+/** The first lock (if any) that would block replaying `action` in `direction`. */
 function undoActionBlockedBy(
   action: TableUndoAction,
   direction: 'undo' | 'redo',
   locks: TableLocks | undefined
 ): TableLockKind | null {
   if (!locks) return null
-  switch (undoActionVerb(action, direction)) {
-    case 'insert':
-      return locks.insertLocked ? 'insert' : null
-    case 'update':
-      return locks.updateLocked ? 'update' : null
-    case 'delete':
-      return locks.deleteLocked ? 'delete' : null
-    case 'schema':
-      return locks.schemaLocked ? 'schema' : null
-    default:
-      return null
-  }
+  return undoActionVerbs(action, direction).find((kind) => locks[LOCK_FLAG_BY_KIND[kind]]) ?? null
 }
 
 const BLOCKED_UNDO_MESSAGE: Record<TableLockKind, string> = {

@@ -12,7 +12,12 @@ import {
   markJobReady,
   updateJobProgress,
 } from '@/lib/table/jobs/service'
-import { unsafeMutationProof } from '@/lib/table/mutation-locks'
+import {
+  assertRowUpdate,
+  type MutationProof,
+  patchColumnIds,
+  TableLockedError,
+} from '@/lib/table/mutation-locks'
 import { selectRowDataPage, updatePageByIds } from '@/lib/table/rows/ordering'
 import { getTableById } from '@/lib/table/service'
 import { buildFilterClause } from '@/lib/table/sql'
@@ -71,9 +76,18 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
 
     // A lock set between admission and this worker starting (queue delay, or a
     // retry re-entering here) means nothing has been written yet — honor it and
-    // stop. See `delete-runner.ts` for the full rationale, including why a
-    // mid-flight lock does NOT abort a run that has already committed pages.
-    if (table.locks?.updateLocked) {
+    // stop. Runs through `assertRowUpdate` rather than reading `updateLocked`
+    // directly so the enqueue site and the worker apply identical rules,
+    // including the workflow-column exemption: a patch touching only
+    // workflow-group outputs is allowed under an update lock, and cancelling it
+    // here would contradict the enqueue assert that just let it through.
+    // See `delete-runner.ts` for why a mid-flight lock does NOT abort a run
+    // that has already committed pages.
+    let updateProof: MutationProof<'update'>
+    try {
+      updateProof = assertRowUpdate(table, patchColumnIds(data))
+    } catch (err) {
+      if (!(err instanceof TableLockedError)) throw err
       logger.info(`[${requestId}] Update job stopped — table was update-locked before it started`, {
         tableId,
         jobId,
@@ -82,7 +96,6 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
       void appendTableEvent({ kind: 'job', type: 'update', tableId, jobId, status: 'canceled' })
       return
     }
-    const updateProof = unsafeMutationProof<'update'>()
 
     const filterClause = buildFilterClause(filter, USER_TABLE_ROWS_SQL_NAME, table.schema.columns)
     if (!filterClause) throw new Error('Filter is required for bulk update')

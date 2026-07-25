@@ -28,6 +28,7 @@ import {
   setTableSchemaForImport,
 } from '@/lib/table/import-data'
 import { markJobFailed, markJobReady, updateJobProgress } from '@/lib/table/jobs/service'
+import { assertRowDelete, assertRowInsert } from '@/lib/table/mutation-locks'
 import { nextImportStartOrderKey, nextImportStartPosition } from '@/lib/table/rows/ordering'
 import { getTableById } from '@/lib/table/service'
 import { deleteFile, downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
@@ -96,6 +97,14 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     const loaded = await getTableById(tableId, { includeArchived: true })
     if (!loaded) throw new Error(`Import target table ${tableId} not found`)
     const table = loaded
+
+    // Every mode ends in row inserts, and `replace` deletes first. Assert both
+    // verbs here — before the file is even read — so an insert-locked table
+    // fails up front instead of after `deleteAllTableRows` has already wiped it.
+    // (The sync replace path gets this for free from `replaceTableRowsWithTx`,
+    // which asserts both in one place; this path deletes and inserts separately.)
+    assertRowInsert(table)
+    if (mode === 'replace') assertRowDelete(table)
 
     // Total byte size for the progress estimate — a cheap HEAD, no download. May be null on
     // the local dev provider, in which case the bar stays indeterminate (rows still show).
