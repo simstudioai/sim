@@ -268,6 +268,12 @@ export interface TerminalSessionCallbacks {
   onData(terminalId: string, data: string): void
   onState(): void
   onCommand(event: TerminalCommandEvent): void
+  /**
+   * The shell ended by itself — the user ran `exit`, or pressed Ctrl-D at an
+   * empty prompt. Distinct from the service disposing the session, which is
+   * already-known and never reaches here.
+   */
+  onExit(terminalId: string): void
 }
 
 export interface TerminalSessionOptions {
@@ -978,6 +984,7 @@ export class TerminalSession {
     this.finishCommand(null)
     this.cleanupIntegrationDir()
     this.emitState()
+    this.callbacks.onExit(this.terminalId)
   }
 
   private emitState(): void {

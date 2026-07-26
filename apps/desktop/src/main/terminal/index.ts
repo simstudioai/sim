@@ -155,6 +155,8 @@ export class TerminalService {
   /** Insertion-ordered, which is also the tab order the user sees. */
   private readonly sessions = new Map<string, TerminalSession>()
   private activeId: string | null = null
+  /** True while tearing every shell down, so an exit does not respawn one. */
+  private disposing = false
   private nextId = 1
   private sink: TerminalSink | null = null
   private lastEmittedTabs: string | null = null
@@ -273,14 +275,26 @@ export class TerminalService {
    * every count — the same shape as closing a browser's last tab, which
    * leaves you a tab rather than an empty window.
    *
-   * A shell that exits on its own is different and still closes the panel:
-   * that is the user saying they are done, not asking for a clean one.
+   * A shell that ends by itself — `exit`, or Ctrl-D — goes the same way. It
+   * leaves behind a session that can no longer do anything, so it has to be
+   * reaped either way; treating it as a close means the last one is replaced
+   * rather than leaving a dead tab that cannot be typed into.
    */
   closeTerminal(terminalId: string): TerminalTabsState {
-    const session = this.sessions.get(terminalId)
-    if (!session) {
+    if (!this.sessions.has(terminalId)) {
       throw new TerminalError('NO_SUCH_TERMINAL', unknownTerminal(terminalId))
     }
+    return this.retire(terminalId)
+  }
+
+  /**
+   * Drops a terminal and decides what replaces it. Closing and exiting share
+   * this so the two cannot drift into different answers for "what happens to
+   * the last one".
+   */
+  private retire(terminalId: string): TerminalTabsState {
+    const session = this.sessions.get(terminalId)
+    if (!session) return this.getTabs()
     const closedCwd = session.currentCwd
     const cols = session.cols
     const rows = session.rows
@@ -362,11 +376,13 @@ export class TerminalService {
   }
 
   dispose(): void {
+    this.disposing = true
     this.stopCwdWatch()
     for (const session of this.sessions.values()) session.dispose()
     this.sessions.clear()
     this.tmuxCache.clear()
     this.activeId = null
+    this.disposing = false
   }
 
   async executeTool(
@@ -756,6 +772,12 @@ export class TerminalService {
             this.emitTabs()
           },
           onCommand: (event) => this.sink?.command(event),
+          onExit: (id) => {
+            // Not during shutdown: every shell is ending then, and replacing
+            // the last one would spawn a shell as the app is closing.
+            if (this.disposing) return
+            this.retire(id)
+          },
         },
       })
       this.sessions.set(terminalId, session)
