@@ -494,7 +494,9 @@
   content: "";
   position: absolute;
   top: -3px;
-  left: -1px;
+  /* Flush with the caret line (its notch grows up out of the cursor) rather than hanging
+   * off the left — `left: 0` is the caret's content box, between its 1px side borders. */
+  left: 0;
   width: 8px;
   height: 5px;
   border-radius: 2px 2px 2px 0;

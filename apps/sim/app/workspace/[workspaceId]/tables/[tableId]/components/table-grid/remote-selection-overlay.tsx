@@ -237,8 +237,21 @@ export function RemoteSelectionOverlay({
     measure()
   }, [remoteSelections, columnIndexById, measure])
 
+  // Re-derived in render so it reacts to `localSelection`: when the local selection grows to
+  // cover the hovered box (its outline is no longer drawn) without another pointer move, the
+  // floating name tag must drop rather than linger over cells with no visible remote selection.
   const hoveredBox = hoveredSocketId
-    ? boxes.find((box) => box.socketId === hoveredSocketId)
+    ? boxes.find(
+        (box) =>
+          box.socketId === hoveredSocketId &&
+          !isSelectionCovered(
+            box.anchorRow,
+            box.anchorCol,
+            box.focusRow,
+            box.focusCol,
+            localSelection
+          )
+      )
     : undefined
 
   return (
