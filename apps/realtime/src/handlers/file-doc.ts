@@ -123,21 +123,25 @@ function broadcast(io: Server, name: string, payload: Uint8Array, exceptSocketId
 }
 
 /**
- * Broadcast the room's collaborator roster to everyone in it, for the avatar stack. Deduped
- * by user (multiple tabs count once). Identity comes from each owner's server-authenticated
- * session — never the client-set awareness — so a peer cannot spoof or suppress an entry.
+ * Broadcast the room's collaborator roster to everyone in it, for the avatar stack. One entry
+ * PER SESSION (socket) — the client excludes its own socket and dedupes the remainder per user
+ * for display, so a second tab of the same account still registers as present (mirroring the
+ * canvas presence model). Deduping here instead would drop the current user's other sessions
+ * asymmetrically (only one socket survives), so each client could never reliably self-exclude.
+ * Identity comes from each owner's server-authenticated session — never the client-set awareness
+ * — so a peer cannot spoof or suppress an entry.
  */
 function broadcastFileDocPresence(io: Server, name: string, room: FileDocRoom) {
-  const byUser = new Map<string, FileDocPresenceUser>()
-  for (const owner of room.owners.values()) {
-    if (byUser.has(owner.userId)) continue
-    byUser.set(owner.userId, {
+  const users: FileDocPresenceUser[] = []
+  for (const [socketId, owner] of room.owners) {
+    users.push({
+      socketId,
       userId: owner.userId,
       userName: owner.userName,
       avatarUrl: owner.avatarUrl,
     })
   }
-  io.to(name).emit(FILE_DOC_EVENTS.PRESENCE, { fileId: room.fileId, users: [...byUser.values()] })
+  io.to(name).emit(FILE_DOC_EVENTS.PRESENCE, { fileId: room.fileId, users })
 }
 
 /** Whether the client has recorded that it seeded the document's initial content. */

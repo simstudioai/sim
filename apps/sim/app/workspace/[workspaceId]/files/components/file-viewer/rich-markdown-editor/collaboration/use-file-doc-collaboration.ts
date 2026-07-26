@@ -108,22 +108,30 @@ export function useFileDocCollaboration({
     if (!enabled || !socket) return
     const handlePresence = (data: FileDocPresence) => {
       if (data.fileId !== fileId) return
-      reportOthersRef.current(
-        data.users
-          .filter((peer) => peer.userId !== userId)
-          .map((peer) => ({
-            userId: peer.userId,
-            userName: peer.userName,
-            avatarUrl: peer.avatarUrl,
-          }))
-      )
+      // Exclude only our OWN socket (this session), NOT every session that shares our userId —
+      // so a second tab of the same account still counts as present, matching the canvas avatars
+      // (avatars.tsx filters by socketId). Then dedupe per user for the display stack, so
+      // multiple tabs of one person collapse to a single avatar.
+      const byUser = new Map<
+        string,
+        { userId: string; userName: string; avatarUrl: string | null }
+      >()
+      for (const peer of data.users) {
+        if (peer.socketId === socket.id || byUser.has(peer.userId)) continue
+        byUser.set(peer.userId, {
+          userId: peer.userId,
+          userName: peer.userName,
+          avatarUrl: peer.avatarUrl,
+        })
+      }
+      reportOthersRef.current([...byUser.values()])
     }
     socket.on(FILE_DOC_EVENTS.PRESENCE, handlePresence)
     return () => {
       socket.off(FILE_DOC_EVENTS.PRESENCE, handlePresence)
       reportOthersRef.current([])
     }
-  }, [enabled, socket, fileId, userId])
+  }, [enabled, socket, fileId])
 
   // The client id rides in the awareness `user` payload so the caret `render` (which only
   // receives `user`) can tag each caret node for the activity-driven name label (see

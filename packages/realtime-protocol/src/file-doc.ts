@@ -128,8 +128,14 @@ export interface LeaveFileDocPayload {
   fileId: string
 }
 
-/** One collaborator in a {@link FileDocPresence} roster — server-authenticated identity. */
+/** One collaborator session in a {@link FileDocPresence} roster — server-authenticated identity.
+ * Keyed per socket (session), not per user: the client excludes its OWN `socketId` and then
+ * dedupes the rest per user for the avatar stack, so a second tab of the same account still
+ * registers as present (mirroring the canvas presence model). */
 export interface FileDocPresenceUser {
+  /** The collaborator's socket id, so a client can exclude its own session (not every session
+   * that happens to share its userId). */
+  socketId: string
   userId: string
   userName: string
   avatarUrl: string | null

@@ -493,10 +493,12 @@
 .rich-markdown-prose .collaboration-carets__caret::before {
   content: "";
   position: absolute;
-  top: -3px;
-  /* Flush with the caret line (its notch grows up out of the cursor) rather than hanging
-   * off the left — `left: 0` is the caret's content box, between its 1px side borders. */
-  left: 0;
+  /* Seat the cap's square bottom-left corner on the pole's top-left, flush like a flag on its
+   * pole. `left: -1px` backs out the caret's 1px left border (the abs-positioning origin is the
+   * padding box, inside that border) so the cap's left edge lines up with the pole's left edge;
+   * `top` overlaps the pole's top a hair so the notch reads as continuous, no gap. */
+  top: -2px;
+  left: -1px;
   width: 8px;
   height: 5px;
   border-radius: 2px 2px 2px 0;
