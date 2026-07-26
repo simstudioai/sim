@@ -1,7 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { Chip } from '@sim/emcn'
+import { isApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import { createDesktopHandoffTokenContract } from '@/lib/api/contracts/desktop-auth'
 import { buildDesktopAuthPath, buildLoopbackUrl } from '@/app/desktop/auth/validation'
+import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'
 
 interface AuthorizeHandoffProps {
   state: string
@@ -18,46 +23,45 @@ interface AuthorizeHandoffProps {
  */
 export function AuthorizeHandoff({ state, port, email }: AuthorizeHandoffProps) {
   const [status, setStatus] = useState<'idle' | 'working' | 'error'>('idle')
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const authorize = async () => {
     setStatus('working')
+    setErrorMessage(null)
     try {
-      const response = await fetch('/api/auth/one-time-token/generate', { method: 'GET' })
-      if (response.status === 400 || response.status === 401 || response.status === 403) {
-        // Dead or revoked session: re-login, then come back here.
+      const { token } = await requestJson(createDesktopHandoffTokenContract, {})
+      window.location.assign(buildLoopbackUrl(token, state, port))
+    } catch (error) {
+      if (isApiClientError(error) && error.status === 401) {
+        // The session died between rendering this page and the click: re-login,
+        // then come back here to finish the handoff.
         window.location.assign(
           `/login?callbackUrl=${encodeURIComponent(buildDesktopAuthPath(state, port))}`
         )
         return
       }
-      const token = response.ok ? ((await response.json())?.token ?? null) : null
-      if (typeof token !== 'string' || token.length === 0) {
-        throw new Error('Token mint failed')
+      // A 403 means the account is refused outright (access control), which no
+      // amount of retrying fixes — show what the server said instead of the
+      // generic "try again".
+      if (isApiClientError(error) && error.status === 403) {
+        setErrorMessage(error.message)
       }
-      window.location.assign(buildLoopbackUrl(token, state, port))
-    } catch {
       setStatus('error')
     }
   }
 
   return (
-    <main className='flex min-h-screen items-center justify-center px-6'>
-      <div className='max-w-sm text-center'>
-        <h1 className='font-semibold text-foreground text-lg'>Sign in to Sim Desktop</h1>
-        <p className='mt-2 text-muted-foreground text-sm'>
-          {status === 'error'
-            ? 'Something went wrong signing in the desktop app. Try again.'
-            : `The Sim desktop app on this computer will be signed in as ${email}.`}
-        </p>
-        <button
-          type='button'
-          disabled={status === 'working'}
-          onClick={() => void authorize()}
-          className='mt-4 rounded-md border border-border px-4 py-2 text-foreground text-sm disabled:opacity-50'
-        >
-          {status === 'working' ? 'Signing in…' : status === 'error' ? 'Try again' : 'Continue'}
-        </button>
-      </div>
-    </main>
+    <DesktopHandoffShell
+      title='Sign in to Sim Desktop'
+      description={
+        status === 'error'
+          ? (errorMessage ?? 'Something went wrong signing in the desktop app. Try again.')
+          : `The Sim desktop app on this computer will be signed in as ${email}.`
+      }
+    >
+      <Chip variant='primary' disabled={status === 'working'} onClick={() => void authorize()}>
+        {status === 'working' ? 'Signing in…' : status === 'error' ? 'Try again' : 'Continue'}
+      </Chip>
+    </DesktopHandoffShell>
   )
 }

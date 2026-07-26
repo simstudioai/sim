@@ -1,8 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Chip } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { client } from '@/lib/auth/auth-client'
+import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'
 
 interface ConnectLauncherProps {
   providerId: string
@@ -45,30 +47,20 @@ export function ConnectLauncher({ providerId, completePath }: ConnectLauncherPro
     void start()
   }, [start])
 
+  if (error) {
+    return (
+      <DesktopHandoffShell title='Connection failed to start' description={error}>
+        <Chip variant='primary' onClick={() => void start()}>
+          Try again
+        </Chip>
+      </DesktopHandoffShell>
+    )
+  }
+
   return (
-    <main className='flex min-h-screen items-center justify-center px-6'>
-      <div className='max-w-sm text-center'>
-        {error ? (
-          <>
-            <h1 className='font-semibold text-foreground text-lg'>Connection failed to start</h1>
-            <p className='mt-2 text-muted-foreground text-sm'>{error}</p>
-            <button
-              type='button'
-              onClick={() => void start()}
-              className='mt-4 rounded-md border border-border px-4 py-2 text-foreground text-sm'
-            >
-              Try again
-            </button>
-          </>
-        ) : (
-          <>
-            <h1 className='font-semibold text-foreground text-lg'>Connecting your account</h1>
-            <p className='mt-2 text-muted-foreground text-sm'>
-              Taking you to the provider to authorize Sim…
-            </p>
-          </>
-        )}
-      </div>
-    </main>
+    <DesktopHandoffShell
+      title='Connecting your account'
+      description='Taking you to the provider to authorize Sim…'
+    />
   )
 }

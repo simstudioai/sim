@@ -25,6 +25,7 @@ function makeDeps(overrides: Partial<HandoffManagerDeps> = {}): HandoffManagerDe
     origin: () => 'https://sim.ai',
     openExternal: vi.fn(async () => true),
     events: makeEvents(),
+    currentUserId: vi.fn(async () => 'user-1'),
     ...overrides,
   }
 }
@@ -105,12 +106,17 @@ describe('createHandoffManager', () => {
     expect(badToken.status).toBe(400)
     expect(received).toHaveLength(0)
 
-    const ok = await fetch(`${base}/auth/callback?token=${VALID_TOKEN}&state=${state}`)
-    expect(ok.status).toBe(200)
+    const ok = await fetch(`${base}/auth/callback?token=${VALID_TOKEN}&state=${state}`, {
+      redirect: 'manual',
+    })
+    // Hands the browser back to a real app page rather than serving HTML from
+    // the main process, so the closing screen matches the rest of Sim.
+    expect(ok.status).toBe(302)
+    expect(ok.headers.get('location')).toBe('https://sim.ai/desktop/done?kind=auth')
     expect(received).toEqual([{ token: VALID_TOKEN, state }])
 
     await expect(
-      fetch(`${base}/auth/callback?token=${VALID_TOKEN}&state=${state}`)
+      fetch(`${base}/auth/callback?token=${VALID_TOKEN}&state=${state}`, { redirect: 'manual' })
     ).rejects.toThrow()
   })
 
@@ -135,8 +141,10 @@ describe('createHandoffManager', () => {
     expect(wrongState.status).toBe(403)
     expect(received).toHaveLength(0)
 
-    const ok = await fetch(`${base}/auth/callback?token=${VALID_TOKEN}&state=${state}`)
-    expect(ok.status).toBe(200)
+    const ok = await fetch(`${base}/auth/callback?token=${VALID_TOKEN}&state=${state}`, {
+      redirect: 'manual',
+    })
+    expect(ok.status).toBe(302)
     expect(received).toEqual([{ token: VALID_TOKEN, state }])
   })
 
@@ -212,8 +220,11 @@ describe('createHandoffManager', () => {
     expect(badError.status).toBe(400)
     expect(received).toHaveLength(0)
 
-    const ok = await fetch(`${base}/connect/callback?state=${state}&error=oauth_failed`)
-    expect(ok.status).toBe(200)
+    const ok = await fetch(`${base}/connect/callback?state=${state}&error=oauth_failed`, {
+      redirect: 'manual',
+    })
+    expect(ok.status).toBe(302)
+    expect(ok.headers.get('location')).toBe('https://sim.ai/desktop/done?kind=connect')
     expect(received).toEqual([{ state, error: 'oauth_failed' }])
     expect(manager.consume(state, 'connect')).toBe(true)
   })
@@ -227,5 +238,35 @@ describe('createHandoffManager', () => {
     ) as string
     expect(manager.consume(state, 'login')).toBe(false)
     expect(manager.consume(state, 'connect')).toBe(true)
+  })
+})
+
+describe('connect handoff account pinning', () => {
+  it('pins the connect flow to the account the app is signed in as', async () => {
+    // The OAuth flow runs in the browser under the BROWSER's session, which is
+    // a different row from the app's — without this the credential would attach
+    // to whichever account the browser happens to be signed into.
+    const deps = makeDeps({ currentUserId: vi.fn(async () => 'desktop-user') })
+    const manager = createHandoffManager(deps, makeCallbacks())
+
+    expect(await manager.beginConnect('google-email')).toBe(true)
+
+    const landing = new URL(vi.mocked(deps.openExternal).mock.calls[0][0])
+    expect(landing.pathname).toBe('/desktop/connect')
+    expect(landing.searchParams.get('user')).toBe('desktop-user')
+    manager.clear()
+  })
+
+  it('omits the pin when the app account cannot be read', async () => {
+    // Offline or signed out: fall back to the page's own login redirect rather
+    // than blocking a connect on a failed probe.
+    const deps = makeDeps({ currentUserId: vi.fn(async () => null) })
+    const manager = createHandoffManager(deps, makeCallbacks())
+
+    expect(await manager.beginConnect('google-email')).toBe(true)
+
+    const landing = new URL(vi.mocked(deps.openExternal).mock.calls[0][0])
+    expect(landing.searchParams.has('user')).toBe(false)
+    manager.clear()
   })
 })

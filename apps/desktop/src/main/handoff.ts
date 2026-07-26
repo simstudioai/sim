@@ -25,13 +25,13 @@ const ERROR_SLUG_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 // stay valid.
 const HANDOFF_TTL_MS = 30 * 60 * 1000
 
-function responsePage(message: string): string {
-  return `<!doctype html>
-<html><head><meta charset="utf-8"><title>Sim</title></head>
-<body style="font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
-<p>${message}</p>
-</body></html>`
-}
+/**
+ * Where the browser lands once the loopback has taken the callback. Redirecting
+ * to a real app page — rather than serving HTML from here — keeps the closing
+ * screen on Sim's design system instead of a page hand-rolled in the main
+ * process. Purely informational: the handoff has already completed by then.
+ */
+const DONE_PATH = '/desktop/done'
 
 export type HandoffKind = 'login' | 'connect'
 
@@ -54,6 +54,11 @@ export interface HandoffManagerDeps {
   origin: () => string
   openExternal: (url: string) => Promise<boolean>
   events: EventRecorder
+  /**
+   * The account the app is signed in as, used to pin an OAuth connect to it.
+   * See {@link HandoffManager.beginConnect}.
+   */
+  currentUserId: () => Promise<string | null>
   now?: () => number
 }
 
@@ -104,12 +109,12 @@ export function createHandoffManager(
    * is one new row.
    */
   interface LoopbackRoute {
-    html: string
+    kind: HandoffKind
     parse: (url: URL) => { state: string; dispatch: () => void } | null
   }
   const routes: Record<string, LoopbackRoute> = {
     [CALLBACK_PATH]: {
-      html: responsePage('You’re signed in — return to the Sim app. You can close this tab.'),
+      kind: 'login',
       parse: (url) => {
         const token = url.searchParams.get('token') ?? ''
         const state = url.searchParams.get('state') ?? ''
@@ -120,7 +125,7 @@ export function createHandoffManager(
       },
     },
     [CONNECT_CALLBACK_PATH]: {
-      html: responsePage('Connection finished — return to the Sim app. You can close this tab.'),
+      kind: 'connect',
       parse: (url) => {
         const state = url.searchParams.get('state') ?? ''
         const error = url.searchParams.get('error')
@@ -181,7 +186,9 @@ export function createHandoffManager(
         response.writeHead(403, { 'Content-Type': 'text/plain' }).end('Forbidden')
         return
       }
-      response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(route.html)
+      const done = new URL(DONE_PATH, deps.origin())
+      done.searchParams.set('kind', route.kind === 'login' ? 'auth' : 'connect')
+      response.writeHead(302, { Location: done.toString() }).end()
       stopLoopback()
       callback.dispatch()
     })
@@ -239,13 +246,21 @@ export function createHandoffManager(
     begin() {
       return beginFlow('login', '/desktop/auth', {})
     },
-    beginConnect(providerId: string, scope: ConnectScope = {}) {
+    async beginConnect(providerId: string, scope: ConnectScope = {}) {
       if (!PROVIDER_ID_PATTERN.test(providerId)) {
         logger.warn('Rejected connect handoff for invalid providerId')
-        return Promise.resolve(false)
+        return false
       }
+      // The whole OAuth flow runs in the browser, under whatever account the
+      // browser is signed into — which is no longer guaranteed to be this app's
+      // account. Pin the flow to the app's user so a mismatch is refused instead
+      // of quietly attaching the credential to the wrong account. Omitted when
+      // unknown (offline, signed out): the page then falls back to its normal
+      // login redirect rather than blocking a connect on a failed probe.
+      const userId = await deps.currentUserId()
       return beginFlow('connect', '/desktop/connect', {
         provider: providerId,
+        ...(userId ? { user: userId } : {}),
         ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
         ...(scope.credentialId ? { credentialId: scope.credentialId } : {}),
       })

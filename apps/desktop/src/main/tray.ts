@@ -414,6 +414,13 @@ export function buildTrayMenuTemplate(
 }
 
 export interface TrayHandle {
+  /**
+   * Drops the cached chat titles. Called from the sign-out teardown: the titles
+   * are the previous user's data and must not outlive their session, and the
+   * menu pops from cache before it refreshes, so waiting for the next fetch
+   * would show them one more time.
+   */
+  clearRecentChats(): void
   destroy(): void
 }
 
@@ -441,6 +448,7 @@ export function installTray(deps: TrayDeps): TrayHandle | null {
 
   let cachedChats: RecentChat[] = []
   let refreshing = false
+  let cacheGeneration = 0
 
   const fetchRecentChats = async (): Promise<RecentChat[]> => {
     const ses = session.fromPartition(deps.partition())
@@ -448,6 +456,12 @@ export function installTray(deps: TrayDeps): TrayHandle | null {
       credentials: 'include',
       signal: AbortSignal.timeout(CHATS_FETCH_TIMEOUT_MS),
     })
+    // Signed out is an ANSWER, not a failure: the correct list for no user is
+    // empty. Throwing here would fall into the catch below and leave the
+    // previous user's chat titles in the menu until someone signed back in.
+    if (response.status === 401 || response.status === 403) {
+      return []
+    }
     if (!response.ok) {
       throw new Error(`chats fetch failed: ${response.status}`)
     }
@@ -458,11 +472,17 @@ export function installTray(deps: TrayDeps): TrayHandle | null {
   const refreshChats = async () => {
     if (refreshing) return
     refreshing = true
+    const generation = cacheGeneration
     try {
-      cachedChats = await fetchRecentChats()
+      const chats = await fetchRecentChats()
+      // A sign-out while this was in flight invalidates the result — it was
+      // read with the previous user's cookie.
+      if (generation === cacheGeneration) {
+        cachedChats = chats
+      }
     } catch (error) {
-      // Signed out, offline, or older server — the menu still works, just
-      // without the recents section (or with the last good one).
+      // Offline or an older server: keep the last good list rather than
+      // blanking a menu that is still correct.
       logger.info('Recent chats unavailable for tray menu', { error })
     } finally {
       refreshing = false
@@ -507,6 +527,10 @@ export function installTray(deps: TrayDeps): TrayHandle | null {
   tray.on('right-click', () => void popMenu())
 
   return {
+    clearRecentChats() {
+      cacheGeneration += 1
+      cachedChats = []
+    },
     destroy() {
       clearInterval(refreshTimer)
       if (!tray.isDestroyed()) {

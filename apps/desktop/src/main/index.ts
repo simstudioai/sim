@@ -42,6 +42,7 @@ import {
   createSessionLifecycleCoordinator,
   decideStartRoute,
   handleConnectIntercept,
+  readSessionUserId,
   resolveStartRoute,
 } from '@/main/session-lifecycle'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
@@ -133,6 +134,7 @@ function main(): void {
       origin: appOrigin,
       openExternal: (url) => openExternalSafe(url, allowHttpLocalhost()),
       events,
+      currentUserId: () => readSessionUserId(ensureAppSession(), appOrigin()),
     },
     {
       onLogin: (callback) => void authFlow.handleCallback(callback),
@@ -200,6 +202,7 @@ function main(): void {
       getWindows,
       clearHandoffState: async () => {
         handoff.clear()
+        tray?.clearRecentChats()
         await localFilesystem.forgetAll()
       },
       clearBrowserProfile: clearAgentBrowserProfile,

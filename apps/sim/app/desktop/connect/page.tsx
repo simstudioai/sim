@@ -4,7 +4,9 @@ import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isValidHandoffState, parseLoopbackPort } from '@/app/desktop/auth/validation'
+import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'
 import { ConnectLauncher } from '@/app/desktop/connect/connect-launcher'
+import { SwitchAccount } from '@/app/desktop/connect/switch-account'
 import {
   buildConnectCompletePath,
   buildDesktopConnectPath,
@@ -25,14 +27,10 @@ interface DesktopConnectPageProps {
 
 function InvalidRequest() {
   return (
-    <main className='flex min-h-screen items-center justify-center px-6'>
-      <div className='max-w-sm text-center'>
-        <h1 className='font-semibold text-foreground text-lg'>Connection link incomplete</h1>
-        <p className='mt-2 text-muted-foreground text-sm'>
-          Return to the Sim desktop app and start the connection again.
-        </p>
-      </div>
-    </main>
+    <DesktopHandoffShell
+      title='Connection link incomplete'
+      description='Return to the Sim desktop app and start the connection again.'
+    />
   )
 }
 
@@ -52,6 +50,7 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
   const port = parseLoopbackPort(typeof params.port === 'string' ? params.port : '')
   const workspaceId = isValidOpaqueId(params.workspaceId) ? params.workspaceId : undefined
   const credentialId = isValidOpaqueId(params.credentialId) ? params.credentialId : undefined
+  const expectedUserId = isValidOpaqueId(params.user) ? params.user : undefined
   if (!isValidOAuthProviderId(providerId) || !isValidHandoffState(state) || port === null) {
     return <InvalidRequest />
   }
@@ -63,8 +62,34 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
   if (!session?.user) {
     redirect(
       `/login?callbackUrl=${encodeURIComponent(
-        buildDesktopConnectPath(providerId, state, port, { workspaceId, credentialId })
+        buildDesktopConnectPath(providerId, state, port, {
+          workspaceId,
+          credentialId,
+          user: expectedUserId,
+        })
       )}`
+    )
+  }
+
+  // The OAuth flow must run in this browser (better-auth binds its state to the
+  // initiating user agent), so the credential lands on whichever account the
+  // BROWSER is signed into. The desktop app has its own session, so that can be
+  // a different account than the one that asked for the connection — refuse
+  // rather than silently attach the provider to the wrong account.
+  if (expectedUserId && session.user.id !== expectedUserId) {
+    return (
+      <DesktopHandoffShell
+        title='Wrong account in this browser'
+        description={`This browser is signed in as ${session.user.email}, but the connection was started from a Sim desktop app signed in as a different account. Switch accounts here to continue.`}
+      >
+        <SwitchAccount
+          returnTo={buildDesktopConnectPath(providerId, state, port, {
+            workspaceId,
+            credentialId,
+            user: expectedUserId,
+          })}
+        />
+      </DesktopHandoffShell>
     )
   }
 

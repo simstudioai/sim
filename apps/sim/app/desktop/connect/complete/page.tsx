@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { isValidHandoffState, parseLoopbackPort } from '@/app/desktop/auth/validation'
+import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'
 import { buildConnectLoopbackUrl, sanitizeOAuthErrorSlug } from '@/app/desktop/connect/validation'
 
 export const metadata: Metadata = {
@@ -16,14 +17,10 @@ interface ConnectCompletePageProps {
 
 function InvalidRequest() {
   return (
-    <main className='flex min-h-screen items-center justify-center px-6'>
-      <div className='max-w-sm text-center'>
-        <h1 className='font-semibold text-foreground text-lg'>Nothing to return to</h1>
-        <p className='mt-2 text-muted-foreground text-sm'>
-          This page finishes an account connection started from the Sim desktop app.
-        </p>
-      </div>
-    </main>
+    <DesktopHandoffShell
+      title='Nothing to return to'
+      description='This page finishes an account connection started from the Sim desktop app.'
+    />
   )
 }
 

@@ -152,8 +152,96 @@ export async function probeSession(
 }
 
 /**
- * Clears every session-bearing storage in the app partition plus any pending
- * handoff secrets — the desktop analogue of a browser profile sign-out.
+ * The user id the app partition is currently signed in as, or null when signed
+ * out or unreachable.
+ *
+ * The OAuth connect handoff runs entirely in the system browser, which holds a
+ * session of its own — since the app no longer shares the browser's session row,
+ * the two can be different accounts. Passing this id into `/desktop/connect`
+ * lets the server refuse rather than silently attach the credential to whichever
+ * account the browser happens to be signed into.
+ */
+export async function readSessionUserId(
+  session: Session,
+  origin: string,
+  timeoutMs: number = SESSION_PROBE_TIMEOUT_MS
+): Promise<string | null> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const response = await session.fetch(`${origin}/api/auth/get-session`, {
+      signal: controller.signal,
+      headers: { accept: 'application/json' },
+      cache: 'no-store',
+    })
+    if (!response.ok) {
+      return null
+    }
+    const data = (await response.json().catch(() => null)) as {
+      user?: { id?: unknown }
+    } | null
+    return typeof data?.user?.id === 'string' ? data.user.id : null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const SIGN_OUT_SCRIPT = `(async () => {
+  try {
+    const response = await fetch('/api/auth/sign-out', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: '{}',
+    })
+    return response.status
+  } catch {
+    return 0
+  }
+})()`
+
+/**
+ * Whether this window can carry the sign-out request. The trailing slash makes
+ * the prefix an origin test rather than a string test, so a lookalike host
+ * (`https://sim.ai.evil.example`) is never asked to sign the user out.
+ */
+export function canRevokeIn(win: BrowserWindow, origin: string): boolean {
+  return !win.isDestroyed() && win.webContents.getURL().startsWith(`${origin}/`)
+}
+
+/**
+ * Revokes the app's session row server-side.
+ *
+ * The desktop holds a session of its own (see
+ * `apps/sim/lib/auth/desktop-handoff.ts`), so clearing the partition alone
+ * would leave a live 30-day credential on the server that nothing can revoke —
+ * there is no device-management UI. "Sign Out" has to reach the server.
+ *
+ * Runs in the app-origin renderer rather than `session.fetch`: Better Auth
+ * rejects a cookie-bearing POST that carries no `Origin` header
+ * (`MISSING_OR_NULL_ORIGIN`), and only a renderer request is genuinely
+ * same-origin — the same reason the token redeem runs there. Best-effort by
+ * design: sign-out must still clear local state when offline or when the
+ * window is showing the offline page, and `/sign-out` is a no-op when the
+ * cookie is already gone (the cookie-deletion backstop path).
+ */
+export async function revokeAppSession(win: BrowserWindow, origin: string): Promise<void> {
+  if (!canRevokeIn(win, origin)) {
+    return
+  }
+  try {
+    await win.webContents.executeJavaScript(SIGN_OUT_SCRIPT, true)
+  } catch (error) {
+    logger.warn('Could not revoke the session server-side', { error })
+  }
+}
+
+/**
+ * Revokes the session server-side, then clears every session-bearing storage in
+ * the app partition plus any pending handoff secrets — the desktop analogue of
+ * a browser profile sign-out.
  *
  * The embedded browser has its own partition, which this clears too: it holds
  * the signed-in user's cookies for third-party sites, so leaving it behind
@@ -165,12 +253,16 @@ export async function tearDownSession(
   session: Session,
   clearHandoffState: () => void | Promise<void>,
   events: EventRecorder,
-  clearBrowserProfile: () => Promise<void>
+  clearBrowserProfile: () => Promise<void>,
+  revokeSession: () => Promise<void>
 ): Promise<void> {
   events.record('sign_out')
+  // Server-side first, while the partition still holds the session cookie the
+  // revoke needs. Every step below is best-effort for the same reason the
+  // browser-profile clear is: failing to clear something is bad, failing to
+  // sign out is worse.
+  await revokeSession().catch((error) => logger.error('Session revoke failed', { error }))
   await clearHandoffState()
-  // A failure here must not strand the app-partition clear, which is the part
-  // that actually signs the user out.
   await clearBrowserProfile().catch((error) =>
     logger.error('Browser profile teardown failed', { error })
   )
@@ -209,9 +301,11 @@ interface SessionLifecycleCoordinatorDeps extends SessionLifecycleDeps {
  *
  * Session *expiry* is deliberately not handled here. The web app owns it: its
  * session query settles to `null` and `SessionExpired` signs out and redirects,
- * identically in the browser and the app. A shell-side detector could only
- * infer that state from cookie events and 401 statuses, which is how it ended
- * up prompting on ordinary sign-outs and on launching signed out.
+ * by the same mechanism in the browser and the app. (The app's session row is
+ * its own, so the two expire on independent clocks — `updateAge` refreshes only
+ * the row that made the request.) A shell-side detector could only infer that
+ * state from cookie events and 401 statuses, which is how it ended up prompting
+ * on ordinary sign-outs and on launching signed out.
  */
 export function createSessionLifecycleCoordinator(
   deps: SessionLifecycleCoordinatorDeps
@@ -225,7 +319,17 @@ export function createSessionLifecycleCoordinator(
       deps.appSession,
       deps.clearHandoffState,
       deps.events,
-      deps.clearBrowserProfile
+      deps.clearBrowserProfile,
+      // One revoke, not one per window: every window shares the partition's
+      // single session, so the first on-origin renderer can speak for all of
+      // them and the rest would be no-ops against an already-deleted row.
+      async () => {
+        const origin = deps.origin()
+        const win = deps.getWindows().find((candidate) => canRevokeIn(candidate, origin))
+        if (win) {
+          await revokeAppSession(win, origin)
+        }
+      }
     )
       .catch((error) => logger.error('Session teardown failed', { error }))
       .finally(() => {

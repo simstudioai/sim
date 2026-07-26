@@ -10,6 +10,7 @@ import {
   isSessionCookieName,
   probeSession,
   resolveStartRoute,
+  revokeAppSession,
   tearDownSession,
 } from '@/main/session-lifecycle'
 
@@ -139,7 +140,9 @@ describe('probeSession', () => {
 })
 
 describe('tearDownSession', () => {
-  it('revokes local secrets and the browser profile before clearing the web session', async () => {
+  it('revokes server-side first, then local secrets and the browser profile, then the web session', async () => {
+    // Order is load-bearing: the server-side revoke needs the partition's
+    // session cookie, which clearStorageData destroys.
     const order: string[] = []
     const session = {
       clearStorageData: vi.fn(async () => {
@@ -157,10 +160,14 @@ describe('tearDownSession', () => {
       async () => {
         await Promise.resolve()
         order.push('browser')
+      },
+      async () => {
+        await Promise.resolve()
+        order.push('revoke')
       }
     )
 
-    expect(order).toEqual(['local', 'browser', 'session'])
+    expect(order).toEqual(['revoke', 'local', 'browser', 'session'])
   })
 
   it('still clears the web session when the browser profile cannot be cleared', async () => {
@@ -176,11 +183,86 @@ describe('tearDownSession', () => {
         { filePath: '/tmp/events.log', record: vi.fn() },
         async () => {
           throw new Error('browser view already destroyed')
+        },
+        async () => {}
+      )
+    ).resolves.toBeUndefined()
+
+    expect(clearStorageData).toHaveBeenCalled()
+  })
+
+  it('still clears local state when the server-side revoke fails', async () => {
+    // Offline sign-out must not strand the user signed in locally.
+    const clearStorageData = vi.fn(async () => {})
+    const session = { clearStorageData } as unknown as Session
+
+    await expect(
+      tearDownSession(
+        session,
+        async () => {},
+        { filePath: '/tmp/events.log', record: vi.fn() },
+        async () => {},
+        async () => {
+          throw new Error('offline')
         }
       )
     ).resolves.toBeUndefined()
 
     expect(clearStorageData).toHaveBeenCalled()
+  })
+})
+
+describe('revokeAppSession', () => {
+  const origin = 'https://sim.ai'
+
+  function windowAt(url: string, destroyed = false) {
+    const executeJavaScript = vi.fn(async (_script: string) => 200)
+    return {
+      win: {
+        isDestroyed: () => destroyed,
+        webContents: { getURL: () => url, executeJavaScript },
+      } as unknown as BrowserWindow,
+      executeJavaScript,
+    }
+  }
+
+  it('POSTs sign-out from the app-origin renderer so the session row is deleted', async () => {
+    const { win, executeJavaScript } = windowAt(`${origin}/workspace`)
+
+    await revokeAppSession(win, origin)
+
+    expect(executeJavaScript).toHaveBeenCalledTimes(1)
+    const script = executeJavaScript.mock.calls[0][0]
+    expect(script).toContain('/api/auth/sign-out')
+    expect(script).toContain("credentials: 'include'")
+  })
+
+  it('skips a window that is off-origin or destroyed', async () => {
+    // The offline page and a lookalike host must never be asked to sign out —
+    // the request would not be same-origin and could not carry the cookie.
+    for (const url of ['about:blank', 'https://sim.ai.evil.example/workspace']) {
+      const { win, executeJavaScript } = windowAt(url)
+      await revokeAppSession(win, origin)
+      expect(executeJavaScript).not.toHaveBeenCalled()
+    }
+
+    const destroyed = windowAt(`${origin}/workspace`, true)
+    await revokeAppSession(destroyed.win, origin)
+    expect(destroyed.executeJavaScript).not.toHaveBeenCalled()
+  })
+
+  it('does not throw when the renderer rejects', async () => {
+    const win = {
+      isDestroyed: () => false,
+      webContents: {
+        getURL: () => `${origin}/workspace`,
+        executeJavaScript: vi.fn(async () => {
+          throw new Error('render frame disposed')
+        }),
+      },
+    } as unknown as BrowserWindow
+
+    await expect(revokeAppSession(win, origin)).resolves.toBeUndefined()
   })
 })
 

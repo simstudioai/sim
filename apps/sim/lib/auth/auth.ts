@@ -215,7 +215,14 @@ export const auth = betterAuth({
   session: {
     cookieCache: {
       enabled: true,
-      maxAge: 24 * 60 * 60, // 24 hours in seconds
+      // Better Auth's default, and deliberately short: the cached session is a
+      // signed cookie that `getSession` returns WITHOUT re-reading the database,
+      // so this is the window in which a revoked, expired, or signed-out session
+      // still authenticates. Anything longer is an un-revocable credential — at
+      // 24h a sign-out on one device left every other surface looking signed in
+      // for a day while every database-backed check (socket handshakes, the
+      // desktop handoff) failed against a row that no longer existed.
+      maxAge: 5 * 60, // 5 minutes in seconds
     },
     expiresIn: 30 * 24 * 60 * 60, // 30 days (how long a session can last overall)
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)

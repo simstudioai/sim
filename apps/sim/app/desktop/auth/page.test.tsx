@@ -3,17 +3,21 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockGenerateOneTimeToken, mockRedirect } = vi.hoisted(() => ({
+const { mockGetSession, mockCreateDesktopHandoffToken, mockRedirect } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
-  mockGenerateOneTimeToken: vi.fn(),
+  mockCreateDesktopHandoffToken: vi.fn(),
   mockRedirect: vi.fn((url: string) => {
     throw new Error(`NEXT_REDIRECT:${url}`)
   }),
 }))
 
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { generateOneTimeToken: mockGenerateOneTimeToken, getSession: mockGetSession } },
+  auth: { api: { getSession: mockGetSession } },
   getSession: vi.fn(),
+}))
+
+vi.mock('@/lib/auth/desktop-handoff', () => ({
+  createDesktopHandoffToken: mockCreateDesktopHandoffToken,
 }))
 
 vi.mock('next/navigation', () => ({
@@ -36,7 +40,7 @@ describe('DesktopAuthPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1', email: 'user@example.com' } })
-    mockGenerateOneTimeToken.mockResolvedValue({ token: 'tok123456' })
+    mockCreateDesktopHandoffToken.mockResolvedValue('tok123456')
   })
 
   it('rejects a missing/malformed state or missing port without minting a token', async () => {
@@ -52,7 +56,7 @@ describe('DesktopAuthPage', () => {
       expect((result as { type: { name: string } }).type.name).toBe('InvalidRequest')
     }
     expect(mockGetSession).not.toHaveBeenCalled()
-    expect(mockGenerateOneTimeToken).not.toHaveBeenCalled()
+    expect(mockCreateDesktopHandoffToken).not.toHaveBeenCalled()
   })
 
   it('redirects a signed-out browser to login with itself as callbackUrl', async () => {
@@ -62,7 +66,7 @@ describe('DesktopAuthPage', () => {
         `/desktop/auth?state=${VALID_STATE}&port=54321`
       )}`
     )
-    expect(mockGenerateOneTimeToken).not.toHaveBeenCalled()
+    expect(mockCreateDesktopHandoffToken).not.toHaveBeenCalled()
   })
 
   it('renders the confirm screen for a signed-in browser WITHOUT minting a token', async () => {
@@ -81,7 +85,7 @@ describe('DesktopAuthPage', () => {
       port: 54321,
       email: 'user@example.com',
     })
-    expect(mockGenerateOneTimeToken).not.toHaveBeenCalled()
+    expect(mockCreateDesktopHandoffToken).not.toHaveBeenCalled()
   })
 
   it('reads the session fresh (bypassing the cookie cache) so it never confirms a dead session', async () => {

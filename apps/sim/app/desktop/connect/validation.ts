@@ -36,6 +36,8 @@ export function isValidOpaqueId(value: unknown): value is string {
 export interface ConnectScope {
   workspaceId?: string
   credentialId?: string
+  /** The account the desktop app is signed in as; the flow is pinned to it. */
+  user?: string
 }
 
 /**
@@ -51,6 +53,7 @@ export function buildDesktopConnectPath(
   const params = new URLSearchParams({ provider: providerId, state, port: String(port) })
   if (scope.workspaceId) params.set('workspaceId', scope.workspaceId)
   if (scope.credentialId) params.set('credentialId', scope.credentialId)
+  if (scope.user) params.set('user', scope.user)
   return `/desktop/connect?${params.toString()}`
 }
 

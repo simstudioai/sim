@@ -8,6 +8,7 @@ import {
   isValidHandoffState,
   parseLoopbackPort,
 } from '@/app/desktop/auth/validation'
+import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'
 
 export const metadata: Metadata = {
   title: 'Sign in to Sim Desktop',
@@ -22,14 +23,10 @@ interface DesktopAuthPageProps {
 
 function InvalidRequest() {
   return (
-    <main className='flex min-h-screen items-center justify-center px-6'>
-      <div className='max-w-sm text-center'>
-        <h1 className='font-semibold text-foreground text-lg'>Sign-in link incomplete</h1>
-        <p className='mt-2 text-muted-foreground text-sm'>
-          Open the Sim desktop app and choose Sign In to start again.
-        </p>
-      </div>
-    </main>
+    <DesktopHandoffShell
+      title='Sign-in link incomplete'
+      description='Open the Sim desktop app and choose Sign In to start again.'
+    />
   )
 }
 
