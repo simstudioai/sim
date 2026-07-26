@@ -289,7 +289,7 @@ export const ResourceContent = memo(function ResourceContent({
       return <BrowserSession key={resource.id} visible={visible} />
 
     case 'terminal':
-      return <TerminalSession key={resource.id} />
+      return <TerminalSession key={resource.id} visible={visible} />
 
     default:
       return null
