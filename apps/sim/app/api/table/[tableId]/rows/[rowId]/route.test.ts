@@ -34,7 +34,7 @@ vi.mock('@/app/api/table/utils', async () => {
       NextResponse.json({ error: 'denied' }, { status: result.status }),
     rowWriteErrorResponse: () => undefined,
     tableLockErrorResponse: () => undefined,
-    rootErrorMessage: (error: unknown) => (error instanceof Error ? error.message : ''),
+    rootErrorMessage: () => '',
   }
 })
 
