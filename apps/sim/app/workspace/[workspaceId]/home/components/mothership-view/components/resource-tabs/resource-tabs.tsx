@@ -396,7 +396,6 @@ export function ResourceTabs({
   const handleRemove = useCallback(
     (e: React.SyntheticEvent, resource: MothershipResource) => {
       e.stopPropagation()
-      if (!chatId) return
       const isMulti = selectedIds.has(resource.id) && selectedIds.size > 1
       const targets = isMulti ? resources.filter((r) => selectedIds.has(r.id)) : [resource]
       // Update parent state immediately for all targets
@@ -413,6 +412,11 @@ export function ResourceTabs({
       if (anchorIdRef.current && removedIds.has(anchorIdRef.current)) {
         anchorIdRef.current = null
       }
+      // Mirrors `handleAdd`: a resource opened while composing the first prompt
+      // has to be closable before there is a chat to attach it to. Only the
+      // server call is conditional — the local removal above also drops the
+      // queued write, so nothing resurrects it once the chat exists.
+      if (!chatId) return
       for (const r of targets) {
         if (isEphemeralResource(r)) continue
         removeResource.mutate({ chatId, resourceType: r.type, resourceId: r.id })
