@@ -254,6 +254,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       placeholder: '@greptile, @cursor review',
       tooltip:
         'Required comma-separated issue comments. Each is posted after PR creation and again after every pushed Babysit fix.',
+      hideDividerBefore: true,
       required: CLOUD_WITH_BABYSIT,
       condition: CLOUD_WITH_BABYSIT,
     },

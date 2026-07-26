@@ -108,6 +108,7 @@ describe('Pi Create PR Babysit surface', () => {
     expect(mentions).toMatchObject({
       type: 'short-input',
       defaultValue: '',
+      hideDividerBefore: true,
       required: {
         field: 'mode',
         value: 'cloud',
