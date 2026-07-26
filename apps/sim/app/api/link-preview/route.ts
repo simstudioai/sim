@@ -21,6 +21,7 @@ const MAX_RESPONSE_BYTES = 256 * 1024
 const MAX_REDIRECTS = 3
 const TITLE_MAX_CHARS = 200
 const DESCRIPTION_MAX_CHARS = 300
+const IMAGE_URL_MAX_CHARS = 2048
 const CACHE_TTL_SECONDS = 24 * 60 * 60
 const NEGATIVE_CACHE_TTL_SECONDS = 60 * 60
 const CACHE_KEY_PREFIX = 'link-preview:v1:'
@@ -30,7 +31,7 @@ const CACHE_KEY_PREFIX = 'link-preview:v1:'
  * MAX_RESPONSE_BYTES); cheerio handles attribute order, quoting, and entity
  * decoding.
  */
-function parsePreview(html: string): LinkPreview {
+function parsePreview(html: string, baseUrl: string): LinkPreview {
   const $ = cheerio.load(html)
 
   const meta = (key: string): string | null => {
@@ -42,12 +43,27 @@ function parsePreview(html: string): LinkPreview {
     meta('og:title') ?? meta('twitter:title') ?? ($('title').first().text().trim() || null)
   const description = meta('og:description') ?? meta('twitter:description') ?? meta('description')
   const siteName = meta('og:site_name')
+  const rawImageUrl = meta('og:image') ?? meta('twitter:image')
 
-  if (!title && !description && !siteName) return null
+  let imageUrl: string | null = null
+  if (rawImageUrl) {
+    try {
+      const resolvedUrl = new URL(rawImageUrl, baseUrl)
+      imageUrl = truncate(resolvedUrl.href, IMAGE_URL_MAX_CHARS)
+    } catch (error) {
+      logger.warn('Failed to resolve image URL', {
+        rawImageUrl: truncate(rawImageUrl, 100),
+        error: getErrorMessage(error),
+      })
+    }
+  }
+
+  if (!title && !description && !siteName && !imageUrl) return null
   return {
     title: title ? truncate(title, TITLE_MAX_CHARS) : null,
     description: description ? truncate(description, DESCRIPTION_MAX_CHARS) : null,
     siteName: siteName ? truncate(siteName, TITLE_MAX_CHARS) : null,
+    imageUrl,
   }
 }
 
@@ -66,7 +82,7 @@ async function fetchPreview(url: string): Promise<LinkPreview> {
   if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) {
     return null
   }
-  return parsePreview(await response.text())
+  return parsePreview(await response.text(), url)
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {

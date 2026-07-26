@@ -16,6 +16,7 @@ export const linkPreviewResponseSchema = z.object({
       title: z.string().nullable(),
       description: z.string().nullable(),
       siteName: z.string().nullable(),
+      imageUrl: z.string().nullable(),
     })
     .nullable(),
 })
