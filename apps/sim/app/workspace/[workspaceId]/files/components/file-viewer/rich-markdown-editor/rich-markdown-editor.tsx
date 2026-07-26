@@ -106,7 +106,6 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   const { data: session, isPending: isSessionPending } = useSession()
   const userId = session?.user?.id ?? ''
   const userName = session?.user?.name?.trim() || 'Collaborator'
-  const avatarUrl = session?.user?.image ?? null
 
   /**
    * Autosave gate for the collaborative path: the child reports `false` while its
@@ -161,7 +160,6 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
       canEdit={canEdit}
       userId={userId}
       userName={userName}
-      avatarUrl={avatarUrl}
       autoFocus={autoFocus}
       streamIsIncremental={streamIsIncremental}
       disableStreamingAutoScroll={disableStreamingAutoScroll}
@@ -182,10 +180,9 @@ interface LoadedRichMarkdownEditorProps {
   /** True while agent output is streaming in: the editor renders it read-only and syncs each chunk. */
   isStreaming: boolean
   canEdit: boolean
-  /** Current user id + display name + avatar, for the collaborative caret + presence roster. */
+  /** Current user id + display name, for the collaborative caret identity. */
   userId: string
   userName: string
-  avatarUrl?: string | null
   autoFocus?: boolean
   /** See {@link RichMarkdownEditorProps.streamIsIncremental}. */
   streamIsIncremental?: boolean
@@ -218,7 +215,6 @@ export function LoadedRichMarkdownEditor({
   canEdit,
   userId,
   userName,
-  avatarUrl,
   autoFocus,
   streamIsIncremental,
   disableStreamingAutoScroll,
@@ -266,7 +262,6 @@ export function LoadedRichMarkdownEditor({
     fileId: file.id,
     userId,
     userName,
-    avatarUrl,
     enabled: collaborationEnabled,
   })
 

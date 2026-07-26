@@ -54,6 +54,8 @@ function createSocket(id: string, overrides?: Record<string, unknown>) {
     id,
     userId: 'user-1',
     userName: 'Test User',
+    // Set so the server's roster resolves the avatar from the socket (never the DB).
+    userImage: 'avatar.png',
     disconnected: false,
     on: vi.fn((event: string, handler: Handler) => {
       handlers[event] = handler
@@ -573,5 +575,25 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
     // No re-election: the successful seed cancelled the deadline.
     expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)).toBeUndefined()
+  })
+
+  it('broadcasts a server-authenticated presence roster on join, deduped per user', async () => {
+    const { io, sent } = createIo()
+    const a = setup('socket-a', io, { userId: 'user-a', userName: 'Ada', userImage: 'ada.png' })
+    const b = setup('socket-b', io, { userId: 'user-b', userName: 'Bob', userImage: 'bob.png' })
+
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+
+    const roster = sent.filter((m) => m.event === FILE_DOC_EVENTS.PRESENCE).at(-1)?.payload as {
+      fileId: string
+      users: Array<{ userId: string; userName: string; avatarUrl: string | null }>
+    }
+    expect(roster.fileId).toBe('file-1')
+    // Identity is each socket's authenticated session — not any client-supplied value.
+    expect([...roster.users].sort((x, y) => x.userId.localeCompare(y.userId))).toEqual([
+      { userId: 'user-a', userName: 'Ada', avatarUrl: 'ada.png' },
+      { userId: 'user-b', userName: 'Bob', avatarUrl: 'bob.png' },
+    ])
   })
 })

@@ -4,6 +4,7 @@ import {
   FILE_DOC_EVENTS,
   FILE_DOC_MESSAGE_TYPE,
   FILE_DOC_SEED,
+  type FileDocPresenceUser,
   type JoinFileDocPayload,
   type LeaveFileDocPayload,
   toFileDocBytes,
@@ -15,6 +16,7 @@ import type { Server } from 'socket.io'
 import * as awarenessProtocol from 'y-protocols/awareness'
 import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
+import { resolveAvatarUrl } from '@/handlers/avatar'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import type { IRoomManager } from '@/rooms'
 
@@ -57,6 +59,10 @@ interface FileDocOwner {
   /** The owning user — used to tell a reconnect (same user reusing its Yjs client
    * id) from a spoof (a different user binding a peer's id). */
   userId: string
+  /** Server-authenticated display identity for the presence roster (from the socket's
+   *  session, never the client-set awareness — so a peer cannot spoof it). */
+  userName: string
+  avatarUrl: string | null
 }
 
 interface FileDocRoom {
@@ -114,6 +120,24 @@ function originSocketId(origin: unknown): string | null {
 function broadcast(io: Server, name: string, payload: Uint8Array, exceptSocketId: string | null) {
   const channel = exceptSocketId ? io.to(name).except(exceptSocketId) : io.to(name)
   channel.emit(FILE_DOC_EVENTS.MESSAGE, payload)
+}
+
+/**
+ * Broadcast the room's collaborator roster to everyone in it, for the avatar stack. Deduped
+ * by user (multiple tabs count once). Identity comes from each owner's server-authenticated
+ * session — never the client-set awareness — so a peer cannot spoof or suppress an entry.
+ */
+function broadcastFileDocPresence(io: Server, name: string, room: FileDocRoom) {
+  const byUser = new Map<string, FileDocPresenceUser>()
+  for (const owner of room.owners.values()) {
+    if (byUser.has(owner.userId)) continue
+    byUser.set(owner.userId, {
+      userId: owner.userId,
+      userName: owner.userName,
+      avatarUrl: owner.avatarUrl,
+    })
+  }
+  io.to(name).emit(FILE_DOC_EVENTS.PRESENCE, { fileId: room.fileId, users: [...byUser.values()] })
 }
 
 /** Whether the client has recorded that it seeded the document's initial content. */
@@ -334,6 +358,8 @@ export function cleanupFileDocForSocket(socketId: string, io: Server): void {
     // Fires the awareness `update` handler with a non-socket origin → the removal
     // is broadcast to every remaining client, so the departed caret vanishes.
     awarenessProtocol.removeAwarenessStates(room.awareness, [owner.clientId], null)
+    // Refresh the roster for whoever remains (server-authenticated identity).
+    broadcastFileDocPresence(io, name, room)
   }
 
   // Hand off the seeder role: if the elected seeder left before it seeded, elect
@@ -408,9 +434,13 @@ export function setupWorkspaceFileDocHandlers(
         return
       }
 
-      // Abort a JOIN superseded during authorization: the socket disconnected, or
-      // a newer JOIN (a document switch) bumped the generation. Registering here
-      // would leak a dead socket's room or bind the socket to the wrong document.
+      // Server-authenticated identity for the presence roster (never trusts the client-set
+      // awareness). Resolved here so the generation guard below also covers this await.
+      const avatarUrl = await resolveAvatarUrl(socket, userId)
+
+      // Abort a JOIN superseded during authorization/identity resolution: the socket
+      // disconnected, or a newer JOIN (a document switch) bumped the generation. Registering
+      // here would leak a dead socket's room or bind the socket to the wrong document.
       if (socket.disconnected || joinGeneration.get(socket.id) !== generation) return
 
       // Switched documents on the same socket — leave the previous one first (a
@@ -449,11 +479,13 @@ export function setupWorkspaceFileDocHandlers(
         awarenessProtocol.removeAwarenessStates(entry.awareness, [previous.clientId], null)
       }
 
-      entry.owners.set(socket.id, { clientId, userId })
+      entry.owners.set(socket.id, { clientId, userId, userName, avatarUrl })
       socketToRoomName.set(socket.id, name)
       socket.join(name)
 
       socket.emit(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId })
+      // Server-authenticated roster → everyone in the room, including this joiner.
+      broadcastFileDocPresence(io, name, entry)
 
       // Begin the sync handshake: send the server's state (sync step 1). The
       // client replies with its updates and requests the server's in return.

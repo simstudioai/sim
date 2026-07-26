@@ -31,7 +31,14 @@ export function setupWorkspaceFilesHandlers(
   socket: AuthenticatedSocket,
   roomManager: IRoomManager
 ) {
+  // Monotonic per-socket join counter: each join captures its number and, after the async
+  // authorize, aborts if a newer join has started — a fast workspace switch A→B can
+  // otherwise let A's late completion leave B and strand the socket in A, missing B's
+  // `workspace-files-changed` invalidations.
+  let joinGeneration = 0
+
   socket.on('join-workspace-files', async ({ workspaceId }: JoinPayload) => {
+    const joinAttempt = (joinGeneration += 1)
     try {
       if (!socket.userId || !socket.userName) {
         socket.emit('join-workspace-files-error', {
@@ -90,6 +97,10 @@ export function setupWorkspaceFilesHandlers(
         })
         return
       }
+
+      // A newer join started on this socket during authorize (or it dropped): abort so a
+      // stale join can't leave the room the client has since switched to.
+      if (joinGeneration !== joinAttempt || socket.disconnected) return
 
       // Leave any previously-joined files room (workspace switch), read straight from the
       // socket's native room membership so there's no presence store to keep in sync.
