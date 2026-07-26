@@ -25,6 +25,35 @@ interface BrowserSessionState {
   setSessionAlive: (alive: boolean) => void
 }
 
+function tabFieldsEqual(a: BrowserTabState, b: BrowserTabState): boolean {
+  return (
+    a.tabId === b.tabId &&
+    a.url === b.url &&
+    a.title === b.title &&
+    a.loading === b.loading &&
+    a.active === b.active &&
+    a.pinned === b.pinned
+  )
+}
+
+/** True when two tab lists carry the same values, so the old array can be kept. */
+function tabsEqual(a: BrowserTabState[], b: BrowserTabState[]): boolean {
+  return a.length === b.length && a.every((tab, index) => tabFieldsEqual(tab, b[index]))
+}
+
+function pageStateEqual(a: BrowserPageState | null, b: BrowserPageState | null): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  return (
+    a.tabId === b.tabId &&
+    a.url === b.url &&
+    a.title === b.title &&
+    a.loading === b.loading &&
+    a.canGoBack === b.canGoBack &&
+    a.canGoForward === b.canGoForward
+  )
+}
+
 const initialState = {
   pageState: null as BrowserPageState | null,
   tabs: [] as BrowserTabState[],
@@ -39,28 +68,43 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
     (set) => ({
       ...initialState,
       setPageState: (pageState) =>
-        set((state) => ({
-          pageState,
-          sessionAlive: true,
-          ...(pageState.tabId
-            ? {
-                activeTabId: pageState.tabId,
-                tabs: state.tabs.map((tab) =>
-                  tab.tabId === pageState.tabId
-                    ? {
-                        ...tab,
-                        url: pageState.url,
-                        title: pageState.title,
-                        loading: pageState.loading,
-                        active: true,
-                      }
-                    : { ...tab, active: false }
-                ),
-              }
-            : {}),
-        })),
-      setTabsState: ({ tabs, activeTabId }) =>
         set((state) => {
+          if (!pageState.tabId) {
+            // No tab dimension to fold in; only touch pageState if it changed.
+            return pageStateEqual(state.pageState, pageState)
+              ? { sessionAlive: true }
+              : { pageState, sessionAlive: true }
+          }
+          const nextTabs = state.tabs.map((tab) =>
+            tab.tabId === pageState.tabId
+              ? {
+                  ...tab,
+                  url: pageState.url,
+                  title: pageState.title,
+                  loading: pageState.loading,
+                  active: true,
+                }
+              : tab.active
+                ? { ...tab, active: false }
+                : tab
+          )
+          // Keep the old array when nothing moved, so subscribers keyed on tab
+          // identity do not re-render on a page-state push that changed nothing.
+          const tabs = tabsEqual(state.tabs, nextTabs) ? state.tabs : nextTabs
+          if (
+            tabs === state.tabs &&
+            state.activeTabId === pageState.tabId &&
+            pageStateEqual(state.pageState, pageState)
+          ) {
+            return { sessionAlive: true }
+          }
+          return { pageState, sessionAlive: true, activeTabId: pageState.tabId, tabs }
+        }),
+      setTabsState: ({ tabs: incomingTabs, activeTabId }) =>
+        set((state) => {
+          // Reuse the existing array when the values match, so an identical
+          // push (a background tab's title event, say) is inert for React.
+          const tabs = tabsEqual(state.tabs, incomingTabs) ? state.tabs : incomingTabs
           const activeTab = tabs.find((tab) => tab.tabId === activeTabId)
           const hasCurrentPageState =
             state.pageState?.tabId !== undefined && state.pageState.tabId === activeTabId

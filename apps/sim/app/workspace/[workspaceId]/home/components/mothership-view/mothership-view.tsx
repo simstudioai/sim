@@ -166,7 +166,18 @@ export const MothershipView = memo(
                 key={resource.id}
                 className={cn('absolute inset-0', resource.id !== active?.id && 'hidden')}
               >
-                <ResourceContent workspaceId={workspaceId} resource={resource} />
+                {/*
+                  A hidden persistent panel can otherwise only INFER it is off
+                  screen by measuring itself, which is enough to pause xterm and
+                  hide the native view but not to switch off document-wide
+                  observers the panel installs. The explicit flag lets it stand
+                  those down while hidden.
+                */}
+                <ResourceContent
+                  workspaceId={workspaceId}
+                  resource={resource}
+                  visible={resource.id === active?.id}
+                />
               </div>
             ))}
             {active && !isPersistentPanel(active) && (

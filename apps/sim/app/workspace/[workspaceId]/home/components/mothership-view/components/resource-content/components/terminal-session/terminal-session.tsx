@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  memo,
   type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
   useCallback,
@@ -120,6 +121,16 @@ function useSettledCommands(tabs: TerminalTabState[]): ReadonlySet<string> {
  */
 const RESIZE_SETTLE_MS = 120
 
+/**
+ * How much output an offscreen terminal banks before it gives up and asks the
+ * desktop app for the screen again on the way back in.
+ *
+ * Matched to the scrollback the desktop app retains: past that, replaying the
+ * bank costs more than the snapshot and cannot show anything the snapshot
+ * would not.
+ */
+const MAX_BANKED_CHARS = 256_000
+
 const LIGHT_THEME = {
   background: '#ffffff',
   foreground: '#1f2328',
@@ -182,7 +193,7 @@ const DARK_THEME = {
  * this addon ship in lockstep; adopting it would mean moving the core library
  * back a major version onto a renderer that is no longer published.
  */
-function attachWebglRenderer(terminal: Terminal): void {
+function attachWebglRenderer(terminal: Terminal): (() => void) | null {
   try {
     const webgl = new WebglAddon()
     webgl.onContextLoss(() => {
@@ -190,6 +201,7 @@ function attachWebglRenderer(terminal: Terminal): void {
       webgl.dispose()
     })
     terminal.loadAddon(webgl)
+    return () => webgl.dispose()
   } catch (error) {
     // The DOM renderer stays in place. Logged rather than swallowed: it is a
     // large, silent performance cliff, and "the terminal feels slow" is
@@ -197,6 +209,7 @@ function attachWebglRenderer(terminal: Terminal): void {
     logger.warn('Terminal WebGL unavailable; using the slower DOM renderer', {
       error: (error as Error).message,
     })
+    return null
   }
 }
 
@@ -235,21 +248,26 @@ function handleTerminalShortcut(event: KeyboardEvent, terminal: Terminal): boole
   }
 }
 
-function TerminalView({
+const TerminalView = memo(function TerminalView({
   terminalId,
   active,
-  canClose,
+  visible,
 }: {
   terminalId: string
   active: boolean
-  canClose: boolean
+  visible: boolean
 }) {
   const { resolvedTheme } = useTheme()
   const hostRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
-  const activeRef = useRef(active)
-  activeRef.current = active
+  // Being the selected tab is not enough to be on screen: the whole panel is
+  // hidden whenever another resource is open.
+  const onscreen = active && visible
+  const onscreenRef = useRef(onscreen)
+  onscreenRef.current = onscreen
+  const showRef = useRef<(() => void) | null>(null)
+  const hideRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     const host = hostRef.current
@@ -274,7 +292,6 @@ function TerminalView({
     terminal.unicode.activeVersion = '11'
 
     terminal.open(host)
-    attachWebglRenderer(terminal)
 
     terminalRef.current = terminal
     fitRef.current = fit
@@ -291,42 +308,94 @@ function TerminalView({
     const disposeResize = terminal.onResize(({ cols, rows }) =>
       resizeTerminal(terminalId, cols, rows)
     )
-    // The desktop app owns the scrollback, so a view opening onto a shell that
-    // has been running without it paints from what is already on that screen.
+    // Output is only parsed into a terminal that is on screen.
     //
-    // Live bytes are held until that paint lands rather than written straight
-    // through: the snapshot is a moment in time, and anything arriving while
-    // it is in flight would either be wiped by the reset or, written first,
-    // appear above the history it followed. Buffering keeps the order true.
+    // `write` parses whether or not the view is painting, and parsing is the
+    // expensive half — pausing the renderer for a hidden tab saved the drawing
+    // and none of the decoding. So every open terminal was decoding its
+    // shell's output at full rate behind whatever the user was actually
+    // looking at, and the cost grew with the number of tabs rather than with
+    // the one in front of them. An offscreen view banks its bytes and replays
+    // them on the way back in, which is indistinguishable on screen.
+    //
+    // Bytes are banked during the opening snapshot too. The desktop app owns
+    // the scrollback, so a view opening onto a shell that has been running
+    // without it paints from what is already on that screen — but the snapshot
+    // is a moment in time, and anything arriving while it is in flight would
+    // either be wiped by the reset or, written first, appear above the history
+    // it followed. Banking keeps the order true.
+    let writable = false
+    let banked = ''
+    let overflowed = false
     let painted = false
-    let buffered = ''
-    const unsubscribeData = onTerminalData((id, data) => {
-      if (id !== terminalId) return
-      if (painted) terminal.write(data)
-      else buffered += data
+
+    const unsubscribeData = onTerminalData(terminalId, (data) => {
+      if (writable) {
+        terminal.write(data)
+        return
+      }
+      if (overflowed) return
+      banked += data
+      if (banked.length > MAX_BANKED_CHARS) {
+        banked = ''
+        overflowed = true
+      }
     })
 
-    void getTerminalScrollback(terminalId)
-      .catch((error: Error) => {
-        // Logged rather than swallowed: a failure here is indistinguishable
-        // on screen from a shell that has printed nothing, so the panel comes
-        // up blank over a live terminal with no clue why. The usual cause is
-        // a desktop build older than this renderer, which has no scrollback
-        // channel to answer with.
-        logger.warn('Could not read terminal scrollback; the panel will start empty', {
-          terminalId,
-          error: error.message,
+    // Guarded because a snapshot is a round trip to the desktop app, and a tab
+    // switched away from and back to during one would otherwise start a second
+    // that resets and repaints over the first.
+    let repainting = false
+    const repaint = () => {
+      if (repainting) return
+      repainting = true
+      return getTerminalScrollback(terminalId)
+        .catch((error: Error) => {
+          // Logged rather than swallowed: a failure here is indistinguishable
+          // on screen from a shell that has printed nothing, so the panel comes
+          // up blank over a live terminal with no clue why. The usual cause is
+          // a desktop build older than this renderer, which has no scrollback
+          // channel to answer with.
+          logger.warn('Could not read terminal scrollback; the panel will start empty', {
+            terminalId,
+            error: error.message,
+          })
+          return ''
         })
-        return ''
-      })
-      .then((scrollback) => {
-        if (disposed) return
-        terminal.reset()
-        if (scrollback) terminal.write(scrollback)
-        if (buffered) terminal.write(buffered)
-        buffered = ''
-        painted = true
-      })
+        .then((scrollback) => {
+          repainting = false
+          if (disposed) return
+          terminal.reset()
+          if (scrollback) terminal.write(scrollback)
+          if (banked) terminal.write(banked)
+          banked = ''
+          overflowed = false
+          painted = true
+          // Only now: bytes that landed mid-snapshot are in the bank, and
+          // writing them straight through would have put them out of order.
+          // Read live rather than assumed — the tab may have been switched
+          // away from while this was in flight.
+          writable = onscreenRef.current
+        })
+    }
+
+    const show = () => {
+      if (writable || disposed) return
+      if (!painted || overflowed) {
+        void repaint()
+        return
+      }
+      if (banked) terminal.write(banked)
+      banked = ''
+      writable = true
+    }
+
+    const hide = () => {
+      writable = false
+    }
+
+    showRef.current = show
+    hideRef.current = hide
 
     // Resizing is debounced, and deliberately not applied to hidden tabs.
     //
@@ -346,7 +415,7 @@ function TerminalView({
         // A zero-sized host means this terminal is off screen — either behind
         // another tab or with the whole panel hidden behind another resource —
         // not that it shrank. Fitting to that would resize the pty to nonsense.
-        if (!activeRef.current || host.clientWidth <= 0 || host.clientHeight <= 0) return
+        if (!onscreenRef.current || host.clientWidth <= 0 || host.clientHeight <= 0) return
         try {
           fit.fit()
         } catch {
@@ -358,6 +427,8 @@ function TerminalView({
 
     return () => {
       disposed = true
+      showRef.current = null
+      hideRef.current = null
       reportTerminalFocused(false)
       terminal.textarea?.removeEventListener('focus', reportFocused)
       terminal.textarea?.removeEventListener('blur', reportBlurred)
@@ -375,14 +446,37 @@ function TerminalView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [terminalId])
 
+  // Runs after the effect above, which is what installs these.
+  useEffect(() => {
+    if (onscreen) showRef.current?.()
+    else hideRef.current?.()
+  }, [onscreen, terminalId])
+
   useEffect(() => {
     const terminal = terminalRef.current
     if (!terminal) return
     terminal.options.theme = resolvedTheme === 'dark' ? DARK_THEME : LIGHT_THEME
   }, [resolvedTheme])
 
+  // A GPU renderer only for the terminal on screen.
+  //
+  // Every open terminal keeps its emulator alive so switching is instant, but
+  // a hidden one is `display: none` and xterm has already paused painting it —
+  // a WebGL context for it buys nothing and costs plenty. Browsers cap how
+  // many contexts can be live and evict the oldest past that, so holding one
+  // per tab means tabs quietly knocking each other's renderers out and falling
+  // back to the DOM. Handing the renderer to whichever tab is visible keeps
+  // one context for the whole panel.
   useEffect(() => {
-    if (!active) return
+    if (!onscreen) return
+    const terminal = terminalRef.current
+    if (!terminal) return
+    const disposeRenderer = attachWebglRenderer(terminal)
+    return () => disposeRenderer?.()
+  }, [onscreen])
+
+  useEffect(() => {
+    if (!onscreen) return
     // Measure after the browser has laid the newly shown terminal out.
     const frame = requestAnimationFrame(() => {
       const host = hostRef.current
@@ -395,7 +489,7 @@ function TerminalView({
       }
     })
     return () => cancelAnimationFrame(frame)
-  }, [active])
+  }, [onscreen])
 
   const {
     isOpen: isMenuOpen,
@@ -449,6 +543,10 @@ function TerminalView({
   }, [])
 
   // Scoped to the terminal that was right-clicked, not the active one.
+  // Offered even for the only terminal: closing the last one restarts its
+  // shell in place rather than removing the tab, so there is always something
+  // for the action to do — and hiding it here while the tab strip's own close
+  // stays available would just be the two menus disagreeing.
   const closeThisTerminal = useCallback(() => {
     void closeTerminal(terminalId)
   }, [terminalId])
@@ -476,18 +574,18 @@ function TerminalView({
         onPaste={pasteClipboard}
         onClear={clearScreen}
         onNewTab={newTab}
-        {...(canClose ? { onCloseTerminal: closeThisTerminal } : {})}
+        onCloseTerminal={closeThisTerminal}
       />
     </>
   )
-}
+})
 
 /**
  * The terminal panel. Unlike the browser panel, nothing native is overlaid
  * here: xterm.js renders each PTY's bytes in the DOM, so the panel is an
  * ordinary React subtree that happens to be a set of working terminals.
  */
-export function TerminalSession() {
+export function TerminalSession({ visible }: { visible: boolean }) {
   const { tabs, activeTerminalId } = useCopilotTerminalStore((state) => state.tabs)
   const settledCommands = useSettledCommands(tabs)
   const { removeResource } = useMothershipResources()
@@ -627,7 +725,7 @@ export function TerminalSession() {
             key={tab.terminalId}
             terminalId={tab.terminalId}
             active={tab.terminalId === activeTerminalId}
-            canClose={tabs.length > 1}
+            visible={visible}
           />
         ))}
         {startError && (

@@ -119,8 +119,22 @@ function pushPageState(contents: WebContents): void {
   driverCallbacks?.onPageState(pageStateFor(contents, active.id))
 }
 
+let lastTabsStateFingerprint: string | null = null
+
+/**
+ * Pushes the tab list to the renderer, skipping a push identical to the last.
+ *
+ * Every tab's load and title events call this, background tabs included, and a
+ * site that rewrites its title on a timer fires them continuously — each an
+ * unconditional broadcast that rebuilt the whole strip. The fingerprint drops
+ * the repeats, matching what the terminal side already does with emitTabs.
+ */
 function pushTabsState(): void {
-  driverCallbacks?.onTabsState(session.getTabsState())
+  const state = session.getTabsState()
+  const fingerprint = JSON.stringify(state)
+  if (fingerprint === lastTabsStateFingerprint) return
+  lastTabsStateFingerprint = fingerprint
+  driverCallbacks?.onTabsState(state)
 }
 
 /** Instruments a fresh tab: CDP dialog/chooser handling + page-state pushes. */

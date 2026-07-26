@@ -283,6 +283,23 @@ function resetOcclusion(): void {
  * the one caller that captures an already-hidden page (a tab switched while the
  * panel is occluded), where it stops Chromium promoting it back for the shot.
  */
+/** Widest the placeholder snapshot needs to be; it sits behind a transient overlay. */
+const SNAPSHOT_MAX_WIDTH = 1024
+const SNAPSHOT_JPEG_QUALITY = 70
+
+/**
+ * Turns a captured frame into a compact JPEG data URL. Resize is a native
+ * operation and JPEG encode runs in native code too, so both are far cheaper
+ * than a full-resolution PNG `toDataURL`, which encodes synchronously on the
+ * event loop.
+ */
+function encodeSnapshot(image: Electron.NativeImage): string {
+  const { width } = image.getSize()
+  const scaled = width > SNAPSHOT_MAX_WIDTH ? image.resize({ width: SNAPSHOT_MAX_WIDTH }) : image
+  const jpeg = scaled.toJPEG(SNAPSHOT_JPEG_QUALITY)
+  return `data:image/jpeg;base64,${jpeg.toString('base64')}`
+}
+
 function capturePanelSnapshot(onSettled?: () => void): void {
   const active = host.activeTab()
   const win = panelWindow()
@@ -301,7 +318,13 @@ function capturePanelSnapshot(onSettled?: () => void): void {
       // picture of the page, so it goes to the window still showing the
       // browser or nowhere at all.
       if (panelWindow() !== win || win.isDestroyed()) return
-      const snapshot: BrowserPanelSnapshot = { dataUrl: image.toDataURL(), tabId }
+      // Downscale and JPEG-encode before crossing IPC. capturePage returns a
+      // device-pixel PNG — on a retina half-window that is millions of pixels,
+      // and toDataURL's PNG encode is synchronous on the main process, so a
+      // full-size encode stalls every window's input for the frame. This is a
+      // placeholder shown under a transient overlay, so a downscaled JPEG is
+      // indistinguishable and an order of magnitude cheaper to encode and send.
+      const snapshot: BrowserPanelSnapshot = { dataUrl: encodeSnapshot(image), tabId }
       win.webContents.send('browser-agent:panel-snapshot', snapshot)
     })
     .catch((error) => {

@@ -94,3 +94,42 @@ describe('findSelectedRow', () => {
     expect(findSelectedRow(term.buffer.active)).toBeNull()
   })
 })
+
+describe('replaying retained bytes into a fresh emulator', () => {
+  /**
+   * The screen is now rendered by replaying the retained byte stream into an
+   * emulator built for the read, rather than keeping one fed forever. Two
+   * things have to hold for that to be equivalent.
+   */
+  it('has the whole stream parsed by the time the write callback fires', async () => {
+    // xterm parses asynchronously in 12ms slices, so reading the buffer right
+    // after write() would catch it half-parsed. The callback is the signal.
+    const term = new Terminal({ cols: 40, rows: 8, allowProposedApi: true })
+    const lines = Array.from({ length: 200 }, (_, i) => `line ${i}`)
+
+    await new Promise<void>((resolve) => term.write(`${lines.join('\r\n')}\r\n`, resolve))
+
+    const buffer = term.buffer.active
+    const rendered: string[] = []
+    for (let row = 0; row < buffer.length; row++) {
+      const text = buffer.getLine(row)?.translateToString(true) ?? ''
+      if (text.trim()) rendered.push(text.trim())
+    }
+    expect(rendered.at(-1)).toBe('line 199')
+    expect(rendered).toHaveLength(200)
+  })
+
+  it('reconstructs the final screen of a program that redraws in place', async () => {
+    // A TUI overwrites the same rows, so a replay must end on the last frame
+    // rather than showing every frame stacked up — the reason a raw byte dump
+    // cannot be handed to the model directly.
+    const term = new Terminal({ cols: 40, rows: 8, allowProposedApi: true })
+    const frames = ['Loading   ', 'Loading.  ', 'Loading.. ', 'Done!     ']
+    const stream = frames.map((frame) => `\u001b[H\u001b[2K${frame}`).join('')
+
+    await new Promise<void>((resolve) => term.write(stream, resolve))
+
+    const firstRow = term.buffer.active.getLine(0)?.translateToString(true).trim()
+    expect(firstRow).toBe('Done!')
+  })
+})

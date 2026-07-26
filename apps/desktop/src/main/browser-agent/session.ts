@@ -291,9 +291,10 @@ function createTabView(): WebContentsView {
       sandbox: true,
       webSecurity: true,
       webviewTag: false,
-      // Visible pages remain full speed. Hidden pages may be throttled unless
-      // a browser tool is actively waiting on them.
-      backgroundThrottling: !automationActive,
+      // Throttled by default: a hidden tab should idle. The one exception is
+      // the active tab while a tool waits on it, applied explicitly by
+      // applyActiveTabThrottling — never blanket across every tab.
+      backgroundThrottling: true,
       spellcheck: false,
     },
   })
@@ -383,15 +384,33 @@ export function hasSession(): boolean {
 }
 
 /**
- * Keeps hidden pages responsive during an agent action, then returns them to
- * Chromium's normal background throttling so they cannot contend with Sim.
+ * Keeps the ACTIVE tab responsive during an agent action, then returns it to
+ * normal background throttling.
+ *
+ * Only the active tab, deliberately. The agent drives one tab at a time — the
+ * active one — possibly while the panel is hidden and even that view is
+ * detached, so it is the only tab that must not be throttled mid-tool. Waking
+ * every tab, as this once did, meant an agent run kept all N-1 background
+ * renderers at full speed for the length of the run, which is the browser
+ * side of the multi-tab lag. Nothing depends on a background tab staying
+ * awake: switching to one activates it (and re-applies this) before any tool
+ * touches it, and network loading is not throttled anyway.
  */
 export function setAutomationActive(active: boolean): void {
   automationActive = active
+  applyActiveTabThrottling()
+}
+
+/**
+ * Unthrottles the active tab while automation is active, and throttles every
+ * other tab. Call after anything that changes which tab is active, so the
+ * exemption follows the active tab rather than being stranded on the old one.
+ */
+function applyActiveTabThrottling(): void {
   for (const tab of tabs) {
-    if (!tab.view.webContents.isDestroyed()) {
-      tab.view.webContents.setBackgroundThrottling(!active)
-    }
+    if (tab.view.webContents.isDestroyed()) continue
+    const exempt = automationActive && tab.id === activeTabId
+    tab.view.webContents.setBackgroundThrottling(!exempt)
   }
 }
 
@@ -482,6 +501,7 @@ function addTabInternal({
   }
   if (activate || activeTabId === null) {
     activeTabId = tab.id
+    applyActiveTabThrottling()
     layout()
     if (transferBrowserFocus) focusedBrowserTabId = tab.id
     if (notify) events?.onActiveTabChanged(tab.view.webContents)
@@ -563,6 +583,9 @@ export function switchTab(tabId: string): AgentTab {
   const transferBrowserFocus =
     focusedBrowserTabId !== null || tabs.some((entry) => entry.view.webContents.isFocused())
   activeTabId = tab.id
+  // The automation exemption follows the active tab, so a mid-tool switch
+  // unthrottles the new one and re-throttles the old.
+  applyActiveTabThrottling()
   layout()
   if (transferBrowserFocus) focusedBrowserTabId = tab.id
   events?.onActiveTabChanged(tab.view.webContents)
