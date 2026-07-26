@@ -460,7 +460,7 @@ describe('Link Preview API Route', () => {
           <head>
             <title>Test Page</title>
             <meta property="og:title" content="Test Title" />
-            <meta property="og:image" content="::invalid::" />
+            <meta property="og:image" content="http://[::1" />
           </head>
         </html>
       `

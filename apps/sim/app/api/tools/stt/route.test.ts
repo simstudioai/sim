@@ -51,6 +51,7 @@ function mockSecureFetchResponse(body: { ok?: boolean; contentType?: string }) {
     statusText: '',
     headers: new Headers({ 'content-type': body.contentType ?? 'audio/mpeg' }),
     body: null,
+    url: 'https://example.com',
     text: async () => '',
     json: async () => ({}),
     arrayBuffer: async () => new ArrayBuffer(8),

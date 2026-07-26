@@ -40,6 +40,7 @@ function mockSecureFetchResponse(body: {
     statusText: '',
     headers: body.headers ?? new Headers(),
     body: null,
+    url: 'https://example.com',
     text: async () => body.text ?? '',
     json: async () => body.json ?? {},
     arrayBuffer: async () => body.arrayBuffer ?? new ArrayBuffer(0),

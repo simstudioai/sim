@@ -26,6 +26,7 @@ function fakeResponse(
     statusText: `status-${status}`,
     headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
     body: null,
+    url: 'https://example.com',
     text: async () => options.body ?? '',
     json: async () => JSON.parse(options.body ?? '{}'),
     arrayBuffer: async () => new ArrayBuffer(0),
