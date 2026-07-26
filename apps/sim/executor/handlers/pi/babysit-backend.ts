@@ -725,7 +725,8 @@ export async function runBabysitPiWithOptions(
         if (
           latestThreads!.actionable.length === 0 &&
           latestThreads!.skipped.length > 0 &&
-          latestChecks!.checksGreen
+          latestChecks!.checksGreen &&
+          !awaitingReview
         ) {
           return resultFor(totals, 'skipped_threads', progress, false, true)
         }

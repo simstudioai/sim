@@ -365,6 +365,29 @@ describe('runBabysitPiWithOptions', () => {
     })
   })
 
+  it('waits for the requested bot review before stopping on skipped threads', async () => {
+    mockFetchSnapshot.mockResolvedValue(snapshot)
+    mockFetchThreads.mockResolvedValue({
+      actionable: [],
+      skipped: [trustedThread],
+      totalUnresolved: 1,
+      latestReview: null,
+    })
+    mockFetchChecks.mockResolvedValue(greenChecks)
+    const { runner } = makeRunner({})
+    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+
+    const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() }, { roundWaitMs: 0 })
+
+    expect(mockReviewLanded).toHaveBeenCalledTimes(1)
+    expect(result).toMatchObject({
+      stopReason: 'skipped_threads',
+      threadsClean: false,
+      checksGreen: true,
+      rounds: 0,
+    })
+  })
+
   it('refuses excess failing checks before fetching discarded diagnostics', async () => {
     const failures = Array.from({ length: 21 }, (_, index) => ({
       ...failingCheck,
