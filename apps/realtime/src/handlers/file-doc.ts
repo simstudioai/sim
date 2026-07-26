@@ -4,6 +4,7 @@ import {
   FILE_DOC_EVENTS,
   FILE_DOC_MESSAGE_TYPE,
   FILE_DOC_SEED,
+  type FileDocPresenceUser,
   type JoinFileDocPayload,
   type LeaveFileDocPayload,
   toFileDocBytes,
@@ -15,6 +16,7 @@ import type { Server } from 'socket.io'
 import * as awarenessProtocol from 'y-protocols/awareness'
 import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
+import { resolveAvatarUrl } from '@/handlers/avatar'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import type { IRoomManager } from '@/rooms'
 
@@ -57,6 +59,10 @@ interface FileDocOwner {
   /** The owning user — used to tell a reconnect (same user reusing its Yjs client
    * id) from a spoof (a different user binding a peer's id). */
   userId: string
+  /** Server-authenticated display identity for the presence roster (from the socket's
+   *  session, never the client-set awareness — so a peer cannot spoof it). */
+  userName: string
+  avatarUrl: string | null
 }
 
 interface FileDocRoom {
@@ -114,6 +120,28 @@ function originSocketId(origin: unknown): string | null {
 function broadcast(io: Server, name: string, payload: Uint8Array, exceptSocketId: string | null) {
   const channel = exceptSocketId ? io.to(name).except(exceptSocketId) : io.to(name)
   channel.emit(FILE_DOC_EVENTS.MESSAGE, payload)
+}
+
+/**
+ * Broadcast the room's collaborator roster to everyone in it, for the avatar stack. One entry
+ * PER SESSION (socket) — the client excludes its own socket and dedupes the remainder per user
+ * for display, so a second tab of the same account still registers as present (mirroring the
+ * canvas presence model). Deduping here instead would drop the current user's other sessions
+ * asymmetrically (only one socket survives), so each client could never reliably self-exclude.
+ * Identity comes from each owner's server-authenticated session — never the client-set awareness
+ * — so a peer cannot spoof or suppress an entry.
+ */
+function broadcastFileDocPresence(io: Server, name: string, room: FileDocRoom) {
+  const users: FileDocPresenceUser[] = []
+  for (const [socketId, owner] of room.owners) {
+    users.push({
+      socketId,
+      userId: owner.userId,
+      userName: owner.userName,
+      avatarUrl: owner.avatarUrl,
+    })
+  }
+  io.to(name).emit(FILE_DOC_EVENTS.PRESENCE, { fileId: room.fileId, users })
 }
 
 /** Whether the client has recorded that it seeded the document's initial content. */
@@ -316,10 +344,15 @@ function handleMessage(socket: AuthenticatedSocket, data: unknown) {
  * seeding, and drop the room's document when the last collaborator leaves.
  * Exported for the disconnect handler; safe to call for a socket in no room.
  */
-export function cleanupFileDocForSocket(socketId: string, io: Server): void {
-  // Drop the join generation so an in-flight JOIN for this socket aborts after
-  // its authorize resolves, and the map never leaks across the socket's life.
-  joinGeneration.delete(socketId)
+export function cleanupFileDocForSocket(socketId: string, io: Server, endOfLife = false): void {
+  // The join-generation counter is monotonic for the socket's WHOLE life and must survive a room
+  // switch/leave: resetting it here would let the next join reuse a low number that a still
+  // in-flight earlier join also holds, so that stale join passes the generation guard and rebinds
+  // the socket to the wrong document. Drop it ONLY when the socket is truly gone (disconnect),
+  // which is also the only place the map would otherwise leak. An in-flight join is already
+  // aborted on disconnect by the `socket.disconnected` check, and on a switch by a newer join
+  // bumping the generation — neither needs this delete.
+  if (endOfLife) joinGeneration.delete(socketId)
 
   const name = socketToRoomName.get(socketId)
   if (!name) return
@@ -334,6 +367,8 @@ export function cleanupFileDocForSocket(socketId: string, io: Server): void {
     // Fires the awareness `update` handler with a non-socket origin → the removal
     // is broadcast to every remaining client, so the departed caret vanishes.
     awarenessProtocol.removeAwarenessStates(room.awareness, [owner.clientId], null)
+    // Refresh the roster for whoever remains (server-authenticated identity).
+    broadcastFileDocPresence(io, name, room)
   }
 
   // Hand off the seeder role: if the elected seeder left before it seeded, elect
@@ -351,12 +386,22 @@ export function cleanupFileDocForSocket(socketId: string, io: Server): void {
  * file id; joining requires workspace `write` (editing a document). Mirrors the
  * workspace-files join shape (auth → readiness → validate → authorize → join),
  * then runs the Yjs sync/awareness handshake.
+ *
+ * The avatar roster is derived from this room's own `owners` map and broadcast as
+ * `FILE_DOC_EVENTS.PRESENCE` — NOT the Redis-backed room-manager presence the workflow /
+ * table rooms use — because the file-doc room already owns an authoritative in-memory Y.Doc
+ * pinned to a single replica, so the session identity is right here with no extra store.
  */
 export function setupWorkspaceFileDocHandlers(
   socket: AuthenticatedSocket,
   roomManager: IRoomManager
 ) {
   const io = roomManager.io
+  // The file this socket currently intends to edit (set when a join starts). A leave targeting it
+  // — or an unscoped leave — advances the join generation to cancel an in-flight join, so a join
+  // awaiting authorization can't complete after the client left and register a ghost owner. A
+  // leave for a DIFFERENT file must NOT cancel it (a document switch), mirroring workspace-files.
+  let currentFileId: string | null = null
 
   socket.on(FILE_DOC_EVENTS.JOIN, async ({ fileId, clientId }: JoinFileDocPayload) => {
     try {
@@ -376,9 +421,11 @@ export function setupWorkspaceFileDocHandlers(
         return
       }
 
-      // Claim this JOIN's generation before the async authorize below.
+      // Claim this JOIN's generation before the async authorize below, and record the file the
+      // socket now intends to edit so a leave for it can cancel this join if it's still in-flight.
       const generation = (joinGeneration.get(socket.id) ?? 0) + 1
       joinGeneration.set(socket.id, generation)
+      currentFileId = fileId
 
       const room = fileDocRoom(fileId)
       const name = roomName(room)
@@ -408,9 +455,13 @@ export function setupWorkspaceFileDocHandlers(
         return
       }
 
-      // Abort a JOIN superseded during authorization: the socket disconnected, or
-      // a newer JOIN (a document switch) bumped the generation. Registering here
-      // would leak a dead socket's room or bind the socket to the wrong document.
+      // Server-authenticated identity for the presence roster (never trusts the client-set
+      // awareness). Resolved here so the generation guard below also covers this await.
+      const avatarUrl = await resolveAvatarUrl(socket, userId)
+
+      // Abort a JOIN superseded during authorization/identity resolution: the socket
+      // disconnected, or a newer JOIN (a document switch) bumped the generation. Registering
+      // here would leak a dead socket's room or bind the socket to the wrong document.
       if (socket.disconnected || joinGeneration.get(socket.id) !== generation) return
 
       // Switched documents on the same socket — leave the previous one first (a
@@ -449,11 +500,13 @@ export function setupWorkspaceFileDocHandlers(
         awarenessProtocol.removeAwarenessStates(entry.awareness, [previous.clientId], null)
       }
 
-      entry.owners.set(socket.id, { clientId, userId })
+      entry.owners.set(socket.id, { clientId, userId, userName, avatarUrl })
       socketToRoomName.set(socket.id, name)
       socket.join(name)
 
       socket.emit(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId })
+      // Server-authenticated roster → everyone in the room, including this joiner.
+      broadcastFileDocPresence(io, name, entry)
 
       // Begin the sync handshake: send the server's state (sync step 1). The
       // client replies with its updates and requests the server's in return.
@@ -496,10 +549,17 @@ export function setupWorkspaceFileDocHandlers(
 
   socket.on(FILE_DOC_EVENTS.LEAVE, (payload?: LeaveFileDocPayload) => {
     try {
-      // Only affect a REGISTERED room; never touch the join generation here. A
-      // leave that raced ahead of an in-flight join (no room registered yet) is a
-      // no-op — bumping the generation would silently abort an unrelated join for
-      // a different file (a document switch), leaving the socket bound to nothing.
+      // Cancel an in-flight join whose file the client is now leaving (or an unscoped leave): a
+      // join still awaiting authorization would otherwise complete after the client left, register
+      // as an owner, and broadcast a ghost collaborator until disconnect. Guard on the current
+      // file intent so a stale/deferred leave for a DIFFERENT file can't abort the join the client
+      // has since switched to (bumping the generation blindly caused that regression in #5941).
+      if (!payload?.fileId || payload.fileId === currentFileId) {
+        joinGeneration.set(socket.id, (joinGeneration.get(socket.id) ?? 0) + 1)
+        currentFileId = null
+      }
+      // Tear down membership only for a REGISTERED room; a leave that raced ahead of an in-flight
+      // join (nothing registered yet) has already cancelled it above.
       const name = socketToRoomName.get(socket.id)
       if (!name) return
       // Scope the leave to the named file when provided: a deferred leave from a

@@ -32,6 +32,13 @@ export const FILE_DOC_EVENTS = {
   LEAVE: 'leave-file-doc',
   /** Both directions: a framed Yjs message (binary), tagged by {@link FILE_DOC_MESSAGE_TYPE}. */
   MESSAGE: 'file-doc-message',
+  /**
+   * Server → client: the roster of collaborators currently in the document
+   * ({@link FileDocPresence}), for the avatar stack. Identity is server-authenticated (from
+   * each socket's session), so — unlike the client-set awareness `user` field — a peer
+   * cannot spoof or suppress another user's entry. Re-sent on every join and leave.
+   */
+  PRESENCE: 'file-doc-presence',
 } as const
 
 /**
@@ -119,6 +126,25 @@ export interface JoinFileDocError {
 /** Client → server leave request. */
 export interface LeaveFileDocPayload {
   fileId: string
+}
+
+/** One collaborator session in a {@link FileDocPresence} roster — server-authenticated identity.
+ * Keyed per socket (session), not per user: the client excludes its OWN `socketId` and then
+ * dedupes the rest per user for the avatar stack, so a second tab of the same account still
+ * registers as present (mirroring the canvas presence model). */
+export interface FileDocPresenceUser {
+  /** The collaborator's socket id, so a client can exclude its own session (not every session
+   * that happens to share its userId). */
+  socketId: string
+  userId: string
+  userName: string
+  avatarUrl: string | null
+}
+
+/** Server → client roster of who is in the document ({@link FILE_DOC_EVENTS.PRESENCE}). */
+export interface FileDocPresence {
+  fileId: string
+  users: FileDocPresenceUser[]
 }
 
 /**

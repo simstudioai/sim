@@ -1,7 +1,6 @@
 /**
  * @vitest-environment node
  */
-import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IRoomManager } from '@/rooms'
 
@@ -20,29 +19,28 @@ vi.mock('@sim/platform-authz/rooms', () => ({
 
 import { setupWorkspaceFilesHandlers } from '@/handlers/workspace-files'
 
-interface JoinPayload {
-  workspaceId: string
-  folderId?: string | null
-  tabSessionId?: string
-}
+type Payload = { workspaceId?: string }
 
 function createSocket(overrides?: Record<string, unknown>) {
-  const handlers: Record<string, (payload: JoinPayload) => Promise<void> | void> = {}
+  const handlers: Record<string, (payload?: Payload) => Promise<void> | void> = {}
+  // Live Set so the handler's native `socket.rooms` membership tracking works in tests.
+  const rooms = new Set<string>()
   const socket = {
     id: 'socket-1',
     userId: 'user-1',
     userName: 'Test User',
     userImage: 'avatar.png',
-    on: vi.fn((event: string, handler: (payload: JoinPayload) => Promise<void> | void) => {
+    rooms,
+    on: vi.fn((event: string, handler: (payload?: Payload) => Promise<void> | void) => {
       handlers[event] = handler
     }),
     emit: vi.fn(),
-    join: vi.fn(),
-    leave: vi.fn(),
+    join: vi.fn((room: string) => rooms.add(room)),
+    leave: vi.fn((room: string) => rooms.delete(room)),
     to: vi.fn().mockReturnValue({ emit: vi.fn() }),
     ...overrides,
   }
-  return { handlers, socket }
+  return { handlers, socket, rooms }
 }
 
 function createRoomManager(overrides?: Partial<IRoomManager>): IRoomManager {
@@ -136,35 +134,101 @@ describe('setupWorkspaceFilesHandlers', () => {
     )
   })
 
-  it('joins the workspace files room and broadcasts presence on success', async () => {
+  it('joins the workspace files room on success without any presence bookkeeping', async () => {
     const { socket, handlers } = createSocket()
-    const roomManager = createRoomManager({
-      getRoomUsers: vi.fn().mockResolvedValue([]),
-    })
+    const roomManager = createRoomManager()
     setupWorkspaceFilesHandlers(
       socket as unknown as Parameters<typeof setupWorkspaceFilesHandlers>[0],
       roomManager
     )
 
-    await handlers['join-workspace-files']({
-      workspaceId: 'ws-1',
-      folderId: 'folder-1',
-      tabSessionId: 'tab-1',
-    })
+    await handlers['join-workspace-files']({ workspaceId: 'ws-1' })
 
     expect(socket.join).toHaveBeenCalledWith('workspace-files:ws-1')
-    expect(roomManager.addUserToRoom).toHaveBeenCalledWith(
-      { type: ROOM_TYPES.WORKSPACE_FILES, id: 'ws-1' },
-      'socket-1',
-      expect.objectContaining({ userId: 'user-1', folderId: 'folder-1', role: 'admin' })
+    expect(socket.emit).toHaveBeenCalledWith('join-workspace-files-success', {
+      workspaceId: 'ws-1',
+    })
+    // The room is live-tree-only: no room-manager presence is tracked or broadcast.
+    expect(roomManager.addUserToRoom).not.toHaveBeenCalled()
+    expect(roomManager.broadcastPresenceUpdate).not.toHaveBeenCalled()
+  })
+
+  it('leaves a previously-joined files room when switching workspaces', async () => {
+    const { socket, handlers, rooms } = createSocket()
+    rooms.add('workspace-files:ws-old')
+    setupWorkspaceFilesHandlers(
+      socket as unknown as Parameters<typeof setupWorkspaceFilesHandlers>[0],
+      createRoomManager()
     )
-    expect(socket.emit).toHaveBeenCalledWith(
-      'join-workspace-files-success',
-      expect.objectContaining({ workspaceId: 'ws-1', socketId: 'socket-1' })
+
+    await handlers['join-workspace-files']({ workspaceId: 'ws-1' })
+
+    expect(socket.leave).toHaveBeenCalledWith('workspace-files:ws-old')
+    expect(socket.join).toHaveBeenCalledWith('workspace-files:ws-1')
+  })
+
+  it('leaves the scoped files room on leave', () => {
+    const { socket, handlers, rooms } = createSocket()
+    rooms.add('workspace-files:ws-1')
+    setupWorkspaceFilesHandlers(
+      socket as unknown as Parameters<typeof setupWorkspaceFilesHandlers>[0],
+      createRoomManager()
     )
-    expect(roomManager.broadcastPresenceUpdate).toHaveBeenCalledWith({
-      type: ROOM_TYPES.WORKSPACE_FILES,
-      id: 'ws-1',
+
+    handlers['leave-workspace-files']({ workspaceId: 'ws-1' })
+
+    expect(socket.leave).toHaveBeenCalledWith('workspace-files:ws-1')
+  })
+
+  it('cancels an in-flight join when the user leaves that workspace mid-authorize', async () => {
+    const { socket, handlers } = createSocket()
+    let resolveAuth: (value: unknown) => void = () => {}
+    mockAuthorizeRoom.mockReturnValue(
+      new Promise((resolve) => {
+        resolveAuth = resolve
+      })
+    )
+    setupWorkspaceFilesHandlers(
+      socket as unknown as Parameters<typeof setupWorkspaceFilesHandlers>[0],
+      createRoomManager()
+    )
+
+    // Join ws-1 is awaiting authorization when the view unmounts and leaves ws-1.
+    const joinPromise = handlers['join-workspace-files']({ workspaceId: 'ws-1' })
+    handlers['leave-workspace-files']({ workspaceId: 'ws-1' })
+    resolveAuth({ allowed: true, status: 200, workspaceId: 'ws-1', workspacePermission: 'admin' })
+    await joinPromise
+
+    // The stale join must NOT join the room the client has since left (no stranded membership).
+    expect(socket.join).not.toHaveBeenCalled()
+    expect(socket.emit).not.toHaveBeenCalledWith('join-workspace-files-success', {
+      workspaceId: 'ws-1',
+    })
+  })
+
+  it('does not cancel an in-flight join when a deferred leave targets a different workspace', async () => {
+    const { socket, handlers } = createSocket()
+    let resolveAuth: (value: unknown) => void = () => {}
+    mockAuthorizeRoom.mockReturnValue(
+      new Promise((resolve) => {
+        resolveAuth = resolve
+      })
+    )
+    setupWorkspaceFilesHandlers(
+      socket as unknown as Parameters<typeof setupWorkspaceFilesHandlers>[0],
+      createRoomManager()
+    )
+
+    // The client has switched to ws-2 (join in-flight) when a stale leave for the prior ws-1 lands.
+    const joinPromise = handlers['join-workspace-files']({ workspaceId: 'ws-2' })
+    handlers['leave-workspace-files']({ workspaceId: 'ws-1' })
+    resolveAuth({ allowed: true, status: 200, workspaceId: 'ws-2', workspacePermission: 'admin' })
+    await joinPromise
+
+    // The deferred leave for ws-1 must not abort the join the client actually wants (ws-2).
+    expect(socket.join).toHaveBeenCalledWith('workspace-files:ws-2')
+    expect(socket.emit).toHaveBeenCalledWith('join-workspace-files-success', {
+      workspaceId: 'ws-2',
     })
   })
 })

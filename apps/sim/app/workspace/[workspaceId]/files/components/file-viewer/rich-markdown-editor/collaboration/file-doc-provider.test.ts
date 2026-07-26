@@ -165,6 +165,26 @@ describe('FileDocProvider', () => {
     expect(messages.some((m) => m[0] === FILE_DOC_MESSAGE_TYPE.AWARENESS)).toBe(true)
   })
 
+  it('reseeds a cleared awareness so a reused instance can publish again', () => {
+    const { socket, emit } = createSocket(true)
+    const doc = new Y.Doc()
+    const awareness = new awarenessProtocol.Awareness(doc)
+    // Simulate a prior provider teardown having cleared the local state — after
+    // this, y-protocols' setLocalStateField is a permanent no-op, so the caret
+    // extension could never publish the local user/cursor on a reused instance.
+    awarenessProtocol.removeAwarenessStates(awareness, [doc.clientID], 'prior-destroy')
+    expect(awareness.getLocalState()).toBeNull()
+
+    // Constructing a provider on the reused, cleared awareness must restore it.
+    new FileDocProvider(socket, 'file-1', doc, awareness)
+    expect(awareness.getLocalState()).not.toBeNull()
+
+    emit.mockClear()
+    // The caret extension setting the user field must now actually publish.
+    awareness.setLocalStateField('user', { name: 'Ada', color: '#f783ac' })
+    expect(emittedMessages(emit).some((m) => m[0] === FILE_DOC_MESSAGE_TYPE.AWARENESS)).toBe(true)
+  })
+
   it('does not forward awareness it applied from the server', () => {
     const { emit, fire } = createProvider(true)
     emit.mockClear()

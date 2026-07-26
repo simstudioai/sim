@@ -1,10 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
-import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
-import type { PresenceAvatarUser } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { invalidateWorkspaceFileBrowsers } from '@/hooks/queries/workspace-file-folders'
 
@@ -14,10 +12,6 @@ const logger = createLogger('WorkspaceFilesRoom')
 const MAX_JOIN_RETRIES = 3
 const JOIN_RETRY_BASE_MS = 1000
 
-interface PresenceUpdatePayload extends PresenceAvatarUser {
-  folderId?: string | null
-}
-
 interface JoinErrorPayload {
   workspaceId: string
   error: string
@@ -25,37 +19,18 @@ interface JoinErrorPayload {
   retryable?: boolean
 }
 
-interface UseWorkspaceFilesRoomResult {
-  /** Collaborators viewing this workspace's files, excluding the current socket. */
-  otherUsers: PresenceAvatarUser[]
-}
-
 /**
- * Joins the workspace-files presence room for live collaborator avatars and a live
- * file tree. Presence rides the shared socket (`useSocket`); file mutations are
- * unchanged (HTTP), and a `workspace-files-changed` broadcast invalidates the
- * browser queries so every viewer refetches without waiting for staleness.
+ * Keeps the file browser live: joins the workspace-files room over the shared socket so a
+ * `workspace-files-changed` broadcast (fanned out by the HTTP mutation API) invalidates the
+ * browser queries and every viewer refetches without waiting for staleness. File mutations
+ * stay on HTTP.
  *
- * `folderId` is sent on join so the server records where the viewer is; it is
- * intentionally not a hook dependency (re-joining on every folder change would
- * churn presence) — the ref keeps the latest value for the next join.
+ * This room carries no presence — "who's in a file" comes from the per-file doc room (see
+ * `FileDocRoomProvider`), not from who's browsing the Files section.
  */
-export function useWorkspaceFilesRoom(
-  workspaceId: string,
-  folderId: string | null
-): UseWorkspaceFilesRoomResult {
-  const { socket, currentSocketId } = useSocket()
+export function useWorkspaceFilesRoom(workspaceId: string): void {
+  const { socket } = useSocket()
   const queryClient = useQueryClient()
-
-  const [presenceUsers, setPresenceUsers] = useState<PresenceUpdatePayload[]>([])
-
-  const tabSessionIdRef = useRef<string>('')
-  if (!tabSessionIdRef.current) tabSessionIdRef.current = generateShortId()
-  const folderIdRef = useRef(folderId)
-
-  useEffect(() => {
-    folderIdRef.current = folderId
-  }, [folderId])
 
   useEffect(() => {
     if (!socket || !workspaceId) return
@@ -63,27 +38,17 @@ export function useWorkspaceFilesRoom(
     let retries = 0
     let retryTimer: ReturnType<typeof setTimeout> | null = null
 
-    const join = () => {
-      socket.emit('join-workspace-files', {
-        workspaceId,
-        folderId: folderIdRef.current,
-        tabSessionId: tabSessionIdRef.current,
-      })
-    }
+    const join = () => socket.emit('join-workspace-files', { workspaceId })
 
-    const handleJoinSuccess = (data: {
-      workspaceId: string
-      presenceUsers: PresenceUpdatePayload[]
-    }) => {
+    const handleJoinSuccess = (data: { workspaceId: string }) => {
       if (data.workspaceId !== workspaceId) return
       retries = 0
-      // Cancel any retry scheduled by a prior retryable error so it can't fire an
-      // extra join after we're already in.
+      // Cancel any retry scheduled by a prior retryable error so it can't fire an extra
+      // join after we're already in.
       if (retryTimer) {
         clearTimeout(retryTimer)
         retryTimer = null
       }
-      setPresenceUsers(data.presenceUsers ?? [])
     }
     const handleJoinError = (data: JoinErrorPayload) => {
       if (data.workspaceId !== workspaceId) return
@@ -93,7 +58,6 @@ export function useWorkspaceFilesRoom(
         retryTimer = setTimeout(join, JOIN_RETRY_BASE_MS * retries)
       }
     }
-    const handlePresence = (users: PresenceUpdatePayload[]) => setPresenceUsers(users ?? [])
     const handleChanged = (data: { workspaceId: string }) => {
       if (data.workspaceId === workspaceId)
         invalidateWorkspaceFileBrowsers(queryClient, workspaceId)
@@ -104,7 +68,6 @@ export function useWorkspaceFilesRoom(
     socket.on('connect', join)
     socket.on('join-workspace-files-success', handleJoinSuccess)
     socket.on('join-workspace-files-error', handleJoinError)
-    socket.on('workspace-files:presence-update', handlePresence)
     socket.on('workspace-files-changed', handleChanged)
 
     return () => {
@@ -112,22 +75,12 @@ export function useWorkspaceFilesRoom(
       socket.off('connect', join)
       socket.off('join-workspace-files-success', handleJoinSuccess)
       socket.off('join-workspace-files-error', handleJoinError)
-      socket.off('workspace-files:presence-update', handlePresence)
       socket.off('workspace-files-changed', handleChanged)
-      setPresenceUsers([])
 
-      // Leave the room, scoped to THIS workspace: the server no-ops if the socket
-      // has already switched to another workspace's files room (so a workspace
-      // A→B switch, where B's join runs first and auto-leaves A, can't have A's
-      // leave evict the fresh B membership).
+      // Leave the room, scoped to THIS workspace: the server no-ops if the socket has
+      // already switched to another workspace's files room (so a workspace A→B switch,
+      // where B's join runs first and auto-leaves A, can't have A's leave evict B).
       socket.emit('leave-workspace-files', { workspaceId })
     }
   }, [socket, workspaceId, queryClient])
-
-  const otherUsers = useMemo(
-    () => presenceUsers.filter((user) => user.socketId !== currentSocketId),
-    [presenceUsers, currentSocketId]
-  )
-
-  return { otherUsers }
 }

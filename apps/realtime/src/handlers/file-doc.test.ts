@@ -54,6 +54,8 @@ function createSocket(id: string, overrides?: Record<string, unknown>) {
     id,
     userId: 'user-1',
     userName: 'Test User',
+    // Set so the server's roster resolves the avatar from the socket (never the DB).
+    userImage: 'avatar.png',
     disconnected: false,
     on: vi.fn((event: string, handler: Handler) => {
       handlers[event] = handler
@@ -133,7 +135,9 @@ describe('setupWorkspaceFileDocHandlers', () => {
   afterEach(() => {
     // The room store is module-global; drop every room the test's sockets opened.
     const { io } = createIo()
-    for (const id of createdSocketIds) cleanupFileDocForSocket(id, io)
+    // Simulate a full disconnect between tests (`endOfLife`) so the module-global join-generation
+    // map is cleared and never bleeds a counter into the next test.
+    for (const id of createdSocketIds) cleanupFileDocForSocket(id, io, true)
     createdSocketIds.clear()
     vi.clearAllTimers()
     vi.useRealTimers()
@@ -435,7 +439,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
     const pending = s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
     s.socket.disconnected = true
-    cleanupFileDocForSocket('socket-a', io) // disconnect cleanup — no-op, nothing registered yet
+    cleanupFileDocForSocket('socket-a', io, true) // disconnect cleanup — no-op, nothing registered yet
     resolveAuth({ allowed: true, status: 200, workspacePermission: 'write' })
     await pending
 
@@ -460,6 +464,49 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
     expect(joinSuccessFileId(s.socket)).toBe('file-2')
     expect(s.socket.join).toHaveBeenCalledWith('workspace-file-doc:file-2')
+  })
+
+  it('does not reset the join generation on a leave, so an in-flight join still binds', async () => {
+    const { io } = createIo()
+    const s = setup('socket-a', io)
+
+    // file-1 join completes; the socket is registered in file-1.
+    await s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+
+    // file-2 join goes in-flight (authorize deferred).
+    let resolveAuth: (v: unknown) => void = () => {}
+    mockAuthorizeRoom.mockReturnValueOnce(new Promise((resolve) => (resolveAuth = resolve)))
+    const pending = s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-2', clientId: 1 })
+
+    // A deferred leave for the prior file-1 lands while file-2's join awaits authorization. Its
+    // cleanup must NOT reset the monotonic join generation, or file-2's guard would see an emptied
+    // map (`undefined !== generation`) and abort the join the client actually wants.
+    s.handlers[FILE_DOC_EVENTS.LEAVE]({ fileId: 'file-1' })
+
+    resolveAuth({ allowed: true, status: 200, workspacePermission: 'write' })
+    await pending
+
+    expect(joinSuccessFileId(s.socket)).toBe('file-2')
+    expect(s.socket.join).toHaveBeenCalledWith('workspace-file-doc:file-2')
+  })
+
+  it('cancels an in-flight join when the client leaves that same file (no ghost owner)', async () => {
+    const { io, sent } = createIo()
+    let resolveAuth: (v: unknown) => void = () => {}
+    mockAuthorizeRoom.mockReturnValueOnce(new Promise((resolve) => (resolveAuth = resolve)))
+    const s = setup('socket-a', io)
+
+    // Join file-1 is awaiting authorization when the client leaves file-1 (fast open→close).
+    const pending = s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    s.handlers[FILE_DOC_EVENTS.LEAVE]({ fileId: 'file-1' })
+    resolveAuth({ allowed: true, status: 200, workspacePermission: 'write' })
+    await pending
+
+    // The stale join must not register: no success, no room join, and no presence broadcast that
+    // would leave a ghost collaborator until disconnect.
+    expect(s.socket.join).not.toHaveBeenCalled()
+    expect(joinSuccessFileId(s.socket)).toBeUndefined()
+    expect(sent.some((m) => m.event === FILE_DOC_EVENTS.PRESENCE)).toBe(false)
   })
 
   it('scopes LEAVE to the named file (a leave for a different file is a no-op)', async () => {
@@ -573,5 +620,41 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
     // No re-election: the successful seed cancelled the deadline.
     expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)).toBeUndefined()
+  })
+
+  it('broadcasts a server-authenticated presence roster on join, one entry per session', async () => {
+    const { io, sent } = createIo()
+    const a = setup('socket-a', io, { userId: 'user-a', userName: 'Ada', userImage: 'ada.png' })
+    const b = setup('socket-b', io, { userId: 'user-b', userName: 'Bob', userImage: 'bob.png' })
+
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+
+    const roster = sent.filter((m) => m.event === FILE_DOC_EVENTS.PRESENCE).at(-1)?.payload as {
+      fileId: string
+      users: Array<{ socketId: string; userId: string; userName: string; avatarUrl: string | null }>
+    }
+    expect(roster.fileId).toBe('file-1')
+    // Identity is each socket's authenticated session — not any client-supplied value.
+    expect([...roster.users].sort((x, y) => x.userId.localeCompare(y.userId))).toEqual([
+      { socketId: 'socket-a', userId: 'user-a', userName: 'Ada', avatarUrl: 'ada.png' },
+      { socketId: 'socket-b', userId: 'user-b', userName: 'Bob', avatarUrl: 'bob.png' },
+    ])
+  })
+
+  it('keeps a per-session entry for two sockets of the SAME user (no server-side user dedup)', async () => {
+    const { io, sent } = createIo()
+    // Two tabs of one account: the client self-excludes its own socket, so the roster must carry
+    // BOTH sessions or a client could never see the other tab as present.
+    const a = setup('socket-a', io, { userId: 'user-a', userName: 'Ada', userImage: 'ada.png' })
+    const b = setup('socket-b', io, { userId: 'user-a', userName: 'Ada', userImage: 'ada.png' })
+
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+
+    const roster = sent.filter((m) => m.event === FILE_DOC_EVENTS.PRESENCE).at(-1)?.payload as {
+      users: Array<{ socketId: string; userId: string }>
+    }
+    expect([...roster.users].map((u) => u.socketId).sort()).toEqual(['socket-a', 'socket-b'])
   })
 })

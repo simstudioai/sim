@@ -4,10 +4,10 @@
  * @vitest-environment node
  */
 import { createServer, request as httpRequest } from 'http'
+import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { createMockLogger } from '@sim/testing'
 import { randomInt } from '@sim/utils/random'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { createSocketIOServer } from '@/config/socket'
 import { MemoryRoomManager, workflowRoom } from '@/rooms'
 import { createHttpHandler } from '@/routes/http'

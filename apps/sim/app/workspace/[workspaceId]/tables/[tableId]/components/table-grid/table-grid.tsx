@@ -62,6 +62,7 @@ import {
   computeNormalizedSelection,
   type ExecStatusMix,
   expandToDisplayColumns,
+  isCellInSelection,
   moveCell,
   ROW_SELECTION_ALL,
   ROW_SELECTION_NONE,
@@ -663,6 +664,15 @@ export function TableGrid({
     return map
   }, [displayColumns])
 
+  /** Row id → its index in the current row list, for testing local-selection coverage.
+   *  Only built when collaborators are present (the overlay is gated on that too), so
+   *  solo editing never pays the O(n) map build on a refetch. */
+  const rowIndexById = useMemo(() => {
+    const map = new Map<string, number>()
+    if (remoteSelections.length > 0) rows.forEach((row, index) => map.set(row.id, index))
+    return map
+  }, [rows, remoteSelections.length])
+
   const workflowGroupById = useMemo(
     () => new Map(tableWorkflowGroups.map((g) => [g.id, g])),
     [tableWorkflowGroups]
@@ -1211,12 +1221,7 @@ export function TableGrid({
             selectionAnchorRef.current,
             selectionFocusRef.current
           )
-          const isWithinSelection =
-            sel !== null &&
-            rowIndex >= sel.startRow &&
-            rowIndex <= sel.endRow &&
-            colIndex >= sel.startCol &&
-            colIndex <= sel.endCol
+          const isWithinSelection = sel !== null && isCellInSelection(rowIndex, colIndex, sel)
 
           if (!isWithinSelection) {
             setSelectionAnchor({ rowIndex, colIndex })
@@ -3943,6 +3948,8 @@ export function TableGrid({
               <RemoteSelectionOverlay
                 remoteSelections={remoteSelections}
                 columnIndexById={columnIndexById}
+                rowIndexById={rowIndexById}
+                localSelection={normalizedSelection}
                 scrollElement={scrollRef.current}
               />
             )}

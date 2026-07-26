@@ -6,7 +6,9 @@ import { getUserColor } from '@/lib/workspaces/colors'
 
 /** Minimal presence shape the avatar stack renders — shared by workflow and files. */
 export interface PresenceAvatarUser {
-  socketId: string
+  /** Unique id per presence entry, used as the render key: a socket id where presence is
+   *  per-connection (workflow), absent where entries are deduped per user (file docs). */
+  socketId?: string
   userId: string
   userName?: string
   avatarUrl?: string | null
@@ -107,7 +109,7 @@ export function PresenceAvatars({ users, maxVisible = DEFAULT_MAX_VISIBLE }: Pre
         </Tooltip.Root>
       )}
       {visibleUsers.map((user, index) => (
-        <UserAvatar key={user.socketId} user={user} index={index} />
+        <UserAvatar key={user.socketId ?? user.userId} user={user} index={index} />
       ))}
     </div>
   )
