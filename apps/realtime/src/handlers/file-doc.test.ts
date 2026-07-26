@@ -135,7 +135,9 @@ describe('setupWorkspaceFileDocHandlers', () => {
   afterEach(() => {
     // The room store is module-global; drop every room the test's sockets opened.
     const { io } = createIo()
-    for (const id of createdSocketIds) cleanupFileDocForSocket(id, io)
+    // Simulate a full disconnect between tests (`endOfLife`) so the module-global join-generation
+    // map is cleared and never bleeds a counter into the next test.
+    for (const id of createdSocketIds) cleanupFileDocForSocket(id, io, true)
     createdSocketIds.clear()
     vi.clearAllTimers()
     vi.useRealTimers()
@@ -437,7 +439,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
     const pending = s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
     s.socket.disconnected = true
-    cleanupFileDocForSocket('socket-a', io) // disconnect cleanup — no-op, nothing registered yet
+    cleanupFileDocForSocket('socket-a', io, true) // disconnect cleanup — no-op, nothing registered yet
     resolveAuth({ allowed: true, status: 200, workspacePermission: 'write' })
     await pending
 
@@ -457,6 +459,30 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const pending = s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-2', clientId: 1 })
     // A stale leave for a DIFFERENT file must not invalidate the in-flight join.
     s.handlers[FILE_DOC_EVENTS.LEAVE]({ fileId: 'file-1' })
+    resolveAuth({ allowed: true, status: 200, workspacePermission: 'write' })
+    await pending
+
+    expect(joinSuccessFileId(s.socket)).toBe('file-2')
+    expect(s.socket.join).toHaveBeenCalledWith('workspace-file-doc:file-2')
+  })
+
+  it('does not reset the join generation on a leave, so an in-flight join still binds', async () => {
+    const { io } = createIo()
+    const s = setup('socket-a', io)
+
+    // file-1 join completes; the socket is registered in file-1.
+    await s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+
+    // file-2 join goes in-flight (authorize deferred).
+    let resolveAuth: (v: unknown) => void = () => {}
+    mockAuthorizeRoom.mockReturnValueOnce(new Promise((resolve) => (resolveAuth = resolve)))
+    const pending = s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-2', clientId: 1 })
+
+    // A deferred leave for the prior file-1 lands while file-2's join awaits authorization. Its
+    // cleanup must NOT reset the monotonic join generation, or file-2's guard would see an emptied
+    // map (`undefined !== generation`) and abort the join the client actually wants.
+    s.handlers[FILE_DOC_EVENTS.LEAVE]({ fileId: 'file-1' })
+
     resolveAuth({ allowed: true, status: 200, workspacePermission: 'write' })
     await pending
 

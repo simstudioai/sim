@@ -41,8 +41,9 @@ export function setupConnectionHandlers(socket: AuthenticatedSocket, roomManager
       cleanupPendingSubblocksForSocket(socket.id)
       cleanupPendingVariablesForSocket(socket.id)
       // Clear the socket's collaborative-document awareness (removes its caret for
-      // everyone else) and drop the room if it was the last editor.
-      cleanupFileDocForSocket(socket.id, roomManager.io)
+      // everyone else) and drop the room if it was the last editor. `endOfLife` drops the
+      // socket's join-generation entry — safe only here, on true disconnect (see cleanup).
+      cleanupFileDocForSocket(socket.id, roomManager.io, true)
 
       // A socket may occupy multiple rooms (one per type). Remove it from every
       // room the manager knows about.

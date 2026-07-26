@@ -344,10 +344,15 @@ function handleMessage(socket: AuthenticatedSocket, data: unknown) {
  * seeding, and drop the room's document when the last collaborator leaves.
  * Exported for the disconnect handler; safe to call for a socket in no room.
  */
-export function cleanupFileDocForSocket(socketId: string, io: Server): void {
-  // Drop the join generation so an in-flight JOIN for this socket aborts after
-  // its authorize resolves, and the map never leaks across the socket's life.
-  joinGeneration.delete(socketId)
+export function cleanupFileDocForSocket(socketId: string, io: Server, endOfLife = false): void {
+  // The join-generation counter is monotonic for the socket's WHOLE life and must survive a room
+  // switch/leave: resetting it here would let the next join reuse a low number that a still
+  // in-flight earlier join also holds, so that stale join passes the generation guard and rebinds
+  // the socket to the wrong document. Drop it ONLY when the socket is truly gone (disconnect),
+  // which is also the only place the map would otherwise leak. An in-flight join is already
+  // aborted on disconnect by the `socket.disconnected` check, and on a switch by a newer join
+  // bumping the generation — neither needs this delete.
+  if (endOfLife) joinGeneration.delete(socketId)
 
   const name = socketToRoomName.get(socketId)
   if (!name) return
