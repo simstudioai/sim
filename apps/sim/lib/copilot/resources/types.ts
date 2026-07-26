@@ -23,26 +23,85 @@ export interface MothershipResource {
   path?: string
 }
 
-export function isEphemeralResource(resource: MothershipResource): boolean {
-  // The terminal is a live desktop panel backed by a PTY, not an addressable
-  // workspace entity — there is nothing about it worth persisting with a chat.
-  return (
-    resource.type === 'generic' || resource.type === 'terminal' || resource.id === 'streaming-file'
-  )
+interface ResourcePolicy {
+  /** Stored with the chat, so the tab is still there when the chat is reopened. */
+  persisted: boolean
+  /**
+   * Backed by something only the desktop app can provide. Still persisted, but
+   * a client without the bridge leaves the tab out rather than restoring a
+   * panel with nothing behind it.
+   */
+  desktopOnly?: boolean
 }
 
 /**
- * Singleton id for the live browser-session panel. The panel hosts the
- * desktop app's natively embedded browser view. Only this resource metadata
- * is persisted with the chat; the live page and browser profile remain owned
- * by the desktop app.
+ * What the app does with each kind of resource, in one place.
+ *
+ * These rules used to live in three, and they disagreed. A client-side check
+ * decided what to send, a Zod enum in the API contract decided what to accept,
+ * and a runtime allowlist in the route handler decided again — but the enum
+ * rejected `browser`, `task` and `integration` before the allowlist that
+ * permitted them ever ran. Those tabs looked fine until the chat was reopened,
+ * because the write had been failing the whole time into a warning log. The
+ * contract enum and the handler now derive from this table, so a type can no
+ * longer be openable and unsaveable at the same time.
+ */
+const RESOURCE_POLICY: Record<MothershipResourceType, ResourcePolicy> = {
+  table: { persisted: true },
+  file: { persisted: true },
+  workflow: { persisted: true },
+  knowledgebase: { persisted: true },
+  folder: { persisted: true },
+  filefolder: { persisted: true },
+  task: { persisted: true },
+  scheduledtask: { persisted: true },
+  log: { persisted: true },
+  integration: { persisted: true },
+  // A synthetic panel with no addressable entity behind it to reopen.
+  generic: { persisted: false },
+  browser: { persisted: true, desktopOnly: true },
+  terminal: { persisted: true, desktopOnly: true },
+}
+
+/**
+ * Resource types the chat will store. The API contract builds its enum from
+ * this, which is what keeps client and server from drifting.
+ */
+export const PERSISTED_RESOURCE_TYPES = (
+  Object.keys(RESOURCE_POLICY) as MothershipResourceType[]
+).filter((type) => RESOURCE_POLICY[type].persisted) as [
+  MothershipResourceType,
+  ...MothershipResourceType[],
+]
+
+/** True when the resource's panel needs the desktop bridge to show anything. */
+export function isDesktopOnlyResource(resource: MothershipResource): boolean {
+  return RESOURCE_POLICY[resource.type]?.desktopOnly === true
+}
+
+export function isEphemeralResource(resource: MothershipResource): boolean {
+  // The in-flight file preview is a placeholder that becomes a real file once
+  // the write lands, so persisting it would restore a tab for a file that was
+  // never created.
+  if (resource.id === 'streaming-file') return true
+  // An unrecognized type is treated as ephemeral: the server would reject it
+  // anyway, and failing to store it is better than a write that always errors.
+  return !RESOURCE_POLICY[resource.type]?.persisted
+}
+
+/**
+ * Singleton id for the live browser-session panel, which hosts the desktop
+ * app's natively embedded browser view. Only this metadata is stored with the
+ * chat: reopening restores the tab, while the page and browser profile stay
+ * owned by the desktop app.
  */
 export const BROWSER_SESSION_RESOURCE_ID = 'browser-session'
 
 /**
- * Singleton id for the live terminal panel. As with the browser, only this
- * resource metadata is persisted with the chat; the shell process and its
- * scrollback stay owned by the desktop app.
+ * Singleton id for the live terminal panel. As with the browser, only the
+ * metadata is stored — reopening the chat brings the panel back with a fresh
+ * shell, since the pty and its scrollback belong to the desktop app and do not
+ * outlive it.
  */
 export const TERMINAL_SESSION_RESOURCE_ID = 'terminal-session'
 

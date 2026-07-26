@@ -12,6 +12,7 @@ import {
   COPILOT_BILLING_PROTOCOL_HEADER,
   COPILOT_BILLING_PROTOCOL_VALUES,
 } from '@/lib/copilot/generated/billing-protocol-v1'
+import { PERSISTED_RESOURCE_TYPES } from '@/lib/copilot/resources/types'
 
 export const copilotApiKeySchema = z.object({
   id: z.string(),
@@ -117,15 +118,7 @@ export const renameCopilotChatBodySchema = z.object({
 })
 export type RenameCopilotChatBody = z.input<typeof renameCopilotChatBodySchema>
 
-const copilotResourceTypeSchema = z.enum([
-  'table',
-  'file',
-  'workflow',
-  'knowledgebase',
-  'folder',
-  'scheduledtask',
-  'log',
-])
+const copilotResourceTypeSchema = z.enum(PERSISTED_RESOURCE_TYPES)
 
 export const addCopilotChatResourceBodySchema = z.object({
   chatId: z.string(),

@@ -16,23 +16,11 @@ import {
   createNotFoundResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
-import type { ChatResource, ResourceType } from '@/lib/copilot/resources/persistence'
+import type { ChatResource } from '@/lib/copilot/resources/persistence'
 import { GENERIC_RESOURCE_TITLES } from '@/lib/copilot/resources/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotChatResourcesAPI')
-
-const VALID_RESOURCE_TYPES = new Set<ResourceType>([
-  'table',
-  'file',
-  'workflow',
-  'knowledgebase',
-  'folder',
-  'scheduledtask',
-  'log',
-  'integration',
-  'browser',
-])
 
 export const POST = withRouteHandler(async (req: NextRequest) => {
   try {
@@ -56,10 +44,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     // Ephemeral UI tab (client does not POST this; guard for old clients / bugs).
     if (resource.id === 'streaming-file') {
       return NextResponse.json({ success: true })
-    }
-
-    if (!VALID_RESOURCE_TYPES.has(resource.type)) {
-      return createBadRequestResponse(`Invalid resource type: ${resource.type}`)
     }
 
     const [chat] = await db

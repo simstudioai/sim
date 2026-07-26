@@ -59,6 +59,7 @@ import {
   isFilePreviewSession,
 } from '@/lib/copilot/request/session/file-preview-session-contract'
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
+import { canDisplayResource } from '@/lib/copilot/resources/availability'
 import {
   BROWSER_SESSION_RESOURCE_ID,
   isEphemeralResource,
@@ -1150,6 +1151,14 @@ export function useChat(
   }, [])
   const resourcesRef = useRef(resources)
   resourcesRef.current = resources
+  /**
+   * Stored resources this client cannot display — the desktop-only panels when
+   * there is no bridge. Held so they survive a session that never shows them:
+   * a reorder sends the full stored set, and the server rejects one that does
+   * not match what it has, so leaving them out would both break reordering and
+   * make the tabs disappear for the desktop app too.
+   */
+  const undisplayableResourcesRef = useRef<MothershipResource[]>([])
   const pendingPersistResourceKeysRef = useRef<Set<string>>(new Set())
   const inFlightResourceAddsRef = useRef<Map<string, Promise<unknown>>>(new Map())
   const reorderNeededAfterFlushRef = useRef(false)
@@ -1385,6 +1394,7 @@ export function useChat(
     setTransportIdle()
     setResources([])
     setActiveResourceId(null)
+    undisplayableResourcesRef.current = []
     pendingPersistResourceKeysRef.current.clear()
     inFlightResourceAddsRef.current.clear()
     reorderNeededAfterFlushRef.current = false
@@ -1430,10 +1440,14 @@ export function useChat(
     await Promise.allSettled(flushPromises)
     if (!reorderNeededAfterFlushRef.current) return
     reorderNeededAfterFlushRef.current = false
-    const localOrder = resourcesRef.current.filter(
-      (r) =>
-        r.id !== 'streaming-file' && !pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`)
-    )
+    const localOrder = [
+      ...resourcesRef.current.filter(
+        (r) =>
+          r.id !== 'streaming-file' &&
+          !pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`)
+      ),
+      ...undisplayableResourcesRef.current,
+    ]
     if (localOrder.length === 0) return
     requestJson(reorderMothershipChatResourcesContract, {
       body: { chatId, resources: localOrder },
@@ -1565,11 +1579,14 @@ export function useChat(
           reorderNeededAfterFlushRef.current = false
           const chatId = chatIdRef.current ?? selectedChatIdRef.current
           if (!chatId) return
-          const order = resourcesRef.current.filter(
-            (r) =>
-              !isEphemeralResource(r) &&
-              !pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`)
-          )
+          const order = [
+            ...resourcesRef.current.filter(
+              (r) =>
+                !isEphemeralResource(r) &&
+                !pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`)
+            ),
+            ...undisplayableResourcesRef.current,
+          ]
           if (order.length === 0) return
           requestJson(reorderMothershipChatResourcesContract, {
             body: { chatId, resources: order },
@@ -1580,7 +1597,10 @@ export function useChat(
       }
       return
     }
-    const persistableResources = newOrder.filter((r) => !isEphemeralResource(r))
+    const persistableResources = [
+      ...newOrder.filter((r) => !isEphemeralResource(r)),
+      ...undisplayableResourcesRef.current,
+    ]
     if (persistableResources.length === 0) return
     requestJson(reorderMothershipChatResourcesContract, {
       body: { chatId: persistChatId, resources: persistableResources },
@@ -1874,6 +1894,13 @@ export function useChat(
     flushPendingResources(chatHistory.id)
 
     const persistedResources = chatHistory.resources.filter((r) => r.id !== 'streaming-file')
+    // A stored panel this client cannot open is kept out of the tab strip
+    // rather than restored onto an error, but stays in the stored set so the
+    // desktop app still gets it back.
+    const restorableResources = persistedResources.filter(canDisplayResource)
+    undisplayableResourcesRef.current = persistedResources.filter((r) => !canDisplayResource(r))
+    // Keyed on everything the server holds, not just what is restorable, so a
+    // resource being hidden cannot make it look local-only and get re-added.
     const serverKeys = new Set(persistedResources.map((r) => `${r.type}:${r.id}`))
     const localOnly = resourcesRef.current.filter(
       (r) => r.id !== 'streaming-file' && !serverKeys.has(`${r.type}:${r.id}`)
@@ -1883,7 +1910,7 @@ export function useChat(
     // keep their current on-screen position — hydration reruns on every send
     // and stream completion, and appending them at the end made those tabs
     // visibly jump/flash each time.
-    const mergedResources = [...persistedResources]
+    const mergedResources = [...restorableResources]
     for (const resource of localOnly) {
       const currentIndex = resourcesRef.current.findIndex(
         (r) => r.type === resource.type && r.id === resource.id
