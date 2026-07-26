@@ -32,13 +32,20 @@ export function setupWorkspaceFilesHandlers(
   roomManager: IRoomManager
 ) {
   // Monotonic per-socket join counter: each join captures its number and, after the async
-  // authorize, aborts if a newer join has started — a fast workspace switch A→B can
+  // authorize, aborts if a newer intent has superseded it — a fast workspace switch A→B can
   // otherwise let A's late completion leave B and strand the socket in A, missing B's
   // `workspace-files-changed` invalidations.
   let joinGeneration = 0
+  // The workspace the socket currently intends to be in (set when a join starts). A leave that
+  // targets this workspace — or an unscoped "leave all" — advances joinGeneration so an in-flight
+  // join is cancelled instead of completing after the view has closed. A stale/deferred leave for
+  // a DIFFERENT workspace must NOT advance it, or it would abort the join the client has since
+  // switched to (the bug that bit the file-doc room in #5941).
+  let currentWorkspace: string | null = null
 
   socket.on('join-workspace-files', async ({ workspaceId }: JoinPayload) => {
     const joinAttempt = (joinGeneration += 1)
+    currentWorkspace = workspaceId
     try {
       if (!socket.userId || !socket.userName) {
         socket.emit('join-workspace-files-error', {
@@ -126,6 +133,15 @@ export function setupWorkspaceFilesHandlers(
   })
 
   socket.on('leave-workspace-files', (payload?: { workspaceId?: string }) => {
+    // Cancel an in-flight join whose target the client is now leaving: a join awaiting
+    // authorization when the view unmounts would otherwise complete afterwards and strand the
+    // socket in a room it has left. Only when the leave targets the current join intent (or is
+    // unscoped) — a deferred leave for a different workspace must not abort the join the client
+    // has since switched to.
+    if (!payload?.workspaceId || payload.workspaceId === currentWorkspace) {
+      joinGeneration += 1
+      currentWorkspace = null
+    }
     // Scope the leave to a specific workspace when the client provides one: a deferred leave
     // from a prior page must not evict a files room the socket has since switched into.
     const target = payload?.workspaceId ? roomName(filesRoom(payload.workspaceId)) : null

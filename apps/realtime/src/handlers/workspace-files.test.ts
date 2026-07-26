@@ -179,4 +179,56 @@ describe('setupWorkspaceFilesHandlers', () => {
 
     expect(socket.leave).toHaveBeenCalledWith('workspace-files:ws-1')
   })
+
+  it('cancels an in-flight join when the user leaves that workspace mid-authorize', async () => {
+    const { socket, handlers } = createSocket()
+    let resolveAuth: (value: unknown) => void = () => {}
+    mockAuthorizeRoom.mockReturnValue(
+      new Promise((resolve) => {
+        resolveAuth = resolve
+      })
+    )
+    setupWorkspaceFilesHandlers(
+      socket as unknown as Parameters<typeof setupWorkspaceFilesHandlers>[0],
+      createRoomManager()
+    )
+
+    // Join ws-1 is awaiting authorization when the view unmounts and leaves ws-1.
+    const joinPromise = handlers['join-workspace-files']({ workspaceId: 'ws-1' })
+    handlers['leave-workspace-files']({ workspaceId: 'ws-1' })
+    resolveAuth({ allowed: true, status: 200, workspaceId: 'ws-1', workspacePermission: 'admin' })
+    await joinPromise
+
+    // The stale join must NOT join the room the client has since left (no stranded membership).
+    expect(socket.join).not.toHaveBeenCalled()
+    expect(socket.emit).not.toHaveBeenCalledWith('join-workspace-files-success', {
+      workspaceId: 'ws-1',
+    })
+  })
+
+  it('does not cancel an in-flight join when a deferred leave targets a different workspace', async () => {
+    const { socket, handlers } = createSocket()
+    let resolveAuth: (value: unknown) => void = () => {}
+    mockAuthorizeRoom.mockReturnValue(
+      new Promise((resolve) => {
+        resolveAuth = resolve
+      })
+    )
+    setupWorkspaceFilesHandlers(
+      socket as unknown as Parameters<typeof setupWorkspaceFilesHandlers>[0],
+      createRoomManager()
+    )
+
+    // The client has switched to ws-2 (join in-flight) when a stale leave for the prior ws-1 lands.
+    const joinPromise = handlers['join-workspace-files']({ workspaceId: 'ws-2' })
+    handlers['leave-workspace-files']({ workspaceId: 'ws-1' })
+    resolveAuth({ allowed: true, status: 200, workspaceId: 'ws-2', workspacePermission: 'admin' })
+    await joinPromise
+
+    // The deferred leave for ws-1 must not abort the join the client actually wants (ws-2).
+    expect(socket.join).toHaveBeenCalledWith('workspace-files:ws-2')
+    expect(socket.emit).toHaveBeenCalledWith('join-workspace-files-success', {
+      workspaceId: 'ws-2',
+    })
+  })
 })
