@@ -1908,9 +1908,9 @@ export function Files() {
   if (selectedFile) {
     return (
       <>
-        {/* The room provider scopes "who's in this file" presence to the open document:
-            the editor (inside FileViewer) publishes the awareness roster and the header's
-            FileDocAvatars reads it — both must be descendants. */}
+        {/* The room provider scopes "who's in this file" presence to the open document: the
+            editor (inside FileViewer) publishes the server-authenticated roster and the
+            header's FileDocAvatars reads it — both must be descendants. */}
         <FileDocRoomProvider>
           <Resource>
             <Resource.Header

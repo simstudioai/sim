@@ -8,7 +8,11 @@ import { withAlpha } from '@/lib/workspaces/colors'
 import { BlockMover } from './block-mover'
 import { CodeBlockWithLanguage } from './code-block'
 import { CodeBlockHighlight } from './code-highlight'
-import { createCaretActivityExtension, renderCaret } from './collaboration/caret-presence'
+import {
+  createCaretActivityExtension,
+  DEFAULT_CARET_COLOR,
+  renderCaret,
+} from './collaboration/caret-presence'
 import { LinkEmbed } from './embed/link-embed'
 import { createMarkdownContentExtensions } from './extensions'
 import { ResizableImage } from './image'
@@ -73,7 +77,7 @@ export function createMarkdownEditorExtensions({
             user: collaboration.user,
             render: renderCaret,
             selectionRender: (user) => {
-              const hex = typeof user.color === 'string' ? user.color : '#000000'
+              const hex = typeof user.color === 'string' ? user.color : DEFAULT_CARET_COLOR
               return {
                 class: 'collaboration-carets__selection',
                 style: `background-color: ${withAlpha(hex, 0.2)};`,

@@ -109,6 +109,9 @@ export function RemoteSelectionOverlay({
   columnIndexByIdRef.current = columnIndexById
   const rowIndexByIdRef = useRef(rowIndexById)
   rowIndexByIdRef.current = rowIndexById
+  // Read only by the pointer hit-test (never in render) to skip a locally-covered box.
+  const localSelectionRef = useRef(localSelection)
+  localSelectionRef.current = localSelection
   // Cached content-wrapper origin, refreshed on each measure (scroll/resize/data change),
   // so the pointer hit-test never forces a layout read per mouse move.
   const originRef = useRef({ top: 0, left: 0 })
@@ -177,7 +180,20 @@ export function RemoteSelectionOverlay({
       const x = event.clientX - left
       const y = event.clientY - top
       const hit = boxesRef.current.find(
-        (b) => x >= b.left && x <= b.left + b.width && y >= b.top && y <= b.top + b.height
+        (b) =>
+          x >= b.left &&
+          x <= b.left + b.width &&
+          y >= b.top &&
+          y <= b.top + b.height &&
+          // Skip a box the local selection covers — it isn't drawn, so hovering it must not
+          // pop a name tag over a cell with no visible remote selection.
+          !isSelectionCovered(
+            b.anchorRow,
+            b.anchorCol,
+            b.focusRow,
+            b.focusCol,
+            localSelectionRef.current
+          )
       )
       setHoveredSocketId((prev) =>
         prev === (hit?.socketId ?? null) ? prev : (hit?.socketId ?? null)

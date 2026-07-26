@@ -17,9 +17,13 @@ import type { Awareness } from 'y-protocols/awareness'
  */
 export const CARET_LABEL_HOLD_MS = 2000
 
+/** Fallback caret color when a peer's awareness carries no `color`. */
+export const DEFAULT_CARET_COLOR = '#000000'
+
 /**
- * The active-state class TipTap/yCursorPlugin toggles on the caret node to reveal
- * the name label; CSS transitions it back to hidden when removed.
+ * The active-state class {@link activateCaretLabel} toggles on the caret node to reveal the
+ * name label; CSS transitions it back to hidden when removed. (yCursorPlugin reuses the DOM
+ * node and never re-runs `render`, which is why this file drives the class itself.)
  */
 const CARET_ACTIVE_CLASS = 'collaboration-carets__caret--active'
 
@@ -72,7 +76,7 @@ export function activateCaretLabel(caret: HTMLElement, editorRight?: number) {
  * `doc.clientID`; see `use-file-doc-collaboration.ts`).
  */
 export function renderCaret(user: Record<string, unknown>): HTMLElement {
-  const color = typeof user.color === 'string' ? user.color : '#000000'
+  const color = typeof user.color === 'string' ? user.color : DEFAULT_CARET_COLOR
   const name = typeof user.name === 'string' && user.name ? user.name : 'Collaborator'
   const clientId = typeof user.clientId === 'number' ? user.clientId : undefined
   const caret = document.createElement('span')

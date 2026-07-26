@@ -511,7 +511,7 @@
  * `--surface-1` text at `text-xs`/`font-medium`, so both presence surfaces read as
  * one system. `--surface-1` is the base surface token (readable on every assigned
  * identity color in both themes), not a hardcoded value. Hidden by default; the
- * show/fade is driven by the `--active` class (see editor-extensions.ts) and hover. */
+ * show/fade is driven by the `--active` class (see caret-presence.ts) and hover. */
 .rich-markdown-prose .collaboration-carets__label {
   position: absolute;
   top: -1.4em;
@@ -520,7 +520,8 @@
   overflow: hidden;
   padding: 0.1rem 0.35rem;
   border-radius: 2px 2px 2px 0;
-  font-size: 12px;
+  /* 11px = the `text-xs` the canvas/tables presence tags use, for pixel parity. */
+  font-size: 11px;
   font-weight: 500;
   line-height: 1.2;
   white-space: nowrap;

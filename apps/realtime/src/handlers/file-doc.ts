@@ -377,6 +377,11 @@ export function cleanupFileDocForSocket(socketId: string, io: Server): void {
  * file id; joining requires workspace `write` (editing a document). Mirrors the
  * workspace-files join shape (auth → readiness → validate → authorize → join),
  * then runs the Yjs sync/awareness handshake.
+ *
+ * The avatar roster is derived from this room's own `owners` map and broadcast as
+ * `FILE_DOC_EVENTS.PRESENCE` — NOT the Redis-backed room-manager presence the workflow /
+ * table rooms use — because the file-doc room already owns an authoritative in-memory Y.Doc
+ * pinned to a single replica, so the session identity is right here with no extra store.
  */
 export function setupWorkspaceFileDocHandlers(
   socket: AuthenticatedSocket,

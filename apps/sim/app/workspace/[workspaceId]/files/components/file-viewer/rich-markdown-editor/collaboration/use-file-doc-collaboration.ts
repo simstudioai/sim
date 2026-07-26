@@ -64,7 +64,10 @@ export function useFileDocCollaboration({
   // round-trip-unsafe views never build a Yjs document they won't use.
   const docRef = useRef<Y.Doc | null>(null)
   const awarenessRef = useRef<Awareness | null>(null)
-  if (enabled && docRef.current === null) {
+  // Recreate if never made, or if a StrictMode dev remount already destroyed the reused
+  // instance — the cleanup below runs on the simulated unmount, but render does not re-null
+  // the refs, so without the `isDestroyed` check the provider would rebind a dead doc.
+  if (enabled && (docRef.current === null || docRef.current.isDestroyed)) {
     docRef.current = new Y.Doc()
     awarenessRef.current = new Awareness(docRef.current)
   }

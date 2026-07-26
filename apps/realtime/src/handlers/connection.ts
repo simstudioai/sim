@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { parseRoomName, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
+import { parseRoomName, ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
 import { cleanupFileDocForSocket } from '@/handlers/file-doc'
 import { cleanupPendingSubblocksForSocket } from '@/handlers/subblocks'
 import { cleanupPendingVariablesForSocket } from '@/handlers/variables'
@@ -7,6 +7,14 @@ import type { AuthenticatedSocket } from '@/middleware/auth'
 import type { IRoomManager } from '@/rooms'
 
 const logger = createLogger('ConnectionHandlers')
+
+/**
+ * Room types whose presence lives in the room manager (Redis-backed), so a disconnect must
+ * remove the socket + broadcast a correction. The workspace-files and file-doc rooms are
+ * NOT here: workspace-files carries no presence (native Socket.IO membership only), and
+ * file-doc broadcasts its own server-authenticated roster via `cleanupFileDocForSocket`.
+ */
+const PRESENCE_BEARING_TYPES = new Set<RoomRef['type']>([ROOM_TYPES.WORKFLOW, ROOM_TYPES.TABLE])
 
 export function setupConnectionHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
   socket.on('error', (error) => {
@@ -47,12 +55,13 @@ export function setupConnectionHandlers(socket: AuthenticatedSocket, roomManager
       const wasInRooms = new Map<string, RoomRef>()
       for (const room of removedRooms) wasInRooms.set(roomName(room), room)
       for (const name of liveRoomNames) {
-        // `wasInRooms.has(name)` already excludes every room the manager removed
-        // (same room-name key via the roomName/parseRoomName bijection), so any
-        // room reaching here was NOT in `removedRooms` and needs a removal attempt.
+        // `wasInRooms.has(name)` already excludes every room the manager removed (same
+        // room-name key via the roomName/parseRoomName bijection). Skip room types with no
+        // manager-tracked presence (workspace-files, file-doc): removing there is a no-op and
+        // broadcasting a correction would emit a dead presence-update no client listens to.
         if (name === socket.id || wasInRooms.has(name)) continue
         const ref = parseRoomName(name)
-        if (!ref) continue
+        if (!ref || !PRESENCE_BEARING_TYPES.has(ref.type)) continue
         wasInRooms.set(name, ref)
         await roomManager.removeUserFromRoom(ref, socket.id)
       }
