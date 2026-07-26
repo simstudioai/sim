@@ -38,6 +38,7 @@ import {
   awaitRun,
   capturePane,
   closeRunWindow,
+  isTmuxUnavailable,
   killPane,
   listPanes,
   resolveAttachment,
@@ -45,6 +46,7 @@ import {
   sendText,
   startRun,
   TMUX_KEY_NAMES,
+  type TmuxAttachment,
 } from '@/main/terminal/tmux'
 
 const logger = createLogger('DesktopTerminal')
@@ -71,6 +73,9 @@ const CWD_POLL_MS = 1_000
 
 /** Pause between keys sent to a tmux pane, matching the pty keystroke gap. */
 const TMUX_KEY_GAP_MS = 150
+
+/** How long a resolved tmux attachment is reused before re-resolving. */
+const TMUX_ATTACHMENT_TTL_MS = 3_000
 
 /** How often a handoff checks whether the user or the command has finished. */
 const HANDOFF_POLL_MS = 500
@@ -160,6 +165,8 @@ export class TerminalService {
   private readonly recentlyClosedCwds: string[] = []
   /** Terminals handed to the user; the value is whether they have handed back. */
   private readonly handoffs = new Map<string, boolean>()
+  /** Recently resolved tmux attachments, by terminal id, to avoid re-spawning. */
+  private readonly tmuxCache = new Map<string, { at: number; attachment: TmuxAttachment | null }>()
 
   constructor(private readonly options: TerminalServiceOptions = {}) {}
 
@@ -281,6 +288,7 @@ export class TerminalService {
     const index = order.indexOf(terminalId)
     session.dispose()
     this.sessions.delete(terminalId)
+    this.tmuxCache.delete(terminalId)
 
     if (this.sessions.size === 0) {
       this.spawn(this.resolveCwd(closedCwd), cols, rows)
@@ -357,6 +365,7 @@ export class TerminalService {
     this.stopCwdWatch()
     for (const session of this.sessions.values()) session.dispose()
     this.sessions.clear()
+    this.tmuxCache.clear()
     this.activeId = null
   }
 
@@ -403,9 +412,9 @@ export class TerminalService {
     }
 
     const session = this.requireSession(args)
-    // Resolved once per call: a tab either has tmux attached or it does not,
-    // and every operation below behaves differently depending on which.
-    const tmux = await resolveAttachment(session.pid, session.env)
+    // A tab either has tmux attached or it does not, and every operation below
+    // behaves differently depending on which.
+    const tmux = await this.resolveTmux(session)
 
     switch (operation) {
       case 'cwd':
@@ -458,7 +467,7 @@ export class TerminalService {
       case 'read': {
         const requested = Number(args.lines)
         const lines = Number.isFinite(requested) && requested > 0 ? requested : 200
-        if (!tmux) return session.readScrollback(lines)
+        if (!tmux) return await session.readScrollback(lines)
         const target = await this.resolvePane(tmux.session, args, session)
         const captured = await capturePane(target, lines, session.env)
         if (!captured.ok) {
@@ -516,8 +525,8 @@ export class TerminalService {
     const terminalId = session.terminalId
     this.handoffs.set(terminalId, false)
 
-    const settled = (handedBack: boolean): TerminalHandoffResult => {
-      const view = session.readScrollback(INPUT_SCREEN_LINES)
+    const settled = async (handedBack: boolean): Promise<TerminalHandoffResult> => {
+      const view = await session.readScrollback(INPUT_SCREEN_LINES)
       return {
         terminalId,
         reason,
@@ -538,13 +547,13 @@ export class TerminalService {
         }
         // The command finishing is the real end of the handoff, whether or not
         // the user pressed anything: it means the prompt got answered.
-        if (!session.isBusy) return settled(this.handoffs.get(terminalId) === true)
+        if (!session.isBusy) return await settled(this.handoffs.get(terminalId) === true)
         if (this.handoffs.get(terminalId) === true) {
           handedBackAt ??= Date.now()
-          if (Date.now() - handedBackAt >= HANDOFF_SETTLE_MS) return settled(true)
+          if (Date.now() - handedBackAt >= HANDOFF_SETTLE_MS) return await settled(true)
         }
       }
-      return settled(this.handoffs.get(terminalId) === true)
+      return await settled(this.handoffs.get(terminalId) === true)
     } finally {
       this.handoffs.delete(terminalId)
     }
@@ -553,6 +562,26 @@ export class TerminalService {
   /** The user pressing the hand-back button on a waiting handoff. */
   finishHandoff(terminalId: string): void {
     if (this.handoffs.has(terminalId)) this.handoffs.set(terminalId, true)
+  }
+
+  /**
+   * The tmux session attached in a terminal, cached briefly.
+   *
+   * Resolving it spawns `tmux list-clients` and a whole-machine `ps` — a real
+   * cost to pay on every tool call, when a shell's attachment does not change
+   * between calls a second apart. A short TTL keeps the common burst of
+   * operations (run, then poll with read, then read again) to one resolution,
+   * while staying fresh enough to notice the user starting or leaving tmux.
+   */
+  private async resolveTmux(session: TerminalSession): Promise<TmuxAttachment | null> {
+    if (isTmuxUnavailable()) return null
+    const cached = this.tmuxCache.get(session.terminalId)
+    if (cached && Date.now() - cached.at < TMUX_ATTACHMENT_TTL_MS) {
+      return cached.attachment
+    }
+    const attachment = await resolveAttachment(session.pid, session.env)
+    this.tmuxCache.set(session.terminalId, { at: Date.now(), attachment })
+    return attachment
   }
 
   /** The pane a call names, or the session's active one. */
@@ -631,12 +660,12 @@ export class TerminalService {
     if (keys.length > 0) {
       await session.pressKeys(keys)
       await delay(INPUT_ECHO_MS)
-      return { sent: keys.join(', '), ...session.readScrollback(INPUT_SCREEN_LINES) }
+      return { sent: keys.join(', '), ...(await session.readScrollback(INPUT_SCREEN_LINES)) }
     }
     if (typeof args.text === 'string') {
       await session.type(args.text)
       await delay(INPUT_ECHO_MS)
-      return { sent: args.text, ...session.readScrollback(INPUT_SCREEN_LINES) }
+      return { sent: args.text, ...(await session.readScrollback(INPUT_SCREEN_LINES)) }
     }
     throw new TerminalError('INVALID_REQUEST', 'input needs `text`, `key`, or `keys`.')
   }

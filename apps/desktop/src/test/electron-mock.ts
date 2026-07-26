@@ -140,12 +140,16 @@ function createWebContentsMock() {
     setZoomFactor: vi.fn(),
     copy: vi.fn(),
     paste: vi.fn(),
-    capturePage: vi.fn(() =>
-      Promise.resolve({
+    capturePage: vi.fn(() => {
+      const image = {
         isEmpty: vi.fn(() => false),
         toDataURL: vi.fn(() => 'data:image/png;base64,c2lt'),
-      })
-    ),
+        getSize: vi.fn(() => ({ width: 1600, height: 1000 })),
+        resize: vi.fn(() => image),
+        toJPEG: vi.fn(() => Buffer.from('sim')),
+      }
+      return Promise.resolve(image)
+    }),
     executeJavaScript: vi.fn(() => Promise.resolve(undefined)),
     setWindowOpenHandler: vi.fn(),
     navigationHistory: {

@@ -62,8 +62,24 @@ export interface TmuxAttachment {
  * bad target all arrive as `ok: false` with tmux's own message, which is more
  * useful to the model than an exception.
  */
+/**
+ * Set once a `tmux` spawn fails with ENOENT: the binary is not installed, and
+ * it will not appear mid-session, so every later call short-circuits instead
+ * of paying a failed spawn. Most machines running this have no tmux at all,
+ * and without this every terminal tool call spawned a doomed process.
+ */
+let tmuxBinaryMissing = false
+
+export function isTmuxUnavailable(): boolean {
+  return tmuxBinaryMissing
+}
+
 export function runTmux(args: string[], env: NodeJS.ProcessEnv): Promise<TmuxCommandResult> {
   return new Promise((resolve) => {
+    if (tmuxBinaryMissing) {
+      resolve({ ok: false, stdout: '', stderr: 'tmux is not installed' })
+      return
+    }
     let child: ReturnType<typeof spawn>
     try {
       child = spawn('tmux', args, { env, stdio: ['ignore', 'pipe', 'pipe'] })
@@ -94,6 +110,7 @@ export function runTmux(args: string[], env: NodeJS.ProcessEnv): Promise<TmuxCom
       stderr += chunk.toString()
     })
     child.on('error', (error) => {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') tmuxBinaryMissing = true
       finish({ ok: false, stdout, stderr: error.message })
     })
     child.on('close', (code) => {
@@ -355,17 +372,30 @@ export function pollRun(handle: TmuxRunHandle): TmuxRunOutcome {
 }
 
 /**
+ * Whether the run has finished, decided from the tiny status file alone.
+ *
+ * The command's output file grows without bound and `tee` appends to it for
+ * the whole run, so reading it every poll — as reading the full outcome did —
+ * meant re-reading and decoding everything printed so far several times a
+ * second, quadratic in output size. Liveness only needs the status file, which
+ * is a few bytes; the output is read once, when the run is settled.
+ */
+function isRunComplete(handle: TmuxRunHandle): boolean {
+  return readIfPresent(handle.statusPath) !== null
+}
+
+/**
  * Waits for a run to finish, up to `waitMs`. Returns as soon as the status
  * file appears; a command still going when the window elapses comes back
- * undone, for the caller to report as running and poll again later.
+ * undone, for the caller to report as running and poll again later. The full
+ * output is read only once, on the terminating poll.
  */
 export async function awaitRun(handle: TmuxRunHandle, waitMs: number): Promise<TmuxRunOutcome> {
   const deadline = Date.now() + waitMs
   for (;;) {
-    const outcome = pollRun(handle)
-    if (outcome.done) return outcome
+    if (isRunComplete(handle)) return pollRun(handle)
     const remaining = deadline - Date.now()
-    if (remaining <= 0) return outcome
+    if (remaining <= 0) return pollRun(handle)
     await new Promise((resolve) => setTimeout(resolve, Math.min(RUN_POLL_INTERVAL_MS, remaining)))
   }
 }

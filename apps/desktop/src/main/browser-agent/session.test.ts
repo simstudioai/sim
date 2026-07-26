@@ -752,7 +752,7 @@ describe('browser-agent session', () => {
     expect(view.setVisible).not.toHaveBeenCalledWith(false)
     await vi.waitFor(() => {
       expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:panel-snapshot', {
-        dataUrl: 'data:image/png;base64,c2lt',
+        dataUrl: 'data:image/jpeg;base64,c2lt',
         tabId: tab.id,
       })
     })

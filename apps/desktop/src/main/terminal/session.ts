@@ -221,6 +221,16 @@ const ALT_SCREEN_ENTER = '\u001b[?1049h'
 /** Restoring the normal screen: the full-screen program has quit. */
 const ALT_SCREEN_EXIT = '\u001b[?1049l'
 
+/**
+ * Scrollback the on-demand emulator keeps while rendering a read.
+ *
+ * Only ever needs to cover what a read returns — a couple of hundred lines by
+ * default — so this is generous rather than the 5,000 the old always-on
+ * emulator held per terminal, which at ~12 bytes a cell was megabytes of
+ * buffer per shell for rows nothing ever asked for.
+ */
+const EMULATOR_SCROLLBACK_LINES = 1_000
+
 /** How often a running command is checked for having stopped mid-line. */
 const PROMPT_POLL_INTERVAL_MS = 500
 
@@ -278,19 +288,17 @@ export class TerminalSession {
   private readonly shellName: string
   readonly terminalId: string
 
-  private scrollback = ''
   /**
-   * A headless emulator fed the same bytes as the panel, used to answer
-   * terminal_read.
+   * Raw bytes as the shell produced them, ANSI intact.
    *
-   * Reading the raw byte stream instead would hand the model every frame a
-   * program ever painted, concatenated — a full-screen program redraws
-   * constantly, so stripping escape codes leaves dozens of overlapping copies
-   * of the same screen. Rendering the bytes and reading the resulting buffer
-   * gives what is actually on screen: real scrollback for ordinary commands,
-   * the current view for a TUI.
+   * Kept rather than a rendered screen because rendering needs an emulator,
+   * and these replay into one on demand — for a panel repainting, or for
+   * answering a read. Handing the model this stream directly would not do:
+   * a full-screen program redraws constantly, so stripping escape codes from
+   * it leaves dozens of overlapping copies of the same screen rather than what
+   * is actually on it.
    */
-  private readonly emulator: HeadlessTerminal
+  private scrollback = ''
   private pendingOutput = ''
   /** When the program last painted anything; the basis for the settle wait. */
   private lastOutputAt = 0
@@ -324,12 +332,6 @@ export class TerminalSession {
     this.lines = options.rows
     this.pty = pty
     this.shellEnv = shellEnv
-    this.emulator = new HeadlessTerminal({
-      cols: options.cols,
-      rows: options.rows,
-      scrollback: 5_000,
-      allowProposedApi: true,
-    })
     this.integrationDir = integrationDir
     this.shellName = shellName
     this.parser = new ShellIntegrationParser(nonce)
@@ -542,7 +544,6 @@ export class TerminalSession {
     this.columns = cols
     this.lines = rows
     try {
-      this.emulator.resize(cols, rows)
       this.pty.resize(cols, rows)
     } catch (error) {
       logger.warn('Failed to resize pty', { error: (error as Error).message })
@@ -617,8 +618,37 @@ export class TerminalSession {
     return stripTerminalQueries(this.scrollback)
   }
 
-  readScrollback(lines: number): TerminalReadResult {
-    const buffer = this.emulator.buffer.active
+  /**
+   * Renders the terminal's screen, building an emulator on demand.
+   *
+   * The bytes are already retained raw, so the screen can be reconstructed by
+   * replaying them — the same thing the panel does when a view repaints. The
+   * alternative, keeping a live emulator fed with every byte forever, meant a
+   * full VT parser per terminal running on the Electron main process for the
+   * life of the shell, and xterm parses in self-rescheduling 12ms slices
+   * because it was written for a renderer with one terminal to a thread. With
+   * several terminals producing output that is most of the event loop that
+   * every window's IPC also has to get through, which is why unrelated UI went
+   * sluggish. Parsing on demand moves that cost from always to per read.
+   */
+  async readScrollback(lines: number): Promise<TerminalReadResult> {
+    const emulator = new HeadlessTerminal({
+      cols: this.columns,
+      rows: this.lines,
+      scrollback: EMULATOR_SCROLLBACK_LINES,
+      allowProposedApi: true,
+    })
+    try {
+      // xterm parses asynchronously in slices, so the buffer is only complete
+      // once the write callback fires.
+      await new Promise<void>((resolve) => emulator.write(this.scrollback, resolve))
+      return this.renderScreen(emulator.buffer.active, lines)
+    } finally {
+      emulator.dispose()
+    }
+  }
+
+  private renderScreen(buffer: IBuffer, lines: number): TerminalReadResult {
     const selected = findSelectedRow(buffer)
     // `buffer.active` is the alternate buffer while a full-screen program is
     // up and the normal one otherwise, so this reads correctly either way.
@@ -667,7 +697,6 @@ export class TerminalSession {
     } catch {
       // Already gone.
     }
-    this.emulator.dispose()
     this.cleanupIntegrationDir()
     this.emitState()
   }
@@ -698,7 +727,6 @@ export class TerminalSession {
     if (text) {
       this.lastOutputAt = Date.now()
       this.trackAltScreen(text)
-      this.emulator.write(text)
       this.scrollback += text
       if (this.scrollback.length > MAX_SCROLLBACK_CHARS + TRIM_SLACK_CHARS) {
         this.scrollback = this.scrollback.slice(-MAX_SCROLLBACK_CHARS)
