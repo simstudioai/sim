@@ -1,4 +1,5 @@
 import type {
+  BrowserDataKind,
   BrowserKnownSessionsState,
   BrowserOmniboxFocusMode,
   BrowserPageState,
@@ -12,6 +13,13 @@ import type {
   BrowserToolResponse,
 } from '@sim/browser-protocol'
 import type {
+  BrowserChromeImportResult,
+  BrowserCredentialConflictPolicy,
+  BrowserCredentialMetadata,
+  BrowserFillAvailability,
+  BrowserImportProfile,
+  BrowserImportResult,
+  BrowserPasswordImportResult,
   DesktopCommand,
   DesktopNotificationPayload,
   DesktopOAuthConnectResult,
@@ -171,8 +179,8 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('browser-agent:get-tabs-state'),
     getKnownSessions: (): Promise<BrowserKnownSessionsState> =>
       ipcRenderer.invoke('browser-agent:get-known-sessions'),
-    clearBrowsingData: (): Promise<BrowserKnownSessionsState> =>
-      ipcRenderer.invoke('browser-agent:clear-browsing-data'),
+    clearBrowsingData: (kinds?: readonly BrowserDataKind[]): Promise<BrowserKnownSessionsState> =>
+      ipcRenderer.invoke('browser-agent:clear-browsing-data', kinds),
     onTabsState: (callback: (state: BrowserTabsState) => void): (() => void) => {
       const listener = (_event: unknown, state: BrowserTabsState) => callback(state)
       ipcRenderer.on('browser-agent:tabs-state', listener)
@@ -185,6 +193,55 @@ const api: SimDesktopApi = {
       ipcRenderer.on('browser-agent:session-status', listener)
       return () => {
         ipcRenderer.removeListener('browser-agent:session-status', listener)
+      }
+    },
+  },
+  // Omitted entirely off macOS, so the web app's feature detection reflects
+  // whether an import can actually run rather than only whether the shell is
+  // new enough. Chrome's App-Bound Encryption on Windows is deliberately not
+  // worked around.
+  ...(process.platform === 'darwin'
+    ? {
+        browserImport: {
+          listChromeProfiles: (): Promise<BrowserImportProfile[]> =>
+            ipcRenderer.invoke('browser-import:list-profiles'),
+          importChromeCookies: (profileId?: string): Promise<BrowserImportResult> =>
+            ipcRenderer.invoke('browser-import:cookies', profileId),
+          importFromChrome: (
+            profileId?: string,
+            policy?: BrowserCredentialConflictPolicy
+          ): Promise<BrowserChromeImportResult> =>
+            ipcRenderer.invoke('browser-import:all', profileId, policy),
+        },
+      }
+    : {}),
+  // Note what is absent: there is no method that returns a password, and none
+  // that names a credential to fill. Filling is completed by a native menu in
+  // the main process, so the strongest thing a compromised renderer can do
+  // here is ask for that menu to open.
+  browserCredentials: {
+    isAvailable: (): Promise<boolean> => ipcRenderer.invoke('browser-credentials:available'),
+    list: (): Promise<BrowserCredentialMetadata[]> =>
+      ipcRenderer.invoke('browser-credentials:list'),
+    forget: (id: string): Promise<BrowserCredentialMetadata[]> =>
+      ipcRenderer.invoke('browser-credentials:forget', id),
+    forgetAll: (): Promise<BrowserCredentialMetadata[]> =>
+      ipcRenderer.invoke('browser-credentials:forget-all'),
+    reveal: (id: string): Promise<string | null> =>
+      ipcRenderer.invoke('browser-credentials:reveal', id),
+    copy: (id: string): Promise<boolean> => ipcRenderer.invoke('browser-credentials:copy', id),
+    importFromChrome: (
+      profileId?: string,
+      policy?: BrowserCredentialConflictPolicy
+    ): Promise<BrowserPasswordImportResult> =>
+      ipcRenderer.invoke('browser-credentials:import', profileId, policy),
+    showChooser: (anchor: { x: number; y: number }): Promise<boolean> =>
+      ipcRenderer.invoke('browser-credentials:show-chooser', anchor),
+    onFillAvailability: (callback: (state: BrowserFillAvailability) => void): (() => void) => {
+      const listener = (_event: unknown, state: BrowserFillAvailability) => callback(state)
+      ipcRenderer.on('browser-credentials:fill-availability', listener)
+      return () => {
+        ipcRenderer.removeListener('browser-credentials:fill-availability', listener)
       }
     },
   },

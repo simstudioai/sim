@@ -68,12 +68,24 @@ async function run(): Promise<void> {
       entryPoints: ['src/preload/index.ts'],
       outfile: 'dist/preload.cjs',
     })
-    await Promise.all([mainCtx.watch(), preloadCtx.watch()])
+    // Separate from the main-window preload: this one is injected into
+    // untrusted pages in the built-in browser and must stay minimal.
+    const browserPreloadCtx = await context({
+      ...common,
+      entryPoints: ['src/preload/browser/index.ts'],
+      outfile: 'dist/browser-preload.cjs',
+    })
+    await Promise.all([mainCtx.watch(), preloadCtx.watch(), browserPreloadCtx.watch()])
     return
   }
   await Promise.all([
     build({ ...common, entryPoints: ['src/main/index.ts'], outfile: 'dist/main.cjs' }),
     build({ ...common, entryPoints: ['src/preload/index.ts'], outfile: 'dist/preload.cjs' }),
+    build({
+      ...common,
+      entryPoints: ['src/preload/browser/index.ts'],
+      outfile: 'dist/browser-preload.cjs',
+    }),
   ])
 }
 

@@ -139,6 +139,28 @@ export function reportBrowserTheme(theme: BrowserTheme): void {
   bridge()?.setTheme?.(theme)
 }
 
+/**
+ * Subscribes to whether the active page can be filled with a saved password.
+ * A bare boolean by design — the page learns nothing about which accounts
+ * exist, and the chooser itself is a native shell surface.
+ */
+export function onBrowserFillAvailability(callback: (available: boolean) => void): () => void {
+  return (
+    getDesktopBridge()?.browserCredentials?.onFillAvailability?.(({ available }) =>
+      callback(available)
+    ) ?? (() => {})
+  )
+}
+
+/**
+ * Asks the shell to open its native account chooser at a point in the window.
+ * Must be called straight from a click: the shell requires a live user gesture,
+ * and it performs the fill itself rather than handing anything back here.
+ */
+export function showBrowserCredentialChooser(anchor: { x: number; y: number }): void {
+  void getDesktopBridge()?.browserCredentials?.showChooser?.(anchor)
+}
+
 /** Subscribes to native browser shortcuts that target the renderer omnibox. */
 export function onBrowserOmniboxFocus(
   callback: (mode: BrowserOmniboxFocusMode) => void

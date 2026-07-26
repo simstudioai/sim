@@ -61,6 +61,8 @@ async function freshSession(
       onTabsChanged: vi.fn(),
       onTabThemeChanged: vi.fn(),
       onDownloadBlocked: vi.fn(),
+      onTabNavigated: vi.fn(),
+      onTabClosed: vi.fn(),
       ...eventOverrides,
     },
     () => win,
@@ -671,6 +673,8 @@ describe('browser-agent session', () => {
         onTabsChanged: vi.fn(),
         onTabThemeChanged: vi.fn(),
         onDownloadBlocked: vi.fn(),
+        onTabNavigated: vi.fn(),
+        onTabClosed: vi.fn(),
       },
       () => replacement
     )
@@ -1158,5 +1162,62 @@ describe('reopening a closed tab', () => {
     const reopened = session.reopenClosedTab()
 
     expect((reopened?.view as unknown as MockView).webContents.loadURL).not.toHaveBeenCalled()
+  })
+})
+
+describe('importAgentCookies', () => {
+  /** Points the mocked partition at a cookie jar and returns its `set` spy. */
+  async function withCookieJar(
+    set: ReturnType<typeof vi.fn>
+  ): Promise<typeof import('@/main/browser-agent/session')> {
+    vi.mocked(electronSession.fromPartition).mockReturnValue({
+      cookies: { set },
+    } as unknown as ReturnType<typeof electronSession.fromPartition>)
+    vi.resetModules()
+    return import('@/main/browser-agent/session')
+  }
+
+  const cookie = (name: string) => ({
+    url: 'https://example.com/',
+    name,
+    value: 'v',
+    path: '/',
+    secure: true,
+    httpOnly: true,
+    sameSite: 'lax' as const,
+  })
+
+  it('writes every cookie into the dedicated browser profile', async () => {
+    const set = vi.fn(async () => {})
+    const session = await withCookieJar(set)
+
+    const result = await session.importAgentCookies([cookie('a'), cookie('b')])
+
+    expect(result).toEqual({ imported: 2, failed: 0 })
+    expect(electronSession.fromPartition).toHaveBeenCalledWith('persist:sim-browser-agent')
+    expect(set).toHaveBeenCalledTimes(2)
+    expect(set).toHaveBeenNthCalledWith(1, cookie('a'))
+  })
+
+  it('counts a rejected cookie without losing the rest', async () => {
+    // Chromium refuses cookies whose attributes are inconsistent. That
+    // rejection must cost one cookie, not the whole import.
+    const set = vi.fn(async (details: { name: string }) => {
+      if (details.name === 'bad') throw new Error('Failed to set cookie')
+    })
+    const session = await withCookieJar(set)
+
+    const result = await session.importAgentCookies([cookie('a'), cookie('bad'), cookie('c')])
+
+    expect(result).toEqual({ imported: 2, failed: 1 })
+    expect(set).toHaveBeenCalledTimes(3)
+  })
+
+  it('does nothing when there is nothing to import', async () => {
+    const set = vi.fn(async () => {})
+    const session = await withCookieJar(set)
+
+    await expect(session.importAgentCookies([])).resolves.toEqual({ imported: 0, failed: 0 })
+    expect(set).not.toHaveBeenCalled()
   })
 })

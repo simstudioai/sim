@@ -4,11 +4,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BrowserPanelAnchor } from '@sim/browser-protocol'
 import { isBrowserTheme } from '@sim/browser-protocol'
 import { Button, ChipInput } from '@sim/emcn'
-import { ArrowLeft, ArrowRight, Cursor, RefreshCw, Search } from '@sim/emcn/icons'
+import { ArrowLeft, ArrowRight, Cursor, Key, RefreshCw, Search } from '@sim/emcn/icons'
 import { useTheme } from 'next-themes'
 import {
   isBrowserTabPinningAvailable,
   isBrowserTabReorderingAvailable,
+  onBrowserFillAvailability,
   onBrowserOmniboxFocus,
   reorderBrowserTab,
   reportBrowserPanelBounds,
@@ -16,6 +17,7 @@ import {
   reportBrowserTheme,
   sendBrowserPanelAction,
   setBrowserTabPinned,
+  showBrowserCredentialChooser,
 } from '@/lib/browser-agent/transport'
 import { BROWSER_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
@@ -125,6 +127,7 @@ export function BrowserSession({ visible }: { visible: boolean }) {
   const panelRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
+  const fillButtonRef = useRef<HTMLButtonElement>(null)
   const panelOccluded = useBrowserPanelOcclusion(hostRef, visible)
   const { removeResource } = useMothershipResources()
 
@@ -154,6 +157,10 @@ export function BrowserSession({ visible }: { visible: boolean }) {
    * another resource is showing, so "mounted" no longer implies "visible".
    */
   const [panelVisible, setPanelVisible] = useState(false)
+  /** Whether the shell has a saved password for the page currently open. */
+  const [fillAvailable, setFillAvailable] = useState(false)
+
+  useEffect(() => onBrowserFillAvailability(setFillAvailable), [])
 
   useEffect(() => {
     if (isBrowserTheme(theme)) {
@@ -299,6 +306,17 @@ export function BrowserSession({ visible }: { visible: boolean }) {
     urlInputRef.current?.select()
   }, [])
 
+  /**
+   * Opens the shell's native account chooser under the key icon. Called
+   * directly from the click so the page still has an active user gesture,
+   * which the shell requires before it will read anything from the vault.
+   */
+  const handleShowCredentials = useCallback(() => {
+    const rect = fillButtonRef.current?.getBoundingClientRect()
+    if (!rect) return
+    showBrowserCredentialChooser({ x: rect.left, y: rect.bottom })
+  }, [])
+
   const handleSwitchTab = useCallback((tabId: string) => {
     setUrlDraft(null)
     urlInputRef.current?.blur()
@@ -396,6 +414,21 @@ export function BrowserSession({ visible }: { visible: boolean }) {
               if (event.key === 'Escape') urlInputRef.current?.blur()
             }}
           />
+          {/* Only shown when this page has a login form and a saved match. */}
+          {fillAvailable && (
+            <Button
+              ref={fillButtonRef}
+              type='button'
+              variant='ghost-secondary'
+              size='sm'
+              aria-label='Fill a saved password'
+              title='Fill a saved password'
+              className='size-[30px] flex-shrink-0 p-0'
+              onClick={handleShowCredentials}
+            >
+              <Key className='size-[14px]' />
+            </Button>
+          )}
         </div>
       </div>
       {/* Host area: the real page is overlaid exactly on this rect. */}

@@ -15,12 +15,14 @@
  * is bounded by a watchdog so the Sim side always gets a response instead of
  * waiting out its own timeout against silence.
  */
-import type {
-  BrowserKnownSessionsState,
-  BrowserPageState,
-  BrowserPanelAction,
-  BrowserTabsState,
-  BrowserToolName,
+import {
+  BROWSER_DATA_KINDS,
+  type BrowserDataKind,
+  type BrowserKnownSessionsState,
+  type BrowserPageState,
+  type BrowserPanelAction,
+  type BrowserTabsState,
+  type BrowserToolName,
 } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -53,6 +55,7 @@ import {
 } from '@/main/browser-agent/page-functions'
 import * as session from '@/main/browser-agent/session'
 import { checkAgentUrl } from '@/main/browser-agent/url-guard'
+import { clearCredentials, fillCoordinator, initFillCoordinator } from '@/main/browser-credentials'
 import type { ConfigStore } from '@/main/config'
 
 const logger = createLogger('BrowserAgentDriver')
@@ -76,6 +79,8 @@ export interface DriverCallbacks {
   onPageState: (state: BrowserPageState) => void
   onTabsState: (state: BrowserTabsState) => void
   onSessionStatus: (alive: boolean) => void
+  /** Whether the active tab shows a login form Sim holds a credential for. */
+  onFillAvailability: (available: boolean) => void
 }
 
 let driverCallbacks: DriverCallbacks | null = null
@@ -185,13 +190,23 @@ export function initDriver(
 ): void {
   driverCallbacks = callbacks
   knownSessions = config ? new BrowserKnownSessionRegistry(config) : null
+  initFillCoordinator({
+    getActiveContents: () => session.activeTab()?.view.webContents ?? null,
+    onAvailabilityChanged: (available) => callbacks.onFillAvailability(available),
+  })
   session.initSession(
     {
       onSessionClosed: () => {
         driverCallbacks?.onSessionStatus(false)
       },
       onTabCreated: instrumentTab,
-      onActiveTabChanged: pushPageState,
+      onTabNavigated: (contents) => fillCoordinator()?.noteNavigation(contents),
+      onTabClosed: (contents) => fillCoordinator()?.forget(contents),
+      onActiveTabChanged: (contents) => {
+        pushPageState(contents)
+        // The fill affordance belongs to whichever page is in front.
+        void fillCoordinator()?.refreshAvailability()
+      },
       onTabsChanged: pushTabsState,
       onTabThemeChanged: (contents, theme) => {
         void cdp.setColorScheme(contents, theme).catch((error) => {
@@ -223,13 +238,32 @@ export async function getKnownSessions(): Promise<BrowserKnownSessionsState> {
 }
 
 /**
- * Everything the embedded browser remembers about the signed-in user, cleared
- * as one unit on sign-out. Lives here because the browsing-trail registry and
- * the session profile are owned by different modules.
+ * Cookies, site storage, cache, and the remembered browsing trail.
+ *
+ * Saved passwords are deliberately NOT touched. "Clear browsing data" is about
+ * signing out of websites, and a user who wanted to erase their password vault
+ * would have to say so separately — silently taking their credentials with it
+ * would be a destructive surprise.
+ */
+export async function clearBrowsingData(
+  kinds: readonly BrowserDataKind[] = BROWSER_DATA_KINDS
+): Promise<void> {
+  // The remembered browsing trail is the local mirror of the cookie jar, so it
+  // goes when cookies do and stays when they do not.
+  if (kinds.includes('cookies')) knownSessions?.clear()
+  await session.clearAgentData(kinds)
+}
+
+/**
+ * Everything the embedded browser holds for the signed-in user, including the
+ * credential vault. This is the Sim sign-out path: a different account signing
+ * in on the same machine must not inherit the previous user's sessions or
+ * passwords.
  */
 export async function clearBrowserProfile(): Promise<void> {
   knownSessions?.clear()
   await session.clearProfileStorage()
+  await clearCredentials()
 }
 
 function str(params: Record<string, unknown>, key: string): string | undefined {

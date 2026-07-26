@@ -1,4 +1,6 @@
+import { join } from 'node:path'
 import {
+  type BrowserDataKind,
   type BrowserOmniboxFocusMode,
   type BrowserTabState,
   type BrowserTabsState,
@@ -7,7 +9,7 @@ import {
 } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { BrowserWindow, Input, Session, WebContents } from 'electron'
+import type { BrowserWindow, CookiesSetDetails, Input, Session, WebContents } from 'electron'
 import { session as electronSession, nativeTheme, WebContentsView } from 'electron'
 import { attachAgentContextMenu } from '@/main/browser-agent/context-menu'
 import type { BrowserCookieSignal } from '@/main/browser-agent/known-sessions'
@@ -46,6 +48,13 @@ export interface AgentSessionEvents {
   onSessionClosed: () => void
   /** A newly created tab's WebContents, for the driver to instrument. */
   onTabCreated: (contents: WebContents) => void
+  /**
+   * A tab navigated, including in-page. Anything bound to the previous
+   * document — notably a pending credential fill — must be invalidated.
+   */
+  onTabNavigated: (contents: WebContents) => void
+  /** A tab's WebContents is going away, so per-tab state can be dropped. */
+  onTabClosed: (contents: WebContents) => void
   /** The active tab changed (new tab, switch, close). */
   onActiveTabChanged: (contents: WebContents) => void
   /** The tab list or active tab changed. */
@@ -214,6 +223,37 @@ export async function listAgentCookieSignals(): Promise<BrowserCookieSignal[]> {
 }
 
 /**
+ * Writes imported cookies into the dedicated profile.
+ *
+ * Electron's cookie API is deliberately the only writer: Chromium owns the
+ * destination store's format, and editing that SQLite file directly would
+ * couple Sim to internals it does not control and risk corrupting the profile.
+ * It is also the enforcement point — Chromium rejects a cookie whose
+ * attributes are inconsistent (`SameSite=None` without `Secure`, a domain the
+ * URL cannot set), so a row that would only import under weaker terms fails
+ * here and is counted rather than being quietly relaxed.
+ *
+ * Failures are per-cookie: one rejected cookie must not cost the user the
+ * rest. Nothing about a cookie is logged.
+ */
+export async function importAgentCookies(
+  cookies: CookiesSetDetails[]
+): Promise<{ imported: number; failed: number }> {
+  const jar = electronSession.fromPartition(AGENT_PARTITION).cookies
+  let imported = 0
+  let failed = 0
+  for (const cookie of cookies) {
+    try {
+      await jar.set(cookie)
+      imported += 1
+    } catch {
+      failed += 1
+    }
+  }
+  return { imported, failed }
+}
+
+/**
  * Default-deny hardening for the agent partition: no permission grants of any
  * kind, and downloads are cancelled (and surfaced to the driver) rather than
  * silently dropped on disk.
@@ -291,6 +331,10 @@ function createTabView(): WebContentsView {
       sandbox: true,
       webSecurity: true,
       webviewTag: false,
+      // A minimal, isolated preload that reports login-form presence and
+      // performs user-authorized credential fills. It exposes nothing to the
+      // page, and runs in the top-level frame only.
+      preload: join(__dirname, 'browser-preload.cjs'),
       // Throttled by default: a hidden tab should idle. The one exception is
       // the active tab while a tool waits on it, applied explicitly by
       // applyActiveTabThrottling — never blanket across every tab.
@@ -373,6 +417,13 @@ function createTabView(): WebContentsView {
   // user-driven navigations that do not pass through the driver.
   contents.on('did-navigate', persistPinnedTabs)
   contents.on('did-navigate-in-page', persistPinnedTabs)
+  // Both document loads and same-document route changes invalidate anything
+  // bound to the previous page: a single-page app can replace a login form
+  // with another site's UI without ever loading a new document.
+  contents.on('did-start-navigation', () => events?.onTabNavigated(contents))
+  contents.on('did-navigate', () => events?.onTabNavigated(contents))
+  contents.on('did-navigate-in-page', () => events?.onTabNavigated(contents))
+  contents.on('destroyed', () => events?.onTabClosed(contents))
 
   events?.onTabCreated(contents)
   return view
@@ -838,6 +889,40 @@ export async function clearProfileStorage(): Promise<void> {
   // allowlist would silently miss whatever Chromium adds next.
   await ses.clearStorageData()
   await ses.clearCache()
+}
+
+/**
+ * Site storage other than cookies. Named explicitly rather than by omission so
+ * a new Chromium storage type is not silently swept into "site data" — the
+ * whole-profile wipe is the one that deliberately takes everything.
+ */
+const SITE_DATA_STORAGES = [
+  'filesystem',
+  'indexdb',
+  'localstorage',
+  'shadercache',
+  'websql',
+  'serviceworkers',
+  'cachestorage',
+] as const
+
+/**
+ * Erases selected kinds of browsing data without ending the session.
+ *
+ * Unlike {@link clearProfileStorage} this leaves tabs open and the pinned strip
+ * intact: the user asked to clear data, not to close their browser. Saved
+ * passwords live in a separate vault and are never touched here.
+ */
+export async function clearAgentData(kinds: readonly BrowserDataKind[]): Promise<void> {
+  const ses = electronSession.fromPartition(AGENT_PARTITION)
+  const storages: string[] = []
+  if (kinds.includes('cookies')) storages.push('cookies')
+  if (kinds.includes('site-data')) storages.push(...SITE_DATA_STORAGES)
+
+  if (storages.length > 0) {
+    await ses.clearStorageData({ storages } as Parameters<Session['clearStorageData']>[0])
+  }
+  if (kinds.includes('cache')) await ses.clearCache()
 }
 
 export function listTabs(): BrowserTabState[] {

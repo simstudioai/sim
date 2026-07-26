@@ -194,3 +194,20 @@ export interface BrowserKnownSession {
 export interface BrowserKnownSessionsState {
   sessions: BrowserKnownSession[]
 }
+
+export const BROWSER_DATA_KINDS = ['cookies', 'site-data', 'cache'] as const
+
+/**
+ * A kind of browsing data the user can clear independently.
+ *
+ * Download history is deliberately absent: the built-in browser cancels every
+ * download, so there is none to clear and offering the option would be a lie.
+ * Saved passwords are absent too — they are a separate, explicit action.
+ */
+export type BrowserDataKind = (typeof BROWSER_DATA_KINDS)[number]
+
+const BROWSER_DATA_KIND_SET: ReadonlySet<string> = new Set(BROWSER_DATA_KINDS)
+
+export function isBrowserDataKind(value: unknown): value is BrowserDataKind {
+  return typeof value === 'string' && BROWSER_DATA_KIND_SET.has(value)
+}

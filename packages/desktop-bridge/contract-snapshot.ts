@@ -140,7 +140,8 @@ export interface BrowserPanelSnapshot {
  * reload) plus `takeover-done`, sent by the Done chip on the chat's
  * `browser_request_takeover` tool row when the user finishes a
  * hand-control-back request. Page interactions need no protocol — the user
- * acts on the real embedded page directly.
+ * acts on the real embedded page directly, and its right-click menu is native
+ * and lives entirely in the shell.
  */
 export interface BrowserPanelAction {
   action:
@@ -149,12 +150,13 @@ export interface BrowserPanelAction {
     | 'back'
     | 'forward'
     | 'new-tab'
+    | 'duplicate-tab'
     | 'switch-tab'
     | 'close-tab'
     | 'takeover-done'
   /** Absolute URL for `navigate` (typed into the panel's URL bar). */
   url?: string
-  /** Stable tab id for `switch-tab` and `close-tab`. */
+  /** Stable tab id for `duplicate-tab`, `switch-tab`, and `close-tab`. */
   tabId?: string
 }
 
@@ -361,6 +363,188 @@ export interface SimDesktopBrowserAgentApi {
    * ends). Returns an unsubscribe function.
    */
   onSessionStatus(callback: (alive: boolean) => void): () => void
+}
+
+/**
+ * One browser profile found on this device.
+ *
+ * `id` is an opaque handle used to name the same profile back to the shell;
+ * the shell resolves it against the profiles it discovered rather than
+ * building a path from it. Host paths never cross this bridge.
+ *
+ * `browserId` and `browserLabel` are optional because shells that only
+ * supported Chrome did not report them — treat their absence as Chrome.
+ */
+export interface BrowserImportProfile {
+  id: string
+  /** The browser's display name for this profile, e.g. `Work`. */
+  label: string
+  /** Stable browser identifier, e.g. `chrome`, `arc`, `brave`. */
+  browserId?: string
+  /** The browser's product name, e.g. `Arc`. */
+  browserLabel?: string
+}
+
+/**
+ * Why an import could not run, as a coarse category. Deliberately free of
+ * specifics: no host paths, profile paths, domains, or underlying OS errors.
+ */
+export type BrowserImportError =
+  | 'unsupported-platform'
+  | 'chrome-not-found'
+  | 'keychain-unavailable'
+  | 'profile-unreadable'
+  | 'unsupported-schema'
+  | 'nothing-imported'
+  | 'vault-unavailable'
+  | 'unknown'
+
+/**
+ * Outcome of a Chrome import: counts and a coarse error category only. Cookie
+ * names, values, domains, and full URLs never cross the bridge — they never
+ * leave the Electron main process at all.
+ */
+export interface BrowserImportResult {
+  cookiesImported: number
+  cookiesSkipped: number
+  /** Present only when the import could not complete. */
+  error?: BrowserImportError
+}
+
+/**
+ * Local, user-initiated import of Chrome data into the built-in browser's
+ * dedicated profile. macOS-only today, and optional in two senses: older
+ * shells lack the surface entirely, and shells on platforms without a
+ * supported importer omit it too — so always feature-detect before rendering.
+ *
+ * The agent cannot reach this. Both methods are gated in the main process to
+ * the Sim app origin, `importChromeCookies` additionally requires a live user
+ * gesture, and no browser tool maps to either channel. Reading Chrome is
+ * strictly read-only, and decrypted material stays in the main process.
+ */
+export interface SimDesktopBrowserImportApi {
+  /** Chrome profiles detected on this device; empty when none are readable. */
+  listChromeProfiles(): Promise<BrowserImportProfile[]>
+  /**
+   * Copy one Chrome profile's cookies into the built-in browser, preserving
+   * each cookie's security attributes. Requires an active user gesture in the
+   * calling page. Resolves a count-only report; never rejects for import-level
+   * failures (those ride the `error` category).
+   */
+  importChromeCookies(profileId?: string): Promise<BrowserImportResult>
+  /**
+   * Copy cookies and saved passwords in one action.
+   *
+   * A single call rather than two, because the macOS Keychain prompt can
+   * outlive the page's transient user activation and a second gated call would
+   * then be refused for a user who did nothing wrong. Each half reports its
+   * own outcome, so one failing does not hide the other.
+   *
+   * Optional: shells that predate saved passwords expose only
+   * {@link importChromeCookies}, so feature-detect before offering it.
+   */
+  importFromChrome?(
+    profileId?: string,
+    policy?: BrowserCredentialConflictPolicy
+  ): Promise<BrowserChromeImportResult>
+}
+
+/** Both halves of a combined Chrome import, each with its own outcome. */
+export interface BrowserChromeImportResult {
+  cookies: BrowserImportResult
+  passwords: BrowserPasswordImportResult
+}
+
+/** How an import should treat a credential that already exists for a site. */
+export type BrowserCredentialConflictPolicy = 'keep-existing' | 'replace'
+
+/**
+ * Outcome of a password import. Counts and a coarse category only, exactly
+ * like the cookie import — no origins, usernames, or passwords.
+ */
+export interface BrowserPasswordImportResult {
+  passwordsAdded: number
+  passwordsUpdated: number
+  passwordsSkipped: number
+  error?: BrowserImportError
+}
+
+/**
+ * One saved credential as the management UI sees it. The password is
+ * deliberately absent, and there is no bridge method that can produce it:
+ * plaintext only ever travels from the vault to an authorized fill, inside the
+ * main process.
+ */
+export interface BrowserCredentialMetadata {
+  id: string
+  origin: string
+  username: string
+  createdAt: string
+  updatedAt: string
+  source: 'chrome' | 'manual'
+}
+
+/**
+ * Whether the active browser tab is showing a login form that Sim holds a
+ * credential for — just enough to decide whether to offer the fill affordance.
+ *
+ * Intentionally a bare boolean. The renderer learns nothing about which
+ * accounts exist, and the chooser itself is a native main-process surface, so
+ * no credential identifier crosses this bridge on the fill path at all.
+ */
+export interface BrowserFillAvailability {
+  available: boolean
+}
+
+/**
+ * The saved-password surface for the built-in browser: an OS-encrypted local
+ * vault plus a user-driven fill.
+ *
+ * Optional so newer web deployments keep working against shells that lack it,
+ * and absent where secure storage is unavailable — there is no plaintext
+ * fallback. The agent has no path to any of it: management calls require the
+ * Sim app origin, filling additionally requires a real user gesture and is
+ * completed by a native menu the renderer cannot drive, and no browser tool
+ * maps to these channels.
+ */
+export interface SimDesktopBrowserCredentialsApi {
+  /** False when OS-backed encryption is unavailable and passwords are disabled. */
+  isAvailable(): Promise<boolean>
+  /** Saved credentials, without passwords. */
+  list(): Promise<BrowserCredentialMetadata[]>
+  /** Forget one credential; resolves the remaining list. */
+  forget(id: string): Promise<BrowserCredentialMetadata[]>
+  /**
+   * Reveal one saved password so the user can read it.
+   *
+   * This is the only method on the entire bridge that can produce password
+   * plaintext, and it is heavily conditioned: it requires an active user
+   * gesture, the shell prompts for Touch ID (or a native confirmation where
+   * Touch ID is unavailable) on every call, and it returns exactly one
+   * password. Resolves null when the user declines or the credential is gone.
+   *
+   * Optional — shells that predate the password manager omit it.
+   */
+  reveal?(id: string): Promise<string | null>
+  /**
+   * Copy one saved password to the clipboard. Same authorization as
+   * {@link reveal}, but the password never enters the renderer: the shell
+   * writes the clipboard itself and clears it again shortly after.
+   */
+  copy?(id: string): Promise<boolean>
+  /** Copy saved passwords out of a Chrome profile into the vault. */
+  importFromChrome(
+    profileId?: string,
+    policy?: BrowserCredentialConflictPolicy
+  ): Promise<BrowserPasswordImportResult>
+  /**
+   * Ask the shell to show its native credential chooser near a point in the
+   * window. Requires a user gesture. The shell performs the fill itself when
+   * the user picks an account — no password or credential id comes back here.
+   */
+  showChooser(anchor: { x: number; y: number }): Promise<boolean>
+  /** Subscribe to whether the active tab can be filled. */
+  onFillAvailability(callback: (state: BrowserFillAvailability) => void): () => void
 }
 
 export interface LocalFilesystemMount {
@@ -644,6 +828,16 @@ export interface SimDesktopApi {
   settings?: SimDesktopSettingsApi
   updates?: SimDesktopUpdatesApi
   browserAgent?: SimDesktopBrowserAgentApi
+  /**
+   * Local Chrome import for the built-in browser. Absent on shells predating
+   * it and on platforms without a supported importer.
+   */
+  browserImport?: SimDesktopBrowserImportApi
+  /**
+   * Saved passwords and user-driven fill for the built-in browser. Absent on
+   * older shells and wherever OS-backed encryption is unavailable.
+   */
+  browserCredentials?: SimDesktopBrowserCredentialsApi
   /**
    * Optional so a newer web deployment stays compatible with installed shells
    * that predate the agent terminal.

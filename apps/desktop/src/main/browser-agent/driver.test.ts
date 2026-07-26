@@ -57,6 +57,7 @@ describe('executeTool', () => {
           onPageState: vi.fn(),
           onTabsState: vi.fn(),
           onSessionStatus: vi.fn(),
+          onFillAvailability: vi.fn(),
         },
         () => win
       )
@@ -108,6 +109,7 @@ describe('executeTool', () => {
           onPageState: vi.fn(),
           onTabsState: vi.fn(),
           onSessionStatus: vi.fn(),
+          onFillAvailability: vi.fn(),
         },
         () => win
       )
@@ -151,7 +153,12 @@ describe('credential protection', () => {
   async function openPage() {
     const win = new BrowserWindow()
     driver.initDriver(
-      { onPageState: vi.fn(), onTabsState: vi.fn(), onSessionStatus: vi.fn() },
+      {
+        onPageState: vi.fn(),
+        onTabsState: vi.fn(),
+        onSessionStatus: vi.fn(),
+        onFillAvailability: vi.fn(),
+      },
       () => win
     )
     await driver.executeTool('browser_open_tab', {})

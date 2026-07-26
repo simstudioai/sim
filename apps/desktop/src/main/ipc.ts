@@ -1,6 +1,7 @@
 import {
   type BrowserPanelAnchor,
   type BrowserPanelBounds,
+  isBrowserDataKind,
   isBrowserTheme,
   isBrowserToolName,
 } from '@sim/browser-protocol'
@@ -15,20 +16,36 @@ import {
   type TerminalToolArgs,
 } from '@sim/terminal-protocol'
 import { isRecordLike } from '@sim/utils/object'
-import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
+import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 import { ipcMain } from 'electron'
 import {
-  clearBrowserProfile,
+  clearBrowsingData,
   executeTool,
   getKnownSessions,
   handlePanelAction,
 } from '@/main/browser-agent/driver'
+import { isAgentWebContents } from '@/main/browser-agent/registry'
 import {
   getTabsState,
   reorderTab,
   setBrowserTheme,
   setTabPinned,
 } from '@/main/browser-agent/session'
+import {
+  copyCredential,
+  credentialsAvailable,
+  fillCoordinator,
+  forgetAllCredentials,
+  forgetCredential,
+  listCredentials,
+  revealCredential,
+} from '@/main/browser-credentials'
+import {
+  importChromeCookies,
+  importChromeData,
+  importChromePasswords,
+  listChromeImportProfiles,
+} from '@/main/browser-import'
 import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
 import { isDesktopPreferenceKey } from '@/main/desktop-settings'
@@ -160,6 +177,8 @@ export interface IpcDeps {
   terminal: TerminalService
   settings: DesktopSettingsService
   getWindowState: (sender: WebContents) => DesktopWindowState
+  /** The window owning a renderer, for anchoring native menus. */
+  getWindowForContents: (sender: WebContents) => BrowserWindow | null
   browserPanel: {
     setBounds: (
       sender: WebContents,
@@ -181,9 +200,14 @@ export interface IpcDeps {
  * Who may call a channel:
  * - `app-origin`: only the remote app origin (main window pages).
  * - `local-page`: only bundled `file:` pages (offline) — shell control.
+ * - `browser-page`: only the built-in browser's own tabs, identified by
+ *   WebContents rather than by URL. These carry reports from the browser
+ *   preload about untrusted pages, so they are the one inbound surface whose
+ *   sender is not the app — the payload is treated as a claim to verify, never
+ *   as an instruction.
  * - `any`: sender-independent channels that validate their input instead.
  */
-type ChannelGate = 'app-origin' | 'local-page' | 'any'
+type ChannelGate = 'app-origin' | 'local-page' | 'browser-page' | 'any'
 
 /**
  * A desktop surface the user can switch off. Channels that drive one are
@@ -443,8 +467,11 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       needsUserActivation: true,
       denied: { sessions: [] },
-      handler: async () => {
-        await clearBrowserProfile()
+      handler: async (rawKinds) => {
+        // Saved passwords are intentionally untouched here; erasing the vault
+        // is a separate, explicit action.
+        const kinds = Array.isArray(rawKinds) ? rawKinds.filter(isBrowserDataKind) : undefined
+        await clearBrowsingData(kinds && kinds.length > 0 ? kinds : undefined)
         return getKnownSessions()
       },
     },
@@ -533,6 +560,169 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         if (isBrowserTheme(theme)) {
           setBrowserTheme(theme)
         }
+      },
+    },
+    // Local Chrome import. This is a user-only surface: no browser tool maps
+    // to either channel, so the agent has no path to it, and the import itself
+    // additionally demands a live user gesture — a compromised or scripted
+    // renderer cannot start one on its own. Only counts come back.
+    'browser-import:list-profiles': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      denied: [],
+      handler: () => listChromeImportProfiles(),
+    },
+    'browser-import:cookies': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      needsUserActivation: true,
+      denied: { cookiesImported: 0, cookiesSkipped: 0, error: 'unknown' },
+      handler: (profileId) => {
+        // An explicit profile must be honoured or refused, never quietly
+        // swapped for the default — that would import the wrong account.
+        if (profileId !== undefined && profileId !== null && typeof profileId !== 'string') {
+          return { cookiesImported: 0, cookiesSkipped: 0, error: 'unknown' }
+        }
+        return importChromeCookies(typeof profileId === 'string' ? profileId : undefined)
+      },
+    },
+    // Cookies and passwords together, so the user only has to authorize once.
+    'browser-import:all': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      needsUserActivation: true,
+      denied: {
+        cookies: { cookiesImported: 0, cookiesSkipped: 0, error: 'unknown' },
+        passwords: {
+          passwordsAdded: 0,
+          passwordsUpdated: 0,
+          passwordsSkipped: 0,
+          error: 'unknown',
+        },
+      },
+      handler: (profileId, policy) => {
+        if (profileId !== undefined && profileId !== null && typeof profileId !== 'string') {
+          return {
+            cookies: { cookiesImported: 0, cookiesSkipped: 0, error: 'unknown' },
+            passwords: {
+              passwordsAdded: 0,
+              passwordsUpdated: 0,
+              passwordsSkipped: 0,
+              error: 'unknown',
+            },
+          }
+        }
+        return importChromeData(
+          typeof profileId === 'string' ? profileId : undefined,
+          policy === 'replace' ? 'replace' : 'keep-existing'
+        )
+      },
+    },
+    // Reported by the browser preload for the page it is running in. The
+    // origin it names is a claim: the fill coordinator re-checks it against
+    // the live URL before any password is read.
+    'browser-credentials:form-state': {
+      kind: 'send',
+      gate: 'browser-page',
+      requires: 'browser',
+      passSender: true,
+      handler: (sender, report) => {
+        if (!isRecordLike(report)) return
+        const { origin, hasLoginForm } = report as { origin?: unknown; hasLoginForm?: unknown }
+        if (typeof origin !== 'string' || typeof hasLoginForm !== 'boolean') return
+        fillCoordinator()?.noteFormState(sender as WebContents, { origin, hasLoginForm })
+      },
+    },
+    'browser-credentials:available': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: false,
+      handler: () => credentialsAvailable(),
+    },
+    'browser-credentials:list': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: [],
+      handler: () => listCredentials(),
+    },
+    // The one channel in the whole surface that can return password
+    // plaintext. It is gated three ways: the Sim app origin, a live user
+    // gesture, and an OS prompt inside the handler on every single call.
+    'browser-credentials:reveal': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      needsUserActivation: true,
+      denied: null,
+      handler: (id) => (typeof id === 'string' ? revealCredential(id) : null),
+    },
+    'browser-credentials:copy': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      needsUserActivation: true,
+      denied: false,
+      handler: (id) => (typeof id === 'string' ? copyCredential(id) : false),
+    },
+    'browser-credentials:forget': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      needsUserActivation: true,
+      denied: [],
+      handler: (id) => (typeof id === 'string' ? forgetCredential(id) : listCredentials()),
+    },
+    'browser-credentials:forget-all': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      needsUserActivation: true,
+      denied: [],
+      handler: () => forgetAllCredentials(),
+    },
+    'browser-credentials:import': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      needsUserActivation: true,
+      denied: {
+        passwordsAdded: 0,
+        passwordsUpdated: 0,
+        passwordsSkipped: 0,
+        error: 'unknown',
+      },
+      handler: (profileId, policy) => {
+        if (profileId !== undefined && profileId !== null && typeof profileId !== 'string') {
+          return { passwordsAdded: 0, passwordsUpdated: 0, passwordsSkipped: 0, error: 'unknown' }
+        }
+        return importChromePasswords(
+          typeof profileId === 'string' ? profileId : undefined,
+          policy === 'replace' ? 'replace' : 'keep-existing'
+        )
+      },
+    },
+    // Opens the native account chooser. The renderer only says "the user
+    // clicked the key icon, here"; it never learns which accounts exist, never
+    // names one, and never receives a password. The shell performs the fill.
+    'browser-credentials:show-chooser': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      needsUserActivation: true,
+      passSender: true,
+      denied: false,
+      handler: (sender, anchor) => {
+        const window = deps.getWindowForContents(sender as WebContents)
+        if (!window || !isRecordLike(anchor)) return false
+        const { x, y } = anchor as { x?: unknown; y?: unknown }
+        if (
+          typeof x !== 'number' ||
+          typeof y !== 'number' ||
+          !Number.isFinite(x) ||
+          !Number.isFinite(y)
+        ) {
+          return false
+        }
+        return fillCoordinator()?.showChooser(window, { x, y }) ?? false
       },
     },
     'terminal:start': {
@@ -679,6 +869,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const senderAllowed = (event: IpcMainEvent | IpcMainInvokeEvent, gate: ChannelGate): boolean => {
     if (gate === 'any') return true
     if (gate === 'app-origin') return isAppOriginSender(event, deps.appOrigin())
+    if (gate === 'browser-page') return isAgentWebContents(event.sender)
     return isLocalPageSender(event)
   }
 

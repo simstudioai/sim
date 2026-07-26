@@ -4,7 +4,74 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
+// Stubbed so the gating tests never read the developer's real Chrome profile
+// or reach their Keychain — the importer's own behaviour is covered by
+// src/main/browser-import.
+vi.mock('@/main/browser-import', () => ({
+  isChromeImportSupported: vi.fn(() => true),
+  listChromeImportProfiles: vi.fn(async () => [{ id: 'Default', label: 'Person 1' }]),
+  importChromeCookies: vi.fn(async () => ({ cookiesImported: 3, cookiesSkipped: 1 })),
+  importChromePasswords: vi.fn(async () => ({
+    passwordsAdded: 2,
+    passwordsUpdated: 0,
+    passwordsSkipped: 1,
+  })),
+}))
+
+const { mockCoordinator } = vi.hoisted(() => ({
+  mockCoordinator: {
+    noteFormState: vi.fn(),
+    noteNavigation: vi.fn(),
+    forget: vi.fn(),
+    refreshAvailability: vi.fn(),
+    showChooser: vi.fn(async () => true),
+  },
+}))
+
+vi.mock('@/main/browser-credentials', () => ({
+  revealCredential: vi.fn(async () => 'hunter2'),
+  copyCredential: vi.fn(async () => true),
+  credentialsAvailable: vi.fn(() => true),
+  listCredentials: vi.fn(async () => [
+    {
+      id: 'c1',
+      origin: 'https://example.com',
+      username: 'ada',
+      createdAt: '',
+      updatedAt: '',
+      source: 'chrome',
+    },
+  ]),
+  forgetCredential: vi.fn(async () => []),
+  forgetAllCredentials: vi.fn(async () => []),
+  clearCredentials: vi.fn(async () => {}),
+  initFillCoordinator: vi.fn(() => mockCoordinator),
+  fillCoordinator: vi.fn(() => mockCoordinator),
+}))
+
+// A browser tab is identified by WebContents, not by URL — the pages it hosts
+// are arbitrary websites.
+vi.mock('@/main/browser-agent/registry', () => ({
+  registerAgentWebContents: vi.fn(),
+  isAgentWebContents: vi.fn(
+    (contents: { isBrowserTab?: boolean } | null) => contents?.isBrowserTab === true
+  ),
+}))
+
 import { ipcMain, shell } from 'electron'
+import {
+  copyCredential,
+  credentialsAvailable,
+  forgetAllCredentials,
+  forgetCredential,
+  listCredentials,
+  revealCredential,
+} from '@/main/browser-credentials'
+import {
+  importChromeCookies,
+  importChromePasswords,
+  listChromeImportProfiles,
+} from '@/main/browser-import'
 import { type IpcDeps, registerIpcHandlers } from '@/main/ipc'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import { TerminalService } from '@/main/terminal'
@@ -14,7 +81,11 @@ const APP = 'https://sim.ai'
 type Handler = (
   event: {
     senderFrame: { url: string; executeJavaScript?: (source: string) => Promise<unknown> } | null
-    sender?: { session: { fetch: (url: string, init?: RequestInit) => Promise<Response> } }
+    sender?: {
+      session?: { fetch: (url: string, init?: RequestInit) => Promise<Response> }
+      /** Marks a sender the mocked registry recognises as a browser tab. */
+      isBrowserTab?: boolean
+    }
   },
   ...args: unknown[]
 ) => unknown
@@ -59,6 +130,15 @@ const inactiveAppEvent = {
   },
 }
 const evilEvent = { senderFrame: { url: 'https://evil.example/page' }, sender: evilSender }
+/** The chooser anchors a native menu, so it needs a sender with a window. */
+const FAKE_WINDOW = { id: 'main-window' }
+const activeChooserEvent = {
+  senderFrame: {
+    url: `${APP}/workspace/ws1`,
+    executeJavaScript: vi.fn(async () => true),
+  },
+  sender: appSender,
+}
 
 describe('registerIpcHandlers', () => {
   let deps: IpcDeps
@@ -67,6 +147,17 @@ describe('registerIpcHandlers', () => {
     vi.mocked(ipcMain.handle).mockClear()
     vi.mocked(ipcMain.on).mockClear()
     vi.mocked(shell.openExternal).mockClear()
+    vi.mocked(listChromeImportProfiles).mockClear()
+    vi.mocked(importChromeCookies).mockClear()
+    vi.mocked(importChromePasswords).mockClear()
+    vi.mocked(credentialsAvailable).mockClear()
+    vi.mocked(listCredentials).mockClear()
+    vi.mocked(forgetCredential).mockClear()
+    vi.mocked(forgetAllCredentials).mockClear()
+    vi.mocked(revealCredential).mockClear()
+    vi.mocked(copyCredential).mockClear()
+    mockCoordinator.noteFormState.mockClear()
+    mockCoordinator.showChooser.mockClear()
     deps = {
       appOrigin: () => APP,
       allowHttpLocalhost: () => false,
@@ -89,6 +180,7 @@ describe('registerIpcHandlers', () => {
         applySystemPreferences: vi.fn(),
       },
       getWindowState: vi.fn(() => ({ isFullScreen: true })),
+      getWindowForContents: vi.fn(() => FAKE_WINDOW as never),
       browserPanel: {
         setBounds: vi.fn(),
         setFocused: vi.fn(),
@@ -471,5 +563,243 @@ describe('registerIpcHandlers', () => {
     expect(() => handler?.(evilEvent, 'dark')).not.toThrow()
     expect(() => handler?.(appEvent, 'sepia')).not.toThrow()
     expect(() => handler?.(appEvent, 'system')).not.toThrow()
+  })
+
+  it('restricts Chrome profile discovery to the app origin', async () => {
+    const { invoke } = collectHandlers()
+    const handler = invoke.get('browser-import:list-profiles')
+
+    expect(await handler?.(evilEvent)).toEqual([])
+    expect(await handler?.(fileEvent)).toEqual([])
+    expect(listChromeImportProfiles).not.toHaveBeenCalled()
+
+    expect(await handler?.(appEvent)).toEqual([{ id: 'Default', label: 'Person 1' }])
+  })
+
+  it('requires a live user gesture before importing Chrome cookies', async () => {
+    const { invoke } = collectHandlers()
+    const handler = invoke.get('browser-import:cookies')
+
+    // Reading someone's Chrome cookies is a user decision. Without an active
+    // gesture the call is refused before it can reach the Keychain, so a
+    // scripted or compromised renderer cannot start an import on its own.
+    expect(await handler?.(inactiveAppEvent, 'Default')).toEqual({
+      cookiesImported: 0,
+      cookiesSkipped: 0,
+      error: 'unknown',
+    })
+    expect(importChromeCookies).not.toHaveBeenCalled()
+
+    expect(await handler?.(activeAppEvent, 'Default')).toEqual({
+      cookiesImported: 3,
+      cookiesSkipped: 1,
+    })
+    expect(importChromeCookies).toHaveBeenCalledWith('Default')
+  })
+
+  it('never imports Chrome cookies for a foreign origin', async () => {
+    const { invoke } = collectHandlers()
+
+    expect(await invoke.get('browser-import:cookies')?.(evilEvent, 'Default')).toMatchObject({
+      error: 'unknown',
+    })
+    expect(importChromeCookies).not.toHaveBeenCalled()
+  })
+
+  it('refuses Chrome import while the browser surface is switched off', async () => {
+    deps.settings.getPreferences = vi.fn(() => ({
+      notificationsEnabled: true,
+      notificationSounds: true,
+      notificationsOnlyWhenUnfocused: true,
+      launchAtLogin: false,
+      autoDownloadUpdates: true,
+      browserEnabled: false,
+    }))
+    const { invoke } = collectHandlers()
+
+    expect(await invoke.get('browser-import:list-profiles')?.(appEvent)).toEqual([])
+    expect(await invoke.get('browser-import:cookies')?.(activeAppEvent, 'Default')).toMatchObject({
+      error: 'unknown',
+    })
+    expect(listChromeImportProfiles).not.toHaveBeenCalled()
+    expect(importChromeCookies).not.toHaveBeenCalled()
+  })
+
+  it('refuses a malformed profile id rather than importing the default profile', async () => {
+    const { invoke } = collectHandlers()
+
+    expect(await invoke.get('browser-import:cookies')?.(activeAppEvent, 42)).toEqual({
+      cookiesImported: 0,
+      cookiesSkipped: 0,
+      error: 'unknown',
+    })
+    expect(importChromeCookies).not.toHaveBeenCalled()
+  })
+
+  it('imports the default profile when the page names none', async () => {
+    const { invoke } = collectHandlers()
+
+    await invoke.get('browser-import:cookies')?.(activeAppEvent, undefined)
+    expect(importChromeCookies).toHaveBeenCalledWith(undefined)
+  })
+
+  it('exposes exactly one channel that can return a password', async () => {
+    // The structural guarantee behind the credential design. Reveal is the one
+    // deliberate exception, so the channel list is pinned here: a new way to
+    // get plaintext out of the main process has to break this test first.
+    const { invoke, on } = collectHandlers()
+    const credentialChannels = [...invoke.keys(), ...on.keys()].filter((channel) =>
+      channel.startsWith('browser-credentials:')
+    )
+
+    expect(credentialChannels.sort()).toEqual([
+      'browser-credentials:available',
+      'browser-credentials:copy',
+      'browser-credentials:forget',
+      'browser-credentials:forget-all',
+      'browser-credentials:form-state',
+      'browser-credentials:import',
+      'browser-credentials:list',
+      'browser-credentials:reveal',
+      'browser-credentials:show-chooser',
+    ])
+
+    const listed = (await invoke.get('browser-credentials:list')?.(appEvent)) as Array<
+      Record<string, unknown>
+    >
+    expect(listed.every((credential) => !('password' in credential))).toBe(true)
+  })
+
+  it('requires origin and a live gesture before revealing or copying a password', async () => {
+    const { invoke } = collectHandlers()
+    const revealHandler = invoke.get('browser-credentials:reveal')
+    const copyHandler = invoke.get('browser-credentials:copy')
+
+    expect(await revealHandler?.(evilEvent, 'c1')).toBeNull()
+    expect(await revealHandler?.(inactiveAppEvent, 'c1')).toBeNull()
+    expect(await copyHandler?.(evilEvent, 'c1')).toBe(false)
+    expect(await copyHandler?.(inactiveAppEvent, 'c1')).toBe(false)
+    expect(revealCredential).not.toHaveBeenCalled()
+    expect(copyCredential).not.toHaveBeenCalled()
+
+    expect(await revealHandler?.(activeAppEvent, 'c1')).toBe('hunter2')
+    expect(revealCredential).toHaveBeenCalledWith('c1')
+  })
+
+  it('requires a live user gesture before deleting every password', async () => {
+    const { invoke } = collectHandlers()
+    const handler = invoke.get('browser-credentials:forget-all')
+
+    expect(await handler?.(evilEvent)).toEqual([])
+    expect(await handler?.(inactiveAppEvent)).toEqual([])
+    expect(forgetAllCredentials).not.toHaveBeenCalled()
+
+    await handler?.(activeAppEvent)
+    expect(forgetAllCredentials).toHaveBeenCalled()
+  })
+
+  it('refuses a reveal for anything that is not a credential id', async () => {
+    const { invoke } = collectHandlers()
+
+    expect(
+      await invoke.get('browser-credentials:reveal')?.(activeAppEvent, { id: 'c1' })
+    ).toBeNull()
+    expect(revealCredential).not.toHaveBeenCalled()
+  })
+
+  it('accepts login-form reports only from the built-in browseritself', async () => {
+    const { on } = collectHandlers()
+    const handler = on.get('browser-credentials:form-state')
+    const report = { origin: 'https://example.com', hasLoginForm: true }
+    const browserPageEvent = {
+      senderFrame: { url: 'https://example.com/login' },
+      sender: { isBrowserTab: true },
+    }
+
+    // An arbitrary website, and even the Sim app itself, cannot claim a page
+    // has a login form — only the browser tab's own preload can.
+    handler?.(evilEvent, report)
+    handler?.(appEvent, report)
+    expect(mockCoordinator.noteFormState).not.toHaveBeenCalled()
+
+    handler?.(browserPageEvent, report)
+    expect(mockCoordinator.noteFormState).toHaveBeenCalledWith(browserPageEvent.sender, report)
+  })
+
+  it('ignores a malformed login-form report', () => {
+    const { on } = collectHandlers()
+    const handler = on.get('browser-credentials:form-state')
+    const browserPageEvent = {
+      senderFrame: { url: 'https://x.test/' },
+      sender: { isBrowserTab: true },
+    }
+
+    handler?.(browserPageEvent, 'nonsense')
+    handler?.(browserPageEvent, { origin: 42, hasLoginForm: true })
+    handler?.(browserPageEvent, { origin: 'https://x.test', hasLoginForm: 'yes' })
+
+    expect(mockCoordinator.noteFormState).not.toHaveBeenCalled()
+  })
+
+  it('requires a live user gesture before opening the credential chooser', async () => {
+    const { invoke } = collectHandlers()
+    const handler = invoke.get('browser-credentials:show-chooser')
+    const anchor = { x: 10, y: 20 }
+
+    expect(await handler?.(evilEvent, anchor)).toBe(false)
+    expect(await handler?.(inactiveAppEvent, anchor)).toBe(false)
+    expect(mockCoordinator.showChooser).not.toHaveBeenCalled()
+
+    expect(await handler?.(activeChooserEvent, anchor)).toBe(true)
+    expect(mockCoordinator.showChooser).toHaveBeenCalledWith(FAKE_WINDOW, anchor)
+  })
+
+  it('refuses a chooser anchor that is not a real point', async () => {
+    const { invoke } = collectHandlers()
+    const handler = invoke.get('browser-credentials:show-chooser')
+
+    expect(await handler?.(activeChooserEvent, { x: 'left', y: 2 })).toBe(false)
+    expect(await handler?.(activeChooserEvent, { x: Number.NaN, y: 2 })).toBe(false)
+    expect(await handler?.(activeChooserEvent, null)).toBe(false)
+    expect(mockCoordinator.showChooser).not.toHaveBeenCalled()
+  })
+
+  it('requires a live user gesture before importing or forgetting passwords', async () => {
+    const { invoke } = collectHandlers()
+
+    expect(
+      await invoke.get('browser-credentials:import')?.(inactiveAppEvent, 'Default')
+    ).toMatchObject({ error: 'unknown' })
+    await invoke.get('browser-credentials:forget')?.(inactiveAppEvent, 'c1')
+    expect(importChromePasswords).not.toHaveBeenCalled()
+    expect(forgetCredential).not.toHaveBeenCalled()
+
+    await invoke.get('browser-credentials:import')?.(activeAppEvent, 'Default', 'replace')
+    await invoke.get('browser-credentials:forget')?.(activeAppEvent, 'c1')
+    expect(importChromePasswords).toHaveBeenCalledWith('Default', 'replace')
+    expect(forgetCredential).toHaveBeenCalledWith('c1')
+  })
+
+  it('defaults password conflicts to keeping what is already stored', async () => {
+    const { invoke } = collectHandlers()
+
+    await invoke.get('browser-credentials:import')?.(activeAppEvent, undefined, 'nonsense')
+    expect(importChromePasswords).toHaveBeenCalledWith(undefined, 'keep-existing')
+  })
+
+  it('reports credential availability only to the app origin', async () => {
+    const { invoke } = collectHandlers()
+    const handler = invoke.get('browser-credentials:available')
+
+    expect(await handler?.(evilEvent)).toBe(false)
+    expect(credentialsAvailable).not.toHaveBeenCalled()
+    expect(await handler?.(appEvent)).toBe(true)
+  })
+
+  it('never lists credentials to a foreign origin', async () => {
+    const { invoke } = collectHandlers()
+
+    expect(await invoke.get('browser-credentials:list')?.(evilEvent)).toEqual([])
+    expect(listCredentials).not.toHaveBeenCalled()
   })
 })

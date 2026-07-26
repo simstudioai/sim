@@ -429,6 +429,9 @@ function main(): void {
         onSessionStatus: (alive) => {
           broadcast('browser-agent:session-status', alive)
         },
+        onFillAvailability: (available) => {
+          broadcast('browser-credentials:fill-availability', { available })
+        },
       },
       getMainWindow,
       config
@@ -452,6 +455,7 @@ function main(): void {
       getWindowState: (sender) => ({
         isFullScreen: windowForContents(sender)?.isFullScreen() ?? false,
       }),
+      getWindowForContents: (sender) => windowForContents(sender) ?? null,
       browserPanel: {
         setBounds: (sender, bounds, anchor) => {
           const win = windowForContents(sender)
