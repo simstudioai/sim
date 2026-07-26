@@ -66,18 +66,33 @@ export function useFileDocCollaboration({
   const awarenessRef = useRef<Awareness | null>(null)
   // Created ONCE and kept stable for the whole editor lifetime. The editor freezes these into
   // its extension set at mount (`useEditor` fixes extensions at creation), so the instances the
-  // provider binds MUST stay byte-identical to what the editor holds — they are never
-  // destroyed-and-recreated. We deliberately do NOT `doc.destroy()`/`awareness.destroy()` on
-  // unmount: a StrictMode dev remount would fire that cleanup and destroy the very instance the
-  // still-mounted editor references, leaving the provider syncing a live doc while the editor
-  // renders a dead one — i.e. a peer who joins sees a blank document. The Y.Doc/Awareness hold
-  // no OS resources; the provider owns them by reference only (see file-doc-provider.ts) and
-  // does not destroy them either, so on real unmount the editor + provider drop their references
-  // and the doc is reclaimed by GC.
+  // provider binds MUST stay byte-identical to what the editor holds — never destroyed-and-
+  // recreated mid-life. If a StrictMode dev remount destroyed them, the still-mounted editor
+  // would keep the dead doc while the provider synced a fresh one, and a joining peer would see a
+  // blank document. Teardown is therefore deferred to a REAL unmount only (see below).
   if (enabled && docRef.current === null) {
     docRef.current = new Y.Doc()
     awarenessRef.current = new Awareness(docRef.current)
   }
+
+  // Destroy the doc + awareness on a REAL unmount only. `Awareness` runs a setInterval to expire
+  // stale peers, so it MUST be destroyed or that timer leaks for every file ever opened. But a
+  // StrictMode dev remount fires this cleanup and then re-runs the setup synchronously after — so
+  // we SCHEDULE the teardown and the remount cancels it, keeping the frozen instances alive. A
+  // genuine unmount has no remount, so the scheduled teardown runs on the next tick.
+  const pendingTeardownRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (pendingTeardownRef.current !== null) {
+      clearTimeout(pendingTeardownRef.current)
+      pendingTeardownRef.current = null
+    }
+    return () => {
+      pendingTeardownRef.current = setTimeout(() => {
+        awarenessRef.current?.destroy()
+        docRef.current?.destroy()
+      }, 0)
+    }
+  }, [])
 
   const [provider, setProvider] = useState<FileDocProvider | null>(null)
 
