@@ -75,12 +75,26 @@ function mutationTouchesOverlay(mutation: MutationRecord): boolean {
  * Mutation and resize observers keep the tracked overlay set current, while
  * captured scroll handles poppers moving without changing their own DOM.
  */
-export function useBrowserPanelOcclusion(hostRef: RefObject<HTMLElement | null>): boolean {
+export function useBrowserPanelOcclusion(
+  hostRef: RefObject<HTMLElement | null>,
+  visible: boolean
+): boolean {
   const [occluded, setOccluded] = useState(false)
 
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
+    // Occlusion of a hidden panel is meaningless — there is no native view on
+    // screen to be covered — so none of the machinery below runs while hidden.
+    // That machinery is a document-body MutationObserver plus capture-phase
+    // scroll/resize listeners, which otherwise fire on every DOM change and
+    // scroll anywhere in the app (the chat transcript streaming, most of all)
+    // for a panel nobody can see.
+    if (!visible) {
+      setOccluded(false)
+      resetBrowserPanelOcclusion()
+      return
+    }
 
     let disposed = false
     let checkQueued = false
@@ -154,7 +168,7 @@ export function useBrowserPanelOcclusion(hostRef: RefObject<HTMLElement | null>)
       window.removeEventListener('scroll', scheduleOcclusionCheck, true)
       resetBrowserPanelOcclusion()
     }
-  }, [hostRef])
+  }, [hostRef, visible])
 
   return occluded
 }

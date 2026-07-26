@@ -235,15 +235,42 @@ describe('browser-agent session', () => {
     expect(session.closeFocusedTab()).toBe(true)
   })
 
-  it('only disables hidden-page throttling while browser automation is active', () => {
-    const tab = session.ensureTab()
-    const contents = (tab.view as unknown as MockView).webContents
+  it('unthrottles only the active tab while automation is active', () => {
+    const active = session.ensureTab()
+    const activeContents = (active.view as unknown as MockView).webContents
+    const background = session.addTab()
+    const backgroundContents = (background.view as unknown as MockView).webContents
+    // addTab activated the second tab; put focus back on the first.
+    session.switchTab(active.id)
+    activeContents.setBackgroundThrottling.mockClear()
+    backgroundContents.setBackgroundThrottling.mockClear()
 
     session.setAutomationActive(true)
-    expect(contents.setBackgroundThrottling).toHaveBeenLastCalledWith(false)
+    // The waking is scoped to the active tab; the background tab stays throttled.
+    expect(activeContents.setBackgroundThrottling).toHaveBeenLastCalledWith(false)
+    expect(backgroundContents.setBackgroundThrottling).toHaveBeenLastCalledWith(true)
 
     session.setAutomationActive(false)
-    expect(contents.setBackgroundThrottling).toHaveBeenLastCalledWith(true)
+    expect(activeContents.setBackgroundThrottling).toHaveBeenLastCalledWith(true)
+  })
+
+  it('moves the automation exemption to whichever tab becomes active', () => {
+    const first = session.ensureTab()
+    const second = session.addTab()
+    session.switchTab(first.id)
+    const firstContents = (first.view as unknown as MockView).webContents
+    const secondContents = (second.view as unknown as MockView).webContents
+
+    session.setAutomationActive(true)
+    firstContents.setBackgroundThrottling.mockClear()
+    secondContents.setBackgroundThrottling.mockClear()
+
+    session.switchTab(second.id)
+
+    // The old active tab is re-throttled, the new one exempted — otherwise a
+    // mid-tool switch would strand the wake on a tab the agent left behind.
+    expect(firstContents.setBackgroundThrottling).toHaveBeenLastCalledWith(true)
+    expect(secondContents.setBackgroundThrottling).toHaveBeenLastCalledWith(false)
   })
 
   it('updates the native backdrop when Sim changes browser theme', () => {

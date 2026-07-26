@@ -110,7 +110,7 @@ function describeAnchor(panel: HTMLElement | null): BrowserPanelAnchor | null {
   }
 }
 
-export function BrowserSession() {
+export function BrowserSession({ visible }: { visible: boolean }) {
   const { theme } = useTheme()
   const pageState = useBrowserSessionStore((state) => state.pageState)
   const tabs = useBrowserSessionStore((state) => state.tabs)
@@ -123,7 +123,7 @@ export function BrowserSession() {
   const panelRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
-  const panelOccluded = useBrowserPanelOcclusion(hostRef)
+  const panelOccluded = useBrowserPanelOcclusion(hostRef, visible)
   const pageUrlRef = useRef(pageState?.url ?? '')
   pageUrlRef.current = pageState?.url ?? ''
   /** Non-null while the user is editing the URL bar; otherwise it mirrors the page. */
@@ -182,6 +182,15 @@ export function BrowserSession() {
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
+    // Hidden behind another resource: the native view has nowhere to sit, so
+    // report it gone once and install none of the scroll/resize/heartbeat
+    // machinery below — all of which would otherwise fire on every scroll and
+    // resize anywhere in the app, for a panel nobody can see.
+    if (!visible) {
+      setPanelVisible(false)
+      reportBrowserPanelBounds(null)
+      return
+    }
     // Resolved once: the panel is a stable ancestor for this effect's lifetime,
     // and only its inline width changes.
     const panel = host.closest<HTMLElement>('[data-mothership-panel]')
@@ -252,7 +261,7 @@ export function BrowserSession() {
       }
       reportBrowserPanelBounds(null)
     }
-  }, [])
+  }, [visible])
 
   const submitUrl = useCallback(() => {
     const raw = (urlDraft ?? '').trim()

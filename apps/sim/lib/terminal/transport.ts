@@ -53,9 +53,30 @@ export function initTerminalTransport(): void {
     .catch(() => {})
 }
 
-/** Subscribes to raw PTY output for every terminal. */
-export function onTerminalData(callback: (terminalId: string, data: string) => void): () => void {
-  return bridge()?.onData(callback) ?? (() => {})
+/**
+ * One bridge subscription for all terminals, fanned out by id.
+ *
+ * Every mounted terminal view wants only its own bytes, but each PTY message
+ * crosses the context bridge once per registered listener — so a listener per
+ * view made a single terminal's output cost O(open tabs) crossings a message,
+ * most of them discarded by an id check. This keeps exactly one bridge
+ * listener and routes each message to the view that asked for that id.
+ */
+const dataHandlers = new Map<string, (data: string) => void>()
+let dataBridgeUnsubscribe: (() => void) | null = null
+
+function ensureDataBridge(): void {
+  if (dataBridgeUnsubscribe) return
+  dataBridgeUnsubscribe = bridge()?.onData((id, data) => dataHandlers.get(id)?.(data)) ?? (() => {})
+}
+
+/** Subscribes to raw PTY output for one terminal. */
+export function onTerminalData(terminalId: string, callback: (data: string) => void): () => void {
+  ensureDataBridge()
+  dataHandlers.set(terminalId, callback)
+  return () => {
+    if (dataHandlers.get(terminalId) === callback) dataHandlers.delete(terminalId)
+  }
 }
 
 /**

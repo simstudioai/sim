@@ -85,6 +85,13 @@ interface ResourceContentProps {
   genericResourceData?: GenericResourceData
   previewContextKey?: string
   onNotFound?: (resourceId: string) => void
+  /**
+   * Whether this resource is the one on screen. Only the persistent panels
+   * (browser, terminal) read it — to stand down document-wide observers while
+   * hidden — so it defaults to visible for every other resource, which is only
+   * ever rendered when active.
+   */
+  visible?: boolean
 }
 
 /**
@@ -147,6 +154,7 @@ export const ResourceContent = memo(function ResourceContent({
   genericResourceData,
   previewContextKey,
   onNotFound,
+  visible = true,
 }: ResourceContentProps) {
   const streamFileName = previewSession?.fileName || 'file.md'
   const syntheticFile = useMemo(() => {
@@ -278,7 +286,7 @@ export const ResourceContent = memo(function ResourceContent({
       )
 
     case 'browser':
-      return <BrowserSession key={resource.id} />
+      return <BrowserSession key={resource.id} visible={visible} />
 
     case 'terminal':
       return <TerminalSession key={resource.id} />

@@ -182,7 +182,7 @@ const DARK_THEME = {
  * this addon ship in lockstep; adopting it would mean moving the core library
  * back a major version onto a renderer that is no longer published.
  */
-function attachWebglRenderer(terminal: Terminal): void {
+function attachWebglRenderer(terminal: Terminal): (() => void) | null {
   try {
     const webgl = new WebglAddon()
     webgl.onContextLoss(() => {
@@ -190,6 +190,7 @@ function attachWebglRenderer(terminal: Terminal): void {
       webgl.dispose()
     })
     terminal.loadAddon(webgl)
+    return () => webgl.dispose()
   } catch (error) {
     // The DOM renderer stays in place. Logged rather than swallowed: it is a
     // large, silent performance cliff, and "the terminal feels slow" is
@@ -197,6 +198,7 @@ function attachWebglRenderer(terminal: Terminal): void {
     logger.warn('Terminal WebGL unavailable; using the slower DOM renderer', {
       error: (error as Error).message,
     })
+    return null
   }
 }
 
@@ -274,7 +276,6 @@ function TerminalView({
     terminal.unicode.activeVersion = '11'
 
     terminal.open(host)
-    attachWebglRenderer(terminal)
 
     terminalRef.current = terminal
     fitRef.current = fit
@@ -300,8 +301,7 @@ function TerminalView({
     // appear above the history it followed. Buffering keeps the order true.
     let painted = false
     let buffered = ''
-    const unsubscribeData = onTerminalData((id, data) => {
-      if (id !== terminalId) return
+    const unsubscribeData = onTerminalData(terminalId, (data) => {
       if (painted) terminal.write(data)
       else buffered += data
     })
@@ -380,6 +380,23 @@ function TerminalView({
     if (!terminal) return
     terminal.options.theme = resolvedTheme === 'dark' ? DARK_THEME : LIGHT_THEME
   }, [resolvedTheme])
+
+  // A GPU renderer only for the terminal on screen.
+  //
+  // Every open terminal keeps its emulator alive so switching is instant, but
+  // a hidden one is `display: none` and xterm has already paused painting it —
+  // a WebGL context for it buys nothing and costs plenty. Browsers cap how
+  // many contexts can be live and evict the oldest past that, so holding one
+  // per tab means tabs quietly knocking each other's renderers out and falling
+  // back to the DOM. Handing the renderer to whichever tab is visible keeps
+  // one context for the whole panel.
+  useEffect(() => {
+    if (!active) return
+    const terminal = terminalRef.current
+    if (!terminal) return
+    const disposeRenderer = attachWebglRenderer(terminal)
+    return () => disposeRenderer?.()
+  }, [active])
 
   useEffect(() => {
     if (!active) return
