@@ -23,7 +23,8 @@ const RESCAN_DEBOUNCE_MS = 250
 
 interface DetectedForm {
   username: HTMLInputElement | null
-  password: HTMLInputElement
+  /** Absent on an identifier-first step, which asks for the email alone. */
+  password: HTMLInputElement | null
 }
 
 /** Held only in this isolated world; never serialized to main or the page. */
@@ -74,15 +75,46 @@ function findUsernameField(password: HTMLInputElement): HTMLInputElement | null 
   return preceding.at(-1) ?? candidates[0] ?? null
 }
 
-function reportFormState(): void {
+/**
+ * The identifier field of a sign-in step that has no password field yet.
+ *
+ * Two-step sign-in — email, Continue, then the password on the next screen —
+ * is now the norm at Google, Okta, and most workplace tools. Requiring a
+ * password field would mean the key icon never appears on the step where the
+ * user actually needs it. Only the page's own declaration counts here: an
+ * `autocomplete` token naming a username or email, or an email input. That is
+ * narrow enough to leave newsletter boxes and search fields alone.
+ */
+function findIdentifierField(): HTMLInputElement | null {
+  for (const field of document.querySelectorAll('input')) {
+    if (!isFillable(field)) continue
+    const hint = String(field.getAttribute('autocomplete') || '').toLowerCase()
+    if (hint === 'username' || hint === 'email') return field
+    if (String(field.type || '').toLowerCase() === 'email') return field
+  }
+  return null
+}
+
+function detectForm(): DetectedForm | null {
   const password = findPasswordField()
-  detected = password ? { password, username: findUsernameField(password) } : null
+  if (password) return { password, username: findUsernameField(password) }
+  const username = findIdentifierField()
+  return username ? { password: null, username } : null
+}
+
+function reportFormState(): void {
+  detected = detectForm()
 
   const origin = window.location.origin
-  const fingerprint = `${origin}|${detected !== null}`
+  const hasPasswordField = detected?.password != null
+  const fingerprint = `${origin}|${detected !== null}|${hasPasswordField}`
   if (fingerprint === lastReported) return
   lastReported = fingerprint
-  ipcRenderer.send(FORM_STATE_CHANNEL, { origin, hasLoginForm: detected !== null })
+  ipcRenderer.send(FORM_STATE_CHANNEL, {
+    origin,
+    hasLoginForm: detected !== null,
+    hasPasswordField,
+  })
 }
 
 function scheduleRescan(): void {
@@ -111,7 +143,7 @@ function setFieldValue(field: HTMLInputElement, value: string): void {
 
 ipcRenderer.on(
   FILL_CHANNEL,
-  (_event, payload: { origin: string; username: string; password: string }) => {
+  (_event, payload: { origin: string; username: string; password?: string }) => {
     // Last line of defence against a navigation between the user's choice and
     // this message arriving: the main process binds the fill to an origin, and
     // the live document has to still agree.
@@ -119,10 +151,13 @@ ipcRenderer.on(
     if (detected.username && payload.username) {
       setFieldValue(detected.username, payload.username)
     }
-    setFieldValue(detected.password, payload.password)
+    if (detected.password && payload.password) {
+      setFieldValue(detected.password, payload.password)
+    }
     // Never submitted. Autofill and submission stay separate so the user can
-    // confirm the site and the account before anything is sent.
-    detected.password.focus()
+    // confirm the site and the account before anything is sent. Focus lands on
+    // whichever field the user still has to deal with.
+    ;(detected.password ?? detected.username)?.focus()
   }
 )
 

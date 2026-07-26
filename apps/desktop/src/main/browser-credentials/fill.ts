@@ -26,6 +26,15 @@ const logger = createLogger('BrowserCredentialFill')
 interface FormState {
   origin: string
   hasLoginForm: boolean
+  /**
+   * Whether the page currently has somewhere to put a password.
+   *
+   * False on the first step of an identifier-first sign-in, which asks for an
+   * email and only reveals the password field after it is submitted. Those
+   * steps are still worth filling — the username is what they want — so the
+   * password simply is not sent to a page that has nowhere to put it.
+   */
+  hasPasswordField: boolean
   /** Bumped on every navigation, so a stale authorization cannot be replayed. */
   generation: number
 }
@@ -41,6 +50,8 @@ export interface FillCoordinatorDeps {
 export interface FormStateReport {
   origin: string
   hasLoginForm: boolean
+  /** Absent from shells that predate identifier-first support; assumed true. */
+  hasPasswordField?: boolean
 }
 
 export class FillCoordinator {
@@ -67,6 +78,7 @@ export class FillCoordinator {
       this.states.set(contents, {
         origin,
         hasLoginForm: report.hasLoginForm,
+        hasPasswordField: report.hasPasswordField ?? true,
         generation: this.generationFor(contents),
       })
     }
@@ -166,7 +178,9 @@ export class FillCoordinator {
     contents.send('browser-credentials:fill', {
       origin: state.origin,
       username: credential.username,
-      password: credential.password,
+      // Withheld on an identifier-first step: the page has no password field,
+      // so sending it would put plaintext in a document that cannot use it.
+      password: state.hasPasswordField ? credential.password : undefined,
     })
     // Counts and outcomes only — never the origin, username, or password.
     logger.info('Filled a saved credential at the user\u2019s request')

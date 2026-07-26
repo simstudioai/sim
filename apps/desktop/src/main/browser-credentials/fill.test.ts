@@ -195,6 +195,50 @@ describe('performing a fill', () => {
     })
   })
 
+  it('fills the email step of a two-step sign-in without sending the password', async () => {
+    const context = setup()
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
+      origin: ORIGIN,
+      hasLoginForm: true,
+      hasPasswordField: false,
+    })
+    await context.coordinator.showChooser(WINDOW, { x: 10, y: 20 })
+    const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as Array<{
+      click: () => void
+    }>
+
+    template[0].click()
+    await settle()
+
+    // The page has nowhere to put a password, so it does not get one.
+    expect(context.contents.send).toHaveBeenCalledWith('browser-credentials:fill', {
+      origin: ORIGIN,
+      username: 'ada',
+      password: undefined,
+    })
+  })
+
+  it('sends the password to a shell that never reported whether a field exists', async () => {
+    const context = setup()
+    // Older preloads omit the flag; assuming a password field keeps them working.
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
+      origin: ORIGIN,
+      hasLoginForm: true,
+    })
+    await context.coordinator.showChooser(WINDOW, { x: 10, y: 20 })
+    const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as Array<{
+      click: () => void
+    }>
+
+    template[0].click()
+    await settle()
+
+    expect(context.contents.send).toHaveBeenCalledWith(
+      'browser-credentials:fill',
+      expect.objectContaining({ password: 'hunter2' })
+    )
+  })
+
   it('refuses after the page navigated between choosing and clicking', async () => {
     const context = setup()
     const template = await openChooser(context)
