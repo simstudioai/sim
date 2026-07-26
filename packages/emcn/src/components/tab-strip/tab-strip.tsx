@@ -148,9 +148,14 @@ function Tab({
     <div
       className={cn(
         'group relative select-none',
+        // Width, not flex-basis: `flex-1` compiles to `flex: 1 1 0%`, and
+        // Tailwind emits the `flex` shorthand after `flex-basis`, so pairing
+        // the two silently discarded the basis and left every tab sized by its
+        // own title. `shrink` still lets a crowded strip squeeze them to the
+        // floor before it starts scrolling.
         tab.pinned
           ? 'w-[34px] min-w-[34px] max-w-[34px] flex-none'
-          : 'min-w-[96px] max-w-[180px] flex-1 basis-[140px]',
+          : 'w-[156px] min-w-[96px] shrink',
         dragging && 'opacity-30'
       )}
       draggable={draggable}
