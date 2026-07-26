@@ -24,7 +24,7 @@ const DESCRIPTION_MAX_CHARS = 300
 const IMAGE_URL_MAX_CHARS = 2048
 const CACHE_TTL_SECONDS = 24 * 60 * 60
 const NEGATIVE_CACHE_TTL_SECONDS = 60 * 60
-const CACHE_KEY_PREFIX = 'link-preview:v1:'
+const CACHE_KEY_PREFIX = 'link-preview:v2:'
 
 /**
  * Parses preview metadata from the fetched document (already capped at
@@ -49,7 +49,15 @@ function parsePreview(html: string, baseUrl: string): LinkPreview {
   if (rawImageUrl) {
     try {
       const resolvedUrl = new URL(rawImageUrl, baseUrl)
-      imageUrl = truncate(resolvedUrl.href, IMAGE_URL_MAX_CHARS)
+      if (resolvedUrl.href.length <= IMAGE_URL_MAX_CHARS) {
+        imageUrl = resolvedUrl.href
+      } else {
+        logger.warn('Image URL exceeds maximum length; dropping', {
+          rawImageUrl: truncate(rawImageUrl, 100),
+          resolvedLength: resolvedUrl.href.length,
+          maxLength: IMAGE_URL_MAX_CHARS,
+        })
+      }
     } catch (error) {
       logger.warn('Failed to resolve image URL', {
         rawImageUrl: truncate(rawImageUrl, 100),
@@ -82,7 +90,7 @@ async function fetchPreview(url: string): Promise<LinkPreview> {
   if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) {
     return null
   }
-  return parsePreview(await response.text(), url)
+  return parsePreview(await response.text(), response.url)
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {

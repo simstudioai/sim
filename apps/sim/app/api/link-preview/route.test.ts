@@ -193,10 +193,10 @@ describe('Link Preview API Route', () => {
       `
 
       inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
-        new Response(html, {
+        Object.assign(new Response(html, {
           status: 200,
           headers: { 'content-type': 'text/html' },
-        })
+        }), { url: 'https://example.com' })
       )
 
       const request = createMockRequest(
@@ -231,10 +231,10 @@ describe('Link Preview API Route', () => {
       `
 
       inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
-        new Response(html, {
+        Object.assign(new Response(html, {
           status: 200,
           headers: { 'content-type': 'text/html' },
-        })
+        }), { url: 'https://example.com' })
       )
 
       const request = createMockRequest(
@@ -270,10 +270,10 @@ describe('Link Preview API Route', () => {
       `
 
       inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
-        new Response(html, {
+        Object.assign(new Response(html, {
           status: 200,
           headers: { 'content-type': 'text/html' },
-        })
+        }), { url: 'https://example.com' })
       )
 
       const request = createMockRequest(
@@ -303,10 +303,10 @@ describe('Link Preview API Route', () => {
       `
 
       inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
-        new Response(html, {
+        Object.assign(new Response(html, {
           status: 200,
           headers: { 'content-type': 'text/html' },
-        })
+        }), { url: 'https://example.com' })
       )
 
       const request = createMockRequest(
@@ -336,10 +336,10 @@ describe('Link Preview API Route', () => {
       `
 
       inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
-        new Response(html, {
+        Object.assign(new Response(html, {
           status: 200,
           headers: { 'content-type': 'text/html' },
-        })
+        }), { url: 'https://example.com' })
       )
 
       const request = createMockRequest(
@@ -356,6 +356,39 @@ describe('Link Preview API Route', () => {
       expect(data.preview?.imageUrl).toBe('https://cdn.example.com/image.jpg')
     })
 
+    it('should resolve relative image URLs against final URL after redirects', async () => {
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Test Page</title>
+            <meta property="og:title" content="Test Title" />
+            <meta property="og:image" content="/images/redirected-image.jpg" />
+          </head>
+        </html>
+      `
+
+      inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
+        Object.assign(new Response(html, {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        }), { url: 'https://redirected.example.com/page' })
+      )
+
+      const request = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/link-preview?url=https://example.com'
+      )
+
+      const response = await GET(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.preview?.imageUrl).toBe('https://redirected.example.com/images/redirected-image.jpg')
+    })
+
     it('should handle missing image URL', async () => {
       const html = `
         <!DOCTYPE html>
@@ -369,10 +402,10 @@ describe('Link Preview API Route', () => {
       `
 
       inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
-        new Response(html, {
+        Object.assign(new Response(html, {
           status: 200,
           headers: { 'content-type': 'text/html' },
-        })
+        }), { url: 'https://example.com' })
       )
 
       const request = createMockRequest(
@@ -407,10 +440,10 @@ describe('Link Preview API Route', () => {
       `
 
       inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
-        new Response(html, {
+        Object.assign(new Response(html, {
           status: 200,
           headers: { 'content-type': 'text/html' },
-        })
+        }), { url: 'https://example.com' })
       )
 
       const request = createMockRequest(
@@ -432,7 +465,7 @@ describe('Link Preview API Route', () => {
       })
     })
 
-    it('should truncate long image URLs', async () => {
+    it('should drop image URLs that exceed maximum length', async () => {
       const longImageUrl = 'https://example.com/' + 'a'.repeat(2100) + '.jpg'
       const html = `
         <!DOCTYPE html>
@@ -446,10 +479,10 @@ describe('Link Preview API Route', () => {
       `
 
       inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
-        new Response(html, {
+        Object.assign(new Response(html, {
           status: 200,
           headers: { 'content-type': 'text/html' },
-        })
+        }), { url: 'https://example.com' })
       )
 
       const request = createMockRequest(
@@ -463,9 +496,8 @@ describe('Link Preview API Route', () => {
       const data = await response.json()
 
       expect(response.status).toBe(200)
-      expect(data.preview?.imageUrl).toBeDefined()
-      expect(data.preview?.imageUrl?.length).toBeLessThanOrEqual(2048)
-      expect(data.preview?.imageUrl).toContain('...')
+      expect(data.preview?.imageUrl).toBeNull()
+      expect(data.preview?.title).toBe('Test Title')
     })
 
     it('should return preview with imageUrl only when no other metadata exists', async () => {
@@ -479,10 +511,10 @@ describe('Link Preview API Route', () => {
       `
 
       inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
-        new Response(html, {
+        Object.assign(new Response(html, {
           status: 200,
           headers: { 'content-type': 'text/html' },
-        })
+        }), { url: 'https://example.com' })
       )
 
       const request = createMockRequest(
@@ -547,10 +579,10 @@ describe('Link Preview API Route', () => {
       `
 
       inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
-        new Response(html, {
+        Object.assign(new Response(html, {
           status: 200,
           headers: { 'content-type': 'text/html' },
-        })
+        }), { url: 'https://example.com' })
       )
 
       const request = createMockRequest(
@@ -575,7 +607,7 @@ describe('Link Preview API Route', () => {
       mockRedis.get.mockResolvedValue(null)
 
       inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
-        new Response('Not Found', { status: 404 })
+        Object.assign(new Response('Not Found', { status: 404 }), { url: 'https://example.com' })
       )
 
       const request = createMockRequest(
@@ -607,10 +639,10 @@ describe('Link Preview API Route', () => {
       `
 
       inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
-        new Response(html, {
+        Object.assign(new Response(html, {
           status: 200,
           headers: { 'content-type': 'text/html' },
-        })
+        }), { url: 'https://example.com' })
       )
 
       const request = createMockRequest(
@@ -642,10 +674,10 @@ describe('Link Preview API Route', () => {
       `
 
       inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
-        new Response(html, {
+        Object.assign(new Response(html, {
           status: 200,
           headers: { 'content-type': 'text/html' },
-        })
+        }), { url: 'https://example.com' })
       )
 
       const request = createMockRequest(
@@ -676,10 +708,10 @@ describe('Link Preview API Route', () => {
       `
 
       inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
-        new Response(html, {
+        Object.assign(new Response(html, {
           status: 200,
           headers: { 'content-type': 'text/html' },
-        })
+        }), { url: 'https://example.com' })
       )
 
       const request = createMockRequest(
@@ -723,7 +755,7 @@ describe('Link Preview API Route', () => {
       mockRedis.get.mockResolvedValue(null)
 
       inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
-        new Response('Not Found', { status: 404 })
+        Object.assign(new Response('Not Found', { status: 404 }), { url: 'https://example.com' })
       )
 
       const request = createMockRequest(
@@ -744,10 +776,10 @@ describe('Link Preview API Route', () => {
       mockRedis.get.mockResolvedValue(null)
 
       inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
-        new Response('{}', {
+        Object.assign(new Response('{}' , {
           status: 200,
           headers: { 'content-type': 'application/json' },
-        })
+        }), { url: 'https://example.com' })
       )
 
       const request = createMockRequest(
@@ -776,10 +808,10 @@ describe('Link Preview API Route', () => {
       `
 
       inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
-        new Response(html, {
+        Object.assign(new Response(html, {
           status: 200,
           headers: { 'content-type': 'text/html' },
-        })
+        }), { url: 'https://example.com' })
       )
 
       const request = createMockRequest(
@@ -815,10 +847,10 @@ describe('Link Preview API Route', () => {
       `
 
       inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
-        new Response(html, {
+        Object.assign(new Response(html, {
           status: 200,
           headers: { 'content-type': 'text/html' },
-        })
+        }), { url: 'https://example.com' })
       )
 
       const request = createMockRequest(

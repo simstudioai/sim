@@ -462,6 +462,7 @@ export interface SecureFetchResponse {
   statusText: string
   headers: SecureFetchHeaders
   body: ReadableStream<Uint8Array> | null
+  url: string
   text: () => Promise<string>
   json: () => Promise<unknown>
   arrayBuffer: () => Promise<ArrayBuffer>
@@ -1170,6 +1171,7 @@ export async function secureFetchWithPinnedIP(
               statusText: res.statusMessage || '',
               headers: new SecureFetchHeaders(headersRecord, setCookieArray),
               body: null,
+              url,
               text: async () => '',
               json: async () => ({}),
               arrayBuffer: async () => new ArrayBuffer(0),
@@ -1249,6 +1251,7 @@ export async function secureFetchWithPinnedIP(
         statusText: res.statusMessage || '',
         headers: new SecureFetchHeaders(headersRecord, setCookieArray),
         body,
+        url,
         text: async () => (await readBodyAsBuffer()).toString('utf-8'),
         json: async () => JSON.parse((await readBodyAsBuffer()).toString('utf-8')),
         arrayBuffer: async () => {
