@@ -48,19 +48,32 @@ const CLOUD_REVIEW: { field: 'mode'; value: 'cloud_review' } = {
   field: 'mode',
   value: 'cloud_review',
 }
-const BABYSIT: { field: 'mode'; value: 'babysit' } = { field: 'mode', value: 'babysit' }
-const CLOUD_ANY: { field: 'mode'; value: Array<'cloud' | 'cloud_review' | 'babysit'> } = {
+const CLOUD_ANY: { field: 'mode'; value: Array<'cloud' | 'cloud_review'> } = {
   field: 'mode',
-  value: ['cloud', 'cloud_review', 'babysit'],
+  value: ['cloud', 'cloud_review'],
 }
-const EXISTING_PR: { field: 'mode'; value: Array<'cloud_review' | 'babysit'> } = {
+const CLOUD_WITH_BABYSIT: {
+  field: 'mode'
+  value: 'cloud'
+  and: { field: 'babysitMode'; value: true }
+} = {
   field: 'mode',
-  value: ['cloud_review', 'babysit'],
+  value: 'cloud',
+  and: { field: 'babysitMode', value: true },
+}
+const CLOUD_WITHOUT_BABYSIT: {
+  field: 'mode'
+  value: 'cloud'
+  and: { field: 'babysitMode'; value: true; not: true }
+} = {
+  field: 'mode',
+  value: 'cloud',
+  and: { field: 'babysitMode', value: true, not: true },
 }
 const LOCAL: { field: 'mode'; value: 'local' } = { field: 'mode', value: 'local' }
-const AUTHORING_MODES: { field: 'mode'; value: Array<'cloud' | 'local' | 'babysit'> } = {
+const AUTHORING_MODES: { field: 'mode'; value: Array<'cloud' | 'local'> } = {
   field: 'mode',
-  value: ['cloud', 'local', 'babysit'],
+  value: ['cloud', 'local'],
 }
 const MEMORY_MODES: { field: 'mode'; value: Array<'cloud' | 'local'> } = {
   field: 'mode',
@@ -100,13 +113,13 @@ export const PiBlock: BlockConfig<PiResponse> = {
   description: 'Run an autonomous coding agent on a repo',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'The Pi Coding Agent runs the Pi harness against a real repository. Create PR opens a new pull request, Review Code posts a structured review, Babysit drives an existing pull request through trusted review threads and required checks in bounded rounds, and Local Dev edits files over SSH. Create PR, Babysit, and Local Dev can reuse skills; only Create PR and Local Dev use conversation memory. Any mode can optionally get one web_search tool backed by your own key.',
+    'The Pi Coding Agent runs the Pi harness against a real repository. Create PR opens a new pull request and can optionally babysit it through trusted bot reviews and required checks, Review Code posts a structured review, and Local Dev edits files over SSH. Create PR and Local Dev can reuse skills and conversation memory. Any mode can optionally get one web_search tool backed by your own key.',
   bestPractices: `
   - Use Create PR for hands-off changes against a GitHub repo where a reviewable PR is the deliverable.
+  - Enable Babysit Mode on Create PR when trusted review bots and required checks should be monitored and fixed in bounded rounds.
   - Use Review Code to analyze an existing PR and leave summary + inline review comments.
-  - Use Babysit to fix and answer trusted review threads and required checks on an existing same-repository PR.
   - Use Local Dev to edit a repo on your own machine; expose the machine on a public hostname/tunnel so Sim can reach it over SSH.
-  - Create PR and Babysit require your own provider API key because the model runs in the sandbox. Review Code keeps the model key in Sim and can use either BYOK or a hosted key.
+  - Create PR requires your own provider API key because the model runs in the sandbox. Review Code keeps the model key in Sim and can use either BYOK or a hosted key.
   - Internet Search is off by default and always needs your own key for the selected provider, from the block field or Settings > BYOK. Leave it on None unless the task genuinely needs external information.
   `,
   category: 'blocks',
@@ -118,7 +131,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       id: 'mode',
       title: 'Mode',
       type: 'dropdown',
-      /** Create PR, Review Code, and Babysit require E2B and stay hidden when it is disabled. */
+      /** Create PR and Review Code require E2B and stay hidden when it is disabled. */
       value: () => (isTruthy(getEnv('NEXT_PUBLIC_E2B_ENABLED')) ? 'cloud' : 'local'),
       options: () => {
         const options = [
@@ -139,11 +152,6 @@ export const PiBlock: BlockConfig<PiResponse> = {
               label: 'Review Code',
               id: 'cloud_review',
               description: 'Reviews an existing PR and posts GitHub review comments',
-            },
-            {
-              label: 'Babysit',
-              id: 'babysit',
-              description: 'Fixes review threads and failing checks on an existing PR',
             }
           )
         }
@@ -155,7 +163,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       title: 'Task',
       type: 'long-input',
       placeholder: 'Describe what the coding agent should do...',
-      required: { field: 'mode', value: 'babysit', not: true },
+      required: true,
     },
     {
       id: 'model',
@@ -217,7 +225,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       paramVisibility: 'user-only',
       placeholder: 'GitHub personal access token',
       tooltip:
-        'Personal access token used for GitHub access. Create PR needs clone/push/PR permissions; Review Code needs clone + review permissions; Babysit also needs check/Actions reads, thread writes, issue comments, and push access.',
+        'Personal access token used for GitHub access. Create PR needs clone/push/PR permissions; with Babysit Mode it also needs check/Actions reads, thread writes, and issue comments. Review Code needs clone + review permissions.',
       required: true,
       condition: CLOUD_ANY,
     },
@@ -228,6 +236,26 @@ export const PiBlock: BlockConfig<PiResponse> = {
       placeholder: 'e.g., main (defaults to the repository default branch)',
       tooltip: 'The branch the pull request is opened against; the repo is cloned from it too.',
       condition: CLOUD,
+    },
+    {
+      id: 'babysitMode',
+      title: 'Babysit Mode',
+      type: 'switch',
+      defaultValue: false,
+      description:
+        'Create the PR ready for review, request the configured bot reviews, and fix trusted feedback and required checks in bounded rounds.',
+      condition: CLOUD,
+    },
+    {
+      id: 'reviewMentions',
+      title: 'Reviewer Mentions',
+      type: 'short-input',
+      defaultValue: '',
+      placeholder: '@greptile, @cursor review',
+      tooltip:
+        'Required comma-separated issue comments. Each is posted after PR creation and again after every pushed Babysit fix.',
+      required: CLOUD_WITH_BABYSIT,
+      condition: CLOUD_WITH_BABYSIT,
     },
     {
       id: 'branchName',
@@ -243,7 +271,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       type: 'switch',
       defaultValue: true,
       mode: 'advanced',
-      condition: CLOUD,
+      condition: CLOUD_WITHOUT_BABYSIT,
     },
     {
       id: 'prTitle',
@@ -267,7 +295,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       type: 'short-input',
       placeholder: 'e.g., 42',
       required: true,
-      condition: EXISTING_PR,
+      condition: CLOUD_REVIEW,
     },
     {
       id: 'reviewEvent',
@@ -289,18 +317,8 @@ export const PiBlock: BlockConfig<PiResponse> = {
       defaultValue: '3',
       placeholder: '3',
       tooltip: 'Maximum number of agent fixing rounds, from 1 to 10.',
-      condition: BABYSIT,
-    },
-    {
-      id: 'reviewMentions',
-      title: 'Re-review Mentions',
-      type: 'short-input',
-      defaultValue: '',
-      placeholder: '@greptile, @cursor review',
-      tooltip:
-        'Comma-separated issue comments to post after a pushed fix. Leave empty to skip requesting and waiting for re-review.',
       mode: 'advanced',
-      condition: BABYSIT,
+      condition: CLOUD_WITH_BABYSIT,
     },
 
     {
@@ -493,7 +511,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
   inputs: {
     mode: {
       type: 'string',
-      description: 'Execution mode: Create PR, Review Code, Babysit, or Local Dev',
+      description: 'Execution mode: Create PR, Review Code, or Local Dev',
     },
     task: { type: 'string', description: 'Instruction for the coding agent' },
     model: { type: 'string', description: 'AI model to use' },
@@ -505,11 +523,19 @@ export const PiBlock: BlockConfig<PiResponse> = {
     draft: { type: 'boolean', description: 'Open the PR as a draft (Create PR)' },
     prTitle: { type: 'string', description: 'Pull request title (Create PR)' },
     prBody: { type: 'string', description: 'Pull request body (Create PR)' },
-    pullNumber: { type: 'number', description: 'Pull request number (Review Code or Babysit)' },
-    maxRounds: { type: 'number', description: 'Maximum Babysit fixing rounds (1-10)' },
+    babysitMode: {
+      type: 'boolean',
+      description: 'Create the PR and babysit trusted bot reviews and required checks',
+    },
+    pullNumber: { type: 'number', description: 'Pull request number (Review Code)' },
+    maxRounds: {
+      type: 'number',
+      description: 'Maximum Create PR Babysit fixing rounds (1-10)',
+    },
     reviewMentions: {
       type: 'string',
-      description: 'Comma-separated issue comments requesting re-review after a Babysit push',
+      description:
+        'Required comma-separated bot review comments posted initially and after Babysit pushes',
     },
     reviewEvent: {
       type: 'string',
@@ -565,32 +591,32 @@ export const PiBlock: BlockConfig<PiResponse> = {
     rounds: {
       type: 'number',
       description: 'Babysit fixing rounds consumed',
-      condition: BABYSIT,
+      condition: CLOUD_WITH_BABYSIT,
     },
     threadsClean: {
       type: 'boolean',
       description: 'Whether all actionable review threads are resolved',
-      condition: BABYSIT,
+      condition: CLOUD_WITH_BABYSIT,
     },
     checksGreen: {
       type: 'boolean',
       description: 'Whether required checks are green with none pending',
-      condition: BABYSIT,
+      condition: CLOUD_WITH_BABYSIT,
     },
     threadsResolved: {
       type: 'number',
       description: 'Review threads resolved by Babysit',
-      condition: BABYSIT,
+      condition: CLOUD_WITH_BABYSIT,
     },
     commitsPushed: {
       type: 'number',
       description: 'Commits pushed by Babysit',
-      condition: BABYSIT,
+      condition: CLOUD_WITH_BABYSIT,
     },
     stopReason: {
       type: 'string',
       description: 'Why the Babysit run stopped',
-      condition: BABYSIT,
+      condition: CLOUD_WITH_BABYSIT,
     },
     tokens: { type: 'json', description: 'Token usage statistics' },
     cost: { type: 'json', description: 'Cost of the run' },

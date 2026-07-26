@@ -2,8 +2,8 @@
  * The seam between the Pi handler and its execution environments. The handler
  * resolves shared credentials and mode-specific context, then hands a
  * {@link PiRunParams} to one backend ({@link PiBackendRun}) selected by `mode`.
- * Authoring modes receive skills. Babysit and Review Code deliberately receive no
- * conversation memory because pull-request content is untrusted.
+ * Authoring modes receive skills. Create PR may then compose the internal Babysit
+ * continuation without exposing pull-request content to conversation memory.
  * Backends own environment-specific execution and report progress through
  * {@link PiRunContext.onEvent}.
  */
@@ -105,6 +105,14 @@ export interface PiCloudRunParams extends PiContextualRunParams {
   draft: boolean
   prTitle?: string
   prBody?: string
+  babysit?: PiCloudBabysitOptions
+}
+
+/** Optional post-creation Babysit configuration for Create PR. */
+export interface PiCloudBabysitOptions {
+  maxRounds: number
+  reviewMentions: string[]
+  executionId?: string
 }
 
 /** Parameters for a cloud (E2B) Pi run that reviews an existing PR. */
@@ -117,9 +125,8 @@ export interface PiCloudReviewRunParams extends PiRunBaseParams {
   reviewEvent: 'COMMENT' | 'REQUEST_CHANGES'
 }
 
-/** Parameters for a cloud (E2B) Pi run that babysits an existing pull request. */
-export interface PiBabysitRunParams extends PiContextualRunParams {
-  mode: 'babysit'
+/** Internal parameters for babysitting the pull request just opened by Create PR. */
+export interface PiBabysitContinuationParams extends PiContextualRunParams {
   owner: string
   repo: string
   githubToken: string
@@ -130,11 +137,7 @@ export interface PiBabysitRunParams extends PiContextualRunParams {
   executionBudgetMs?: number
 }
 
-export type PiRunParams =
-  | PiLocalRunParams
-  | PiCloudRunParams
-  | PiCloudReviewRunParams
-  | PiBabysitRunParams
+export type PiRunParams = PiLocalRunParams | PiCloudRunParams | PiCloudReviewRunParams
 
 /** Progress callbacks and cancellation passed into a backend run. */
 export interface PiRunContext {
@@ -145,6 +148,8 @@ export interface PiRunContext {
 /** Final result of a Pi run. */
 export interface PiRunResult {
   totals: PiRunTotals
+  /** Text eligible for conversation memory; defaults to `totals.finalText`. */
+  memoryText?: string
   changedFiles?: string[]
   diff?: string
   prUrl?: string

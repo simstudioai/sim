@@ -2,8 +2,8 @@
  * Executor handler for the Pi Coding Agent block. Resolves the model key,
  * skills, and memory, selects a backend by `mode`, and runs it — streaming the
  * agent's text to the client when the block is selected for streaming output,
- * otherwise returning a plain block output. The handler depends only on the
- * {@link PiBackendRun} seam and never reaches into backend internals.
+ * otherwise returning a plain block output. Create PR optionally composes the
+ * internal Babysit continuation in its backend.
  */
 
 import { createLogger } from '@sim/logger'
@@ -14,9 +14,7 @@ import {
   ToolNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
 import { BlockType } from '@/executor/constants'
-import { runBabysitPi } from '@/executor/handlers/pi/babysit-backend'
 import type {
-  PiBabysitRunParams,
   PiBackendRun,
   PiCloudReviewRunParams,
   PiCloudRunParams,
@@ -76,7 +74,10 @@ function isReviewEvent(value: string): value is PiCloudReviewRunParams['reviewEv
 }
 
 function parsePiMode(value: unknown): PiRunParams['mode'] {
-  if (value === 'cloud' || value === 'cloud_review' || value === 'local' || value === 'babysit') {
+  if (value === 'babysit') {
+    throw new Error('Standalone Babysit mode was removed. Use Create PR with Babysit Mode enabled.')
+  }
+  if (value === 'cloud' || value === 'cloud_review' || value === 'local') {
     return value
   }
   throw new Error(`Invalid Pi mode: ${String(value)}`)
@@ -121,8 +122,8 @@ export class PiBlockHandler implements BlockHandler {
     inputs: Record<string, any>
   ): Promise<BlockOutput | StreamingExecution> {
     const mode = parsePiMode(inputs.mode)
-    const task = asOptString(inputs.task) ?? ''
-    if (mode !== 'babysit' && !task) throw new Error('Task is required')
+    const task = asOptString(inputs.task)
+    if (!task) throw new Error('Task is required')
     const model = asOptString(inputs.model) ?? DEFAULT_MODEL
 
     const providerId = getProviderFromModel(model)
@@ -187,41 +188,6 @@ export class PiBlockHandler implements BlockHandler {
     }
     const skills = await resolvePiSkills(inputs.skills, ctx.workspaceId)
 
-    if (mode === 'babysit') {
-      const owner = asOptString(inputs.owner)
-      const repo = asOptString(inputs.repo)
-      const githubToken = asRawString(inputs.githubToken)
-      const pullNumber = parseOptionalNumberInput(inputs.pullNumber, 'pullNumber', {
-        integer: true,
-        min: 1,
-      })
-      const maxRounds =
-        parseOptionalNumberInput(inputs.maxRounds, 'maxRounds', {
-          integer: true,
-          min: 1,
-          max: 10,
-        }) ?? 3
-      if (!owner || !repo || !githubToken || pullNumber === undefined) {
-        throw new Error(
-          'Babysit requires repository owner, name, a GitHub token, and a pull request number'
-        )
-      }
-      const params: PiBabysitRunParams = {
-        ...base,
-        mode: 'babysit',
-        owner,
-        repo,
-        githubToken,
-        pullNumber,
-        maxRounds,
-        reviewMentions: parsePiReviewMentions(inputs.reviewMentions),
-        skills,
-        initialMessages: [],
-        ...(ctx.executionId ? { executionId: ctx.executionId } : {}),
-      }
-      return this.runPi(ctx, block, runBabysitPi, params)
-    }
-
     const memoryConfig: PiMemoryConfig = {
       memoryType: asOptString(inputs.memoryType) as PiMemoryConfig['memoryType'],
       conversationId: asOptString(inputs.conversationId),
@@ -268,6 +234,18 @@ export class PiBlockHandler implements BlockHandler {
     if (!owner || !repo || !githubToken) {
       throw new Error('Create PR requires repository owner, name, and a GitHub token')
     }
+    const babysitMode = inputs.babysitMode === true
+    const reviewMentions = babysitMode ? parsePiReviewMentions(inputs.reviewMentions) : []
+    if (babysitMode && reviewMentions.length === 0) {
+      throw new Error('Create PR Babysit Mode requires at least one reviewer mention')
+    }
+    const maxRounds = babysitMode
+      ? (parseOptionalNumberInput(inputs.maxRounds, 'maxRounds', {
+          integer: true,
+          min: 1,
+          max: 10,
+        }) ?? 3)
+      : undefined
     const params: PiCloudRunParams = {
       ...contextualBase,
       mode: 'cloud',
@@ -276,9 +254,18 @@ export class PiBlockHandler implements BlockHandler {
       githubToken,
       baseBranch: asOptString(inputs.baseBranch),
       branchName: asOptString(inputs.branchName),
-      draft: inputs.draft !== false,
+      draft: babysitMode ? false : inputs.draft !== false,
       prTitle: asOptString(inputs.prTitle),
       prBody: asOptString(inputs.prBody),
+      ...(babysitMode
+        ? {
+            babysit: {
+              maxRounds: maxRounds ?? 3,
+              reviewMentions,
+              ...(ctx.executionId ? { executionId: ctx.executionId } : {}),
+            },
+          }
+        : {}),
     }
     return this.runPi(ctx, block, runCloudPi, params, memoryConfig)
   }
@@ -329,7 +316,7 @@ export class PiBlockHandler implements BlockHandler {
     })
 
     const credentials = { provider, apiKey, keySource: source }
-    return mode === 'cloud' || mode === 'babysit'
+    return mode === 'cloud'
       ? credentials
       : { ...credentials, tool: buildPiSearchToolSpec(ctx, credentials, mode) }
   }
@@ -426,7 +413,12 @@ export class PiBlockHandler implements BlockHandler {
               this.buildOutput(result, params.model, params.isBYOK, startTime, startTimeISO)
             )
             if (memoryConfig) {
-              await appendPiMemory(ctx, memoryConfig, params.task, result.totals.finalText)
+              await appendPiMemory(
+                ctx,
+                memoryConfig,
+                params.task,
+                result.memoryText ?? result.totals.finalText
+              )
             }
             controller.close()
           } catch (error) {
@@ -453,7 +445,12 @@ export class PiBlockHandler implements BlockHandler {
       throw new Error(result.totals.errorMessage)
     }
     if (memoryConfig) {
-      await appendPiMemory(ctx, memoryConfig, params.task, result.totals.finalText)
+      await appendPiMemory(
+        ctx,
+        memoryConfig,
+        params.task,
+        result.memoryText ?? result.totals.finalText
+      )
     }
     return this.buildOutput(result, params.model, params.isBYOK, startTime, startTimeISO)
   }

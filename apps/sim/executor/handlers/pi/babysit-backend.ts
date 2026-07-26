@@ -34,8 +34,7 @@ import {
   parseBabysitRound,
 } from '@/executor/handlers/pi/babysit-round'
 import type {
-  PiBabysitRunParams,
-  PiBackendRun,
+  PiBabysitContinuationParams,
   PiRunContext,
   PiRunResult,
 } from '@/executor/handlers/pi/backend'
@@ -238,7 +237,7 @@ function resultFor(
 }
 
 function buildRoundPrompt(
-  params: PiBabysitRunParams,
+  params: PiBabysitContinuationParams,
   threads: BabysitThreadsState,
   checks: BabysitCheckState,
   diagnostics: ReadonlyMap<string, string>,
@@ -343,7 +342,7 @@ function createCancellationSignal(
 
 async function runRoundAgent(
   runner: PiSandboxRunner,
-  params: PiBabysitRunParams,
+  params: PiBabysitContinuationParams,
   context: PiRunContext,
   signal: AbortSignal,
   prompt: string,
@@ -406,7 +405,7 @@ async function runRoundAgent(
 
 async function finalizeRound(
   runner: PiSandboxRunner,
-  params: PiBabysitRunParams,
+  params: PiBabysitContinuationParams,
   snapshot: BabysitSnapshot,
   initialHeadSha: string,
   roundBaseSha: string,
@@ -499,7 +498,7 @@ async function finalizeRound(
 }
 
 async function waitForHeadConvergence(
-  params: PiBabysitRunParams,
+  params: PiBabysitContinuationParams,
   previousSha: string,
   newSha: string,
   options: BabysitBackendOptions,
@@ -567,7 +566,7 @@ export function resolveBabysitExecutionBudgetMs(executionBudgetMs?: number): num
 
 /** Injectable variant used by deterministic multi-round tests. */
 export async function runBabysitPiWithOptions(
-  params: PiBabysitRunParams,
+  params: PiBabysitContinuationParams,
   context: PiRunContext,
   overrides: Partial<BabysitBackendOptions> = {}
 ): Promise<PiRunResult> {
@@ -593,19 +592,20 @@ export async function runBabysitPiWithOptions(
   const { signal } = cancellation
   const startedAt = Date.now()
   const lifetime = resolveBabysitExecutionBudgetMs(params.executionBudgetMs)
-  if (lifetime < MIN_ROUND_BUDGET_MS) {
-    cancellation.cleanup()
-    throw new Error(
-      'Babysit needs at least one minute of runtime; use an async trigger and a longer Pi sandbox lifetime.'
-    )
-  }
 
   let latestThreads: BabysitThreadsState | undefined
   let latestChecks: BabysitCheckState | undefined
   let lastKnownChecksGreen = false
   let githubWriteOccurred = false
+  let reviewRequest: { requestedAt: string; commentIds: Set<number>; landed: boolean } | undefined
   try {
     if (signal.aborted) throw new Error('Pi run aborted')
+    if (lifetime < MIN_ROUND_BUDGET_MS) {
+      progress.notes.push(
+        'Babysit had less than one minute of execution budget remaining after Create PR.'
+      )
+      return resultFor(totals, 'budget_exhausted', progress, false, false)
+    }
     let snapshot = await fetchBabysitSnapshot(params, signal)
     if (snapshot.state !== 'open' || snapshot.merged) {
       return resultFor(totals, 'closed_or_merged', progress, false, false)
@@ -629,22 +629,43 @@ export async function runBabysitPiWithOptions(
         latestThreads.actionable.length === 0 && latestThreads.skipped.length === 0
       return resultFor(totals, 'startup_failure', progress, threadsClean, false)
     }
-    if (
-      latestThreads.actionable.length === 0 &&
-      latestThreads.skipped.length === 0 &&
-      latestChecks.checksGreen
-    ) {
-      return resultFor(totals, 'clean', progress, true, true)
-    }
-    if (
-      latestThreads.actionable.length === 0 &&
-      latestThreads.skipped.length > 0 &&
-      latestChecks.checksGreen
-    ) {
-      progress.notes.push(
-        `${latestThreads.skipped.length} untrusted or truncated threads were skipped.`
+    if (params.reviewMentions.length === 0) {
+      progress.notes.push('No reviewer mentions were configured for Create PR Babysit Mode.')
+      return resultFor(
+        totals,
+        'startup_failure',
+        progress,
+        latestThreads.actionable.length === 0 && latestThreads.skipped.length === 0,
+        latestChecks.checksGreen
       )
-      return resultFor(totals, 'skipped_threads', progress, false, true)
+    }
+    assertBabysitPinned(
+      { headSha: pinnedHeadSha, headRef: pinnedHeadRef, baseRef: pinnedBaseRef },
+      await fetchBabysitSnapshot(params, signal)
+    )
+    const initialRequest = await requestBabysitReview(
+      params,
+      params.reviewMentions,
+      secrets,
+      signal
+    )
+    githubWriteOccurred = initialRequest.posted > 0
+    if (initialRequest.failures.length) {
+      progress.notes.push(`${initialRequest.failures.length} initial review requests failed.`)
+    }
+    if (initialRequest.posted === 0) {
+      return resultFor(
+        totals,
+        'startup_failure',
+        progress,
+        latestThreads.actionable.length === 0 && latestThreads.skipped.length === 0,
+        latestChecks.checksGreen
+      )
+    }
+    reviewRequest = {
+      requestedAt: initialRequest.requestedAt,
+      commentIds: initialRequest.commentIds,
+      landed: false,
     }
 
     return await withPiSandbox(async (runner) => {
@@ -676,9 +697,6 @@ export async function runBabysitPiWithOptions(
         await runner.writeFile(PI_SEARCH_EXTENSION_PATH, PI_SEARCH_EXTENSION_SOURCE)
       }
 
-      let reviewRequest:
-        | { requestedAt: string; commentIds: Set<number>; landed: boolean }
-        | undefined
       let lastAttempt:
         | { pin: string; threadSignature: string; checkSignature: string; repeats: number }
         | undefined
@@ -858,8 +876,10 @@ export async function runBabysitPiWithOptions(
           roundBaseSha = finalized.newSha
           progress.commitsPushed += 1
           githubWriteOccurred = true
-          progress.changedFiles = finalized.changedFiles
-          progress.diff = finalized.diff
+          progress.changedFiles = [
+            ...new Set([...progress.changedFiles, ...finalized.changedFiles]),
+          ]
+          progress.diff = [progress.diff, finalized.diff].filter(Boolean).join('\n')
           lastKnownChecksGreen = ![...initialRequirements.values()].some((required) => required)
           let convergence: Awaited<ReturnType<typeof waitForHeadConvergence>>
           try {
@@ -1152,11 +1172,22 @@ export async function runBabysitPiWithOptions(
         lastKnownChecksGreen
       )
     }
-    throw createScrubbedPiError(error, secrets, 'Babysit failed')
+    progress.notes.push(
+      `Babysit could not continue: ${scrubPiSecrets(getErrorMessage(error), secrets)}`
+    )
+    return resultFor(
+      totals,
+      latestThreads || latestChecks ? 'agent_failure' : 'startup_failure',
+      progress,
+      threadsAreClean(latestThreads),
+      lastKnownChecksGreen
+    )
   } finally {
     cancellation.cleanup()
   }
 }
 
-export const runBabysitPi: PiBackendRun<PiBabysitRunParams> = (params, context) =>
-  runBabysitPiWithOptions(params, context)
+export const runBabysitPi = (
+  params: PiBabysitContinuationParams,
+  context: PiRunContext
+): Promise<PiRunResult> => runBabysitPiWithOptions(params, context)

@@ -64,8 +64,8 @@ export const PI_TIMEOUT_MS =
  * emits it as its *last* line, after any `git remote set-url` rewrite — a digest
  * taken before that rewrite mismatches at push time and every push fails.
  *
- * Every mode that clones in order to push emits it. Babysit verifies it,
- * deliberately alone, because verification is not a pure
+ * Every phase that clones in order to push emits it. The Babysit continuation
+ * verifies it deliberately alone, because verification is not a pure
  * tightening — a run that legitimately writes repo-local config would fail its
  * push.
  */

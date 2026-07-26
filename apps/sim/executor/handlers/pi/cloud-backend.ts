@@ -21,8 +21,11 @@
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { withPiSandbox } from '@/lib/execution/remote-sandbox'
-import type { PiBackendRun, PiCloudRunParams } from '@/executor/handlers/pi/backend'
+import { resolvePiSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
+import { runBabysitPi } from '@/executor/handlers/pi/babysit-backend'
+import type { PiBackendRun, PiCloudRunParams, PiRunResult } from '@/executor/handlers/pi/backend'
 import {
   buildPiScript,
   CLONE_TIMEOUT_MS,
@@ -69,6 +72,15 @@ const logger = createLogger('PiCloudBackend')
 const COMMIT_TITLE_MAX = 72
 const PR_SUMMARY_MAX = 2000
 
+interface OpenedPullRequest {
+  url?: string
+  number?: number
+}
+
+interface CreatePrPhaseResult extends PiRunResult {
+  pullNumber?: number
+}
+
 /**
  * Keeps git authentication out of the agent loop by reserving commit, push, and
  * PR creation for Sim's credential-scoped finalization step.
@@ -110,7 +122,7 @@ async function openPullRequest(
   detectedBase: string | undefined,
   totals: PiRunTotals,
   secrets: readonly string[]
-): Promise<string | undefined> {
+): Promise<OpenedPullRequest> {
   const base = params.baseBranch?.trim() || detectedBase
   if (!base) {
     throw new Error(
@@ -130,7 +142,7 @@ async function openPullRequest(
     head: branch,
     base,
     body,
-    draft: params.draft,
+    draft: params.babysit ? false : params.draft,
     apiKey: params.githubToken,
   })
 
@@ -140,11 +152,78 @@ async function openPullRequest(
     )
   }
 
-  const output = result.output as { metadata?: { html_url?: string } } | undefined
-  return output?.metadata?.html_url
+  const output = result.output as { metadata?: { html_url?: string; number?: number } } | undefined
+  return {
+    ...(typeof output?.metadata?.html_url === 'string' ? { url: output.metadata.html_url } : {}),
+    ...(typeof output?.metadata?.number === 'number' &&
+    Number.isSafeInteger(output.metadata.number) &&
+    output.metadata.number > 0
+      ? { number: output.metadata.number }
+      : {}),
+  }
+}
+
+function mergeChangedFiles(
+  createFiles: readonly string[] | undefined,
+  babysitFiles: readonly string[] | undefined
+): string[] {
+  return [...new Set([...(createFiles ?? []), ...(babysitFiles ?? [])])]
+}
+
+function mergePhaseDiffs(createDiff: string | undefined, babysitDiff: string | undefined): string {
+  return [createDiff, babysitDiff].filter((diff): diff is string => !!diff).join('\n')
+}
+
+function combineCreateAndBabysit(created: CreatePrPhaseResult, babysit: PiRunResult): PiRunResult {
+  const createText = created.totals.finalText
+  return {
+    totals: {
+      finalText: `Create PR:\n${createText}\n\nBabysit:\n${babysit.totals.finalText}`,
+      inputTokens: created.totals.inputTokens + babysit.totals.inputTokens,
+      outputTokens: created.totals.outputTokens + babysit.totals.outputTokens,
+      toolCalls: [...created.totals.toolCalls, ...babysit.totals.toolCalls],
+      ...(created.totals.errorMessage || babysit.totals.errorMessage
+        ? { errorMessage: created.totals.errorMessage ?? babysit.totals.errorMessage }
+        : {}),
+    },
+    memoryText: createText,
+    changedFiles: mergeChangedFiles(created.changedFiles, babysit.changedFiles),
+    diff: mergePhaseDiffs(created.diff, babysit.diff),
+    ...(created.prUrl ? { prUrl: created.prUrl } : {}),
+    ...(created.branch ? { branch: created.branch } : {}),
+    ...(typeof babysit.rounds === 'number' ? { rounds: babysit.rounds } : {}),
+    ...(typeof babysit.threadsClean === 'boolean' ? { threadsClean: babysit.threadsClean } : {}),
+    ...(typeof babysit.checksGreen === 'boolean' ? { checksGreen: babysit.checksGreen } : {}),
+    ...(typeof babysit.threadsResolved === 'number'
+      ? { threadsResolved: babysit.threadsResolved }
+      : {}),
+    ...(typeof babysit.commitsPushed === 'number' ? { commitsPushed: babysit.commitsPushed } : {}),
+    ...(typeof babysit.stopReason === 'string' ? { stopReason: babysit.stopReason } : {}),
+  }
+}
+
+function skippedBabysitResult(reason: 'no_pr_created' | 'startup_failure'): PiRunResult {
+  return {
+    totals: {
+      finalText:
+        reason === 'no_pr_created'
+          ? 'Babysit stopped: no_pr_created. Create PR produced no changes, so no pull request was opened.'
+          : 'Babysit stopped: startup_failure. GitHub did not return the new pull request number.',
+      inputTokens: 0,
+      outputTokens: 0,
+      toolCalls: [],
+    },
+    rounds: 0,
+    threadsClean: false,
+    checksGreen: false,
+    threadsResolved: 0,
+    commitsPushed: 0,
+    stopReason: reason,
+  }
 }
 
 export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context) => {
+  const startedAt = Date.now()
   if (!params.isBYOK) {
     throw new Error(
       'Create PR requires your own provider API key (BYOK). Set one in Settings > BYOK.'
@@ -177,7 +256,7 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
   const totals = createPiTotals()
   const thinking = mapThinkingLevel(params.thinkingLevel) ?? 'medium'
 
-  return withPiSandbox(async (runner) => {
+  const created = await withPiSandbox<CreatePrPhaseResult>(async (runner) => {
     try {
       const clone = await raceAbort(
         runner.run(CLONE_SCRIPT, {
@@ -331,8 +410,15 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
         throw new Error(`git push failed: ${truncate(scrubbed, PUSH_ERROR_MAX)}`)
       }
 
-      const prUrl = await openPullRequest(params, branch, detectedBase, totals, secrets)
-      return { totals, changedFiles, diff, prUrl, branch }
+      const pullRequest = await openPullRequest(params, branch, detectedBase, totals, secrets)
+      return {
+        totals,
+        changedFiles,
+        diff,
+        ...(pullRequest.url ? { prUrl: pullRequest.url } : {}),
+        ...(pullRequest.number ? { pullNumber: pullRequest.number } : {}),
+        branch,
+      }
     } catch (error) {
       // Aborts propagate as errors so a cancelled/timed-out run is not reported as
       // success and no partial memory turn is persisted (Local Dev mirrors this).
@@ -344,4 +430,39 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
       throw createScrubbedPiError(error, secrets, 'Pi cloud run failed')
     }
   })
+
+  if (!params.babysit) return created
+  if (!created.branch) {
+    return combineCreateAndBabysit(created, skippedBabysitResult('no_pr_created'))
+  }
+  if (!created.pullNumber) {
+    return combineCreateAndBabysit(created, skippedBabysitResult('startup_failure'))
+  }
+
+  const remainingExecutionMs = Math.max(0, getMaxExecutionTimeout() - (Date.now() - startedAt))
+  const sandboxBudgetMs = resolvePiSandboxLifetimeMs() ?? getMaxExecutionTimeout()
+  const babysit = await runBabysitPi(
+    {
+      model: params.model,
+      piModel: params.piModel,
+      providerId: params.providerId,
+      apiKey: params.apiKey,
+      isBYOK: params.isBYOK,
+      task: params.task,
+      thinkingLevel: params.thinkingLevel,
+      ...(params.search ? { search: params.search } : {}),
+      skills: params.skills,
+      initialMessages: [],
+      owner: params.owner,
+      repo: params.repo,
+      githubToken: params.githubToken,
+      pullNumber: created.pullNumber,
+      maxRounds: params.babysit.maxRounds,
+      reviewMentions: params.babysit.reviewMentions,
+      ...(params.babysit.executionId ? { executionId: params.babysit.executionId } : {}),
+      executionBudgetMs: Math.min(remainingExecutionMs, sandboxBudgetMs),
+    },
+    context
+  )
+  return combineCreateAndBabysit(created, babysit)
 }

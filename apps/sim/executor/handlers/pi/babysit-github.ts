@@ -678,7 +678,7 @@ export async function requestBabysitReview(
   return { requestedAt, commentIds, posted: commentIds.size, failures }
 }
 
-/** Detects later bot activity, excluding the mode's own re-review comments. */
+/** Detects later bot activity, excluding the continuation's own review-request comments. */
 export async function babysitReviewLandedSince(
   params: PullRequestCoordinates,
   requestedAt: string,

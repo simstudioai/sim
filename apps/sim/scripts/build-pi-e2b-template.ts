@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 
 /**
- * Builds the E2B sandbox template used by Create PR, Review Code, and Babysit.
+ * Builds the E2B sandbox template used by Create PR (including its optional
+ * Babysit continuation) and Review Code.
  *
  * Layers the `pi` CLI, its required Node version, and git onto E2B's
  * `code-interpreter` base. The cloud backend runs `pi` and git inside this

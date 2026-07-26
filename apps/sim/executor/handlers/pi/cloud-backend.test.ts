@@ -3,19 +3,32 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRun, mockReadFile, mockWriteFile, mockExecuteTool, mockProviderEnvVar } = vi.hoisted(
-  () => ({
-    mockRun: vi.fn(),
-    mockReadFile: vi.fn(),
-    mockWriteFile: vi.fn(),
-    mockExecuteTool: vi.fn(),
-    mockProviderEnvVar: vi.fn(),
-  })
-)
+const {
+  mockRun,
+  mockReadFile,
+  mockWriteFile,
+  mockExecuteTool,
+  mockProviderEnvVar,
+  mockWithPiSandbox,
+  mockRunBabysit,
+} = vi.hoisted(() => ({
+  mockRun: vi.fn(),
+  mockReadFile: vi.fn(),
+  mockWriteFile: vi.fn(),
+  mockExecuteTool: vi.fn(),
+  mockProviderEnvVar: vi.fn(),
+  mockWithPiSandbox: vi.fn(),
+  mockRunBabysit: vi.fn(),
+}))
 
 vi.mock('@/lib/execution/remote-sandbox', () => ({
-  withPiSandbox: (fn: (runner: unknown) => unknown) =>
-    fn({ run: mockRun, readFile: mockReadFile, writeFile: mockWriteFile }),
+  withPiSandbox: mockWithPiSandbox,
+}))
+vi.mock('@/lib/execution/remote-sandbox/pi-lifetime', () => ({
+  resolvePiSandboxLifetimeMs: () => 40 * 60 * 1000,
+}))
+vi.mock('@/executor/handlers/pi/babysit-backend', () => ({
+  runBabysitPi: mockRunBabysit,
 }))
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 vi.mock('@/executor/handlers/pi/keys', () => ({
@@ -50,11 +63,30 @@ function baseParams(overrides: Partial<PiCloudRunParams> = {}): PiCloudRunParams
 describe('runCloudPi', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockWithPiSandbox.mockImplementation((fn: (runner: unknown) => unknown) =>
+      fn({ run: mockRun, readFile: mockReadFile, writeFile: mockWriteFile })
+    )
     mockProviderEnvVar.mockReturnValue('ANTHROPIC_API_KEY')
     mockReadFile.mockResolvedValue('diff content')
     mockExecuteTool.mockResolvedValue({
       success: true,
-      output: { metadata: { html_url: 'https://github.com/octo/demo/pull/1' } },
+      output: { metadata: { html_url: 'https://github.com/octo/demo/pull/1', number: 1 } },
+    })
+    mockRunBabysit.mockResolvedValue({
+      totals: {
+        finalText: 'Babysit stopped: clean.',
+        inputTokens: 2,
+        outputTokens: 3,
+        toolCalls: [{ name: 'read', isError: false }],
+      },
+      changedFiles: ['src/y.ts'],
+      diff: 'babysit diff',
+      rounds: 1,
+      threadsClean: true,
+      checksGreen: true,
+      threadsResolved: 1,
+      commitsPushed: 1,
+      stopReason: 'clean',
     })
     mockRun.mockImplementation(
       (command: string, options: { onStdout?: (chunk: string) => void }) => {
@@ -153,9 +185,9 @@ describe('runCloudPi', () => {
     expect(lines.at(-1)).toContain('__GIT_CONFIG_DIGEST__=')
     expect(lines.at(-2)).toContain('git remote set-url origin')
 
-    // Emitting the marker is additive for every mode. No mode verifies it yet;
-    // Babysit will, and deliberately alone, because verification would fail any
-    // run that legitimately writes repository-local git config.
+    // Emitting the marker is additive for every phase. The optional Babysit
+    // continuation verifies it, deliberately alone, because verification would
+    // fail a creation run that legitimately writes repository-local git config.
     expect(pushCmd).not.toContain('__GIT_CONFIG_DIGEST__=')
   })
 
@@ -199,6 +231,63 @@ describe('runCloudPi', () => {
     expect(result.diff).toBe('diff content')
   })
 
+  it('destroys the Create PR sandbox before composing Babysit and aggregates both phases', async () => {
+    const result = await runCloudPi(
+      baseParams({
+        draft: true,
+        skills: [{ name: 'style', content: 'Be concise.' }],
+        initialMessages: [{ role: 'user', content: 'remember this for creation only' }],
+        babysit: {
+          maxRounds: 4,
+          reviewMentions: ['@greptile', '@cursor review'],
+          executionId: 'execution-1',
+        },
+      }),
+      { onEvent: vi.fn() }
+    )
+
+    expect(mockWithPiSandbox).toHaveBeenCalledTimes(1)
+    expect(mockRunBabysit).toHaveBeenCalledTimes(1)
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'github_create_pr',
+      expect.objectContaining({ draft: false })
+    )
+    expect(mockWithPiSandbox.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRunBabysit.mock.invocationCallOrder[0]
+    )
+    expect(mockRunBabysit.mock.calls[0][0]).toMatchObject({
+      task: 'do it',
+      skills: [{ name: 'style', content: 'Be concise.' }],
+      initialMessages: [],
+      owner: 'octo',
+      repo: 'demo',
+      pullNumber: 1,
+      maxRounds: 4,
+      reviewMentions: ['@greptile', '@cursor review'],
+      executionId: 'execution-1',
+    })
+    expect(mockRunBabysit.mock.calls[0][0].executionBudgetMs).toBeGreaterThan(0)
+    expect(result).toMatchObject({
+      memoryText: 'done',
+      prUrl: 'https://github.com/octo/demo/pull/1',
+      branch: 'feature-x',
+      changedFiles: ['src/x.ts', 'src/y.ts'],
+      diff: 'diff content\nbabysit diff',
+      rounds: 1,
+      threadsClean: true,
+      checksGreen: true,
+      threadsResolved: 1,
+      commitsPushed: 1,
+      stopReason: 'clean',
+    })
+    expect(result.totals).toMatchObject({
+      finalText: 'Create PR:\ndone\n\nBabysit:\nBabysit stopped: clean.',
+      inputTokens: 2,
+      outputTokens: 3,
+      toolCalls: [{ name: 'read', isError: false }],
+    })
+  })
+
   it('skips the PR when nothing was pushed', async () => {
     mockRun.mockImplementation((command: string) => {
       if (command.includes('git clone')) {
@@ -215,6 +304,91 @@ describe('runCloudPi', () => {
     expect(result.prUrl).toBeUndefined()
     // No changes => the token-bearing push command must never run.
     expect(mockRun.mock.calls.some(([cmd]: [string]) => cmd.includes('push'))).toBe(false)
+  })
+
+  it('reports no_pr_created without starting Babysit when Create PR has no changes', async () => {
+    mockRun.mockImplementation((command: string) => {
+      if (command.includes('git clone')) {
+        return Promise.resolve({ stdout: '__BASE_SHA__=abc', stderr: '', exitCode: 0 })
+      }
+      if (command.includes('pi -p')) {
+        return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
+      }
+      return Promise.resolve({ stdout: '__NO_CHANGES__=1', stderr: '', exitCode: 0 })
+    })
+
+    const result = await runCloudPi(
+      baseParams({
+        babysit: { maxRounds: 3, reviewMentions: ['@greptile'] },
+      }),
+      { onEvent: vi.fn() }
+    )
+
+    expect(mockRunBabysit).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      rounds: 0,
+      threadsClean: false,
+      checksGreen: false,
+      threadsResolved: 0,
+      commitsPushed: 0,
+      stopReason: 'no_pr_created',
+    })
+  })
+
+  it('preserves the opened PR and reports startup_failure when GitHub omits its number', async () => {
+    mockExecuteTool.mockResolvedValue({
+      success: true,
+      output: { metadata: { html_url: 'https://github.com/octo/demo/pull/1' } },
+    })
+
+    const result = await runCloudPi(
+      baseParams({
+        babysit: { maxRounds: 3, reviewMentions: ['@greptile'] },
+      }),
+      { onEvent: vi.fn() }
+    )
+
+    expect(mockRunBabysit).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      prUrl: 'https://github.com/octo/demo/pull/1',
+      branch: 'feature-x',
+      rounds: 0,
+      stopReason: 'startup_failure',
+    })
+  })
+
+  it('preserves the opened PR when Babysit returns a partial failure report', async () => {
+    mockRunBabysit.mockResolvedValue({
+      totals: {
+        finalText: 'Babysit stopped: startup_failure.',
+        inputTokens: 0,
+        outputTokens: 0,
+        toolCalls: [],
+      },
+      rounds: 0,
+      threadsClean: false,
+      checksGreen: false,
+      threadsResolved: 0,
+      commitsPushed: 0,
+      stopReason: 'startup_failure',
+    })
+
+    const result = await runCloudPi(
+      baseParams({
+        babysit: { maxRounds: 3, reviewMentions: ['@greptile'] },
+      }),
+      { onEvent: vi.fn() }
+    )
+
+    expect(result).toMatchObject({
+      prUrl: 'https://github.com/octo/demo/pull/1',
+      branch: 'feature-x',
+      rounds: 0,
+      threadsClean: false,
+      checksGreen: false,
+      commitsPushed: 0,
+      stopReason: 'startup_failure',
+    })
   })
 
   it('rejects a non-BYOK key (no Sim-owned key in the sandbox)', async () => {

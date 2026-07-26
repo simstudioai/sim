@@ -1,8 +1,9 @@
 /**
- * The Create PR and Babysit `web_search` implementation, as a Pi extension written into the
- * sandbox at runtime (mirroring `cloud-review-tools-script.ts`).
+ * The Create PR `web_search` implementation, shared by its creation and optional
+ * Babysit continuation sandbox phases and written at runtime (mirroring
+ * `cloud-review-tools-script.ts`).
  *
- * These modes run the Pi CLI inside E2B/Daytona with no host in the loop and no stdin channel, so
+ * These phases run the Pi CLI inside E2B/Daytona with no host in the loop and no stdin channel, so
  * they cannot call `executeTool` and must issue their own bounded `fetch`. That makes the request
  * construction and normalization exist twice — here and in `tool.ts` plus `normalize.ts`. Every
  * value the two copies must agree on is interpolated from those modules rather than retyped, so the
