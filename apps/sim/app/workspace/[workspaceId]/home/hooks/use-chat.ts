@@ -956,21 +956,28 @@ export function getReplayCompletedWorkflowToolCallIds(events: StreamBatchEvent[]
 }
 
 /**
- * True when the transcript holds a browser tool call that is still executing —
- * i.e. the live turn is mid browser-action. Used on reconnect to restore the
- * Browser resource panel the way workflow-run recovery restores workflows:
- * completed browser calls are suppressed on replay (exactly-once) and so never
- * re-surface the panel themselves.
+ * Which live panel the transcript is mid-action on, or null for neither.
+ *
+ * Used on reconnect to restore that panel, the way workflow-run recovery
+ * restores workflows. A completed browser or terminal call is suppressed on
+ * replay, so it never re-opens its own panel — without this, returning to a
+ * chat mid-turn lands on whichever resource happened to be persisted last
+ * while the agent is driving a different one. When calls against both are in
+ * flight the later one wins, being the one the user was watching.
  */
-export function hasExecutingBrowserToolCall(messages: ChatMessage[]): boolean {
-  return messages.some((message) =>
-    (message.contentBlocks ?? []).some(
-      (block) =>
-        block.toolCall !== undefined &&
-        isBrowserToolName(block.toolCall.name) &&
-        block.toolCall.status === 'executing'
-    )
-  )
+export function panelForExecutingClientTool(
+  messages: ChatMessage[]
+): 'browser' | 'terminal' | null {
+  let panel: 'browser' | 'terminal' | null = null
+  for (const message of messages) {
+    for (const block of message.contentBlocks ?? []) {
+      const call = block.toolCall
+      if (call === undefined || call.status !== 'executing') continue
+      if (isBrowserToolName(call.name)) panel = 'browser'
+      else if (isTerminalToolName(call.name)) panel = 'terminal'
+    }
+  }
+  return panel
 }
 
 function buildRecoverySubjectKey(
@@ -1952,15 +1959,14 @@ export function useChat(
       setActiveResourceId(null)
     }
 
-    // Browser counterpart of the workflow-run recovery above: returning to a
-    // chat whose live turn is mid browser-action re-focuses the Browser tab
-    // and re-expands a collapsed panel. Runs after the resource hydration so
-    // it wins over the "last resource" active fallback. Completed browser
-    // calls are suppressed on replay (exactly-once) and never re-fire
-    // `startClientBrowserTool`, so without this the panel restores to
-    // whichever resource happened to be persisted last.
-    if (shouldReconnectActiveStream && hasExecutingBrowserToolCall(mappedMessages)) {
-      openBrowserResource()
+    // Live-panel counterpart of the workflow-run recovery above: returning to
+    // a chat whose turn is mid browser-action or mid-command re-focuses that
+    // tab and re-expands a collapsed panel. Runs after the resource hydration
+    // so it wins over the "last resource" active fallback.
+    if (shouldReconnectActiveStream) {
+      const panel = panelForExecutingClientTool(mappedMessages)
+      if (panel === 'browser') openBrowserResource()
+      else if (panel === 'terminal') openTerminalResource()
     }
 
     const snapshotPreviewSessions = Array.isArray(chatHistory.streamSnapshot?.previewSessions)
@@ -2029,6 +2035,7 @@ export function useChat(
     cancelActiveStreamRecovery,
     flushPendingResources,
     openBrowserResource,
+    openTerminalResource,
     recoverPendingClientWorkflowTools,
     seedPreviewSessions,
     setTransportIdle,

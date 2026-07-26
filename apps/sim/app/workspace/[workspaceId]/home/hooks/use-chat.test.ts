@@ -10,7 +10,7 @@ import {
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import {
   getReplayCompletedWorkflowToolCallIds,
-  hasExecutingBrowserToolCall,
+  panelForExecutingClientTool,
   reconcileLiveAssistantTurn,
   selectReconnectReplayState,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
@@ -220,7 +220,7 @@ describe('getReplayCompletedWorkflowToolCallIds', () => {
   })
 })
 
-describe('hasExecutingBrowserToolCall', () => {
+describe('panelForExecutingClientTool', () => {
   function toolCallMessage(id: string, name: string, status: ToolCallStatus): ChatMessage {
     return {
       id,
@@ -236,16 +236,42 @@ describe('hasExecutingBrowserToolCall', () => {
       toolCallMessage('m2', 'browser_navigate', 'executing'),
     ]
 
-    expect(hasExecutingBrowserToolCall(messages)).toBe(true)
+    expect(panelForExecutingClientTool(messages)).toBe('browser')
   })
 
-  it('ignores completed browser tool calls and executing non-browser tools', () => {
+  it('detects a terminal tool call that is still executing', () => {
     const messages = [
-      toolCallMessage('m1', 'browser_click', 'success'),
-      toolCallMessage('m2', 'run_workflow', 'executing'),
-      { id: 'm3', role: 'assistant' as const, content: 'no blocks' },
+      toolCallMessage('m1', 'terminal', 'success'),
+      toolCallMessage('m2', 'terminal', 'executing'),
     ]
 
-    expect(hasExecutingBrowserToolCall(messages)).toBe(false)
+    expect(panelForExecutingClientTool(messages)).toBe('terminal')
+  })
+
+  it('ignores completed calls and executing tools that own no panel', () => {
+    const messages = [
+      toolCallMessage('m1', 'browser_click', 'success'),
+      toolCallMessage('m2', 'terminal', 'success'),
+      toolCallMessage('m3', 'run_workflow', 'executing'),
+      { id: 'm4', role: 'assistant' as const, content: 'no blocks' },
+    ]
+
+    expect(panelForExecutingClientTool(messages)).toBe(null)
+  })
+
+  // Both panels can be in flight at once; the later call is the one the user
+  // was watching when they navigated away.
+  it('picks the later panel when both are mid-action', () => {
+    const browserFirst = [
+      toolCallMessage('m1', 'browser_navigate', 'executing'),
+      toolCallMessage('m2', 'terminal', 'executing'),
+    ]
+    const terminalFirst = [
+      toolCallMessage('m1', 'terminal', 'executing'),
+      toolCallMessage('m2', 'browser_navigate', 'executing'),
+    ]
+
+    expect(panelForExecutingClientTool(browserFirst)).toBe('terminal')
+    expect(panelForExecutingClientTool(terminalFirst)).toBe('browser')
   })
 })

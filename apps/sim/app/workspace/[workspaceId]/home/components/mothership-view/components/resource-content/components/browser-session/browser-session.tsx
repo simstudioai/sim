@@ -17,6 +17,8 @@ import {
   sendBrowserPanelAction,
   setBrowserTabPinned,
 } from '@/lib/browser-agent/transport'
+import { BROWSER_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
+import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { useBrowserPanelOcclusion } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserTabStrip } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-tab-strip'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
@@ -124,6 +126,25 @@ export function BrowserSession({ visible }: { visible: boolean }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
   const panelOccluded = useBrowserPanelOcclusion(hostRef, visible)
+  const { removeResource } = useMothershipResources()
+
+  // The browser session ending closes the panel, the way the terminal panel
+  // goes when its last shell does. What it leaves otherwise is a tab whose
+  // only content explains that there is nothing to show and that starting
+  // again has to happen from somewhere else — the agent reopens the panel on
+  // its next browser action anyway. Guarded on having seen a live session so
+  // that opening the panel while the store still remembers a closed one does
+  // not immediately close it again.
+  const wasAlive = useRef(false)
+  useEffect(() => {
+    if (sessionAlive) {
+      wasAlive.current = true
+      return
+    }
+    if (!wasAlive.current) return
+    wasAlive.current = false
+    removeResource('browser', BROWSER_SESSION_RESOURCE_ID)
+  }, [sessionAlive, removeResource])
   const pageUrlRef = useRef(pageState?.url ?? '')
   pageUrlRef.current = pageState?.url ?? ''
   /** Non-null while the user is editing the URL bar; otherwise it mirrors the page. */
@@ -389,13 +410,11 @@ export function BrowserSession({ visible }: { visible: boolean }) {
               className='pointer-events-none absolute inset-0 size-full object-fill'
             />
           )}
-        {(!pageState || !sessionAlive) && (
+        {!pageState && (
           <div className='absolute inset-0 flex flex-col items-center justify-center gap-2'>
             <Cursor className='size-[18px] text-[var(--text-tertiary)]' />
             <p className='text-[var(--text-muted)] text-small'>
-              {sessionAlive
-                ? 'Waiting for the browser session to start…'
-                : 'The browser session was closed — ask Sim to navigate again to start a new one.'}
+              Waiting for the browser session to start…
             </p>
           </div>
         )}
