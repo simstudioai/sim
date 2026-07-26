@@ -17,6 +17,7 @@ import {
   ImportFailure,
   totalSkipped,
 } from '@/main/browser-import/types'
+import type { SiteRecord } from '@/main/browser-sites/directory'
 
 const logger = createLogger('BrowserImport')
 
@@ -37,6 +38,13 @@ export interface ImportServiceDeps {
   readPasswords: (loginDataPath: string, key: Buffer) => Promise<ReadPasswordsResult>
   /** Site icons for the given origins, read from the source browser's own store. */
   readFavicons: (faviconsPath: string, origins: ReadonlySet<string>) => Promise<Map<string, string>>
+  /** What the source browser's page titles call each of the given hosts. */
+  readSiteNames: (
+    historyPath: string,
+    hostnames: ReadonlySet<string>
+  ) => Promise<Map<string, string>>
+  /** Records the names and icons of the hosts an import brought over. */
+  rememberSites: (records: readonly SiteRecord[]) => Promise<void>
   vault: {
     isAvailable: () => boolean
     importCredentials: (
@@ -170,6 +178,7 @@ export async function importChromeCookies(
     }
 
     const written = await deps.writeCookies(read.cookies)
+    await rememberImportedSites(cookieHostnames(read.cookies), profile, deps, { icons: true })
     const result: BrowserImportResult = {
       cookiesImported: written.imported,
       cookiesSkipped: skippedReading + written.failed,
@@ -230,6 +239,9 @@ export async function importChromePasswords(
       await withFavicons(read.credentials, profile.faviconsPath, deps),
       policy
     )
+    await rememberImportedSites(credentialHostnames(read.credentials), profile, deps, {
+      icons: false,
+    })
     const result: BrowserPasswordImportResult = {
       passwordsAdded: outcome.added,
       passwordsUpdated: outcome.updated,
@@ -296,6 +308,74 @@ async function withFavicons(
     return icon ? { ...candidate, icon } : candidate
   })
 }
+
+/** The hosts a set of cookies belongs to, with the domain-cookie dot removed. */
+function cookieHostnames(cookies: readonly ImportableCookie[]): Set<string> {
+  const hostnames = new Set<string>()
+  for (const cookie of cookies) {
+    const hostname = hostnameOf(cookie.url)
+    if (hostname) hostnames.add(hostname)
+  }
+  return hostnames
+}
+
+function credentialHostnames(credentials: readonly ImportCandidate[]): Set<string> {
+  const hostnames = new Set<string>()
+  for (const candidate of credentials) {
+    const hostname = hostnameOf(candidate.origin)
+    if (hostname) hostnames.add(hostname)
+  }
+  return hostnames
+}
+
+function hostnameOf(url: string): string | null {
+  try {
+    return new URL(url).hostname || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Records what the imported hosts are called, so the omnibox can offer "Gmail"
+ * rather than `mail.google.com`.
+ *
+ * Scoped to the hosts this import actually brought over — the source browser's
+ * history is read, but only these hosts come out of it, and only as a name.
+ * Entirely best-effort: a site nobody can name is still a site the user
+ * imported, so nothing here is allowed to fail the import.
+ */
+async function rememberImportedSites(
+  hostnames: ReadonlySet<string>,
+  profile: BrowserProfile,
+  deps: ImportServiceDeps,
+  { icons: wantIcons }: { icons: boolean }
+): Promise<void> {
+  if (hostnames.size === 0) return
+  const empty = new Map<string, string>()
+
+  const names = profile.historyPath
+    ? await deps.readSiteNames(profile.historyPath, hostnames).catch(() => empty)
+    : empty
+  // Saved passwords already carry their own icon on the vault record, so only
+  // the cookie side needs to look one up here.
+  const icons =
+    wantIcons && profile.faviconsPath
+      ? await deps
+          .readFavicons(profile.faviconsPath, new Set([...hostnames].map(originOf)))
+          .catch(() => empty)
+      : empty
+
+  const records: SiteRecord[] = []
+  for (const hostname of hostnames) {
+    const name = names.get(hostname)
+    const icon = icons.get(originOf(hostname))
+    if (name !== undefined || icon !== undefined) records.push({ hostname, name, icon })
+  }
+  await deps.rememberSites(records).catch(() => {})
+}
+
+const originOf = (hostname: string) => `https://${hostname}`
 
 function categorize(error: unknown, kind: 'cookie' | 'password'): BrowserImportResult['error'] {
   if (error instanceof ImportFailure) {

@@ -12,6 +12,7 @@ import { readSafeStoragePassword } from '@/main/browser-import/chromium-crypto'
 import { readBrowserFavicons } from '@/main/browser-import/chromium-favicons'
 import { readBrowserPasswords } from '@/main/browser-import/chromium-passwords'
 import { listAllBrowserProfiles } from '@/main/browser-import/chromium-profiles'
+import { readBrowserSiteNames } from '@/main/browser-import/chromium-site-names'
 import {
   type ImportServiceDeps,
   listImportableProfiles,
@@ -19,6 +20,7 @@ import {
   importChromeData as runDataImport,
   importChromePasswords as runPasswordImport,
 } from '@/main/browser-import/import-service'
+import { rememberSites } from '@/main/browser-sites'
 
 /**
  * Composition root for the Chrome importer: binds the real Keychain, profile,
@@ -34,6 +36,8 @@ function deps(): ImportServiceDeps {
     writeCookies: (cookies) => importAgentCookies(cookies),
     readPasswords: (loginDataPath, key) => readBrowserPasswords(loginDataPath, key),
     readFavicons: (faviconsPath, origins) => readBrowserFavicons(faviconsPath, origins),
+    readSiteNames: (historyPath, hostnames) => readBrowserSiteNames(historyPath, hostnames),
+    rememberSites: (records) => rememberSites(records),
     vault: {
       isAvailable: () => credentialsAvailable(),
       importCredentials: (candidates, policy) => importCredentials(candidates, policy),

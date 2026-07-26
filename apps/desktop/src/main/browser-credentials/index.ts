@@ -7,6 +7,7 @@ import { app, clipboard } from 'electron'
 import { FillCoordinator, type FillCoordinatorDeps } from '@/main/browser-credentials/fill'
 import { authorizeForSecret, revokeSecretAuthorization } from '@/main/browser-credentials/os-auth'
 import { CredentialVault } from '@/main/browser-credentials/vault'
+import { clearSites } from '@/main/browser-sites'
 
 /** How long a copied password may sit on the clipboard before Sim clears it. */
 const CLIPBOARD_CLEAR_MS = 30_000
@@ -125,6 +126,7 @@ export async function copyCredential(id: string): Promise<boolean> {
  */
 export async function clearCredentials(): Promise<void> {
   await credentialVault().clear()
+  await clearSites()
   revokeSecretAuthorization()
   await coordinatorInstance?.refreshAvailability()
 }

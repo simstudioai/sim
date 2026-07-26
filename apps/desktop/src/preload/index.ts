@@ -20,6 +20,7 @@ import type {
   BrowserImportProfile,
   BrowserImportResult,
   BrowserPasswordImportResult,
+  BrowserSiteInfo,
   DesktopCommand,
   DesktopNotificationPayload,
   DesktopOAuthConnectResult,
@@ -205,6 +206,7 @@ const api: SimDesktopApi = {
         browserImport: {
           listChromeProfiles: (): Promise<BrowserImportProfile[]> =>
             ipcRenderer.invoke('browser-import:list-profiles'),
+          listSites: (): Promise<BrowserSiteInfo[]> => ipcRenderer.invoke('browser-import:sites'),
           importChromeCookies: (profileId?: string): Promise<BrowserImportResult> =>
             ipcRenderer.invoke('browser-import:cookies', profileId),
           importFromChrome: (

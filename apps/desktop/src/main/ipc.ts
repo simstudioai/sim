@@ -46,6 +46,7 @@ import {
   importChromePasswords,
   listChromeImportProfiles,
 } from '@/main/browser-import'
+import { listSites } from '@/main/browser-sites'
 import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
 import { isDesktopPreferenceKey } from '@/main/desktop-settings'
@@ -647,6 +648,14 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       denied: [],
       handler: () => listCredentials(),
+    },
+    // Names and icons only, for hosts the user already imported. No password
+    // material and no browsing history reach this channel.
+    'browser-import:sites': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: [],
+      handler: () => listSites(),
     },
     // The one channel in the whole surface that can return password
     // plaintext. It is gated three ways: the Sim app origin, a live user

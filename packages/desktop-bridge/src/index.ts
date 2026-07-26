@@ -229,9 +229,26 @@ export interface BrowserImportResult {
  * gesture, and no browser tool maps to either channel. Reading Chrome is
  * strictly read-only, and decrypted material stays in the main process.
  */
+/** What an imported site is called and what it looks like, keyed by hostname. */
+export interface BrowserSiteInfo {
+  hostname: string
+  /** Learned from the source browser's own page titles, not a built-in list. */
+  name?: string
+  /** The source browser's favicon, as a `data:` URL. */
+  icon?: string
+}
+
 export interface SimDesktopBrowserImportApi {
   /** Chrome profiles detected on this device; empty when none are readable. */
   listChromeProfiles(): Promise<BrowserImportProfile[]>
+  /**
+   * Names and icons for the sites previous imports brought over, so the
+   * omnibox can offer "Gmail" instead of `mail.google.com`.
+   *
+   * Optional — feature-detect before calling, so a newer web deployment keeps
+   * working against an installed shell that predates it.
+   */
+  listSites?(): Promise<BrowserSiteInfo[]>
   /**
    * Copy one Chrome profile's cookies into the built-in browser, preserving
    * each cookie's security attributes. Requires an active user gesture in the

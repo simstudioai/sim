@@ -1,14 +1,15 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BrowserPanelAnchor } from '@sim/browser-protocol'
 import { isBrowserTheme } from '@sim/browser-protocol'
-import { Button, ChipInput } from '@sim/emcn'
-import { ArrowLeft, ArrowRight, Cursor, Key, RefreshCw, Search } from '@sim/emcn/icons'
+import { Button, ChipInput, Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@sim/emcn'
+import { ArrowLeft, ArrowRight, Cursor, Key, Link, RefreshCw, Search } from '@sim/emcn/icons'
 import { useTheme } from 'next-themes'
 import {
   isBrowserTabPinningAvailable,
   isBrowserTabReorderingAvailable,
+  loadBrowserSuggestionSources,
   onBrowserFillAvailability,
   onBrowserOmniboxFocus,
   reorderBrowserTab,
@@ -23,8 +24,19 @@ import { BROWSER_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { useBrowserPanelOcclusion } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserTabStrip } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-tab-strip'
+import {
+  mergeSuggestionSources,
+  moveActiveIndex,
+  rankSuggestions,
+  type UrlSuggestion,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/url-suggestions'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { MOTHERSHIP_WIDTH } from '@/stores/constants'
+
+/** Ties the omnibox to its listbox for assistive tech. */
+const SUGGESTIONS_LIST_ID = 'browser-url-suggestions'
+
+const suggestionRowId = (index: number) => `${SUGGESTIONS_LIST_ID}-${index}`
 
 /**
  * The browser panel. The real agent-browser page is a native view the
@@ -159,8 +171,25 @@ export function BrowserSession({ visible }: { visible: boolean }) {
   const [panelVisible, setPanelVisible] = useState(false)
   /** Whether the shell has a saved password for the page currently open. */
   const [fillAvailable, setFillAvailable] = useState(false)
+  /** Hosts worth suggesting: signed into, or holding a saved password. */
+  const [suggestionCorpus, setSuggestionCorpus] = useState<UrlSuggestion[]>([])
+  /** Null until the user arrows into the list, so Enter still means "go to what I typed". */
+  const [activeSuggestion, setActiveSuggestion] = useState<number | null>(null)
 
   useEffect(() => onBrowserFillAvailability(setFillAvailable), [])
+
+  // Reloaded whenever the panel comes back on screen, so an import or a fresh
+  // sign-in elsewhere in the app shows up without a reload.
+  useEffect(() => {
+    if (!panelVisible) return
+    let active = true
+    void loadBrowserSuggestionSources().then(({ sessions, credentials, sites }) => {
+      if (active) setSuggestionCorpus(mergeSuggestionSources(sessions, credentials, sites))
+    })
+    return () => {
+      active = false
+    }
+  }, [panelVisible])
 
   useEffect(() => {
     if (isBrowserTheme(theme)) {
@@ -291,13 +320,35 @@ export function BrowserSession({ visible }: { visible: boolean }) {
     }
   }, [visible])
 
+  /**
+   * Suggestions only exist while the omnibox is being edited. Reading them off
+   * `urlDraft` rather than a separate open flag means they cannot outlive the
+   * edit, so they never hang over a page the user has gone back to reading.
+   */
+  const suggestions = useMemo(
+    () => (urlDraft === null ? [] : rankSuggestions(suggestionCorpus, urlDraft)),
+    [suggestionCorpus, urlDraft]
+  )
+
+  const navigateTo = useCallback((url: string) => {
+    sendBrowserPanelAction('navigate', { url })
+    setActiveSuggestion(null)
+    urlInputRef.current?.blur()
+  }, [])
+
   const submitUrl = useCallback(() => {
+    const highlighted = activeSuggestion === null ? undefined : suggestions[activeSuggestion]
+    if (highlighted) {
+      navigateTo(highlighted.url)
+      return
+    }
     const raw = (urlDraft ?? '').trim()
     if (raw) {
-      sendBrowserPanelAction('navigate', { url: resolveUrlBarInput(raw) })
+      navigateTo(resolveUrlBarInput(raw))
+      return
     }
     urlInputRef.current?.blur()
-  }, [urlDraft])
+  }, [activeSuggestion, navigateTo, suggestions, urlDraft])
 
   const handleNewTab = useCallback(() => {
     setUrlDraft('')
@@ -392,28 +443,113 @@ export function BrowserSession({ visible }: { visible: boolean }) {
             <RefreshCw className='size-[14px]' />
           </Button>
           {/* URL bar: Enter navigates the agent browser. */}
-          <ChipInput
-            ref={urlInputRef}
-            type='text'
-            icon={Search}
-            spellCheck={false}
-            aria-label='Search Google or enter a URL — press Enter'
-            className='min-w-0 flex-1'
-            value={urlDraft ?? pageState?.url ?? ''}
-            placeholder='Search Google or enter a URL'
-            autoComplete='off'
-            onChange={(event) => setUrlDraft(event.target.value)}
-            onFocus={(event) => {
-              setUrlDraft((current) => current ?? pageState?.url ?? '')
-              selectFocusedOmniboxOnNextFrame(event.currentTarget)
+          <Popover
+            open={suggestions.length > 0}
+            onOpenChange={(open) => {
+              if (!open) setActiveSuggestion(null)
             }}
-            onBlur={() => setUrlDraft(null)}
-            onKeyDown={(event) => {
-              event.stopPropagation()
-              if (event.key === 'Enter') submitUrl()
-              if (event.key === 'Escape') urlInputRef.current?.blur()
-            }}
-          />
+            modal={false}
+          >
+            <PopoverAnchor asChild>
+              <div className='min-w-0 flex-1'>
+                <ChipInput
+                  ref={urlInputRef}
+                  type='text'
+                  icon={Search}
+                  spellCheck={false}
+                  aria-label='Search Google or enter a URL — press Enter'
+                  value={urlDraft ?? pageState?.url ?? ''}
+                  placeholder='Search Google or enter a URL'
+                  autoComplete='off'
+                  role='combobox'
+                  aria-expanded={suggestions.length > 0}
+                  aria-controls={SUGGESTIONS_LIST_ID}
+                  aria-activedescendant={
+                    activeSuggestion === null ? undefined : suggestionRowId(activeSuggestion)
+                  }
+                  onChange={(event) => {
+                    setUrlDraft(event.target.value)
+                    // The old highlight pointed at a row that may no longer be
+                    // in the list, let alone in the same position.
+                    setActiveSuggestion(null)
+                  }}
+                  onFocus={(event) => {
+                    setUrlDraft((current) => current ?? pageState?.url ?? '')
+                    selectFocusedOmniboxOnNextFrame(event.currentTarget)
+                  }}
+                  onBlur={() => {
+                    setUrlDraft(null)
+                    setActiveSuggestion(null)
+                  }}
+                  onKeyDown={(event) => {
+                    event.stopPropagation()
+                    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                      if (suggestions.length === 0) return
+                      // Otherwise the caret jumps to either end of the text.
+                      event.preventDefault()
+                      setActiveSuggestion((current) =>
+                        moveActiveIndex(
+                          current,
+                          event.key === 'ArrowDown' ? 1 : -1,
+                          suggestions.length
+                        )
+                      )
+                      return
+                    }
+                    if (event.key === 'Enter') submitUrl()
+                    if (event.key === 'Escape') {
+                      // Dismiss the list first; leave the omnibox only once
+                      // there is no highlight left to back out of.
+                      if (activeSuggestion !== null) setActiveSuggestion(null)
+                      else urlInputRef.current?.blur()
+                    }
+                  }}
+                />
+              </div>
+            </PopoverAnchor>
+            <PopoverContent
+              id={SUGGESTIONS_LIST_ID}
+              align='start'
+              side='bottom'
+              sideOffset={4}
+              className='w-[var(--radix-popover-trigger-width)] p-1'
+              // Focus has to stay in the omnibox: the user is still typing, and
+              // the list is driven by arrow keys rather than by tabbing into it.
+              onOpenAutoFocus={(event) => event.preventDefault()}
+            >
+              {suggestions.map((suggestion, index) => (
+                <PopoverItem
+                  key={suggestion.hostname}
+                  id={suggestionRowId(index)}
+                  role='option'
+                  aria-selected={index === activeSuggestion}
+                  active={index === activeSuggestion}
+                  // Without this the input blurs first, which closes the list
+                  // and the click lands on nothing.
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => navigateTo(suggestion.url)}
+                >
+                  <div className='flex min-w-0 items-center gap-2'>
+                    {suggestion.icon ? (
+                      <img src={suggestion.icon} alt='' className='size-4 flex-shrink-0' />
+                    ) : (
+                      <Link className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
+                    )}
+                    {suggestion.name ? (
+                      <>
+                        <span className='flex-shrink-0 font-medium'>{suggestion.name}</span>
+                        <span className='truncate text-[var(--text-muted)]'>
+                          — {suggestion.hostname}
+                        </span>
+                      </>
+                    ) : (
+                      <span className='truncate'>{suggestion.hostname}</span>
+                    )}
+                  </div>
+                </PopoverItem>
+              ))}
+            </PopoverContent>
+          </Popover>
           {/* Only shown when this page has a login form and a saved match. */}
           {fillAvailable && (
             <Button

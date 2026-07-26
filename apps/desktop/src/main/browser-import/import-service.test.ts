@@ -29,6 +29,7 @@ const PROFILES: BrowserProfile[] = [
     cookiesPath: '/chrome/Default/Cookies',
     loginDataPath: '/chrome/Default/Login Data',
     faviconsPath: '/chrome/Default/Favicons',
+    historyPath: '/chrome/Default/History',
   },
   {
     id: 'arc:Profile 2',
@@ -38,6 +39,7 @@ const PROFILES: BrowserProfile[] = [
     cookiesPath: '/arc/Profile 2/Cookies',
     loginDataPath: '/arc/Profile 2/Login Data',
     faviconsPath: '/arc/Profile 2/Favicons',
+    historyPath: '/arc/Profile 2/History',
   },
 ]
 
@@ -75,6 +77,8 @@ function createDeps(overrides: Partial<ImportServiceDeps> = {}): ImportServiceDe
     writeCookies: async (cookies) => ({ imported: cookies.length, failed: 0 }),
     readPasswords: async () => readPasswords(),
     readFavicons: async () => new Map<string, string>(),
+    readSiteNames: async () => new Map<string, string>(),
+    rememberSites: async () => {},
     vault: {
       isAvailable: () => true,
       importCredentials: async (candidates) => ({
@@ -97,6 +101,7 @@ describe('toDisplayProfiles', () => {
       cookiesPath: '/cookies',
       loginDataPath: null,
       faviconsPath: null,
+      historyPath: null,
     }
   }
 
@@ -329,6 +334,7 @@ describe('importChromeCookies', () => {
           cookiesPath: null,
           loginDataPath: '/chrome/Login Data',
           faviconsPath: null,
+          historyPath: null,
         },
       ],
     })
@@ -393,7 +399,7 @@ describe('importChromePasswords', () => {
     const importCredentials = vi.fn(async () => ({ added: 1, updated: 0, skipped: 0 }))
     const readFavicons = vi.fn()
     const deps = createDeps({
-      listProfiles: async () => [{ ...PROFILES[0], faviconsPath: null }],
+      listProfiles: async () => [{ ...PROFILES[0], faviconsPath: null, historyPath: null }],
       readFavicons,
       vault: { isAvailable: () => true, importCredentials },
     })

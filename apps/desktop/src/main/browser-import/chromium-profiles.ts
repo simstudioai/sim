@@ -24,6 +24,8 @@ const COOKIE_DB_RELATIVE_PATHS = [join('Network', 'Cookies'), 'Cookies']
 const LOGIN_DB_RELATIVE_PATHS = ['Login Data']
 /** Site icons, used to give saved passwords a recognisable face. */
 const FAVICON_DB_RELATIVE_PATHS = ['Favicons']
+/** Page titles, read only to learn what the imported sites are called. */
+const HISTORY_DB_RELATIVE_PATHS = ['History']
 /** Internal profiles that never hold a user's browsing session. */
 const IGNORED_PROFILE_DIRS = new Set(['System Profile', 'Guest Profile'])
 const PROFILE_DIR_PATTERN = /^(Default|Profile \d{1,4})$/
@@ -141,6 +143,7 @@ export async function listBrowserProfiles(
     const cookiesPath = await resolveFirstReadable(profileDir, COOKIE_DB_RELATIVE_PATHS)
     const loginDataPath = await resolveFirstReadable(profileDir, LOGIN_DB_RELATIVE_PATHS)
     const faviconsPath = await resolveFirstReadable(profileDir, FAVICON_DB_RELATIVE_PATHS)
+    const historyPath = await resolveFirstReadable(profileDir, HISTORY_DB_RELATIVE_PATHS)
     if (cookiesPath === null && loginDataPath === null) continue
     profiles.push({
       id: formatProfileId(source.id, dir),
@@ -152,6 +155,7 @@ export async function listBrowserProfiles(
       cookiesPath,
       loginDataPath,
       faviconsPath,
+      historyPath,
     })
   }
   return profiles

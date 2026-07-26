@@ -14,6 +14,7 @@
  * offered.
  */
 import type {
+  BrowserKnownSession,
   BrowserOmniboxFocusMode,
   BrowserPageState,
   BrowserPanelAction,
@@ -23,7 +24,11 @@ import type {
   BrowserTheme,
   BrowserToolName,
 } from '@sim/browser-protocol'
-import type { SimDesktopBrowserAgentApi } from '@sim/desktop-bridge'
+import type {
+  BrowserCredentialMetadata,
+  BrowserSiteInfo,
+  SimDesktopBrowserAgentApi,
+} from '@sim/desktop-bridge'
 import { getDesktopBridge, isBrowserAgentEnabled } from '@/lib/desktop'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
@@ -159,6 +164,29 @@ export function onBrowserFillAvailability(callback: (available: boolean) => void
  */
 export function showBrowserCredentialChooser(anchor: { x: number; y: number }): void {
   void getDesktopBridge()?.browserCredentials?.showChooser?.(anchor)
+}
+
+/**
+ * Reads what the omnibox suggests from: hosts the browser holds cookies for,
+ * and hosts with a saved password.
+ *
+ * Both already exist for other reasons, and neither is a record of where the
+ * user has been — this browser keeps no history. Password metadata never
+ * includes the password itself. Either source failing yields an empty list, so
+ * a broken lookup costs suggestions rather than the omnibox.
+ */
+export async function loadBrowserSuggestionSources(): Promise<{
+  sessions: BrowserKnownSession[]
+  credentials: BrowserCredentialMetadata[]
+  sites: BrowserSiteInfo[]
+}> {
+  const desktop = getDesktopBridge()
+  const [known, credentials, sites] = await Promise.all([
+    desktop?.browserAgent?.getKnownSessions?.().catch(() => null) ?? null,
+    desktop?.browserCredentials?.list().catch(() => []) ?? [],
+    desktop?.browserImport?.listSites?.().catch(() => []) ?? [],
+  ])
+  return { sessions: known?.sessions ?? [], credentials, sites }
 }
 
 /** Subscribes to native browser shortcuts that target the renderer omnibox. */

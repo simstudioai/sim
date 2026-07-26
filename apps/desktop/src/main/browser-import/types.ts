@@ -25,6 +25,8 @@ export interface BrowserProfile {
   loginDataPath: string | null
   /** That profile's favicon store, or null when it has none. */
   faviconsPath: string | null
+  /** That profile's history, read only for the names sites go by. */
+  historyPath: string | null
 }
 
 /** One row of Chrome's `cookies` table, coerced to plain JS types. */
