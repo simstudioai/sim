@@ -511,6 +511,22 @@
   opacity: 0;
 }
 
+/* Transparent hover hit-slop. The visible caret bar is only ~2px wide and the dormant cap is
+ * 8×5px, so "hover for who" (revealing the name label on a dormant caret) would be near
+ * impossible to trigger. This invisible strip widens the hover target across the caret's full
+ * height and over the cap — nothing visible changes, only the pointer area. `pointer-events:
+ * auto` is required so it catches the hover; kept narrow so it barely intrudes on selecting
+ * text next to a remote caret. */
+.rich-markdown-prose .collaboration-carets__caret::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  bottom: 0;
+  left: -4px;
+  right: -4px;
+  pointer-events: auto;
+}
+
 /* Matches the canvas cursor name tag (cursors.tsx): identity-color background with
  * `--surface-1` text at `text-xs`/`font-medium`, so both presence surfaces read as
  * one system. `--surface-1` is the base surface token (readable on every assigned
