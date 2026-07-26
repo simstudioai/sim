@@ -64,9 +64,16 @@ export function useFileDocCollaboration({
   // round-trip-unsafe views never build a Yjs document they won't use.
   const docRef = useRef<Y.Doc | null>(null)
   const awarenessRef = useRef<Awareness | null>(null)
-  // First creation, so the editor can bind synchronously at mount. Recreation after a
-  // StrictMode dev remount destroys the reused instance is handled in the provider effect
-  // below (render does not re-run before the remount, so a render-only guard can't cover it).
+  // Created ONCE and kept stable for the whole editor lifetime. The editor freezes these into
+  // its extension set at mount (`useEditor` fixes extensions at creation), so the instances the
+  // provider binds MUST stay byte-identical to what the editor holds — they are never
+  // destroyed-and-recreated. We deliberately do NOT `doc.destroy()`/`awareness.destroy()` on
+  // unmount: a StrictMode dev remount would fire that cleanup and destroy the very instance the
+  // still-mounted editor references, leaving the provider syncing a live doc while the editor
+  // renders a dead one — i.e. a peer who joins sees a blank document. The Y.Doc/Awareness hold
+  // no OS resources; the provider owns them by reference only (see file-doc-provider.ts) and
+  // does not destroy them either, so on real unmount the editor + provider drop their references
+  // and the doc is reclaimed by GC.
   if (enabled && docRef.current === null) {
     docRef.current = new Y.Doc()
     awarenessRef.current = new Awareness(docRef.current)
@@ -74,27 +81,11 @@ export function useFileDocCollaboration({
 
   const [provider, setProvider] = useState<FileDocProvider | null>(null)
 
-  // Declared BEFORE the provider effect so, on unmount, React runs this cleanup
-  // AFTER the provider effect's cleanup (cleanups run in reverse declaration
-  // order) — the provider detaches from the doc/awareness before they're destroyed.
-  useEffect(() => {
-    return () => {
-      awarenessRef.current?.destroy()
-      docRef.current?.destroy()
-    }
-  }, [])
-
   useEffect(() => {
     if (!enabled || !socket) return
-    // The destroy cleanup (declared above) runs on StrictMode's simulated unmount, and no
-    // render happens before the remount setup — so the refs can still hold a destroyed doc
-    // here. Recreate before binding so the provider never attaches to a dead doc; the return
-    // memo re-reads the fresh refs when `setProvider` re-renders.
-    if (docRef.current === null || docRef.current.isDestroyed) {
-      docRef.current = new Y.Doc()
-      awarenessRef.current = new Awareness(docRef.current)
-    }
-    const doc = docRef.current
+    // Non-null: both refs are set during render before any effect runs, and are never destroyed
+    // (see above), so this always binds the same doc/awareness the editor froze at mount.
+    const doc = docRef.current as Y.Doc
     const awareness = awarenessRef.current as Awareness
     const fileProvider = new FileDocProvider(socket, fileId, doc, awareness)
     setProvider(fileProvider)
