@@ -490,6 +490,25 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(s.socket.join).toHaveBeenCalledWith('workspace-file-doc:file-2')
   })
 
+  it('cancels an in-flight join when the client leaves that same file (no ghost owner)', async () => {
+    const { io, sent } = createIo()
+    let resolveAuth: (v: unknown) => void = () => {}
+    mockAuthorizeRoom.mockReturnValueOnce(new Promise((resolve) => (resolveAuth = resolve)))
+    const s = setup('socket-a', io)
+
+    // Join file-1 is awaiting authorization when the client leaves file-1 (fast open→close).
+    const pending = s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    s.handlers[FILE_DOC_EVENTS.LEAVE]({ fileId: 'file-1' })
+    resolveAuth({ allowed: true, status: 200, workspacePermission: 'write' })
+    await pending
+
+    // The stale join must not register: no success, no room join, and no presence broadcast that
+    // would leave a ghost collaborator until disconnect.
+    expect(s.socket.join).not.toHaveBeenCalled()
+    expect(joinSuccessFileId(s.socket)).toBeUndefined()
+    expect(sent.some((m) => m.event === FILE_DOC_EVENTS.PRESENCE)).toBe(false)
+  })
+
   it('scopes LEAVE to the named file (a leave for a different file is a no-op)', async () => {
     const { io } = createIo()
     const a = setup('socket-a', io)

@@ -397,6 +397,11 @@ export function setupWorkspaceFileDocHandlers(
   roomManager: IRoomManager
 ) {
   const io = roomManager.io
+  // The file this socket currently intends to edit (set when a join starts). A leave targeting it
+  // — or an unscoped leave — advances the join generation to cancel an in-flight join, so a join
+  // awaiting authorization can't complete after the client left and register a ghost owner. A
+  // leave for a DIFFERENT file must NOT cancel it (a document switch), mirroring workspace-files.
+  let currentFileId: string | null = null
 
   socket.on(FILE_DOC_EVENTS.JOIN, async ({ fileId, clientId }: JoinFileDocPayload) => {
     try {
@@ -416,9 +421,11 @@ export function setupWorkspaceFileDocHandlers(
         return
       }
 
-      // Claim this JOIN's generation before the async authorize below.
+      // Claim this JOIN's generation before the async authorize below, and record the file the
+      // socket now intends to edit so a leave for it can cancel this join if it's still in-flight.
       const generation = (joinGeneration.get(socket.id) ?? 0) + 1
       joinGeneration.set(socket.id, generation)
+      currentFileId = fileId
 
       const room = fileDocRoom(fileId)
       const name = roomName(room)
@@ -542,10 +549,17 @@ export function setupWorkspaceFileDocHandlers(
 
   socket.on(FILE_DOC_EVENTS.LEAVE, (payload?: LeaveFileDocPayload) => {
     try {
-      // Only affect a REGISTERED room; never touch the join generation here. A
-      // leave that raced ahead of an in-flight join (no room registered yet) is a
-      // no-op — bumping the generation would silently abort an unrelated join for
-      // a different file (a document switch), leaving the socket bound to nothing.
+      // Cancel an in-flight join whose file the client is now leaving (or an unscoped leave): a
+      // join still awaiting authorization would otherwise complete after the client left, register
+      // as an owner, and broadcast a ghost collaborator until disconnect. Guard on the current
+      // file intent so a stale/deferred leave for a DIFFERENT file can't abort the join the client
+      // has since switched to (bumping the generation blindly caused that regression in #5941).
+      if (!payload?.fileId || payload.fileId === currentFileId) {
+        joinGeneration.set(socket.id, (joinGeneration.get(socket.id) ?? 0) + 1)
+        currentFileId = null
+      }
+      // Tear down membership only for a REGISTERED room; a leave that raced ahead of an in-flight
+      // join (nothing registered yet) has already cancelled it above.
       const name = socketToRoomName.get(socket.id)
       if (!name) return
       // Scope the leave to the named file when provided: a deferred leave from a
