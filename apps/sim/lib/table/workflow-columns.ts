@@ -627,7 +627,11 @@ export async function cancelWorkflowGroupRuns(
           executionsPatch: m.executionsPatch,
         },
         table,
-        `wfgrp-cancel-${m.rowId}`
+        `wfgrp-cancel-${m.rowId}`,
+        // This write only touches execution state (data is `{}`). `patch` makes the data write a
+        // true no-op (`data || '{}'`), whereas the default replace would rewrite the whole jsonb
+        // column and could revert a user's concurrent edit to a cell of the same row.
+        { dataWriteMode: 'patch' }
       ).catch((err) => {
         logger.error(`Failed to write cancelled state for row ${m.rowId}:`, err)
       })

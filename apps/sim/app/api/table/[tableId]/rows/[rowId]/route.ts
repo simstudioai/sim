@@ -133,6 +133,12 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     }
 
     const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
+    // Write only the edited cells via a Postgres JSONB concat (`data = data || patch`) instead of
+    // replacing the whole `data` object. A table row stores every cell in one jsonb column, so a
+    // full-object replace is last-write-wins across the ROW: two users editing different cells of
+    // the same row concurrently would clobber each other. `patch` merges under the row lock, so
+    // each cell edit is atomic. `computedWrite` stays unset — this is a user edit, still subject to
+    // the normal update lock (unlike the workflow engine writing its own output cells).
     const updatedRow = await updateRow(
       {
         tableId,
@@ -142,7 +148,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
         actorUserId: authResult.userId,
       },
       table,
-      requestId
+      requestId,
+      { dataWriteMode: 'patch' }
     )
     // Only `null` when a `cancellationGuard` is supplied and the SQL guard
     // rejects the write — this route doesn't pass one, so reaching null is a bug.

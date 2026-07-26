@@ -139,6 +139,10 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
 
     const idByName = buildIdByName(table.schema as TableSchema)
     const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
+    // Patch only the edited cells (`data = data || patch`) so concurrent edits to different cells
+    // of the same row don't clobber each other — a row stores all its cells in one jsonb column,
+    // so a full-object replace is last-write-wins across the whole row. See the app route for the
+    // full rationale.
     const updatedRow = await updateRow(
       {
         tableId,
@@ -148,7 +152,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
         actorUserId,
       },
       table,
-      requestId
+      requestId,
+      { dataWriteMode: 'patch' }
     )
     // No `cancellationGuard` is passed here, so `updateRow` can't return null
     // from this caller. Defensive narrowing for TypeScript.
