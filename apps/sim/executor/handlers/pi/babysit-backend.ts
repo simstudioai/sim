@@ -686,12 +686,24 @@ export async function runBabysitPiWithOptions(
         progress.notes.push(
           `Clone failed: ${scrubGitSecrets(clone.stderr || clone.stdout, params.githubToken)}`
         )
-        return resultFor(totals, 'agent_failure', progress, false, false)
+        return resultFor(
+          totals,
+          'agent_failure',
+          progress,
+          threadsAreClean(latestThreads),
+          lastKnownChecksGreen
+        )
       }
       const gitConfigDigest = extractMarkerValues(clone.stdout, GIT_CONFIG_DIGEST_MARKER)[0]
       if (!gitConfigDigest) {
         progress.notes.push('Clone did not report the repository Git-config digest.')
-        return resultFor(totals, 'agent_failure', progress, false, false)
+        return resultFor(
+          totals,
+          'agent_failure',
+          progress,
+          threadsAreClean(latestThreads),
+          lastKnownChecksGreen
+        )
       }
       if (params.search) {
         await runner.writeFile(PI_SEARCH_EXTENSION_PATH, PI_SEARCH_EXTENSION_SOURCE)
@@ -725,10 +737,7 @@ export async function runBabysitPiWithOptions(
           latestThreads!.actionable.length > 0 || latestChecks!.blockingFailing.length > 0
         if (!needsAgent) {
           const remaining = lifetime - (Date.now() - startedAt)
-          if (
-            remaining <=
-            options.roundWaitMs + MIN_ROUND_BUDGET_MS + ROUND_FINALIZATION_RESERVE_MS
-          ) {
+          if (remaining <= options.roundWaitMs) {
             const reason = outstandingReason(
               'budget_exhausted',
               latestThreads!,

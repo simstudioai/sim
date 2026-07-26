@@ -162,6 +162,7 @@ function commandResult(stdout = '', stderr = '', exitCode = 0) {
 }
 
 function makeRunner(options: {
+  cloneResult?: ReturnType<typeof commandResult>
   prepareStdout?: string | string[]
   pushResult?: ReturnType<typeof commandResult>
   roundFile?: string
@@ -186,7 +187,7 @@ function makeRunner(options: {
       ) => {
         runCalls.push({ command, envs: runOptions.envs, timeoutMs: runOptions.timeoutMs })
         if (command.includes('git clone')) {
-          return commandResult('__GIT_CONFIG_DIGEST__=digest-1\n')
+          return options.cloneResult ?? commandResult('__GIT_CONFIG_DIGEST__=digest-1\n')
         }
         if (command.includes('pi -p --mode json')) {
           runOptions.onStdout?.('{"type":"agent_end"}\n')
@@ -310,6 +311,58 @@ describe('runBabysitPiWithOptions', () => {
     )
     expect(mockWithPiSandbox).toHaveBeenCalledTimes(1)
     expect(mockReviewLanded).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves known clean flags when the Babysit clone fails after the review request', async () => {
+    mockFetchSnapshot.mockResolvedValue(snapshot)
+    mockFetchThreads.mockResolvedValue({
+      actionable: [],
+      skipped: [],
+      totalUnresolved: 0,
+      latestReview: null,
+    })
+    mockFetchChecks.mockResolvedValue(greenChecks)
+    const { runner } = makeRunner({
+      cloneResult: commandResult('', 'clone failed', 1),
+    })
+    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+
+    const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() })
+
+    expect(result).toMatchObject({
+      stopReason: 'agent_failure',
+      threadsClean: true,
+      checksGreen: true,
+      rounds: 0,
+      commitsPushed: 0,
+    })
+  })
+
+  it('uses remaining time for wait-only polling without reserving an agent round', async () => {
+    mockFetchSnapshot.mockResolvedValue(snapshot)
+    mockFetchThreads.mockResolvedValue({
+      actionable: [],
+      skipped: [],
+      totalUnresolved: 0,
+      latestReview: null,
+    })
+    mockFetchChecks.mockResolvedValue(greenChecks)
+    const { runner } = makeRunner({})
+    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+
+    const result = await runBabysitPiWithOptions(
+      params({ executionBudgetMs: 2 * 60 * 1000 }),
+      { onEvent: vi.fn() },
+      { roundWaitMs: 30_000 }
+    )
+
+    expect(mockReviewLanded).toHaveBeenCalledTimes(1)
+    expect(result).toMatchObject({
+      stopReason: 'clean',
+      threadsClean: true,
+      checksGreen: true,
+      rounds: 0,
+    })
   })
 
   it('refuses excess failing checks before fetching discarded diagnostics', async () => {
