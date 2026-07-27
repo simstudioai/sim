@@ -52,6 +52,7 @@ function ActivityLogRow({
     >
       <button
         type='button'
+        aria-expanded={expandable ? expanded : undefined}
         className='flex w-full items-center gap-3 px-3 py-2 text-left'
         onClick={() => expandable && setExpanded(!expanded)}
         disabled={!expandable}

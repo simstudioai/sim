@@ -262,13 +262,6 @@
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^4.1.0"
   },
-  "trustedDependencies": [
-    "canvas",
-    "better-sqlite3",
-    "ffmpeg-static",
-    "isolated-vm",
-    "sharp"
-  ],
   "overrides": {
     "next": "16.2.11",
     "@next/env": "16.2.11",

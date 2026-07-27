@@ -6,7 +6,6 @@ import {
   HexSimple,
   Key,
   KeySquare,
-  Link,
   Lock,
   LogIn,
   Palette,
@@ -29,13 +28,7 @@ import { isHosted } from '@/lib/core/config/env-flags'
 
 export type SettingsPlane = 'account' | 'organization' | 'workspace'
 
-export type AccountSettingsSection =
-  | 'general'
-  | 'billing'
-  | 'api-keys'
-  | 'copilot'
-  | 'admin'
-  | 'mothership'
+export type AccountSettingsSection = 'general' | 'billing' | 'api-keys' | 'admin' | 'mothership'
 
 export type OrganizationSettingsSection =
   | 'members'
@@ -43,7 +36,6 @@ export type OrganizationSettingsSection =
   | 'access-control'
   | 'audit-logs'
   | 'sso'
-  | 'domains'
   | 'sessions'
   | 'data-retention'
   | 'data-drains'
@@ -90,9 +82,7 @@ export type UnifiedSettingsSection =
   | 'teammates'
   | 'organization'
   | 'sso'
-  | 'domains'
   | 'whitelabeling'
-  | 'copilot'
   | 'forks'
   | 'mcp'
   | 'custom-tools'
@@ -223,6 +213,8 @@ export const ACCOUNT_SETTINGS_PATH_ALIASES = {
 
 export const ORGANIZATION_SETTINGS_PATH_ALIASES = {
   organization: 'members',
+  // Verified domains moved into the SSO page; keep old links working.
+  domains: 'sso',
 } as const satisfies Readonly<Record<string, OrganizationSettingsSection>>
 
 export const WORKSPACE_SETTINGS_PATH_ALIASES = {
@@ -488,19 +480,6 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
-    label: 'Chat keys',
-    icon: HexSimple,
-    unified: {
-      id: 'copilot',
-      description: 'Manage the model-provider keys that power Chat.',
-      group: 'system',
-      requiresHosted: true,
-    },
-    planes: {
-      account: { id: 'copilot', group: 'developer', order: 3 },
-    },
-  },
-  {
     label: 'Sim mailer',
     icon: Send,
     unified: {
@@ -545,22 +524,6 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
-    label: 'Verified domains',
-    icon: Link,
-    docsLink: 'https://docs.sim.ai/platform/enterprise/verified-domains',
-    unified: {
-      id: 'domains',
-      description: 'Prove ownership of your email domains before configuring SSO.',
-      group: 'enterprise',
-      requiresHosted: true,
-      requiresEnterprise: true,
-      selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.sso,
-    },
-    planes: {
-      organization: { id: 'domains', group: 'security', order: 5 },
-    },
-  },
-  {
     label: 'Session policies',
     icon: Clock,
     docsLink: 'https://docs.sim.ai/platform/enterprise/session-policies',
@@ -573,7 +536,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.sessionPolicies,
     },
     planes: {
-      organization: { id: 'sessions', group: 'security', order: 6 },
+      organization: { id: 'sessions', group: 'security', order: 5 },
     },
   },
   {
@@ -590,7 +553,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.dataRetention,
     },
     planes: {
-      organization: { id: 'data-retention', group: 'enterprise', order: 7 },
+      organization: { id: 'data-retention', group: 'enterprise', order: 6 },
     },
   },
   {
@@ -606,7 +569,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.dataDrains,
     },
     planes: {
-      organization: { id: 'data-drains', group: 'enterprise', order: 8 },
+      organization: { id: 'data-drains', group: 'enterprise', order: 7 },
     },
   },
   {
@@ -622,7 +585,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.whitelabeling,
     },
     planes: {
-      organization: { id: 'whitelabeling', group: 'enterprise', order: 9 },
+      organization: { id: 'whitelabeling', group: 'enterprise', order: 8 },
     },
   },
   {
@@ -758,7 +721,6 @@ export function getOrganizationSettingsFeatures(
       'access-control': SETTINGS_SELF_HOSTED_OVERRIDES.accessControl,
       'audit-logs': SETTINGS_SELF_HOSTED_OVERRIDES.auditLogs,
       sso: SETTINGS_SELF_HOSTED_OVERRIDES.sso,
-      domains: SETTINGS_SELF_HOSTED_OVERRIDES.sso,
       sessions: SETTINGS_SELF_HOSTED_OVERRIDES.sessionPolicies,
       'data-retention': SETTINGS_SELF_HOSTED_OVERRIDES.dataRetention,
       'data-drains': SETTINGS_SELF_HOSTED_OVERRIDES.dataDrains,

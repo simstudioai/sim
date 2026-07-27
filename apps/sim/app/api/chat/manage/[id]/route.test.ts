@@ -144,6 +144,8 @@ describe('Chat Edit API Route', () => {
         description: 'A test chat',
         password: 'encrypted-password',
         customizations: { primaryColor: '#000000' },
+        includeThinking: true,
+        includeToolCalls: null,
       }
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
@@ -158,6 +160,8 @@ describe('Chat Edit API Route', () => {
       expect(data.title).toBe('Test Chat')
       expect(data.chatUrl).toBe('http://localhost:3000/chat/test-chat')
       expect(data.hasPassword).toBe(true)
+      // Stored null is not an opt-in.
+      expect(data.includeToolCalls).toBe(false)
     })
   })
 
@@ -206,6 +210,8 @@ describe('Chat Edit API Route', () => {
         title: 'Test Chat',
         authType: 'public',
         workflowId: 'workflow-123',
+        includeThinking: true,
+        includeToolCalls: null,
       }
 
       mockCheckChatAccess.mockResolvedValue({
@@ -222,10 +228,43 @@ describe('Chat Edit API Route', () => {
 
       expect(response.status).toBe(200)
       expect(dbChainMockFns.update).toHaveBeenCalled()
+      // An unrelated field update materializes the stored null as false.
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({ includeToolCalls: false })
+      )
       const data = await response.json()
       expect(data.id).toBe('chat-123')
       expect(data.chatUrl).toBe('http://localhost:3000/chat/test-chat')
       expect(data.message).toBe('Chat deployment updated successfully')
+    })
+
+    it('leaves tool calls off when a row without a tool policy disables thinking', async () => {
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-id' } })
+
+      mockCheckChatAccess.mockResolvedValue({
+        hasAccess: true,
+        chat: {
+          id: 'chat-123',
+          identifier: 'test-chat',
+          title: 'Test Chat',
+          authType: 'public',
+          workflowId: 'workflow-123',
+          includeThinking: true,
+          includeToolCalls: null,
+        },
+        workspaceId: 'workspace-123',
+      })
+
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
+        method: 'PATCH',
+        body: JSON.stringify({ includeThinking: false }),
+      })
+      const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
+
+      expect(response.status).toBe(200)
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({ includeThinking: false, includeToolCalls: false })
+      )
     })
 
     it('returns 403 when the updated auth type changes to a blocked mode', async () => {

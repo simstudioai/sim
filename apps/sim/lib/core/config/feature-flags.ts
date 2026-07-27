@@ -112,6 +112,15 @@ const FEATURE_FLAGS = {
       'custom-block publish/list routes. Off-AppConfig falls back to DEPLOY_AS_BLOCK.',
     fallback: 'DEPLOY_AS_BLOCK',
   },
+  'table-locks': {
+    description:
+      'Per-table mutation locks (schema/insert/update/delete) an admin toggles to make a table ' +
+      'append-only or read-only. Gates the ability to SET locks (the settings UI + the PATCH ' +
+      'locks branch); enforcement of any lock already stored always runs. Since new tables are ' +
+      'created unlocked and forks reset locks, an off flag means no table can become locked, so ' +
+      'the woven-in asserts stay no-ops. Off-AppConfig falls back to TABLE_LOCKS.',
+    fallback: 'TABLE_LOCKS',
+  },
 } satisfies Record<string, FeatureFlagDefinition>
 
 /**

@@ -36,6 +36,8 @@ const SECTION_ALIASES: Readonly<Record<string, SettingsSection>> = {
   subscription: 'billing',
   team: 'organization',
   'api-keys': 'apikeys',
+  // Verified domains moved into the SSO page; keep old links working.
+  domains: 'sso',
 }
 
 const TOP_LEVEL_REDIRECTS: Readonly<Record<string, (workspaceId: string) => string>> = {

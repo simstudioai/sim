@@ -1,8 +1,10 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
+/** `transformWhatsAppSendResponse` normalizes a missing `wa_id` to null, so it is always present. */
 interface WhatsAppMessageContact {
   input: string
-  wa_id?: string | null
+  wa_id: string | null
 }
 
 interface WhatsAppSendOutput {
@@ -43,11 +45,12 @@ export interface WhatsAppSendTemplateParams {
   accessToken: string
 }
 
-export type WhatsAppMediaType = 'image' | 'document' | 'video' | 'audio'
+export type WhatsAppMediaType = 'image' | 'document' | 'video' | 'audio' | 'sticker'
 
 export interface WhatsAppSendMediaParams {
   phoneNumber: string
   mediaType: WhatsAppMediaType
+  file?: unknown
   mediaLink?: string
   mediaId?: string
   caption?: string
@@ -78,6 +81,7 @@ export interface WhatsAppSendReactionParams {
 
 export interface WhatsAppMarkReadParams {
   messageId: string
+  showTypingIndicator?: boolean
   phoneNumberId: string
   accessToken: string
 }
@@ -86,5 +90,41 @@ export interface WhatsAppMarkReadResponse extends ToolResponse {
   output: {
     success: boolean
     error?: string
+  }
+}
+
+export interface WhatsAppUploadMediaParams {
+  file: unknown
+  phoneNumberId: string
+  accessToken: string
+}
+
+export interface WhatsAppUploadMediaResponse extends ToolResponse {
+  output: {
+    mediaId: string
+    fileName: string
+    mimeType: string
+    size: number
+  }
+}
+
+export interface WhatsAppGetMediaParams {
+  mediaId: string
+  phoneNumberId: string
+  accessToken: string
+  _context?: {
+    workspaceId?: string
+    workflowId?: string
+    executionId?: string
+  }
+}
+
+export interface WhatsAppGetMediaResponse extends ToolResponse {
+  output: {
+    file: UserFile
+    mediaId: string
+    mimeType: string
+    fileSize: number
+    sha256: string | null
   }
 }

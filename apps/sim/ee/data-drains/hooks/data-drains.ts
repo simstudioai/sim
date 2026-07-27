@@ -15,6 +15,9 @@ import {
   updateDataDrainContract,
 } from '@/lib/api/contracts/data-drains'
 
+export const DATA_DRAIN_LIST_STALE_TIME = 60 * 1000
+export const DATA_DRAIN_RUNS_STALE_TIME = 30 * 1000
+
 const logger = createLogger('DataDrainsQueries')
 
 export const dataDrainKeys = {
@@ -54,7 +57,7 @@ export function useDataDrains(organizationId?: string) {
     queryKey: dataDrainKeys.list(organizationId),
     queryFn: ({ signal }) => fetchDataDrains(organizationId as string, signal),
     enabled: Boolean(organizationId),
-    staleTime: 60 * 1000,
+    staleTime: DATA_DRAIN_LIST_STALE_TIME,
   })
 }
 
@@ -64,7 +67,7 @@ export function useDataDrainRuns(organizationId?: string, drainId?: string, limi
     queryFn: ({ signal }) =>
       fetchDataDrainRuns(organizationId as string, drainId as string, limit, signal),
     enabled: Boolean(organizationId && drainId),
-    staleTime: 30 * 1000,
+    staleTime: DATA_DRAIN_RUNS_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -85,6 +88,12 @@ export function useCreateDataDrain() {
       logger.info('Created data drain', { drainId: drain.id, organizationId })
       return drain
     },
+    // Seed the list so the caller can navigate straight to the new drain's detail
+    // without that handoff depending on the invalidation refetch succeeding.
+    onSuccess: (drain, variables) =>
+      queryClient.setQueryData<DataDrain[]>(dataDrainKeys.list(variables.organizationId), (prev) =>
+        prev?.some((d) => d.id === drain.id) ? prev : [...(prev ?? []), drain]
+      ),
     onSettled: (_drain, _error, variables) =>
       queryClient.invalidateQueries({ queryKey: dataDrainKeys.list(variables.organizationId) }),
   })

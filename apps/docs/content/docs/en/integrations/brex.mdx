@@ -695,8 +695,64 @@ Get a Brex budget by its ID
 | `amount` | json | Budget amount |
 |   ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
 |   ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
-| `spendBudgetStatus` | string | Budget status \(ACTIVE, ARCHIVED, DELETED, EXPIRED\) |
+| `spendBudgetStatus` | string | Budget status \(ACTIVE, ARCHIVED, DELETED\) |
 | `limitType` | string | Budget limit type \(HARD or SOFT\) |
+
+### `brex_create_budget`
+
+Create a new budget in the Brex account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `name` | string | Yes | Name for the budget |
+| `description` | string | Yes | Description of what the budget is used for |
+| `parentBudgetId` | string | Yes | ID of the parent budget |
+| `periodRecurrenceType` | string | Yes | Period type of the budget \(WEEKLY, MONTHLY, QUARTERLY, YEARLY, ONE_TIME\) |
+| `amount` | number | Yes | Budget amount, in the smallest unit of the currency \(e.g., cents for USD\) |
+| `currency` | string | No | ISO 4217 currency code \(defaults to USD\) |
+| `ownerUserIds` | string | No | Comma-separated user IDs of the budget owners |
+| `startDate` | string | No | Date the budget should start counting \(YYYY-MM-DD\) |
+| `endDate` | string | No | Date the budget should stop counting \(YYYY-MM-DD\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `budgetId` | string | Unique budget ID |
+| `accountId` | string | Account ID the budget belongs to |
+| `name` | string | Budget name |
+| `description` | string | Budget description |
+| `parentBudgetId` | string | Parent budget ID |
+| `ownerUserIds` | array | User IDs of the budget owners |
+| `periodRecurrenceType` | string | Budget period recurrence \(WEEKLY, MONTHLY, QUARTERLY, YEARLY, ONE_TIME\) |
+| `startDate` | string | Budget start date |
+| `endDate` | string | Budget end date |
+| `amount` | json | Budget amount |
+|   ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|   ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+| `spendBudgetStatus` | string | Status of the created budget |
+| `limitType` | string | Budget limit type |
+
+### `brex_archive_budget`
+
+Archive a Brex budget, making any spend limits beneath it unusable for future expenses and removing it from the UI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `budgetId` | string | Yes | ID of the budget to archive |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `budgetId` | string | ID of the archived budget |
+| `spendBudgetStatus` | string | Status of the budget after archiving |
 
 ### `brex_list_spend_limits`
 
@@ -762,7 +818,67 @@ Get a Brex spend limit by its ID
 | `name` | string | Spend limit name |
 | `description` | string | Spend limit description |
 | `parentBudgetId` | string | Parent budget ID |
-| `status` | string | Spend limit status \(ACTIVE, EXPIRED, ARCHIVED, DELETED\) |
+| `status` | string | Spend limit status \(ACTIVE, EXPIRED, ARCHIVED\) |
+| `periodRecurrenceType` | string | Period recurrence \(PER_WEEK, PER_MONTH, PER_QUARTER, PER_YEAR, ONE_TIME\) |
+| `spendType` | string | Spend type of the limit |
+| `startDate` | string | Spend limit start date |
+| `endDate` | string | Spend limit end date |
+| `ownerUserIds` | array | User IDs of the spend limit owners |
+| `memberUserIds` | array | User IDs of the spend limit members |
+| `currentPeriodBalance` | json | Spend and rollover amounts for the current period |
+|   ↳ `start_date` | string | Start date of the current period |
+|   ↳ `end_date` | string | End date of the current period |
+|   ↳ `start_time` | string | Start time of the current period \(ISO 8601\) |
+|   ↳ `end_time` | string | End time of the current period \(ISO 8601\) |
+|   ↳ `amount_spent` | json | Amount spent in the current period |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `rollover_amount` | json | Amount rolled over from previous periods |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+| `authorizationSettings` | json | Authorization settings \(base limit, authorization type, rollover refresh\) |
+
+### `brex_create_spend_limit`
+
+Create a new spend limit (hard-authorization card program) in the Brex account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `name` | string | Yes | Name for the spend limit |
+| `periodRecurrenceType` | string | Yes | Period type of the spend limit \(PER_WEEK, PER_MONTH, PER_QUARTER, PER_YEAR, ONE_TIME\) |
+| `spendType` | string | Yes | Whether the spend limit can only be spent from cards it provisions \(BUDGET_PROVISIONED_CARDS_ONLY, NON_BUDGET_PROVISIONED_CARDS_ALLOWED\) |
+| `expenseVisibility` | string | Yes | Whether expenses on this spend limit are viewable by all members \(SHARED, PRIVATE\) |
+| `authorizationVisibility` | string | Yes | Whether the limit amount is visible to all members, or just controllers/bookkeepers/owners \(PUBLIC, PRIVATE\) |
+| `limitIncreaseSetting` | string | Yes | Whether members can request limit increases \(ENABLED, DISABLED\) |
+| `autoTransferCardsSetting` | string | Yes | How auto transfer works for virtual cards on this spend limit \(DISABLED, ENABLED\) |
+| `autoCreateLimitCardsSetting` | string | Yes | How auto limit card creation works for members \(DISABLED, ALL_MEMBERS\) |
+| `expensePolicyId` | string | Yes | ID of the expense policy corresponding to this spend limit |
+| `baseLimitAmount` | number | Yes | Base spend limit amount, without increases/rollovers, in the smallest unit of the currency \(e.g., cents for USD\) |
+| `currency` | string | No | ISO 4217 currency code for the base limit \(defaults to USD\) |
+| `authorizationType` | string | Yes | Whether authorizations decline based on available balance \(HARD, SOFT\) |
+| `rolloverRefreshRate` | string | Yes | Recurrence at which rolled-over unused funds stop rolling over \(OFF, NEVER, PER_MONTH, PER_QUARTER, PER_YEAR\) |
+| `limitBufferPercentage` | number | No | Flexible buffer on the limit as a 0-100 percentage |
+| `description` | string | No | Description of what the spend limit is used for |
+| `parentBudgetId` | string | No | ID of the parent budget |
+| `startDate` | string | No | Date the spend limit should start counting \(YYYY-MM-DD\) |
+| `endDate` | string | No | Date the spend limit should expire \(YYYY-MM-DD\) |
+| `transactionLimitAmount` | number | No | Per-transaction limit this spend limit enforces, in the smallest unit of the currency |
+| `ownerUserIds` | string | No | Comma-separated user IDs of the spend limit owners |
+| `memberUserIds` | string | No | Comma-separated user IDs of the spend limit members |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique spend limit ID |
+| `accountId` | string | Account ID the spend limit belongs to |
+| `name` | string | Spend limit name |
+| `description` | string | Spend limit description |
+| `parentBudgetId` | string | Parent budget ID |
+| `status` | string | Spend limit status |
 | `periodRecurrenceType` | string | Period recurrence \(PER_WEEK, PER_MONTH, PER_QUARTER, PER_YEAR, ONE_TIME\) |
 | `spendType` | string | Spend type of the limit |
 | `startDate` | string | Spend limit start date |
@@ -817,6 +933,53 @@ Get a Brex vendor by its ID
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `vendorId` | string | Yes | ID of the vendor to fetch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique vendor ID |
+| `companyName` | string | Vendor company name |
+| `email` | string | Vendor email address |
+| `phone` | string | Vendor phone number |
+| `paymentAccounts` | array | Payment accounts associated with the vendor |
+
+### `brex_create_vendor`
+
+Create a new vendor in the Brex account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `companyName` | string | Yes | Name for the vendor \(must be unique\) |
+| `email` | string | No | Email address for the vendor |
+| `phone` | string | No | Phone number for the vendor |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique vendor ID |
+| `companyName` | string | Vendor company name |
+| `email` | string | Vendor email address |
+| `phone` | string | Vendor phone number |
+| `paymentAccounts` | array | Payment accounts associated with the vendor |
+
+### `brex_update_vendor`
+
+Update an existing vendor in the Brex account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `vendorId` | string | Yes | ID of the vendor to update |
+| `companyName` | string | No | New name for the vendor |
+| `email` | string | No | New email address for the vendor |
+| `phone` | string | No | New phone number for the vendor |
 
 #### Output
 
@@ -896,5 +1059,45 @@ Get a Brex money transfer by its ID
 | `displayName` | string | Transfer display name |
 | `externalMemo` | string | External memo |
 | `isPproEnabled` | boolean | Whether Principal Protection \(PPRO\) is enabled |
+
+### `brex_create_transfer`
+
+Create a money transfer from a Brex cash account to a vendor
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `cashAccountId` | string | Yes | ID of the Brex cash account to send the transfer from \(found via the /accounts endpoint\) |
+| `vendorPaymentInstrumentId` | string | Yes | ID of the vendor's payment instrument to send the transfer to \(from the vendor's payment_accounts\) |
+| `amount` | number | Yes | Amount to transfer, in the smallest unit of the currency \(e.g., cents for USD\) |
+| `currency` | string | No | ISO 4217 currency code \(defaults to USD\) |
+| `description` | string | Yes | Description of the transfer for internal use \(not exposed externally\) |
+| `externalMemo` | string | Yes | External memo shown to the recipient \(max 90 characters for ACH/Wire, 40 for Cheque\) |
+| `approvalType` | string | No | Set to MANUAL to require cash admin approval before the transfer is sent |
+| `isPproEnabled` | boolean | No | Enable Principal Protection \(PPRO\) to have Brex cover intermediary/receiving bank fees \(international wires only\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique transfer ID |
+| `counterparty` | json | Transfer counterparty details |
+| `description` | string | Description of the transfer |
+| `paymentType` | string | Payment type \(ACH, DOMESTIC_WIRE, CHEQUE, INTERNATIONAL_WIRE, BOOK_TRANSFER, STABLECOIN\) |
+| `amount` | json | Transfer amount |
+|   ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|   ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+| `processDate` | string | Transaction processing date |
+| `originatingAccount` | json | Originating account details for the transfer |
+| `status` | string | Transfer status \(PROCESSING, SCHEDULED, PENDING_APPROVAL, FAILED, PROCESSED\) |
+| `cancellationReason` | string | Reason the transfer was canceled |
+| `estimatedDeliveryDate` | string | Estimated delivery date for the transfer |
+| `creatorUserId` | string | ID of the user who created the transfer |
+| `createdAt` | string | Creation timestamp of the transfer |
+| `displayName` | string | Human-readable name of the transfer |
+| `externalMemo` | string | External memo of the transfer |
+| `isPproEnabled` | boolean | Whether Principal Protection \(PPRO\) is enabled for the transfer |
 
 

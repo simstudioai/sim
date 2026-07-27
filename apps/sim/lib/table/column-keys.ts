@@ -171,17 +171,8 @@ export function sortNamesToIds(sort: Sort, idByName: ReadonlyMap<string, string>
   return out
 }
 
-/**
- * Remaps a stored row keyed by column **id** back to **name** keying for the
- * wire. Used at the name-translating boundaries on the way out. Ids with no
- * current column (e.g. a column deleted by a not-yet-finished background strip)
- * are dropped, so orphaned keys never surface.
- */
-export function rowDataIdToName(data: RowData, nameById: Map<string, string>): RowData {
-  const out: RowData = {}
-  for (const [id, value] of Object.entries(data)) {
-    const name = nameById.get(id)
-    if (name !== undefined) out[name] = value
-  }
-  return out
-}
+// The outbound direction (stored id-keyed row → name-keyed) deliberately does
+// NOT live here: a `select` cell's value also needs translating, and keeping the
+// key half separately callable is what let boundaries translate the keys and
+// forget the values. Use `namedRowMapper` from `@/lib/table/cell-format`, which
+// does both in one pass.

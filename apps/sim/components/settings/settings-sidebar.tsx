@@ -18,7 +18,8 @@ interface SidebarSettingsItem<Section extends SettingsSection>
 }
 
 interface SettingsSidebarProps<Section extends SettingsSection> {
-  activeSection: string
+  /** `null` when the route is a nested page that is not itself a nav item — nothing highlights. */
+  activeSection: string | null
   backHref: string
   groups: readonly SettingsNavigationGroup[]
   hrefForSection: (section: Section) => string

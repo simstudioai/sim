@@ -400,6 +400,12 @@ export function useTableEventStream({
           else if (entry.event?.kind === 'metadata') {
             void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
           }
+          // A collaborator toggled a table lock: re-read the definition so every open
+          // viewer's gating updates. `exact` avoids refetching every rows page
+          // (rowsRoot nests under detail); no row data changed.
+          else if (entry.event?.kind === 'definition') {
+            void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
+          }
         } catch (err) {
           logger.warn('Failed to parse table event', { tableId, err })
         }

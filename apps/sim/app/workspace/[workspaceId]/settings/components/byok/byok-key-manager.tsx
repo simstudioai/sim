@@ -270,7 +270,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
     if (props.multiKey) {
       const keyCount = getProviderKeys(provider.id).length
       return (
-        <div className='flex flex-shrink-0 items-center gap-2'>
+        <div className='flex items-center gap-2'>
           <span className='text-[var(--text-muted)] text-caption'>
             {keyCount} {keyCount === 1 ? 'key' : 'keys'}
           </span>
@@ -283,7 +283,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
 
     if (readOnly) return null
     return (
-      <div className='flex flex-shrink-0 items-center gap-2'>
+      <div className='flex items-center gap-2'>
         <Chip onClick={() => openEditModal(provider.id)}>Update</Chip>
         <Chip onClick={() => openDeleteConfirm(provider.id)}>Delete</Chip>
       </div>

@@ -33,3 +33,13 @@ tests:
     asserts:
       - isKind: { of: Secret }
       - equal: { path: metadata.name, value: t-sim-app-secrets }
+
+  - it: accepts the standard Helm naming overrides under the strict schema
+    set:
+      nameOverride: acme
+      fullnameOverride: acme-sim
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: "^acme-sim"
+        template: deployment-app.yaml

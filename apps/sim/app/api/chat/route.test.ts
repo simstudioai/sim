@@ -99,7 +99,13 @@ describe('Chat API Route', () => {
       const response = await GET(req)
 
       expect(response.status).toBe(200)
-      expect(mockCreateSuccessResponse).toHaveBeenCalledWith({ deployments: mockDeployments })
+      // Each row is normalized so a missing tool policy reads as off.
+      expect(mockCreateSuccessResponse).toHaveBeenCalledWith({
+        deployments: mockDeployments.map((deployment) => ({
+          ...deployment,
+          includeToolCalls: false,
+        })),
+      })
       expect(dbChainMockFns.where).toHaveBeenCalled()
     })
 
@@ -454,6 +460,8 @@ describe('Chat API Route', () => {
         expect.objectContaining({
           workflowId: 'workflow-123',
           userId: 'user-id',
+          includeThinking: false,
+          includeToolCalls: false,
         })
       )
     })

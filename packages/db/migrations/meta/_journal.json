@@ -1877,6 +1877,20 @@
       "when": 1784861741441,
       "tag": "0268_sso_domain_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 269,
+      "version": "7",
+      "when": 1784911198876,
+      "tag": "0269_late_spencer_smythe",
+      "breakpoints": true
+    },
+    {
+      "idx": 270,
+      "version": "7",
+      "when": 1784960447583,
+      "tag": "0270_table_mutation_locks",
+      "breakpoints": true
     }
   ]
 }

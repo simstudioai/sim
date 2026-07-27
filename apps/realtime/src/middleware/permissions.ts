@@ -85,11 +85,13 @@ export function checkRolePermission(
 }
 
 /**
- * TTL for the per-pod role cache backing live re-validation of mutating operations.
- * Bounds how long a revoked or downgraded collaborator can retain write access on an
- * already-connected socket.
+ * TTL for the per-pod role cache backing live re-validation. It gates both the
+ * mutating-operation checks ({@link checkWorkflowOperationPermission}) and the
+ * periodic read-access sweep (`access-revalidation.ts`), so a revoked or
+ * downgraded collaborator loses write access — and live reads — on an
+ * already-connected socket within a bounded window rather than until disconnect.
  */
-const ROLE_REVALIDATION_TTL_MS = 30_000
+export const ROLE_REVALIDATION_TTL_MS = 30_000
 
 /** Soft cap on cached entries before an opportunistic purge of expired ones runs. */
 const MAX_ROLE_CACHE_ENTRIES = 5_000
@@ -110,6 +112,15 @@ interface CachedRole {
  */
 const roleCache = new Map<string, CachedRole>()
 
+/**
+ * In-flight resolutions keyed like {@link roleCache}. Concurrent callers for the same
+ * (user, workflow) share one authorization query instead of racing independent ones, so
+ * cache writes per key are serialized — a slow, stale pre-revocation read can never
+ * overwrite a newer recorded decision (e.g. the revocation the eviction sweep just
+ * cached before kicking the socket).
+ */
+const inFlightRoleResolutions = new Map<string, Promise<string | null>>()
+
 function purgeExpiredRoles(now: number): void {
   for (const [key, entry] of roleCache) {
     if (entry.expiresAt <= now) {
@@ -119,27 +130,27 @@ function purgeExpiredRoles(now: number): void {
 }
 
 /**
- * Resolves a user's current workspace role for a workflow, re-reading the `permissions`
- * table at most once per {@link ROLE_REVALIDATION_TTL_MS} per pod.
- *
- * Returns `null` when the user genuinely has no access (removed/revoked). On a transient
- * DB failure it reuses the last recorded decision for this (user, workflow) — including a
- * previously recorded revocation (`null`) — and only falls back to `fallbackRole` when no
- * decision has been recorded yet, so a blip neither blocks legitimate editors nor
- * resurrects already-revoked access.
+ * Records a freshly-read authoritative decision into the role cache. Every
+ * successful DB read of a user's workspace role goes through this — including
+ * the join-time {@link verifyWorkflowAccess} — so a stale cached revocation
+ * never outlives a newer authoritative read (e.g. a re-granted user re-joining
+ * within the TTL of the sweep's recorded `null`).
  */
-export async function resolveCurrentWorkflowRole(
+function recordRoleDecision(key: string, role: string | null): void {
+  const now = Date.now()
+  if (roleCache.size >= MAX_ROLE_CACHE_ENTRIES) {
+    purgeExpiredRoles(now)
+  }
+  roleCache.set(key, { role, expiresAt: now + ROLE_REVALIDATION_TTL_MS })
+}
+
+async function resolveRoleUncached(
+  key: string,
   userId: string,
   workflowId: string,
   fallbackRole: string
 ): Promise<string | null> {
-  const now = Date.now()
-  const key = `${userId}:${workflowId}`
-  const cached = roleCache.get(key)
-  if (cached && cached.expiresAt > now) {
-    return cached.role
-  }
-
+  const entryBeforeQuery = roleCache.get(key)
   try {
     const authorization = await authorizeWorkflowByWorkspacePermission({
       workflowId,
@@ -147,10 +158,15 @@ export async function resolveCurrentWorkflowRole(
       action: 'read',
     })
     const role = authorization.allowed ? (authorization.workspacePermission ?? null) : null
-    if (roleCache.size >= MAX_ROLE_CACHE_ENTRIES) {
-      purgeExpiredRoles(now)
+    // A fresh authoritative read (e.g. a join-time verifyWorkflowAccess) may
+    // have recorded a decision while this query was in flight. That write is
+    // newer than this query's read snapshot, so prefer it instead of
+    // overwriting it with a potentially stale result.
+    const entryAfterQuery = roleCache.get(key)
+    if (entryAfterQuery !== undefined && entryAfterQuery !== entryBeforeQuery) {
+      return entryAfterQuery.role
     }
-    roleCache.set(key, { role, expiresAt: now + ROLE_REVALIDATION_TTL_MS })
+    recordRoleDecision(key, role)
     return role
   } catch (error) {
     logger.warn(
@@ -164,6 +180,41 @@ export async function resolveCurrentWorkflowRole(
     const lastKnown = roleCache.get(key)
     return lastKnown !== undefined ? lastKnown.role : fallbackRole
   }
+}
+
+/**
+ * Resolves a user's current workspace role for a workflow, re-reading the `permissions`
+ * table at most once per {@link ROLE_REVALIDATION_TTL_MS} per pod. Concurrent calls for
+ * the same (user, workflow) coalesce onto a single in-flight query (single-flight), so
+ * out-of-order cache writes cannot resurrect revoked access.
+ *
+ * Returns `null` when the user genuinely has no access (removed/revoked). On a transient
+ * DB failure it reuses the last recorded decision for this (user, workflow) — including a
+ * previously recorded revocation (`null`) — and only falls back to `fallbackRole` when no
+ * decision has been recorded yet, so a blip neither blocks legitimate editors nor
+ * resurrects already-revoked access.
+ */
+export async function resolveCurrentWorkflowRole(
+  userId: string,
+  workflowId: string,
+  fallbackRole: string
+): Promise<string | null> {
+  const key = `${userId}:${workflowId}`
+  const cached = roleCache.get(key)
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.role
+  }
+
+  const inFlight = inFlightRoleResolutions.get(key)
+  if (inFlight) {
+    return inFlight
+  }
+
+  const resolution = resolveRoleUncached(key, userId, workflowId, fallbackRole).finally(() => {
+    inFlightRoleResolutions.delete(key)
+  })
+  inFlightRoleResolutions.set(key, resolution)
+  return resolution
 }
 
 /**
@@ -195,6 +246,11 @@ export async function checkWorkflowOperationPermission(
  * Returns `hasAccess: false` only for genuine denials (workflow missing/archived
  * or no workspace permission). Transient failures (DB errors) are rethrown so the
  * caller can report them as retryable instead of a permanent access denial.
+ *
+ * The fresh authorization decision is recorded into the role cache, so the
+ * pre-join re-check and the eviction sweep see it immediately — in particular,
+ * a user whose access was revoked and then restored is not blocked by the
+ * sweep's stale cached revocation for the remainder of its TTL.
  */
 export async function verifyWorkflowAccess(
   userId: string,
@@ -221,6 +277,11 @@ export async function verifyWorkflowAccess(
       userId,
       action: 'read',
     })
+
+    recordRoleDecision(
+      `${userId}:${workflowId}`,
+      authorization.allowed ? (authorization.workspacePermission ?? null) : null
+    )
 
     if (!authorization.allowed || !authorization.workspacePermission) {
       logger.warn(

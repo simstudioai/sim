@@ -10,14 +10,13 @@
 
 import type { CreateAgentSessionOptions } from '@earendil-works/pi-coding-agent'
 import { getApiKeyWithBYOK, getBYOKKey } from '@/lib/api-key/byok'
-import { getCostMultiplier } from '@/lib/core/config/env-flags'
+import { calculateBillableModelCost } from '@/providers/cost-policy'
 import type { PiSupportedProvider } from '@/providers/pi-provider-configs'
 import {
   getPiProviderApiKeyEnvVar,
   getPiWorkspaceBYOKProviderId,
   isPiSupportedProvider,
 } from '@/providers/pi-providers'
-import { calculateCost, shouldBillModelUsage } from '@/providers/utils'
 
 /** Resolved provider key and BYOK flag for a Pi run. */
 interface PiKeyResolution {
@@ -74,11 +73,7 @@ export function computePiCost(
   outputTokens: number,
   isBYOK: boolean
 ) {
-  if (isBYOK || !shouldBillModelUsage(model)) {
-    return { input: 0, output: 0, total: 0 }
-  }
-  const multiplier = getCostMultiplier()
-  return calculateCost(model, inputTokens, outputTokens, false, multiplier, multiplier)
+  return calculateBillableModelCost(model, inputTokens, outputTokens, { isBYOK })
 }
 
 /**

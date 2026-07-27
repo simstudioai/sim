@@ -76,7 +76,7 @@ async function fetchSchedule(
 /**
  * Fetch all schedules for a workspace.
  */
-export function useWorkspaceSchedules(workspaceId?: string) {
+export function useWorkspaceSchedules(workspaceId?: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: scheduleKeys.list(workspaceId ?? ''),
     queryFn: async ({ signal }) => {
@@ -88,7 +88,7 @@ export function useWorkspaceSchedules(workspaceId?: string) {
       })
       return data.schedules || []
     },
-    enabled: Boolean(workspaceId),
+    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     staleTime: SCHEDULE_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })

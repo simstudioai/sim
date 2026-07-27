@@ -1,15 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import OpenAI from 'openai'
-import type {
-  ChatCompletionChunk,
-  ChatCompletionCreateParamsStreaming,
-} from 'openai/resources/chat/completions'
+import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
+import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
+import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
@@ -248,12 +249,25 @@ export const xAIProvider: ProviderConfig = {
             const toolName = toolCall.function.name
 
             try {
-              const toolArgs = JSON.parse(toolCall.function.arguments)
+              const toolArgs = parseToolArguments(toolCall.function.arguments, toolName)
               const tool = request.tools?.find((t) => t.id === toolName)
 
               if (!tool) {
                 logger.warn('XAI Provider - Tool not found:', { toolName })
-                return null
+                const toolCallEndTime = Date.now()
+                return {
+                  toolCall,
+                  toolName,
+                  toolParams: {},
+                  result: {
+                    success: false,
+                    output: undefined,
+                    error: `Tool "${toolName}" is not available`,
+                  },
+                  startTime: toolCallStartTime,
+                  endTime: toolCallEndTime,
+                  duration: toolCallEndTime - toolCallStartTime,
+                }
               }
 
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
@@ -272,6 +286,9 @@ export const xAIProvider: ProviderConfig = {
                 duration: toolCallEndTime - toolCallStartTime,
               }
             } catch (error) {
+              if (isAbortError(error) || request.abortSignal?.aborted) {
+                throw error
+              }
               const toolCallEndTime = Date.now()
               logger.error('XAI Provider - Error processing tool call:', {
                 error: toError(error).message,
@@ -294,25 +311,21 @@ export const xAIProvider: ProviderConfig = {
             }
           })
 
-          const executionResults = await Promise.allSettled(toolExecutionPromises)
-          currentMessages.push({
-            role: 'assistant',
-            content: null,
-            tool_calls: toolCallsInResponse.map((tc) => ({
-              id: tc.id,
-              type: 'function',
-              function: {
-                name: tc.function.name,
-                arguments: tc.function.arguments,
-              },
-            })),
-          })
+          const executionResults = await Promise.all(toolExecutionPromises)
+          const assistantMessage = currentResponse.choices[0]?.message
+          if (assistantMessage) {
+            currentMessages.push(
+              createOpenAICompatAssistantHistory({
+                message: assistantMessage,
+                toolCalls: toolCallsInResponse,
+                reasoningFields: ['reasoning_content'],
+              })
+            )
+          }
 
-          for (const settledResult of executionResults) {
-            if (settledResult.status === 'rejected' || !settledResult.value) continue
-
+          for (const executionResult of executionResults) {
             const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
-              settledResult.value
+              executionResult
 
             timeSegments.push({
               type: 'tool',
@@ -322,10 +335,12 @@ export const xAIProvider: ProviderConfig = {
               duration: duration,
               toolCallId: toolCall.id,
             })
-            let resultContent: any
-            if (result.success && result.output) {
-              toolResults.push(result.output)
-              resultContent = result.output
+            let resultContent: unknown
+            if (result.success) {
+              if (isRecordLike(result.output)) {
+                toolResults.push(result.output)
+              }
+              resultContent = result.output ?? null
             } else {
               resultContent = {
                 error: true,
@@ -453,52 +468,78 @@ export const xAIProvider: ProviderConfig = {
         }
 
         if (iterationCount === MAX_TOOL_ITERATIONS) {
+          const pendingToolCalls = currentResponse.choices[0]?.message?.tool_calls
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
             currentResponse,
-            currentResponse.choices[0]?.message?.tool_calls,
+            pendingToolCalls,
             { model: request.model, provider: 'xai' }
           )
+
+          if (pendingToolCalls?.length) {
+            const finalPayload = request.responseFormat
+              ? createResponseFormatPayload(
+                  basePayload,
+                  allMessages,
+                  request.responseFormat,
+                  currentMessages
+                )
+              : {
+                  ...basePayload,
+                  messages: currentMessages,
+                  tools: preparedTools?.tools,
+                  tool_choice: 'none',
+                }
+            const finalStartTime = Date.now()
+            const finalResponse = await xai.chat.completions.create(
+              finalPayload,
+              request.abortSignal ? { signal: request.abortSignal } : undefined
+            )
+            const finalEndTime = Date.now()
+            const finalDuration = finalEndTime - finalStartTime
+
+            timeSegments.push({
+              type: 'model',
+              name: 'Final answer after tool iteration limit',
+              startTime: finalStartTime,
+              endTime: finalEndTime,
+              duration: finalDuration,
+            })
+            modelTime += finalDuration
+
+            if (finalResponse.choices[0]?.message?.content) {
+              content = finalResponse.choices[0].message.content
+            }
+            if (finalResponse.usage) {
+              tokens.input += finalResponse.usage.prompt_tokens || 0
+              tokens.output += finalResponse.usage.completion_tokens || 0
+              tokens.total += finalResponse.usage.total_tokens || 0
+            }
+
+            enrichLastModelSegmentFromChatCompletions(
+              timeSegments,
+              finalResponse,
+              finalResponse.choices[0]?.message?.tool_calls,
+              { model: request.model, provider: 'xai' }
+            )
+          }
         }
       } catch (error) {
         logger.error('XAI Provider - Error in tool processing loop:', {
           error: toError(error).message,
           iterationCount,
         })
+        throw error
       }
       if (request.stream) {
-        let finalStreamingPayload: any
-
-        if (request.responseFormat) {
-          finalStreamingPayload = {
-            ...createResponseFormatPayload(
-              basePayload,
-              allMessages,
-              request.responseFormat,
-              currentMessages
-            ),
-            stream: true,
-          }
-        } else {
-          /**
-           * The regeneration exists purely to stream the settled answer as
-           * prose — streamed tool_calls are never executed on this path.
-           */
-          finalStreamingPayload = {
-            ...basePayload,
-            messages: currentMessages,
-            tool_choice: 'none',
-            tools: preparedTools?.tools,
-            stream: true,
-          }
-        }
-
-        const streamResponse = await xai.chat.completions.create(
-          finalStreamingPayload as any,
-          request.abortSignal ? { signal: request.abortSignal } : undefined
-        )
-
         const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
+        const toolCost = sumToolCosts(toolResults)
+        const finalCost = {
+          input: accumulatedCost.input,
+          output: accumulatedCost.output,
+          toolCost: toolCost || undefined,
+          total: accumulatedCost.total + toolCost,
+        }
 
         const streamingResult = createStreamingExecution({
           model: request.model,
@@ -517,12 +558,7 @@ export const xAIProvider: ProviderConfig = {
             output: tokens.output,
             total: tokens.total,
           },
-          initialCost: {
-            input: accumulatedCost.input,
-            output: accumulatedCost.output,
-            toolCost: undefined as number | undefined,
-            total: accumulatedCost.total,
-          },
+          initialCost: finalCost,
           toolCalls:
             toolCalls.length > 0
               ? {
@@ -532,35 +568,13 @@ export const xAIProvider: ProviderConfig = {
               : undefined,
           isStreaming: true,
           streamFormat: 'agent-events-v1',
-          createStream: ({ output }) =>
-            createReadableStreamFromXAIStream(
-              // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; the stream yields OpenAI ChatCompletionChunk objects
-              streamResponse as unknown as AsyncIterable<ChatCompletionChunk>,
-              (streamedContent, usage) => {
-                if (!streamedContent && content) {
-                  logger.warn('xAI final stream produced no text; keeping tool-loop answer')
-                }
-                output.content = streamedContent || content
-                output.tokens = {
-                  input: tokens.input + usage.prompt_tokens,
-                  output: tokens.output + usage.completion_tokens,
-                  total: tokens.total + usage.total_tokens,
-                }
-
-                const streamCost = calculateCost(
-                  request.model,
-                  usage.prompt_tokens,
-                  usage.completion_tokens
-                )
-                const tc = sumToolCosts(toolResults)
-                output.cost = {
-                  input: accumulatedCost.input + streamCost.input,
-                  output: accumulatedCost.output + streamCost.output,
-                  toolCost: tc || undefined,
-                  total: accumulatedCost.total + streamCost.total + tc,
-                }
-              }
-            ),
+          createStream: ({ output, finalizeTiming }) => {
+            output.content = content
+            output.tokens = { input: tokens.input, output: tokens.output, total: tokens.total }
+            output.cost = finalCost
+            finalizeTiming()
+            return createSettledAgentEventStream(content)
+          },
         })
 
         return streamingResult
@@ -605,6 +619,10 @@ export const xAIProvider: ProviderConfig = {
         hasTools: !!tools?.length,
         hasResponseFormat: !!request.responseFormat,
       })
+
+      if (isAbortError(error) || request.abortSignal?.aborted) {
+        throw error
+      }
 
       throw new ProviderError(toError(error).message, {
         startTime: providerStartTimeISO,

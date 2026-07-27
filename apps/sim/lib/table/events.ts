@@ -136,6 +136,17 @@ export type TableEvent =
       kind: 'metadata'
       tableId: string
     }
+  | {
+      /** The table definition changed in a way that isn't row/cell data — a
+       *  lock toggle. Carries no payload; the client just invalidates the
+       *  table-detail query so every open viewer re-reads the fresh locks
+       *  (otherwise an idle grid stays stale and writes 423). Emitted only by
+       *  {@link signalTableRowsChanged}'s sibling lock path in the service; schema
+       *  and metadata changes use the dedicated `schema`/`metadata` kinds above. */
+      kind: 'definition'
+      tableId: string
+      reason: 'locks' | 'schema'
+    }
 
 export interface TableEventEntry {
   eventId: number

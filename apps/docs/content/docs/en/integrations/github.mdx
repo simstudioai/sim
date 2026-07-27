@@ -43,10 +43,7 @@ Fetch PR details including diff and files changed
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `owner` | string | Yes | Repository owner |
-| `repo` | string | Yes | Repository name |
-| `pullNumber` | number | Yes | Pull request number |
-| `apiKey` | string | Yes | GitHub API token |
+| `includeFiles` | boolean | No | Whether to fetch changed-file details from the separate files endpoint |
 
 #### Output
 
@@ -66,12 +63,6 @@ Fetch PR details including diff and files changed
 |   ↳ `label` | string | Branch label \(owner:branch\) |
 |   ↳ `ref` | string | Branch name |
 |   ↳ `sha` | string | Commit SHA |
-| `merged_by` | object | GitHub user object |
-|   ↳ `login` | string | GitHub username |
-|   ↳ `id` | number | User ID |
-|   ↳ `avatar_url` | string | Avatar image URL |
-|   ↳ `html_url` | string | Profile URL |
-|   ↳ `type` | string | Account type \(User or Organization\) |
 | `id` | number | Pull request ID |
 | `number` | number | Pull request number |
 | `title` | string | PR title |
@@ -81,6 +72,12 @@ Fetch PR details including diff and files changed
 | `body` | string | PR description |
 | `merged` | boolean | Whether PR is merged |
 | `mergeable` | boolean | Whether PR is mergeable |
+| `merged_by` | object | GitHub user object |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `html_url` | string | Profile URL |
+|   ↳ `type` | string | Account type \(User or Organization\) |
 | `comments` | number | Number of comments |
 | `review_comments` | number | Number of review comments |
 | `commits` | number | Number of commits |
@@ -676,7 +673,8 @@ Submit a review for a pull request. Use APPROVE, REQUEST_CHANGES, or COMMENT. A 
 | `pullNumber` | number | Yes | Pull request number |
 | `event` | string | Yes | The review action to perform: APPROVE, REQUEST_CHANGES, or COMMENT |
 | `body` | string | No | The body text of the review \(required for REQUEST_CHANGES and COMMENT\) |
-| `commit_id` | string | No | The SHA of the commit that needs a review \(defaults to the most recent commit\) |
+| `commit_id` | string | No | The SHA of the commit that needs a review \(required when posting inline comments; defaults to the most recent commit otherwise\) |
+| `comments` | array | No | Optional inline comments with required path, body, line, and side fields |
 | `apiKey` | string | Yes | GitHub API token |
 
 #### Output

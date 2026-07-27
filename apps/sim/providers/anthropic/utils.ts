@@ -1,19 +1,19 @@
 import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources'
 import { createLogger } from '@sim/logger'
-import { randomFloat } from '@sim/utils/random'
+import {
+  type AnthropicUsageAccumulator,
+  type AnthropicUsageLike,
+  addAnthropicUsage,
+  createAnthropicUsageAccumulator,
+} from '@/providers/anthropic/usage'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import { trackForcedToolUsage } from '@/providers/utils'
 
 const logger = createLogger('AnthropicUtils')
 
-export interface AnthropicStreamUsage {
-  input_tokens: number
-  output_tokens: number
-}
-
 export interface AnthropicStreamComplete {
   content: string
-  usage: AnthropicStreamUsage
+  usage: AnthropicUsageAccumulator
   /** Assembled thinking text for traces (redacted blocks become `[redacted]`). */
   thinking: string
 }
@@ -28,14 +28,16 @@ export function createReadableStreamFromAnthropicStream(
   anthropicStream: AsyncIterable<RawMessageStreamEvent>,
   onComplete?: (result: AnthropicStreamComplete) => void
 ): ReadableStream<AgentStreamEvent> {
+  let cancelled = false
+  let streamIterator: AsyncIterator<RawMessageStreamEvent> | undefined
+
   return new ReadableStream<AgentStreamEvent>({
     async start(controller) {
       try {
         let fullContent = ''
         const thinkingBlocks: string[] = []
         let currentThinking = ''
-        let inputTokens = 0
-        let outputTokens = 0
+        let usageSnapshot: AnthropicUsageLike = {}
 
         const flushThinkingBlock = () => {
           if (currentThinking) {
@@ -44,14 +46,27 @@ export function createReadableStreamFromAnthropicStream(
           }
         }
 
-        for await (const event of anthropicStream) {
+        streamIterator = anthropicStream[Symbol.asyncIterator]()
+        while (true) {
+          const next = await streamIterator.next()
+          if (next.done || cancelled) break
+          const event = next.value
           if (event.type === 'message_start') {
-            inputTokens = event.message.usage.input_tokens
+            usageSnapshot = event.message.usage
             continue
           }
 
           if (event.type === 'message_delta') {
-            outputTokens = event.usage.output_tokens
+            usageSnapshot = {
+              ...usageSnapshot,
+              input_tokens: event.usage.input_tokens ?? usageSnapshot.input_tokens,
+              output_tokens: event.usage.output_tokens ?? usageSnapshot.output_tokens,
+              cache_read_input_tokens:
+                event.usage.cache_read_input_tokens ?? usageSnapshot.cache_read_input_tokens,
+              cache_creation_input_tokens:
+                event.usage.cache_creation_input_tokens ??
+                usageSnapshot.cache_creation_input_tokens,
+            }
             continue
           }
 
@@ -89,27 +104,31 @@ export function createReadableStreamFromAnthropicStream(
           }
         }
 
+        if (cancelled) return
         flushThinkingBlock()
 
         if (onComplete) {
+          const usage = createAnthropicUsageAccumulator()
+          addAnthropicUsage(usage, usageSnapshot)
           onComplete({
             content: fullContent,
-            usage: { input_tokens: inputTokens, output_tokens: outputTokens },
-            // Match enrichLastModelSegmentFromAnthropicResponse: join blocks with blank lines.
+            usage,
             thinking: thinkingBlocks.filter(Boolean).join('\n\n'),
           })
         }
 
         controller.close()
       } catch (err) {
-        controller.error(err)
+        if (!cancelled) {
+          controller.error(err)
+        }
       }
     },
+    async cancel() {
+      cancelled = true
+      await streamIterator?.return?.()
+    },
   })
-}
-
-export function generateToolUseId(toolName: string): string {
-  return `${toolName}-${Date.now()}-${randomFloat().toString(36).substring(2, 7)}`
 }
 
 export function checkForForcedToolUsage(

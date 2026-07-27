@@ -62,12 +62,15 @@ async function fetchFolders(
   return folders.map(mapFolder)
 }
 
-export function useFolders(workspaceId?: string, options?: { scope?: FolderQueryScope }) {
+export function useFolders(
+  workspaceId?: string,
+  options?: { scope?: FolderQueryScope; enabled?: boolean }
+) {
   const scope = options?.scope ?? 'active'
   return useQuery({
     queryKey: folderKeys.list(workspaceId, scope),
     queryFn: ({ signal }) => fetchFolders(workspaceId as string, scope, signal),
-    enabled: Boolean(workspaceId),
+    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     placeholderData: keepPreviousData,
     staleTime: FOLDER_LIST_STALE_TIME,
   })

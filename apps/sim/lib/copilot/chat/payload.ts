@@ -34,7 +34,10 @@ interface BuildPayloadParams {
   model: string
   provider?: string
   contexts?: Array<{ type: string; content: string; tag?: string; path?: string }>
-  /** MCP servers explicitly tagged on this turn. Untagged servers stay unavailable. */
+  /**
+   * MCP servers enabled for this chat — every server tagged on this or any
+   * earlier turn. Servers never tagged in the chat stay unavailable.
+   */
   mcpServerIds?: string[]
   fileAttachments?: Array<{ id: string; key: string; size: number; [key: string]: unknown }>
   commands?: string[]

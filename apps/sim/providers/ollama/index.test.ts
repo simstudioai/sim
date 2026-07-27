@@ -51,7 +51,11 @@ vi.mock('@/providers/ollama/utils', () => ({
     onComplete: (content: string, usage: StreamUsage) => void
   ) => {
     streamOnComplete.current = onComplete
-    return 'OLLAMA_STREAM'
+    return new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.close()
+      },
+    })
   },
 }))
 vi.mock('@/providers/utils', () => ({
@@ -69,10 +73,11 @@ vi.mock('@/stores/providers', () => ({
 }))
 
 import { ollamaProvider } from '@/providers/ollama'
+import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { ProviderRequest, ProviderResponse, ProviderToolConfig } from '@/providers/types'
 
 interface StreamingResult {
-  stream: string
+  stream: string | ReadableStream<AgentStreamEvent>
   execution: {
     output: {
       content: string
@@ -85,10 +90,23 @@ interface StreamingResult {
 type ToolCallChunk = { id: string; type: 'function'; function: { name: string; arguments: string } }
 
 function completion(
-  opts: { content?: string | null; toolCalls?: ToolCallChunk[]; usage?: StreamUsage } = {}
+  opts: {
+    content?: string | null
+    toolCalls?: ToolCallChunk[]
+    usage?: StreamUsage
+    reasoning?: string
+  } = {}
 ) {
   return {
-    choices: [{ message: { content: opts.content ?? null, tool_calls: opts.toolCalls } }],
+    choices: [
+      {
+        message: {
+          content: opts.content ?? null,
+          tool_calls: opts.toolCalls,
+          ...(opts.reasoning !== undefined ? { reasoning: opts.reasoning } : {}),
+        },
+      },
+    ],
     usage: opts.usage ?? { prompt_tokens: 5, completion_tokens: 3, total_tokens: 8 },
   }
 }
@@ -101,6 +119,16 @@ function makeTool(id: string, usageControl?: 'auto' | 'force' | 'none'): Provide
     params: {},
     parameters: { type: 'object', properties: {}, required: [] },
     ...(usageControl ? { usageControl } : {}),
+  }
+}
+
+async function readAgentEvents(stream: ReadableStream<AgentStreamEvent>) {
+  const events: AgentStreamEvent[] = []
+  const reader = stream.getReader()
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) return events
+    events.push(value)
   }
 }
 
@@ -230,6 +258,41 @@ describe('ollamaProvider.executeRequest', () => {
     })
   })
 
+  it('replays Ollama assistant content and emitted reasoning on the second request', async () => {
+    mockCreate
+      .mockResolvedValueOnce(
+        completion({
+          content: 'I will use the tool.',
+          reasoning: 'Need the tool result.',
+          toolCalls: [
+            { id: 'call_1', type: 'function', function: { name: 'mytool', arguments: '{"x":1}' } },
+          ],
+        })
+      )
+      .mockResolvedValueOnce(completion({ content: 'done' }))
+
+    await ollamaProvider.executeRequest({
+      ...baseRequest,
+      tools: [makeTool('mytool')],
+    })
+
+    const assistant = mockCreate.mock.calls[1][0].messages.find(
+      (message: { role: string }) => message.role === 'assistant'
+    )
+    expect(assistant).toEqual({
+      role: 'assistant',
+      content: 'I will use the tool.',
+      reasoning: 'Need the tool result.',
+      tool_calls: [
+        {
+          id: 'call_1',
+          type: 'function',
+          function: { name: 'mytool', arguments: '{"x":1}' },
+        },
+      ],
+    })
+  })
+
   it('records a failed tool result without aborting the loop', async () => {
     mockExecuteTool.mockResolvedValue({ success: false, error: 'boom' })
     mockCreate
@@ -321,7 +384,7 @@ describe('ollamaProvider.executeRequest', () => {
       stream: true,
     })) as unknown as StreamingResult
 
-    expect(result.stream).toBe('OLLAMA_STREAM')
+    expect(result.stream).toBeInstanceOf(ReadableStream)
     expect(mockCreate.mock.calls[0][0].stream_options).toEqual({ include_usage: true })
 
     streamOnComplete.current?.('streamed text', {
@@ -348,7 +411,7 @@ describe('ollamaProvider.executeRequest', () => {
     expect(result.execution.output.content).toBe('{"a":1}')
   })
 
-  it('streams the final response after a tool loop, carrying tool calls', async () => {
+  it('projects the settled tool-loop answer without a regeneration call', async () => {
     mockCreate
       .mockResolvedValueOnce(
         completion({
@@ -357,7 +420,7 @@ describe('ollamaProvider.executeRequest', () => {
           ],
         })
       )
-      .mockResolvedValueOnce(completion({ content: 'intermediate' }))
+      .mockResolvedValueOnce(completion({ content: 'final answer' }))
 
     const result = (await ollamaProvider.executeRequest({
       ...baseRequest,
@@ -365,19 +428,56 @@ describe('ollamaProvider.executeRequest', () => {
       tools: [makeTool('mytool')],
     })) as unknown as StreamingResult
 
-    expect(result.stream).toBe('OLLAMA_STREAM')
+    expect(mockCreate).toHaveBeenCalledTimes(2)
     expect(mockExecuteTool).toHaveBeenCalledTimes(1)
-
-    const finalCall = mockCreate.mock.calls[2][0]
-    expect(finalCall.tools).toBeUndefined()
-    expect(finalCall.tool_choice).toBeUndefined()
-
-    streamOnComplete.current?.('final answer', {
-      prompt_tokens: 2,
-      completion_tokens: 4,
-      total_tokens: 6,
-    })
     expect(result.execution.output.content).toBe('final answer')
+    expect(result.execution.output.tokens).toEqual({ input: 10, output: 6, total: 16 })
     expect(result.execution.output.toolCalls).toMatchObject({ count: 1 })
+    expect(result.execution.output.providerTiming?.iterations).toBe(2)
+    expect(
+      result.execution.output.providerTiming?.timeSegments?.filter(
+        (segment) => segment.type === 'model'
+      )
+    ).toHaveLength(2)
+    expect(result.stream).toBeInstanceOf(ReadableStream)
+    await expect(
+      readAgentEvents(result.stream as ReadableStream<AgentStreamEvent>)
+    ).resolves.toEqual([{ type: 'text_delta', text: 'final answer', turn: 'final' }])
+  })
+
+  it('retains one distinct structured extraction call after a streamed tool loop', async () => {
+    mockCreate
+      .mockResolvedValueOnce(
+        completion({
+          toolCalls: [
+            { id: 'call_1', type: 'function', function: { name: 'mytool', arguments: '{}' } },
+          ],
+        })
+      )
+      .mockResolvedValueOnce(completion({ content: 'unstructured answer' }))
+      .mockResolvedValueOnce(completion({ content: '```json\n{"a":1}\n```' }))
+
+    const result = (await ollamaProvider.executeRequest({
+      ...baseRequest,
+      stream: true,
+      tools: [makeTool('mytool')],
+      responseFormat: { name: 'r', schema: { type: 'object' } },
+    })) as unknown as StreamingResult
+
+    expect(mockCreate).toHaveBeenCalledTimes(3)
+    const extractionCall = mockCreate.mock.calls[2][0]
+    expect(extractionCall.stream).toBeUndefined()
+    expect(extractionCall.response_format).toEqual({ type: 'json_object' })
+    expect(extractionCall.tools).toBeUndefined()
+    expect(result.execution.output.content).toBe('{"a":1}')
+    expect(result.execution.output.providerTiming?.iterations).toBe(3)
+    expect(
+      result.execution.output.providerTiming?.timeSegments?.filter(
+        (segment) => segment.type === 'model'
+      )
+    ).toHaveLength(3)
+    await expect(
+      readAgentEvents(result.stream as ReadableStream<AgentStreamEvent>)
+    ).resolves.toEqual([{ type: 'text_delta', text: '{"a":1}', turn: 'final' }])
   })
 })

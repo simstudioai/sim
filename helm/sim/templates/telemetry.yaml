@@ -18,16 +18,6 @@ data:
             endpoint: 0.0.0.0:4317
           http:
             endpoint: 0.0.0.0:4318
-      prometheus:
-        config:
-          scrape_configs:
-            - job_name: 'sim-app'
-              static_configs:
-                - targets: ['{{ include "sim.fullname" . }}-app:{{ .Values.app.service.port }}']
-            - job_name: 'sim-realtime'
-              static_configs:
-                - targets: ['{{ include "sim.fullname" . }}-realtime:{{ .Values.realtime.service.port }}']
-      
     processors:
       batch:
         timeout: 1s
@@ -83,7 +73,7 @@ data:
             - otlp
             {{- end }}
         metrics:
-          receivers: [otlp, prometheus]
+          receivers: [otlp]
           processors: [memory_limiter, batch]
           exporters:
             - logging

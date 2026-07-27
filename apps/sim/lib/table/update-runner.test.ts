@@ -11,6 +11,7 @@ const {
   mockUpdateJobProgress,
   mockMarkJobReady,
   mockMarkJobFailed,
+  mockMarkJobCanceled,
   mockAppendTableEvent,
   mockBuildFilterClause,
   mockValidateRowSize,
@@ -24,6 +25,7 @@ const {
   mockUpdateJobProgress: vi.fn(),
   mockMarkJobReady: vi.fn(),
   mockMarkJobFailed: vi.fn(),
+  mockMarkJobCanceled: vi.fn(),
   mockAppendTableEvent: vi.fn(),
   mockBuildFilterClause: vi.fn(),
   mockValidateRowSize: vi.fn(),
@@ -37,6 +39,7 @@ vi.mock('@/lib/table/jobs/service', () => ({
   updateJobProgress: mockUpdateJobProgress,
   markJobReady: mockMarkJobReady,
   markJobFailed: mockMarkJobFailed,
+  markJobCanceled: mockMarkJobCanceled,
 }))
 vi.mock('@/lib/table/rows/ordering', () => ({
   selectRowDataPage: mockSelectRowDataPage,
@@ -56,7 +59,13 @@ vi.mock('@/lib/table/constants', () => ({
 
 import { markTableUpdateFailed, runTableUpdate } from '@/lib/table/update-runner'
 
-const table = { id: 'tbl_1', workspaceId: 'ws_1', schema: { columns: [] } }
+const UNLOCKED = {
+  schemaLocked: false,
+  insertLocked: false,
+  updateLocked: false,
+  deleteLocked: false,
+}
+const table = { id: 'tbl_1', workspaceId: 'ws_1', schema: { columns: [] }, locks: UNLOCKED }
 const cutoff = new Date('2026-06-05T00:00:00Z')
 
 function basePayload(overrides = {}) {
@@ -86,6 +95,22 @@ describe('runTableUpdate', () => {
     mockCoerceRowToSchema.mockReturnValue({ valid: true, errors: [] })
   })
 
+  it('cancels without updating when the table was update-locked before the run started', async () => {
+    // The lock is asserted at enqueue, but a queued or retried job can start
+    // after an admin locks the table — nothing is written yet, so honor it.
+    mockGetTableById.mockResolvedValue({ ...table, locks: { ...UNLOCKED, updateLocked: true } })
+    mockSelectRowDataPage.mockResolvedValue([row('a')])
+
+    await expect(runTableUpdate(basePayload())).resolves.toBeUndefined()
+
+    expect(mockUpdatePageByIds).not.toHaveBeenCalled()
+    expect(mockMarkJobCanceled).toHaveBeenCalledWith('tbl_1', 'job_1')
+    expect(mockMarkJobReady).not.toHaveBeenCalled()
+    expect(mockAppendTableEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'job', type: 'update', status: 'canceled' })
+    )
+  })
+
   it('updates every matching page then marks the job ready', async () => {
     mockSelectRowDataPage
       .mockResolvedValueOnce([row('a'), row('b')])
@@ -99,14 +124,18 @@ describe('runTableUpdate', () => {
       'tbl_1',
       'ws_1',
       ['a', 'b'],
-      expect.any(String)
+      expect.any(String),
+      expect.anything(),
+      expect.any(Function)
     )
     expect(mockUpdatePageByIds).toHaveBeenNthCalledWith(
       2,
       'tbl_1',
       'ws_1',
       ['c'],
-      expect.any(String)
+      expect.any(String),
+      expect.anything(),
+      expect.any(Function)
     )
     expect(mockMarkJobReady).toHaveBeenCalledWith('tbl_1', 'job_1')
     expect(mockAppendTableEvent).toHaveBeenCalledWith(

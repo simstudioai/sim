@@ -4,7 +4,7 @@ import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-ali
 import { isPlanAliasPath, workflowAliasSandboxPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { getColumnId } from '@/lib/table/column-keys'
-import { formatCsvValue, neutralizeCsvFormula, toCsvRow } from '@/lib/table/export-format'
+import { formatCsvCell, neutralizeCsvFormula, toCsvRow } from '@/lib/table/export-format'
 import { queryRows } from '@/lib/table/rows/service'
 import { getTableById, listTables } from '@/lib/table/service'
 import { getOrCreateTableSnapshot, SNAPSHOT_MAX_BYTES } from '@/lib/table/snapshot-cache'
@@ -394,7 +394,7 @@ export async function resolveInputFiles(
       const csvLines = [toCsvRow(columns.map((column) => neutralizeCsvFormula(column.name)))]
       for (const row of rows.rows) {
         csvLines.push(
-          toCsvRow(columns.map((column) => formatCsvValue(row.data[getColumnId(column)])))
+          toCsvRow(columns.map((column) => formatCsvCell(column, row.data[getColumnId(column)])))
         )
       }
       const csvContent = csvLines.join('\n')

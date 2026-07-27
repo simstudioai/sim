@@ -9,6 +9,8 @@ import {
 import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
 import { organizationKeys } from '@/hooks/queries/organization'
 
+export const WHITELABEL_STALE_TIME = 60 * 1000
+
 /** PUT payload — string fields accept null to clear a previously-set value. */
 export type WhitelabelSettingsPayload = {
   [K in keyof OrganizationWhitelabelSettings]: OrganizationWhitelabelSettings[K] extends
@@ -46,7 +48,7 @@ export function useWhitelabelSettings(orgId: string | undefined) {
     queryKey: whitelabelKeys.settings(orgId ?? ''),
     queryFn: ({ signal }) => fetchWhitelabelSettings(orgId as string, signal),
     enabled: Boolean(orgId),
-    staleTime: 60 * 1000,
+    staleTime: WHITELABEL_STALE_TIME,
   })
 }
 

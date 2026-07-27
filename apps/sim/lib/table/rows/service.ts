@@ -25,6 +25,12 @@ import {
 } from '@/lib/table/billing'
 import { getColumnId } from '@/lib/table/column-keys'
 import { getMaxPageBytes, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
+import {
+  assertRowDelete,
+  assertRowInsert,
+  assertRowUpdate,
+  patchColumnIds,
+} from '@/lib/table/mutation-locks'
 import { nKeysBetween } from '@/lib/table/order-key'
 import { type DbExecutor, type DbTransaction, withSeqscanOff } from '@/lib/table/planner'
 import {
@@ -99,6 +105,8 @@ export async function insertRow(
   table: TableDefinition,
   requestId: string
 ): Promise<TableRow> {
+  const insertProof = assertRowInsert(table)
+
   // Validate row size
   const sizeValidation = validateRowSize(data.data)
   if (!sizeValidation.valid) {
@@ -140,6 +148,7 @@ export async function insertRow(
     beforeRowId: data.beforeRowId,
     createdBy: data.userId,
     now,
+    proof: insertProof,
   })
 
   notifyTableRowUsage({
@@ -231,6 +240,8 @@ export async function batchInsertRowsWithTx(
   table: TableDefinition,
   requestId: string
 ): Promise<TableRow[]> {
+  assertRowInsert(table)
+
   for (let i = 0; i < data.rows.length; i++) {
     const row = data.rows[i]
 
@@ -382,6 +393,9 @@ export async function replaceTableRowsWithTx(
   table: TableDefinition,
   requestId: string
 ): Promise<ReplaceRowsResult> {
+  assertRowDelete(table)
+  assertRowInsert(table)
+
   if (data.tableId !== table.id) {
     throw new Error(`Table ID mismatch: ${data.tableId} vs ${table.id}`)
   }
@@ -626,6 +640,7 @@ export async function upsertRow(
     }
 
     if (matchedRowId) {
+      assertRowUpdate(table, patchColumnIds(data.data))
       const [updatedRow] = await trx
         .update(userTableRows)
         .set({ data: data.data, updatedAt: now })
@@ -647,6 +662,8 @@ export async function upsertRow(
         operation: 'update' as const,
       }
     }
+
+    assertRowInsert(table)
 
     if (wouldExceedRowLimit(rowLimit, table.rowCount, 1)) {
       throw new TableRowLimitError(rowLimit)
@@ -763,6 +780,43 @@ export interface FindRowMatch {
 const FIND_MATCH_LIMIT = 1000
 
 /**
+ * Builds a SQL text expression that resolves a scanned select cell (`kv.value`,
+ * keyed by `kv.key`) to its option **name(s)** — the label the user searches by,
+ * not the stored id. Single-select maps the id to its name; multiselect joins the
+ * array's option names. Non-select keys resolve to NULL. Returns `null` when the
+ * schema has no select columns (caller keeps the plain id match). Option ids/names
+ * are trusted schema data, escaped and embedded literally; the row alias is `o`.
+ */
+export function buildSelectFindNameExpr(columns: ColumnDefinition[]): string | null {
+  const selectColumns = columns.filter((c) => c.type === 'select')
+  if (selectColumns.length === 0) return null
+  const esc = (s: string) => s.replace(/'/g, "''")
+  const whens = selectColumns
+    .map((col) => {
+      const id = esc(getColumnId(col))
+      const caseWhens = (col.options ?? [])
+        .map((o) => `WHEN '${esc(o.id)}' THEN '${esc(o.name)}'`)
+        .join(' ')
+      const single = caseWhens ? `CASE kv.value ${caseWhens} ELSE kv.value END` : 'kv.value'
+      if (col.multiple) {
+        const elem = caseWhens ? `CASE e.v ${caseWhens} ELSE e.v END` : 'e.v'
+        // `jsonb_array_elements_text` throws "cannot extract elements from a
+        // scalar" on a JSON null — which a multiselect cell becomes when it is
+        // cleared, cut, or has its last option removed — so the array arm has to
+        // be gated on the cell actually being an array. Anything else falls back
+        // to the single mapping, which also keeps a scalar left over from a
+        // single→multi toggle searchable. Mirrors `buildSelectNameOrderExpr`.
+        // `ORDER BY e.ord` keeps the joined label in stored order, so Find matches
+        // the same text the grid renders, sorts by, and exports.
+        return `WHEN kv.key = '${id}' THEN CASE WHEN jsonb_typeof(o.data->'${id}') = 'array' THEN (SELECT string_agg(${elem}, ', ' ORDER BY e.ord) FROM jsonb_array_elements_text(o.data->'${id}') WITH ORDINALITY AS e(v, ord)) ELSE ${single} END`
+      }
+      return `WHEN kv.key = '${id}' THEN ${single}`
+    })
+    .join(' ')
+  return `CASE ${whens} ELSE NULL END`
+}
+
+/**
  * Case-insensitive substring search across every cell of a table's rows. Each
  * matching cell becomes a {@link FindRowMatch} carrying its row id, column, and
  * 0-based ordinal in the filtered+sorted view (so the client can page up to and
@@ -806,6 +860,12 @@ export async function findRowMatches(
 
   const orderBySql = buildRowOrderBySql(options.sort, tableName, columns)
   const pattern = `%${escapeLikePattern(options.q)}%`
+  // Select cells store option ids; also match the resolved option name so a search
+  // for the visible label finds the cell (the raw-id match below is kept too).
+  const selectNameExpr = buildSelectFindNameExpr(columns)
+  const nameMatchClause = selectNameExpr
+    ? sql` OR (${sql.raw(selectNameExpr)}) ILIKE ${pattern}`
+    : sql``
 
   const result = await db.transaction(async (trx) => {
     // Planner flags, not correctness: `enable_* = off` only penalizes a plan shape, so a
@@ -834,7 +894,7 @@ export async function findRowMatches(
       SELECT o.ordinal, o.id, kv.key AS column_name
       FROM ordered o
       CROSS JOIN LATERAL jsonb_each_text(o.data) kv
-      WHERE kv.value ILIKE ${pattern}
+      WHERE (kv.value ILIKE ${pattern}${nameMatchClause})
         AND ${inArray(sql`kv.key`, columnIds)}
       ORDER BY o.ordinal
       LIMIT ${FIND_MATCH_LIMIT + 1}
@@ -1110,10 +1170,27 @@ class GuardRejected extends Error {
  */
 export interface UpdateRowOptions {
   /**
-   * `patch` sends only changed keys to Postgres via JSONB concatenation while
-   * retaining the same merged-row validation and returned shape.
+   * Marks the write as the workflow/enrichment engine filling its own output
+   * cells, which exempts it from the update lock. Set by `cell-write.ts` only —
+   * see {@link assertRowUpdate}.
    */
-  dataWriteMode?: 'replace' | 'patch'
+  computedWrite?: boolean
+}
+
+/**
+ * A row stores every cell in one jsonb `data` column, so a row update writes the changed cells as
+ * an in-DB JSONB merge (`data = data || {changed}::jsonb`) rather than replacing the whole object.
+ * Postgres evaluates the concat against the current committed row under its write lock, so
+ * concurrent edits to DIFFERENT cells of the same row both survive instead of the last writer
+ * clobbering the row from a stale read. Values come from the caller's already-coerced merged row;
+ * only the changed keys are sent, so an empty change set is a no-op on `data`. Whole-row
+ * replacement is `upsertRow`'s job, not this path (an update only ever adds/overwrites cells —
+ * it never deletes a key — so a full-object write would only differ by being racy).
+ */
+function jsonbMergePatch(changedColumnIds: string[], coercedRow: RowData): SQL {
+  const patch: RowData = {}
+  for (const columnId of changedColumnIds) patch[columnId] = coercedRow[columnId]
+  return sql`${userTableRows.data} || ${JSON.stringify(patch)}::jsonb`
 }
 
 export async function updateRow(
@@ -1122,6 +1199,8 @@ export async function updateRow(
   requestId: string,
   options: UpdateRowOptions = {}
 ): Promise<TableRow | null> {
+  assertRowUpdate(table, patchColumnIds(data.data), { computedWrite: options.computedWrite })
+
   // Get existing row
   const existingRow = await getRowById(data.tableId, data.rowId, data.workspaceId)
   if (!existingRow) {
@@ -1173,14 +1252,7 @@ export async function updateRow(
   }
 
   const now = new Date()
-  const persistedDataPatch: RowData = {}
-  for (const columnId of Object.keys(data.data)) {
-    persistedDataPatch[columnId] = mergedData[columnId]
-  }
-  const persistedData =
-    options.dataWriteMode === 'patch'
-      ? sql`${userTableRows.data} || ${JSON.stringify(persistedDataPatch)}::jsonb`
-      : mergedData
+  const persistedData = jsonbMergePatch(Object.keys(data.data), mergedData)
 
   // Cell-task partial writes pass `cancellationGuard` so the upsert into
   // `tableRowExecutions` is a no-op when (a) a stop click already wrote
@@ -1304,15 +1376,20 @@ export async function updateRow(
  * @throws Error if row not found
  */
 export async function deleteRow(
-  tableId: string,
+  table: TableDefinition,
   rowId: string,
-  workspaceId: string,
   requestId: string
 ): Promise<void> {
-  const deleted = await deleteOrderedRow({ tableId, rowId, workspaceId })
+  const proof = assertRowDelete(table)
+  const deleted = await deleteOrderedRow({
+    tableId: table.id,
+    rowId,
+    workspaceId: table.workspaceId,
+    proof,
+  })
   if (!deleted) throw new Error('Row not found')
 
-  logger.info(`[${requestId}] Deleted row ${rowId} from table ${tableId}`)
+  logger.info(`[${requestId}] Deleted row ${rowId} from table ${table.id}`)
 }
 
 /**
@@ -1328,6 +1405,8 @@ export async function updateRowsByFilter(
   data: BulkUpdateData,
   requestId: string
 ): Promise<BulkOperationResult> {
+  assertRowUpdate(table, patchColumnIds(data.data))
+
   const tableName = USER_TABLE_ROWS_SQL_NAME
 
   const filterClause = buildFilterClause(data.filter, tableName, table.schema.columns)
@@ -1457,6 +1536,14 @@ export async function updateRowsByFilter(
   }
 }
 
+export interface BatchUpdateRowsOptions {
+  /**
+   * Marks the batch as workflow/enrichment output cells (the backfill runner),
+   * exempting it from the update lock. See {@link assertRowUpdate}.
+   */
+  computedWrite?: boolean
+}
+
 /**
  * Updates multiple rows with per-row data in a single transaction.
  * Avoids the race condition of parallel update_row calls overwriting each other.
@@ -1464,11 +1551,20 @@ export async function updateRowsByFilter(
 export async function batchUpdateRows(
   data: BatchUpdateByIdData,
   table: TableDefinition,
-  requestId: string
+  requestId: string,
+  options: BatchUpdateRowsOptions = {}
 ): Promise<BulkOperationResult> {
   if (data.updates.length === 0) {
     return { affectedCount: 0, affectedRowIds: [] }
   }
+
+  // Doubles as the workflow-output backfill write path, which passes
+  // `computedWrite` so a rebuild keeps working on an update-locked table.
+  assertRowUpdate(
+    table,
+    data.updates.flatMap((u) => patchColumnIds(u.data)),
+    { computedWrite: options.computedWrite }
+  )
 
   const rowIds = data.updates.map((u) => u.rowId)
   const existingRows = await db
@@ -1505,6 +1601,7 @@ export async function batchUpdateRows(
 
   const mergedUpdates: Array<{
     rowId: string
+    changedColumnIds: string[]
     mergedData: RowData
     mergedExecutions: RowExecutions
     executionsPatch?: Record<string, RowExecutionMetadata | null>
@@ -1539,6 +1636,7 @@ export async function batchUpdateRows(
 
     mergedUpdates.push({
       rowId: update.rowId,
+      changedColumnIds: Object.keys(update.data),
       mergedData: merged,
       mergedExecutions,
       executionsPatch: effectiveExecutionsPatch,
@@ -1568,11 +1666,13 @@ export async function batchUpdateRows(
     for (let i = 0; i < mergedUpdates.length; i += TABLE_LIMITS.UPDATE_BATCH_SIZE) {
       const batch = mergedUpdates.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
       // Update row data in parallel; sidecar exec writes are sequential per
-      // row (each goes through writeExecutionsPatch's per-key upsert).
-      const dataPromises = batch.map(({ rowId, mergedData }) =>
+      // row (each goes through writeExecutionsPatch's per-key upsert). Each row
+      // merges its changed cells via JSONB concat (see jsonbMergePatch) so a
+      // batch edit can't clobber a concurrent edit to another cell of the row.
+      const dataPromises = batch.map(({ rowId, changedColumnIds, mergedData }) =>
         trx
           .update(userTableRows)
-          .set({ data: mergedData, updatedAt: now })
+          .set({ data: jsonbMergePatch(changedColumnIds, mergedData), updatedAt: now })
           .where(eq(userTableRows.id, rowId))
       )
       await Promise.all(dataPromises)
@@ -1669,6 +1769,8 @@ export async function deleteRowsByFilter(
   data: BulkDeleteData,
   requestId: string
 ): Promise<BulkOperationResult> {
+  const proof = assertRowDelete(table)
+
   const tableName = USER_TABLE_ROWS_SQL_NAME
 
   // Build filter clause
@@ -1705,6 +1807,7 @@ export async function deleteRowsByFilter(
     tableId: table.id,
     workspaceId: table.workspaceId,
     rowIds,
+    proof,
   })
 
   logger.info(`[${requestId}] Deleted ${matchingRows.length} rows from table ${table.id}`)
@@ -1723,15 +1826,19 @@ export async function deleteRowsByFilter(
  * @returns Deletion result with deleted/missing row IDs
  */
 export async function deleteRowsByIds(
+  table: TableDefinition,
   data: BulkDeleteByIdsData,
   requestId: string
 ): Promise<BulkDeleteByIdsResult> {
+  const proof = assertRowDelete(table)
+
   const uniqueRequestedRowIds = Array.from(new Set(data.rowIds))
 
   const deletedRows = await deleteOrderedRowsByIds({
     tableId: data.tableId,
     workspaceId: data.workspaceId,
     rowIds: uniqueRequestedRowIds,
+    proof,
   })
 
   const deletedIds = deletedRows.map((r) => r.id)
