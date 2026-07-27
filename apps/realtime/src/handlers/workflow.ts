@@ -1,8 +1,7 @@
-import { db, user } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
-import { eq } from 'drizzle-orm'
 import { getWorkflowState } from '@/database/operations'
+import { resolveAvatarUrl } from '@/handlers/avatar'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { resolveCurrentWorkflowRole, verifyWorkflowAccess } from '@/middleware/permissions'
 import { type IRoomManager, type UserPresence, workflowRoom as wf } from '@/rooms'
@@ -158,21 +157,7 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       // Join the new room
       socket.join(workflowId)
 
-      // Get avatar URL
-      let avatarUrl = socket.userImage || null
-      if (!avatarUrl) {
-        try {
-          const [userRecord] = await db
-            .select({ image: user.image })
-            .from(user)
-            .where(eq(user.id, userId))
-            .limit(1)
-
-          avatarUrl = userRecord?.image ?? null
-        } catch (error) {
-          logger.warn('Failed to load user avatar for presence', { userId, error })
-        }
-      }
+      const avatarUrl = await resolveAvatarUrl(socket, userId)
 
       // Create presence entry
       const userPresence: UserPresence = {

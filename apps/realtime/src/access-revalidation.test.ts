@@ -50,13 +50,13 @@ function makeManager(sockets: FakeSocket[], presence: Partial<UserPresence>[] = 
   const manager = {
     io: { sockets: { sockets: socketMap } },
     isReady: () => true,
-    getWorkflowUsers: vi.fn().mockResolvedValue(presence),
+    getRoomUsers: vi.fn().mockResolvedValue(presence),
     getRoomForSocket: vi.fn().mockResolvedValue(null),
     removeUserFromRoom: vi.fn().mockResolvedValue(true),
     broadcastPresenceUpdate: vi.fn().mockResolvedValue(undefined),
   }
   return manager as unknown as IRoomManager & {
-    getWorkflowUsers: ReturnType<typeof vi.fn>
+    getRoomUsers: ReturnType<typeof vi.fn>
     getRoomForSocket: ReturnType<typeof vi.fn>
     removeUserFromRoom: ReturnType<typeof vi.fn>
     broadcastPresenceUpdate: ReturnType<typeof vi.fn>
@@ -142,7 +142,30 @@ describe('access-revalidation sweep', () => {
 
     expect(mockResolveRole).toHaveBeenCalledWith('user-1', 'wf-1', 'read')
     // The security scan must stay Redis-free — presence is never consulted.
-    expect(manager.getWorkflowUsers).not.toHaveBeenCalled()
+    expect(manager.getRoomUsers).not.toHaveBeenCalled()
+  })
+
+  it('never evicts a socket joined only to a non-workflow room (files/tables/file-doc)', async () => {
+    // The sweep shares one io with the files/tables/file-doc handlers. Those rooms are
+    // namespaced (`workspace-files:ws-1`, `table:t-1`), so treating every socket.rooms
+    // entry as a workflow id would resolve a bogus permission → null → evict the socket
+    // from its files/table room every pass. Non-workflow rooms must be filtered out.
+    const filesSocket = makeSocket('sock-1', 'user-1', 'workspace-files:ws-1')
+    const tableSocket = makeSocket('sock-2', 'user-2', 'table:t-1')
+    const manager = makeManager([filesSocket, tableSocket])
+    // Even if the role resolver would say "no access", these must never be swept.
+    mockResolveRole.mockResolvedValue(null)
+
+    const sweep = startAccessRevalidationSweep(manager)
+    await sweep.runOnce()
+    sweep.stop()
+
+    expect(mockResolveRole).not.toHaveBeenCalled()
+    expect(filesSocket.leave).not.toHaveBeenCalled()
+    expect(filesSocket.emit).not.toHaveBeenCalled()
+    expect(tableSocket.leave).not.toHaveBeenCalled()
+    expect(tableSocket.emit).not.toHaveBeenCalled()
+    expect(manager.removeUserFromRoom).not.toHaveBeenCalled()
   })
 
   it('evicts only the revoked socket, not co-members of the room', async () => {

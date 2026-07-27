@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Avatar, AvatarFallback, AvatarImage, Tooltip } from '@sim/emcn'
+import { Avatar, AvatarFallback, AvatarImage, cn, Tooltip } from '@sim/emcn'
 import { getUserColor } from '@/lib/workspaces/colors'
 
 /** Minimal presence shape the avatar stack renders — shared by workflow and files. */
@@ -64,6 +64,8 @@ interface PresenceAvatarsProps {
   users: PresenceAvatarUser[]
   /** Max avatars before collapsing the remainder into a "+N" chip. */
   maxVisible?: number
+  /** Layout-only classes for the outer stack (e.g. surrounding margin); chrome is owned here. */
+  className?: string
 }
 
 const DEFAULT_MAX_VISIBLE = 5
@@ -73,7 +75,11 @@ const DEFAULT_MAX_VISIBLE = 5
  * the caller owns fetching/filtering presence (workflow sidebar item, files
  * header, etc.), so the stack looks identical everywhere it appears.
  */
-export function PresenceAvatars({ users, maxVisible = DEFAULT_MAX_VISIBLE }: PresenceAvatarsProps) {
+export function PresenceAvatars({
+  users,
+  maxVisible = DEFAULT_MAX_VISIBLE,
+  className,
+}: PresenceAvatarsProps) {
   const { visibleUsers, overflowCount } = useMemo(() => {
     if (users.length === 0) {
       return { visibleUsers: [] as PresenceAvatarUser[], overflowCount: 0 }
@@ -89,7 +95,7 @@ export function PresenceAvatars({ users, maxVisible = DEFAULT_MAX_VISIBLE }: Pre
   }
 
   return (
-    <div className='-space-x-1 mr-1 flex flex-shrink-0 items-center'>
+    <div className={cn('-space-x-1 flex flex-shrink-0 items-center', className)}>
       {overflowCount > 0 && (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>

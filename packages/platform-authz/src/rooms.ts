@@ -95,11 +95,6 @@ const ROOM_WORKSPACE_RESOLVERS: Record<RoomType, RoomWorkspaceResolver> = {
   [ROOM_TYPES.TABLE]: resolveTableWorkspace,
 }
 
-/** Resolves a room's owning workspace, or `null` if the room resource is gone. */
-export function resolveWorkspaceIdForRoom(room: RoomRef): Promise<RoomWorkspace | null> {
-  return ROOM_WORKSPACE_RESOLVERS[room.type](room.id)
-}
-
 export interface RoomAuthorizationResult {
   allowed: boolean
   status: number

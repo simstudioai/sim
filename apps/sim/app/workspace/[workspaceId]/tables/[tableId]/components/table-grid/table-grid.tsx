@@ -748,12 +748,14 @@ export function TableGrid({
     return expandToDisplayColumns(ordered, tableWorkflowGroups)
   }, [columns, columnOrder, tableWorkflowGroups])
 
-  /** Column id → its rendered index (matches the cells' `data-col`), for placing overlays. */
+  /** Column id → its rendered index (matches the cells' `data-col`), for placing overlays.
+   *  Only built when collaborators are present (the overlay it feeds is gated on that too),
+   *  so solo editing never pays the map build. */
   const columnIndexById = useMemo(() => {
     const map = new Map<string, number>()
-    displayColumns.forEach((col, index) => map.set(col.key, index))
+    if (remoteSelections.length > 0) displayColumns.forEach((col, index) => map.set(col.key, index))
     return map
-  }, [displayColumns])
+  }, [displayColumns, remoteSelections.length])
 
   /** Row id → its index in the current row list, for testing local-selection coverage.
    *  Only built when collaborators are present (the overlay is gated on that too), so

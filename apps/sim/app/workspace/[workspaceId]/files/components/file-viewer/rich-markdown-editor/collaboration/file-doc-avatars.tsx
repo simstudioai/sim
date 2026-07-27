@@ -10,5 +10,5 @@ import { useFileDocOthers } from './file-doc-room-context'
  */
 export function FileDocAvatars() {
   const others = useFileDocOthers()
-  return <PresenceAvatars users={others} />
+  return <PresenceAvatars users={others} className='mr-1' />
 }

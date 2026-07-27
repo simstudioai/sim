@@ -769,7 +769,9 @@ export function Table({
           breadcrumbs={breadcrumbs}
           aside={
             <div className='flex items-center gap-1.5'>
-              {presenceUsers.length > 0 && <PresenceAvatars users={presenceUsers} />}
+              {presenceUsers.length > 0 && (
+                <PresenceAvatars users={presenceUsers} className='mr-1' />
+              )}
               <ImportProgressMenu workspaceId={workspaceId} tableId={tableId} />
               {selection.totalRunning > 0 || selection.hasActiveDispatch ? (
                 <RunStatusControl

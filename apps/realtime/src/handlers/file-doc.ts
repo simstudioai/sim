@@ -1,3 +1,23 @@
+/**
+ * Collaborative document editing (live carets + text selection) for a single
+ * file's rich-text editor. This is the standard Yjs "websocket server" relay —
+ * an authoritative in-memory {@link Y.Doc} + {@link awarenessProtocol.Awareness}
+ * per file — carried over the shared, already-authenticated Socket.IO connection
+ * and the room abstraction, rather than a separate ws server. Clients speak the
+ * `y-protocols` sync + awareness protocols; the server applies and relays them.
+ *
+ * No durable Yjs state is kept yet: the document lives only while at least one
+ * collaborator is connected, and is re-seeded from the file's stored markdown on
+ * the next cold open (the markdown, saved by a client through the content API, is
+ * the durable source of truth). Durable Yjs snapshots are a separate follow-up.
+ *
+ * Single-writer assumption: the authoritative {@link Y.Doc} is held in this
+ * process's memory, so correctness assumes one realtime replica per file (Helm
+ * pins `realtime.replicaCount: 1`). Horizontal scaling would need a shared Yjs
+ * backend (y-redis / Hocuspocus) — out of scope here.
+ *
+ * @module
+ */
 import { createLogger } from '@sim/logger'
 import { authorizeRoom } from '@sim/platform-authz/rooms'
 import {
@@ -30,24 +50,6 @@ const logger = createLogger('FileDocHandlers')
  */
 const SEED_DEADLINE_MS = 10_000
 
-/**
- * Collaborative document editing (live carets + text selection) for a single
- * file's rich-text editor. This is the standard Yjs "websocket server" relay —
- * an authoritative in-memory {@link Y.Doc} + {@link awarenessProtocol.Awareness}
- * per file — carried over the shared, already-authenticated Socket.IO connection
- * and the room abstraction, rather than a separate ws server. Clients speak the
- * `y-protocols` sync + awareness protocols; the server applies and relays them.
- *
- * No durable Yjs state is kept yet: the document lives only while at least one
- * collaborator is connected, and is re-seeded from the file's stored markdown on
- * the next cold open (the markdown, saved by a client through the content API, is
- * the durable source of truth). Durable Yjs snapshots are a separate follow-up.
- *
- * Single-writer assumption: the authoritative {@link Y.Doc} is held in this
- * process's memory, so correctness assumes one realtime replica per file (Helm
- * pins `realtime.replicaCount: 1`). Horizontal scaling would need a shared Yjs
- * backend (y-redis / Hocuspocus) — out of scope here.
- */
 /** A socket's presence ownership within a room. */
 interface FileDocOwner {
   /**

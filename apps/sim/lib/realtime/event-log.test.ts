@@ -27,7 +27,7 @@ function serializerFor(streamId: string, value: string) {
   return {
     entryPrefix: '{"eventId":',
     entrySuffix: `,"streamId":${JSON.stringify(streamId)},"value":${JSON.stringify(value)}}`,
-    buildMemory: (eventId: number): TestEntry => ({ eventId, streamId, value }),
+    buildEntry: (eventId: number): TestEntry => ({ eventId, streamId, value }),
   }
 }
 

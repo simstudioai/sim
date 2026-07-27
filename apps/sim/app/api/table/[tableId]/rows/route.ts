@@ -441,7 +441,7 @@ export const DELETE = withRouteHandler(
           { tableId, rowIds: validated.rowIds, workspaceId: validated.workspaceId },
           requestId
         )
-        signalTableRowsChanged(tableId)
+        if (result.deletedCount > 0) signalTableRowsChanged(tableId)
 
         return NextResponse.json({
           success: true,
@@ -467,7 +467,7 @@ export const DELETE = withRouteHandler(
         },
         requestId
       )
-      signalTableRowsChanged(tableId)
+      if (result.affectedCount > 0) signalTableRowsChanged(tableId)
 
       return NextResponse.json({
         success: true,

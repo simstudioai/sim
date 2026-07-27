@@ -684,7 +684,7 @@ export async function updateTableLocks(
  * @param tableId - Table ID to update
  * @param metadata - Partial metadata object (merged with existing)
  * @param existingMetadata - Existing metadata from a prior fetch (avoids redundant DB read)
- * @returns Updated metadata
+ * @returns The merged metadata plus whether the reorder also mutated the schema
  */
 export async function updateTableMetadata(
   tableId: string,

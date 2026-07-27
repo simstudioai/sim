@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { AccessRevokedBroadcast } from '@sim/realtime-protocol/events'
-import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import { parseRoomName, ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { sleep } from '@sim/utils/helpers'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { ROLE_REVALIDATION_TTL_MS, resolveCurrentWorkflowRole } from '@/middleware/permissions'
@@ -66,9 +66,14 @@ interface ScanTarget {
  * Collects this pod's authenticated sockets with the workflow room each has
  * joined, in stable socket order.
  *
- * The workflow room is derived from the socket's own `rooms` set (pod-local, no
- * Redis round-trips): a socket joins exactly one workflow room, so its rooms are
- * `{ ownSocketId, workflowId }`. Only local sockets are evaluated — sockets are
+ * Rooms are derived from the socket's own `rooms` set (pod-local, no Redis
+ * round-trips). A socket may occupy several rooms of different types at once
+ * (workflow canvas, workspace-files browser, table, file-doc), all on the same
+ * io — so each name is decoded with {@link parseRoomName} and only **workflow**
+ * rooms are swept here. Non-workflow room names are namespaced (`type:id`) and
+ * resolve to a non-workflow type; sweeping them as workflow ids would resolve a
+ * bogus permission, come back `null`, and spuriously evict the socket from its
+ * files/table room every pass. Only local sockets are evaluated — sockets are
  * sticky to a pod, so every socket is swept by exactly one pod using that pod's
  * warm role cache (mirroring the per-pod reasoning of the write-path cache).
  */
@@ -79,7 +84,9 @@ function collectScanTargets(io: IRoomManager['io']): ScanTarget[] {
     if (!authed.userId) continue
     for (const room of socket.rooms) {
       if (room === socket.id) continue
-      targets.push({ workflowId: room, socket: authed, userId: authed.userId })
+      const ref = parseRoomName(room)
+      if (ref?.type !== ROOM_TYPES.WORKFLOW) continue
+      targets.push({ workflowId: ref.id, socket: authed, userId: authed.userId })
     }
   }
   return targets

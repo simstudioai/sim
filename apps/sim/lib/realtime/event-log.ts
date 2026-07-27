@@ -68,14 +68,17 @@ export interface EventLogEntry {
 
 /**
  * How an adapter serializes one entry. `entryPrefix`/`entrySuffix` are spliced
- * around the minted `eventId` in Lua (`prefix + eventId + suffix`); `buildMemory`
- * must produce the byte-identical object for the in-memory fallback. The two MUST
- * agree — a divergence makes dev/no-Redis behave differently from prod.
+ * around the minted `eventId` in Lua (`prefix + eventId + suffix`) for the Redis
+ * write; `buildEntry` returns the equivalent object. It is the canonical entry
+ * builder for BOTH paths — the in-memory fallback AND the Redis success path,
+ * which returns `buildEntry(eventId)` rather than re-parsing the stored string —
+ * so it MUST produce the byte-identical shape to the spliced JSON, or dev/no-Redis
+ * behaves differently from prod.
  */
 export interface EntrySerializer<E extends EventLogEntry> {
   entryPrefix: string
   entrySuffix: string
-  buildMemory: (eventId: number) => E
+  buildEntry: (eventId: number) => E
 }
 
 export type EventLogReadResult<E extends EventLogEntry> =
@@ -142,7 +145,7 @@ export async function appendEvent<E extends EventLogEntry>(
     if (canUseMemoryBuffer()) {
       try {
         const stream = getMemoryStream(config, streamId)
-        const entry = serializer.buildMemory(stream.nextEventId++)
+        const entry = serializer.buildEntry(stream.nextEventId++)
         stream.events.push(entry)
         if (stream.events.length > config.cap) {
           stream.events = stream.events.slice(-config.cap)
@@ -175,7 +178,7 @@ export async function appendEvent<E extends EventLogEntry>(
     )
     const eventId = typeof result === 'number' ? result : Number(result)
     if (!Number.isFinite(eventId)) return null
-    return serializer.buildMemory(eventId)
+    return serializer.buildEntry(eventId)
   } catch (error) {
     logger.warn('appendEvent: Redis append failed', { streamId, error: toError(error).message })
     return null

@@ -141,11 +141,11 @@ export type TableEvent =
        *  lock toggle. Carries no payload; the client just invalidates the
        *  table-detail query so every open viewer re-reads the fresh locks
        *  (otherwise an idle grid stays stale and writes 423). Emitted only by
-       *  {@link signalTableRowsChanged}'s sibling lock path in the service; schema
-       *  and metadata changes use the dedicated `schema`/`metadata` kinds above. */
+       *  `updateTableLocks` in the service; schema and metadata changes use the
+       *  dedicated `schema`/`metadata` kinds above. */
       kind: 'definition'
       tableId: string
-      reason: 'locks' | 'schema'
+      reason: 'locks'
     }
 
 export interface TableEventEntry {
@@ -165,7 +165,7 @@ export async function appendTableEvent(event: TableEvent): Promise<TableEventEnt
   return appendEvent<TableEventEntry>(TABLE_EVENT_LOG, event.tableId, {
     entryPrefix: '{"eventId":',
     entrySuffix: `,"tableId":${JSON.stringify(event.tableId)},"event":${JSON.stringify(event)}}`,
-    buildMemory: (eventId) => ({ eventId, tableId: event.tableId, event }),
+    buildEntry: (eventId) => ({ eventId, tableId: event.tableId, event }),
   })
 }
 

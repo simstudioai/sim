@@ -49,9 +49,10 @@ export class WorkflowRoomService {
     // Remove every socket from the Socket.IO room (cross-pod via the Redis adapter).
     await this.manager.io.in(name).socketsLeave(name)
 
-    for (const socketId of socketIds) {
-      await this.manager.removeUserFromRoom(room, socketId)
-    }
+    // Independent per-socket removals — run concurrently.
+    await Promise.all(
+      Array.from(socketIds, (socketId) => this.manager.removeUserFromRoom(room, socketId))
+    )
 
     // Final unconditional wipe — the workflow is gone, so no room state may linger
     // even if a per-socket removal failed (matches the pre-refactor managers, which
