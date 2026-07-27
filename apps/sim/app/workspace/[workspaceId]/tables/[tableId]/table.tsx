@@ -665,6 +665,15 @@ export function Table({
     []
   )
 
+  // A toast's action is captured when it is created, so a viewer who loses
+  // admin access mid-toast would keep a Lock settings button that opens
+  // nothing. Drop the notice instead of leaving it dead.
+  useEffect(() => {
+    if (canOpenLockSettings || !blockedToastIdRef.current) return
+    toast.dismiss(blockedToastIdRef.current)
+    blockedToastIdRef.current = null
+  }, [canOpenLockSettings])
+
   const headerActions = useMemo(() => {
     if (!tableData) return undefined
     return [
