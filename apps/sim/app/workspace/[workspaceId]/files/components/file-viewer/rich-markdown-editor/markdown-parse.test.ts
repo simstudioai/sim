@@ -59,6 +59,12 @@ const CASES: Array<[string, string]> = [
     '1. First\n  - sub bullet\n  - another\n  1. deep ordered\n  2. item\n2. Second',
   ],
   ['heading-separated sections', '# A\n\nalpha\n\n## B\n\nbeta\n\n## C\n\ngamma'],
+  // Blank-line spacing: `@tiptap/markdown` reconstructs empty paragraphs from runs of blank lines, so
+  // the chunker must reinsert them or a saved blank line vanishes on reload. See the dedicated
+  // "empty paragraphs" suite below for the exact whole-document-parser parity.
+  ['one empty paragraph between paragraphs', 'first\n\n\n\nsecond'],
+  ['two empty paragraphs between paragraphs', 'first\n\n\n\n\n\nsecond'],
+  ['empty paragraphs between headings and text', '# A\n\n\n\nalpha\n\n\n\n## B'],
 ]
 
 describe('parseMarkdownToDoc (chunked)', () => {
@@ -85,6 +91,40 @@ describe('parseMarkdownToDoc (chunked)', () => {
     expect(parseMarkdownToDoc('   \n\n  ').type).toBe('doc')
     expect(splitMarkdownBlocks('')).toEqual([])
     expect(splitMarkdownBlocks('\n\n  \n')).toEqual([])
+  })
+
+  // The chunker used to drop empty paragraphs (visual blank lines between blocks) that the whole-document
+  // parser preserves, so a saved blank line silently vanished on the next load. These assert the chunked
+  // parse reconstructs the SAME empty-paragraph structure the whole-document parser does — at document
+  // edges and between blocks, for one or many blank lines, and around lists.
+  describe('empty paragraphs (blank-line spacing) match the whole-document parser', () => {
+    /** Block-type shape of a doc, `∅` for an empty paragraph, normalized through the editor. */
+    function shapeOf(md: string, parse: 'chunked' | 'whole'): string {
+      editor = new Editor({ extensions: createMarkdownContentExtensions() })
+      if (parse === 'whole') editor.commands.setContent(md, { contentType: 'markdown' })
+      else editor.commands.setContent(parseMarkdownToDoc(md), { contentType: 'json' })
+      const shape = (editor.getJSON().content ?? [])
+        .map((n) => (n.type === 'paragraph' && !n.content?.length ? '∅' : n.type))
+        .join(',')
+      editor.destroy()
+      editor = null
+      return shape
+    }
+
+    it.each([
+      ['one empty between paragraphs', 'a\n\n\n\nb'],
+      ['two empties between paragraphs', 'a\n\n\n\n\n\nb'],
+      ['three empties between paragraphs', 'a\n\n\n\n\n\n\n\nb'],
+      ['even blank-line gap (rounds down)', 'a\n\n\n\n\nb'],
+      ['leading empties', '\n\n\n\na'],
+      ['trailing empties', 'a\n\n\n\n'],
+      ['leading + between + trailing', '\n\n\na\n\n\n\nb\n\n\n'],
+      ['empties between a heading and text', '# H\n\n\n\ntext'],
+      ['empties after a tight list', '- a\n- b\n\n\n\ntext'],
+      ['empties before a tight list', 'text\n\n\n\n- a\n- b'],
+    ])('chunked matches whole-doc: %s', (_label, md) => {
+      expect(shapeOf(md, 'chunked')).toBe(shapeOf(md, 'whole'))
+    })
   })
 
   it('parses reference-style links whole (non-chunkable) without dropping the definition', () => {

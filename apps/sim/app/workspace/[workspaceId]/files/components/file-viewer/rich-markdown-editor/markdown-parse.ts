@@ -48,6 +48,14 @@ const LIST_MARKER = /^[ ]{0,3}(?:[-*+]|\d+[.)])\s/
 const BLOCKQUOTE = /^[ ]{0,3}>/
 
 /**
+ * Blank-line spacing that `@tiptap/markdown` reconstructs as empty paragraphs — a run of two or more
+ * blank lines somewhere, or blank line(s) at the document's leading/trailing edge. `[^\S\n]` matches
+ * only horizontal whitespace (and `\r`), so a "blank" line may carry spaces/tabs and CRLF is handled.
+ * The three alternatives are: 2+ interior blank lines, leading blank line(s), trailing blank line(s).
+ */
+const EMPTY_PARAGRAPH_SPACING = /\n[^\S\n]*\n[^\S\n]*\n|^[^\S\n]*\n[^\S\n]*\n|\n[^\S\n]*\n[^\S\n]*$/
+
+/**
  * Split a markdown body into top-level blocks that can each be parsed independently and reassembled
  * without changing meaning. Blank lines separate candidate groups (fenced code blocks stay atomic),
  * then adjacent groups are merged back together whenever they could form one logical block: any
@@ -120,10 +128,17 @@ export function splitMarkdownBlocks(body: string): string[] {
  * vs ~1270ms at 61KB — and byte-identical, because each block is parsed with the same tokenizers.
  * Documents whose constructs span blocks ({@link NON_CHUNKABLE}) parse whole, and any failure falls
  * back to a single whole-document parse, so correctness never depends on the splitter.
+ *
+ * Blank-line spacing ({@link EMPTY_PARAGRAPH_SPACING}) also parses whole: the chunker parses each block
+ * stripped of the blank lines between them, so it drops the empty paragraphs `@tiptap/markdown` builds
+ * from runs of blank lines — a saved visual blank line would silently vanish on reload. Whether a gap
+ * yields an empty paragraph is a global, block-type-dependent decision (kept between two paragraphs,
+ * dropped after a heading), so it can't be reconstructed block-locally; these documents parse whole for
+ * exact fidelity. Ordinary single-blank-line separation still takes the fast chunked path.
  */
 export function parseMarkdownToDoc(body: string): JSONContent {
   const manager = markdownManager()
-  if (NON_CHUNKABLE.test(body)) return manager.parse(body)
+  if (NON_CHUNKABLE.test(body) || EMPTY_PARAGRAPH_SPACING.test(body)) return manager.parse(body)
   try {
     const content: JSONContent[] = []
     for (const block of splitMarkdownBlocks(body)) {
