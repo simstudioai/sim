@@ -1,3 +1,4 @@
+import { RE2JS } from 're2js'
 import {
   materializeLargeArrayManifest,
   readLargeArrayManifestSlice,
@@ -26,17 +27,21 @@ const DEFAULT_MAX_SLICES_SCANNED = 200
 /**
  * Cumulative time the pattern itself may spend matching, across all spans/fields.
  *
- * Deliberately counts only time inside `test`/`exec`, not the grep's wall clock:
- * the scan awaits blob-store reads (array slices, large-value refs) between
- * matches, and charging that I/O to the budget would truncate slow-but-legitimate
- * greps under load. Matching is the only part that occupies the event loop, so
- * it is the only part worth bounding.
+ * Deliberately counts only time spent matching, not the grep's wall clock: the
+ * scan awaits blob-store reads (array slices, large-value refs) between matches,
+ * and charging that I/O to the budget would truncate slow-but-legitimate greps
+ * under load. Matching is the only part that occupies the event loop, so it is
+ * the only part worth bounding.
+ *
+ * RE2JS trades throughput for its linear-time guarantee — roughly 100x slower
+ * than the built-in engine, ~25ms per megabyte — so on a very large trace this
+ * budget is what actually caps the scan rather than a formality.
  */
 const DEFAULT_MATCH_TIME_BUDGET_MS = 5_000
 /**
- * Total characters a single grep may run the pattern over. A backstop against a
- * pattern that slips past the backtracking screen being amplified across every
- * slice — set well above any realistic trace so normal greps never trip it.
+ * Total characters a single grep may run the pattern over. Bounds the work one
+ * request can demand across every span and slice; set well above any realistic
+ * trace so normal greps never trip it.
  */
 const DEFAULT_MAX_SCANNED_CHARS = 64 * 1024 * 1024
 
@@ -196,10 +201,10 @@ export interface GrepSpansResult {
    */
   truncated: boolean
   /**
-   * Present when the pattern contained regex syntax, which is matched literally.
-   * The tool catalog cannot say so up front — it is generated from a contract in
-   * another repository — so the caller is told here instead of silently reading
-   * zero matches as "not present in the trace".
+   * Present only when the pattern used syntax RE2 does not implement and was
+   * therefore matched literally. The tool catalog cannot warn up front — it is
+   * generated from a contract in another repository — so the caller is told
+   * here rather than reading zero matches as "not present in the trace".
    */
   patternNotice?: string
 }
@@ -223,67 +228,84 @@ interface GrepState {
   maxSlicesScanned: number
   maxScannedChars: number
   matchTimeBudgetMs: number
-  regex: RegExp
+  find: FindMatch
 }
 
 function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-/**
- * Signals that the caller wrote a pattern *intending* regex semantics: escape
- * classes, a character class, a group, alternation, a leading/trailing anchor,
- * or a repetition quantifier.
- *
- * Deliberately narrower than the set `escapeRegExp` escapes. A bare `.` or `?`
- * is ordinary text in the things people actually grep for — `example.com`,
- * `file.pdf`, `v1.2.3`, `block_1.output` — and flagging those would tell the
- * caller its correct search was misinterpreted, prompting a pointless retry.
- */
-const REGEX_INTENT = /\\[dwsbDWSB]|[[\]()|*+]|^\^|\$$|\{\d+,?\d*\}/
+/** Any regex metacharacter — a pattern without one behaves the same either way. */
+const REGEX_METACHARACTERS = /[.*+?^${}()|[\]\\]/
 
-/**
- * Compile a caller-supplied grep pattern as a case-insensitive literal.
- *
- * Caller patterns are deliberately never executed as regexes. Trace text is
- * attacker-influenced — a workflow can emit arbitrarily long uniform runs into
- * its own block outputs — and matching runs synchronously on the shared event
- * loop, so a backtracking pattern stalls every request on the instance.
- *
- * Screening was tried and abandoned: `safe-regex2` (which the guardrails
- * validator uses) documents itself as having false negatives and passes
- * `(a|a)*b`; rejecting quantified groups on top of it still passes `a*a*b`,
- * measured at 213s on JSC and 132s on V8 over a 10k-character run. Each rule
- * only excludes the shapes someone thought to enumerate. An escaped literal is
- * linear on every engine, which is the one property worth relying on here.
- */
-function compilePattern(pattern: string): { regex: RegExp; notice?: string } {
+/** Index of the first case-insensitive match in `text`, or -1. */
+type FindMatch = (text: string) => number
+
+/** Escaped-literal search on the built-in engine: linear, and allocation-free. */
+function literalFinder(pattern: string): FindMatch {
   const regex = new RegExp(escapeRegExp(pattern), 'i')
-  if (!REGEX_INTENT.test(pattern)) return { regex }
-  return {
-    regex,
-    notice:
-      'Matched as a literal, case-insensitive substring — regex syntax is not interpreted. Search for the literal text you expect to see in the trace.',
+  return (text) => {
+    const match = regex.exec(text)
+    return match ? match.index : -1
   }
 }
 
 /**
- * Charge the elapsed matching time to the grep's budget. Every `test`/`exec` on
- * caller-supplied patterns goes through here.
+ * Compile a caller-supplied grep pattern into a matcher that cannot backtrack.
+ *
+ * Trace text is attacker-influenced — a workflow can emit arbitrarily long
+ * uniform runs into its own block outputs — and matching runs synchronously on
+ * the shared event loop, so a backtracking engine lets one request stall every
+ * other request on the instance. RE2JS is a port of RE2: it matches in time
+ * linear in the input, so no pattern can blow up regardless of the text.
+ *
+ * Screening the pattern instead was tried and abandoned. `safe-regex2` (used by
+ * the guardrails validator) documents itself as having false negatives and
+ * passes `(a|a)*b`; rejecting quantified groups on top of it still passes
+ * `a*a*b`, measured at 213s on JSC and 132s on V8 over a 10k-character run.
+ * Every syntactic rule only excludes the shapes someone thought to enumerate,
+ * which is why the engine changed instead of the filter.
+ *
+ * Two escape hatches keep the common path fast and the rare one honest:
+ * a pattern with no metacharacter takes the built-in engine (identical
+ * semantics, ~100x quicker), and syntax RE2 does not implement — lookaround,
+ * backreferences — falls back to a literal with a notice, since RE2JS rejects
+ * those at compile time rather than matching them.
  */
-function runTimed<T>(state: GrepState, match: (regex: RegExp) => T): T {
+function compilePattern(pattern: string): { find: FindMatch; notice?: string } {
+  if (!REGEX_METACHARACTERS.test(pattern)) return { find: literalFinder(pattern) }
+
+  try {
+    const compiled = RE2JS.compile(pattern, RE2JS.CASE_INSENSITIVE)
+    return {
+      find: (text) => {
+        const matcher = compiled.matcher(text)
+        return matcher.find() ? matcher.start() : -1
+      },
+    }
+  } catch {
+    return {
+      find: literalFinder(pattern),
+      notice:
+        'Pattern is not valid RE2 syntax (lookahead, lookbehind and backreferences are unsupported), so it was matched as a literal string. Rewrite it without those constructs to search by regex.',
+    }
+  }
+}
+
+/**
+ * Run the pattern over `text`, charging the elapsed matching time to the grep's
+ * budget. Every match on a caller-supplied pattern goes through here.
+ */
+function findTimed(text: string, state: GrepState): number {
   const started = performance.now()
   try {
-    state.regex.lastIndex = 0
-    return match(state.regex)
+    return state.find(text)
   } finally {
     state.matchTimeMs += performance.now() - started
   }
 }
 
-function snippetAround(text: string, state: GrepState): string {
-  const m = runTimed(state, (regex) => regex.exec(text))
-  const index = m ? m.index : 0
+function snippetAround(text: string, index: number, state: GrepState): string {
   const maxChars = state.maxSnippetChars
   const half = Math.floor(maxChars / 2)
   const start = Math.max(0, index - half)
@@ -314,13 +336,14 @@ function recordIfMatch(
     return
   }
   state.scannedChars += text.length
-  if (!runTimed(state, (regex) => regex.test(text))) return
+  const index = findTimed(text, state)
+  if (index < 0) return
   state.matches.push({
     spanId: span.id,
     blockId: span.blockId,
     name: span.name,
     field,
-    snippet: snippetAround(text, state),
+    snippet: snippetAround(text, index, state),
   })
   if (state.matches.length >= state.maxMatches) state.truncated = true
 }
@@ -394,12 +417,11 @@ function safeStringify(value: unknown): string {
  * next); single large refs are materialized under a byte cap (falling back to
  * the ref preview). Only bounded match snippets are accumulated.
  *
- * `pattern` is matched as a literal substring, never as a regex — see
- * `compilePattern`. Two budgets bound the scan on top of that: a total
- * character budget and a cumulative match-time budget. Neither counts the
- * blob-store I/O this scan awaits, so a slow-but-legitimate grep is not
- * truncated for being slow. With literal matching both are backstops rather
- * than load-bearing, and they stay to bound total work per request.
+ * `pattern` is matched by a non-backtracking engine — see `compilePattern` — so
+ * no pattern can blow up on any input. Two budgets bound total work on top of
+ * that: a character budget and a cumulative match-time budget. Neither counts
+ * the blob-store I/O this scan awaits, so a slow-but-legitimate grep is not
+ * truncated merely for being slow.
  */
 export async function grepSpans(
   spans: TraceSpan[],
@@ -419,7 +441,7 @@ export async function grepSpans(
     maxSlicesScanned: opts?.maxSlicesScanned ?? DEFAULT_MAX_SLICES_SCANNED,
     maxScannedChars: opts?.maxScannedChars ?? DEFAULT_MAX_SCANNED_CHARS,
     matchTimeBudgetMs: opts?.matchTimeBudgetMs ?? DEFAULT_MATCH_TIME_BUDGET_MS,
-    regex: compiled.regex,
+    find: compiled.find,
   }
 
   const walk = async (list: TraceSpan[]): Promise<void> => {

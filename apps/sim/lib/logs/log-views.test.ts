@@ -170,51 +170,59 @@ describe('grepSpans', () => {
     expect(result.matches.some((m) => m.field === 'output')).toBe(true)
   })
 
-  it('matches regex syntax literally rather than interpreting it', async () => {
-    const spans = [span({ output: { v: 'value a(b found' } })]
-    const result = await grepSpans(spans, '(', ctx)
-    expect(result.matches.some((m) => m.field === 'output')).toBe(true)
-    expect(result.patternNotice).toContain('literal')
+  it.each([
+    ['character class', 'status=\\d+'],
+    ['anchor', '^Agent'],
+    ['alternation', '(openai|anthropic)'],
+    ['word boundary', '\\bstatus\\b'],
+    ['bounded quantifier', '\\d{4}-\\d{2}-\\d{2}'],
+    ['wildcard', 'called.*status'],
+  ])('interprets %s regex syntax', async (_label, pattern) => {
+    // None of these patterns occur literally in the span, so a match proves the
+    // regex was interpreted. `^Agent` anchors against the name field, the rest
+    // against output — hence the field-agnostic assertion.
+    const spans = [span({ output: { v: 'called api.openai.com -> status=503 on 2026-01-01' } })]
+    const result = await grepSpans(spans, pattern, ctx)
+    expect(result.matches.length).toBeGreaterThan(0)
+    expect(result.patternNotice).toBeUndefined()
   })
 
-  it.each(['example.com', 'file.pdf', 'v1.2.3', 'block_1.output', '$0.42', 'why?'])(
-    'does not warn about regex on the ordinary literal %s',
-    async (pattern) => {
-      const spans = [span({ output: { v: `saw ${pattern} here` } })]
-      const result = await grepSpans(spans, pattern, ctx)
-      expect(result.matches.some((m) => m.field === 'output')).toBe(true)
-      expect(result.patternNotice).toBeUndefined()
-    }
-  )
+  it('falls back to a literal, with a notice, for syntax RE2 does not implement', async () => {
+    const spans = [span({ output: { v: 'id: abc and (?=x) literally here' } })]
 
-  it('does not interpret a regex pattern, and says so', async () => {
-    const spans = [span({ output: { v: 'status=503' } })]
+    const lookahead = await grepSpans(spans, '(?=x)', ctx)
+    expect(lookahead.matches.some((m) => m.field === 'output')).toBe(true)
+    expect(lookahead.patternNotice).toContain('RE2')
 
-    // Literal 'status=\d+' is not present; the regex it denotes would have matched.
-    const asRegex = await grepSpans(spans, 'status=\\d+', ctx)
-    expect(asRegex.matches).toEqual([])
-    expect(asRegex.patternNotice).toContain('literal')
+    // Unbalanced paren is invalid in both engines; still degrades to a literal.
+    const invalid = await grepSpans([span({ output: { v: 'value a(b' } })], '(', ctx)
+    expect(invalid.matches.some((m) => m.field === 'output')).toBe(true)
+    expect(invalid.patternNotice).toContain('RE2')
+  })
 
-    const asLiteral = await grepSpans(spans, 'status=503', ctx)
-    expect(asLiteral.matches.some((m) => m.field === 'output')).toBe(true)
-    expect(asLiteral.patternNotice).toBeUndefined()
+  it('takes the built-in engine for a metacharacter-free pattern', async () => {
+    const spans = [span({ output: { v: 'saw ECONNREFUSED here' } })]
+    const result = await grepSpans(spans, 'ECONNREFUSED', ctx)
+    expect(result.matches.some((m) => m.field === 'output')).toBe(true)
+    expect(result.patternNotice).toBeUndefined()
   })
 
   it.each([
     ['nested quantifier', '(a+)+$'],
     ['duplicate alternation, passes safe-regex2', '(a|a)*b'],
     ['adjacent quantifiers, passes every structural screen', 'a*a*b'],
-  ])('never executes a catastrophic pattern (%s)', async (_label, pattern) => {
-    // Each of these blocks the event loop for minutes if compiled as a regex:
+  ])('runs a catastrophic pattern in linear time (%s)', async (_label, pattern) => {
+    // Each blocks the event loop for minutes on a backtracking engine:
     // `a*a*b` measured 213s on JSC / 132s on V8 over a 10k-character run.
-    const spans = [span({ output: { v: `${'a'.repeat(5000)}!` } })]
+    // RE2 has no backtracking, so these are matched normally and stay fast.
+    const spans = [span({ output: { v: `${'a'.repeat(10000)}!` } })]
 
     const start = Date.now()
     const result = await grepSpans(spans, pattern, ctx)
     const elapsedMs = Date.now() - start
 
     expect(elapsedMs).toBeLessThan(1000)
-    expect(result.matches).toEqual([])
+    expect(result.truncated).toBe(false)
   })
 
   it('matches a long pattern literally without a length cap', async () => {
