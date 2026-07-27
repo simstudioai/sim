@@ -10,6 +10,7 @@ import {
   fetchServableWorkspaceFileBuffer,
   getWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace'
+import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/servable-file-response'
 import { performDeleteWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import {
   checkRateLimit,
@@ -93,6 +94,11 @@ export const GET = withRouteHandler(async (request: NextRequest, context: FileRo
       },
     })
   } catch (error) {
+    // A generated doc whose artifact is still compiling is retryable, not a fault:
+    // without this the caller sees a 500 and has no reason to try again.
+    if (isDocNotReadyError(error)) {
+      return NextResponse.json({ error: docNotReadyMessage() }, { status: 409 })
+    }
     logger.error(`[${requestId}] Error downloading file:`, error)
     return NextResponse.json({ error: 'Failed to download file' }, { status: 500 })
   }

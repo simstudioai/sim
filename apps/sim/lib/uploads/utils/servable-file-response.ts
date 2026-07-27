@@ -26,14 +26,12 @@ export function docNotReadyMessage(fileNames?: string[]): string {
  * by every tool route that downloads workspace files so the status, body shape,
  * and user-facing copy stay identical instead of being re-typed per route.
  *
- * Batch callers pass `fileNames` so the message names the pending documents.
+ * Routes whose error envelope differs, or that resolved a batch and want the pending
+ * files named, build the 409 themselves from {@link docNotReadyMessage}.
  */
-export function docNotReadyResponse(error: unknown, fileNames?: string[]): NextResponse | null {
+export function docNotReadyResponse(error: unknown): NextResponse | null {
   if (isDocNotReadyError(error)) {
-    return NextResponse.json(
-      { success: false, error: docNotReadyMessage(fileNames) },
-      { status: 409 }
-    )
+    return NextResponse.json({ success: false, error: docNotReadyMessage() }, { status: 409 })
   }
   return null
 }
