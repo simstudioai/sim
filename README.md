@@ -103,7 +103,7 @@ Sim also supports local models via [Ollama](https://ollama.ai) and [vLLM](https:
 
 ## Chat API Keys
 
-Chat is a Sim-managed service. `bun run setup` connects a Chat API key for you — sign in when it opens your browser and the key is stored automatically. To view, create, or revoke keys later, go to [sim.ai/account/settings/chat-keys](https://sim.ai/account/settings/chat-keys).
+Chat is a Sim-managed service. `bun run setup` connects a Chat API key for you — sign in when it opens your browser and the key is stored automatically. To view, create, or revoke keys later, go to [sim.ai/selfhost/settings/chat-keys](https://sim.ai/selfhost/settings/chat-keys).
 
 ## Environment Variables
 
