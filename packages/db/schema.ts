@@ -2451,6 +2451,13 @@ export const copilotChats = pgTable(
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),
     conversationId: text('conversation_id'),
     previewYaml: text('preview_yaml'),
+    /**
+     * @deprecated Nothing reads or writes this any more — the plan artifact
+     * moved into the message transcript. Kept only so the column survives the
+     * deploy that removes its last readers; drop it in a follow-up migration
+     * once that deploy has fully rolled out (expand/contract).
+     */
+    planArtifact: text('plan_artifact'),
     config: jsonb('config'),
     resources: jsonb('resources').notNull().default('[]'),
     // Copilot tool ids the user allowed for the rest of this chat only, as
