@@ -583,14 +583,24 @@ function isViableJsonPrefixOf(scannable: string): boolean {
  *
  * Without this, a message that merely mentions a tag in prose goes blank from
  * that point on for the rest of the stream — the text is only restored once
- * streaming stops. Two facts let us decide early:
+ * streaming stops.
  *
- * 1. Tags never nest. Any other special-tag marker inside the body — opening or
- *    closing — means this opener was literal text, not a real tag.
- * 2. A JSON body must stay a viable JSON prefix. Depth is tracked rather than
- *    testing the first character alone, so a body whose top-level value has
- *    already closed is caught the moment stray content follows it — including a
- *    misspelled close like `</workflow_resource>` instead of `</workspace_resource>`, which no marker rule sees.
+ * One rule decides it, chosen by body kind:
+ *
+ * - **JSON-bodied tags** must stay a viable JSON prefix. Depth is tracked rather
+ *   than testing the first character alone, so a body whose top-level value has
+ *   already closed is caught the moment stray content follows it — a mention in
+ *   prose (no `{` at all), a misspelled close like `</workflow_resource>`, a
+ *   truncated `</workspac`, or no close whatsoever.
+ * - **The prose-bodied tag** has no JSON to test, so the only evidence available
+ *   is that tags never nest: another special-tag marker in the body — opening or
+ *   closing, foreign or its own name — means this opener was literal text.
+ *
+ * Scanning for nested markers on a JSON body too was redundant: any marker
+ * outside a string literal is itself content the JSON rule already rejects, and
+ * markers inside one are legitimate quoted syntax that must NOT count as
+ * evidence. It cost 14 substring scans per opener per streamed chunk to catch
+ * nothing the viability rule misses.
  *
  * Both are conservative: they only fire on content that could not have parsed.
  * A false positive would merely show text early that a later chunk resolves
@@ -601,21 +611,16 @@ function unclosedTagCannotResolve(
   body: string
 ): boolean {
   const pending = dropArrivingClose(body, `</${tagName}>`)
-  // For a JSON-bodied tag, ignore markers inside string literals: quoting tag
-  // syntax is legitimate content, and treating it as evidence would bail on a
-  // tag that goes on to close correctly — showing raw JSON that then snaps into
-  // a rendered card.
-  const isJsonBodied = JSON_BODY_TAG_NAMES.has(tagName)
-  const scannable = isJsonBodied ? blankJsonStringLiterals(pending) : pending
-  for (const name of SPECIAL_TAG_NAMES) {
-    // A close for this tag is absent by definition here, so this catches a
-    // FOREIGN close; the open check catches nesting, including self-nesting.
-    if (scannable.includes(`</${name}>`) || scannable.includes(`<${name}>`)) return true
+
+  if (!JSON_BODY_TAG_NAMES.has(tagName)) {
+    return SPECIAL_TAG_NAMES.some(
+      (name) => pending.includes(`</${name}>`) || pending.includes(`<${name}>`)
+    )
   }
 
-  if (isJsonBodied && !isViableJsonPrefixOf(scannable)) return true
-
-  return false
+  // Blank string literals first so braces and brackets inside JSON strings do
+  // not throw off the depth count.
+  return !isViableJsonPrefixOf(blankJsonStringLiterals(pending))
 }
 
 /**

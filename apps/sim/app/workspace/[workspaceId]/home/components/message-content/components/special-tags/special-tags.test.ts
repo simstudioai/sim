@@ -202,6 +202,22 @@ describe('parseSpecialTags with <question>', () => {
     expect(join(parseSpecialTags(raw, false))).toBe(raw)
   })
 
+  it('does not rescan the interior of a body that carried no markers', () => {
+    // Pins WHY the two literal reasons resume at different offsets. A
+    // never-a-payload body resumes past the CLOSE; resuming past the opener
+    // instead would rescan the interior, and since the marker scan runs on the
+    // blanked body, a tag quoted inside a JSON string is invisible to it and
+    // would be re-parsed as a real tag on the second pass — then dropped,
+    // deleting the very text this parser exists to preserve.
+    const raw =
+      'A <question>{"a":"<options>{\\"k\\":{\\"title\\":\\"x\\",\\"description\\":\\"y\\"}}</options>"} junk</question> B'
+    const { segments } = parseSpecialTags(raw, false)
+    expect(segments.every((segment) => segment.type === 'text')).toBe(true)
+    expect(segments.map((segment) => ('content' in segment ? segment.content : '')).join('')).toBe(
+      raw
+    )
+  })
+
   it('keeps prose a tag wrapped instead of a payload', () => {
     // Verbatim from a real message (trace 1206fd8a): a matched pair whose body
     // is plain prose, never an attempted JSON payload. The sentence read
@@ -319,6 +335,14 @@ describe('parseSpecialTags with <question>', () => {
     expect(parseSpecialTags(raw, true).hasPendingTag).toBe(true)
   })
 
+  it('does not let an escaped quote end a string early and skew the depth', () => {
+    // If `\"` were read as the closing quote, the following `}` would count as a
+    // real close, the top-level value would look finished, and the trailing text
+    // would settle the tag as unresolvable mid-payload.
+    const raw = 'x <workspace_resource>{"title":"a \\" } b","path":"files/a.md"'
+    expect(parseSpecialTags(raw, true).hasPendingTag).toBe(true)
+  })
+
   it('still suppresses a JSON-bodied tag that is genuinely mid-stream', () => {
     const { segments, hasPendingTag } = parseSpecialTags(
       'Here you go <workspace_resource>{"type":"file","id":"abc"',
@@ -328,12 +352,13 @@ describe('parseSpecialTags with <question>', () => {
     expect(segments).toEqual([{ type: 'text', content: 'Here you go ' }])
   })
 
-  it('bails when a foreign closing tag appears inside the body', () => {
+  it('bails when a foreign closing tag appears inside a prose body', () => {
     // Tags never nest, so a close for a different tag proves the opener was text.
-    // The array is left UNCLOSED on purpose: with a closed value the JSON rule
-    // would independently reject the trailing content, and this test would still
-    // pass with the nesting rule deleted. Unclosed, only nesting can explain it.
-    const { hasPendingTag } = parseSpecialTags('see <options>[{"title":"a" </question> more', true)
+    // Asserted on `thinking` because that is the only tag the nesting rule still
+    // serves: a JSON body has no need of it, since a marker outside a string
+    // literal is content the viability rule already rejects, and one inside is
+    // legitimate quoted syntax that must not count as evidence.
+    const { hasPendingTag } = parseSpecialTags('see <thinking>weighing it </question> more', true)
     expect(hasPendingTag).toBe(false)
   })
 
@@ -351,13 +376,6 @@ describe('parseSpecialTags with <question>', () => {
       'ok <question>[{"type":"single_select","prompt":"Use the </options> tag?","options":[{"id":"y","label":"Yes"},{"id":"n","label":"No"}]}]</question>'
     const { segments } = parseSpecialTags(complete, false)
     expect(segments.some((s) => s.type === 'question')).toBe(true)
-  })
-
-  it('still bails on a marker outside the JSON strings', () => {
-    // Escapes must not end the string early, and a marker in real body position
-    // is still evidence.
-    const streaming = 'ok <question>[{"prompt":"a \\" quote"} </options>'
-    expect(parseSpecialTags(streaming, true).hasPendingTag).toBe(false)
   })
 
   it('rejects an opener a nested one disproves, then judges the inner on its own', () => {
