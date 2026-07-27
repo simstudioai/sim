@@ -1,4 +1,4 @@
-import { RE2JS } from 're2js'
+import { compileLinearRegex, isPlainText, literalRegex } from '@/lib/core/security/linear-regex'
 import {
   materializeLargeArrayManifest,
   readLargeArrayManifestSlice,
@@ -231,24 +231,8 @@ interface GrepState {
   find: FindMatch
 }
 
-function escapeRegExp(input: string): string {
-  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-/** Any regex metacharacter — a pattern without one behaves the same either way. */
-const REGEX_METACHARACTERS = /[.*+?^${}()|[\]\\]/
-
 /** Index of the first case-insensitive match in `text`, or -1. */
 type FindMatch = (text: string) => number
-
-/** Escaped-literal search on the built-in engine: linear, and allocation-free. */
-function literalFinder(pattern: string): FindMatch {
-  const regex = new RegExp(escapeRegExp(pattern), 'i')
-  return (text) => {
-    const match = regex.exec(text)
-    return match ? match.index : -1
-  }
-}
 
 /**
  * Compile a caller-supplied grep pattern into a matcher that cannot backtrack.
@@ -256,46 +240,27 @@ function literalFinder(pattern: string): FindMatch {
  * Trace text is attacker-influenced — a workflow can emit arbitrarily long
  * uniform runs into its own block outputs — and matching runs synchronously on
  * the shared event loop, so a backtracking engine lets one request stall every
- * other request on the instance. RE2JS is a port of RE2: it matches in time
- * linear in the input, so no pattern can blow up regardless of the text.
+ * other request on the instance. See `@/lib/core/security/linear-regex` for why
+ * the engine changed rather than the pattern being screened.
  *
- * Screening the pattern instead was tried and abandoned. `safe-regex2` (used by
- * the guardrails validator) documents itself as having false negatives and
- * passes `(a|a)*b`; rejecting quantified groups on top of it still passes
- * `a*a*b`, measured at 213s on JSC and 132s on V8 over a 10k-character run.
- * Every syntactic rule only excludes the shapes someone thought to enumerate,
- * which is why the engine changed instead of the filter.
- *
- * Two escape hatches keep the common path fast and the rare one honest:
- * a pattern with no metacharacter takes the built-in engine (identical
- * semantics, ~100x quicker), and syntax RE2 does not implement — lookaround,
- * backreferences — falls back to a literal with a notice, since RE2JS rejects
- * those at compile time rather than matching them.
+ * A pattern with no metacharacter takes the built-in engine, which is ~100x
+ * quicker and identical in meaning when there is nothing to interpret. Syntax
+ * RE2 cannot represent degrades to a literal with a notice, so the caller knows
+ * its regex was not applied instead of reading zero matches as "not present".
  */
 function compilePattern(pattern: string): { find: FindMatch; notice?: string } {
-  if (!REGEX_METACHARACTERS.test(pattern)) return { find: literalFinder(pattern) }
+  if (isPlainText(pattern)) return { find: literalRegex(pattern, { ignoreCase: true }).find }
 
-  try {
-    const compiled = RE2JS.compile(pattern, RE2JS.CASE_INSENSITIVE)
-    return {
-      find: (text) => {
-        const matcher = compiled.matcher(text)
-        return matcher.find() ? matcher.start() : -1
-      },
-    }
-  } catch {
-    return {
-      find: literalFinder(pattern),
-      notice:
-        'Pattern is not valid RE2 syntax (lookahead, lookbehind and backreferences are unsupported), so it was matched as a literal string. Rewrite it without those constructs to search by regex.',
-    }
+  const compiled = compileLinearRegex(pattern, { ignoreCase: true })
+  if (compiled) return { find: compiled.find }
+
+  return {
+    find: literalRegex(pattern, { ignoreCase: true }).find,
+    notice:
+      'Pattern is not valid RE2 syntax (lookahead, lookbehind and backreferences are unsupported), so it was matched as a literal string. Rewrite it without those constructs to search by regex.',
   }
 }
 
-/**
- * Run the pattern over `text`, charging the elapsed matching time to the grep's
- * budget. Every match on a caller-supplied pattern goes through here.
- */
 function findTimed(text: string, state: GrepState): number {
   const started = performance.now()
   try {

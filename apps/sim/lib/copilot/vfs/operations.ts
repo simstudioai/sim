@@ -1,4 +1,5 @@
 import micromatch from 'micromatch'
+import { compileLinearRegex, isPlainText, literalRegex } from '@/lib/core/security/linear-regex'
 
 export interface GrepMatch {
   path: string
@@ -125,7 +126,9 @@ export function pathWithinGrepScope(filePath: string, scope: string): boolean {
 }
 
 /**
- * Regex search over VFS file contents using ECMAScript `RegExp` syntax.
+ * Regex search over VFS file contents using RE2 syntax — a subset of
+ * ECMAScript `RegExp` without lookaround or backreferences, which are matched
+ * literally instead (see `@/lib/core/security/linear-regex`).
  * `content` and `count` are line-oriented (split on newline, CR stripped per line).
  * `files_with_matches` tests the entire file string once, so multiline patterns can match there
  * but not in line modes.
@@ -142,19 +145,17 @@ export function grep(
   const showLineNumbers = opts?.lineNumbers ?? true
   const contextLines = opts?.context ?? 0
 
-  const flags = ignoreCase ? 'gi' : 'g'
-  let regex: RegExp
-  try {
-    regex = new RegExp(pattern, flags)
-  } catch {
-    return []
-  }
+  // Caller-supplied pattern over caller-supplied file content on the shared
+  // event loop — matched by RE2 so it cannot backtrack. Syntax RE2 cannot
+  // represent degrades to a literal rather than to the backtracking engine.
+  const regex = isPlainText(pattern)
+    ? literalRegex(pattern, { ignoreCase })
+    : (compileLinearRegex(pattern, { ignoreCase }) ?? literalRegex(pattern, { ignoreCase }))
 
   if (outputMode === 'files_with_matches') {
     const matchingFiles: string[] = []
     for (const [filePath, content] of files) {
       if (path && !pathWithinGrepScope(filePath, path)) continue
-      regex.lastIndex = 0
       if (regex.test(content)) {
         matchingFiles.push(filePath)
         if (matchingFiles.length >= maxResults) break
@@ -170,7 +171,6 @@ export function grep(
       const lines = splitLinesForGrep(content)
       let count = 0
       for (const line of lines) {
-        regex.lastIndex = 0
         if (regex.test(line)) count++
       }
       if (count > 0) {
@@ -188,7 +188,6 @@ export function grep(
 
     const lines = splitLinesForGrep(content)
     for (let i = 0; i < lines.length; i++) {
-      regex.lastIndex = 0
       if (regex.test(lines[i])) {
         if (contextLines > 0) {
           const start = Math.max(0, i - contextLines)

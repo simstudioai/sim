@@ -10,6 +10,7 @@ import {
   splitAtWordBoundaries,
   tokensToChars,
 } from '@/lib/chunkers/utils'
+import { compileLinearRegex, type LinearRegex } from '@/lib/core/security/linear-regex'
 
 const logger = createLogger('RegexChunker')
 
@@ -56,7 +57,7 @@ function toNonCapturing(pattern: string): string {
 export class RegexChunker {
   private readonly chunkSize: number
   private readonly chunkOverlap: number
-  private readonly regex: RegExp
+  private readonly regex: LinearRegex
   private readonly strictBoundaries: boolean
 
   constructor(options: RegexChunkerOptions) {
@@ -67,7 +68,22 @@ export class RegexChunker {
     this.strictBoundaries = options.strictBoundaries ?? false
   }
 
-  private compilePattern(pattern: string): RegExp {
+  /**
+   * Compile the caller's split pattern on an engine that cannot backtrack.
+   *
+   * This previously screened for catastrophic backtracking by running the
+   * pattern against six probe strings — including `'a'.repeat(10000)` — and
+   * rejecting anything slower than 50ms. It measured the elapsed time *after*
+   * the match returned, so the screen was the denial of service it existed to
+   * prevent: `a*a*b` against that probe measured 213s on JSC. RE2 removes the
+   * failure mode outright, so the probe is gone rather than repaired.
+   *
+   * Lookaround is the standard way to split while keeping the delimiter
+   * (`(?=^#\s)`), and RE2 does not implement it, so those patterns still use
+   * the built-in engine. They are the only ones that can backtrack now, and the
+   * length cap is the sole remaining bound on them.
+   */
+  private compilePattern(pattern: string): LinearRegex {
     if (!pattern) {
       throw new Error('Regex pattern is required')
     }
@@ -76,33 +92,26 @@ export class RegexChunker {
       throw new Error(`Regex pattern exceeds maximum length of ${MAX_PATTERN_LENGTH} characters`)
     }
 
+    const source = toNonCapturing(pattern)
+
+    const linear = compileLinearRegex(source)
+    if (linear) return linear
+
     try {
-      const regex = new RegExp(toNonCapturing(pattern), 'g')
-
-      const testStrings = [
-        'a'.repeat(10000),
-        ' '.repeat(10000),
-        'a '.repeat(5000),
-        'aB1 xY2\n'.repeat(1250),
-        `${'a'.repeat(30)}!`,
-        `${'a b '.repeat(25)}!`,
-      ]
-      for (const testStr of testStrings) {
-        regex.lastIndex = 0
-        const start = Date.now()
-        regex.test(testStr)
-        const elapsed = Date.now() - start
-        if (elapsed > 50) {
-          throw new Error('Regex pattern appears to have catastrophic backtracking')
-        }
+      const fallback = new RegExp(source, 'g')
+      return {
+        test: (text) => {
+          fallback.lastIndex = 0
+          return fallback.test(text)
+        },
+        find: (text) => {
+          fallback.lastIndex = 0
+          const match = fallback.exec(text)
+          return match ? match.index : -1
+        },
+        split: (text) => text.split(new RegExp(source, 'g')),
       }
-
-      regex.lastIndex = 0
-      return regex
     } catch (error) {
-      if (error instanceof Error && error.message.includes('catastrophic')) {
-        throw error
-      }
       throw new Error(`Invalid regex pattern "${pattern}": ${toError(error).message}`)
     }
   }
@@ -119,8 +128,7 @@ export class RegexChunker {
       return buildChunks([cleaned], 0)
     }
 
-    this.regex.lastIndex = 0
-    const segments = cleaned.split(this.regex).filter((s) => s.trim().length > 0)
+    const segments = this.regex.split(cleaned).filter((s) => s.trim().length > 0)
 
     if (segments.length <= 1) {
       if (this.strictBoundaries) {
