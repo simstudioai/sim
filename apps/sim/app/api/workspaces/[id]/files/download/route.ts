@@ -5,7 +5,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -24,14 +24,20 @@ const logger = createLogger('WorkspaceFilesDownloadAPI')
 const MAX_ZIP_DOWNLOAD_FILES = 100
 const MAX_ZIP_DOWNLOAD_BYTES = 250 * 1024 * 1024
 /**
- * Per-entry ceiling for documents that render from a generation source. Ordinary
- * uploads serve exactly their declared size, which the pre-download check already
- * bounds to the request budget; only rendered documents can exceed what they
- * declared. Capping them individually is what bounds peak memory, because up to
- * `MATERIALIZE_CONCURRENCY` reads are in flight against the same budget and none
- * of them can see the others' bytes until they land.
+ * Headroom a document may render to beyond what it declared. Office extensions
+ * cover both ordinary uploads — which serve exactly their declared size — and
+ * source-backed generated docs, and the two are indistinguishable before the bytes
+ * are read. So the allowance is the larger of the declared size and this ceiling:
+ * an uploaded 80 MiB deck still downloads, while a 6 KiB generator source cannot
+ * quietly render into hundreds of megabytes.
  */
-const MAX_RENDERED_DOCUMENT_BYTES = 50 * 1024 * 1024
+const RENDERED_DOCUMENT_HEADROOM_BYTES = 50 * 1024 * 1024
+/**
+ * Reads in flight cannot see each other's bytes until they land, so peak memory
+ * scales with this. Kept well below the shared default: the entries here are whole
+ * files held in memory at once, not rows.
+ */
+const ZIP_MATERIALIZE_CONCURRENCY = 5
 
 function overLimitResponse(bytes: number, qualifier = ''): NextResponse {
   return NextResponse.json(
@@ -112,25 +118,27 @@ export const GET = withRouteHandler(
       // rendered binary, so bytes are resolved through the servable reader — a raw
       // read ships source text under a `.docx` name. The rendered artifact can be far
       // larger than the declared source size, so each read is capped at whatever is
-      // left of the budget and rendered documents additionally at a per-entry ceiling
-      // — concurrent reads cannot see each other's bytes until they land, so the
-      // per-entry cap is what bounds peak memory. Once the budget is blown or a read
-      // hard-fails, the abort flag stops reads that have not started yet.
+      // left of the budget, with office extensions additionally held to their declared
+      // size plus render headroom. Concurrent reads cannot see each other's bytes until
+      // they land, so that per-entry allowance and the concurrency limit are together
+      // what bound peak memory. Once the budget is blown or a read hard-fails, the
+      // abort flag stops reads that have not started yet.
       const controller = new AbortController()
       let renderedBytes = 0
       let overLimit = false
 
       const downloads = await mapWithConcurrency(
         filesToZip,
-        MATERIALIZE_CONCURRENCY,
+        ZIP_MATERIALIZE_CONCURRENCY,
         async (file) => {
           if (controller.signal.aborted) return { buffer: null, pendingName: null, error: null }
           const remaining = Math.max(0, MAX_ZIP_DOWNLOAD_BYTES - renderedBytes)
           try {
+            const allowance = isRenderableDocumentName(file.name)
+              ? Math.max(file.size, RENDERED_DOCUMENT_HEADROOM_BYTES)
+              : remaining
             const { buffer } = await fetchServableWorkspaceFileBuffer(file, {
-              maxBytes: isRenderableDocumentName(file.name)
-                ? Math.min(remaining, MAX_RENDERED_DOCUMENT_BYTES)
-                : remaining,
+              maxBytes: Math.min(remaining, allowance),
               signal: controller.signal,
             })
             renderedBytes += buffer.length

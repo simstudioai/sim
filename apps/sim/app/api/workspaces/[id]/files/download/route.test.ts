@@ -133,6 +133,21 @@ describe('workspace files download route', () => {
     expect((await response.json()).error).toContain('exceeds')
   })
 
+  it('lets an uploaded office file larger than the render headroom through', async () => {
+    const big = { ...workspaceFile('f1', 'deck.pptx', 'folder-1'), size: 80 * 1024 * 1024 }
+    mockListWorkspaceFiles.mockResolvedValue([big])
+    mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
+      buffer: Buffer.from('ok'),
+      contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    })
+
+    const response = await GET(requestFor('fileIds=f1'), context)
+
+    expect(response.status).toBe(200)
+    // Capped at the declared size, not the smaller render headroom.
+    expect(mockFetchServableWorkspaceFileBuffer.mock.calls[0][1].maxBytes).toBe(80 * 1024 * 1024)
+  })
+
   it('caps rendered documents per entry so concurrent reads cannot each claim the budget', async () => {
     mockListWorkspaceFiles.mockResolvedValue([
       workspaceFile('f1', 'report.docx', 'folder-1'),
