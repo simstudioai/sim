@@ -49,17 +49,86 @@ export function isPlainText(pattern: string): boolean {
  * a degradation path when RE2 rejects the syntax.
  */
 export function literalRegex(pattern: string, options: LinearRegexOptions = {}): LinearRegex {
-  const flags = options.ignoreCase ? 'gi' : 'g'
   const source = escapeRegExp(pattern)
-  const at = (text: string): number => {
-    const regex = new RegExp(source, flags)
-    const match = regex.exec(text)
-    return match ? match.index : -1
-  }
+  const caseFlag = options.ignoreCase ? 'i' : ''
+  // Non-global, so `exec`/`test` keep no `lastIndex` between calls and one
+  // instance is reusable — callers scan line-by-line, and recompiling per line
+  // would dominate the cost. `split` needs the global form, which
+  // `String.prototype.split` clones rather than mutating.
+  const scanner = new RegExp(source, caseFlag)
+  const splitter = new RegExp(source, `g${caseFlag}`)
   return {
-    test: (text) => at(text) >= 0,
-    find: at,
-    split: (text) => text.split(new RegExp(source, flags)),
+    test: (text) => scanner.test(text),
+    find: (text) => {
+      const match = scanner.exec(text)
+      return match ? match.index : -1
+    },
+    split: (text) => text.split(splitter),
+  }
+}
+
+/** A pattern that is exactly one lookahead, or exactly one lookbehind. */
+const WHOLE_PATTERN_LOOKAHEAD = /^\(\?=([\s\S]*)\)$/
+const WHOLE_PATTERN_LOOKBEHIND = /^\(\?<=([\s\S]*)\)$/
+
+/**
+ * Compile the two zero-width split idioms — `(?=X)` (split before each X) and
+ * `(?<=X)` (split after each X) — onto RE2, which has no lookaround.
+ *
+ * Neither idiom actually needs lookaround to *split*: splitting on `(?=X)` is
+ * slicing at the start of every match of `X`, and on `(?<=X)` at every match
+ * end. RE2 can locate both. These two cover the reason a split pattern reaches
+ * for lookaround at all — keeping the delimiter attached to the leading or
+ * trailing chunk — so they stay on the linear engine instead of forcing a
+ * fallback to the backtracking one.
+ *
+ * Returns `null` unless the whole pattern is a single such assertion whose body
+ * RE2 can represent; negative lookaround, lookbehind mixed with other syntax,
+ * and backreferences are not covered.
+ *
+ * `test`/`find` report on the body itself: a zero-width assertion matches
+ * exactly when its body does, so `test` is exact, while `find` gives the body's
+ * start rather than the (zero-width) assertion position.
+ */
+export function compileLookaroundSplit(
+  pattern: string,
+  options: LinearRegexOptions = {}
+): LinearRegex | null {
+  const ahead = WHOLE_PATTERN_LOOKAHEAD.exec(pattern)?.[1]
+  const behind = ahead === undefined ? WHOLE_PATTERN_LOOKBEHIND.exec(pattern)?.[1] : undefined
+  const body = ahead ?? behind
+  if (!body) return null
+
+  let compiled: ReturnType<typeof RE2JS.compile>
+  try {
+    compiled = RE2JS.compile(body, options.ignoreCase ? RE2JS.CASE_INSENSITIVE : 0)
+  } catch {
+    return null
+  }
+  const sliceAtMatchStart = ahead !== undefined
+
+  return {
+    test: (text) => compiled.matcher(text).find(),
+    find: (text) => {
+      const matcher = compiled.matcher(text)
+      return matcher.find() ? matcher.start() : -1
+    },
+    split: (text) => {
+      const segments: string[] = []
+      const matcher = compiled.matcher(text)
+      let cursor = 0
+      while (matcher.find()) {
+        const boundary = sliceAtMatchStart ? matcher.start() : matcher.end()
+        // Skip a boundary at the cursor or at the very end: both would emit an
+        // empty segment, which `String.prototype.split` also produces and every
+        // caller discards.
+        if (boundary <= cursor || boundary >= text.length) continue
+        segments.push(text.slice(cursor, boundary))
+        cursor = boundary
+      }
+      segments.push(text.slice(cursor))
+      return segments
+    },
   }
 }
 

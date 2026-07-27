@@ -1,6 +1,8 @@
+import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import safe from 'safe-regex2'
 import { compileLinearRegex } from '@/lib/core/security/linear-regex'
+
+const logger = createLogger('ValidateRegex')
 
 /**
  * Validate if input matches regex pattern
@@ -20,13 +22,18 @@ export interface RegexPatternValidation {
  * Validate a PII custom pattern's syntax before it is persisted and handed to
  * Presidio. Shared by the custom-pattern editor UI and the write boundary.
  *
- * The `safe-regex2` screen here is a courtesy, NOT a ReDoS defense: it screens
- * star height only and is documented as having false negatives — it passes
- * `(a|a)*b`, and `a*a*b` defeats every syntactic rule of this kind. It is kept
- * because these patterns execute in Presidio, a separate service where a slow
- * pattern times out and silently fails open (leaving PII unredacted) rather
- * than stalling this event loop, and because Presidio's Python engine supports
- * lookaround — so gating on RE2 here would reject patterns that work.
+ * Syntax only, deliberately. This previously also ran a `safe-regex2`
+ * catastrophic-backtracking screen, which was removed because it was pure cost:
+ * it screens star height alone and is documented as having false negatives — it
+ * passes `(a|a)*b`, and `a*a*b` defeats it and every syntactic rule of its kind
+ * — while rejecting patterns that work perfectly well, including lookbehind
+ * (`(?<=id: )\w+`) and optional groups (`(?:https?://)?example\.com`). It
+ * blocked valid rules and stopped nothing.
+ *
+ * Nor could a screen here be made sound: these patterns execute in Presidio's
+ * Python engine, which backtracks on shapes RE2 accepts, so RE2-representability
+ * says nothing about their runtime there. Presidio's own request timeout is the
+ * real bound — note it fails open on timeout, leaving PII unredacted.
  *
  * Anything that matches a caller-supplied pattern *in this process* must use
  * `compileLinearRegex` from `@/lib/core/security/linear-regex` instead.
@@ -38,13 +45,7 @@ export function validateRegexPattern(pattern: string): RegexPatternValidation {
   try {
     new RegExp(pattern)
   } catch (error) {
-    return { valid: false, error: `Invalid regex: ${(error as Error).message}` }
-  }
-  if (!safe(pattern)) {
-    return {
-      valid: false,
-      error: 'Pattern rejected: potentially unsafe (catastrophic backtracking)',
-    }
+    return { valid: false, error: `Invalid regex: ${getErrorMessage(error)}` }
   }
   return { valid: true }
 }
@@ -67,6 +68,11 @@ export function validateRegex(inputStr: string, pattern: string): ValidationResu
 
   const regex = compileLinearRegex(pattern)
   if (!regex) {
+    // A rule that used lookaround worked before this became RE2-only and now
+    // fails closed, which reads to the workspace as the guardrail tripping on
+    // every input. Log it so an operator can find and rewrite the rule from
+    // logs rather than from user reports.
+    logger.warn('Guardrail regex uses syntax RE2 cannot evaluate; failing closed', { pattern })
     return {
       passed: false,
       error:

@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   compileLinearRegex,
+  compileLookaroundSplit,
   escapeRegExp,
   isPlainText,
   literalRegex,
@@ -94,5 +95,40 @@ describe('isPlainText / escapeRegExp', () => {
   it('escapes every metacharacter so the pattern matches only itself', () => {
     const raw = 'a.*+?^${}()|[]\\b'
     expect(new RegExp(escapeRegExp(raw)).test(raw)).toBe(true)
+  })
+})
+
+describe('compileLookaroundSplit', () => {
+  it('splits before each delimiter for (?=X), matching String.split', () => {
+    const doc = '# One\nalpha\n# Two\nbeta'
+    expect(compileLookaroundSplit('(?=#\\s)')?.split(doc)).toEqual(
+      doc.split(/(?=#\s)/g).filter(Boolean)
+    )
+  })
+
+  it('splits after each delimiter for (?<=X)', () => {
+    const doc = '<s>one</s><s>two</s><s>three</s>'
+    expect(compileLookaroundSplit('(?<=</s>)')?.split(doc)).toEqual([
+      '<s>one</s>',
+      '<s>two</s>',
+      '<s>three</s>',
+    ])
+  })
+
+  it('stays linear on a catastrophic body', () => {
+    const regex = compileLookaroundSplit('(?=a*a*b)')
+    expect(regex).not.toBeNull()
+
+    const start = Date.now()
+    regex?.split(`${'a'.repeat(20000)}!`)
+    expect(Date.now() - start).toBeLessThan(2000)
+  })
+
+  it.each([
+    ['negative lookahead', '(?!x)y'],
+    ['embedded lookahead', 'a(?=b)c'],
+    ['plain pattern', '\\n\\n'],
+  ])('returns null for %s', (_label, pattern) => {
+    expect(compileLookaroundSplit(pattern)).toBeNull()
   })
 })

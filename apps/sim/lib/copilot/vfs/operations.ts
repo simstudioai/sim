@@ -1,5 +1,13 @@
+import { createLogger } from '@sim/logger'
 import micromatch from 'micromatch'
-import { compileLinearRegex, isPlainText, literalRegex } from '@/lib/core/security/linear-regex'
+import {
+  compileLinearRegex,
+  isPlainText,
+  type LinearRegex,
+  literalRegex,
+} from '@/lib/core/security/linear-regex'
+
+const logger = createLogger('VfsOperations')
 
 export interface GrepMatch {
   path: string
@@ -148,9 +156,19 @@ export function grep(
   // Caller-supplied pattern over caller-supplied file content on the shared
   // event loop — matched by RE2 so it cannot backtrack. Syntax RE2 cannot
   // represent degrades to a literal rather than to the backtracking engine.
-  const regex = isPlainText(pattern)
-    ? literalRegex(pattern, { ignoreCase })
-    : (compileLinearRegex(pattern, { ignoreCase }) ?? literalRegex(pattern, { ignoreCase }))
+  let regex: LinearRegex
+  if (isPlainText(pattern)) {
+    regex = literalRegex(pattern, { ignoreCase })
+  } else {
+    const linear = compileLinearRegex(pattern, { ignoreCase })
+    if (!linear) {
+      // The return shape carries results only, so the caller cannot be told
+      // inline that its regex was taken literally — log it, since silently
+      // returning "no matches" reads as "not in the file".
+      logger.warn('Grep pattern is not RE2-representable; matching it literally', { pattern })
+    }
+    regex = linear ?? literalRegex(pattern, { ignoreCase })
+  }
 
   if (outputMode === 'files_with_matches') {
     const matchingFiles: string[] = []

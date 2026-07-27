@@ -207,7 +207,6 @@
     "remark-gfm": "4.0.1",
     "resend": "^4.1.2",
     "rss-parser": "3.13.0",
-    "safe-regex2": "5.1.0",
     "sharp": "0.35.3",
     "socket.io-client": "4.8.1",
     "ssh2": "^1.17.0",

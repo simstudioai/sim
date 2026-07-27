@@ -54,11 +54,14 @@ describe('validateRegexPattern', () => {
     expect(validateRegexPattern('(')).toMatchObject({ valid: false })
   })
 
-  it('is unchanged by the RE2 migration — patterns here go to Presidio, not this process', () => {
-    // Left on `safe-regex2` deliberately: these patterns execute in Presidio,
-    // where a slow one times out rather than stalling this event loop, and
-    // Presidio's Python engine supports constructs RE2 does not.
-    expect(validateRegexPattern('(?:https?://)?example\\.com')).toMatchObject({ valid: false })
-    expect(validateRegexPattern('(?<=id: )\\w+')).toMatchObject({ valid: false })
+  it.each([
+    ['lookbehind', '(?<=id: )\\w+'],
+    ['optional group', '(?:https?://)?example\\.com'],
+    ['nested quantifier', '(a+)+$'],
+  ])('accepts %s, which the removed safe-regex2 screen rejected', (_label, pattern) => {
+    // These are valid Presidio patterns that could not be saved before. The
+    // screen that blocked them caught no real ReDoS (it passes `a*a*b`), and
+    // these run in Presidio rather than in this process.
+    expect(validateRegexPattern(pattern)).toEqual({ valid: true })
   })
 })

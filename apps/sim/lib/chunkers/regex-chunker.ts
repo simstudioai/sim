@@ -10,7 +10,11 @@ import {
   splitAtWordBoundaries,
   tokensToChars,
 } from '@/lib/chunkers/utils'
-import { compileLinearRegex, type LinearRegex } from '@/lib/core/security/linear-regex'
+import {
+  compileLinearRegex,
+  compileLookaroundSplit,
+  type LinearRegex,
+} from '@/lib/core/security/linear-regex'
 
 const logger = createLogger('RegexChunker')
 
@@ -78,10 +82,12 @@ export class RegexChunker {
    * prevent: `a*a*b` against that probe measured 213s on JSC. RE2 removes the
    * failure mode outright, so the probe is gone rather than repaired.
    *
-   * Lookaround is the standard way to split while keeping the delimiter
-   * (`(?=^#\s)`), and RE2 does not implement it, so those patterns still use
-   * the built-in engine. They are the only ones that can backtrack now, and the
-   * length cap is the sole remaining bound on them.
+   * Keeping the delimiter — `(?=X)` before a chunk, `(?<=X)` after one — is the
+   * reason a split pattern reaches for lookaround, and `compileLookaroundSplit`
+   * runs both on RE2 without it. Anything else RE2 cannot represent is rejected
+   * rather than run on the built-in engine: no probe can tell a safe pattern
+   * from an unsafe one without running it, which is what made the old guard
+   * hang, so there is nothing to fall back *to*.
    */
   private compilePattern(pattern: string): LinearRegex {
     if (!pattern) {
@@ -92,28 +98,19 @@ export class RegexChunker {
       throw new Error(`Regex pattern exceeds maximum length of ${MAX_PATTERN_LENGTH} characters`)
     }
 
-    const source = toNonCapturing(pattern)
-
-    const linear = compileLinearRegex(source)
-    if (linear) return linear
-
     try {
-      const fallback = new RegExp(source, 'g')
-      return {
-        test: (text) => {
-          fallback.lastIndex = 0
-          return fallback.test(text)
-        },
-        find: (text) => {
-          fallback.lastIndex = 0
-          const match = fallback.exec(text)
-          return match ? match.index : -1
-        },
-        split: (text) => text.split(new RegExp(source, 'g')),
-      }
+      new RegExp(pattern)
     } catch (error) {
       throw new Error(`Invalid regex pattern "${pattern}": ${toError(error).message}`)
     }
+
+    const source = toNonCapturing(pattern)
+    const compiled = compileLinearRegex(source) ?? compileLookaroundSplit(source)
+    if (compiled) return compiled
+
+    throw new Error(
+      `Regex pattern "${pattern}" uses syntax that cannot be evaluated safely (backreferences and negative or embedded lookaround are unsupported). Use a plain delimiter, "(?=...)" to split before one and keep it, or "(?<=...)" to split after one.`
+    )
   }
 
   async chunk(content: string): Promise<Chunk[]> {
