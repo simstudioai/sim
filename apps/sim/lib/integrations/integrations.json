@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-16",
+  "updatedAt": "2026-07-19",
   "integrations": [
     {
       "type": "onepassword",
@@ -59,6 +59,41 @@
       "category": "tools",
       "integrationType": "security",
       "tags": ["secrets-management", "identity"]
+    },
+    {
+      "type": "adanos",
+      "slug": "adanos",
+      "name": "Adanos",
+      "description": "Use stock and crypto market sentiment in workflows",
+      "longDescription": "Retrieve market sentiment, trending assets, and market-wide signals for stocks and cryptocurrencies from Reddit, X / FinTwit, financial news, and Polymarket.",
+      "bgColor": "#FFFFFF",
+      "iconName": "AdanosIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/adanos",
+      "operations": [
+        {
+          "name": "Get Stock Sentiment",
+          "description": "Get stock sentiment from Reddit, X / FinTwit, news, or Polymarket"
+        },
+        {
+          "name": "Get Crypto Sentiment",
+          "description": "Get Reddit market sentiment for a cryptocurrency"
+        },
+        {
+          "name": "List Trending Assets",
+          "description": "List trending stocks or cryptocurrencies ranked by market sentiment activity"
+        },
+        {
+          "name": "Get Market Sentiment",
+          "description": "Get aggregate market sentiment for stocks or cryptocurrencies"
+        }
+      ],
+      "operationCount": 4,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["data-analytics", "prediction-markets", "web-scraping"]
     },
     {
       "type": "agentmail",

@@ -1,0 +1,154 @@
+---
+title: Adanos
+description: Use stock and crypto market sentiment in workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="adanos"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Adanos](https://adanos.org/) provides market sentiment data for stocks and cryptocurrencies. The integration can retrieve source-specific stock signals from Reddit, X / FinTwit, financial news, and Polymarket, plus Reddit crypto sentiment.
+
+Create an API key through the [Adanos API documentation](https://api.adanos.org/docs) and enter it in the block. Each workflow uses the supplied key, so requests remain subject to that Adanos account's plan and usage limits.
+
+Stock sources are queried independently. Mention counts from social and news sources and trade counts from Polymarket are normalized as `activityCount`, but should be interpreted in their original source context.
+{/* MANUAL-CONTENT-END */}
+
+## Usage Instructions
+
+Retrieve market sentiment, trending assets, and market-wide signals for stocks and cryptocurrencies from Reddit, X / FinTwit, financial news, and Polymarket.
+
+
+
+## Actions
+
+### `adanos_stock_sentiment`
+
+Get stock sentiment from Reddit, X / FinTwit, news, or Polymarket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Adanos API key |
+| `ticker` | string | Yes | US stock ticker symbol, such as AAPL |
+| `source` | string | Yes | Sentiment source: reddit, x, news, or polymarket |
+| `startDate` | string | No | Start date in YYYY-MM-DD format |
+| `endDate` | string | No | End date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assetType` | string | Asset type |
+| `source` | string | Sentiment data source |
+| `symbol` | string | Stock ticker symbol |
+| `name` | string | Company name |
+| `found` | boolean | Whether sentiment data was found |
+| `buzzScore` | number | Buzz score from 0 to 100 |
+| `sentimentScore` | number | Sentiment score from -1 to 1 |
+| `trend` | string | Current sentiment trend |
+| `bullishPct` | number | Bullish activity percentage |
+| `bearishPct` | number | Bearish activity percentage |
+| `activityCount` | number | Mention or trade count |
+| `periodDays` | number | Number of days in the period |
+| `dailyTrend` | json | Normalized daily sentiment trend |
+
+### `adanos_crypto_sentiment`
+
+Get Reddit market sentiment for a cryptocurrency
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Adanos API key |
+| `symbol` | string | Yes | Cryptocurrency symbol, such as BTC |
+| `startDate` | string | No | Start date in YYYY-MM-DD format |
+| `endDate` | string | No | End date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assetType` | string | Asset type |
+| `source` | string | Sentiment data source |
+| `symbol` | string | Cryptocurrency symbol |
+| `name` | string | Cryptocurrency name |
+| `found` | boolean | Whether sentiment data was found |
+| `buzzScore` | number | Buzz score from 0 to 100 |
+| `sentimentScore` | number | Sentiment score from -1 to 1 |
+| `trend` | string | Current sentiment trend |
+| `bullishPct` | number | Bullish mention percentage |
+| `bearishPct` | number | Bearish mention percentage |
+| `activityCount` | number | Reddit mention count |
+| `periodDays` | number | Number of days in the period |
+| `dailyTrend` | json | Normalized daily sentiment trend |
+
+### `adanos_trending`
+
+List trending stocks or cryptocurrencies ranked by market sentiment activity
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Adanos API key |
+| `assetType` | string | Yes | Asset type: stocks or crypto |
+| `source` | string | No | Stock sentiment source: reddit, x, news, or polymarket |
+| `limit` | number | No | Maximum number of assets to return, from 1 to 100 |
+| `startDate` | string | No | Start date in YYYY-MM-DD format |
+| `endDate` | string | No | End date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assets` | array | Trending assets with normalized sentiment metrics |
+|   ↳ `assetType` | string | Asset type |
+|   ↳ `source` | string | Sentiment data source |
+|   ↳ `symbol` | string | Ticker or cryptocurrency symbol |
+|   ↳ `name` | string | Asset name |
+|   ↳ `buzzScore` | number | Buzz score from 0 to 100 |
+|   ↳ `sentimentScore` | number | Sentiment score from -1 to 1 |
+|   ↳ `trend` | string | Current sentiment trend |
+|   ↳ `bullishPct` | number | Bullish activity percentage |
+|   ↳ `bearishPct` | number | Bearish activity percentage |
+|   ↳ `activityCount` | number | Mention or trade count |
+
+### `adanos_market_sentiment`
+
+Get aggregate market sentiment for stocks or cryptocurrencies
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Adanos API key |
+| `assetType` | string | Yes | Asset type: stocks or crypto |
+| `source` | string | No | Stock sentiment source: reddit, x, news, or polymarket |
+| `startDate` | string | No | Start date in YYYY-MM-DD format |
+| `endDate` | string | No | End date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assetType` | string | Asset type |
+| `source` | string | Sentiment data source |
+| `buzzScore` | number | Market buzz score from 0 to 100 |
+| `sentimentScore` | number | Aggregate sentiment score from -1 to 1 |
+| `trend` | string | Current market sentiment trend |
+| `bullishPct` | number | Bullish activity percentage |
+| `bearishPct` | number | Bearish activity percentage |
+| `activityCount` | number | Aggregate mention or trade count |
+| `activeAssets` | number | Number of active assets |
+| `drivers` | array | Assets contributing most to market sentiment |
+|   ↳ `symbol` | string | Ticker or cryptocurrency symbol |
+|   ↳ `activityCount` | number | Mention or trade count |
+|   ↳ `buzzScore` | number | Buzz score from 0 to 100 |
+|   ↳ `sentimentScore` | number | Sentiment score from -1 to 1 |
