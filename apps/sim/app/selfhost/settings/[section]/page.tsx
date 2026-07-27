@@ -9,7 +9,7 @@ import {
 } from '@/components/settings/navigation'
 import { SelfHostSettingsRenderer } from '@/components/settings/selfhost-settings-renderer'
 import { getSession } from '@/lib/auth'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 
 interface SelfHostSettingsSectionPageProps {
   params: Promise<{ section: string }>
@@ -42,6 +42,7 @@ export default async function SelfHostSettingsSectionPage({
   })
   if (!parsed) notFound()
   if (parsed === 'billing' && !isBillingEnabled) redirect(getSelfHostSettingsHref('general'))
+  if (parsed === 'chat-keys' && !isHosted) redirect(getSelfHostSettingsHref('general'))
 
   /**
    * Sections read URL query params via nuqs (which uses `useSearchParams`

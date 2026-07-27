@@ -25,7 +25,7 @@ import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settin
 import { SettingsSectionProvider } from '@/components/settings/settings-panel'
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
 import { useSettingsBeforeUnload } from '@/components/settings/use-settings-before-unload'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 
 interface StandaloneSettingsShellBaseProps {
   children: ReactNode
@@ -74,9 +74,14 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
         isTargetOrganizationAdmin: isOrganizationAdmin,
       }) !== 'unavailable' && isOrganizationSettingsSectionAvailable(item.id, organizationFeatures)
   )
-  const selfHostItems = SELFHOST_SETTINGS_ITEMS.filter(
-    (item) => !(item.id === 'billing' && !isBillingEnabled)
-  )
+  const selfHostItems = SELFHOST_SETTINGS_ITEMS.filter((item) => {
+    if (item.id === 'billing' && !isBillingEnabled) return false
+    // Chat keys are issued by the managed service, so there are none to list on
+    // a self-hosted deployment — useCopilotKeys is `enabled: isHosted` for the
+    // same reason. Self-hosters manage their keys on sim.ai.
+    if (item.id === 'chat-keys' && !isHosted) return false
+    return true
+  })
   const selfHostSection = parseSettingsPathSection({
     path: pathname,
     items: SELFHOST_SETTINGS_ITEMS,
