@@ -148,7 +148,10 @@ export const GET = withRouteHandler(
         async (file): Promise<DownloadOutcome> => {
           if (controller.signal.aborted) return skipped
           const remaining = Math.max(0, MAX_ZIP_DOWNLOAD_BYTES - renderedBytes)
-          const allowance = isRenderableDocumentName(file.name)
+          // Only renderable documents carry a cap of their own; everything else is
+          // bounded solely by what is left of the shared budget.
+          const renderable = isRenderableDocumentName(file.name)
+          const allowance = renderable
             ? Math.max(file.size, RENDERED_DOCUMENT_HEADROOM_BYTES)
             : remaining
           try {
@@ -166,12 +169,14 @@ export const GET = withRouteHandler(
             // downgrade an actionable 400 into an opaque 500.
             if (error instanceof PayloadSizeLimitError) {
               controller.abort()
-              // Attributed to this entry only when its own allowance was the smaller
-              // of the two caps; otherwise the shared budget is what ran out.
+              // Attributed to this entry when its own cap was the binding one — ties
+              // included, since the entry's ceiling still made it unshippable and
+              // downloading it alone is the way through. Otherwise the budget ran out.
               return {
                 ...skipped,
                 overLimit: true,
-                overLimitEntry: allowance < remaining ? { name: file.name, allowance } : null,
+                overLimitEntry:
+                  renderable && allowance <= remaining ? { name: file.name, allowance } : null,
               }
             }
             // Any other error from an already-aborted read is a consequence of the

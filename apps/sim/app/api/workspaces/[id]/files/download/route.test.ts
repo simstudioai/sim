@@ -137,6 +137,21 @@ describe('workspace files download route', () => {
     expect(body.error).not.toContain('Selected files total')
   })
 
+  it('blames the entry when its render ceiling exactly equals the remaining budget', async () => {
+    // Declared at the full budget, so allowance === remaining and the caps tie.
+    const doc = { ...workspaceFile('f1', 'report.docx', 'folder-1'), size: 250 * 1024 * 1024 }
+    mockListWorkspaceFiles.mockResolvedValue([doc])
+    mockFetchServableWorkspaceFileBuffer.mockRejectedValue(
+      new PayloadSizeLimitError({ label: 'servable file download', maxBytes: 1 })
+    )
+
+    const response = await GET(requestFor('fileIds=f1'), context)
+
+    expect(response.status).toBe(400)
+    // Downloading it on its own is still the way through, so name it.
+    expect((await response.json()).error).toContain('report.docx')
+  })
+
   it('blames the shared budget, not the entry, when the entry had no smaller cap', async () => {
     // .mp4 has no render headroom, so its cap is whatever is left of the budget.
     mockListWorkspaceFiles.mockResolvedValue([workspaceFile('f1', 'clip.mp4', 'folder-1')])
