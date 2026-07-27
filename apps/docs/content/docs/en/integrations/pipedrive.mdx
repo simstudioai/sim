@@ -43,6 +43,7 @@ Retrieve all deals from Pipedrive with optional filters
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `authStyle` | string | No | Auth scheme for the token; set by the credential resolver for API-token service accounts |
 | `status` | string | No | Only fetch deals with a specific status. Values: open, won, lost. If omitted, all not deleted deals are returned |
 | `person_id` | string | No | If supplied, only deals linked to the specified person are returned \(e.g., "456"\) |
 | `org_id` | string | No | If supplied, only deals linked to the specified organization are returned \(e.g., "789"\) |
@@ -87,6 +88,7 @@ Retrieve detailed information about a specific deal
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `authStyle` | string | No | Auth scheme for the token; set by the credential resolver for API-token service accounts |
 | `deal_id` | string | Yes | The ID of the deal to retrieve \(e.g., "123"\) |
 
 #### Output
@@ -104,6 +106,7 @@ Create a new deal in Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `authStyle` | string | No | Auth scheme for the token; set by the credential resolver for API-token service accounts |
 | `title` | string | Yes | The title of the deal \(e.g., "Enterprise Software License"\) |
 | `value` | string | No | The monetary value of the deal \(e.g., "5000"\) |
 | `currency` | string | No | Currency code \(e.g., "USD", "EUR", "GBP"\) |
@@ -129,6 +132,7 @@ Update an existing deal in Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `authStyle` | string | No | Auth scheme for the token; set by the credential resolver for API-token service accounts |
 | `deal_id` | string | Yes | The ID of the deal to update \(e.g., "123"\) |
 | `title` | string | No | New title for the deal \(e.g., "Updated Enterprise License"\) |
 | `value` | string | No | New monetary value for the deal \(e.g., "7500"\) |
@@ -151,6 +155,7 @@ Retrieve files from Pipedrive with optional filters
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `authStyle` | string | No | Auth scheme for the token; set by the credential resolver for API-token service accounts |
 | `sort` | string | No | Sort files by field \(supported: "id", "update_time"\) |
 | `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 100\) |
 | `start` | string | No | Pagination start offset \(0-based index of the first item to return\) |
@@ -185,6 +190,7 @@ Retrieve mail threads from Pipedrive mailbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `authStyle` | string | No | Auth scheme for the token; set by the credential resolver for API-token service accounts |
 | `folder` | string | No | Filter by folder: inbox, drafts, sent, archive \(default: inbox\) |
 | `limit` | string | No | Number of results to return \(e.g., "25", default: 50\) |
 | `start` | string | No | Pagination start offset \(0-based index of the first item to return\) |
@@ -207,6 +213,7 @@ Retrieve all messages from a specific mail thread
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `authStyle` | string | No | Auth scheme for the token; set by the credential resolver for API-token service accounts |
 | `thread_id` | string | Yes | The ID of the mail thread \(e.g., "12345"\) |
 
 #### Output
@@ -225,6 +232,7 @@ Retrieve all pipelines from Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `authStyle` | string | No | Auth scheme for the token; set by the credential resolver for API-token service accounts |
 | `sort_by` | string | No | Field to sort by: id, update_time, add_time \(default: id\) |
 | `sort_direction` | string | No | Sorting direction: asc, desc \(default: asc\) |
 | `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
@@ -256,6 +264,7 @@ Retrieve all deals in a specific pipeline
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `authStyle` | string | No | Auth scheme for the token; set by the credential resolver for API-token service accounts |
 | `pipeline_id` | string | Yes | The ID of the pipeline \(e.g., "1"\) |
 | `stage_id` | string | No | Filter by specific stage within the pipeline \(e.g., "2"\) |
 | `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
@@ -277,6 +286,7 @@ Retrieve all projects or a specific project from Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `authStyle` | string | No | Auth scheme for the token; set by the credential resolver for API-token service accounts |
 | `project_id` | string | No | Optional: ID of a specific project to retrieve \(e.g., "123"\) |
 | `status` | string | No | Filter by project status: open, completed, deleted \(only for listing all\) |
 | `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500, only for listing all\) |
@@ -301,6 +311,7 @@ Create a new project in Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `authStyle` | string | No | Auth scheme for the token; set by the credential resolver for API-token service accounts |
 | `title` | string | Yes | The title of the project \(e.g., "Q2 Marketing Campaign"\) |
 | `description` | string | No | Description of the project |
 | `start_date` | string | No | Project start date in YYYY-MM-DD format \(e.g., "2025-04-01"\) |
@@ -321,6 +332,7 @@ Retrieve activities (tasks) from Pipedrive with optional filters
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `authStyle` | string | No | Auth scheme for the token; set by the credential resolver for API-token service accounts |
 | `user_id` | string | No | Filter activities by user ID \(e.g., "123"\) |
 | `type` | string | No | Filter by activity type \(call, meeting, task, deadline, email, lunch\) |
 | `done` | string | No | Filter by completion status: 0 for not done, 1 for done |
@@ -358,6 +370,7 @@ Create a new activity (task) in Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `authStyle` | string | No | Auth scheme for the token; set by the credential resolver for API-token service accounts |
 | `subject` | string | Yes | The subject/title of the activity \(e.g., "Follow up call with John"\) |
 | `type` | string | Yes | Activity type: call, meeting, task, deadline, email, lunch |
 | `due_date` | string | Yes | Due date in YYYY-MM-DD format \(e.g., "2025-03-15"\) |
@@ -383,6 +396,7 @@ Update an existing activity (task) in Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `authStyle` | string | No | Auth scheme for the token; set by the credential resolver for API-token service accounts |
 | `activity_id` | string | Yes | The ID of the activity to update \(e.g., "12345"\) |
 | `subject` | string | No | New subject/title for the activity \(e.g., "Updated meeting with client"\) |
 | `due_date` | string | No | New due date in YYYY-MM-DD format \(e.g., "2025-03-20"\) |
@@ -406,6 +420,7 @@ Retrieve all leads or a specific lead from Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `authStyle` | string | No | Auth scheme for the token; set by the credential resolver for API-token service accounts |
 | `lead_id` | string | No | Optional: ID of a specific lead to retrieve \(e.g., "abc123-def456-ghi789"\) |
 | `archived` | string | No | Get archived leads instead of active ones \(e.g., "true" or "false"\) |
 | `owner_id` | string | No | Filter by owner user ID \(e.g., "123"\) |
@@ -459,6 +474,7 @@ Create a new lead in Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `authStyle` | string | No | Auth scheme for the token; set by the credential resolver for API-token service accounts |
 | `title` | string | Yes | The name of the lead \(e.g., "Acme Corp - Website Redesign"\) |
 | `person_id` | string | No | ID of the person \(REQUIRED unless organization_id is provided\) \(e.g., "456"\) |
 | `organization_id` | string | No | ID of the organization \(REQUIRED unless person_id is provided\) \(e.g., "789"\) |
@@ -483,6 +499,7 @@ Update an existing lead in Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `authStyle` | string | No | Auth scheme for the token; set by the credential resolver for API-token service accounts |
 | `lead_id` | string | Yes | The ID of the lead to update \(e.g., "abc123-def456-ghi789"\) |
 | `title` | string | No | New name for the lead \(e.g., "Updated Lead - Premium Package"\) |
 | `person_id` | string | No | New person ID \(e.g., "456"\) |
@@ -508,6 +525,7 @@ Delete a specific lead from Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `authStyle` | string | No | Auth scheme for the token; set by the credential resolver for API-token service accounts |
 | `lead_id` | string | Yes | The ID of the lead to delete \(e.g., "abc123-def456-ghi789"\) |
 
 #### Output

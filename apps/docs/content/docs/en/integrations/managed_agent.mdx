@@ -1,0 +1,51 @@
+---
+title: Claude Managed Agents
+description: Run a Claude Platform Managed Agent
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="managed_agent"
+  color="#DA7756"
+/>
+
+## Usage Instructions
+
+Invoke a Claude Platform Managed Agent from a workflow. Select a Claude Platform account, pick an agent and environment from that workspace, optionally attach vaults, a memory store, and files, and add metadata tags. Returns the assistant's final text.
+
+
+
+## Actions
+
+### `managed_agent_run_session`
+
+Open a Claude Platform Managed Agent session and return the assistant response as text.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `credential` | string | Yes | Claude Platform credential \(Anthropic workspace API key\) to run the agent with. |
+| `agent` | string | Yes | Managed-agent id inside the linked Claude workspace. |
+| `environment` | string | Yes | Environment id inside the linked Claude workspace. |
+| `environmentType` | string | No | Environment execution model hint \('cloud' \| 'self_hosted'\); the actual type is re-resolved server-side for routing. |
+| `userMessage` | string | Yes | The user message to send to the Managed Agent. |
+| `vaults` | array | No | Zero or more vault ids for MCP tool auth. |
+| `vaultsAck` | boolean | No | Acknowledgement that the author may use the attached vaults. |
+| `memoryStoreId` | string | No | Optional Agent Memory Store id. |
+| `memoryAccess` | string | No | Memory store access mode: 'read_write' \(default\) or 'read_only'. |
+| `memoryInstructions` | string | No | Per-attachment guidance for how the agent should use the memory store. |
+| `files` | array | No | File attachments \(cloud envs only\), as \[\{fileId, mountPath?\}\]. |
+| `sessionParameters` | object | No | Key/value session metadata forwarded to the session. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Final assistant text from the Managed Agent session. |
+| `sessionId` | string | Anthropic session id \(for logs / linking\). |
+| `inputTokens` | number | Cumulative input tokens for the session. |
+| `outputTokens` | number | Cumulative output tokens for the session. |
+
+

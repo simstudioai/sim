@@ -49,7 +49,7 @@ Create a new Zoom meeting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `userId` | string | Yes | The user ID or email address \(e.g., "me", "user@example.com", or "AbcDefGHi"\). Use "me" for the authenticated user. |
+| `userId` | string | Yes | The user ID or email address \(e.g., "me", "user@example.com", or "AbcDefGHi"\). Use "me" for the authenticated user with OAuth credentials. With a Zoom server-to-server service account, "me" is not supported — provide the target user ID or email address. |
 | `topic` | string | Yes | Meeting topic \(e.g., "Weekly Team Standup" or "Project Review"\) |
 | `type` | number | No | Meeting type: 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time |
 | `startTime` | string | No | Meeting start time in ISO 8601 format \(e.g., 2025-06-03T10:00:00Z\) |
@@ -121,7 +121,7 @@ List all meetings for a Zoom user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `userId` | string | Yes | The user ID or email address \(e.g., "me", "user@example.com", or "AbcDefGHi"\). Use "me" for the authenticated user. |
+| `userId` | string | Yes | The user ID or email address \(e.g., "me", "user@example.com", or "AbcDefGHi"\). Use "me" for the authenticated user with OAuth credentials. With a Zoom server-to-server service account, "me" is not supported — provide the target user ID or email address. |
 | `type` | string | No | Meeting type filter: scheduled, live, upcoming, upcoming_meetings, or previous_meetings |
 | `pageSize` | number | No | Number of records per page, 1-300 \(e.g., 30, 50, 100\) |
 | `nextPageToken` | string | No | Token for pagination to get next page of results |
@@ -282,7 +282,7 @@ List all cloud recordings for a Zoom user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `userId` | string | Yes | The user ID or email address \(e.g., "me", "user@example.com", or "AbcDefGHi"\). Use "me" for the authenticated user. |
+| `userId` | string | Yes | The user ID or email address \(e.g., "me", "user@example.com", or "AbcDefGHi"\). Use "me" for the authenticated user with OAuth credentials. With a Zoom server-to-server service account, "me" is not supported — provide the target user ID or email address. |
 | `from` | string | No | Start date in yyyy-mm-dd format \(within last 6 months\) |
 | `to` | string | No | End date in yyyy-mm-dd format |
 | `pageSize` | number | No | Number of records per page, 1-300 \(e.g., 30, 50, 100\) |
