@@ -10,6 +10,9 @@ export const LOCALHOST_HOSTNAMES_MOCK: ReadonlySet<string> = new Set([
   '::1',
 ])
 
+/** Mirrors the real `CANONICAL_SITE_HOST` from `@/lib/core/utils/urls`. */
+export const CANONICAL_SITE_HOST_MOCK = 'www.sim.ai'
+
 const DEFAULT_SOCKET_URL = 'http://localhost:3002'
 const DEFAULT_OLLAMA_URL = 'http://localhost:11434'
 
@@ -70,6 +73,18 @@ function getEmailDomainImpl(): string {
 
 function isLoopbackHostnameImpl(hostname: string): boolean {
   return LOCALHOST_HOSTNAMES_MOCK.has(hostname)
+}
+
+/** Mirrors the real `stripWwwPrefix` from `@/lib/core/utils/urls`. */
+function stripWwwPrefix(host: string): string {
+  return host.startsWith('www.') ? host.slice(4) : host
+}
+
+function isNonCanonicalSimHostImpl(host: string): boolean {
+  const first = host.split(',')[0]?.trim() ?? ''
+  const hostname = stripWwwPrefix(first.toLowerCase().split(':')[0])
+  const canonical = stripWwwPrefix(CANONICAL_SITE_HOST_MOCK)
+  return hostname !== canonical && hostname.endsWith(`.${canonical}`)
 }
 
 function parseOriginListImpl(
@@ -156,6 +171,7 @@ export const urlsMockFns = {
   mockGetBaseDomain: vi.fn(getBaseDomainImpl),
   mockGetEmailDomain: vi.fn(getEmailDomainImpl),
   mockIsLoopbackHostname: vi.fn(isLoopbackHostnameImpl),
+  mockIsNonCanonicalSimHost: vi.fn(isNonCanonicalSimHostImpl),
   mockParseOriginList: vi.fn(parseOriginListImpl),
   mockIsLocalhostUrl: vi.fn(isLocalhostUrlImpl),
   mockGetBrowserOrigin: vi.fn(getBrowserOriginImpl),
@@ -176,6 +192,7 @@ export function resetUrlsMock(): void {
   urlsMockFns.mockGetBaseDomain.mockReset().mockImplementation(getBaseDomainImpl)
   urlsMockFns.mockGetEmailDomain.mockReset().mockImplementation(getEmailDomainImpl)
   urlsMockFns.mockIsLoopbackHostname.mockReset().mockImplementation(isLoopbackHostnameImpl)
+  urlsMockFns.mockIsNonCanonicalSimHost.mockReset().mockImplementation(isNonCanonicalSimHostImpl)
   urlsMockFns.mockParseOriginList.mockReset().mockImplementation(parseOriginListImpl)
   urlsMockFns.mockIsLocalhostUrl.mockReset().mockImplementation(isLocalhostUrlImpl)
   urlsMockFns.mockGetBrowserOrigin.mockReset().mockImplementation(getBrowserOriginImpl)
@@ -197,12 +214,14 @@ export function resetUrlsMock(): void {
 export const urlsMock = {
   SITE_URL: 'https://www.sim.ai',
   LOCALHOST_HOSTNAMES: LOCALHOST_HOSTNAMES_MOCK,
+  CANONICAL_SITE_HOST: CANONICAL_SITE_HOST_MOCK,
   getBaseUrl: urlsMockFns.mockGetBaseUrl,
   getInternalApiBaseUrl: urlsMockFns.mockGetInternalApiBaseUrl,
   ensureAbsoluteUrl: urlsMockFns.mockEnsureAbsoluteUrl,
   getBaseDomain: urlsMockFns.mockGetBaseDomain,
   getEmailDomain: urlsMockFns.mockGetEmailDomain,
   isLoopbackHostname: urlsMockFns.mockIsLoopbackHostname,
+  isNonCanonicalSimHost: urlsMockFns.mockIsNonCanonicalSimHost,
   parseOriginList: urlsMockFns.mockParseOriginList,
   isLocalhostUrl: urlsMockFns.mockIsLocalhostUrl,
   getBrowserOrigin: urlsMockFns.mockGetBrowserOrigin,
