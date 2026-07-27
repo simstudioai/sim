@@ -147,6 +147,9 @@ export function useTableRoom(tableId: string): UseTableRoomResult {
 
   const socketRef = useRef(socket)
   socketRef.current = socket
+  /** Presence is disabled when no table id is bound (e.g. the embedded/mothership surface). */
+  const enabledRef = useRef(false)
+  enabledRef.current = Boolean(tableId)
   const lastEmitRef = useRef(0)
   const trailingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingCellRef = useRef<TableCellSelection>(null)
@@ -170,6 +173,9 @@ export function useTableRoom(tableId: string): UseTableRoomResult {
   )
 
   const emitCellSelection = useCallback((cell: TableCellSelection) => {
+    // No room joined (empty tableId, e.g. embedded mode) — never broadcast; the server
+    // would drop it anyway. Local selection UI is unaffected (grid-owned state).
+    if (!enabledRef.current) return
     // Skip re-emitting an unchanged selection: the caller re-resolves on every data
     // refetch (so a peer's row insert re-broadcasts the shifted rowId), but most refetches
     // don't move the selection — dedup those, and the no-selection state on table open.

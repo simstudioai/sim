@@ -415,6 +415,11 @@ export function TableGrid({
   const [resizingColumn, setResizingColumn] = useState<string | null>(null)
   const resizingColumnRef = useRef(resizingColumn)
   resizingColumnRef.current = resizingColumn
+  /** True from a committed local width change until its metadata PUT settles. Keeps a
+   *  concurrent peer-triggered definition refetch (the value-less `metadata` event forces a
+   *  refetch that can carry the not-yet-persisted server widths) from momentarily reverting
+   *  the just-written widths. */
+  const pendingWidthWriteRef = useRef(false)
   const [columnOrder, setColumnOrder] = useState<string[] | null>(null)
   const columnOrderRef = useRef(columnOrder)
   columnOrderRef.current = columnOrder
@@ -1551,7 +1556,11 @@ export function TableGrid({
 
   const handleColumnResizeEnd = useCallback(() => {
     setResizingColumn(null)
-    updateMetadataRef.current({ columnWidths: columnWidthsRef.current })
+    pendingWidthWriteRef.current = true
+    updateMetadataRef.current(
+      { columnWidths: columnWidthsRef.current },
+      { onSettled: () => (pendingWidthWriteRef.current = false) }
+    )
   }, [])
 
   const handleColumnAutoResize = useCallback((columnKey: string) => {
@@ -1612,7 +1621,11 @@ export function TableGrid({
     setColumnWidths((prev) => ({ ...prev, [columnKey]: newWidth }))
     const updated = { ...columnWidthsRef.current, [columnKey]: newWidth }
     columnWidthsRef.current = updated
-    updateMetadataRef.current({ columnWidths: updated })
+    pendingWidthWriteRef.current = true
+    updateMetadataRef.current(
+      { columnWidths: updated },
+      { onSettled: () => (pendingWidthWriteRef.current = false) }
+    )
   }, [])
 
   const handleColumnDragStart = useCallback((columnName: string) => {
@@ -1916,11 +1929,13 @@ export function TableGrid({
     if (serverWidths && serverWidths !== columnWidthsRef.current) {
       const resizing = resizingColumnRef.current
       const localWidth = resizing ? columnWidthsRef.current[resizing] : undefined
-      setColumnWidths(
-        resizing && localWidth !== undefined
-          ? { ...serverWidths, [resizing]: localWidth }
-          : serverWidths
-      )
+      if (resizing && localWidth !== undefined) {
+        setColumnWidths({ ...serverWidths, [resizing]: localWidth })
+      } else if (!pendingWidthWriteRef.current) {
+        setColumnWidths(serverWidths)
+      }
+      // else: a just-committed local width write is still in flight — local leads until
+      // its onSettled invalidation brings back the server's committed (merged) widths.
     }
     // Pins toggle instantly (no in-progress gesture) — apply on change.
     const serverPins = tableData.metadata.pinnedColumns

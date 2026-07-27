@@ -9,6 +9,7 @@ import type { RowData, TableSchema } from '@/lib/table'
 import { upsertRow } from '@/lib/table'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
+import { signalTableRowsChanged } from '@/lib/table/events'
 import { accessError, checkAccess, tableLockErrorResponse } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -71,6 +72,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
       table,
       requestId
     )
+    signalTableRowsChanged(tableId)
 
     return NextResponse.json({
       success: true,

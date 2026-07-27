@@ -45,6 +45,7 @@ import {
   updateColumnType,
 } from '@/lib/table/columns/service'
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
+import { signalTableRowsChanged, signalTableSchemaChanged } from '@/lib/table/events'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowUpdate, patchColumnIds } from '@/lib/table/mutation-locks'
@@ -557,6 +558,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             table,
             requestId
           )
+          signalTableRowsChanged(args.tableId)
 
           return {
             success: true,
@@ -600,6 +602,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             table,
             requestId
           )
+          signalTableRowsChanged(args.tableId)
 
           return {
             success: true,
@@ -743,6 +746,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             // doesn't, so the guard never trips here. Defensive narrowing.
             return { success: false, message: 'Row update was skipped' }
           }
+          signalTableRowsChanged(args.tableId)
           // Auto-dispatch for user edits is handled inside `updateRow`
           // (mode: 'new' for newly-cleared groups + cancel+rerun for in-flight
           // downstream groups). Firing a second mode: 'incomplete' dispatch
@@ -782,6 +786,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: `Table ${args.tableId} not found` }
           }
           await deleteRow(deleteRowTable, args.rowId, requestId)
+          signalTableRowsChanged(args.tableId)
 
           return {
             success: true,
@@ -885,6 +890,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             },
             requestId
           )
+          if (result.affectedCount > 0) signalTableRowsChanged(args.tableId)
 
           return {
             success: true,
@@ -990,6 +996,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           } finally {
             await releaseJobClaim(table.id, inlineDeleteId).catch(() => {})
           }
+          if (result.affectedCount > 0) signalTableRowsChanged(args.tableId)
 
           recordAudit({
             workspaceId,
@@ -1112,6 +1119,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, rowIds, workspaceId },
             requestId
           )
+          if (result.deletedCount > 0) signalTableRowsChanged(args.tableId)
 
           recordAudit({
             workspaceId,
@@ -1420,6 +1428,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 table,
                 requestId
               )
+              signalTableRowsChanged(table.id)
 
               logger.info('Rows replaced from file', {
                 tableId: table.id,
@@ -1511,6 +1520,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               ? { ...col, options: normalizeSelectOptionsInput(col.options) }
               : { ...col, options: undefined }
           const updated = await addTableColumn(args.tableId, columnToAdd, requestId)
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Added column "${col.name}" (${col.type}) to table`,
@@ -1540,6 +1550,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, oldName: colName, newName: newColName },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Renamed column "${colName}" to "${newColName}"`,
@@ -1571,6 +1582,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               { tableId: args.tableId, columnName: names[0] },
               requestId
             )
+            signalTableSchemaChanged(args.tableId)
             return {
               success: true,
               message: `Deleted column "${names[0]}"`,
@@ -1582,6 +1594,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, columnNames: names },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Deleted ${names.length} columns: ${names.join(', ')}`,
@@ -1687,6 +1700,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               requestId
             )
           }
+          if (result) signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Updated column "${colName}"`,
@@ -1716,6 +1730,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const renamed = await renameTable(args.tableId, newName, requestId, context.userId)
+          signalTableSchemaChanged(args.tableId)
 
           return {
             success: true,
@@ -1839,6 +1854,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, group, outputColumns, autoRun, actorUserId: context.userId },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Added workflow group "${name ?? groupId}" with ${outputs.length} output column(s)`,
@@ -1911,6 +1927,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Updated workflow group ${groupId}`,
@@ -1932,6 +1949,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const updated = await deleteWorkflowGroup({ tableId: args.tableId, groupId }, requestId)
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Deleted workflow group ${groupId}`,
@@ -1969,6 +1987,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Added output to workflow group ${groupId}`,
@@ -1997,6 +2016,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, groupId, columnName },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Removed output "${columnName}" from workflow group ${groupId}`,
@@ -2210,6 +2230,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, group, outputColumns, autoRun, actorUserId: context.userId },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Added enrichment "${name}" with ${outputs.length} output column(s)${

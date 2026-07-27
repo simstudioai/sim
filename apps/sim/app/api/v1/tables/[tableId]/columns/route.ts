@@ -18,6 +18,7 @@ import {
   updateColumnType,
 } from '@/lib/table'
 import { columnMatchesRef } from '@/lib/table/column-keys'
+import { signalTableSchemaChanged } from '@/lib/table/events'
 import {
   accessError,
   checkAccess,
@@ -69,6 +70,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
     }
 
     const updatedTable = await addTableColumn(tableId, validated.column, requestId)
+    signalTableSchemaChanged(tableId)
 
     recordAudit({
       workspaceId: validated.workspaceId,
@@ -218,6 +220,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     if (!updatedTable) {
       return NextResponse.json({ error: 'No updates specified' }, { status: 400 })
     }
+    signalTableSchemaChanged(tableId)
 
     recordAudit({
       workspaceId: validated.workspaceId,
@@ -301,6 +304,7 @@ export const DELETE = withRouteHandler(
         { tableId, columnName: validated.columnName },
         requestId
       )
+      signalTableSchemaChanged(tableId)
 
       recordAudit({
         workspaceId: validated.workspaceId,

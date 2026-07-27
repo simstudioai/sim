@@ -1,6 +1,6 @@
 import { type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
 import type { Server } from 'socket.io'
-import type { IRoomManager } from '@/rooms/types'
+import type { IRoomManager, UserPresence } from '@/rooms/types'
 
 /**
  * How stale a not-live presence entry must be before a join-time sweep reclaims
@@ -53,13 +53,16 @@ export async function filterVisiblePresence<T extends { socketId: string }>(
  * Run on join, like the workflow room does. No-op when the liveness lookup fails
  * (so a transient adapter blip can't evict live collaborators).
  */
-export async function sweepStalePresence(manager: IRoomManager, room: RoomRef): Promise<void> {
+export async function sweepStalePresence(
+  manager: IRoomManager,
+  room: RoomRef
+): Promise<UserPresence[]> {
   let liveIds: Set<string>
   try {
     const liveSockets = await manager.io.in(roomName(room)).fetchSockets()
     liveIds = new Set(liveSockets.map((socket) => socket.id))
   } catch {
-    return
+    return []
   }
 
   const now = Date.now()
@@ -71,4 +74,7 @@ export async function sweepStalePresence(manager: IRoomManager, room: RoomRef): 
       await manager.removeUserFromRoom(room, user.socketId)
     }
   }
+  // Return the pre-removal roster so a caller can reuse it (e.g. same-tab dedup) instead
+  // of re-reading; re-removing an already-swept entry downstream is a harmless no-op.
+  return users
 }

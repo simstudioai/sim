@@ -19,7 +19,6 @@
  * @module
  */
 import { createLogger } from '@sim/logger'
-import { authorizeRoom } from '@sim/platform-authz/rooms'
 import {
   FILE_DOC_EVENTS,
   FILE_DOC_MESSAGE_TYPE,
@@ -37,6 +36,7 @@ import * as awarenessProtocol from 'y-protocols/awareness'
 import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import { resolveAvatarUrl } from '@/handlers/avatar'
+import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import type { IRoomManager } from '@/rooms'
 
@@ -432,30 +432,21 @@ export function setupWorkspaceFileDocHandlers(
       const room = fileDocRoom(fileId)
       const name = roomName(room)
 
-      let authorized: Awaited<ReturnType<typeof authorizeRoom>>
-      try {
-        authorized = await authorizeRoom({ userId, room, action: 'write' })
-      } catch (error) {
-        logger.warn(`Error authorizing file-doc room for ${userId}:`, error)
-        emitJoinError(
-          socket,
-          fileId,
-          'Failed to verify workspace access',
-          'VERIFY_ACCESS_FAILED',
-          true
-        )
-        return
-      }
-      if (!authorized.allowed) {
-        emitJoinError(
-          socket,
-          fileId,
-          authorized.status === 404 ? 'File not found' : 'Access denied to file',
-          authorized.status === 404 ? 'NOT_FOUND' : 'ACCESS_DENIED',
-          false
-        )
-        return
-      }
+      const authorized = await resolveRoomJoinAuth({
+        userId,
+        room,
+        action: 'write',
+        logger,
+        logLabel: `file-doc room for ${userId}`,
+        messages: {
+          verifyFailed: 'Failed to verify workspace access',
+          notFound: 'File not found',
+          accessDenied: 'Access denied to file',
+        },
+        emitError: ({ error, code, retryable }) =>
+          emitJoinError(socket, fileId, error, code, retryable),
+      })
+      if (!authorized) return
 
       // Server-authenticated identity for the presence roster (never trusts the client-set
       // awareness). Resolved here so the generation guard below also covers this await.

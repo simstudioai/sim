@@ -218,6 +218,72 @@ describe('setupTablesHandlers', () => {
     )
   })
 
+  it('aborts an in-flight join when a leave for that table arrives during authorize', async () => {
+    const { socket, handlers } = createSocket()
+    const roomManager = createRoomManager()
+    let releaseAuth: (value: unknown) => void = () => {}
+    const pending = new Promise((resolve) => {
+      releaseAuth = resolve
+    })
+    mockAuthorizeRoom.mockReturnValueOnce(pending)
+    setupTablesHandlers(socket as unknown as SetupArg, roomManager)
+
+    const joinPromise = handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-1' })
+    // Client navigates away while the join is still awaiting authorization.
+    await handlers[TABLE_PRESENCE_EVENTS.LEAVE]({ tableId: 'table-1' })
+    releaseAuth({ allowed: true, status: 200, workspaceId: 'ws-1', workspacePermission: 'admin' })
+    await joinPromise
+
+    // The cancelled join must touch no room state — the socket is not stranded.
+    expect(socket.join).not.toHaveBeenCalled()
+    expect(roomManager.addUserToRoom).not.toHaveBeenCalled()
+    expect(roomManager.broadcastPresenceUpdate).not.toHaveBeenCalledWith(TABLE_ROOM)
+  })
+
+  it('aborts an in-flight join when an unscoped leave arrives during authorize', async () => {
+    const { socket, handlers } = createSocket()
+    const roomManager = createRoomManager()
+    let releaseAuth: (value: unknown) => void = () => {}
+    const pending = new Promise((resolve) => {
+      releaseAuth = resolve
+    })
+    mockAuthorizeRoom.mockReturnValueOnce(pending)
+    setupTablesHandlers(socket as unknown as SetupArg, roomManager)
+
+    const joinPromise = handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-1' })
+    // A leave with no table id (view teardown) must also cancel the in-flight join.
+    await handlers[TABLE_PRESENCE_EVENTS.LEAVE](undefined)
+    releaseAuth({ allowed: true, status: 200, workspaceId: 'ws-1', workspacePermission: 'admin' })
+    await joinPromise
+
+    expect(socket.join).not.toHaveBeenCalled()
+    expect(roomManager.addUserToRoom).not.toHaveBeenCalled()
+  })
+
+  it('does not abort an in-flight join when a leave targets a different table', async () => {
+    const { socket, handlers } = createSocket()
+    const roomManager = createRoomManager()
+    let releaseAuth: (value: unknown) => void = () => {}
+    const pending = new Promise((resolve) => {
+      releaseAuth = resolve
+    })
+    mockAuthorizeRoom.mockReturnValueOnce(pending)
+    setupTablesHandlers(socket as unknown as SetupArg, roomManager)
+
+    const joinPromise = handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-B' })
+    // A stale/deferred leave for a table the client already left must NOT cancel the B join.
+    await handlers[TABLE_PRESENCE_EVENTS.LEAVE]({ tableId: 'table-A' })
+    releaseAuth({ allowed: true, status: 200, workspaceId: 'ws-1', workspacePermission: 'admin' })
+    await joinPromise
+
+    expect(socket.join).toHaveBeenCalledWith('table:table-B')
+    expect(roomManager.addUserToRoom).toHaveBeenCalledWith(
+      { type: ROOM_TYPES.TABLE, id: 'table-B' },
+      'socket-1',
+      expect.anything()
+    )
+  })
+
   it('leaves the table room on leave', async () => {
     const { socket, handlers } = createSocket()
     const roomManager = createRoomManager({

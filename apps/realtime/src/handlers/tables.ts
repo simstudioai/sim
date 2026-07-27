@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { authorizeRoom } from '@sim/platform-authz/rooms'
 import { ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
 import {
   type JoinTablePayload,
@@ -8,6 +7,7 @@ import {
   type TableCellSelection,
 } from '@sim/realtime-protocol/table-presence'
 import { resolveAvatarUrl } from '@/handlers/avatar'
+import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import type { IRoomManager, UserPresence } from '@/rooms'
 import { filterVisiblePresence, sweepStalePresence } from '@/rooms/presence-visibility'
@@ -66,9 +66,16 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
   // authorize, aborts if a newer JOIN has started — a fast table switch A→B can otherwise
   // let A's late handler leave B and strand the socket in room A while the client views B.
   let joinGeneration = 0
+  // The table the socket currently intends to be in (set when a join starts). A leave
+  // targeting it — or an unscoped leave — advances joinGeneration to cancel an in-flight
+  // join, so a join still awaiting authorization can't complete after the client left and
+  // strand the socket in the room (present in presence + still receiving broadcasts). A
+  // leave for a DIFFERENT table must NOT cancel it (a table switch), mirroring workspace-files.
+  let currentTableId: string | null = null
 
   socket.on(TABLE_PRESENCE_EVENTS.JOIN, async ({ tableId, tabSessionId }: JoinTablePayload) => {
     const joinAttempt = (joinGeneration += 1)
+    currentTableId = tableId
     try {
       const userId = socket.userId
       const userName = socket.userName
@@ -106,29 +113,21 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
 
       const room = tableRoom(tableId)
 
-      let authorized: Awaited<ReturnType<typeof authorizeRoom>>
-      try {
-        authorized = await authorizeRoom({ userId, room, action: 'read' })
-      } catch (error) {
-        logger.warn(`Error authorizing table room for ${userId}:`, error)
-        socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, {
-          tableId,
-          error: 'Failed to verify table access',
-          code: 'VERIFY_ACCESS_FAILED',
-          retryable: true,
-        })
-        return
-      }
-
-      if (!authorized.allowed) {
-        socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, {
-          tableId,
-          error: authorized.status === 404 ? 'Table not found' : 'Access denied to table',
-          code: authorized.status === 404 ? 'NOT_FOUND' : 'ACCESS_DENIED',
-          retryable: false,
-        })
-        return
-      }
+      const authorized = await resolveRoomJoinAuth({
+        userId,
+        room,
+        action: 'read',
+        logger,
+        logLabel: `table room for ${userId}`,
+        messages: {
+          verifyFailed: 'Failed to verify table access',
+          notFound: 'Table not found',
+          accessDenied: 'Access denied to table',
+        },
+        emitError: ({ error, code, retryable }) =>
+          socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, { tableId, error, code, retryable }),
+      })
+      if (!authorized) return
 
       // A newer JOIN started on this socket during authorize (or the socket dropped):
       // abort so a stale join can't leave the room the client has since moved to.
@@ -142,11 +141,16 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
         await roomManager.broadcastPresenceUpdate(currentRoom)
       }
 
-      // Clean up the same user's stale socket from the same tab (a reconnect that
-      // raced the old socket's disconnect), so presence shows one entry.
+      // Reclaim presence orphaned by an ungraceful disconnect (no `disconnecting`
+      // event fires on a pod crash; the room hashes have no TTL). Returns the roster it
+      // read so the same-tab dedup below reuses it instead of issuing a second read.
+      const roster = await sweepStalePresence(roomManager, room)
+
+      // Clean up the same user's stale socket from the same tab (a reconnect that raced
+      // the old socket's disconnect), so presence shows one entry. Reuses the sweep's
+      // roster snapshot; re-removing an already-swept entry is a harmless no-op.
       if (tabSessionId) {
-        const existingUsers = await roomManager.getRoomUsers(room)
-        for (const existing of existingUsers) {
+        for (const existing of roster) {
           if (
             existing.socketId !== socket.id &&
             existing.userId === userId &&
@@ -157,10 +161,6 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
           }
         }
       }
-
-      // Reclaim presence orphaned by an ungraceful disconnect (no `disconnecting`
-      // event fires on a pod crash; the room hashes have no TTL).
-      await sweepStalePresence(roomManager, room)
 
       socket.join(roomName(room))
 
@@ -214,6 +214,17 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
 
   socket.on(TABLE_PRESENCE_EVENTS.LEAVE, async (payload?: { tableId?: string }) => {
     try {
+      // Cancel an in-flight join whose table the client is now leaving (or an unscoped
+      // leave): a join still awaiting authorization would otherwise complete after the
+      // client left — joining the room, registering presence, and broadcasting a ghost
+      // until disconnect. Guard on the current table intent so a stale/deferred leave for
+      // a DIFFERENT table can't abort the join the client has since switched to. Runs
+      // before the teardown below because the racing join has registered nothing yet
+      // (getRoomForSocket returns null), so only this generation bump can stop it.
+      if (!payload?.tableId || payload.tableId === currentTableId) {
+        joinGeneration += 1
+        currentTableId = null
+      }
       if (!roomManager.isReady()) return
       const room = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.TABLE)
       if (!room) return

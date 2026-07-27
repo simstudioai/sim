@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { authorizeRoom } from '@sim/platform-authz/rooms'
 import { ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
+import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import type { IRoomManager } from '@/rooms'
 
@@ -81,29 +81,21 @@ export function setupWorkspaceFilesHandlers(
 
       const room = filesRoom(workspaceId)
 
-      let authorized: Awaited<ReturnType<typeof authorizeRoom>>
-      try {
-        authorized = await authorizeRoom({ userId: socket.userId, room, action: 'read' })
-      } catch (error) {
-        logger.warn(`Error authorizing files room for ${socket.userId}:`, error)
-        socket.emit('join-workspace-files-error', {
-          workspaceId,
-          error: 'Failed to verify workspace access',
-          code: 'VERIFY_ACCESS_FAILED',
-          retryable: true,
-        })
-        return
-      }
-
-      if (!authorized.allowed) {
-        socket.emit('join-workspace-files-error', {
-          workspaceId,
-          error: authorized.status === 404 ? 'Workspace not found' : 'Access denied to workspace',
-          code: authorized.status === 404 ? 'NOT_FOUND' : 'ACCESS_DENIED',
-          retryable: false,
-        })
-        return
-      }
+      const authorized = await resolveRoomJoinAuth({
+        userId: socket.userId,
+        room,
+        action: 'read',
+        logger,
+        logLabel: `files room for ${socket.userId}`,
+        messages: {
+          verifyFailed: 'Failed to verify workspace access',
+          notFound: 'Workspace not found',
+          accessDenied: 'Access denied to workspace',
+        },
+        emitError: ({ error, code, retryable }) =>
+          socket.emit('join-workspace-files-error', { workspaceId, error, code, retryable }),
+      })
+      if (!authorized) return
 
       // A newer join started on this socket during authorize (or it dropped): abort so a
       // stale join can't leave the room the client has since switched to.

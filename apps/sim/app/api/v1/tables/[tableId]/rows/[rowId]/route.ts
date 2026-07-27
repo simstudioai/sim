@@ -16,6 +16,7 @@ import type { RowData, TableSchema } from '@/lib/table'
 import { deleteRow, updateRow } from '@/lib/table'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
+import { signalTableRowsChanged } from '@/lib/table/events'
 import { accessError, checkAccess, tableLockErrorResponse } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -155,6 +156,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     if (!updatedRow) {
       return NextResponse.json({ error: 'Row not found' }, { status: 404 })
     }
+    signalTableRowsChanged(tableId)
     // Auto-dispatch for user edits is handled inside `updateRow` (mode: 'new').
     // Firing a second mode: 'incomplete' dispatch here would race with it AND
     // bulk-clear sibling-group outputs.
@@ -237,6 +239,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
     // Route through the service (not a raw `db.delete`) so the delete lock is
     // enforced — the raw path would return 200 on a locked table.
     await deleteRow(result.table, rowId, requestId)
+    signalTableRowsChanged(tableId)
 
     return NextResponse.json({
       success: true,
