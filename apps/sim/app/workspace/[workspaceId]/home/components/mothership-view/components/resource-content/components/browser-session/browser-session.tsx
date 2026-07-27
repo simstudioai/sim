@@ -171,7 +171,7 @@ export function BrowserSession({ visible }: { visible: boolean }) {
   const [panelVisible, setPanelVisible] = useState(false)
   /** Whether the shell has a saved password for the page currently open. */
   const [fillAvailable, setFillAvailable] = useState(false)
-  /** Hosts worth suggesting: signed into, or holding a saved password. */
+  /** Hosts worth suggesting: signed into, holding a saved password, or imported. */
   const [suggestionCorpus, setSuggestionCorpus] = useState<UrlSuggestion[]>([])
   /** Null until the user arrows into the list, so Enter still means "go to what I typed". */
   const [activeSuggestion, setActiveSuggestion] = useState<number | null>(null)

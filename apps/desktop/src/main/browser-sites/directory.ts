@@ -18,7 +18,26 @@ import { safeStorage } from 'electron'
  * quietly undo that.
  */
 
-const DIRECTORY_VERSION = 1
+/**
+ * Bumped when what a record MEANS changes, not merely when a field is added.
+ *
+ * Version 1 was seeded from the imported cookie hosts, which are mostly ad and
+ * analytics origins nobody navigated to. Those records only ever decorated a
+ * host the omnibox already had, so they were harmless; version 2 hosts are
+ * offered as suggestions in their own right, and carrying the old set forward
+ * would put exactly the origins this design rejects into the dropdown. `read`
+ * discards a foreign version, so the upgrade costs a re-import — the right
+ * trade for a cache of someone else's data that is now user-visible.
+ */
+const DIRECTORY_VERSION = 2
+
+/**
+ * Hosts kept across all imports. Bounded because every record can carry an
+ * inline favicon, and the whole directory crosses IPC whenever the browser
+ * panel appears. Least-used is evicted first — see {@link evictExcess} for how
+ * ties settle.
+ */
+const MAX_SITES = 500
 
 export interface SiteRecord {
   hostname: string
@@ -26,11 +45,63 @@ export interface SiteRecord {
   name?: string
   /** The source browser's favicon, as a `data:` URL. */
   icon?: string
+  /**
+   * How much the site was used in the browser it came from. Present only for
+   * hosts an import found in the source browser's history; absent for one known
+   * solely through a saved password.
+   *
+   * An aggregate, deliberately: no visit times, no URLs, no ordering of one
+   * visit against another. Enough to rank suggestions, not enough to
+   * reconstruct where someone went or when.
+   */
+  visits?: number
+  /**
+   * When Sim imported this host — wall clock at import, never the source
+   * browser's own last-visit time, which would be the visit log this store
+   * exists to avoid keeping.
+   */
+  importedAt?: string
 }
 
 interface EncryptedDirectoryEnvelope {
   version: number
   payload: string
+}
+
+function isSiteRecord(value: unknown): value is SiteRecord {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as SiteRecord).hostname === 'string' &&
+    (value as SiteRecord).hostname !== ''
+  )
+}
+
+function maxDefined(first: number | undefined, second: number | undefined): number | undefined {
+  if (first === undefined) return second
+  if (second === undefined) return first
+  return Math.max(first, second)
+}
+
+/**
+ * Trims the directory to {@link MAX_SITES}, dropping the least-used first and
+ * breaking ties by most recent import, then alphabetically so the same inputs
+ * always evict the same records.
+ *
+ * A record with no visit count is a record with no evidence of use, so it goes
+ * first rather than last — that is the only reading under which eviction order
+ * cannot be gamed by a malformed entry.
+ */
+function evictExcess(records: SiteRecord[]): SiteRecord[] {
+  if (records.length <= MAX_SITES) return records
+  return [...records]
+    .sort(
+      (a, b) =>
+        (b.visits ?? 0) - (a.visits ?? 0) ||
+        (b.importedAt ?? '').localeCompare(a.importedAt ?? '') ||
+        a.hostname.localeCompare(b.hostname)
+    )
+    .slice(0, MAX_SITES)
 }
 
 interface EncryptionProvider {
@@ -66,7 +137,10 @@ export class SiteDirectory {
       if (envelope.version !== DIRECTORY_VERSION) return []
       const decrypted = this.encryption.decryptString(Buffer.from(envelope.payload, 'base64'))
       const records = JSON.parse(decrypted) as SiteRecord[]
-      return Array.isArray(records) ? records : []
+      // Per-record, not just per-array: everything downstream sorts and merges
+      // on `hostname`, so one entry without it is a TypeError in the middle of
+      // an import rather than a record that is quietly skipped.
+      return Array.isArray(records) ? records.filter(isSiteRecord) : []
     } catch {
       // A missing, truncated, or foreign-keyed file reads as empty rather than
       // taking the omnibox down with it.
@@ -112,9 +186,13 @@ export class SiteDirectory {
         hostname: incoming.hostname,
         name: incoming.name ?? existing?.name,
         icon: incoming.icon ?? existing?.icon,
+        // The most-used of the profiles a host was seen in wins, so re-importing
+        // a profile that barely touches a site cannot demote it.
+        visits: maxDefined(incoming.visits, existing?.visits),
+        importedAt: incoming.importedAt ?? existing?.importedAt,
       })
     }
-    await this.write([...merged.values()])
+    await this.write(evictExcess([...merged.values()]))
   }
 
   /** Forgets every site. Runs with the rest of the browser teardown. */

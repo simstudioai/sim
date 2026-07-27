@@ -12,7 +12,7 @@ import { readSafeStoragePassword } from '@/main/browser-import/chromium-crypto'
 import { readBrowserFavicons } from '@/main/browser-import/chromium-favicons'
 import { readBrowserPasswords } from '@/main/browser-import/chromium-passwords'
 import { listAllBrowserProfiles } from '@/main/browser-import/chromium-profiles'
-import { readBrowserSiteNames } from '@/main/browser-import/chromium-site-names'
+import { readBrowserSites } from '@/main/browser-import/chromium-site-names'
 import {
   type ImportServiceDeps,
   listImportableProfiles,
@@ -36,7 +36,7 @@ function deps(): ImportServiceDeps {
     writeCookies: (cookies) => importAgentCookies(cookies),
     readPasswords: (loginDataPath, key) => readBrowserPasswords(loginDataPath, key),
     readFavicons: (faviconsPath, origins) => readBrowserFavicons(faviconsPath, origins),
-    readSiteNames: (historyPath, hostnames) => readBrowserSiteNames(historyPath, hostnames),
+    readSites: (historyPath, domains) => readBrowserSites(historyPath, domains),
     rememberSites: (records) => rememberSites(records),
     vault: {
       isAvailable: () => credentialsAvailable(),

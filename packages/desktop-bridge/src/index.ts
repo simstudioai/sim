@@ -229,21 +229,30 @@ export interface BrowserImportResult {
  * gesture, and no browser tool maps to either channel. Reading Chrome is
  * strictly read-only, and decrypted material stays in the main process.
  */
-/** What an imported site is called and what it looks like, keyed by hostname. */
+/** A site a previous import brought over, keyed by the hostname visited there. */
 export interface BrowserSiteInfo {
   hostname: string
   /** Learned from the source browser's own page titles, not a built-in list. */
   name?: string
   /** The source browser's favicon, as a `data:` URL. */
   icon?: string
+  /**
+   * How much the site was used in the browser it came from — an aggregate for
+   * ordering suggestions, never a visit time, a URL, or a sequence. Absent on
+   * a record written before imports started counting.
+   */
+  visits?: number
+  /** When Sim imported it; never the source browser's own last-visit time. */
+  importedAt?: string
 }
 
 export interface SimDesktopBrowserImportApi {
   /** Chrome profiles detected on this device; empty when none are readable. */
   listChromeProfiles(): Promise<BrowserImportProfile[]>
   /**
-   * Names and icons for the sites previous imports brought over, so the
-   * omnibox can offer "Gmail" instead of `mail.google.com`.
+   * The sites previous imports brought over, so the omnibox has somewhere to
+   * start on a browser that keeps no history of its own — and can offer
+   * "Gmail" instead of `mail.google.com`.
    *
    * Optional — feature-detect before calling, so a newer web deployment keeps
    * working against an installed shell that predates it.

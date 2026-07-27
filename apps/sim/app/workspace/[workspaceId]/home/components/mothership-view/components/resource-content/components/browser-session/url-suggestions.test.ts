@@ -1,18 +1,23 @@
-import type { BrowserKnownSession } from '@sim/browser-protocol'
-import type { BrowserCredentialMetadata } from '@sim/desktop-bridge'
+import type { BrowserKnownSession, BrowserSessionEvidence } from '@sim/browser-protocol'
+import type { BrowserCredentialMetadata, BrowserSiteInfo } from '@sim/desktop-bridge'
 import { describe, expect, it } from 'vitest'
 import {
   mergeSuggestionSources,
   moveActiveIndex,
   rankSuggestions,
+  SUGGESTION_TIER,
+  type SuggestionTier,
   type UrlSuggestion,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/url-suggestions'
 
+const IMPORTED_AT = '2026-02-01T00:00:00.000Z'
+
 function session(
   hostname: string,
-  lastObservedAt = '2026-01-01T00:00:00.000Z'
+  lastObservedAt = '2026-01-01T00:00:00.000Z',
+  evidence: BrowserSessionEvidence = 'cookies'
 ): BrowserKnownSession {
-  return { hostname, evidence: 'cookie', lastObservedAt } as BrowserKnownSession
+  return { hostname, evidence, lastObservedAt }
 }
 
 function credential(
@@ -30,8 +35,18 @@ function credential(
   } as BrowserCredentialMetadata
 }
 
-function suggestion(hostname: string, lastSeenAt: number, name?: string): UrlSuggestion {
-  return { hostname, url: `https://${hostname}`, lastSeenAt, name }
+function site(hostname: string, overrides: Partial<BrowserSiteInfo> = {}): BrowserSiteInfo {
+  return { hostname, importedAt: IMPORTED_AT, ...overrides }
+}
+
+function suggestion(
+  hostname: string,
+  lastSeenAt: number,
+  name?: string,
+  tier: SuggestionTier = SUGGESTION_TIER.ACCOUNT,
+  visits?: number
+): UrlSuggestion {
+  return { hostname, url: `https://${hostname}`, lastSeenAt, name, tier, visits }
 }
 
 const hostnames = (results: UrlSuggestion[]) => results.map((result) => result.hostname)
@@ -45,8 +60,32 @@ describe('mergeSuggestionSources', () => {
         hostname: 'github.com',
         url: 'https://github.com',
         lastSeenAt: Date.parse('2026-01-01T00:00:00.000Z'),
+        tier: SUGGESTION_TIER.ACTIVE,
       },
     ])
+  })
+
+  it('trusts a sign-in the agent completed as much as a saved password', () => {
+    const [signedIn] = mergeSuggestionSources(
+      [session('github.com', '2026-01-01T00:00:00.000Z', 'sign-in-completed')],
+      []
+    )
+    const [saved] = mergeSuggestionSources([], [credential('https://gitlab.com')])
+
+    expect(signedIn.tier).toBe(SUGGESTION_TIER.ACCOUNT)
+    expect(saved.tier).toBe(SUGGESTION_TIER.ACCOUNT)
+  })
+
+  it('holds a host known only by its cookie below one with an account', () => {
+    const merged = mergeSuggestionSources(
+      [session('cookies.com')],
+      [credential('https://saved.com')]
+    )
+
+    expect(merged.find((entry) => entry.hostname === 'cookies.com')?.tier).toBe(
+      SUGGESTION_TIER.ACTIVE
+    )
+    expect(hostnames(rankSuggestions(merged, ''))).toEqual(['saved.com', 'cookies.com'])
   })
 
   it('suggests hosts with a saved password, carrying the imported icon', () => {
@@ -113,9 +152,10 @@ describe('mergeSuggestionSources with an imported directory', () => {
     const merged = mergeSuggestionSources(
       [session('mail.google.com')],
       [],
-      [{ hostname: 'mail.google.com', name: 'Gmail', icon: 'data:png' }]
+      [site('mail.google.com', { name: 'Gmail', icon: 'data:png' })]
     )
 
+    expect(merged).toHaveLength(1)
     expect(merged[0]).toMatchObject({ name: 'Gmail', icon: 'data:png' })
   })
 
@@ -129,10 +169,69 @@ describe('mergeSuggestionSources with an imported directory', () => {
     const merged = mergeSuggestionSources(
       [],
       [credential('https://github.com', { icon: 'data:from-vault' })],
-      [{ hostname: 'github.com', name: 'GitHub', icon: 'data:from-directory' }]
+      [site('github.com', { name: 'GitHub', icon: 'data:from-directory' })]
     )
 
+    expect(merged).toHaveLength(1)
     expect(merged[0]).toMatchObject({ name: 'GitHub', icon: 'data:from-vault' })
+  })
+
+  it('offers a host the import brought over even though nothing here has signed into it', () => {
+    const merged = mergeSuggestionSources(
+      [],
+      [],
+      [site('news.ycombinator.com', { name: 'Hacker News', visits: 42 })]
+    )
+
+    expect(merged).toEqual([
+      {
+        hostname: 'news.ycombinator.com',
+        url: 'https://news.ycombinator.com',
+        name: 'Hacker News',
+        lastSeenAt: Date.parse(IMPORTED_AT),
+        tier: SUGGESTION_TIER.IMPORTED,
+        visits: 42,
+      },
+    ])
+  })
+
+  it('lists a host that was both imported and saved once, at the tier its account earned', () => {
+    const merged = mergeSuggestionSources(
+      [],
+      [credential('https://github.com', { updatedAt: '2026-01-15T00:00:00.000Z' })],
+      [site('github.com', { name: 'GitHub', visits: 900 })]
+    )
+
+    expect(merged).toHaveLength(1)
+    expect(merged[0]).toMatchObject({
+      tier: SUGGESTION_TIER.ACCOUNT,
+      lastSeenAt: Date.parse('2026-01-15T00:00:00.000Z'),
+    })
+  })
+
+  it('reaches an imported host by the name the source browser gave it', () => {
+    const merged = mergeSuggestionSources([], [], [site('mail.google.com', { name: 'Gmail' })])
+
+    expect(hostnames(rankSuggestions(merged, 'gmail'))).toEqual(['mail.google.com'])
+  })
+
+  it('skips a site record with no hostname rather than offering a bare https://', () => {
+    const merged = mergeSuggestionSources([], [], [site(''), site('github.com')])
+
+    expect(hostnames(merged)).toEqual(['github.com'])
+  })
+
+  it('survives an import stamped with an unparseable time rather than ranking on NaN', () => {
+    const merged = mergeSuggestionSources(
+      [],
+      [],
+      [
+        site('github.com', { importedAt: 'whenever' }),
+        site('gitlab.com', { importedAt: undefined }),
+      ]
+    )
+
+    expect(merged.map((result) => result.lastSeenAt)).toEqual([0, 0])
   })
 })
 
@@ -196,6 +295,41 @@ describe('rankSuggestions', () => {
     const corpus = [suggestion('mail.google.com', 100, 'Gmail'), suggestion('github.com', 200)]
 
     expect(hostnames(rankSuggestions(corpus, 'gmail'))).not.toContain('github.com')
+  })
+
+  it('keeps a host with an account above an imported one that looks newer', () => {
+    const mixed = [
+      suggestion('imported.com', 900, undefined, SUGGESTION_TIER.IMPORTED, 5000),
+      suggestion('account.com', 100),
+    ]
+
+    expect(hostnames(rankSuggestions(mixed, ''))).toEqual(['account.com', 'imported.com'])
+  })
+
+  it('orders imported hosts by how much the source browser used each one', () => {
+    const imported = [
+      suggestion('barely-used.com', 100, undefined, SUGGESTION_TIER.IMPORTED, 2),
+      suggestion('daily-driver.com', 100, undefined, SUGGESTION_TIER.IMPORTED, 90),
+    ]
+
+    expect(hostnames(rankSuggestions(imported, ''))).toEqual([
+      'daily-driver.com',
+      'barely-used.com',
+    ])
+  })
+
+  it('falls back to recency then hostname for imported hosts used equally', () => {
+    const sameVisits = [
+      suggestion('older.com', 100, undefined, SUGGESTION_TIER.IMPORTED, 5),
+      suggestion('recent.com', 500, undefined, SUGGESTION_TIER.IMPORTED, 5),
+    ]
+    const sameImport = [
+      suggestion('beta.com', 100, undefined, SUGGESTION_TIER.IMPORTED, 5),
+      suggestion('alpha.com', 100, undefined, SUGGESTION_TIER.IMPORTED, 5),
+    ]
+
+    expect(hostnames(rankSuggestions(sameVisits, ''))).toEqual(['recent.com', 'older.com'])
+    expect(hostnames(rankSuggestions(sameImport, ''))).toEqual(['alpha.com', 'beta.com'])
   })
 
   it('breaks equal matches by recency', () => {

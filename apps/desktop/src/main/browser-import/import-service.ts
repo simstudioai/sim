@@ -11,6 +11,7 @@ import type { ImportCandidate, ImportOutcome } from '@/main/browser-credentials/
 import type { ReadCookiesResult } from '@/main/browser-import/chromium-cookies'
 import { deriveEncryptionKey } from '@/main/browser-import/chromium-crypto'
 import type { ReadPasswordsResult } from '@/main/browser-import/chromium-passwords'
+import type { ImportedSite } from '@/main/browser-import/chromium-site-names'
 import {
   type BrowserProfile,
   type ImportableCookie,
@@ -38,12 +39,9 @@ export interface ImportServiceDeps {
   readPasswords: (loginDataPath: string, key: Buffer) => Promise<ReadPasswordsResult>
   /** Site icons for the given origins, read from the source browser's own store. */
   readFavicons: (faviconsPath: string, origins: ReadonlySet<string>) => Promise<Map<string, string>>
-  /** What the source browser's page titles call each of the given hosts. */
-  readSiteNames: (
-    historyPath: string,
-    hostnames: ReadonlySet<string>
-  ) => Promise<Map<string, string>>
-  /** Records the names and icons of the hosts an import brought over. */
+  /** The most-used hosts in the source browser's history that `domains` covers. */
+  readSites: (historyPath: string, domains: ReadonlySet<string>) => Promise<ImportedSite[]>
+  /** Records the hosts an import brought over, with their names and icons. */
   rememberSites: (records: readonly SiteRecord[]) => Promise<void>
   vault: {
     isAvailable: () => boolean
@@ -70,10 +68,24 @@ function passwordFailure(error: BrowserImportResult['error']): BrowserPasswordIm
  * unknown id is refused rather than quietly falling back to the default
  * profile — that would read the wrong account.
  */
+interface OpenProfile {
+  profile: BrowserProfile
+  key: Buffer
+}
+
+/**
+ * Wipes the derived key once every read that needs it is done. (The password
+ * string itself is immutable and cannot be wiped; it is never persisted or
+ * logged.)
+ */
+function zeroKey({ key }: OpenProfile): void {
+  key.fill(0)
+}
+
 async function openBrowserProfile(
   profileId: string | undefined,
   deps: ImportServiceDeps
-): Promise<{ profile: BrowserProfile; key: Buffer }> {
+): Promise<OpenProfile> {
   const profiles = await deps.listProfiles()
   const profile = profileId ? profiles.find(({ id }) => id === profileId) : profiles[0]
   if (!profile) {
@@ -152,47 +164,72 @@ export async function importChromeCookies(
   if (deps.platform !== 'darwin') return cookieFailure('unsupported-platform')
 
   try {
-    const { profile, key } = await openBrowserProfile(profileId, deps)
-    if (profile.cookiesPath === null) {
-      return cookieFailure('profile-unreadable')
-    }
-
-    let read: ReadCookiesResult
+    const open = await openBrowserProfile(profileId, deps)
+    let outcome: CookieOutcome
     try {
-      read = await deps.readCookies(profile.cookiesPath, key)
+      outcome = await runCookieImport(open, deps)
     } finally {
-      // The derived key has no reason to stay resident once the rows are
-      // decrypted. (The password string itself is immutable and cannot be
-      // wiped; it is never persisted or logged.)
-      key.fill(0)
+      zeroKey(open)
     }
-
-    const skippedReading = totalSkipped(read.skipped)
-    // Rows present but nothing usable means the profile did not decrypt —
-    // typically a scheme this importer does not support. Report it as a
-    // failure rather than as a successful import of zero cookies.
-    if (read.cookies.length === 0) {
-      return read.rowsSeen > 0
-        ? { cookiesImported: 0, cookiesSkipped: skippedReading, error: 'nothing-imported' }
-        : { cookiesImported: 0, cookiesSkipped: 0 }
-    }
-
-    const written = await deps.writeCookies(read.cookies)
-    await rememberImportedSites(cookieHostnames(read.cookies), profile, deps, { icons: true })
-    const result: BrowserImportResult = {
-      cookiesImported: written.imported,
-      cookiesSkipped: skippedReading + written.failed,
-    }
-    // Counts only: cookie names, values, domains, and the profile path are
-    // deliberately absent from local diagnostics.
-    logger.info('Chrome cookie import finished', {
-      imported: result.cookiesImported,
-      skipped: result.cookiesSkipped,
-    })
-    return result
+    await rememberImportedSites(outcome.domains, open.profile, deps)
+    return outcome.result
   } catch (error) {
     return cookieFailure(categorize(error, 'cookie'))
   }
+}
+
+/** What an import half brought over, and the hosts it can vouch for. */
+interface CookieOutcome {
+  result: BrowserImportResult
+  domains: Set<string>
+}
+
+interface PasswordOutcome {
+  result: BrowserPasswordImportResult
+  domains: Set<string>
+}
+
+/**
+ * The cookie half against an already-open profile.
+ *
+ * Key lifetime belongs to the caller: the combined import shares one key across
+ * both halves, so this must not wipe it out from under the password half.
+ */
+async function runCookieImport(
+  { profile, key }: OpenProfile,
+  deps: ImportServiceDeps
+): Promise<CookieOutcome> {
+  if (profile.cookiesPath === null) {
+    return { result: cookieFailure('profile-unreadable'), domains: new Set() }
+  }
+
+  const read = await deps.readCookies(profile.cookiesPath, key)
+  const skippedReading = totalSkipped(read.skipped)
+  // Rows present but nothing usable means the profile did not decrypt —
+  // typically a scheme this importer does not support. Report it as a
+  // failure rather than as a successful import of zero cookies.
+  if (read.cookies.length === 0) {
+    return {
+      result:
+        read.rowsSeen > 0
+          ? { cookiesImported: 0, cookiesSkipped: skippedReading, error: 'nothing-imported' }
+          : { cookiesImported: 0, cookiesSkipped: 0 },
+      domains: new Set(),
+    }
+  }
+
+  const written = await deps.writeCookies(read.cookies)
+  const result: BrowserImportResult = {
+    cookiesImported: written.imported,
+    cookiesSkipped: skippedReading + written.failed,
+  }
+  // Counts only: cookie names, values, domains, and the profile path are
+  // deliberately absent from local diagnostics.
+  logger.info('Chrome cookie import finished', {
+    imported: result.cookiesImported,
+    skipped: result.cookiesSkipped,
+  })
+  return { result, domains: cookieHostnames(read.cookies) }
 }
 
 /**
@@ -212,50 +249,61 @@ export async function importChromePasswords(
   if (!deps.vault.isAvailable()) return passwordFailure('vault-unavailable')
 
   try {
-    const { profile, key } = await openBrowserProfile(profileId, deps)
-    if (profile.loginDataPath === null) {
-      return passwordFailure('profile-unreadable')
-    }
-
-    let read: ReadPasswordsResult
+    const open = await openBrowserProfile(profileId, deps)
+    let outcome: PasswordOutcome
     try {
-      read = await deps.readPasswords(profile.loginDataPath, key)
+      outcome = await runPasswordImport(open, policy, deps)
     } finally {
-      key.fill(0)
+      zeroKey(open)
     }
-
-    if (read.credentials.length === 0) {
-      return read.rowsSeen > 0
-        ? {
-            passwordsAdded: 0,
-            passwordsUpdated: 0,
-            passwordsSkipped: read.skipped,
-            error: 'nothing-imported',
-          }
-        : { passwordsAdded: 0, passwordsUpdated: 0, passwordsSkipped: 0 }
-    }
-
-    const outcome = await deps.vault.importCredentials(
-      await withFavicons(read.credentials, profile.faviconsPath, deps),
-      policy
-    )
-    await rememberImportedSites(credentialHostnames(read.credentials), profile, deps, {
-      icons: false,
-    })
-    const result: BrowserPasswordImportResult = {
-      passwordsAdded: outcome.added,
-      passwordsUpdated: outcome.updated,
-      passwordsSkipped: outcome.skipped + read.skipped,
-    }
-    logger.info('Chrome password import finished', {
-      added: result.passwordsAdded,
-      updated: result.passwordsUpdated,
-      skipped: result.passwordsSkipped,
-    })
-    return result
+    await rememberImportedSites(outcome.domains, open.profile, deps)
+    return outcome.result
   } catch (error) {
     return passwordFailure(categorize(error, 'password'))
   }
+}
+
+/** The password half against an already-open profile. @see runCookieImport */
+async function runPasswordImport(
+  { profile, key }: OpenProfile,
+  policy: BrowserCredentialConflictPolicy,
+  deps: ImportServiceDeps
+): Promise<PasswordOutcome> {
+  if (profile.loginDataPath === null) {
+    return { result: passwordFailure('profile-unreadable'), domains: new Set() }
+  }
+
+  const read: ReadPasswordsResult = await deps.readPasswords(profile.loginDataPath, key)
+  if (read.credentials.length === 0) {
+    return {
+      result:
+        read.rowsSeen > 0
+          ? {
+              passwordsAdded: 0,
+              passwordsUpdated: 0,
+              passwordsSkipped: read.skipped,
+              error: 'nothing-imported',
+            }
+          : { passwordsAdded: 0, passwordsUpdated: 0, passwordsSkipped: 0 },
+      domains: new Set(),
+    }
+  }
+
+  const outcome = await deps.vault.importCredentials(
+    await withFavicons(read.credentials, profile.faviconsPath, deps),
+    policy
+  )
+  const result: BrowserPasswordImportResult = {
+    passwordsAdded: outcome.added,
+    passwordsUpdated: outcome.updated,
+    passwordsSkipped: outcome.skipped + read.skipped,
+  }
+  logger.info('Chrome password import finished', {
+    added: result.passwordsAdded,
+    updated: result.passwordsUpdated,
+    skipped: result.passwordsSkipped,
+  })
+  return { result, domains: credentialHostnames(read.credentials) }
 }
 
 /**
@@ -265,15 +313,67 @@ export async function importChromePasswords(
  * easily outlive the page's transient user activation, so a second gated call
  * afterwards would be refused for a user who did nothing wrong. Each half
  * still reports its own outcome, so one failing does not hide the other.
+ *
+ * The profile is opened ONCE for both halves. Calling the two exported halves
+ * in sequence would read the Safe Storage item twice, and a user who answered
+ * the first Keychain prompt with "Allow" rather than "Always Allow" gets a
+ * second prompt they did not ask for — which, arriving without a user gesture
+ * behind it, is exactly the failure this combined entry point exists to
+ * prevent. One open also means one history read, over the union of what both
+ * halves vouched for. (The favicon store is still read twice — once for the
+ * saved-password origins, once for the history hosts — because the two sets are
+ * only known at different points.)
  */
 export async function importChromeData(
   profileId: string | undefined,
   policy: BrowserCredentialConflictPolicy,
   deps: ImportServiceDeps
 ): Promise<BrowserChromeImportResult> {
-  const cookies = await importChromeCookies(profileId, deps)
-  const passwords = await importChromePasswords(profileId, policy, deps)
-  return { cookies, passwords }
+  if (deps.platform !== 'darwin') {
+    return {
+      cookies: cookieFailure('unsupported-platform'),
+      passwords: passwordFailure('unsupported-platform'),
+    }
+  }
+
+  let open: OpenProfile
+  try {
+    open = await openBrowserProfile(profileId, deps)
+  } catch (error) {
+    // Neither half ran, so both report the same reason rather than one of them
+    // claiming a success it never attempted.
+    return {
+      cookies: cookieFailure(categorize(error, 'cookie')),
+      passwords: passwordFailure(categorize(error, 'password')),
+    }
+  }
+
+  let cookies: CookieOutcome = { result: cookieFailure('unknown'), domains: new Set() }
+  let passwords: PasswordOutcome = { result: passwordFailure('unknown'), domains: new Set() }
+  try {
+    try {
+      cookies = await runCookieImport(open, deps)
+    } catch (error) {
+      cookies = { result: cookieFailure(categorize(error, 'cookie')), domains: new Set() }
+    }
+    // One half failing must not take the other with it.
+    try {
+      passwords = deps.vault.isAvailable()
+        ? await runPasswordImport(open, policy, deps)
+        : { result: passwordFailure('vault-unavailable'), domains: new Set() }
+    } catch (error) {
+      passwords = { result: passwordFailure(categorize(error, 'password')), domains: new Set() }
+    }
+  } finally {
+    zeroKey(open)
+  }
+
+  await rememberImportedSites(union(cookies.domains, passwords.domains), open.profile, deps)
+  return { cookies: cookies.result, passwords: passwords.result }
+}
+
+function union(first: ReadonlySet<string>, second: ReadonlySet<string>): Set<string> {
+  return new Set([...first, ...second])
 }
 
 /**
@@ -328,51 +428,75 @@ function credentialHostnames(credentials: readonly ImportCandidate[]): Set<strin
   return hostnames
 }
 
+/**
+ * Chrome stores Android app credentials with an `android://…@com.example.app/`
+ * realm, so without a scheme guard a package name would pass as a host and
+ * reach the omnibox as a site nothing can navigate to.
+ */
 function hostnameOf(url: string): string | null {
   try {
-    return new URL(url).hostname || null
+    const { hostname, protocol } = new URL(url)
+    if (protocol !== 'https:' && protocol !== 'http:') return null
+    return hostname || null
   } catch {
     return null
   }
 }
 
 /**
- * Records what the imported hosts are called, so the omnibox can offer "Gmail"
- * rather than `mail.google.com`.
+ * Records the sites this import brought over, so the omnibox can offer them —
+ * as "Gmail" rather than `mail.google.com` where the source browser knew that.
  *
- * Scoped to the hosts this import actually brought over — the source browser's
- * history is read, but only these hosts come out of it, and only as a name.
- * Entirely best-effort: a site nobody can name is still a site the user
- * imported, so nothing here is allowed to fail the import.
+ * `domains` are the hosts the import has evidence for: cookie hosts with the
+ * domain dot stripped, plus saved-password origins. They are the FILTER; the
+ * source browser's history is the SOURCE. Being sourced from pages someone
+ * opened is what keeps trackers out — a cookie jar would be mostly ad networks.
+ * The filter's job is narrower: it holds what gets remembered inside the data
+ * the user chose to bring over. See {@link readBrowserSites}.
+ *
+ * Each record is keyed by the host actually visited, so the favicon lookup and
+ * the omnibox agree on the string.
+ *
+ * Cannot throw. A name and an icon are a nicety layered on cookies and
+ * passwords that have already landed, so no failure in here — including a
+ * synchronous one from a dependency — may reach the caller and rewrite a
+ * finished import as a failed one.
  */
 async function rememberImportedSites(
-  hostnames: ReadonlySet<string>,
+  domains: ReadonlySet<string>,
   profile: BrowserProfile,
-  deps: ImportServiceDeps,
-  { icons: wantIcons }: { icons: boolean }
+  deps: ImportServiceDeps
 ): Promise<void> {
-  if (hostnames.size === 0) return
-  const empty = new Map<string, string>()
+  if (domains.size === 0 || !profile.historyPath) return
 
-  const names = profile.historyPath
-    ? await deps.readSiteNames(profile.historyPath, hostnames).catch(() => empty)
-    : empty
-  // Saved passwords already carry their own icon on the vault record, so only
-  // the cookie side needs to look one up here.
-  const icons =
-    wantIcons && profile.faviconsPath
+  try {
+    const sites = await deps.readSites(profile.historyPath, domains)
+    if (sites.length === 0) return
+
+    const origins = new Set(sites.map((site) => originOf(site.hostname)))
+    const icons = profile.faviconsPath
       ? await deps
-          .readFavicons(profile.faviconsPath, new Set([...hostnames].map(originOf)))
-          .catch(() => empty)
-      : empty
+          .readFavicons(profile.faviconsPath, origins)
+          .catch(() => new Map<string, string>())
+      : new Map<string, string>()
 
-  const records: SiteRecord[] = []
-  for (const hostname of hostnames) {
-    const name = names.get(hostname)
-    const icon = icons.get(originOf(hostname))
-    if (name !== undefined || icon !== undefined) records.push({ hostname, name, icon })
+    const importedAt = new Date().toISOString()
+    await deps.rememberSites(
+      sites.map((site) => ({
+        hostname: site.hostname,
+        name: site.name,
+        icon: icons.get(originOf(site.hostname)),
+        visits: site.visits,
+        importedAt,
+      }))
+    )
+  } catch {
+    // Category only, like every other failure path here: the detail that would
+    // make this message useful is the hostnames, which is exactly what must not
+    // reach a local log. Without the line, a directory that can never be
+    // written leaves the omnibox permanently empty with no signal anywhere.
+    logger.warn('Could not record the sites an import brought over')
   }
-  await deps.rememberSites(records).catch(() => {})
 }
 
 const originOf = (hostname: string) => `https://${hostname}`

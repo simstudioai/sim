@@ -6,8 +6,10 @@ vi.mock('electron', () => import('@/test/electron-mock'))
 import { Menu, WebContentsView } from 'electron'
 import {
   attachAgentContextMenu,
+  BASE_ZOOM_FACTOR,
   buildAgentContextMenuTemplate,
   steppedZoomFactor,
+  zoomPercentOf,
 } from '@/main/browser-agent/context-menu'
 
 const EDIT_FLAGS: ContextMenuParams['editFlags'] = {
@@ -30,7 +32,8 @@ function params(overrides: Partial<Params> = {}): Params {
 }
 
 function page(overrides: Partial<Page> = {}): Page {
-  return { canGoBack: true, canGoForward: true, zoomFactor: 1, ...overrides }
+  // A fresh tab sits at the panel's baseline, which the menu reports as 100%.
+  return { canGoBack: true, canGoForward: true, zoomFactor: BASE_ZOOM_FACTOR, ...overrides }
 }
 
 function handlers(): Handlers {
@@ -130,7 +133,10 @@ describe('buildAgentContextMenuTemplate', () => {
   })
 
   it('reports the current zoom and disables the ends of the ladder', () => {
-    const stepped = buildAgentContextMenuTemplate(params(), page({ zoomFactor: 1.21 }), handlers())
+    // Two rungs up from the baseline, reported against the baseline rather than
+    // against Chromium's native scale (where this factor would read 110%).
+    const twoUp = steppedZoomFactor(steppedZoomFactor(BASE_ZOOM_FACTOR, 1), 1)
+    const stepped = buildAgentContextMenuTemplate(params(), page({ zoomFactor: twoUp }), handlers())
     expect(item(stepped, 'Actual Size (121%)')?.enabled).toBe(true)
 
     const atMax = buildAgentContextMenuTemplate(params(), page({ zoomFactor: 3 }), handlers())
@@ -147,17 +153,16 @@ describe('buildAgentContextMenuTemplate', () => {
     ).toBe(false)
   })
 
-  it('resets to exactly 100%, undoing accumulated drift', () => {
+  it('resets to exactly the baseline, undoing accumulated drift', () => {
     const handled = handlers()
-    const template = buildAgentContextMenuTemplate(
-      params(),
-      page({ zoomFactor: 1.3310000000000004 }),
-      handled
-    )
+    // Three rungs of float multiplication up, so the factor no longer sits on a
+    // clean value — reset has to restore the baseline exactly, not step back.
+    const drifted = [1, 1, 1].reduce((factor) => steppedZoomFactor(factor, 1), BASE_ZOOM_FACTOR)
+    const template = buildAgentContextMenuTemplate(params(), page({ zoomFactor: drifted }), handled)
 
     item(template, 'Actual Size (133%)')?.click?.({} as never, undefined as never, {} as never)
 
-    expect(handled.setZoomFactor).toHaveBeenCalledWith(1)
+    expect(handled.setZoomFactor).toHaveBeenCalledWith(BASE_ZOOM_FACTOR)
   })
 
   it('never leaves a separator with nothing above it', () => {
@@ -215,8 +220,41 @@ describe('steppedZoomFactor', () => {
     expect(steppedZoomFactor(0.5, -1)).toBe(0.5)
   })
 
-  it('treats a nonsense factor as 100%', () => {
-    expect(steppedZoomFactor(Number.NaN, 1)).toBe(1.1)
-    expect(steppedZoomFactor(0, 1)).toBe(1.1)
+  it('treats a nonsense factor as the baseline', () => {
+    // One rung up from the baseline is Chromium's native 1.0.
+    expect(steppedZoomFactor(Number.NaN, 1)).toBe(1)
+    expect(steppedZoomFactor(0, 1)).toBe(1)
+  })
+})
+
+describe('BASE_ZOOM_FACTOR', () => {
+  it('renders a rung below native but reads as 100%', () => {
+    expect(BASE_ZOOM_FACTOR).toBeCloseTo(0.909, 3)
+    expect(zoomPercentOf(BASE_ZOOM_FACTOR)).toBe(100)
+  })
+
+  it('keeps the ladder landing exactly on Chromium native one step up', () => {
+    expect(steppedZoomFactor(BASE_ZOOM_FACTOR, 1)).toBe(1)
+    expect(zoomPercentOf(1)).toBe(110)
+  })
+
+  it('stays inside the ladder, so the page menu can still step both ways', () => {
+    expect(steppedZoomFactor(BASE_ZOOM_FACTOR, 1)).not.toBe(BASE_ZOOM_FACTOR)
+    expect(steppedZoomFactor(BASE_ZOOM_FACTOR, -1)).not.toBe(BASE_ZOOM_FACTOR)
+  })
+})
+
+describe('zoomPercentOf', () => {
+  it('reports every rung relative to the panel baseline, not to native', () => {
+    expect(zoomPercentOf(steppedZoomFactor(BASE_ZOOM_FACTOR, -1))).toBe(91)
+    expect(zoomPercentOf(BASE_ZOOM_FACTOR)).toBe(100)
+    expect(zoomPercentOf(steppedZoomFactor(BASE_ZOOM_FACTOR, 1))).toBe(110)
+  })
+
+  it('still reads 100% after a round trip up and back down', () => {
+    // The ladder is float arithmetic, so the reset item's `!== 100` guard has to
+    // survive a step that does not return bit-identically to the baseline.
+    const roundTripped = steppedZoomFactor(steppedZoomFactor(BASE_ZOOM_FACTOR, 1), -1)
+    expect(zoomPercentOf(roundTripped)).toBe(100)
   })
 })

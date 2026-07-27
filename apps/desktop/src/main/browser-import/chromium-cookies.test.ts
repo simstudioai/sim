@@ -2,6 +2,7 @@ import { createCipheriv, createHash } from 'node:crypto'
 import { mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { readBrowserCookies } from '@/main/browser-import/chromium-cookies'
 import { deriveEncryptionKey } from '@/main/browser-import/chromium-crypto'
@@ -18,6 +19,29 @@ const sqliteAvailable = await import('node:sqlite').then(
 
 const KEY = deriveEncryptionKey('test-safe-storage-password')
 const NOW_SECONDS = 1_800_000_000
+
+async function stagingDirectories(): Promise<Set<string>> {
+  const entries = await readdir(tmpdir())
+  return new Set(entries.filter((entry) => entry.startsWith('sim-chrome-import-')))
+}
+
+/**
+ * Staging copies still present that were not there at `before`.
+ *
+ * Every reader in this folder stages through the shared `os.tmpdir()` under one
+ * prefix, and Vitest runs their suites in parallel workers, so a single snapshot
+ * can catch a sibling's copy mid-read and read as a leak. A leak of our own
+ * never clears, so this settles instead of sampling once.
+ */
+async function stagingLeftBehindSince(before: ReadonlySet<string>): Promise<string[]> {
+  let leftover: string[] = []
+  for (let attempt = 0; attempt < 20; attempt++) {
+    leftover = [...(await stagingDirectories())].filter((entry) => !before.has(entry))
+    if (leftover.length === 0) return leftover
+    await sleep(25)
+  }
+  return leftover
+}
 
 function chromeTime(unixSeconds: number): bigint {
   return BigInt(unixSeconds + 11_644_473_600) * 1_000_000n
@@ -204,32 +228,22 @@ describe.skipIf(!sqliteAvailable)('readBrowserCookies', () => {
   })
 
   it('deletes its decrypted working copy', async () => {
-    const stagingBefore = (await readdir(tmpdir())).filter((entry) =>
-      entry.startsWith('sim-chrome-import-')
-    ).length
+    const before = await stagingDirectories()
     const path = await writeCookieDatabase([
       { hostKey: 'example.com', name: 'a', encryptedValue: encryptV10(Buffer.from('v')) },
     ])
 
     await readBrowserCookies(path, KEY, NOW_SECONDS)
 
-    const stagingAfter = (await readdir(tmpdir())).filter((entry) =>
-      entry.startsWith('sim-chrome-import-')
-    ).length
-    expect(stagingAfter).toBe(stagingBefore)
+    expect(await stagingLeftBehindSince(before)).toEqual([])
   })
 
   it('cleans up even when the read fails', async () => {
-    const stagingBefore = (await readdir(tmpdir())).filter((entry) =>
-      entry.startsWith('sim-chrome-import-')
-    ).length
+    const before = await stagingDirectories()
     await writeFile(join(directory, 'Cookies'), 'not a database')
 
     await expect(readBrowserCookies(join(directory, 'Cookies'), KEY, NOW_SECONDS)).rejects.toThrow()
 
-    const stagingAfter = (await readdir(tmpdir())).filter((entry) =>
-      entry.startsWith('sim-chrome-import-')
-    ).length
-    expect(stagingAfter).toBe(stagingBefore)
+    expect(await stagingLeftBehindSince(before)).toEqual([])
   })
 })

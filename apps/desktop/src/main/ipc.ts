@@ -649,8 +649,11 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       denied: [],
       handler: () => listCredentials(),
     },
-    // Names and icons only, for hosts the user already imported. No password
-    // material and no browsing history reach this channel.
+    // Hosts a previous import brought over, with the name and icon the source
+    // browser gave each one and an aggregate count of how much it was used
+    // there. No password material, and no browsing history in the sense that
+    // matters: no visit times, no URLs beyond the host, no ordering of one
+    // visit against another.
     'browser-import:sites': {
       kind: 'invoke',
       gate: 'app-origin',

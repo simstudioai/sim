@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { BROWSER_SOURCES, type BrowserSource } from '@/main/browser-import/browser-sources'
 import type { ReadCookiesResult } from '@/main/browser-import/chromium-cookies'
 import type { ReadPasswordsResult } from '@/main/browser-import/chromium-passwords'
+import type { ImportedSite } from '@/main/browser-import/chromium-site-names'
 import {
   type ImportServiceDeps,
   importChromeCookies,
+  importChromeData,
   importChromePasswords,
   listImportableProfiles,
   toDisplayProfiles,
@@ -77,7 +79,7 @@ function createDeps(overrides: Partial<ImportServiceDeps> = {}): ImportServiceDe
     writeCookies: async (cookies) => ({ imported: cookies.length, failed: 0 }),
     readPasswords: async () => readPasswords(),
     readFavicons: async () => new Map<string, string>(),
-    readSiteNames: async () => new Map<string, string>(),
+    readSites: async () => [],
     rememberSites: async () => {},
     vault: {
       isAvailable: () => true,
@@ -551,5 +553,376 @@ describe('importChromePasswords', () => {
       passwordsSkipped: 0,
       error: 'unknown',
     })
+  })
+})
+
+describe('importChromeData', () => {
+  const COOKIES_IMPORTED = { cookiesImported: 1, cookiesSkipped: 0 }
+  const PASSWORDS_IMPORTED = { passwordsAdded: 1, passwordsUpdated: 0, passwordsSkipped: 0 }
+
+  /** Runs a combined import while holding on to the key the halves were handed. */
+  async function importObservingKey(overrides: Partial<ImportServiceDeps> = {}) {
+    const base = createDeps(overrides)
+    let observed: Buffer | undefined
+    const result = await importChromeData(undefined, 'keep-existing', {
+      ...base,
+      readCookies: (path, key) => {
+        observed = key
+        return base.readCookies(path, key)
+      },
+      readPasswords: (path, key) => {
+        observed = key
+        return base.readPasswords(path, key)
+      },
+    })
+    return { result, observed }
+  }
+
+  it('brings over both halves in one action', async () => {
+    await expect(importChromeData('arc:Profile 2', 'keep-existing', createDeps())).resolves.toEqual(
+      { cookies: COOKIES_IMPORTED, passwords: PASSWORDS_IMPORTED }
+    )
+  })
+
+  it('refuses both halves off macOS without consulting the disk', async () => {
+    const listProfiles = vi.fn()
+    const readSafeStoragePassword = vi.fn()
+
+    await expect(
+      importChromeData(
+        undefined,
+        'keep-existing',
+        createDeps({ platform: 'win32', listProfiles, readSafeStoragePassword })
+      )
+    ).resolves.toEqual({
+      cookies: { cookiesImported: 0, cookiesSkipped: 0, error: 'unsupported-platform' },
+      passwords: {
+        passwordsAdded: 0,
+        passwordsUpdated: 0,
+        passwordsSkipped: 0,
+        error: 'unsupported-platform',
+      },
+    })
+    expect(listProfiles).not.toHaveBeenCalled()
+    expect(readSafeStoragePassword).not.toHaveBeenCalled()
+  })
+
+  it('prompts for the Keychain once, not once per half', async () => {
+    // Regression: running the two exported halves in sequence read the Safe
+    // Storage item twice, so a user who answered the first prompt with "Allow"
+    // rather than "Always Allow" got a second prompt mid-import — one arriving
+    // without a user gesture behind it, which silently fails the password half.
+    const listProfiles = vi.fn(async () => PROFILES)
+    const readSafeStoragePassword = vi.fn(async () => 'safe-storage-password')
+
+    await importChromeData(
+      'chrome:Default',
+      'keep-existing',
+      createDeps({ listProfiles, readSafeStoragePassword })
+    )
+
+    expect(readSafeStoragePassword).toHaveBeenCalledTimes(1)
+    expect(listProfiles).toHaveBeenCalledTimes(1)
+  })
+
+  it('hands both halves the one key that open derived', async () => {
+    let cookieKey: Buffer | undefined
+    let passwordKey: Buffer | undefined
+    const deps = createDeps({
+      readCookies: async (_path, key) => {
+        cookieKey = key
+        return read()
+      },
+      readPasswords: async (_path, key) => {
+        passwordKey = key
+        // The cookie half must not wipe the key out from under this one.
+        expect(key.some((byte) => byte !== 0)).toBe(true)
+        return readPasswords()
+      },
+    })
+
+    await importChromeData(undefined, 'keep-existing', deps)
+
+    expect(passwordKey).toBe(cookieKey)
+  })
+
+  it('reports the same reason for both halves when the profile will not open', async () => {
+    await expect(
+      importChromeData('../../elsewhere', 'keep-existing', createDeps())
+    ).resolves.toEqual({
+      cookies: { cookiesImported: 0, cookiesSkipped: 0, error: 'chrome-not-found' },
+      passwords: {
+        passwordsAdded: 0,
+        passwordsUpdated: 0,
+        passwordsSkipped: 0,
+        error: 'chrome-not-found',
+      },
+    })
+  })
+
+  it('still imports passwords when the cookie half throws', async () => {
+    const deps = createDeps({
+      readCookies: async () => {
+        throw new ImportFailure('unsupported-schema', 'unknown cookies table')
+      },
+    })
+
+    await expect(importChromeData(undefined, 'keep-existing', deps)).resolves.toEqual({
+      cookies: { cookiesImported: 0, cookiesSkipped: 0, error: 'unsupported-schema' },
+      passwords: PASSWORDS_IMPORTED,
+    })
+  })
+
+  it('still reports the imported cookies when the password half throws', async () => {
+    const deps = createDeps({
+      readPasswords: async () => {
+        throw new ImportFailure('unsupported-schema', 'unknown logins table')
+      },
+    })
+
+    await expect(importChromeData(undefined, 'keep-existing', deps)).resolves.toEqual({
+      cookies: COOKIES_IMPORTED,
+      passwords: {
+        passwordsAdded: 0,
+        passwordsUpdated: 0,
+        passwordsSkipped: 0,
+        error: 'unsupported-schema',
+      },
+    })
+  })
+
+  it('imports cookies even though secure storage cannot take the passwords', async () => {
+    // There is no plaintext fallback for passwords, but cookies do not need
+    // the vault — so an unavailable one must not cost the user both halves.
+    const importCredentials = vi.fn()
+    const deps = createDeps({ vault: { isAvailable: () => false, importCredentials } })
+
+    await expect(importChromeData(undefined, 'keep-existing', deps)).resolves.toEqual({
+      cookies: COOKIES_IMPORTED,
+      passwords: {
+        passwordsAdded: 0,
+        passwordsUpdated: 0,
+        passwordsSkipped: 0,
+        error: 'vault-unavailable',
+      },
+    })
+    expect(importCredentials).not.toHaveBeenCalled()
+  })
+
+  it('filters history by the cookie hosts and the password origins together', async () => {
+    // Either half alone is a partial picture of what the user brought over.
+    const readSites = vi.fn(async () => [])
+    const deps = createDeps({
+      readCookies: async () =>
+        read({ cookies: [{ ...cookie(), url: 'https://news.example.com/' }] }),
+      readPasswords: async () =>
+        readPasswords({
+          credentials: [{ origin: 'https://accounts.other.test', username: 'ada', password: 'p' }],
+        }),
+      readSites,
+    })
+
+    await importChromeData(undefined, 'keep-existing', deps)
+
+    expect(readSites).toHaveBeenCalledTimes(1)
+    expect(readSites).toHaveBeenCalledWith(
+      '/chrome/Default/History',
+      new Set(['news.example.com', 'accounts.other.test'])
+    )
+  })
+
+  const KEY_PATHS: [string, Partial<ImportServiceDeps>][] = [
+    ['both halves land', {}],
+    [
+      'the cookie half throws',
+      {
+        readCookies: async () => {
+          throw new ImportFailure('unsupported-schema', 'unknown cookies table')
+        },
+      },
+    ],
+    [
+      'the password half throws',
+      {
+        readPasswords: async () => {
+          throw new Error('/Users/someone/Library/.../Login Data exploded')
+        },
+      },
+    ],
+    [
+      'secure storage is unavailable',
+      { vault: { isAvailable: () => false, importCredentials: vi.fn() } },
+    ],
+    [
+      'remembering the sites throws',
+      {
+        rememberSites: async () => {
+          throw new Error('directory is unwritable')
+        },
+      },
+    ],
+  ]
+
+  it.each(KEY_PATHS)('zeroes the derived key when %s', async (_path, overrides) => {
+    const { observed } = await importObservingKey(overrides)
+
+    expect(observed).toBeDefined()
+    expect(observed?.every((byte) => byte === 0)).toBe(true)
+  })
+})
+
+describe('remembering the sites an import brought over', () => {
+  const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/
+
+  it('records the host history knows, not the cookie domain it was filtered by', async () => {
+    // The filter is `google.com` (a domain cookie with its dot stripped) but
+    // the site the user opened is `mail.google.com`. The favicon lookup and the
+    // omnibox both key off the recorded string, so it must be the visited host.
+    const rememberSites = vi.fn(async () => {})
+    const readSites = vi.fn(async () => [
+      { hostname: 'mail.google.com', name: 'Gmail', visits: 412 },
+    ])
+    const readFavicons = vi.fn(
+      async () => new Map([['https://mail.google.com', 'data:image/png;base64,AA']])
+    )
+    const deps = createDeps({
+      readCookies: async () => read({ cookies: [{ ...cookie(), url: 'https://google.com/' }] }),
+      readSites,
+      readFavicons,
+      rememberSites,
+    })
+
+    await importChromeCookies(undefined, deps)
+
+    expect(readSites).toHaveBeenCalledWith('/chrome/Default/History', new Set(['google.com']))
+    expect(readFavicons).toHaveBeenCalledWith(
+      '/chrome/Default/Favicons',
+      new Set(['https://mail.google.com'])
+    )
+    expect(rememberSites).toHaveBeenCalledWith([
+      {
+        hostname: 'mail.google.com',
+        name: 'Gmail',
+        icon: 'data:image/png;base64,AA',
+        visits: 412,
+        importedAt: expect.stringMatching(ISO_TIMESTAMP),
+      },
+    ])
+  })
+
+  it('carries the visit count and the import time, which order the suggestions', async () => {
+    const rememberSites = vi.fn<ImportServiceDeps['rememberSites']>(async () => {})
+    const deps = createDeps({
+      readSites: async () => [
+        { hostname: 'example.com', name: 'Example', visits: 90 },
+        { hostname: 'docs.example.com', visits: 4 },
+      ],
+      rememberSites,
+    })
+
+    await importChromeCookies(undefined, deps)
+
+    const [records] = rememberSites.mock.calls[0]
+    expect(records.map(({ hostname, visits }) => ({ hostname, visits }))).toEqual([
+      { hostname: 'example.com', visits: 90 },
+      { hostname: 'docs.example.com', visits: 4 },
+    ])
+    // One wall-clock stamp for the whole import, never the source browser's
+    // own last-visit time — that would be the visit log this store avoids.
+    expect(new Set(records.map(({ importedAt }) => importedAt)).size).toBe(1)
+    expect(records[0].importedAt).toMatch(ISO_TIMESTAMP)
+  })
+
+  it('leaves a finished import alone when reading history throws synchronously', async () => {
+    // Regression: a dependency that threw before returning its promise escaped
+    // the `.catch()` chain and rewrote a completed import as
+    // { cookiesImported: 0, error: 'unknown' } — losing cookies already written.
+    const readSites = vi.fn((): Promise<ImportedSite[]> => {
+      throw new Error('History is locked by the source browser')
+    })
+
+    await expect(importChromeCookies(undefined, createDeps({ readSites }))).resolves.toEqual({
+      cookiesImported: 1,
+      cookiesSkipped: 0,
+    })
+    expect(readSites).toHaveBeenCalled()
+  })
+
+  it('leaves a finished import alone when writing the directory throws synchronously', async () => {
+    const rememberSites = vi.fn((): Promise<void> => {
+      throw new Error('site directory is unwritable')
+    })
+    const deps = createDeps({
+      readSites: async () => [{ hostname: 'example.com', visits: 3 }],
+      rememberSites,
+    })
+
+    await expect(importChromePasswords(undefined, 'keep-existing', deps)).resolves.toEqual({
+      passwordsAdded: 1,
+      passwordsUpdated: 0,
+      passwordsSkipped: 0,
+    })
+    expect(rememberSites).toHaveBeenCalled()
+  })
+
+  it('does not reject the combined import when remembering the sites fails', async () => {
+    // The combined entry point awaits this last, outside its own guard, so a
+    // throw here would reach the IPC caller as a rejected promise.
+    const deps = createDeps({
+      readSites: async () => [{ hostname: 'example.com', visits: 3 }],
+      rememberSites: async () => {
+        throw new Error('directory is unwritable')
+      },
+    })
+
+    await expect(importChromeData(undefined, 'keep-existing', deps)).resolves.toEqual({
+      cookies: { cookiesImported: 1, cookiesSkipped: 0 },
+      passwords: { passwordsAdded: 1, passwordsUpdated: 0, passwordsSkipped: 0 },
+    })
+  })
+
+  it('never records an Android package name a saved credential carried', async () => {
+    const readSites = vi.fn(async () => [])
+    const deps = createDeps({
+      readPasswords: async () =>
+        readPasswords({
+          credentials: [
+            { origin: 'android://hash@com.example.app/', username: 'ada', password: 'p' },
+            { origin: 'https://example.com', username: 'ada', password: 'p' },
+          ],
+        }),
+      readSites,
+    })
+
+    await importChromePasswords(undefined, 'keep-existing', deps)
+
+    expect(readSites).toHaveBeenCalledWith('/chrome/Default/History', new Set(['example.com']))
+  })
+
+  it('does not open history for a profile that has none', async () => {
+    const readSites = vi.fn(async () => [])
+    const deps = createDeps({
+      listProfiles: async () => [{ ...PROFILES[0], historyPath: null }],
+      readSites,
+    })
+
+    await importChromeCookies(undefined, deps)
+
+    expect(readSites).not.toHaveBeenCalled()
+  })
+
+  it('writes nothing when the import vouched for no hosts', async () => {
+    const rememberSites = vi.fn(async () => {})
+    const readSites = vi.fn(async () => [])
+    const deps = createDeps({
+      readCookies: async () => read({ cookies: [], rowsSeen: 0 }),
+      readSites,
+      rememberSites,
+    })
+
+    await importChromeCookies(undefined, deps)
+
+    expect(readSites).not.toHaveBeenCalled()
+    expect(rememberSites).not.toHaveBeenCalled()
   })
 })

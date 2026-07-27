@@ -11,7 +11,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { BrowserWindow, CookiesSetDetails, Input, Session, WebContents } from 'electron'
 import { session as electronSession, nativeTheme, WebContentsView } from 'electron'
-import { attachAgentContextMenu } from '@/main/browser-agent/context-menu'
+import { attachAgentContextMenu, BASE_ZOOM_FACTOR } from '@/main/browser-agent/context-menu'
 import type { BrowserCookieSignal } from '@/main/browser-agent/known-sessions'
 import {
   detachAttachedView,
@@ -340,6 +340,9 @@ function createTabView(): WebContentsView {
       // applyActiveTabThrottling — never blanket across every tab.
       backgroundThrottling: true,
       spellcheck: false,
+      // The default every origin this tab visits starts at; a per-origin zoom
+      // the user sets from the page menu still wins and still persists.
+      zoomFactor: BASE_ZOOM_FACTOR,
     },
   })
   view.setBackgroundColor(browserBackgroundColor())

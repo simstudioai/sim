@@ -221,6 +221,15 @@ export function reportBrowserPanelBounds(
  * the divider position (the panel's left edge in viewport CSS pixels); the
  * returned predictor reports a rect per pointer move, before layout runs.
  * Measured reports remain authoritative and correct any drift.
+ *
+ * Both `startDividerX` and every `dividerX` must be the panel's REAL viewport
+ * left edge, clamps applied — never a width subtracted from `window.innerWidth`.
+ * The panel is inset from the viewport by the workspace chrome's padding and
+ * border, so that substitution reads as a constant offset in `dx`, which lands
+ * wholly on the predicted rect's left edge: the native view then composites
+ * beside the panel rather than on it, and alternates with the measured report
+ * every frame. Derive `dividerX` from the same clamped width the caller writes
+ * to the DOM and the two cannot disagree.
  */
 export function beginBrowserPanelDividerDrag(
   startDividerX: number

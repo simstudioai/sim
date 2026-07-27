@@ -71,8 +71,9 @@ export function ImportModal({ open, onOpenChange, profiles, pending, onImport }:
       </ChipModalHeader>
       <ChipModalBody>
         <p className='px-2 text-[var(--text-secondary)] text-sm'>
-          Copies cookies and saved passwords into Sim’s browser. The other browser is only read,
-          never changed, and nothing is uploaded.
+          Copies cookies and saved passwords into Sim’s browser, and reads which sites you use there
+          so the address bar can suggest them. The other browser is only read, never changed, and
+          nothing is uploaded.
         </p>
         <ChipModalField
           type='dropdown'

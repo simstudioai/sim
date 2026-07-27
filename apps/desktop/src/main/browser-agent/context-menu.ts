@@ -17,12 +17,42 @@ import type { ContextMenuParams, MenuItemConstructorOptions, WebContents } from 
 import { clipboard, Menu } from 'electron'
 
 /**
- * Page-zoom ladder for the embedded browser, in factors (1 = 100%) because that
- * is what the menu displays.
+ * Page-zoom ladder for the embedded browser, in Chromium's absolute zoom
+ * factors. The ends are the platform's own limits, not a product choice —
+ * Chromium refuses to scale past them, and a rung outside the range would come
+ * back clamped and leave the menu offering a step that never lands.
  */
 const ZOOM_STEP_RATIO = 1.1
 const MIN_ZOOM_FACTOR = 0.5
 const MAX_ZOOM_FACTOR = 3
+
+/**
+ * What the panel calls 100%.
+ *
+ * The browser lives in a panel that is only ever a fraction of the window, so
+ * it renders a rung below Chromium's native scale and treats THAT as its
+ * baseline: the menu reads 100% there, and every other rung is reported
+ * relative to it. Users get a zoom control that behaves the way one should —
+ * starts at 100%, resets to 100% — over a page that is genuinely rendering at
+ * ~91% of native.
+ *
+ * Defined as one rung below native rather than as a round number so the ladder
+ * still lands exactly on Chromium's 1.0 (the crispest rasterization, one step
+ * up from the baseline) instead of straddling it.
+ */
+export const BASE_ZOOM_FACTOR = 1 / ZOOM_STEP_RATIO
+
+/**
+ * A Chromium zoom factor as a percentage of {@link BASE_ZOOM_FACTOR} — what the
+ * menu shows and what "100%" means everywhere in the browser panel's UI.
+ *
+ * Only display and the reset target convert; the ladder itself stays in
+ * absolute factors, so stepping never round-trips through this and cannot
+ * accumulate float drift away from the rungs.
+ */
+export function zoomPercentOf(factor: number): number {
+  return Math.round((factor / BASE_ZOOM_FACTOR) * 100)
+}
 
 /**
  * One step along the zoom ladder, clamped to its ends. Returning the current
@@ -30,7 +60,7 @@ const MAX_ZOOM_FACTOR = 3
  * the item rather than offer a step that does nothing.
  */
 export function steppedZoomFactor(current: number, direction: 1 | -1): number {
-  const base = Number.isFinite(current) && current > 0 ? current : 1
+  const base = Number.isFinite(current) && current > 0 ? current : BASE_ZOOM_FACTOR
   const next = direction === 1 ? base * ZOOM_STEP_RATIO : base / ZOOM_STEP_RATIO
   return Math.min(MAX_ZOOM_FACTOR, Math.max(MIN_ZOOM_FACTOR, next))
 }
@@ -107,7 +137,7 @@ export function buildAgentContextMenuTemplate(
 
   const zoomIn = steppedZoomFactor(page.zoomFactor, 1)
   const zoomOut = steppedZoomFactor(page.zoomFactor, -1)
-  const zoomPercent = Math.round(page.zoomFactor * 100)
+  const zoomPercent = zoomPercentOf(page.zoomFactor)
   template.push(
     {
       label: 'Zoom In',
@@ -122,7 +152,7 @@ export function buildAgentContextMenuTemplate(
     {
       label: `Actual Size (${zoomPercent}%)`,
       enabled: zoomPercent !== 100,
-      click: () => handlers.setZoomFactor(1),
+      click: () => handlers.setZoomFactor(BASE_ZOOM_FACTOR),
     }
   )
 
