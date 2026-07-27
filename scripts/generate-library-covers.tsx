@@ -49,6 +49,14 @@ const COVER_HEIGHT = 675
  * the encoder has to preserve is glyph edges.
  */
 const JPEG_QUALITY = 82
+/**
+ * Greyscale mean-absolute-difference above which `--check` calls a committed
+ * cover stale. Measured on this cover set: re-encoding an identical render
+ * with a deliberately different encoder (quality 70, mozjpeg off) moves it
+ * ~0.26, while a one-word title change moves it ~12. A threshold of 2 clears
+ * encoder and platform noise by ~8x and still catches any real drift.
+ */
+const MAX_PIXEL_DIFFERENCE = 2
 
 /** Exact hex from a vector trace of the reference cover template, not an estimate off compressed JPEG pixels. */
 const INK_COLOR = '#515151'
@@ -207,6 +215,30 @@ async function renderCover(
 }
 
 /**
+ * Mean absolute difference between the committed cover and a freshly rendered
+ * one, over decoded greyscale pixels — `null` if the committed file is not the
+ * expected size.
+ *
+ * Deliberately not a byte comparison of the JPEGs. libvips/mozjpeg output is
+ * not portable across OS and CPU, so identical input can encode to different
+ * bytes on a contributor's machine or a Linux CI runner and fail a byte-equal
+ * check for no real reason. Decoding first discards that encoder variance
+ * while preserving what the check is actually about: whether the committed
+ * image still renders the current title.
+ */
+async function compareCovers(committedPath: string, rendered: Buffer): Promise<number | null> {
+  const decode = (input: string | Buffer) =>
+    sharp(input).greyscale().raw().toBuffer({ resolveWithObject: true })
+
+  const [a, b] = await Promise.all([decode(committedPath), decode(rendered)])
+  if (a.info.width !== b.info.width || a.info.height !== b.info.height) return null
+
+  let total = 0
+  for (let i = 0; i < a.data.length; i++) total += Math.abs(a.data[i] - b.data[i])
+  return total / a.data.length
+}
+
+/**
  * Reads the `title` out of an MDX file's YAML frontmatter without pulling in a
  * YAML parser — the field is a single quoted or bare scalar on one line.
  */
@@ -262,11 +294,17 @@ async function main() {
     const cover = await renderCover(title, fontData, measure)
 
     if (check) {
-      const committed = existsSync(outputPath) ? await readFile(outputPath) : null
-      if (committed === null) {
+      if (!existsSync(outputPath)) {
         stale.push(`${slug} — no cover committed`)
-      } else if (!committed.equals(cover)) {
-        stale.push(`${slug} — committed cover does not match "${title}"`)
+        continue
+      }
+      const difference = await compareCovers(outputPath, cover)
+      if (difference === null) {
+        stale.push(`${slug} — committed cover has unexpected dimensions`)
+      } else if (difference > MAX_PIXEL_DIFFERENCE) {
+        stale.push(
+          `${slug} — committed cover does not render "${title}" (difference ${difference.toFixed(2)})`
+        )
       }
       continue
     }
