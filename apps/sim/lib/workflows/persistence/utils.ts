@@ -23,10 +23,12 @@ import { LRUCache } from 'lru-cache'
 import type { Edge } from 'reactflow'
 import { releaseWebhookPathClaims } from '@/lib/webhooks/path-claims'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
+import { isDynamicHandleSubblock } from '@/lib/workflows/dynamic-handle-topology'
 import {
   backfillCanonicalModes,
   migrateSubblockIds,
 } from '@/lib/workflows/migrations/subblock-migrations'
+import { backfillWhatsAppInteractiveType } from '@/lib/workflows/migrations/whatsapp-interactive-type'
 import { supersedeInFlightDeploymentOperations } from '@/lib/workflows/persistence/deployment-operations'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
 
@@ -276,6 +278,11 @@ const applyBlockMigrations = createMigrationPipeline([
     return { ...ctx, blocks, migrated: ctx.migrated || migrated }
   },
 
+  (ctx) => {
+    const { blocks, migrated } = backfillWhatsAppInteractiveType(ctx.blocks)
+    return { ...ctx, blocks, migrated: ctx.migrated || migrated }
+  },
+
   async (ctx) => {
     const { blocks, migrated } = await migrateCredentialIds(
       ctx.blocks,
@@ -356,6 +363,8 @@ export const CREDENTIAL_SUBBLOCK_IDS = new Set([
   'credential',
   'manualCredential',
   'triggerCredentials',
+  'customBotCredential',
+  'manualBotCredential',
 ])
 
 async function migrateCredentialIds(
@@ -457,8 +466,9 @@ async function migrateCredentialIds(
 /**
  * Load workflow from normalized tables and apply all block migrations
  * (credential ID rewrites, agent message migration, subblock ID migrations,
- * canonical-mode backfill, tool sanitization). Returns null if the workflow
- * has not been migrated to normalized tables yet.
+ * WhatsApp interactive-type backfill, canonical-mode backfill, tool
+ * sanitization). Returns null if the workflow has not been migrated to
+ * normalized tables yet.
  */
 export async function loadWorkflowFromNormalizedTables(
   workflowId: string,
@@ -715,7 +725,7 @@ export function regenerateWorkflowStateIds(state: RegenerateStateInput): Regener
         }
 
         if (
-          (updatedSubBlock.type === 'condition-input' || updatedSubBlock.type === 'router-input') &&
+          isDynamicHandleSubblock(block.type, subId) &&
           typeof updatedSubBlock.value === 'string'
         ) {
           try {

@@ -2325,7 +2325,17 @@ async function deleteDocumentsByLifecyclePolicy(
 
 export async function hardDeleteDocuments(
   documentIds: string[],
-  requestId: string
+  requestId: string,
+  /**
+   * When provided, re-verifies each document's connectorId still matches at
+   * the moment of the actual delete query — not just the caller's earlier
+   * snapshot. A caller (e.g. connector sync reconciliation) can compute this
+   * ID list well before the delete runs; a concurrent request that detaches
+   * these same documents from the connector in between (e.g. "delete
+   * connector, keep documents") would otherwise still have them purged here
+   * despite no longer belonging to the connector the caller reasoned about.
+   */
+  expectedConnectorId?: string
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   if (ids.length === 0) {
@@ -2336,7 +2346,8 @@ export async function hardDeleteDocuments(
   for (let offset = 0; offset < ids.length; offset += HARD_DELETE_DOCUMENT_BATCH_SIZE) {
     deletedCount += await hardDeleteDocumentBatch(
       ids.slice(offset, offset + HARD_DELETE_DOCUMENT_BATCH_SIZE),
-      requestId
+      requestId,
+      expectedConnectorId
     )
   }
   return deletedCount
@@ -2346,7 +2357,11 @@ export async function hardDeleteDocuments(
  * Hard-deletes one bounded metadata batch and applies every associated ledger
  * delta atomically.
  */
-async function hardDeleteDocumentBatch(documentIds: string[], requestId: string): Promise<number> {
+async function hardDeleteDocumentBatch(
+  documentIds: string[],
+  requestId: string,
+  expectedConnectorId?: string
+): Promise<number> {
   const ids = [...new Set(documentIds)]
   const documentsToDelete = await db
     .select({
@@ -2361,7 +2376,11 @@ async function hardDeleteDocumentBatch(documentIds: string[], requestId: string)
     })
     .from(document)
     .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
-    .where(inArray(document.id, ids))
+    .where(
+      expectedConnectorId
+        ? and(inArray(document.id, ids), eq(document.connectorId, expectedConnectorId))
+        : inArray(document.id, ids)
+    )
 
   if (documentsToDelete.length === 0) {
     return 0
@@ -2432,10 +2451,31 @@ async function hardDeleteDocumentBatch(documentIds: string[], requestId: string)
       }
     }
 
-    await tx.delete(embedding).where(inArray(embedding.documentId, existingIds))
+    /**
+     * Re-verify `expectedConnectorId` here too, not only on the pre-transaction
+     * SELECT above — the billing lookups and KB locking between that SELECT
+     * and this delete are async and can span a concurrent "delete connector,
+     * keep documents" request that clears these rows' `connectorId` in
+     * between. Deleting a detached document's embeddings would corrupt its
+     * search index even if the document row itself were spared, so both the
+     * embedding delete and the document delete are scoped to this re-verified
+     * ID set rather than the stale `existingIds`.
+     */
+    const stillTargetedIds = expectedConnectorId
+      ? (
+          await tx
+            .select({ id: document.id })
+            .from(document)
+            .where(
+              and(inArray(document.id, existingIds), eq(document.connectorId, expectedConnectorId))
+            )
+        ).map((d) => d.id)
+      : existingIds
+
+    await tx.delete(embedding).where(inArray(embedding.documentId, stillTargetedIds))
     const deletedRows = await tx
       .delete(document)
-      .where(inArray(document.id, existingIds))
+      .where(inArray(document.id, stillTargetedIds))
       .returning({ id: document.id })
 
     const deletedIds = new Set(deletedRows.map((row) => row.id))

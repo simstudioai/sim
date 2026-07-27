@@ -1,5 +1,9 @@
 import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
+import {
+  RESOURCE_TILE_BASE,
+  RESOURCE_TILE_FILL,
+} from '@/app/workspace/[workspaceId]/components/resource-tile'
 
 /**
  * The canonical settings "resource row": a rounded-bordered icon tile, a
@@ -27,11 +31,19 @@ interface SettingsResourceRowProps {
    * normalize to 20px so a fallback icon doesn't balloon. Tile variant only.
    */
   iconFill?: boolean
+  /**
+   * Fills the tile like the skills/tools resource tiles instead of the default
+   * page-background tile, so a settings list can match its gallery counterpart.
+   */
+  iconFilled?: boolean
   /** Primary line — truncates. */
   title: ReactNode
   /** Secondary muted line — truncates. */
   description?: ReactNode
-  /** Trailing element pinned to the row's end (chips, actions menu, status). */
+  /**
+   * Trailing element pinned to the row's end (chips, actions menu, status). The row
+   * keeps it at its natural size — callers never need their own `flex-shrink-0`.
+   */
   trailing?: ReactNode
   /**
    * Makes the icon + text cluster activatable. `trailing` stays a sibling, so
@@ -43,9 +55,6 @@ interface SettingsResourceRowProps {
   clickLabel?: string
 }
 
-const TILE_BASE =
-  'flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)] [&_svg]:size-5'
-
 const PLAIN_BASE =
   'flex size-[14px] flex-shrink-0 items-center justify-center text-[var(--text-icon)] [&_svg]:size-[14px] [&_img]:size-[14px]'
 
@@ -53,6 +62,7 @@ export function SettingsResourceRow({
   icon,
   iconVariant = 'tile',
   iconFill = false,
+  iconFilled = false,
   title,
   description,
   trailing,
@@ -64,7 +74,13 @@ export function SettingsResourceRow({
     <>
       <div
         className={
-          isTile ? cn(TILE_BASE, iconFill ? '[&_img]:size-full' : '[&_img]:size-5') : PLAIN_BASE
+          isTile
+            ? cn(
+                RESOURCE_TILE_BASE,
+                iconFilled ? RESOURCE_TILE_FILL : 'bg-[var(--bg)]',
+                iconFill ? '[&_img]:size-full' : '[&_img]:size-5'
+              )
+            : PLAIN_BASE
         }
       >
         {icon}
@@ -96,7 +112,7 @@ export function SettingsResourceRow({
       ) : (
         <div className={clusterClass}>{cluster}</div>
       )}
-      {trailing}
+      {trailing ? <div className='flex flex-shrink-0 items-center'>{trailing}</div> : null}
     </div>
   )
 }

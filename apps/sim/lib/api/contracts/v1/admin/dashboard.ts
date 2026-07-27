@@ -38,7 +38,6 @@ export const adminDashboardProvisioningSchema = z.object({
   organizationId: z.string(),
   status: z.enum(['pending', 'processing', 'dead_letter', 'awaiting_webhook', 'applied']),
   monthlyInvoiceAmountUsd: z.number(),
-  includedMonthlyDollars: creditAlignedDollarAmountSchema,
   usageLimitDollars: creditAlignedDollarAmountSchema,
   seats: z.number().int().positive(),
   concurrencyLimit: z.number().int().positive().max(MAX_BILLING_CONCURRENCY_LIMIT),
@@ -61,7 +60,7 @@ export const adminDashboardOrganizationSummarySchema = z.object({
   externalCollaboratorCount: z.number().int().min(0),
   seats: z.number().int().min(0),
   concurrencyLimit: z.number().int().positive().max(MAX_BILLING_CONCURRENCY_LIMIT).nullable(),
-  includedMonthlyDollars: dollarAmountSchema,
+  planAllowanceDollars: dollarAmountSchema.nullable(),
   usageLimitDollars: dollarAmountSchema,
   effectiveUsageLimitDollars: dollarAmountSchema,
   prepaidBalanceDollars: dollarAmountSchema,
@@ -71,6 +70,21 @@ export const adminDashboardOrganizationSummarySchema = z.object({
 
 export const adminDashboardOrganizationDetailSchema =
   adminDashboardOrganizationSummarySchema.extend({
+    configurationUpdate: z
+      .object({
+        id: z.string(),
+        status: z.enum(['pending', 'processing', 'failed']),
+        requestedUsageLimitDollars: dollarAmountSchema.nullable(),
+        requestedSeats: z.number().int().positive().nullable(),
+        requestedConcurrencyLimit: z
+          .number()
+          .int()
+          .positive()
+          .max(MAX_BILLING_CONCURRENCY_LIMIT)
+          .nullable(),
+        error: z.string().nullable(),
+      })
+      .nullable(),
     members: z.array(
       z.object({
         id: z.string(),
@@ -124,7 +138,6 @@ export const adminDashboardSeatsBodySchema = z.object({
 
 export const adminDashboardLimitsBodySchema = z
   .object({
-    includedMonthlyDollars: creditAlignedDollarAmountSchema.optional(),
     usageLimitDollars: creditAlignedDollarAmountSchema.optional(),
     concurrencyLimit: z
       .number()
@@ -135,10 +148,7 @@ export const adminDashboardLimitsBodySchema = z
       .optional(),
   })
   .refine(
-    (value) =>
-      value.includedMonthlyDollars !== undefined ||
-      value.usageLimitDollars !== undefined ||
-      value.concurrencyLimit !== undefined,
+    (value) => value.usageLimitDollars !== undefined || value.concurrencyLimit !== undefined,
     { error: 'At least one limit must be provided' }
   )
 

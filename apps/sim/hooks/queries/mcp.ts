@@ -42,7 +42,13 @@ const logger = createLogger('McpQueries')
 export type { McpServerStatusConfig, McpTool, StoredMcpTool }
 
 export const MCP_SERVER_LIST_STALE_TIME = 60 * 1000
-export const MCP_SERVER_TOOLS_STALE_TIME = 30 * 1000
+/**
+ * Tool discovery is kept fresh by the `list_changed` → SSE push (see `useMcpToolsEvents`),
+ * so the query only needs a re-probe-on-visit fallback for servers without push. Matches the
+ * server-side cache TTL (`MCP_CONSTANTS.CACHE_TIMEOUT`) — no reference MCP client re-probes
+ * more often than its cache; real changes arrive via push regardless of this value.
+ */
+export const MCP_SERVER_TOOLS_STALE_TIME = 5 * 60 * 1000
 export const MCP_STORED_TOOL_LIST_STALE_TIME = 60 * 1000
 export const MCP_ALLOWED_DOMAINS_STALE_TIME = 5 * 60 * 1000
 
@@ -140,6 +146,11 @@ function isServerEligibleForDiscovery(server: McpServer, workspaceId: string): b
 export function useMcpToolsQuery(workspaceId: string) {
   const queryClient = useQueryClient()
   const { data: servers, isLoading: serversLoading } = useMcpServers(workspaceId)
+  // Push is intrinsic to consuming the tools query: every surface that reads tools (settings,
+  // tool picker, dynamic args, tool selector, canvas block) gets real-time `list_changed`
+  // refresh via the shared, reference-counted subscription — so the 5-min stale time is always
+  // push-backed and no consumer is left re-probing.
+  useMcpToolsEvents(workspaceId)
 
   /**
    * Skip disabled rows, rows retained from a previous workspace, and OAuth rows
@@ -182,21 +193,27 @@ export function useMcpToolsQuery(workspaceId: string) {
     let hasData = false
     let anyServerLoading = false
     let firstError: Error | null = null
+    const statusById = new Map(servers?.map((s) => [s.id, s.connectionStatus]))
     const toolsStateByServer = new Map<
       string,
       { isLoading: boolean; isFetching: boolean; error: Error | null }
     >()
     for (let index = 0; index < results.length; index++) {
       const result = results[index]
-      // Drop stale data from servers whose latest refetch errored.
-      if (result.data && !result.isError) {
+      const serverId = serverIds[index]
+      const status = serverId ? statusById.get(serverId) : undefined
+      const persistentlyFailed = status === 'error' || status === 'disconnected'
+      // Keep last-known-good tools while the stored status is still `connected` (React Query
+      // retains `data` across a failed refetch, so a populated server doesn't blank on a
+      // transient probe error) — but drop them once the stored status leaves `connected`
+      // (disconnected/error), so the workflow editor stops offering a dead server's stale tools.
+      if (result.data && (!result.isError || !persistentlyFailed)) {
         tools.push(...result.data)
         hasData = true
       }
       if (result.isLoading) anyServerLoading = true
       if (!firstError && result.error instanceof Error) firstError = result.error
 
-      const serverId = serverIds[index]
       if (serverId) {
         toolsStateByServer.set(serverId, {
           isLoading: result.isLoading,
@@ -213,7 +230,7 @@ export function useMcpToolsQuery(workspaceId: string) {
       error: hasData ? null : firstError,
       toolsStateByServer,
     }
-  }, [results, serversLoading, serverIds])
+  }, [results, serversLoading, serverIds, servers])
 }
 
 export function useForceRefreshMcpTools() {
@@ -304,18 +321,41 @@ export function useCreateMcpServer() {
   })
 }
 
-/** On `redirect`, the caller must wait for `popup.closed` or the `mcp-oauth` postMessage. */
+/**
+ * On `redirect`, the caller waits for the `mcp-oauth` BroadcastChannel signal (matched on
+ * `state`) or `popup.closed`. `state` is the per-flow OAuth nonce the callback echoes, used to
+ * correlate the eventual result back to this exact flow.
+ */
 export type StartMcpOauthMutationResult =
-  | { status: 'redirect'; popup: Window }
+  | { status: 'redirect'; authorizationUrl: string; state: string }
   | { status: 'already_authorized' }
 
 export function useStartMcpOauth() {
   return useMutation<StartMcpOauthMutationResult, Error, { serverId: string; workspaceId: string }>(
     {
       mutationFn: async ({ serverId, workspaceId }) => {
-        const result = await requestJson(startMcpOauthContract, {
-          query: { serverId, workspaceId },
-        })
+        // A stalled /oauth/start must settle so the caller can reset the connecting
+        // state and close its pre-opened popup instead of appearing bricked.
+        // Feature-detect AbortSignal.timeout (Safari <16 lacks it) with a plain
+        // controller fallback.
+        let timeoutSignal: AbortSignal | undefined
+        let timeoutId: ReturnType<typeof setTimeout> | undefined
+        if (typeof AbortSignal.timeout === 'function') {
+          timeoutSignal = AbortSignal.timeout(30_000)
+        } else {
+          const controller = new AbortController()
+          timeoutId = setTimeout(() => controller.abort(new Error('Request timed out')), 30_000)
+          timeoutSignal = controller.signal
+        }
+        let result: Awaited<ReturnType<typeof requestJson<typeof startMcpOauthContract>>>
+        try {
+          result = await requestJson(startMcpOauthContract, {
+            query: { serverId, workspaceId },
+            signal: timeoutSignal,
+          })
+        } finally {
+          if (timeoutId !== undefined) clearTimeout(timeoutId)
+        }
         if (result.status === 'already_authorized') return { status: 'already_authorized' }
 
         const parsedUrl = new URL(result.authorizationUrl)
@@ -324,15 +364,14 @@ export function useStartMcpOauth() {
         if (parsedUrl.protocol !== 'https:' && !isLoopbackHttp) {
           throw new Error('Authorization URL must use HTTPS')
         }
-        const popup = window.open(
-          result.authorizationUrl,
-          `mcp-oauth-${serverId}`,
-          'width=560,height=720,resizable=yes,scrollbars=yes'
-        )
-        if (!popup) {
-          throw new Error('Popup blocked. Please allow popups for this site and retry.')
+        const state = parsedUrl.searchParams.get('state')
+        if (!state) {
+          throw new Error('Authorization URL is missing the OAuth state parameter')
         }
-        return { status: 'redirect', popup }
+        // The popup itself is opened SYNCHRONOUSLY by the caller inside the user's
+        // click (popup-first) — opening it here, after the network await, loses the
+        // user activation and gets silently popup-blocked.
+        return { status: 'redirect', authorizationUrl: result.authorizationUrl, state }
       },
     }
   )
@@ -499,6 +538,12 @@ const sseConnections: Map<string, SseEntry> =
   ((globalThis as Record<string, unknown>)[SSE_KEY] as Map<string, SseEntry>) ??
   ((globalThis as Record<string, unknown>)[SSE_KEY] = new Map<string, SseEntry>())
 
+/** Per-workspace flag: has this session ever held a live SSE subscription for it? */
+const SSE_SUBSCRIBED_KEY = '__mcp_sse_subscribed' as const
+const sseEverSubscribed: Set<string> =
+  ((globalThis as Record<string, unknown>)[SSE_SUBSCRIBED_KEY] as Set<string>) ??
+  ((globalThis as Record<string, unknown>)[SSE_SUBSCRIBED_KEY] = new Set<string>())
+
 /** Subscribes to `tools_changed` SSE events and invalidates the affected query keys. */
 export function useMcpToolsEvents(workspaceId: string) {
   const queryClient = useQueryClient()
@@ -535,7 +580,23 @@ export function useMcpToolsEvents(workspaceId: string) {
         invalidate(serverId)
       })
 
+      // EventSource fires `onopen` on the initial connect and on every auto-reconnect. Re-sync
+      // the workspace whenever we could have missed a `tools_changed` event: on any reconnect,
+      // on the first open of a RE-subscription (leaving the tab tears the connection down), and
+      // on a first open that only succeeded after an earlier connection error (the initial tools
+      // query may have failed during that gap and won't retry itself). Skip only a clean first
+      // subscription — the queries fetch fresh on their own initial mount.
+      const isResubscribe = sseEverSubscribed.has(workspaceId)
+      sseEverSubscribed.add(workspaceId)
+      let opened = false
+      let erroredBeforeOpen = false
+      source.onopen = () => {
+        if (opened || isResubscribe || erroredBeforeOpen) invalidate()
+        opened = true
+      }
+
       source.onerror = () => {
+        if (!opened) erroredBeforeOpen = true
         logger.warn(`SSE connection error for workspace ${workspaceId}`)
       }
 

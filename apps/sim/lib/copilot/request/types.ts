@@ -202,7 +202,6 @@ interface OrchestratorRequest {
   fileAttachments?: FileAttachment[]
   commands?: string[]
   provider?: string
-  streamToolCalls?: boolean
   version?: string
   prefetch?: boolean
   userName?: string

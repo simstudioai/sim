@@ -8,7 +8,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
+import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -201,13 +201,13 @@ export async function compileDocForWrite(args: {
 }): Promise<CompileForWriteResult> {
   const { source, fileName, workspaceId, ownerKey, signal, fallbackMime } = args
   const docInfo = getDocumentFormatInfo(fileName)
-  const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(fileName) : null
+  const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(fileName) : null
 
   if (!e2bFmt && fileName.toLowerCase().endsWith('.xlsx')) {
     return {
       ok: false,
       message:
-        'Excel (.xlsx) generation requires the E2B document sandbox, which is not enabled in this environment.',
+        'Excel (.xlsx) generation requires the document sandbox, which is not enabled in this environment.',
     }
   }
 

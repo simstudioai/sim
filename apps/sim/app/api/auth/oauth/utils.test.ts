@@ -4,15 +4,13 @@
  * @vitest-environment node
  */
 
-import { redisConfigMock, redisConfigMockFns } from '@sim/testing'
+import { redisConfigMockFns } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/oauth/oauth', () => ({
   refreshOAuthToken: vi.fn(),
   OAUTH_PROVIDERS: {},
 }))
-
-vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
 const { mockDecryptSecret } = vi.hoisted(() => ({ mockDecryptSecret: vi.fn() }))
 vi.mock('@/lib/core/security/encryption', () => ({

@@ -751,7 +751,7 @@ export const CloudFormationBlockMeta = {
     },
     {
       icon: CloudFormationIcon,
-      title: 'Stack inventory builder',
+      title: 'CloudFormation stack inventory',
       prompt:
         'Build a scheduled weekly workflow that describes every CloudFormation stack, lists its resources, and writes a unified inventory of stacks, status, region, and resource counts into a tracking table so the platform team has a single source of truth.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -760,7 +760,7 @@ export const CloudFormationBlockMeta = {
     },
     {
       icon: CloudFormationIcon,
-      title: 'Template validator gate',
+      title: 'CloudFormation template validator',
       prompt:
         'Create a workflow triggered when a CloudFormation template is changed in a GitHub pull request. Pull the template, validate it via the CloudFormation API, summarize any syntax or structural errors, and post the validation result as a PR comment to block merges on broken templates.',
       modules: ['agent', 'workflows'],
@@ -770,7 +770,7 @@ export const CloudFormationBlockMeta = {
     },
     {
       icon: CloudFormationIcon,
-      title: 'Stack failure investigator',
+      title: 'CloudFormation failure investigator',
       prompt:
         'Build a scheduled workflow that polls CloudFormation stack events every few minutes, detects rollbacks and create-failed events, pulls the failure reason and recent events from the stack, summarizes the root cause, opens a Linear ticket with the diagnosis, and posts to the on-call Slack channel.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -780,7 +780,7 @@ export const CloudFormationBlockMeta = {
     },
     {
       icon: CloudFormationIcon,
-      title: 'Template archive and search',
+      title: 'CloudFormation template archive',
       prompt:
         'Create a scheduled workflow that retrieves the deployed template for every CloudFormation stack, stores each template as a versioned file in your files store, and updates a knowledge base so engineers can search infrastructure definitions in natural language.',
       modules: ['scheduled', 'files', 'knowledge-base', 'agent', 'workflows'],
@@ -789,7 +789,7 @@ export const CloudFormationBlockMeta = {
     },
     {
       icon: CloudFormationIcon,
-      title: 'Resource change report',
+      title: 'CloudFormation change report',
       prompt:
         'Build a scheduled weekly workflow that pulls CloudFormation stack events, summarizes resource creates, updates, and deletes across the account, classifies risky changes, and writes a written change report file for platform leadership review.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],
@@ -798,7 +798,7 @@ export const CloudFormationBlockMeta = {
     },
     {
       icon: CloudFormationIcon,
-      title: 'Pre-deploy drift gate',
+      title: 'CloudFormation pre-deploy drift gate',
       prompt:
         'Create a workflow that runs before a deploy, initiates drift detection on the target CloudFormation stack, polls until drift detection completes, and either approves the deploy or blocks it with a Slack alert explaining the drifted resources.',
       modules: ['agent', 'workflows'],
@@ -808,7 +808,7 @@ export const CloudFormationBlockMeta = {
     },
     {
       icon: CloudFormationIcon,
-      title: 'Change set approval pipeline',
+      title: 'CloudFormation change set approval',
       prompt:
         'Build a workflow that creates a CloudFormation change set for a stack update, describes the proposed resource changes, posts a summary to Slack for approval, and executes the change set only after an approver replies, otherwise deletes the change set.',
       modules: ['agent', 'workflows'],
@@ -818,7 +818,7 @@ export const CloudFormationBlockMeta = {
     },
     {
       icon: CloudFormationIcon,
-      title: 'Environment provisioner',
+      title: 'CloudFormation environment provisioner',
       prompt:
         'Create a workflow that takes an environment name and template parameters as input, creates a new CloudFormation stack for that environment, polls stack events until it reaches CREATE_COMPLETE or fails, and posts the stack outputs to Slack.',
       modules: ['agent', 'workflows'],

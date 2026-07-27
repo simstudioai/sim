@@ -735,6 +735,12 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       return setGlobalWorkflowVariablesTitle(args)
     case 'create_file':
       return createFileTitle(args)
+    case 'share_file': {
+      const action = stringArg(args, 'action') || 'share'
+      const path = stringArg(args, 'path')
+      const target = firstStringArg(args, 'toolTitle', 'title') || (path ? pathLeaf(path) : 'file')
+      return action === 'unshare' ? `Unsharing ${target}` : `Sharing ${target}`
+    }
     case 'create_workflow': {
       const target = firstStringArg(args, 'name', 'workflowName', 'title')
       return `Creating ${target || 'workflow'}`
@@ -999,6 +1005,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Searching: 'Searched',
   Selecting: 'Selected',
   Setting: 'Set',
+  Sharing: 'Shared',
   Stopping: 'Stopped',
   Summarizing: 'Summarized',
   Switching: 'Switched',
@@ -1008,6 +1015,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Trimming: 'Trimmed',
   Typing: 'Typed',
   Undeploying: 'Undeployed',
+  Unsharing: 'Unshared',
   Updating: 'Updated',
   Using: 'Used',
   Validating: 'Validated',

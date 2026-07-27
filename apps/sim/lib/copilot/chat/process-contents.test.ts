@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { dbChainMock, dbChainMockFns, workflowAuthzMockFns } from '@sim/testing'
+import { dbChainMockFns, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChatContext } from '@/stores/panel'
 
@@ -13,11 +13,11 @@ const { discoverServerTools, getSkillById } = vi.hoisted(() => ({
 
 vi.mock('@/lib/workflows/skills/operations', () => ({ getSkillById }))
 vi.mock('@/lib/mcp/service', () => ({ mcpService: { discoverServerTools } }))
+
 /**
  * Overrides the global `@sim/db` mock: the logs-context tests below need
  * controllable row data, which the stable `dbChainMockFns.limit` provides.
  */
-vi.mock('@sim/db', () => dbChainMock)
 
 import { processContextsServer } from './process-contents'
 

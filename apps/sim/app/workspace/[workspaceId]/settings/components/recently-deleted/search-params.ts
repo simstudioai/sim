@@ -1,4 +1,4 @@
-import { parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import { parseAsStringLiteral } from 'nuqs/server'
 import { createSortParams } from '@/lib/url-state'
 
 /** Selectable resource-type tabs in the Recently Deleted view. */
@@ -9,6 +9,7 @@ export const RECENTLY_DELETED_TABS = [
   'table',
   'knowledge',
   'file',
+  'chat',
 ] as const
 
 export type RecentlyDeletedTab = (typeof RECENTLY_DELETED_TABS)[number]
@@ -33,12 +34,12 @@ export const recentlyDeletedSortParams = createSortParams(RECENTLY_DELETED_SORT_
  * - `tab` is the active resource-type filter.
  * - `sort` / `dir` live in {@link recentlyDeletedSortParams} (shared sort
  *   convention).
- * - `search` is the name filter. The input is controlled directly by the nuqs
- *   value; only its URL write is debounced via `useDebouncedSearchSetter`.
+ * - The name filter is the settings-wide `?search=` key, owned by
+ *   `settingsSearchParam` and consumed through `useSettingsSearch` — it is
+ *   deliberately not redeclared here (two definitions of one wire key drift).
  */
 export const recentlyDeletedParsers = {
   tab: parseAsStringLiteral(RECENTLY_DELETED_TABS).withDefault('all'),
-  search: parseAsString.withDefault(''),
 } as const
 
 /** Tab/filter/sort view-state: clean URLs, no back-stack churn. */

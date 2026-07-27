@@ -1,28 +1,19 @@
 /**
  * @vitest-environment node
  */
+import { authMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCreditUsageLoading,
-  mockGetPersonalSubscription,
-  mockGetSession,
-  mockIsEnterprise,
-  mockRedirect,
-} = vi.hoisted(() => ({
-  mockCreditUsageLoading: vi.fn(() => null),
-  mockGetPersonalSubscription: vi.fn(),
-  mockGetSession: vi.fn(),
-  mockIsEnterprise: vi.fn(),
-  mockRedirect: vi.fn(),
-}))
+const { mockCreditUsageLoading, mockGetPersonalSubscription, mockIsEnterprise, mockRedirect } =
+  vi.hoisted(() => ({
+    mockCreditUsageLoading: vi.fn(() => null),
+    mockGetPersonalSubscription: vi.fn(),
+    mockIsEnterprise: vi.fn(),
+    mockRedirect: vi.fn(),
+  }))
 
 vi.mock('next/navigation', () => ({
   redirect: mockRedirect,
-}))
-
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
 }))
 
 vi.mock('@/lib/billing/core/plan', () => ({
@@ -43,6 +34,8 @@ vi.mock('@/app/workspace/[workspaceId]/settings/billing/credit-usage/loading', (
 }))
 
 import AccountCreditUsagePage from '@/app/account/settings/billing/credit-usage/page'
+
+const mockGetSession = authMockFns.mockGetSession
 
 describe('AccountCreditUsagePage', () => {
   beforeEach(() => {

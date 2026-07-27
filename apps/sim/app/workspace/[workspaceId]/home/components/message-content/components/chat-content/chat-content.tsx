@@ -17,7 +17,6 @@ import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
   type ContentSegment,
-  PendingTagIndicator,
   parseSpecialTags,
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
@@ -396,8 +395,13 @@ interface ChatContentProps {
   onQuestionDismiss?: () => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
   onRevealStateChange?: (isRevealing: boolean) => void
-  /** Reports whether this segment is actively painting text or its own pending-tag indicator. */
+  /** Reports whether this segment is actively painting text. */
   onStreamActivityChange?: (active: boolean) => void
+  /**
+   * Reports whether a special tag is mid-stream — bytes arriving but rendering
+   * nothing (tags are suppressed until complete). A wait from the user's POV.
+   */
+  onPendingTagChange?: (pending: boolean) => void
 }
 
 function ChatContentInner({
@@ -409,6 +413,7 @@ function ChatContentInner({
   onWorkspaceResourceSelect,
   onRevealStateChange,
   onStreamActivityChange,
+  onPendingTagChange,
 }: ChatContentProps) {
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
   onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
@@ -530,12 +535,17 @@ function ChatContentInner({
     () => parseSpecialTags(streamedContent, isRevealing),
     [streamedContent, isRevealing]
   )
-  const hasPendingIndicator = parsed.hasPendingTag && isRevealing
 
   useEffect(() => {
-    onStreamActivityChange?.(hasRevealBacklog || hasPendingIndicator)
+    onStreamActivityChange?.(hasRevealBacklog)
     return () => onStreamActivityChange?.(false)
-  }, [hasPendingIndicator, hasRevealBacklog, onStreamActivityChange])
+  }, [hasRevealBacklog, onStreamActivityChange])
+
+  const hasPendingTag = parsed.hasPendingTag && isRevealing
+  useEffect(() => {
+    onPendingTagChange?.(hasPendingTag)
+    return () => onPendingTagChange?.(false)
+  }, [hasPendingTag, onPendingTagChange])
 
   type BlockSegment = Exclude<
     ContentSegment,
@@ -624,7 +634,6 @@ function ChatContentInner({
           />
         )
       })}
-      {hasPendingIndicator && <PendingTagIndicator />}
     </div>
   )
 }

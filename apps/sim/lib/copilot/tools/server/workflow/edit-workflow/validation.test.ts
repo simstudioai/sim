@@ -1,21 +1,19 @@
 /**
  * @vitest-environment node
  */
-import { envFlagsMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { normalizeConditionRouterIds } from './builders'
 
 const {
   mockValidateSelectorIds,
   mockGetModelOptions,
-  mockEnvFlags,
   mockGetTool,
   mockGetCustomToolById,
   mockGetSkillById,
 } = vi.hoisted(() => ({
   mockValidateSelectorIds: vi.fn(),
   mockGetModelOptions: vi.fn(() => []),
-  mockEnvFlags: { isHosted: false },
   mockGetTool: vi.fn(),
   mockGetCustomToolById: vi.fn(),
   mockGetSkillById: vi.fn(),
@@ -228,13 +226,6 @@ vi.mock('@/lib/workflows/skills/operations', () => ({
   getSkillById: mockGetSkillById,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  ...envFlagsMock,
-  get isHosted() {
-    return mockEnvFlags.isHosted
-  },
-}))
-
 vi.mock('@/providers/utils', () => ({
   getHostedModels: () => [],
 }))
@@ -246,6 +237,8 @@ import {
   validateInputsForBlock,
   validateWorkflowSelectorIds,
 } from './validation'
+
+afterAll(resetEnvFlagsMock)
 
 describe('validateInputsForBlock', () => {
   beforeEach(() => {
@@ -533,11 +526,11 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
     vi.clearAllMocks()
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
     mockGetTool.mockImplementation((id: string) => toolsByIdMock[id])
-    mockEnvFlags.isHosted = true
+    setEnvFlags({ isHosted: true })
   })
 
   afterEach(() => {
-    mockEnvFlags.isHosted = false
+    setEnvFlags({ isHosted: false })
   })
 
   const ctx = { userId: 'user-1', workspaceId: 'workspace-1' }
@@ -871,7 +864,7 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
   })
 
   it('preserves apiKey on self-hosted deployments (isHosted false)', async () => {
-    mockEnvFlags.isHosted = false
+    setEnvFlags({ isHosted: false })
     const operations = [
       {
         operation_type: 'add' as const,

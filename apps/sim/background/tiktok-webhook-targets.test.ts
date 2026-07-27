@@ -2,51 +2,17 @@
  * @vitest-environment node
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAsc,
-  mockCredentialExpression,
-  mockEq,
-  mockGt,
-  mockLike,
-  mockLimit,
-  mockOrderBy,
-  mockSelect,
-  queryRows,
-} = vi.hoisted(() => ({
+const { mockAsc, mockCredentialExpression, mockEq, mockGt, mockLike, tables } = vi.hoisted(() => ({
   mockAsc: vi.fn((value: unknown) => ({ asc: value })),
   mockCredentialExpression: vi.fn(() => 'webhook.credentialId'),
   mockEq: vi.fn((left: unknown, right: unknown) => ({ left, right })),
   mockGt: vi.fn((left: unknown, right: unknown) => ({ gt: [left, right] })),
   mockLike: vi.fn((left: unknown, right: unknown) => ({ left, right })),
-  mockLimit: vi.fn(),
-  mockOrderBy: vi.fn(),
-  mockSelect: vi.fn(),
-  queryRows: {
-    rows: [] as Array<{
-      accountId: string
-      webhookId: string
-      webhook: Record<string, unknown>
-      workflow: Record<string, unknown>
-    }>,
-  },
-}))
-
-vi.mock('@sim/db', () => {
-  const chain = {
-    from: vi.fn(() => chain),
-    innerJoin: vi.fn(() => chain),
-    leftJoin: vi.fn(() => chain),
-    where: vi.fn(() => chain),
-    orderBy: mockOrderBy,
-    limit: mockLimit,
-  }
-  mockOrderBy.mockImplementation(() => chain)
-  mockLimit.mockImplementation((limit: number) => Promise.resolve(queryRows.rows.slice(0, limit)))
-  mockSelect.mockImplementation(() => chain)
-
-  return {
+  /** Table-qualified column names keep the eq/like assertions unambiguous. */
+  tables: {
     account: {
       id: 'account.id',
       accountId: 'account.accountId',
@@ -59,8 +25,6 @@ vi.mock('@sim/db', () => {
       type: 'credential.type',
       workspaceId: 'credential.workspaceId',
     },
-    db: { select: mockSelect },
-    webhookCredentialIdExpression: mockCredentialExpression,
     webhook: {
       deploymentVersionId: 'webhook.deploymentVersionId',
       isActive: 'webhook.isActive',
@@ -80,8 +44,14 @@ vi.mock('@sim/db', () => {
       workflowId: 'workflowDeploymentVersion.workflowId',
       isActive: 'workflowDeploymentVersion.isActive',
     },
-  }
-})
+  },
+}))
+
+vi.mock('@sim/db', () => ({
+  ...dbChainMock,
+  ...tables,
+  webhookCredentialIdExpression: mockCredentialExpression,
+}))
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => conditions),
@@ -100,14 +70,30 @@ import {
 
 const ACCOUNT_UUID = '11111111-2222-3333-4444-555555555555'
 
+/** Queues one page of joined rows, clipped like the SQL LIMIT would. */
+function queuePageRows(
+  rows: Array<{
+    accountId: string
+    webhookId: string
+    webhook: Record<string, unknown>
+    workflow: Record<string, unknown>
+  }>
+) {
+  queueTableRows(tables.account, rows.slice(0, TIKTOK_WEBHOOK_TARGET_PAGE_SIZE))
+}
+
 describe('findTikTokWebhookTargetPage', () => {
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
-    queryRows.rows = []
+    resetDbChainMock()
   })
 
   it('returns only rows whose stored account ID exactly matches user_openid', async () => {
-    queryRows.rows = [
+    queuePageRows([
       {
         accountId: `act.user-${ACCOUNT_UUID}`,
         webhookId: 'webhook-1',
@@ -120,7 +106,7 @@ describe('findTikTokWebhookTargetPage', () => {
         webhook: { id: 'webhook-2' },
         workflow: { id: 'workflow-2' },
       },
-    ]
+    ])
 
     const page = await findTikTokWebhookTargetPage('act.user', 'request-1')
 
@@ -151,20 +137,22 @@ describe('findTikTokWebhookTargetPage', () => {
 
     expect(mockGt).toHaveBeenCalledWith('webhook.id', 'webhook-100')
     expect(mockAsc).toHaveBeenCalledWith('webhook.id')
-    expect(mockOrderBy).toHaveBeenCalledWith({ asc: 'webhook.id' })
-    expect(mockLimit).toHaveBeenCalledWith(TIKTOK_WEBHOOK_TARGET_PAGE_SIZE)
+    expect(dbChainMockFns.orderBy).toHaveBeenCalledWith({ asc: 'webhook.id' })
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(TIKTOK_WEBHOOK_TARGET_PAGE_SIZE)
   })
 
   it('returns a continuation cursor when the fixed-size page is full', async () => {
-    queryRows.rows = Array.from({ length: TIKTOK_WEBHOOK_TARGET_PAGE_SIZE + 1 }, (_, index) => {
-      const webhookId = `webhook-${String(index).padStart(3, '0')}`
-      return {
-        accountId: `act.user-${ACCOUNT_UUID}`,
-        webhookId,
-        webhook: { id: webhookId },
-        workflow: { id: `workflow-${index}` },
-      }
-    })
+    queuePageRows(
+      Array.from({ length: TIKTOK_WEBHOOK_TARGET_PAGE_SIZE + 1 }, (_, index) => {
+        const webhookId = `webhook-${String(index).padStart(3, '0')}`
+        return {
+          accountId: `act.user-${ACCOUNT_UUID}`,
+          webhookId,
+          webhook: { id: webhookId },
+          workflow: { id: `workflow-${index}` },
+        }
+      })
+    )
 
     const page = await findTikTokWebhookTargetPage('act.user', 'request-4')
 
@@ -188,6 +176,6 @@ describe('findTikTokWebhookTargetPage', () => {
       nextCursor: null,
       targets: [],
     })
-    expect(mockSelect).not.toHaveBeenCalled()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 })

@@ -145,7 +145,9 @@ function transformUnit(
  *
  * There is no total-size ceiling — the batching layer chunks the request and
  * fans out with bounded concurrency, so payloads of any size are masked properly
- * rather than scrubbed. The per-chunk request timeout is the real backstop.
+ * rather than scrubbed. Transient chunk failures retry with backoff inside the
+ * mask client; a failure surfacing here means the retry budget is exhausted or
+ * the failure is deterministic.
  */
 async function maskCollected(
   collected: string[],

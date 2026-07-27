@@ -588,7 +588,9 @@ describe('/api/files/presigned', () => {
 
       const response = await POST(request)
       expect(response.status).toBe(200)
-      expect(mockValidateAttachmentFileType).toHaveBeenCalledWith('screenshot.png')
+      expect(mockValidateAttachmentFileType).toHaveBeenCalledWith('screenshot.png', {
+        allowArchives: true,
+      })
       expect(mockValidateFileType).not.toHaveBeenCalled()
     })
 

@@ -1005,7 +1005,7 @@ export const SalesforceBlockMeta = {
   templates: [
     {
       icon: SalesforceIcon,
-      title: 'CRM knowledge search',
+      title: 'Salesforce knowledge search',
       prompt:
         'Create a knowledge base connected to my Salesforce account so all deals, contacts, notes, and activities are automatically synced and searchable. Then build an agent I can ask things like "what\'s the history with Acme Corp?" or "who was involved in the last enterprise deal?" and get instant answers with CRM record citations.',
       modules: ['knowledge-base', 'agent'],
@@ -1014,7 +1014,7 @@ export const SalesforceBlockMeta = {
     },
     {
       icon: SalesforceIcon,
-      title: 'Deal pipeline tracker',
+      title: 'Salesforce pipeline tracker',
       prompt:
         'Create a table with columns for deal name, stage, amount, close date, and next steps. Build a workflow that syncs open deals from Salesforce into this table daily, and sends me a Slack summary each morning of deals that need attention or are at risk of slipping.',
       modules: ['tables', 'scheduled', 'agent', 'workflows'],
@@ -1036,7 +1036,7 @@ export const SalesforceBlockMeta = {
     },
     {
       icon: SalesforceIcon,
-      title: 'Inbound lead router',
+      title: 'Salesforce lead router',
       prompt:
         'Build a workflow that triggers on new inbound form submissions, creates a Salesforce lead with the captured fields, runs a SOQL query to check for an existing account match, assigns the lead to the right owner, and posts the new lead with its score to Slack.',
       modules: ['agent', 'workflows'],
@@ -1065,7 +1065,7 @@ export const SalesforceBlockMeta = {
     },
     {
       icon: SalesforceIcon,
-      title: 'Closed-won onboarding kickoff',
+      title: 'Salesforce onboarding kickoff',
       prompt:
         'Create a workflow that watches Salesforce opportunities for stage changes to closed-won, pulls the related account and contacts, creates onboarding tasks for the CS owner, and writes a kickoff record into a tables-based project tracker.',
       modules: ['tables', 'agent', 'workflows'],

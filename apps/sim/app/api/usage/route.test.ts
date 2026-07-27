@@ -1,19 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetOrganizationBillingData, mockGetSession, mockIsOrganizationOwnerOrAdmin } =
-  vi.hoisted(() => ({
-    mockGetOrganizationBillingData: vi.fn(),
-    mockGetSession: vi.fn(),
-    mockIsOrganizationOwnerOrAdmin: vi.fn(),
-  }))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
+const { mockGetOrganizationBillingData, mockIsOrganizationOwnerOrAdmin } = vi.hoisted(() => ({
+  mockGetOrganizationBillingData: vi.fn(),
+  mockIsOrganizationOwnerOrAdmin: vi.fn(),
 }))
 
 vi.mock('@/lib/billing', () => ({
@@ -27,6 +20,8 @@ vi.mock('@/lib/billing/core/organization', () => ({
 }))
 
 import { GET } from '@/app/api/usage/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 describe('GET /api/usage organization context', () => {
   beforeEach(() => {

@@ -18,7 +18,8 @@ interface SidebarSettingsItem<Section extends SettingsSection>
 }
 
 interface SettingsSidebarProps<Section extends SettingsSection> {
-  activeSection: string
+  /** `null` when the route is a nested page that is not itself a nav item — nothing highlights. */
+  activeSection: string | null
   backHref: string
   groups: readonly SettingsNavigationGroup[]
   hrefForSection: (section: Section) => string
@@ -99,7 +100,7 @@ export function SettingsSidebar<Section extends SettingsSection>({
       <div
         ref={isCollapsed ? undefined : scrollContainerRef}
         className={cn(
-          'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-1.5 transition-colors duration-150',
+          'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t py-1.5 transition-colors duration-150',
           !hasOverflowTop && 'border-transparent'
         )}
       >

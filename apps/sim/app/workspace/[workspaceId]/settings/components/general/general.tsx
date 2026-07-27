@@ -403,9 +403,10 @@ export function General() {
         <SettingsSection label='Preferences'>
           <div className='flex flex-col gap-4'>
             <div className='flex items-center justify-between'>
-              <Label htmlFor='theme-select'>Theme</Label>
+              <Label>Theme</Label>
               <div className={DROPDOWN_TRIGGER_CLASS}>
                 <ChipSelect
+                  aria-label='Theme'
                   align='start'
                   fullWidth
                   dropdownWidth='trigger'
@@ -442,7 +443,13 @@ export function General() {
                 <Label htmlFor='auto-connect'>Auto-connect on drop</Label>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
+                    <button
+                      type='button'
+                      aria-label='About auto-connect on drop'
+                      className='inline-flex cursor-default text-[var(--text-muted)]'
+                    >
+                      <Info className='size-[14px]' />
+                    </button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='bottom' align='start'>
                     <p>Automatically connect blocks when dropped near each other</p>
@@ -466,7 +473,13 @@ export function General() {
                 <Label htmlFor='error-notifications'>Canvas error notifications</Label>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
+                    <button
+                      type='button'
+                      aria-label='About canvas error notifications'
+                      className='inline-flex cursor-default text-[var(--text-muted)]'
+                    >
+                      <Info className='size-[14px]' />
+                    </button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='bottom' align='start'>
                     <p>Show error popups on blocks when a workflow run fails</p>
@@ -485,9 +498,10 @@ export function General() {
             </div>
 
             <div className='flex items-center justify-between'>
-              <Label htmlFor='snap-to-grid'>Snap to grid</Label>
+              <Label>Snap to grid</Label>
               <div className={DROPDOWN_TRIGGER_CLASS}>
                 <ChipSelect
+                  aria-label='Snap to grid'
                   align='start'
                   fullWidth
                   dropdownWidth='trigger'

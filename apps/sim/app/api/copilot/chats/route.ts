@@ -64,6 +64,7 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
       .where(
         and(
           eq(copilotChats.userId, userId),
+          isNull(copilotChats.deletedAt),
           or(
             and(isNull(copilotChats.workflowId), isNull(copilotChats.workspaceId)),
             inAccessibleWorkspace

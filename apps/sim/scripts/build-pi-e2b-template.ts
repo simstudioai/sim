@@ -1,12 +1,11 @@
 #!/usr/bin/env bun
 
 /**
- * Builds the E2B sandbox template that powers the Pi Coding Agent cloud mode.
+ * Builds the E2B sandbox template used by Create PR and Review Code.
  *
- * Layers the `pi` CLI plus git onto E2B's `code-interpreter` base (which already
- * ships node + python). The cloud backend runs `pi` and `git clone/commit/push`
- * inside this sandbox, so both must resolve on PATH — the global npm bin and
- * `/usr/bin` both are.
+ * Layers the `pi` CLI, its required Node version, and git onto E2B's
+ * `code-interpreter` base. The cloud backend runs `pi` and git inside this
+ * sandbox, so both must resolve on PATH.
  *
  * Usage:
  *   E2B_API_KEY=... bun run apps/sim/scripts/build-pi-e2b-template.ts [--name <name>] [--no-cache]
@@ -16,17 +15,28 @@
  * `Sandbox.create` resolves by template name, so use the name (not the ID).
  */
 
-import { defaultBuildLogger, Template } from '@e2b/code-interpreter'
+import { defaultBuildLogger, Template, waitForTimeout } from '@e2b/code-interpreter'
+import {
+  PI_APT,
+  PI_NODE_MAJOR,
+  PI_NODE_VERSION_ASSERT,
+  PI_NPM,
+} from '@/scripts/pi-sandbox-packages'
 
 const DEFAULT_TEMPLATE_NAME = 'sim-pi'
 
+/** Pi 0.80 requires Node >=22.19; E2B's code-interpreter base currently ships Node 20. */
+const INSTALL_NODE_COMMAND = `curl -fsSL https://deb.nodesource.com/setup_${PI_NODE_MAJOR}.x | bash - && apt-get install -y nodejs && ${PI_NODE_VERSION_ASSERT}`
+
+/** Pi uses the command and filesystem APIs, so the inherited Jupyter service is unnecessary. */
+const START_COMMAND = 'sleep infinity'
+
 const piTemplate = Template()
   .fromTemplate('code-interpreter-v1')
-  // git (+ ssh/certs) for clone/commit/push; ripgrep/fd give the agent fast
-  // file search from its bash tool; gh enables richer GitHub workflows.
-  .aptInstall(['git', 'gh', 'openssh-client', 'ca-certificates', 'ripgrep', 'fd-find'])
-  // The `pi` CLI the cloud backend invokes.
-  .npmInstall(['@earendil-works/pi-coding-agent'], { g: true })
+  .runCmd(INSTALL_NODE_COMMAND, { user: 'root' })
+  .aptInstall([...PI_APT])
+  .npmInstall([...PI_NPM], { g: true })
+  .setStartCmd(START_COMMAND, waitForTimeout(1_000))
 
 async function main() {
   if (!process.env.E2B_API_KEY) {

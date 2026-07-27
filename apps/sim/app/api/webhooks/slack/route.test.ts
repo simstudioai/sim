@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockParseWebhookBody, mockFindWebhooksByRoutingKey, mockDispatchResolvedWebhookTarget } =
   vi.hoisted(() => ({
@@ -13,10 +14,6 @@ const { mockParseWebhookBody, mockFindWebhooksByRoutingKey, mockDispatchResolved
 vi.mock('@/lib/core/admission/gate', () => ({
   tryAdmit: () => ({ release: vi.fn() }),
   admissionRejectedResponse: () => new Response(null, { status: 503 }),
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  env: { SLACK_SIGNING_SECRET: 'test-secret' },
 }))
 
 vi.mock('@/lib/webhooks/processor', () => ({
@@ -56,8 +53,13 @@ const messageBody = {
 }
 
 describe('Slack app webhook route', () => {
+  afterAll(() => {
+    resetEnvMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    setEnv({ SLACK_SIGNING_SECRET: 'test-secret' })
     mockFindWebhooksByRoutingKey.mockResolvedValue([webhook('wh1')])
     mockDispatchResolvedWebhookTarget.mockResolvedValue({
       outcome: 'queued',

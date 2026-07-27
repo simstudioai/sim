@@ -777,6 +777,209 @@ describe('hasWorkflowChanged', () => {
     })
   })
 
+  describe('Table SubBlock Special Handling', () => {
+    it.concurrent('should ignore non-deterministic table row ids', () => {
+      const state1 = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              headers: {
+                id: 'headers',
+                type: 'table',
+                value: [{ id: 'row-a', cells: { Key: 'Authorization', Value: 'Bearer x' } }],
+              },
+            },
+          }),
+        },
+      })
+      const state2 = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              headers: {
+                id: 'headers',
+                type: 'table',
+                value: [{ id: 'row-b', cells: { Key: 'Authorization', Value: 'Bearer x' } }],
+              },
+            },
+          }),
+        },
+      })
+      expect(hasWorkflowChanged(state1, state2)).toBe(false)
+    })
+
+    it.concurrent('should treat a null table and a single blank starter row as equal', () => {
+      const state1 = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              headers: { id: 'headers', type: 'table', value: null },
+            },
+          }),
+        },
+      })
+      const state2 = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              headers: {
+                id: 'headers',
+                type: 'table',
+                value: [{ id: 'row-a', cells: { Key: '', Value: '' } }],
+              },
+            },
+          }),
+        },
+      })
+      expect(hasWorkflowChanged(state1, state2)).toBe(false)
+    })
+
+    it.concurrent('should ignore a trailing blank row after a populated row', () => {
+      const state1 = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              headers: {
+                id: 'headers',
+                type: 'table',
+                value: [{ id: 'row-a', cells: { Key: 'Accept', Value: 'application/json' } }],
+              },
+            },
+          }),
+        },
+      })
+      const state2 = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              headers: {
+                id: 'headers',
+                type: 'table',
+                value: [
+                  { id: 'row-b', cells: { Key: 'Accept', Value: 'application/json' } },
+                  { id: 'row-c', cells: { Key: '', Value: '' } },
+                ],
+              },
+            },
+          }),
+        },
+      })
+      expect(hasWorkflowChanged(state1, state2)).toBe(false)
+    })
+
+    it.concurrent('should detect real table cell changes', () => {
+      const state1 = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              headers: {
+                id: 'headers',
+                type: 'table',
+                value: [{ id: 'row-a', cells: { Key: 'Accept', Value: 'application/json' } }],
+              },
+            },
+          }),
+        },
+      })
+      const state2 = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              headers: {
+                id: 'headers',
+                type: 'table',
+                value: [{ id: 'row-a', cells: { Key: 'Accept', Value: 'text/plain' } }],
+              },
+            },
+          }),
+        },
+      })
+      expect(hasWorkflowChanged(state1, state2)).toBe(true)
+    })
+
+    it.concurrent('should preserve flat rows without a cells object', () => {
+      const state1 = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              headers: { id: 'headers', type: 'table', value: null },
+            },
+          }),
+        },
+      })
+      const state2 = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              headers: {
+                id: 'headers',
+                type: 'table',
+                value: [{ name: 'FOO', value: 'bar' }],
+              },
+            },
+          }),
+        },
+      })
+      expect(hasWorkflowChanged(state1, state2)).toBe(true)
+    })
+
+    it.concurrent('should detect edits to flat rows without a cells object', () => {
+      const state1 = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              headers: {
+                id: 'headers',
+                type: 'table',
+                value: [{ name: 'FOO', value: 'bar' }],
+              },
+            },
+          }),
+        },
+      })
+      const state2 = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              headers: {
+                id: 'headers',
+                type: 'table',
+                value: [{ name: 'FOO', value: 'baz' }],
+              },
+            },
+          }),
+        },
+      })
+      expect(hasWorkflowChanged(state1, state2)).toBe(true)
+    })
+
+    it.concurrent('should detect rows with a partially blank cell', () => {
+      const state1 = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              headers: { id: 'headers', type: 'table', value: null },
+            },
+          }),
+        },
+      })
+      const state2 = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              headers: {
+                id: 'headers',
+                type: 'table',
+                value: [{ id: 'row-a', cells: { Key: 'Accept', Value: '' } }],
+              },
+            },
+          }),
+        },
+      })
+      expect(hasWorkflowChanged(state1, state2)).toBe(true)
+    })
+  })
+
   describe('Loop Changes', () => {
     it.concurrent('should detect added loops', () => {
       const state1 = createWorkflowState({ loops: {} })

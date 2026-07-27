@@ -26,7 +26,9 @@ function isMemoryEnabled(config: PiMemoryConfig): boolean {
   return !!config.memoryType && config.memoryType !== 'none'
 }
 
-/** Resolves selected skill inputs to full `{ name, content }` entries for Pi. */
+/**
+ * Resolves selected skill inputs to full `{ name, content }` entries for Pi.
+ */
 export async function resolvePiSkills(
   skillInputs: unknown,
   workspaceId: string | undefined
@@ -36,15 +38,8 @@ export async function resolvePiSkills(
   const skills: PiSkill[] = []
   for (const input of skillInputs as SkillInput[]) {
     if (!input?.skillId) continue
-    try {
-      const resolved = await resolveSkillContentById(input.skillId, workspaceId)
-      if (resolved) skills.push({ name: resolved.name, content: resolved.content })
-    } catch (error) {
-      logger.warn('Failed to resolve skill for Pi', {
-        skillId: input.skillId,
-        error: getErrorMessage(error),
-      })
-    }
+    const resolved = await resolveSkillContentById(input.skillId, workspaceId)
+    if (resolved) skills.push({ name: resolved.name, content: resolved.content })
   }
   return skills
 }

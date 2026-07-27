@@ -76,6 +76,22 @@ export function isReservedOutputName(name: string): boolean {
   return RESERVED_OUTPUT_NAMES.has(name.trim().toLowerCase())
 }
 
+/**
+ * Collect a custom block's per-field param values into the child `inputMapping`
+ * JSON string: every non-reserved, non-empty param keyed by the source field's
+ * stable id. Shared by the hidden `inputMapping` sub-block (canvas serialization)
+ * and the agent-tool transform, so both paths assemble the mapping identically.
+ */
+export function assembleCustomBlockInputMapping(params: Record<string, unknown>): string {
+  const mapping: Record<string, unknown> = {}
+  for (const [key, val] of Object.entries(params)) {
+    if (RESERVED_PARAMS.has(key)) continue
+    if (val === undefined || val === '') continue
+    mapping[key] = val
+  }
+  return JSON.stringify(mapping)
+}
+
 /** Map a Start input field type to the editor sub-block type used to collect it. */
 function subBlockTypeForField(fieldType: string): SubBlockType {
   switch (fieldType) {
@@ -161,15 +177,7 @@ export function buildCustomBlockConfig(
         type: 'code',
         language: 'json',
         hidden: true,
-        value: (params) => {
-          const mapping: Record<string, unknown> = {}
-          for (const [key, val] of Object.entries(params)) {
-            if (RESERVED_PARAMS.has(key)) continue
-            if (val === undefined || val === '') continue
-            mapping[key] = val
-          }
-          return JSON.stringify(mapping)
-        },
+        value: (params) => assembleCustomBlockInputMapping(params),
       },
       ...fieldSubBlocks,
     ],

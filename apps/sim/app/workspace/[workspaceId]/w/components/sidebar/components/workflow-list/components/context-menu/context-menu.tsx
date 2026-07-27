@@ -22,6 +22,7 @@ import {
   SquareArrowUpRight,
   Trash,
   Unlock,
+  Workflow,
   X,
 } from '@sim/emcn/icons'
 import { Pin, PinOff } from 'lucide-react'
@@ -32,6 +33,7 @@ interface ContextMenuProps {
   menuRef: React.RefObject<HTMLDivElement | null>
   onClose: () => void
   onOpenInNewTab?: () => void
+  onFindReferences?: () => void
   onMarkAsRead?: () => void
   onMarkAsUnread?: () => void
   onTogglePin?: () => void
@@ -60,6 +62,7 @@ interface ContextMenuProps {
    */
   onCloseTab?: () => void
   showOpenInNewTab?: boolean
+  showFindReferences?: boolean
   showMarkAsRead?: boolean
   showMarkAsUnread?: boolean
   showPin?: boolean
@@ -101,6 +104,7 @@ export function ContextMenu({
   menuRef,
   onClose,
   onOpenInNewTab,
+  onFindReferences,
   onMarkAsRead,
   onMarkAsUnread,
   onTogglePin,
@@ -113,6 +117,7 @@ export function ContextMenu({
   onDelete,
   onCloseTab,
   showOpenInNewTab = false,
+  showFindReferences = false,
   showMarkAsRead = false,
   showMarkAsUnread = false,
   showPin = false,
@@ -143,7 +148,8 @@ export function ContextMenu({
   showUploadLogo = false,
   disableUploadLogo = false,
 }: ContextMenuProps) {
-  const hasNavigationSection = showOpenInNewTab && onOpenInNewTab
+  const hasNavigationSection =
+    (showOpenInNewTab && onOpenInNewTab) || (showFindReferences && onFindReferences)
   const hasStatusSection =
     (showMarkAsRead && onMarkAsRead) ||
     (showMarkAsUnread && onMarkAsUnread) ||
@@ -203,6 +209,17 @@ export function ContextMenu({
           >
             <SquareArrowUpRight />
             Open in new tab
+          </DropdownMenuItem>
+        )}
+        {showFindReferences && onFindReferences && (
+          <DropdownMenuItem
+            onSelect={() => {
+              onFindReferences()
+              onClose()
+            }}
+          >
+            <Workflow />
+            Show references
           </DropdownMenuItem>
         )}
         {hasNavigationSection && (hasStatusSection || hasEditSection || hasCopySection) && (

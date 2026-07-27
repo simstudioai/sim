@@ -114,6 +114,7 @@ export interface ToolCatalogEntry {
     | 'set_block_enabled'
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
+    | 'share_file'
     | 'table'
     | 'terminal'
     | 'update_deployment_version'
@@ -233,6 +234,7 @@ export interface ToolCatalogEntry {
     | 'set_block_enabled'
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
+    | 'share_file'
     | 'table'
     | 'terminal'
     | 'update_deployment_version'
@@ -3186,8 +3188,8 @@ export const MaterializeFile: ToolCatalogEntry = {
       operation: {
         type: 'string',
         description:
-          'What to do with the file. "save" promotes it to a permanent files/ path. "import" imports a workflow JSON as a workspace workflow. Defaults to "save".',
-        enum: ['save', 'import'],
+          'What to do with the file. "save" promotes it to a permanent files/ path. "import" imports a workflow JSON as a workspace workflow. "extract" decompresses a .zip upload into files/<archive>/. Defaults to "save".',
+        enum: ['save', 'import', 'extract'],
         default: 'save',
       },
     },
@@ -4315,6 +4317,60 @@ export const SetGlobalWorkflowVariables: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
+export const ShareFile: ToolCatalogEntry = {
+  id: 'share_file',
+  name: 'share_file',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      action: {
+        type: 'string',
+        description: 'Whether to create/update the share link or deactivate it.',
+        enum: ['share', 'unshare'],
+        default: 'share',
+      },
+      allowedEmails: {
+        type: 'array',
+        description:
+          'Allowed emails or "@domain" patterns for authType "email" or "sso". Ignored for other auth types.',
+        items: { type: 'string' },
+      },
+      authType: {
+        type: 'string',
+        description: 'How viewers authenticate to open the link. Ignored for unshare.',
+        enum: ['public', 'password', 'email', 'sso'],
+        default: 'public',
+      },
+      password: {
+        type: 'string',
+        description:
+          'Password for authType "password". Leave empty to keep the file\'s existing password when re-sharing an already password-protected file. Ignored for other auth types.',
+      },
+      path: {
+        type: 'string',
+        description: 'Canonical workspace file VFS path to share, e.g. "files/Reports/Q4.md".',
+      },
+    },
+    required: ['path'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      data: {
+        type: 'object',
+        description:
+          'Share state. Contains url (the {baseUrl}/f/{token} link), token, authType, hasPassword, and isActive.',
+      },
+      message: { type: 'string', description: 'Human-readable outcome.' },
+      success: { type: 'boolean', description: 'Whether the share action succeeded.' },
+    },
+    required: ['success', 'message'],
+  },
+  requiredPermission: 'write',
+}
+
 export const Table: ToolCatalogEntry = {
   id: 'table',
   name: 'table',
@@ -4540,7 +4596,8 @@ export const UserTable: ToolCatalogEntry = {
           },
           column: {
             type: 'object',
-            description: 'Column definition for add_column: { name, type, unique?, position? }',
+            description:
+              'Column definition for add_column: { name, type, unique?, position? }. For a select (enum) column also pass { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select.',
           },
           columnName: {
             type: 'string',
@@ -4660,6 +4717,11 @@ export const UserTable: ToolCatalogEntry = {
               "Import mode for import_file. 'append' (default) adds rows; 'replace' truncates existing rows in a transaction before inserting the new rows.",
             enum: ['append', 'replace'],
           },
+          multiple: {
+            type: 'boolean',
+            description:
+              'Whether a select (enum) cell may hold several options (default false). Switching an existing column from true to false fails if any row has more than one option selected.',
+          },
           name: {
             type: 'string',
             description:
@@ -4673,11 +4735,17 @@ export const UserTable: ToolCatalogEntry = {
           newType: {
             type: 'string',
             description:
-              'New column type (optional for update_column). Types: string, number, boolean, date, json',
+              "New column type (optional for update_column). Types: string, number, boolean, date, json, select. Converting a column to select also requires options; the conversion fails if any existing cell value doesn't match one of them.",
           },
           offset: {
             type: 'number',
             description: 'Number of rows to skip (optional for query_rows, default 0)',
+          },
+          options: {
+            type: 'array',
+            description:
+              'Choices for a select (enum) column, as a list of display names, e.g. ["Open", "Closed"]. Required when creating or converting to a select column. On update_column this REPLACES the option list: options kept by name keep their cells, and cells holding a removed option are cleared. Max 100.',
+            items: { type: 'string' },
           },
           outputColumnNames: {
             type: 'object',
@@ -4755,7 +4823,7 @@ export const UserTable: ToolCatalogEntry = {
           schema: {
             type: 'object',
             description:
-              "Table schema with columns array (required for 'create'). Each column: { name, type, unique? }",
+              'Table schema with columns array (required for \'create\'). Each column: { name, type, unique? }. A select (enum) column also takes { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select.',
           },
           scope: {
             type: 'string',
@@ -5181,6 +5249,7 @@ export const ManageSkillOperationValues = [
 export const MaterializeFileOperation = {
   save: 'save',
   import: 'import',
+  extract: 'extract',
 } as const
 
 export type MaterializeFileOperation =
@@ -5189,6 +5258,7 @@ export type MaterializeFileOperation =
 export const MaterializeFileOperationValues = [
   MaterializeFileOperation.save,
   MaterializeFileOperation.import,
+  MaterializeFileOperation.extract,
 ] as const
 
 export const QueryUserTableOperation = {
@@ -5444,6 +5514,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [SetBlockEnabled.id]: SetBlockEnabled,
   [SetEnvironmentVariables.id]: SetEnvironmentVariables,
   [SetGlobalWorkflowVariables.id]: SetGlobalWorkflowVariables,
+  [ShareFile.id]: ShareFile,
   [Table.id]: Table,
   [Terminal.id]: Terminal,
   [UpdateDeploymentVersion.id]: UpdateDeploymentVersion,

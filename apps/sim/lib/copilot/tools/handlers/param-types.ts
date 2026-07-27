@@ -158,6 +158,8 @@ export interface DeployChatParams {
   subdomain?: string
   allowedEmails?: string[]
   outputConfigs?: unknown[]
+  includeThinking?: boolean
+  includeToolCalls?: boolean
 }
 
 export interface DeployMcpParams {

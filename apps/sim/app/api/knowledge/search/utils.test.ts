@@ -4,16 +4,39 @@
  *
  * @vitest-environment node
  */
-import { createEnvMock } from '@sim/testing'
-import { mockNextFetchResponse } from '@sim/testing/mocks'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { mockNextFetchResponse, setupGlobalFetchMock } from '@sim/testing/mocks'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { env } from '@/lib/core/config/env'
+import * as documentsUtilsModule from '@/lib/knowledge/documents/utils'
 
-vi.mock('drizzle-orm')
-vi.mock('@/lib/knowledge/documents/utils', () => ({
-  retryWithExponentialBackoff: (fn: any) => fn(),
-}))
+/**
+ * Spy on the real documents/utils namespace instead of vi.mock: the shared
+ * `@/lib/knowledge/embeddings` module may be cached bound to the real module,
+ * so patching the namespace is the only wiring that always applies.
+ */
+const retrySpy = vi
+  .spyOn(documentsUtilsModule, 'retryWithExponentialBackoff')
+  .mockImplementation(((fn: () => unknown) => fn()) as never)
 
-vi.mock('@/lib/core/config/env', () => createEnvMock())
+afterAll(() => {
+  retrySpy.mockRestore()
+})
+
+/**
+ * Under `isolate: false` the shared `@/lib/knowledge/embeddings` module may be
+ * cached bound to the REAL env module, so tests mutate the real `env` object
+ * (the tests below clear and assign it per case) instead of vi.mock'ing a
+ * file-local replacement that a cached consumer would never see. The snapshot
+ * restores whatever the worker started with after every test.
+ */
+const envSnapshot = { ...env }
+
+afterEach(() => {
+  for (const key of Object.keys(env)) {
+    delete (env as Record<string, unknown>)[key]
+  }
+  Object.assign(env, envSnapshot)
+})
 
 import {
   generateSearchEmbedding,
@@ -25,6 +48,11 @@ import {
 describe('Knowledge Search Utils', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // The worker-level fetch stub from vitest.setup.ts is removed after the
+    // first test by `unstubGlobals: true`; re-stub it per test so
+    // mockNextFetchResponse always operates on a mocked fetch.
+    setupGlobalFetchMock({ json: {} })
+    retrySpy.mockImplementation(((fn: () => unknown) => fn()) as never)
   })
 
   describe('handleTagOnlySearch', () => {
@@ -280,10 +308,23 @@ describe('Knowledge Search Utils', () => {
     it('should throw error when no API configuration provided', async () => {
       const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
+      // The env object lazily reads process.env, so a developer's local .env
+      // keys survive the deletion above — stub the direct key empty and fail
+      // the hosted rotation fallback for hermeticity on any machine.
+      vi.stubEnv('OPENAI_API_KEY', '')
+      const apiKeysModule = await import('@/lib/core/config/api-keys')
+      const rotationSpy = vi.spyOn(apiKeysModule, 'getRotatingApiKey').mockImplementation(() => {
+        throw new Error('No rotation keys configured')
+      })
 
-      await expect(generateSearchEmbedding('test query')).rejects.toThrow(
-        'OPENAI_API_KEY is not configured'
-      )
+      try {
+        await expect(generateSearchEmbedding('test query')).rejects.toThrow(
+          'OPENAI_API_KEY is not configured'
+        )
+      } finally {
+        rotationSpy.mockRestore()
+        vi.unstubAllEnvs()
+      }
     })
 
     it('should handle Azure OpenAI API errors properly', async () => {

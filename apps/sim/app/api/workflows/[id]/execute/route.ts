@@ -71,7 +71,11 @@ import {
 import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
-import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
+import {
+  type ExecutionEvent,
+  encodeSSEEvent,
+  LIVE_ONLY_EXECUTION_EVENT_TYPES,
+} from '@/lib/workflows/executor/execution-events'
 import {
   claimExecutionId,
   type ExecutionIdClaim,
@@ -84,7 +88,21 @@ import {
   loadWorkflowDeploymentVersionState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
-import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
+import {
+  AGENT_STREAM_PROTOCOL_HEADER_LABEL,
+  AGENT_STREAM_PROTOCOL_V1,
+  clientAcceptsAgentStreamProtocol,
+  hasAgentStreamPolicy,
+  shouldEmitAgentStreamEvents,
+} from '@/lib/workflows/streaming/agent-stream-protocol'
+import {
+  forwardAgentStreamToExecutionEvents,
+  shouldForwardAnswerTextFromSink,
+} from '@/lib/workflows/streaming/forward-agent-stream-events'
+import {
+  agentStreamProtocolResponseHeaders,
+  createStreamingResponse,
+} from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
@@ -660,6 +678,8 @@ async function handleExecutePost(
       selectedOutputs,
       triggerType = defaultTriggerType,
       stream: streamParam,
+      includeThinking: requestedIncludeThinking,
+      includeToolCalls: requestedIncludeToolCalls,
       useDraftState,
       input: validatedInput,
       isClientSession = false,
@@ -1428,6 +1448,32 @@ async function handleExecutePost(
         isDeployed: workflow.isDeployed,
         variables: streamVariables,
       }
+      /**
+       * The caller asked for frames whose shape is defined by a protocol
+       * version they never declared. Rejecting beats silently downgrading:
+       * the flags would otherwise be a no-op with no way to notice.
+       */
+      if (
+        hasAgentStreamPolicy({
+          includeThinking: requestedIncludeThinking,
+          includeToolCalls: requestedIncludeToolCalls,
+        }) &&
+        !clientAcceptsAgentStreamProtocol(req.headers)
+      ) {
+        return NextResponse.json(
+          {
+            error: `includeThinking and includeToolCalls require the ${AGENT_STREAM_PROTOCOL_HEADER_LABEL}: ${AGENT_STREAM_PROTOCOL_V1} request header, which declares that the client understands agent-event frames.`,
+          },
+          { status: 400 }
+        )
+      }
+
+      const agentEvents = shouldEmitAgentStreamEvents({
+        includeThinking: requestedIncludeThinking,
+        includeToolCalls: requestedIncludeToolCalls,
+        requestHeaders: req.headers,
+      })
+
       const stream = await createStreamingResponse({
         requestId,
         streamConfig: {
@@ -1437,6 +1483,8 @@ async function handleExecutePost(
           includeFileBase64,
           base64MaxBytes,
           timeoutMs: preprocessResult.executionTimeout?.sync,
+          includeThinking: requestedIncludeThinking,
+          includeToolCalls: requestedIncludeToolCalls,
         },
         executionId,
         largeValueExecutionIds,
@@ -1446,6 +1494,8 @@ async function handleExecutePost(
         workflowId,
         userId: actorUserId,
         allowLargeValueWorkflowScope,
+        requestSignal: req.signal,
+        requestHeaders: req.headers,
         executeFn: async ({ onStream, onBlockComplete, abortSignal }) =>
           executeWorkflow(
             streamWorkflow,
@@ -1469,6 +1519,9 @@ async function handleExecutePost(
               fileKeys,
               stopAfterBlockId,
               runFromBlock: resolvedRunFromBlock,
+              includeThinking: requestedIncludeThinking,
+              includeToolCalls: requestedIncludeToolCalls,
+              agentEvents,
             },
             executionId
           ),
@@ -1477,7 +1530,11 @@ async function handleExecutePost(
       executionIdClaimCommitted = true
       return new NextResponse(stream, {
         status: 200,
-        headers: SSE_HEADERS,
+        headers: {
+          ...SSE_HEADERS,
+          // Echo the negotiated stream protocol (same as the chat and resume routes).
+          ...agentStreamProtocolResponseHeaders({ requestHeaders: req.headers }),
+        },
       })
     }
 
@@ -1518,7 +1575,7 @@ async function handleExecutePost(
           event: ExecutionEvent,
           terminalStatus?: TerminalExecutionStreamStatus
         ) => {
-          const isBuffered = event.type !== 'stream:chunk' && event.type !== 'stream:done'
+          const isBuffered = !LIVE_ONLY_EXECUTION_EVENT_TYPES.has(event.type)
           let eventToSend = event
           if (isBuffered) {
             try {
@@ -1716,6 +1773,21 @@ async function handleExecutePost(
           const onStream = async (streamingExec: StreamingExecution) => {
             const blockId = (streamingExec.execution as any).blockId
 
+            // Live answer text rides the sink when available (pending deltas
+            // stream as the model generates; chunk_reset clears intermediate
+            // turns). The byte stream is then drained without re-emitting
+            // chunks — its text is the same final-turn content.
+            const answerTextFromSink = shouldForwardAnswerTextFromSink(streamingExec)
+
+            // Sync window: attach sink before first await so pump delivers thinking/tools.
+            const unsubscribe = forwardAgentStreamToExecutionEvents(streamingExec, {
+              blockId,
+              executionId,
+              workflowId,
+              sendEvent,
+              forwardAnswerText: answerTextFromSink,
+            })
+
             const reader = streamingExec.stream.getReader()
             const decoder = new TextDecoder()
             const cancelReader = () => {
@@ -1731,6 +1803,8 @@ async function handleExecutePost(
                 const { done, value } = await reader.read()
                 if (timeoutController.signal.aborted || isStreamClosed) break
                 if (done) break
+
+                if (answerTextFromSink) continue
 
                 const chunk = decoder.decode(value, { stream: true })
                 await sendEvent({
@@ -1756,6 +1830,7 @@ async function handleExecutePost(
                 reqLogger.error('Error streaming block content:', error)
               }
             } finally {
+              unsubscribe()
               timeoutController.signal.removeEventListener('abort', cancelReader)
               try {
                 await reader.cancel().catch(() => {})
@@ -1785,6 +1860,8 @@ async function handleExecutePost(
             allowLargeValueWorkflowScope,
             callChain,
             executionMode: 'sync',
+            // Canvas execution-events runs are the primary agent-events surface.
+            agentEvents: true,
           }
 
           const sseExecutionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}

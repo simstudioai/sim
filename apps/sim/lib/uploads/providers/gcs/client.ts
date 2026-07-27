@@ -75,7 +75,12 @@ export async function getGcsClient(): Promise<Storage> {
       ? { projectId: env.GCS_PROJECT_ID || credentials?.project_id }
       : {}),
     ...(credentials
-      ? { credentials: { client_email: credentials.client_email, private_key: credentials.private_key } }
+      ? {
+          credentials: {
+            client_email: credentials.client_email,
+            private_key: credentials.private_key,
+          },
+        }
       : {}),
   })
 
@@ -158,11 +163,14 @@ export async function uploadToGcs(
     Object.assign(gcsMetadata, sanitizeStorageMetadata(metadata, 8000))
   }
 
-  await storage.bucket(config.bucket).file(uniqueKey).save(file, {
-    contentType,
-    resumable: false,
-    metadata: { metadata: gcsMetadata },
-  })
+  await storage
+    .bucket(config.bucket)
+    .file(uniqueKey)
+    .save(file, {
+      contentType,
+      resumable: false,
+      metadata: { metadata: gcsMetadata },
+    })
 
   const servePath = `/api/files/serve/${encodeURIComponent(uniqueKey)}`
 
@@ -574,12 +582,7 @@ export async function abortGcsMultipartUpload(
 ): Promise<void> {
   const config = customConfig || { bucket: GCS_CONFIG.bucket }
   try {
-    await gcsXmlApiRequest(
-      'DELETE',
-      config.bucket,
-      key,
-      `uploadId=${encodeURIComponent(uploadId)}`
-    )
+    await gcsXmlApiRequest('DELETE', config.bucket, key, `uploadId=${encodeURIComponent(uploadId)}`)
   } catch (error) {
     logger.warn('Error cleaning up GCS multipart upload:', error)
   }

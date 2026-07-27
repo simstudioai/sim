@@ -48,16 +48,50 @@ export interface AddResourceDropdownProps {
   existingKeys: Set<string>
   onAdd: (resource: MothershipResource) => void
   onSwitch?: (resourceId: string) => void
-  /** Resource types to hide from the dropdown (e.g. `['folder', 'task']`). */
+  /**
+   * Resource types to hide from the dropdown. Must be referentially stable
+   * (a module constant) — it keys the underlying group memo.
+   */
   excludeTypes?: readonly MothershipResourceType[]
 }
 
-export type AvailableItem = { id: string; name: string; isOpen?: boolean; [key: string]: unknown }
+export type AvailableItem = { id: string; name: string; [key: string]: unknown }
 
 interface AvailableItemsByType {
   type: MothershipResourceType
   items: AvailableItem[]
 }
+
+interface AvailableResources {
+  groups: AvailableItemsByType[]
+  /**
+   * True while enabled and at least one list has yet to produce data. Callers
+   * that act on "no candidates" must check this first — an empty result during
+   * hydration means "not known yet", not "no match".
+   */
+  isHydrating: boolean
+}
+
+interface UseAvailableResourcesOptions {
+  /**
+   * Skips the underlying list queries and the group construction they feed
+   * while `false`, returning a stable empty result. Menus pass their own open
+   * state so a closed one costs nothing; the lists fetch on first open.
+   *
+   * Note this only defers the lists nothing else on the surface already needs —
+   * the mothership tab bar independently resolves tab names from the workflow,
+   * table, file, knowledge-base, and folder lists, so those stay warm there.
+   */
+  enabled?: boolean
+  /**
+   * Resource types to omit from the result. Must be referentially stable
+   * (a module constant) — it keys the group memo.
+   */
+  excludeTypes?: readonly MothershipResourceType[]
+}
+
+/** Stable identity for the disabled result, so downstream memos never bust. */
+const NO_RESOURCE_GROUPS: AvailableItemsByType[] = []
 
 const LOG_DROPDOWN_LIMIT = 50
 
@@ -75,76 +109,99 @@ const LOG_DROPDOWN_FILTERS = {
 
 export function useAvailableResources(
   workspaceId: string,
-  existingKeys: Set<string>,
-  excludeTypes?: readonly MothershipResourceType[]
-): AvailableItemsByType[] {
-  const { data: workflows = [] } = useWorkflows(workspaceId)
-  const { data: tables = [] } = useTablesList(workspaceId)
-  const { data: files = [] } = useWorkspaceFiles(workspaceId)
-  const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId)
-  const { data: folders = [] } = useFolders(workspaceId)
-  const { data: fileFolders = [] } = useWorkspaceFileFolders(workspaceId)
-  const { data: tasks = [] } = useMothershipChats(workspaceId)
-  const { data: schedules = [] } = useWorkspaceSchedules(workspaceId)
-  const { data: logsData } = useLogsList(workspaceId, LOG_DROPDOWN_FILTERS)
+  options?: UseAvailableResourcesOptions
+): AvailableResources {
+  const enabled = options?.enabled ?? true
+  const excludeTypes = options?.excludeTypes
+  // Destructured without `= []` defaults on purpose: a literal default allocates a
+  // fresh array every render while `data` is undefined (exactly the disabled state),
+  // which would bust the group memo below on every render. Undefined is stable.
+  const { data: workflows, isPending: workflowsPending } = useWorkflows(workspaceId, { enabled })
+  const { data: tables, isPending: tablesPending } = useTablesList(workspaceId, 'active', {
+    enabled,
+  })
+  const { data: files, isPending: filesPending } = useWorkspaceFiles(workspaceId, 'active', {
+    enabled,
+  })
+  const { data: knowledgeBases, isPending: knowledgeBasesPending } = useKnowledgeBasesQuery(
+    workspaceId,
+    { enabled }
+  )
+  const { data: folders, isPending: foldersPending } = useFolders(workspaceId, { enabled })
+  const { data: fileFolders, isPending: fileFoldersPending } = useWorkspaceFileFolders(
+    workspaceId,
+    'active',
+    { enabled }
+  )
+  const { data: tasks, isPending: tasksPending } = useMothershipChats(workspaceId, { enabled })
+  const { data: schedules, isPending: schedulesPending } = useWorkspaceSchedules(workspaceId, {
+    enabled,
+  })
+  const { data: logsData, isPending: logsPending } = useLogsList(
+    workspaceId,
+    LOG_DROPDOWN_FILTERS,
+    { enabled }
+  )
   const logs = useMemo(() => (logsData?.pages ?? []).flatMap((page) => page.logs), [logsData])
 
-  return useMemo(() => {
+  /**
+   * Keyed off `isPending` rather than `data === undefined` so a failed list
+   * settles to "not hydrating" — an errored query must not block the caller
+   * forever.
+   */
+  const isHydrating =
+    enabled &&
+    (workflowsPending ||
+      tablesPending ||
+      filesPending ||
+      knowledgeBasesPending ||
+      foldersPending ||
+      fileFoldersPending ||
+      tasksPending ||
+      schedulesPending ||
+      logsPending)
+
+  const groups = useMemo(() => {
+    if (!enabled) return NO_RESOURCE_GROUPS
     const excluded = new Set<MothershipResourceType>(excludeTypes ?? [])
     const groups: AvailableItemsByType[] = [
       {
         type: 'workflow' as const,
-        items: workflows.map((w) => ({
+        items: (workflows ?? []).map((w) => ({
           id: w.id,
           name: w.name,
           folderId: w.folderId ?? null,
           sortOrder: w.sortOrder,
-          isOpen: existingKeys.has(`workflow:${w.id}`),
         })),
       },
       {
         type: 'folder' as const,
-        items: folders.map((f) => ({
+        items: (folders ?? []).map((f) => ({
           id: f.id,
           name: f.name,
           parentId: f.parentId ?? null,
           sortOrder: f.sortOrder,
-          isOpen: existingKeys.has(`folder:${f.id}`),
         })),
       },
       {
         type: 'table' as const,
-        items: tables.map((t) => ({
-          id: t.id,
-          name: t.name,
-          isOpen: existingKeys.has(`table:${t.id}`),
-        })),
+        items: (tables ?? []).map((t) => ({ id: t.id, name: t.name })),
       },
       {
         type: 'file' as const,
-        items: files.map((f) => ({
-          id: f.id,
-          name: f.name,
-          folderId: f.folderId ?? null,
-          isOpen: existingKeys.has(`file:${f.id}`),
-        })),
+        items: (files ?? []).map((f) => ({ id: f.id, name: f.name, folderId: f.folderId ?? null })),
       },
       {
         type: 'filefolder' as const,
-        items: fileFolders.map((f) => ({
+        items: (fileFolders ?? []).map((f) => ({
           id: f.id,
           name: f.name,
           parentId: f.parentId ?? null,
-          isOpen: existingKeys.has(`filefolder:${f.id}`),
         })),
       },
       {
         type: 'knowledgebase' as const,
-        items: (knowledgeBases ?? []).map((kb) => ({
-          id: kb.id,
-          name: kb.name,
-          isOpen: existingKeys.has(`knowledgebase:${kb.id}`),
-        })),
+        items: (knowledgeBases ?? []).map((kb) => ({ id: kb.id, name: kb.name })),
       },
       {
         type: 'integration' as const,
@@ -153,25 +210,19 @@ export function useAvailableResources(
           name: integration.name,
           iconComponent: integration.icon,
           bgColor: integration.bgColor,
-          isOpen: existingKeys.has(`integration:${integration.blockType}`),
         })),
       },
       {
         type: 'task' as const,
-        items: tasks.map((t) => ({
-          id: t.id,
-          name: t.name,
-          isOpen: existingKeys.has(`task:${t.id}`),
-        })),
+        items: (tasks ?? []).map((t) => ({ id: t.id, name: t.name })),
       },
       {
         type: 'scheduledtask' as const,
-        items: schedules
+        items: (schedules ?? [])
           .filter((s) => s.sourceType === 'job')
           .map((s) => ({
             id: s.id,
             name: s.jobTitle || truncate(s.prompt ?? '', 40) || 'Scheduled Task',
-            isOpen: existingKeys.has(`scheduledtask:${s.id}`),
           })),
       },
       {
@@ -179,13 +230,7 @@ export function useAvailableResources(
         items: logs.map((log) => {
           const workflowName = log.workflow?.name ?? log.workflowId ?? 'Unknown'
           const time = formatDate(log.createdAt).compact
-          return {
-            id: log.id,
-            name: `${workflowName} · ${time}`,
-            workflowName,
-            time,
-            isOpen: existingKeys.has(`log:${log.id}`),
-          }
+          return { id: log.id, name: `${workflowName} · ${time}`, workflowName, time }
         }),
       },
     ]
@@ -198,7 +243,6 @@ export function useAvailableResources(
           {
             id: BROWSER_SESSION_RESOURCE_ID,
             name: 'Browser',
-            isOpen: existingKeys.has(`browser:${BROWSER_SESSION_RESOURCE_ID}`),
           },
         ],
       })
@@ -212,13 +256,13 @@ export function useAvailableResources(
           {
             id: TERMINAL_SESSION_RESOURCE_ID,
             name: 'Terminal',
-            isOpen: existingKeys.has(`terminal:${TERMINAL_SESSION_RESOURCE_ID}`),
           },
         ],
       })
     }
     return groups.filter((g) => !excluded.has(g.type))
   }, [
+    enabled,
     workflows,
     folders,
     fileFolders,
@@ -228,13 +272,16 @@ export function useAvailableResources(
     tasks,
     schedules,
     logs,
-    existingKeys,
     excludeTypes,
   ])
+
+  // `groups` keeps its own stable identity so the consumers' downstream memos
+  // still key on it; only this wrapper changes when hydration settles.
+  return useMemo(() => ({ groups, isHydrating }), [groups, isHydrating])
 }
 
 export type WorkflowTreeNode =
-  | { kind: 'workflow'; id: string; name: string; isOpen?: boolean }
+  | { kind: 'workflow'; id: string; name: string }
   | { kind: 'folder'; id: string; name: string; children: WorkflowTreeNode[] }
 
 export function buildWorkflowFolderTree(
@@ -256,7 +303,6 @@ export function buildWorkflowFolderTree(
     kind: 'workflow',
     id: w.id,
     name: w.name,
-    isOpen: w.isOpen,
   })
 
   const buildLevel = (parentId: string | null): WorkflowTreeNode[] => {
@@ -296,7 +342,7 @@ export function buildWorkflowFolderTree(
 
 interface WorkflowFolderTreeItemsProps {
   nodes: WorkflowTreeNode[]
-  onSelect: (resource: MothershipResource, isOpen?: boolean) => void
+  onSelect: (resource: MothershipResource) => void
 }
 
 export function WorkflowFolderTreeItems({ nodes, onSelect }: WorkflowFolderTreeItemsProps) {
@@ -306,9 +352,7 @@ export function WorkflowFolderTreeItems({ nodes, onSelect }: WorkflowFolderTreeI
         node.kind === 'workflow' ? (
           <DropdownMenuItem
             key={node.id}
-            onClick={() =>
-              onSelect({ type: 'workflow', id: node.id, title: node.name }, node.isOpen)
-            }
+            onClick={() => onSelect({ type: 'workflow', id: node.id, title: node.name })}
           >
             {getResourceConfig('workflow').renderDropdownItem({
               item: { id: node.id, name: node.name },
@@ -331,8 +375,8 @@ export function WorkflowFolderTreeItems({ nodes, onSelect }: WorkflowFolderTreeI
 }
 
 export type FileFolderTreeNode =
-  | { kind: 'file'; id: string; name: string; isOpen?: boolean }
-  | { kind: 'folder'; id: string; name: string; isOpen?: boolean; children: FileFolderTreeNode[] }
+  | { kind: 'file'; id: string; name: string }
+  | { kind: 'folder'; id: string; name: string; children: FileFolderTreeNode[] }
 
 export function buildFileFolderTree(
   fileItems: AvailableItem[],
@@ -353,17 +397,15 @@ export function buildFileFolderTree(
     const childFiles = byFolder.get(parentId) ?? []
     const nodes: FileFolderTreeNode[] = []
     for (const folder of childFolders) {
-      const children = buildLevel(folder.id)
       nodes.push({
         kind: 'folder',
         id: folder.id,
         name: folder.name,
-        isOpen: folder.isOpen,
-        children,
+        children: buildLevel(folder.id),
       })
     }
     for (const file of childFiles) {
-      nodes.push({ kind: 'file', id: file.id, name: file.name, isOpen: file.isOpen })
+      nodes.push({ kind: 'file', id: file.id, name: file.name })
     }
     return nodes
   }
@@ -373,7 +415,7 @@ export function buildFileFolderTree(
 
 interface FileFolderTreeItemsProps {
   nodes: FileFolderTreeNode[]
-  onSelect: (resource: MothershipResource, isOpen?: boolean) => void
+  onSelect: (resource: MothershipResource) => void
 }
 
 export function FileFolderTreeItems({ nodes, onSelect }: FileFolderTreeItemsProps) {
@@ -383,7 +425,7 @@ export function FileFolderTreeItems({ nodes, onSelect }: FileFolderTreeItemsProp
         node.kind === 'file' ? (
           <DropdownMenuItem
             key={node.id}
-            onClick={() => onSelect({ type: 'file', id: node.id, title: node.name }, node.isOpen)}
+            onClick={() => onSelect({ type: 'file', id: node.id, title: node.name })}
           >
             {getResourceConfig('file').renderDropdownItem({
               item: { id: node.id, name: node.name },
@@ -397,9 +439,7 @@ export function FileFolderTreeItems({ nodes, onSelect }: FileFolderTreeItemsProp
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               <DropdownMenuItem
-                onClick={() =>
-                  onSelect({ type: 'filefolder', id: node.id, title: node.name }, node.isOpen)
-                }
+                onClick={() => onSelect({ type: 'filefolder', id: node.id, title: node.name })}
               >
                 <Folder className='size-[14px]' />
                 <span>{node.name}</span>
@@ -425,10 +465,8 @@ export function AddResourceDropdown({
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
-  const available = useAvailableResources(workspaceId, existingKeys, [
-    ...(excludeTypes ?? []),
-    'integration',
-  ])
+  // Gated on `open` so an idle tab bar never fetches the workspace lists.
+  const { groups: available } = useAvailableResources(workspaceId, { enabled: open, excludeTypes })
   const handleOpenChange = (next: boolean) => {
     setOpen(next)
     if (!next) {
@@ -437,8 +475,8 @@ export function AddResourceDropdown({
     }
   }
 
-  const select = (resource: MothershipResource, isOpen?: boolean) => {
-    if (isOpen && onSwitch) {
+  const select = (resource: MothershipResource) => {
+    if (onSwitch && existingKeys.has(`${resource.type}:${resource.id}`)) {
       onSwitch(resource.id)
     } else {
       onAdd(resource)
@@ -480,7 +518,7 @@ export function AddResourceDropdown({
       if (filtered.length > 0 && filtered[activeIndex]) {
         e.preventDefault()
         const { type, item } = filtered[activeIndex]
-        select({ type, id: item.id, title: item.name }, item.isOpen)
+        select({ type, id: item.id, title: item.name })
       }
     }
   }
@@ -528,7 +566,7 @@ export function AddResourceDropdown({
                     key={`${type}:${item.id}`}
                     className={cn(index === activeIndex && 'bg-[var(--surface-active)]')}
                     onMouseEnter={() => setActiveIndex(index)}
-                    onClick={() => select({ type, id: item.id, title: item.name }, item.isOpen)}
+                    onClick={() => select({ type, id: item.id, title: item.name })}
                   >
                     {config.renderDropdownItem({ item })}
                   </DropdownMenuItem>
@@ -584,7 +622,7 @@ export function AddResourceDropdown({
                   return (
                     <DropdownMenuItem
                       key={type}
-                      onClick={() => select({ type, id: item.id, title: item.name }, item.isOpen)}
+                      onClick={() => select({ type, id: item.id, title: item.name })}
                     >
                       <Icon className='size-[14px]' />
                       <span>{config.label}</span>
@@ -601,9 +639,7 @@ export function AddResourceDropdown({
                       {items.map((item) => (
                         <DropdownMenuItem
                           key={item.id}
-                          onClick={() =>
-                            select({ type, id: item.id, title: item.name }, item.isOpen)
-                          }
+                          onClick={() => select({ type, id: item.id, title: item.name })}
                         >
                           {config.renderDropdownItem({ item })}
                         </DropdownMenuItem>

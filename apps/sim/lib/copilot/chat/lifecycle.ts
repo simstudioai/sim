@@ -86,6 +86,18 @@ export async function loadCopilotChatMessages(chatId: string): Promise<Persisted
   return rows.map((row) => stripToolResultOutput(row.content as PersistedMessage))
 }
 
+/**
+ * Ownership + liveness predicate shared by the accessible-chat loaders:
+ * the chat must belong to the user and not be soft-deleted.
+ */
+function ownedLiveChatWhere(chatId: string, userId: string) {
+  return and(
+    eq(copilotChats.id, chatId),
+    eq(copilotChats.userId, userId),
+    isNull(copilotChats.deletedAt)
+  )
+}
+
 type CopilotChatAuthRow = Pick<
   typeof copilotChats.$inferSelect,
   'id' | 'userId' | 'workflowId' | 'workspaceId' | 'type'
@@ -163,7 +175,7 @@ export async function getAccessibleCopilotChatAuth(
   const [chat] = await db
     .select(copilotChatAuthColumns)
     .from(copilotChats)
-    .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
+    .where(ownedLiveChatWhere(chatId, userId))
     .limit(1)
 
   return authorizeCopilotChatRow(chat, chatId, userId)
@@ -181,7 +193,7 @@ export async function getAccessibleCopilotChat(
   const [chat] = await db
     .select(copilotChatLegacyDetailColumns)
     .from(copilotChats)
-    .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
+    .where(ownedLiveChatWhere(chatId, userId))
     .limit(1)
 
   const authorized = await authorizeCopilotChatRow(chat, chatId, userId)
@@ -205,7 +217,7 @@ export async function getAccessibleCopilotChatWithMessages(
   const [chat] = await db
     .select(copilotChatDetailColumns)
     .from(copilotChats)
-    .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
+    .where(ownedLiveChatWhere(chatId, userId))
     .limit(1)
 
   const authorized = await authorizeCopilotChatRow(chat, chatId, userId)

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns } from '@sim/testing'
+import { dbChainMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDispatchSimEvent, mockReadLastFiredAt, mockClaimCooldown } = vi.hoisted(() => ({
@@ -9,8 +9,6 @@ const { mockDispatchSimEvent, mockReadLastFiredAt, mockClaimCooldown } = vi.hois
   mockReadLastFiredAt: vi.fn(),
   mockClaimCooldown: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/workspace-events/emitter', () => ({
   dispatchSimEvent: mockDispatchSimEvent,

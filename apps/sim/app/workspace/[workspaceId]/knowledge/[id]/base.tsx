@@ -31,7 +31,6 @@ import { AlertCircle, Pencil, Plus, Tag, X } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
-import { SearchHighlight } from '@/components/ui/search-highlight'
 import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
@@ -59,6 +58,7 @@ import {
   ConnectorsSection,
   DocumentContextMenu,
   RenameDocumentModal,
+  SearchHighlight,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import {
   addConnectorParam,

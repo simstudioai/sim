@@ -1,60 +1,21 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-interface Condition {
-  kind: string
-  column?: unknown
-  value?: unknown
-  conditions?: Condition[]
-}
-
-const { mockSelect } = vi.hoisted(() => ({ mockSelect: vi.fn() }))
-
-vi.mock('@sim/db', () => ({ db: { select: mockSelect } }))
-
-vi.mock('drizzle-orm', () => ({
-  and: (...conditions: Condition[]) => ({ kind: 'and', conditions }),
-  eq: (column: unknown, value: unknown) => ({ kind: 'eq', column, value }),
-  isNull: (column: unknown) => ({ kind: 'isNull', column }),
-}))
-
+import { webhook, webhookPathClaim } from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { findConflictingWebhookPathOwner } from '@/lib/webhooks/utils.server'
 
-function claimLookupChain(rows: unknown[], captureCondition?: (condition: Condition) => void) {
-  return {
-    from: vi.fn(() => ({
-      where: vi.fn((condition: Condition) => {
-        captureCondition?.(condition)
-        return { limit: vi.fn().mockResolvedValue(rows) }
-      }),
-    })),
-  }
-}
-
-function liveRowsChain(rows: unknown[]) {
-  return {
-    from: vi.fn(() => ({
-      innerJoin: vi.fn(() => ({
-        where: vi.fn().mockResolvedValue(rows),
-      })),
-    })),
-  }
-}
+afterAll(resetDbChainMock)
 
 describe('findConflictingWebhookPathOwner', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
   })
 
   it('returns the claim owner while the claim holder is mid-rotation', async () => {
-    let claimCondition: Condition | undefined
-    mockSelect.mockReturnValueOnce(
-      claimLookupChain([{ workflowId: 'workflow-owner' }], (condition) => {
-        claimCondition = condition
-      })
-    )
+    queueTableRows(webhookPathClaim, [{ workflowId: 'workflow-owner' }])
 
     const owner = await findConflictingWebhookPathOwner({
       path: ' /leads/ ',
@@ -62,14 +23,15 @@ describe('findConflictingWebhookPathOwner', () => {
     })
 
     expect(owner).toBe('workflow-owner')
-    expect(mockSelect).toHaveBeenCalledTimes(1)
-    expect(claimCondition).toEqual(expect.objectContaining({ kind: 'eq', value: 'leads' }))
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.where).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'eq', right: 'leads' })
+    )
   })
 
   it('ignores the caller-owned claim and falls through to live rows', async () => {
-    mockSelect
-      .mockReturnValueOnce(claimLookupChain([{ workflowId: 'workflow-caller' }]))
-      .mockReturnValueOnce(liveRowsChain([]))
+    queueTableRows(webhookPathClaim, [{ workflowId: 'workflow-caller' }])
+    queueTableRows(webhook, [])
 
     const owner = await findConflictingWebhookPathOwner({
       path: 'leads',
@@ -77,15 +39,12 @@ describe('findConflictingWebhookPathOwner', () => {
     })
 
     expect(owner).toBeNull()
-    expect(mockSelect).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
   })
 
   it('returns a foreign live-row owner when no claim exists', async () => {
-    mockSelect
-      .mockReturnValueOnce(claimLookupChain([]))
-      .mockReturnValueOnce(
-        liveRowsChain([{ workflowId: 'workflow-caller' }, { workflowId: 'workflow-foreign' }])
-      )
+    queueTableRows(webhookPathClaim, [])
+    queueTableRows(webhook, [{ workflowId: 'workflow-caller' }, { workflowId: 'workflow-foreign' }])
 
     const owner = await findConflictingWebhookPathOwner({
       path: 'leads',
@@ -96,7 +55,7 @@ describe('findConflictingWebhookPathOwner', () => {
   })
 
   it('skips the claim lookup entirely for empty paths', async () => {
-    mockSelect.mockReturnValueOnce(liveRowsChain([]))
+    queueTableRows(webhook, [])
 
     const owner = await findConflictingWebhookPathOwner({
       path: '   ',
@@ -104,6 +63,6 @@ describe('findConflictingWebhookPathOwner', () => {
     })
 
     expect(owner).toBeNull()
-    expect(mockSelect).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
   })
 })

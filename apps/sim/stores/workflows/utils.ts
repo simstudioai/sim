@@ -5,11 +5,13 @@ import type { Edge } from 'reactflow'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
+import { isDynamicHandleSubblock } from '@/lib/workflows/dynamic-handle-topology'
 import { createDefaultInputFormatField } from '@/lib/workflows/input-format'
 import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getBlock } from '@/blocks'
 import { normalizeName } from '@/executor/constants'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import type {
@@ -189,9 +191,13 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
 }
 
 /**
- * Merges workflow block states with subblock values while maintaining block structure
+ * Merges workflow block states with the sub-block store's values while maintaining
+ * block structure. Resolves the active workflow when no workflowId is given.
+ * Value semantics (explicit-null clears, orphaned runtime values such as
+ * webhookId/triggerPath, undefined fallbacks) are defined by
+ * {@link mergeSubblockStateWithValues}.
  * @param blocks - Block configurations from workflow store
- * @param workflowId - ID of the workflow to merge values for
+ * @param workflowId - ID of the workflow to merge values for (defaults to the active workflow)
  * @param blockId - Optional specific block ID to merge (merges all if not provided)
  * @returns Merged block states with updated values
  */
@@ -200,78 +206,12 @@ export function mergeSubblockState(
   workflowId?: string,
   blockId?: string
 ): Record<string, BlockState> {
-  const subBlockStore = useSubBlockStore.getState()
+  const resolvedWorkflowId = workflowId ?? useWorkflowRegistry.getState().activeWorkflowId
+  const workflowSubblockValues = resolvedWorkflowId
+    ? useSubBlockStore.getState().workflowValues[resolvedWorkflowId] || {}
+    : {}
 
-  const workflowSubblockValues = workflowId ? subBlockStore.workflowValues[workflowId] || {} : {}
-
-  if (workflowId) {
-    return mergeSubblockStateWithValues(blocks, workflowSubblockValues, blockId)
-  }
-
-  const blocksToProcess = blockId ? { [blockId]: blocks[blockId] } : blocks
-
-  return Object.entries(blocksToProcess).reduce(
-    (acc, [id, block]) => {
-      if (!block) {
-        return acc
-      }
-
-      const blockSubBlocks = block.subBlocks || {}
-
-      const blockValues = workflowSubblockValues[id] || {}
-
-      const mergedSubBlocks = Object.entries(blockSubBlocks).reduce(
-        (subAcc, [subBlockId, subBlock]) => {
-          if (!subBlock) {
-            return subAcc
-          }
-
-          let storedValue = null
-
-          if (workflowId) {
-            if (blockValues[subBlockId] !== undefined) {
-              storedValue = blockValues[subBlockId]
-            }
-          } else {
-            storedValue = subBlockStore.getValue(id, subBlockId)
-          }
-
-          subAcc[subBlockId] = {
-            ...subBlock,
-            value: (storedValue !== undefined && storedValue !== null
-              ? storedValue
-              : subBlock.value) as SubBlockState['value'],
-          }
-
-          return subAcc
-        },
-        {} as Record<string, SubBlockState>
-      )
-
-      // Add any values that exist in the store but aren't in the block structure
-      // This handles cases where block config has been updated but values still exist
-      // IMPORTANT: This includes runtime subblock IDs like webhookId, triggerPath, etc.
-      Object.entries(blockValues).forEach(([subBlockId, value]) => {
-        if (!mergedSubBlocks[subBlockId] && value !== null && value !== undefined) {
-          // Create a minimal subblock structure
-          mergedSubBlocks[subBlockId] = {
-            id: subBlockId,
-            type: 'short-input', // Default type that's safe to use
-            value: value as SubBlockState['value'],
-          }
-        }
-      })
-
-      // Return the full block state with updated subBlocks (including orphaned values)
-      acc[id] = {
-        ...block,
-        subBlocks: mergedSubBlocks,
-      }
-
-      return acc
-    },
-    {} as Record<string, BlockState>
-  )
+  return mergeSubblockStateWithValues(blocks, workflowSubblockValues, blockId)
 }
 
 function updateValueReferences(value: unknown, nameMap: Map<string, string>): unknown {
@@ -337,7 +277,7 @@ export function regenerateWorkflowIds(
     const oldNormalizedName = normalizeName(block.name)
     nameMap.set(oldNormalizedName, oldNormalizedName)
     const newBlock = { ...block, id: newId, subBlocks: structuredClone(block.subBlocks) }
-    remapConditionIds(newBlock.subBlocks, {}, oldId, newId)
+    remapConditionIds(newBlock.subBlocks, {}, block.type, oldId, newId)
     newBlocks[newId] = newBlock
   })
 
@@ -410,15 +350,26 @@ export function regenerateWorkflowIds(
 /**
  * Remaps condition/router block IDs within subBlock values when a block is duplicated.
  * Mutates both `subBlocks` and `subBlockValues` in place (callers must pass cloned data).
+ *
+ * Gated on the BLOCK type + canonical subblock key (`conditions`/`routes`), not the
+ * stored subblock `type`: edge handles remap by string prefix with no type gate, so a
+ * drifted stored type would skip the id remap here while the handles still move,
+ * orphaning every edge out of the block.
+ *
+ * The `subBlockValues[id] ?? subBlock.value` fallback is safe here despite the
+ * structure copy being generally stale: condition/router subblocks are
+ * dynamic-handle types, which dual-write the structure on every edit
+ * (syncDynamicHandleSubblockValue), so both sources are current for them.
  */
 export function remapConditionIds(
   subBlocks: Record<string, SubBlockState>,
   subBlockValues: Record<string, unknown>,
+  blockType: string | undefined,
   oldBlockId: string,
   newBlockId: string
 ): void {
   for (const [subBlockId, subBlock] of Object.entries(subBlocks)) {
-    if (subBlock.type !== 'condition-input' && subBlock.type !== 'router-input') continue
+    if (!isDynamicHandleSubblock(blockType, subBlockId)) continue
 
     const value = subBlockValues[subBlockId] ?? subBlock.value
     if (typeof value !== 'string') continue
@@ -522,7 +473,7 @@ export function regenerateBlockIds(
     }
 
     // Remap condition/router IDs in the duplicated block
-    remapConditionIds(newBlock.subBlocks, newSubBlockValues[newId] || {}, oldId, newId)
+    remapConditionIds(newBlock.subBlocks, newSubBlockValues[newId] || {}, block.type, oldId, newId)
   })
 
   // Second pass: update parentId references for nested blocks

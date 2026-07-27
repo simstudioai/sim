@@ -8,12 +8,10 @@
  * concurrent inserts on the same table.
  */
 import { userTableDefinitions } from '@sim/db/schema'
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { importAppendRows } from '@/lib/table/import-data'
 import type { TableDefinition } from '@/lib/table/types'
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
   isFeatureEnabled: vi.fn().mockResolvedValue(false),
@@ -41,6 +39,7 @@ const TABLE: TableDefinition = {
   maxRows: 1000,
   workspaceId: 'ws-1',
   createdBy: 'user-1',
+  locks: { schemaLocked: false, insertLocked: false, updateLocked: false, deleteLocked: false },
   archivedAt: null,
   createdAt: new Date('2024-01-01'),
   updatedAt: new Date('2024-01-01'),

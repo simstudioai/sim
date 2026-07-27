@@ -9,7 +9,7 @@ import {
   isCanonicalPair,
 } from '@/lib/workflows/subblocks/visibility'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
-import { getAllBlocks } from '@/blocks/registry'
+import { getAllBlocks, getBlock } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import type { EditWorkflowOperation, SkippedItem, ValidationError } from './types'
@@ -624,9 +624,14 @@ export function applyTriggerConfigToBlockSubblocks(block: any, triggerConfig: Re
         value: configValue,
       }
     } else {
+      // The registry type is authoritative for declared keys; `short-input` is
+      // only the keep-alive default for dynamic trigger-config keys the block
+      // config does not declare (an `unknown` type would be dropped on the next
+      // sanitize pass, losing the value).
+      const subBlockDef = getBlock(block.type)?.subBlocks.find((sb) => sb.id === configKey)
       block.subBlocks[configKey] = {
         id: configKey,
-        type: 'short-input',
+        type: subBlockDef?.type || 'short-input',
         value: configValue,
       }
     }

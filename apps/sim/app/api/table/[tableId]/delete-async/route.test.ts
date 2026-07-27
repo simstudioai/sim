@@ -1,9 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { hybridAuthMockFns } from '@sim/testing'
+import { hybridAuthMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { NextRequest, NextResponse } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
 
 const {
@@ -13,7 +13,6 @@ const {
   mockRunTableDelete,
   mockTableFilterError,
   mockTasksTrigger,
-  flags,
 } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
   mockMarkTableJobRunning: vi.fn(),
@@ -21,7 +20,6 @@ const {
   mockRunTableDelete: vi.fn(),
   mockTableFilterError: vi.fn(),
   mockTasksTrigger: vi.fn(),
-  flags: { triggerDev: false },
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -33,11 +31,6 @@ vi.mock('@/lib/table/jobs/service', () => ({
   releaseJobClaim: mockReleaseJobClaim,
 }))
 vi.mock('@/lib/table/delete-runner', () => ({ runTableDelete: mockRunTableDelete }))
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isTriggerDevEnabled() {
-    return flags.triggerDev
-  },
-}))
 vi.mock('@/background/table-delete', () => ({ tableDeleteTask: { id: 'table-delete' } }))
 vi.mock('@/lib/core/async-jobs/region', () => ({
   resolveTriggerRegion: vi.fn().mockResolvedValue('us-east-1'),
@@ -62,6 +55,8 @@ vi.mock('@/app/api/table/utils', async () => {
 })
 
 import { POST } from '@/app/api/table/[tableId]/delete-async/route'
+
+afterAll(resetEnvFlagsMock)
 
 function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
   return {
@@ -109,7 +104,7 @@ describe('POST /api/table/[tableId]/delete-async', () => {
     mockRunTableDelete.mockResolvedValue(undefined)
     mockTableFilterError.mockReturnValue(null)
     mockTasksTrigger.mockResolvedValue({ id: 'run_1' })
-    flags.triggerDev = false
+    setEnvFlags({ isTriggerDevEnabled: false })
   })
 
   it('claims the job slot and kicks off the delete worker with filter + exclusions', async () => {
@@ -185,7 +180,7 @@ describe('POST /api/table/[tableId]/delete-async', () => {
   })
 
   it('routes through trigger.dev (ISO cutoff, tagged) when the flag is on', async () => {
-    flags.triggerDev = true
+    setEnvFlags({ isTriggerDevEnabled: true })
     const response = await makeRequest(validBody)
 
     expect(response.status).toBe(200)
@@ -204,7 +199,7 @@ describe('POST /api/table/[tableId]/delete-async', () => {
   })
 
   it('releases the job claim when the trigger.dev dispatch fails (no ghost running job)', async () => {
-    flags.triggerDev = true
+    setEnvFlags({ isTriggerDevEnabled: true })
     mockTasksTrigger.mockRejectedValueOnce(new Error('trigger.dev unreachable'))
 
     const response = await makeRequest(validBody)

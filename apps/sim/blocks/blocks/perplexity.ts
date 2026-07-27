@@ -286,7 +286,7 @@ export const PerplexityBlockMeta = {
     },
     {
       icon: PerplexityIcon,
-      title: 'Multi-source research agent',
+      title: 'Perplexity multi-source research',
       prompt:
         'Create an agent that triangulates a topic across Perplexity, Exa, and Tavily, deduplicates findings, and produces a consensus brief with confidence scores per claim.',
       modules: ['agent', 'files', 'workflows'],

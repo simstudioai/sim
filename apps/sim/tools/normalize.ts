@@ -7,6 +7,17 @@
  * Pure string utility — no server dependencies, safe to import in client components.
  */
 export function normalizeToolId(toolId: string): string {
+  // Custom (deploy-as-block) tools: 'deployed_block_executor_custom_block_<id>' ->
+  // 'deployed_block_executor'. Note the id deliberately does NOT start with
+  // `custom_` — that prefix is the user-defined custom-tool namespace
+  // (`isCustomTool`), and colliding with it misroutes resolution and permissions.
+  if (
+    toolId.startsWith('deployed_block_executor_') &&
+    toolId.length > 'deployed_block_executor_'.length
+  ) {
+    return 'deployed_block_executor'
+  }
+
   if (toolId.startsWith('workflow_executor_') && toolId.length > 'workflow_executor_'.length) {
     return 'workflow_executor'
   }

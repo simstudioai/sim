@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import {
   ClipboardList,
+  Clock,
   Cursor,
   Database,
   HexSimple,
@@ -29,13 +30,7 @@ import { isHosted } from '@/lib/core/config/env-flags'
 
 export type SettingsPlane = 'account' | 'organization' | 'workspace'
 
-export type AccountSettingsSection =
-  | 'general'
-  | 'billing'
-  | 'api-keys'
-  | 'copilot'
-  | 'admin'
-  | 'mothership'
+export type AccountSettingsSection = 'general' | 'billing' | 'api-keys' | 'admin' | 'mothership'
 
 export type OrganizationSettingsSection =
   | 'members'
@@ -43,6 +38,7 @@ export type OrganizationSettingsSection =
   | 'access-control'
   | 'audit-logs'
   | 'sso'
+  | 'sessions'
   | 'data-retention'
   | 'data-drains'
   | 'whitelabeling'
@@ -92,13 +88,13 @@ export type UnifiedSettingsSection =
   | 'organization'
   | 'sso'
   | 'whitelabeling'
-  | 'copilot'
   | 'forks'
   | 'mcp'
   | 'custom-tools'
   | 'workflow-mcp-servers'
   | 'inbox'
   | 'admin'
+  | 'sessions'
   | 'data-retention'
   | 'data-drains'
   | 'mothership'
@@ -182,6 +178,7 @@ const SETTINGS_SELF_HOSTED_OVERRIDES = {
   dataDrains: isTruthy(getEnv('NEXT_PUBLIC_DATA_DRAINS_ENABLED')),
   dataRetention: isTruthy(getEnv('NEXT_PUBLIC_DATA_RETENTION_ENABLED')),
   inbox: isTruthy(getEnv('NEXT_PUBLIC_INBOX_ENABLED')),
+  sessionPolicies: isTruthy(getEnv('NEXT_PUBLIC_SESSION_POLICIES_ENABLED')),
   sso: isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')),
   whitelabeling: isTruthy(getEnv('NEXT_PUBLIC_WHITELABELING_ENABLED')),
 } as const
@@ -230,6 +227,8 @@ export const ACCOUNT_SETTINGS_PATH_ALIASES = {
 
 export const ORGANIZATION_SETTINGS_PATH_ALIASES = {
   organization: 'members',
+  // Verified domains moved into the SSO page; keep old links working.
+  domains: 'sso',
 } as const satisfies Readonly<Record<string, OrganizationSettingsSection>>
 
 export const WORKSPACE_SETTINGS_PATH_ALIASES = {
@@ -525,19 +524,6 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
-    label: 'Chat keys',
-    icon: HexSimple,
-    unified: {
-      id: 'copilot',
-      description: 'Manage the model-provider keys that power Chat.',
-      group: 'system',
-      requiresHosted: true,
-    },
-    planes: {
-      account: { id: 'copilot', group: 'developer', order: 3 },
-    },
-  },
-  {
     label: 'Sim mailer',
     icon: Send,
     unified: {
@@ -582,6 +568,22 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
+    label: 'Session policies',
+    icon: Clock,
+    docsLink: 'https://docs.sim.ai/platform/enterprise/session-policies',
+    unified: {
+      id: 'sessions',
+      description: 'Limit session lifetimes and sign out members org-wide.',
+      group: 'enterprise',
+      requiresHosted: true,
+      requiresEnterprise: true,
+      selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.sessionPolicies,
+    },
+    planes: {
+      organization: { id: 'sessions', group: 'security', order: 5 },
+    },
+  },
+  {
     label: 'Data retention',
     icon: Database,
     docsLink: 'https://docs.sim.ai/platform/enterprise/data-retention',
@@ -595,7 +597,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.dataRetention,
     },
     planes: {
-      organization: { id: 'data-retention', group: 'enterprise', order: 5 },
+      organization: { id: 'data-retention', group: 'enterprise', order: 6 },
     },
   },
   {
@@ -611,7 +613,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.dataDrains,
     },
     planes: {
-      organization: { id: 'data-drains', group: 'enterprise', order: 6 },
+      organization: { id: 'data-drains', group: 'enterprise', order: 7 },
     },
   },
   {
@@ -627,7 +629,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.whitelabeling,
     },
     planes: {
-      organization: { id: 'whitelabeling', group: 'enterprise', order: 7 },
+      organization: { id: 'whitelabeling', group: 'enterprise', order: 8 },
     },
   },
   {
@@ -763,6 +765,7 @@ export function getOrganizationSettingsFeatures(
       'access-control': SETTINGS_SELF_HOSTED_OVERRIDES.accessControl,
       'audit-logs': SETTINGS_SELF_HOSTED_OVERRIDES.auditLogs,
       sso: SETTINGS_SELF_HOSTED_OVERRIDES.sso,
+      sessions: SETTINGS_SELF_HOSTED_OVERRIDES.sessionPolicies,
       'data-retention': SETTINGS_SELF_HOSTED_OVERRIDES.dataRetention,
       'data-drains': SETTINGS_SELF_HOSTED_OVERRIDES.dataDrains,
       whitelabeling: SETTINGS_SELF_HOSTED_OVERRIDES.whitelabeling,

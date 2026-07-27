@@ -2,13 +2,11 @@
  * @vitest-environment node
  */
 import { createHmac } from 'node:crypto'
+import { dbChainMock, schemaMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/db', () => ({
-  db: {},
-  workflowDeploymentVersion: {},
-}))
+vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 import { whatsappHandler } from './whatsapp'
 
@@ -193,5 +191,89 @@ describe('WhatsApp webhook provider', () => {
         },
       },
     ])
+  })
+
+  async function formatMediaMessage(message: Record<string, unknown>) {
+    const result = await whatsappHandler.formatInput!({
+      webhook: { id: 'wh_media', providerConfig: {} },
+      workflow: { id: 'wf_media', userId: 'user_media' },
+      body: {
+        object: 'whatsapp_business_account',
+        entry: [
+          {
+            changes: [
+              {
+                field: 'messages',
+                value: { metadata: { phone_number_id: '12345' }, messages: [message] },
+              },
+            ],
+          },
+        ],
+      },
+      headers: {},
+      requestId: 'wa-format-media',
+    })
+
+    return result.input as Record<string, unknown>
+  }
+
+  it('surfaces the media asset ID from an incoming image message', async () => {
+    const input = await formatMediaMessage({
+      id: 'wamid.image.1',
+      from: '15550101',
+      timestamp: '1700000000',
+      type: 'image',
+      image: {
+        caption: 'Taj Mahal',
+        mime_type: 'image/jpeg',
+        sha256: 'abc123',
+        id: '1003383421387256',
+      },
+    })
+
+    // The media asset ID is a different value from the wamid message ID.
+    expect(input.messageId).toBe('wamid.image.1')
+    expect(input.mediaId).toBe('1003383421387256')
+    expect(input.mediaMimeType).toBe('image/jpeg')
+    expect(input.caption).toBe('Taj Mahal')
+  })
+
+  it('surfaces the filename on an incoming document message', async () => {
+    const input = await formatMediaMessage({
+      id: 'wamid.doc.1',
+      from: '15550101',
+      timestamp: '1700000000',
+      type: 'document',
+      document: { filename: 'receipt.pdf', mime_type: 'application/pdf', id: '999' },
+    })
+
+    expect(input.mediaId).toBe('999')
+    expect((input.messages as Array<Record<string, unknown>>)[0].mediaFilename).toBe('receipt.pdf')
+  })
+
+  it('leaves media fields unset for a text message', async () => {
+    const input = await formatMediaMessage({
+      id: 'wamid.text.1',
+      from: '15550101',
+      timestamp: '1700000000',
+      type: 'text',
+      text: { body: 'hello' },
+    })
+
+    expect(input.mediaId).toBeUndefined()
+    expect(input.mediaMimeType).toBeUndefined()
+    expect(input.caption).toBeUndefined()
+  })
+
+  it('ignores a media type whose payload object is missing', async () => {
+    const input = await formatMediaMessage({
+      id: 'wamid.image.2',
+      from: '15550101',
+      timestamp: '1700000000',
+      type: 'image',
+    })
+
+    expect(input.messageId).toBe('wamid.image.2')
+    expect(input.mediaId).toBeUndefined()
   })
 })

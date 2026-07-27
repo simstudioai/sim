@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockHasPaidSubscription,
@@ -15,7 +16,6 @@ const {
   mockGetOrganizationCoverageForMember: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ db: {} }))
 vi.mock('@/lib/billing', () => ({ hasPaidSubscription: mockHasPaidSubscription }))
 vi.mock('@/lib/billing/core/organization', () => ({
   isOrganizationOwnerOrAdmin: mockIsOwnerOrAdmin,
@@ -41,6 +41,14 @@ import {
   isPersonalCheckoutRequest,
 } from '@/lib/billing/authorization'
 import { EnterpriseIssuanceInProgressError } from '@/lib/billing/enterprise-outbox'
+
+beforeEach(() => {
+  resetDbChainMock()
+})
+
+afterAll(() => {
+  resetDbChainMock()
+})
 
 describe('isPersonalCheckoutRequest', () => {
   it('classifies an explicit self reference as personal regardless of customerType', () => {

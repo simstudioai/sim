@@ -41,7 +41,18 @@ import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 const EDGE_ZONE = 40
 const SCROLL_SPEED = 8
 
-const ADD_RESOURCE_EXCLUDED_TYPES: readonly MothershipResourceType[] = ['folder', 'task'] as const
+/**
+ * Types that cannot be opened as a resource tab. Folders and chats have no tab
+ * surface; integrations are `@`-mention-only (see `MENTION_ONLY_RESOURCE_TYPES`
+ * in `plus-menu-dropdown`), so they are never offered here.
+ *
+ * Module-scope by contract — `useAvailableResources` keys its group memo on this.
+ */
+const ADD_RESOURCE_EXCLUDED_TYPES: readonly MothershipResourceType[] = [
+  'folder',
+  'task',
+  'integration',
+] as const
 
 /**
  * Returns the id of the nearest resource to `idx` that is in `filter`
@@ -112,25 +123,36 @@ const PREVIEW_MODE_LABELS: Record<PreviewMode, string> = {
 }
 
 /**
- * Builds a `type:id` -> current name lookup from live query data so resource
- * tabs always reflect the latest name even after a rename.
+ * Stable identity for the empty lookup across `enabled` toggles. Unlike
+ * `NO_RESOURCE_GROUPS`, nothing downstream keys on this identity — tab rows
+ * receive the derived `displayName` string — so it is cheap insurance rather
+ * than a guard against busting a downstream memo.
  */
-function useResourceNameLookup(workspaceId: string): Map<string, string> {
-  const { data: workflows = [] } = useWorkflows(workspaceId)
-  const { data: tables = [] } = useTablesList(workspaceId)
-  const { data: files = [] } = useWorkspaceFiles(workspaceId)
-  const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId)
-  const { data: folders = [] } = useFolders(workspaceId)
+const NO_RESOURCE_NAMES = new Map<string, string>()
+
+/**
+ * Builds a `type:id` -> current name lookup from live query data so resource
+ * tabs always reflect the latest name even after a rename. Skipped entirely
+ * when there are no tabs to label — a chat with no open resources must not
+ * fetch five workspace-wide lists.
+ */
+function useResourceNameLookup(workspaceId: string, enabled: boolean): Map<string, string> {
+  const { data: workflows } = useWorkflows(workspaceId, { enabled })
+  const { data: tables } = useTablesList(workspaceId, 'active', { enabled })
+  const { data: files } = useWorkspaceFiles(workspaceId, 'active', { enabled })
+  const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId, { enabled })
+  const { data: folders } = useFolders(workspaceId, { enabled })
 
   return useMemo(() => {
+    if (!enabled) return NO_RESOURCE_NAMES
     const map = new Map<string, string>()
-    for (const w of workflows) map.set(`workflow:${w.id}`, w.name)
-    for (const t of tables) map.set(`table:${t.id}`, t.name)
-    for (const f of files) map.set(`file:${f.id}`, f.name)
+    for (const w of workflows ?? []) map.set(`workflow:${w.id}`, w.name)
+    for (const t of tables ?? []) map.set(`table:${t.id}`, t.name)
+    for (const f of files ?? []) map.set(`file:${f.id}`, f.name)
     for (const kb of knowledgeBases ?? []) map.set(`knowledgebase:${kb.id}`, kb.name)
-    for (const folder of folders) map.set(`folder:${folder.id}`, folder.name)
+    for (const folder of folders ?? []) map.set(`folder:${folder.id}`, folder.name)
     return map
-  }, [workflows, tables, files, knowledgeBases, folders])
+  }, [enabled, workflows, tables, files, knowledgeBases, folders])
 }
 
 interface ResourceTabItemProps {
@@ -259,7 +281,7 @@ export function ResourceTabs({
   actions,
 }: ResourceTabsProps) {
   const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
-  const nameLookup = useResourceNameLookup(workspaceId)
+  const nameLookup = useResourceNameLookup(workspaceId, resources.length > 0)
   const {
     selectResource,
     addResource: onAddResource,
@@ -323,10 +345,7 @@ export function ResourceTabs({
     anchorIdRef.current = null
   }
 
-  const existingKeys = useMemo(
-    () => new Set(resources.map((r) => `${r.type}:${r.id}`)),
-    [resources]
-  )
+  const existingKeys = new Set(resources.map((r) => `${r.type}:${r.id}`))
 
   const handleAdd = useCallback(
     (resource: MothershipResource) => {

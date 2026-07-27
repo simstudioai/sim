@@ -1,25 +1,12 @@
 import type { ToolConfig } from '@/tools/types'
-import type {
-  WhatsAppMediaType,
-  WhatsAppSendMediaParams,
-  WhatsAppSendResponse,
-} from '@/tools/whatsapp/types'
-import {
-  buildAuthHeaders,
-  buildMessagesUrl,
-  transformWhatsAppSendResponse,
-  whatsappSendOutputs,
-} from '@/tools/whatsapp/utils'
-
-const MEDIA_TYPES: readonly WhatsAppMediaType[] = ['image', 'document', 'video', 'audio']
-
-const CAPTION_TYPES: ReadonlySet<WhatsAppMediaType> = new Set(['image', 'video', 'document'])
+import type { WhatsAppSendMediaParams, WhatsAppSendResponse } from '@/tools/whatsapp/types'
+import { whatsappSendOutputs } from '@/tools/whatsapp/utils'
 
 export const sendMediaTool: ToolConfig<WhatsAppSendMediaParams, WhatsAppSendResponse> = {
   id: 'whatsapp_send_media',
   name: 'WhatsApp Send Media',
   description:
-    'Send an image, document, video, or audio message via a public link or an uploaded media ID.',
+    'Send an image, document, video, audio, or sticker message. Accepts an uploaded file, a media ID, or a public link.',
   version: '1.0.0',
 
   params: {
@@ -33,25 +20,33 @@ export const sendMediaTool: ToolConfig<WhatsAppSendMediaParams, WhatsAppSendResp
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Type of media to send: image, document, video, or audio',
+      description: 'Type of media to send: image, document, video, audio, or sticker',
     },
-    mediaLink: {
-      type: 'string',
+    file: {
+      type: 'file',
       required: false,
-      visibility: 'user-or-llm',
-      description: 'Public HTTPS URL of the media (provide this or mediaId)',
+      visibility: 'user-only',
+      description:
+        'File to send. Uploaded to WhatsApp first, then sent. Use Upload Media instead when sending the same file repeatedly.',
     },
     mediaId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'ID of media previously uploaded to WhatsApp (provide this or mediaLink)',
+      description: 'ID of media previously uploaded to WhatsApp. Alternative to file or mediaLink.',
+    },
+    mediaLink: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Public HTTPS URL of the media. Alternative to file or mediaId.',
     },
     caption: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional caption for image, video, or document media',
+      description:
+        'Optional caption for image, video, or document media (max 1024 characters). Ignored for audio and sticker.',
     },
     filename: {
       type: 'string',
@@ -73,45 +68,32 @@ export const sendMediaTool: ToolConfig<WhatsAppSendMediaParams, WhatsAppSendResp
     },
   },
 
+  // Routed server-side so an uploaded file can be pushed to `/media` for a media ID
+  // before the `/messages` send. Link and media-ID sends pass straight through.
   request: {
-    url: (params) => buildMessagesUrl(params.phoneNumberId),
+    url: '/api/tools/whatsapp/send-media',
     method: 'POST',
-    headers: (params) => buildAuthHeaders(params.accessToken),
-    body: (params) => {
-      if (!params.phoneNumber) {
-        throw new Error('Phone number is required but was not provided')
-      }
-
-      const mediaType = params.mediaType?.trim() as WhatsAppMediaType
-      if (!MEDIA_TYPES.includes(mediaType)) {
-        throw new Error(`Media type must be one of: ${MEDIA_TYPES.join(', ')}`)
-      }
-
-      const link = params.mediaLink?.trim()
-      const id = params.mediaId?.trim()
-      if (!link && !id) {
-        throw new Error('Either mediaLink or mediaId is required')
-      }
-
-      const media: Record<string, string> = id ? { id } : { link: link as string }
-      if (params.caption && CAPTION_TYPES.has(mediaType)) {
-        media.caption = params.caption
-      }
-      if (params.filename && mediaType === 'document') {
-        media.filename = params.filename
-      }
-
-      return {
-        messaging_product: 'whatsapp',
-        recipient_type: 'individual',
-        to: params.phoneNumber.trim(),
-        type: mediaType,
-        [mediaType]: media,
-      }
-    },
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      accessToken: params.accessToken,
+      phoneNumberId: params.phoneNumberId,
+      phoneNumber: params.phoneNumber,
+      mediaType: params.mediaType,
+      file: params.file,
+      mediaId: params.mediaId,
+      mediaLink: params.mediaLink,
+      caption: params.caption,
+      filename: params.filename,
+    }),
   },
 
-  transformResponse: transformWhatsAppSendResponse,
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to send WhatsApp media')
+    }
+    return { success: true, output: data.output }
+  },
 
   outputs: whatsappSendOutputs,
 }

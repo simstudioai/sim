@@ -45,6 +45,7 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
+import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
@@ -371,6 +372,7 @@ export const DELETE = withRouteHandler(
         await tx.delete(permissions).where(eq(permissions.id, existingPermission.id))
 
         await revokeWorkspaceCredentialMembershipsTx(tx, workspaceId, userId)
+        await removeWorkspaceSkillMembershipsTx(tx, workspaceId, userId)
       })
 
       logger.info(`Admin API: Removed user ${userId} from workspace ${workspaceId}`)

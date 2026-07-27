@@ -22,6 +22,10 @@ import {
   performFullUndeploy,
 } from '@/lib/workflows/orchestration'
 import { checkChatAccess, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
+import {
+  ChatDeployAuthNotAllowedError,
+  validateChatDeployAuth,
+} from '@/ee/access-control/utils/permission-check'
 import { ensureWorkflowAccess } from '../access'
 import type { DeployApiParams, DeployChatParams, DeployMcpParams } from '../param-types'
 
@@ -304,6 +308,8 @@ export async function executeDeployChat(
               allowedEmails: (existing[0].allowedEmails as string[]) || [],
               outputConfigs:
                 (existing[0].outputConfigs as Array<{ blockId: string; path: string }>) || [],
+              includeThinking: existing[0].includeThinking ?? false,
+              includeToolCalls: existing[0].includeToolCalls ?? false,
               welcomeMessage:
                 (existing[0].customizations as { welcomeMessage?: string } | null)
                   ?.welcomeMessage || 'Hi there! How can I help you today?',
@@ -391,6 +397,14 @@ export async function executeDeployChat(
       blockId: string
       path: string
     }>
+    const resolvedIncludeThinking =
+      typeof params.includeThinking === 'boolean'
+        ? params.includeThinking
+        : (existingDeployment?.includeThinking ?? false)
+    const resolvedIncludeToolCalls =
+      typeof params.includeToolCalls === 'boolean'
+        ? params.includeToolCalls
+        : (existingDeployment?.includeToolCalls ?? false)
     const welcomeMessage =
       typeof params.welcomeMessage === 'string'
         ? params.welcomeMessage
@@ -399,6 +413,20 @@ export async function executeDeployChat(
       params.customizations?.imageUrl ||
       params.customizations?.iconUrl ||
       existingCustomizations.imageUrl
+
+    // Enforce the permission group's chat auth-mode allow-list, but only when the
+    // mode actually changes (or on a first deploy) so an existing grandfathered
+    // mode can be re-saved.
+    if (workflowRecord.workspaceId && resolvedAuthType !== existingDeployment?.authType) {
+      try {
+        await validateChatDeployAuth(context.userId, workflowRecord.workspaceId, resolvedAuthType)
+      } catch (error) {
+        if (error instanceof ChatDeployAuthNotAllowedError) {
+          return { success: false, error: error.message }
+        }
+        throw error
+      }
+    }
 
     const result = await performChatDeploy({
       workflowId,
@@ -420,6 +448,8 @@ export async function executeDeployChat(
       password: params.password,
       allowedEmails: resolvedAllowedEmails,
       outputConfigs: resolvedOutputConfigs,
+      includeThinking: resolvedIncludeThinking,
+      includeToolCalls: resolvedIncludeToolCalls,
       workspaceId: workflowRecord.workspaceId,
     })
 
@@ -472,6 +502,8 @@ export async function executeDeployChat(
             authType: resolvedAuthType,
             allowedEmails: resolvedAllowedEmails,
             outputConfigs: resolvedOutputConfigs,
+            includeThinking: resolvedIncludeThinking,
+            includeToolCalls: resolvedIncludeToolCalls,
             welcomeMessage: welcomeMessage || 'Hi there! How can I help you today?',
             primaryColor:
               params.customizations?.primaryColor ||

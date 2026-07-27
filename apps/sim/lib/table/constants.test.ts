@@ -24,7 +24,20 @@ vi.mock('@/lib/core/config/env', () => ({
   },
 }))
 
-import { getBillingDisabledTableLimits } from '@/lib/table/constants'
+/**
+ * Query-suffixed import gives this file a private instance of the module under
+ * test. Under `isolate: false` the worker's module graph is shared across test
+ * files, so the plain specifier may already be cached with the real env binding
+ * (mocks never reach an already-evaluated module) — and evaluating it here
+ * under this file's mocks would poison it for later files. The suffixed id is
+ * unique to this file, so it always evaluates fresh with the mock above.
+ */
+declare module '@/lib/table/constants?constants-test' {
+  // biome-ignore lint/suspicious/noExportsInTest: ambient type re-declaration for the query-suffixed specifier, not a runtime export
+  export * from '@/lib/table/constants'
+}
+
+import { getBillingDisabledTableLimits } from '@/lib/table/constants?constants-test'
 
 describe('getBillingDisabledTableLimits', () => {
   beforeEach(() => {

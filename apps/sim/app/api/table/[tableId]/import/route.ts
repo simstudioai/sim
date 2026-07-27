@@ -36,6 +36,7 @@ import {
   validateMapping,
   wouldExceedRowLimit,
 } from '@/lib/table'
+import { sniffCsvDelimiterFromStream } from '@/lib/table/csv-delimiter-stream'
 import { importAppendRows, importReplaceRows } from '@/lib/table/import-data'
 import { getUserSettings } from '@/lib/users/queries'
 import {
@@ -43,6 +44,7 @@ import {
   checkAccess,
   csvProxyBodyCapResponse,
   multipartErrorResponse,
+  tableLockErrorResponse,
 } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportCSVExisting')
@@ -176,11 +178,19 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       timezone = timezoneValidation.data
     }
 
-    const delimiter = extensionValidation.data === 'tsv' ? '\t' : ','
-    const parser = createCsvParser(delimiter)
+    // The extension only picks the fallback — the separator is sniffed from the file's
+    // head so semicolon/pipe exports (European-locale Excel) don't land in one column.
+    const { delimiter, stream: csvStream } = await sniffCsvDelimiterFromStream(
+      file.stream,
+      extensionValidation.data === 'tsv' ? '\t' : ','
+    )
+    let headers: string[] = []
+    const parser = createCsvParser(delimiter, (parsedHeaders) => {
+      headers = parsedHeaders
+    })
     // `.pipe` doesn't forward source errors; forward them so the iterator throws.
-    file.stream.on('error', (streamErr) => parser.destroy(streamErr))
-    file.stream.pipe(parser)
+    csvStream.on('error', (streamErr) => parser.destroy(streamErr))
+    csvStream.pipe(parser)
     const rows: Record<string, unknown>[] = []
     for await (const record of parser as AsyncIterable<Record<string, unknown>>) {
       rows.push(record)
@@ -188,7 +198,6 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     if (rows.length === 0) {
       return NextResponse.json({ error: 'CSV file has no data rows' }, { status: 400 })
     }
-    const headers = Object.keys(rows[0])
 
     let effectiveMapping = mapping ?? buildAutoMapping(headers, table.schema)
     let prospectiveTable: TableDefinition = table
@@ -328,6 +337,12 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
           },
         })
       } catch (err) {
+        // This branch returns rather than rethrowing, so the outer catch's
+        // mapper is unreachable from here — map the lock error first or a 423
+        // degrades into a generic 500 (replace mode rethrows and maps fine).
+        const lockError = tableLockErrorResponse(err)
+        if (lockError) return lockError
+
         const message = toError(err).message
         logger.warn(`[${requestId}] Append failed for table ${tableId}`, {
           total: coerced.length,
@@ -400,6 +415,8 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       throw err
     }
   } catch (error) {
+    const lockError = tableLockErrorResponse(error)
+    if (lockError) return lockError
     if (isMultipartError(error)) return multipartErrorResponse(error)
 
     const message = toError(error).message

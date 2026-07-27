@@ -5,9 +5,84 @@ import { describe, expect, it } from 'vitest'
 import {
   getBaseModelProviders,
   getHostedModels,
+  getModelsWithPromptCaching,
+  getPromptCachingMinimumTokens,
+  getThinkingStreamVisibility,
+  isModelDeprecated,
   orderModelIdsByReleaseDate,
   PROVIDER_DEFINITIONS,
 } from '@/providers/models'
+import { supportsPromptCaching } from '@/providers/utils'
+
+describe('Anthropic thinking stream visibility', () => {
+  it('classifies visible Claude thinking as summarized rather than raw', () => {
+    for (const providerId of ['anthropic', 'azure-anthropic'] as const) {
+      for (const model of PROVIDER_DEFINITIONS[providerId].models) {
+        if (model.capabilities.thinking) {
+          expect(getThinkingStreamVisibility(model.id)).toBe('summary')
+        }
+      }
+    }
+  })
+})
+
+describe('Meta thinking stream visibility', () => {
+  it('classifies private Muse reasoning as not streamed', () => {
+    expect(getThinkingStreamVisibility('muse-spark-1.1')).toBe('none')
+  })
+})
+
+describe('prompt caching capability', () => {
+  const cachingModels = new Set(getModelsWithPromptCaching())
+
+  it('covers every Claude model on both Anthropic surfaces', () => {
+    for (const providerId of ['anthropic', 'azure-anthropic'] as const) {
+      for (const model of PROVIDER_DEFINITIONS[providerId].models) {
+        expect(cachingModels.has(model.id)).toBe(true)
+      }
+    }
+  })
+
+  /**
+   * OpenAI and Gemini cache automatically with no caller control, so declaring
+   * the capability would put a switch in the UI that does nothing.
+   */
+  it('excludes providers whose caching is automatic', () => {
+    for (const providerId of ['openai', 'google'] as const) {
+      for (const model of PROVIDER_DEFINITIONS[providerId].models) {
+        expect(cachingModels.has(model.id)).toBe(false)
+      }
+    }
+    expect(supportsPromptCaching('gpt-5.5')).toBe(false)
+  })
+
+  it('reports the vendor minimum prefix, raised for Haiku', () => {
+    expect(getPromptCachingMinimumTokens('claude-sonnet-5')).toBe(1024)
+    expect(getPromptCachingMinimumTokens('claude-haiku-4-5')).toBe(2048)
+    expect(getPromptCachingMinimumTokens('azure-anthropic/claude-haiku-4-5')).toBe(2048)
+    expect(getPromptCachingMinimumTokens('gpt-5.5')).toBeNull()
+  })
+})
+
+const DYNAMIC_PROVIDERS = new Set([
+  'ollama',
+  'ollama-cloud',
+  'vllm',
+  'litellm',
+  'openrouter',
+  'fireworks',
+  'together',
+  'baseten',
+])
+
+function firstDeprecatedModelId(): string | undefined {
+  for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
+    if (DYNAMIC_PROVIDERS.has(providerId)) continue
+    const dep = provider.models.find((m) => m.sunset)
+    if (dep) return dep.id
+  }
+  return undefined
+}
 
 /** Maps a lowercased model ID to its provider's index in the catalog. */
 const PROVIDER_INDEX_BY_MODEL = new Map<string, number>()
@@ -292,5 +367,28 @@ describe('xai provider definition', () => {
 
   it('is included in getHostedModels since Sim provides the xAI key server-side', () => {
     expect(getHostedModels()).toContain('grok-4.5')
+  })
+})
+
+describe('isModelDeprecated', () => {
+  it('returns true for a catalogued deprecated model (case-insensitive)', () => {
+    const id = firstDeprecatedModelId()
+    expect(id).toBeDefined()
+    expect(isModelDeprecated(id!)).toBe(true)
+    expect(isModelDeprecated(id!.toUpperCase())).toBe(true)
+  })
+
+  it('returns false for the default model of every provider', () => {
+    for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+      if (provider.defaultModel) expect(isModelDeprecated(provider.defaultModel)).toBe(false)
+    }
+  })
+
+  it('returns false for empty, unknown, and dynamic-provider ids', () => {
+    expect(isModelDeprecated('')).toBe(false)
+    expect(isModelDeprecated(undefined)).toBe(false)
+    expect(isModelDeprecated(null)).toBe(false)
+    expect(isModelDeprecated('not-a-real-model')).toBe(false)
+    expect(isModelDeprecated('openrouter/some/model')).toBe(false)
   })
 })

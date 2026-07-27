@@ -136,7 +136,7 @@ export function remapCustomBlockInputKeys(
  * breakdowns), minus the base execution charge the parent applies once itself.
  * A naive top-level `cost.total` sum undercounts when spend sits on nested children.
  */
-function aggregateChildCost(childTraceSpans: TraceSpan[]): number {
+export function aggregateChildCost(childTraceSpans: TraceSpan[]): number {
   if (childTraceSpans.length === 0) return 0
   const summary = calculateCostSummary(childTraceSpans)
   return Math.max(0, summary.totalCost - summary.baseExecutionCharge)

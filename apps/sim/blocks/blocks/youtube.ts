@@ -555,7 +555,7 @@ export const YouTubeBlockMeta = {
   templates: [
     {
       icon: YouTubeIcon,
-      title: 'Content repurposer',
+      title: 'YouTube content repurposer',
       prompt:
         'Build a workflow that takes a YouTube video URL, pulls the video details and description, researches the topic on the web for additional context, and generates a Twitter thread, LinkedIn post, and blog summary optimized for each platform.',
       modules: ['agent', 'files', 'workflows'],

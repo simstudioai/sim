@@ -1,44 +1,35 @@
 /**
  * @vitest-environment node
  */
-import { redisConfigMock, redisConfigMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  redisConfigMockFns,
+  resetEnvFlagsMock,
+  resetEnvMock,
+  setEnv,
+  setEnvFlags,
+} from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { evalMock, mockEnv } = vi.hoisted(() => ({
+const { evalMock } = vi.hoisted(() => ({
   evalMock: vi.fn(),
-  mockEnv: {
+}))
+
+import { reserveExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
+
+beforeAll(() => {
+  setEnvFlags({ isBillingEnabled: true, isHosted: true })
+  setEnv({
     BILLING_CONCURRENCY_LIMIT_FREE: '11',
     BILLING_CONCURRENCY_LIMIT_PRO: '55',
     BILLING_CONCURRENCY_LIMIT_TEAM: '222',
     BILLING_CONCURRENCY_LIMIT_ENTERPRISE: '1111',
-  },
-}))
+  })
+})
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: mockEnv,
-  envNumber: (
-    value: number | string | undefined | null,
-    fallback: number,
-    options: { min?: number; integer?: boolean } = {}
-  ) => {
-    const parsed = Number(value)
-    const min = options.min ?? 0
-    return Number.isFinite(parsed) &&
-      parsed >= min &&
-      (!options.integer || Number.isInteger(parsed))
-      ? parsed
-      : fallback
-  },
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isBillingEnabled: true,
-  isHosted: true,
-}))
-
-vi.mock('@/lib/core/config/redis', () => redisConfigMock)
-
-import { reserveExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
+afterAll(() => {
+  resetEnvFlagsMock()
+  resetEnvMock()
+})
 
 describe('usage reservation environment overrides', () => {
   beforeEach(() => {

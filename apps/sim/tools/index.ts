@@ -14,6 +14,7 @@ import { DEFAULT_EXECUTION_TIMEOUT_MS, getMaxExecutionTimeout } from '@/lib/core
 import { getHostedKeyRateLimiter } from '@/lib/core/rate-limiter'
 import {
   secureFetchWithPinnedIP,
+  validateAndPinProxyUrl,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -580,23 +581,36 @@ interface ToolCostResult {
 }
 
 /**
+ * Rejects a cost that cannot be billed. `NaN` would silently vanish from every
+ * downstream sum and `Infinity` would poison the ledger, so a pricing bug must
+ * surface as a metering failure instead of a corrupt charge.
+ */
+function assertBillableCost(cost: unknown, toolId: string): number {
+  if (typeof cost !== 'number' || !Number.isFinite(cost) || cost < 0) {
+    throw new Error(`Hosted-key pricing for ${toolId} produced an unusable cost: ${String(cost)}`)
+  }
+  return cost
+}
+
+/**
  * Calculate cost based on pricing model
  */
 function calculateToolCost(
   pricing: ToolHostingPricing,
   params: Record<string, unknown>,
-  response: Record<string, unknown>
+  response: Record<string, unknown>,
+  toolId: string
 ): ToolCostResult {
   switch (pricing.type) {
     case 'per_request':
-      return { cost: pricing.cost }
+      return { cost: assertBillableCost(pricing.cost, toolId) }
 
     case 'custom': {
       const result = pricing.getCost(params, response)
       if (typeof result === 'number') {
-        return { cost: result }
+        return { cost: assertBillableCost(result, toolId) }
       }
-      return result
+      return { ...result, cost: assertBillableCost(result.cost, toolId) }
     }
 
     default: {
@@ -626,7 +640,7 @@ async function processHostedKeyCost(
     return { cost: 0 }
   }
 
-  const { cost, metadata } = calculateToolCost(tool.hosting.pricing, params, response)
+  const { cost, metadata } = calculateToolCost(tool.hosting.pricing, params, response, tool.id)
 
   if (cost <= 0) return { cost: 0 }
 
@@ -729,16 +743,31 @@ async function applyHostedKeyCostToResult(
 ): Promise<void> {
   await reportCustomDimensionUsage(tool, params, finalResult.output, executionContext, requestId)
 
-  const { cost: hostedKeyCost, metadata } = await processHostedKeyCost(
-    tool,
-    params,
-    finalResult.output,
-    executionContext,
-    requestId
-  )
-
   const provider = tool.hosting?.byokProviderId || tool.id
   const key = envVarName ?? 'unknown'
+
+  let hostedKeyCost = 0
+  let metadata: Record<string, unknown> | undefined
+
+  try {
+    ;({ cost: hostedKeyCost, metadata } = await processHostedKeyCost(
+      tool,
+      params,
+      finalResult.output,
+      executionContext,
+      requestId
+    ))
+  } catch (error) {
+    // The provider already ran and already charged Sim's key. Failing the
+    // execution here would destroy the caller's result without recovering the
+    // spend, so the run stands and the gap is raised for reconciliation.
+    logger.error(
+      `[${requestId}] Hosted-key metering failed for ${tool.id}; execution succeeded unbilled`,
+      { provider, error: getErrorMessage(error) }
+    )
+    hostedKeyMetrics.recordFailed({ provider, tool: tool.id, key, reason: 'metering' })
+  }
+
   hostedKeyMetrics.recordUsed({ provider, tool: tool.id, key })
   hostedKeyMetrics.recordCostCharged(hostedKeyCost, { provider, tool: tool.id })
 
@@ -1237,10 +1266,35 @@ export async function executeTool(
       }
     }
 
+    // Custom blocks (deploy-as-block) run in-process through WorkflowBlockHandler.
+    // The runner is dynamic-imported from a server-only module so the client-bundled
+    // tool registry never pulls in the executor/db dependency graph (a static or
+    // dynamic executor import in the tool descriptor itself would break the client
+    // build — and with it `getTool('workflow_executor')`).
+    if (normalizedToolId === 'deployed_block_executor') {
+      logger.info(`[${requestId}] Running custom block tool ${toolId}`)
+      const { runCustomBlockTool } = await import(
+        '@/executor/handlers/workflow/custom-block-tool-runner'
+      )
+      const result = await runCustomBlockTool(contextParams)
+      const endTime = new Date()
+      return {
+        ...result,
+        // Strip internal `__`-prefixed fields the same way every other tool path does,
+        // so child-workflow internals never reach the agent's tool result.
+        output: postProcessToolOutput(normalizedToolId, result.output ?? {}),
+        timing: {
+          startTime: startTimeISO,
+          endTime: endTime.toISOString(),
+          duration: endTime.getTime() - startTime.getTime(),
+        },
+      }
+    }
+
     // Check for direct execution (no HTTP request needed)
     if (tool.directExecution) {
       logger.info(`[${requestId}] Using directExecution for ${toolId}`)
-      const result = await tool.directExecution(contextParams)
+      const result = await tool.directExecution(contextParams, effectiveSignal)
 
       // Apply post-processing if available and not skipped
       let finalResult = result
@@ -1784,6 +1838,15 @@ async function executeToolRequest(
             throw new Error(`Invalid tool URL: ${urlValidation.error}`)
           }
 
+          let proxyOption: string | undefined
+          if (requestParams.proxyUrl) {
+            const proxyValidation = await validateAndPinProxyUrl(requestParams.proxyUrl)
+            if (!proxyValidation.isValid) {
+              throw new Error(`Invalid proxy URL: ${proxyValidation.error}`)
+            }
+            proxyOption = proxyValidation.pinnedProxyUrl
+          }
+
           const secureResponse = await secureFetchWithPinnedIP(fullUrl, urlValidation.resolvedIP!, {
             method: requestParams.method,
             headers: headersRecord,
@@ -1791,6 +1854,7 @@ async function executeToolRequest(
             timeout: requestParams.timeout,
             maxResponseBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
             signal,
+            proxyUrl: proxyOption,
           })
 
           const responseHeaders = new Headers(secureResponse.headers.toRecord())
@@ -1962,13 +2026,16 @@ async function executeToolRequest(
     // Success case: use transformResponse if available
     if (tool.transformResponse) {
       try {
-        // Create a mock response object that provides the methods transformResponse needs
+        // Forward the real body stream. Some transformResponse helpers (e.g. TikTok)
+        // read via readResponseTextWithLimit, which requires `.body` (or Content-Length)
+        // and otherwise mis-reports a false "response exceeded maximum size" error.
         const mockResponse = {
           ok: response.ok,
           status: response.status,
           statusText: response.statusText,
           headers: response.headers,
           url: fullUrl,
+          body: response.body,
           json: () => response.json(),
           text: () => response.text(),
           arrayBuffer: () => response.arrayBuffer(),

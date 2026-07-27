@@ -1,20 +1,18 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, resetDbChainMock, workflowAuthzMockFns } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/db', () => dbChainMock)
+const {
+  mockAuthorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflow,
+  mockGetActiveWorkflowRecord: mockGetActiveWorkflow,
+} = workflowAuthzMockFns
 
-const { mockAuthorizeWorkflow, mockGetActiveWorkflow } = vi.hoisted(() => ({
-  mockAuthorizeWorkflow: vi.fn(),
-  mockGetActiveWorkflow: vi.fn(),
-}))
-
-vi.mock('@sim/platform-authz/workflow', () => ({
-  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflow,
-  getActiveWorkflowRecord: mockGetActiveWorkflow,
-}))
+afterAll(() => {
+  mockAuthorizeWorkflow.mockReset()
+  mockGetActiveWorkflow.mockReset()
+})
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   assertActiveWorkspaceAccess: vi.fn(),

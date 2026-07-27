@@ -21,8 +21,10 @@ import {
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
+import { useMothershipChats, useRestoreMothershipChat } from '@/hooks/queries/mothership-chats'
 import { useRestoreTable, useTablesList } from '@/hooks/queries/tables'
 import { useRestoreWorkflow, useWorkflows } from '@/hooks/queries/workflows'
 import {
@@ -30,7 +32,6 @@ import {
   useWorkspaceFileFolders,
 } from '@/hooks/queries/workspace-file-folders'
 import { useRestoreWorkspaceFile, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
-import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useUrlSort } from '@/hooks/use-url-sort'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
@@ -43,6 +44,7 @@ type ResourceType =
   | 'file'
   | 'folder'
   | 'workspace_folder'
+  | 'chat'
 
 function getResourceHref(
   workspaceId: string,
@@ -63,6 +65,8 @@ function getResourceHref(
       return `${base}/w`
     case 'workspace_folder':
       return `${base}/files?folderId=${id}`
+    case 'chat':
+      return `${base}/chat/${id}`
   }
 }
 
@@ -81,6 +85,7 @@ const RESOURCE_TYPE_TO_MOTHERSHIP: Record<Exclude<ResourceType, 'all'>, Mothersh
   table: 'table',
   knowledge: 'knowledgebase',
   file: 'file',
+  chat: 'task',
 }
 
 interface DeletedResource {
@@ -103,6 +108,7 @@ const TABS: { id: ResourceType; label: string }[] = [
   { id: 'table', label: 'Tables' },
   { id: 'knowledge', label: 'Knowledge Bases' },
   { id: 'file', label: 'Files' },
+  { id: 'chat', label: 'Chats' },
 ]
 
 const TYPE_LABEL: Record<Exclude<ResourceType, 'all'>, string> = {
@@ -112,6 +118,7 @@ const TYPE_LABEL: Record<Exclude<ResourceType, 'all'>, string> = {
   table: 'Table',
   knowledge: 'Knowledge Base',
   file: 'File',
+  chat: 'Chat',
 }
 
 function ResourceIcon({ resource }: { resource: DeletedResource }) {
@@ -135,7 +142,7 @@ export function RecentlyDeleted() {
   const workspaceId = params?.workspaceId as string
   const workspacePermissions = useUserPermissionsContext()
   const canEdit = canMutateWorkspaceSettingsSection('recently-deleted', workspacePermissions)
-  const [{ tab: activeTab, search: urlSearchTerm }, setRecentlyDeletedFilters] = useQueryStates(
+  const [{ tab: activeTab }, setRecentlyDeletedFilters] = useQueryStates(
     recentlyDeletedParsers,
     recentlyDeletedUrlKeys
   )
@@ -153,9 +160,7 @@ export function RecentlyDeleted() {
    * write is debounced. Filtering below is cheap in-memory over a small list, so
    * it reads the instant value too.
    */
-  const setSearchTerm = useDebouncedSearchSetter((value, options) =>
-    setRecentlyDeletedFilters({ search: value }, options)
-  )
+  const [urlSearchTerm, setSearchTerm] = useSettingsSearch()
 
   const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set())
   const [restoredItems, setRestoredItems] = useState<Map<string, RestoredResourceEntry>>(new Map())
@@ -167,6 +172,7 @@ export function RecentlyDeleted() {
   const knowledgeQuery = useKnowledgeBasesQuery(workspaceId, { scope: 'archived' })
   const filesQuery = useWorkspaceFiles(workspaceId, 'archived')
   const workspaceFoldersQuery = useWorkspaceFileFolders(workspaceId, 'archived')
+  const chatsQuery = useMothershipChats(workspaceId, { scope: 'archived' })
 
   const restoreWorkflow = useRestoreWorkflow()
   const restoreFolder = useRestoreFolder()
@@ -174,6 +180,7 @@ export function RecentlyDeleted() {
   const restoreKnowledgeBase = useRestoreKnowledgeBase()
   const restoreWorkspaceFile = useRestoreWorkspaceFile()
   const restoreWorkspaceFileFolder = useRestoreWorkspaceFileFolder()
+  const restoreChat = useRestoreMothershipChat(workspaceId)
 
   const isLoading =
     workflowsQuery.isLoading ||
@@ -181,7 +188,8 @@ export function RecentlyDeleted() {
     tablesQuery.isLoading ||
     knowledgeQuery.isLoading ||
     filesQuery.isLoading ||
-    workspaceFoldersQuery.isLoading
+    workspaceFoldersQuery.isLoading ||
+    chatsQuery.isLoading
 
   const error =
     workflowsQuery.error ||
@@ -189,7 +197,8 @@ export function RecentlyDeleted() {
     tablesQuery.error ||
     knowledgeQuery.error ||
     filesQuery.error ||
-    workspaceFoldersQuery.error
+    workspaceFoldersQuery.error ||
+    chatsQuery.error
 
   const resources = useMemo<DeletedResource[]>(() => {
     const items: DeletedResource[] = []
@@ -254,6 +263,17 @@ export function RecentlyDeleted() {
       })
     }
 
+    for (const chat of chatsQuery.data ?? []) {
+      if (!chat.deletedAt) continue
+      items.push({
+        id: chat.id,
+        name: chat.name,
+        type: 'chat',
+        deletedAt: chat.deletedAt,
+        workspaceId,
+      })
+    }
+
     return items
   }, [
     workflowsQuery.data,
@@ -262,6 +282,7 @@ export function RecentlyDeleted() {
     knowledgeQuery.data,
     filesQuery.data,
     workspaceFoldersQuery.data,
+    chatsQuery.data,
     workspaceId,
   ])
 
@@ -359,6 +380,9 @@ export function RecentlyDeleted() {
             folderId: resource.id,
           })
           break
+        case 'chat':
+          await restoreChat.mutateAsync(resource.id)
+          break
       }
 
       setRestoredItems((prev) => new Map(prev).set(resource.id, { resource, displayIndex }))
@@ -419,6 +443,10 @@ export function RecentlyDeleted() {
           {filtered.map((resource) => {
             const isRestoring = restoringIds.has(resource.id)
             const isRestored = restoredItems.has(resource.id)
+            // Chats are per-user (the archived list and restore are scoped to the
+            // viewer's own rows), so chat restore skips the workspace edit gate —
+            // mirroring that any member can delete their own chats.
+            const canRestore = resource.type === 'chat' || canEdit
 
             return (
               <SettingsResourceRow
@@ -433,23 +461,19 @@ export function RecentlyDeleted() {
                   </>
                 }
                 trailing={
-                  !canEdit ? null : isRestoring ? (
-                    <Chip variant='primary' disabled className='shrink-0'>
+                  !canRestore ? null : isRestoring ? (
+                    <Chip variant='primary' disabled>
                       Restoring...
                     </Chip>
                   ) : isRestored ? (
-                    <div className='flex shrink-0 items-center gap-2'>
+                    <div className='flex items-center gap-2'>
                       <span className='text-[var(--text-muted)] text-small'>Restored</span>
                       <Chip variant='primary' onClick={() => handleView(resource)}>
                         View
                       </Chip>
                     </div>
                   ) : (
-                    <Chip
-                      variant='primary'
-                      onClick={() => void handleRestore(resource)}
-                      className='shrink-0'
-                    >
+                    <Chip variant='primary' onClick={() => void handleRestore(resource)}>
                       Restore
                     </Chip>
                   )

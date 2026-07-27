@@ -26,6 +26,15 @@ export interface ColumnOption {
   label: string
 }
 
+/**
+ * One choice in a `select`/`multiselect` column. `id` is stable — cell data
+ * references it, so renaming an option never rewrites rows.
+ */
+export interface SelectOption {
+  id: string
+  name: string
+}
+
 export interface ColumnDefinition {
   /**
    * Stable storage key for this column. Row data, metadata, workflow-group
@@ -45,6 +54,13 @@ export interface ColumnDefinition {
    * `row.data[getColumnId(col)]` is populated by the group's per-cell run.
    */
   workflowGroupId?: string
+  /**
+   * Declared options for a `select` column. Cells store option ids — a single
+   * id when `multiple` is falsy, an array of ids when `multiple` is true.
+   */
+  options?: SelectOption[]
+  /** When true, a `select` column accepts several options per cell (string[]). */
+  multiple?: boolean
 }
 
 /** One group output → one plain column. */
@@ -332,6 +348,43 @@ export interface TableBackfillJobPayload {
   overwrite: boolean
 }
 
+/**
+ * The four independent mutation verbs a table lock can guard. `schema` covers
+ * column/workflow-group structure; `insert`/`update`/`delete` cover row data.
+ * Shared by the DB columns, the wire contract, the {@link TableLockedError},
+ * and the settings UI so all four agree on one source of truth.
+ */
+export const TABLE_LOCK_KINDS = ['schema', 'insert', 'update', 'delete'] as const
+export type TableLockKind = (typeof TABLE_LOCK_KINDS)[number]
+
+/**
+ * Per-table mutation locks. Each flag independently forbids one verb. Enforced
+ * at the `lib/table` service layer (see `lib/table/mutation-locks.ts`).
+ * Append-only = `{ update: true, delete: true }`; read-only = all four true.
+ */
+export interface TableLocks {
+  schemaLocked: boolean
+  insertLocked: boolean
+  updateLocked: boolean
+  deleteLocked: boolean
+}
+
+/** Maps each verb to the {@link TableLocks} flag that guards it. */
+export const TABLE_LOCK_FLAGS: Record<TableLockKind, keyof TableLocks> = {
+  schema: 'schemaLocked',
+  insert: 'insertLocked',
+  update: 'updateLocked',
+  delete: 'deleteLocked',
+}
+
+/** A fully-unlocked lock set — the state every new table is created in. */
+export const UNLOCKED_TABLE_LOCKS: TableLocks = {
+  schemaLocked: false,
+  insertLocked: false,
+  updateLocked: false,
+  deleteLocked: false,
+}
+
 export interface TableDefinition {
   id: string
   name: string
@@ -342,6 +395,8 @@ export interface TableDefinition {
   maxRows: number
   workspaceId: string
   createdBy: string
+  /** Per-table mutation locks; absent-as-all-false is normalized on read. */
+  locks: TableLocks
   archivedAt?: Date | string | null
   createdAt: Date | string
   updatedAt: Date | string
@@ -644,6 +699,32 @@ export interface UpdateColumnTypeData {
   tableId: string
   columnName: string
   newType: (typeof COLUMN_TYPES)[number]
+  /** Options to set when changing to a `select` type. */
+  options?: SelectOption[]
+  /** Whether the `select` column accepts multiple options per cell. */
+  multiple?: boolean
+  /**
+   * The `required` value the same request is about to set, when it changes type
+   * and constraints together. Those are separate transactions, so the
+   * conversion has to validate against the constraint the column will END UP
+   * with — otherwise it commits and the constraint write then fails.
+   */
+  required?: boolean
+}
+
+export interface UpdateColumnOptionsData {
+  tableId: string
+  columnName: string
+  options: SelectOption[]
+  /** Toggle single/multi selection alongside the options update. */
+  multiple?: boolean
+  /**
+   * The `required` value the same request is about to set. The constraint write
+   * is a separate transaction, so the options update has to validate against
+   * the constraint the column will END UP with — otherwise it clears cells and
+   * the constraint write then fails, leaving the removal committed.
+   */
+  required?: boolean
 }
 
 export interface UpdateColumnConstraintsData {

@@ -213,6 +213,16 @@ export interface PostHogEventMap {
     source?: 'settings' | 'tool_input'
   }
 
+  skill_shared: {
+    skill_id: string
+    workspace_id: string
+  }
+
+  skill_unshared: {
+    skill_id: string
+    workspace_id: string
+  }
+
   workspace_deleted: {
     workspace_id: string
     workflow_count: number
@@ -232,6 +242,12 @@ export interface PostHogEventMap {
   block_removed: {
     block_type: string
     workflow_id: string
+  }
+
+  deprecated_block_fix_clicked: {
+    block_type: string
+    workflow_id: string
+    kind: 'block' | 'model'
   }
 
   knowledge_base_created: {
@@ -494,6 +510,10 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  task_restored: {
+    workspace_id: string
+  }
+
   task_forked: {
     workspace_id: string
     source_chat_id: string
@@ -535,6 +555,10 @@ export interface PostHogEventMap {
   docs_opened: {
     source: 'help_menu' | 'editor_button' | 'toolbar_context_menu'
     block_type?: string
+  }
+
+  slack_community_opened: {
+    source: 'help_menu'
   }
 
   search_result_selected: {

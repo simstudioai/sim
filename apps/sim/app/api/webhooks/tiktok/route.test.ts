@@ -3,8 +3,9 @@
  */
 
 import crypto from 'node:crypto'
+import { requestUtilsMockFns, resetEnvMock, setEnv } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockEnqueueTikTokWebhookIngress, mockRelease } = vi.hoisted(() => ({
   mockEnqueueTikTokWebhookIngress: vi.fn(),
@@ -18,17 +19,6 @@ vi.mock('@/background/tiktok-webhook-ingress', () => ({
 vi.mock('@/lib/core/admission/gate', () => ({
   admissionRejectedResponse: vi.fn(() => new Response(null, { status: 503 })),
   tryAdmit: vi.fn(() => ({ release: mockRelease })),
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  env: {
-    TIKTOK_CLIENT_ID: 'client-key',
-    TIKTOK_CLIENT_SECRET: 'client-secret',
-  },
-}))
-
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn(() => 'request-1'),
 }))
 
 vi.mock('@/lib/core/utils/with-route-handler', () => ({
@@ -66,7 +56,14 @@ function signedRequest(overrides?: { clientKey?: string }): NextRequest {
 describe('TikTok webhook ingress route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setEnv({ TIKTOK_CLIENT_ID: 'client-key', TIKTOK_CLIENT_SECRET: 'client-secret' })
+    requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('request-1')
     mockEnqueueTikTokWebhookIngress.mockResolvedValue('ingress-job-1')
+  })
+
+  afterAll(() => {
+    resetEnvMock()
+    requestUtilsMockFns.mockGenerateRequestId.mockReset()
   })
 
   it('returns 200 only after the verified delivery is accepted by the job queue', async () => {

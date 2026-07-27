@@ -1,11 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { authMockFns, dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { authMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => dbChainMock)
 
 const { mockAppendCopilotChatMessages, mockPublishStatusChanged } = vi.hoisted(() => ({
   mockAppendCopilotChatMessages: vi.fn(),

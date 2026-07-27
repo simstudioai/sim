@@ -1,14 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
+import { copilotHttpMock, copilotHttpMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockDbDelete,
-  mockDbReturning,
-  mockDbWhere,
   mockDecrementStorageUsageForBillingContext,
   mockDecrementStorageUsageForBillingContextInTx,
   mockGetAccessibleCopilotChat,
@@ -17,9 +14,6 @@ const {
   mockReadFilePreviewSessions,
   mockGetLatestRunForStream,
 } = vi.hoisted(() => ({
-  mockDbDelete: vi.fn(),
-  mockDbReturning: vi.fn(),
-  mockDbWhere: vi.fn(),
   mockDecrementStorageUsageForBillingContext: vi.fn(),
   mockDecrementStorageUsageForBillingContextInTx: vi.fn(),
   mockGetAccessibleCopilotChat: vi.fn(),
@@ -27,36 +21,6 @@ const {
   mockReadEvents: vi.fn(),
   mockReadFilePreviewSessions: vi.fn(),
   mockGetLatestRunForStream: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    delete: mockDbDelete,
-  },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  copilotChats: {
-    id: 'copilotChats.id',
-    userId: 'copilotChats.userId',
-    type: 'copilotChats.type',
-    updatedAt: 'copilotChats.updatedAt',
-    lastSeenAt: 'copilotChats.lastSeenAt',
-    workspaceId: 'copilotChats.workspaceId',
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ type: 'eq', field, value })),
-  sql: Object.assign(
-    vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({
-      type: 'sql',
-      strings,
-      values,
-    })),
-    { raw: vi.fn() }
-  ),
 }))
 
 vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
@@ -119,9 +83,14 @@ function createRequest(chatId: string) {
   })
 }
 
+afterAll(() => {
+  resetDbChainMock()
+})
+
 describe('GET /api/mothership/chats/[chatId]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
@@ -310,6 +279,7 @@ describe('GET /api/mothership/chats/[chatId]', () => {
 describe('DELETE /api/mothership/chats/[chatId]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
@@ -319,12 +289,10 @@ describe('DELETE /api/mothership/chats/[chatId]', () => {
       type: 'mothership',
       workspaceId: 'workspace-1',
     })
-    mockDbDelete.mockReturnValue({ where: mockDbWhere })
-    mockDbWhere.mockReturnValue({ returning: mockDbReturning })
-    mockDbReturning.mockResolvedValue([{ workspaceId: 'workspace-1' }])
+    dbChainMockFns.returning.mockResolvedValue([{ workspaceId: 'workspace-1' }])
   })
 
-  it('deletes an unbilled chat without decrementing workspace or payer storage', async () => {
+  it('soft-deletes an unbilled chat without decrementing workspace or payer storage', async () => {
     const response = await DELETE(
       new NextRequest('http://localhost:3000/api/mothership/chats/chat-delete', {
         method: 'DELETE',
@@ -333,7 +301,8 @@ describe('DELETE /api/mothership/chats/[chatId]', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mockDbDelete).toHaveBeenCalled()
+    expect(dbChainMockFns.update).toHaveBeenCalled()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ deletedAt: expect.any(Date) })
     expect(mockDecrementStorageUsageForBillingContext).not.toHaveBeenCalled()
     expect(mockDecrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
   })

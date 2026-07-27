@@ -18,11 +18,10 @@ import { buildSelectedMcpToolSchemas, buildTaggedMcpToolSchemas } from '@/lib/co
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
 import type { StreamEvent } from '@/lib/copilot/request/types'
-import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
+import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   assertActiveWorkspaceAccess,
-  getUserEntityPermissions,
   isWorkspaceAccessDeniedError,
 } from '@/lib/workspaces/permissions/utils'
 import type { ChatContext } from '@/stores/panel'
@@ -142,7 +141,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
     const userId = auth.userId ?? bodyUserId
 
-    await assertActiveWorkspaceAccess(workspaceId, userId)
+    const workspaceAccess = await assertActiveWorkspaceAccess(workspaceId, userId)
     const billingAttribution = requireBillingAttributionHeader(req.headers, {
       actorUserId: userId,
       workspaceId,
@@ -164,38 +163,32 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       context.kind === 'mcp' && context.serverId ? [context.serverId] : []
     )
     const nonMcpAgentMentions = agentMentions?.filter((context) => context.kind !== 'mcp')
-    const [
-      workspaceContext,
-      integrationTools,
-      mothershipTools,
-      userPermission,
-      entitlements,
-      agentContexts,
-    ] = await Promise.all([
-      generateWorkspaceContext(workspaceId, userId),
-      buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
-      Promise.all([
-        buildSelectedMcpToolSchemas(userId, workspaceId, mcpTools ?? []),
-        buildTaggedMcpToolSchemas(userId, workspaceId, taggedMcpServerIds),
-      ]).then((groups) => {
-        const byName = new Map(groups.flat().map((tool) => [tool.name, tool]))
-        return [...byName.values()]
-      }),
-      getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
-      computeWorkspaceEntitlements(workspaceId, userId),
-      processContextsServer(
-        nonMcpAgentMentions,
-        userId,
-        lastUserMessage,
-        workspaceId,
-        effectiveChatId
-      ).catch((error) => {
-        reqLogger.warn('Failed to resolve agent contexts for execution', {
-          error: toError(error).message,
-        })
-        return []
-      }),
-    ])
+    const userPermission = workspaceAccess.permission
+    const [workspaceContext, integrationTools, mothershipTools, entitlements, agentContexts] =
+      await Promise.all([
+        generateWorkspaceContext(workspaceId, userId, { workspaceAccess }),
+        buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+        Promise.all([
+          buildSelectedMcpToolSchemas(userId, workspaceId, mcpTools ?? []),
+          buildTaggedMcpToolSchemas(userId, workspaceId, taggedMcpServerIds),
+        ]).then((groups) => {
+          const byName = new Map(groups.flat().map((tool) => [tool.name, tool]))
+          return [...byName.values()]
+        }),
+        computeWorkspaceEntitlements(workspaceId, userId),
+        processContextsServer(
+          nonMcpAgentMentions,
+          userId,
+          lastUserMessage,
+          workspaceId,
+          effectiveChatId
+        ).catch((error) => {
+          reqLogger.warn('Failed to resolve agent contexts for execution', {
+            error: toError(error).message,
+          })
+          return []
+        }),
+      ])
     const requestPayload: Record<string, unknown> = {
       messages,
       responseFormat,
@@ -211,7 +204,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       messageId,
       isHosted: true,
       workspaceContext,
-      ...(isE2BDocEnabled ? { docCompiler: 'python' } : {}),
+      ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
       ...(userMetadata ? { userMetadata } : {}),
       ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
       ...(agentContexts.length > 0 || mothershipTools.length > 0
@@ -223,9 +216,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                     {
                       type: 'mcp',
                       content: [
-                        'The following MCP tools are explicitly enabled for this request.',
-                        'Load one with load_mcp_tool({ name: "<exact name>" }) before calling it.',
-                        'Do not narrate discovery, loading, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
+                        'The following MCP tools are explicitly enabled for this request and are callable directly by the exact name shown — there is no loading step.',
+                        'Do not narrate discovery, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
                         ...mothershipTools.map(
                           (tool) => `- ${tool.name}: ${tool.description || tool.name}`
                         ),

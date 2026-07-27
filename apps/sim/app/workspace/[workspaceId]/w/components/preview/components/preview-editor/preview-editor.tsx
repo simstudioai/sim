@@ -1198,7 +1198,7 @@ function PreviewEditorContent({
       <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
         {block.type !== 'note' && (
           <div
-            className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
+            className='flex size-[18px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
             style={{ backgroundColor: blockConfig.bgColor }}
           >
             <IconComponent

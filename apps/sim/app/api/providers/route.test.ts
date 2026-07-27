@@ -111,6 +111,54 @@ describe('POST /api/providers', () => {
     )
   })
 
+  it('omits provisional stream output from the execution header', async () => {
+    mockExecuteProviderRequest.mockResolvedValue({
+      streamFormat: 'agent-events-v1',
+      stream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: 'text_delta', text: 'hello', turn: 'final' })
+          controller.close()
+        },
+      }),
+      execution: {
+        success: true,
+        output: {
+          content: '',
+          model: 'gpt-4o',
+          tokens: { input: 0, output: 0, total: 0 },
+          cost: { input: 0, output: 0, total: 0 },
+          providerTiming: {
+            startTime: '2026-07-01T00:00:00.000Z',
+            endTime: '2026-07-01T00:00:00.000Z',
+            duration: 0,
+          },
+        },
+        logs: [],
+        metadata: {
+          startTime: '2026-07-01T00:00:00.000Z',
+          endTime: '2026-07-01T00:00:00.000Z',
+          duration: 0,
+        },
+        isStreaming: true,
+      },
+    })
+
+    const res = await POST(
+      createMockRequest('POST', {
+        provider: 'openai',
+        model: 'gpt-4o',
+        workspaceId: 'ws-1',
+        stream: true,
+      })
+    )
+
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe('hello')
+    const executionHeader = JSON.parse(res.headers.get('X-Execution-Data') ?? '{}')
+    expect(executionHeader.output).toEqual({ model: 'gpt-4o' })
+    expect(executionHeader.metadata).toEqual({ startTime: '2026-07-01T00:00:00.000Z' })
+  })
+
   it('rejects an attribution header when the body has no workspaceId to validate against', async () => {
     const res = await POST(
       createMockRequest(

@@ -2,8 +2,9 @@
  * @vitest-environment jsdom
  */
 import { act, type ChangeEventHandler, type ReactNode } from 'react'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockUseConfigureSSO, mockUseOrganizationBilling, mockUseSession, mockUseSSOProviders } =
   vi.hoisted(() => ({
@@ -20,6 +21,7 @@ vi.mock('@sim/emcn', () => ({
     </button>
   ),
   ChipCombobox: () => <div />,
+  ChipCopyInput: ({ value }: { value?: string }) => <input readOnly value={value ?? ''} />,
   ChipInput: ({
     value,
     onChange,
@@ -50,8 +52,10 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: mockUseSession,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isBillingEnabled: true,
+// Domain management is covered by its own tests and needs a QueryClient; this
+// suite only exercises the provider form's org-transition behavior.
+vi.mock('@/ee/sso/components/verified-domains-section', () => ({
+  VerifiedDomainsSection: () => <div />,
 }))
 
 vi.mock(
@@ -130,8 +134,18 @@ function renderSso(organizationId: string) {
   })
 }
 
+beforeAll(() => {
+  setEnvFlags({ isBillingEnabled: true })
+})
+
+afterAll(resetEnvFlagsMock)
+
 describe('SSO organization transitions', () => {
   beforeEach(() => {
+    // The component reads getBaseUrl() during render; make sure the env var is
+    // present even when the suite runs without a local .env or after another
+    // test file mutated the environment (auto-restored via unstubEnvs).
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'http://localhost:3000')
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     container = document.createElement('div')
     document.body.appendChild(container)

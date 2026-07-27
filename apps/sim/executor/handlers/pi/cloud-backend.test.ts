@@ -13,7 +13,7 @@ const { mockRun, mockReadFile, mockWriteFile, mockExecuteTool, mockProviderEnvVa
   })
 )
 
-vi.mock('@/lib/execution/e2b', () => ({
+vi.mock('@/lib/execution/remote-sandbox', () => ({
   withPiSandbox: (fn: (runner: unknown) => unknown) =>
     fn({ run: mockRun, readFile: mockReadFile, writeFile: mockWriteFile }),
 }))
@@ -31,6 +31,7 @@ function baseParams(overrides: Partial<PiCloudRunParams> = {}): PiCloudRunParams
   return {
     mode: 'cloud',
     model: 'claude',
+    piModel: 'claude',
     providerId: 'anthropic',
     apiKey: 'sk-byok',
     isBYOK: true,

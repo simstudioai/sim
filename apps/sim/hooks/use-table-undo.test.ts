@@ -13,6 +13,10 @@ vi.mock('react', () => ({
 const mockMutate = vi.fn()
 const mockMutateAsync = vi.fn()
 
+vi.mock('@sim/emcn', () => ({
+  toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }),
+}))
+
 vi.mock('@/hooks/queries/tables', () => ({
   useUpdateTableRow: vi.fn(() => ({ mutate: mockMutate })),
   useCreateTableRow: vi.fn(() => ({ mutate: mockMutate })),
@@ -49,7 +53,10 @@ const storeState = {
 }
 
 vi.mock('@/stores/table/store', () => ({
-  useTableUndoStore: vi.fn((selector: (s: typeof storeState) => unknown) => selector(storeState)),
+  useTableUndoStore: Object.assign(
+    vi.fn((selector: (s: typeof storeState) => unknown) => selector(storeState)),
+    { getState: () => storeState }
+  ),
   runWithoutRecording: (fn: () => unknown) => Promise.resolve(fn()),
 }))
 
@@ -227,5 +234,39 @@ describe('useTableUndo – delete-column undo cell restore chunking', () => {
     expect(mockMutateAsync).toHaveBeenCalledTimes(2)
     expect(mockMutateAsync.mock.calls[0][0].updates).toHaveLength(3)
     expect(mockMutateAsync.mock.calls[1][0].updates).toHaveLength(2)
+  })
+})
+
+describe('useTableUndo – restoring a deleted select column', () => {
+  const selectAction: TableUndoAction = {
+    type: 'delete-column',
+    columnName: 'status',
+    columnId: 'col_status',
+    columnType: 'select' as const,
+    columnPosition: 0,
+    columnUnique: false,
+    columnRequired: false,
+    columnOptions: [{ id: 'opt_open', name: 'Open' }],
+    columnMultiple: true,
+    cellData: [],
+    previousOrder: null,
+    previousWidth: null,
+    previousPinnedColumns: null,
+  }
+
+  it('re-creates the column with its options and cardinality', async () => {
+    // A select column is invalid without an option set, so an undo that omits
+    // them is rejected outright — and the saved cells are option ids with
+    // nothing to attach to.
+    mockPopUndo.mockReturnValueOnce(makeEntry(selectAction))
+    const { undo } = TestHook()
+    ;(undo as () => void)()
+    await flush()
+
+    const payload = mockMutate.mock.calls[0][0]
+    expect(payload.type).toBe('select')
+    expect(payload.options).toEqual([{ id: 'opt_open', name: 'Open' }])
+    expect(payload.multiple).toBe(true)
+    expect(payload.id).toBe('col_status')
   })
 })

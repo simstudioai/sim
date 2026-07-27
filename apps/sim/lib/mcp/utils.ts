@@ -55,6 +55,12 @@ export const MCP_CLIENT_CONSTANTS = {
   LIST_TOOLS_TIMEOUT_MS: 30_000,
   /** Hard ceiling for tools/list regardless of progress (SDK maxTotalTimeout safeguard). */
   LIST_TOOLS_MAX_TOTAL_TIMEOUT_MS: 60_000,
+  /** Max `tools/list` pages followed via `nextCursor` before truncating (see fetch loop). */
+  LIST_TOOLS_MAX_PAGES: 50,
+  /** Max tools aggregated across all pages before truncating. */
+  LIST_TOOLS_MAX_TOOLS: 1000,
+  /** Max total tool-payload bytes aggregated across all pages before truncating. */
+  LIST_TOOLS_MAX_BYTES: 5 * 1024 * 1024,
   FAILURE_CACHE_TTL_MS: 120_000,
 } as const
 

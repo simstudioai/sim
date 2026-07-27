@@ -130,6 +130,8 @@ const nextConfig: NextConfig = {
     'isolated-vm',
     '@e2b/code-interpreter',
     'e2b',
+    '@daytonaio/sdk',
+    '@earendil-works/pi-ai',
     '@earendil-works/pi-coding-agent',
   ],
   outputFileTracingIncludes: {
@@ -143,6 +145,12 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizeCss: !isDev,
     turbopackFileSystemCacheForDev: false,
+    /**
+     * Turbopack's persistent build cache (beta) — opt-in via env so only the
+     * CI check build uses it; production image builds stay on the default
+     * cold-build path until the feature stabilizes.
+     */
+    turbopackFileSystemCacheForBuild: process.env.NEXT_TURBOPACK_BUILD_CACHE === '1',
     preloadEntriesOnStart: false,
     optimizePackageImports: [
       'lodash',

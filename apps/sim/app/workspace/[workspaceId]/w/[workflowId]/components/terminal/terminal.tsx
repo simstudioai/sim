@@ -124,7 +124,7 @@ const BlockRow = memo(function BlockRow({
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
         <div
-          className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
+          className='flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
           style={{ background: bgColor }}
         >
           {BlockIcon && (
@@ -300,7 +300,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
       >
         <div className='flex min-w-0 flex-1 items-center gap-2'>
           <div
-            className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
+            className='flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
             style={{ background: bgColor }}
           >
             {BlockIcon && (
@@ -427,7 +427,7 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
       >
         <div className='flex min-w-0 flex-1 items-center gap-2'>
           <div
-            className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
+            className='flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
             style={{ background: bgColor }}
           >
             {BlockIcon && (

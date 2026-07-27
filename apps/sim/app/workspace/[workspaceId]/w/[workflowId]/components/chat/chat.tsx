@@ -238,6 +238,7 @@ export function Chat() {
     selectedWorkflowOutputs,
     setSelectedWorkflowOutput,
     appendMessageContent,
+    setMessageContent,
     finalizeMessageStream,
     getConversationId,
     clearChat,
@@ -256,6 +257,7 @@ export function Chat() {
       selectedWorkflowOutputs: s.selectedWorkflowOutputs,
       setSelectedWorkflowOutput: s.setSelectedWorkflowOutput,
       appendMessageContent: s.appendMessageContent,
+      setMessageContent: s.setMessageContent,
       finalizeMessageStream: s.finalizeMessageStream,
       getConversationId: s.getConversationId,
       clearChat: s.clearChat,
@@ -495,10 +497,21 @@ export function Chat() {
     async (stream: ReadableStream<Uint8Array>, responseMessageId: string) => {
       const reader = stream.getReader()
       streamReaderRef.current = reader
+
+      /**
+       * Answer text tracked per block so a `chunk_reset` frame (a live-streamed
+       * turn resolved to tool calls) can drop one block's contribution. Each
+       * flush replaces the message content with the joined segments.
+       */
+      const blockOrder: string[] = []
+      const blockSegments = new Map<string, string>()
       let accumulatedContent = ''
+      const recomputeContent = () => {
+        accumulatedContent = blockOrder.map((id) => blockSegments.get(id) ?? '').join('')
+      }
 
       const BATCH_MAX_MS = 50
-      let pendingChunks = ''
+      let contentDirty = false
       let batchRAF: number | null = null
       let batchTimer: ReturnType<typeof setTimeout> | null = null
       let lastFlush = 0
@@ -512,9 +525,9 @@ export function Chat() {
           clearTimeout(batchTimer)
           batchTimer = null
         }
-        if (pendingChunks) {
-          appendMessageContent(responseMessageId, pendingChunks)
-          pendingChunks = ''
+        if (contentDirty) {
+          setMessageContent(responseMessageId, accumulatedContent)
+          contentDirty = false
         }
         lastFlush = performance.now()
       }
@@ -534,12 +547,17 @@ export function Chat() {
 
       let finalError: string | null = null
       try {
-        await readSSEEvents<{ event?: string; data?: ExecutionResult; chunk?: string }>(reader, {
+        await readSSEEvents<{
+          event?: string
+          data?: ExecutionResult
+          chunk?: string
+          blockId?: string
+        }>(reader, {
           onParseError: (_data, e) => {
             logger.error('Error parsing stream data:', e)
           },
           onEvent: (json) => {
-            const { event, data: eventData, chunk: contentChunk } = json
+            const { event, data: eventData, chunk: contentChunk, blockId } = json
 
             if (event === 'final' && eventData) {
               if ('success' in eventData && !eventData.success) {
@@ -548,9 +566,32 @@ export function Chat() {
               return true
             }
 
+            if (event === 'chunk_reset' && blockId) {
+              // Drop the block's provisional text and its order slot — the
+              // final turn re-registers at the end, keeping render order =
+              // arrival order (separators are recomputed on re-stream).
+              if (blockSegments.has(blockId)) {
+                blockSegments.delete(blockId)
+                const orderIndex = blockOrder.indexOf(blockId)
+                if (orderIndex !== -1) {
+                  blockOrder.splice(orderIndex, 1)
+                }
+                recomputeContent()
+                contentDirty = true
+                scheduleFlush()
+              }
+              return
+            }
+
             if (contentChunk) {
-              accumulatedContent += contentChunk
-              pendingChunks += contentChunk
+              const segmentKey = blockId ?? ''
+              if (!blockSegments.has(segmentKey)) {
+                blockOrder.push(segmentKey)
+                blockSegments.set(segmentKey, '')
+              }
+              blockSegments.set(segmentKey, blockSegments.get(segmentKey)! + contentChunk)
+              recomputeContent()
+              contentDirty = true
               scheduleFlush()
             }
           },
@@ -578,7 +619,14 @@ export function Chat() {
         focusInput(100)
       }
     },
-    [appendMessageContent, finalizeMessageStream, focusInput, selectedOutputs, activeWorkflowId]
+    [
+      appendMessageContent,
+      setMessageContent,
+      finalizeMessageStream,
+      focusInput,
+      selectedOutputs,
+      activeWorkflowId,
+    ]
   )
 
   /**

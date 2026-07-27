@@ -355,6 +355,38 @@ export async function getCustomBlockAuthority(
   }
 }
 
+/** A custom block's agent-tool binding: bound workflow + its input schema surface. */
+export interface CustomBlockToolBinding {
+  workflowId: string
+  /** LATEST-deployment Start input fields — the exact inputs the child will accept. */
+  inputFields: WorkflowInputField[]
+  /** Field ids (form keys) the publisher marked required. */
+  requiredInputIds: string[]
+}
+
+/**
+ * Resolve a custom block's agent-tool binding so an Agent can offer it as a tool:
+ * the authoritative bound workflow (org-scoped to the consumer's workspace,
+ * owner-derived — the same trust model execution uses via `getCustomBlockAuthority`)
+ * plus its LATEST-deployment Start input fields and the publisher's required-input
+ * ids. Returns `null` when the type doesn't resolve for the consumer's org
+ * (foreign-org, disabled, or missing) so the caller simply omits the tool. Fields
+ * are keyed by their stable id, matching `assembleCustomBlockInputMapping`.
+ */
+export async function resolveCustomBlockToolBinding(
+  type: string,
+  consumerWorkspaceId: string | undefined
+): Promise<CustomBlockToolBinding | null> {
+  const authority = await getCustomBlockAuthority(type, consumerWorkspaceId)
+  if (!authority) return null
+  const inputFields = await deriveInputFields(authority.workflowId)
+  return {
+    workflowId: authority.workflowId,
+    inputFields,
+    requiredInputIds: authority.requiredInputIds,
+  }
+}
+
 export class CustomBlockValidationError extends Error {
   constructor(message: string) {
     super(message)

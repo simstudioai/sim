@@ -27,6 +27,7 @@ import {
   localPartsToDateValue,
   todayLocalCalendarDate,
 } from '../../utils'
+import { SelectValueEditor } from '../select-field'
 
 const logger = createLogger('RowModal')
 
@@ -271,6 +272,14 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
             className='w-[110px]'
           />
         </div>
+      </ChipModalField>
+    )
+  }
+
+  if (column.type === 'select') {
+    return (
+      <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
+        <SelectValueEditor column={column} value={value} onChange={onChange} fullWidth />
       </ChipModalField>
     )
   }

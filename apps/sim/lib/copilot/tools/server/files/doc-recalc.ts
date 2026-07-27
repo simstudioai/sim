@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { executeInE2B } from '@/lib/execution/e2b'
 import { CodeLanguage } from '@/lib/execution/languages'
+import { executeInSandbox } from '@/lib/execution/remote-sandbox'
 import { compileDoc, DocCompileUserError } from './doc-compile'
 
 const logger = createLogger('CopilotDocRecalc')
@@ -50,7 +50,7 @@ for ws in wb.worksheets:
 print("__SIM_RESULT__=" + json.dumps({"ok": len(errors) == 0, "errors": errors[:${MAX_REPORTED_ERRORS}]}))
 `.trim()
 
-  const result = await executeInE2B({
+  const result = await executeInSandbox({
     code: script,
     language: CodeLanguage.Python,
     timeoutMs: RECALC_TIMEOUT_MS,

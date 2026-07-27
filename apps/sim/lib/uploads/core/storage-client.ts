@@ -96,7 +96,10 @@ export async function getFileMetadata(
 
   if (USE_GCS_STORAGE) {
     const { getGcsObjectMetadata } = await import('@/lib/uploads/providers/gcs/client')
-    return getGcsObjectMetadata(key, customConfig?.bucket ? { bucket: customConfig.bucket } : undefined)
+    return getGcsObjectMetadata(
+      key,
+      customConfig?.bucket ? { bucket: customConfig.bucket } : undefined
+    )
   }
 
   return {}

@@ -1,4 +1,4 @@
-import { redisConfigMock, redisConfigMockFns } from '@sim/testing'
+import { redisConfigMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetStorageMethod, reconnectCallbacks } = vi.hoisted(() => {
@@ -11,8 +11,6 @@ const { mockGetStorageMethod, reconnectCallbacks } = vi.hoisted(() => {
 
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
 const mockOnRedisReconnect = redisConfigMockFns.mockOnRedisReconnect
-
-vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
 vi.mock('@/lib/core/storage', () => ({
   getStorageMethod: mockGetStorageMethod,

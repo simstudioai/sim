@@ -1,26 +1,20 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { authMockFns, createMockRequest, resetEnvMock, setEnv } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockFilterBlacklistedModels,
   mockIsProviderBlacklisted,
   mockGetBYOKKey,
-  mockGetSession,
   mockGetUserEntityPermissions,
-  mutableEnv,
 } = vi.hoisted(() => ({
   mockFilterBlacklistedModels: vi.fn(),
   mockIsProviderBlacklisted: vi.fn(),
   mockGetBYOKKey: vi.fn(),
-  mockGetSession: vi.fn(),
   mockGetUserEntityPermissions: vi.fn(),
-  mutableEnv: { BASETEN_API_KEY: undefined as string | undefined },
 }))
-
-vi.mock('@/lib/core/config/env', () => ({ env: mutableEnv }))
 
 vi.mock('@/providers/utils', () => ({
   filterBlacklistedModels: mockFilterBlacklistedModels,
@@ -31,15 +25,13 @@ vi.mock('@/lib/api-key/byok', () => ({
   getBYOKKey: mockGetBYOKKey,
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
-
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getUserEntityPermissions: mockGetUserEntityPermissions,
 }))
 
 import { GET } from '@/app/api/providers/baseten/models/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const BASETEN_MODELS_URL = 'https://inference.baseten.co/v1/models'
 
@@ -55,7 +47,7 @@ function jsonResponse(body: unknown, init: { ok?: boolean; status?: number } = {
 }
 
 function setEnvKey(value: string | undefined): void {
-  mutableEnv.BASETEN_API_KEY = value
+  setEnv({ BASETEN_API_KEY: value })
 }
 
 function authHeaderFromLastFetch(mockFetch: ReturnType<typeof vi.fn>): unknown {
@@ -78,6 +70,10 @@ describe('GET /api/providers/baseten/models', () => {
     mockGetSession.mockResolvedValue(null)
     mockGetUserEntityPermissions.mockResolvedValue(null)
     setEnvKey(undefined)
+  })
+
+  afterAll(() => {
+    resetEnvMock()
   })
 
   it('returns empty models without fetching when the provider is blacklisted', async () => {

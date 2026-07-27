@@ -75,71 +75,42 @@ Docker must be installed and running. Use `-p, --port <port>` to run Sim on a di
 
 ## Self-hosting
 
-### Docker Compose
+**Requirements:** [Bun](https://bun.sh/) and [Docker](https://www.docker.com/).
 
 ```bash
 git clone https://github.com/simstudioai/sim.git && cd sim
-docker compose -f docker-compose.prod.yml up -d
-```
-
-Open [http://localhost:3000](http://localhost:3000)
-
-Sim also supports local models via [Ollama](https://ollama.ai) and [vLLM](https://docs.vllm.ai/). See the [Docker self-hosting docs](https://docs.sim.ai/self-hosting/docker) for setup details.
-
-### Manual Setup
-
-**Requirements:** [Bun](https://bun.sh/), [Node.js](https://nodejs.org/) v20+, PostgreSQL 12+ with [pgvector](https://github.com/pgvector/pgvector)
-
-1. Clone and install:
-
-```bash
-git clone https://github.com/simstudioai/sim.git
-cd sim
 bun install
-bun run prepare  # Set up pre-commit hooks
+bun run setup
 ```
 
-2. Set up PostgreSQL with pgvector:
+`bun run setup` is an interactive wizard: it provisions the database, generates secrets, writes your `.env` files, connects a Chat API key, and starts Sim the way you choose:
+
+- **Local dev** — run from source to contribute or hack on Sim
+- **Docker Compose** — a self-contained instance for testing self-hosting
+- **Kubernetes (Helm)** — deploy to a local cluster
+
+When it finishes, open [http://localhost:3000](http://localhost:3000).
+
+Manage your install with `bun run sim`:
 
 ```bash
-docker run --name simstudio-db -e POSTGRES_PASSWORD=your_password -e POSTGRES_DB=simstudio -p 5432:5432 -d pgvector/pgvector:pg17
+bun run sim start | stop | restart   # bring your install up / down / cycle
+bun run sim status                    # what's installed and healthy
+bun run sim logs                      # follow logs
+bun run sim doctor                    # diagnose configuration problems
+bun run sim down                      # remove containers (data kept)
+bun run sim reset                     # archive .env and wipe managed data
 ```
 
-Or install manually via the [pgvector guide](https://github.com/pgvector/pgvector#installation).
+`sim` detects how you're running (Docker Compose, local dev, or Kubernetes) and acts accordingly.
 
-3. Configure environment:
+Prefer a bare `sim`? Run `bun link` once — but note `sim` lands in `~/.bun/bin`, which Homebrew's bun doesn't add to your PATH, so you may need `export PATH="$HOME/.bun/bin:$PATH"` in your shell profile.
 
-```bash
-cp apps/sim/.env.example apps/sim/.env
-# Create your secrets
-perl -i -pe "s/your_encryption_key/$(openssl rand -hex 32)/" apps/sim/.env
-perl -i -pe "s/your_internal_api_secret/$(openssl rand -hex 32)/" apps/sim/.env
-perl -i -pe "s/your_api_encryption_key/$(openssl rand -hex 32)/" apps/sim/.env
-# DB configs for migration
-cp packages/db/.env.example packages/db/.env
-# Edit both .env files to set DATABASE_URL="postgresql://postgres:your_password@localhost:5432/simstudio"
-```
-
-4. Run migrations:
-
-```bash
-cd packages/db && bun run db:migrate
-```
-
-5. Start development servers:
-
-```bash
-bun run dev:full  # Starts Next.js app and realtime socket server
-```
-
-Or run separately: `bun run dev` (Next.js) and `cd apps/sim && bun run dev:sockets` (realtime).
+Sim also supports local models via [Ollama](https://ollama.ai) and [vLLM](https://docs.vllm.ai/). See the [self-hosting docs](https://docs.sim.ai/self-hosting/docker) for details.
 
 ## Chat API Keys
 
-Chat is a Sim-managed service. To use Chat on a self-hosted instance:
-
-- Go to https://sim.ai → Settings → Chat keys and generate a Chat API key
-- Set `COPILOT_API_KEY` environment variable in your self-hosted apps/sim/.env file to that value
+Chat is a Sim-managed service. `bun run setup` connects a Chat API key for you — sign in when it opens your browser and the key is stored automatically. To view, create, or revoke keys later, go to [sim.ai/account/settings/chat-keys](https://sim.ai/account/settings/chat-keys).
 
 ## Environment Variables
 

@@ -1,5 +1,6 @@
-import { setupGlobalFetchMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { getBlock } from '@/blocks/registry'
 import { BlockType } from '@/executor/constants'
 import {
   findMissingRequiredCustomBlockInputs,
@@ -14,7 +15,6 @@ const {
   mockCreateSnapshot,
   mockResolveBillingAttribution,
   mockGetCustomBlockAuthority,
-  mockGetPersonalAndWorkspaceEnv,
   mockGetUserEmailById,
   executorOptions,
 } = vi.hoisted(() => ({
@@ -22,7 +22,6 @@ const {
   mockCreateSnapshot: vi.fn(),
   mockResolveBillingAttribution: vi.fn(),
   mockGetCustomBlockAuthority: vi.fn(),
-  mockGetPersonalAndWorkspaceEnv: vi.fn(),
   mockGetUserEmailById: vi.fn(),
   executorOptions: [] as Array<Record<string, any>>,
 }))
@@ -40,9 +39,7 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution: mockResolveBillingAttribution,
 }))
 
-vi.mock('@/lib/environment/utils', () => ({
-  getPersonalAndWorkspaceEnv: mockGetPersonalAndWorkspaceEnv,
-}))
+const mockGetPersonalAndWorkspaceEnv = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
 
 vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
   getCustomBlockAuthority: mockGetCustomBlockAuthority,
@@ -52,40 +49,50 @@ vi.mock('@/lib/users/queries', () => ({
   getUserEmailById: mockGetUserEmailById,
 }))
 
-// Override the global registry mock so the Serializer can carry the start
-// block's runMetadata param through child deployed-state serialization.
-vi.mock('@/blocks/registry', () => ({
-  getBlock: vi.fn((type: string) => {
-    if (type === 'start_trigger') {
-      return {
-        name: 'Start',
-        description: 'Unified workflow entry point',
-        category: 'triggers',
-        bgColor: '#34B5FF',
-        icon: () => null,
-        subBlocks: [
-          { id: 'inputFormat', title: 'Inputs', type: 'input-format' },
-          { id: 'runMetadata', title: 'Add run metadata', type: 'switch', defaultValue: false },
-        ],
-        inputs: {},
-        outputs: {},
-        tools: { access: [] },
-        triggers: { enabled: true, available: ['chat', 'manual', 'api'] },
-      }
-    }
+/**
+ * Overrides the global registry mock's getBlock so the Serializer can carry the
+ * start block's runMetadata param through child deployed-state serialization.
+ */
+function getBlockOverride(type: string) {
+  if (type === 'start_trigger') {
     return {
-      name: 'Mock Block',
-      description: 'Mock block description',
+      name: 'Start',
+      description: 'Unified workflow entry point',
+      category: 'triggers',
+      bgColor: '#34B5FF',
       icon: () => null,
-      subBlocks: [],
+      subBlocks: [
+        { id: 'inputFormat', title: 'Inputs', type: 'input-format' },
+        { id: 'runMetadata', title: 'Add run metadata', type: 'switch', defaultValue: false },
+      ],
       inputs: {},
       outputs: {},
       tools: { access: [] },
+      triggers: { enabled: true, available: ['chat', 'manual', 'api'] },
     }
-  }),
-  getAllBlocks: vi.fn(() => ({})),
-  getLatestBlock: vi.fn(() => undefined),
-}))
+  }
+  return {
+    name: 'Mock Block',
+    description: 'Mock block description',
+    icon: () => null,
+    subBlocks: [],
+    inputs: {},
+    outputs: {},
+    tools: { access: [] },
+  }
+}
+
+const mockGetBlock = getBlock as Mock
+const defaultGetBlockImpl = mockGetBlock.getMockImplementation()
+
+beforeAll(() => {
+  mockGetBlock.mockImplementation(getBlockOverride)
+})
+
+afterAll(() => {
+  mockGetBlock.mockImplementation(defaultGetBlockImpl as () => unknown)
+  resetEnvironmentUtilsMock()
+})
 
 vi.mock('@/lib/logs/execution/snapshot/service', () => ({
   snapshotService: { createSnapshotWithDeduplication: mockCreateSnapshot },
@@ -109,9 +116,6 @@ vi.mock('@/executor/utils/http', () => ({
   }),
 }))
 
-// Mock fetch globally
-setupGlobalFetchMock()
-
 describe('WorkflowBlockHandler', () => {
   let handler: WorkflowBlockHandler
   let mockBlock: SerializedBlock
@@ -119,14 +123,17 @@ describe('WorkflowBlockHandler', () => {
   let mockFetch: Mock
 
   beforeEach(() => {
-    // Mock window.location.origin for getBaseUrl()
-    ;(global as any).window = {
+    // Mock window.location.origin for getBaseUrl(); stubGlobal so unstubGlobals cleans it up
+    vi.stubGlobal('window', {
       location: {
         origin: 'http://localhost:3000',
       },
-    }
+    })
     handler = new WorkflowBlockHandler()
-    mockFetch = global.fetch as Mock
+
+    // unstubGlobals removes any module-scope fetch stub before each test, so stub fresh here
+    mockFetch = vi.fn()
+    vi.stubGlobal('fetch', mockFetch)
 
     mockBlock = {
       id: 'workflow-block-1',

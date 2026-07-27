@@ -13,7 +13,17 @@
  * substrings like `::timestamptz` against the generated SQL.
  */
 import { describe, expect, it } from 'vitest'
-import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
+import {
+  MULTI_SELECT_FILTER_OPERATORS,
+  SINGLE_SELECT_FILTER_OPERATORS,
+  UI_TO_WIRE_OPERATOR,
+} from '@/lib/table/query-builder/constants'
+import {
+  buildFilterClause,
+  buildSortClause,
+  MULTI_SELECT_OPERATORS,
+  SINGLE_SELECT_OPERATORS,
+} from '@/lib/table/sql'
 import type { ColumnDefinition, Filter, Sort } from '@/lib/table/types'
 
 type SqlNode =
@@ -424,6 +434,128 @@ describe('SQL Builder', () => {
     it('throws on invalid direction', () => {
       const sort = { name: 'invalid' as 'asc' | 'desc' }
       expect(() => buildSortClause(sort, TABLE, NO_COLUMNS)).toThrow('Invalid sort direction')
+    })
+  })
+
+  describe('select columns', () => {
+    const statusCol: ColumnDefinition = {
+      id: 'status',
+      name: 'status',
+      type: 'select',
+      options: [
+        { id: 'opt_open', name: 'Open' },
+        { id: 'opt_closed', name: 'Closed' },
+      ],
+    }
+    const tagsCol: ColumnDefinition = {
+      id: 'tags',
+      name: 'tags',
+      type: 'select',
+      multiple: true,
+      options: [{ id: 'opt_a', name: 'Alpha' }],
+    }
+
+    it('filters a select by option id via containment', () => {
+      const out = render(buildFilterClause({ status: 'opt_open' }, TABLE, [statusCol]))
+      expect(out).toContain('user_table_rows.data @>')
+      expect(out).toContain('"status":"opt_open"')
+    })
+
+    it('rejects a range operator on a select column', () => {
+      expect(() => buildFilterClause({ status: { $gt: 'opt_open' } }, TABLE, [statusCol])).toThrow(
+        'not supported on select'
+      )
+    })
+
+    it('rejects a pattern operator on a select column', () => {
+      expect(() =>
+        buildFilterClause({ status: { $contains: 'Open' } }, TABLE, [statusCol])
+      ).toThrow('not supported on select')
+    })
+
+    it('treats a multiselect empty array as $empty', () => {
+      const out = render(buildFilterClause({ tags: { $empty: true } }, TABLE, [tagsCol]))
+      expect(out).toContain("= '[]'")
+    })
+
+    it('filters a multiselect by ARRAY membership, not scalar equality', () => {
+      // `{"tags":["opt_a"]} @> {"tags":"opt_a"}` is FALSE in Postgres — the
+      // operand has to be wrapped or the filter silently matches nothing.
+      const out = render(buildFilterClause({ tags: { $contains: 'opt_a' } }, TABLE, [tagsCol]))
+      expect(out).toContain('user_table_rows.data @>')
+      expect(out).toContain('"tags":["opt_a"]')
+      expect(out).not.toContain('"tags":"opt_a"')
+      expect(out).not.toContain('ILIKE')
+    })
+
+    it('negates multiselect membership for $ncontains', () => {
+      const out = render(buildFilterClause({ tags: { $ncontains: 'opt_a' } }, TABLE, [tagsCol]))
+      expect(out).toContain('NOT (')
+      expect(out).toContain('"tags":["opt_a"]')
+    })
+
+    it('rejects explicit equality on a multiselect — it could never match', () => {
+      expect(() => buildFilterClause({ tags: { $eq: 'opt_a' } }, TABLE, [tagsCol])).toThrow(
+        'not supported on multi-select'
+      )
+    })
+
+    it('reads the equality shorthand on a multiselect as membership', () => {
+      // The shorthand bypasses the operator whitelist, so it has to compile to
+      // membership itself or it silently matches nothing.
+      const out = render(buildFilterClause({ tags: 'opt_a' }, TABLE, [tagsCol]))
+      expect(out).toContain('"tags":["opt_a"]')
+    })
+
+    it('rejects membership operators on a single select', () => {
+      expect(() =>
+        buildFilterClause({ status: { $contains: 'opt_open' } }, TABLE, [statusCol])
+      ).toThrow('not supported on select')
+    })
+
+    it('still uses ILIKE for $contains on a plain string column', () => {
+      const strCol: ColumnDefinition = { id: 'name', name: 'name', type: 'string' }
+      const out = render(buildFilterClause({ name: { $contains: 'jo' } }, TABLE, [strCol]))
+      expect(out).toContain('ILIKE')
+    })
+
+    it('sorts a select column alphabetically by option name via CASE', () => {
+      const out = render(buildSortClause({ status: 'asc' }, TABLE, [statusCol]))
+      expect(out).toContain('CASE')
+      expect(out).toContain("WHEN 'opt_open' THEN 'Open'")
+      expect(out).toContain("WHEN 'opt_closed' THEN 'Closed'")
+      expect(out.trim().endsWith('ASC NULLS LAST')).toBe(true)
+    })
+
+    it('sorts a multiselect by its option names, not the raw id array', () => {
+      // A multi cell extracts as `["opt_b","opt_a"]`, which matches no single-id
+      // CASE branch — without the array arm it would order on that opaque text.
+      const out = render(buildSortClause({ tags: 'asc' }, TABLE, [tagsCol]))
+      expect(out).toContain('jsonb_array_elements_text')
+      expect(out).toContain('string_agg')
+      expect(out).toContain('ORDER BY e.ord')
+      // The scalar arm survives for values left over from a single→multi toggle.
+      expect(out).toContain('CASE')
+      expect(out.trim().endsWith('ASC NULLS LAST')).toBe(true)
+    })
+  })
+
+  describe('select operator whitelists stay in step with the filter UI', () => {
+    // The picker offers exactly the UI set and `pruneFilterForColumns` DROPS
+    // anything outside it, so a UI set narrower than the server's silently
+    // discards a filter the server would have accepted (this shipped: `in`/`nin`
+    // were missing from the single-select set). Assert the mapping instead of
+    // trusting the two lists to be kept in sync by hand.
+    const toWire = (op: string) => UI_TO_WIRE_OPERATOR[op] ?? `$${op}`
+
+    it('single-select UI operators map onto the server whitelist exactly', () => {
+      const mapped = new Set([...SINGLE_SELECT_FILTER_OPERATORS].map(toWire))
+      expect(mapped).toEqual(SINGLE_SELECT_OPERATORS)
+    })
+
+    it('multi-select UI operators map onto the server whitelist exactly', () => {
+      const mapped = new Set([...MULTI_SELECT_FILTER_OPERATORS].map(toWire))
+      expect(mapped).toEqual(MULTI_SELECT_OPERATORS)
     })
   })
 

@@ -36,6 +36,7 @@ import {
   renameFileFolderServerTool,
 } from '@/lib/copilot/tools/server/files/file-folders'
 import { renameFileServerTool } from '@/lib/copilot/tools/server/files/rename-file'
+import { shareFileServerTool } from '@/lib/copilot/tools/server/files/share-file'
 import { workspaceFileServerTool } from '@/lib/copilot/tools/server/files/workspace-file'
 import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
 import { generateImageServerTool } from '@/lib/copilot/tools/server/image/generate-image'
@@ -124,6 +125,7 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [editContentServerTool.name]: ['*'],
   [CreateFile.id]: ['*'],
   rename_file: ['*'],
+  [shareFileServerTool.name]: ['*'],
   move_file: ['*'],
   create_file_folder: ['*'],
   rename_file_folder: ['*'],
@@ -169,6 +171,7 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [editContentServerTool.name]: editContentServerTool,
   [createFileServerTool.name]: createFileServerTool,
   [renameFileServerTool.name]: renameFileServerTool,
+  [shareFileServerTool.name]: shareFileServerTool,
   [moveFileServerTool.name]: moveFileServerTool,
   [listFileFoldersServerTool.name]: listFileFoldersServerTool,
   [createFileFolderServerTool.name]: createFileFolderServerTool,

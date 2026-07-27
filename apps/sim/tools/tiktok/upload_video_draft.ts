@@ -2,7 +2,7 @@ import type {
   TikTokUploadVideoDraftParams,
   TikTokUploadVideoDraftResponse,
 } from '@/tools/tiktok/types'
-import { readTikTokPublishInitResponse, toTikTokPublishToolResponse } from '@/tools/tiktok/utils'
+import { readTikTokDraftInitResponse, toTikTokDraftInitToolResponse } from '@/tools/tiktok/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const tiktokUploadVideoDraftTool: ToolConfig<
@@ -37,21 +37,20 @@ export const tiktokUploadVideoDraftTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/tiktok/publish-video',
+    url: () => '/api/tools/tiktok/upload-video-draft',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',
     }),
     body: (params: TikTokUploadVideoDraftParams) => ({
       accessToken: params.accessToken,
-      mode: 'draft',
       file: params.file,
     }),
   },
 
   transformResponse: async (response: Response): Promise<TikTokUploadVideoDraftResponse> => {
-    const result = await readTikTokPublishInitResponse(response)
-    return toTikTokPublishToolResponse(result)
+    const result = await readTikTokDraftInitResponse(response)
+    return toTikTokDraftInitToolResponse(result)
   },
 
   outputs: {

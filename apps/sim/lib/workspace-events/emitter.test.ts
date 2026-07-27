@@ -1,26 +1,27 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { workflowAuthzMockFns } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockGetActiveWorkflowContext } = workflowAuthzMockFns
+
+afterAll(() => {
+  mockGetActiveWorkflowContext.mockReset()
+})
 
 const {
-  mockGetActiveWorkflowContext,
   mockFetchSubscriptions,
   mockEvaluateRule,
   mockReadLastFiredAt,
   mockClaimCooldown,
   mockProcessPolledWebhookEvent,
 } = vi.hoisted(() => ({
-  mockGetActiveWorkflowContext: vi.fn(),
   mockFetchSubscriptions: vi.fn(),
   mockEvaluateRule: vi.fn(),
   mockReadLastFiredAt: vi.fn(),
   mockClaimCooldown: vi.fn(),
   mockProcessPolledWebhookEvent: vi.fn(),
-}))
-
-vi.mock('@sim/platform-authz/workflow', () => ({
-  getActiveWorkflowContext: mockGetActiveWorkflowContext,
 }))
 
 vi.mock('@/lib/workspace-events/subscriptions', () => ({

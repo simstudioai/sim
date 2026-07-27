@@ -1,17 +1,39 @@
+import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/env-flags'
+import {
+  getServiceAccountConnectNoun,
+  getServiceAccountGatingBlockType,
+} from '@/lib/credentials/service-account-provider-ids'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
+import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
+import { getBlock } from '@/blocks'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { isHiddenUnder } from '@/blocks/visibility/context'
 import { DYNAMIC_MODEL_PROVIDERS, PROVIDER_DEFINITIONS } from '@/providers/models'
 import type { ToolConfig, ToolHostingCondition } from '@/tools/types'
+
+/** The service-account alternative to OAuth for a service, when it offers one. */
+export interface VfsServiceAccountAuth {
+  /** Vendor noun for the secret it collects — "private app token", "server-to-server app", … */
+  connectNoun: string
+}
 
 export type VfsToolAuth =
   | {
       type: 'oauth'
       required: boolean
       provider: string
+      /**
+       * Present when this OAuth service also accepts a shared service-account
+       * credential (connect AS AN APPLICATION, not as the user). The agent emits
+       * a `service_account` credential tag with this entry's OAuth `provider` to
+       * open the in-chat setup form. Omitted when the service has no
+       * service-account flow, or its flow is gated by a preview block.
+       */
+      serviceAccount?: VfsServiceAccountAuth
     }
   | {
       type: 'api_key'
@@ -20,6 +42,33 @@ export type VfsToolAuth =
       provider?: string
       condition?: ToolHostingCondition
     }
+
+/**
+ * Whether an OAuth provider value also exposes a service-account flow, and the
+ * noun for the secret it collects. The single composition point behind both the
+ * per-tool `auth.serviceAccount` field and the `oauth-integrations.json`
+ * roll-up, so the two never disagree. Returns `undefined` when the service has
+ * no service-account flow, or its flow is gated by a preview block (a custom
+ * Slack bot needs slack_v2) — GA-only discovery, so the agent never proactively
+ * offers a preview flow, matching the per-viewer gate the renderer applies.
+ */
+export function describeServiceAccountForOAuthProvider(
+  oauthProvider: string
+): VfsServiceAccountAuth | undefined {
+  const serviceAccountProviderId = getServiceAccountProviderForProviderId(oauthProvider)
+  if (!serviceAccountProviderId) return undefined
+  const gatingBlockType = getServiceAccountGatingBlockType(serviceAccountProviderId)
+  if (gatingBlockType) {
+    const gatingBlock = getBlock(gatingBlockType)
+    // Omit when the gating block is missing (fail-closed) or hidden by the
+    // canonical predicate. Passing `null` vis reduces `isHiddenUnder` to the
+    // static preview check — so once the block GAs and drops `preview`, it is
+    // no longer hidden and discovery includes it again, matching the renderer.
+    // Hand-rolling `?.preview ?? true` would keep it omitted forever after GA.
+    if (!gatingBlock || isHiddenUnder(null, gatingBlock)) return undefined
+  }
+  return { connectNoun: getServiceAccountConnectNoun(serviceAccountProviderId) }
+}
 
 export interface ComponentSerializationOptions {
   hosted?: boolean
@@ -32,10 +81,12 @@ export interface ComponentSerializationOptions {
  */
 export function serializeToolAuth(tool: ToolConfig, hosted = isHosted): VfsToolAuth | undefined {
   if (tool.oauth) {
+    const serviceAccount = describeServiceAccountForOAuthProvider(tool.oauth.provider)
     return {
       type: 'oauth',
       required: tool.oauth.required,
       provider: tool.oauth.provider,
+      ...(serviceAccount ? { serviceAccount } : {}),
     }
   }
 
@@ -366,6 +417,12 @@ export function serializeFileMeta(file: {
   size: number
   uploadedAt: Date
   updatedAt: Date
+  /** Whether the file has an active public share link. */
+  shared?: boolean
+  /** Auth mode of the active share; only meaningful when `shared` is true. */
+  shareAuthType?: ShareAuthType
+  /** Public share link (`{baseUrl}/f/{token}`); only meaningful when `shared` is true. */
+  shareUrl?: string
 }): string {
   return JSON.stringify(
     {
@@ -379,6 +436,9 @@ export function serializeFileMeta(file: {
       uploadedAt: file.uploadedAt.toISOString(),
       updatedAt: file.updatedAt.toISOString(),
       readContentWith: file.vfsPath ? `${file.vfsPath}/content` : undefined,
+      shared: Boolean(file.shared),
+      shareAuthType: file.shared ? file.shareAuthType : undefined,
+      shareUrl: file.shared ? file.shareUrl : undefined,
       note: 'This is file metadata only. To read the file text/bytes, read the readContentWith path (i.e. append /content).',
     },
     null,
@@ -443,6 +503,9 @@ function getStaticModelOptionsForVFS(): StaticModelOption[] {
   for (const [providerId, def] of Object.entries(PROVIDER_DEFINITIONS)) {
     if (dynamicProviders.has(providerId)) continue
     for (const model of def.models) {
+      // Retired models are hidden from the agent's menu (mirrors the user picker)
+      // so it never suggests a model whose API calls fail; legacy stays available.
+      if (model.sunset?.status === 'deprecated') continue
       const option: StaticModelOption = {
         id: model.id,
         provider: providerId,
@@ -450,7 +513,7 @@ function getStaticModelOptionsForVFS(): StaticModelOption[] {
       }
       if (model.recommended) option.recommended = true
       if (model.speedOptimized) option.speedOptimized = true
-      if (model.deprecated) option.deprecated = true
+      if (model.sunset) option.deprecated = true
       models.push(option)
     }
   }
@@ -576,6 +639,8 @@ export function serializeCredentials(
     displayName?: string | null
     role?: string | null
     scope: string | null
+    /** 'service_account' for a shared app credential; omitted/undefined for a personal OAuth connection. */
+    credentialType?: 'oauth' | 'service_account'
     createdAt: Date
   }>
 ): string {
@@ -586,6 +651,10 @@ export function serializeCredentials(
       displayName: a.displayName || undefined,
       role: a.role || undefined,
       scope: a.scope || undefined,
+      // 'oauth' (personal connection) vs 'service_account' (shared app
+      // credential) — they reconnect differently, so the agent must branch on
+      // this. Env-var credentials carry no type.
+      type: a.credentialType,
       connectedAt: a.createdAt.toISOString(),
     })),
     null,

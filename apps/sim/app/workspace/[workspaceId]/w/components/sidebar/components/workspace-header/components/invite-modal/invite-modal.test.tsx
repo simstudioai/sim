@@ -2,8 +2,9 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode } from 'react'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { hostContext, mockUseOrganizationBilling } = vi.hoisted(() => ({
   hostContext: {
@@ -30,10 +31,6 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/lib/auth/auth-client', () => ({
   useSession: () => ({ data: { user: { email: 'viewer@example.com' } } }),
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isBillingEnabled: true,
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
@@ -65,6 +62,12 @@ import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/
 
 let container: HTMLDivElement
 let root: Root
+
+beforeAll(() => {
+  setEnvFlags({ isBillingEnabled: true })
+})
+
+afterAll(resetEnvFlagsMock)
 
 describe('InviteModal organization billing isolation', () => {
   beforeEach(() => {
