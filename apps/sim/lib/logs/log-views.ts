@@ -188,6 +188,12 @@ export interface GrepSpanMatch {
 
 export interface GrepSpansResult {
   matches: GrepSpanMatch[]
+  /**
+   * Whether the scan stopped with trace left unread — not whether a budget was
+   * reached. Every point that skips work goes through `done`, which sets this,
+   * so a budget exhausted by the very last match reports `false`: the caller's
+   * results are complete, and nothing was withheld.
+   */
   truncated: boolean
   /**
    * Present when the pattern contained regex syntax, which is matched literally.
@@ -224,8 +230,17 @@ function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-/** Regex syntax in a pattern signals the caller expected regex semantics. */
-const REGEX_METACHARACTERS = /[.*+?^${}()|[\]\\]/
+/**
+ * Signals that the caller wrote a pattern *intending* regex semantics: escape
+ * classes, a character class, a group, alternation, a leading/trailing anchor,
+ * or a repetition quantifier.
+ *
+ * Deliberately narrower than the set `escapeRegExp` escapes. A bare `.` or `?`
+ * is ordinary text in the things people actually grep for — `example.com`,
+ * `file.pdf`, `v1.2.3`, `block_1.output` — and flagging those would tell the
+ * caller its correct search was misinterpreted, prompting a pointless retry.
+ */
+const REGEX_INTENT = /\\[dwsbDWSB]|[[\]()|*+]|^\^|\$$|\{\d+,?\d*\}/
 
 /**
  * Compile a caller-supplied grep pattern as a case-insensitive literal.
@@ -244,7 +259,7 @@ const REGEX_METACHARACTERS = /[.*+?^${}()|[\]\\]/
  */
 function compilePattern(pattern: string): { regex: RegExp; notice?: string } {
   const regex = new RegExp(escapeRegExp(pattern), 'i')
-  if (!REGEX_METACHARACTERS.test(pattern)) return { regex }
+  if (!REGEX_INTENT.test(pattern)) return { regex }
   return {
     regex,
     notice:
@@ -266,9 +281,10 @@ function runTimed<T>(state: GrepState, match: (regex: RegExp) => T): T {
   }
 }
 
-function snippetAround(text: string, state: GrepState, maxChars: number): string {
+function snippetAround(text: string, state: GrepState): string {
   const m = runTimed(state, (regex) => regex.exec(text))
   const index = m ? m.index : 0
+  const maxChars = state.maxSnippetChars
   const half = Math.floor(maxChars / 2)
   const start = Math.max(0, index - half)
   const end = Math.min(text.length, start + maxChars)
@@ -304,7 +320,7 @@ function recordIfMatch(
     blockId: span.blockId,
     name: span.name,
     field,
-    snippet: snippetAround(text, state, state.maxSnippetChars),
+    snippet: snippetAround(text, state),
   })
   if (state.matches.length >= state.maxMatches) state.truncated = true
 }

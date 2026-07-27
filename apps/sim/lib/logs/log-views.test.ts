@@ -177,6 +177,16 @@ describe('grepSpans', () => {
     expect(result.patternNotice).toContain('literal')
   })
 
+  it.each(['example.com', 'file.pdf', 'v1.2.3', 'block_1.output', '$0.42', 'why?'])(
+    'does not warn about regex on the ordinary literal %s',
+    async (pattern) => {
+      const spans = [span({ output: { v: `saw ${pattern} here` } })]
+      const result = await grepSpans(spans, pattern, ctx)
+      expect(result.matches.some((m) => m.field === 'output')).toBe(true)
+      expect(result.patternNotice).toBeUndefined()
+    }
+  )
+
   it('does not interpret a regex pattern, and says so', async () => {
     const spans = [span({ output: { v: 'status=503' } })]
 
