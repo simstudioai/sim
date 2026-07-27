@@ -547,6 +547,38 @@ describe('empty list-item Enter', () => {
     expect(list?.content?.every((item) => item.type === 'listItem')).toBe(true)
     editor.destroy()
   })
+
+  it('removes only the empty first block of a multi-block item, matching Backspace (keeps the list)', () => {
+    // Symmetry with the Backspace multi-block case: an empty first block whose item has sibling blocks
+    // is removed in place — the continuation and the list stay intact — rather than exiting the list.
+    const editor = editorWith('')
+    editor.commands.setContent({
+      type: 'doc',
+      content: [
+        {
+          type: 'bulletList',
+          content: [
+            {
+              type: 'listItem',
+              content: [
+                { type: 'paragraph' },
+                { type: 'paragraph', content: [{ type: 'text', text: 'more' }] },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+    // Caret at the start of the empty first paragraph (doc>bulletList>listItem>paragraph).
+    editor.commands.setTextSelection(3)
+    pressKey(editor, 'Enter')
+
+    expect(blockShape(editor)[0]).toBe('bulletList')
+    expect(editor.state.doc.textContent).toBe('more')
+    const list = editor.getJSON().content?.find((n) => n.type === 'bulletList')
+    expect(list?.content).toHaveLength(1)
+    editor.destroy()
+  })
 })
 
 describe('verbatim block boundary (isolating)', () => {

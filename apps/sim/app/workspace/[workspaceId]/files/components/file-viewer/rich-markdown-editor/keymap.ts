@@ -280,10 +280,14 @@ export const RichMarkdownKeymap = Extension.create({
         if ($from.parent.content.size !== 0) return false
         const listCtx = getListItemContext($from)
         if (!listCtx?.isFirstBlock) return false
-        // Enter on an empty item: a nested item outdents one level, a trailing top-level item
-        // falls through to the default (exits the list), and a non-trailing top-level item is removed
-        // rather than splitting the list around a stranded empty paragraph (which does not round-trip).
+        // Enter on an empty item, mirroring the Backspace cases above: a nested item outdents one level;
+        // an empty first block that has *sibling* blocks (continuation paragraph, block image, nested
+        // list) removes only that empty block in place, keeping the rest of the item — never exiting the
+        // list or splitting it; a trailing single-block item falls through to the default (exits the
+        // list); and a non-trailing single-block item is removed rather than splitting the list around a
+        // stranded empty paragraph (which does not round-trip).
         if (listCtx.isNested) return editor.commands.liftListItem(listCtx.itemType)
+        if (listCtx.hasSiblingBlocks) return removeEmptyWrappedBlock(editor, $from)
         if (listCtx.isTrailing) return false
         return removeEmptyWrappedBlock(editor, $from)
       },

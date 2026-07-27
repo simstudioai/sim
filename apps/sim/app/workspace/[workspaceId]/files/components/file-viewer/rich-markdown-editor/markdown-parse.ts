@@ -138,16 +138,21 @@ export function splitMarkdownBlocks(body: string): string[] {
  */
 export function parseMarkdownToDoc(body: string): JSONContent {
   const manager = markdownManager()
-  if (NON_CHUNKABLE.test(body) || EMPTY_PARAGRAPH_SPACING.test(body)) return manager.parse(body)
+  // Normalize line endings up front so the routing guards see the same `\n` the chunker and parser
+  // do — the guards' `\n`-anchored tests would otherwise miss a classic `\r`-only body (its blank
+  // lines are `\r`), routing it to the chunker that then drops its empty paragraphs.
+  const normalized = body.replace(/\r\n?/g, '\n')
+  if (NON_CHUNKABLE.test(normalized) || EMPTY_PARAGRAPH_SPACING.test(normalized))
+    return manager.parse(normalized)
   try {
     const content: JSONContent[] = []
-    for (const block of splitMarkdownBlocks(body)) {
+    for (const block of splitMarkdownBlocks(normalized)) {
       // `MarkdownManager.parse` always returns a doc node with a `content` array; spread its blocks.
       content.push(...(manager.parse(block).content ?? []))
     }
     return { type: 'doc', content }
   } catch {
-    return manager.parse(body)
+    return manager.parse(normalized)
   }
 }
 

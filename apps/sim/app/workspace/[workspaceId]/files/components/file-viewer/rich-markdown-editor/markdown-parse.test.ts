@@ -122,6 +122,10 @@ describe('parseMarkdownToDoc (chunked)', () => {
       ['empties between a heading and text', '# H\n\n\n\ntext'],
       ['empties after a tight list', '- a\n- b\n\n\n\ntext'],
       ['empties before a tight list', 'text\n\n\n\n- a\n- b'],
+      // Line-ending variants: the whole-vs-chunked routing must normalize first, or a `\r`-only body
+      // skips the empty-paragraph guard and is chunked (dropping the empties this fix restores).
+      ['CRLF between empties', 'a\r\n\r\n\r\n\r\nb'],
+      ['CR-only (classic Mac) between empties', 'a\r\r\r\rb'],
     ])('chunked matches whole-doc: %s', (_label, md) => {
       expect(shapeOf(md, 'chunked')).toBe(shapeOf(md, 'whole'))
     })
