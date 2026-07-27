@@ -27,7 +27,7 @@ import { usePostHog } from 'posthog-js/react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { captureEvent } from '@/lib/posthog/client'
-import { triggerFileDownload } from '@/lib/uploads/client/download'
+import { triggerArchiveDownload, triggerFileDownload } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import {
@@ -951,6 +951,7 @@ export function Files() {
         })
       } catch (err) {
         logger.error('Failed to download file:', err)
+        toast.error(toError(err).message)
       }
     },
     [workspaceId]
@@ -1071,7 +1072,7 @@ export function Files() {
     setShowDeleteConfirm(true)
   }, [selectedFileIds, selectedFolderIds, files, folders])
 
-  const handleBulkDownload = useCallback(() => {
+  const handleBulkDownload = useCallback(async () => {
     const selectedFiles = files.filter((file) => selectedFileIds.includes(file.id))
     if (selectedFiles.length === 1 && selectedFolderIds.length === 0) {
       handleDownload(selectedFiles[0])
@@ -1088,7 +1089,14 @@ export function Files() {
       is_bulk: true,
       file_count: selectedFileIds.length + selectedFolderIds.length,
     })
-    window.location.href = `/api/workspaces/${workspaceId}/files/download?${query.toString()}`
+    try {
+      await triggerArchiveDownload(
+        `/api/workspaces/${workspaceId}/files/download?${query.toString()}`
+      )
+    } catch (err) {
+      logger.error('Failed to download selection:', err)
+      toast.error(toError(err).message)
+    }
   }, [selectedFileIds, selectedFolderIds, files, handleDownload, workspaceId])
 
   const fileDetailBreadcrumbs = useMemo(() => {
@@ -1285,8 +1293,14 @@ export function Files() {
       return
     }
     if (item.kind === 'folder') {
-      window.location.href = `/api/workspaces/${workspaceId}/files/download?folderIds=${encodeURIComponent(item.folder.id)}`
+      const folderId = item.folder.id
       closeContextMenu()
+      triggerArchiveDownload(
+        `/api/workspaces/${workspaceId}/files/download?folderIds=${encodeURIComponent(folderId)}`
+      ).catch((err) => {
+        logger.error('Failed to download folder:', err)
+        toast.error(toError(err).message)
+      })
       return
     }
     handleDownload(item.file)
