@@ -50,13 +50,14 @@ const BLOCKQUOTE = /^[ ]{0,3}>/
 /**
  * Blank-line spacing that `@tiptap/markdown` reconstructs as *interior* or *leading* empty paragraphs —
  * a run of two or more blank lines somewhere, or blank line(s) at the document's leading edge. `[^\S\n]`
- * matches only horizontal whitespace (and `\r`), so a "blank" line may carry spaces/tabs and CRLF is
- * handled. TRAILING blank lines are deliberately NOT matched here: a trailing empty paragraph can never
- * be serialized stably — {@link postProcessSerializedMarkdown} collapses trailing newlines — so
- * {@link parseMarkdownToDoc} strips trailing empty paragraphs entirely (see {@link stripTrailingEmptyParagraphs}),
- * and routing a file that merely ends in a blank line to the whole-document parser would only reconstruct
- * one to be dropped again, making serialize→parse non-idempotent (the round-trip-safety probe would then
- * flip the file read-only).
+ * matches horizontal whitespace, so a "blank" line may carry spaces/tabs. This is only ever tested
+ * against the `\r`-normalized body ({@link parseMarkdownToDoc}), so no CRLF handling is needed here.
+ *
+ * A *single* trailing blank line is deliberately not matched — purely to avoid routing an otherwise-plain
+ * file to the slower whole-document parser. Correctness does not depend on it: {@link parseMarkdownToDoc}
+ * strips trailing empty paragraphs on *both* parse paths ({@link stripTrailingEmptyParagraphs}), so
+ * serialize→parse stays idempotent regardless of which parser ran. (A trailing run of two or more blanks
+ * still matches the interior alternative — harmless, since the strip cleans it either way.)
  */
 const EMPTY_PARAGRAPH_SPACING = /\n[^\S\n]*\n[^\S\n]*\n|^[^\S\n]*\n[^\S\n]*\n/
 
