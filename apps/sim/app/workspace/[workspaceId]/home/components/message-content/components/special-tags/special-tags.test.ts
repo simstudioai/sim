@@ -14,10 +14,46 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: vi.fn(() => ({ data: null, isPending: false })),
 }))
 
+import type { ContentSegment } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
 import {
   parseQuestionTagBody,
   parseSpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
+
+/**
+ * What a reader actually sees: the renderer concatenates adjacent text segments
+ * into one markdown string, so how a span is split across segments is not
+ * observable. Assert on this rather than on segment-array shape.
+ */
+function renderedText(segments: ContentSegment[]): string {
+  return segments.map((segment) => ('content' in segment ? segment.content : '')).join('')
+}
+
+/**
+ * Replays `content` the way it streams — one growing prefix per frame — and
+ * returns every frame's parse. A parser bug that only shows up between frames
+ * (a card that appears then reverts to text, prose that renders then vanishes)
+ * is invisible to a single end-state assertion.
+ */
+function replayFrames(content: string, step = 1) {
+  const frames: { text: string; cardCount: number }[] = []
+  for (let end = 1; end <= content.length; end += step) {
+    const { segments } = parseSpecialTags(content.slice(0, end), true)
+    frames.push({
+      text: renderedText(segments),
+      cardCount: segments.filter(
+        (segment) => segment.type !== 'text' && segment.type !== 'thinking'
+      ).length,
+    })
+  }
+  const { segments } = parseSpecialTags(content, false)
+  frames.push({
+    text: renderedText(segments),
+    cardCount: segments.filter((segment) => segment.type !== 'text' && segment.type !== 'thinking')
+      .length,
+  })
+  return frames
+}
 
 const SINGLE_SELECT = {
   type: 'single_select',
@@ -163,9 +199,7 @@ describe('parseSpecialTags with <question>', () => {
       'recognize it as a valid resource chip. A properly matched pair ' +
       '(`<workspace_resource>...</workspace_resource>`) is what actually produces the interactive chip.'
 
-    const rendered = parseSpecialTags(raw, false)
-      .segments.map((segment) => ('content' in segment ? segment.content : ''))
-      .join('')
+    const rendered = renderedText(parseSpecialTags(raw, false).segments)
 
     expect(rendered).toContain("Since the closing tag doesn't match")
     expect(rendered).toContain('A properly matched pair')
@@ -193,13 +227,10 @@ describe('parseSpecialTags with <question>', () => {
     // complete, every character survives.
     const raw =
       'The dataset lives in <workspace_resource>{"type": "file", "path": "files/notes.md"} and I keep coming back to it whenever I need a quick reference. It never quite has everything.'
-    const join = (result: ReturnType<typeof parseSpecialTags>) =>
-      result.segments.map((segment) => ('content' in segment ? segment.content : '')).join('')
-
     const streaming = parseSpecialTags(raw, true)
     expect(streaming.hasPendingTag).toBe(false)
-    expect(join(streaming)).toBe(raw)
-    expect(join(parseSpecialTags(raw, false))).toBe(raw)
+    expect(renderedText(streaming.segments)).toBe(raw)
+    expect(renderedText(parseSpecialTags(raw, false).segments)).toBe(raw)
   })
 
   it('does not rescan the interior of a body that carried no markers', () => {
@@ -213,9 +244,7 @@ describe('parseSpecialTags with <question>', () => {
       'A <question>{"a":"<options>{\\"k\\":{\\"title\\":\\"x\\",\\"description\\":\\"y\\"}}</options>"} junk</question> B'
     const { segments } = parseSpecialTags(raw, false)
     expect(segments.every((segment) => segment.type === 'text')).toBe(true)
-    expect(segments.map((segment) => ('content' in segment ? segment.content : '')).join('')).toBe(
-      raw
-    )
+    expect(renderedText(segments)).toBe(raw)
   })
 
   it('keeps prose a tag wrapped instead of a payload', () => {
@@ -224,9 +253,7 @@ describe('parseSpecialTags with <question>', () => {
     // "...once I wired up to handle the welcome sequence" with the subject gone.
     const raw =
       'once I wired up <workspace_resource>the gmail-agent workflow</workspace_resource> to handle the welcome sequence.'
-    const rendered = parseSpecialTags(raw, false)
-      .segments.map((segment) => ('content' in segment ? segment.content : ''))
-      .join('')
+    const rendered = renderedText(parseSpecialTags(raw, false).segments)
     expect(rendered).toContain('the gmail-agent workflow')
     expect(rendered).toContain('to handle the welcome sequence')
   })
@@ -239,10 +266,11 @@ describe('parseSpecialTags with <question>', () => {
       false
     )
     expect(hasPendingTag).toBe(false)
-    expect(segments).toEqual([
-      { type: 'text', content: 'Before. ' },
-      { type: 'text', content: ' After.' },
-    ])
+    // Asserted on the rendered text, not the segment array: how the surviving
+    // prose is split across text segments is display-neutral, so pinning the
+    // array shape would break on a behavior-preserving change to the split.
+    expect(renderedText(segments)).toBe('Before.  After.')
+    expect(segments.every((segment) => segment.type === 'text')).toBe(true)
   })
 
   it('drops that same payload even when its JSON quotes tag syntax', () => {
@@ -254,10 +282,8 @@ describe('parseSpecialTags with <question>', () => {
       'A <question>[{"type":"single_select","prompt":"use </options> here?"}]</question> B',
       false
     )
-    expect(segments).toEqual([
-      { type: 'text', content: 'A ' },
-      { type: 'text', content: ' B' },
-    ])
+    expect(renderedText(segments)).toBe('A  B')
+    expect(segments.every((segment) => segment.type === 'text')).toBe(true)
   })
 
   it('does not flash the payload while the closing tag is still arriving', () => {
@@ -270,7 +296,7 @@ describe('parseSpecialTags with <question>', () => {
         true
       )
       expect(hasPendingTag).toBe(true)
-      expect(segments.map((s) => ('content' in s ? s.content : '')).join('')).toBe('see ')
+      expect(renderedText(segments)).toBe('see ')
     }
   })
 
@@ -278,11 +304,14 @@ describe('parseSpecialTags with <question>', () => {
     // The counterpart to the case above: `</workflow_resource>` can never grow
     // into `</workspace_resource>`, so it settles immediately instead of hiding
     // the rest of the message for the remainder of the stream.
-    const { hasPendingTag } = parseSpecialTags(
-      'see <workspace_resource>{"type":"file","path":"a.md"}</workflow_resource> and then prose.',
-      true
-    )
+    const raw =
+      'see <workspace_resource>{"type":"file","path":"a.md"}</workflow_resource> and then prose.'
+    const { hasPendingTag, segments } = parseSpecialTags(raw, true)
     expect(hasPendingTag).toBe(false)
+    // Asserted on the text too, not just the flag: a wrong resumeAt keeps the
+    // flag correct while dropping the prose, which is the defect class this
+    // whole change exists to prevent.
+    expect(renderedText(segments)).toBe(raw)
   })
 
   it('keeps a valid tag whose close an earlier broken tag would borrow', () => {
@@ -294,9 +323,7 @@ describe('parseSpecialTags with <question>', () => {
       'and a real one: <workspace_resource>{"type":"file","path":"b.md","title":"b"}</workspace_resource>'
     const { segments } = parseSpecialTags(raw, false)
     expect(segments.some((s) => s.type === 'workspace_resource')).toBe(true)
-    expect(segments.map((s) => ('content' in s ? s.content : '')).join('')).toContain(
-      '</workflow_resource>'
-    )
+    expect(renderedText(segments)).toContain('</workflow_resource>')
   })
 
   it('does not delete tag syntax quoted inside the body it rescans', () => {
@@ -308,9 +335,7 @@ describe('parseSpecialTags with <question>', () => {
       '<credential>{\\"type\\":\\"link\\",\\"value\\":\\"https://x.example/p\\"}</credential>'
     const raw = `A <question>{"prompt":"${inner}"} </options></question> B`
     const { segments } = parseSpecialTags(raw, false)
-    expect(segments.map((segment) => ('content' in segment ? segment.content : '')).join('')).toBe(
-      raw
-    )
+    expect(renderedText(segments)).toBe(raw)
     expect(segments.every((segment) => segment.type === 'text')).toBe(true)
   })
 
@@ -320,9 +345,7 @@ describe('parseSpecialTags with <question>', () => {
     const raw =
       '<workspace_resource>prose one</workspace_resource>\n\n<workspace_resource>prose two</workspace_resource>'
     const { segments } = parseSpecialTags(raw, false)
-    expect(segments.map((segment) => ('content' in segment ? segment.content : '')).join('')).toBe(
-      raw
-    )
+    expect(renderedText(segments)).toBe(raw)
   })
 
   it('shows an oversized body it only partly inspected rather than discarding it', () => {
@@ -332,9 +355,7 @@ describe('parseSpecialTags with <question>', () => {
     const body = `{"type":"file","path":"a.md","note":"${'x'.repeat(5000)}`
     const raw = `see <workspace_resource>${body}</workspace_resource> end`
     const { segments } = parseSpecialTags(raw, false)
-    expect(segments.map((segment) => ('content' in segment ? segment.content : '')).join('')).toBe(
-      raw
-    )
+    expect(renderedText(segments)).toBe(raw)
   })
 
   it('still renders a matched pair whose body IS valid', () => {
@@ -363,9 +384,7 @@ describe('parseSpecialTags with <question>', () => {
       'kicks off in <workspace_resource>{"type":"file","path":"files/notes.md"}</workspac and after that I brew a cup of coffee.'
     const { segments, hasPendingTag } = parseSpecialTags(raw, true)
     expect(hasPendingTag).toBe(false)
-    expect(segments.map((s) => ('content' in s ? s.content : '')).join('')).toContain(
-      'I brew a cup of coffee'
-    )
+    expect(renderedText(segments)).toContain('I brew a cup of coffee')
   })
 
   it('tolerates braces inside JSON strings when tracking depth', () => {
@@ -396,8 +415,10 @@ describe('parseSpecialTags with <question>', () => {
     // serves: a JSON body has no need of it, since a marker outside a string
     // literal is content the viability rule already rejects, and one inside is
     // legitimate quoted syntax that must not count as evidence.
-    const { hasPendingTag } = parseSpecialTags('see <thinking>weighing it </question> more', true)
+    const raw = 'see <thinking>weighing it </question> more'
+    const { hasPendingTag, segments } = parseSpecialTags(raw, true)
     expect(hasPendingTag).toBe(false)
+    expect(renderedText(segments)).toBe(raw)
   })
 
   it('does not bail on tag syntax quoted inside a JSON string', () => {
@@ -422,23 +443,60 @@ describe('parseSpecialTags with <question>', () => {
     // candidate that nothing has ruled out yet, so it holds mid-stream.
     const streaming = parseSpecialTags('a <thinking>b <thinking> c', true)
     expect(streaming.hasPendingTag).toBe(true)
-    expect(
-      streaming.segments.map((segment) => ('content' in segment ? segment.content : '')).join('')
-    ).toBe('a <thinking>b ')
+    expect(renderedText(streaming.segments)).toBe('a <thinking>b ')
 
     // Once the stream ends nothing can close it, so the whole line is shown.
     const done = parseSpecialTags('a <thinking>b <thinking> c', false)
     expect(done.hasPendingTag).toBe(false)
-    expect(
-      done.segments.map((segment) => ('content' in segment ? segment.content : '')).join('')
-    ).toBe('a <thinking>b <thinking> c')
+    expect(renderedText(done.segments)).toBe('a <thinking>b <thinking> c')
   })
 
-  it('keeps suppressing an unclosed thinking tag with prose — its body is not JSON', () => {
-    // Documents the deliberate gap: `thinking` bodies are prose, so the JSON
-    // heuristic cannot apply and only the nesting rule can rescue it.
-    const { hasPendingTag } = parseSpecialTags('a <thinking>still reasoning about', true)
-    expect(hasPendingTag).toBe(true)
+  it('hides an unclosed thinking body while streaming, then shows it once complete', () => {
+    // A DELIBERATE trade, not an oversight. `thinking` bodies are prose, so the
+    // JSON viability rule cannot apply and only the nesting rule can disprove the
+    // opener — mid-stream the default is therefore to HIDE, since a close is
+    // still plausible and releasing early would flash reasoning that is about to
+    // become a suppressed segment.
+    //
+    // Once the stream ends the body is shown as text, which does leak the model's
+    // reasoning for a message whose close never arrived. Accepted: forgetting the
+    // close is rare, and the alternative — keeping it hidden — would swallow the
+    // answer whenever the model opened `<thinking>` and then wrote the reply
+    // without closing, which is the text-loss bug this whole change removes.
+    const raw = 'a <thinking>still reasoning about'
+    const streaming = parseSpecialTags(raw, true)
+    expect(streaming.hasPendingTag).toBe(true)
+    expect(renderedText(streaming.segments)).toBe('a ')
+
+    const complete = parseSpecialTags(raw, false)
+    expect(complete.hasPendingTag).toBe(false)
+    expect(renderedText(complete.segments)).toBe(raw)
+  })
+
+  it('never retracts rendered text or a card across streamed frames', () => {
+    // Frame-to-frame stability, which no end-state assertion can see. Replays a
+    // real message one character at a time: text already shown must never
+    // disappear, and a card once rendered must never revert to raw text.
+    const content =
+      'Updated <workspace_resource>{"type":"file","path":"files/a.md","title":"a.md"}</workspace_resource> ' +
+      'and left `<question>` alone. ' +
+      '<options>[{"title":"Ship it","description":"open the PR"}]</options>'
+
+    const frames = replayFrames(content)
+
+    // Card count is monotonically non-decreasing. Appending to the buffer can
+    // only add closes AFTER the ones already matched, so no earlier opener's
+    // resolution can change — a card that renders must never un-render.
+    let previous = 0
+    for (const frame of frames) {
+      expect(frame.cardCount).toBeGreaterThanOrEqual(previous)
+      previous = frame.cardCount
+    }
+
+    // The settled parse is the richest: both tags resolved, prose intact.
+    const settled = frames[frames.length - 1]
+    expect(settled.cardCount).toBe(2)
+    expect(settled.text).toContain('and left `<question>` alone.')
   })
 
   it('renders an unclosed tag as text once the message is complete', () => {
@@ -450,9 +508,7 @@ describe('parseSpecialTags with <question>', () => {
     // concatenates adjacent text segments, so how the span is split is not
     // observable to a reader.
     expect(segments.every((segment) => segment.type === 'text')).toBe(true)
-    expect(segments.map((segment) => ('content' in segment ? segment.content : '')).join('')).toBe(
-      content
-    )
+    expect(renderedText(segments)).toBe(content)
   })
 
   it('strips a trailing partial opening tag while streaming', () => {
