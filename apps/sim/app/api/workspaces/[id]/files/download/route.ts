@@ -140,6 +140,12 @@ export const GET = withRouteHandler(
             }
             return { buffer, pendingName: null, error: null }
           } catch (error) {
+            // Checked before this worker aborts anything, so the worker that actually
+            // failed still records its error while reads cancelled as a consequence
+            // report nothing — otherwise cancellation noise masks the real outcome.
+            if (controller.signal.aborted) {
+              return { buffer: null, pendingName: null, error: null }
+            }
             // A file bigger than the remaining budget is a size rejection, not a fault.
             if (error instanceof PayloadSizeLimitError) {
               overLimit = true
@@ -155,14 +161,16 @@ export const GET = withRouteHandler(
         }
       )
 
+      // Size first: the request cannot succeed at any size-adjacent retry, and a
+      // descriptive 400 beats an opaque 500 raised by whatever the abort cancelled.
+      if (overLimit || renderedBytes > MAX_ZIP_DOWNLOAD_BYTES) {
+        return overLimitResponse(renderedBytes, ' once documents are rendered')
+      }
+
       // A hard failure outranks a pending artifact: waiting cannot fix it, so a 409
       // would send the client into a retry loop that never succeeds.
       const failure = downloads.find((result) => result.error && !result.pendingName)
       if (failure?.error) throw failure.error
-
-      if (overLimit || renderedBytes > MAX_ZIP_DOWNLOAD_BYTES) {
-        return overLimitResponse(renderedBytes, ' once documents are rendered')
-      }
 
       const pendingNames = downloads.flatMap((result) => result.pendingName ?? [])
       if (pendingNames.length > 0) {

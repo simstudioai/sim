@@ -52,7 +52,8 @@ export const GET = withRouteHandler(async (request: NextRequest, context: FileRo
     }
 
     // Generated docs store their generation source; serve the rendered artifact.
-    const { buffer } = await fetchServableWorkspaceFileBuffer(fileRecord)
+    // Its content type is the rendered one, not the source MIME on the record.
+    const { buffer, contentType } = await fetchServableWorkspaceFileBuffer(fileRecord)
 
     recordAudit({
       workspaceId,
@@ -80,7 +81,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: FileRo
     return new Response(new Uint8Array(buffer), {
       status: 200,
       headers: {
-        'Content-Type': fileRecord.type || 'application/octet-stream',
+        'Content-Type': contentType || fileRecord.type || 'application/octet-stream',
         'Content-Disposition': `attachment; filename="${fileRecord.name.replace(/[^\w.-]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(fileRecord.name)}`,
         'Content-Length': String(buffer.length),
         'X-File-Id': fileRecord.id,

@@ -155,6 +155,27 @@ describe('workspace files download route', () => {
     expect(maxBytesFor('clip.mp4')).toBe(250 * 1024 * 1024)
   })
 
+  it('reports an oversized selection as 400 even when the abort cancels other reads', async () => {
+    const files = Array.from({ length: 40 }, (_, index) =>
+      workspaceFile(`f${index}`, `doc${index}.docx`, 'folder-1')
+    )
+    mockListWorkspaceFiles.mockResolvedValue(files)
+    mockFetchServableWorkspaceFileBuffer.mockImplementation(async (file: { name: string }) => {
+      if (file.name === 'doc0.docx')
+        throw new PayloadSizeLimitError({ label: 'servable file download', maxBytes: 1 })
+      // Everything else fails the way a cancelled read would.
+      throw new DOMException('The operation was aborted', 'AbortError')
+    })
+
+    const response = await GET(
+      requestFor(files.map((file) => `fileIds=${file.id}`).join('&')),
+      context
+    )
+
+    // Cancellation noise must not turn the size rejection into a generic 500.
+    expect(response.status).toBe(400)
+  })
+
   it('stops issuing reads once one hard-fails instead of draining the selection', async () => {
     const files = Array.from({ length: 60 }, (_, index) =>
       workspaceFile(`f${index}`, `doc${index}.txt`, 'folder-1')
