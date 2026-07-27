@@ -122,6 +122,21 @@ export const mdxComponents: MDXRemoteProps['components'] = {
       />
     )
   },
+  /**
+   * GFM comparison tables run up to nine columns of prose, which no phone can
+   * fit. Without a scroll container the table sets the page's content width and
+   * the whole article scrolls sideways, clipping body copy at both edges. The
+   * wrapper confines that scrolling to the table's own axis.
+   *
+   * `min-w` keeps columns from collapsing to one word per line inside the
+   * scroll area — narrow enough that tables which already fit (two or three
+   * columns on a tablet, anything on desktop) never gain a scrollbar.
+   */
+  table: ({ className, ...props }: any) => (
+    <div className='my-6 w-full overflow-x-auto'>
+      <table {...props} className={clsx('my-0 min-w-[520px]', className)} />
+    </div>
+  ),
   figure: (props: any) => (
     <figure {...props} className={clsx('my-8 overflow-hidden rounded-lg', props.className)} />
   ),
