@@ -541,7 +541,7 @@ function blankJsonStringLiterals(body: string): string {
 }
 
 /**
- * True while `body` could still grow into a single valid JSON value.
+ * True while `scannable` could still grow into a single valid JSON value.
  *
  * Checking only the first character is not enough: a body like
  * `{"type":"file"}</workspac and then prose...` opens with `{` and looks fine,
@@ -549,17 +549,10 @@ function blankJsonStringLiterals(body: string): string {
  * depth catches that the moment the stray character arrives, instead of waiting
  * for a close tag that is never coming.
  *
- * String contents are blanked first, so braces and brackets inside JSON strings
- * do not affect the depth count.
- */
-function isViableJsonPrefix(body: string): boolean {
-  return isViableJsonPrefixOf(blankJsonStringLiterals(body))
-}
-
-/**
- * {@link isViableJsonPrefix} for a body whose string literals are already
- * blanked. Callers that had to blank the body for their own scan pass the result
- * straight through instead of paying for a second pass over the same text.
+ * Takes a body whose string literals are ALREADY blanked by
+ * {@link blankJsonStringLiterals}, so braces and brackets inside JSON strings do
+ * not affect the depth count. Both callers blank the body for their own marker
+ * scan first, so taking the blanked form avoids a second pass over the same text.
  */
 function isViableJsonPrefixOf(scannable: string): boolean {
   if (scannable.trim() === '') return true
@@ -597,7 +590,7 @@ function isViableJsonPrefixOf(scannable: string): boolean {
  * 2. A JSON body must stay a viable JSON prefix. Depth is tracked rather than
  *    testing the first character alone, so a body whose top-level value has
  *    already closed is caught the moment stray content follows it — including a
- *    misspelled close like `</workflow_resource>`, which no marker rule sees.
+ *    misspelled close like `</workflow_resource>` instead of `</workspace_resource>`, which no marker rule sees.
  *
  * Both are conservative: they only fire on content that could not have parsed.
  * A false positive would merely show text early that a later chunk resolves
