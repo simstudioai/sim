@@ -57,16 +57,19 @@ export async function sweepStalePresence(
   manager: IRoomManager,
   room: RoomRef
 ): Promise<UserPresence[]> {
+  // Read the roster first so it is returned to the caller (for same-tab dedup) even when the
+  // liveness probe below fails — a fetchSockets outage must skip only the stale-removal, never
+  // the caller's dedup.
+  const users = await manager.getRoomUsers(room)
   let liveIds: Set<string>
   try {
     const liveSockets = await manager.io.in(roomName(room)).fetchSockets()
     liveIds = new Set(liveSockets.map((socket) => socket.id))
   } catch {
-    return []
+    return users
   }
 
   const now = Date.now()
-  const users = await manager.getRoomUsers(room)
   for (const user of users) {
     if (liveIds.has(user.socketId)) continue
     const lastSeen = user.lastActivity || user.joinedAt || 0

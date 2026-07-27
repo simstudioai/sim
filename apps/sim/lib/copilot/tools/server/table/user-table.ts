@@ -1080,6 +1080,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             table,
             requestId
           )
+          if (result.affectedCount > 0) signalTableRowsChanged(args.tableId)
 
           return {
             success: true,
@@ -1457,6 +1458,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             }
 
             const inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
+            if (inserted > 0) signalTableRowsChanged(table.id)
 
             logger.info('Rows imported from file', {
               tableId: table.id,

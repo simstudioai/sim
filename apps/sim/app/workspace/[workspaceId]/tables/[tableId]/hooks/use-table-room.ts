@@ -147,7 +147,7 @@ export function useTableRoom(tableId: string): UseTableRoomResult {
 
   const socketRef = useRef(socket)
   socketRef.current = socket
-  /** Presence is disabled when no table id is bound (e.g. the embedded/mothership surface). */
+  /** Presence is disabled when no table id is bound (e.g. the embedded Chat panel surface). */
   const enabledRef = useRef(false)
   enabledRef.current = Boolean(tableId)
   const lastEmitRef = useRef(0)
