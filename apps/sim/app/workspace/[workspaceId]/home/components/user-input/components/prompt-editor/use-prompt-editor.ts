@@ -673,9 +673,13 @@ export function usePromptEditor({
           return
         }
         if ((e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey) {
-          // Confirm the highlighted match if there is one. If no items match, fall
-          // through so Enter still submits and Tab still does its default thing.
-          if (plusMenuRef.current?.selectActive()) {
+          // Confirm the highlighted match if there is one. If the lists are still
+          // loading, swallow the key — "no match" isn't knowable yet, and falling
+          // through would submit the message with the mention left as raw text.
+          // Only once they are loaded does an empty result mean a genuine no-match,
+          // where Enter should submit and Tab should do its default thing.
+          const result = plusMenuRef.current?.selectActive()
+          if (result === 'selected' || result === 'hydrating') {
             e.preventDefault()
             return
           }

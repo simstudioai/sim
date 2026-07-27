@@ -71,7 +71,9 @@ export const PlusMenuDropdown = React.memo(
     const contentRef = useRef<HTMLDivElement>(null)
 
     // Gated so an idle chat surface never fetches the workspace lists.
-    const availableResources = useAvailableResources(workspaceId, { enabled: open || !!warm })
+    const { groups: availableResources, isHydrating } = useAvailableResources(workspaceId, {
+      enabled: open || !!warm,
+    })
 
     const doOpen = useCallback(
       (anchor: { left: number; top: number }, options?: { mention?: boolean }) => {
@@ -127,6 +129,8 @@ export const PlusMenuDropdown = React.memo(
     activeIndexRef.current = activeIndex
     const isMentionRef = useRef(isMention)
     isMentionRef.current = isMention
+    const isHydratingRef = useRef(isHydrating)
+    isHydratingRef.current = isHydrating
 
     // Reset highlight to the top whenever the mention query changes so the user always
     // sees the best match selected as they type.
@@ -161,15 +165,14 @@ export const PlusMenuDropdown = React.memo(
         },
         selectActive: () => {
           const items = filteredItemsRef.current
-          if (!items || items.length === 0) return false
-          const target = items[activeIndexRef.current] ?? items[0]
-          if (!target) return false
+          const target = items?.length ? (items[activeIndexRef.current] ?? items[0]) : undefined
+          if (!target) return isHydratingRef.current ? 'hydrating' : 'empty'
           handleSelectRef.current({
             type: target.type,
             id: target.item.id,
             title: target.item.name,
           })
-          return true
+          return 'selected'
         },
       }),
       [doOpen, doClose]

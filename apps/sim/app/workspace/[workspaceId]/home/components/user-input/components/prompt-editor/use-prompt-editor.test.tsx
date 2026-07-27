@@ -79,7 +79,7 @@ describe('usePromptEditor mention menu dismissal', () => {
       open: vi.fn(),
       close: vi.fn(),
       moveActive: vi.fn(),
-      selectActive: vi.fn(() => false),
+      selectActive: vi.fn(() => 'empty' as const),
     }
   })
 

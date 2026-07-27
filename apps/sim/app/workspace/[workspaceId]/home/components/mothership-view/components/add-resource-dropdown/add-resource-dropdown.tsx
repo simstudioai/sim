@@ -56,6 +56,16 @@ interface AvailableItemsByType {
   items: AvailableItem[]
 }
 
+interface AvailableResources {
+  groups: AvailableItemsByType[]
+  /**
+   * True while enabled and at least one list has yet to produce data. Callers
+   * that act on "no candidates" must check this first — an empty result during
+   * hydration means "not known yet", not "no match".
+   */
+  isHydrating: boolean
+}
+
 interface UseAvailableResourcesOptions {
   /**
    * Skips the underlying list queries and the group construction they feed
@@ -94,24 +104,58 @@ const LOG_DROPDOWN_FILTERS = {
 export function useAvailableResources(
   workspaceId: string,
   options?: UseAvailableResourcesOptions
-): AvailableItemsByType[] {
+): AvailableResources {
   const enabled = options?.enabled ?? true
   const excludeTypes = options?.excludeTypes
   // Destructured without `= []` defaults on purpose: a literal default allocates a
   // fresh array every render while `data` is undefined (exactly the disabled state),
   // which would bust the group memo below on every render. Undefined is stable.
-  const { data: workflows } = useWorkflows(workspaceId, { enabled })
-  const { data: tables } = useTablesList(workspaceId, 'active', { enabled })
-  const { data: files } = useWorkspaceFiles(workspaceId, 'active', { enabled })
-  const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId, { enabled })
-  const { data: folders } = useFolders(workspaceId, { enabled })
-  const { data: fileFolders } = useWorkspaceFileFolders(workspaceId, 'active', { enabled })
-  const { data: tasks } = useMothershipChats(workspaceId, { enabled })
-  const { data: schedules } = useWorkspaceSchedules(workspaceId, { enabled })
-  const { data: logsData } = useLogsList(workspaceId, LOG_DROPDOWN_FILTERS, { enabled })
+  const { data: workflows, isPending: workflowsPending } = useWorkflows(workspaceId, { enabled })
+  const { data: tables, isPending: tablesPending } = useTablesList(workspaceId, 'active', {
+    enabled,
+  })
+  const { data: files, isPending: filesPending } = useWorkspaceFiles(workspaceId, 'active', {
+    enabled,
+  })
+  const { data: knowledgeBases, isPending: knowledgeBasesPending } = useKnowledgeBasesQuery(
+    workspaceId,
+    { enabled }
+  )
+  const { data: folders, isPending: foldersPending } = useFolders(workspaceId, { enabled })
+  const { data: fileFolders, isPending: fileFoldersPending } = useWorkspaceFileFolders(
+    workspaceId,
+    'active',
+    { enabled }
+  )
+  const { data: tasks, isPending: tasksPending } = useMothershipChats(workspaceId, { enabled })
+  const { data: schedules, isPending: schedulesPending } = useWorkspaceSchedules(workspaceId, {
+    enabled,
+  })
+  const { data: logsData, isPending: logsPending } = useLogsList(
+    workspaceId,
+    LOG_DROPDOWN_FILTERS,
+    { enabled }
+  )
   const logs = useMemo(() => (logsData?.pages ?? []).flatMap((page) => page.logs), [logsData])
 
-  return useMemo(() => {
+  /**
+   * Keyed off `isPending` rather than `data === undefined` so a failed list
+   * settles to "not hydrating" — an errored query must not block the caller
+   * forever.
+   */
+  const isHydrating =
+    enabled &&
+    (workflowsPending ||
+      tablesPending ||
+      filesPending ||
+      knowledgeBasesPending ||
+      foldersPending ||
+      fileFoldersPending ||
+      tasksPending ||
+      schedulesPending ||
+      logsPending)
+
+  const groups = useMemo(() => {
     if (!enabled) return NO_RESOURCE_GROUPS
     const excluded = new Set<MothershipResourceType>(excludeTypes ?? [])
     const groups: AvailableItemsByType[] = [
@@ -198,6 +242,10 @@ export function useAvailableResources(
     logs,
     excludeTypes,
   ])
+
+  // `groups` keeps its own stable identity so the consumers' downstream memos
+  // still key on it; only this wrapper changes when hydration settles.
+  return useMemo(() => ({ groups, isHydrating }), [groups, isHydrating])
 }
 
 export type WorkflowTreeNode =
@@ -386,7 +434,7 @@ export function AddResourceDropdown({
   const [search, setSearch] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   // Gated on `open` so an idle tab bar never fetches the workspace lists.
-  const available = useAvailableResources(workspaceId, { enabled: open, excludeTypes })
+  const { groups: available } = useAvailableResources(workspaceId, { enabled: open, excludeTypes })
   const handleOpenChange = (next: boolean) => {
     setOpen(next)
     if (!next) {
