@@ -299,6 +299,44 @@ describe('parseSpecialTags with <question>', () => {
     )
   })
 
+  it('does not delete tag syntax quoted inside the body it rescans', () => {
+    // The rescan decides on the BLANKED body, so a tag quoted inside a JSON
+    // string is invisible to it. Resuming at the opener would re-scan that
+    // quoted text raw, re-parse it as a real tag, and drop it — deleting text.
+    // Resuming at the MARKER skips the quoted region, so it survives verbatim.
+    const inner =
+      '<credential>{\\"type\\":\\"link\\",\\"value\\":\\"https://x.example/p\\"}</credential>'
+    const raw = `A <question>{"prompt":"${inner}"} </options></question> B`
+    const { segments } = parseSpecialTags(raw, false)
+    expect(segments.map((segment) => ('content' in segment ? segment.content : '')).join('')).toBe(
+      raw
+    )
+    expect(segments.every((segment) => segment.type === 'text')).toBe(true)
+  })
+
+  it('keeps the blank line between two rejected spans', () => {
+    // The renderer concatenates adjacent text segments into one markdown string,
+    // so a dropped whitespace-only span silently merges two paragraphs.
+    const raw =
+      '<workspace_resource>prose one</workspace_resource>\n\n<workspace_resource>prose two</workspace_resource>'
+    const { segments } = parseSpecialTags(raw, false)
+    expect(segments.map((segment) => ('content' in segment ? segment.content : '')).join('')).toBe(
+      raw
+    )
+  })
+
+  it('shows an oversized body it only partly inspected rather than discarding it', () => {
+    // Only the first MAX_UNCLOSED_BODY_SCAN characters are scanned. Finding no
+    // reason within that window is not evidence the body was a real payload, so
+    // the span must be shown — discarding would delete text never examined.
+    const body = `{"type":"file","path":"a.md","note":"${'x'.repeat(5000)}`
+    const raw = `see <workspace_resource>${body}</workspace_resource> end`
+    const { segments } = parseSpecialTags(raw, false)
+    expect(segments.map((segment) => ('content' in segment ? segment.content : '')).join('')).toBe(
+      raw
+    )
+  })
+
   it('still renders a matched pair whose body IS valid', () => {
     const raw =
       'see <workspace_resource>{"type":"file","path":"files/a.md","title":"a.md"}</workspace_resource> ok'

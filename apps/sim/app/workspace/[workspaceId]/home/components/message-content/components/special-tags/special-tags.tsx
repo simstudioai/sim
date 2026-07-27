@@ -512,6 +512,11 @@ const MAX_UNCLOSED_BODY_SCAN = 4096
  * close, so the nesting rule must not see them. Tracks escapes so a `\"` inside
  * a string does not end it early. Handles an unterminated trailing string, which
  * is the normal state mid-stream.
+ *
+ * Index preservation is load-bearing, not decorative: {@link resolveTagAt} takes an
+ * offset found in the blanked copy and applies it to the RAW body. Iteration is by
+ * code point, so a blanked astral character must emit `char.length` spaces —
+ * emitting one would shrink the output and shift every later offset left.
  */
 function blankJsonStringLiterals(body: string): string {
   let out = ''
@@ -521,7 +526,7 @@ function blankJsonStringLiterals(body: string): string {
   for (const char of body) {
     if (escaped) {
       escaped = false
-      out += ' '
+      out += ' '.repeat(char.length)
       continue
     }
     if (char === '\\' && inString) {
@@ -534,7 +539,7 @@ function blankJsonStringLiterals(body: string): string {
       out += '"'
       continue
     }
-    out += inString ? ' ' : char
+    out += inString ? ' '.repeat(char.length) : char
   }
 
   return out
@@ -666,16 +671,19 @@ type TagResolution =
  * The two reasons resume differently, which is why they are distinguished
  * rather than collapsed into a boolean (see {@link resolveTagAt}).
  */
-type LiteralTextReason =
-  /** The body carries tag markers, so the close we matched belongs elsewhere. */
-  | 'foreign-markers'
+type LiteralTextVerdict =
+  /**
+   * The body carries a tag marker at `markerOffset` (an index into the body), so
+   * the close we matched belongs to a different opener.
+   */
+  | { reason: 'foreign-markers'; markerOffset: number }
   /** The tag wrapped prose that was never JSON to begin with. */
-  | 'never-a-payload'
+  | { reason: 'never-a-payload' }
 
 function literalTextReason(
   tagName: (typeof SPECIAL_TAG_NAMES)[number],
   body: string
-): LiteralTextReason | null {
+): LiteralTextVerdict | null {
   const isJsonBodied = JSON_BODY_TAG_NAMES.has(tagName)
   // Markers inside a JSON string are content, not evidence — a `<question>` may
   // legitimately quote tag syntax in its prompt. Scanning the raw body here
@@ -683,8 +691,9 @@ function literalTextReason(
   // which is exactly what `discard` exists to prevent. Mirrors the same blanking
   // in unclosedTagCannotResolve, which judges the same body mid-stream.
   const scannable = isJsonBodied ? blankJsonStringLiterals(body) : body
-  if (TAG_SHAPED_MARKER.test(scannable)) return 'foreign-markers'
-  if (isJsonBodied && !isViableJsonPrefixOf(scannable)) return 'never-a-payload'
+  const marker = TAG_SHAPED_MARKER.exec(scannable)
+  if (marker) return { reason: 'foreign-markers', markerOffset: marker.index }
+  if (isJsonBodied && !isViableJsonPrefixOf(scannable)) return { reason: 'never-a-payload' }
   return null
 }
 
@@ -743,16 +752,33 @@ function resolveTagAt(
   const parsed = parseSpecialTagData(tagName, body)
   if (parsed) return { outcome: 'segment', segment: parsed, resumeAt }
 
-  const reason = literalTextReason(tagName, body)
-  if (reason === 'foreign-markers') {
+  // Bound this scan the way the unclosed path is bounded: a borrowed close can
+  // stretch one body across most of the message, and the scan then reruns for
+  // every opener inside it on every streamed chunk. Both rules decide on first
+  // evidence, so a prefix reaches the same verdict for any real payload.
+  const truncated = body.length > MAX_UNCLOSED_BODY_SCAN
+  const verdict = literalTextReason(
+    tagName,
+    truncated ? body.slice(0, MAX_UNCLOSED_BODY_SCAN) : body
+  )
+
+  if (verdict?.reason === 'foreign-markers') {
     // A marker in the body proves the close we matched opened somewhere else —
     // this opener reached past its own missing close and borrowed a later tag's.
-    // Resuming past the OPENER instead of past that borrowed close re-scans the
-    // interior, so the genuine tag inside still renders instead of being
-    // swallowed into one literal span.
-    return { outcome: 'literal', resumeAt: bodyStart }
+    // Resume at that marker rather than past the borrowed close, so a genuine tag
+    // after it still renders instead of being swallowed into one literal span.
+    // Resuming at the MARKER and not at the opener matters: the scan ran on the
+    // blanked body, so anything before the marker may be a quoted string whose
+    // tag syntax the scan never saw. Re-scanning that raw would re-parse the
+    // quoted text as a real tag and drop it — deleting the very text this parser
+    // exists to preserve. Everything skipped is still emitted by pushText.
+    return { outcome: 'literal', resumeAt: bodyStart + verdict.markerOffset }
   }
-  if (reason === 'never-a-payload') return { outcome: 'literal', resumeAt }
+  if (verdict?.reason === 'never-a-payload') return { outcome: 'literal', resumeAt }
+
+  // Only a prefix was inspected, so "no reason found" is not evidence the body was
+  // a real payload — discarding here would delete text that was never examined.
+  if (truncated) return { outcome: 'literal', resumeAt }
 
   // A well-formed value that failed its shape guard is a broken emission from
   // the agent; showing the user raw JSON there would be worse than nothing.
@@ -774,8 +800,12 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
   let hasPendingTag = false
   let cursor = 0
 
+  // Whitespace-only spans are kept, not trimmed away: the literal path emits a
+  // rejected span in several pieces, and a `\n\n` between two of them is a
+  // markdown paragraph break. Dropping it silently merges two paragraphs, because
+  // the renderer concatenates adjacent text segments into one markdown string.
   const pushText = (text: string) => {
-    if (text.trim()) segments.push({ type: 'text', content: text })
+    if (text) segments.push({ type: 'text', content: text })
   }
 
   const openerCache = new Map<string, number>()
