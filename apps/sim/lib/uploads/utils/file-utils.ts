@@ -210,6 +210,18 @@ export function getFileExtension(filename: string): string {
   return lastDot !== -1 ? filename.slice(lastDot + 1).toLowerCase() : ''
 }
 
+/**
+ * Extensions whose stored bytes may be a generation source that renders to a larger
+ * binary. Everything else stores exactly what it serves, so its declared size is
+ * an accurate byte budget.
+ */
+const RENDERABLE_DOCUMENT_EXTENSIONS = new Set(['pdf', 'docx', 'pptx', 'xlsx'])
+
+/** True when `fileName` may be backed by a generation source rather than final bytes. */
+export function isRenderableDocumentName(fileName: string): boolean {
+  return RENDERABLE_DOCUMENT_EXTENSIONS.has(getFileExtension(fileName))
+}
+
 const ARCHIVE_EXTENSIONS = new Set<string>(SUPPORTED_ARCHIVE_EXTENSIONS)
 
 /**

@@ -15,7 +15,7 @@ import {
   listWorkspaceFileFolders,
   listWorkspaceFiles,
 } from '@/lib/uploads/contexts/workspace'
-import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import { formatFileSize, isRenderableDocumentName } from '@/lib/uploads/utils/file-utils'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/servable-file-response'
 import { buildZipEntryPaths } from '@/lib/uploads/zip-entry-path'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
@@ -23,6 +23,15 @@ import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 const logger = createLogger('WorkspaceFilesDownloadAPI')
 const MAX_ZIP_DOWNLOAD_FILES = 100
 const MAX_ZIP_DOWNLOAD_BYTES = 250 * 1024 * 1024
+/**
+ * Per-entry ceiling for documents that render from a generation source. Ordinary
+ * uploads serve exactly their declared size, which the pre-download check already
+ * bounds to the request budget; only rendered documents can exceed what they
+ * declared. Capping them individually is what bounds peak memory, because up to
+ * `MATERIALIZE_CONCURRENCY` reads are in flight against the same budget and none
+ * of them can see the others' bytes until they land.
+ */
+const MAX_RENDERED_DOCUMENT_BYTES = 50 * 1024 * 1024
 
 function overLimitResponse(bytes: number, qualifier = ''): NextResponse {
   return NextResponse.json(
@@ -102,10 +111,11 @@ export const GET = withRouteHandler(
       // Generated docs (docx/pptx/pdf/xlsx) store their generation source, not the
       // rendered binary, so bytes are resolved through the servable reader — a raw
       // read ships source text under a `.docx` name. The rendered artifact can be far
-      // larger than the declared source size, so the budget is tracked as files land
-      // and each read is capped at what is left: the request is bounded by the limit
-      // rather than by 100 files each allowed the full limit. Once the budget is blown
-      // or a read hard-fails, the abort flag stops reads that have not started yet.
+      // larger than the declared source size, so each read is capped at whatever is
+      // left of the budget and rendered documents additionally at a per-entry ceiling
+      // — concurrent reads cannot see each other's bytes until they land, so the
+      // per-entry cap is what bounds peak memory. Once the budget is blown or a read
+      // hard-fails, the abort flag stops reads that have not started yet.
       const controller = new AbortController()
       let renderedBytes = 0
       let overLimit = false
@@ -115,9 +125,12 @@ export const GET = withRouteHandler(
         MATERIALIZE_CONCURRENCY,
         async (file) => {
           if (controller.signal.aborted) return { buffer: null, pendingName: null, error: null }
+          const remaining = Math.max(0, MAX_ZIP_DOWNLOAD_BYTES - renderedBytes)
           try {
             const { buffer } = await fetchServableWorkspaceFileBuffer(file, {
-              maxBytes: Math.max(0, MAX_ZIP_DOWNLOAD_BYTES - renderedBytes),
+              maxBytes: isRenderableDocumentName(file.name)
+                ? Math.min(remaining, MAX_RENDERED_DOCUMENT_BYTES)
+                : remaining,
               signal: controller.signal,
             })
             renderedBytes += buffer.length
