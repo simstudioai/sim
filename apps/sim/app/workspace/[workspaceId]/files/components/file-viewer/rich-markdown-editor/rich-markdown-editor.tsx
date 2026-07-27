@@ -573,16 +573,23 @@ export function LoadedRichMarkdownEditor({
       const md = postProcessSerializedMarkdown(editor.getMarkdown())
       lastSyncedBodyRef.current = md
       onChangeRef.current(applyFrontmatter(settledRef.current?.frontmatter ?? '', md))
-      // While the file is still untitled, name it after its leading heading once typing settles. Always
-      // clear any pending timer first, so deleting/rewriting the heading before it fires cancels the
-      // stale rename; the timer re-derives the title from the live doc rather than a value captured at
+      // While the file is still untitled, name it after its leading heading once typing settles — but
+      // only when the user can actually edit. A view-only viewer (or the not-yet-editable seed at mount,
+      // which also fires onUpdate) must never schedule a rename it has no permission to make;
+      // `editor.isEditable` is the same gate the autosave path uses (canEdit + settled + collab-ready).
+      // Always clear any pending timer first, so deleting/rewriting the heading before it fires cancels
+      // the stale rename; the timer re-derives the title from the live doc rather than a value captured at
       // schedule time, so it can never name the file after a heading the user has since changed or removed.
       if (deriveTitleTimerRef.current) clearTimeout(deriveTitleTimerRef.current)
-      if (!isUntitledName(fileNameRef.current) || firstHeadingTitle(editor.state.doc) === null)
+      if (
+        !editor.isEditable ||
+        !isUntitledName(fileNameRef.current) ||
+        firstHeadingTitle(editor.state.doc) === null
+      )
         return
       deriveTitleTimerRef.current = setTimeout(() => {
         const liveEditor = editorInstanceRef.current
-        if (!liveEditor || !isUntitledName(fileNameRef.current)) return
+        if (!liveEditor || !liveEditor.isEditable || !isUntitledName(fileNameRef.current)) return
         const title = firstHeadingTitle(liveEditor.state.doc)
         if (title) onDeriveTitleFromHeadingRef.current?.(title)
       }, DERIVE_TITLE_DEBOUNCE_MS)
