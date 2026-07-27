@@ -21,6 +21,7 @@ export interface EnvFlagsMockState {
   isEmailPasswordEnabled: boolean
   isSignupMxValidationEnabled: boolean
   isAppConfigEnabled: boolean
+  isSlackExtendedScopesEnabled: boolean
   isTriggerDevEnabled: boolean
   isSsoEnabled: boolean
   isAccessControlEnabled: boolean
@@ -61,6 +62,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isEmailPasswordEnabled: true,
   isSignupMxValidationEnabled: false,
   isAppConfigEnabled: false,
+  isSlackExtendedScopesEnabled: false,
   isTriggerDevEnabled: false,
   isSsoEnabled: false,
   isAccessControlEnabled: false,
