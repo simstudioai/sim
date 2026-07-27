@@ -6,6 +6,7 @@ import { getEnv } from './lib/core/config/env'
 import { isAuthDisabled, isDev, isHosted } from './lib/core/config/env-flags'
 import { generateRuntimeCSP } from './lib/core/security/csp'
 import { getClientIp } from './lib/core/utils/request'
+import { isNonCanonicalSimHost } from './lib/core/utils/urls'
 
 const logger = createLogger('Proxy')
 
@@ -298,9 +299,30 @@ export async function proxy(request: NextRequest) {
 }
 
 /**
+ * Keeps non-production sim.ai deployments out of search results.
+ *
+ * `noindex` rather than a robots.txt `Disallow` is deliberate: a disallowed URL
+ * can still be indexed when linked externally, and blocking the crawl stops
+ * search engines from ever seeing the directive that removes pages already in
+ * the index. robots.txt is excluded from this proxy's matcher so it keeps
+ * serving the crawlable rules this header depends on.
+ */
+function applyIndexingPolicy(request: NextRequest, response: NextResponse): void {
+  const host =
+    request.headers.get('x-forwarded-host')?.split(',')[0]?.trim() ||
+    request.headers.get('host') ||
+    request.nextUrl.host
+
+  if (isNonCanonicalSimHost(host)) {
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow')
+  }
+}
+
+/**
  * Sends request data to Profound analytics (fire-and-forget) and returns the response.
  */
 function track(request: NextRequest, response: NextResponse): NextResponse {
+  applyIndexingPolicy(request, response)
   sendToProfound(request, response.status)
   return response
 }
