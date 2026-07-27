@@ -245,6 +245,8 @@ export function useTablesList(
   options?: {
     /** Poll cadence, or a predicate over the current list that returns a cadence (or `false`). */
     refetchInterval?: number | false | ((tables: TableDefinition[] | undefined) => number | false)
+    /** Defer the fetch (e.g. until a menu that needs the list is open). Defaults to `true`. */
+    enabled?: boolean
   }
 ) {
   const refetchInterval = options?.refetchInterval
@@ -259,7 +261,7 @@ export function useTablesList(
       })
       return response.data.tables
     },
-    enabled: Boolean(workspaceId),
+    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     staleTime: TABLE_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
     refetchInterval:
