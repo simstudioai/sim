@@ -206,7 +206,41 @@ describe('mergeSuggestionSources with an imported directory', () => {
     expect(merged[0]).toMatchObject({
       tier: SUGGESTION_TIER.ACCOUNT,
       lastSeenAt: Date.parse('2026-01-15T00:00:00.000Z'),
+      visits: 900,
     })
+  })
+
+  it('keeps the visit counts of hosts promoted above the imported tier', () => {
+    const merged = mergeSuggestionSources(
+      [session('gitlab.com')],
+      [credential('https://github.com')],
+      [site('github.com', { visits: 900 }), site('gitlab.com', { visits: 40 })]
+    )
+
+    // Both were promoted out of the imported tier by other evidence. Dropping
+    // their counts here is what left byConfidence with nothing but hostnames.
+    expect(merged.map((result) => [result.hostname, result.visits])).toEqual([
+      ['github.com', 900],
+      ['gitlab.com', 40],
+    ])
+  })
+
+  it('orders a password import by usage rather than falling back to the alphabet', () => {
+    // One import stamps every credential with the same instant, so tier and
+    // recency both tie and visits is the only thing left to sort on. These
+    // hosts are deliberately in the opposite order by name and by usage.
+    const hosts: Array<[string, number]> = [
+      ['adobe.com', 10],
+      ['github.com', 500],
+      ['zoom.us', 8495],
+    ]
+    const merged = mergeSuggestionSources(
+      [],
+      hosts.map(([hostname]) => credential(`https://${hostname}`)),
+      hosts.map(([hostname, visits]) => site(hostname, { visits }))
+    )
+
+    expect(hostnames(rankSuggestions(merged, ''))).toEqual(['zoom.us', 'github.com', 'adobe.com'])
   })
 
   it('reaches an imported host by the name the source browser gave it', () => {

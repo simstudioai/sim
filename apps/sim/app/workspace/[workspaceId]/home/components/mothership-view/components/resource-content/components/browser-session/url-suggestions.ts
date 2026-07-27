@@ -38,9 +38,11 @@ export interface UrlSuggestion {
   /** @see SUGGESTION_TIER */
   tier: SuggestionTier
   /**
-   * Source-browser visit count, for hosts that came from an import. Orders the
-   * imported tier by how much the user actually uses each site, which is the
-   * only usage signal that exists for a host this browser has never seen.
+   * Source-browser visit count, carried over for every host the import knows —
+   * not only the ones admitted at {@link SUGGESTION_TIER.IMPORTED}. A host with
+   * a saved password is usually in the import too, and its visit count is the
+   * only signal that separates it from the rest of its tier once
+   * {@link byConfidence} runs out of timestamps to compare.
    */
   visits?: number
 }
@@ -106,6 +108,7 @@ export function mergeSuggestionSources(
       icon: icon ?? site?.icon,
       lastSeenAt: seenAt,
       tier,
+      visits: site?.visits,
     })
   }
 
@@ -188,8 +191,19 @@ export function rankSuggestions(
  * Tier has to lead. Every host from one import shares that import's timestamp,
  * which is by definition the newest thing in the corpus, so ordering on recency
  * alone would put a site the user has never signed into above the one they use
- * daily. Within the imported tier those timestamps are all equal and the source
- * browser's own usage is what remains to tell them apart.
+ * daily.
+ *
+ * Visits then has to outrank recency, because one import flattens the
+ * timestamps of every tier it touches, not just the imported one: a password
+ * import stamps all of its credentials with the same instant, so the whole
+ * account tier ties on recency and would fall through to the alphabetical
+ * tiebreak below. That is why {@link mergeSuggestionSources} carries `visits`
+ * onto credentialed hosts as well — without it this comparator has nothing
+ * left, and the omnibox opens on whichever eight hosts sort first by name.
+ *
+ * A credentialed host the import has never heard of counts as zero visits and
+ * so sits below one it has. That is deliberate: keeping every step of the chain
+ * a total order is what stops `sort` from seeing an inconsistent comparator.
  */
 function byConfidence(first: UrlSuggestion, second: UrlSuggestion): number {
   return (
