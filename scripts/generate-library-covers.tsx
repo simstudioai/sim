@@ -5,14 +5,21 @@
  * top-left, a diagonal open arrow top-right, and the post title set large at
  * the bottom-left. The same template is rendered at request time for docs
  * pages by `apps/docs/app/api/og/route.tsx`; this script is the build-time
- * equivalent for library posts, whose covers ship as static assets so
- * `next/image` can optimize them and the SEO builders can probe their real
- * dimensions.
+ * equivalent for library posts, whose covers ship as static assets because
+ * they are rendered with `unoptimized` (see #5528) and the SEO builders probe
+ * their real dimensions off disk.
+ *
+ * Covers are derived artifacts, not source of truth: the title in the image
+ * comes from frontmatter, so editing a post's `title` makes its committed
+ * cover stale. Every run therefore re-renders from scratch rather than
+ * skipping outputs that already exist. Rendering is deterministic — an
+ * unchanged title re-encodes to identical bytes — so a full run is a no-op in
+ * git for everything that did not actually change.
  *
  * Usage, from the repo root:
- *   bun run library:covers              # write covers for posts that lack one
- *   bun run library:covers --force      # rewrite every post's cover
- *   bun run library:covers <slug>...    # rewrite only the named posts
+ *   bun run library:covers              # re-render every post's cover
+ *   bun run library:covers <slug>...    # re-render only the named posts
+ *   bun run library:covers --check      # verify committed covers are in sync
  */
 
 import { existsSync } from 'node:fs'
@@ -218,7 +225,7 @@ function readFrontmatterTitle(source: string): string | null {
 
 async function main() {
   const args = process.argv.slice(2)
-  const force = args.includes('--force')
+  const check = args.includes('--check')
   const only = new Set(args.filter((arg) => !arg.startsWith('--')))
 
   const font = await readFile(FONT_PATH)
@@ -239,23 +246,47 @@ async function main() {
     throw new Error(`No library post for: ${unknown.join(', ')}`)
   }
 
+  const stale: string[] = []
   let written = 0
+
   for (const slug of slugs) {
     if (only.size > 0 && !only.has(slug)) continue
 
     const outputPath = path.join(OUTPUT_DIR, slug, 'cover.jpg')
-    if (only.size === 0 && !force && existsSync(outputPath)) continue
-
     const source = await readFile(path.join(CONTENT_DIR, slug, 'index.mdx'), 'utf8')
     const title = readFrontmatterTitle(source)
     if (!title) {
       throw new Error(`Could not read a \`title\` from frontmatter of ${slug}/index.mdx`)
     }
 
+    const cover = await renderCover(title, fontData, measure)
+
+    if (check) {
+      const committed = existsSync(outputPath) ? await readFile(outputPath) : null
+      if (committed === null) {
+        stale.push(`${slug} — no cover committed`)
+      } else if (!committed.equals(cover)) {
+        stale.push(`${slug} — committed cover does not match "${title}"`)
+      }
+      continue
+    }
+
     await mkdir(path.dirname(outputPath), { recursive: true })
-    await writeFile(outputPath, await renderCover(title, fontData, measure))
+    await writeFile(outputPath, cover)
     written += 1
     console.log(`✓ ${slug}/cover.jpg — "${title}"`)
+  }
+
+  if (check) {
+    if (stale.length > 0) {
+      console.error(`${stale.length} library cover(s) out of sync with frontmatter:\n`)
+      for (const entry of stale) console.error(`  ✗ ${entry}`)
+      console.error('\nRun `bun run library:covers` and commit the result.')
+      process.exitCode = 1
+      return
+    }
+    console.log('All library covers are in sync with their frontmatter titles.')
+    return
   }
 
   console.log(`\n${written} cover${written === 1 ? '' : 's'} written to apps/sim/public/library/`)

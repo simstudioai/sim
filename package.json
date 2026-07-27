@@ -58,6 +58,7 @@
     "mship:generate": "bun run scripts/generate-mship-contracts.ts",
     "mship:check": "bun run scripts/generate-mship-contracts.ts --check",
     "library:covers": "bun run scripts/generate-library-covers.tsx",
+    "library:covers:check": "bun run scripts/generate-library-covers.tsx --check",
     "skills:sync": "bun run scripts/sync-skills.ts",
     "skills:check": "bun run scripts/sync-skills.ts --check",
     "setup": "bun run scripts/setup/index.ts setup",
