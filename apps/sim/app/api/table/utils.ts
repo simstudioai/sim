@@ -156,7 +156,10 @@ async function checkTableAccess(tableId: string, userId: string): Promise<TableA
     return { hasAccess: true, table }
   }
 
-  return { hasAccess: false, reason: 'User does not have access to this table' }
+  return {
+    hasAccess: false,
+    reason: 'User does not have access to this table',
+  }
 }
 
 /**
@@ -175,7 +178,10 @@ async function checkTableWriteAccess(tableId: string, userId: string): Promise<T
     return { hasAccess: true, table }
   }
 
-  return { hasAccess: false, reason: 'User does not have write access to this table' }
+  return {
+    hasAccess: false,
+    reason: 'User does not have write access to this table',
+  }
 }
 
 /**
@@ -280,4 +286,11 @@ export function normalizeColumn(col: ColumnDefinition): ColumnDefinition {
     unique: col.unique ?? false,
     ...(col.workflowGroupId ? { workflowGroupId: col.workflowGroupId } : {}),
   }
+}
+
+export function isBuiltInDateField(field: string): boolean {
+  if (field === 'created_at' || field === 'updated_at') {
+    return true
+  }
+  return false
 }

@@ -17,6 +17,7 @@ import type {
   JsonValue,
   Sort,
 } from '@/lib/table/types'
+import { isBuiltInDateField } from '../../app/api/table/utils'
 
 /**
  * Error thrown when caller-supplied filter or sort input is malformed.
@@ -380,7 +381,9 @@ function buildFieldCondition(
 
         case '$ncontains':
           conditions.push(
-            buildLikeClause(tableName, field, value as string, 'contains', { negate: true })
+            buildLikeClause(tableName, field, value as string, 'contains', {
+              negate: true,
+            })
           )
           break
 
@@ -458,8 +461,15 @@ function buildLogicalClause(
 
 /** Builds JSONB containment clause: `data @> '{"field": value}'::jsonb` (uses GIN index) */
 function buildContainmentClause(tableName: string, field: string, value: JsonValue): SQL {
+  if (isBuiltInDateField(field)) {
+    return sql`${sql.raw(`${tableName}.${field}`)} = ${value}::timestamptz`
+  }
+
   const jsonObj = JSON.stringify({ [field]: value })
   return sql`${sql.raw(`${tableName}.data`)} @> ${jsonObj}::jsonb`
+
+  // const jsonObj = JSON.stringify({ [field]: value })
+  // return sql`${sql.raw(`${tableName}.data`)} @> ${jsonObj}::jsonb`
 }
 
 /**
@@ -485,10 +495,17 @@ function buildComparisonClause(
   value: number | string,
   columnType: ColumnType | undefined
 ): SQL {
+  if (isBuiltInDateField(field)) {
+    columnType = 'date'
+  }
+
   const escapedField = field.replace(/'/g, "''")
   const cast = jsonbCastForType(columnType) ?? 'numeric'
   validateComparisonValue(field, columnType, cast, value)
-  const cell = sql.raw(`(${tableName}.data->>'${escapedField}')::${cast}`)
+
+  const cell = isBuiltInDateField(field)
+    ? sql.raw(`${tableName}.${field}`)
+    : sql.raw(`(${tableName}.data->>'${escapedField}')::${cast}`)
   return cast === 'timestamptz'
     ? sql`${cell} ${sql.raw(operator)} ${value}::timestamptz`
     : sql`${cell} ${sql.raw(operator)} ${value}`
