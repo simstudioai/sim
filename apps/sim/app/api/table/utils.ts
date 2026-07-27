@@ -289,7 +289,7 @@ export function normalizeColumn(col: ColumnDefinition): ColumnDefinition {
 }
 
 export function isBuiltInDateField(field: string): boolean {
-  if (field === 'created_at' || field === 'updated_at') {
+  if (['created_at', 'updated_at', 'createdAt', 'updatedAt'].includes(field)) {
     return true
   }
   return false

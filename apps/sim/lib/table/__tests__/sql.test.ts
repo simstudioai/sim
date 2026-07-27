@@ -227,7 +227,9 @@ describe('SQL Builder', () => {
     it('handles nested $or and $and', () => {
       const out = render(
         buildFilterClause(
-          { $or: [{ $and: [{ status: 'active' }, { verified: true }] }, { role: 'admin' }] },
+          {
+            $or: [{ $and: [{ status: 'active' }, { verified: true }] }, { role: 'admin' }],
+          },
           TABLE,
           NO_COLUMNS
         )
@@ -297,7 +299,9 @@ describe('SQL Builder', () => {
     it('propagates date cast through nested $and', () => {
       const out = render(
         buildFilterClause(
-          { $and: [{ birthDate: { $gte: '2024-01-01' } }, { birthDate: { $lt: '2025-01-01' } }] },
+          {
+            $and: [{ birthDate: { $gte: '2024-01-01' } }, { birthDate: { $lt: '2025-01-01' } }],
+          },
           TABLE,
           dateCols
         )
@@ -309,7 +313,9 @@ describe('SQL Builder', () => {
     it('propagates date cast through nested $or', () => {
       const out = render(
         buildFilterClause(
-          { $or: [{ birthDate: { $lt: '2000-01-01' } }, { birthDate: { $gt: '2024-01-01' } }] },
+          {
+            $or: [{ birthDate: { $lt: '2000-01-01' } }, { birthDate: { $gt: '2024-01-01' } }],
+          },
           TABLE,
           dateCols
         )
@@ -397,6 +403,26 @@ describe('SQL Builder', () => {
       expect(render(buildSortClause({ updatedAt: 'asc' }, TABLE, NO_COLUMNS))).toBe(
         `${TABLE}.updatedAt ASC`
       )
+    })
+
+    it('uses direct timestamp column for created_at comparisons', () => {
+      const out = render(
+        buildFilterClause({ created_at: { $gt: '2026-07-20' } }, TABLE, NO_COLUMNS)
+      )
+
+      expect(out).toContain(`${TABLE}.created_at`)
+      expect(out).not.toContain(`data->>'created_at'`)
+      expect(out).toContain('::timestamptz')
+    })
+
+    it('uses direct column equality for created_at', () => {
+      const out = render(
+        buildFilterClause({ created_at: { $eq: '2026-07-20' } }, TABLE, NO_COLUMNS)
+      )
+
+      expect(out).toContain(`${TABLE}.created_at`)
+      expect(out).toContain('=')
+      expect(out).not.toContain(`${TABLE}.data @>`)
     })
 
     it('combines multiple sort fields with commas', () => {

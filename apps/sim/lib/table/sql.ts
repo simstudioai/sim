@@ -17,7 +17,7 @@ import type {
   JsonValue,
   Sort,
 } from '@/lib/table/types'
-import { isBuiltInDateField } from '../../app/api/table/utils'
+import { isBuiltInDateField } from '@/app/api/table/utils.ts'
 
 /**
  * Error thrown when caller-supplied filter or sort input is malformed.
