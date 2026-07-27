@@ -25,9 +25,7 @@ import {
 } from '@sim/workflow-renderer'
 import {
   getHorizontalWorkflowHandleSide,
-  getPositionedSourceHandleId,
   getPositionedTargetHandleId,
-  isPositionedTargetHandle,
   normalizePositionedSourceHandleId,
   normalizePositionedTargetHandleId,
   type PositionedSourceHandleSide,
@@ -794,6 +792,14 @@ const WorkflowContent = React.memo(
       ]
     )
 
+    /**
+     * Block queued to be centered once its node mounts and has been measured.
+     * Creation is asynchronous — the store write, the node mount, and the
+     * dimension measurement each land on a later frame — so `addBlock` records
+     * the id and the effect below performs the camera move.
+     */
+    const pendingFocusBlockIdRef = useRef<string | null>(null)
+
     const addBlock = useCallback(
       (
         id: string,
@@ -809,6 +815,7 @@ const WorkflowContent = React.memo(
       ) => {
         setPendingSelection([id])
         setSelectedEdges(new Map())
+        pendingFocusBlockIdRef.current = id
 
         const blockData: Record<string, unknown> = { ...(data || {}) }
         if (parentId) blockData.parentId = parentId
@@ -3256,32 +3263,20 @@ const WorkflowContent = React.memo(
             dropSide = getHorizontalWorkflowHandleSide(clientPos.clientX - rect.left, rect.width)
           }
           /*
-           * A drag can start on an INPUT knob (the left target). The dropped
-           * card is then the upstream end: reusing the origin as the edge
-           * source would store 'target' as a sourceHandle, and the edge
-           * renders off arbitrary fallback anchors and never highlights.
+           * Always source→target. Inputs never originate a drag: the `target`
+           * handle sets `isConnectableStart={false}` and the positioned side
+           * anchors are `isConnectable={false}`, so React Flow only ever
+           * reports an output handle here. Dragging over an input knob starts
+           * from the cursor swell's temporary source handle instead.
            */
-          const draggedFromInput =
-            source.handleId === 'target' || isPositionedTargetHandle(source.handleId)
-          if (draggedFromInput) {
-            const dropSourceHandle =
-              !dropSide || dropSide === 'right' ? 'source' : getPositionedSourceHandleId(dropSide)
-            onConnect({
-              source: targetNode.id,
-              sourceHandle: dropSourceHandle,
-              target: source.nodeId,
-              targetHandle: source.handleId ?? 'target',
-            })
-          } else {
-            const targetHandle =
-              !dropSide || dropSide === 'left' ? 'target' : getPositionedTargetHandleId(dropSide)
-            onConnect({
-              source: source.nodeId,
-              sourceHandle,
-              target: targetNode.id,
-              targetHandle,
-            })
-          }
+          const targetHandle =
+            !dropSide || dropSide === 'left' ? 'target' : getPositionedTargetHandleId(dropSide)
+          onConnect({
+            source: source.nodeId,
+            sourceHandle,
+            target: targetNode.id,
+            targetHandle,
+          })
         } else if (!targetNode) {
           // Released on empty canvas: open the command palette with the drag origin
           // + drop point, so the chosen block lands here wired from this handle.
@@ -3954,6 +3949,36 @@ const WorkflowContent = React.memo(
       },
       [reactFlowInstance]
     )
+
+    /**
+     * Centers a newly created block once its node has mounted and been
+     * measured. A card added from a drag-release, the block menu, or the
+     * toolbar can land outside the viewport (or under the editor panel), so
+     * the camera follows it the same way it follows a click.
+     *
+     * Waits for real dimensions: `focusBlockInView` centers on the card's
+     * midpoint, and an unmeasured node reports no size, which would center the
+     * camera on its top-left corner instead.
+     */
+    useEffect(() => {
+      const pendingId = pendingFocusBlockIdRef.current
+      if (!pendingId) return
+
+      const node = displayNodes.find((candidate) => candidate.id === pendingId)
+      if (!node) return
+      if (
+        typeof node.width !== 'number' ||
+        typeof node.height !== 'number' ||
+        node.width <= 0 ||
+        node.height <= 0
+      ) {
+        return
+      }
+
+      pendingFocusBlockIdRef.current = null
+      if (embedded) return
+      focusBlockInView(node)
+    }, [displayNodes, embedded, focusBlockInView])
 
     /**
      * Handles node click to select the node in ReactFlow.

@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, cn, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
+import { Button, ChipTag, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
+import { getWorkflowTypeAccent } from '@sim/workflow-renderer'
 import { isEqual } from 'es-toolkit'
 import {
   BookOpen,
@@ -50,7 +51,6 @@ import {
   isBlockProtected,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
-import { getTileIconColorClass } from '@/blocks/icon-color'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
@@ -96,6 +96,7 @@ export function Editor() {
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
+  const typeAccent = getWorkflowTypeAccent(currentBlock?.type ?? '')
   const title = currentBlock?.name || 'Editor'
   const isBlockNameSearchHighlighted =
     activeSearchTarget?.targetKind === 'block-name' && activeSearchTarget.blockId === currentBlockId
@@ -372,18 +373,23 @@ export function Editor() {
         <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between rounded-none border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
           <div className='flex min-w-0 flex-1 items-center gap-2'>
             {(blockConfig || isSubflow) && currentBlock?.type !== 'note' && (
-              <div
-                className='flex size-[18px] items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-                style={{ background: isSubflow ? subflowConfig?.bgColor : blockConfig?.bgColor }}
+              /*
+               * Same accent the card's type badge uses, so the panel header and
+               * the block on the canvas read as one object. Driving it off the
+               * block's legacy `bgColor` instead left the panel on the old
+               * per-integration brand colours after the cards moved to the
+               * restrained type accents.
+               */
+              <ChipTag
+                variant={typeAccent.variant}
+                tone={typeAccent.tone}
+                className='size-[18px] justify-center px-0'
               >
                 <IconComponent
                   icon={isSubflow ? subflowConfig?.icon : blockConfig?.icon}
-                  className={cn(
-                    'size-[12px]',
-                    getTileIconColorClass(isSubflow ? subflowConfig?.bgColor : blockConfig?.bgColor)
-                  )}
+                  className='size-[12px]'
                 />
-              </div>
+              </ChipTag>
             )}
             {isRenaming ? (
               <input

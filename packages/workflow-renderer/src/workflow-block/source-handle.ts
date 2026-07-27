@@ -26,7 +26,15 @@ export function getCursorSourceHandlePosition(side: WorkflowCardSide): Position 
   return Position.Right
 }
 
-/** Converts a temporary cursor handle into its persistent side anchor. */
+/**
+ * Converts a temporary cursor handle into its persistent anchor.
+ *
+ * Outputs always leave from the right. The swell lets a drag START on any
+ * edge — including the left, which is the input side — but the connection it
+ * creates is an output, so it anchors right regardless of where the gesture
+ * began. Anchoring an output on the left would put an outgoing line on the
+ * input port and read as a second input.
+ */
 export function normalizeCursorSourceHandleId(
   handleId: string | null | undefined
 ): string | null | undefined {
@@ -37,8 +45,5 @@ export function normalizeCursorSourceHandleId(
   const prefix = `${CURSOR_SOURCE_HANDLE_ID}-`
   if (!handleId?.startsWith(prefix)) return handleId
 
-  const side = handleId.slice(prefix.length)
-  if (side === 'left' || side === 'right') return getPositionedSourceHandleId(side)
-  if (side === 'top' || side === 'bottom') return getPositionedSourceHandleId('right')
-  return handleId
+  return getPositionedSourceHandleId('right')
 }

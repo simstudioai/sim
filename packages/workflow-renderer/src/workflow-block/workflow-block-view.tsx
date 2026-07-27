@@ -1174,23 +1174,24 @@ export function WorkflowBlockView({
                 return !wouldCreateConnectionCycle(connection.source!, connection.target!)
               }}
             />
-            {POSITIONED_SOURCE_HANDLE_SIDES.map((side) => {
-              const handleId = getPositionedSourceHandleId(side)
-              return (
-                <Handle
-                  key={handleId}
-                  type='source'
-                  position={getReactFlowPosition(side)}
-                  id={handleId}
-                  className='!pointer-events-none !z-0 !rounded-none !border-none !bg-transparent !opacity-0'
-                  style={getCenteredSideHandleStyle(side)}
-                  data-nodeid={id}
-                  data-handleid={handleId}
-                  isConnectable={false}
-                  aria-hidden='true'
-                />
-              )
-            })}
+            {/*
+              Anchor for outgoing edges created by the cursor swell. Only the
+              right side exists: an output always leaves from the right, so
+              `normalizeCursorSourceHandleId` resolves every drag here no
+              matter which edge it started on. Mounting a left twin would
+              advertise an output on the input port.
+            */}
+            <Handle
+              type='source'
+              position={getReactFlowPosition('right')}
+              id={getPositionedSourceHandleId('right')}
+              className='!pointer-events-none !z-0 !rounded-none !border-none !bg-transparent !opacity-0'
+              style={getCenteredSideHandleStyle('right')}
+              data-nodeid={id}
+              data-handleid={getPositionedSourceHandleId('right')}
+              isConnectable={false}
+              aria-hidden='true'
+            />
           </>
         )}
 

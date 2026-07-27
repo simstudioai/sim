@@ -275,11 +275,18 @@ export function getPositionedSourceHandleSide(
   return handle === 'source-left' ? 'left' : 'right'
 }
 
-/** Collapses legacy vertical source anchors onto the canonical right-side anchor. */
+/**
+ * Collapses every non-right source anchor onto the canonical right-side anchor.
+ *
+ * Outputs leave a card from the right, always. Left is the input side, so an
+ * output anchored there would draw an outgoing line out of the input port and
+ * read as a second input. Legacy vertical anchors collapse for the same reason:
+ * top and bottom are not connection sides.
+ */
 export function normalizePositionedSourceHandleId<T extends string | null | undefined>(
   handle: T
 ): T | PositionedSourceHandleId {
-  return handle === 'source-top' || handle === 'source-bottom'
+  return handle === 'source-top' || handle === 'source-bottom' || handle === 'source-left'
     ? getPositionedSourceHandleId('right')
     : handle
 }
