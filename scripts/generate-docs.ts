@@ -327,17 +327,25 @@ function copyIconsFile(): void {
  */
 async function addTriggerProviderIcons(iconMapping: Record<string, IconRef>): Promise<void> {
   const triggerFiles = (await glob(`${TRIGGERS_PATH}/**/*.ts`)).filter((f) => !f.includes('.test.'))
+  const previewOnly = await collectPreviewOnlyTriggerIds()
 
   for (const file of triggerFiles) {
     const fileContent = fs.readFileSync(file, 'utf-8')
     const source = stripSourceComments(fileContent)
 
-    for (const match of source.matchAll(/\bprovider\s*:\s*['"]([^'"]+)['"]/g)) {
-      const provider = match[1]
+    // Pair each trigger's `id` with the `provider` that follows it in the same
+    // config, so files holding several trigger configs attribute each provider
+    // (and its icon) to the right trigger.
+    const configRegex =
+      /\bid\s*:\s*['"]([^'"]+)['"][\s\S]{0,600}?\bprovider\s*:\s*['"]([^'"]+)['"]/g
+
+    for (const match of source.matchAll(configRegex)) {
+      const [, triggerId, provider] = match
       if (iconMapping[provider]) continue
 
-      // Take the icon declared nearest after this provider so files holding
-      // several trigger configs attribute each icon to the right provider.
+      // Preview-only triggers get no page, so they need no provider icon.
+      if (previewOnly.has(triggerId)) continue
+
       const iconName = extractIconNameFromContent(source.slice(match.index))
       if (!iconName) continue
 
@@ -4027,6 +4035,43 @@ async function buildProviderColorMap(): Promise<Map<string, string>> {
  * Generate one MDX file per trigger provider and update the sidebar meta.json.
  * Hand-written docs (HANDWRITTEN_TRIGGER_DOCS) are never touched.
  */
+/**
+ * Trigger ids that every hosting block gates behind `preview: true`.
+ *
+ * Blocks declare the triggers they expose via `triggers.available`. A trigger
+ * listed only by preview blocks inherits their gate — `slack_oauth` is reachable
+ * solely through the preview-gated `slack_v2` block, so documenting it would
+ * publish an unreleased surface under its own `slack_app` page. Triggers no
+ * block claims are left alone: standalone webhook providers are legitimately
+ * unlisted and must keep their pages.
+ */
+async function collectPreviewOnlyTriggerIds(): Promise<Set<string>> {
+  const listedByReleased = new Set<string>()
+  const listedByPreview = new Set<string>()
+
+  const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
+  for (const blockFile of blockFiles) {
+    const fileContent = fs.readFileSync(blockFile, 'utf-8')
+    const exportRegex = /export\s+const\s+(\w+)Block\s*:\s*BlockConfig[^=]*=\s*\{/g
+    let match: RegExpExecArray | null
+
+    while ((match = exportRegex.exec(fileContent)) !== null) {
+      const startIndex = match.index + match[0].length - 1
+      const endIndex = findMatchingClose(fileContent, startIndex)
+      if (endIndex === -1) continue
+
+      const blockContent = fileContent.substring(startIndex, endIndex)
+      const available = extractArrayPropertyFromContent(blockContent, 'available')
+      if (!available?.length) continue
+
+      const target = isPreviewSource(blockContent) ? listedByPreview : listedByReleased
+      for (const triggerId of available) target.add(triggerId)
+    }
+  }
+
+  return new Set([...listedByPreview].filter((id) => !listedByReleased.has(id)))
+}
+
 async function generateAllTriggerDocs(): Promise<void> {
   try {
     console.log('Generating trigger documentation...')
@@ -4036,6 +4081,17 @@ async function generateAllTriggerDocs(): Promise<void> {
     }
 
     const fullRegistry = await buildFullTriggerRegistry()
+
+    // A trigger reachable only through a preview-gated block is as unreleased
+    // as that block — documenting it publishes an unshipped surface (and, when
+    // its provider has no released block, mints a whole page for it).
+    const previewOnly = await collectPreviewOnlyTriggerIds()
+    for (const triggerId of previewOnly) {
+      if (fullRegistry.delete(triggerId)) {
+        console.log(`Skipping trigger ${triggerId} — only hosted by a preview-gated block`)
+      }
+    }
+
     const grouped = groupTriggersByProvider(fullRegistry)
     const colorMap = await buildProviderColorMap()
 

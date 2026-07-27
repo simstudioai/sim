@@ -468,7 +468,6 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   similarweb: SimilarwebIcon,
   sixtyfour: SixtyfourIcon,
   slack: SlackIcon,
-  slack_app: SlackIcon,
   smtp: SmtpIcon,
   sportmonks: SportmonksIcon,
   sqs: SQSIcon,

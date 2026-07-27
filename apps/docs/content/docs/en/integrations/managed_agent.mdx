@@ -10,6 +10,22 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#DA7756"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Claude Managed Agents](https://www.anthropic.com/) are agents you build and host on the Claude Platform. Anthropic runs the agent loop, and the Claude Managed Agents block calls one from a Sim workflow.
+
+With Claude Managed Agents, you can:
+
+- **Run a hosted agent**: Send a message to an agent in your Claude workspace and get its final response back
+- **Pick the environment**: Choose the agent and the environment it runs in, so the same workflow can target development or production
+- **Attach credential vaults**: Give the agent scoped access to the credentials it needs for the run
+- **Use a memory store**: Connect a memory store with read or write access and pass instructions for how the agent should use it
+- **Send files**: Attach files to the run for the agent to work with
+- **Tag runs with metadata**: Add key-value tags so runs can be traced and grouped later
+
+In Sim, the Claude Managed Agents block lets a workflow hand work to an agent that lives on the Claude Platform instead of assembling the prompt, tools, and loop yourself. The block returns the agent's final text alongside its session ID and token counts, so you can chain the response into later blocks and track cost per run.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Invoke a Claude Platform Managed Agent from a workflow. Select a Claude Platform account, pick an agent and environment from that workspace, optionally attach vaults, a memory store, and files, and add metadata tags. Returns the assistant's final text.
