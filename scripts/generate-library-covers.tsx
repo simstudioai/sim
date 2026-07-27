@@ -12,9 +12,9 @@
  * Covers are derived artifacts, not source of truth: the title in the image
  * comes from frontmatter, so editing a post's `title` makes its committed
  * cover stale. Every run therefore re-renders from scratch rather than
- * skipping outputs that already exist. Rendering is deterministic — an
- * unchanged title re-encodes to identical bytes — so a full run is a no-op in
- * git for everything that did not actually change.
+ * skipping outputs that already exist. Rendering is deterministic on a given
+ * machine, so a full run is a no-op in git for everything that did not
+ * actually change.
  *
  * Usage, from the repo root:
  *   bun run library:covers              # re-render every post's cover
@@ -50,13 +50,23 @@ const COVER_HEIGHT = 675
  */
 const JPEG_QUALITY = 82
 /**
- * Greyscale mean-absolute-difference above which `--check` calls a committed
- * cover stale. Measured on this cover set: re-encoding an identical render
- * with a deliberately different encoder (quality 70, mozjpeg off) moves it
- * ~0.26, while a one-word title change moves it ~12. A threshold of 2 clears
- * encoder and platform noise by ~8x and still catches any real drift.
+ * How far one greyscale pixel must move to count as genuinely redrawn rather
+ * than re-encoded. Measured across three deliberately different encodes of an
+ * identical render (quality 60/70 without mozjpeg, quality 95 with), the
+ * largest single-pixel deviation was 20; 48 clears that by well over 2x.
  */
-const MAX_PIXEL_DIFFERENCE = 2
+const COVER_PIXEL_DELTA = 48
+/**
+ * How many redrawn pixels `--check` tolerates before calling a cover stale.
+ *
+ * Deliberately a count and not an average. Averaging dilutes a local edit
+ * across all 810,000 pixels: changing a title's "2026" to "2027" moves the
+ * mean by only 0.42, which any threshold loose enough to absorb encoder noise
+ * would wave through. That same edit redraws 2,559 pixels, while the three
+ * re-encodes above redraw none at all — so a count separates the two cases
+ * with margin to spare in both directions.
+ */
+const MAX_REDRAWN_PIXELS = 200
 
 /** Exact hex from a vector trace of the reference cover template, not an estimate off compressed JPEG pixels. */
 const INK_COLOR = '#515151'
@@ -215,9 +225,8 @@ async function renderCover(
 }
 
 /**
- * Mean absolute difference between the committed cover and a freshly rendered
- * one, over decoded greyscale pixels — `null` if the committed file is not the
- * expected size.
+ * Number of greyscale pixels the committed cover draws differently from a
+ * freshly rendered one — `null` if the committed file is not the expected size.
  *
  * Deliberately not a byte comparison of the JPEGs. libvips/mozjpeg output is
  * not portable across OS and CPU, so identical input can encode to different
@@ -226,16 +235,18 @@ async function renderCover(
  * while preserving what the check is actually about: whether the committed
  * image still renders the current title.
  */
-async function compareCovers(committedPath: string, rendered: Buffer): Promise<number | null> {
+async function countRedrawnPixels(committedPath: string, rendered: Buffer): Promise<number | null> {
   const decode = (input: string | Buffer) =>
     sharp(input).greyscale().raw().toBuffer({ resolveWithObject: true })
 
   const [a, b] = await Promise.all([decode(committedPath), decode(rendered)])
   if (a.info.width !== b.info.width || a.info.height !== b.info.height) return null
 
-  let total = 0
-  for (let i = 0; i < a.data.length; i++) total += Math.abs(a.data[i] - b.data[i])
-  return total / a.data.length
+  let redrawn = 0
+  for (let i = 0; i < a.data.length; i++) {
+    if (Math.abs(a.data[i] - b.data[i]) > COVER_PIXEL_DELTA) redrawn += 1
+  }
+  return redrawn
 }
 
 /**
@@ -298,12 +309,12 @@ async function main() {
         stale.push(`${slug} — no cover committed`)
         continue
       }
-      const difference = await compareCovers(outputPath, cover)
-      if (difference === null) {
+      const redrawn = await countRedrawnPixels(outputPath, cover)
+      if (redrawn === null) {
         stale.push(`${slug} — committed cover has unexpected dimensions`)
-      } else if (difference > MAX_PIXEL_DIFFERENCE) {
+      } else if (redrawn > MAX_REDRAWN_PIXELS) {
         stale.push(
-          `${slug} — committed cover does not render "${title}" (difference ${difference.toFixed(2)})`
+          `${slug} — committed cover does not render "${title}" (${redrawn} pixels differ)`
         )
       }
       continue
