@@ -333,7 +333,7 @@ Triggers when new emails are received in Gmail (requires Gmail credentials)
 | `triggerCredentials` | string | Yes | This trigger requires google email credentials to access your account. |
 | `labelIds` | string | No | Choose which Gmail labels to monitor. Leave empty to monitor all emails. |
 | `labelFilterBehavior` | string | Yes | Include only emails with selected labels, or exclude emails with selected labels |
-| `searchQuery` | string | No | Optional Gmail search query to filter emails. Use the same format as Gmail search box \(e.g.,  |
+| `searchQuery` | string | No | Optional Gmail search query to filter emails. Use the same format as Gmail search box \(e.g., "subject:invoice", "from:boss@company.com", "has:attachment"\). Leave empty to search all emails. |
 | `markAsRead` | boolean | No | Automatically mark emails as read after processing |
 | `includeAttachments` | boolean | No | Download and include email attachments in the trigger payload |
 

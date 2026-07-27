@@ -3237,7 +3237,10 @@ function cleanupStaleToolDocs(validToolDocs: Set<string>): void {
     // MANUAL-CONTENT blocks: the writer merges against the file on disk, and a
     // deleted file reads as "no manual content". Whenever the two filters
     // disagree, keep the prose and let the mismatch be fixed deliberately.
-    if (/MANUAL-CONTENT-START/.test(fs.readFileSync(docPath, 'utf-8'))) {
+    // Gate on what `extractManualContent` can actually recover — a stray or
+    // unterminated start marker preserves nothing, so it must not pin the page.
+    const manualSections = extractManualContent(fs.readFileSync(docPath, 'utf-8'))
+    if (Object.values(manualSections).some((section) => section.length > 0)) {
       console.warn(
         `⚠ Keeping ${blockType}.mdx: considered stale but holds MANUAL-CONTENT. ` +
           `Add it to a doc-emitting set or delete it by hand once the content is migrated.`
@@ -3558,12 +3561,26 @@ function resolveConstStringValue(constName: string, content: string): string | n
  * Returns null for blocks that should be skipped (UI-only IDs, text type, readOnly).
  * Accepts optional `resolverContent` to resolve const-reference field IDs.
  */
+/**
+ * Read a quoted string property, matching the opening quote to its own closing
+ * quote. A single `['"]…[^'"]+…['"]` character class ends the match at the
+ * first quote of *either* kind, so an apostrophe inside a double-quoted string
+ * ("Doesn't fire…") truncates the value mid-word.
+ */
+function matchQuotedProperty(content: string, propName: string): string | undefined {
+  const match = new RegExp(`\\b${propName}\\s*:\\s*(?:'([^']*)'|"([^"]*)"|\`([^\`]*)\`)`).exec(
+    content
+  )
+  if (!match) return undefined
+  return match[1] ?? match[2] ?? match[3]
+}
+
 function parseSubBlockObject(
   obj: string,
   uiOnlyIds: Set<string>,
   resolverContent?: string
 ): TriggerConfigField | null {
-  let id: string | undefined = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(obj)?.[1]
+  let id: string | undefined = matchQuotedProperty(obj, 'id')
 
   // Handle const-reference ids: `id: SCREAMING_CASE_IDENTIFIER`
   if (!id) {
@@ -3575,25 +3592,24 @@ function parseSubBlockObject(
 
   if (!id || uiOnlyIds.has(id)) return null
 
-  const typeMatch = /\btype\s*:\s*['"]([^'"]+)['"]/.exec(obj)
-  if (typeMatch?.[1] === 'text') return null
+  const type = matchQuotedProperty(obj, 'type')
+  if (type === 'text') return null
   if (/\breadOnly\s*:\s*true/.test(obj)) return null
 
-  const titleMatch = /\btitle\s*:\s*['"]([^'"]+)['"]/.exec(obj)
+  const title = matchQuotedProperty(obj, 'title')
   const requiredMatch = /\brequired\s*:\s*(true)/.exec(obj)
-  const placeholderMatch = /\bplaceholder\s*:\s*['"]([^'"]+)['"]/.exec(obj)
-  const descMatch = /\bdescription\s*:\s*['"]([^'"]+)['"]/.exec(obj)
+  const placeholder = matchQuotedProperty(obj, 'placeholder')
 
   // Use title as description fallback so oauth-input and other fields without
   // an explicit description still show something meaningful in the docs table.
-  const description = descMatch?.[1] ?? (titleMatch ? `${titleMatch[1]}` : undefined)
+  const description = matchQuotedProperty(obj, 'description') ?? title
 
   return {
     id,
-    title: titleMatch?.[1] ?? id,
-    type: typeMatch?.[1] ?? 'short-input',
+    title: title ?? id,
+    type: type ?? 'short-input',
     required: Boolean(requiredMatch),
-    placeholder: placeholderMatch?.[1],
+    placeholder,
     description,
   }
 }
