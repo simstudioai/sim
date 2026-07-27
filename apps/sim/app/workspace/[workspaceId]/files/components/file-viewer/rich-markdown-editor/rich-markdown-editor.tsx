@@ -123,6 +123,14 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   const userName = session?.user?.name?.trim() || 'Collaborator'
 
   /**
+   * The file name captured when this editor first mounts — before content/session finish loading, so it
+   * is still `untitled` if the file was untitled when opened. The child uses it as the untitled→named
+   * transition baseline; capturing it here (not at the child's later mount) means a rename that lands
+   * during the loading window is still seen as a transition and the heading seed is not lost.
+   */
+  const initialFileNameRef = useRef(file.name)
+
+  /**
    * Autosave gate for the collaborative path: the child reports `false` while its
    * shared document is still syncing/seeding and `true` once it is safe to persist
    * the markdown mirror — so an empty or partially-synced doc can never overwrite
@@ -184,6 +192,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
       onSaveShortcut={saveImmediately}
       onCollabReadyChange={setCollabReady}
       onDeriveTitleFromHeading={onDeriveTitleFromHeading}
+      initialFileName={initialFileNameRef.current}
     />
   )
 })
@@ -212,6 +221,12 @@ interface LoadedRichMarkdownEditorProps {
   onCollabReadyChange: (ready: boolean) => void
   /** See {@link RichMarkdownEditorProps.onDeriveTitleFromHeading}. */
   onDeriveTitleFromHeading?: (headingText: string) => void
+  /**
+   * The file name at the moment this editor was opened (captured by the parent before content/session
+   * load). Used as the untitled→named transition baseline so a rename during the loading window is not
+   * missed. See {@link RichMarkdownEditorProps.onDeriveTitleFromHeading}.
+   */
+  initialFileName: string
 }
 
 interface SettledContent {
@@ -242,6 +257,7 @@ export function LoadedRichMarkdownEditor({
   onSaveShortcut,
   onCollabReadyChange,
   onDeriveTitleFromHeading,
+  initialFileName,
 }: LoadedRichMarkdownEditorProps) {
   /** Whether this editor mounted mid-stream — if so it starts empty and syncs streamed chunks until settle. */
   const streamingAtMountRef = useRef(isStreaming)
@@ -318,7 +334,7 @@ export function LoadedRichMarkdownEditor({
   onDeriveTitleFromHeadingRef.current = onDeriveTitleFromHeading
   const fileNameRef = useRef(file.name)
   fileNameRef.current = file.name
-  const prevFileNameRef = useRef(file.name)
+  const prevFileNameRef = useRef(initialFileName)
   const deriveTitleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /**
    * Read in the RAF tick so an already-scheduled tick still sees the latest edit kind (it can change
