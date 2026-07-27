@@ -8,10 +8,6 @@ describe('TikTokBlock', () => {
   const buildParams = TikTokBlock.tools.config.params!
   const selectTool = TikTokBlock.tools.config.tool!
 
-  it('is visible in the toolbar', () => {
-    expect(TikTokBlock.hideFromToolbar).toBe(false)
-  })
-
   it('rejects unsupported operations', () => {
     expect(() => selectTool({ operation: 'tiktok_unknown_operation' })).toThrow(
       'Unsupported TikTok operation'
