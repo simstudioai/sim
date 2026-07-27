@@ -106,16 +106,70 @@ export function normalizeLinkHref(href: string): string {
   return `https://${trimmed}`
 }
 
+/** A line that is a bullet/ordered list marker with no content (`-`, `  - `, `1. `). Task items (`- [ ]`) don't match. */
+const EMPTY_LIST_ITEM_LINE = /^([ \t]*)(?:[-*+]|\d+[.)])[ \t]*$/
+/** A fenced code-block delimiter (``` or ~~~), used to leave code interiors untouched. */
+const FENCE_DELIMITER = /^[ \t]*(`{3,}|~{3,})/
+/** Leading indentation of a line, used to detect whether an empty list item has indented children. */
+const LEADING_INDENT = /^[ \t]*/
+
 /**
- * Cleans up serializer output: restores callout markers the serializer backslash-escapes
- * (`> \[!NOTE\]` → `> [!NOTE]`) and collapses trailing blank lines to a single newline. The
- * table serializer's spurious surrounding blank lines are trimmed at the source (PipeSafeTable),
- * so no global leading-newline strip is needed here — avoiding clobbering content that legitimately
- * begins with whitespace.
+ * Removes *nested* (indented) empty list-item marker lines from serialized markdown. A nested empty
+ * bullet (`  - `) sitting directly under a parent item's text re-parses as a Setext heading underline —
+ * silently turning the parent line into an `## heading` and dropping the empty bullet on the next load
+ * (a data-corrupting round-trip). Only indented empty items are stripped: a *top-level* empty bullet
+ * (`- ` / `1. `) round-trips faithfully (it stays an empty item, never a heading), so it is preserved —
+ * a placeholder row or an intentionally-blank imported item is not silently deleted. Lines inside fenced
+ * code blocks are left untouched, and an empty item whose next non-blank line is more deeply indented is
+ * kept so its children are never orphaned.
+ *
+ * Operates only on the editor's own serialized output, which uses fenced (never 4-space-indented) code
+ * blocks and `\n` newlines — so tracking fences is sufficient and a bare `-` inside an indented code
+ * block or a `-\r` line is not a case that can occur here.
+ */
+function stripEmptyListItemLines(markdown: string): string {
+  const lines = markdown.split('\n')
+  const kept: string[] = []
+  let fence: string | null = null
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const delimiter = line.match(FENCE_DELIMITER)?.[1]
+    if (fence) {
+      kept.push(line)
+      if (delimiter && delimiter[0] === fence[0] && delimiter.length >= fence.length) fence = null
+      continue
+    }
+    if (delimiter) {
+      fence = delimiter
+      kept.push(line)
+      continue
+    }
+    const empty = line.match(EMPTY_LIST_ITEM_LINE)
+    if (empty) {
+      const indent = empty[1].length
+      let next = i + 1
+      while (next < lines.length && lines[next].trim() === '') next++
+      const hasChildren =
+        next < lines.length && (lines[next].match(LEADING_INDENT)?.[0].length ?? 0) > indent
+      // Strip only nested (indented) empty items — the Setext-underline hazard. A top-level empty item
+      // round-trips faithfully and is preserved. Never orphan an item that has more-indented children.
+      if (indent > 0 && !hasChildren) continue
+    }
+    kept.push(line)
+  }
+  return kept.join('\n')
+}
+
+/**
+ * Cleans up serializer output: drops empty list-item marker lines that would otherwise corrupt on
+ * round-trip ({@link stripEmptyListItemLines}), restores callout markers the serializer
+ * backslash-escapes (`> \[!NOTE\]` → `> [!NOTE]`), and collapses trailing blank lines to a single
+ * newline. The table serializer's spurious surrounding blank lines are trimmed at the source
+ * (PipeSafeTable), so no global leading-newline strip is needed here — avoiding clobbering content
+ * that legitimately begins with whitespace.
  */
 export function postProcessSerializedMarkdown(markdown: string): string {
-  return collapseAutolinkedUrls(markdown.replace(ESCAPED_CALLOUT_REGEX, '$1[!$2]')).replace(
-    /\n+$/,
-    '\n'
-  )
+  return collapseAutolinkedUrls(
+    stripEmptyListItemLines(markdown).replace(ESCAPED_CALLOUT_REGEX, '$1[!$2]')
+  ).replace(/\n+$/, '\n')
 }
