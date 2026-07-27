@@ -5,38 +5,32 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { generateRequestId } from '@/lib/core/utils/request'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
   buildWorkspaceFileFolderPathMap,
+  fetchServableWorkspaceFileBuffer,
   listWorkspaceFileFolders,
   listWorkspaceFiles,
 } from '@/lib/uploads/contexts/workspace'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
-import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/servable-file-response'
 import { buildZipEntryPaths } from '@/lib/uploads/zip-entry-path'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
-import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('WorkspaceFilesDownloadAPI')
 const MAX_ZIP_DOWNLOAD_FILES = 100
 const MAX_ZIP_DOWNLOAD_BYTES = 250 * 1024 * 1024
 
-/** Shape `downloadServableFileFromStorage` needs to locate and label the stored object. */
-function toServableInput(file: WorkspaceFileRecord): UserFile {
-  return {
-    id: file.id,
-    name: file.name,
-    url: file.path,
-    size: file.size,
-    type: file.type,
-    key: file.key,
-    context: 'workspace',
-  }
+function overLimitResponse(bytes: number, qualifier = ''): NextResponse {
+  return NextResponse.json(
+    {
+      error: `Selected files total ${formatFileSize(bytes)}${qualifier}, which exceeds the ${formatFileSize(MAX_ZIP_DOWNLOAD_BYTES)} download limit.`,
+    },
+    { status: 400 }
+  )
 }
 
 function collectDescendantFolderIds(
@@ -100,67 +94,66 @@ export const GET = withRouteHandler(
         )
       }
 
-      const totalBytes = filesToZip.reduce((sum, file) => sum + file.size, 0)
-      if (totalBytes > MAX_ZIP_DOWNLOAD_BYTES) {
-        return NextResponse.json(
-          {
-            error: `Selected files total ${formatFileSize(totalBytes)}, which exceeds the ${formatFileSize(MAX_ZIP_DOWNLOAD_BYTES)} download limit.`,
-          },
-          { status: 400 }
-        )
+      const declaredBytes = filesToZip.reduce((sum, file) => sum + file.size, 0)
+      if (declaredBytes > MAX_ZIP_DOWNLOAD_BYTES) {
+        return overLimitResponse(declaredBytes)
       }
 
       // Generated docs (docx/pptx/pdf/xlsx) store their generation source, not the
-      // rendered binary, so the bytes must be resolved through the shared servable
-      // helper — a raw read ships source text under a `.docx` name.
-      const requestId = generateRequestId()
+      // rendered binary, so bytes are resolved through the servable reader — a raw
+      // read ships source text under a `.docx` name. The rendered artifact can be far
+      // larger than the declared source size, so the budget is tracked as files land
+      // and each read is capped at what is left: the request is bounded by the limit
+      // rather than by 100 files each allowed the full limit. Once the budget is blown
+      // or a read hard-fails, the abort flag stops reads that have not started yet.
+      const controller = new AbortController()
+      let renderedBytes = 0
+      let overLimit = false
+
       const downloads = await mapWithConcurrency(
         filesToZip,
         MATERIALIZE_CONCURRENCY,
         async (file) => {
+          if (controller.signal.aborted) return { buffer: null, pendingName: null, error: null }
           try {
-            const servable = await downloadServableFileFromStorage(
-              toServableInput(file),
-              requestId,
-              logger,
-              { maxBytes: MAX_ZIP_DOWNLOAD_BYTES }
-            )
-            return { ok: true as const, buffer: servable.buffer }
+            const { buffer } = await fetchServableWorkspaceFileBuffer(file, {
+              maxBytes: Math.max(0, MAX_ZIP_DOWNLOAD_BYTES - renderedBytes),
+              signal: controller.signal,
+            })
+            renderedBytes += buffer.length
+            if (renderedBytes > MAX_ZIP_DOWNLOAD_BYTES) {
+              overLimit = true
+              controller.abort()
+            }
+            return { buffer, pendingName: null, error: null }
           } catch (error) {
-            return { ok: false as const, file, error }
+            // A file bigger than the remaining budget is a size rejection, not a fault.
+            if (error instanceof PayloadSizeLimitError) {
+              overLimit = true
+              controller.abort()
+              return { buffer: null, pendingName: null, error: null }
+            }
+            // A pending artifact is worth reporting in full, so keep resolving the
+            // rest of the selection; anything else dooms the request.
+            const pending = isDocNotReadyError(error)
+            if (!pending) controller.abort()
+            return { buffer: null, pendingName: pending ? file.name : null, error }
           }
         }
       )
 
-      const pending = downloads.filter(
-        (result) => !result.ok && result.error instanceof DocCompileUserError
-      )
-      if (pending.length > 0) {
-        const names = pending.map((result) => (result.ok ? '' : result.file.name))
-        return NextResponse.json(
-          {
-            error: `${pending.length} document${pending.length === 1 ? ' is' : 's are'} still being generated: ${names.join(', ')}. Wait for them to finish, then try again.`,
-          },
-          { status: 409 }
-        )
+      // A hard failure outranks a pending artifact: waiting cannot fix it, so a 409
+      // would send the client into a retry loop that never succeeds.
+      const failure = downloads.find((result) => result.error && !result.pendingName)
+      if (failure?.error) throw failure.error
+
+      if (overLimit || renderedBytes > MAX_ZIP_DOWNLOAD_BYTES) {
+        return overLimitResponse(renderedBytes, ' once documents are rendered')
       }
 
-      // Any other failure is a real storage error: fail the request rather than
-      // handing back an archive with a file silently missing or empty.
-      const buffers = downloads.map((result) => {
-        if (!result.ok) throw result.error
-        return result.buffer
-      })
-
-      // The pre-download cap used declared source sizes; generated docs resolve larger.
-      const resolvedBytes = buffers.reduce((sum, buffer) => sum + buffer.length, 0)
-      if (resolvedBytes > MAX_ZIP_DOWNLOAD_BYTES) {
-        return NextResponse.json(
-          {
-            error: `Selected files total ${formatFileSize(resolvedBytes)} once documents are rendered, which exceeds the ${formatFileSize(MAX_ZIP_DOWNLOAD_BYTES)} download limit.`,
-          },
-          { status: 400 }
-        )
+      const pendingNames = downloads.flatMap((result) => result.pendingName ?? [])
+      if (pendingNames.length > 0) {
+        return NextResponse.json({ error: docNotReadyMessage(pendingNames) }, { status: 409 })
       }
 
       // Entry paths stay workspace-root-relative so a mixed selection of folders and
@@ -172,10 +165,11 @@ export const GET = withRouteHandler(
         }))
       )
 
+      // Indexed off `downloads` so entries stay aligned with `filesToZip` by construction.
       const zip = new JSZip()
-      for (const [index, buffer] of buffers.entries()) {
-        zip.file(entryPaths[index], buffer)
-      }
+      downloads.forEach((result, index) => {
+        if (result.buffer) zip.file(entryPaths[index], result.buffer)
+      })
 
       const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' })
 
@@ -185,7 +179,7 @@ export const GET = withRouteHandler(
         action: AuditAction.FILE_DOWNLOADED,
         resourceType: AuditResourceType.FILE,
         description: `Downloaded ${filesToZip.length} file${filesToZip.length === 1 ? '' : 's'} as zip`,
-        metadata: { fileCount: filesToZip.length, totalBytes: resolvedBytes },
+        metadata: { fileCount: filesToZip.length, totalBytes: renderedBytes },
         request,
       })
       captureServerEvent(
@@ -195,13 +189,18 @@ export const GET = withRouteHandler(
         { groups: { workspace: workspaceId } }
       )
 
-      return new NextResponse(new Uint8Array(zipBuffer), {
-        headers: {
-          'Content-Type': 'application/zip',
-          'Content-Disposition': 'attachment; filename="workspace-files.zip"',
-          'Cache-Control': 'no-store',
-        },
-      })
+      return new NextResponse(
+        // View, not copy — a 250 MB archive would otherwise cost 500 MB. Node buffers
+        // are never backed by a SharedArrayBuffer, so the narrowing is sound.
+        new Uint8Array(zipBuffer.buffer as ArrayBuffer, zipBuffer.byteOffset, zipBuffer.byteLength),
+        {
+          headers: {
+            'Content-Type': 'application/zip',
+            'Content-Disposition': 'attachment; filename="workspace-files.zip"',
+            'Cache-Control': 'no-store',
+          },
+        }
+      )
     } catch (error) {
       logger.error('Failed to download workspace file selection:', error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

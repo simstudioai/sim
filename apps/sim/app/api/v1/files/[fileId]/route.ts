@@ -6,7 +6,10 @@ import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
+import {
+  fetchServableWorkspaceFileBuffer,
+  getWorkspaceFile,
+} from '@/lib/uploads/contexts/workspace'
 import { performDeleteWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import {
   checkRateLimit,
@@ -48,7 +51,8 @@ export const GET = withRouteHandler(async (request: NextRequest, context: FileRo
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
 
-    const buffer = await fetchWorkspaceFileBuffer(fileRecord)
+    // Generated docs store their generation source; serve the rendered artifact.
+    const { buffer } = await fetchServableWorkspaceFileBuffer(fileRecord)
 
     recordAudit({
       workspaceId,
