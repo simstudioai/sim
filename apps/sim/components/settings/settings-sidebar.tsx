@@ -2,8 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { ChipConfirmModal, chipVariants, cn, Tooltip } from '@sim/emcn'
+import { ChevronDown } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
-import type { SettingsNavigationItem, SettingsSection } from '@/components/settings/navigation'
+import {
+  SETTINGS_PLANE_CHROME,
+  type SettingsNavigationItem,
+  type SettingsSection,
+  type StandaloneSettingsPlane,
+} from '@/components/settings/navigation'
 import { SimWordmark } from '@/app/(landing)/components/navbar/components'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
@@ -12,6 +18,9 @@ import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
  * signed-in user off `/` to `/workspace` unless the param is present.
  */
 const LANDING_HREF = '/?home'
+
+/** Where the Back chip goes on planes that don't show the wordmark. */
+const WORKSPACE_HREF = '/workspace'
 
 interface SettingsNavigationGroup {
   key: string
@@ -25,6 +34,7 @@ interface SidebarSettingsItem<Section extends SettingsSection>
 
 interface SettingsSidebarProps<Section extends SettingsSection> {
   activeSection: string
+  plane: StandaloneSettingsPlane
   groups: readonly SettingsNavigationGroup[]
   hrefForSection: (section: Section) => string
   items: readonly SidebarSettingsItem<Section>[]
@@ -52,6 +62,7 @@ function SidebarTooltip({
 
 export function SettingsSidebar<Section extends SettingsSection>({
   activeSection,
+  plane,
   groups,
   hrefForSection,
   items,
@@ -86,15 +97,30 @@ export function SettingsSidebar<Section extends SettingsSection>({
   return (
     <>
       <div className='flex flex-shrink-0 flex-col gap-0.5 px-2 pb-1.5'>
-        {/* Stays a button, not a Link: leaving settings must run the unsaved-changes guard. */}
-        <button
-          type='button'
-          aria-label='Sim home'
-          onClick={() => requestLeave(() => router.push(LANDING_HREF))}
-          className='flex h-[30px] flex-shrink-0 items-center px-2 transition-opacity hover:opacity-70'
-        >
-          <SimWordmark />
-        </button>
+        {/* Both stay buttons, not Links: leaving settings must run the unsaved-changes guard. */}
+        {SETTINGS_PLANE_CHROME[plane].showWordmark ? (
+          <button
+            type='button'
+            aria-label='Sim home'
+            onClick={() => requestLeave(() => router.push(LANDING_HREF))}
+            className='flex h-[30px] flex-shrink-0 items-center px-2 transition-opacity hover:opacity-70'
+          >
+            <SimWordmark />
+          </button>
+        ) : (
+          <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
+            <button
+              type='button'
+              onClick={() => requestLeave(() => router.push(WORKSPACE_HREF))}
+              className={chipVariants({ fullWidth: true })}
+            >
+              <div className='flex size-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
+                <ChevronDown className='size-[10px] rotate-90' />
+              </div>
+              <span className='sidebar-collapse-hide truncate text-[var(--text-body)]'>Back</span>
+            </button>
+          </SidebarTooltip>
+        )}
       </div>
 
       <div

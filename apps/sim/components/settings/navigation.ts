@@ -283,6 +283,23 @@ export const ACCOUNT_SETTINGS_GROUPS = [
   { key: 'platform', title: 'Platform' },
 ] as const
 
+/** Planes with their own standalone shell; the workspace plane renders inside the editor. */
+export type StandaloneSettingsPlane = Exclude<SettingsPlane, 'workspace'>
+
+/**
+ * Per-plane sidebar chrome. Self-host is reached from outside the app (the CLI
+ * wizard, the README), so it leads with the brand mark rather than a Back link
+ * into a workspace the visitor may not even be using.
+ */
+export const SETTINGS_PLANE_CHROME: Record<
+  StandaloneSettingsPlane,
+  { label: string; showWordmark: boolean }
+> = {
+  account: { label: 'Account', showWordmark: false },
+  organization: { label: 'Organization', showWordmark: false },
+  selfhost: { label: 'Self-host', showWordmark: true },
+}
+
 export const SELFHOST_SETTINGS_GROUPS = [
   { key: 'account', title: 'Account' },
   { key: 'developer', title: 'Developer' },

@@ -19,18 +19,13 @@ import {
   resolveOrganizationSectionAccess,
   SELFHOST_SETTINGS_GROUPS,
   SELFHOST_SETTINGS_ITEMS,
+  SETTINGS_PLANE_CHROME,
 } from '@/components/settings/navigation'
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 import { SettingsSectionProvider } from '@/components/settings/settings-panel'
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
 import { useSettingsBeforeUnload } from '@/components/settings/use-settings-before-unload'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-
-const SHELL_PLANE_LABELS: Record<'account' | 'organization' | 'selfhost', string> = {
-  account: 'Account',
-  organization: 'Organization',
-  selfhost: 'Self-host',
-}
 
 interface StandaloneSettingsShellBaseProps {
   children: ReactNode
@@ -109,6 +104,7 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
     plane === 'selfhost' ? (
       <SettingsSidebar
         activeSection={selfHostSection}
+        plane={plane}
         groups={SELFHOST_SETTINGS_GROUPS}
         hrefForSection={getSelfHostSettingsHref}
         items={selfHostItems}
@@ -116,6 +112,7 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
     ) : plane === 'account' ? (
       <SettingsSidebar
         activeSection={accountSection}
+        plane={plane}
         groups={ACCOUNT_SETTINGS_GROUPS}
         hrefForSection={getAccountSettingsHref}
         items={accountItems}
@@ -123,6 +120,7 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
     ) : (
       <SettingsSidebar
         activeSection={organizationSection}
+        plane={plane}
         groups={ORGANIZATION_SETTINGS_GROUPS}
         hrefForSection={(section) => getOrganizationSettingsHref(props.organizationId, section)}
         items={organizationItems}
@@ -134,7 +132,7 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
       <div className='flex h-screen w-full overflow-hidden bg-[var(--surface-1)] p-2'>
         <aside
           className='mr-2 flex w-[248px] flex-shrink-0 flex-col rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] pt-3'
-          aria-label={`${SHELL_PLANE_LABELS[plane]} settings navigation`}
+          aria-label={`${SETTINGS_PLANE_CHROME[plane].label} settings navigation`}
         >
           {sidebar}
         </aside>
