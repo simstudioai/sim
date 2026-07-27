@@ -727,9 +727,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           assertNotAborted()
           const idByName = buildIdByName(table.schema)
           const toNamedRow = namedRowMapper(table.schema.columns)
-          // Patch only the edited cells so a copilot edit doesn't clobber a concurrent user edit
-          // to a different cell of the same row (all cells share one jsonb column — a full-object
-          // replace is last-write-wins across the row). See the table row route for the rationale.
           const updatedRow = await updateRow(
             {
               tableId: args.tableId,
@@ -739,8 +736,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               actorUserId: context.userId,
             },
             table,
-            requestId,
-            { dataWriteMode: 'patch' }
+            requestId
           )
           if (!updatedRow) {
             // Only the cell-task path passes a `cancellationGuard`; this caller

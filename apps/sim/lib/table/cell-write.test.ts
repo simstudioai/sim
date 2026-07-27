@@ -141,7 +141,7 @@ describe('writeWorkflowGroupState', () => {
       },
       TABLE,
       CONTEXT.requestId,
-      { dataWriteMode: 'patch', computedWrite: true }
+      { computedWrite: true }
     )
     expect(mockAppendTableEvent).toHaveBeenCalledWith(
       expect.objectContaining({

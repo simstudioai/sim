@@ -1170,16 +1170,27 @@ class GuardRejected extends Error {
  */
 export interface UpdateRowOptions {
   /**
-   * `patch` sends only changed keys to Postgres via JSONB concatenation while
-   * retaining the same merged-row validation and returned shape.
-   */
-  dataWriteMode?: 'replace' | 'patch'
-  /**
    * Marks the write as the workflow/enrichment engine filling its own output
    * cells, which exempts it from the update lock. Set by `cell-write.ts` only —
    * see {@link assertRowUpdate}.
    */
   computedWrite?: boolean
+}
+
+/**
+ * A row stores every cell in one jsonb `data` column, so a row update writes the changed cells as
+ * an in-DB JSONB merge (`data = data || {changed}::jsonb`) rather than replacing the whole object.
+ * Postgres evaluates the concat against the current committed row under its write lock, so
+ * concurrent edits to DIFFERENT cells of the same row both survive instead of the last writer
+ * clobbering the row from a stale read. Values come from the caller's already-coerced merged row;
+ * only the changed keys are sent, so an empty change set is a no-op on `data`. Whole-row
+ * replacement is `upsertRow`'s job, not this path (an update only ever adds/overwrites cells —
+ * it never deletes a key — so a full-object write would only differ by being racy).
+ */
+function jsonbMergePatch(changedColumnIds: string[], coercedRow: RowData): SQL {
+  const patch: RowData = {}
+  for (const columnId of changedColumnIds) patch[columnId] = coercedRow[columnId]
+  return sql`${userTableRows.data} || ${JSON.stringify(patch)}::jsonb`
 }
 
 export async function updateRow(
@@ -1241,14 +1252,7 @@ export async function updateRow(
   }
 
   const now = new Date()
-  const persistedDataPatch: RowData = {}
-  for (const columnId of Object.keys(data.data)) {
-    persistedDataPatch[columnId] = mergedData[columnId]
-  }
-  const persistedData =
-    options.dataWriteMode === 'patch'
-      ? sql`${userTableRows.data} || ${JSON.stringify(persistedDataPatch)}::jsonb`
-      : mergedData
+  const persistedData = jsonbMergePatch(Object.keys(data.data), mergedData)
 
   // Cell-task partial writes pass `cancellationGuard` so the upsert into
   // `tableRowExecutions` is a no-op when (a) a stop click already wrote
@@ -1597,6 +1601,7 @@ export async function batchUpdateRows(
 
   const mergedUpdates: Array<{
     rowId: string
+    changedColumnIds: string[]
     mergedData: RowData
     mergedExecutions: RowExecutions
     executionsPatch?: Record<string, RowExecutionMetadata | null>
@@ -1631,6 +1636,7 @@ export async function batchUpdateRows(
 
     mergedUpdates.push({
       rowId: update.rowId,
+      changedColumnIds: Object.keys(update.data),
       mergedData: merged,
       mergedExecutions,
       executionsPatch: effectiveExecutionsPatch,
@@ -1660,11 +1666,13 @@ export async function batchUpdateRows(
     for (let i = 0; i < mergedUpdates.length; i += TABLE_LIMITS.UPDATE_BATCH_SIZE) {
       const batch = mergedUpdates.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
       // Update row data in parallel; sidecar exec writes are sequential per
-      // row (each goes through writeExecutionsPatch's per-key upsert).
-      const dataPromises = batch.map(({ rowId, mergedData }) =>
+      // row (each goes through writeExecutionsPatch's per-key upsert). Each row
+      // merges its changed cells via JSONB concat (see jsonbMergePatch) so a
+      // batch edit can't clobber a concurrent edit to another cell of the row.
+      const dataPromises = batch.map(({ rowId, changedColumnIds, mergedData }) =>
         trx
           .update(userTableRows)
-          .set({ data: mergedData, updatedAt: now })
+          .set({ data: jsonbMergePatch(changedColumnIds, mergedData), updatedAt: now })
           .where(eq(userTableRows.id, rowId))
       )
       await Promise.all(dataPromises)
