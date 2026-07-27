@@ -4,6 +4,9 @@ import { isProd } from '@/lib/core/config/env-flags'
 /** Canonical base URL for the public-facing marketing site. No trailing slash. */
 export const SITE_URL = 'https://www.sim.ai'
 
+/** Host of the canonical marketing site, e.g. `www.sim.ai`. */
+export const CANONICAL_SITE_HOST = new URL(SITE_URL).host
+
 function hasHttpProtocol(url: string): boolean {
   return /^https?:\/\//i.test(url)
 }
@@ -88,14 +91,32 @@ export function getBaseDomain(): string {
   }
 }
 
+/** Drops a leading `www.` label, e.g. `www.sim.ai` -> `sim.ai`. */
+function stripWwwPrefix(host: string): string {
+  return host.startsWith('www.') ? host.slice(4) : host
+}
+
+/**
+ * True for a sim.ai host that is not the canonical marketing site — dev.sim.ai,
+ * staging.sim.ai, and their www variants serve the same build as www.sim.ai, so
+ * search engines treat them as duplicates unless told otherwise.
+ *
+ * `sim.ai` and `www.sim.ai` are both canonical. Self-hosted domains return
+ * false, as do lookalikes such as `notsim.ai`.
+ */
+export function isNonCanonicalSimHost(host: string): boolean {
+  const hostname = stripWwwPrefix(host.toLowerCase().split(':')[0])
+  const canonical = stripWwwPrefix(CANONICAL_SITE_HOST)
+  return hostname !== canonical && hostname.endsWith(`.${canonical}`)
+}
+
 /**
  * Returns the domain for email addresses, stripping www subdomain for Resend compatibility
  * @returns The email domain (e.g., 'sim.ai' instead of 'www.sim.ai')
  */
 export function getEmailDomain(): string {
   try {
-    const baseDomain = getBaseDomain()
-    return baseDomain.startsWith('www.') ? baseDomain.substring(4) : baseDomain
+    return stripWwwPrefix(getBaseDomain())
   } catch (_e) {
     return isProd ? 'sim.ai' : 'localhost:3000'
   }

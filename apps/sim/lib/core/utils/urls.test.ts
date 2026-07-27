@@ -17,6 +17,7 @@ import {
   getBrowserOrigin,
   getSocketUrl,
   isLocalhostUrl,
+  isNonCanonicalSimHost,
   isSafeHttpUrl,
   parseOriginList,
 } from '@/lib/core/utils/urls'
@@ -162,4 +163,27 @@ describe('isSafeHttpUrl', () => {
   it('rejects unparseable absolute input without throwing', () => {
     expect(isSafeHttpUrl('http://')).toBe(false)
   })
+})
+
+describe('isNonCanonicalSimHost', () => {
+  it.each(['www.sim.ai', 'sim.ai', 'WWW.SIM.AI', 'www.sim.ai:443'])(
+    'treats %s as the canonical marketing site',
+    (host) => {
+      expect(isNonCanonicalSimHost(host)).toBe(false)
+    }
+  )
+
+  it.each(['dev.sim.ai', 'www.dev.sim.ai', 'staging.sim.ai', 'prod.sockets.sim.ai'])(
+    'treats %s as non-canonical',
+    (host) => {
+      expect(isNonCanonicalSimHost(host)).toBe(true)
+    }
+  )
+
+  it.each(['sim.example.com', 'localhost:3000', 'notsim.ai', 'sim.ai.evil.com'])(
+    'leaves %s alone',
+    (host) => {
+      expect(isNonCanonicalSimHost(host)).toBe(false)
+    }
+  )
 })
