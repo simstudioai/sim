@@ -85,6 +85,12 @@ import {
   filesSortParams,
   filesUrlKeys,
 } from '@/app/workspace/[workspaceId]/files/search-params'
+import {
+  DEFAULT_UNTITLED_NAME,
+  deriveMarkdownFileName,
+  isUntitledName,
+  uniqueMarkdownName,
+} from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
@@ -355,6 +361,34 @@ export function Files() {
   )
   const selectedFileRef = useRef(selectedFile)
   selectedFileRef.current = selectedFile
+
+  /**
+   * While a file is still untitled, name it after the leading heading the user types in its editor. The
+   * editor reports the heading text (debounced); here we re-check the file is still untitled, derive a
+   * unique `.md` name among its folder siblings, and rename. A no-op once the file has a real name.
+   */
+  const handleDeriveTitleFromHeading = useCallback(
+    (headingText: string) => {
+      const currentFile = selectedFileRef.current
+      if (!currentFile || !isUntitledName(currentFile.name)) return
+      const derived = deriveMarkdownFileName(headingText)
+      if (!derived) return
+      const siblingNames = new Set(
+        filesRef.current
+          .filter(
+            (f) =>
+              (f.folderId ?? null) === (currentFile.folderId ?? null) && f.id !== currentFile.id
+          )
+          .map((f) => f.name)
+      )
+      const name = uniqueMarkdownName(derived, siblingNames)
+      if (name === currentFile.name) return
+      renameFile
+        .mutateAsync({ workspaceId, fileId: currentFile.id, name })
+        .catch((err) => logger.error('Failed to auto-name file from heading:', err))
+    },
+    [workspaceId]
+  )
 
   const shareFile = shareFileId ? (files.find((f) => f.id === shareFileId) ?? null) : null
   const shareModal = shareFile ? (
@@ -1189,12 +1223,7 @@ export function Files() {
       const existingNames = new Set(
         filesRef.current.filter((f) => (f.folderId ?? null) === currentFolderId).map((f) => f.name)
       )
-      let name = 'untitled.md'
-      let counter = 1
-      while (existingNames.has(name)) {
-        name = `untitled (${counter}).md`
-        counter++
-      }
+      const name = uniqueMarkdownName(DEFAULT_UNTITLED_NAME, existingNames)
 
       const mimeType = getMimeTypeFromExtension('md')
       const blob = new Blob([''], { type: mimeType })
@@ -1931,6 +1960,7 @@ export function Files() {
               saveRef={saveRef}
               discardRef={discardRef}
               collaborative
+              onDeriveTitleFromHeading={handleDeriveTitleFromHeading}
             />
 
             <ChipConfirmModal

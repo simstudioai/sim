@@ -13,6 +13,10 @@ import { useRouter } from 'next/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
+import {
+  headingTextFromName,
+  isUntitledName,
+} from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
 import type { SaveStatus } from '@/hooks/use-autosave'
 import { useFileContentSource } from '@/hooks/use-file-content-source'
@@ -41,6 +45,7 @@ import { LinkHoverCard } from './menus/link-hover-card'
 import { TableBubbleMenu } from './menus/table-menu'
 import { normalizeMarkdownContent } from './normalize-content'
 import { isRoundTripSafe } from './round-trip-safety'
+import { firstHeadingTitle, titleHeadingNode } from './title-heading'
 import '@sim/emcn/components/code/code.css'
 import './rich-markdown-editor.css'
 
@@ -54,6 +59,9 @@ const EXTENSIONS = createMarkdownEditorExtensions({
 /** Throttle the per-frame full re-parse above this body size so a large streaming file can't saturate the main thread. */
 const STREAM_REPARSE_THROTTLE_THRESHOLD = 40_000
 const STREAM_REPARSE_THROTTLE_MS = 120
+
+/** Debounce before naming a still-untitled file after its leading heading, so it fires once typing settles. */
+const DERIVE_TITLE_DEBOUNCE_MS = 600
 
 interface RichMarkdownEditorProps {
   file: WorkspaceFileRecord
@@ -83,6 +91,12 @@ interface RichMarkdownEditorProps {
    * construction (they cannot both drive one editor and corrupt the shared doc).
    */
   collaborative?: boolean
+  /**
+   * Called (debounced) with the document's leading-heading text while the file is still untitled, so the
+   * caller can name the file after it. Omitted on read-only/non-editable surfaces. See
+   * {@link isUntitledName}.
+   */
+  onDeriveTitleFromHeading?: (headingText: string) => void
 }
 
 /** Inline WYSIWYG markdown editor: agent output streams in read-only, then the same instance becomes editable on settle. */
@@ -102,6 +116,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   previewContextKey,
   disableTagging,
   collaborative = false,
+  onDeriveTitleFromHeading,
 }: RichMarkdownEditorProps) {
   const { data: session, isPending: isSessionPending } = useSession()
   const userId = session?.user?.id ?? ''
@@ -168,6 +183,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
       onChange={setDraftContent}
       onSaveShortcut={saveImmediately}
       onCollabReadyChange={setCollabReady}
+      onDeriveTitleFromHeading={onDeriveTitleFromHeading}
     />
   )
 })
@@ -194,6 +210,8 @@ interface LoadedRichMarkdownEditorProps {
   onSaveShortcut: () => Promise<void>
   /** Reports whether the collaborative document is synced+seeded (autosave gate). */
   onCollabReadyChange: (ready: boolean) => void
+  /** See {@link RichMarkdownEditorProps.onDeriveTitleFromHeading}. */
+  onDeriveTitleFromHeading?: (headingText: string) => void
 }
 
 interface SettledContent {
@@ -223,6 +241,7 @@ export function LoadedRichMarkdownEditor({
   onChange,
   onSaveShortcut,
   onCollabReadyChange,
+  onDeriveTitleFromHeading,
 }: LoadedRichMarkdownEditorProps) {
   /** Whether this editor mounted mid-stream — if so it starts empty and syncs streamed chunks until settle. */
   const streamingAtMountRef = useRef(isStreaming)
@@ -288,6 +307,19 @@ export function LoadedRichMarkdownEditor({
   onChangeRef.current = onChange
   const onSaveShortcutRef = useRef(onSaveShortcut)
   onSaveShortcutRef.current = onSaveShortcut
+
+  /**
+   * Untitled ⇄ heading coupling, active only while the file is unnamed. `onDeriveTitleFromHeading` is
+   * called (debounced) so the caller can name the file after its leading heading; `fileNameRef` lets the
+   * onUpdate handler read the current name without re-subscribing, and `prevFileNameRef` lets the
+   * name→heading seed detect the untitled→named transition. See {@link isUntitledName}.
+   */
+  const onDeriveTitleFromHeadingRef = useRef(onDeriveTitleFromHeading)
+  onDeriveTitleFromHeadingRef.current = onDeriveTitleFromHeading
+  const fileNameRef = useRef(file.name)
+  fileNameRef.current = file.name
+  const prevFileNameRef = useRef(file.name)
+  const deriveTitleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /**
    * Read in the RAF tick so an already-scheduled tick still sees the latest edit kind (it can change
    * between sessions within one turn, e.g. an append followed by a rewrite).
@@ -546,9 +578,51 @@ export function LoadedRichMarkdownEditor({
       const md = postProcessSerializedMarkdown(editor.getMarkdown())
       lastSyncedBodyRef.current = md
       onChangeRef.current(applyFrontmatter(settledRef.current?.frontmatter ?? '', md))
+      // While the file is still untitled, name it after its leading heading once typing settles. Always
+      // clear any pending timer first, so deleting/rewriting the heading before it fires cancels the
+      // stale rename; the timer re-derives the title from the live doc rather than a value captured at
+      // schedule time, so it can never name the file after a heading the user has since changed or removed.
+      if (deriveTitleTimerRef.current) clearTimeout(deriveTitleTimerRef.current)
+      if (!isUntitledName(fileNameRef.current) || firstHeadingTitle(editor.state.doc) === null)
+        return
+      deriveTitleTimerRef.current = setTimeout(() => {
+        const liveEditor = editorInstanceRef.current
+        if (!liveEditor || !isUntitledName(fileNameRef.current)) return
+        const title = firstHeadingTitle(liveEditor.state.doc)
+        if (title) onDeriveTitleFromHeadingRef.current?.(title)
+      }, DERIVE_TITLE_DEBOUNCE_MS)
     },
   })
   editorInstanceRef.current = editor
+
+  useEffect(
+    () => () => {
+      if (deriveTitleTimerRef.current) clearTimeout(deriveTitleTimerRef.current)
+    },
+    []
+  )
+
+  /**
+   * Name→heading seed: when a still-untitled file is given a real name, seed the document's leading
+   * heading from that name — but only into a document with no heading of its own yet, so existing
+   * content is never clobbered. One-shot by construction: it fires only on the untitled→named transition.
+   */
+  useEffect(() => {
+    // Wait for a render with a live, editable editor before consuming the transition — advancing
+    // prevFileNameRef while editor is still null would record the untitled→named change as "seen" and
+    // silently skip the seed on the later render when the editor is ready.
+    if (!editor || !isEditable) return
+    const prevName = prevFileNameRef.current
+    prevFileNameRef.current = file.name
+    if (!isUntitledName(prevName) || isUntitledName(file.name)) return
+    if (firstHeadingTitle(editor.state.doc) !== null) return
+    const title = headingTextFromName(file.name)
+    if (!title) return
+    // Always prepend, never replace: an empty doc becomes `# Title` + a body line, while any existing
+    // content — including structure-only scaffold (an empty list/blockquote/code block that carries no
+    // text) — is preserved above rather than clobbered.
+    editor.commands.insertContentAt(0, titleHeadingNode(title))
+  }, [file.name, editor, isEditable])
 
   /**
    * The loaded markdown to seed the shared doc from, held by pointer so the parse
