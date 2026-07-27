@@ -27,6 +27,7 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { CSSProperties } from 'react'
 import { ImageResponse } from '@vercel/og'
+import matter from 'gray-matter'
 import { parse as parseFont } from 'opentype.js'
 import sharp from 'sharp'
 
@@ -111,6 +112,50 @@ const TITLE_STYLE = {
 /** Measures a string's rendered width in pixels at `fontSize`, in the cover typeface. */
 type TextMeasurer = (text: string, fontSize: number) => number
 
+/** Greedily packs `pieces` into chunks that each measure within `TITLE_BOX_WIDTH`. */
+function packChunks(pieces: string[], fontSize: number, measure: TextMeasurer): string[] {
+  const chunks: string[] = []
+  let current = ''
+
+  for (const piece of pieces) {
+    const candidate = current + piece
+    if (measure(candidate, fontSize) > TITLE_BOX_WIDTH && current) {
+      chunks.push(current)
+      current = piece
+    } else {
+      current = candidate
+    }
+  }
+  if (current) chunks.push(current)
+
+  return chunks
+}
+
+/**
+ * Breaks a single token that is wider than the title box on its own.
+ *
+ * `wrapTitleLines` can only break between space-separated words, so a long
+ * hyphenated compound ("Bring-Your-Own-Key-Management") would otherwise sit on
+ * a line that overflows the canvas — and since the rendered lines join with
+ * non-breaking spaces, Satori's only remaining break opportunity is a hyphen,
+ * putting the break somewhere nobody chose. Splitting here keeps that decision
+ * in this file.
+ *
+ * Hyphens are tried first because that is where a reader (and a browser)
+ * expects a compound to break; the trailing hyphen stays on the upper line.
+ * A chunk with no usable hyphen falls back to a character-level split, which
+ * only a pathological token (a long URL, an unbroken identifier) ever reaches.
+ */
+function splitOversizedWord(word: string, fontSize: number, measure: TextMeasurer): string[] {
+  const afterHyphens = packChunks(word.split(/(?<=-)/), fontSize, measure)
+
+  return afterHyphens.flatMap((chunk) =>
+    measure(chunk, fontSize) <= TITLE_BOX_WIDTH
+      ? [chunk]
+      : packChunks([...chunk], fontSize, measure)
+  )
+}
+
 /**
  * Greedily packs words into lines that fit `TITLE_BOX_WIDTH` at `fontSize`,
  * then joins each line with U+00A0 instead of a plain space. Satori has a
@@ -131,6 +176,17 @@ function wrapTitleLines(title: string, fontSize: number, measure: TextMeasurer):
   let current = ''
 
   for (const word of title.split(' ')) {
+    if (measure(word, fontSize) > TITLE_BOX_WIDTH) {
+      if (current) {
+        lines.push(current)
+        current = ''
+      }
+      const chunks = splitOversizedWord(word, fontSize, measure)
+      lines.push(...chunks.slice(0, -1))
+      current = chunks[chunks.length - 1] ?? ''
+      continue
+    }
+
     const candidate = current ? `${current} ${word}` : word
     if (measure(candidate, fontSize) > TITLE_BOX_WIDTH && current) {
       lines.push(current)
@@ -144,7 +200,18 @@ function wrapTitleLines(title: string, fontSize: number, measure: TextMeasurer):
   return lines.map((line) => line.replace(/ /g, ' '))
 }
 
-/** Largest step whose title fits `MAX_TITLE_LINES`, falling back to the smallest step. */
+/**
+ * Largest step whose title fits `MAX_TITLE_LINES` *and* whose every line fits
+ * `TITLE_BOX_WIDTH`, falling back to the smallest step.
+ *
+ * Both conditions matter. `wrapTitleLines` cannot break inside a token, so a
+ * single long word (a hyphenated compound like "Bring-Your-Own-Key", a URL)
+ * can exceed the box on its own and still produce few enough lines to pass a
+ * line-count-only test. That line would then overflow, and because the joined
+ * spaces are non-breaking, Satori's only recourse is to break it at a hyphen —
+ * reintroducing the mid-compound break this layout exists to avoid. Checking
+ * measured width catches it and steps the size down instead.
+ */
 function layoutTitle(title: string, measure: TextMeasurer): { fontSize: number; lines: string[] } {
   let layout: { fontSize: number; lines: string[] } = {
     fontSize: TITLE_FONT_SIZES[0],
@@ -152,8 +219,11 @@ function layoutTitle(title: string, measure: TextMeasurer): { fontSize: number; 
   }
 
   for (const fontSize of TITLE_FONT_SIZES) {
-    layout = { fontSize, lines: wrapTitleLines(title, fontSize, measure) }
-    if (layout.lines.length <= MAX_TITLE_LINES) break
+    const lines = wrapTitleLines(title, fontSize, measure)
+    layout = { fontSize, lines }
+
+    const fitsBox = lines.every((line) => measure(line, fontSize) <= TITLE_BOX_WIDTH)
+    if (lines.length <= MAX_TITLE_LINES && fitsBox) break
   }
 
   return layout
@@ -251,19 +321,17 @@ async function countRedrawnPixels(committedPath: string, rendered: Buffer): Prom
 
 /**
  * Reads the `title` out of an MDX file's YAML frontmatter without pulling in a
- * YAML parser — the field is a single quoted or bare scalar on one line.
+ * YAML parser.
+ *
+ * Uses `gray-matter` rather than a regex because the page and its `og:title`
+ * are parsed with `gray-matter` too (`lib/content/registry-factory.ts`). A
+ * separate parser here could disagree with it on double-quoted escapes or
+ * block scalars, and the cover would then confidently render a title the page
+ * never shows — with `--check` calling it in sync.
  */
 function readFrontmatterTitle(source: string): string | null {
-  const frontmatter = source.match(/^---\r?\n([\s\S]*?)\r?\n---/)
-  if (!frontmatter) return null
-
-  const title = frontmatter[1].match(/^title:\s*(.+?)\s*$/m)
-  if (!title) return null
-
-  const raw = title[1]
-  const quoted = raw.match(/^(['"])([\s\S]*)\1$/)
-  if (!quoted) return raw
-  return quoted[1] === "'" ? quoted[2].replace(/''/g, "'") : quoted[2].replace(/\\(.)/g, '$1')
+  const { title } = matter(source).data
+  return typeof title === 'string' && title.length > 0 ? title : null
 }
 
 async function main() {

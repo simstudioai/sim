@@ -95,6 +95,7 @@
     "@vercel/og": "0.6.8",
     "chalk": "5.6.2",
     "glob": "13.0.0",
+    "gray-matter": "4.0.3",
     "husky": "9.1.7",
     "json-schema-to-typescript": "15.0.4",
     "lint-staged": "16.0.0",
