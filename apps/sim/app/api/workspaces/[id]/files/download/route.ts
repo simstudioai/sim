@@ -125,68 +125,84 @@ export const GET = withRouteHandler(
       // abort flag stops reads that have not started yet.
       const controller = new AbortController()
       let renderedBytes = 0
-      let overLimit = false
-      let overLimitFileName: string | null = null
+
+      interface DownloadOutcome {
+        buffer: Buffer | null
+        pendingName: string | null
+        /** Set only when an entry's own allowance bound it, never the shared budget. */
+        overLimitEntry: { name: string; allowance: number } | null
+        overLimit: boolean
+        error: unknown
+      }
+      const skipped: DownloadOutcome = {
+        buffer: null,
+        pendingName: null,
+        overLimitEntry: null,
+        overLimit: false,
+        error: null,
+      }
 
       const downloads = await mapWithConcurrency(
         filesToZip,
         ZIP_MATERIALIZE_CONCURRENCY,
-        async (file) => {
-          if (controller.signal.aborted) return { buffer: null, pendingName: null, error: null }
+        async (file): Promise<DownloadOutcome> => {
+          if (controller.signal.aborted) return skipped
           const remaining = Math.max(0, MAX_ZIP_DOWNLOAD_BYTES - renderedBytes)
+          const allowance = isRenderableDocumentName(file.name)
+            ? Math.max(file.size, RENDERED_DOCUMENT_HEADROOM_BYTES)
+            : remaining
           try {
-            const allowance = isRenderableDocumentName(file.name)
-              ? Math.max(file.size, RENDERED_DOCUMENT_HEADROOM_BYTES)
-              : remaining
             const { buffer } = await fetchServableWorkspaceFileBuffer(file, {
               maxBytes: Math.min(remaining, allowance),
               signal: controller.signal,
             })
             renderedBytes += buffer.length
-            if (renderedBytes > MAX_ZIP_DOWNLOAD_BYTES) {
-              overLimit = true
-              controller.abort()
-            }
-            return { buffer, pendingName: null, error: null }
+            const overLimit = renderedBytes > MAX_ZIP_DOWNLOAD_BYTES
+            if (overLimit) controller.abort()
+            return { ...skipped, buffer, overLimit }
           } catch (error) {
             // Recorded even when another worker already aborted: a size rejection
             // describes this file, so losing it to someone else's cancellation would
             // downgrade an actionable 400 into an opaque 500.
             if (error instanceof PayloadSizeLimitError) {
-              overLimit = true
-              overLimitFileName ??= file.name
               controller.abort()
-              return { buffer: null, pendingName: null, error: null }
+              // Attributed to this entry only when its own allowance was the smaller
+              // of the two caps; otherwise the shared budget is what ran out.
+              return {
+                ...skipped,
+                overLimit: true,
+                overLimitEntry: allowance < remaining ? { name: file.name, allowance } : null,
+              }
             }
             // Any other error from an already-aborted read is a consequence of the
             // cancellation, not a cause. Checked before this worker aborts anything so
             // the worker that actually failed still records its own error.
-            if (controller.signal.aborted) {
-              return { buffer: null, pendingName: null, error: null }
-            }
+            if (controller.signal.aborted) return skipped
             // A pending artifact is worth reporting in full, so keep resolving the
             // rest of the selection; anything else dooms the request.
             const pending = isDocNotReadyError(error)
             if (!pending) controller.abort()
-            return { buffer: null, pendingName: pending ? file.name : null, error }
+            return { ...skipped, pendingName: pending ? file.name : null, error }
           }
         }
       )
 
       // Size first: the request cannot succeed at any size-adjacent retry, and a
       // descriptive 400 beats an opaque 500 raised by whatever the abort cancelled.
-      if (overLimitFileName) {
-        // Naming the entry that blew its own allowance: an aggregate message here
-        // would tell the user to select fewer files when the selection was fine.
+      const overLimitEntry = downloads.find((result) => result.overLimitEntry)?.overLimitEntry
+      if (overLimitEntry) {
+        // Naming the entry that blew its own allowance, and quoting the allowance that
+        // actually applied: an aggregate message here would tell the user to select
+        // fewer files when the selection was fine.
         return NextResponse.json(
           {
-            error: `"${overLimitFileName}" is too large to include in a zip. A single document may render up to ${formatFileSize(RENDERED_DOCUMENT_HEADROOM_BYTES)}; download it on its own instead.`,
+            error: `"${overLimitEntry.name}" is too large to include in a zip. Entries are capped at ${formatFileSize(overLimitEntry.allowance)}; download it on its own instead.`,
           },
           { status: 400 }
         )
       }
 
-      if (overLimit || renderedBytes > MAX_ZIP_DOWNLOAD_BYTES) {
+      if (downloads.some((result) => result.overLimit)) {
         return overLimitResponse(renderedBytes, ' once documents are rendered')
       }
 

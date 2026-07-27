@@ -137,6 +137,21 @@ describe('workspace files download route', () => {
     expect(body.error).not.toContain('Selected files total')
   })
 
+  it('blames the shared budget, not the entry, when the entry had no smaller cap', async () => {
+    // .mp4 has no render headroom, so its cap is whatever is left of the budget.
+    mockListWorkspaceFiles.mockResolvedValue([workspaceFile('f1', 'clip.mp4', 'folder-1')])
+    mockFetchServableWorkspaceFileBuffer.mockRejectedValue(
+      new PayloadSizeLimitError({ label: 'servable file download', maxBytes: 1 })
+    )
+
+    const response = await GET(requestFor('fileIds=f1'), context)
+
+    expect(response.status).toBe(400)
+    const body = await response.json()
+    expect(body.error).toContain('Selected files total')
+    expect(body.error).not.toContain('clip.mp4')
+  })
+
   it('lets an uploaded office file larger than the render headroom through', async () => {
     const big = { ...workspaceFile('f1', 'deck.pptx', 'folder-1'), size: 80 * 1024 * 1024 }
     mockListWorkspaceFiles.mockResolvedValue([big])
