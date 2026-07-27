@@ -48,12 +48,17 @@ const LIST_MARKER = /^[ ]{0,3}(?:[-*+]|\d+[.)])\s/
 const BLOCKQUOTE = /^[ ]{0,3}>/
 
 /**
- * Blank-line spacing that `@tiptap/markdown` reconstructs as empty paragraphs — a run of two or more
- * blank lines somewhere, or blank line(s) at the document's leading/trailing edge. `[^\S\n]` matches
- * only horizontal whitespace (and `\r`), so a "blank" line may carry spaces/tabs and CRLF is handled.
- * The three alternatives are: 2+ interior blank lines, leading blank line(s), trailing blank line(s).
+ * Blank-line spacing that `@tiptap/markdown` reconstructs as *interior* or *leading* empty paragraphs —
+ * a run of two or more blank lines somewhere, or blank line(s) at the document's leading edge. `[^\S\n]`
+ * matches only horizontal whitespace (and `\r`), so a "blank" line may carry spaces/tabs and CRLF is
+ * handled. TRAILING blank lines are deliberately NOT matched here: a trailing empty paragraph can never
+ * be serialized stably — {@link postProcessSerializedMarkdown} collapses trailing newlines — so
+ * {@link parseMarkdownToDoc} strips trailing empty paragraphs entirely (see {@link stripTrailingEmptyParagraphs}),
+ * and routing a file that merely ends in a blank line to the whole-document parser would only reconstruct
+ * one to be dropped again, making serialize→parse non-idempotent (the round-trip-safety probe would then
+ * flip the file read-only).
  */
-const EMPTY_PARAGRAPH_SPACING = /\n[^\S\n]*\n[^\S\n]*\n|^[^\S\n]*\n[^\S\n]*\n|\n[^\S\n]*\n[^\S\n]*$/
+const EMPTY_PARAGRAPH_SPACING = /\n[^\S\n]*\n[^\S\n]*\n|^[^\S\n]*\n[^\S\n]*\n/
 
 /**
  * Split a markdown body into top-level blocks that can each be parsed independently and reassembled
@@ -142,18 +147,43 @@ export function parseMarkdownToDoc(body: string): JSONContent {
   // do — the guards' `\n`-anchored tests would otherwise miss a classic `\r`-only body (its blank
   // lines are `\r`), routing it to the chunker that then drops its empty paragraphs.
   const normalized = body.replace(/\r\n?/g, '\n')
-  if (NON_CHUNKABLE.test(normalized) || EMPTY_PARAGRAPH_SPACING.test(normalized))
-    return manager.parse(normalized)
-  try {
-    const content: JSONContent[] = []
-    for (const block of splitMarkdownBlocks(normalized)) {
-      // `MarkdownManager.parse` always returns a doc node with a `content` array; spread its blocks.
-      content.push(...(manager.parse(block).content ?? []))
+  let doc: JSONContent
+  if (NON_CHUNKABLE.test(normalized) || EMPTY_PARAGRAPH_SPACING.test(normalized)) {
+    doc = manager.parse(normalized)
+  } else {
+    try {
+      const content: JSONContent[] = []
+      for (const block of splitMarkdownBlocks(normalized)) {
+        // `MarkdownManager.parse` always returns a doc node with a `content` array; spread its blocks.
+        content.push(...(manager.parse(block).content ?? []))
+      }
+      doc = { type: 'doc', content }
+    } catch {
+      doc = manager.parse(normalized)
     }
-    return { type: 'doc', content }
-  } catch {
-    return manager.parse(normalized)
   }
+  return stripTrailingEmptyParagraphs(doc)
+}
+
+/** An empty paragraph node — the shape a blank line reconstructs to (no content, or `content: []`). */
+function isEmptyParagraph(node: JSONContent): boolean {
+  return node.type === 'paragraph' && !node.content?.length
+}
+
+/**
+ * Drop trailing empty paragraphs from a parsed doc. {@link postProcessSerializedMarkdown} collapses
+ * trailing blank lines to a single newline, so a trailing empty paragraph can never round-trip — the
+ * whole-document parser reconstructs one from a file ending in a blank line, but keeping it makes
+ * serialize→parse non-idempotent, which flips the file read-only via the round-trip-safety probe.
+ * Leading/interior empty paragraphs are untouched (postProcess never strips those). TipTap re-adds its
+ * own trailing filler paragraph on `setContent`, so the editor still has a place to type.
+ */
+function stripTrailingEmptyParagraphs(doc: JSONContent): JSONContent {
+  const content = doc.content
+  if (!content || content.length === 0) return doc
+  let end = content.length
+  while (end > 0 && isEmptyParagraph(content[end - 1])) end--
+  return end === content.length ? doc : { ...doc, content: content.slice(0, end) }
 }
 
 /**

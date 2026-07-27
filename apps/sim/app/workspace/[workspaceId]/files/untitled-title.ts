@@ -3,8 +3,8 @@ import { truncate } from '@sim/utils/string'
 /**
  * The name a freshly-created markdown file is given in `handleCreateFile`: `untitled.md`, or
  * `untitled (n).md` when that is taken. A file keeps this "unnamed" status until it is renamed —
- * while unnamed, the file name and the document's leading heading are coupled (typing a heading
- * names the file; naming the file seeds a heading). See {@link isUntitledName}.
+ * while unnamed, typing a leading heading names the file (one direction only; the reverse
+ * name→heading seed was removed as unsafe on the shared editor). See {@link isUntitledName}.
  */
 export const DEFAULT_UNTITLED_NAME = 'untitled.md'
 

@@ -4,6 +4,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { cn, toast } from '@sim/emcn'
 import type { JoinFileDocError } from '@sim/realtime-protocol/file-doc'
 import type { Extensions, JSONContent } from '@tiptap/core'
+import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import { Fragment, Slice } from '@tiptap/pm/model'
 import { NodeSelection } from '@tiptap/pm/state'
 import { dropPoint } from '@tiptap/pm/transform'
@@ -569,19 +570,23 @@ export function LoadedRichMarkdownEditor({
         return false
       },
     },
-    onUpdate: ({ editor }) => {
+    onUpdate: ({ editor, transaction }) => {
       const md = postProcessSerializedMarkdown(editor.getMarkdown())
       lastSyncedBodyRef.current = md
       onChangeRef.current(applyFrontmatter(settledRef.current?.frontmatter ?? '', md))
       // While the file is still untitled, name it after its leading heading once typing settles — but
-      // only when the user can actually edit. A view-only viewer (or the not-yet-editable seed at mount,
-      // which also fires onUpdate) must never schedule a rename it has no permission to make;
-      // `editor.isEditable` is the same gate the autosave path uses (canEdit + settled + collab-ready).
-      // Always clear any pending timer first, so deleting/rewriting the heading before it fires cancels
-      // the stale rename; the timer re-derives the title from the live doc rather than a value captured at
-      // schedule time, so it can never name the file after a heading the user has since changed or removed.
+      // only for the LOCAL user's own edits, and only when they can actually edit. `isChangeOrigin` is
+      // true when this update is a remote Yjs change (a peer typing) — every connected client would
+      // otherwise schedule the same rename, and could rename from a peer's not-yet-synced heading; it is
+      // false for local edits and for non-collaborative surfaces. `editor.isEditable` is the same gate
+      // the autosave path uses (canEdit + settled + collab-ready), so a view-only viewer or the
+      // not-yet-editable mount seed never schedules a rename. Always clear any pending timer first, so
+      // deleting/rewriting the heading before it fires cancels the stale rename; the timer re-derives the
+      // title from the live doc rather than a value captured at schedule time, so it can never name the
+      // file after a heading the user has since changed or removed.
       if (deriveTitleTimerRef.current) clearTimeout(deriveTitleTimerRef.current)
       if (
+        isChangeOrigin(transaction) ||
         !editor.isEditable ||
         !isUntitledName(fileNameRef.current) ||
         firstHeadingTitle(editor.state.doc) === null

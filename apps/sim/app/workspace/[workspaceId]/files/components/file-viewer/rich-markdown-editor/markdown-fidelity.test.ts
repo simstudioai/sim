@@ -31,6 +31,16 @@ describe('postProcessSerializedMarkdown — empty list-item stripping', () => {
     )
   })
 
+  it('keeps a nested empty item that follows a same-indent sibling (real placeholder, no Setext hazard)', () => {
+    // `  - ` after `  - two` (same indent) is a real empty item the parser keeps — it does NOT underline
+    // a shallower parent's text, so it must not be stripped. (Only `  - ` directly under `- one` does.)
+    expect(postProcessSerializedMarkdown('- one\n  - two\n  - \n  - three\n')).toBe(
+      '- one\n  - two\n  - \n  - three\n'
+    )
+    // The hazard case — empty item directly under the shallower parent — is still stripped.
+    expect(postProcessSerializedMarkdown('- one\n  - \n  - three\n')).toBe('- one\n  - three\n')
+  })
+
   it('keeps a thematic break and empty checklist items (not Setext-hazardous)', () => {
     expect(postProcessSerializedMarkdown('text\n\n---\n\nmore\n')).toBe('text\n\n---\n\nmore\n')
     expect(postProcessSerializedMarkdown('- [ ] a\n- [ ] \n')).toBe('- [ ] a\n- [ ] \n')

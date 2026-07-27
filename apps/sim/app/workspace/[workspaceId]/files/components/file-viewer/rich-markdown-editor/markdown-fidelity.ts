@@ -114,14 +114,16 @@ const FENCE_DELIMITER = /^[ \t]*(`{3,}|~{3,})/
 const LEADING_INDENT = /^[ \t]*/
 
 /**
- * Removes *nested* (indented) empty list-item marker lines from serialized markdown. A nested empty
- * bullet (`  - `) sitting directly under a parent item's text re-parses as a Setext heading underline —
- * silently turning the parent line into an `## heading` and dropping the empty bullet on the next load
- * (a data-corrupting round-trip). Only indented empty items are stripped: a *top-level* empty bullet
- * (`- ` / `1. `) round-trips faithfully (it stays an empty item, never a heading), so it is preserved —
- * a placeholder row or an intentionally-blank imported item is not silently deleted. Lines inside fenced
- * code blocks are left untouched, and an empty item whose next non-blank line is more deeply indented is
- * kept so its children are never orphaned.
+ * Removes only the *nested* empty list-item marker lines that re-parse as a Setext heading underline:
+ * a nested empty bullet (`  - `) sitting DIRECTLY under a shallower parent line silently turns that
+ * parent's text into an `## heading` and drops the bullet on the next load (a data-corrupting
+ * round-trip). The strip is therefore scoped by three conditions, all required:
+ * - *indented* (`indent > 0`): a top-level empty bullet (`- ` / `1. `) round-trips faithfully as an
+ *   empty item, never a heading, so a placeholder/blank imported row is preserved.
+ * - the immediately-preceding line is *shallower* (the parent whose text the underline would consume):
+ *   an empty item after a *same-indent sibling* (`  - two` then `  - `) does NOT corrupt — the parser
+ *   keeps it as a real empty item — so it is preserved. A blank line above also breaks the hazard.
+ * - no more-indented children on the next non-blank line, so its children are never orphaned.
  *
  * Operates only on the editor's own serialized output, which uses fenced (never 4-space-indented) code
  * blocks and `\n` newlines — so tracking fences is sufficient and a bare `-` inside an indented code
@@ -151,9 +153,15 @@ function stripEmptyListItemLines(markdown: string): string {
       while (next < lines.length && lines[next].trim() === '') next++
       const hasChildren =
         next < lines.length && (lines[next].match(LEADING_INDENT)?.[0].length ?? 0) > indent
-      // Strip only nested (indented) empty items — the Setext-underline hazard. A top-level empty item
-      // round-trips faithfully and is preserved. Never orphan an item that has more-indented children.
-      if (indent > 0 && !hasChildren) continue
+      // The Setext-underline hazard exists only when the empty item follows a SHALLOWER parent line
+      // (whose text the underline would consume). An empty item after a same/deeper-indent sibling
+      // (`  - two` then `  - `) is a real empty item the parser keeps — a nested placeholder between
+      // siblings must not be lost. Uses the preceding non-blank line's indent; a lone empty item with
+      // nothing above it (`prevIndent = -1`) has no parent text to corrupt but stays stripped as before.
+      let prevIdx = i - 1
+      while (prevIdx >= 0 && lines[prevIdx].trim() === '') prevIdx--
+      const prevIndent = prevIdx >= 0 ? (lines[prevIdx].match(LEADING_INDENT)?.[0].length ?? 0) : -1
+      if (indent > 0 && !hasChildren && prevIndent < indent) continue
     }
     kept.push(line)
   }
