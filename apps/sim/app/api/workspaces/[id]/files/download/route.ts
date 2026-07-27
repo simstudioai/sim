@@ -148,16 +148,18 @@ export const GET = withRouteHandler(
             }
             return { buffer, pendingName: null, error: null }
           } catch (error) {
-            // Checked before this worker aborts anything, so the worker that actually
-            // failed still records its error while reads cancelled as a consequence
-            // report nothing — otherwise cancellation noise masks the real outcome.
-            if (controller.signal.aborted) {
-              return { buffer: null, pendingName: null, error: null }
-            }
-            // A file bigger than the remaining budget is a size rejection, not a fault.
+            // Recorded even when another worker already aborted: a size rejection
+            // describes this file, so losing it to someone else's cancellation would
+            // downgrade an actionable 400 into an opaque 500.
             if (error instanceof PayloadSizeLimitError) {
               overLimit = true
               controller.abort()
+              return { buffer: null, pendingName: null, error: null }
+            }
+            // Any other error from an already-aborted read is a consequence of the
+            // cancellation, not a cause. Checked before this worker aborts anything so
+            // the worker that actually failed still records its own error.
+            if (controller.signal.aborted) {
               return { buffer: null, pendingName: null, error: null }
             }
             // A pending artifact is worth reporting in full, so keep resolving the

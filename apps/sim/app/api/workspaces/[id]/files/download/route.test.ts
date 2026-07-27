@@ -191,6 +191,24 @@ describe('workspace files download route', () => {
     expect(response.status).toBe(400)
   })
 
+  it('keeps the size rejection when a hard failure aborted the read first', async () => {
+    mockListWorkspaceFiles.mockResolvedValue([
+      workspaceFile('f1', 'broken.txt', 'folder-1'),
+      workspaceFile('f2', 'huge.docx', 'folder-1'),
+    ])
+    mockFetchServableWorkspaceFileBuffer.mockImplementation(async (file: { name: string }) => {
+      if (file.name === 'broken.txt') throw new Error('storage down')
+      // Lands after the hard failure has already aborted the shared controller.
+      await new Promise((resolve) => setTimeout(resolve, 1))
+      throw new PayloadSizeLimitError({ label: 'servable file download', maxBytes: 1 })
+    })
+
+    const response = await GET(requestFor('fileIds=f1&fileIds=f2'), context)
+
+    // "Select fewer files" is actionable; a generic 500 is not.
+    expect(response.status).toBe(400)
+  })
+
   it('stops issuing reads once one hard-fails instead of draining the selection', async () => {
     const files = Array.from({ length: 60 }, (_, index) =>
       workspaceFile(`f${index}`, `doc${index}.txt`, 'folder-1')
