@@ -1,3 +1,4 @@
+import type { ComponentPropsWithoutRef } from 'react'
 import clsx from 'clsx'
 import type { MDXRemoteProps } from 'next-mdx-remote/rsc'
 import { CodeBlock } from '@/lib/content/code'
@@ -132,7 +133,7 @@ export const mdxComponents: MDXRemoteProps['components'] = {
    * scroll area — narrow enough that tables which already fit (two or three
    * columns on a tablet, anything on desktop) never gain a scrollbar.
    */
-  table: ({ className, ...props }: any) => (
+  table: ({ className, ...props }: ComponentPropsWithoutRef<'table'>) => (
     <div className='my-6 w-full overflow-x-auto'>
       <table {...props} className={clsx('my-0 min-w-[520px]', className)} />
     </div>
