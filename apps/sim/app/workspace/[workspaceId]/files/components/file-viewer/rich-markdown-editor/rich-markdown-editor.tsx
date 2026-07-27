@@ -4,6 +4,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { cn, toast } from '@sim/emcn'
 import type { JoinFileDocError } from '@sim/realtime-protocol/file-doc'
 import type { Extensions, JSONContent } from '@tiptap/core'
+import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import { Fragment, Slice } from '@tiptap/pm/model'
 import { NodeSelection } from '@tiptap/pm/state'
 import { dropPoint } from '@tiptap/pm/transform'
@@ -13,6 +14,7 @@ import { useRouter } from 'next/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
+import { isUntitledName } from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
 import type { SaveStatus } from '@/hooks/use-autosave'
 import { useFileContentSource } from '@/hooks/use-file-content-source'
@@ -41,6 +43,7 @@ import { LinkHoverCard } from './menus/link-hover-card'
 import { TableBubbleMenu } from './menus/table-menu'
 import { normalizeMarkdownContent } from './normalize-content'
 import { isRoundTripSafe } from './round-trip-safety'
+import { firstHeadingTitle } from './title-heading'
 import '@sim/emcn/components/code/code.css'
 import './rich-markdown-editor.css'
 
@@ -54,6 +57,9 @@ const EXTENSIONS = createMarkdownEditorExtensions({
 /** Throttle the per-frame full re-parse above this body size so a large streaming file can't saturate the main thread. */
 const STREAM_REPARSE_THROTTLE_THRESHOLD = 40_000
 const STREAM_REPARSE_THROTTLE_MS = 120
+
+/** Debounce before naming a still-untitled file after its leading heading, so it fires once typing settles. */
+const DERIVE_TITLE_DEBOUNCE_MS = 600
 
 interface RichMarkdownEditorProps {
   file: WorkspaceFileRecord
@@ -83,6 +89,12 @@ interface RichMarkdownEditorProps {
    * construction (they cannot both drive one editor and corrupt the shared doc).
    */
   collaborative?: boolean
+  /**
+   * Called (debounced) with the document's leading-heading text while the file is still untitled, so the
+   * caller can name the file after it. Omitted on read-only/non-editable surfaces. See
+   * {@link isUntitledName}.
+   */
+  onDeriveTitleFromHeading?: (headingText: string) => void
 }
 
 /** Inline WYSIWYG markdown editor: agent output streams in read-only, then the same instance becomes editable on settle. */
@@ -102,6 +114,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   previewContextKey,
   disableTagging,
   collaborative = false,
+  onDeriveTitleFromHeading,
 }: RichMarkdownEditorProps) {
   const { data: session, isPending: isSessionPending } = useSession()
   const userId = session?.user?.id ?? ''
@@ -168,6 +181,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
       onChange={setDraftContent}
       onSaveShortcut={saveImmediately}
       onCollabReadyChange={setCollabReady}
+      onDeriveTitleFromHeading={onDeriveTitleFromHeading}
     />
   )
 })
@@ -194,6 +208,8 @@ interface LoadedRichMarkdownEditorProps {
   onSaveShortcut: () => Promise<void>
   /** Reports whether the collaborative document is synced+seeded (autosave gate). */
   onCollabReadyChange: (ready: boolean) => void
+  /** See {@link RichMarkdownEditorProps.onDeriveTitleFromHeading}. */
+  onDeriveTitleFromHeading?: (headingText: string) => void
 }
 
 interface SettledContent {
@@ -223,6 +239,7 @@ export function LoadedRichMarkdownEditor({
   onChange,
   onSaveShortcut,
   onCollabReadyChange,
+  onDeriveTitleFromHeading,
 }: LoadedRichMarkdownEditorProps) {
   /** Whether this editor mounted mid-stream — if so it starts empty and syncs streamed chunks until settle. */
   const streamingAtMountRef = useRef(isStreaming)
@@ -288,6 +305,17 @@ export function LoadedRichMarkdownEditor({
   onChangeRef.current = onChange
   const onSaveShortcutRef = useRef(onSaveShortcut)
   onSaveShortcutRef.current = onSaveShortcut
+
+  /**
+   * While the file is still unnamed, name it after its leading heading: `onDeriveTitleFromHeading` is
+   * called (debounced) so the caller can rename the file, and `fileNameRef` lets the onUpdate handler
+   * read the current name without re-subscribing. See {@link isUntitledName}.
+   */
+  const onDeriveTitleFromHeadingRef = useRef(onDeriveTitleFromHeading)
+  onDeriveTitleFromHeadingRef.current = onDeriveTitleFromHeading
+  const fileNameRef = useRef(file.name)
+  fileNameRef.current = file.name
+  const deriveTitleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /**
    * Read in the RAF tick so an already-scheduled tick still sees the latest edit kind (it can change
    * between sessions within one turn, e.g. an append followed by a rewrite).
@@ -542,13 +570,44 @@ export function LoadedRichMarkdownEditor({
         return false
       },
     },
-    onUpdate: ({ editor }) => {
+    onUpdate: ({ editor, transaction }) => {
       const md = postProcessSerializedMarkdown(editor.getMarkdown())
       lastSyncedBodyRef.current = md
       onChangeRef.current(applyFrontmatter(settledRef.current?.frontmatter ?? '', md))
+      // While the file is still untitled, name it after its leading heading once typing settles — but
+      // only for the LOCAL user's own edits. `isChangeOrigin` is true for a remote Yjs change (a peer
+      // typing); bail BEFORE touching the timer so a remote edit never cancels or reschedules the local
+      // user's pending rename (and every client doesn't schedule the same rename from a peer's
+      // not-yet-synced heading). It is false for local edits and non-collaborative surfaces.
+      if (isChangeOrigin(transaction)) return
+      // Local edit: restart the debounce. Clearing first cancels a stale rename if the heading was
+      // removed/changed before it fired; the timer re-derives the title from the live doc rather than a
+      // value captured now, so it can never name the file after a heading the user has since changed.
+      // `editor.isEditable` is the autosave gate (canEdit + settled + collab-ready), so a view-only
+      // viewer or the not-yet-editable mount seed never schedules a rename.
+      if (deriveTitleTimerRef.current) clearTimeout(deriveTitleTimerRef.current)
+      if (
+        !editor.isEditable ||
+        !isUntitledName(fileNameRef.current) ||
+        firstHeadingTitle(editor.state.doc) === null
+      )
+        return
+      deriveTitleTimerRef.current = setTimeout(() => {
+        const liveEditor = editorInstanceRef.current
+        if (!liveEditor || !liveEditor.isEditable || !isUntitledName(fileNameRef.current)) return
+        const title = firstHeadingTitle(liveEditor.state.doc)
+        if (title) onDeriveTitleFromHeadingRef.current?.(title)
+      }, DERIVE_TITLE_DEBOUNCE_MS)
     },
   })
   editorInstanceRef.current = editor
+
+  useEffect(
+    () => () => {
+      if (deriveTitleTimerRef.current) clearTimeout(deriveTitleTimerRef.current)
+    },
+    []
+  )
 
   /**
    * The loaded markdown to seed the shared doc from, held by pointer so the parse

@@ -48,6 +48,20 @@ const LIST_MARKER = /^[ ]{0,3}(?:[-*+]|\d+[.)])\s/
 const BLOCKQUOTE = /^[ ]{0,3}>/
 
 /**
+ * Blank-line spacing that `@tiptap/markdown` reconstructs as *interior* or *leading* empty paragraphs —
+ * a run of two or more blank lines somewhere, or blank line(s) at the document's leading edge. `[^\S\n]`
+ * matches horizontal whitespace, so a "blank" line may carry spaces/tabs. This is only ever tested
+ * against the `\r`-normalized body ({@link parseMarkdownToDoc}), so no CRLF handling is needed here.
+ *
+ * A *single* trailing blank line is deliberately not matched — purely to avoid routing an otherwise-plain
+ * file to the slower whole-document parser. Correctness does not depend on it: {@link parseMarkdownToDoc}
+ * strips trailing empty paragraphs on *both* parse paths ({@link stripTrailingEmptyParagraphs}), so
+ * serialize→parse stays idempotent regardless of which parser ran. (A trailing run of two or more blanks
+ * still matches the interior alternative — harmless, since the strip cleans it either way.)
+ */
+const EMPTY_PARAGRAPH_SPACING = /\n[^\S\n]*\n[^\S\n]*\n|^[^\S\n]*\n[^\S\n]*\n/
+
+/**
  * Split a markdown body into top-level blocks that can each be parsed independently and reassembled
  * without changing meaning. Blank lines separate candidate groups (fenced code blocks stay atomic),
  * then adjacent groups are merged back together whenever they could form one logical block: any
@@ -120,20 +134,57 @@ export function splitMarkdownBlocks(body: string): string[] {
  * vs ~1270ms at 61KB — and byte-identical, because each block is parsed with the same tokenizers.
  * Documents whose constructs span blocks ({@link NON_CHUNKABLE}) parse whole, and any failure falls
  * back to a single whole-document parse, so correctness never depends on the splitter.
+ *
+ * Blank-line spacing ({@link EMPTY_PARAGRAPH_SPACING}) also parses whole: the chunker parses each block
+ * stripped of the blank lines between them, so it drops the empty paragraphs `@tiptap/markdown` builds
+ * from runs of blank lines — a saved visual blank line would silently vanish on reload. Whether a gap
+ * yields an empty paragraph is a global, block-type-dependent decision (kept between two paragraphs,
+ * dropped after a heading), so it can't be reconstructed block-locally; these documents parse whole for
+ * exact fidelity. Ordinary single-blank-line separation still takes the fast chunked path.
  */
 export function parseMarkdownToDoc(body: string): JSONContent {
   const manager = markdownManager()
-  if (NON_CHUNKABLE.test(body)) return manager.parse(body)
-  try {
-    const content: JSONContent[] = []
-    for (const block of splitMarkdownBlocks(body)) {
-      // `MarkdownManager.parse` always returns a doc node with a `content` array; spread its blocks.
-      content.push(...(manager.parse(block).content ?? []))
+  // Normalize line endings up front so the routing guards see the same `\n` the chunker and parser
+  // do — the guards' `\n`-anchored tests would otherwise miss a classic `\r`-only body (its blank
+  // lines are `\r`), routing it to the chunker that then drops its empty paragraphs.
+  const normalized = body.replace(/\r\n?/g, '\n')
+  let doc: JSONContent
+  if (NON_CHUNKABLE.test(normalized) || EMPTY_PARAGRAPH_SPACING.test(normalized)) {
+    doc = manager.parse(normalized)
+  } else {
+    try {
+      const content: JSONContent[] = []
+      for (const block of splitMarkdownBlocks(normalized)) {
+        // `MarkdownManager.parse` always returns a doc node with a `content` array; spread its blocks.
+        content.push(...(manager.parse(block).content ?? []))
+      }
+      doc = { type: 'doc', content }
+    } catch {
+      doc = manager.parse(normalized)
     }
-    return { type: 'doc', content }
-  } catch {
-    return manager.parse(body)
   }
+  return stripTrailingEmptyParagraphs(doc)
+}
+
+/** An empty paragraph node — the shape a blank line reconstructs to (no content, or `content: []`). */
+function isEmptyParagraph(node: JSONContent): boolean {
+  return node.type === 'paragraph' && !node.content?.length
+}
+
+/**
+ * Drop trailing empty paragraphs from a parsed doc. {@link postProcessSerializedMarkdown} collapses
+ * trailing blank lines to a single newline, so a trailing empty paragraph can never round-trip — the
+ * whole-document parser reconstructs one from a file ending in a blank line, but keeping it makes
+ * serialize→parse non-idempotent, which flips the file read-only via the round-trip-safety probe.
+ * Leading/interior empty paragraphs are untouched (postProcess never strips those). TipTap re-adds its
+ * own trailing filler paragraph on `setContent`, so the editor still has a place to type.
+ */
+function stripTrailingEmptyParagraphs(doc: JSONContent): JSONContent {
+  const content = doc.content
+  if (!content || content.length === 0) return doc
+  let end = content.length
+  while (end > 0 && isEmptyParagraph(content[end - 1])) end--
+  return end === content.length ? doc : { ...doc, content: content.slice(0, end) }
 }
 
 /**

@@ -106,16 +106,78 @@ export function normalizeLinkHref(href: string): string {
   return `https://${trimmed}`
 }
 
+/** A line that is a bullet/ordered list marker with no content (`-`, `  - `, `1. `). Task items (`- [ ]`) don't match. */
+const EMPTY_LIST_ITEM_LINE = /^([ \t]*)(?:[-*+]|\d+[.)])[ \t]*$/
+/** A fenced code-block delimiter (``` or ~~~), used to leave code interiors untouched. */
+const FENCE_DELIMITER = /^[ \t]*(`{3,}|~{3,})/
+/** Leading indentation of a line, used to detect whether an empty list item has indented children. */
+const LEADING_INDENT = /^[ \t]*/
+
 /**
- * Cleans up serializer output: restores callout markers the serializer backslash-escapes
- * (`> \[!NOTE\]` → `> [!NOTE]`) and collapses trailing blank lines to a single newline. The
- * table serializer's spurious surrounding blank lines are trimmed at the source (PipeSafeTable),
- * so no global leading-newline strip is needed here — avoiding clobbering content that legitimately
- * begins with whitespace.
+ * Removes only the *nested* empty list-item marker lines that re-parse as a Setext heading underline:
+ * a nested empty bullet (`  - `) sitting DIRECTLY under a shallower parent line silently turns that
+ * parent's text into an `## heading` and drops the bullet on the next load (a data-corrupting
+ * round-trip). The strip is therefore scoped by three conditions, all required:
+ * - *indented* (`indent > 0`): a top-level empty bullet (`- ` / `1. `) round-trips faithfully as an
+ *   empty item, never a heading, so a placeholder/blank imported row is preserved.
+ * - the immediately-preceding line is *shallower* (the parent whose text the underline would consume):
+ *   an empty item after a *same-indent sibling* (`  - two` then `  - `) does NOT corrupt — the parser
+ *   keeps it as a real empty item — so it is preserved. A blank line above also breaks the hazard.
+ * - no more-indented children on the next non-blank line, so its children are never orphaned.
+ *
+ * Operates only on the editor's own serialized output, which uses fenced (never 4-space-indented) code
+ * blocks and `\n` newlines — so tracking fences is sufficient and a bare `-` inside an indented code
+ * block or a `-\r` line is not a case that can occur here.
+ */
+function stripEmptyListItemLines(markdown: string): string {
+  const lines = markdown.split('\n')
+  const kept: string[] = []
+  let fence: string | null = null
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const delimiter = line.match(FENCE_DELIMITER)?.[1]
+    if (fence) {
+      kept.push(line)
+      if (delimiter && delimiter[0] === fence[0] && delimiter.length >= fence.length) fence = null
+      continue
+    }
+    if (delimiter) {
+      fence = delimiter
+      kept.push(line)
+      continue
+    }
+    const empty = line.match(EMPTY_LIST_ITEM_LINE)
+    if (empty) {
+      const indent = empty[1].length
+      let next = i + 1
+      while (next < lines.length && lines[next].trim() === '') next++
+      const hasChildren =
+        next < lines.length && (lines[next].match(LEADING_INDENT)?.[0].length ?? 0) > indent
+      // The Setext-underline hazard exists only when the empty item follows a SHALLOWER parent line
+      // (whose text the underline would consume). An empty item after a same/deeper-indent sibling
+      // (`  - two` then `  - `) is a real empty item the parser keeps — a nested placeholder between
+      // siblings must not be lost. Uses the preceding non-blank line's indent; a lone empty item with
+      // nothing above it (`prevIndent = -1`) has no parent text to corrupt but stays stripped as before.
+      let prevIdx = i - 1
+      while (prevIdx >= 0 && lines[prevIdx].trim() === '') prevIdx--
+      const prevIndent = prevIdx >= 0 ? (lines[prevIdx].match(LEADING_INDENT)?.[0].length ?? 0) : -1
+      if (indent > 0 && !hasChildren && prevIndent < indent) continue
+    }
+    kept.push(line)
+  }
+  return kept.join('\n')
+}
+
+/**
+ * Cleans up serializer output: drops empty list-item marker lines that would otherwise corrupt on
+ * round-trip ({@link stripEmptyListItemLines}), restores callout markers the serializer
+ * backslash-escapes (`> \[!NOTE\]` → `> [!NOTE]`), and collapses trailing blank lines to a single
+ * newline. The table serializer's spurious surrounding blank lines are trimmed at the source
+ * (PipeSafeTable), so no global leading-newline strip is needed here — avoiding clobbering content
+ * that legitimately begins with whitespace.
  */
 export function postProcessSerializedMarkdown(markdown: string): string {
-  return collapseAutolinkedUrls(markdown.replace(ESCAPED_CALLOUT_REGEX, '$1[!$2]')).replace(
-    /\n+$/,
-    '\n'
-  )
+  return collapseAutolinkedUrls(
+    stripEmptyListItemLines(markdown).replace(ESCAPED_CALLOUT_REGEX, '$1[!$2]')
+  ).replace(/\n+$/, '\n')
 }

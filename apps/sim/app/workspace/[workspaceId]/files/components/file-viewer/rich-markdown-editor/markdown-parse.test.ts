@@ -59,6 +59,12 @@ const CASES: Array<[string, string]> = [
     '1. First\n  - sub bullet\n  - another\n  1. deep ordered\n  2. item\n2. Second',
   ],
   ['heading-separated sections', '# A\n\nalpha\n\n## B\n\nbeta\n\n## C\n\ngamma'],
+  // Blank-line spacing: `@tiptap/markdown` reconstructs empty paragraphs from runs of blank lines, so
+  // the chunker must reinsert them or a saved blank line vanishes on reload. See the dedicated
+  // "empty paragraphs" suite below for the exact whole-document-parser parity.
+  ['one empty paragraph between paragraphs', 'first\n\n\n\nsecond'],
+  ['two empty paragraphs between paragraphs', 'first\n\n\n\n\n\nsecond'],
+  ['empty paragraphs between headings and text', '# A\n\n\n\nalpha\n\n\n\n## B'],
 ]
 
 describe('parseMarkdownToDoc (chunked)', () => {
@@ -85,6 +91,66 @@ describe('parseMarkdownToDoc (chunked)', () => {
     expect(parseMarkdownToDoc('   \n\n  ').type).toBe('doc')
     expect(splitMarkdownBlocks('')).toEqual([])
     expect(splitMarkdownBlocks('\n\n  \n')).toEqual([])
+  })
+
+  // The chunker used to drop empty paragraphs (visual blank lines between blocks) that the whole-document
+  // parser preserves, so a saved blank line silently vanished on the next load. These assert the chunked
+  // parse reconstructs the SAME empty-paragraph structure the whole-document parser does — at document
+  // edges and between blocks, for one or many blank lines, and around lists.
+  describe('empty paragraphs (blank-line spacing) match the whole-document parser', () => {
+    /** Block-type shape of a doc, `∅` for an empty paragraph, normalized through the editor. */
+    function shapeOf(md: string, parse: 'chunked' | 'whole'): string {
+      editor = new Editor({ extensions: createMarkdownContentExtensions() })
+      if (parse === 'whole') editor.commands.setContent(md, { contentType: 'markdown' })
+      else editor.commands.setContent(parseMarkdownToDoc(md), { contentType: 'json' })
+      const shape = (editor.getJSON().content ?? [])
+        .map((n) => (n.type === 'paragraph' && !n.content?.length ? '∅' : n.type))
+        .join(',')
+      editor.destroy()
+      editor = null
+      return shape
+    }
+
+    it.each([
+      ['one empty between paragraphs', 'a\n\n\n\nb'],
+      ['two empties between paragraphs', 'a\n\n\n\n\n\nb'],
+      ['three empties between paragraphs', 'a\n\n\n\n\n\n\n\nb'],
+      ['even blank-line gap (rounds down)', 'a\n\n\n\n\nb'],
+      ['leading empties', '\n\n\n\na'],
+      ['leading + between', '\n\n\na\n\n\n\nb'],
+      ['empties between a heading and text', '# H\n\n\n\ntext'],
+      ['empties after a tight list', '- a\n- b\n\n\n\ntext'],
+      ['empties before a tight list', 'text\n\n\n\n- a\n- b'],
+      // Line-ending variants: the whole-vs-chunked routing must normalize first, or a `\r`-only body
+      // skips the empty-paragraph guard and is chunked (dropping the empties this fix restores).
+      ['CRLF between empties', 'a\r\n\r\n\r\n\r\nb'],
+      ['CR-only (classic Mac) between empties', 'a\r\r\r\rb'],
+    ])('chunked matches whole-doc: %s', (_label, md) => {
+      expect(shapeOf(md, 'chunked')).toBe(shapeOf(md, 'whole'))
+    })
+  })
+
+  // Regression: a file ending in a blank line (a trailing empty paragraph) must stay EDITABLE. Such an
+  // empty paragraph can't be serialized stably (postProcess collapses trailing newlines), so the parser
+  // strips it — keeping the doc round-trip-safe/idempotent instead of flipping the file read-only.
+  describe('trailing blank lines stay editable (regression)', () => {
+    it.each([
+      ['plain paragraph', 'abc\n\n'],
+      ['heading + text', '# Title\n\nSome text\n\n'],
+      ['three trailing newlines', 'hello\n\n\n'],
+      ['two paragraphs', 'para one\n\npara two\n\n'],
+      ['interior empties + trailing', 'a\n\n\n\nb\n\n'],
+    ])('a file ending in a blank line is round-trip-safe: %s', (_label, md) => {
+      expect(isRoundTripSafe(md)).toBe(true)
+    })
+
+    it('strips the trailing empty paragraph but keeps interior ones', () => {
+      const trailing = parseMarkdownToDoc('abc\n\n').content ?? []
+      expect(trailing.at(-1)?.type).toBe('paragraph')
+      expect(trailing.at(-1)?.content?.length ?? 0).toBeGreaterThan(0)
+      const interior = parseMarkdownToDoc('a\n\n\n\nb').content ?? []
+      expect(interior.some((n) => n.type === 'paragraph' && !n.content?.length)).toBe(true)
+    })
   })
 
   it('parses reference-style links whole (non-chunkable) without dropping the definition', () => {
@@ -195,13 +261,18 @@ function buildFuzzDoc(seed: number): string {
 describe('chunked parse — property test over randomized documents', () => {
   it('chunked === one-shot for every document, and idempotent for every editable one', () => {
     const failures: Array<{ seed: number; kind: string }> = []
+    // Compare modulo trailing whitespace: `parseMarkdownToDoc` strips trailing empty paragraphs (they
+    // can't be serialized stably — postProcess collapses trailing newlines — so keeping them would flip
+    // the file read-only), whereas the raw one-shot parse keeps them. That trailing-only divergence is
+    // intended and invisible after save; interior/leading fidelity is still compared exactly.
+    const trimEnd = (md: string) => md.replace(/\n+$/, '')
     for (let seed = 1; seed <= 400; seed++) {
       const body = buildFuzzDoc(seed)
       const chunked = serializeMarkdownBody(body)
       // Fidelity is the load-bearing invariant — chunked must never diverge from the whole-document
       // parse, for ANY input; idempotency only needs to hold where the doc is editable (raw HTML is
       // non-idempotent in the underlying editor regardless of chunking, which is why it opens read-only).
-      if (chunked !== oneShot(body)) failures.push({ seed, kind: 'fidelity' })
+      if (trimEnd(chunked) !== trimEnd(oneShot(body))) failures.push({ seed, kind: 'fidelity' })
       else if (isRoundTripSafe(body) && serializeMarkdownBody(chunked) !== chunked) {
         failures.push({ seed, kind: 'idempotency' })
       }

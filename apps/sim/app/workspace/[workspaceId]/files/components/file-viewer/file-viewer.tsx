@@ -116,6 +116,11 @@ interface FileViewerProps {
    * never target one editor. See {@link RichMarkdownEditorProps.collaborative}.
    */
   collaborative?: boolean
+  /**
+   * Called (debounced) with the markdown document's leading-heading text while the file is still
+   * untitled, so the caller can name the file after it. Only wired for the editable markdown editor.
+   */
+  onDeriveTitleFromHeading?: (headingText: string) => void
 }
 
 export function FileViewer(props: FileViewerProps) {
@@ -148,6 +153,7 @@ function FileViewerContent({
   disableStreamingAutoScroll = false,
   previewContextKey,
   collaborative,
+  onDeriveTitleFromHeading,
 }: FileViewerProps) {
   const category = resolveFileCategory(file.type, file.name)
 
@@ -193,6 +199,7 @@ function FileViewerContent({
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
           collaborative={collaborative}
+          onDeriveTitleFromHeading={onDeriveTitleFromHeading}
         />
       )
     }
