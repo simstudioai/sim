@@ -24,11 +24,6 @@ export function isUntitledName(name: string): boolean {
   return UNTITLED_NAME_RE.test(name)
 }
 
-/** The title text for a file: its name without the trailing `.md` extension. */
-export function headingTextFromName(name: string): string {
-  return name.replace(/\.md$/i, '')
-}
-
 /**
  * Derives a markdown file name from heading text — illegal filename characters dropped, whitespace
  * collapsed, trimmed, hard-capped at {@link MAX_DERIVED_TITLE_LENGTH}, and suffixed with `.md`.
@@ -41,8 +36,7 @@ export function deriveMarkdownFileName(headingText: string): string | null {
   // Re-trim after the hard cap: truncation can land mid-word and leave a trailing space (`"foo .md"`).
   const capped = truncate(base, MAX_DERIVED_TITLE_LENGTH, '').trim()
   if (!capped) return null
-  // A heading that already ends in `.md` (e.g. `# README.md`) must not become `README.md.md` —
-  // that would also break symmetry with headingTextFromName, which strips only one extension.
+  // A heading that already ends in `.md` (e.g. `# README.md`) must not become `README.md.md`.
   return /\.md$/i.test(capped) ? capped : `${capped}.md`
 }
 

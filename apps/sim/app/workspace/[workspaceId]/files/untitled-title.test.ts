@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_UNTITLED_NAME,
   deriveMarkdownFileName,
-  headingTextFromName,
   isUntitledName,
   uniqueMarkdownName,
 } from './untitled-title'
@@ -31,16 +30,6 @@ describe('isUntitledName', () => {
     ['untitled ().md', false],
   ])('%s → %s', (name, expected) => {
     expect(isUntitledName(name)).toBe(expected)
-  })
-})
-
-describe('headingTextFromName', () => {
-  it('strips a trailing .md extension', () => {
-    expect(headingTextFromName('Q3 Planning.md')).toBe('Q3 Planning')
-    expect(headingTextFromName('notes.MD')).toBe('notes')
-  })
-  it('leaves a name without extension untouched', () => {
-    expect(headingTextFromName('Q3 Planning')).toBe('Q3 Planning')
   })
 })
 

@@ -13,10 +13,7 @@ import { useRouter } from 'next/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
-import {
-  headingTextFromName,
-  isUntitledName,
-} from '@/app/workspace/[workspaceId]/files/untitled-title'
+import { isUntitledName } from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
 import type { SaveStatus } from '@/hooks/use-autosave'
 import { useFileContentSource } from '@/hooks/use-file-content-source'
@@ -45,7 +42,7 @@ import { LinkHoverCard } from './menus/link-hover-card'
 import { TableBubbleMenu } from './menus/table-menu'
 import { normalizeMarkdownContent } from './normalize-content'
 import { isRoundTripSafe } from './round-trip-safety'
-import { firstHeadingTitle, titleHeadingNode } from './title-heading'
+import { firstHeadingTitle } from './title-heading'
 import '@sim/emcn/components/code/code.css'
 import './rich-markdown-editor.css'
 
@@ -123,14 +120,6 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   const userName = session?.user?.name?.trim() || 'Collaborator'
 
   /**
-   * The file name captured when this editor first mounts — before content/session finish loading, so it
-   * is still `untitled` if the file was untitled when opened. The child uses it as the untitled→named
-   * transition baseline; capturing it here (not at the child's later mount) means a rename that lands
-   * during the loading window is still seen as a transition and the heading seed is not lost.
-   */
-  const initialFileNameRef = useRef(file.name)
-
-  /**
    * Autosave gate for the collaborative path: the child reports `false` while its
    * shared document is still syncing/seeding and `true` once it is safe to persist
    * the markdown mirror — so an empty or partially-synced doc can never overwrite
@@ -192,7 +181,6 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
       onSaveShortcut={saveImmediately}
       onCollabReadyChange={setCollabReady}
       onDeriveTitleFromHeading={onDeriveTitleFromHeading}
-      initialFileName={initialFileNameRef.current}
     />
   )
 })
@@ -221,12 +209,6 @@ interface LoadedRichMarkdownEditorProps {
   onCollabReadyChange: (ready: boolean) => void
   /** See {@link RichMarkdownEditorProps.onDeriveTitleFromHeading}. */
   onDeriveTitleFromHeading?: (headingText: string) => void
-  /**
-   * The file name at the moment this editor was opened (captured by the parent before content/session
-   * load). Used as the untitled→named transition baseline so a rename during the loading window is not
-   * missed. See {@link RichMarkdownEditorProps.onDeriveTitleFromHeading}.
-   */
-  initialFileName: string
 }
 
 interface SettledContent {
@@ -257,7 +239,6 @@ export function LoadedRichMarkdownEditor({
   onSaveShortcut,
   onCollabReadyChange,
   onDeriveTitleFromHeading,
-  initialFileName,
 }: LoadedRichMarkdownEditorProps) {
   /** Whether this editor mounted mid-stream — if so it starts empty and syncs streamed chunks until settle. */
   const streamingAtMountRef = useRef(isStreaming)
@@ -325,16 +306,14 @@ export function LoadedRichMarkdownEditor({
   onSaveShortcutRef.current = onSaveShortcut
 
   /**
-   * Untitled ⇄ heading coupling, active only while the file is unnamed. `onDeriveTitleFromHeading` is
-   * called (debounced) so the caller can name the file after its leading heading; `fileNameRef` lets the
-   * onUpdate handler read the current name without re-subscribing, and `prevFileNameRef` lets the
-   * name→heading seed detect the untitled→named transition. See {@link isUntitledName}.
+   * While the file is still unnamed, name it after its leading heading: `onDeriveTitleFromHeading` is
+   * called (debounced) so the caller can rename the file, and `fileNameRef` lets the onUpdate handler
+   * read the current name without re-subscribing. See {@link isUntitledName}.
    */
   const onDeriveTitleFromHeadingRef = useRef(onDeriveTitleFromHeading)
   onDeriveTitleFromHeadingRef.current = onDeriveTitleFromHeading
   const fileNameRef = useRef(file.name)
   fileNameRef.current = file.name
-  const prevFileNameRef = useRef(initialFileName)
   const deriveTitleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /**
    * Read in the RAF tick so an already-scheduled tick still sees the latest edit kind (it can change
@@ -617,28 +596,6 @@ export function LoadedRichMarkdownEditor({
     },
     []
   )
-
-  /**
-   * Name→heading seed: when a still-untitled file is given a real name, seed the document's leading
-   * heading from that name — but only into a document with no heading of its own yet, so existing
-   * content is never clobbered. One-shot by construction: it fires only on the untitled→named transition.
-   */
-  useEffect(() => {
-    // Wait for a render with a live, editable editor before consuming the transition — advancing
-    // prevFileNameRef while editor is still null would record the untitled→named change as "seen" and
-    // silently skip the seed on the later render when the editor is ready.
-    if (!editor || !isEditable) return
-    const prevName = prevFileNameRef.current
-    prevFileNameRef.current = file.name
-    if (!isUntitledName(prevName) || isUntitledName(file.name)) return
-    if (firstHeadingTitle(editor.state.doc) !== null) return
-    const title = headingTextFromName(file.name)
-    if (!title) return
-    // Always prepend, never replace: an empty doc becomes `# Title` + a body line, while any existing
-    // content — including structure-only scaffold (an empty list/blockquote/code block that carries no
-    // text) — is preserved above rather than clobbered.
-    editor.commands.insertContentAt(0, titleHeadingNode(title))
-  }, [file.name, editor, isEditable])
 
   /**
    * The loaded markdown to seed the shared doc from, held by pointer so the parse
