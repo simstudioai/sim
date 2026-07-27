@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { resolveChatUpload } from '@/lib/copilot/tools/handlers/upload-file-reader'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
 import { isPlanAliasPath, workflowAliasSandboxPath } from '@/lib/copilot/vfs/workflow-aliases'
@@ -29,6 +30,7 @@ const logger = createLogger('CopilotFunctionExecute')
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const MAX_TOTAL_SIZE = 50 * 1024 * 1024
 const MAX_MOUNTED_FILES = 500
+const UPLOADS_PREFIX = 'uploads/'
 
 /**
  * Below this row count a table mounts via the direct inline CSV path — the version-keyed snapshot
@@ -170,7 +172,8 @@ export async function resolveInputFiles(
   workspaceId: string,
   inputFiles?: unknown[],
   inputTables?: unknown[],
-  inputDirectories?: unknown[]
+  inputDirectories?: unknown[],
+  chatId?: string
 ): Promise<SandboxFile[]> {
   const sandboxFiles: SandboxFile[] = []
   const mounted: MountedBytes = { buffered: 0, url: 0 }
@@ -182,9 +185,7 @@ export async function resolveInputFiles(
         `Too many input files (${inputFiles.length}). Maximum is ${MAX_MOUNTED_FILES}. Mount fewer files.`
       )
     }
-    const allFiles = await listWorkspaceFiles(workspaceId, {
-      includeReservedSystemFiles: betaEnabled,
-    })
+    let allFiles: WorkspaceFileRecord[] | undefined
     for (const fileRef of inputFiles) {
       const filePath =
         typeof fileRef === 'string'
@@ -193,6 +194,35 @@ export async function resolveInputFiles(
             ? (fileRef as CanonicalFileInput).path
             : undefined
       if (!filePath) continue
+      const explicitSandboxPath =
+        typeof fileRef === 'object' && fileRef !== null
+          ? (fileRef as CanonicalFileInput).sandboxPath
+          : undefined
+      if (filePath.startsWith(UPLOADS_PREFIX)) {
+        const fileName = filePath.slice(UPLOADS_PREFIX.length)
+        if (!fileName || fileName.includes('/')) {
+          throw new Error(`Upload input path must identify one file: "${filePath}"`)
+        }
+        if (!chatId) {
+          throw new Error(`Chat context is required to mount upload: "${filePath}"`)
+        }
+        const record = await resolveChatUpload(fileName, chatId)
+        if (!record) {
+          throw new Error(
+            `Upload not found: "${filePath}". The chat or upload may no longer exist.`
+          )
+        }
+        if (record.workspaceId !== workspaceId) {
+          throw new Error(`Upload does not belong to the current workspace: "${filePath}"`)
+        }
+        await pushWorkspaceFileMount(
+          sandboxFiles,
+          record,
+          explicitSandboxPath || `/home/user/${filePath}`,
+          mounted
+        )
+        continue
+      }
       const alias = await resolveWorkflowAliasForWorkspace({ workspaceId, path: filePath })
       if (!alias && isPlanAliasPath(filePath)) {
         logger.warn('Unsupported plan alias input file path', { filePath })
@@ -202,21 +232,16 @@ export async function resolveInputFiles(
         logger.warn('Input file is a plan alias directory', { filePath })
         continue
       }
+      // Upload mounts bypass the workspace listing, so load it only for persistent files.
+      allFiles ??= await listWorkspaceFiles(workspaceId, {
+        includeReservedSystemFiles: betaEnabled,
+      })
       const record = findWorkspaceFileRecord(allFiles, alias?.backingPath ?? filePath)
       if (!record) {
-        if (filePath.startsWith('uploads/')) {
-          throw new Error(
-            `Cannot mount "${filePath}": uploads/ files are not mountable into the sandbox. Use materialize_file to save it to a files/... path first, then mount that canonical path.`
-          )
-        }
         throw new Error(
           `Input file not found: "${filePath}". Pass the exact canonical VFS path copied from glob/read (e.g. "files/Reports/data.csv").`
         )
       }
-      const explicitSandboxPath =
-        typeof fileRef === 'object' && fileRef !== null
-          ? (fileRef as CanonicalFileInput).sandboxPath
-          : undefined
       const mountPath =
         explicitSandboxPath ||
         (alias ? workflowAliasSandboxPath(alias.aliasPath) : getSandboxWorkspaceFilePath(record))
@@ -441,7 +466,8 @@ export async function executeFunctionExecute(
         context.workspaceId,
         inputFiles,
         inputTables,
-        inputDirectories
+        inputDirectories,
+        context.chatId
       )
       if (resolved.length > 0) {
         const existing = (enrichedParams._sandboxFiles as SandboxFile[]) || []

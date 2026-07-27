@@ -6,12 +6,13 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import {
+  prepareMediaOutput,
+  resolveMediaInputFile,
+} from '@/lib/copilot/tools/server/media/file-paths'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { type FfmpegOperation, type MediaFile, runFfmpegOperation } from '@/lib/media/ffmpeg'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('FfmpegTool')
 
@@ -81,12 +82,23 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
     }
 
     try {
+      // Preflight explicit outputs so invalid paths fail before media processing begins.
+      const outputFile =
+        params.operation === 'probe' || !params.outputs?.files?.length
+          ? undefined
+          : await prepareMediaOutput({
+              output: params.outputs,
+              workspaceId,
+              userId: context.userId,
+            })
+
       const mediaFiles: MediaFile[] = []
       for (const filePath of inputPaths) {
-        const fileRecord = await resolveWorkspaceFileReference(workspaceId, filePath)
-        if (!fileRecord) {
-          return { success: false, message: `Input file not found: ${filePath}` }
-        }
+        const fileRecord = await resolveMediaInputFile({
+          workspaceId,
+          chatId: context.chatId,
+          path: filePath,
+        })
         const buffer = await fetchWorkspaceFileBuffer(fileRecord)
         mediaFiles.push({
           buffer,
@@ -123,7 +135,6 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
         return { success: false, message: `ffmpeg ${params.operation} produced no output` }
       }
 
-      const outputFile = params.outputs?.files?.[0]
       const outputPath = outputFile?.path || `files/ffmpeg-${params.operation}.${result.ext}`
       const mode = outputFile?.mode ?? 'create'
 

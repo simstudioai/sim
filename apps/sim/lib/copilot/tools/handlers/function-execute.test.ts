@@ -18,6 +18,7 @@ const {
   mockFetchWorkspaceFileBuffer,
   mockGetSandboxWorkspaceFilePath,
   mockListWorkspaceFileFolders,
+  mockResolveChatUpload,
 } = vi.hoisted(() => ({
   mockIsFeatureEnabled: vi.fn(),
   mockGetTableById: vi.fn(),
@@ -33,6 +34,7 @@ const {
   mockFetchWorkspaceFileBuffer: vi.fn(),
   mockGetSandboxWorkspaceFilePath: vi.fn(),
   mockListWorkspaceFileFolders: vi.fn(),
+  mockResolveChatUpload: vi.fn(),
 }))
 
 vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: mockIsFeatureEnabled }))
@@ -70,6 +72,9 @@ vi.mock('@/lib/copilot/vfs/workflow-alias-resolver', () => ({
 vi.mock('@/lib/copilot/vfs/workflow-aliases', () => ({
   isPlanAliasPath: () => false,
   workflowAliasSandboxPath: (p: string) => p,
+}))
+vi.mock('@/lib/copilot/tools/handlers/upload-file-reader', () => ({
+  resolveChatUpload: mockResolveChatUpload,
 }))
 
 import { executeFunctionExecute } from '@/lib/copilot/tools/handlers/function-execute'
@@ -268,6 +273,14 @@ const fileRecord = {
   storageContext: 'workspace' as const,
 }
 
+const uploadRecord = {
+  ...fileRecord,
+  id: 'upload_1',
+  name: 'My Report.csv',
+  key: 'mothership/chat_1/my-report.csv',
+  storageContext: 'mothership' as const,
+}
+
 describe('executeFunctionExecute file mounts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -307,6 +320,51 @@ describe('executeFunctionExecute file mounts', () => {
     expect(file.path).toBe('/home/user/files/data.csv')
     expect(file.content).toBe('name\nAda\n')
     expect(file.type).toBeUndefined()
+  })
+
+  it('mounts a chat upload at its canonical sandbox path', async () => {
+    mockResolveChatUpload.mockResolvedValue(uploadRecord)
+
+    await executeFunctionExecute({ inputs: { files: [{ path: 'uploads/My%20Report.csv' }] } }, {
+      ...context,
+      chatId: 'chat_1',
+    } as never)
+
+    expect(mockResolveChatUpload).toHaveBeenCalledWith('My%20Report.csv', 'chat_1')
+    expect(mockListWorkspaceFiles).not.toHaveBeenCalled()
+    expect(mockGeneratePresignedDownloadUrl).toHaveBeenCalledWith(
+      'mothership/chat_1/my-report.csv',
+      'mothership',
+      expect.any(Number)
+    )
+    expect(mountedFiles()[0]).toEqual({
+      type: 'url',
+      path: '/home/user/uploads/My%20Report.csv',
+      url: 'https://s3.example/file?sig=abc',
+    })
+  })
+
+  it('reports when a chat upload is no longer available', async () => {
+    mockResolveChatUpload.mockResolvedValue(null)
+
+    await expect(
+      executeFunctionExecute({ inputFiles: ['uploads/missing.csv'] }, {
+        ...context,
+        chatId: 'chat_1',
+      } as never)
+    ).rejects.toThrow('Upload not found: "uploads/missing.csv"')
+  })
+
+  it('rejects a chat upload from another workspace', async () => {
+    mockResolveChatUpload.mockResolvedValue({ ...uploadRecord, workspaceId: 'ws_2' })
+
+    await expect(
+      executeFunctionExecute({ inputFiles: ['uploads/My%20Report.csv'] }, {
+        ...context,
+        chatId: 'chat_1',
+      } as never)
+    ).rejects.toThrow('Upload does not belong to the current workspace')
+    expect(mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
   })
 
   it('cloud storage: throws when a file exceeds the per-file URL mount limit', async () => {
