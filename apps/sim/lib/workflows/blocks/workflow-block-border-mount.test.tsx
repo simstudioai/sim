@@ -96,10 +96,15 @@ describe('WorkflowBlockBorder mount', () => {
     expect(getHorizontalWorkflowHandleSide(124.9, 250)).toBe('left')
     expect(getHorizontalWorkflowHandleSide(125, 250)).toBe('right')
     expect(getHorizontalWorkflowHandleSide(230, 250)).toBe('right')
-    expect(normalizeCursorSourceHandleId('source-cursor-left')).toBe('source-left')
+    /* Outputs always leave from the right, whichever edge the drag began on —
+       anchoring one on the left would put an outgoing line on the input port. */
+    expect(normalizeCursorSourceHandleId('source-cursor-left')).toBe('source-right')
     expect(normalizeCursorSourceHandleId('source-cursor-right')).toBe('source-right')
     expect(normalizeCursorSourceHandleId('source-cursor-top')).toBe('source-right')
     expect(normalizeCursorSourceHandleId('source-cursor-bottom')).toBe('source-right')
+    /* Anything that already reached the graph collapses the same way. */
+    expect(normalizePositionedSourceHandleId('source-left')).toBe('source-right')
+    expect(normalizePositionedSourceHandleId('source-right')).toBe('source-right')
   })
 
   it('uses the grabbed edge only for the transient preview direction', () => {
