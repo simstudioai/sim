@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { Chip, ChipConfirmModal, toast } from '@sim/emcn'
 import { Download, Lock, Pencil, Table as TableIcon, Trash, Upload } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -61,12 +61,7 @@ import {
 import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
 import { COLUMN_TYPE_ICONS } from './components/table-grid/headers'
 import { useTable, useTableEventStream } from './hooks'
-import {
-  type BlockedTableAction,
-  describeBlockedAction,
-  describeLocks,
-  lockedNouns,
-} from './lock-copy'
+import { type BlockedTableAction, describeBlockedAction, lockedNouns } from './lock-copy'
 import {
   DEFAULT_TABLE_DETAIL_SORT_DIRECTION,
   tableDetailParsers,
@@ -627,7 +622,10 @@ export function Table({
       if (!tableData) return
       if (blockedToastIdRef.current) toast.dismiss(blockedToastIdRef.current)
       const { title, text } = describeBlockedAction(action, tableData.locks)
-      blockedToastIdRef.current = toast.warning(title, {
+      // 'status' is the on-open announcement — nothing was refused, so it reads
+      // as information rather than a warning.
+      const notify = action === 'status' ? toast.info : toast.warning
+      blockedToastIdRef.current = notify(title, {
         description: text,
         ...(canOpenLockSettings
           ? {
@@ -641,23 +639,19 @@ export function Table({
     [tableData, canOpenLockSettings]
   )
 
+  // Announce the lock state once per table on open. Marked announced as soon as
+  // the table resolves, so an admin who just set locks isn't toasted about them.
+  const announcedLockTableIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!tableData || announcedLockTableIdRef.current === tableData.id) return
+    announcedLockTableIdRef.current = tableData.id
+    if (lockedNouns(tableData.locks).length === 0) return
+    showBlockedToast('status')
+  }, [tableData, showBlockedToast])
+
   const headerActions = useMemo(() => {
     if (!tableData) return undefined
-    // Header space is for state, not for settings: the chip appears only once
-    // something is actually locked, and names the mode so it reads at a glance.
-    // Reaching the panel on an unlocked table is the dropdown's job.
-    const anyLocked = lockedNouns(tableData.locks).length > 0
     return [
-      ...(anyLocked
-        ? [
-            {
-              label: describeLocks(tableData.locks).name,
-              icon: Lock,
-              onClick: () =>
-                userPermissions.canAdmin ? setShowLockSettings(true) : showBlockedToast('status'),
-            },
-          ]
-        : []),
       {
         label: 'Import CSV',
         icon: Upload,
@@ -673,14 +667,7 @@ export function Table({
         disabled: tableData.rowCount === 0,
       },
     ]
-  }, [
-    tableData,
-    userPermissions.canEdit,
-    userPermissions.canAdmin,
-    handleExportCsv,
-    onRequestImportCsv,
-    showBlockedToast,
-  ])
+  }, [tableData, userPermissions.canEdit, handleExportCsv, onRequestImportCsv])
 
   // Adding a column is a schema change. The trigger stays visible when the
   // table is schema-locked and explains itself instead of disappearing.
