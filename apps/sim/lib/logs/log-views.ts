@@ -23,6 +23,23 @@ const DEFAULT_MAX_MATCHES = 50
 const DEFAULT_MAX_SNIPPET_CHARS = 500
 const DEFAULT_MAX_SLICES_SCANNED = 200
 
+/**
+ * Cumulative time the pattern itself may spend matching, across all spans/fields.
+ *
+ * Deliberately counts only time inside `test`/`exec`, not the grep's wall clock:
+ * the scan awaits blob-store reads (array slices, large-value refs) between
+ * matches, and charging that I/O to the budget would truncate slow-but-legitimate
+ * greps under load. Matching is the only part that occupies the event loop, so
+ * it is the only part worth bounding.
+ */
+const DEFAULT_MATCH_TIME_BUDGET_MS = 5_000
+/**
+ * Total characters a single grep may run the pattern over. A backstop against a
+ * pattern that slips past the backtracking screen being amplified across every
+ * slice — set well above any realistic trace so normal greps never trip it.
+ */
+const DEFAULT_MAX_SCANNED_CHARS = 64 * 1024 * 1024
+
 // ---------------------------------------------------------------------------
 // Overview (Level 2): block tree with timing + cost, NO input/output.
 // ---------------------------------------------------------------------------
@@ -172,21 +189,34 @@ export interface GrepSpanMatch {
 export interface GrepSpansResult {
   matches: GrepSpanMatch[]
   truncated: boolean
+  /**
+   * Present when the pattern contained regex syntax, which is matched literally.
+   * The tool catalog cannot say so up front — it is generated from a contract in
+   * another repository — so the caller is told here instead of silently reading
+   * zero matches as "not present in the trace".
+   */
+  patternNotice?: string
 }
 
 export interface GrepSpansOptions {
   maxMatches?: number
   maxSnippetChars?: number
   maxSlicesScanned?: number
+  maxScannedChars?: number
+  matchTimeBudgetMs?: number
 }
 
 interface GrepState {
   matches: GrepSpanMatch[]
   slicesScanned: number
+  scannedChars: number
+  matchTimeMs: number
   truncated: boolean
   maxMatches: number
   maxSnippetChars: number
   maxSlicesScanned: number
+  maxScannedChars: number
+  matchTimeBudgetMs: number
   regex: RegExp
 }
 
@@ -194,16 +224,50 @@ function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function buildRegex(pattern: string): RegExp {
-  try {
-    return new RegExp(pattern, 'i')
-  } catch {
-    return new RegExp(escapeRegExp(pattern), 'i')
+/** Regex syntax in a pattern signals the caller expected regex semantics. */
+const REGEX_METACHARACTERS = /[.*+?^${}()|[\]\\]/
+
+/**
+ * Compile a caller-supplied grep pattern as a case-insensitive literal.
+ *
+ * Caller patterns are deliberately never executed as regexes. Trace text is
+ * attacker-influenced — a workflow can emit arbitrarily long uniform runs into
+ * its own block outputs — and matching runs synchronously on the shared event
+ * loop, so a backtracking pattern stalls every request on the instance.
+ *
+ * Screening was tried and abandoned: `safe-regex2` (which the guardrails
+ * validator uses) documents itself as having false negatives and passes
+ * `(a|a)*b`; rejecting quantified groups on top of it still passes `a*a*b`,
+ * measured at 213s on JSC and 132s on V8 over a 10k-character run. Each rule
+ * only excludes the shapes someone thought to enumerate. An escaped literal is
+ * linear on every engine, which is the one property worth relying on here.
+ */
+function compilePattern(pattern: string): { regex: RegExp; notice?: string } {
+  const regex = new RegExp(escapeRegExp(pattern), 'i')
+  if (!REGEX_METACHARACTERS.test(pattern)) return { regex }
+  return {
+    regex,
+    notice:
+      'Matched as a literal, case-insensitive substring — regex syntax is not interpreted. Search for the literal text you expect to see in the trace.',
   }
 }
 
-function snippetAround(text: string, regex: RegExp, maxChars: number): string {
-  const m = regex.exec(text)
+/**
+ * Charge the elapsed matching time to the grep's budget. Every `test`/`exec` on
+ * caller-supplied patterns goes through here.
+ */
+function runTimed<T>(state: GrepState, match: (regex: RegExp) => T): T {
+  const started = performance.now()
+  try {
+    state.regex.lastIndex = 0
+    return match(state.regex)
+  } finally {
+    state.matchTimeMs += performance.now() - started
+  }
+}
+
+function snippetAround(text: string, state: GrepState, maxChars: number): string {
+  const m = runTimed(state, (regex) => regex.exec(text))
   const index = m ? m.index : 0
   const half = Math.floor(maxChars / 2)
   const start = Math.max(0, index - half)
@@ -214,7 +278,12 @@ function snippetAround(text: string, regex: RegExp, maxChars: number): string {
 }
 
 function done(state: GrepState): boolean {
-  return state.truncated || state.matches.length >= state.maxMatches
+  if (state.truncated || state.matches.length >= state.maxMatches) return true
+  if (state.matchTimeMs >= state.matchTimeBudgetMs) {
+    state.truncated = true
+    return true
+  }
+  return false
 }
 
 function recordIfMatch(
@@ -224,15 +293,18 @@ function recordIfMatch(
   state: GrepState
 ): void {
   if (done(state)) return
-  state.regex.lastIndex = 0
-  if (!state.regex.test(text)) return
-  state.regex.lastIndex = 0
+  if (state.scannedChars + text.length > state.maxScannedChars) {
+    state.truncated = true
+    return
+  }
+  state.scannedChars += text.length
+  if (!runTimed(state, (regex) => regex.test(text))) return
   state.matches.push({
     spanId: span.id,
     blockId: span.blockId,
     name: span.name,
     field,
-    snippet: snippetAround(text, state.regex, state.maxSnippetChars),
+    snippet: snippetAround(text, state, state.maxSnippetChars),
   })
   if (state.matches.length >= state.maxMatches) state.truncated = true
 }
@@ -305,6 +377,13 @@ function safeStringify(value: unknown): string {
  * directly; large-array I/O is streamed slice-by-slice (each released before the
  * next); single large refs are materialized under a byte cap (falling back to
  * the ref preview). Only bounded match snippets are accumulated.
+ *
+ * `pattern` is matched as a literal substring, never as a regex — see
+ * `compilePattern`. Two budgets bound the scan on top of that: a total
+ * character budget and a cumulative match-time budget. Neither counts the
+ * blob-store I/O this scan awaits, so a slow-but-legitimate grep is not
+ * truncated for being slow. With literal matching both are backstops rather
+ * than load-bearing, and they stay to bound total work per request.
  */
 export async function grepSpans(
   spans: TraceSpan[],
@@ -312,14 +391,19 @@ export async function grepSpans(
   ctx: LogViewContext,
   opts?: GrepSpansOptions
 ): Promise<GrepSpansResult> {
+  const compiled = compilePattern(pattern)
   const state: GrepState = {
     matches: [],
     slicesScanned: 0,
+    scannedChars: 0,
+    matchTimeMs: 0,
     truncated: false,
     maxMatches: opts?.maxMatches ?? DEFAULT_MAX_MATCHES,
     maxSnippetChars: opts?.maxSnippetChars ?? DEFAULT_MAX_SNIPPET_CHARS,
     maxSlicesScanned: opts?.maxSlicesScanned ?? DEFAULT_MAX_SLICES_SCANNED,
-    regex: buildRegex(pattern),
+    maxScannedChars: opts?.maxScannedChars ?? DEFAULT_MAX_SCANNED_CHARS,
+    matchTimeBudgetMs: opts?.matchTimeBudgetMs ?? DEFAULT_MATCH_TIME_BUDGET_MS,
+    regex: compiled.regex,
   }
 
   const walk = async (list: TraceSpan[]): Promise<void> => {
@@ -335,5 +419,9 @@ export async function grepSpans(
   }
 
   await walk(spans)
-  return { matches: state.matches, truncated: state.truncated }
+  return {
+    matches: state.matches,
+    truncated: state.truncated,
+    ...(compiled.notice ? { patternNotice: compiled.notice } : {}),
+  }
 }

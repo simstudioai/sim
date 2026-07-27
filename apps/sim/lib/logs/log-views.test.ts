@@ -32,6 +32,7 @@ vi.mock('@/lib/execution/payloads/store', () => ({
   materializeLargeValueRef: materializeLargeValueRefMock,
 }))
 
+import { sleep } from '@sim/utils/helpers'
 import type { TraceSpan } from '@/lib/logs/types'
 import { grepSpans, type LogViewContext, toFull, toOverview } from './log-views'
 
@@ -169,10 +170,80 @@ describe('grepSpans', () => {
     expect(result.matches.some((m) => m.field === 'output')).toBe(true)
   })
 
-  it('falls back to literal substring on invalid regex', async () => {
+  it('matches regex syntax literally rather than interpreting it', async () => {
     const spans = [span({ output: { v: 'value a(b found' } })]
     const result = await grepSpans(spans, '(', ctx)
     expect(result.matches.some((m) => m.field === 'output')).toBe(true)
+    expect(result.patternNotice).toContain('literal')
+  })
+
+  it('does not interpret a regex pattern, and says so', async () => {
+    const spans = [span({ output: { v: 'status=503' } })]
+
+    // Literal 'status=\d+' is not present; the regex it denotes would have matched.
+    const asRegex = await grepSpans(spans, 'status=\\d+', ctx)
+    expect(asRegex.matches).toEqual([])
+    expect(asRegex.patternNotice).toContain('literal')
+
+    const asLiteral = await grepSpans(spans, 'status=503', ctx)
+    expect(asLiteral.matches.some((m) => m.field === 'output')).toBe(true)
+    expect(asLiteral.patternNotice).toBeUndefined()
+  })
+
+  it.each([
+    ['nested quantifier', '(a+)+$'],
+    ['duplicate alternation, passes safe-regex2', '(a|a)*b'],
+    ['adjacent quantifiers, passes every structural screen', 'a*a*b'],
+  ])('never executes a catastrophic pattern (%s)', async (_label, pattern) => {
+    // Each of these blocks the event loop for minutes if compiled as a regex:
+    // `a*a*b` measured 213s on JSC / 132s on V8 over a 10k-character run.
+    const spans = [span({ output: { v: `${'a'.repeat(5000)}!` } })]
+
+    const start = Date.now()
+    const result = await grepSpans(spans, pattern, ctx)
+    const elapsedMs = Date.now() - start
+
+    expect(elapsedMs).toBeLessThan(1000)
+    expect(result.matches).toEqual([])
+  })
+
+  it('matches a long pattern literally without a length cap', async () => {
+    const pattern = `${'x'.repeat(600)}needle`
+    const spans = [span({ output: { v: pattern } })]
+    const result = await grepSpans(spans, pattern, ctx)
+    expect(result.matches.some((m) => m.field === 'output')).toBe(true)
+  })
+
+  it('stops scanning and marks truncated once the character budget is exhausted', async () => {
+    const spans = [
+      span({ id: 'a', output: { v: 'x'.repeat(400) } }),
+      span({ id: 'b', output: { v: 'needle' } }),
+    ]
+    const result = await grepSpans(spans, 'needle', ctx, { maxScannedChars: 100 })
+    expect(result.matches).toEqual([])
+    expect(result.truncated).toBe(true)
+  })
+
+  it('stops scanning and marks truncated once the match-time budget is exhausted', async () => {
+    const spans = [span({ output: { v: 'needle' } })]
+    const result = await grepSpans(spans, 'needle', ctx, { matchTimeBudgetMs: 0 })
+    expect(result.matches).toEqual([])
+    expect(result.truncated).toBe(true)
+  })
+
+  it('does not charge blob-store I/O to the match-time budget', async () => {
+    // Each slice read sleeps well past the budget: only time spent matching
+    // counts, so a slow-but-legitimate grep must still return complete results.
+    readLargeArrayManifestSliceMock.mockImplementation(async (_m: unknown, start: number) => {
+      await sleep(30)
+      return start === 400 ? [{ v: 'found the needle here' }] : [{ v: 'nothing' }]
+    })
+    const spans = [span({ output: manifest(500) as any })]
+
+    const result = await grepSpans(spans, 'needle', ctx, { matchTimeBudgetMs: 50 })
+
+    expect(result.matches.some((m) => m.field === 'output')).toBe(true)
+    expect(result.truncated).toBe(false)
   })
 
   it('returns empty for empty traceSpans', async () => {
