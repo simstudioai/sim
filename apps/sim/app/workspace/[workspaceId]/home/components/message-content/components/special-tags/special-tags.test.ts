@@ -358,6 +358,24 @@ describe('parseSpecialTags with <question>', () => {
     expect(renderedText(segments)).toBe(raw)
   })
 
+  it('settles a prose mention at any length, but defers a payload that closes past the window', () => {
+    // The scan window's accepted blind spot, pinned so it stays a decision.
+    //
+    // A mention in prose settles at its FIRST character however long the message
+    // runs — prose does not open with `{`, so viability fails immediately.
+    const mention = `see <workspace_resource> ${'long prose. '.repeat(600)}`
+    expect(parseSpecialTags(mention, true).hasPendingTag).toBe(false)
+
+    // But a JSON body whose top-level value closes BEYOND the window still reads
+    // as a viable prefix, so the tail stays hidden until the stream ends. Needs a
+    // payload several times larger than any tag emits, and it is lossless once
+    // complete — the cost of bounding a scan that otherwise stalls the main
+    // thread.
+    const oversized = `see <workspace_resource>{"type":"file","note":"${'x'.repeat(5000)}"} and then prose.`
+    expect(parseSpecialTags(oversized, true).hasPendingTag).toBe(true)
+    expect(renderedText(parseSpecialTags(oversized, false).segments)).toBe(oversized)
+  })
+
   it('still renders a matched pair whose body IS valid', () => {
     const raw =
       'see <workspace_resource>{"type":"file","path":"files/a.md","title":"a.md"}</workspace_resource> ok'

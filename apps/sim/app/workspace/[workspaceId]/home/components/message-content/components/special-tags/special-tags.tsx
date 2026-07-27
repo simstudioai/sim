@@ -489,16 +489,29 @@ const JSON_BODY_TAG_NAMES: ReadonlySet<(typeof SPECIAL_TAG_NAMES)[number]> = new
 )
 
 /**
- * How much of an unclosed body to inspect per parse.
+ * How much of a body to inspect per parse, on both the unclosed and matched-pair
+ * paths.
  *
- * Both rules in {@link unclosedTagCannotResolve} decide on their FIRST piece of
- * evidence — the first foreign marker, or the first character that breaks JSON
- * viability — so a bounded window reaches the same verdict as the full remainder
- * for any real payload. Unbounded, the check is O(remaining length) and runs
- * once per opener inside a parse that re-runs for every streamed chunk, so a
- * long reply repeatedly mentioning a tag name in prose costs seconds of
- * main-thread time. Evidence past the window only defers the decision to a later
- * chunk, which is the same conservative direction the rules already take.
+ * The rules in {@link unclosedTagCannotResolve} and {@link literalTextReason}
+ * decide on their FIRST piece of evidence — the first foreign marker, or the
+ * first character that breaks JSON viability — so a bounded window reaches the
+ * same verdict as the full remainder for any payload a tag actually carries.
+ * Unbounded, the check is O(body length) and runs once per opener inside a parse
+ * that re-runs for every streamed chunk: a long reply repeatedly mentioning a tag
+ * name cost seconds of main-thread time, and one 58KB reply whose early close was
+ * misspelled — so a single body stretched most of the message — cost 242ms per
+ * parse against 35ms bounded.
+ *
+ * The window's one blind spot, and why it is accepted: a JSON body whose
+ * top-level value closes BEYOND the window, followed by prose and no closing tag,
+ * still reads as a viable prefix, so the remainder stays hidden until the stream
+ * ends rather than settling mid-stream. It is lossless — the completed parse
+ * renders every character — and it needs a payload several times larger than any
+ * tag emits (a `<workspace_resource>` runs ~100 characters, a `<question>` card
+ * under ~1500). A mention in prose settles at its first character at any length,
+ * because prose does not open with `{`. Widening or removing the window to close
+ * that gap would trade a measured, reachable main-thread freeze for a
+ * hypothetical one.
  */
 const MAX_UNCLOSED_BODY_SCAN = 4096
 
