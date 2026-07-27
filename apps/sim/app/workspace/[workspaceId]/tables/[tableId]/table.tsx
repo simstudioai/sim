@@ -627,6 +627,11 @@ export function Table({
       const notify = action === 'status' ? toast.info : toast.warning
       blockedToastIdRef.current = notify(title, {
         description: text,
+        // The provider's route-change sweep runs after child effects, so an
+        // announcement fired on a warm-cache navigation would be cleared in the
+        // same commit it was added. These toasts belong to this view, so they
+        // opt out of the sweep and are dismissed on unmount instead.
+        persistAcrossRoutes: true,
         ...(canOpenLockSettings
           ? {
               action: { label: 'Lock settings', onClick: () => setShowLockSettings(true) },
@@ -650,6 +655,15 @@ export function Table({
     if (lockedNouns(tableData.locks).length === 0) return
     showBlockedToast('status')
   }, [tableData, userPermissions.isLoading, showBlockedToast])
+
+  // Counterpart to `persistAcrossRoutes` above: this view's toasts don't trail
+  // the user once it goes away.
+  useEffect(
+    () => () => {
+      if (blockedToastIdRef.current) toast.dismiss(blockedToastIdRef.current)
+    },
+    []
+  )
 
   const headerActions = useMemo(() => {
     if (!tableData) return undefined
