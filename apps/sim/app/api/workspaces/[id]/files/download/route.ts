@@ -126,6 +126,7 @@ export const GET = withRouteHandler(
       const controller = new AbortController()
       let renderedBytes = 0
       let overLimit = false
+      let overLimitFileName: string | null = null
 
       const downloads = await mapWithConcurrency(
         filesToZip,
@@ -153,6 +154,7 @@ export const GET = withRouteHandler(
             // downgrade an actionable 400 into an opaque 500.
             if (error instanceof PayloadSizeLimitError) {
               overLimit = true
+              overLimitFileName ??= file.name
               controller.abort()
               return { buffer: null, pendingName: null, error: null }
             }
@@ -173,6 +175,17 @@ export const GET = withRouteHandler(
 
       // Size first: the request cannot succeed at any size-adjacent retry, and a
       // descriptive 400 beats an opaque 500 raised by whatever the abort cancelled.
+      if (overLimitFileName) {
+        // Naming the entry that blew its own allowance: an aggregate message here
+        // would tell the user to select fewer files when the selection was fine.
+        return NextResponse.json(
+          {
+            error: `"${overLimitFileName}" is too large to include in a zip. A single document may render up to ${formatFileSize(RENDERED_DOCUMENT_HEADROOM_BYTES)}; download it on its own instead.`,
+          },
+          { status: 400 }
+        )
+      }
+
       if (overLimit || renderedBytes > MAX_ZIP_DOWNLOAD_BYTES) {
         return overLimitResponse(renderedBytes, ' once documents are rendered')
       }

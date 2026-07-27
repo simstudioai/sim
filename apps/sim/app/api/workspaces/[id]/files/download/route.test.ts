@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { createMockRequest } from '@sim/testing'
+import { sleep } from '@sim/utils/helpers'
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -130,7 +131,10 @@ describe('workspace files download route', () => {
     const response = await GET(requestFor('fileIds=f1'), context)
 
     expect(response.status).toBe(400)
-    expect((await response.json()).error).toContain('exceeds')
+    // Names the offending entry rather than blaming the whole selection.
+    const body = await response.json()
+    expect(body.error).toContain('huge.docx')
+    expect(body.error).not.toContain('Selected files total')
   })
 
   it('lets an uploaded office file larger than the render headroom through', async () => {
@@ -199,7 +203,7 @@ describe('workspace files download route', () => {
     mockFetchServableWorkspaceFileBuffer.mockImplementation(async (file: { name: string }) => {
       if (file.name === 'broken.txt') throw new Error('storage down')
       // Lands after the hard failure has already aborted the shared controller.
-      await new Promise((resolve) => setTimeout(resolve, 1))
+      await sleep(1)
       throw new PayloadSizeLimitError({ label: 'servable file download', maxBytes: 1 })
     })
 
