@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { snapSelectionToChips } from '@/app/workspace/[workspaceId]/home/components/user-input/chip-selection'
 import {
   chipDisplayToken,
@@ -281,21 +280,6 @@ export function usePromptEditor({
     }
     seedRef.current = skills.length > 0 || mcpServers.length > 0 ? null : converted
   }, [skills.length, mcpServers.length, applyAutoMentions])
-
-  const existingResourceKeys = useMemo(() => {
-    const keys = new Set<string>()
-    for (const ctx of contextManagement.selectedContexts) {
-      if (ctx.kind === 'workflow' && ctx.workflowId) keys.add(`workflow:${ctx.workflowId}`)
-      if (ctx.kind === 'knowledge' && ctx.knowledgeId) keys.add(`knowledgebase:${ctx.knowledgeId}`)
-      if (ctx.kind === 'table' && ctx.tableId) keys.add(`table:${ctx.tableId}`)
-      if (ctx.kind === 'file' && ctx.fileId) keys.add(`file:${ctx.fileId}`)
-      if (ctx.kind === 'folder' && ctx.folderId) keys.add(`folder:${ctx.folderId}`)
-      if (ctx.kind === 'past_chat' && ctx.chatId) keys.add(`task:${ctx.chatId}`)
-    }
-    return keys
-  }, [contextManagement.selectedContexts])
-
-  const availableResources = useAvailableResources(workspaceId, existingResourceKeys)
 
   /**
    * Programmatically replaces the editor text. Chipifies by default so any
@@ -1041,11 +1025,11 @@ export function usePromptEditor({
     textareaRef,
 
     /** @internal Wiring consumed by the {@link PromptEditor} view. */
+    workspaceId,
+    /** @internal */
     skills,
     /** @internal */
     mcpServers,
-    /** @internal */
-    availableResources,
     /** @internal */
     mentionQuery,
     /** @internal */

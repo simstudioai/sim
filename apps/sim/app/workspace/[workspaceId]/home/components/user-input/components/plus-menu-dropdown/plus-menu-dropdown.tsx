@@ -17,7 +17,7 @@ import {
   buildFileFolderTree,
   buildWorkflowFolderTree,
   FileFolderTreeItems,
-  type useAvailableResources,
+  useAvailableResources,
   WorkflowFolderTreeItems,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
@@ -27,17 +27,20 @@ import type {
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 
-export type AvailableResourceGroup = ReturnType<typeof useAvailableResources>[number]
-
 /**
  * Resource types that are only offered via `@`-mention autocomplete and hidden
  * from the `+` browse menu. Integrations are searchable inline (e.g. typing
  * `@sla` surfaces Slack) but should not clutter the explicit attach menu.
+ *
+ * Filtered here rather than via the hook's `excludeTypes` because the exclusion
+ * is mode-dependent (`isMention`) — one fetch serves both modes. The resource
+ * tab bar, whose exclusion is static, uses `excludeTypes` instead
+ * (`ADD_RESOURCE_EXCLUDED_TYPES` in `resource-tabs`).
  */
 const MENTION_ONLY_RESOURCE_TYPES = new Set<MothershipResourceType>(['integration'])
 
 interface PlusMenuDropdownProps {
-  availableResources: AvailableResourceGroup[]
+  workspaceId: string
   onResourceSelect: (resource: MothershipResource) => void
   onClose: () => void
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
@@ -48,7 +51,7 @@ interface PlusMenuDropdownProps {
 
 export const PlusMenuDropdown = React.memo(
   React.forwardRef<PlusMenuHandle, PlusMenuDropdownProps>(function PlusMenuDropdown(
-    { availableResources, onResourceSelect, onClose, textareaRef, pendingCursorRef, mentionQuery },
+    { workspaceId, onResourceSelect, onClose, textareaRef, pendingCursorRef, mentionQuery },
     ref
   ) {
     const [open, setOpen] = useState(false)
@@ -58,6 +61,9 @@ export const PlusMenuDropdown = React.memo(
     const [activeIndex, setActiveIndex] = useState(0)
     const searchRef = useRef<HTMLInputElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
+
+    // Gated on `open` so an idle chat surface never fetches the workspace lists.
+    const availableResources = useAvailableResources(workspaceId, { enabled: open })
 
     const doOpen = useCallback(
       (anchor: { left: number; top: number }, options?: { mention?: boolean }) => {
@@ -74,8 +80,6 @@ export const PlusMenuDropdown = React.memo(
       setOpen(false)
     }, [])
 
-    // The `+` browse menu hides mention-only resource types; `@`-mention mode
-    // exposes the full catalog so integrations remain searchable inline.
     const visibleResources = useMemo(
       () =>
         isMention

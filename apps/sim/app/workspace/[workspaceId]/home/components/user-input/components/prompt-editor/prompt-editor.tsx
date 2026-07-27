@@ -219,7 +219,7 @@ export function PromptEditor({
         <>
           <PlusMenuDropdown
             ref={editor.plusMenuRef}
-            availableResources={editor.availableResources}
+            workspaceId={editor.workspaceId}
             onResourceSelect={editor.insertResource}
             onClose={editor.handlePlusMenuClose}
             textareaRef={editor.textareaRef}
