@@ -639,15 +639,17 @@ export function Table({
     [tableData, canOpenLockSettings]
   )
 
-  // Announce the lock state once per table on open. Marked announced as soon as
-  // the table resolves, so an admin who just set locks isn't toasted about them.
+  // Announce the lock state once per table on open. Unlike the re-rendering
+  // permission gates, this fires once and can't self-correct, so it waits for
+  // `canAdmin` to settle instead of treating loading as permitted.
   const announcedLockTableIdRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!tableData || announcedLockTableIdRef.current === tableData.id) return
+    if (!tableData || userPermissions.isLoading) return
+    if (announcedLockTableIdRef.current === tableData.id) return
     announcedLockTableIdRef.current = tableData.id
     if (lockedNouns(tableData.locks).length === 0) return
     showBlockedToast('status')
-  }, [tableData, showBlockedToast])
+  }, [tableData, userPermissions.isLoading, showBlockedToast])
 
   const headerActions = useMemo(() => {
     if (!tableData) return undefined
