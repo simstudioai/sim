@@ -685,9 +685,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
           if (denied) return denied
 
-          const buffer = await downloadFileFromStorage(userFile, requestId, logger, {
-            maxBytes: MAX_COMPRESS_FILE_BYTES,
-          })
+          // Generated docs store their generation source, not the rendered binary, so
+          // the archive must carry the servable bytes instead of the raw source text.
+          let buffer: Buffer
+          try {
+            const servable = await downloadServableFileFromStorage(userFile, requestId, logger, {
+              maxBytes: MAX_COMPRESS_FILE_BYTES,
+            })
+            buffer = servable.buffer
+          } catch (error) {
+            const notReady = docNotReadyResponse(error)
+            if (notReady) return notReady
+            throw error
+          }
           totalBytes += buffer.length
           if (totalBytes > MAX_COMPRESS_TOTAL_BYTES) {
             return NextResponse.json(

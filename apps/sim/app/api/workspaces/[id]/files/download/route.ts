@@ -5,21 +5,39 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile'
+import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
   buildWorkspaceFileFolderPathMap,
-  fetchWorkspaceFileBuffer,
   listWorkspaceFileFolders,
   listWorkspaceFiles,
 } from '@/lib/uploads/contexts/workspace'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { buildZipEntryPaths } from '@/lib/uploads/zip-entry-path'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
+import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('WorkspaceFilesDownloadAPI')
 const MAX_ZIP_DOWNLOAD_FILES = 100
 const MAX_ZIP_DOWNLOAD_BYTES = 250 * 1024 * 1024
+
+/** Shape `downloadServableFileFromStorage` needs to locate and label the stored object. */
+function toServableInput(file: WorkspaceFileRecord): UserFile {
+  return {
+    id: file.id,
+    name: file.name,
+    url: file.path,
+    size: file.size,
+    type: file.type,
+    key: file.key,
+    context: 'workspace',
+  }
+}
 
 function collectDescendantFolderIds(
   selectedFolderIds: string[],
@@ -92,7 +110,58 @@ export const GET = withRouteHandler(
         )
       }
 
-      const buffers = await Promise.all(filesToZip.map((file) => fetchWorkspaceFileBuffer(file)))
+      // Generated docs (docx/pptx/pdf/xlsx) store their generation source, not the
+      // rendered binary, so the bytes must be resolved through the shared servable
+      // helper — a raw read ships source text under a `.docx` name.
+      const requestId = generateRequestId()
+      const downloads = await mapWithConcurrency(
+        filesToZip,
+        MATERIALIZE_CONCURRENCY,
+        async (file) => {
+          try {
+            const servable = await downloadServableFileFromStorage(
+              toServableInput(file),
+              requestId,
+              logger,
+              { maxBytes: MAX_ZIP_DOWNLOAD_BYTES }
+            )
+            return { ok: true as const, buffer: servable.buffer }
+          } catch (error) {
+            return { ok: false as const, file, error }
+          }
+        }
+      )
+
+      const pending = downloads.filter(
+        (result) => !result.ok && result.error instanceof DocCompileUserError
+      )
+      if (pending.length > 0) {
+        const names = pending.map((result) => (result.ok ? '' : result.file.name))
+        return NextResponse.json(
+          {
+            error: `${pending.length} document${pending.length === 1 ? ' is' : 's are'} still being generated: ${names.join(', ')}. Wait for them to finish, then try again.`,
+          },
+          { status: 409 }
+        )
+      }
+
+      // Any other failure is a real storage error: fail the request rather than
+      // handing back an archive with a file silently missing or empty.
+      const buffers = downloads.map((result) => {
+        if (!result.ok) throw result.error
+        return result.buffer
+      })
+
+      // The pre-download cap used declared source sizes; generated docs resolve larger.
+      const resolvedBytes = buffers.reduce((sum, buffer) => sum + buffer.length, 0)
+      if (resolvedBytes > MAX_ZIP_DOWNLOAD_BYTES) {
+        return NextResponse.json(
+          {
+            error: `Selected files total ${formatFileSize(resolvedBytes)} once documents are rendered, which exceeds the ${formatFileSize(MAX_ZIP_DOWNLOAD_BYTES)} download limit.`,
+          },
+          { status: 400 }
+        )
+      }
 
       // Entry paths stay workspace-root-relative so a mixed selection of folders and
       // loose files keeps the layout the user sees in the files list.
@@ -116,7 +185,7 @@ export const GET = withRouteHandler(
         action: AuditAction.FILE_DOWNLOADED,
         resourceType: AuditResourceType.FILE,
         description: `Downloaded ${filesToZip.length} file${filesToZip.length === 1 ? '' : 's'} as zip`,
-        metadata: { fileCount: filesToZip.length, totalBytes },
+        metadata: { fileCount: filesToZip.length, totalBytes: resolvedBytes },
         request,
       })
       captureServerEvent(
