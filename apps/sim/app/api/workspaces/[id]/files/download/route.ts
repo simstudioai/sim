@@ -14,33 +14,12 @@ import {
   listWorkspaceFiles,
 } from '@/lib/uploads/contexts/workspace'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import { buildZipEntryPaths } from '@/lib/uploads/zip-entry-path'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkspaceFilesDownloadAPI')
 const MAX_ZIP_DOWNLOAD_FILES = 100
 const MAX_ZIP_DOWNLOAD_BYTES = 250 * 1024 * 1024
-
-function safeZipPath(path: string): string {
-  return path
-    .split('/')
-    .map((segment) => {
-      const cleaned = segment.trim().replace(/[<>:"\\|?*\x00-\x1f]/g, '_')
-      return cleaned === '.' || cleaned === '..' ? '_' : cleaned
-    })
-    .filter(Boolean)
-    .join('/')
-}
-
-function withZipPathSuffix(path: string, suffix: number): string {
-  const slashIndex = path.lastIndexOf('/')
-  const directory = slashIndex >= 0 ? `${path.slice(0, slashIndex + 1)}` : ''
-  const filename = slashIndex >= 0 ? path.slice(slashIndex + 1) : path
-  const dotIndex = filename.lastIndexOf('.')
-
-  return dotIndex > 0
-    ? `${directory}${filename.slice(0, dotIndex)} (${suffix})${filename.slice(dotIndex)}`
-    : `${directory}${filename} (${suffix})`
-}
 
 function collectDescendantFolderIds(
   selectedFolderIds: string[],
@@ -115,25 +94,18 @@ export const GET = withRouteHandler(
 
       const buffers = await Promise.all(filesToZip.map((file) => fetchWorkspaceFileBuffer(file)))
 
-      // Assemble zip synchronously so path deduplication is deterministic.
+      // Entry paths stay workspace-root-relative so a mixed selection of folders and
+      // loose files keeps the layout the user sees in the files list.
+      const entryPaths = buildZipEntryPaths(
+        filesToZip.map((file) => ({
+          name: file.name,
+          folderPath: file.folderId ? folderPaths.get(file.folderId) : null,
+        }))
+      )
+
       const zip = new JSZip()
-      const usedPaths = new Set<string>()
-      for (let i = 0; i < filesToZip.length; i++) {
-        const file = filesToZip[i]
-        const buffer = buffers[i]
-        const folderPath = file.folderId ? folderPaths.get(file.folderId) : null
-        const basePath =
-          safeZipPath(folderPath ? `${folderPath}/${file.name}` : file.name) ||
-          safeZipPath(file.name) ||
-          file.id
-        let zipPath = basePath
-        let suffix = 2
-        while (usedPaths.has(zipPath)) {
-          zipPath = withZipPathSuffix(basePath, suffix)
-          suffix++
-        }
-        usedPaths.add(zipPath)
-        zip.file(zipPath, buffer)
+      for (const [index, buffer] of buffers.entries()) {
+        zip.file(entryPaths[index], buffer)
       }
 
       const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' })
