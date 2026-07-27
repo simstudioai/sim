@@ -41,6 +41,14 @@ const MENTION_ONLY_RESOURCE_TYPES = new Set<MothershipResourceType>(['integratio
 
 interface PlusMenuDropdownProps {
   workspaceId: string
+  /**
+   * Starts hydrating the resource lists before the menu opens. The editor sets
+   * this on focus: `@`-mention confirmation reads the candidate list
+   * synchronously on Enter, and an empty list falls through to submitting the
+   * message with the mention unresolved. Focus is the earliest reliable signal
+   * that a mention may be coming, and still keeps these lists off page load.
+   */
+  warm?: boolean
   onResourceSelect: (resource: MothershipResource) => void
   onClose: () => void
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
@@ -51,7 +59,7 @@ interface PlusMenuDropdownProps {
 
 export const PlusMenuDropdown = React.memo(
   React.forwardRef<PlusMenuHandle, PlusMenuDropdownProps>(function PlusMenuDropdown(
-    { workspaceId, onResourceSelect, onClose, textareaRef, pendingCursorRef, mentionQuery },
+    { workspaceId, warm, onResourceSelect, onClose, textareaRef, pendingCursorRef, mentionQuery },
     ref
   ) {
     const [open, setOpen] = useState(false)
@@ -62,8 +70,8 @@ export const PlusMenuDropdown = React.memo(
     const searchRef = useRef<HTMLInputElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
 
-    // Gated on `open` so an idle chat surface never fetches the workspace lists.
-    const availableResources = useAvailableResources(workspaceId, { enabled: open })
+    // Gated so an idle chat surface never fetches the workspace lists.
+    const availableResources = useAvailableResources(workspaceId, { enabled: open || !!warm })
 
     const doOpen = useCallback(
       (anchor: { left: number; top: number }, options?: { mention?: boolean }) => {

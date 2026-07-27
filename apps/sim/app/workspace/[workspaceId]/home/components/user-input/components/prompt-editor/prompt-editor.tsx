@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
@@ -72,6 +72,12 @@ export function PromptEditor({
 }: PromptEditorProps) {
   const { textareaRef, value } = editor
   const scrollerRef = useRef<HTMLDivElement>(null)
+  /**
+   * Latched on first focus and never cleared: it only starts the resource
+   * lists early so an `@`-mention has candidates by the time Enter is pressed.
+   * Un-warming on blur would just re-open the race on the next focus.
+   */
+  const [hasFocused, setHasFocused] = useState(false)
 
   /**
    * Autosize: grow the textarea to its full content height; the scroller caps
@@ -203,6 +209,7 @@ export function PromptEditor({
           onKeyDown={
             readOnly ? undefined : (e) => editor.handleKeyDown(e, { onSubmit, onArrowUpOnEmpty })
           }
+          onFocus={readOnly ? undefined : () => setHasFocused(true)}
           onPaste={readOnly ? undefined : editor.handlePaste}
           onCopy={editor.handleCopy}
           onCut={readOnly ? undefined : editor.handleCut}
@@ -220,6 +227,7 @@ export function PromptEditor({
           <PlusMenuDropdown
             ref={editor.plusMenuRef}
             workspaceId={editor.workspaceId}
+            warm={hasFocused}
             onResourceSelect={editor.insertResource}
             onClose={editor.handlePlusMenuClose}
             textareaRef={editor.textareaRef}
