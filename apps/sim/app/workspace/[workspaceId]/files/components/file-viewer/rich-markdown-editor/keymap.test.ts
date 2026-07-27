@@ -404,6 +404,72 @@ describe('list Backspace (clear / outdent)', () => {
     expect(editor.getMarkdown().trim()).toBe('- [ ] one\n\ntwo')
     editor.destroy()
   })
+
+  it('does not delete a non-trailing item whose block holds only a non-text atom', () => {
+    // Emptiness is the caret block's content.size, not its text: a bullet holding only an inline atom
+    // (image/mention — here a hardBreak stand-in) is NOT block-empty, so Backspace clears it to a
+    // paragraph (content preserved) instead of removeEmptyWrappedBlock deleting the whole row.
+    const editor = editorWith('')
+    editor.commands.setContent({
+      type: 'doc',
+      content: [
+        {
+          type: 'bulletList',
+          content: [
+            {
+              type: 'listItem',
+              content: [{ type: 'paragraph', content: [{ type: 'hardBreak' }] }],
+            },
+            {
+              type: 'listItem',
+              content: [{ type: 'paragraph', content: [{ type: 'text', text: 'two' }] }],
+            },
+          ],
+        },
+      ],
+    })
+    const atomPos = firstPosOf(editor, 'hardBreak')
+    editor.commands.setTextSelection(atomPos)
+    pressBackspace(editor)
+
+    // The atom survives (not deleted) and 'two' is untouched.
+    expect(firstPosOf(editor, 'hardBreak')).toBeGreaterThanOrEqual(0)
+    expect(editor.state.doc.textContent).toContain('two')
+    editor.destroy()
+  })
+
+  it('removes only the empty first block of a multi-block item, not the whole item', () => {
+    // An empty first block whose item has sibling blocks must not lift the whole item out of the list;
+    // only that empty block is removed, the rest of the item (and the list) stays intact.
+    const editor = editorWith('')
+    editor.commands.setContent({
+      type: 'doc',
+      content: [
+        {
+          type: 'bulletList',
+          content: [
+            {
+              type: 'listItem',
+              content: [
+                { type: 'paragraph' },
+                { type: 'paragraph', content: [{ type: 'text', text: 'more' }] },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+    // Caret at the start of the empty first paragraph (position 3: doc>bulletList>listItem>paragraph).
+    editor.commands.setTextSelection(3)
+    pressBackspace(editor)
+
+    // Still a list (item was NOT lifted out to a top-level paragraph), and 'more' survives.
+    expect(blockShape(editor)[0]).toBe('bulletList')
+    expect(editor.state.doc.textContent).toBe('more')
+    const list = editor.getJSON().content?.find((n) => n.type === 'bulletList')
+    expect(list?.content).toHaveLength(1)
+    editor.destroy()
+  })
 })
 
 describe('empty nested bullet does not corrupt its parent (Enter → Tab)', () => {

@@ -26,8 +26,13 @@ interface ListItemContext {
   itemType: string
   /** The item's list is itself inside another list item, i.e. the item is indented. */
   isNested: boolean
-  /** The item carries no text. */
-  isEmpty: boolean
+  /**
+   * The caret's own block (the row the boundary key acts on) has no content. Uses `content.size`, so an
+   * inline image or mention atom counts as content — a bullet holding only an image is NOT block-empty.
+   */
+  blockEmpty: boolean
+  /** The item has more than one child block (continuation paragraph, nested list, block image, …). */
+  hasSiblingBlocks: boolean
   /** The item is the last child of its immediate list. */
   isTrailing: boolean
   /** The caret sits in the item's first child block (the row a boundary key should act on). */
@@ -50,7 +55,8 @@ function getListItemContext($from: ResolvedPos): ListItemContext | null {
     return {
       itemType: item.type.name,
       isNested,
-      isEmpty: item.textContent.length === 0,
+      blockEmpty: $from.parent.content.size === 0,
+      hasSiblingBlocks: item.childCount > 1,
       isTrailing: $from.index(listDepth) === list.childCount - 1,
       isFirstBlock: $from.index(depth) === 0,
     }
@@ -228,20 +234,24 @@ export const RichMarkdownKeymap = Extension.create({
         }
         const listCtx = getListItemContext($from)
         if (listCtx?.isFirstBlock) {
-          const { itemType, isNested, isEmpty, isTrailing } = listCtx
+          const { itemType, isNested, blockEmpty, hasSiblingBlocks, isTrailing } = listCtx
           // Backspace at the start of a bullet outdents or clears it in place rather than
           // deleting the row and jumping the caret to the previous block.
           // - Nested item → outdent one level (empty or not).
-          // - Top-level item with text → lift out of the list into a paragraph, keeping the text.
-          // - Top-level empty item that is trailing (or the sole item) → lift into an empty paragraph in
-          //   place, so a fresh bullet made with Enter can be cleared back to normal text on the same line.
-          // A top-level *empty, non-trailing* item is the one case lift can't take: it strands an empty
-          // paragraph between the two list halves, which re-parses to a different markdown document (an
-          // empty line between list items is a loose list, not a break). That case removes the row via
+          // - Top-level item whose first line has content (text OR an inline image/mention) → lift out of
+          //   the list into a paragraph, keeping that content.
+          // - Top-level item whose empty first block has *sibling* blocks (a continuation paragraph, a
+          //   block image, a nested list) → remove only that empty first block via {@link
+          //   removeEmptyWrappedBlock}, leaving the rest of the item intact (never lift the whole item).
+          // - Top-level empty single-block item that is trailing (or the sole item) → lift into an empty
+          //   paragraph in place, so a fresh bullet made with Enter can be cleared to normal text in place.
+          // A top-level *empty, non-trailing* single-block item is the one case lift can't take: it strands
+          // an empty paragraph between the two list halves, which re-parses to a different markdown document
+          // (an empty line between list items is a loose list, not a break). That case removes the row via
           // {@link removeEmptyWrappedBlock} instead, which keeps the list whole and round-trips.
-          if (isNested || !isEmpty || isTrailing) {
-            return editor.commands.liftListItem(itemType)
-          }
+          if (isNested || !blockEmpty) return editor.commands.liftListItem(itemType)
+          if (hasSiblingBlocks) return removeEmptyWrappedBlock(editor, $from)
+          if (isTrailing) return editor.commands.liftListItem(itemType)
           return removeEmptyWrappedBlock(editor, $from)
         }
         if ($from.parent.content.size === 0 && isInsideWrapper($from)) {
