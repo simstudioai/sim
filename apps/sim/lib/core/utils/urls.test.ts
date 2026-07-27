@@ -186,4 +186,19 @@ describe('isNonCanonicalSimHost', () => {
       expect(isNonCanonicalSimHost(host)).toBe(false)
     }
   )
+
+  it.each(['www.sim.ai, dev.sim.ai', 'sim.ai,dev.sim.ai', '  www.sim.ai , staging.sim.ai'])(
+    'classifies a comma-joined forwarded host by its first entry (%s)',
+    (host) => {
+      expect(isNonCanonicalSimHost(host)).toBe(false)
+    }
+  )
+
+  it('still flags a comma-joined host whose first entry is non-canonical', () => {
+    expect(isNonCanonicalSimHost('dev.sim.ai, www.sim.ai')).toBe(true)
+  })
+
+  it('does not throw on an empty host', () => {
+    expect(isNonCanonicalSimHost('')).toBe(false)
+  })
 })

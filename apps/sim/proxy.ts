@@ -309,7 +309,9 @@ export async function proxy(request: NextRequest) {
  */
 function applyIndexingPolicy(request: NextRequest, response: NextResponse): void {
   const host =
-    request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? request.nextUrl.host
+    request.headers.get('x-forwarded-host')?.split(',')[0]?.trim() ||
+    request.headers.get('host') ||
+    request.nextUrl.host
 
   if (isNonCanonicalSimHost(host)) {
     response.headers.set('X-Robots-Tag', 'noindex, nofollow')

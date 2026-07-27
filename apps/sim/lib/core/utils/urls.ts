@@ -103,9 +103,13 @@ function stripWwwPrefix(host: string): string {
  *
  * `sim.ai` and `www.sim.ai` are both canonical. Self-hosted domains return
  * false, as do lookalikes such as `notsim.ai`.
+ *
+ * Takes the first entry of a comma-joined forwarded host so a chained proxy
+ * can't make the canonical site look non-canonical via a trailing entry.
  */
 export function isNonCanonicalSimHost(host: string): boolean {
-  const hostname = stripWwwPrefix(host.toLowerCase().split(':')[0])
+  const first = host.split(',')[0]?.trim() ?? ''
+  const hostname = stripWwwPrefix(first.toLowerCase().split(':')[0])
   const canonical = stripWwwPrefix(CANONICAL_SITE_HOST)
   return hostname !== canonical && hostname.endsWith(`.${canonical}`)
 }
