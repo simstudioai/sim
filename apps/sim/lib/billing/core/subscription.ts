@@ -427,26 +427,43 @@ export async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boole
 }
 
 /**
+ * Check if an organization has an enterprise plan, PROPAGATING read failures.
+ *
+ * Prefer {@link isOrganizationOnEnterprisePlan} for feature gating, which fails
+ * closed. Use this variant only where "not entitled" and "the check could not
+ * run" must lead to different behavior — e.g. enforcing a stored security
+ * policy, where swallowing the error would silently stop enforcing it.
+ */
+export async function resolveOrganizationEnterprisePlan(organizationId: string): Promise<boolean> {
+  if (!isBillingEnabled) {
+    return true
+  }
+
+  if (isAccessControlEnabled && !isHosted) {
+    return true
+  }
+
+  if (await isOrganizationBillingBlocked(organizationId)) {
+    return false
+  }
+
+  // `onError: 'throw'` is load-bearing: the default swallows a read failure into
+  // `null`, which reads as "no usable subscription" and would make this resolver
+  // report a downgrade on a transient error — exactly the conflation it exists
+  // to avoid. `isOrganizationOnEnterprisePlan` still turns that throw back into
+  // `false` for feature gating.
+  const orgSub = await getOrganizationSubscriptionUsable(organizationId, { onError: 'throw' })
+
+  return !!orgSub && checkEnterprisePlan(orgSub)
+}
+
+/**
  * Check if an organization has an enterprise plan
  * Used for Access Control (Permission Groups) feature gating
  */
 export async function isOrganizationOnEnterprisePlan(organizationId: string): Promise<boolean> {
   try {
-    if (!isBillingEnabled) {
-      return true
-    }
-
-    if (isAccessControlEnabled && !isHosted) {
-      return true
-    }
-
-    if (await isOrganizationBillingBlocked(organizationId)) {
-      return false
-    }
-
-    const orgSub = await getOrganizationSubscriptionUsable(organizationId)
-
-    return !!orgSub && checkEnterprisePlan(orgSub)
+    return await resolveOrganizationEnterprisePlan(organizationId)
   } catch (error) {
     logger.error('Error checking organization enterprise plan status', { error, organizationId })
     return false

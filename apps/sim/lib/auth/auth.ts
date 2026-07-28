@@ -34,8 +34,12 @@ import {
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { getRequestedSignInProviderId, isSignInProviderAllowed } from '@/lib/auth/constants'
-import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
-import { clampExpiryForSession } from '@/lib/auth/session-policy'
+import {
+  getMemberOrganizationId,
+  getSessionCookieCacheVersion,
+  invalidateMembershipCache,
+} from '@/lib/auth/security-policy'
+import { applySessionPolicyToNewMember, clampExpiryForSession } from '@/lib/auth/session-policy'
 import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
@@ -661,36 +665,68 @@ export const auth = betterAuth({
             }
           }
 
+          // Membership is resolved ONCE, here, and the clamp is handed the
+          // result. Resolving it in two places let the catch below branch on a
+          // stale local while the clamp had actually resolved the org from
+          // cache — failing open on a path documented as failing closed.
+          let membershipOrgId: string | null
           try {
-            // Find the first organization this user is a member of
-            const members = await db
-              .select({ organizationId: schema.member.organizationId })
-              .from(schema.member)
-              .where(eq(schema.member.userId, session.userId))
-              .limit(1)
-
-            if (members.length > 0) {
-              logger.info('Found organization for user', {
-                userId: session.userId,
-                organizationId: members[0].organizationId,
-              })
-
-              const expiresAt = await clampExpiryForSession(session, members[0].organizationId)
-
-              return {
-                data: {
-                  ...session,
-                  expiresAt,
-                  activeOrganizationId: members[0].organizationId,
-                },
-              }
-            }
-            logger.info('No organizations found for user', {
+            membershipOrgId = await getMemberOrganizationId(session.userId)
+            logger.info(
+              membershipOrgId ? 'Found organization for user' : 'No organizations found for user',
+              { userId: session.userId, organizationId: membershipOrgId ?? undefined }
+            )
+          } catch (error) {
+            // The governing org is genuinely unknown, so a member is
+            // indistinguishable from the majority of users who belong to no org.
+            // Failing closed would take authentication down for everyone to
+            // protect a policy most of them do not have. Allow, unclamped: the
+            // after-hook above re-applies the policy once membership resolves,
+            // and the update hook clamps retroactively from `createdAt`.
+            logger.error('Could not resolve organization for new session; session not clamped', {
+              error,
               userId: session.userId,
             })
             return { data: session }
+          }
+
+          try {
+            const expiresAt = await clampExpiryForSession(session, membershipOrgId)
+            return {
+              data: {
+                ...session,
+                // Only ever narrows an existing expiry — never introduces an
+                // `expiresAt: undefined` key that would blank out the value
+                // Better Auth already put on the row.
+                ...(expiresAt ? { expiresAt } : {}),
+                ...(membershipOrgId ? { activeOrganizationId: membershipOrgId } : {}),
+              },
+            }
           } catch (error) {
-            logger.error('Error setting active organization', {
+            // Membership already resolved above, so reaching here means only
+            // the POLICY read failed. For a member that is fail-closed: this
+            // user is definitely governed by an org, so the "would break
+            // sign-in for non-members too" argument does not apply. The blast
+            // radius is org members during a window where the `organization`
+            // read fails but the `member` read just succeeded — narrow, loud,
+            // and self-clearing. Minting a full-length session for a member
+            // whose policy we could not read is the one outcome this feature
+            // exists to prevent.
+            if (membershipOrgId) {
+              logger.error('Refusing session: org session policy could not be resolved', {
+                error,
+                userId: session.userId,
+                organizationId: membershipOrgId,
+              })
+              throw new APIError('INTERNAL_SERVER_ERROR', {
+                message: 'Could not verify your organization session policy. Please try again.',
+              })
+            }
+
+            // Confirmed non-member: the clamp short-circuits before any policy
+            // read for a null org, so this is defence in depth rather than a
+            // live path. A user with no org has no policy to violate, so allow.
+            logger.error('Error clamping new session to org policy; session not clamped', {
               error,
               userId: session.userId,
             })
@@ -711,11 +747,24 @@ export const auth = betterAuth({
           if (!data.expiresAt) return { data }
           const current = ctx?.context?.session?.session
           if (!current) return { data }
-          const expiresAt = await clampExpiryForSession({
-            ...current,
-            expiresAt: new Date(data.expiresAt),
-          })
-          return { data: { ...data, expiresAt } }
+          try {
+            const expiresAt = await clampExpiryForSession({
+              ...current,
+              expiresAt: new Date(data.expiresAt),
+            })
+            return { data: { ...data, expiresAt } }
+          } catch (error) {
+            // Refuse to EXTEND when the policy cannot be read: keeping the
+            // session's current expiry leaves the member signed in without
+            // granting them a fresh 30 days a policy might have forbidden.
+            logger.error('Error re-clamping refreshed session; leaving expiry unchanged', {
+              error,
+              userId: current.userId,
+            })
+            // Normalized like the happy path above: Better Auth context values
+            // can cross a serialization boundary, and the column is a timestamp.
+            return { data: { ...data, expiresAt: new Date(current.expiresAt) } }
+          }
         },
       },
     },
@@ -1015,6 +1064,47 @@ export const auth = betterAuth({
       }
 
       return
+    }),
+    /**
+     * Re-applies the org session policy to a session that was created before
+     * its `member` row existed.
+     *
+     * SSO JIT provisioning does exactly that: the callback creates the session
+     * first and only then writes `member` straight through the adapter
+     * (`@better-auth/sso` calls `handleOAuthUserInfo` before
+     * `assignOrganizationFromProvider`, and bypasses the organization plugin's
+     * `addMember`, so no member hook fires). The session-create hook therefore
+     * sees no membership and mints Better Auth's full 30-day expiry — and
+     * because a 30-day expiry reads as "not due for refresh", the sliding
+     * refresh would not re-clamp it for another day. On a first SSO sign-in
+     * into an org with session bounds, that is a real policy bypass.
+     *
+     * Runs only for sessions created WITHOUT an org (the sole case that can be
+     * affected) and is best-effort — a failure here must never break sign-in.
+     */
+    after: createAuthMiddleware(async (ctx) => {
+      const created = ctx.context.newSession
+      if (!created?.session || created.session.activeOrganizationId) return
+      if ((created.session as { impersonatedBy?: string | null }).impersonatedBy) return
+
+      try {
+        // Drop the negative membership entry the create hook just cached, so
+        // the row written moments ago by the provisioning path is visible.
+        invalidateMembershipCache(created.user.id)
+        const organizationId = await getMemberOrganizationId(created.user.id)
+        if (!organizationId) return
+
+        logger.info('Applying org session policy to a session created pre-membership', {
+          userId: created.user.id,
+          organizationId,
+        })
+        await applySessionPolicyToNewMember(created.user.id, organizationId)
+      } catch (error) {
+        logger.error('Failed to apply org session policy after session creation', {
+          error,
+          userId: created.user.id,
+        })
+      }
     }),
   },
   plugins: [

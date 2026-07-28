@@ -1,17 +1,12 @@
 import { db } from '@sim/db'
-import type { SessionPolicySettings } from '@sim/db/schema'
 import { organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
 import { getMemberOrganizationId, invalidateMembershipCache } from '@/lib/auth/security-policy'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { resolveOrganizationEnterprisePlan } from '@/lib/billing/core/subscription'
 
 const logger = createLogger('SessionPolicy')
-
-/** How long a resolved org session policy is served from process memory. */
-export const SESSION_POLICY_CACHE_TTL_MS = 60 * 1000
 
 const HOUR_MS = 60 * 60 * 1000
 
@@ -20,67 +15,86 @@ export interface ResolvedSessionPolicy {
   idleTimeoutHours: number | null
 }
 
-interface PolicyCacheEntry {
-  policy: ResolvedSessionPolicy
-  fetchedAt: number
-}
-
-const policyCache = new Map<string, PolicyCacheEntry>()
-
 const NO_POLICY: ResolvedSessionPolicy = {
   maxSessionHours: null,
   idleTimeoutHours: null,
 }
 
 /**
- * Resolves the EFFECTIVE session policy for an organization, served from a
- * short TTL cache. Returns a no-op policy for personal (org-less) sessions
- * and — mirroring data-retention's plan-gated effective settings — for
- * hosted orgs no longer on an Enterprise plan: stored limits stop enforcing
- * automatically on downgrade, since the enterprise-gated settings UI can no
- * longer manage them.
+ * Whether stored session bounds should be enforced for this org. Mirroring
+ * data-retention's plan-gated effective settings, a hosted org that leaves the
+ * Enterprise plan stops enforcing its stored limits automatically, since the
+ * enterprise-gated settings UI can no longer manage them.
+ *
+ * Uses the PROPAGATING plan resolver so a failed read is not mistaken for a
+ * downgrade. `isOrganizationOnEnterprisePlan` swallows its errors and returns
+ * `false`, which is correct for feature gating (fail closed) but would silently
+ * stop ENFORCING here — the fail-open trap the PII-redaction path documents in
+ * `lib/logs/execution/logger.ts`. Callers only reach this when bounds are
+ * actually stored, so non-enterprise orgs never pay for it.
+ */
+async function isEntitledToEnforce(organizationId: string): Promise<boolean> {
+  try {
+    return await resolveOrganizationEnterprisePlan(organizationId)
+  } catch (error) {
+    logger.error('Enterprise entitlement check failed; enforcing stored session policy', {
+      organizationId,
+      error,
+    })
+    return true
+  }
+}
+
+/**
+ * Resolves the EFFECTIVE session policy for an organization, read FRESH from
+ * the organization row on every call.
+ *
+ * Deliberately uncached, matching how the sibling enterprise setting resolves
+ * its stored rules at enforcement time (`lib/logs/execution/logger.ts`,
+ * `lib/workflows/executor/execution-core.ts`). This is not a hot path: it runs
+ * on sign-in and on a sliding session refresh, which the 24h cookie cache
+ * limits to roughly once per user per day.
+ *
+ * Cost is one indexed lookup for an org with no bounds stored — the common
+ * case. An org that DOES store bounds additionally pays the entitlement check
+ * (owner lookup + block status + subscription), so about four reads. That is
+ * affordable per sign-in, but it lands all at once for every member when a
+ * policy save or org-wide revocation invalidates the whole org's cookie caches
+ * together; watch it if enterprise orgs grow much larger.
+ *
+ * A cache here is what made an earlier version of this code incorrect. Better
+ * Auth rewrites `expiresAt` to `now + 30d` on every refresh, so a refresh that
+ * clamps against a stale policy silently un-does a tightening — and because a
+ * 30-day expiry then reads as "not due for refresh", nothing re-clamps it for
+ * another day. Reading fresh removes that failure mode by construction rather
+ * than trying to keep two caches coherent.
+ *
+ * Throws if the read fails. Callers pick their own failure posture: the session
+ * UPDATE hook keeps the current expiry rather than extending it, and the CREATE
+ * hook refuses the sign-in when the governing org is known but allows it when
+ * membership itself could not be resolved.
  */
 export async function getSessionPolicy(
   organizationId: string | null | undefined
 ): Promise<ResolvedSessionPolicy> {
   if (!organizationId) return NO_POLICY
 
-  const cached = policyCache.get(organizationId)
-  if (cached && Date.now() - cached.fetchedAt < SESSION_POLICY_CACHE_TTL_MS) {
-    return cached.policy
+  const [row] = await db
+    .select({ settings: organization.sessionPolicySettings })
+    .from(organization)
+    .where(eq(organization.id, organizationId))
+    .limit(1)
+
+  const settings = row?.settings ?? {}
+  const bounds: ResolvedSessionPolicy = {
+    maxSessionHours: settings.maxSessionHours ?? null,
+    idleTimeoutHours: settings.idleTimeoutHours ?? null,
   }
 
-  try {
-    const [row] = await db
-      .select({ settings: organization.sessionPolicySettings })
-      .from(organization)
-      .where(eq(organization.id, organizationId))
-      .limit(1)
+  if (!bounds.maxSessionHours && !bounds.idleTimeoutHours) return NO_POLICY
+  if (!(await isEntitledToEnforce(organizationId))) return NO_POLICY
 
-    const settings: SessionPolicySettings = row?.settings ?? {}
-    const hasBounds = Boolean(settings.maxSessionHours || settings.idleTimeoutHours)
-    const isEntitled =
-      !hasBounds || !isBillingEnabled || (await isOrganizationOnEnterprisePlan(organizationId))
-    const policy: ResolvedSessionPolicy = isEntitled
-      ? {
-          maxSessionHours: settings.maxSessionHours ?? null,
-          idleTimeoutHours: settings.idleTimeoutHours ?? null,
-        }
-      : NO_POLICY
-    policyCache.set(organizationId, { policy, fetchedAt: Date.now() })
-    return policy
-  } catch (error) {
-    logger.error('Failed to resolve session policy; applying no policy', {
-      organizationId,
-      error,
-    })
-    return NO_POLICY
-  }
-}
-
-/** Drops the cached policy for an org so the next read is fresh. */
-export function invalidateSessionPolicyCache(organizationId: string): void {
-  policyCache.delete(organizationId)
+  return bounds
 }
 
 /**

@@ -1,9 +1,30 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { member, organization } from '@sim/db/schema'
+import {
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
-import { clampSessionExpiry, type ResolvedSessionPolicy } from '@/lib/auth/session-policy'
+import {
+  clampExpiryForSession,
+  clampSessionExpiry,
+  getSessionPolicy,
+  type ResolvedSessionPolicy,
+} from '@/lib/auth/session-policy'
+
+const { mockResolveEnterprisePlan } = vi.hoisted(() => ({
+  mockResolveEnterprisePlan: vi.fn(),
+}))
+
+vi.mock('@/lib/billing/core/subscription', () => ({
+  resolveOrganizationEnterprisePlan: mockResolveEnterprisePlan,
+}))
 
 const HOUR_MS = 60 * 60 * 1000
 
@@ -80,5 +101,167 @@ describe('clampSessionExpiry', () => {
       now
     )
     expect(result.getTime()).toBe(shortProposal.getTime())
+  })
+})
+
+/** Module-level caches persist across cases, so every case uses a fresh id. */
+let idCounter = 0
+const nextOrgId = () => `sp-org-${++idCounter}`
+
+afterAll(resetEnvFlagsMock)
+
+describe('getSessionPolicy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    setEnvFlags({ isBillingEnabled: true, isOrganizationsEnabled: true })
+    mockResolveEnterprisePlan.mockResolvedValue(true)
+  })
+
+  it('returns no policy for an org-less session without touching the database', async () => {
+    expect(await getSessionPolicy(null)).toEqual({
+      maxSessionHours: null,
+      idleTimeoutHours: null,
+    })
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+
+  it('skips the entitlement check when the org has no bounds stored', async () => {
+    queueTableRows(organization, [{ settings: null }])
+    expect(await getSessionPolicy(nextOrgId())).toEqual({
+      maxSessionHours: null,
+      idleTimeoutHours: null,
+    })
+    expect(mockResolveEnterprisePlan).not.toHaveBeenCalled()
+  })
+
+  it('stops enforcing stored bounds for an org that is no longer entitled', async () => {
+    queueTableRows(organization, [{ settings: { maxSessionHours: 8, idleTimeoutHours: null } }])
+    mockResolveEnterprisePlan.mockResolvedValue(false)
+
+    expect(await getSessionPolicy(nextOrgId())).toEqual({
+      maxSessionHours: null,
+      idleTimeoutHours: null,
+    })
+  })
+
+  it('keeps enforcing when the entitlement check itself fails', async () => {
+    queueTableRows(organization, [{ settings: { maxSessionHours: 8, idleTimeoutHours: null } }])
+    // Stored bounds are only writable by an entitled org, so a failed plan read
+    // must not be mistaken for a downgrade and silently disable enforcement.
+    mockResolveEnterprisePlan.mockRejectedValue(new Error('billing unavailable'))
+
+    expect(await getSessionPolicy(nextOrgId())).toEqual({
+      maxSessionHours: 8,
+      idleTimeoutHours: null,
+    })
+  })
+})
+
+describe('clampExpiryForSession', () => {
+  const createdAt = new Date('2026-07-22T00:00:00Z')
+  const proposed = new Date('2026-08-21T00:00:00Z')
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    setEnvFlags({ isBillingEnabled: true, isOrganizationsEnabled: true })
+    mockResolveEnterprisePlan.mockResolvedValue(true)
+  })
+
+  it('exempts impersonation sessions from the clamp', async () => {
+    const result = await clampExpiryForSession({
+      userId: 'user-1',
+      impersonatedBy: 'platform-admin-1',
+      createdAt,
+      expiresAt: proposed,
+    })
+
+    expect(result?.getTime()).toBe(proposed.getTime())
+    // Exempt before any lookup — impersonation must not even resolve a policy.
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+
+  it('returns undefined when the session carries no expiry', async () => {
+    expect(await clampExpiryForSession({ userId: 'user-1', createdAt })).toBeUndefined()
+  })
+
+  it('leaves non-member sessions untouched', async () => {
+    queueTableRows(member, [])
+    const result = await clampExpiryForSession({
+      userId: 'user-1',
+      createdAt,
+      expiresAt: proposed,
+    })
+    expect(result?.getTime()).toBe(proposed.getTime())
+  })
+
+  it('clamps against the org resolved from membership', async () => {
+    const orgId = nextOrgId()
+    queueTableRows(member, [{ organizationId: orgId }])
+    queueTableRows(organization, [{ settings: { maxSessionHours: 24, idleTimeoutHours: null } }])
+
+    const result = await clampExpiryForSession({
+      userId: `user-${orgId}`,
+      createdAt,
+      expiresAt: proposed,
+    })
+
+    expect(result?.getTime()).toBe(createdAt.getTime() + 24 * 60 * 60 * 1000)
+  })
+
+  it('skips the membership lookup when the caller already resolved it', async () => {
+    const orgId = nextOrgId()
+    queueTableRows(organization, [{ settings: { maxSessionHours: 24, idleTimeoutHours: null } }])
+
+    const result = await clampExpiryForSession(
+      { userId: 'user-fresh', createdAt, expiresAt: proposed },
+      orgId
+    )
+
+    expect(result?.getTime()).toBe(createdAt.getTime() + 24 * 60 * 60 * 1000)
+    // Only the organization row was read; membership came from the caller.
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+  })
+
+  it('normalizes ISO string dates crossing the hook serialization boundary', async () => {
+    const orgId = nextOrgId()
+    queueTableRows(organization, [{ settings: { maxSessionHours: 24, idleTimeoutHours: null } }])
+
+    const result = await clampExpiryForSession(
+      {
+        userId: 'user-iso',
+        createdAt: createdAt.toISOString(),
+        expiresAt: proposed.toISOString(),
+      },
+      orgId
+    )
+
+    expect(result?.getTime()).toBe(createdAt.getTime() + 24 * 60 * 60 * 1000)
+  })
+
+  it('reads the policy fresh on every call so a saved policy is never missed', async () => {
+    const orgId = nextOrgId()
+    queueTableRows(organization, [{ settings: null }])
+    await clampExpiryForSession({ userId: 'u', createdAt, expiresAt: proposed }, orgId)
+
+    // A policy saved on another process between the two calls. Nothing is
+    // cached, so the second clamp already sees it.
+    queueTableRows(organization, [{ settings: { maxSessionHours: 24, idleTimeoutHours: null } }])
+    const result = await clampExpiryForSession(
+      { userId: 'u', createdAt, expiresAt: proposed },
+      orgId
+    )
+
+    expect(result?.getTime()).toBe(createdAt.getTime() + 24 * 60 * 60 * 1000)
+  })
+
+  it('propagates a policy read failure so the hook can refuse to extend', async () => {
+    dbChainMockFns.limit.mockImplementationOnce(() => {
+      throw new Error('connection reset')
+    })
+    await expect(
+      clampExpiryForSession({ userId: 'u', createdAt, expiresAt: proposed }, nextOrgId())
+    ).rejects.toThrow('connection reset')
   })
 })

@@ -9,8 +9,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { updateOrganizationSessionPolicyContract } from '@/lib/api/contracts/organization'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { invalidateSecurityPolicyVersionCache } from '@/lib/auth/security-policy'
-import { eagerClampOrgSessions, invalidateSessionPolicyCache } from '@/lib/auth/session-policy'
+import { setSecurityPolicyVersion } from '@/lib/auth/security-policy'
+import { eagerClampOrgSessions } from '@/lib/auth/session-policy'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -150,7 +150,7 @@ export const PUT = withRouteHandler(
           updatedAt: new Date(),
         })
         .where(eq(organization.id, organizationId))
-        .returning({ id: organization.id })
+        .returning({ securityPolicyVersion: organization.securityPolicyVersion })
       if (!row) return null
       await eagerClampOrgSessions(organizationId, merged, tx)
       return row
@@ -160,8 +160,7 @@ export const PUT = withRouteHandler(
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
-    invalidateSessionPolicyCache(organizationId)
-    invalidateSecurityPolicyVersionCache(organizationId)
+    setSecurityPolicyVersion(organizationId, updated.securityPolicyVersion)
 
     logger.info('Updated organization session policy', { organizationId })
 

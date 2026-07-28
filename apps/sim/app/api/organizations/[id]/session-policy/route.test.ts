@@ -21,11 +21,10 @@ const { mockIsEnterprise, mockEagerClamp, mockRecordAudit } = vi.hoisted(() => (
 
 vi.mock('@/lib/auth/session-policy', () => ({
   eagerClampOrgSessions: mockEagerClamp,
-  invalidateSessionPolicyCache: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/security-policy', () => ({
-  invalidateSecurityPolicyVersionCache: vi.fn(),
+  setSecurityPolicyVersion: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/core/subscription', () => ({
@@ -128,7 +127,7 @@ describe('session policy route', () => {
     it('saves the policy, eagerly clamps sessions, and bumps the version', async () => {
       queueTableRows(member, [{ role: 'owner' }])
       queueTableRows(organization, [{ name: 'Acme' }])
-      dbChainMockFns.returning.mockResolvedValueOnce([{ id: ORG_ID }])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: ORG_ID, securityPolicyVersion: 2 }])
 
       const response = await PUT(
         putRequest({ maxSessionHours: 72, idleTimeoutHours: 48 }),
@@ -154,7 +153,7 @@ describe('session policy route', () => {
     it('clearing both fields still saves and delegates the no-op to the clamp', async () => {
       queueTableRows(member, [{ role: 'owner' }])
       queueTableRows(organization, [{ name: 'Acme' }])
-      dbChainMockFns.returning.mockResolvedValueOnce([{ id: ORG_ID }])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: ORG_ID, securityPolicyVersion: 2 }])
 
       const response = await PUT(
         putRequest({ maxSessionHours: null, idleTimeoutHours: null }),
