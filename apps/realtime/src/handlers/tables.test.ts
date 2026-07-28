@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { ROOM_TYPES, type RoomRef } from '@sim/realtime-protocol/rooms'
+import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { TABLE_PRESENCE_EVENTS } from '@sim/realtime-protocol/table-presence'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IRoomManager } from '@/rooms'
@@ -187,15 +187,10 @@ describe('setupTablesHandlers', () => {
     expect(toEmit).not.toHaveBeenCalled()
   })
 
-  it('aborts a stale join whose authorize resolves after a newer join', async () => {
+  it('skips a superseded queued join on a fast table switch', async () => {
     const { socket, handlers } = createSocket()
     const roomManager = createRoomManager()
-    // First join's authorize hangs until released; the second resolves immediately.
-    let releaseA: (value: unknown) => void = () => {}
-    const pendingA = new Promise((resolve) => {
-      releaseA = resolve
-    })
-    mockAuthorizeRoom.mockReturnValueOnce(pendingA).mockResolvedValue({
+    mockAuthorizeRoom.mockResolvedValue({
       allowed: true,
       status: 200,
       workspaceId: 'ws-1',
@@ -203,14 +198,19 @@ describe('setupTablesHandlers', () => {
     })
     setupTablesHandlers(socket as unknown as SetupArg, roomManager)
 
-    const joinA = handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-A' })
+    // Two joins enqueued back-to-back (A then B). B bumps the generation synchronously, so A's
+    // queued run no-ops at its start check — only B commits. Because JOINs are serialized on one
+    // op chain, A's and B's Redis writes can never interleave (no map-clobber, no stranding).
+    handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-A' })
     await handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-B' })
-    releaseA({ allowed: true, status: 200, workspaceId: 'ws-1', workspacePermission: 'admin' })
-    await joinA
 
-    // The newer join (B) wins; the stale A join aborts before touching room state.
     expect(socket.join).toHaveBeenCalledWith('table:table-B')
     expect(socket.join).not.toHaveBeenCalledWith('table:table-A')
+    expect(roomManager.addUserToRoom).toHaveBeenCalledWith(
+      { type: ROOM_TYPES.TABLE, id: 'table-B' },
+      'socket-1',
+      expect.anything()
+    )
     expect(roomManager.addUserToRoom).not.toHaveBeenCalledWith(
       { type: ROOM_TYPES.TABLE, id: 'table-A' },
       expect.anything(),
@@ -277,115 +277,6 @@ describe('setupTablesHandlers', () => {
     await joinPromise
 
     expect(socket.join).toHaveBeenCalledWith('table:table-B')
-    expect(roomManager.addUserToRoom).toHaveBeenCalledWith(
-      { type: ROOM_TYPES.TABLE, id: 'table-B' },
-      'socket-1',
-      expect.anything()
-    )
-  })
-
-  it('aborts a join superseded during the post-authorize leave/sweep window', async () => {
-    const { socket, handlers } = createSocket()
-    // Hold A hung on its leave-prior lookup (which runs AFTER the post-authorize recheck), then
-    // fire a newer join B. When A resumes, the final generation guard before the membership
-    // commit must abort it — the post-authorize awaits are no longer an unguarded window.
-    let aReachedLookup: () => void = () => {}
-    const aAtLookup = new Promise<void>((resolve) => {
-      aReachedLookup = resolve
-    })
-    let releaseLookup: (value: RoomRef | null) => void = () => {}
-    const pendingLookup = new Promise<RoomRef | null>((resolve) => {
-      releaseLookup = resolve
-    })
-    let lookupCalls = 0
-    const roomManager = createRoomManager({
-      getRoomForSocket: vi.fn((): Promise<RoomRef | null> => {
-        lookupCalls += 1
-        if (lookupCalls === 1) {
-          aReachedLookup()
-          return pendingLookup
-        }
-        return Promise.resolve(null)
-      }),
-    })
-    mockAuthorizeRoom.mockResolvedValue({
-      allowed: true,
-      status: 200,
-      workspaceId: 'ws-1',
-      workspacePermission: 'admin',
-    })
-    setupTablesHandlers(socket as unknown as SetupArg, roomManager)
-
-    const joinA = handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-A' })
-    await aAtLookup // A has passed its post-authorize recheck and is hung on the leave-prior lookup
-    await handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-B' }) // bumps generation, completes
-    // A resumes with the socket now registered on table-B (the newer join committed there).
-    releaseLookup({ type: ROOM_TYPES.TABLE, id: 'table-B' })
-    await joinA
-
-    // A must NOT tear down B's room via its leave-prior, nor register itself on table-A.
-    expect(socket.leave).not.toHaveBeenCalledWith('table:table-B')
-    expect(roomManager.removeUserFromRoom).not.toHaveBeenCalledWith(
-      { type: ROOM_TYPES.TABLE, id: 'table-B' },
-      'socket-1'
-    )
-    expect(socket.join).toHaveBeenCalledWith('table:table-B')
-    expect(socket.join).not.toHaveBeenCalledWith('table:table-A')
-    expect(roomManager.addUserToRoom).not.toHaveBeenCalledWith(
-      { type: ROOM_TYPES.TABLE, id: 'table-A' },
-      expect.anything(),
-      expect.anything()
-    )
-  })
-
-  it('rolls back a join superseded while addUserToRoom is in flight', async () => {
-    const { socket, handlers } = createSocket()
-    // A passes every guard and hangs committing to table-A; a newer join B commits to table-B
-    // during the hang. When A resumes, the post-commit re-check must roll back A's own
-    // registration (scoped to table-A) without touching B.
-    let aReachedAdd: () => void = () => {}
-    const aAtAdd = new Promise<void>((resolve) => {
-      aReachedAdd = resolve
-    })
-    let releaseAdd: () => void = () => {}
-    const pendingAdd = new Promise<void>((resolve) => {
-      releaseAdd = resolve
-    })
-    let addCalls = 0
-    const roomManager = createRoomManager({
-      addUserToRoom: vi.fn((): Promise<void> => {
-        addCalls += 1
-        if (addCalls === 1) {
-          aReachedAdd()
-          return pendingAdd
-        }
-        return Promise.resolve()
-      }),
-    })
-    mockAuthorizeRoom.mockResolvedValue({
-      allowed: true,
-      status: 200,
-      workspaceId: 'ws-1',
-      workspacePermission: 'admin',
-    })
-    setupTablesHandlers(socket as unknown as SetupArg, roomManager)
-
-    const joinA = handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-A' })
-    await aAtAdd // A has passed every guard and is hung committing to table-A
-    await handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-B' }) // bumps generation, commits to B
-    releaseAdd()
-    await joinA
-
-    // A rolled back its own registration (scoped to table-A) and never touched table-B.
-    expect(socket.leave).toHaveBeenCalledWith('table:table-A')
-    expect(roomManager.removeUserFromRoom).toHaveBeenCalledWith(
-      { type: ROOM_TYPES.TABLE, id: 'table-A' },
-      'socket-1'
-    )
-    expect(roomManager.removeUserFromRoom).not.toHaveBeenCalledWith(
-      { type: ROOM_TYPES.TABLE, id: 'table-B' },
-      'socket-1'
-    )
     expect(roomManager.addUserToRoom).toHaveBeenCalledWith(
       { type: ROOM_TYPES.TABLE, id: 'table-B' },
       'socket-1',
