@@ -39,6 +39,12 @@ describe('collab-doc converter', () => {
     expect(yDocToMarkdown(ydoc)).toBe(serializeMarkdownBody('# Hello\n\nWorld and then some more.'))
   })
 
+  it('clears an existing doc to empty without throwing (agent write of empty content)', () => {
+    const ydoc = markdownToYDoc('# Hello\n\nWorld.')
+    expect(() => applyMarkdownToYDoc(ydoc, '')).not.toThrow()
+    expect(yDocToMarkdown(ydoc)).toBe(serializeMarkdownBody(''))
+  })
+
   it('merges an agent write with a concurrent remote edit (CRDT, no clobber)', () => {
     // Two clients start from the same state.
     const server = markdownToYDoc('# Doc\n\nAlpha paragraph.\n\nBeta paragraph.')

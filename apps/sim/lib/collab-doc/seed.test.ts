@@ -1,6 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
+import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 
@@ -56,11 +57,18 @@ describe('buildFileDocSeed', () => {
     const seed = await buildFileDocSeed('ws-1', 'file-1')
     const doc = new Y.Doc()
     Y.applyUpdate(doc, seed!.update)
-    expect(doc.getMap('config').get('initialContentLoaded')).toBe(true)
+    expect(doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag)).toBe(true)
   })
 
   it('returns null for a missing file', async () => {
     mockGetWorkspaceFile.mockResolvedValue(null)
     expect(await buildFileDocSeed('ws-1', 'missing')).toBeNull()
+  })
+
+  it('requests the file with throwOnError so a read failure is not mistaken for an empty file', async () => {
+    mockGetWorkspaceFile.mockRejectedValue(new Error('db down'))
+    // Propagates instead of returning null — the relay must retry, never seed blank over a real file.
+    await expect(buildFileDocSeed('ws-1', 'file-1')).rejects.toThrow('db down')
+    expect(mockGetWorkspaceFile).toHaveBeenCalledWith('ws-1', 'file-1', { throwOnError: true })
   })
 })

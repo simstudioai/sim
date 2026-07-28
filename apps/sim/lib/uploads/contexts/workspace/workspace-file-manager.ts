@@ -937,12 +937,18 @@ export async function resolveWorkspaceFileReference(
 }
 
 /**
- * Get a specific workspace file
+ * Get a specific workspace file.
+ *
+ * By default a DB error is logged and swallowed to `null` — for most callers "couldn't load it"
+ * and "doesn't exist" are handled the same way. Pass `{ throwOnError: true }` when the caller must
+ * distinguish a genuinely-absent file (`null`) from a transient read failure (throws): the
+ * collaborative-doc seed builder relies on this so a DB blip never looks like an empty file and gets
+ * seeded as blank content over the real document.
  */
 export async function getWorkspaceFile(
   workspaceId: string,
   fileId: string,
-  options?: { includeDeleted?: boolean }
+  options?: { includeDeleted?: boolean; throwOnError?: boolean }
 ): Promise<WorkspaceFileRecord | null> {
   try {
     const { includeDeleted = false } = options ?? {}
@@ -970,6 +976,7 @@ export async function getWorkspaceFile(
     return mapSingleWorkspaceFileRecord(files[0], workspaceId)
   } catch (error) {
     logger.error(`Failed to get workspace file ${fileId}:`, error)
+    if (options?.throwOnError) throw error
     return null
   }
 }

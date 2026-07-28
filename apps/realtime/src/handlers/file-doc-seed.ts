@@ -1,7 +1,11 @@
 import { env, getBaseUrl } from '@/env'
 
-/** Bound the seed fetch so a slow/unreachable app never wedges a room's first join. */
-const SEED_FETCH_TIMEOUT_MS = 5000
+/**
+ * Bound the seed fetch so a slow/unreachable app never wedges a room's first join. Sized for the
+ * worst case the app allows — converting a `MAX_SEED_BYTES` (5 MB) document markdown→Yjs plus a cold
+ * blob read — so a large-but-valid file is not perpetually timed out into the retry path.
+ */
+const SEED_FETCH_TIMEOUT_MS = 20_000
 
 /**
  * Ask the app to build a server-authoritative seed (markdown → Yjs) for a file's collaborative
@@ -25,6 +29,14 @@ export async function fetchFileDocSeed(
   if (!response.ok) {
     throw new Error(`Seed fetch failed for file ${fileId}: ${response.status}`)
   }
-  const { update } = (await response.json()) as { update: string | null }
-  return update ? new Uint8Array(Buffer.from(update, 'base64')) : null
+  const body = (await response.json()) as { update?: unknown }
+  const update = body?.update
+  // A well-formed response is `{ update: base64-string | null }`. Anything else is a contract
+  // violation, not a "genuinely empty file" — throw so the caller retries rather than silently
+  // treating a malformed body as empty and stranding the room unseeded.
+  if (update === null) return null
+  if (typeof update !== 'string') {
+    throw new Error(`Seed fetch for file ${fileId} returned a malformed body`)
+  }
+  return new Uint8Array(Buffer.from(update, 'base64'))
 }

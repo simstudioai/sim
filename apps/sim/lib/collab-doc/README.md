@@ -37,10 +37,17 @@ fix is a **server-authoritative Yjs doc** both sides write into, with markdown a
   needs a DOM; on the server it's backed by a single lazily-created `jsdom` window. Lazy-required so
   the client bundle never pulls jsdom in.
 
-## Remaining stages (not in this PR)
+## Server-authoritative seeding (shipped alongside this module)
 
-- **Stage B — server-authoritative persistence + seeding.** DB column for the Yjs binary; realtime
-  seeds/persists via this module; delete the client-seeder subsystem (election / deadlines /
-  `triedSeeders` / `MAX_SEED_ROUNDS` / connect-deadline). Flag-gated.
-- **Stage C — copilot into the doc + projection.** `edit_content` calls `applyMarkdownToYDoc` when a
-  doc is live; a debounced `yDocToMarkdown` projection keeps the file current.
+The realtime relay seeds each room's document from this module over an internal endpoint
+(`buildFileDocSeed` → `POST /api/internal/file-doc/seed` → `ensureServerSeed`), which let the entire
+client-seeder subsystem (election / deadlines / `triedSeeders` / `MAX_SEED_ROUNDS` / the
+`SEED_REQUEST` handshake) be deleted. The client's connect-deadline offline fallback is deliberately
+**kept** — it is unrelated to seeding. No feature flag: the cutover is all-at-once.
+
+## Remaining stages (future PRs)
+
+- **Durable persistence.** A DB column for the Yjs binary + debounced snapshotting, so a document
+  survives with no collaborators connected instead of being re-seeded from markdown on cold open.
+- **Copilot into the doc + projection.** `edit_content` calls `applyMarkdownToYDoc` when a doc is
+  live; a debounced `yDocToMarkdown` projection keeps the file's markdown current.

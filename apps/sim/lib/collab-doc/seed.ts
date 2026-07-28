@@ -25,13 +25,15 @@ export interface FileDocSeed {
  * (election / deadlines / retries) goes away. The frontmatter is stripped exactly as the client's
  * seed did — it is file metadata, not part of the collaborative body.
  *
- * Returns `null` when the file is missing/deleted (the caller treats it as an empty document).
+ * Returns `null` ONLY when the file is genuinely absent (deleted/never-existed). A transient read
+ * failure THROWS (`throwOnError`) rather than returning `null`, so the relay retries instead of
+ * mistaking a DB blip for an empty file and seeding blank content over the real document.
  */
 export async function buildFileDocSeed(
   workspaceId: string,
   fileId: string
 ): Promise<FileDocSeed | null> {
-  const record = await getWorkspaceFile(workspaceId, fileId)
+  const record = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
   if (!record) return null
 
   const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_SEED_BYTES })

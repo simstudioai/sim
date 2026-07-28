@@ -62,8 +62,11 @@ export type FileDocMessageType = (typeof FILE_DOC_MESSAGE_TYPE)[keyof typeof FIL
  *    over the real file (the one true data-loss path).
  * 2. **One provider per socket.** Destroy the previous provider before creating the next (document
  *    switch), so a stale provider's binary-frame listener can't apply another document's updates.
- * 3. **Re-mint on CLIENT_ID_IN_USE.** On a `CLIENT_ID_IN_USE` join error, recreate the Yjs doc
- *    (fresh `clientID`) and rejoin — the id is transiently held by another socket of the same user.
+ * 3. **Treat a fatal (`retryable: false`) join error as terminal.** Latch it and fall back to a
+ *    read-only view of the file's stored content — do not keep rejoining. The server auto-reclaims a
+ *    same-user client-id collision silently (the reconnecting socket succeeds), so `CLIENT_ID_IN_USE`
+ *    surfaces to a client only for the rare case of a *different* user colliding on the same random
+ *    Yjs `clientID`; a page reload mints a new id and recovers.
  */
 export const FILE_DOC_SEED = {
   configMap: 'config',

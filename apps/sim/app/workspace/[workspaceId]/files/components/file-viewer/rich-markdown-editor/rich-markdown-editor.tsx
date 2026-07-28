@@ -284,7 +284,7 @@ export function LoadedRichMarkdownEditor({
 
   /**
    * Initial editor content. When collaborating, the Y.Doc is the source of truth —
-   * start empty and let the seed handshake fill it (below); otherwise seed from the
+   * start empty and let the server-seeded Yjs sync fill it (below); otherwise seed from the
    * parsed markdown (chunked parse is linear vs the editor's ~O(n²) whole-body parse).
    */
   const [initialContent] = useState<JSONContent | string>(() =>
@@ -619,9 +619,9 @@ export function LoadedRichMarkdownEditor({
   /**
    * The collaborative document lifecycle. In one effect because the three concerns
    * are one state machine keyed off the same provider events:
-   * - **seed** the doc from the loaded markdown when this client is elected and
-   *   synced (content + `initialContentLoaded` flag in ONE Yjs transaction, so a
-   *   re-election can never duplicate content — the relay's exactly-once contract);
+   * - **observe** readiness: the server seeds the doc authoritatively (content +
+   *   `initialContentLoaded` flag in ONE Yjs update), so the client only watches for
+   *   synced AND seeded — it never imports content itself on the happy path;
    * - **gate** the parent's autosave until the doc is synced AND seeded, so an
    *   empty/still-syncing doc can never overwrite the real file's markdown mirror;
    * - **fall back** on a fatal join: seed the loaded content so it is SHOWN, but

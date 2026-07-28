@@ -24,8 +24,11 @@ import {
  * byte-compatible with the client's.
  *
  * The TipTap editor the markdown engine builds needs a DOM; on the server we back it with `jsdom`
- * (see {@link ensureDomForTipTap}). This module is `server-only` — it must never reach the client
- * bundle (jsdom + the full editor would bloat it and break in the browser).
+ * (see {@link ensureDomForTipTap}). This module is server-only by construction — it must never reach
+ * the client bundle (jsdom + the full editor would bloat it and break in the browser). It is kept
+ * out of that bundle by `require`-ing `jsdom` lazily (never a static top-level import) and by being
+ * imported only from server code (the seed builder + its internal route); there is no `import
+ * 'server-only'` marker because this repo does not use that package.
  */
 
 /**

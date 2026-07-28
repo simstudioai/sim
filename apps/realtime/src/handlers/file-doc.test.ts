@@ -164,8 +164,10 @@ function joinSuccessFileId(socket: { emit: ReturnType<typeof vi.fn> }) {
 describe('setupWorkspaceFileDocHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // Fake timers so any handler-scheduled timeout is deterministic and can never fire into a
-    // later test.
+    // Fake timers so the seed-retry backoff (`sleep(backoffWithJitter(...))`) is driven
+    // deterministically (`advanceTimersByTimeAsync`) and never fires into a later test. Fake timers
+    // do NOT fake microtasks, so `flushMicrotasks`' awaited `Promise.resolve()`s still settle the
+    // fire-and-forget seed — reliable because the success-path mock resolves in a single await hop.
     vi.useFakeTimers()
     mockAuthorizeRoom.mockResolvedValue({
       allowed: true,
@@ -285,17 +287,83 @@ describe('setupWorkspaceFileDocHandlers', () => {
   })
 
   it('seeds the document only once from the server across concurrent joiners of the same file', async () => {
-    mockFetchFileDocSeed.mockResolvedValue(encodedSeedUpdate('# From server'))
+    // Keep the first seed fetch IN FLIGHT so the doc is still unseeded when the second socket joins:
+    // that forces the dedup onto `serverSeedStarted` (the in-flight guard) rather than `isDocSeeded`.
+    let resolveSeed: (v: Uint8Array | null) => void = () => {}
+    mockFetchFileDocSeed.mockReturnValueOnce(new Promise((resolve) => (resolveSeed = resolve)))
     const { io } = createIo()
     const a = setup('socket-a', io)
     const b = setup('socket-b', io)
 
     await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
     await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+    // Second join happened with the fetch still pending; only after this does the seed land.
+    expect(mockFetchFileDocSeed).toHaveBeenCalledTimes(1)
+    resolveSeed(encodedSeedUpdate('# From server'))
+    await flushMicrotasks()
+    expect(mockFetchFileDocSeed).toHaveBeenCalledTimes(1)
+  })
+
+  it('marks an empty/absent-file doc seeded so clients still reach readiness', async () => {
+    // A genuinely absent file yields a null seed (a read error would throw, not return null). The
+    // relay must still flip `initialContentLoaded` so the client's `synced && seeded` gate opens.
+    mockFetchFileDocSeed.mockResolvedValue(null)
+    const { io } = createIo()
+    const { socket, handlers } = setup('socket-1', io)
+
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
     await flushMicrotasks()
 
-    // `serverSeedStarted` guards against a second fetch while the first is in flight or done.
-    expect(mockFetchFileDocSeed).toHaveBeenCalledTimes(1)
+    socket.emit.mockClear()
+    handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) => syncProtocol.writeSyncStep1(e, new Y.Doc()))
+    )
+    const reply = socket.emit.mock.calls.find(
+      ([event, payload]) => event === FILE_DOC_EVENTS.MESSAGE && payload instanceof Uint8Array
+    )
+    const clientDoc = new Y.Doc()
+    applySyncReply(reply?.[1] as Uint8Array, clientDoc)
+    expect(clientDoc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag)).toBe(true)
+    expect(clientDoc.getText(FILE_DOC_FIELD).toString()).toBe('')
+  })
+
+  it('retries a failed seed fetch against the live room, then succeeds', async () => {
+    mockFetchFileDocSeed
+      .mockRejectedValueOnce(new Error('transport blip'))
+      .mockResolvedValueOnce(encodedSeedUpdate('# Recovered'))
+    const { io } = createIo()
+    const { socket, handlers } = setup('socket-1', io)
+
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    // Clear the backoff between the failed attempt and the retry.
+    await vi.advanceTimersByTimeAsync(5000)
+    await flushMicrotasks()
+
+    expect(mockFetchFileDocSeed).toHaveBeenCalledTimes(2)
+    socket.emit.mockClear()
+    handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) => syncProtocol.writeSyncStep1(e, new Y.Doc()))
+    )
+    const reply = socket.emit.mock.calls.find(
+      ([event, payload]) => event === FILE_DOC_EVENTS.MESSAGE && payload instanceof Uint8Array
+    )
+    const clientDoc = new Y.Doc()
+    applySyncReply(reply?.[1] as Uint8Array, clientDoc)
+    expect(clientDoc.getText(FILE_DOC_FIELD).toString()).toBe('# Recovered')
+  })
+
+  it('does not seed a room that was dropped while the seed fetch was in flight', async () => {
+    let resolveSeed: (v: Uint8Array | null) => void = () => {}
+    mockFetchFileDocSeed.mockReturnValueOnce(new Promise((resolve) => (resolveSeed = resolve)))
+    const { io } = createIo()
+    const { handlers } = setup('socket-1', io)
+
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    // The only owner leaves → the room (and its doc) is destroyed while the fetch is still pending.
+    cleanupFileDocForSocket('socket-1', io, true)
+    // Resolving now must not touch the destroyed doc or throw (liveness re-check after the await).
+    resolveSeed(encodedSeedUpdate('# Too late'))
+    await expect(flushMicrotasks()).resolves.toBeUndefined()
   })
 
   it('relays a document update to the rest of the room, excluding the sender', async () => {
