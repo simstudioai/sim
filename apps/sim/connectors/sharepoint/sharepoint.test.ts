@@ -283,6 +283,20 @@ describe('resolveFolderTarget', () => {
     expect(message).not.toContain('Shared Documents" should be omitted')
   })
 
+  it('still offers the prefix hint when the path names the default library itself', async () => {
+    mockGraph({
+      ...defaultDriveRoute,
+      ...sitesDrivesRoute,
+      ...rootChildren(DEFAULT_DRIVE_ID, [folder('d1', 'Archive')]),
+    })
+
+    const error = await resolve('Shared Documents/Reports').catch((e: Error) => e)
+
+    const message = (error as Error).message
+    expect(message).toContain('document library "Documents"')
+    expect(message).toContain('Shared Documents" should be omitted')
+  })
+
   it('surfaces a failure to open the default library rather than reporting not-found', async () => {
     mockGraph({
       [`${GRAPH}/sites/${SITE_ID}/drive?$select=id,name,webUrl`]: { status: 403 },

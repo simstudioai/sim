@@ -545,7 +545,7 @@ export async function resolveFolderTarget(
       trimmed,
       libraryMatch ? segments.slice(1) : segments,
       drives,
-      !libraryMatch,
+      reportDrive.id === defaultDrive.id,
       retryOptions
     )
   )
