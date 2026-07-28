@@ -653,9 +653,11 @@ export function Table({
 
   // A notice must not outlive the table it describes — its action targets
   // whichever table is current. Keyed on `tableId` so an embedded swap that
-  // changes the prop without a route change is covered too.
+  // changes the prop without a route change is covered too. Leaving ends the
+  // visit, so the latch resets and coming back announces again.
   useEffect(
     () => () => {
+      announcedLockTableIdRef.current = null
       if (!blockedToastIdRef.current) return
       toast.dismiss(blockedToastIdRef.current)
       blockedToastIdRef.current = null
