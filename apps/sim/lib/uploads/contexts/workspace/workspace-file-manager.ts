@@ -978,7 +978,7 @@ export async function getWorkspaceFile(
  * source itself is wanted (style extraction, compile checks, the copilot VFS).
  *
  * Throws `DocCompileUserError` when a generated doc's artifact is still compiling —
- * callers surface a retryable 409 via `docNotReadyResponse` rather than shipping source.
+ * callers turn that into a retryable 409 rather than shipping source.
  */
 export async function fetchServableWorkspaceFileBuffer(
   fileRecord: WorkspaceFileRecord,
