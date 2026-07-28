@@ -1,7 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { FILE_DOC_EVENTS, FILE_DOC_MESSAGE_TYPE } from '@sim/realtime-protocol/file-doc'
+import {
+  FILE_DOC_EVENTS,
+  FILE_DOC_MESSAGE_TYPE,
+  FILE_DOC_SEED,
+} from '@sim/realtime-protocol/file-doc'
+import * as decoding from 'lib0/decoding'
 import * as encoding from 'lib0/encoding'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as awarenessProtocol from 'y-protocols/awareness'
@@ -9,12 +14,17 @@ import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import type { IRoomManager } from '@/rooms'
 
-const { mockAuthorizeRoom } = vi.hoisted(() => ({
+const { mockAuthorizeRoom, mockFetchFileDocSeed } = vi.hoisted(() => ({
   mockAuthorizeRoom: vi.fn(),
+  mockFetchFileDocSeed: vi.fn(),
 }))
 
 vi.mock('@sim/platform-authz/rooms', () => ({
   authorizeRoom: mockAuthorizeRoom,
+}))
+
+vi.mock('@/handlers/file-doc-seed', () => ({
+  fetchFileDocSeed: mockFetchFileDocSeed,
 }))
 
 import { cleanupFileDocForSocket, setupWorkspaceFileDocHandlers } from '@/handlers/file-doc'
@@ -95,6 +105,32 @@ function setup(id: string, io: IRoomManager['io'], socketOverrides?: Record<stri
   return { socket, handlers }
 }
 
+const FILE_DOC_FIELD = 'default'
+
+/** Let a fire-and-forget `void ensureServerSeed(...)` chain settle (mock resolves synchronously). */
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
+/**
+ * An encoded Yjs update shaped like the server seed builder's output: some content in the shared
+ * `default` type plus the {@link FILE_DOC_SEED} flag, so applying it marks the doc seeded.
+ */
+function encodedSeedUpdate(content: string): Uint8Array {
+  const doc = new Y.Doc()
+  doc.getText(FILE_DOC_FIELD).insert(0, content)
+  doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+  return Y.encodeStateAsUpdate(doc)
+}
+
+/** Apply a server sync reply frame (`[SYNC tag][sync message]`) into a fresh client doc. */
+function applySyncReply(frameBytes: Uint8Array, doc: Y.Doc): void {
+  const decoder = decoding.createDecoder(frameBytes)
+  decoding.readVarUint(decoder) // skip the message-type tag
+  syncProtocol.readSyncMessage(decoder, encoding.createEncoder(), doc, null)
+}
+
 /** Frame a Yjs message with its type tag, exactly as the client provider would. */
 function frame(type: number, write: (encoder: encoding.Encoder) => void): Uint8Array {
   const encoder = encoding.createEncoder()
@@ -128,8 +164,8 @@ function joinSuccessFileId(socket: { emit: ReturnType<typeof vi.fn> }) {
 describe('setupWorkspaceFileDocHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // The seed deadline uses setTimeout; fake it so tests can drive it and so a
-    // real timer can never fire into a later test.
+    // Fake timers so any handler-scheduled timeout is deterministic and can never fire into a
+    // later test.
     vi.useFakeTimers()
     mockAuthorizeRoom.mockResolvedValue({
       allowed: true,
@@ -137,6 +173,9 @@ describe('setupWorkspaceFileDocHandlers', () => {
       workspaceId: 'ws-1',
       workspacePermission: 'write',
     })
+    // Default: the server seed builder returns no content (empty file). Tests that
+    // exercise seeding override this per-case with an encoded Yjs update.
+    mockFetchFileDocSeed.mockResolvedValue(null)
   })
 
   afterEach(() => {
@@ -211,8 +250,9 @@ describe('setupWorkspaceFileDocHandlers', () => {
     )
   })
 
-  it('joins the room, sends sync step 1, and asks the first client to seed', async () => {
-    const { io, sent } = createIo()
+  it('joins the room, sends sync step 1, and seeds the document from the server', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(encodedSeedUpdate('# From server'))
+    const { io } = createIo()
     const { socket, handlers } = setup('socket-1', io)
 
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
@@ -226,26 +266,36 @@ describe('setupWorkspaceFileDocHandlers', () => {
     )
     expect((syncMessage?.[1] as Uint8Array)[0]).toBe(FILE_DOC_MESSAGE_TYPE.SYNC)
 
-    // The lone joiner is elected to seed the empty document.
-    const seed = sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)
-    expect(seed).toEqual({
-      target: 'socket-1',
-      event: FILE_DOC_EVENTS.SEED_REQUEST,
-      payload: { fileId: 'file-1' },
-    })
+    // The server seeds authoritatively from the file's stored markdown, keyed by (workspaceId, fileId).
+    await flushMicrotasks()
+    expect(mockFetchFileDocSeed).toHaveBeenCalledWith('ws-1', 'file-1')
+
+    // The seeded state is served to a client that syncs: request step 2 and decode it.
+    socket.emit.mockClear()
+    handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) => syncProtocol.writeSyncStep1(e, new Y.Doc()))
+    )
+    const reply = socket.emit.mock.calls.find(
+      ([event, payload]) => event === FILE_DOC_EVENTS.MESSAGE && payload instanceof Uint8Array
+    )
+    const clientDoc = new Y.Doc()
+    applySyncReply(reply?.[1] as Uint8Array, clientDoc)
+    expect(clientDoc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag)).toBe(true)
+    expect(clientDoc.getText(FILE_DOC_FIELD).toString()).toBe('# From server')
   })
 
-  it('asks only one client to seed across concurrent joiners of the same file', async () => {
-    const { io, sent } = createIo()
+  it('seeds the document only once from the server across concurrent joiners of the same file', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(encodedSeedUpdate('# From server'))
+    const { io } = createIo()
     const a = setup('socket-a', io)
     const b = setup('socket-b', io)
 
     await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
     await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+    await flushMicrotasks()
 
-    const seeds = sent.filter((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)
-    expect(seeds).toHaveLength(1)
-    expect(seeds[0].target).toBe('socket-a')
+    // `serverSeedStarted` guards against a second fetch while the first is in flight or done.
+    expect(mockFetchFileDocSeed).toHaveBeenCalledTimes(1)
   })
 
   it('relays a document update to the rest of the room, excluding the sender', async () => {
@@ -391,33 +441,22 @@ describe('setupWorkspaceFileDocHandlers', () => {
     ).not.toThrow()
   })
 
-  it('hands the seeder role to a remaining client when the elected one leaves before seeding', async () => {
-    const { io, sent } = createIo()
-    const a = setup('socket-a', io)
-    const b = setup('socket-b', io)
-    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
-    sent.length = 0
-
-    // The seeder leaves before it ever seeded; b remains.
-    cleanupFileDocForSocket('socket-a', io)
-
-    const seed = sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)
-    expect(seed?.target).toBe('socket-b')
-  })
-
-  it('drops the document when the last editor leaves, re-seeding a fresh joiner', async () => {
-    const { io, sent } = createIo()
+  it('drops the document when the last editor leaves, re-seeding a fresh joiner from the server', async () => {
+    const { io } = createIo()
     const a = setup('socket-a', io)
     await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks()
     cleanupFileDocForSocket('socket-a', io)
-    sent.length = 0
 
+    // The room was dropped with its last owner: a fresh joiner starts a new document, so the server
+    // is asked to seed it again (a stale in-memory doc is never reused across an empty gap).
+    mockFetchFileDocSeed.mockClear()
     const b = setup('socket-b', io)
     await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+    await flushMicrotasks()
 
-    const seed = sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)
-    expect(seed?.target).toBe('socket-b')
+    expect(b.socket.join).toHaveBeenCalledWith(ROOM_NAME)
+    expect(mockFetchFileDocSeed).toHaveBeenCalledWith('ws-1', 'file-1')
   })
 
   it('aborts a join superseded by a newer join during authorization (no cross-binding)', async () => {
@@ -451,10 +490,11 @@ describe('setupWorkspaceFileDocHandlers', () => {
     await pending
 
     expect(s.socket.join).not.toHaveBeenCalled()
-    // No room leaked: a fresh joiner starts a new document and is elected to seed.
+    // No room leaked: a fresh joiner starts a new document and joins cleanly.
     const b = setup('socket-b', io)
     await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
-    expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)?.target).toBe('socket-b')
+    expect(b.socket.join).toHaveBeenCalledWith(ROOM_NAME)
+    expect(joinSuccessFileId(b.socket)).toBe('file-1')
   })
 
   it('does not abort an in-flight join when a leave for a different file arrives', async () => {
@@ -552,27 +592,6 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect((reply?.[1] as Uint8Array)[0]).toBe(FILE_DOC_MESSAGE_TYPE.SYNC)
   })
 
-  it('does not re-elect a seeder once the document is marked seeded', async () => {
-    const { io, sent } = createIo()
-    const a = setup('socket-a', io)
-    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 }) // a elected seeder
-    // a seeds: set the CRDT initialContentLoaded flag on the server doc.
-    const seeded = new Y.Doc()
-    seeded.getMap('config').set('initialContentLoaded', true)
-    a.handlers[FILE_DOC_EVENTS.MESSAGE](
-      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
-        syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(seeded))
-      )
-    )
-    const b = setup('socket-b', io)
-    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
-    sent.length = 0
-
-    // The seeder leaves a SEEDED doc → no re-election (no duplicate seed).
-    cleanupFileDocForSocket('socket-a', io)
-    expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)).toBeUndefined()
-  })
-
   it('leaves the previous document when a socket switches files', async () => {
     const { io, sent } = createIo()
     const s = setup('socket-a', io)
@@ -582,12 +601,15 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(s.socket.leave).toHaveBeenCalledWith('workspace-file-doc:file-1')
     expect(s.socket.join).toHaveBeenCalledWith('workspace-file-doc:file-2')
 
-    // file-1's room was dropped (socket-a was its only owner): a fresh joiner of
-    // file-1 starts a new document and is elected to seed.
-    sent.length = 0
+    // file-1's room was dropped (socket-a was its only owner): a fresh joiner of file-1 starts a new
+    // document, so the server is asked to seed it again.
+    await flushMicrotasks()
+    mockFetchFileDocSeed.mockClear()
     const b = setup('socket-b', io)
     await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
-    expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)?.target).toBe('socket-b')
+    await flushMicrotasks()
+    expect(b.socket.join).toHaveBeenCalledWith('workspace-file-doc:file-1')
+    expect(mockFetchFileDocSeed).toHaveBeenCalledWith('ws-1', 'file-1')
   })
 
   it('fully evicts a reclaimed prior socket so it can no longer write to the doc', async () => {
@@ -612,22 +634,6 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(sent.some((m) => m.event === FILE_DOC_EVENTS.MESSAGE)).toBe(false)
   })
 
-  it('re-elects a seeder when the reclaimed socket held the seeder role', async () => {
-    const { io, sent } = createIo()
-    const a = setup('socket-a', io)
-    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 7 })
-    // a is the sole owner of an unseeded doc → elected seeder.
-    expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)?.target).toBe('socket-a')
-    sent.length = 0
-
-    const b = setup('socket-b', io) // same user-1 reconnecting, reusing client id 7
-    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 7 })
-
-    // The reclaim evicts a (the seeder) and releases the role, so the join's election picks b —
-    // the doc gets seeded instead of waiting out the deadline.
-    expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)?.target).toBe('socket-b')
-  })
-
   it('does not drop the current document when a switch is rejected for a foreign client id', async () => {
     const { io } = createIo()
     const a = setup('socket-a', io) // user-1
@@ -647,61 +653,6 @@ describe('setupWorkspaceFileDocHandlers', () => {
     // The rejected switch must leave file-1 intact — a is not torn out of its current document.
     expect(a.socket.leave).not.toHaveBeenCalledWith('workspace-file-doc:file-1')
     expect(a.socket.join).not.toHaveBeenCalledWith('workspace-file-doc:file-2')
-  })
-
-  it('re-elects a new seeder when the elected one misses the seed deadline', async () => {
-    const { io, sent } = createIo()
-    const a = setup('socket-a', io)
-    const b = setup('socket-b', io)
-    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
-    expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)?.target).toBe('socket-a')
-    sent.length = 0
-
-    // socket-a never seeds; the deadline lapses.
-    vi.advanceTimersByTime(10_000)
-
-    // The remaining un-tried client is asked to seed instead.
-    expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)?.target).toBe('socket-b')
-  })
-
-  it('re-offers seeding to a sole client that missed the deadline, then gives up after a bound', async () => {
-    const { io, sent } = createIo()
-    const a = setup('socket-a', io)
-    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    expect(sent.filter((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST).length).toBe(1)
-
-    // The sole client keeps missing the deadline. Without recovery it would be permanently excluded
-    // (empty document forever); instead it is re-offered a bounded number of rounds.
-    for (let i = 0; i < 6; i++) vi.advanceTimersByTime(10_000)
-
-    // Initial offer + MAX_SEED_ROUNDS (3) re-offers = 4 total, all to socket-a; then it stops.
-    const requests = sent.filter((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)
-    expect(requests.length).toBe(4)
-    expect(requests.every((m) => m.target === 'socket-a')).toBe(true)
-  })
-
-  it('cancels the seed deadline once the document is seeded', async () => {
-    const { io, sent } = createIo()
-    const a = setup('socket-a', io)
-    const b = setup('socket-b', io)
-    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
-
-    // socket-a seeds within the deadline.
-    const seeded = new Y.Doc()
-    seeded.getMap('config').set('initialContentLoaded', true)
-    a.handlers[FILE_DOC_EVENTS.MESSAGE](
-      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
-        syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(seeded))
-      )
-    )
-    sent.length = 0
-
-    vi.advanceTimersByTime(10_000)
-
-    // No re-election: the successful seed cancelled the deadline.
-    expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)).toBeUndefined()
   })
 
   it('broadcasts a server-authenticated presence roster on join, one entry per session', async () => {

@@ -1,3 +1,4 @@
+import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import * as Y from 'yjs'
 import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
@@ -39,6 +40,10 @@ export async function buildFileDocSeed(
 
   const ydoc = markdownToYDoc(body)
   try {
+    // Mark the document seeded IN the same doc, so the client's readiness gate
+    // (`synced && initialContentLoaded === true`) recognizes a server-seeded doc without any
+    // client-seeder handshake, and a stray re-election can never seed on top of it.
+    ydoc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
     return { update: Y.encodeStateAsUpdate(ydoc) }
   } finally {
     ydoc.destroy()

@@ -51,6 +51,14 @@ describe('buildFileDocSeed', () => {
     expect(md).toBe(serializeMarkdownBody('# Body\n\ntext.'))
   })
 
+  it('marks the seeded doc as initial-content-loaded so the client needs no seeder handshake', async () => {
+    mockFetchBuffer.mockResolvedValue(Buffer.from('# Body', 'utf-8'))
+    const seed = await buildFileDocSeed('ws-1', 'file-1')
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, seed!.update)
+    expect(doc.getMap('config').get('initialContentLoaded')).toBe(true)
+  })
+
   it('returns null for a missing file', async () => {
     mockGetWorkspaceFile.mockResolvedValue(null)
     expect(await buildFileDocSeed('ws-1', 'missing')).toBeNull()

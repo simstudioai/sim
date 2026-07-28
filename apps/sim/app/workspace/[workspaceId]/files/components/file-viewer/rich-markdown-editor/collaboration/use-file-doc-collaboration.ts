@@ -19,7 +19,7 @@ export interface FileDocCollaboration {
   /**
    * The realtime provider, or `null` until the socket is available. `doc` and
    * `awareness` exist before it connects, so the editor can bind immediately; the
-   * provider is consumed for seeding events (`synced` / `seed-request`).
+   * provider is consumed for its readiness signal (`synced`) and fatal `join-error`.
    */
   provider: FileDocProvider | null
   /**

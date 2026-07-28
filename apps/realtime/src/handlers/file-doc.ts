@@ -36,29 +36,12 @@ import * as awarenessProtocol from 'y-protocols/awareness'
 import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import { resolveAvatarUrl } from '@/handlers/avatar'
+import { fetchFileDocSeed } from '@/handlers/file-doc-seed'
 import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import type { IRoomManager } from '@/rooms'
 
 const logger = createLogger('FileDocHandlers')
-
-/**
- * How long an elected seeder has to import the initial content before the server
- * re-elects another client. Seeding is a local, synchronous editor write, so this
- * only trips when a seeder never completes it (a bug, or a client withholding the
- * seed) — it keeps the document from staying empty for the rest of the room.
- */
-const SEED_DEADLINE_MS = 10_000
-
-/**
- * Max times the room re-offers seeding to its owners after every one of them has
- * missed a deadline. Without this, a sole client whose seed *fetch fails* (not just
- * slow) is added to `triedSeeders`, re-election finds no un-tried owner, and the
- * document is left permanently empty until that client reloads. Each exhausted round
- * clears `triedSeeders` and re-offers, giving a transient failure a bounded number of
- * retries (~MAX × deadline) before the room genuinely gives up.
- */
-const MAX_SEED_ROUNDS = 3
 
 /** A socket's presence ownership within a room. */
 interface FileDocOwner {
@@ -78,23 +61,15 @@ interface FileDocOwner {
 }
 
 interface FileDocRoom {
-  /** The `workspace_files.id` this room edits (for seed-request payloads). */
+  /** The `workspace_files.id` this room edits. */
   fileId: string
   doc: Y.Doc
   awareness: awarenessProtocol.Awareness
   /** socketId → its presence ownership. */
   owners: Map<string, FileDocOwner>
-  /** The socket currently elected to seed initial content, or `null`. */
-  seederSocketId: string | null
-  /** Deadline timer for the current seeder to complete the seed, or `null`. */
-  seedTimer: ReturnType<typeof setTimeout> | null
-  /** Sockets that were elected but failed to seed within the deadline; skipped
-   * on re-election so a single stuck/withholding client can't block the room. */
-  triedSeeders: Set<string>
-  /** Count of full re-offer rounds spent after every owner missed a deadline;
-   * bounds the retry loop (see {@link MAX_SEED_ROUNDS}) so a permanently-broken
-   * seed doesn't reset forever. */
-  seedRounds: number
+  /** True once the server-side seed fetch has started, so concurrent joins don't each fetch.
+   * Reset on a fetch FAILURE so a later join can retry (a genuinely empty file stays empty). */
+  serverSeedStarted: boolean
 }
 
 /** Live documents keyed by Socket.IO room name. Module-global: one Y.Doc per file. */
@@ -183,73 +158,38 @@ function awarenessUpdateClientIds(update: Uint8Array): number[] {
   return ids
 }
 
-function clearSeedTimer(room: FileDocRoom) {
-  if (room.seedTimer !== null) {
-    clearTimeout(room.seedTimer)
-    room.seedTimer = null
-  }
-}
-
 /**
- * Drop a room's document + awareness (and its seed timer) once it has no owners,
- * so an idle file holds no memory. A later joiner re-creates and re-seeds it.
+ * Drop a room's document + awareness once it has no owners, so an idle file holds no memory.
+ * A later joiner re-creates and re-seeds it from the file's current markdown.
  */
 function destroyRoomIfIdle(name: string) {
   const room = fileDocRooms.get(name)
   if (!room || room.owners.size > 0) return
-  clearSeedTimer(room)
   room.awareness.destroy()
   room.doc.destroy()
   fileDocRooms.delete(name)
 }
 
 /**
- * Elect a client to seed an unseeded document and ask it to import the stored
- * markdown, if one is needed and not already assigned. Called after a join (to
- * elect the newcomer), after the elected seeder leaves (to hand the role to a
- * remaining client), and after a seed deadline lapses (to pass over a client that
- * never seeded). Skips clients that already failed to seed, and arms a deadline so
- * a stuck or withholding seeder can't leave the document empty for the whole room.
- * A no-op once the document is seeded, a seeder is already assigned, or no
- * un-tried client remains.
+ * Seed a room's document server-side, once. On the first join the relay asks the app to build the
+ * seed (the file's current markdown → Yjs, through the exact editor engine) and applies it — which
+ * fires `doc.on('update')` and relays the seeded content to every connected client. No client is
+ * elected to import content, so there is no seed handshake, deadline, or re-election.
+ *
+ * The seed already carries the `initialContentLoaded` flag, so `isDocSeeded` short-circuits repeat
+ * seeds. A genuinely empty/missing file yields `null` (the document stays empty — correct); a
+ * transport failure resets the guard so a later join retries.
  */
-function electSeederIfNeeded(io: Server, room: FileDocRoom) {
-  if (room.seederSocketId !== null || isDocSeeded(room.doc)) return
-
-  let elected: string | null = null
-  for (const socketId of room.owners.keys()) {
-    if (!room.triedSeeders.has(socketId)) {
-      elected = socketId
-      break
-    }
+async function ensureServerSeed(room: FileDocRoom, workspaceId: string): Promise<void> {
+  if (room.serverSeedStarted || isDocSeeded(room.doc)) return
+  room.serverSeedStarted = true
+  try {
+    const update = await fetchFileDocSeed(workspaceId, room.fileId)
+    if (update && !isDocSeeded(room.doc)) Y.applyUpdate(room.doc, update)
+  } catch (error) {
+    logger.warn(`Server seed failed for file ${room.fileId}; will retry on next join`, error)
+    room.serverSeedStarted = false
   }
-  if (elected === null) return
-
-  room.seederSocketId = elected
-  io.to(elected).emit(FILE_DOC_EVENTS.SEED_REQUEST, { fileId: room.fileId })
-
-  clearSeedTimer(room)
-  room.seedTimer = setTimeout(() => {
-    room.seedTimer = null
-    // Only act if this election is still the pending one and it never seeded.
-    if (room.seederSocketId !== elected || isDocSeeded(room.doc)) return
-    room.triedSeeders.add(elected)
-    room.seederSocketId = null
-    electSeederIfNeeded(io, room)
-    // If that left no seeder (every current owner has now been tried) while the doc is still
-    // unseeded and owners remain, re-offer the whole room a bounded number of times — otherwise a
-    // sole client whose seed fetch failed leaves the document permanently empty.
-    if (
-      room.seederSocketId === null &&
-      !isDocSeeded(room.doc) &&
-      room.owners.size > 0 &&
-      room.seedRounds < MAX_SEED_ROUNDS
-    ) {
-      room.seedRounds += 1
-      room.triedSeeders.clear()
-      electSeederIfNeeded(io, room)
-    }
-  }, SEED_DEADLINE_MS)
 }
 
 /**
@@ -272,16 +212,11 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     doc,
     awareness,
     owners: new Map(),
-    seederSocketId: null,
-    seedTimer: null,
-    triedSeeders: new Set(),
-    seedRounds: 0,
+    serverSeedStarted: false,
   }
   fileDocRooms.set(name, room)
 
   doc.on('update', (update: Uint8Array, origin: unknown) => {
-    // Once the document is seeded, the seed deadline is moot — cancel it.
-    if (room.seedTimer !== null && isDocSeeded(doc)) clearSeedTimer(room)
     const encoder = encoding.createEncoder()
     encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
     syncProtocol.writeUpdate(encoder, update)
@@ -401,13 +336,6 @@ export function cleanupFileDocForSocket(socketId: string, io: Server, endOfLife 
     broadcastFileDocPresence(io, name, room)
   }
 
-  // Hand off the seeder role: if the elected seeder left before it seeded, elect
-  // a remaining client so the document doesn't stay permanently empty.
-  if (room.seederSocketId === socketId) {
-    room.seederSocketId = null
-    electSeederIfNeeded(io, room)
-  }
-
   destroyRoomIfIdle(name)
 }
 
@@ -519,10 +447,6 @@ export function setupWorkspaceFileDocHandlers(
         awarenessProtocol.removeAwarenessStates(entry.awareness, [owner.clientId], null)
         socketToRoomName.delete(otherSid)
         io.in(otherSid).socketsLeave(name)
-        // If the evicted socket held the seeder role, release it so the election at the end of
-        // this join re-elects (electSeederIfNeeded no-ops while seederSocketId is set) — otherwise
-        // an unseeded document would stay empty until the seed deadline expires.
-        if (entry.seederSocketId === otherSid) entry.seederSocketId = null
       }
 
       // Only now that the rebind is guaranteed to succeed, leave a previously-joined document if
@@ -568,7 +492,9 @@ export function setupWorkspaceFileDocHandlers(
         socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(awarenessEncoder))
       }
 
-      electSeederIfNeeded(io, entry)
+      // Seed the document server-side (once). Fire-and-forget: the join completes immediately and
+      // the seed relays to this socket via `doc.on('update')` the moment it lands.
+      if (authorized.workspaceId) void ensureServerSeed(entry, authorized.workspaceId)
 
       logger.info(`User ${userId} joined file-doc room ${fileId}`)
     } catch (error) {

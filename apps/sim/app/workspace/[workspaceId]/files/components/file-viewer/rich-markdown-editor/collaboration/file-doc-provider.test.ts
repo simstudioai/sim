@@ -83,30 +83,13 @@ describe('FileDocProvider', () => {
     expect(messages[0][0]).toBe(FILE_DOC_MESSAGE_TYPE.SYNC)
   })
 
-  it('emits seed-request and latches shouldSeed when the server elects it', () => {
-    const { provider, fire } = createProvider(true)
-    const seed = vi.fn()
-    provider.on('seed-request', seed)
-    expect(provider.shouldSeed).toBe(false)
-
-    fire(FILE_DOC_EVENTS.SEED_REQUEST, { fileId: 'file-1' })
-
-    expect(seed).toHaveBeenCalledTimes(1)
-    // Latched so a consumer subscribing after the event can still detect election.
-    expect(provider.shouldSeed).toBe(true)
-  })
-
-  it('ignores acks and seed requests for a different file', () => {
-    const { provider, emit, fire } = createProvider(true)
-    const seed = vi.fn()
-    provider.on('seed-request', seed)
+  it('ignores a join ack for a different file', () => {
+    const { emit, fire } = createProvider(true)
     emit.mockClear()
 
     fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'other-file' })
-    fire(FILE_DOC_EVENTS.SEED_REQUEST, { fileId: 'other-file' })
 
-    expect(seed).not.toHaveBeenCalled()
-    expect(provider.shouldSeed).toBe(false)
+    // No sync/awareness exchange starts for a file this provider does not own.
     expect(emittedMessages(emit)).toHaveLength(0)
   })
 

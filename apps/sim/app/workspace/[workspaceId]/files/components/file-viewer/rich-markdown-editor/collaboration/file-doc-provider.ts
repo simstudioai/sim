@@ -3,7 +3,6 @@ import {
   FILE_DOC_MESSAGE_TYPE,
   type JoinFileDocError,
   type JoinFileDocSuccess,
-  type SeedRequestPayload,
   toFileDocBytes,
 } from '@sim/realtime-protocol/file-doc'
 import * as decoding from 'lib0/decoding'
@@ -17,14 +16,10 @@ import type * as Y from 'yjs'
 /**
  * Events emitted by {@link FileDocProvider}.
  * - `synced`: the first full document sync with the server completed.
- * - `seed-request`: the server elected this client to seed the document's initial
- *   content from the file's stored markdown (the editor does the import, guarded
- *   by the CRDT `initialContentLoaded` flag).
  * - `join-error`: the server rejected the join (e.g. lost write access).
  */
 interface FileDocProviderEvents {
   synced: (synced: boolean) => void
-  'seed-request': () => void
   'join-error': (error: JoinFileDocError) => void
 }
 
@@ -54,14 +49,8 @@ const CONNECT_DEADLINE_MS = 12_000
 export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   synced = false
   /**
-   * Latched `true` when the server elects this client to seed the document. The
-   * `seed-request` event is transient and can fire before a consumer subscribes,
-   * so consumers read this flag on subscription rather than relying on the event.
-   */
-  shouldSeed = false
-  /**
-   * The latched non-retryable join rejection, or `null`. Like {@link shouldSeed},
-   * the `join-error` event is transient and can fire before a consumer subscribes,
+   * The latched non-retryable join rejection, or `null`. The `join-error` event is
+   * transient and can fire before a consumer subscribes,
    * so consumers read this on subscription to detect a fatal failure they missed.
    */
   joinError: JoinFileDocError | null = null
@@ -96,7 +85,6 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     socket.on(FILE_DOC_EVENTS.MESSAGE, this.handleMessage)
     socket.on(FILE_DOC_EVENTS.JOIN_SUCCESS, this.handleJoinSuccess)
     socket.on(FILE_DOC_EVENTS.JOIN_ERROR, this.handleJoinError)
-    socket.on(FILE_DOC_EVENTS.SEED_REQUEST, this.handleSeedRequest)
     socket.on('connect', this.handleConnect)
     doc.on('update', this.handleDocUpdate)
     awareness.on('update', this.handleAwarenessUpdate)
@@ -174,12 +162,6 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       this.clearConnectTimer()
     }
     this.emit('join-error', [data])
-  }
-
-  private handleSeedRequest = (data: SeedRequestPayload) => {
-    if (data.fileId !== this.fileId) return
-    this.shouldSeed = true
-    this.emit('seed-request', [])
   }
 
   private handleMessage = (data: unknown) => {
@@ -295,7 +277,6 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     this.socket.off(FILE_DOC_EVENTS.MESSAGE, this.handleMessage)
     this.socket.off(FILE_DOC_EVENTS.JOIN_SUCCESS, this.handleJoinSuccess)
     this.socket.off(FILE_DOC_EVENTS.JOIN_ERROR, this.handleJoinError)
-    this.socket.off(FILE_DOC_EVENTS.SEED_REQUEST, this.handleSeedRequest)
     this.socket.off('connect', this.handleConnect)
     this.doc.off('update', this.handleDocUpdate)
     this.awareness.off('update', this.handleAwarenessUpdate)
