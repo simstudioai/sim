@@ -71,6 +71,11 @@ function workspaceFile(id: string, name: string, folderId: string | null = 'fold
   }
 }
 
+/** A file whose stored bytes are a generator source, so it must be resolved. */
+function generatedDocument(id: string, name: string, folderId: string | null = 'folder-1') {
+  return { ...workspaceFile(id, name, folderId), type: 'text/x-docxjs' }
+}
+
 function requestFor(query: string) {
   return createMockRequest(
     'GET',
@@ -96,7 +101,7 @@ describe('workspace files download route', () => {
   })
 
   it('zips the rendered bytes for a generated doc, not its stored source', async () => {
-    mockListWorkspaceFiles.mockResolvedValue([workspaceFile('f1', 'overview.docx')])
+    mockListWorkspaceFiles.mockResolvedValue([generatedDocument('f1', 'overview.docx')])
     // A real .docx is a ZIP; the stored source would be plain JS text.
     const rendered = Buffer.from('PKrendered-docx')
     mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
@@ -139,7 +144,7 @@ describe('workspace files download route', () => {
       { id: 'folder-2', name: 'visuals', parentId: 'folder-1' },
     ])
     mockListWorkspaceFiles.mockResolvedValue([
-      workspaceFile('f1', 'summary.docx', 'folder-1'),
+      generatedDocument('f1', 'summary.docx', 'folder-1'),
       workspaceFile('f2', 'hero.png', 'folder-2'),
     ])
     mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
@@ -155,8 +160,8 @@ describe('workspace files download route', () => {
 
   it('returns 409 naming the documents whose artifacts are still compiling', async () => {
     mockListWorkspaceFiles.mockResolvedValue([
-      workspaceFile('f1', 'ready.docx'),
-      workspaceFile('f2', 'pending.docx'),
+      generatedDocument('f1', 'ready.docx'),
+      generatedDocument('f2', 'pending.docx'),
     ])
     mockFetchServableWorkspaceFileBuffer.mockImplementation(async (file: { name: string }) => {
       if (file.name === 'pending.docx')
@@ -173,7 +178,7 @@ describe('workspace files download route', () => {
   })
 
   it('rejects with 400, not 500, when a document blows its own allowance', async () => {
-    mockListWorkspaceFiles.mockResolvedValue([workspaceFile('f1', 'huge.docx')])
+    mockListWorkspaceFiles.mockResolvedValue([generatedDocument('f1', 'huge.docx')])
     mockFetchServableWorkspaceFileBuffer.mockRejectedValue(
       new PayloadSizeLimitError({ label: 'servable file download', maxBytes: 1 })
     )
@@ -188,8 +193,8 @@ describe('workspace files download route', () => {
 
   it('blames the shared budget once earlier documents have consumed it', async () => {
     mockListWorkspaceFiles.mockResolvedValue([
-      workspaceFile('f1', 'first.docx'),
-      workspaceFile('f2', 'second.docx'),
+      generatedDocument('f1', 'first.docx'),
+      generatedDocument('f2', 'second.docx'),
     ])
     mockFetchServableWorkspaceFileBuffer.mockImplementation(async (file: { name: string }) => {
       // The first document eats the whole budget, so the second's cap is the remainder.
@@ -207,25 +212,40 @@ describe('workspace files download route', () => {
     expect(body.error).not.toContain('second.docx')
   })
 
-  it('lets an uploaded office file larger than the render headroom through', async () => {
-    const big = { ...workspaceFile('f1', 'deck.pptx'), size: 80 * MB }
-    mockListWorkspaceFiles.mockResolvedValue([big])
-    mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
-      buffer: Buffer.from('PKdeck'),
-      contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    })
+  it('streams an uploaded office file rather than resolving it', async () => {
+    // A real upload serves exactly its stored bytes, so it must not take the buffered
+    // path — otherwise a selection of large decks is held in memory for nothing.
+    const upload = {
+      ...workspaceFile('f1', 'deck.pptx'),
+      size: 80 * MB,
+      type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    }
+    mockListWorkspaceFiles.mockResolvedValue([upload])
 
     const response = await GET(requestFor('fileIds=f1'), context)
+    await zipFrom(response)
 
     expect(response.status).toBe(200)
-    // Capped at the declared size, not the smaller render headroom.
-    expect(mockFetchServableWorkspaceFileBuffer.mock.calls[0][1].maxBytes).toBe(80 * MB)
+    expect(mockFetchServableWorkspaceFileBuffer).not.toHaveBeenCalled()
+    expect(mockDownloadFileStream).toHaveBeenCalledTimes(1)
+  })
+
+  it('caps a generated document at the render headroom', async () => {
+    mockListWorkspaceFiles.mockResolvedValue([generatedDocument('f1', 'report.docx')])
+    mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
+      buffer: Buffer.from('PKdoc'),
+      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    })
+
+    await GET(requestFor('fileIds=f1'), context)
+
+    expect(mockFetchServableWorkspaceFileBuffer.mock.calls[0][1].maxBytes).toBe(50 * MB)
   })
 
   it('surfaces a storage failure as a 500 even when another document is pending', async () => {
     mockListWorkspaceFiles.mockResolvedValue([
-      workspaceFile('f1', 'pending.docx'),
-      workspaceFile('f2', 'broken.docx'),
+      generatedDocument('f1', 'pending.docx'),
+      generatedDocument('f2', 'broken.docx'),
     ])
     mockFetchServableWorkspaceFileBuffer.mockImplementation(async (file: { name: string }) => {
       if (file.name === 'pending.docx')
@@ -241,7 +261,7 @@ describe('workspace files download route', () => {
 
   it('stops resolving documents once one hard-fails', async () => {
     const files = Array.from({ length: 20 }, (_, index) =>
-      workspaceFile(`f${index}`, `doc${index}.docx`)
+      generatedDocument(`f${index}`, `doc${index}.docx`)
     )
     mockListWorkspaceFiles.mockResolvedValue(files)
     mockFetchServableWorkspaceFileBuffer.mockImplementation(async (file: { name: string }) => {

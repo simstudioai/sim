@@ -1072,6 +1072,18 @@ export function Files() {
     setShowDeleteConfirm(true)
   }, [selectedFileIds, selectedFolderIds, files, folders])
 
+  const downloadArchive = useCallback(
+    async (selection: { fileIds?: string[]; folderIds?: string[] }) => {
+      try {
+        await triggerArchiveDownload({ workspaceId, ...selection })
+      } catch (err) {
+        logger.error('Failed to download selection:', err)
+        toast.error(toError(err).message)
+      }
+    },
+    [workspaceId]
+  )
+
   const handleBulkDownload = useCallback(async () => {
     const selectedFiles = files.filter((file) => selectedFileIds.includes(file.id))
     if (selectedFiles.length === 1 && selectedFolderIds.length === 0) {
@@ -1079,25 +1091,14 @@ export function Files() {
       return
     }
 
-    const query = new URLSearchParams()
-    for (const fileId of selectedFileIds) query.append('fileIds', fileId)
-    for (const folderId of selectedFolderIds) query.append('folderIds', folderId)
-
-    if (query.size === 0) return
+    if (selectedFileIds.length === 0 && selectedFolderIds.length === 0) return
     captureEvent(posthogRef.current, 'file_downloaded', {
       workspace_id: workspaceId,
       is_bulk: true,
       file_count: selectedFileIds.length + selectedFolderIds.length,
     })
-    try {
-      await triggerArchiveDownload(
-        `/api/workspaces/${workspaceId}/files/download?${query.toString()}`
-      )
-    } catch (err) {
-      logger.error('Failed to download selection:', err)
-      toast.error(toError(err).message)
-    }
-  }, [selectedFileIds, selectedFolderIds, files, handleDownload, workspaceId])
+    await downloadArchive({ fileIds: selectedFileIds, folderIds: selectedFolderIds })
+  }, [selectedFileIds, selectedFolderIds, files, handleDownload, downloadArchive, workspaceId])
 
   const fileDetailBreadcrumbs = useMemo(() => {
     if (!selectedFile) return []
@@ -1295,17 +1296,12 @@ export function Files() {
     if (item.kind === 'folder') {
       const folderId = item.folder.id
       closeContextMenu()
-      triggerArchiveDownload(
-        `/api/workspaces/${workspaceId}/files/download?folderIds=${encodeURIComponent(folderId)}`
-      ).catch((err) => {
-        logger.error('Failed to download folder:', err)
-        toast.error(toError(err).message)
-      })
+      void downloadArchive({ folderIds: [folderId] })
       return
     }
     handleDownload(item.file)
     closeContextMenu()
-  }, [selectedRowIds, handleBulkDownload, closeContextMenu, workspaceId, handleDownload])
+  }, [selectedRowIds, handleBulkDownload, closeContextMenu, downloadArchive, handleDownload])
 
   const handleContextMenuRename = useCallback(() => {
     const item = contextMenuItemRef.current

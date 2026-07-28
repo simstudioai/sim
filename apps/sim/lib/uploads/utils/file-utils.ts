@@ -217,6 +217,13 @@ export function getFileExtension(filename: string): string {
  */
 const RENDERABLE_DOCUMENT_EXTENSIONS = new Set(['pdf', 'docx', 'pptx', 'xlsx'])
 
+/**
+ * How far a generated document may render beyond the source it declared. A generator
+ * source is text and is orders of magnitude smaller than the document it produces, so
+ * this bounds the expansion rather than the document.
+ */
+export const RENDERED_DOCUMENT_HEADROOM_BYTES = 50 * 1024 * 1024
+
 /** True when `fileName` may be backed by a generation source rather than final bytes. */
 export function isRenderableDocumentName(fileName: string): boolean {
   return RENDERABLE_DOCUMENT_EXTENSIONS.has(getFileExtension(fileName))

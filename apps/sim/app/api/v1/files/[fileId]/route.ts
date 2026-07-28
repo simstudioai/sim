@@ -79,20 +79,24 @@ export const GET = withRouteHandler(async (request: NextRequest, context: FileRo
       { groups: { workspace: workspaceId } }
     )
 
-    return new Response(new Uint8Array(buffer), {
-      status: 200,
-      headers: {
-        'Content-Type': contentType || fileRecord.type || 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${fileRecord.name.replace(/[^\w.-]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(fileRecord.name)}`,
-        'Content-Length': String(buffer.length),
-        'X-File-Id': fileRecord.id,
-        'X-File-Name': encodeURIComponent(fileRecord.name),
-        'X-Uploaded-At':
-          fileRecord.uploadedAt instanceof Date
-            ? fileRecord.uploadedAt.toISOString()
-            : String(fileRecord.uploadedAt),
-      },
-    })
+    // View, not copy — a second full copy would double peak memory for a large file.
+    return new Response(
+      new Uint8Array(buffer.buffer as ArrayBuffer, buffer.byteOffset, buffer.byteLength),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': contentType || fileRecord.type || 'application/octet-stream',
+          'Content-Disposition': `attachment; filename="${fileRecord.name.replace(/[^\w.-]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(fileRecord.name)}`,
+          'Content-Length': String(buffer.length),
+          'X-File-Id': fileRecord.id,
+          'X-File-Name': encodeURIComponent(fileRecord.name),
+          'X-Uploaded-At':
+            fileRecord.uploadedAt instanceof Date
+              ? fileRecord.uploadedAt.toISOString()
+              : String(fileRecord.uploadedAt),
+        },
+      }
+    )
   } catch (error) {
     // A generated doc whose artifact is still compiling is retryable, not a fault:
     // without this the caller sees a 500 and has no reason to try again.
