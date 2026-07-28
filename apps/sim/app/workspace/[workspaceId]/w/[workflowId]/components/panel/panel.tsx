@@ -114,8 +114,7 @@ const EMPTY_COPILOT_CHATS: readonly CopilotChatListItem[] = []
  */
 export const Panel = memo(function Panel() {
   const router = useRouter()
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId, workflowId } = useParams<{ workspaceId: string; workflowId: string }>()
 
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
@@ -898,6 +897,7 @@ export const Panel = memo(function Panel() {
                   onCancelQueueEdit={copilotCancelQueueEdit}
                   userId={session?.user?.id}
                   chatId={copilotResolvedChatId}
+                  draftScopeKey={`${workspaceId}:workflow:${workflowId}`}
                   layout='copilot-view'
                 />
               </div>
