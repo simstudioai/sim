@@ -15,6 +15,7 @@ import { performDeleteWorkspaceFileItems } from '@/lib/workspace-files/orchestra
 import {
   checkRateLimit,
   createRateLimitResponse,
+  v1ValidationErrorResponse,
   validateWorkspaceAccess,
 } from '@/app/api/v1/middleware'
 
@@ -38,7 +39,9 @@ export const GET = withRouteHandler(async (request: NextRequest, context: FileRo
     }
 
     const userId = rateLimit.userId!
-    const parsed = await parseRequest(v1DownloadFileContract, request, context)
+    const parsed = await parseRequest(v1DownloadFileContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
 
     const { fileId } = parsed.data.params
@@ -119,7 +122,9 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Fil
     }
 
     const userId = rateLimit.userId!
-    const parsed = await parseRequest(v1DeleteFileContract, request, context)
+    const parsed = await parseRequest(v1DeleteFileContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
 
     const { fileId } = parsed.data.params

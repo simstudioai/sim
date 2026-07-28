@@ -985,6 +985,17 @@
         "responses": {
           "200": {
             "description": "A paginated list of workflows.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1110,6 +1121,17 @@
         "responses": {
           "201": {
             "description": "The workflow was imported.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1218,6 +1240,17 @@
         "responses": {
           "200": {
             "description": "Workflow details including input field definitions.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1287,6 +1320,17 @@
         "responses": {
           "200": {
             "description": "The workflow export envelope.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1400,6 +1444,17 @@
         "responses": {
           "200": {
             "description": "Workflow deployed successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1485,6 +1540,17 @@
         "responses": {
           "200": {
             "description": "Workflow undeployed successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1591,6 +1657,17 @@
         "responses": {
           "200": {
             "description": "Workflow rolled back successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1877,6 +1954,17 @@
         "responses": {
           "200": {
             "description": "A paginated list of execution logs matching the filter criteria.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1955,6 +2043,17 @@
         "responses": {
           "200": {
             "description": "Detailed log entry with full execution data and cost breakdown.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2026,6 +2125,17 @@
         "responses": {
           "200": {
             "description": "Full execution state snapshot with workflow state and metadata.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2216,6 +2326,17 @@
         "responses": {
           "200": {
             "description": "A paginated list of audit log entries.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2299,6 +2420,17 @@
         "responses": {
           "200": {
             "description": "The audit log entry.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2423,6 +2555,17 @@
         "responses": {
           "200": {
             "description": "List of tables in the workspace.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2576,6 +2719,17 @@
         "responses": {
           "200": {
             "description": "Table created successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2670,6 +2824,17 @@
         "responses": {
           "200": {
             "description": "Table details.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2759,6 +2924,17 @@
         "responses": {
           "200": {
             "description": "Table deleted successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2881,6 +3057,17 @@
         "responses": {
           "200": {
             "description": "Column added successfully",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3009,6 +3196,17 @@
         "responses": {
           "200": {
             "description": "Column updated successfully",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3110,6 +3308,17 @@
         "responses": {
           "200": {
             "description": "Column deleted successfully",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3228,6 +3437,17 @@
         "responses": {
           "200": {
             "description": "Rows matching the query.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3401,6 +3621,17 @@
         "responses": {
           "200": {
             "description": "Row(s) inserted successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3635,6 +3866,17 @@
         "responses": {
           "200": {
             "description": "Rows deleted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3832,6 +4074,17 @@
         "responses": {
           "200": {
             "description": "Row data.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3940,6 +4193,17 @@
         "responses": {
           "200": {
             "description": "Row updated.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4025,6 +4289,17 @@
         "responses": {
           "200": {
             "description": "Row deleted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4153,6 +4428,17 @@
         "responses": {
           "200": {
             "description": "Row upserted successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4242,6 +4528,17 @@
         "responses": {
           "200": {
             "description": "List of workspace files.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4342,6 +4639,17 @@
         "responses": {
           "200": {
             "description": "File uploaded successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4489,6 +4797,15 @@
                   "type": "string",
                   "format": "date-time"
                 }
+              },
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
               }
             },
             "content": {
@@ -4548,6 +4865,17 @@
         "responses": {
           "200": {
             "description": "File deleted successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4618,6 +4946,17 @@
         "responses": {
           "200": {
             "description": "List of knowledge bases in the workspace.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4733,6 +5072,17 @@
         "responses": {
           "200": {
             "description": "Knowledge base created successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4824,6 +5174,17 @@
         "responses": {
           "200": {
             "description": "Knowledge base details.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4943,6 +5304,17 @@
         "responses": {
           "200": {
             "description": "Knowledge base updated successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5034,6 +5406,17 @@
         "responses": {
           "200": {
             "description": "Knowledge base deleted successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5177,6 +5560,17 @@
         "responses": {
           "200": {
             "description": "List of documents.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5317,6 +5711,17 @@
         "responses": {
           "200": {
             "description": "Document uploaded successfully. Processing will begin shortly.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5469,6 +5874,17 @@
         "responses": {
           "200": {
             "description": "Document details.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5564,6 +5980,17 @@
         "responses": {
           "200": {
             "description": "Document deleted successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5683,6 +6110,17 @@
         "responses": {
           "200": {
             "description": "Search results.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -7762,13 +8200,22 @@
         }
       },
       "RateLimited": {
-        "description": "Rate limit exceeded. Wait for the duration specified in the Retry-After header before retrying.",
+        "description": "Rate limit exceeded. Wait for the duration specified in the Retry-After header before retrying. The X-RateLimit-* headers accompany every response from an authenticated v1 request \u2014 success and error alike \u2014 and are omitted only when the request fails authentication, since no rate-limit bucket is consulted in that case.",
         "headers": {
           "Retry-After": {
             "description": "Number of seconds to wait before retrying the request.",
             "schema": {
               "type": "integer"
             }
+          },
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/RateLimitLimit"
+          },
+          "X-RateLimit-Remaining": {
+            "$ref": "#/components/headers/RateLimitRemaining"
+          },
+          "X-RateLimit-Reset": {
+            "$ref": "#/components/headers/RateLimitReset"
           }
         },
         "content": {
@@ -7831,6 +8278,30 @@
               }
             }
           }
+        }
+      }
+    },
+    "headers": {
+      "RateLimitLimit": {
+        "description": "Maximum number of requests the bucket holds \u2014 its burst capacity, which is the per-minute allowance for your plan multiplied by a burst factor. `X-RateLimit-Remaining` counts down from this value, so `X-RateLimit-Limit - X-RateLimit-Remaining` is the number of requests currently consumed.",
+        "schema": {
+          "type": "integer",
+          "example": 400
+        }
+      },
+      "RateLimitRemaining": {
+        "description": "Requests still available in the current bucket. Never exceeds `X-RateLimit-Limit`.",
+        "schema": {
+          "type": "integer",
+          "example": 399
+        }
+      },
+      "RateLimitReset": {
+        "description": "ISO 8601 timestamp at which the bucket refills.",
+        "schema": {
+          "type": "string",
+          "format": "date-time",
+          "example": "2026-07-28T18:28:48.354Z"
         }
       }
     }

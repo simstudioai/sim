@@ -31,6 +31,8 @@ vi.mock('@/app/api/v1/middleware', () => ({
     NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   ),
   validateWorkspaceAccess: mockValidateWorkspaceAccess,
+  v1ValidationErrorResponse: (e: { issues: unknown[] }) =>
+    NextResponse.json({ error: 'Validation error', details: e.issues }, { status: 400 }),
 }))
 
 vi.mock('@/lib/workflows/orchestration', () => ({
