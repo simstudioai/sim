@@ -16,11 +16,17 @@ import {
 import type { BlockLog } from '@/executor/types'
 
 const logger = createLogger('StreamingTokenization')
+const ENVIRONMENT_REFERENCE_PATTERN = /\{\{[^}]+\}\}/
+
+type StreamingTokenizationLog = Pick<BlockLog, 'blockId' | 'blockType' | 'input' | 'output'>
 
 /**
  * Processes a block log and adds tokenization data if needed
  */
-export function processStreamingBlockLog(log: BlockLog, streamedContent: string): boolean {
+export function processStreamingBlockLog(
+  log: StreamingTokenizationLog,
+  streamedContent: string
+): boolean {
   // Check if this block should be tokenized
   if (!isTokenizableBlockType(log.blockType)) {
     return false
@@ -47,6 +53,12 @@ export function processStreamingBlockLog(log: BlockLog, streamedContent: string)
 
     // Prepare input text from log
     const inputText = extractTextContent(log.input)
+    // Environment values are restored to references before logs leave the
+    // executor. Never use those shorter placeholders as a billing estimate:
+    // the executor performs this fallback once with the raw resolved input.
+    if (ENVIRONMENT_REFERENCE_PATTERN.test(inputText)) {
+      return false
+    }
 
     // Calculate streaming cost
     const systemPrompt =
@@ -101,7 +113,7 @@ export function processStreamingBlockLog(log: BlockLog, streamedContent: string)
 /**
  * Determines the appropriate model for a block
  */
-function getModelForBlock(log: BlockLog): string {
+function getModelForBlock(log: StreamingTokenizationLog): string {
   // Try to get model from output first
   if (log.output?.model?.trim()) {
     return log.output.model

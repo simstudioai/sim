@@ -7,6 +7,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-values'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
+import { processStreamingBlockLog } from '@/lib/tokenization'
 import {
   containsUserFileWithMetadata,
   hydrateUserFilesWithBase64,
@@ -1037,6 +1038,19 @@ export class BlockExecutor {
       if (!parsedForFormat) {
         executionOutput.content = fullContent
       }
+
+      // Fallback usage estimation must happen while the resolved input is
+      // still available. The log copy is sanitized later, and estimating from
+      // `{{ENV_VAR}}` placeholders would skew token counts and cost.
+      processStreamingBlockLog(
+        {
+          blockId,
+          blockType: block.metadata?.id,
+          input: resolvedInputs,
+          output: streamingExec.execution.output,
+        },
+        fullContent
+      )
     }
 
     if (streamingExec.onFullContent) {

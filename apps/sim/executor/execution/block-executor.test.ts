@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { calculateStreamingCost } from '@/lib/tokenization'
 import { BlockType } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
@@ -952,6 +953,51 @@ describe('BlockExecutor streaming pump', () => {
     await executor.execute(ctx, createNode(block), block)
 
     expect(state.getBlockOutput(block.id)?.content).toBe('offline answer')
+  })
+
+  it('estimates missing streaming usage from resolved input before sanitizing logs', async () => {
+    const secret = `sk-${'resolved-secret-'.repeat(20)}`
+    const params = { prompt: '{{OPENAI_API_KEY}}', model: 'gpt-4o' }
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (_ctx, _block, resolvedInputs) => ({
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('streamed answer'))
+            controller.close()
+          },
+        }),
+        execution: {
+          success: true,
+          output: { content: '', model: 'gpt-4o' },
+          logs: [],
+          metadata: {
+            startTime: new Date().toISOString(),
+            endTime: new Date().toISOString(),
+            duration: 1,
+          },
+        },
+      }),
+    }
+    const { executor, block, state } = createExecutor(handler, params)
+    const ctx = createContext(state)
+    ctx.environmentVariables = { OPENAI_API_KEY: secret }
+
+    await executor.execute(ctx, createNode(block), block)
+
+    const expected = calculateStreamingCost(
+      'gpt-4o',
+      JSON.stringify({ prompt: secret, model: 'gpt-4o' }),
+      'streamed answer'
+    )
+    expect(state.getBlockOutput(block.id)?.tokens).toEqual(expected.tokens)
+    expect(state.getBlockOutput(block.id)?.cost).toEqual(expected.cost)
+    expect(ctx.blockLogs[0].input).toEqual({
+      prompt: '{{OPENAI_API_KEY}}',
+      model: 'gpt-4o',
+    })
+    expect(ctx.blockLogs[0].output?.tokens).toEqual(expected.tokens)
+    expect(JSON.stringify(ctx.blockLogs[0])).not.toContain(secret)
   })
 
   it('throws on mid-stream provider error (no truncated success)', async () => {
