@@ -1085,13 +1085,14 @@
                   },
                   "workflow": {
                     "description": "The workflow to import. Accepts the export envelope returned by GET /api/v1/workflows/{id}/export, a bare workflow state object (`{ blocks, edges, ... }`), or a JSON string of either.",
-                    "oneOf": [
+                    "anyOf": [
                       {
                         "$ref": "#/components/schemas/WorkflowExport"
                       },
                       {
                         "type": "object",
                         "additionalProperties": true,
+                        "minProperties": 1,
                         "description": "A bare workflow state object."
                       },
                       {
@@ -1160,6 +1161,22 @@
                     "error": {
                       "type": "string",
                       "example": "Request body exceeds the maximum allowed size"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "423": {
+            "description": "The target folder is locked and cannot accept new workflows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Folder is locked"
                     }
                   }
                 }
@@ -1245,7 +1262,7 @@
       "get": {
         "operationId": "exportWorkflow",
         "summary": "Export Workflow",
-        "description": "Export a workflow as a portable JSON envelope that POST /api/v1/workflows/import accepts verbatim. Credential and password field values stored on blocks are redacted from the payload, while `{{ENV_VAR}}` references and block positions are preserved. Workflow variables are returned as stored \u2014 they are plaintext configuration readable by anyone with workspace read, and secrets belong in environment variables, which travel as unresolved references. Requires read permission on the workflow's workspace. Returns 404 when the workflow does not exist or you do not have access to it.",
+        "description": "Export a workflow as a portable JSON envelope that POST /api/v1/workflows/import accepts verbatim. Credential and password field values stored on blocks are redacted from the payload, while `{{ENV_VAR}}` references and block positions are preserved. Workflow variables are returned as stored \u2014 they are plaintext configuration readable by anyone with workspace read, and secrets belong in environment variables, which travel as unresolved references. Requires read permission on the workflow's workspace. Returns 404 when the workflow does not exist or you do not have access to it. Workspace-scoped bindings (knowledge bases, workspace files, channels, projects, folders, MCP servers) are cleared, since those ids do not resolve in another workspace \u2014 an imported copy needs them re-selected.",
         "tags": ["Workflows"],
         "x-codeSamples": [
           {

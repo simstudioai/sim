@@ -1,27 +1,39 @@
 import { db } from '@sim/db'
 import { workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
+import {
+  assertFolderInWorkspace,
+  assertFolderMutable,
+  FolderLockedError,
+  FolderNotFoundError,
+} from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import type { Variable } from '@sim/workflow-types/workflow'
+import { truncate } from '@sim/utils/string'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
+  V1_IMPORT_DESCRIPTION_MAX_LENGTH,
+  V1_IMPORT_NAME_MAX_LENGTH,
   type V1ImportWorkflowData,
   v1ImportWorkflowContract,
 } from '@/lib/api/contracts/v1/workflows'
-import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
+import { workflowStateSchema } from '@/lib/api/contracts/workflows'
+import { getValidationErrorMessage, parseRequest, serializeZodIssues } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { performCreateWorkflow } from '@/lib/workflows/orchestration'
+import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
+import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { normalizeImportedVariables } from '@/lib/workflows/variables/parse'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
   checkRateLimit,
   createRateLimitResponse,
   validateWorkspaceAccess,
 } from '@/app/api/v1/middleware'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('V1WorkflowImportAPI')
 
@@ -70,6 +82,11 @@ function unwrapResponseEnvelope(payload: unknown): unknown {
  * request overrides and then the payload's own metadata. Accepts every shape
  * the importer takes: the export envelope (`workflow.*`, `state.metadata.*`)
  * and a bare state (`metadata.*`).
+ *
+ * Payload-derived values are truncated to the same bounds the contract applies
+ * to the explicit overrides — otherwise the declared `maxLength` would not be
+ * the effective one, and a caller could store an unbounded name simply by
+ * embedding it in the payload instead of passing it as a field.
  */
 function resolveImportedMetadata(
   rawPayload: unknown,
@@ -80,48 +97,25 @@ function resolveImportedMetadata(
 
   const name =
     overrideName ||
-    readString(payload, 'workflow.name') ||
-    readString(payload, 'state.metadata.name') ||
-    readString(payload, 'metadata.name') ||
-    DEFAULT_IMPORTED_WORKFLOW_NAME
+    truncate(
+      readString(payload, 'workflow.name') ||
+        readString(payload, 'state.metadata.name') ||
+        readString(payload, 'metadata.name') ||
+        DEFAULT_IMPORTED_WORKFLOW_NAME,
+      V1_IMPORT_NAME_MAX_LENGTH
+    )
 
   const description =
     overrideDescription ??
-    readString(payload, 'workflow.description') ??
-    readString(payload, 'state.metadata.description') ??
-    readString(payload, 'metadata.description') ??
-    ''
+    truncate(
+      readString(payload, 'workflow.description') ??
+        readString(payload, 'state.metadata.description') ??
+        readString(payload, 'metadata.description') ??
+        '',
+      V1_IMPORT_DESCRIPTION_MAX_LENGTH
+    )
 
   return { name, description }
-}
-
-/**
- * Normalizes parsed variables into the persisted `Record<string, Variable>`
- * shape, keyed by variable id. Accepts both the record form and the legacy
- * array form that older exports carry.
- */
-function toVariablesRecord(variables: unknown): Record<string, Variable> {
-  const record: Record<string, Variable> = {}
-  if (!variables || typeof variables !== 'object') return record
-
-  const entries: Array<[string | undefined, unknown]> = Array.isArray(variables)
-    ? variables.map((value) => [undefined, value])
-    : Object.entries(variables)
-
-  for (const [key, value] of entries) {
-    if (!value || typeof value !== 'object') continue
-    const raw = value as Partial<Variable>
-    const id = typeof raw.id === 'string' && raw.id.trim() ? raw.id : (key ?? generateId())
-
-    record[id] = {
-      id,
-      name: typeof raw.name === 'string' ? raw.name : id,
-      type: raw.type ?? 'string',
-      value: raw.value,
-    }
-  }
-
-  return record
 }
 
 /**
@@ -185,16 +179,67 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 
+    /**
+     * Ownership before lock state: `assertFolderMutable` walks the folder's
+     * ancestor chain without filtering on workspace, so checking it first would
+     * let a caller distinguish a locked folder in someone else's workspace
+     * (423) from a nonexistent one (404).
+     */
+    if (folderId) {
+      await assertFolderInWorkspace(folderId, workspaceId)
+    }
     await assertFolderMutable(folderId ?? null)
 
     const rawWorkflow = parsed.data.body.workflow
     const workflowContent =
       typeof rawWorkflow === 'string' ? rawWorkflow : JSON.stringify(rawWorkflow)
 
-    const { data: workflowState, errors } = parseWorkflowJson(workflowContent)
-    if (!workflowState || errors.length > 0) {
+    const { data: parsedState, errors } = parseWorkflowJson(workflowContent)
+    if (!parsedState || errors.length > 0) {
       return NextResponse.json({ error: `Invalid workflow: ${errors.join(', ')}` }, { status: 400 })
     }
+
+    /**
+     * Variables are normalized before validation, not after: older exports
+     * carry them as an array, which is a shape `workflowStateSchema` rightly
+     * rejects but the importer has always accepted. Normalizing first keeps
+     * that tolerance while still validating what actually gets persisted.
+     */
+    const variables = normalizeImportedVariables(parsedState.variables)
+
+    /**
+     * `parseWorkflowJson` only checks that blocks/edges are structurally
+     * present. The normalized tables are read back through
+     * {@link workflowStateSchema}, and the client parses that response
+     * strictly — so a block field with the wrong type (`data.extent: 'child'`,
+     * `data.count: '5'`) would persist happily here and then throw on every
+     * subsequent load, leaving a workflow nothing can open. Gate on the same
+     * schema the canonical `PUT /api/workflows/[id]/state` path enforces.
+     */
+    const stateValidation = workflowStateSchema.safeParse({ ...parsedState, variables })
+    if (!stateValidation.success) {
+      const issue = stateValidation.error.issues[0]
+      const path = issue?.path.join('.')
+      return NextResponse.json(
+        {
+          error: `Invalid workflow state${path ? ` at ${path}` : ''}: ${issue?.message ?? 'validation failed'}`,
+          details: serializeZodIssues(stateValidation.error),
+        },
+        { status: 400 }
+      )
+    }
+
+    /**
+     * Same normalization the editor's `PUT /api/workflows/[id]/state` runs, via
+     * the one shared implementation — the two import surfaces must land
+     * byte-identical data for the same payload.
+     */
+    const { state: preparedState, warnings } = prepareWorkflowStateForPersistence(parsedState)
+    if (warnings.length > 0) {
+      logger.warn(`[${requestId}] Normalized imported workflow with warnings`, { warnings })
+    }
+
+    const workflowState: WorkflowState = { ...parsedState, ...preparedState }
 
     let parsedPayload: unknown = rawWorkflow
     if (typeof rawWorkflow === 'string') {
@@ -229,8 +274,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const workflowId = created.workflow.id
 
-    const variables = toVariablesRecord(workflowState.variables)
-
     /**
      * The graph and the variables are written in one transaction so an import
      * can never half-land, and any failure deletes the shell row created above
@@ -256,8 +299,46 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         workflowId,
         error: getErrorMessage(error, 'Unknown error'),
       })
-      await db.delete(workflow).where(eq(workflow.id, workflowId))
+      /**
+       * The rollback runs under the same conditions that just failed the write,
+       * so it can fail too. Losing it must not turn into an unlogged orphan:
+       * the caller still gets a 500, but the id is recorded loudly enough to
+       * clean up.
+       */
+      try {
+        await db.delete(workflow).where(eq(workflow.id, workflowId))
+      } catch (rollbackError) {
+        logger.error(
+          `[${requestId}] Rollback failed, workflow ${workflowId} is orphaned in workspace ${workspaceId}`,
+          { workflowId, workspaceId, error: getErrorMessage(rollbackError, 'Unknown error') }
+        )
+      }
       return NextResponse.json({ error: 'Failed to save workflow state' }, { status: 500 })
+    }
+
+    /**
+     * Matches the canonical state-write path: agent blocks may carry inline
+     * custom-tool definitions that must exist as workspace rows to be
+     * resolvable at execution. Failures are logged, not fatal — the workflow
+     * itself imported successfully.
+     */
+    try {
+      const { saved, errors: toolErrors } = await extractAndPersistCustomTools(
+        workflowState,
+        workspaceId,
+        userId
+      )
+      if (saved > 0 || toolErrors.length > 0) {
+        logger.info(`[${requestId}] Persisted ${saved} custom tool(s) from import`, {
+          workflowId,
+          errors: toolErrors,
+        })
+      }
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to persist custom tools from import`, {
+        workflowId,
+        error: getErrorMessage(error, 'Unknown error'),
+      })
     }
 
     logger.info(`[${requestId}] Imported workflow ${workflowId} into workspace ${workspaceId}`, {
@@ -268,7 +349,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const data: V1ImportWorkflowData = {
       id: workflowId,
       name: created.workflow.name,
-      description: created.workflow.description || null,
+      description: created.workflow.description ?? null,
       workspaceId,
       folderId: created.workflow.folderId ?? null,
       createdAt: created.workflow.createdAt.toISOString(),
@@ -280,7 +361,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(apiResponse.body, { status: 201, headers: apiResponse.headers })
   } catch (error: unknown) {
-    if (error instanceof FolderLockedError) {
+    if (error instanceof FolderLockedError || error instanceof FolderNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
     const message = getErrorMessage(error, 'Unknown error')

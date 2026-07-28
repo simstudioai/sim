@@ -67,9 +67,22 @@ function toExportedEdge(edge: Edge): ExportedEdge {
  *
  * Unlike the admin export (`/api/v1/admin/workflows/[id]/export`), which emits
  * the raw state for backup/restore, this surface runs the payload through
- * `sanitizeForExport`: block sub-block values declared `password: true` or
- * `oauth-input` are nulled, while `{{ENV_VAR}}` references and block positions
- * are preserved.
+ * `sanitizeForExport`, which nulls three classes of sub-block value:
+ * - `password: true` fields, unless the value is a whole `{{ENV_VAR}}`
+ *   reference, which is preserved so the import resolves it in the target
+ *   workspace;
+ * - `oauth-input` credentials;
+ * - **workspace-scoped bindings** — `knowledge-base-selector`, `file-selector`,
+ *   `channel-selector`, `project-selector`, `folder-selector`,
+ *   `mcp-server-selector` and friends, plus fields keyed `knowledgeBaseId`,
+ *   `fileId`, `channelId`, `projectId`, `documentId`, `tagFilters`. These point
+ *   at rows that do not exist in another workspace, so they are cleared rather
+ *   than carried across as dangling ids.
+ *
+ * The last class means an export is **not** a byte-for-byte clone even when
+ * re-imported into the same workspace: those bindings come back empty and must
+ * be re-selected. This matches the in-app export and is documented on the
+ * public endpoint so callers do not expect otherwise.
  *
  * Workflow **variables** are emitted as stored, matching `GET
  * /api/v1/workflows/[id]` and the in-app export. Variables are plaintext

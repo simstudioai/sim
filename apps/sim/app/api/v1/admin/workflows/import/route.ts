@@ -26,18 +26,14 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
+import { normalizeImportedVariables } from '@/lib/workflows/variables/parse'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
 } from '@/app/api/v1/admin/responses'
-import {
-  extractWorkflowMetadata,
-  type VariableType,
-  type WorkflowImportRequest,
-  type WorkflowVariable,
-} from '@/app/api/v1/admin/types'
+import { extractWorkflowMetadata, type WorkflowImportRequest } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminWorkflowImportAPI')
 
@@ -117,42 +113,8 @@ export const POST = withRouteHandler(
         return internalErrorResponse(`Failed to save workflow state: ${saveResult.error}`)
       }
 
-      if (
-        workflowData.variables &&
-        typeof workflowData.variables === 'object' &&
-        !Array.isArray(workflowData.variables)
-      ) {
-        const variablesRecord: Record<string, WorkflowVariable> = {}
-        const vars = workflowData.variables as Record<
-          string,
-          { id?: string; name: string; type?: VariableType; value: unknown }
-        >
-        Object.entries(vars).forEach(([key, v]) => {
-          const varId = v.id || key
-          variablesRecord[varId] = {
-            id: varId,
-            name: v.name,
-            type: v.type ?? 'string',
-            value: v.value,
-          }
-        })
-
-        await db
-          .update(workflow)
-          .set({ variables: variablesRecord, updatedAt: new Date() })
-          .where(eq(workflow.id, workflowId))
-      } else if (workflowData.variables && Array.isArray(workflowData.variables)) {
-        const variablesRecord: Record<string, WorkflowVariable> = {}
-        workflowData.variables.forEach((v) => {
-          const varId = v.id || generateId()
-          variablesRecord[varId] = {
-            id: varId,
-            name: v.name,
-            type: (v.type as VariableType) ?? 'string',
-            value: v.value,
-          }
-        })
-
+      const variablesRecord = normalizeImportedVariables(workflowData.variables)
+      if (Object.keys(variablesRecord).length > 0) {
         await db
           .update(workflow)
           .set({ variables: variablesRecord, updatedAt: new Date() })

@@ -18,6 +18,9 @@ const {
   mockSaveWorkflowToNormalizedTables,
   mockParseWorkflowJson,
   mockAssertFolderMutable,
+  mockAssertFolderInWorkspace,
+  mockExtractAndPersistCustomTools,
+  mockPrepareWorkflowState,
   mockDbDelete,
   mockDbUpdate,
   mockWorkspaceRows,
@@ -28,6 +31,9 @@ const {
   mockSaveWorkflowToNormalizedTables: vi.fn(),
   mockParseWorkflowJson: vi.fn(),
   mockAssertFolderMutable: vi.fn(),
+  mockAssertFolderInWorkspace: vi.fn(),
+  mockExtractAndPersistCustomTools: vi.fn(),
+  mockPrepareWorkflowState: vi.fn(),
   mockDbDelete: vi.fn(),
   mockDbUpdate: vi.fn(),
   mockWorkspaceRows: { value: [{ id: 'ws-1' }] as Array<{ id: string }> },
@@ -59,10 +65,27 @@ vi.mock('@/app/api/v1/logs/meta', () => ({
 }))
 
 vi.mock('@sim/platform-authz/workflow', () => ({
+  assertFolderInWorkspace: mockAssertFolderInWorkspace,
   assertFolderMutable: mockAssertFolderMutable,
   FolderLockedError: class FolderLockedError extends Error {
     status = 423
   },
+  FolderNotFoundError: class FolderNotFoundError extends Error {
+    status = 400
+  },
+}))
+
+vi.mock('@/lib/workflows/persistence/custom-tools-persistence', () => ({
+  extractAndPersistCustomTools: mockExtractAndPersistCustomTools,
+}))
+
+/**
+ * Mocked to keep the block registry (and its icon/CSS graph) out of this
+ * suite. The real normalization is covered by `prepare-state.test.ts` and by
+ * the end-to-end round trip in `import-export-roundtrip.test.ts`.
+ */
+vi.mock('@/lib/workflows/persistence/prepare-state', () => ({
+  prepareWorkflowStateForPersistence: mockPrepareWorkflowState,
 }))
 
 vi.mock('@sim/db', () => ({
@@ -84,8 +107,19 @@ import { POST } from '@/app/api/v1/workflows/import/route'
 const WORKSPACE_ID = 'ws-1'
 const CREATED_AT = new Date('2026-07-01T00:00:00Z')
 
+/** A schema-valid block: the route now gates on `workflowStateSchema`. */
+const VALID_BLOCK = {
+  id: 'block-1',
+  type: 'starter',
+  name: 'Start',
+  position: { x: 0, y: 0 },
+  subBlocks: {},
+  outputs: {},
+  enabled: true,
+}
+
 const PARSED_STATE = {
-  blocks: { 'block-1': { id: 'block-1', type: 'starter', position: { x: 0, y: 0 } } },
+  blocks: { 'block-1': VALID_BLOCK },
   edges: [],
   loops: {},
   parallels: {},
@@ -120,6 +154,12 @@ describe('POST /api/v1/workflows/import', () => {
     mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'user-1' })
     mockValidateWorkspaceAccess.mockResolvedValue(null)
     mockAssertFolderMutable.mockResolvedValue(undefined)
+    mockAssertFolderInWorkspace.mockResolvedValue(undefined)
+    mockExtractAndPersistCustomTools.mockResolvedValue({ saved: 0, errors: [] })
+    mockPrepareWorkflowState.mockImplementation((state: { blocks: unknown; edges: unknown }) => ({
+      state: { blocks: state.blocks, edges: state.edges, loops: {}, parallels: {} },
+      warnings: [],
+    }))
     mockParseWorkflowJson.mockReturnValue({ data: { ...PARSED_STATE }, errors: [] })
     mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
     mockPerformCreateWorkflow.mockResolvedValue({

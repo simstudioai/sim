@@ -177,17 +177,26 @@ const v1WorkflowExportVariableSchema = z.object({
  * (credentials stripped, `{{ENV_VAR}}` references preserved), while admin
  * exports are raw for backup/restore.
  */
-export const v1WorkflowExportStateSchema = workflowStateSchema.extend({
-  metadata: z
-    .object({
-      name: z.string().optional(),
-      description: z.string().optional(),
-      sortOrder: z.number().optional(),
-      exportedAt: z.string().optional(),
-    })
-    .optional(),
-  variables: z.record(z.string(), v1WorkflowExportVariableSchema).optional(),
-})
+export const v1WorkflowExportStateSchema = workflowStateSchema
+  /**
+   * `sanitizeForExport` builds its payload from `{blocks, edges, loops,
+   * parallels, metadata, variables}` only, so these three are structurally
+   * unreachable on this wire. `deployedAt` in particular is a `z.coerce.date()`
+   * whose output type is a `Date` — never a valid JSON value — so leaving it
+   * inherited would put an unrepresentable type in a response contract.
+   */
+  .omit({ lastSaved: true, isDeployed: true, deployedAt: true })
+  .extend({
+    metadata: z
+      .object({
+        name: z.string().optional(),
+        description: z.string().optional(),
+        sortOrder: z.number().optional(),
+        exportedAt: z.string().optional(),
+      })
+      .optional(),
+    variables: z.record(z.string(), v1WorkflowExportVariableSchema).optional(),
+  })
 
 export const v1WorkflowExportPayloadSchema = z.object({
   version: z.literal('1.0'),
@@ -215,13 +224,17 @@ export const v1ExportWorkflowContract = defineRouteContract({
 })
 
 /**
- * Upper bound on an imported workflow name, matching the `workflow.name`
- * column and the deduplication suffix headroom applied on insert.
+ * Upper bound on an imported workflow name. `workflow.name` is an unbounded
+ * `text` column, so this is a product limit rather than a storage one — it
+ * keeps a name renderable in the sidebar and leaves headroom for the
+ * deduplication suffix appended on insert. Exported because the route applies
+ * the same bound to names read out of the payload, so the declared limit is
+ * also the effective one.
  */
-const V1_IMPORT_NAME_MAX_LENGTH = 200
+export const V1_IMPORT_NAME_MAX_LENGTH = 200
 
-/** Upper bound on an imported workflow description. */
-const V1_IMPORT_DESCRIPTION_MAX_LENGTH = 2000
+/** Upper bound on an imported workflow description. See above. */
+export const V1_IMPORT_DESCRIPTION_MAX_LENGTH = 2000
 
 /**
  * Import request body. `workflow` accepts either the envelope emitted by
