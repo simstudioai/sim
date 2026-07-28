@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1UpsertTableRowContract } from '@/lib/api/contracts/v1/tables'
-import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
@@ -16,6 +16,8 @@ import {
   checkWorkspaceScope,
   createRateLimitResponse,
   resolveWorkspaceRequestActor,
+  v1ValidationErrorResponse,
+  v1ValidationErrorResponseFromError,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableUpsertAPI')
@@ -38,7 +40,9 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
     }
 
     const userId = rateLimit.userId!
-    const parsed = await parseRequest(v1UpsertTableRowContract, request, context)
+    const parsed = await parseRequest(v1UpsertTableRowContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
     const { tableId } = parsed.data.params
     const validated = parsed.data.body
@@ -96,7 +100,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
   } catch (error) {
     const lockError = tableLockErrorResponse(error)
     if (lockError) return lockError
-    const validationResponse = validationErrorResponseFromError(error)
+    const validationResponse = v1ValidationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
     const errorMessage = toError(error).message

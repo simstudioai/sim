@@ -25,6 +25,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { PinButton } from '@/components/pin-button'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { captureEvent } from '@/lib/posthog/client'
 import { triggerArchiveDownload, triggerFileDownload } from '@/lib/uploads/client/download'
@@ -93,6 +94,7 @@ import {
 } from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { usePinnedIds } from '@/hooks/queries/pinned-items'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
 import {
   useBulkArchiveWorkspaceFileItems,
@@ -226,6 +228,7 @@ export function Files() {
   const { data: files = EMPTY_WORKSPACE_FILES, isLoading, error } = useWorkspaceFiles(workspaceId)
   const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS } = useWorkspaceFileFolders(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
+  const pinnedFileIds = usePinnedIds(workspaceId, 'file')
   const membersById = useMemo(() => {
     const map = new Map<string, WorkspaceMember>()
     for (const member of members ?? []) map.set(member.userId, member)
@@ -485,6 +488,12 @@ export function Files() {
     const col = activeSort?.column ?? 'updated'
     const dir = activeSort?.direction ?? 'desc'
     return [...result].sort((a, b) => {
+      // Pinned files float to the top of every sort/direction — pinning is a
+      // user-declared priority, not another sort key to be inverted by `desc`.
+      const aPinned = pinnedFileIds.has(a.id)
+      const bPinned = pinnedFileIds.has(b.id)
+      if (aPinned !== bPinned) return aPinned ? -1 : 1
+
       let cmp = 0
       switch (col) {
         case 'name':
@@ -519,6 +528,7 @@ export function Files() {
     uploadedByFilter,
     activeSort,
     membersById,
+    pinnedFileIds,
   ])
 
   const baseRows: ResourceRow[] = useMemo(() => {
@@ -553,6 +563,15 @@ export function Files() {
           name: {
             icon: <Icon className='size-[14px]' />,
             label: file.name,
+            endAdornment: (
+              <PinButton
+                workspaceId={workspaceId}
+                resourceType='file'
+                resourceId={file.id}
+                pinned={pinnedFileIds.has(file.id)}
+                className='ml-2'
+              />
+            ),
           },
           size: {
             label: formatFileSize(file.size, { includeBytes: true }),
@@ -570,7 +589,7 @@ export function Files() {
     })
 
     return [...folderRows, ...fileRows]
-  }, [visibleFolders, filteredFiles, membersById, folderSizeMap])
+  }, [visibleFolders, filteredFiles, membersById, folderSizeMap, workspaceId, pinnedFileIds])
 
   const rows: ResourceRow[] = useMemo(() => {
     if (!listRename.editingId) return baseRows

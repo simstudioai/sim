@@ -7,11 +7,7 @@ import {
   v1ListTableRowsContract,
   v1UpdateRowsByFilterContract,
 } from '@/lib/api/contracts/v1/tables'
-import {
-  parseRequest,
-  validationErrorResponse,
-  validationErrorResponseFromError,
-} from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { Filter, RowData, TableSchema } from '@/lib/table'
@@ -42,6 +38,8 @@ import {
   checkWorkspaceScope,
   createRateLimitResponse,
   resolveWorkspaceRequestActor,
+  v1ValidationErrorResponse,
+  v1ValidationErrorResponseFromError,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableRowsAPI')
@@ -137,7 +135,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
         if (hasJsonError) {
           return NextResponse.json({ error: 'Invalid filter or sort JSON' }, { status: 400 })
         }
-        return validationErrorResponse(error)
+        return v1ValidationErrorResponse(error)
       },
     })
     if (!parsed.success) return parsed.response
@@ -197,7 +195,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
       },
     })
   } catch (error) {
-    const validationResponse = validationErrorResponseFromError(error)
+    const validationResponse = v1ValidationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
     if (error instanceof TableQueryValidationError) {
@@ -221,7 +219,9 @@ export const POST = withRouteHandler(
       }
 
       const userId = rateLimit.userId!
-      const parsed = await parseRequest(v1CreateTableRowContract, request, context)
+      const parsed = await parseRequest(v1CreateTableRowContract, request, context, {
+        validationErrorResponse: v1ValidationErrorResponse,
+      })
       if (!parsed.success) return parsed.response
 
       const { tableId } = parsed.data.params
@@ -296,7 +296,7 @@ export const POST = withRouteHandler(
         },
       })
     } catch (error) {
-      const validationResponse = validationErrorResponseFromError(error)
+      const validationResponse = v1ValidationErrorResponseFromError(error)
       if (validationResponse) return validationResponse
 
       const response = rowWriteErrorResponse(error)
@@ -319,7 +319,9 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
     }
 
     const userId = rateLimit.userId!
-    const parsed = await parseRequest(v1UpdateRowsByFilterContract, request, context)
+    const parsed = await parseRequest(v1UpdateRowsByFilterContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
     const { tableId } = parsed.data.params
     const validated = parsed.data.body
@@ -385,7 +387,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
       },
     })
   } catch (error) {
-    const validationResponse = validationErrorResponseFromError(error)
+    const validationResponse = v1ValidationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
     if (error instanceof TableQueryValidationError) {
@@ -412,7 +414,9 @@ export const DELETE = withRouteHandler(
       }
 
       const userId = rateLimit.userId!
-      const parsed = await parseRequest(v1DeleteTableRowsContract, request, context)
+      const parsed = await parseRequest(v1DeleteTableRowsContract, request, context, {
+        validationErrorResponse: v1ValidationErrorResponse,
+      })
       if (!parsed.success) return parsed.response
       const { tableId } = parsed.data.params
       const validated = parsed.data.body
@@ -478,7 +482,7 @@ export const DELETE = withRouteHandler(
         },
       })
     } catch (error) {
-      const validationResponse = validationErrorResponseFromError(error)
+      const validationResponse = v1ValidationErrorResponseFromError(error)
       if (validationResponse) return validationResponse
 
       if (error instanceof TableQueryValidationError) {

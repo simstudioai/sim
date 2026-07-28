@@ -306,7 +306,9 @@ describe('Individual Folder API Route', () => {
   })
 
   describe('Input Validation', () => {
-    it('should handle empty folder name', async () => {
+    it('rejects an empty folder name', async () => {
+      // The contract bounds `name` to 1-255 chars: renaming a folder to '' previously
+      // slipped through as a no-op 200, which silently discarded the user's rename.
       mockAuthenticatedUser()
 
       queueFolderLookup()
@@ -317,7 +319,23 @@ describe('Individual Folder API Route', () => {
 
       const response = await PUT(req, { params })
 
-      expect(response.status).toBe(200)
+      expect(response.status).toBe(400)
+    })
+
+    it('rejects a whitespace-only folder name', async () => {
+      // The write path trims before persisting, so validating the raw string would let
+      // '   ' through and store an empty name — the same failure the '' case closes.
+      mockAuthenticatedUser()
+
+      queueFolderLookup()
+      const req = createMockRequest('PUT', {
+        name: '   ',
+      })
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const response = await PUT(req, { params })
+
+      expect(response.status).toBe(400)
     })
 
     it('should handle invalid JSON payload', async () => {
