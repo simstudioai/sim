@@ -36,20 +36,32 @@ export const nonEmptyIdSchema = z.string().min(1)
  * Non-empty `workspaceId` field. Same constraint as `nonEmptyIdSchema` with a
  * stable, human-readable message. Use to deduplicate the
  * `z.string().min(1, 'Workspace ID is required')` pattern across contracts.
+ *
+ * The message is given twice on purpose: `.min(1)` only fires for a present but
+ * empty string, so without the `z.string({ error })` form an *omitted* field
+ * falls back to Zod's default `Invalid input: expected string, received
+ * undefined`, which does not name the field. The same applies to the sibling id
+ * schemas below.
  */
-export const workspaceIdSchema = z.string().min(1, 'Workspace ID is required')
+export const workspaceIdSchema = z
+  .string({ error: 'Workspace ID is required' })
+  .min(1, 'Workspace ID is required')
 
 /**
  * Non-empty `organizationId` field. Same constraint as `nonEmptyIdSchema` with a
  * stable, human-readable message.
  */
-export const organizationIdSchema = z.string().min(1, 'Organization ID is required')
+export const organizationIdSchema = z
+  .string({ error: 'Organization ID is required' })
+  .min(1, 'Organization ID is required')
 
 /**
  * Non-empty `workflowId` field. Same constraint as `nonEmptyIdSchema` with a
  * stable, human-readable message.
  */
-export const workflowIdSchema = z.string().min(1, 'Workflow ID is required')
+export const workflowIdSchema = z
+  .string({ error: 'Workflow ID is required' })
+  .min(1, 'Workflow ID is required')
 
 /**
  * A `workspace_files.id` value. The column is a free-form `text` primary key, so
@@ -59,7 +71,7 @@ export const workflowIdSchema = z.string().min(1, 'Workflow ID is required')
  * UUID-only schema — a `.uuid()` constraint here silently 400s every `wf_` file.
  */
 export const workspaceFileIdSchema = z
-  .string()
+  .string({ error: 'File ID is required' })
   .min(1, 'File ID is required')
   .max(128, 'File ID is too long')
   .regex(/^[A-Za-z0-9_-]+$/, 'Invalid file id')
