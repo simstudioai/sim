@@ -6,11 +6,13 @@
  */
 export const FLAG_TWINS: ReadonlyArray<{ server: string; client: string }> = [
   { server: 'BILLING_ENABLED', client: 'NEXT_PUBLIC_BILLING_ENABLED' },
+  { server: 'ENTERPRISE_ENABLED', client: 'NEXT_PUBLIC_ENTERPRISE_ENABLED' },
   { server: 'ACCESS_CONTROL_ENABLED', client: 'NEXT_PUBLIC_ACCESS_CONTROL_ENABLED' },
   { server: 'ORGANIZATIONS_ENABLED', client: 'NEXT_PUBLIC_ORGANIZATIONS_ENABLED' },
   { server: 'WHITELABELING_ENABLED', client: 'NEXT_PUBLIC_WHITELABELING_ENABLED' },
   { server: 'AUDIT_LOGS_ENABLED', client: 'NEXT_PUBLIC_AUDIT_LOGS_ENABLED' },
   { server: 'DATA_RETENTION_ENABLED', client: 'NEXT_PUBLIC_DATA_RETENTION_ENABLED' },
+  { server: 'SESSION_POLICIES_ENABLED', client: 'NEXT_PUBLIC_SESSION_POLICIES_ENABLED' },
   { server: 'DATA_DRAINS_ENABLED', client: 'NEXT_PUBLIC_DATA_DRAINS_ENABLED' },
   { server: 'FORKING_ENABLED', client: 'NEXT_PUBLIC_FORKING_ENABLED' },
   { server: 'INBOX_ENABLED', client: 'NEXT_PUBLIC_INBOX_ENABLED' },
@@ -25,13 +27,19 @@ export const FLAG_TWINS: ReadonlyArray<{ server: string; client: string }> = [
 /** Self-host feature unlocks offered by the wizard's Custom flow. */
 export const SELF_HOST_UNLOCKS: ReadonlyArray<{ server: string; label: string; hint: string }> = [
   {
+    server: 'ENTERPRISE_ENABLED',
+    label: 'All enterprise features',
+    hint: 'enables everything below',
+  },
+  {
     server: 'ACCESS_CONTROL_ENABLED',
     label: 'Access control',
     hint: 'permission groups (implies organizations)',
   },
   { server: 'ORGANIZATIONS_ENABLED', label: 'Organizations', hint: 'multi-workspace orgs' },
   { server: 'AUDIT_LOGS_ENABLED', label: 'Audit logs', hint: '' },
-  { server: 'DATA_RETENTION_ENABLED', label: 'Data retention', hint: 'retention policies' },
+  { server: 'DATA_RETENTION_ENABLED', label: 'Data retention', hint: 'deletes expired data' },
+  { server: 'SESSION_POLICIES_ENABLED', label: 'Session policies', hint: 'session lifetime caps' },
   { server: 'DATA_DRAINS_ENABLED', label: 'Data drains', hint: 'export streams' },
   { server: 'FORKING_ENABLED', label: 'Workflow forking', hint: '' },
   { server: 'INBOX_ENABLED', label: 'Inbox', hint: '' },

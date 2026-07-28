@@ -140,3 +140,77 @@ export function resolveEffectiveRetentionHours(params: {
   if (overrideValue !== undefined) return overrideValue
   return params.orgSettings?.[params.key] ?? null
 }
+
+/**
+ * The subset of a PII redaction settings object this gate reads. Both the
+ * stored `organization.dataRetentionSettings.piiRedaction` and an incoming
+ * request body satisfy it structurally.
+ */
+interface PiiRedactionRulesLike {
+  rules?: Array<{
+    workspaceId?: string | null
+    stages?: {
+      input?: { enabled?: boolean } | null
+      blockOutputs?: { enabled?: boolean } | null
+    } | null
+  }> | null
+}
+
+/**
+ * Which granular stages (`input`/`blockOutputs`) are already enabled per rule
+ * target (`workspaceId ?? ''` = the org default).
+ */
+function granularStageEnablement(
+  settings: PiiRedactionRulesLike | null | undefined
+): Map<string, { input: boolean; blockOutputs: boolean }> {
+  const map = new Map<string, { input: boolean; blockOutputs: boolean }>()
+  for (const rule of settings?.rules ?? []) {
+    map.set(rule.workspaceId ?? '', {
+      input: rule.stages?.input?.enabled === true,
+      blockOutputs: rule.stages?.blockOutputs?.enabled === true,
+    })
+  }
+  return map
+}
+
+/**
+ * Whether a write to `piiRedaction` is permitted, given the deployment's PII
+ * feature flags. Returns `null` when allowed, otherwise the reason to reject
+ * with.
+ *
+ * The granular check gates *new* enablement only. When
+ * `pii-granular-redaction` is off, an organization that already configured
+ * granular stages must still be able to re-save unrelated retention settings —
+ * the settings UI re-sends the full PII snapshot on every save — so a stage
+ * that is merely preserved never rejects, only one transitioning off to on.
+ *
+ * Pure by design: callers resolve the two flags and pass them in, which keeps
+ * this module free of the feature-flag service and makes the rule testable
+ * without mocking it. Shared so the settings API and the Admin API cannot drift
+ * to different answers for the same write.
+ */
+export function getPiiRedactionDenialReason(params: {
+  current: PiiRedactionRulesLike | null | undefined
+  incoming: PiiRedactionRulesLike | null | undefined
+  piiRedactionEnabled: boolean
+  piiGranularRedactionEnabled: boolean
+}): string | null {
+  if (!params.piiRedactionEnabled) {
+    return 'PII redaction is not enabled for this organization'
+  }
+
+  if (params.piiGranularRedactionEnabled) return null
+
+  const currentGranular = granularStageEnablement(params.current)
+  const newlyEnablesGranular = (params.incoming?.rules ?? []).some((rule) => {
+    const existing = currentGranular.get(rule.workspaceId ?? '')
+    return (
+      (rule.stages?.input?.enabled === true && !existing?.input) ||
+      (rule.stages?.blockOutputs?.enabled === true && !existing?.blockOutputs)
+    )
+  })
+
+  return newlyEnablesGranular
+    ? 'Granular PII redaction (workflow input and block outputs) is not enabled for this organization'
+    : null
+}
