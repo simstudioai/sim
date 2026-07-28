@@ -9,6 +9,7 @@ import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
   buildWorkspaceFileFolderPathMap,
   fetchServableWorkspaceFileBuffer,
@@ -33,9 +34,9 @@ const MAX_ZIP_DOWNLOAD_BYTES = 250 * 1024 * 1024
  */
 const RENDERED_DOCUMENT_HEADROOM_BYTES = 50 * 1024 * 1024
 /**
- * Reads in flight cannot see each other's bytes until they land, so peak memory
- * scales with this. Kept well below the shared default: the entries here are whole
- * files held in memory at once, not rows.
+ * Fan-out for files that serve exactly their declared size. Their total is already
+ * bounded by the pre-download check, so concurrency cannot push residency past it.
+ * Renderable documents are read one at a time instead — see below.
  */
 const ZIP_MATERIALIZE_CONCURRENCY = 5
 
@@ -116,13 +117,14 @@ export const GET = withRouteHandler(
 
       // Generated docs (docx/pptx/pdf/xlsx) store their generation source, not the
       // rendered binary, so bytes are resolved through the servable reader — a raw
-      // read ships source text under a `.docx` name. The rendered artifact can be far
-      // larger than the declared source size, so each read is capped at whatever is
-      // left of the budget, with office extensions additionally held to their declared
-      // size plus render headroom. Concurrent reads cannot see each other's bytes until
-      // they land, so that per-entry allowance and the concurrency limit are together
-      // what bound peak memory. Once the budget is blown or a read hard-fails, the
-      // abort flag stops reads that have not started yet.
+      // read ships source text under a `.docx` name.
+      //
+      // Only those documents can exceed the size they declared, so only they can push
+      // residency past the budget the pre-download check already enforced. They are
+      // therefore read one at a time, which keeps the overshoot to a single entry;
+      // everything else stays parallel because its bytes are exactly its declared size.
+      // Once the budget is blown or a read hard-fails, the abort flag stops reads that
+      // have not started yet.
       const controller = new AbortController()
       let renderedBytes = 0
 
@@ -142,55 +144,73 @@ export const GET = withRouteHandler(
         error: null,
       }
 
-      const downloads = await mapWithConcurrency(
-        filesToZip,
-        ZIP_MATERIALIZE_CONCURRENCY,
-        async (file): Promise<DownloadOutcome> => {
-          if (controller.signal.aborted) return skipped
-          const remaining = Math.max(0, MAX_ZIP_DOWNLOAD_BYTES - renderedBytes)
-          // Only renderable documents carry a cap of their own; everything else is
-          // bounded solely by what is left of the shared budget.
-          const renderable = isRenderableDocumentName(file.name)
-          const allowance = renderable
-            ? Math.max(file.size, RENDERED_DOCUMENT_HEADROOM_BYTES)
-            : remaining
-          try {
-            const { buffer } = await fetchServableWorkspaceFileBuffer(file, {
-              maxBytes: Math.min(remaining, allowance),
-              signal: controller.signal,
-            })
-            renderedBytes += buffer.length
-            const overLimit = renderedBytes > MAX_ZIP_DOWNLOAD_BYTES
-            if (overLimit) controller.abort()
-            return { ...skipped, buffer, overLimit }
-          } catch (error) {
-            // Recorded even when another worker already aborted: a size rejection
-            // describes this file, so losing it to someone else's cancellation would
-            // downgrade an actionable 400 into an opaque 500.
-            if (error instanceof PayloadSizeLimitError) {
-              controller.abort()
-              // Attributed to this entry when its own cap was the binding one — ties
-              // included, since the entry's ceiling still made it unshippable and
-              // downloading it alone is the way through. Otherwise the budget ran out.
-              return {
-                ...skipped,
-                overLimit: true,
-                overLimitEntry:
-                  renderable && allowance <= remaining ? { name: file.name, allowance } : null,
-              }
+      const readEntry = async (
+        file: WorkspaceFileRecord,
+        renderable: boolean
+      ): Promise<DownloadOutcome> => {
+        if (controller.signal.aborted) return skipped
+        const remaining = Math.max(0, MAX_ZIP_DOWNLOAD_BYTES - renderedBytes)
+        // Only renderable documents carry a cap of their own; everything else is
+        // bounded solely by what is left of the shared budget.
+        const allowance = renderable
+          ? Math.max(file.size, RENDERED_DOCUMENT_HEADROOM_BYTES)
+          : remaining
+        try {
+          const { buffer } = await fetchServableWorkspaceFileBuffer(file, {
+            maxBytes: Math.min(remaining, allowance),
+            signal: controller.signal,
+          })
+          renderedBytes += buffer.length
+          const overLimit = renderedBytes > MAX_ZIP_DOWNLOAD_BYTES
+          if (overLimit) controller.abort()
+          return { ...skipped, buffer, overLimit }
+        } catch (error) {
+          // Recorded even when another worker already aborted: a size rejection
+          // describes this file, so losing it to someone else's cancellation would
+          // downgrade an actionable 400 into an opaque 500.
+          if (error instanceof PayloadSizeLimitError) {
+            controller.abort()
+            // Attributed to this entry when its own cap was the binding one — ties
+            // included, since the entry's ceiling still made it unshippable and
+            // downloading it alone is the way through. Otherwise the budget ran out.
+            return {
+              ...skipped,
+              overLimit: true,
+              overLimitEntry:
+                renderable && allowance <= remaining ? { name: file.name, allowance } : null,
             }
-            // Any other error from an already-aborted read is a consequence of the
-            // cancellation, not a cause. Checked before this worker aborts anything so
-            // the worker that actually failed still records its own error.
-            if (controller.signal.aborted) return skipped
-            // A pending artifact is worth reporting in full, so keep resolving the
-            // rest of the selection; anything else dooms the request.
-            const pending = isDocNotReadyError(error)
-            if (!pending) controller.abort()
-            return { ...skipped, pendingName: pending ? file.name : null, error }
           }
+          // Any other error from an already-aborted read is a consequence of the
+          // cancellation, not a cause. Checked before this worker aborts anything so
+          // the worker that actually failed still records its own error.
+          if (controller.signal.aborted) return skipped
+          // A pending artifact is worth reporting in full, so keep resolving the
+          // rest of the selection; anything else dooms the request.
+          const pending = isDocNotReadyError(error)
+          if (!pending) controller.abort()
+          return { ...skipped, pendingName: pending ? file.name : null, error }
         }
-      )
+      }
+
+      const outcomes = new Array<DownloadOutcome>(filesToZip.length)
+      const indices = filesToZip.map((_, index) => index)
+      await Promise.all([
+        mapWithConcurrency(
+          indices.filter((index) => isRenderableDocumentName(filesToZip[index].name)),
+          1,
+          async (index) => {
+            outcomes[index] = await readEntry(filesToZip[index], true)
+          }
+        ),
+        mapWithConcurrency(
+          indices.filter((index) => !isRenderableDocumentName(filesToZip[index].name)),
+          ZIP_MATERIALIZE_CONCURRENCY,
+          async (index) => {
+            outcomes[index] = await readEntry(filesToZip[index], false)
+          }
+        ),
+      ])
+      const downloads = outcomes
 
       // Size first: the request cannot succeed at any size-adjacent retry, and a
       // descriptive 400 beats an opaque 500 raised by whatever the abort cancelled.
