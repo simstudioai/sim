@@ -529,11 +529,11 @@ export function Table({
   const currentViewConfig = useMemo<TableViewConfig>(
     () => ({
       ...(activeView?.config ?? tableData?.metadata),
-      filter,
+      filter: effectiveFilter,
       sort: sortQuery,
       hiddenColumns: effectiveHiddenColumns,
     }),
-    [activeView, tableData?.metadata, filter, sortQuery, effectiveHiddenColumns]
+    [activeView, tableData?.metadata, effectiveFilter, sortQuery, effectiveHiddenColumns]
   )
 
   /**
@@ -543,7 +543,7 @@ export function Table({
    */
   const isViewDirty = activeView
     ? !isSameViewConfig(currentViewConfig, activeView.config)
-    : Boolean(filter) || Boolean(sortQuery) || effectiveHiddenColumns.length > 0
+    : Boolean(effectiveFilter) || Boolean(sortQuery) || effectiveHiddenColumns.length > 0
 
   /** Rename targets a live view rather than a snapshot, so a concurrent rename or
    *  delete can't leave the modal editing stale data. */
@@ -570,8 +570,14 @@ export function Table({
    *  a `configPatch` so the server merges it — two overlapping layout writes must
    *  not each replace the whole blob from their own snapshot. With no view active
    *  the grid keeps writing the table's shared metadata. */
+  /** Last layout the grid reported, patch by patch. View layout writes have no
+   *  optimistic cache update, so `activeView.config` lags an in-flight resize —
+   *  this is what a blank "New view" copies so the grid can't snap back. */
+  const liveLayoutRef = useRef<TableMetadata>({})
+
   const handlePersistLayout = useCallback(
     (patch: TableMetadata) => {
+      liveLayoutRef.current = { ...liveLayoutRef.current, ...patch }
       if (!activeView) return
       updateViewMutation.mutate(
         { viewId: activeView.id, configPatch: patch },
@@ -591,7 +597,7 @@ export function Table({
         {
           viewId: activeView.id,
           configPatch: {
-            filter,
+            filter: effectiveFilter,
             sort: sortQuery,
             hiddenColumns: effectiveHiddenColumns,
           },

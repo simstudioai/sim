@@ -171,6 +171,17 @@ export async function updateTableView(data: UpdateTableViewData): Promise<TableV
   if (data.isDefault !== undefined) patch.isDefault = data.isDefault
 
   const row = await db.transaction(async (tx) => {
+    // Confirm the target exists BEFORE demoting. The demotion has to run first —
+    // the partial unique index rejects a second default — but on a PATCH naming a
+    // missing view the target update matches nothing, so without this the demote
+    // would still commit and silently clear the table's real default.
+    const [existing] = await tx
+      .select({ id: tableViews.id })
+      .from(tableViews)
+      .where(and(eq(tableViews.id, data.viewId), eq(tableViews.tableId, data.tableId)))
+      .limit(1)
+    if (!existing) return null
+
     if (data.isDefault === true) {
       await tx
         .update(tableViews)
