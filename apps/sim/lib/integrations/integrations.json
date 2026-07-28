@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-16",
+  "updatedAt": "2026-07-27",
   "integrations": [
     {
       "type": "onepassword",
@@ -2502,12 +2502,24 @@
           "description": "Get a Brex budget by its ID"
         },
         {
+          "name": "Create Budget",
+          "description": "Create a new budget in the Brex account"
+        },
+        {
+          "name": "Archive Budget",
+          "description": "Archive a Brex budget, making any spend limits beneath it unusable for future expenses and removing it from the UI"
+        },
+        {
           "name": "List Spend Limits",
           "description": "List spend limits in the Brex account, optionally filtered by member user"
         },
         {
           "name": "Get Spend Limit",
           "description": "Get a Brex spend limit by its ID"
+        },
+        {
+          "name": "Create Spend Limit",
+          "description": "Create a new spend limit (hard-authorization card program) in the Brex account"
         },
         {
           "name": "List Vendors",
@@ -2518,15 +2530,27 @@
           "description": "Get a Brex vendor by its ID"
         },
         {
+          "name": "Create Vendor",
+          "description": "Create a new vendor in the Brex account"
+        },
+        {
+          "name": "Update Vendor",
+          "description": "Update an existing vendor in the Brex account"
+        },
+        {
           "name": "List Transfers",
           "description": "List money transfers in the Brex account"
         },
         {
           "name": "Get Transfer",
           "description": "Get a Brex money transfer by its ID"
+        },
+        {
+          "name": "Create Transfer",
+          "description": "Create a money transfer from a Brex cash account to a vendor"
         }
       ],
-      "operationCount": 28,
+      "operationCount": 34,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -2871,6 +2895,24 @@
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["scheduling", "calendar", "meeting"]
+    },
+    {
+      "type": "managed_agent",
+      "slug": "claude-managed-agents",
+      "name": "Claude Managed Agents",
+      "description": "Run a Claude Platform Managed Agent",
+      "longDescription": "Invoke a Claude Platform Managed Agent from a workflow. Select a Claude Platform account, pick an agent and environment from that workspace, optionally attach vaults, a memory store, and files, and add metadata tags. Returns the assistant's final text.",
+      "bgColor": "#DA7756",
+      "iconName": "ClaudeIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/managed-agent",
+      "operations": [],
+      "operationCount": 0,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "ai",
+      "tags": ["agentic", "llm"]
     },
     {
       "type": "clay",
@@ -5534,8 +5576,94 @@
         }
       ],
       "operationCount": 13,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "emailbison_email_sent",
+          "name": "Email Bison Email Sent",
+          "description": "Trigger when a campaign email is sent in Email Bison"
+        },
+        {
+          "id": "emailbison_lead_first_contacted",
+          "name": "Email Bison Contact First Emailed",
+          "description": "Trigger when a contact receives their first campaign email in Email Bison"
+        },
+        {
+          "id": "emailbison_lead_replied",
+          "name": "Email Bison Contact Replied",
+          "description": "Trigger when a campaign lead replies in Email Bison"
+        },
+        {
+          "id": "emailbison_lead_interested",
+          "name": "Email Bison Contact Interested",
+          "description": "Trigger when a reply is marked interested in Email Bison"
+        },
+        {
+          "id": "emailbison_lead_unsubscribed",
+          "name": "Email Bison Contact Unsubscribed",
+          "description": "Trigger when a contact unsubscribes in Email Bison"
+        },
+        {
+          "id": "emailbison_untracked_reply_received",
+          "name": "Email Bison Untracked Reply Received",
+          "description": "Trigger when Email Bison receives a reply not tied to a scheduled campaign email"
+        },
+        {
+          "id": "emailbison_email_opened",
+          "name": "Email Bison Email Opened",
+          "description": "Trigger when an Email Bison campaign email is opened"
+        },
+        {
+          "id": "emailbison_email_bounced",
+          "name": "Email Bison Email Bounced",
+          "description": "Trigger when an Email Bison campaign email bounces"
+        },
+        {
+          "id": "emailbison_email_account_added",
+          "name": "Email Bison Email Account Added",
+          "description": "Trigger when a sender email account is added to Email Bison"
+        },
+        {
+          "id": "emailbison_email_account_removed",
+          "name": "Email Bison Email Account Removed",
+          "description": "Trigger when a sender email account is removed from Email Bison"
+        },
+        {
+          "id": "emailbison_email_account_disconnected",
+          "name": "Email Bison Email Account Disconnected",
+          "description": "Trigger when a sender email account disconnects in Email Bison"
+        },
+        {
+          "id": "emailbison_email_account_reconnected",
+          "name": "Email Bison Email Account Reconnected",
+          "description": "Trigger when a sender email account reconnects in Email Bison"
+        },
+        {
+          "id": "emailbison_manual_email_sent",
+          "name": "Email Bison Manual Email Sent",
+          "description": "Trigger when a manual email is sent in Email Bison"
+        },
+        {
+          "id": "emailbison_tag_attached",
+          "name": "Email Bison Tag Attached",
+          "description": "Trigger when a custom tag is attached to a taggable in Email Bison"
+        },
+        {
+          "id": "emailbison_tag_removed",
+          "name": "Email Bison Tag Removed",
+          "description": "Trigger when a custom tag is removed from a taggable in Email Bison"
+        },
+        {
+          "id": "emailbison_warmup_disabled_receiving_bounces",
+          "name": "Email Bison Warmup Disabled Receiving Bounces",
+          "description": "Trigger when warmup is disabled for a sender email receiving too many bounces"
+        },
+        {
+          "id": "emailbison_warmup_disabled_causing_bounces",
+          "name": "Email Bison Warmup Disabled Causing Bounces",
+          "description": "Trigger when warmup is disabled for a sender email causing too many bounces"
+        }
+      ],
+      "triggerCount": 17,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "email",
@@ -6604,7 +6732,7 @@
       "slug": "gitlab",
       "name": "GitLab",
       "description": "Interact with GitLab projects, issues, merge requests, and pipelines",
-      "longDescription": "Integrate GitLab into the workflow. Can manage projects, issues, merge requests, pipelines, and add comments. Supports all core GitLab DevOps operations.",
+      "longDescription": "Integrate GitLab into the workflow. Can manage projects, issues, merge requests, pipelines, and add comments, plus project/group membership, invitations, access requests, SAML group links, and instance user administration. Supports all core GitLab DevOps operations.",
       "bgColor": "#FFFFFF",
       "iconName": "GitLabIcon",
       "docsUrl": "https://docs.sim.ai/integrations/gitlab",
@@ -6616,6 +6744,14 @@
         {
           "name": "Get Project",
           "description": "Get details of a specific GitLab project"
+        },
+        {
+          "name": "List Groups",
+          "description": "List GitLab groups accessible to the authenticated user"
+        },
+        {
+          "name": "Get Group",
+          "description": "Get details of a specific GitLab group"
         },
         {
           "name": "List Issues",
@@ -6748,9 +6884,121 @@
         {
           "name": "Create Release",
           "description": "Create a new release in a GitLab project"
+        },
+        {
+          "name": "List Members",
+          "description": "List members of a GitLab project or group. Includes members inherited from ancestor groups by default."
+        },
+        {
+          "name": "Add Member",
+          "description": "Add an existing GitLab user to a project or group at a given access level"
+        },
+        {
+          "name": "Update Member",
+          "description": "Update a member's access level in a GitLab project or group"
+        },
+        {
+          "name": "Remove Member",
+          "description": "Remove a member from a GitLab project or group"
+        },
+        {
+          "name": "Invite Member by Email",
+          "description": "Invite a person to a GitLab project or group by email address"
+        },
+        {
+          "name": "List Invitations",
+          "description": "List pending email invitations for a GitLab project or group"
+        },
+        {
+          "name": "Update Invitation",
+          "description": "Update a pending invitation to a GitLab project or group"
+        },
+        {
+          "name": "Revoke Invitation",
+          "description": "Revoke a pending email invitation to a GitLab project or group"
+        },
+        {
+          "name": "List Access Requests",
+          "description": "List pending access requests for a GitLab project or group"
+        },
+        {
+          "name": "Approve Access Request",
+          "description": "Approve a pending access request for a GitLab project or group"
+        },
+        {
+          "name": "Deny Access Request",
+          "description": "Deny (delete) a pending access request for a GitLab project or group"
+        },
+        {
+          "name": "List SAML Group Links",
+          "description": "List SAML group links for a GitLab group. Use this to detect whether a group is governed by SAML group sync before provisioning members."
+        },
+        {
+          "name": "List User Memberships",
+          "description": "List a user's project and group memberships. Requires an administrator access token (GET /users/:id/memberships is admin-only). For a non-admin path, iterate List Members on each project or group instead."
+        },
+        {
+          "name": "Search Users",
+          "description": "Search for GitLab users by name, username, or email. Email matches must be exact; private emails match only with an admin token. Use this to resolve an email to a user ID before adding a member."
+        },
+        {
+          "name": "Create User",
+          "description": "Create a new GitLab user. Requires an administrator token with admin_mode on the instance."
+        },
+        {
+          "name": "Update User",
+          "description": "Modify an existing GitLab user. Requires an administrator token with admin_mode on the instance."
+        },
+        {
+          "name": "Delete User",
+          "description": "Delete a GitLab user. Requires an administrator token with admin_mode on the instance."
+        },
+        {
+          "name": "Block User",
+          "description": ""
+        },
+        {
+          "name": "Unblock User",
+          "description": ""
+        },
+        {
+          "name": "Deactivate User",
+          "description": ""
+        },
+        {
+          "name": "Activate User",
+          "description": ""
+        },
+        {
+          "name": "Ban User",
+          "description": ""
+        },
+        {
+          "name": "Unban User",
+          "description": ""
+        },
+        {
+          "name": "Approve User Signup",
+          "description": ""
+        },
+        {
+          "name": "Reject User Signup",
+          "description": ""
+        },
+        {
+          "name": "Delete User Identity",
+          "description": "Delete a user's authentication identity (e.g. SAML or LDAP). Requires an administrator token with admin_mode on the instance."
+        },
+        {
+          "name": "Add SAML Group Link",
+          "description": "Add a SAML group link that maps an identity-provider group to a GitLab group at a given access level (GitLab Premium/Ultimate)"
+        },
+        {
+          "name": "Delete SAML Group Link",
+          "description": "Delete a SAML group link from a GitLab group (GitLab Premium/Ultimate)"
         }
       ],
-      "operationCount": 35,
+      "operationCount": 65,
       "triggers": [
         {
           "id": "gitlab_push",
@@ -8467,6 +8715,10 @@
           "description": "Get the full transcript of a recording"
         },
         {
+          "name": "List Views",
+          "description": "List available Grain views for webhook subscriptions"
+        },
+        {
           "name": "List Teams",
           "description": "List all teams in the workspace"
         },
@@ -8476,18 +8728,18 @@
         },
         {
           "name": "Create Webhook",
-          "description": "Create a webhook for a specific Grain event type (v2 API)"
+          "description": "Create a webhook to receive recording events"
         },
         {
           "name": "List Webhooks",
-          "description": "List webhooks for the account (v2 API)"
+          "description": "List all webhooks for the account"
         },
         {
           "name": "Delete Webhook",
-          "description": "Delete a webhook by ID (v2 API)"
+          "description": "Delete a webhook by ID"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 9,
       "triggers": [
         {
           "id": "grain_recording_added_v2",
@@ -8851,6 +9103,10 @@
           "description": "Search for contacts in HubSpot using filters, sorting, and queries"
         },
         {
+          "name": "Delete Contact",
+          "description": "Archive a contact in HubSpot by ID (moves it to the recycling bin)"
+        },
+        {
           "name": "Get Companies",
           "description": "Retrieve all companies from HubSpot account with pagination support"
         },
@@ -8865,6 +9121,10 @@
         {
           "name": "Search Companies",
           "description": "Search for companies in HubSpot using filters, sorting, and queries"
+        },
+        {
+          "name": "Delete Company",
+          "description": "Archive a company in HubSpot by ID (moves it to the recycling bin)"
         },
         {
           "name": "Get Deals",
@@ -8883,6 +9143,10 @@
           "description": "Search for deals in HubSpot using filters, sorting, and queries"
         },
         {
+          "name": "Delete Deal",
+          "description": "Archive a deal in HubSpot by ID (moves it to the recycling bin)"
+        },
+        {
           "name": "Get Tickets",
           "description": "Retrieve all tickets from HubSpot account with pagination support"
         },
@@ -8897,6 +9161,10 @@
         {
           "name": "Search Tickets",
           "description": "Search for tickets in HubSpot using filters, sorting, and queries"
+        },
+        {
+          "name": "Delete Ticket",
+          "description": "Archive a ticket in HubSpot by ID (moves it to the recycling bin)"
         },
         {
           "name": "Get Notes",
@@ -8935,6 +9203,14 @@
           "description": "Associate two HubSpot records. Creates the default (unlabeled) association unless an association type ID is provided"
         },
         {
+          "name": "Delete Association",
+          "description": "Remove all associations between two HubSpot records"
+        },
+        {
+          "name": "Get Association Labels",
+          "description": "Retrieve the association types (category, typeId, label) defined between two HubSpot object types"
+        },
+        {
           "name": "Get Line Items",
           "description": "Retrieve all line items from HubSpot account with pagination support"
         },
@@ -8947,8 +9223,20 @@
           "description": "Update an existing line item in HubSpot by ID"
         },
         {
+          "name": "Search Line Items",
+          "description": "Search for line items in HubSpot using filters, sorting, and queries"
+        },
+        {
+          "name": "Delete Line Item",
+          "description": "Archive a line item in HubSpot by ID (moves it to the recycling bin)"
+        },
+        {
           "name": "Get Quotes",
           "description": "Retrieve all quotes from HubSpot account with pagination support"
+        },
+        {
+          "name": "Search Quotes",
+          "description": "Search for quotes in HubSpot using filters, sorting, and queries"
         },
         {
           "name": "Get Appointments",
@@ -8983,11 +9271,23 @@
           "description": "Create a new list in HubSpot. Specify the object type and processing type (MANUAL or DYNAMIC)"
         },
         {
+          "name": "Get List Members",
+          "description": "Retrieve the record IDs that are members of a HubSpot list, ordered by record ID"
+        },
+        {
+          "name": "Add List Members",
+          "description": "Add records to a manual (static) HubSpot list by record ID"
+        },
+        {
+          "name": "Remove List Members",
+          "description": "Remove records from a manual (static) HubSpot list by record ID"
+        },
+        {
           "name": "Get Users",
           "description": "Retrieve all users from HubSpot account"
         }
       ],
-      "operationCount": 38,
+      "operationCount": 50,
       "triggers": [
         {
           "id": "hubspot_poller",
@@ -19395,6 +19695,77 @@
       "tags": ["content-management", "knowledge-base", "automation"]
     },
     {
+      "type": "tiktok",
+      "slug": "tiktok",
+      "name": "TikTok",
+      "description": "Access TikTok profiles and videos, and upload inbox drafts",
+      "longDescription": "Integrate TikTok into your workflow. Get user profile information including follower counts and video statistics. List and query videos with cover images, embed links, and metadata. Send uploaded videos to the TikTok inbox as drafts for human review and publishing, then track post status.",
+      "bgColor": "#000000",
+      "iconName": "TikTokIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/tiktok",
+      "operations": [
+        {
+          "name": "Get User Info",
+          "description": "Get the authenticated TikTok user profile information including display name, avatar, bio, follower count, and video statistics."
+        },
+        {
+          "name": "List Videos",
+          "description": "Get a list of the authenticated user's TikTok videos with cover images, titles, and metadata. Supports pagination."
+        },
+        {
+          "name": "Query Videos",
+          "description": "Query specific TikTok videos by their IDs to get fresh metadata including cover images, embed links, and video details."
+        },
+        {
+          "name": "Upload Video Draft",
+          "description": "Send an uploaded video to the authenticated user's TikTok inbox for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Rate limit: 6 requests per minute per user."
+        },
+        {
+          "name": "Get Post Status",
+          "description": "Check the status of a video draft upload. Use the publishId returned from Upload Video Draft to track progress."
+        }
+      ],
+      "operationCount": 5,
+      "triggers": [
+        {
+          "id": "tiktok_post_publish_complete",
+          "name": "TikTok Post Publish Complete",
+          "description": "Trigger when a TikTok Content Posting publish completes"
+        },
+        {
+          "id": "tiktok_post_publish_failed",
+          "name": "TikTok Post Publish Failed",
+          "description": "Trigger when a TikTok Content Posting publish fails"
+        },
+        {
+          "id": "tiktok_post_inbox_delivered",
+          "name": "TikTok Post Inbox Delivered",
+          "description": "Trigger when a draft notification is delivered to the creator inbox"
+        },
+        {
+          "id": "tiktok_post_publicly_available",
+          "name": "TikTok Post Publicly Available",
+          "description": "Trigger when a published post becomes publicly viewable on TikTok"
+        },
+        {
+          "id": "tiktok_post_no_longer_public",
+          "name": "TikTok Post No Longer Public",
+          "description": "Trigger when a post is no longer publicly viewable on TikTok"
+        },
+        {
+          "id": "tiktok_authorization_removed",
+          "name": "TikTok Authorization Removed",
+          "description": "Trigger when a user deauthorizes your TikTok app"
+        }
+      ],
+      "triggerCount": 6,
+      "authType": "oauth",
+      "oauthServiceId": "tiktok",
+      "category": "tools",
+      "integrationType": "communication",
+      "tags": ["marketing", "content-management"]
+    },
+    {
       "type": "tinybird",
       "slug": "tinybird",
       "name": "Tinybird",
@@ -20590,22 +20961,22 @@
       "slug": "whatsapp",
       "name": "WhatsApp",
       "description": "Send WhatsApp messages",
-      "longDescription": "Integrate WhatsApp into the workflow. Send text, template, media, and interactive messages, react to messages, and mark messages as read through the WhatsApp Cloud API.",
+      "longDescription": "Integrate WhatsApp into the workflow. Send text, template, media, and interactive messages, react to messages, and mark messages as read through the WhatsApp Cloud API. Free-form messages only reach a recipient within 24 hours of their last message to you — outside that window WhatsApp requires a pre-approved template.",
       "bgColor": "#25D366",
       "iconName": "WhatsAppIcon",
       "docsUrl": "https://docs.sim.ai/integrations/whatsapp",
       "operations": [
         {
           "name": "Send Message",
-          "description": "Send a text message through the WhatsApp Cloud API."
+          "description": "Send a free-form text message through the WhatsApp Cloud API. Only works inside the 24-hour customer service window — use Send Template to start a conversation."
         },
         {
           "name": "Send Template",
-          "description": "Send a pre-approved WhatsApp template message with a language and optional variable components."
+          "description": "Send a pre-approved WhatsApp template message. Required to start a conversation or to message a user outside the 24-hour customer service window."
         },
         {
           "name": "Send Media",
-          "description": "Send an image, document, video, or audio message via a public link or an uploaded media ID."
+          "description": "Send an image, document, video, audio, or sticker message. Accepts an uploaded file, a media ID, or a public link."
         },
         {
           "name": "Send Interactive",
@@ -20617,10 +20988,18 @@
         },
         {
           "name": "Mark As Read",
-          "description": "Mark a received WhatsApp message as read so the sender sees blue checkmarks."
+          "description": "Mark a received WhatsApp message as read so the sender sees blue checkmarks, optionally showing a typing indicator."
+        },
+        {
+          "name": "Upload Media",
+          "description": "Upload a file to WhatsApp and get a media ID for sending. Uploaded media is retained for 30 days and can back many sends."
+        },
+        {
+          "name": "Download Media",
+          "description": "Download media a customer sent you. Takes the media ID from an incoming WhatsApp message and stores the file in the workflow."
         }
       ],
-      "operationCount": 6,
+      "operationCount": 8,
       "triggers": [
         {
           "id": "whatsapp_webhook",

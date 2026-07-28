@@ -148,7 +148,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const domainNotVerifiedResponse = () =>
       NextResponse.json(
         {
-          error: `Verify ownership of ${domain} under Settings → Verified domains before configuring SSO for it.`,
+          error: `Verify ownership of ${domain} under Verified domains above before configuring SSO for it.`,
           code: 'SSO_DOMAIN_NOT_VERIFIED',
         },
         { status: 403 }

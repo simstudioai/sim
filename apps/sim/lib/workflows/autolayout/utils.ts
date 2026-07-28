@@ -623,6 +623,35 @@ export function calculateSubflowDepths(
 }
 
 /**
+ * Orders container IDs by nesting depth, deepest first.
+ *
+ * A container's size depends on its children, and a nested container counts as
+ * one of those children, so inner containers must be resolved before the outer
+ * ones that measure them.
+ */
+export function sortContainersDeepestFirst(
+  containerIds: string[],
+  blocks: Record<string, BlockState>
+): string[] {
+  const containerDepth = new Map<string, number>()
+
+  for (const containerId of containerIds) {
+    let depth = 0
+    let currentId: string | undefined = containerId
+    while (currentId) {
+      const parentId: string | undefined = blocks[currentId]?.data?.parentId
+      currentId = parentId
+      if (currentId) depth++
+    }
+    containerDepth.set(containerId, depth)
+  }
+
+  return [...containerIds].sort(
+    (a, b) => (containerDepth.get(b) ?? 0) - (containerDepth.get(a) ?? 0)
+  )
+}
+
+/**
  * Layout function type for preparing container dimensions.
  * Returns laid out nodes and bounding dimensions.
  */
@@ -663,29 +692,7 @@ export function prepareContainerDimensions(
 ): void {
   const { children } = getBlocksByParent(blocks)
 
-  // Build dependency graph to process nested containers bottom-up
-  const containerIds = Array.from(children.keys())
-  const containerDepth = new Map<string, number>()
-
-  // Calculate nesting depth for each container
-  for (const containerId of containerIds) {
-    let depth = 0
-    let currentId: string | undefined = containerId
-    while (currentId) {
-      const block: BlockState | undefined = blocks[currentId]
-      const parentId: string | undefined = block?.data?.parentId
-      currentId = parentId
-      if (currentId) depth++
-    }
-    containerDepth.set(containerId, depth)
-  }
-
-  // Sort containers by depth (deepest first) for bottom-up processing
-  const sortedContainerIds = containerIds.sort((a, b) => {
-    const depthA = containerDepth.get(a) ?? 0
-    const depthB = containerDepth.get(b) ?? 0
-    return depthB - depthA
-  })
+  const sortedContainerIds = sortContainersDeepestFirst(Array.from(children.keys()), blocks)
 
   // Process each container, laying out its children to determine dimensions
   for (const containerId of sortedContainerIds) {

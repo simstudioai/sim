@@ -28,6 +28,8 @@ import {
   setTableSchemaForImport,
 } from '@/lib/table/import-data'
 import { markJobFailed, markJobReady, updateJobProgress } from '@/lib/table/jobs/service'
+import { assertRowDelete, assertRowInsert, assertSchemaMutable } from '@/lib/table/mutation-locks'
+import type { DbTransaction } from '@/lib/table/planner'
 import { nextImportStartOrderKey, nextImportStartPosition } from '@/lib/table/rows/ordering'
 import { getTableById } from '@/lib/table/service'
 import { deleteFile, downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
@@ -97,6 +99,36 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     if (!loaded) throw new Error(`Import target table ${tableId} not found`)
     const table = loaded
 
+    // Every mode ends in row inserts, and `replace` deletes first. Assert both
+    // verbs here — before the file is even read — so an insert-locked table
+    // fails up front instead of after `deleteAllTableRows` has already wiped it.
+    // (The sync replace path gets this for free from `replaceTableRowsWithTx`,
+    // which asserts both in one place; this path deletes and inserts separately.)
+    assertRowInsert(table)
+    if (mode === 'replace') assertRowDelete(table)
+
+    // Re-asserted inside every batch's insert transaction, under the same
+    // advisory lock `updateTableLocks` writes with, so enabling the insert lock
+    // mid-import stops it at the next batch instead of letting the rest of the
+    // file through. Rows already committed stay — as with an explicit cancel.
+    const revalidateInsert = async (trx: DbTransaction) => {
+      const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
+      if (fresh) assertRowInsert(fresh)
+      return fresh ?? undefined
+    }
+    /** Same guard for the replace-mode wipe, which lands before the first batch. */
+    const revalidateDelete = async (trx: DbTransaction) => {
+      const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
+      if (fresh) assertRowDelete(fresh)
+      return fresh ?? undefined
+    }
+    /** Same guard for the inferred-schema write and `createColumns`. */
+    const revalidateSchema = async (trx: DbTransaction) => {
+      const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
+      if (fresh) assertSchemaMutable(fresh)
+      return fresh ?? undefined
+    }
+
     // Total byte size for the progress estimate — a cheap HEAD, no download. May be null on
     // the local dev provider, in which case the bar stays indeterminate (rows still show).
     const totalBytes = (await headObject(fileKey, 'workspace'))?.size ?? 0
@@ -159,7 +191,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         // the same ids).
         schema = withGeneratedColumnIds({ columns: inferred.columns.map(normalizeColumn) })
         headerToColumn = inferred.headerToColumn
-        await setTableSchemaForImport(tableId, schema)
+        await setTableSchemaForImport(table, schema, revalidateSchema)
         return
       }
 
@@ -188,7 +220,13 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
           additions.push({ name: columnName, type: inferColumnType(sample.map((r) => r[header])) })
           updatedMapping[header] = columnName
         }
-        const updated = await addImportColumns(table, additions, requestId, userId)
+        const updated = await addImportColumns(
+          table,
+          additions,
+          requestId,
+          userId,
+          revalidateSchema
+        )
         targetSchema = updated.schema
         effectiveMapping = updatedMapping
       }
@@ -204,7 +242,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       // Replace deletes existing rows only after schema/mapping validation passes, so an
       // invalid or empty file fails the import with the old rows still intact (a mid-stream
       // insert failure after this point leaves a partial replace — replace is destructive).
-      if (mode === 'replace') await deleteAllTableRows(tableId)
+      if (mode === 'replace') await deleteAllTableRows(table, revalidateDelete)
     }
 
     const flush = async (rows: Record<string, unknown>[]) => {
@@ -232,7 +270,8 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
           afterOrderKey: lastOrderKey,
         },
         { ...table, schema },
-        requestId
+        requestId,
+        revalidateInsert
       )
       notifyTableRowUsage({
         workspaceId,

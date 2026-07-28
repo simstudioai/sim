@@ -254,7 +254,7 @@ export const POST = withRouteHandler(
         ? (persistedSnapshot.metadata.executionMode ?? 'sync')
         : undefined
       const includeThinking = persistedSnapshot.metadata.includeThinking === true
-      const includeToolCalls = persistedSnapshot.metadata.includeToolCalls ?? includeThinking
+      const includeToolCalls = persistedSnapshot.metadata.includeToolCalls === true
 
       if (isApiCaller && executionMode === 'stream') {
         const stream = await createStreamingResponse({

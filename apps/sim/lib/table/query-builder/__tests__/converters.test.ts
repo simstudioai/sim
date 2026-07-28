@@ -6,8 +6,12 @@
  * valueless `$empty` operator that maps to two distinct UI operators.
  */
 import { describe, expect, it } from 'vitest'
-import { filterRulesToFilter, filterToRules } from '@/lib/table/query-builder/converters'
-import type { FilterRule } from '@/lib/table/types'
+import {
+  filterRulesToFilter,
+  filterToRules,
+  pruneFilterForColumns,
+} from '@/lib/table/query-builder/converters'
+import type { ColumnDefinition, FilterRule } from '@/lib/table/types'
 
 function rule(overrides: Partial<FilterRule>): FilterRule {
   return {
@@ -115,5 +119,94 @@ describe('filterToRules', () => {
     const rules = filterToRules(original)
     expect(rules).toHaveLength(2)
     expect(filterRulesToFilter(rules)).toEqual(original)
+  })
+})
+
+describe('select option ids survive as text', () => {
+  const numericIdColumn: ColumnDefinition = {
+    id: 'status',
+    name: 'status',
+    type: 'select',
+    options: [
+      { id: '1', name: 'Open' },
+      { id: 'true', name: 'Closed' },
+    ],
+  }
+
+  it('does not coerce a numeric- or boolean-looking option id', () => {
+    // Option ids are caller-supplied strings; `parseScalar` would turn these
+    // into 1 / true, and JSONB containment against the stored string then
+    // matches nothing while the picker still shows a valid option.
+    expect(
+      filterRulesToFilter([rule({ column: 'status', value: '1' })], [numericIdColumn])
+    ).toEqual({ status: '1' })
+    expect(
+      filterRulesToFilter([rule({ column: 'status', value: 'true' })], [numericIdColumn])
+    ).toEqual({ status: 'true' })
+  })
+
+  it('keeps each element of an $in list as text', () => {
+    expect(
+      filterRulesToFilter(
+        [rule({ column: 'status', operator: 'in', value: '1, true' })],
+        [numericIdColumn]
+      )
+    ).toEqual({ status: { $in: ['1', 'true'] } })
+  })
+
+  it('still coerces on a non-select column', () => {
+    const age: ColumnDefinition = { id: 'age', name: 'age', type: 'number' }
+    expect(filterRulesToFilter([rule({ column: 'age', value: '30' })], [age])).toEqual({ age: 30 })
+  })
+
+  it('survives the prune round-trip without coercion', () => {
+    const filter = { status: '1' }
+    // Nothing to prune here, but the pruned path re-serializes through the
+    // converter — that round-trip must not turn the id back into a number.
+    expect(pruneFilterForColumns(filter, [numericIdColumn])).toEqual({ status: '1' })
+  })
+})
+
+describe('pruneFilterForColumns', () => {
+  const single: ColumnDefinition = {
+    id: 'col_s',
+    name: 'status',
+    type: 'select',
+    options: [{ id: 'opt_a', name: 'Open' }],
+  }
+  const multi: ColumnDefinition = { ...single, multiple: true }
+  const text: ColumnDefinition = { id: 'col_t', name: 'name', type: 'string' }
+
+  it('drops an operator the column no longer accepts', () => {
+    // `contains` was valid while `status` was text; as a single-select it is not.
+    expect(pruneFilterForColumns({ status: { $contains: 'Op' } }, [single])).toBeNull()
+    // ...and `eq` is the one a multiselect rejects.
+    expect(pruneFilterForColumns({ status: 'opt_a' }, [multi])).toBeNull()
+  })
+
+  it('keeps the operators each cardinality does accept', () => {
+    const eq = { status: 'opt_a' }
+    expect(pruneFilterForColumns(eq, [single])).toBe(eq)
+    const contains = { status: { $contains: 'opt_a' } }
+    expect(pruneFilterForColumns(contains, [multi])).toBe(contains)
+  })
+
+  it('keeps sibling conditions when one is pruned', () => {
+    const pruned = pruneFilterForColumns(
+      { status: { $contains: 'Op' }, name: { $contains: 'ada' } },
+      [single, text]
+    )
+    expect(pruned).toEqual({ name: { $contains: 'ada' } })
+  })
+
+  it('leaves non-select and unresolved columns for the server to judge', () => {
+    const onText = { name: { $contains: 'ada' } }
+    expect(pruneFilterForColumns(onText, [text])).toBe(onText)
+    const unknown = { gone: { $contains: 'x' } }
+    expect(pruneFilterForColumns(unknown, [single])).toBe(unknown)
+  })
+
+  it('returns the same object when nothing is pruned', () => {
+    expect(pruneFilterForColumns(null, [single])).toBeNull()
   })
 })

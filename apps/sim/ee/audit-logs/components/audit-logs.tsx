@@ -450,7 +450,12 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
             </PopoverContent>
           </Popover>
         </div>
-        <Button variant='ghost' onClick={handleRefresh} disabled={isVisuallyRefreshing}>
+        <Button
+          variant='ghost'
+          onClick={handleRefresh}
+          disabled={isVisuallyRefreshing}
+          aria-label='Refresh audit logs'
+        >
           <RefreshCw animate={isVisuallyRefreshing} className='size-[14px]' />
         </Button>
       </div>

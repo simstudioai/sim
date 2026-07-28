@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { workspaceFileFolder, workspaceFiles } from '@sim/db/schema'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, type SQL } from 'drizzle-orm'
 import {
   WORKFLOW_CHANGELOG_BACKING_FOLDER,
   WORKFLOW_PLANS_BACKING_FOLDER,
@@ -12,7 +12,6 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   getWorkspaceFileByName,
-  listWorkspaceFiles,
   uploadWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -123,50 +122,67 @@ export async function cleanupWorkflowAliasBacking(args: {
     scope: 'all',
     includeReservedSystemFolders: true,
   })
-  const files = await listWorkspaceFiles(args.workspaceId, {
-    scope: 'all',
-    folders,
-    includeReservedSystemFiles: true,
-  })
 
-  const ownedFileIds = files
-    .filter((file) => {
-      if (file.deletedAt) return false
-      const changelogMatch =
-        file.folderPath === WORKFLOW_CHANGELOG_BACKING_FOLDER &&
-        file.name === `${args.workflowId}.md`
-      const workflowPlanMatch =
-        file.folderPath === `${WORKFLOW_PLANS_BACKING_FOLDER}/${args.workflowId}` ||
-        Boolean(file.folderPath?.startsWith(`${WORKFLOW_PLANS_BACKING_FOLDER}/${args.workflowId}/`))
-      return changelogMatch || workflowPlanMatch
-    })
-    .map((file) => file.id)
+  const workflowPlansPath = `${WORKFLOW_PLANS_BACKING_FOLDER}/${args.workflowId}`
+  const isPlansFolder = (path: string) =>
+    path === workflowPlansPath || path.startsWith(`${workflowPlansPath}/`)
 
+  /**
+   * Folders whose files this workflow owns, resolved by id rather than by path.
+   * A file's `folderPath` is derived solely from its `folderId`, so matching on
+   * folder membership is equivalent to the path comparison it replaces — without
+   * loading every file in the workspace to compute it.
+   *
+   * Soft-deleted folders are included: path resolution ignores `deletedAt`, so a
+   * live file parented to an archived folder still resolved to these paths and
+   * must still be archived here.
+   */
+  const ownedFileFolderIds = folders.filter((f) => isPlansFolder(f.path)).map((f) => f.id)
+  const changelogFolderIds = folders
+    .filter((f) => f.path === WORKFLOW_CHANGELOG_BACKING_FOLDER)
+    .map((f) => f.id)
+
+  /** Only live folders are archived, matching the previous behavior. */
   const ownedFolderIds = folders
-    .filter((folder) => {
-      if (folder.deletedAt) return false
-      return (
-        folder.path === `${WORKFLOW_PLANS_BACKING_FOLDER}/${args.workflowId}` ||
-        folder.path.startsWith(`${WORKFLOW_PLANS_BACKING_FOLDER}/${args.workflowId}/`)
-      )
-    })
-    .map((folder) => folder.id)
+    .filter((f) => !f.deletedAt && isPlansFolder(f.path))
+    .map((f) => f.id)
 
-  if (ownedFileIds.length > 0) {
-    await db
+  /**
+   * Collected as a list so the guard below tests the same value that is spread into
+   * `or()`. `and()` and `or()` both drop `undefined` arguments, so an ownership
+   * clause that silently resolved to nothing would leave a WHERE of workspace +
+   * context + not-deleted — which archives every file in the workspace. Gating on a
+   * non-empty list makes that unrepresentable.
+   */
+  const ownershipFilters = [
+    ownedFileFolderIds.length > 0 ? inArray(workspaceFiles.folderId, ownedFileFolderIds) : null,
+    changelogFolderIds.length > 0
+      ? and(
+          inArray(workspaceFiles.folderId, changelogFolderIds),
+          eq(workspaceFiles.originalName, `${args.workflowId}.md`)
+        )
+      : null,
+  ].filter((filter): filter is SQL => filter != null)
+
+  let archivedFiles: { id: string }[] = []
+  if (ownershipFilters.length > 0) {
+    archivedFiles = await db
       .update(workspaceFiles)
       .set({ deletedAt })
       .where(
         and(
           eq(workspaceFiles.workspaceId, args.workspaceId),
-          inArray(workspaceFiles.id, ownedFileIds),
-          isNull(workspaceFiles.deletedAt)
+          eq(workspaceFiles.context, 'workspace'),
+          isNull(workspaceFiles.deletedAt),
+          or(...ownershipFilters)
         )
       )
+      .returning({ id: workspaceFiles.id })
   }
 
+  let archivedFolders: { id: string }[] = []
   if (ownedFolderIds.length > 0) {
-    await db
+    archivedFolders = await db
       .update(workspaceFileFolder)
       .set({ deletedAt })
       .where(
@@ -176,7 +192,8 @@ export async function cleanupWorkflowAliasBacking(args: {
           isNull(workspaceFileFolder.deletedAt)
         )
       )
+      .returning({ id: workspaceFileFolder.id })
   }
 
-  return { files: ownedFileIds.length, folders: ownedFolderIds.length }
+  return { files: archivedFiles.length, folders: archivedFolders.length }
 }

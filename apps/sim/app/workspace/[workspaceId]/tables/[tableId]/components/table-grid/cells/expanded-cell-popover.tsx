@@ -30,9 +30,6 @@ const EXPANDED_CELL_HEIGHT = 280
 /**
  * Anchored cell editor. Floats over the double-clicked cell, minimum width
  * {@link EXPANDED_CELL_MIN_WIDTH}, fixed height, internally scrollable.
- *
- * Workflow and boolean cells are read-only here — workflow cells are driven
- * by the scheduler, booleans toggle inline.
  */
 export function ExpandedCellPopover({
   expandedCell,
@@ -71,6 +68,12 @@ export function ExpandedCellPopover({
     if (!target) return ''
     const { value } = target
     if (value == null) return ''
+    // Read-only viewers get the same date format the grid renders, not the raw
+    // stored string. (This branch never sees a `select` cell — the grid routes
+    // those to the inline dropdown.)
+    if (target.column.type === 'date' && typeof value === 'string') {
+      return storageToDisplay(value, { seconds: true })
+    }
     if (typeof value === 'string') return value
     return JSON.stringify(value, null, 2)
   }, [target])

@@ -844,7 +844,11 @@ describe('createStreamingResponse agent-events-v1', () => {
       .map((chunk) => chunk.slice(6))
   }
 
-  it('legacy path without protocol header stays text-only', async () => {
+  /**
+   * A client that never declared a protocol version has no contract for frame
+   * shapes, so policy alone must not expose them.
+   */
+  it('stays text-only without the protocol header even with both policies on', async () => {
     const stream = await createStreamingResponse({
       requestId: 'request-1',
       streamConfig: {
@@ -852,7 +856,28 @@ describe('createStreamingResponse agent-events-v1', () => {
         includeToolCalls: true,
         selectedOutputs: ['agent-1_content'],
       },
-      // No requestHeaders → gate closed
+      executeFn: createAgentStreamExecuteFn({
+        thinking: ['a thought'],
+        answer: 'Hello',
+        tools: [{ type: 'tool_call_start', id: 'toolu_1', name: 'get_weather' }],
+      }),
+    })
+
+    const events = await collectSSEEvents(stream)
+    expect(events.some((event) => event.event === 'thinking')).toBe(false)
+    expect(events.some((event) => event.event === 'tool')).toBe(false)
+    expect(events).toContainEqual({ blockId: 'agent-1', chunk: 'Hello' })
+    expect(events.some((event) => event.event === 'final')).toBe(true)
+  })
+
+  it('stays fully text-only when both policies are off', async () => {
+    const stream = await createStreamingResponse({
+      requestId: 'request-1',
+      streamConfig: {
+        includeThinking: false,
+        includeToolCalls: false,
+        selectedOutputs: ['agent-1_content'],
+      },
       executeFn: createAgentStreamExecuteFn({
         thinking: ['secret thought'],
         answer: 'Hello',
@@ -864,7 +889,6 @@ describe('createStreamingResponse agent-events-v1', () => {
     expect(events.some((event) => event.event === 'thinking')).toBe(false)
     expect(events.some((event) => event.event === 'tool')).toBe(false)
     expect(events).toContainEqual({ blockId: 'agent-1', chunk: 'Hello' })
-    expect(events.some((event) => event.event === 'final')).toBe(true)
   })
 
   it('header + includeThinking emits thinking on data and answer on chunk', async () => {

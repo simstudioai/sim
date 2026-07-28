@@ -26,7 +26,10 @@ export function CustomTools() {
   const workspacePermissions = useUserPermissionsContext()
   const canEdit = canMutateWorkspaceSettingsSection('custom-tools', workspacePermissions)
 
-  const { data: tools = [], isLoading, error } = useCustomTools(workspaceId)
+  const { data: tools = [], isPending, isPlaceholderData, error } = useCustomTools(workspaceId)
+  // Placeholder data is another workspace's tools reading as success — treat it as
+  // loading, or a deep-linked id resolves against the workspace the user just left.
+  const isLoading = isPending || isPlaceholderData
 
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [selectedToolId, setSelectedToolId] = useQueryState(customToolIdParam.key, {
@@ -119,7 +122,7 @@ export function CustomTools() {
               key={tool.id}
               type='button'
               onClick={() => void setSelectedToolId(tool.id)}
-              className='w-full cursor-pointer rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
+              className='w-full rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
             >
               <SettingsResourceRow
                 icon={<Wrench className='text-[var(--text-icon)]' />}

@@ -1158,18 +1158,20 @@ export const chat = pgTable(
     outputConfigs: json('output_configs').default('[]'), // Array of {blockId, path} objects
 
     /**
-     * When true, public chat SSE may expose provider thinking events if the
-     * client also opts in via `X-Sim-Stream-Protocol: agent-events-v1`.
-     * Default off — never derived from auth type or isSecureMode.
+     * When true, public chat SSE exposes provider thinking events. Independent
+     * of the `X-Sim-Stream-Protocol` header, which governs answer-text cadence
+     * rather than frame exposure. Default off — never derived from auth type or
+     * isSecureMode.
      */
     includeThinking: boolean('include_thinking').notNull().default(false),
     /**
-     * When true, public chat SSE may expose tool lifecycle events if the client
-     * also opts in via `X-Sim-Stream-Protocol: agent-events-v1`.
+     * When true, public chat SSE exposes tool lifecycle events. Independent of
+     * includeThinking and of the protocol header.
      *
-     * Null preserves the pre-expand policy: readers fall back to includeThinking.
+     * Nullable only because the column was added after the table; readers treat
+     * null as false.
      */
-    // contract-pending(after the includeToolCalls expand release is fully deployed): backfill include_tool_calls from include_thinking, then set DEFAULT false and NOT NULL — all new-app chat writes persist an explicit value
+    // contract-pending(any release): normalize nulls to false, then set DEFAULT false and NOT NULL — cosmetic only, since no reader distinguishes null from false
     includeToolCalls: boolean('include_tool_calls'),
 
     archivedAt: timestamp('archived_at'),
@@ -3307,6 +3309,34 @@ export const usageLog = pgTable(
         table.billingPeriodEnd
       )
       .where(sql`${table.billingEntityType} IS NOT NULL`),
+    /**
+     * Covering companion to `billingEntityPeriodIdx` — not a replacement. Carries
+     * `cost` so the billing-period aggregates resolve index-only rather than taking
+     * a heap fetch per matched row.
+     *
+     * `userId`/`createdAt` sit immediately after the shared equality prefix because
+     * the daily-refresh rollup filters on them and NOT on `billingPeriodEnd`;
+     * putting `billingPeriodEnd` in that slot would end the usable prefix at
+     * `billingPeriodStart` and leave that query scanning the whole period.
+     * `billingPeriodEnd` is functionally determined by `billingPeriodStart`, so it
+     * removes no rows and rides along as payload.
+     *
+     * `billingEntityPeriodIdx` is kept deliberately: with no high-cardinality key
+     * column it deduplicates to a fraction of this index's size, which keeps
+     * prefix-only bitmap scans cheap.
+     */
+    billingPeriodCostIdx: index('usage_log_billing_period_cost_idx')
+      .on(
+        table.billingEntityType,
+        table.billingEntityId,
+        table.billingPeriodStart,
+        table.userId,
+        table.createdAt,
+        table.billingPeriodEnd,
+        table.source,
+        table.cost
+      )
+      .where(sql`${table.billingEntityType} IS NOT NULL`),
     billingScopeAllOrNone: check(
       'usage_log_billing_scope_all_or_none',
       sql`(
@@ -3682,6 +3712,21 @@ export const userTableDefinitions = pgTable(
      * from application code — the trigger is the only writer (bypass-proof).
      */
     rowsVersion: bigint('rows_version', { mode: 'number' }).notNull().default(0),
+    /**
+     * @remarks
+     * Per-table mutation locks. Each guards one mutation verb; an admin toggles
+     * them independently. Enforced at the `lib/table` service layer (see
+     * `lib/table/mutation-locks.ts`), which covers every entry point — routes,
+     * workflow blocks, and Mothership — since all funnel through those helpers.
+     * A locked verb rejects with 423; toggling a lock requires workspace admin.
+     * Append-only = update + delete locked; read-only = all four locked. These
+     * are integrity controls (against accidental/agentic mutation), not
+     * confidentiality controls — reads and exports are never blocked.
+     */
+    schemaLocked: boolean('schema_locked').notNull().default(false),
+    insertLocked: boolean('insert_locked').notNull().default(false),
+    updateLocked: boolean('update_locked').notNull().default(false),
+    deleteLocked: boolean('delete_locked').notNull().default(false),
     archivedAt: timestamp('archived_at'),
     createdBy: text('created_by')
       .notNull()

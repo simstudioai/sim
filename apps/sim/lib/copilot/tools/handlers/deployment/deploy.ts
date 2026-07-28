@@ -309,8 +309,7 @@ export async function executeDeployChat(
               outputConfigs:
                 (existing[0].outputConfigs as Array<{ blockId: string; path: string }>) || [],
               includeThinking: existing[0].includeThinking ?? false,
-              includeToolCalls:
-                existing[0].includeToolCalls ?? existing[0].includeThinking ?? false,
+              includeToolCalls: existing[0].includeToolCalls ?? false,
               welcomeMessage:
                 (existing[0].customizations as { welcomeMessage?: string } | null)
                   ?.welcomeMessage || 'Hi there! How can I help you today?',
@@ -402,15 +401,10 @@ export async function executeDeployChat(
       typeof params.includeThinking === 'boolean'
         ? params.includeThinking
         : (existingDeployment?.includeThinking ?? false)
-    /**
-     * Grandfathers off the thinking value this call resolves to, not the stored
-     * one: before `includeToolCalls` existed, `includeThinking` gated tool
-     * frames too, so turning thinking off must turn them off with it.
-     */
     const resolvedIncludeToolCalls =
       typeof params.includeToolCalls === 'boolean'
         ? params.includeToolCalls
-        : (existingDeployment?.includeToolCalls ?? resolvedIncludeThinking)
+        : (existingDeployment?.includeToolCalls ?? false)
     const welcomeMessage =
       typeof params.welcomeMessage === 'string'
         ? params.welcomeMessage

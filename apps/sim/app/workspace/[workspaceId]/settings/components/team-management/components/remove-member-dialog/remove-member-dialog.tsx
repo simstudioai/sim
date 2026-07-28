@@ -1,4 +1,5 @@
 import { ChipConfirmModal } from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
 
 interface RemoveMemberDialogProps {
   open: boolean
@@ -29,8 +30,7 @@ export function RemoveMemberDialog({
       ? 'Remove External Member'
       : 'Remove Team Member'
 
-  const errorMessage =
-    error instanceof Error && error.message ? error.message : error ? String(error) : null
+  const errorMessage = error ? getErrorMessage(error) || 'Failed to remove member' : null
 
   return (
     <ChipConfirmModal

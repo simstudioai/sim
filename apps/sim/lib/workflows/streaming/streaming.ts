@@ -499,12 +499,17 @@ export async function createStreamingResponse(
   const { requestId, streamConfig, executionId, executeFn } = options
   const timeoutController = createTimeoutAbortController(streamConfig.timeoutMs)
   /**
-   * Client capability, not deployment policy: a negotiated client can render
-   * live answer text and honor `chunk_reset`, so it streams token by token
-   * regardless of whether thinking or tools are exposed.
+   * Answer-text cadence only. A negotiated client renders live text and honors
+   * `chunk_reset`; one that did not negotiate keeps settled final-turn text,
+   * because retracting text it already rendered would corrupt the answer.
    */
   const clientAcceptsProtocol =
     Boolean(options.requestHeaders) && clientAcceptsAgentStreamProtocol(options.requestHeaders!)
+  /**
+   * Frames additionally require the negotiated protocol: a client that never
+   * declared a version has no contract for their shape, so it keeps the text
+   * stream it already understands.
+   */
   const emitThinking = clientAcceptsProtocol && streamConfig.includeThinking === true
   const emitToolCalls = clientAcceptsProtocol && streamConfig.includeToolCalls === true
   const maxThinkingChars = DEFAULT_MAX_THINKING_CHARS
