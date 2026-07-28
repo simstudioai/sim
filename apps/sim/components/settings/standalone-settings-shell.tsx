@@ -134,22 +134,30 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
 
   return (
     <ToastProvider>
-      <div className='flex h-screen w-full overflow-hidden bg-[var(--surface-1)] p-2'>
+      {/*
+        Mirrors the in-workspace chrome (WorkspaceChrome): a flush, borderless
+        sidebar column against the app surface, and only the content pane
+        carrying the rounded border. Keep the two in step — a settings page
+        should look the same whether it is reached inside a workspace or not.
+      */}
+      <div className='flex h-screen w-full overflow-hidden bg-[var(--surface-1)]'>
         <aside
-          className='mr-2 flex w-[248px] flex-shrink-0 flex-col rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] pt-3'
+          className='flex h-full w-[248px] flex-shrink-0 flex-col overflow-hidden bg-[var(--surface-1)] pt-3'
           aria-label={`${SETTINGS_PLANE_CHROME[plane].label} settings navigation`}
         >
           {sidebar}
         </aside>
-        <main className='min-w-0 flex-1 overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)]'>
-          <SettingsHeaderProvider>
-            <SettingsHeaderShell>
-              <SettingsSectionProvider plane={plane} section={activeSection}>
-                {children}
-              </SettingsSectionProvider>
-            </SettingsHeaderShell>
-          </SettingsHeaderProvider>
-        </main>
+        <div className='flex min-w-0 flex-1 flex-col p-[8px] pl-0'>
+          <main className='flex-1 overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)]'>
+            <SettingsHeaderProvider>
+              <SettingsHeaderShell>
+                <SettingsSectionProvider plane={plane} section={activeSection}>
+                  {children}
+                </SettingsSectionProvider>
+              </SettingsHeaderShell>
+            </SettingsHeaderProvider>
+          </main>
+        </div>
       </div>
     </ToastProvider>
   )
