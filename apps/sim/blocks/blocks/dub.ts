@@ -1206,7 +1206,7 @@ export const DubBlockMeta = {
     },
     {
       icon: DubIcon,
-      title: 'Campaign link batcher',
+      title: 'Dub campaign link batcher',
       prompt:
         'Create a workflow that reads a table of campaign destinations, upserts a Dub short link for each row with consistent UTM tags, writes the resulting short URL back into the table, and posts a Slack confirmation summarizing how many links were created or refreshed.',
       modules: ['tables', 'agent', 'workflows'],
@@ -1226,7 +1226,7 @@ export const DubBlockMeta = {
     },
     {
       icon: DubIcon,
-      title: 'Short link hygiene auditor',
+      title: 'Dub link hygiene auditor',
       prompt:
         'Create a scheduled monthly workflow that lists all Dub links, checks each destination for 4xx and 5xx responses, flags broken links in a table, and emails the marketing team a remediation list so dead campaign links never go live.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -1235,7 +1235,7 @@ export const DubBlockMeta = {
     },
     {
       icon: DubIcon,
-      title: 'Outbound link personalizer',
+      title: 'Dub outbound link personalizer',
       prompt:
         'Build a workflow that reads a leads table, generates a per-lead Dub short link with the lead identifier in UTM and metadata, attaches the personalized link to the outreach email body, and tracks delivery in the table.',
       modules: ['tables', 'agent', 'workflows'],
@@ -1245,7 +1245,7 @@ export const DubBlockMeta = {
     },
     {
       icon: DubIcon,
-      title: 'Release announcement linker',
+      title: 'Dub release announcement linker',
       prompt:
         'Create a workflow triggered by a GitHub release that creates a Dub short link for the release notes URL, posts the short link to the marketing Slack channel, and stores the mapping of release tag to short link in a tracking table.',
       modules: ['tables', 'agent', 'workflows'],
@@ -1255,7 +1255,7 @@ export const DubBlockMeta = {
     },
     {
       icon: DubIcon,
-      title: 'Top-converting links report',
+      title: 'Dub top-converting links report',
       prompt:
         'Build a scheduled monthly workflow that pulls Dub analytics grouped by link, ranks top performers by leads and sales, identifies underperformers, writes a narrative report file with recommendations, and shares it with marketing leadership.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],

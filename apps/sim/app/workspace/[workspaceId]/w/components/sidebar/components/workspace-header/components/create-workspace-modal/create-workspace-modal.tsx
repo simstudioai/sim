@@ -69,13 +69,6 @@ export function CreateWorkspaceModal({
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      void handleSubmit()
-    }
-  }
-
   const handleNameChange = (value: string) => {
     setName(value)
     setError(null)
@@ -86,7 +79,7 @@ export function CreateWorkspaceModal({
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle={copy.title}>
       <ChipModalHeader onClose={() => onOpenChange(false)}>{copy.title}</ChipModalHeader>
-      <ChipModalBody onKeyDown={handleKeyDown}>
+      <ChipModalBody>
         <p className='px-2 text-[var(--text-muted)] text-sm'>{copy.description}</p>
         <ChipModalField
           type='input'

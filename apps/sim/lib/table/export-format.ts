@@ -4,6 +4,15 @@
  * byte-identical files.
  */
 
+import { selectValueToNames } from '@/lib/table/select-values'
+import type { ColumnDefinition } from '@/lib/table/types'
+
+/**
+ * @deprecated Use `selectValueToNames` from `@/lib/table/select-values`. Kept as
+ * an alias so existing export callers/tests don't churn.
+ */
+export const resolveSelectExportValue = selectValueToNames
+
 export function sanitizeExportFilename(name: string): string {
   const cleaned = name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
   return cleaned || 'table'
@@ -27,6 +36,19 @@ export function formatCsvValue(value: unknown): string {
   if (typeof value === 'object') return JSON.stringify(value)
   if (typeof value === 'string') return neutralizeCsvFormula(value)
   return String(value)
+}
+
+/**
+ * Serializes one cell for CSV, resolving `select` option ids to their names
+ * (comma-joined for multi) so the file shows the enum label, not the id.
+ */
+export function formatCsvCell(column: ColumnDefinition, value: unknown): string {
+  if (column.type === 'select') {
+    const resolved = resolveSelectExportValue(column, value)
+    const text = Array.isArray(resolved) ? resolved.join(', ') : (resolved ?? '')
+    return neutralizeCsvFormula(text)
+  }
+  return formatCsvValue(value)
 }
 
 export function toCsvRow(values: string[]): string {

@@ -2,137 +2,10 @@
  * @vitest-environment node
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const {
-  mockAnd,
-  mockDelete,
-  mockEq,
-  mockExecute,
-  mockInsert,
-  mockOnConflictDoNothing,
-  mockSelect,
-  mockSelectFrom,
-  mockSelectLimit,
-  mockSelectWhere,
-  mockTransaction,
-  mockTxDelete,
-  mockTxInsert,
-  mockTxSelect,
-  mockTxSelectDistinct,
-  mockTxSelectFrom,
-  mockTxSelectLimit,
-  mockTxSelectWhere,
-  mockTxValues,
-  mockValues,
-  mockWhere,
-  mockTxWhere,
-  mockNotInArray,
-} = vi.hoisted(() => {
-  const mockOnConflictDoNothing = vi.fn(async () => undefined)
-  const mockValues = vi.fn(() => ({ onConflictDoNothing: mockOnConflictDoNothing }))
-  const mockInsert = vi.fn(() => ({ values: mockValues }))
-  const mockWhere = vi.fn(async () => undefined)
-  const mockDelete = vi.fn(() => ({ where: mockWhere }))
-  const mockSelectLimit = vi.fn(async () => [])
-  const mockSelectWhere = vi.fn(() => ({ limit: mockSelectLimit }))
-  const mockSelectFrom = vi.fn(() => ({ where: mockSelectWhere }))
-  const mockSelect = vi.fn(() => ({ from: mockSelectFrom }))
-
-  const mockTxValues = vi.fn(() => ({ onConflictDoNothing: mockOnConflictDoNothing }))
-  const mockTxInsert = vi.fn(() => ({ values: mockTxValues }))
-  const mockTxWhere = vi.fn(async () => undefined)
-  const mockTxDelete = vi.fn(() => ({ where: mockTxWhere }))
-  const mockTxSelectLimit = vi.fn(async () => [])
-  const mockTxSelectWhere = vi.fn(() => ({ limit: mockTxSelectLimit }))
-  const mockTxSelectFrom = vi.fn(() => ({ where: mockTxSelectWhere }))
-  const mockTxSelect = vi.fn(() => ({ from: mockTxSelectFrom }))
-  const mockTxSelectDistinct = vi.fn(() => ({ from: mockTxSelectFrom }))
-
-  return {
-    mockAnd: vi.fn((...args: unknown[]) => ({ op: 'and', args })),
-    mockDelete,
-    mockEq: vi.fn((...args: unknown[]) => ({ op: 'eq', args })),
-    mockExecute: vi.fn(async () => [{ count: 0 }]),
-    mockInsert,
-    mockNotInArray: vi.fn((...args: unknown[]) => ({ op: 'notInArray', args })),
-    mockOnConflictDoNothing,
-    mockSelect,
-    mockSelectFrom,
-    mockSelectLimit,
-    mockSelectWhere,
-    mockTransaction: vi.fn(async (callback) =>
-      callback({
-        delete: mockTxDelete,
-        insert: mockTxInsert,
-        select: mockTxSelect,
-        selectDistinct: mockTxSelectDistinct,
-      })
-    ),
-    mockTxDelete,
-    mockTxInsert,
-    mockTxSelect,
-    mockTxSelectDistinct,
-    mockTxSelectFrom,
-    mockTxSelectLimit,
-    mockTxSelectWhere,
-    mockTxValues,
-    mockValues,
-    mockWhere,
-    mockTxWhere,
-  }
-})
-
-vi.mock('@sim/db', () => ({
-  db: {
-    delete: mockDelete,
-    execute: mockExecute,
-    insert: mockInsert,
-    select: mockSelect,
-    transaction: mockTransaction,
-  },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  executionLargeValueDependencies: {
-    childKey: 'executionLargeValueDependencies.childKey',
-    parentKey: 'executionLargeValueDependencies.parentKey',
-    workspaceId: 'executionLargeValueDependencies.workspaceId',
-  },
-  executionLargeValueReferences: {
-    executionId: 'executionLargeValueReferences.executionId',
-    key: 'executionLargeValueReferences.key',
-    source: 'executionLargeValueReferences.source',
-    workspaceId: 'executionLargeValueReferences.workspaceId',
-  },
-  executionLargeValues: {
-    key: 'executionLargeValues.key',
-    ownerExecutionId: 'executionLargeValues.ownerExecutionId',
-    workspaceId: 'executionLargeValues.workspaceId',
-  },
-  pausedExecutions: {
-    executionId: 'pausedExecutions.executionId',
-    status: 'pausedExecutions.status',
-  },
-  workflowExecutionLogs: {
-    executionId: 'workflowExecutionLogs.executionId',
-  },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn(() => ({
-    warn: vi.fn(),
-  })),
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: mockAnd,
-  eq: mockEq,
-  inArray: vi.fn((...args: unknown[]) => ({ op: 'inArray', args })),
-  notInArray: mockNotInArray,
-  sql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
-}))
-
+import { executionLargeValueDependencies, executionLargeValueReferences } from '@sim/db/schema'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { eq, notInArray } from 'drizzle-orm'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   addLargeValueReference,
   MAX_LARGE_VALUE_REFERENCES_PER_SCOPE,
@@ -145,9 +18,13 @@ function largeValueKey(id: string, executionId = 'source-execution'): string {
   return `execution/workspace-1/workflow-1/${executionId}/large-value-lv_${id}.json`
 }
 
+afterAll(resetDbChainMock)
+
 describe('large value metadata', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+    dbChainMockFns.execute.mockResolvedValue([{ count: 0 }])
   })
 
   it('registers valid large value owner metadata', async () => {
@@ -160,15 +37,15 @@ describe('large value metadata', () => {
     })
 
     expect(registered).toBe(true)
-    expect(mockTxInsert).toHaveBeenCalledOnce()
-    expect(mockTxValues).toHaveBeenCalledWith({
+    expect(dbChainMockFns.insert).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.values).toHaveBeenCalledWith({
       key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_abcdefghijkl.json',
       workspaceId: 'workspace-1',
       workflowId: 'workflow-1',
       ownerExecutionId: 'execution-1',
       size: 124,
     })
-    expect(mockOnConflictDoNothing).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalledOnce()
   })
 
   it('skips malformed owner keys', async () => {
@@ -181,14 +58,14 @@ describe('large value metadata', () => {
     })
 
     expect(registered).toBe(false)
-    expect(mockTxInsert).not.toHaveBeenCalled()
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
   it('records dependency closure for nested large value refs', async () => {
     const directKey = largeValueKey('abcdefghijkl')
     const transitiveKey = largeValueKey('mnopqrstuvwx', 'root-execution')
     const deepTransitiveKey = largeValueKey('deepqrstuvwx', 'deep-execution')
-    mockTxSelectLimit
+    dbChainMockFns.limit
       .mockResolvedValueOnce([{ childKey: transitiveKey }])
       .mockResolvedValueOnce([{ childKey: deepTransitiveKey }])
       .mockResolvedValueOnce([])
@@ -205,8 +82,8 @@ describe('large value metadata', () => {
     )
 
     expect(registered).toBe(true)
-    expect(mockTxSelectDistinct).toHaveBeenCalledTimes(3)
-    expect(mockTxValues).toHaveBeenLastCalledWith([
+    expect(dbChainMockFns.selectDistinct).toHaveBeenCalledTimes(3)
+    expect(dbChainMockFns.values).toHaveBeenLastCalledWith([
       {
         parentKey: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_zyxwvutsrqpo.json',
         childKey: directKey,
@@ -241,9 +118,9 @@ describe('large value metadata', () => {
       keys
     )
 
-    expect(mockTxValues).toHaveBeenCalledTimes(3)
-    expect(mockTxValues.mock.calls[1]?.[0]).toHaveLength(500)
-    expect(mockTxValues.mock.calls[2]?.[0]).toHaveLength(1)
+    expect(dbChainMockFns.values).toHaveBeenCalledTimes(3)
+    expect(dbChainMockFns.values.mock.calls[1]?.[0]).toHaveLength(500)
+    expect(dbChainMockFns.values.mock.calls[2]?.[0]).toHaveLength(1)
   })
 
   it('rejects reference sets over the metadata cardinality limit', async () => {
@@ -267,7 +144,7 @@ describe('large value metadata', () => {
 
   it('limits dependency closure reads to the remaining reference budget', async () => {
     const directKey = largeValueKey('a00000000000')
-    mockTxSelectLimit.mockResolvedValueOnce(
+    dbChainMockFns.limit.mockResolvedValueOnce(
       Array.from({ length: MAX_LARGE_VALUE_REFERENCES_PER_SCOPE }, (_, index) => ({
         childKey: largeValueKey(`c${index.toString(36).padStart(11, '0')}`),
       }))
@@ -286,7 +163,7 @@ describe('large value metadata', () => {
       )
     ).rejects.toThrow('Large value dependency closure exceeds the limit')
 
-    expect(mockTxSelectLimit).toHaveBeenCalledWith(MAX_LARGE_VALUE_REFERENCES_PER_SCOPE)
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(MAX_LARGE_VALUE_REFERENCES_PER_SCOPE)
   })
 
   it('filters known dependency children before applying the remaining reference budget', async () => {
@@ -295,13 +172,15 @@ describe('large value metadata', () => {
     )
     const knownChildKey = directKeys[1]
     const unseenChildKey = largeValueKey('unseenchild1', 'source-execution')
-    mockTxSelectLimit.mockImplementationOnce(async () => {
-      const filtersKnownChildren = mockNotInArray.mock.calls.some(
-        ([field, values]) =>
-          field === 'executionLargeValueDependencies.childKey' &&
-          Array.isArray(values) &&
-          values.includes(knownChildKey)
-      )
+    dbChainMockFns.limit.mockImplementationOnce(async () => {
+      const filtersKnownChildren = vi
+        .mocked(notInArray)
+        .mock.calls.some(
+          ([field, values]) =>
+            field === executionLargeValueDependencies.childKey &&
+            Array.isArray(values) &&
+            values.includes(knownChildKey)
+        )
       return [{ childKey: filtersKnownChildren ? unseenChildKey : knownChildKey }]
     })
 
@@ -318,7 +197,7 @@ describe('large value metadata', () => {
       )
     ).rejects.toThrow('Large value dependency closure exceeds the limit')
 
-    expect(mockTxSelectLimit).toHaveBeenCalledWith(1)
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
   })
 
   it('replaces an execution reference set with same-workspace unique keys', async () => {
@@ -361,10 +240,10 @@ describe('large value metadata', () => {
       }
     )
 
-    expect(mockTransaction).toHaveBeenCalledOnce()
-    expect(mockTxDelete).toHaveBeenCalledOnce()
-    expect(mockEq).toHaveBeenCalledWith('executionLargeValueReferences.source', 'execution_log')
-    expect(mockTxValues).toHaveBeenCalledWith([
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.delete).toHaveBeenCalledOnce()
+    expect(eq).toHaveBeenCalledWith(executionLargeValueReferences.source, 'execution_log')
+    expect(dbChainMockFns.values).toHaveBeenCalledWith([
       {
         key: matchingKey,
         workspaceId: 'workspace-1',
@@ -388,9 +267,9 @@ describe('large value metadata', () => {
       key
     )
 
-    expect(mockSelectLimit).toHaveBeenCalledWith(1)
-    expect(mockSelectLimit).toHaveBeenCalledWith(MAX_LARGE_VALUE_REFERENCES_PER_SCOPE + 1)
-    expect(mockValues).toHaveBeenCalledWith({
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(MAX_LARGE_VALUE_REFERENCES_PER_SCOPE + 1)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith({
       key,
       workspaceId: 'workspace-1',
       workflowId: 'workflow-1',
@@ -400,7 +279,7 @@ describe('large value metadata', () => {
   })
 
   it('rejects materialized references once the scope reaches the reference cap', async () => {
-    mockSelectLimit.mockResolvedValueOnce([]).mockResolvedValueOnce(
+    dbChainMockFns.limit.mockResolvedValueOnce([]).mockResolvedValueOnce(
       Array.from({ length: MAX_LARGE_VALUE_REFERENCES_PER_SCOPE }, (_, index) => ({
         key: largeValueKey(`d${index.toString(36).padStart(11, '0')}`),
       }))
@@ -418,11 +297,11 @@ describe('large value metadata', () => {
       )
     ).rejects.toThrow('exceeding the limit')
 
-    expect(mockInsert).not.toHaveBeenCalled()
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
   it('prunes large value metadata in bounded batches', async () => {
-    mockExecute
+    dbChainMockFns.execute
       .mockResolvedValueOnce([{ count: 2 }])
       .mockResolvedValueOnce([{ count: 3 }])
       .mockResolvedValueOnce([{ count: 4 }])
@@ -449,7 +328,7 @@ describe('large value metadata', () => {
       maxRowsPerTable: 100,
     })
 
-    const [query] = mockExecute.mock.calls[0] ?? []
+    const [query] = dbChainMockFns.execute.mock.calls[0] ?? []
     const sqlText = Array.isArray(query?.strings) ? query.strings.join(' ') : ''
     expect(sqlText).toContain("ref.source = 'execution_log'")
     expect(sqlText).toContain("ref.source = 'paused_snapshot'")

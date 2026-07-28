@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentType, type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentType, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   ChipModal,
@@ -309,18 +309,6 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
     ? !displayName.trim() || isPending || Boolean(existingCredential)
     : isPending
 
-  /**
-   * Submits the connect form on Enter, mirroring the Connect button's enabled
-   * state and excluding the multi-line description. Restores the keyboard
-   * affordance the pre-consolidation workflow modal provided.
-   */
-  const handleBodyKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Enter' || !isConnect || isDisabled) return
-    if (event.target instanceof HTMLTextAreaElement) return
-    event.preventDefault()
-    void handleConnect()
-  }
-
   const displayNameError =
     validationError ??
     (existingCredential
@@ -334,7 +322,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
       <ChipModalHeader icon={ProviderIcon} onClose={handleClose}>
         {title}
       </ChipModalHeader>
-      <ChipModalBody onKeyDown={handleBodyKeyDown}>
+      <ChipModalBody>
         {!isConnect && (
           <p className='text-[var(--text-tertiary)] text-caption'>
             The "{props.toolName}" tool requires access to your account.

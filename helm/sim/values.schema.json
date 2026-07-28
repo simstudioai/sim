@@ -94,10 +94,6 @@
                 "name": {
                   "type": "string",
                   "description": "Name of the existing Kubernetes secret"
-                },
-                "keys": {
-                  "type": "object",
-                  "description": "Key name mappings in the existing secret"
                 }
               }
             }
@@ -159,6 +155,10 @@
               "type": "string",
               "description": "Comma-separated additional public origins to trust for auth (e.g. 'https://app.example.com,https://www.example.com'). Merged into Better Auth trustedOrigins."
             },
+            "AUTH_TRUSTED_PROXIES": {
+              "type": "string",
+              "description": "Comma-separated reverse-proxy IPs or CIDR ranges in front of the app (e.g. '10.0.0.0/16'). Better Auth walks x-forwarded-for right to left, skips these hops, and uses the first untrusted address as the client IP."
+            },
             "SSO_TRUSTED_PROVIDER_IDS": {
               "type": "string",
               "description": "Comma-separated SSO provider IDs to trust for automatic account linking when an SSO sign-in matches an existing account's email. Only needed for IdPs that do not assert email_verified. Merged into Better Auth accountLinking.trustedProviders."
@@ -211,6 +211,14 @@
             "SMTP_SECURE": {
               "type": "string",
               "description": "Set to 'true' to force TLS on connect. Defaults to true when SMTP_PORT=465."
+            },
+            "GMAIL_CREDENTIALS_JSON": {
+              "type": "string",
+              "description": "Inline Google service-account JSON with domain-wide delegation for the Gmail API mail provider."
+            },
+            "GMAIL_SENDER": {
+              "type": "string",
+              "description": "Google Workspace user the Gmail service account impersonates when sending (e.g., noreply@yourdomain.com)."
             },
             "GOOGLE_CLIENT_ID": {
               "type": "string",
@@ -565,10 +573,6 @@
                 "name": {
                   "type": "string",
                   "description": "Name of the existing Kubernetes secret"
-                },
-                "passwordKey": {
-                  "type": "string",
-                  "description": "Key in the secret containing the password"
                 }
               }
             }
@@ -622,10 +626,6 @@
             "name": {
               "type": "string",
               "description": "Name of the existing Kubernetes secret"
-            },
-            "passwordKey": {
-              "type": "string",
-              "description": "Key in the secret containing the password"
             }
           }
         }
@@ -1190,8 +1190,81 @@
           }
         }
       }
+    },
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name used in resource names"
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the fully qualified release name used in resource names"
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Pod affinity/anti-affinity rules applied to app and realtime pods"
+    },
+    "branding": {
+      "type": "object",
+      "description": "Whitelabel branding configuration (logos, names, colors)"
+    },
+    "certManager": {
+      "type": "object",
+      "description": "Chart-managed cert-manager issuers (self-signed bootstrap + CA) for postgresql.tls"
+    },
+    "cronjobs": {
+      "type": "object",
+      "description": "Scheduled jobs (schedule execution, polling, reconciliation)"
+    },
+    "extraEnvVars": {
+      "type": "array",
+      "description": "Additional environment variables added to app and realtime containers"
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Additional volume mounts added to app and realtime containers"
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Additional volumes added to app and realtime pods"
+    },
+    "ingressInternal": {
+      "type": "object",
+      "description": "Secondary internal ingress configuration"
+    },
+    "migrations": {
+      "type": "object",
+      "description": "Database migrations init-container configuration"
+    },
+    "monitoring": {
+      "type": "object",
+      "description": "Prometheus Operator ServiceMonitor configuration"
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "NetworkPolicy toggles and custom ingress/egress rules"
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Annotations added to app and realtime pods"
+    },
+    "podDisruptionBudget": {
+      "type": "object",
+      "description": "PodDisruptionBudget configuration for app and realtime"
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Labels added to app and realtime pods"
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount creation, name, and annotations (e.g. Workload Identity)"
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations applied to app and realtime pods"
     }
   },
+  "additionalProperties": false,
   "allOf": [
     {
       "if": {

@@ -421,6 +421,17 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       sourceStates,
     })
 
+    if (plan.excludedTargets.length > 0) {
+      logger.info(
+        `[${requestId}] Promote leaving ${plan.excludedTargets.length} sync-excluded target workflow(s) untouched`,
+        {
+          sourceWorkspaceId,
+          targetWorkspaceId,
+          excludedTargets: plan.excludedTargets.map((target) => target.name),
+        }
+      )
+    }
+
     const now = new Date()
 
     // Copy the selected unmapped resources (referenced and unreferenced) into the target BEFORE

@@ -75,7 +75,7 @@ export async function prefetchWorkspaceSidebar(
       staleTime: WORKFLOW_LIST_STALE_TIME,
     }),
     queryClient.prefetchQuery({
-      queryKey: mothershipChatKeys.list(workspaceId),
+      queryKey: mothershipChatKeys.list(workspaceId, 'active'),
       queryFn: async () => {
         const data = await listMothershipChats(userId, workspaceId)
         return data.map(mapChat)

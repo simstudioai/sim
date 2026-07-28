@@ -1,46 +1,24 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { knowledgeConnector } from '@sim/db/schema'
+import { queueTableRows, resetDbChainMock, resetUrlsMock, urlsMockFns } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockAssertBillingAttributionSnapshot,
   mockCheckKnowledgeBaseWriteAccess,
-  mockDbChain,
   mockFetch,
   mockGenerateInternalToken,
   mockSerializeBillingAttributionHeader,
-} = vi.hoisted(() => {
-  const chain = {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn(),
-  }
-  return {
-    mockAssertBillingAttributionSnapshot: vi.fn(),
-    mockCheckKnowledgeBaseWriteAccess: vi.fn(),
-    mockDbChain: chain,
-    mockFetch: vi.fn(),
-    mockGenerateInternalToken: vi.fn(),
-    mockSerializeBillingAttributionHeader: vi.fn(),
-  }
-})
+} = vi.hoisted(() => ({
+  mockAssertBillingAttributionSnapshot: vi.fn(),
+  mockCheckKnowledgeBaseWriteAccess: vi.fn(),
+  mockFetch: vi.fn(),
+  mockGenerateInternalToken: vi.fn(),
+  mockSerializeBillingAttributionHeader: vi.fn(),
+}))
 
-vi.mock('@sim/db', () => ({ db: mockDbChain }))
-vi.mock('@sim/db/schema', () => ({
-  knowledgeConnector: {
-    id: 'knowledgeConnector.id',
-    knowledgeBaseId: 'knowledgeConnector.knowledgeBaseId',
-    archivedAt: 'knowledgeConnector.archivedAt',
-    deletedAt: 'knowledgeConnector.deletedAt',
-  },
-}))
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(),
-  eq: vi.fn(),
-  isNull: vi.fn(),
-}))
 vi.mock('@/lib/auth/internal', () => ({
   generateInternalToken: mockGenerateInternalToken,
 }))
@@ -59,9 +37,11 @@ vi.mock('@/lib/copilot/generated/tool-catalog-v1', () => ({
 vi.mock('@/lib/copilot/tools/server/base-tool', () => ({
   assertServerToolNotAborted: vi.fn(),
 }))
-vi.mock('@/lib/core/utils/urls', () => ({
-  getInternalApiBaseUrl: vi.fn(() => 'http://internal.test'),
-}))
+beforeAll(() => {
+  urlsMockFns.mockGetInternalApiBaseUrl.mockReturnValue('http://internal.test')
+})
+
+afterAll(resetUrlsMock)
 vi.mock('@/lib/knowledge/documents/service', () => ({
   createSingleDocument: vi.fn(),
   deleteDocument: vi.fn(),
@@ -119,13 +99,15 @@ const BILLING_ATTRIBUTION = {
 }
 
 describe('knowledge base connector Copilot operations', () => {
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     vi.stubGlobal('fetch', mockFetch)
-    mockDbChain.select.mockReturnThis()
-    mockDbChain.from.mockReturnThis()
-    mockDbChain.where.mockReturnThis()
-    mockDbChain.limit.mockResolvedValue([{ knowledgeBaseId: 'knowledge-base-1' }])
+    queueTableRows(knowledgeConnector, [{ knowledgeBaseId: 'knowledge-base-1' }])
     mockAssertBillingAttributionSnapshot.mockReturnValue(BILLING_ATTRIBUTION)
     mockSerializeBillingAttributionHeader.mockReturnValue('serialized-attribution')
     mockGenerateInternalToken.mockResolvedValue('internal-token')

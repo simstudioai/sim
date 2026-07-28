@@ -1,5 +1,20 @@
 name: CI
 
+# Runner provider toggle, read from the CI_PROVIDER repo variable:
+#
+#   gh variable set CI_PROVIDER --body github   # fall back to GitHub-hosted
+#   gh variable delete CI_PROVIDER              # back to Blacksmith (default)
+#
+# A repo variable, not a committed value: during a Blacksmith outage there is no
+# working CI to merge a switchover through. Only unset/'blacksmith' selects
+# Blacksmith; anything unrecognized selects GitHub so a typo can't queue jobs
+# against the provider you're escaping. Every runs-on and both composite actions
+# share this predicate and must change together.
+#
+# GitHub mode is break-glass, not a peer — cold layers, slower runs. The app image
+# is the one job on a paid larger runner: next build needs ~32 GB and OOM-kills
+# (exit 137) on the free 16 GB runners at any heap ceiling.
+
 on:
   push:
     branches: [main, staging, dev]
@@ -26,9 +41,11 @@ jobs:
     secrets: inherit
 
   # Detect if this is a version release commit (e.g., "v0.5.24: ...")
+  # Smallest runner on purpose: a few seconds of pure shell over the commit
+  # message, no checkout and no install.
   detect-version:
     name: Detect Version
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev')
     outputs:
@@ -59,7 +76,13 @@ jobs:
   migrate:
     name: Migrate DB
     needs: [test-build]
+    # Explicit need results instead of the implicit success(): a skipped job
+    # anywhere in the transitive needs chain silently fails implicit success()
+    # and cascade-skips the deploy chain (migrate -> promote-images ->
+    # CodeDeploy) — this bit us on 2026-07-23. State requirements explicitly.
     if: >-
+      !cancelled() &&
+      needs.test-build.result == 'success' &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     uses: ./.github/workflows/migrations.yml
@@ -81,7 +104,7 @@ jobs:
     name: Build Dev ECR
     needs: [detect-version, migrate-dev]
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.bs_runner || matrix.gh_runner }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -90,14 +113,27 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Only the app image needs the paid 8-core/32 GB runner: next build
+          # exhausts the free 16 GB one (exit 137). The others build in <5 min.
+          # bs_runner mirrors that per-image sizing on Blacksmith — a single
+          # pinned tier put every image on 8 vCPU, where the non-app builds idle
+          # at 12-15% CPU and under 10% memory.
           - dockerfile: ./docker/app.Dockerfile
             ecr_repo_secret: ECR_APP
+            gh_runner: linux-x64-8-core
+            bs_runner: blacksmith-8vcpu-ubuntu-2404
           - dockerfile: ./docker/db.Dockerfile
             ecr_repo_secret: ECR_MIGRATIONS
+            gh_runner: ubuntu-latest
+            bs_runner: blacksmith-2vcpu-ubuntu-2404
           - dockerfile: ./docker/realtime.Dockerfile
             ecr_repo_secret: ECR_REALTIME
+            gh_runner: ubuntu-latest
+            bs_runner: blacksmith-4vcpu-ubuntu-2404
           - dockerfile: ./docker/pii.Dockerfile
             ecr_repo_secret: ECR_PII
+            gh_runner: ubuntu-latest
+            bs_runner: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -117,9 +153,6 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: useblacksmith/setup-docker-builder@ab5c1da94f53f5cd75c1038092aa276dddfccbba # v1
 
       - name: Resolve ECR repo name
         id: ecr-repo
@@ -143,15 +176,12 @@ jobs:
 
       - name: Build and push
         id: build
-        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
+        uses: ./.github/actions/docker-build
         with:
-          context: .
+          provider: ${{ vars.CI_PROVIDER }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
-          push: true
           tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:dev
-          provenance: false
-          sbom: false
 
       # App leg only: publish the metadata promote-trigger-dev needs to correlate
       # this push to its dev ECS deploy and decide whether to wait. Dev has no
@@ -194,7 +224,7 @@ jobs:
     name: Deploy Trigger.dev (Dev)
     needs: [migrate-dev]
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     outputs:
       version: ${{ steps.deploy.outputs.version }}
@@ -219,7 +249,7 @@ jobs:
             ${{ runner.os }}-bun-
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Deploy to Trigger.dev (skip promotion)
         id: deploy
@@ -268,7 +298,7 @@ jobs:
       !cancelled() &&
       github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
       needs.deploy-trigger-dev.result == 'success'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     # Dev bake is 5 min and dev deploys don't queue behind a bake (serialized by the
     # ci-<ref> group), so a 20-min poll is ample; the 40-min job leaves ~20 min for
     # setup + promote above it (mirrors the prod 90-vs-70 margin), and the 40-min
@@ -376,7 +406,7 @@ jobs:
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     outputs:
       version: ${{ steps.deploy.outputs.version }}
@@ -445,7 +475,7 @@ jobs:
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.bs_runner || matrix.gh_runner }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -458,15 +488,23 @@ jobs:
           - dockerfile: ./docker/app.Dockerfile
             ghcr_image: ghcr.io/simstudioai/simstudio
             ecr_repo_secret: ECR_APP
+            gh_runner: linux-x64-8-core
+            bs_runner: blacksmith-8vcpu-ubuntu-2404
           - dockerfile: ./docker/db.Dockerfile
             ghcr_image: ghcr.io/simstudioai/migrations
             ecr_repo_secret: ECR_MIGRATIONS
+            gh_runner: ubuntu-latest
+            bs_runner: blacksmith-2vcpu-ubuntu-2404
           - dockerfile: ./docker/realtime.Dockerfile
             ghcr_image: ghcr.io/simstudioai/realtime
             ecr_repo_secret: ECR_REALTIME
+            gh_runner: ubuntu-latest
+            bs_runner: blacksmith-4vcpu-ubuntu-2404
           - dockerfile: ./docker/pii.Dockerfile
             ghcr_image: ghcr.io/simstudioai/pii
             ecr_repo_secret: ECR_PII
+            gh_runner: ubuntu-latest
+            bs_runner: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -495,9 +533,6 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: useblacksmith/setup-docker-builder@ab5c1da94f53f5cd75c1038092aa276dddfccbba # v1
-
       - name: Resolve ECR repo name
         id: ecr-repo
         run: echo "name=$ECR_REPO" >> $GITHUB_OUTPUT
@@ -524,15 +559,12 @@ jobs:
 
       - name: Build and push images
         id: build
-        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
+        uses: ./.github/actions/docker-build
         with:
-          context: .
+          provider: ${{ vars.CI_PROVIDER }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
-          push: true
           tags: ${{ steps.meta.outputs.tags }}
-          provenance: false
-          sbom: false
 
       # Publish the app image digest so promote-trigger-* can correlate this push
       # to its ECS CodePipeline execution. promote-images retags this same sha
@@ -562,10 +594,14 @@ jobs:
   promote-images:
     name: Promote Images
     needs: [migrate, build-amd64]
+    # Explicit results: see migrate's comment.
     if: >-
+      !cancelled() &&
+      needs.migrate.result == 'success' &&
+      needs.build-amd64.result == 'success' &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
     permissions:
       contents: read
@@ -694,7 +730,7 @@ jobs:
       needs.promote-images.result == 'success' &&
       needs.deploy-trigger.result == 'success' &&
       needs.promote-images.outputs.promoted == 'true'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     # Must exceed the poll script's OVERALL_TIMEOUT (70 min, covering a prod deploy
     # queued behind a ~50-min bake) PLUS runner setup + the final promote step, so
     # the Actions timeout never kills the job before the script's own deadline.
@@ -781,7 +817,7 @@ jobs:
   # never moves a documented tag.
   build-ghcr-arm64:
     name: Build ARM64 (GHCR Only)
-    runs-on: blacksmith-8vcpu-ubuntu-2404-arm
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.bs_runner || matrix.gh_runner }}
     timeout-minutes: 30
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
@@ -790,15 +826,27 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Non-app images sit at 4 vCPU rather than the finer x64 split: the ARM
+        # sizing data is job-level (8 -> 4 for the whole matrix), not per-image,
+        # and this job only runs on push to main — an unprovisioned label would
+        # hang a release in `queued` rather than fail a PR.
         include:
           - dockerfile: ./docker/app.Dockerfile
             image: ghcr.io/simstudioai/simstudio
+            gh_runner: linux-arm64-8-core
+            bs_runner: blacksmith-8vcpu-ubuntu-2404-arm
           - dockerfile: ./docker/db.Dockerfile
             image: ghcr.io/simstudioai/migrations
+            gh_runner: ubuntu-24.04-arm
+            bs_runner: blacksmith-4vcpu-ubuntu-2404-arm
           - dockerfile: ./docker/realtime.Dockerfile
             image: ghcr.io/simstudioai/realtime
+            gh_runner: ubuntu-24.04-arm
+            bs_runner: blacksmith-4vcpu-ubuntu-2404-arm
           - dockerfile: ./docker/pii.Dockerfile
             image: ghcr.io/simstudioai/pii
+            gh_runner: ubuntu-24.04-arm
+            bs_runner: blacksmith-4vcpu-ubuntu-2404-arm
 
     steps:
       - name: Checkout code
@@ -811,29 +859,29 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: useblacksmith/setup-docker-builder@ab5c1da94f53f5cd75c1038092aa276dddfccbba # v1
-
       - name: Build and push ARM64 to GHCR
-        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
+        uses: ./.github/actions/docker-build
         with:
-          context: .
+          provider: ${{ vars.CI_PROVIDER }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/arm64
-          push: true
           tags: ${{ matrix.image }}:${{ github.sha }}-arm64
-          provenance: false
-          sbom: false
 
   # Publish all mutable GHCR tags (latest, latest-amd64/arm64, version tags)
   # and the multi-arch manifests from the immutable sha tags — only on main,
   # after the deploy gate (promote-images) and the ARM64 build both pass.
   create-ghcr-manifests:
     name: Create GHCR Manifests
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
     needs: [promote-images, build-ghcr-arm64, detect-version]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Explicit results: see migrate's comment.
+    if: >-
+      !cancelled() &&
+      needs.promote-images.result == 'success' &&
+      needs.build-ghcr-arm64.result == 'success' &&
+      needs.detect-version.result == 'success' &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
       packages: write
@@ -894,9 +942,11 @@ jobs:
           fi
 
   # Check if docs changed
+  # Smallest runner on purpose: a depth-2 checkout plus a path filter, no
+  # install and no build.
   check-docs-changes:
     name: Check Docs Changes
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     outputs:
@@ -918,17 +968,27 @@ jobs:
   process-docs:
     name: Process Docs
     needs: [promote-images, check-docs-changes]
-    if: needs.check-docs-changes.outputs.docs_changed == 'true'
+    # Explicit results: see migrate's comment.
+    if: >-
+      !cancelled() &&
+      needs.promote-images.result == 'success' &&
+      needs.check-docs-changes.result == 'success' &&
+      needs.check-docs-changes.outputs.docs_changed == 'true'
     uses: ./.github/workflows/docs-embeddings.yml
     secrets: inherit
 
   # Create GitHub Release (only for version commits on main, after all builds complete)
   create-release:
     name: Create GitHub Release
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
     needs: [create-ghcr-manifests, detect-version]
-    if: needs.detect-version.outputs.is_release == 'true'
+    # Explicit results: see migrate's comment.
+    if: >-
+      !cancelled() &&
+      needs.create-ghcr-manifests.result == 'success' &&
+      needs.detect-version.result == 'success' &&
+      needs.detect-version.outputs.is_release == 'true'
     permissions:
       contents: write
     steps:
@@ -943,7 +1003,7 @@ jobs:
           bun-version: 1.3.13
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Create release
         env:

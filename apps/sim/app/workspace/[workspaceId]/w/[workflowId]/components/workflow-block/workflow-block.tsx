@@ -3,11 +3,14 @@ import { createLogger } from '@sim/logger'
 import { SubBlockRowView, WorkflowBlockView } from '@sim/workflow-renderer'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import { type NodeProps, useUpdateNodeInternals } from 'reactflow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createMcpToolId } from '@/lib/mcp/shared'
+import { sendMothershipMessage } from '@/lib/mothership/events'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
+import { captureEvent } from '@/lib/posthog/client'
 import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
 import {
@@ -45,7 +48,12 @@ import {
 import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
-import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
+import { getBlock } from '@/blocks/registry'
+import {
+  type BlockConfig,
+  SELECTOR_TYPES_HYDRATION_REQUIRED,
+  type SubBlockConfig,
+} from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import { useCustomTools } from '@/hooks/queries/custom-tools'
@@ -58,6 +66,7 @@ import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useReactiveConditions } from '@/hooks/use-reactive-conditions'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
+import { getModelSunsetStatus } from '@/providers/models'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -71,6 +80,80 @@ const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
 
 /** Stable empty map for rows that never resolve MCP tool names */
 const EMPTY_MCP_TOOL_NAMES: ReadonlyMap<string, string> = new Map()
+
+interface BlockSunset {
+  status: 'legacy' | 'deprecated'
+  kind: 'block' | 'model'
+  tooltip: string
+  prompt: string
+}
+
+/** Instruction for the agent to migrate a block instance to its successor. */
+function migrationPrompt(name: string, target: BlockConfig): string {
+  return `Migrate the "${name}" block to the current ${target.name} block: change the block type, then set the new block's required inputs as a separate edit (inputs are validated against the old type when sent in the same edit), or delete it and re-add ${target.name} and rewire the connections.`
+}
+
+/**
+ * Sunset state for a placed block: the block type itself (via `config.sunset`)
+ * or its selected model. `legacy` (amber) is superseded-but-supported and needs
+ * a resolvable successor; `deprecated` (red) is no longer supported and badges
+ * with or without one. `null` when neither applies or in diff mode.
+ */
+function getBlockSunset(
+  config: BlockConfig,
+  name: string,
+  model: unknown,
+  isDiffMode: boolean
+): BlockSunset | null {
+  if (isDiffMode) return null
+
+  const sunset = config.sunset
+  if (sunset) {
+    const target = sunset.replacedBy ? getBlock(sunset.replacedBy) : undefined
+
+    if (sunset.status === 'legacy') {
+      if (!target) return null
+      const hasModel = config.subBlocks?.some((sub) => sub.id === 'model')
+      return {
+        status: 'legacy',
+        kind: 'block',
+        tooltip: 'This is a legacy block. Click to upgrade',
+        prompt: `The "${name}" block is legacy. ${migrationPrompt(name, target)}${hasModel ? ' Also pick a current, non-deprecated model.' : ''}`,
+      }
+    }
+
+    return {
+      status: 'deprecated',
+      kind: 'block',
+      tooltip: 'This block is no longer supported. Click to replace',
+      prompt: target
+        ? `The "${name}" block is no longer supported. ${migrationPrompt(name, target)}`
+        : `The "${name}" block is no longer supported and has no direct successor. Replace it with current blocks that achieve the same result and rewire the connections.`,
+    }
+  }
+
+  if (typeof model === 'string') {
+    const modelStatus = getModelSunsetStatus(model)
+    if (modelStatus === 'deprecated') {
+      return {
+        status: 'deprecated',
+        kind: 'model',
+        tooltip: `${model} is no longer available. Click to switch models`,
+        prompt: `The "${name}" block uses "${model}", which the provider has retired — calls to it now fail. Switch it to the latest equivalent model.`,
+      }
+    }
+    if (modelStatus === 'legacy') {
+      return {
+        status: 'legacy',
+        kind: 'model',
+        tooltip: `${model} is a legacy model. Click to upgrade`,
+        prompt: `The "${name}" block uses the legacy model "${model}". Switch it to the latest equivalent model.`,
+      }
+    }
+  }
+
+  return null
+}
 
 interface SubBlockRowProps {
   title: string
@@ -479,6 +562,23 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     ),
     isEqual
   )
+
+  const posthog = usePostHog()
+
+  const sunset = getBlockSunset(config, name, blockSubBlockValues.model, currentWorkflow.isDiffMode)
+
+  const onFixSunset = () => {
+    if (!sunset) return
+    captureEvent(posthog, 'deprecated_block_fix_clicked', {
+      block_type: type,
+      workflow_id: currentWorkflowId,
+      kind: sunset.kind,
+    })
+    sendMothershipMessage(sunset.prompt, [
+      { kind: 'workflow_block', workflowId: currentWorkflowId, blockId: id, label: name },
+    ])
+  }
+
   const canonicalIndex = useMemo(() => buildCanonicalIndex(config.subBlocks), [config.subBlocks])
   const canonicalModeOverrides = currentStoreBlock?.data?.canonicalModes
 
@@ -798,6 +898,10 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           deployChildWorkflow({ workflowId: childWorkflowId })
         }
       }}
+      sunsetStatus={sunset?.status}
+      sunsetTooltip={sunset?.tooltip}
+      canFixSunset={canEditWorkflow}
+      onFixSunset={onFixSunset}
       shouldShowScheduleBadge={shouldShowScheduleBadge}
       scheduleIsDisabled={Boolean(scheduleInfo?.isDisabled)}
       onReactivateSchedule={() => {

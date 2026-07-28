@@ -24,6 +24,13 @@ import { JsonLd } from '@/app/(landing)/components/json-ld'
 export const HOME_PAGE_DESCRIPTION =
   'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents across 1,000+ integrations and every major LLM, visually or with code.'
 
+/**
+ * The home page's canonical title - the single string shared by the
+ * `<title>`, OG/Twitter titles (`page.tsx`), and the JSON-LD `WebPage.name`
+ * below, so the title surfaces never drift.
+ */
+export const HOME_PAGE_TITLE = 'The AI Workspace | Build, Deploy & Manage AI Agents | Sim'
+
 const HOME_JSON_LD = {
   '@context': 'https://schema.org',
   '@graph': [
@@ -31,7 +38,7 @@ const HOME_JSON_LD = {
       '@type': 'WebPage',
       '@id': `${SITE_URL}#webpage`,
       url: SITE_URL,
-      name: 'Sim, The AI Workspace | Build, Deploy & Manage AI Agents',
+      name: HOME_PAGE_TITLE,
       isPartOf: { '@id': `${SITE_URL}#website` },
       about: { '@id': `${SITE_URL}#software` },
       datePublished: '2024-01-01T00:00:00+00:00',

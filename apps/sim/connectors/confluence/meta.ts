@@ -22,6 +22,15 @@ export const confluenceConnectorMeta: ConnectorMeta = {
     ],
   },
 
+  /**
+   * Confluence pages can transclude other pages (Include Page / Excerpt macros).
+   * Editing an included page changes a container page's rendered `view` without
+   * bumping the container's version, so its version-based hash can't detect the
+   * change. A full resync re-hydrates and re-indexes to pick up that drift. This
+   * lives on the meta so the client can offer "Full resync" only where it applies.
+   */
+  rehydrateOnFullSync: true,
+
   configFields: [
     {
       id: 'domain',

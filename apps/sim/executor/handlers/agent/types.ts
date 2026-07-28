@@ -39,6 +39,7 @@ export interface AgentInputs {
   reasoningEffort?: string
   verbosity?: string
   thinkingLevel?: string
+  promptCaching?: boolean
   files?: unknown
 }
 

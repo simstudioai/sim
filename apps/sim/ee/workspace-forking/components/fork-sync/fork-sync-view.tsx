@@ -10,6 +10,7 @@ import {
   cn,
   FieldDivider,
   Label,
+  Tooltip,
 } from '@sim/emcn'
 import { ArrowRight } from 'lucide-react'
 import type {
@@ -575,6 +576,23 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
   const detailsError = controller.errorMessage ?? controller.diffErrorMessage
   const headsUp = controller.mcpReauthCount > 0 || controller.inlineSecretCount > 0
 
+  // Excluded workflows render greyed in the change list. Orient each name's tooltip
+  // to WHERE it is excluded (that's the only place it can be re-included): the sync's
+  // source is this workspace on push and the other workspace on pull.
+  const excludedRows = [
+    ...(controller.direction === 'push'
+      ? controller.excludedSourceWorkflows
+      : controller.excludedTargetWorkflows
+    ).map((name) => ({ name, tooltip: 'Excluded from sync' })),
+    ...(controller.direction === 'push'
+      ? controller.excludedTargetWorkflows
+      : controller.excludedSourceWorkflows
+    ).map((name) => ({
+      name,
+      tooltip: `Excluded from sync in "${controller.otherWorkspaceName}"`,
+    })),
+  ]
+
   return (
     <div className='flex flex-col gap-7'>
       <SettingsSection label='Sync direction'>
@@ -607,33 +625,51 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
 
       {/* Always shown once the diff loads so the user sees the section even with nothing
           deployed - an empty change list means the source has no deployed workflows (every
-          deployed workflow appears here, changed or not), so the muted state nudges a deploy. */}
+          deployed workflow appears here, changed or not), so the muted state nudges a deploy.
+          Sync-excluded workflows list greyed at the end, with a tooltip naming where the
+          exclusion lives - the sync will not touch them. */}
       {controller.hasDiff ? (
         <SettingsSection label='Deployed workflows'>
-          {controller.workflowChanges.length > 0 ? (
-            <div className='flex flex-col gap-1'>
-              {controller.workflowChanges.map((change, index) => {
-                const renamed = change.currentName !== change.otherName
-                return (
-                  <div
-                    key={`${change.action}:${change.currentName}:${index}`}
-                    className='flex min-w-0 items-center gap-1.5'
-                  >
-                    <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
-                      {change.currentName}
-                    </span>
-                    {renamed ? (
-                      <>
-                        <ArrowRight className='size-3 shrink-0 text-[var(--text-icon)]' />
-                        <span className='min-w-0 truncate text-[var(--text-secondary)] text-sm'>
-                          {change.otherName}
+          {controller.workflowChanges.length + excludedRows.length > 0 ? (
+            <Tooltip.Provider delayDuration={150}>
+              <div className='flex flex-col gap-1'>
+                {controller.workflowChanges.map((change, index) => {
+                  const renamed = change.currentName !== change.otherName
+                  return (
+                    <div
+                      key={`${change.action}:${change.currentName}:${index}`}
+                      className='flex min-w-0 items-center gap-1.5'
+                    >
+                      <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
+                        {change.currentName}
+                      </span>
+                      {renamed ? (
+                        <>
+                          <ArrowRight className='size-3 shrink-0 text-[var(--text-icon)]' />
+                          <span className='min-w-0 truncate text-[var(--text-secondary)] text-sm'>
+                            {change.otherName}
+                          </span>
+                        </>
+                      ) : null}
+                    </div>
+                  )
+                })}
+                {excludedRows.map(({ name, tooltip }, index) => (
+                  <div key={`excluded:${name}:${index}`} className='flex min-w-0 items-center'>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <span className='min-w-0 max-w-full truncate text-[var(--text-muted)] text-sm'>
+                          {name}
                         </span>
-                      </>
-                    ) : null}
+                      </Tooltip.Trigger>
+                      <Tooltip.Content side='top' className='text-small'>
+                        {tooltip}
+                      </Tooltip.Content>
+                    </Tooltip.Root>
                   </div>
-                )
-              })}
-            </div>
+                ))}
+              </div>
+            </Tooltip.Provider>
           ) : (
             <div className='text-[var(--text-muted)] text-small'>
               {controller.direction === 'push'

@@ -48,8 +48,8 @@ const ALLOWED_UPLOAD_CONTEXTS = new Set<StorageContext>([
 
 /**
  * Unified part identity sent by the client when completing a multipart upload.
- * `etag` is required for S3 (CompleteMultipartUpload). For Azure the server
- * derives the block id from `partNumber` via {@link deriveBlobBlockId}.
+ * `etag` is required for S3 and GCS (CompleteMultipartUpload). For Azure the
+ * server derives the block id from `partNumber` via {@link deriveBlobBlockId}.
  */
 interface ClientCompletedPart {
   partNumber: number
@@ -76,6 +76,9 @@ const buildBlobCustomConfig = (config: StorageConfig) => ({
   accountKey: config.accountKey,
   connectionString: config.connectionString,
 })
+
+const buildGcsCustomConfig = (config: StorageConfig) =>
+  config.bucket ? { bucket: config.bucket } : undefined
 
 const verifyTokenForUser = (token: string | undefined, userId: string) => {
   if (!token || typeof token !== 'string') {
@@ -124,7 +127,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     if (!isUsingCloudStorage()) {
       return NextResponse.json(
-        { error: 'Multipart upload is only available with cloud storage (S3 or Azure Blob)' },
+        {
+          error:
+            'Multipart upload is only available with cloud storage (S3, Azure Blob, or Google Cloud Storage)',
+        },
         { status: 400 }
       )
     }
@@ -241,6 +247,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           })
           uploadId = result.uploadId
           key = result.key
+        } else if (storageProvider === 'gcs') {
+          const { initiateGcsMultipartUpload } = await import('@/lib/uploads/providers/gcs/client')
+          const result = await initiateGcsMultipartUpload({
+            fileName,
+            contentType,
+            fileSize,
+            customConfig: buildGcsCustomConfig(config),
+            customKey,
+            purpose: context,
+          })
+          uploadId = result.uploadId
+          key = result.key
         } else {
           return NextResponse.json(
             { error: `Unsupported storage provider: ${storageProvider}` },
@@ -308,6 +326,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
           return NextResponse.json({ presignedUrls })
         }
+        if (storageProvider === 'gcs') {
+          const { getGcsMultipartPartUrls } = await import('@/lib/uploads/providers/gcs/client')
+          const presignedUrls = await getGcsMultipartPartUrls(
+            key,
+            uploadId,
+            partNumbers,
+            buildGcsCustomConfig(config)
+          )
+          return NextResponse.json({ presignedUrls })
+        }
 
         return NextResponse.json(
           { error: `Unsupported storage provider: ${storageProvider}` },
@@ -333,6 +361,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           storageProvider === 's3' ? await import('@/lib/uploads/providers/s3/client') : null
         const blobModule =
           storageProvider === 'blob' ? await import('@/lib/uploads/providers/blob/client') : null
+        const gcsModule =
+          storageProvider === 'gcs' ? await import('@/lib/uploads/providers/gcs/client') : null
 
         const completeOne = async (payload: UploadTokenPayload, parts: ClientCompletedPart[]) => {
           const { uploadId, key, context } = payload
@@ -360,6 +390,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               blockId: deriveBlobBlockId(p.partNumber),
             }))
             completed = await completeMultipartUpload(key, blobParts, buildBlobCustomConfig(config))
+          } else if (storageProvider === 'gcs' && gcsModule) {
+            const { completeGcsMultipartUpload } = gcsModule
+            const gcsParts = parts.map((p) => {
+              if (!p.etag) {
+                throw new Error(`Missing etag for GCS part ${p.partNumber}`)
+              }
+              return { ETag: p.etag, PartNumber: p.partNumber }
+            })
+            completed = await completeGcsMultipartUpload(
+              key,
+              uploadId,
+              gcsParts,
+              buildGcsCustomConfig(config)
+            )
           } else {
             throw new Error(`Unsupported storage provider: ${storageProvider}`)
           }
@@ -459,6 +503,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           const { abortMultipartUpload } = await import('@/lib/uploads/providers/blob/client')
           await abortMultipartUpload(key, buildBlobCustomConfig(config))
           logger.info(`Aborted Azure multipart upload for key ${key} (context: ${context})`)
+        } else if (storageProvider === 'gcs') {
+          const { abortGcsMultipartUpload } = await import('@/lib/uploads/providers/gcs/client')
+          await abortGcsMultipartUpload(key, uploadId, buildGcsCustomConfig(config))
+          logger.info(`Aborted GCS multipart upload for key ${key} (context: ${context})`)
         } else {
           return NextResponse.json(
             { error: `Unsupported storage provider: ${storageProvider}` },

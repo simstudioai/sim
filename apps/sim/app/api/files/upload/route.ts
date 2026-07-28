@@ -23,7 +23,7 @@ import type { StorageContext } from '@/lib/uploads/config'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { MAX_WORKSPACE_FORMDATA_FILE_SIZE } from '@/lib/uploads/shared/types'
-import { isImageFileType, resolveFileType } from '@/lib/uploads/utils/file-utils'
+import { isArchiveFileName, isImageFileType, resolveFileType } from '@/lib/uploads/utils/file-utils'
 import {
   SUPPORTED_ATTACHMENT_EXTENSIONS,
   SUPPORTED_IMAGE_EXTENSIONS,
@@ -34,9 +34,12 @@ import { createErrorResponse, InvalidRequestError } from '@/app/api/files/utils'
 
 const ALLOWED_EXTENSIONS = new Set<string>(SUPPORTED_ATTACHMENT_EXTENSIONS)
 
-function validateFileExtension(filename: string): boolean {
+function validateFileExtension(filename: string, context: StorageContext): boolean {
   const extension = filename.split('.').pop()?.toLowerCase()
   if (!extension) return false
+  // Archives are only extractable in the mothership copilot flow; every other
+  // context keeps rejecting them up front instead of failing downstream.
+  if (context === 'mothership' && isArchiveFileName(filename)) return true
   return ALLOWED_EXTENSIONS.has(extension)
 }
 
@@ -150,7 +153,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     for (const file of files) {
       const originalName = file.name || 'untitled.md'
 
-      if (!validateFileExtension(originalName)) {
+      if (!validateFileExtension(originalName, context)) {
         const extension = originalName.split('.').pop()?.toLowerCase() || 'unknown'
         throw new InvalidRequestError(
           `File type '${extension}' is not allowed. Allowed types: ${Array.from(ALLOWED_EXTENSIONS).join(', ')}`

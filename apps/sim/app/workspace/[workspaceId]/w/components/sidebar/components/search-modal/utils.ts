@@ -91,10 +91,8 @@ export interface CommandItemProps {
   icon: ComponentType<{ className?: string }>
   bgColor: string
   showColoredIcon?: boolean
-  /** Primary text. Matched characters are highlighted against {@link query}. */
+  /** Primary text of the row. */
   label: string
-  /** Active search query, used to bold matched characters. */
-  query?: string
 }
 
 export const GROUP_HEADING_CLASSNAME =
@@ -181,9 +179,8 @@ function tokenFallback(lowerText: string, lowerQuery: string): FuzzyResult {
  * (`message slack` matches "Slack Send Message") which a strict left-to-right
  * subsequence would miss.
  *
- * Contiguous substring matches report the indices of the substring itself, so
- * highlighting always bolds the run the user actually matched rather than an
- * earlier scattered occurrence of the same characters.
+ * Contiguous substring matches report the indices of the substring itself
+ * rather than an earlier scattered occurrence of the same characters.
  */
 export function fuzzyMatch(text: string, query: string): FuzzyResult {
   if (!query) return { matched: true, score: 1, positions: [] }

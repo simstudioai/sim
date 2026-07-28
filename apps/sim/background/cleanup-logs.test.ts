@@ -2,7 +2,9 @@
  * @vitest-environment node
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { drizzleOrmMock } from '@sim/testing/mocks'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 interface CleanupRow {
   id: string
@@ -18,138 +20,32 @@ interface CapturedBatchDeleteOptions {
 }
 
 const {
-  mockAnd,
   mockBatchDeleteByWorkspaceAndTimestamp,
   mockChunkedBatchDelete,
   mockDeleteFileMetadata,
   mockDeleteFiles,
-  mockEq,
-  mockExecute,
-  mockFrom,
-  mockInArray,
-  mockIsNull,
-  mockLeftJoin,
-  mockLimit,
-  mockLt,
   mockMarkLargeValuesDeleted,
-  mockNotInArray,
-  mockOr,
-  mockOrderBy,
   mockPruneLargeValueMetadata,
-  mockSelect,
   mockTask,
-  mockWhere,
-} = vi.hoisted(() => {
-  const mockLimit = vi.fn(async () => [])
-  const mockOrderBy = vi.fn(() => ({ limit: mockLimit }))
-  const mockWhere = vi.fn(() => ({ limit: mockLimit, orderBy: mockOrderBy }))
-  const mockLeftJoin = vi.fn(() => ({ where: mockWhere }))
-  const mockFrom = vi.fn(() => ({ leftJoin: mockLeftJoin, where: mockWhere }))
-  const mockSelect = vi.fn(() => ({ from: mockFrom }))
-
-  return {
-    mockAnd: vi.fn((...args: unknown[]) => ({ op: 'and', args })),
-    mockBatchDeleteByWorkspaceAndTimestamp: vi.fn(async () => ({
-      table: 'job',
-      deleted: 0,
-      failed: 0,
-    })),
-    mockChunkedBatchDelete: vi.fn(),
-    mockDeleteFileMetadata: vi.fn(async () => true),
-    mockDeleteFiles: vi.fn(async () => ({ deleted: 2, failed: [] })),
-    mockEq: vi.fn((...args: unknown[]) => ({ op: 'eq', args })),
-    mockExecute: vi.fn(),
-    mockFrom,
-    mockInArray: vi.fn((...args: unknown[]) => ({ op: 'inArray', args })),
-    mockIsNull: vi.fn((...args: unknown[]) => ({ op: 'isNull', args })),
-    mockLeftJoin,
-    mockLimit,
-    mockLt: vi.fn((...args: unknown[]) => ({ op: 'lt', args })),
-    mockMarkLargeValuesDeleted: vi.fn(async () => undefined),
-    mockNotInArray: vi.fn((...args: unknown[]) => ({ op: 'notInArray', args })),
-    mockOr: vi.fn((...args: unknown[]) => ({ op: 'or', args })),
-    mockOrderBy,
-    mockPruneLargeValueMetadata: vi.fn(async () => ({
-      referencesDeleted: 0,
-      dependenciesDeleted: 0,
-      tombstonesDeleted: 0,
-    })),
-    mockSelect,
-    mockTask: vi.fn((config: unknown) => config),
-    mockWhere,
-  }
-})
-
-vi.mock('@sim/db', () => ({
-  db: {
-    execute: mockExecute,
-    select: mockSelect,
-  },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  executionLargeValueDependencies: {
-    childKey: 'executionLargeValueDependencies.childKey',
-    parentKey: 'executionLargeValueDependencies.parentKey',
-    workspaceId: 'executionLargeValueDependencies.workspaceId',
-  },
-  executionLargeValueReferences: {
-    executionId: 'executionLargeValueReferences.executionId',
-    key: 'executionLargeValueReferences.key',
-    source: 'executionLargeValueReferences.source',
-  },
-  executionLargeValues: {
-    createdAt: 'executionLargeValues.createdAt',
-    deletedAt: 'executionLargeValues.deletedAt',
-    key: 'executionLargeValues.key',
-    workspaceId: 'executionLargeValues.workspaceId',
-  },
-  jobExecutionLogs: {
-    startedAt: 'jobExecutionLogs.startedAt',
-    workspaceId: 'jobExecutionLogs.workspaceId',
-  },
-  pausedExecutions: {
-    executionId: 'pausedExecutions.executionId',
-    status: 'pausedExecutions.status',
-  },
-  workspaceFiles: {
-    context: 'workspaceFiles.context',
-    deletedAt: 'workspaceFiles.deletedAt',
-    key: 'workspaceFiles.key',
-    uploadedAt: 'workspaceFiles.uploadedAt',
-    workspaceId: 'workspaceFiles.workspaceId',
-  },
-  workflowExecutionLogs: {
-    executionData: 'workflowExecutionLogs.executionData',
-    executionId: 'workflowExecutionLogs.executionId',
-    files: 'workflowExecutionLogs.files',
-    id: 'workflowExecutionLogs.id',
-    startedAt: 'workflowExecutionLogs.startedAt',
-    workspaceId: 'workflowExecutionLogs.workspaceId',
-  },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn(() => ({
-    error: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
+} = vi.hoisted(() => ({
+  mockBatchDeleteByWorkspaceAndTimestamp: vi.fn(async () => ({
+    table: 'job',
+    deleted: 0,
+    failed: 0,
   })),
+  mockChunkedBatchDelete: vi.fn(),
+  mockDeleteFileMetadata: vi.fn(async () => true),
+  mockDeleteFiles: vi.fn(async () => ({ deleted: 2, failed: [] })),
+  mockMarkLargeValuesDeleted: vi.fn(async () => undefined),
+  mockPruneLargeValueMetadata: vi.fn(async () => ({
+    referencesDeleted: 0,
+    dependenciesDeleted: 0,
+    tombstonesDeleted: 0,
+  })),
+  mockTask: vi.fn((config: unknown) => config),
 }))
 
 vi.mock('@trigger.dev/sdk', () => ({ task: mockTask }))
-
-vi.mock('drizzle-orm', () => ({
-  and: mockAnd,
-  asc: vi.fn((column: unknown) => ({ op: 'asc', column })),
-  eq: mockEq,
-  inArray: mockInArray,
-  isNull: mockIsNull,
-  lt: mockLt,
-  notInArray: mockNotInArray,
-  or: mockOr,
-  sql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
-}))
 
 vi.mock('@/lib/cleanup/batch-delete', () => ({
   batchDeleteByWorkspaceAndTimestamp: mockBatchDeleteByWorkspaceAndTimestamp,
@@ -190,8 +86,13 @@ vi.mock('@/lib/uploads/server/metadata', () => ({
 import { cleanupLogsTask, runCleanupLogs } from '@/background/cleanup-logs'
 
 describe('cleanup logs worker', () => {
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mockChunkedBatchDelete.mockImplementation(async (options: CapturedBatchDeleteOptions) => {
       await options.selectChunk(['workspace-1'], 500)
       await options.onBatch?.([
@@ -223,11 +124,11 @@ describe('cleanup logs worker', () => {
         totalRowLimit: 25_000,
       })
     )
-    expect(mockSelect).toHaveBeenCalledWith({
-      id: 'workflowExecutionLogs.id',
-      files: 'workflowExecutionLogs.files',
+    expect(dbChainMockFns.select).toHaveBeenCalledWith({
+      id: schemaMock.workflowExecutionLogs.id,
+      files: schemaMock.workflowExecutionLogs.files,
     })
-    expect(mockExecute).not.toHaveBeenCalled()
+    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
     expect(mockDeleteFiles).toHaveBeenCalledWith(
       ['execution-file-a', 'execution-file-b'],
       'execution'
@@ -242,7 +143,7 @@ describe('cleanup logs worker', () => {
   it('does not count large values as deleted when deleted_at marking fails', async () => {
     const largeValueKey =
       'execution/workspace-1/workflow-1/execution-1/large-value-lv_abcdefghijkl.json'
-    mockLimit.mockResolvedValueOnce([]).mockResolvedValueOnce([{ key: largeValueKey }])
+    dbChainMockFns.limit.mockResolvedValueOnce([]).mockResolvedValueOnce([{ key: largeValueKey }])
     mockDeleteFiles
       .mockResolvedValueOnce({ deleted: 2, failed: [] })
       .mockResolvedValueOnce({ deleted: 1, failed: [] })
@@ -255,14 +156,14 @@ describe('cleanup logs worker', () => {
       workspaceIds: ['workspace-1'],
     })
 
-    expect(mockMarkLargeValuesDeleted).toHaveBeenCalledWith([largeValueKey])
+    expect(mockMarkLargeValuesDeleted).toHaveBeenCalledWith([largeValueKey], expect.anything())
     expect(mockDeleteFileMetadata).toHaveBeenCalledTimes(2)
   })
 
   it('cleans legacy large values from file metadata without selecting execution_data', async () => {
     const legacyKey =
       'execution/workspace-1/workflow-1/execution-1/large-value-lv_abcdefghijkl.json'
-    mockLimit
+    dbChainMockFns.limit
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ key: legacyKey }])
@@ -277,14 +178,14 @@ describe('cleanup logs worker', () => {
       workspaceIds: ['workspace-1'],
     })
 
-    expect(mockSelect).toHaveBeenCalledWith({
-      id: 'workflowExecutionLogs.id',
-      files: 'workflowExecutionLogs.files',
+    expect(dbChainMockFns.select).toHaveBeenCalledWith({
+      id: schemaMock.workflowExecutionLogs.id,
+      files: schemaMock.workflowExecutionLogs.files,
     })
-    expect(mockSelect).not.toHaveBeenCalledWith(
+    expect(dbChainMockFns.select).not.toHaveBeenCalledWith(
       expect.objectContaining({ executionData: expect.anything() })
     )
-    const legacyWhereArgs = mockAnd.mock.calls
+    const legacyWhereArgs = drizzleOrmMock.and.mock.calls
       .flat()
       .filter((arg): arg is { strings: string[] } => {
         return (

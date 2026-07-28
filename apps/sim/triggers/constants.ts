@@ -31,6 +31,16 @@ export const TRIGGER_RUNTIME_SUBBLOCK_IDS: string[] = [
 ]
 
 /**
+ * Synthesized read-only field exposing a webhook trigger block's public URL in the
+ * copilot's read view of workflow state (see sanitizeForCopilot). The URL is derived
+ * at read time — it is never persisted — and edit_workflow rejects writes to it.
+ *
+ * Deliberately NOT 'webhookUrl': that id is a real user-editable subblock on some
+ * action blocks (e.g. Vercel's create_webhook target URL).
+ */
+export const TRIGGER_WEBHOOK_URL_FIELD = 'triggerWebhookUrl'
+
+/**
  * Maximum number of consecutive failures before a trigger (schedule/webhook) is auto-disabled.
  * This prevents runaway errors from continuously executing failing workflows.
  */

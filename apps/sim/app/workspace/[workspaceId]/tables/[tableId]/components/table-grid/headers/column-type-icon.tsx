@@ -5,6 +5,7 @@ import { Tooltip } from '@sim/emcn'
 import {
   Calendar as CalendarIcon,
   PlayOutline,
+  TagIcon,
   TypeBoolean,
   TypeJson,
   TypeNumber,
@@ -19,6 +20,7 @@ export const COLUMN_TYPE_ICONS: Record<string, React.ElementType> = {
   boolean: TypeBoolean,
   date: CalendarIcon,
   json: TypeJson,
+  select: TagIcon,
 }
 
 interface ColumnTypeIconProps {

@@ -181,7 +181,12 @@ export function useSubscriptionUpgrade() {
           }
         )
 
-        await betterAuthSubscription.upgrade(finalParams)
+        const upgradeResult = await betterAuthSubscription.upgrade(finalParams)
+        if (upgradeResult?.error) {
+          throw new Error(
+            upgradeResult.error.message || 'Checkout could not be started. Please try again.'
+          )
+        }
 
         if (targetPlan === 'team' && currentSubscriptionRowId && referenceId !== userId) {
           try {

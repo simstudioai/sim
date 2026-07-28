@@ -11,11 +11,12 @@ import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/block
 import {
   getBaseModelProviders,
   getHostedModels,
+  getModelSunsetStatus,
   getProviderIcon,
   getProviderModels,
   orderModelIdsByReleaseDate,
 } from '@/providers/models'
-import { isPiSupportedProvider } from '@/providers/pi-providers'
+import { isPiSupportedModel } from '@/providers/pi-providers'
 import { getProviderFromModel } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 
@@ -74,23 +75,23 @@ export function getModelOptions() {
     ])
   )
 
-  return allModels.map((model) => {
-    const icon = getProviderIcon(model)
-    return { label: model, id: model, ...(icon && { icon }) }
-  })
+  return allModels
+    .filter((model) => getModelSunsetStatus(model) !== 'deprecated')
+    .map((model) => {
+      const icon = getProviderIcon(model)
+      return { label: model, id: model, ...(icon && { icon }) }
+    })
 }
 
 /**
- * Model options filtered to providers the Pi Coding Agent can run (see
- * {@link isPiSupportedProvider}), so the Pi block never offers a model that would
- * error at execution. Uses the same `getProviderFromModel` resolution as the Pi
- * handler, so the dropdown matches runtime behavior; unresolved/blacklisted
- * models (which `getProviderFromModel` can throw on) are excluded.
+ * Model options filtered to exact provider/model pairs in Pi's pinned catalog.
+ * Unresolved or blacklisted models (which `getProviderFromModel` can throw on)
+ * are excluded.
  */
 export function getPiModelOptions() {
   return getModelOptions().filter((option) => {
     try {
-      return isPiSupportedProvider(getProviderFromModel(option.id))
+      return isPiSupportedModel(getProviderFromModel(option.id), option.id)
     } catch {
       return false
     }

@@ -134,6 +134,7 @@ export class Memory {
       content: await redactObjectStrings(message.content, {
         entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
         language: ctx.piiBlockOutputRedaction.language,
+        customPatterns: ctx.piiBlockOutputRedaction.customPatterns,
         onFailure: 'throw',
       }),
     }

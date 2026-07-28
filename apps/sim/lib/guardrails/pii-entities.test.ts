@@ -3,9 +3,11 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  emptyStagePolicy,
   getEntityGroupsForLanguage,
   NER_PII_ENTITIES,
   normalizeRuleStages,
+  sanitizeCustomPatterns,
   stripNerEntities,
 } from '@/lib/guardrails/pii-entities'
 
@@ -87,5 +89,76 @@ describe('normalizeRuleStages', () => {
     })
     expect(stages.blockOutputs.entityTypes).toEqual([])
     expect(stages.blockOutputs.enabled).toBe(false)
+  })
+
+  it('keeps blockOutputs enabled when custom patterns survive the NER strip', () => {
+    const stages = normalizeRuleStages({
+      stages: {
+        input: { enabled: false, entityTypes: [] },
+        blockOutputs: {
+          enabled: true,
+          entityTypes: ['PERSON'],
+          customPatterns: [{ name: 'Employee ID', regex: 'EMP-\\d{6}', replacement: '<EMP>' }],
+        },
+        logs: { enabled: false, entityTypes: [] },
+      },
+    })
+    expect(stages.blockOutputs.entityTypes).toEqual([])
+    expect(stages.blockOutputs.customPatterns).toEqual([
+      { name: 'Employee ID', regex: 'EMP-\\d{6}', replacement: '<EMP>' },
+    ])
+    expect(stages.blockOutputs.enabled).toBe(true)
+  })
+
+  it('sanitizes stored custom patterns on every stage', () => {
+    const stages = normalizeRuleStages({
+      stages: {
+        input: {
+          enabled: true,
+          entityTypes: [],
+          customPatterns: [
+            { name: 'Ticket', regex: 'TCK-\\d+', replacement: '<TICKET>' },
+            // Malformed rows are dropped.
+            { name: 'no regex', regex: '', replacement: 'x' } as never,
+          ],
+        },
+        blockOutputs: { enabled: false, entityTypes: [] },
+        logs: { enabled: false, entityTypes: [] },
+      },
+    })
+    expect(stages.input.customPatterns).toEqual([
+      { name: 'Ticket', regex: 'TCK-\\d+', replacement: '<TICKET>' },
+    ])
+    expect(stages.input.enabled).toBe(true)
+  })
+})
+
+describe('emptyStagePolicy', () => {
+  it('starts disabled with no entity types and no custom patterns', () => {
+    expect(emptyStagePolicy()).toEqual({
+      enabled: false,
+      entityTypes: [],
+      language: 'en',
+      customPatterns: [],
+    })
+  })
+})
+
+describe('sanitizeCustomPatterns', () => {
+  it('drops non-arrays and malformed rows, coercing missing fields', () => {
+    expect(sanitizeCustomPatterns(undefined)).toEqual([])
+    expect(sanitizeCustomPatterns('nope')).toEqual([])
+    expect(
+      sanitizeCustomPatterns([
+        { name: 'A', regex: 'a+', replacement: '<A>' },
+        { regex: 'b+' },
+        { name: 'no regex', regex: '', replacement: 'x' },
+        null,
+        { name: 'bad', regex: 42 },
+      ])
+    ).toEqual([
+      { name: 'A', regex: 'a+', replacement: '<A>' },
+      { name: '', regex: 'b+', replacement: '' },
+    ])
   })
 })

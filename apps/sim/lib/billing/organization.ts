@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, ne, sql } from 'drizzle-orm'
-import { getPlanPricing } from '@/lib/billing/core/billing'
+import { getPlanPricing, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { getOrganizationIdForSubscriptionReference } from '@/lib/billing/core/subscription'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { assertNoCompetingEnterpriseIssuance } from '@/lib/billing/enterprise-outbox'
@@ -108,25 +108,26 @@ export async function ensureOrganizationForTeamSubscription(
     return subscription
   }
 
-  const referencedOrganizationId = await getOrganizationIdForSubscriptionReference(
-    subscription.referenceId
-  )
-
-  if (referencedOrganizationId) {
+  if (await isSubscriptionOrgScoped(subscription)) {
     await db.transaction(async (tx) => {
-      await acquireOrganizationMutationLock(tx, referencedOrganizationId)
+      await acquireOrganizationMutationLock(tx, subscription.referenceId)
       await assertNoCompetingEnterpriseIssuance(
         tx,
-        referencedOrganizationId,
+        subscription.referenceId,
         subscription.enterpriseOperationId ?? null
       )
     })
-    return {
-      ...subscription,
-      referenceId: referencedOrganizationId,
-    }
+    return subscription
   }
 
+  /**
+   * The subscription references a user. Team/Enterprise subscriptions must be
+   * org-referenced, so fall through to the membership resolution below: it
+   * transfers the row onto the org the user administers (with duplicate
+   * checks under the org mutation lock) or creates a new organization. This
+   * keeps re-homing deterministic in the webhook flow instead of depending on
+   * a client-side transfer call after checkout.
+   */
   const userId = subscription.referenceId
 
   logger.info('Creating organization for team subscription', {
@@ -165,10 +166,29 @@ export async function ensureOrganizationForTeamSubscription(
           subscription.enterpriseOperationId ?? null
         )
 
+        /**
+         * Re-verify the pre-transaction membership read under the org
+         * mutation lock: a concurrent removal or role change must not let a
+         * stale admin membership authorize the transfer.
+         */
+        const [lockedMembership] = await tx
+          .select({ organizationId: member.organizationId, role: member.role })
+          .from(member)
+          .where(
+            and(eq(member.userId, userId), eq(member.organizationId, membership.organizationId))
+          )
+          .limit(1)
+        if (!lockedMembership || !isOrgAdminRole(lockedMembership.role)) {
+          throw new Error(
+            `User ${userId} no longer administers organization ${membership.organizationId}`
+          )
+        }
+
         const [lockedSub] = await tx
           .select({
             id: subscriptionTable.id,
             referenceId: subscriptionTable.referenceId,
+            plan: subscriptionTable.plan,
           })
           .from(subscriptionTable)
           .where(eq(subscriptionTable.id, subscription.id))
@@ -180,6 +200,12 @@ export async function ensureOrganizationForTeamSubscription(
 
         if (lockedSub.referenceId === membership.organizationId) {
           return
+        }
+
+        if (!isOrgPlan(lockedSub.plan)) {
+          throw new Error(
+            `Subscription ${subscription.id} is no longer a team/enterprise plan (${lockedSub.plan})`
+          )
         }
 
         const [lockedOrg] = await tx

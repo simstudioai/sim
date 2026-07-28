@@ -20,6 +20,7 @@ import { gitlabDeleteUserTool } from '@/tools/gitlab/delete_user'
 import { gitlabDeleteUserIdentityTool } from '@/tools/gitlab/delete_user_identity'
 import { gitlabDenyAccessRequestTool } from '@/tools/gitlab/deny_access_request'
 import { gitlabGetFileTool } from '@/tools/gitlab/get_file'
+import { gitlabGetGroupTool } from '@/tools/gitlab/get_group'
 import { gitlabGetIssueTool } from '@/tools/gitlab/get_issue'
 import { gitlabGetJobLogTool } from '@/tools/gitlab/get_job_log'
 import { gitlabGetMergeRequestTool } from '@/tools/gitlab/get_merge_request'
@@ -30,6 +31,7 @@ import { gitlabInviteMemberTool } from '@/tools/gitlab/invite_member'
 import { gitlabListAccessRequestsTool } from '@/tools/gitlab/list_access_requests'
 import { gitlabListBranchesTool } from '@/tools/gitlab/list_branches'
 import { gitlabListCommitsTool } from '@/tools/gitlab/list_commits'
+import { gitlabListGroupsTool } from '@/tools/gitlab/list_groups'
 import { gitlabListInvitationsTool } from '@/tools/gitlab/list_invitations'
 import { gitlabListIssuesTool } from '@/tools/gitlab/list_issues'
 import { gitlabListMembersTool } from '@/tools/gitlab/list_members'
@@ -40,6 +42,7 @@ import { gitlabListProjectsTool } from '@/tools/gitlab/list_projects'
 import { gitlabListReleasesTool } from '@/tools/gitlab/list_releases'
 import { gitlabListRepositoryTreeTool } from '@/tools/gitlab/list_repository_tree'
 import { gitlabListSamlGroupLinksTool } from '@/tools/gitlab/list_saml_group_links'
+import { gitlabListUserMembershipsTool } from '@/tools/gitlab/list_user_memberships'
 import { gitlabMergeMergeRequestTool } from '@/tools/gitlab/merge_merge_request'
 import { gitlabPlayJobTool } from '@/tools/gitlab/play_job'
 import { gitlabRemoveMemberTool } from '@/tools/gitlab/remove_member'
@@ -67,6 +70,9 @@ export {
   // Projects
   gitlabListProjectsTool,
   gitlabGetProjectTool,
+  // Groups
+  gitlabListGroupsTool,
+  gitlabGetGroupTool,
   // Issues
   gitlabListIssuesTool,
   gitlabGetIssueTool,
@@ -121,6 +127,7 @@ export {
   gitlabApproveAccessRequestTool,
   gitlabDenyAccessRequestTool,
   gitlabListSamlGroupLinksTool,
+  gitlabListUserMembershipsTool,
   gitlabSearchUsersTool,
   // Users (Admin)
   gitlabCreateUserTool,

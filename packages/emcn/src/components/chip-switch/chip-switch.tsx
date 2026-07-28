@@ -22,7 +22,7 @@ export interface ChipSwitchOption<T extends string = string> {
  */
 export interface ChipSwitchProps<T extends string = string> {
   /** Ordered list of options to render as segments. */
-  options: ChipSwitchOption<T>[]
+  options: readonly ChipSwitchOption<T>[]
   /** Currently selected value. */
   value: T
   /** Invoked with the next selection when a segment is clicked. */

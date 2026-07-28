@@ -54,11 +54,14 @@ export interface PerformUpdateWorkflowParams {
   currentFolderId?: string | null
   /** Prior `locked` value, used to detect lock-state transitions for instrumentation. */
   currentLocked?: boolean | null
+  /** Prior `forkSyncExcluded` value, used to detect exclusion transitions for instrumentation. */
+  currentForkSyncExcluded?: boolean | null
   name?: string
   description?: string | null
   folderId?: string | null
   sortOrder?: number
   locked?: boolean
+  forkSyncExcluded?: boolean
   requestId?: string
 }
 
@@ -74,6 +77,7 @@ export interface PerformUpdateWorkflowResult {
     folderId: string | null
     sortOrder: number | null
     locked: boolean | null
+    forkSyncExcluded: boolean | null
     createdAt: Date
     updatedAt: Date
     archivedAt: Date | null
@@ -315,6 +319,7 @@ export async function performUpdateWorkflow(
     if (params.folderId !== undefined) updateData.folderId = params.folderId
     if (params.sortOrder !== undefined) updateData.sortOrder = params.sortOrder
     if (params.locked !== undefined) updateData.locked = params.locked
+    if (params.forkSyncExcluded !== undefined) updateData.forkSyncExcluded = params.forkSyncExcluded
 
     const [updatedWorkflow] = await db
       .update(workflow)
@@ -328,6 +333,7 @@ export async function performUpdateWorkflow(
         folderId: workflow.folderId,
         sortOrder: workflow.sortOrder,
         locked: workflow.locked,
+        forkSyncExcluded: workflow.forkSyncExcluded,
         createdAt: workflow.createdAt,
         updatedAt: workflow.updatedAt,
         archivedAt: workflow.archivedAt,
@@ -361,6 +367,36 @@ export async function performUpdateWorkflow(
           workflow_id: params.workflowId,
           ...(workspaceId ? { workspace_id: workspaceId } : {}),
           locked: params.locked,
+        },
+        workspaceId ? { groups: { workspace: workspaceId } } : undefined
+      )
+    }
+
+    if (
+      params.forkSyncExcluded !== undefined &&
+      params.forkSyncExcluded !== (params.currentForkSyncExcluded ?? false)
+    ) {
+      const workspaceId = updatedWorkflow.workspaceId
+      recordAudit({
+        workspaceId: workspaceId ?? null,
+        actorId: params.userId,
+        action: params.forkSyncExcluded
+          ? AuditAction.WORKFLOW_FORK_SYNC_EXCLUDED
+          : AuditAction.WORKFLOW_FORK_SYNC_INCLUDED,
+        resourceType: AuditResourceType.WORKFLOW,
+        resourceId: params.workflowId,
+        resourceName: updatedWorkflow.name,
+        description: `${params.forkSyncExcluded ? 'Excluded' : 'Included'} workflow "${updatedWorkflow.name}" ${params.forkSyncExcluded ? 'from' : 'in'} fork sync`,
+        metadata: { forkSyncExcluded: params.forkSyncExcluded },
+      })
+
+      captureServerEvent(
+        params.userId,
+        'workflow_fork_sync_exclusion_toggled',
+        {
+          workflow_id: params.workflowId,
+          ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          fork_sync_excluded: params.forkSyncExcluded,
         },
         workspaceId ? { groups: { workspace: workspaceId } } : undefined
       )

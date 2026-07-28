@@ -1,21 +1,19 @@
 /**
  * @vitest-environment node
  */
-import { envFlagsMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { normalizeConditionRouterIds } from './builders'
 
 const {
   mockValidateSelectorIds,
   mockGetModelOptions,
-  mockEnvFlags,
   mockGetTool,
   mockGetCustomToolById,
   mockGetSkillById,
 } = vi.hoisted(() => ({
   mockValidateSelectorIds: vi.fn(),
   mockGetModelOptions: vi.fn(() => []),
-  mockEnvFlags: { isHosted: false },
   mockGetTool: vi.fn(),
   mockGetCustomToolById: vi.fn(),
   mockGetSkillById: vi.fn(),
@@ -127,6 +125,17 @@ const throwGateBlockConfig = {
   tools: { access: ['throw_gate_tool'], config: { tool: () => 'throw_gate_tool' } },
 }
 
+const genericWebhookBlockConfig = {
+  type: 'generic_webhook',
+  name: 'Webhook',
+  category: 'triggers',
+  outputs: {},
+  subBlocks: [
+    { id: 'webhookUrlDisplay', type: 'short-input', readOnly: true, useWebhookUrl: true },
+    { id: 'requireAuth', type: 'switch' },
+  ],
+}
+
 // Block whose tool selector throws — should fall back to scanning access tools (video_falai).
 const throwSelectorBlockConfig = {
   type: 'throw_selector_block',
@@ -192,7 +201,9 @@ vi.mock('@/blocks/registry', () => ({
                           ? throwGateBlockConfig
                           : type === 'throw_selector_block'
                             ? throwSelectorBlockConfig
-                            : undefined,
+                            : type === 'generic_webhook'
+                              ? genericWebhookBlockConfig
+                              : undefined,
 }))
 
 vi.mock('@/blocks/utils', () => ({
@@ -215,13 +226,6 @@ vi.mock('@/lib/workflows/skills/operations', () => ({
   getSkillById: mockGetSkillById,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  ...envFlagsMock,
-  get isHosted() {
-    return mockEnvFlags.isHosted
-  },
-}))
-
 vi.mock('@/providers/utils', () => ({
   getHostedModels: () => [],
 }))
@@ -233,6 +237,8 @@ import {
   validateInputsForBlock,
   validateWorkflowSelectorIds,
 } from './validation'
+
+afterAll(resetEnvFlagsMock)
 
 describe('validateInputsForBlock', () => {
   beforeEach(() => {
@@ -303,6 +309,47 @@ describe('validateInputsForBlock', () => {
 
     expect(result.errors).toHaveLength(0)
     expect(result.validInputs.tagFilters).toBeNull()
+  })
+
+  // The webhook URL is shown to the agent as a synthesized read-only field
+  // (sanitizeForCopilot); writes to it or to display-only subblocks must bounce
+  // with a clear error instead of persisting dead state.
+  it('rejects the synthesized triggerWebhookUrl field as read-only', () => {
+    const result = validateInputsForBlock(
+      'generic_webhook',
+      { triggerWebhookUrl: 'https://evil.test/api/webhooks/trigger/x', requireAuth: true },
+      'hook-1'
+    )
+
+    expect(result.validInputs.triggerWebhookUrl).toBeUndefined()
+    expect(result.validInputs.requireAuth).toBe(true)
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('read-only')
+  })
+
+  it('rejects triggerWebhookUrl even for unknown block types that skip validation', () => {
+    const result = validateInputsForBlock(
+      'not_a_real_block',
+      { triggerWebhookUrl: 'https://evil.test/hook', other: 'kept' },
+      'blk-1'
+    )
+
+    expect(result.validInputs.triggerWebhookUrl).toBeUndefined()
+    expect(result.validInputs.other).toBe('kept')
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('read-only')
+  })
+
+  it('rejects read-only display subblocks like webhookUrlDisplay', () => {
+    const result = validateInputsForBlock(
+      'generic_webhook',
+      { webhookUrlDisplay: 'https://evil.test/hook' },
+      'hook-1'
+    )
+
+    expect(result.validInputs.webhookUrlDisplay).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('read-only')
   })
 
   it('accepts known agent model ids', () => {
@@ -479,11 +526,11 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
     vi.clearAllMocks()
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
     mockGetTool.mockImplementation((id: string) => toolsByIdMock[id])
-    mockEnvFlags.isHosted = true
+    setEnvFlags({ isHosted: true })
   })
 
   afterEach(() => {
-    mockEnvFlags.isHosted = false
+    setEnvFlags({ isHosted: false })
   })
 
   const ctx = { userId: 'user-1', workspaceId: 'workspace-1' }
@@ -817,7 +864,7 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
   })
 
   it('preserves apiKey on self-hosted deployments (isHosted false)', async () => {
-    mockEnvFlags.isHosted = false
+    setEnvFlags({ isHosted: false })
     const operations = [
       {
         operation_type: 'add' as const,

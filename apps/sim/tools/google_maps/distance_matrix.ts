@@ -4,6 +4,14 @@ import type {
 } from '@/tools/google_maps/types'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Google bills Distance Matrix per element (origins × destinations), not per
+ * request, at $5 per 1,000 elements.
+ *
+ * Source: https://developers.google.com/maps/billing-and-pricing/pricing#distance-matrix
+ */
+const DISTANCE_MATRIX_ELEMENT_USD = 0.005
+
 export const googleMapsDistanceMatrixTool: ToolConfig<
   GoogleMapsDistanceMatrixParams,
   GoogleMapsDistanceMatrixResponse
@@ -63,8 +71,15 @@ export const googleMapsDistanceMatrixTool: ToolConfig<
     apiKeyParam: 'apiKey',
     byokProviderId: 'google_cloud',
     pricing: {
-      type: 'per_request',
-      cost: 0.005,
+      type: 'custom',
+      getCost: (_params, output) => {
+        const rows = (output.rows as Array<{ elements?: unknown[] }> | undefined) ?? []
+        const elements = rows.reduce((total, row) => total + (row.elements?.length ?? 0), 0)
+        return {
+          cost: elements * DISTANCE_MATRIX_ELEMENT_USD,
+          metadata: { elements },
+        }
+      },
     },
     rateLimit: {
       mode: 'per_request',

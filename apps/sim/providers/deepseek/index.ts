@@ -1,12 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import OpenAI from 'openai'
-import type { StreamingExecution } from '@/executor/types'
+import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import { createReadableStreamFromDeepseekStream } from '@/providers/deepseek/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { createOpenAICompatStreamingToolLoopStream } from '@/providers/openai-compat/streaming-tool-loop'
 import { createStreamingExecution } from '@/providers/streaming-execution'
+import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
@@ -20,7 +23,6 @@ import {
   calculateCost,
   prepareToolExecution,
   prepareToolsWithUsageControl,
-  sumToolCosts,
   trackForcedToolUsage,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
@@ -48,7 +50,7 @@ export const deepseekProvider: ProviderConfig = {
     try {
       const deepseek = new OpenAI({
         apiKey: request.apiKey,
-        baseURL: 'https://api.deepseek.com/v1',
+        baseURL: 'https://api.deepseek.com',
       })
 
       const allMessages = []
@@ -84,40 +86,134 @@ export const deepseekProvider: ProviderConfig = {
       if (request.temperature !== undefined) payload.temperature = request.temperature
       if (request.maxTokens != null) payload.max_tokens = request.maxTokens
 
+      /**
+       * DeepSeek Think mode: reasoning_content streams when enabled (or inherent
+       * on reasoner). The API default is enabled, so 'none' must explicitly send
+       * `disabled`; unset sends nothing to preserve the legacy request shape.
+       */
+      const usesThinkingMode =
+        request.thinkingLevel !== undefined
+          ? request.thinkingLevel !== 'none'
+          : request.model !== 'deepseek-chat'
+      if (request.thinkingLevel && request.thinkingLevel !== 'none') {
+        payload.thinking = { type: 'enabled' }
+      } else if (request.thinkingLevel === 'none') {
+        payload.thinking = { type: 'disabled' }
+      }
+      if (request.reasoningEffort && !['auto', 'none'].includes(request.reasoningEffort)) {
+        payload.reasoning_effort =
+          request.reasoningEffort === 'xhigh'
+            ? 'max'
+            : request.reasoningEffort === 'low' || request.reasoningEffort === 'medium'
+              ? 'high'
+              : request.reasoningEffort
+      }
+
       let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
 
       if (tools?.length) {
         preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'deepseek')
         const { tools: filteredTools, toolChoice } = preparedTools
 
-        if (filteredTools?.length && toolChoice) {
+        if (filteredTools?.length) {
           payload.tools = filteredTools
-          payload.tool_choice = toolChoice
+          if (toolChoice && !usesThinkingMode) {
+            payload.tool_choice = toolChoice
+          }
 
           logger.info('Deepseek request configuration:', {
             toolCount: filteredTools.length,
             toolChoice:
-              typeof toolChoice === 'string'
-                ? toolChoice
-                : toolChoice.type === 'function'
-                  ? `force:${toolChoice.function.name}`
-                  : toolChoice.type === 'tool'
-                    ? `force:${toolChoice.name}`
-                    : toolChoice.type === 'any'
-                      ? `force:${toolChoice.any?.name || 'unknown'}`
-                      : 'unknown',
+              !toolChoice || usesThinkingMode
+                ? 'provider-default'
+                : typeof toolChoice === 'string'
+                  ? toolChoice
+                  : toolChoice.type === 'function'
+                    ? `force:${toolChoice.function.name}`
+                    : toolChoice.type === 'tool'
+                      ? `force:${toolChoice.name}`
+                      : toolChoice.type === 'any'
+                        ? `force:${toolChoice.any?.name || 'unknown'}`
+                        : 'unknown',
             model: request.model,
           })
         }
       }
 
-      if (request.stream && (!tools || tools.length === 0)) {
+      if (request.stream && payload.tools?.length) {
+        logger.info('Using streaming tool loop for DeepSeek request')
+
+        const timeSegments: TimeSegment[] = []
+        const forcedTools = preparedTools?.forcedTools || []
+
+        return createStreamingExecution({
+          model: request.model,
+          providerStartTime,
+          providerStartTimeISO,
+          timing: {
+            kind: 'accumulated',
+            modelTime: 0,
+            toolsTime: 0,
+            firstResponseTime: 0,
+            iterations: 1,
+            timeSegments,
+          },
+          initialTokens: { input: 0, output: 0, total: 0 },
+          initialCost: { total: 0.0, input: 0.0, output: 0.0 },
+          isStreaming: true,
+          streamFormat: 'agent-events-v1',
+          createStream: ({ output, finalizeTiming }) =>
+            createOpenAICompatStreamingToolLoopStream({
+              providerName: 'Deepseek',
+              request,
+              basePayload: payload,
+              messages:
+                // double-cast-allowed: formatMessagesForProvider returns loosely-typed provider messages that are wire-compatible with the OpenAI chat.completions message params the shared loop expects
+                formattedMessages as unknown as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+              createStream: async (params, options) =>
+                deepseek.chat.completions.create(
+                  {
+                    ...params,
+                    stream: true,
+                    stream_options: { include_usage: true },
+                  },
+                  options
+                ),
+              logger,
+              timeSegments,
+              forcedTools,
+              /**
+               * DeepSeek requires reasoning_content passed back on tool-call
+               * turns whenever the API returns it (thinking defaults to enabled
+               * server-side); it is ignored on non-tool turns, so preserving
+               * unconditionally is always safe.
+               */
+              preserveAssistantReasoning: true,
+              onComplete: (result) => {
+                output.content = result.content
+                output.tokens = result.tokens
+                output.cost = result.cost
+                output.toolCalls = result.toolCalls as NormalizedBlockOutput['toolCalls']
+                if (output.providerTiming) {
+                  output.providerTiming.modelTime = result.modelTime
+                  output.providerTiming.toolsTime = result.toolsTime
+                  output.providerTiming.firstResponseTime = result.firstResponseTime
+                  output.providerTiming.iterations = result.iterations
+                }
+                finalizeTiming()
+              },
+            }),
+        })
+      }
+
+      if (request.stream && !payload.tools?.length) {
         logger.info('Using streaming response for DeepSeek request (no tools)')
 
         const streamResponse = await deepseek.chat.completions.create(
           {
             ...payload,
             stream: true,
+            stream_options: { include_usage: true },
           },
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
@@ -130,26 +226,39 @@ export const deepseekProvider: ProviderConfig = {
           initialTokens: { input: 0, output: 0, total: 0 },
           initialCost: { input: 0, output: 0, total: 0 },
           isStreaming: true,
-          createStream: ({ output }) =>
-            createReadableStreamFromDeepseekStream(streamResponse as any, (content, usage) => {
-              output.content = content
-              output.tokens = {
-                input: usage.prompt_tokens,
-                output: usage.completion_tokens,
-                total: usage.total_tokens,
-              }
+          streamFormat: 'agent-events-v1',
+          createStream: ({ output, finalizeTiming }) =>
+            createReadableStreamFromDeepseekStream(
+              // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; the stream yields OpenAI ChatCompletionChunk objects
+              streamResponse as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>,
+              (content, usage, thinking) => {
+                output.content = content
+                output.tokens = {
+                  input: usage.prompt_tokens,
+                  output: usage.completion_tokens,
+                  total: usage.total_tokens,
+                }
 
-              const costResult = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              output.cost = {
-                input: costResult.input,
-                output: costResult.output,
-                total: costResult.total,
+                const costResult = calculateCost(
+                  request.model,
+                  usage.prompt_tokens,
+                  usage.completion_tokens
+                )
+                output.cost = {
+                  input: costResult.input,
+                  output: costResult.output,
+                  total: costResult.total,
+                }
+
+                if (thinking) {
+                  const segment = output.providerTiming?.timeSegments?.[0]
+                  if (segment) {
+                    segment.thinkingContent = thinking
+                  }
+                }
+                finalizeTiming()
               }
-            }),
+            ),
         })
 
         return streamingResult
@@ -239,10 +348,25 @@ export const deepseekProvider: ProviderConfig = {
             const toolName = toolCall.function.name
 
             try {
-              const toolArgs = JSON.parse(toolCall.function.arguments)
+              const toolArgs = parseToolArguments(toolCall.function.arguments, toolName)
               const tool = request.tools?.find((t) => t.id === toolName)
 
-              if (!tool) return null
+              if (!tool) {
+                const toolCallEndTime = Date.now()
+                return {
+                  toolCall,
+                  toolName,
+                  toolParams: {},
+                  result: {
+                    success: false,
+                    output: undefined,
+                    error: `Tool "${toolName}" is not available`,
+                  },
+                  startTime: toolCallStartTime,
+                  endTime: toolCallEndTime,
+                  duration: toolCallEndTime - toolCallStartTime,
+                }
+              }
 
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
               const result = await executeTool(toolName, executionParams, {
@@ -260,6 +384,9 @@ export const deepseekProvider: ProviderConfig = {
                 duration: toolCallEndTime - toolCallStartTime,
               }
             } catch (error) {
+              if (isAbortError(error) || request.abortSignal?.aborted) {
+                throw error
+              }
               const toolCallEndTime = Date.now()
               logger.error('Error processing tool call:', { error, toolName })
 
@@ -279,11 +406,21 @@ export const deepseekProvider: ProviderConfig = {
             }
           })
 
-          const executionResults = await Promise.allSettled(toolExecutionPromises)
+          const executionResults = await Promise.all(toolExecutionPromises)
 
-          currentMessages.push({
+          const assistantMessage = currentResponse.choices[0]?.message
+          const assistantHistory: {
+            role: string
+            content: string
+            tool_calls: Array<{
+              id: string
+              type: string
+              function: { name: string; arguments: string }
+            }>
+            reasoning_content?: string
+          } = {
             role: 'assistant',
-            content: null,
+            content: assistantMessage?.content ?? '',
             tool_calls: toolCallsInResponse.map((tc) => ({
               id: tc.id,
               type: 'function',
@@ -292,13 +429,25 @@ export const deepseekProvider: ProviderConfig = {
                 arguments: tc.function.arguments,
               },
             })),
-          })
+          }
+          /**
+           * DeepSeek requires reasoning_content passed back on tool-call turns
+           * whenever the API returns it (thinking defaults to enabled
+           * server-side, so this applies even without an explicit thinking
+           * level); it is ignored on non-tool turns.
+           */
+          if (assistantMessage) {
+            const reasoningContent = (assistantMessage as { reasoning_content?: string })
+              .reasoning_content
+            if (typeof reasoningContent === 'string' && reasoningContent.length > 0) {
+              assistantHistory.reasoning_content = reasoningContent
+            }
+          }
+          currentMessages.push(assistantHistory)
 
-          for (const settledResult of executionResults) {
-            if (settledResult.status === 'rejected' || !settledResult.value) continue
-
+          for (const executionResult of executionResults) {
             const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
-              settledResult.value
+              executionResult
 
             timeSegments.push({
               type: 'tool',
@@ -309,10 +458,12 @@ export const deepseekProvider: ProviderConfig = {
               toolCallId: toolCall.id,
             })
 
-            let resultContent: any
-            if (result.success && result.output) {
-              toolResults.push(result.output)
-              resultContent = result.output
+            let resultContent: unknown
+            if (result.success) {
+              if (isRecordLike(result.output)) {
+                toolResults.push(result.output)
+              }
+              resultContent = result.output ?? null
             } else {
               resultContent = {
                 error: true,
@@ -426,86 +577,12 @@ export const deepseekProvider: ProviderConfig = {
         }
       } catch (error) {
         logger.error('Error in Deepseek request:', { error })
+        throw error
       }
 
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
-
-      if (request.stream) {
-        logger.info('Using streaming for final DeepSeek response after tool processing')
-
-        const streamingPayload = {
-          ...payload,
-          messages: currentMessages,
-          tool_choice: 'auto',
-          stream: true,
-        }
-
-        const streamResponse = await deepseek.chat.completions.create(
-          streamingPayload,
-          request.abortSignal ? { signal: request.abortSignal } : undefined
-        )
-
-        const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
-
-        const streamingResult = createStreamingExecution({
-          model: request.model,
-          providerStartTime,
-          providerStartTimeISO,
-          timing: {
-            kind: 'accumulated',
-            modelTime,
-            toolsTime,
-            firstResponseTime,
-            iterations: iterationCount + 1,
-            timeSegments,
-          },
-          initialTokens: {
-            input: tokens.input,
-            output: tokens.output,
-            total: tokens.total,
-          },
-          initialCost: {
-            input: accumulatedCost.input,
-            output: accumulatedCost.output,
-            toolCost: undefined as number | undefined,
-            total: accumulatedCost.total,
-          },
-          toolCalls:
-            toolCalls.length > 0
-              ? {
-                  list: toolCalls,
-                  count: toolCalls.length,
-                }
-              : undefined,
-          isStreaming: true,
-          createStream: ({ output }) =>
-            createReadableStreamFromDeepseekStream(streamResponse as any, (content, usage) => {
-              output.content = content
-              output.tokens = {
-                input: tokens.input + usage.prompt_tokens,
-                output: tokens.output + usage.completion_tokens,
-                total: tokens.total + usage.total_tokens,
-              }
-
-              const streamCost = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              const tc = sumToolCosts(toolResults)
-              output.cost = {
-                input: accumulatedCost.input + streamCost.input,
-                output: accumulatedCost.output + streamCost.output,
-                toolCost: tc || undefined,
-                total: accumulatedCost.total + streamCost.total + tc,
-              }
-            }),
-        })
-
-        return streamingResult
-      }
 
       return {
         content,
@@ -534,6 +611,9 @@ export const deepseekProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
+      if (isAbortError(error) || request.abortSignal?.aborted) {
+        throw error
+      }
       throw new ProviderError(toError(error).message, {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,

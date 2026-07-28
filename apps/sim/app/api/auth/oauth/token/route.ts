@@ -410,7 +410,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         },
         { status: 200 }
       )
-    } catch (_error) {
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to refresh access token:`, error)
       return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
     }
   } catch (error) {

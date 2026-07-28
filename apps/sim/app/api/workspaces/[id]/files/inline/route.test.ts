@@ -1,20 +1,16 @@
 /**
  * @vitest-environment node
  */
+import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockGetPerms, mockResolveImage, mockDownloadFile } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
+const { mockGetPerms, mockResolveImage, mockDownloadFile } = vi.hoisted(() => ({
   mockGetPerms: vi.fn(),
   mockResolveImage: vi.fn(),
   mockDownloadFile: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
-}))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({ getUserEntityPermissions: mockGetPerms }))
 vi.mock('@/lib/uploads/server/inline-image', () => ({
   resolveWorkspaceInlineImage: mockResolveImage,
@@ -22,6 +18,8 @@ vi.mock('@/lib/uploads/server/inline-image', () => ({
 vi.mock('@/lib/uploads/core/storage-service', () => ({ downloadFile: mockDownloadFile }))
 
 import { GET } from '@/app/api/workspaces/[id]/files/inline/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00])
 const params = { params: Promise.resolve({ id: 'ws-1' }) }

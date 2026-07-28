@@ -55,6 +55,11 @@ export type TableUndoAction =
       columnPosition: number
       columnUnique: boolean
       columnRequired: boolean
+      // A `select` column is invalid without its option set, so the snapshot has
+      // to carry it or the restore is rejected — and the saved cell data, which
+      // holds option ids, would have nothing to attach to.
+      columnOptions?: ColumnDefinition['options']
+      columnMultiple?: boolean
       cellData: Array<{ rowId: string; value: unknown }>
       previousOrder: string[] | null
       previousWidth: number | null

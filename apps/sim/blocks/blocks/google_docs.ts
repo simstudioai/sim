@@ -638,7 +638,7 @@ export const GoogleDocsBlockMeta = {
     },
     {
       icon: GoogleDocsIcon,
-      title: 'Weekly report writer',
+      title: 'Google Docs weekly report',
       prompt:
         'Create a scheduled weekly workflow that reads metrics from my tables, writes a narrative status report with an agent, and appends the new section to a running Google Docs document so leadership has one living record.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],

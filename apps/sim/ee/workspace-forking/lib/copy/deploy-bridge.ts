@@ -37,7 +37,10 @@ export interface DeployedWorkflowSummary {
  * left by an inconsistent state) has nothing to copy, so excluding it here keeps the
  * diff/plan counts aligned with what apply actually writes instead of over-reporting
  * then silently skipping it. Correlated `exists` (not a join) so a workflow is never
- * double-listed if more than one active version row ever exists.
+ * double-listed if more than one active version row ever exists. Workflows marked
+ * `forkSyncExcluded` never participate as a source: this one predicate keeps them
+ * out of the diff preview, promote (both directions), fork creation, and the
+ * mapping-view reference scan.
  */
 export async function listDeployedWorkflows(
   executor: DbOrTx,
@@ -57,6 +60,41 @@ export async function listDeployedWorkflows(
       and(
         eq(workflow.workspaceId, workspaceId),
         eq(workflow.isDeployed, true),
+        eq(workflow.forkSyncExcluded, false),
+        isNull(workflow.archivedAt),
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(workflowDeploymentVersion)
+            .where(
+              and(
+                eq(workflowDeploymentVersion.workflowId, workflow.id),
+                eq(workflowDeploymentVersion.isActive, true)
+              )
+            )
+        )
+      )
+    )
+}
+
+/**
+ * The complement of {@link listDeployedWorkflows}'s exclusion predicate: deployed,
+ * non-archived workflows the workspace admin marked "Exclude from sync". Only the
+ * diff preview reads this, to show which workflows a sync deliberately skips;
+ * the promote itself never touches them.
+ */
+export async function listForkExcludedDeployedWorkflows(
+  executor: DbOrTx,
+  workspaceId: string
+): Promise<Array<{ id: string; name: string }>> {
+  return executor
+    .select({ id: workflow.id, name: workflow.name })
+    .from(workflow)
+    .where(
+      and(
+        eq(workflow.workspaceId, workspaceId),
+        eq(workflow.isDeployed, true),
+        eq(workflow.forkSyncExcluded, true),
         isNull(workflow.archivedAt),
         exists(
           db

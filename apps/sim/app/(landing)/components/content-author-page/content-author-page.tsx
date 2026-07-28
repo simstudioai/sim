@@ -73,6 +73,7 @@ export function ContentAuthorPage({
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric',
+                      timeZone: 'UTC',
                     })}
                   </span>
 
@@ -82,6 +83,7 @@ export function ContentAuthorPage({
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric',
+                        timeZone: 'UTC',
                       })}
                     </span>
                     <h3 className='text-[var(--text-primary)] text-base leading-tight tracking-[-0.01em] lg:text-lg'>

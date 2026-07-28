@@ -7,6 +7,7 @@ import {
   Credit,
   chipVariants,
   cn,
+  Label,
   Switch,
   Tooltip,
   toast,
@@ -424,6 +425,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     id: invoice.id,
     date: formatDate(new Date(invoice.created * 1000)),
     amount: formatInvoiceAmount(invoice.total, invoice.currency),
+    description: invoice.description,
     badge: getInvoiceStatusBadge(invoice.status),
     url: invoice.hostedInvoiceUrl ?? invoice.invoicePdf,
   }))
@@ -493,14 +495,17 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       {showOnDemand && (
         <SettingsSection label='Enable on-demand usage'>
           <div className='flex items-center justify-between'>
-            <span className='text-[var(--text-body)] text-small'>
-              Allow usage to go past included usage
-            </span>
+            <Label htmlFor='on-demand-usage'>Allow usage to go past included usage</Label>
             {onDemandLockedOn ? (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <span className='inline-flex'>
-                    <Switch checked disabled onCheckedChange={handleToggleOnDemand} />
+                    <Switch
+                      id='on-demand-usage'
+                      checked
+                      disabled
+                      onCheckedChange={handleToggleOnDemand}
+                    />
                   </span>
                 </Tooltip.Trigger>
                 <Tooltip.Content className='max-w-[260px]'>
@@ -513,6 +518,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
               </Tooltip.Root>
             ) : (
               <Switch
+                id='on-demand-usage'
                 checked={isOnDemandActive}
                 disabled={isTogglingOnDemand || !canManageBilling}
                 onCheckedChange={handleToggleOnDemand}
@@ -525,10 +531,9 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       {!isOrganizationScope && !subscription.isFree && !subscription.isEnterprise && (
         <SettingsSection label='Usage notifications'>
           <div className='flex items-center justify-between'>
-            <span className='text-[var(--text-body)] text-small'>
-              Email me when I reach 80% usage
-            </span>
+            <Label htmlFor='usage-notifications'>Email me when I reach 80% usage</Label>
             <Switch
+              id='usage-notifications'
               checked={!!billingUsageNotificationsEnabled}
               disabled={updateGeneralSetting.isPending}
               onCheckedChange={(value: boolean) => {
@@ -607,7 +612,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
                 'flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors'
               const rowContent = (
                 <>
-                  <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>
+                  <span className='flex-shrink-0 text-[var(--text-body)] text-sm'>
                     {invoice.date}
                   </span>
                   <Badge variant={invoice.badge.variant} size='sm'>
@@ -615,6 +620,9 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
                   </Badge>
                   <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>
                     {invoice.amount}
+                  </span>
+                  <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-caption'>
+                    {invoice.description ?? ''}
                   </span>
                   <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
                 </>

@@ -1,9 +1,14 @@
 import { db } from '@sim/db'
-import { webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
+import {
+  webhook,
+  workflow,
+  workflowDeploymentOperation,
+  workflowDeploymentVersion,
+} from '@sim/db/schema'
 import { generateShortId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import type { DbOrTx } from '@sim/workflow-persistence/types'
-import { and, eq, gt, inArray, isNull, lt, lte } from 'drizzle-orm'
+import { and, eq, exists, gt, inArray, isNull, lt, lte, notExists, sql } from 'drizzle-orm'
 import { claimWebhookPath } from '@/lib/webhooks/path-claims'
 import { projectDesiredWebhookProviderConfig } from '@/lib/webhooks/provider-subscriptions'
 import {
@@ -12,7 +17,10 @@ import {
 } from '@/lib/webhooks/registration-identity'
 import { planWebhookRegistrationReconciliation } from '@/lib/webhooks/registration-reconciliation'
 import type { DeploymentOperationStatus } from '@/lib/workflows/deployment-lifecycle'
-import { isDeploymentOperationCurrent } from '@/lib/workflows/persistence/deployment-operations'
+import {
+  isDeploymentOperationCurrent,
+  setDeploymentTxTimeouts,
+} from '@/lib/workflows/persistence/deployment-operations'
 
 export type WebhookRegistrationRow = typeof webhook.$inferSelect
 export type WebhookRegistrationStatus = 'active' | 'candidate' | 'retired' | 'orphaned'
@@ -216,6 +224,7 @@ export async function prepareWebhookRegistrationIntents(input: {
   desired: readonly DesiredWebhookRegistrationIntent[]
 }): Promise<PreparedWebhookRegistrationWork> {
   return db.transaction(async (tx) => {
+    await setDeploymentTxTimeouts(tx)
     await assertCurrentOperation(tx, input.fence, ['preparing'])
     await adoptLegacyActiveRows(tx, input.fence)
 
@@ -398,35 +407,82 @@ export async function prepareWebhookRegistrationIntents(input: {
   })
 }
 
-/** Checkpoints provider-managed candidate state under the operation and generation fences. */
+/**
+ * Predicate asserting the fence's operation is still the workflow's current
+ * preparing attempt, evaluated inside the same statement that carries it.
+ * Mirrors `isDeploymentOperationCurrent` (exact operation identity + no newer
+ * generation) without a separate round trip or the workflow-row lock.
+ */
+function currentPreparingOperationPredicate(fence: WebhookRegistrationOperationFence) {
+  return and(
+    exists(
+      db
+        .select({ id: workflowDeploymentOperation.id })
+        .from(workflowDeploymentOperation)
+        .where(
+          and(
+            eq(workflowDeploymentOperation.id, fence.operationId),
+            eq(workflowDeploymentOperation.workflowId, fence.workflowId),
+            eq(workflowDeploymentOperation.generation, fence.generation),
+            eq(workflowDeploymentOperation.deploymentVersionId, fence.deploymentVersionId),
+            eq(workflowDeploymentOperation.status, 'preparing')
+          )
+        )
+    ),
+    notExists(
+      db
+        .select({ id: workflowDeploymentOperation.id })
+        .from(workflowDeploymentOperation)
+        .where(
+          and(
+            eq(workflowDeploymentOperation.workflowId, fence.workflowId),
+            gt(workflowDeploymentOperation.generation, fence.generation)
+          )
+        )
+    )
+  )
+}
+
+/**
+ * Checkpoints provider-managed candidate state under the operation and
+ * generation fences.
+ *
+ * Runs as ONE fenced UPDATE — no transaction and no workflow-row lock. This
+ * is the hottest write on the deployment path (it follows every external
+ * provider call), so it must not hold locks across client round trips. The
+ * row fence (`candidate` + exact generation) is the authoritative guard: any
+ * newer preparation either adopts the row (bumping its generation) or orphans
+ * it (flipping its status) before touching provider state, so a stale
+ * checkpoint can never match. The operation-currency predicate rejects writes
+ * from superseded attempts up front.
+ */
 export async function checkpointWebhookCandidate(input: {
   fence: WebhookRegistrationOperationFence
   webhookId: string
   providerConfig: Record<string, unknown>
   prepared?: boolean
 }): Promise<WebhookRegistrationRow> {
-  return db.transaction(async (tx) => {
-    await assertCurrentOperation(tx, input.fence, ['preparing'])
-    const now = new Date()
-    const [updated] = await tx
-      .update(webhook)
-      .set({
-        providerConfig: input.providerConfig,
-        ...(input.prepared === false ? {} : { preparedAt: now }),
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(webhook.id, input.webhookId),
-          eq(webhook.workflowId, input.fence.workflowId),
-          eq(webhook.registrationStatus, 'candidate'),
-          eq(webhook.registrationGeneration, input.fence.generation)
-        )
+  assertOperationGeneration(input.fence.generation)
+  const now = new Date()
+  const [updated] = await db
+    .update(webhook)
+    .set({
+      providerConfig: input.providerConfig,
+      ...(input.prepared === false ? {} : { preparedAt: now }),
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(webhook.id, input.webhookId),
+        eq(webhook.workflowId, input.fence.workflowId),
+        eq(webhook.registrationStatus, 'candidate'),
+        eq(webhook.registrationGeneration, input.fence.generation),
+        currentPreparingOperationPredicate(input.fence)
       )
-      .returning()
-    if (!updated) throw new StaleWebhookRegistrationOperationError()
-    return updated
-  })
+    )
+    .returning()
+  if (!updated) throw new StaleWebhookRegistrationOperationError()
+  return updated
 }
 
 /**
@@ -469,36 +525,32 @@ export async function activateWebhookRegistrations(
     .limit(1)
   if (newerRows.length > 0) throw new StaleWebhookRegistrationOperationError()
 
+  /**
+   * Retire (generation < fence) and repoint (generation = fence) touch
+   * disjoint subsets of the active rows, so they fold into one statement.
+   * Promotion of candidates stays a SEPARATE statement below: promoting a
+   * candidate inserts a live entry into the non-deferrable partial unique
+   * index `webhook_active_registration_unique` for the same (workflowId,
+   * blockId) the retired row is vacating, and a single statement offers no
+   * ordering guarantee between those two row versions — retire must be fully
+   * applied first.
+   */
   const now = new Date()
+  const isCurrentGeneration = sql`${webhook.registrationGeneration} = ${fence.generation}`
   await tx
     .update(webhook)
     .set({
-      registrationStatus: 'retired',
-      isActive: false,
-      archivedAt: now,
+      registrationStatus: sql`CASE WHEN ${isCurrentGeneration} THEN ${webhook.registrationStatus} ELSE 'retired' END`,
+      deploymentVersionId: sql`CASE WHEN ${isCurrentGeneration} THEN ${fence.deploymentVersionId}::text ELSE ${webhook.deploymentVersionId} END`,
+      isActive: sql<boolean>`${isCurrentGeneration}`,
+      archivedAt: sql`CASE WHEN ${isCurrentGeneration} THEN NULL ELSE ${now.toISOString()}::timestamp END`,
       updatedAt: now,
     })
     .where(
       and(
         eq(webhook.workflowId, fence.workflowId),
         eq(webhook.registrationStatus, 'active'),
-        lt(webhook.registrationGeneration, fence.generation)
-      )
-    )
-
-  await tx
-    .update(webhook)
-    .set({
-      deploymentVersionId: fence.deploymentVersionId,
-      isActive: true,
-      archivedAt: null,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(webhook.workflowId, fence.workflowId),
-        eq(webhook.registrationStatus, 'active'),
-        eq(webhook.registrationGeneration, fence.generation)
+        lte(webhook.registrationGeneration, fence.generation)
       )
     )
 
@@ -525,6 +577,7 @@ export async function listRetiredWebhookRegistrationsForCleanup(
   input: WebhookRegistrationOperationFence & { limit?: number }
 ): Promise<WebhookRegistrationRow[]> {
   return db.transaction(async (tx) => {
+    await setDeploymentTxTimeouts(tx)
     await assertCurrentOperation(tx, input, ['active'])
     return tx
       .select()
@@ -542,7 +595,10 @@ export async function listRetiredWebhookRegistrationsForCleanup(
 }
 
 /**
- * Reloads an exact cleanup snapshot. A row advanced or reused by a newer generation is rejected.
+ * Reloads an exact cleanup snapshot. A row advanced or reused by a newer
+ * generation is rejected. A plain fenced SELECT suffices: cleanup actions run
+ * after this returns (so a row lock could not protect them anyway), and the
+ * delete that follows is independently fenced on the same predicates.
  */
 export async function getWebhookCleanupSnapshotIfCurrent(input: {
   workflowId: string
@@ -550,21 +606,19 @@ export async function getWebhookCleanupSnapshotIfCurrent(input: {
   expectedGeneration: number
   statuses: readonly WebhookRegistrationStatus[]
 }): Promise<WebhookRegistrationRow | null> {
-  return db.transaction(async (tx) => {
-    const [row] = await tx
-      .select()
-      .from(webhook)
-      .where(
-        and(
-          eq(webhook.workflowId, input.workflowId),
-          eq(webhook.id, input.webhookId),
-          eq(webhook.registrationGeneration, input.expectedGeneration),
-          inArray(webhook.registrationStatus, input.statuses)
-        )
+  const [row] = await db
+    .select()
+    .from(webhook)
+    .where(
+      and(
+        eq(webhook.workflowId, input.workflowId),
+        eq(webhook.id, input.webhookId),
+        eq(webhook.registrationGeneration, input.expectedGeneration),
+        inArray(webhook.registrationStatus, input.statuses)
       )
-      .for('update')
-    return row ?? null
-  })
+    )
+    .limit(1)
+  return row ?? null
 }
 
 /** Deletes an externally cleaned row while preserving sticky path ownership. */
@@ -574,18 +628,16 @@ export async function deleteWebhookRegistrationAfterCleanup(input: {
   expectedGeneration: number
   statuses: readonly WebhookRegistrationStatus[]
 }): Promise<boolean> {
-  return db.transaction(async (tx) => {
-    const [deleted] = await tx
-      .delete(webhook)
-      .where(
-        and(
-          eq(webhook.workflowId, input.workflowId),
-          eq(webhook.id, input.webhookId),
-          eq(webhook.registrationGeneration, input.expectedGeneration),
-          inArray(webhook.registrationStatus, input.statuses)
-        )
+  const [deleted] = await db
+    .delete(webhook)
+    .where(
+      and(
+        eq(webhook.workflowId, input.workflowId),
+        eq(webhook.id, input.webhookId),
+        eq(webhook.registrationGeneration, input.expectedGeneration),
+        inArray(webhook.registrationStatus, input.statuses)
       )
-      .returning({ id: webhook.id })
-    return Boolean(deleted)
-  })
+    )
+    .returning({ id: webhook.id })
+  return Boolean(deleted)
 }

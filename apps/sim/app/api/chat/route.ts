@@ -11,6 +11,10 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performChatDeploy } from '@/lib/workflows/orchestration'
 import { checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import {
+  ChatDeployAuthNotAllowedError,
+  validateChatDeployAuth,
+} from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('ChatAPI')
 
@@ -28,7 +32,12 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
       .from(chat)
       .where(and(eq(chat.userId, session.user.id), isNull(chat.archivedAt)))
 
-    return createSuccessResponse({ deployments })
+    return createSuccessResponse({
+      deployments: deployments.map((deployment) => ({
+        ...deployment,
+        includeToolCalls: deployment.includeToolCalls ?? false,
+      })),
+    })
   } catch (error) {
     logger.error('Error fetching chat deployments:', error)
     return createErrorResponse(getErrorMessage(error, 'Failed to fetch chat deployments'), 500)
@@ -64,6 +73,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       password,
       allowedEmails = [],
       outputConfigs = [],
+      includeThinking = false,
+      includeToolCalls = false,
     } = parsed.data.body
 
     if (authType === 'password' && !password) {
@@ -101,6 +112,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return createErrorResponse('Workflow not found or access denied', 404)
     }
 
+    if (workflowRecord.workspaceId) {
+      try {
+        await validateChatDeployAuth(session.user.id, workflowRecord.workspaceId, authType)
+      } catch (error) {
+        if (error instanceof ChatDeployAuthNotAllowedError) {
+          return createErrorResponse(error.message, 403)
+        }
+        throw error
+      }
+    }
+
     const result = await performChatDeploy({
       workflowId,
       userId: session.user.id,
@@ -112,6 +134,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       password,
       allowedEmails,
       outputConfigs,
+      includeThinking,
+      includeToolCalls,
       workspaceId: workflowRecord.workspaceId,
     })
 

@@ -17,7 +17,7 @@ import { userTableDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { getColumnId } from '@/lib/table/column-keys'
-import { formatCsvValue, neutralizeCsvFormula, toCsvRow } from '@/lib/table/export-format'
+import { formatCsvCell, neutralizeCsvFormula, toCsvRow } from '@/lib/table/export-format'
 import { selectExportRowPage } from '@/lib/table/jobs/service'
 import type { TableDefinition } from '@/lib/table/types'
 import { createMultipartUpload, deleteFile, headObject } from '@/lib/uploads/core/storage-service'
@@ -109,7 +109,9 @@ async function materialize(table: TableDefinition, key: string): Promise<number>
       if (page.length === 0) break
 
       const chunk = page
-        .map((row) => `${toCsvRow(columns.map((c) => formatCsvValue(row.data[getColumnId(c)])))}\n`)
+        .map(
+          (row) => `${toCsvRow(columns.map((c) => formatCsvCell(c, row.data[getColumnId(c)])))}\n`
+        )
         .join('')
       bytes += Buffer.byteLength(chunk)
       if (bytes > SNAPSHOT_MAX_BYTES) throw new TableSnapshotTooLargeError(table.id)

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { envFlagsMock, workflowsUtilsMock } from '@sim/testing'
+import { workflowsUtilsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCreateUserToolSchema, mockGetHighestPrioritySubscription } = vi.hoisted(() => ({
@@ -18,8 +18,6 @@ vi.mock('@/lib/billing/plan-helpers', () => ({
     (plan: string | null) => plan === 'pro' || plan === 'team' || plan === 'enterprise'
   ),
 }))
-
-vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 vi.mock('@/lib/mcp/utils', () => ({
   createMcpToolId: vi.fn(),
@@ -185,11 +183,11 @@ describe('buildIntegrationToolSchemas', () => {
 
     expect(mockCreateUserToolSchema).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'gmail_send' }),
-      { surface: 'copilot' }
+      { surface: 'copilot', hostedKeySupport: expect.any(Boolean) }
     )
     expect(mockCreateUserToolSchema).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'brandfetch_search' }),
-      { surface: 'copilot' }
+      { surface: 'copilot', hostedKeySupport: expect.any(Boolean) }
     )
   })
 

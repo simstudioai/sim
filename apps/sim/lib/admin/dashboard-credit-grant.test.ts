@@ -1,13 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { member, organization, subscription, user, userStats, workspace } from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  rows: [] as unknown[][],
-  returningRows: [] as unknown[][],
   billingSubscriptions: [] as unknown[],
-  updateSets: [] as Record<string, unknown>[],
   idempotencyCalls: [] as { namespace: string; requestFingerprint: string }[],
   recordAudit: vi.fn(),
   acquireLock: vi.fn(),
@@ -25,43 +24,6 @@ vi.mock('@sim/audit', () => ({
   AuditResourceType: { BILLING: 'billing' },
   recordAudit: mocks.recordAudit,
 }))
-vi.mock('@sim/db', () => {
-  const selectChain = () => {
-    const chain: Record<string, unknown> = {}
-    chain.from = () => chain
-    chain.where = () => chain
-    chain.orderBy = () => chain
-    chain.for = () => chain
-    chain.limit = () => Promise.resolve(mocks.rows.shift() ?? [])
-    chain.then = (resolve: (value: unknown[]) => unknown) =>
-      Promise.resolve(mocks.rows.shift() ?? []).then(resolve)
-    return chain
-  }
-  const update = () => {
-    const chain: Record<string, unknown> = {}
-    chain.set = (values: Record<string, unknown>) => {
-      mocks.updateSets.push(values)
-      return chain
-    }
-    chain.where = () => chain
-    chain.returning = () => Promise.resolve(mocks.returningRows.shift() ?? [])
-    chain.then = (resolve: (value: unknown[]) => unknown) => Promise.resolve([]).then(resolve)
-    return chain
-  }
-  const insert = () => {
-    const chain: Record<string, unknown> = {}
-    chain.values = () => chain
-    chain.onConflictDoNothing = () => Promise.resolve([])
-    return chain
-  }
-  const tx = { select: () => selectChain(), update, insert }
-  return {
-    db: {
-      select: () => selectChain(),
-      transaction: async (operation: (executor: typeof tx) => Promise<unknown>) => operation(tx),
-    },
-  }
-})
 vi.mock('@/lib/core/idempotency/transaction', () => ({
   executeTransactionallyIdempotent: async (
     _tx: unknown,
@@ -113,23 +75,26 @@ import {
   grantDashboardUserBalance,
 } from '@/lib/admin/dashboard'
 
+/** The values object passed to the nth `update(...).set(...)` call. */
+const updateSetValues = (index = 0): Record<string, unknown> =>
+  dbChainMockFns.set.mock.calls[index]?.[0] as Record<string, unknown>
+
+afterAll(resetDbChainMock)
+
 describe('grantDashboardOrganizationBalance', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.rows = []
-    mocks.returningRows = []
+    resetDbChainMock()
     mocks.billingSubscriptions = []
-    mocks.updateSets = []
     mocks.idempotencyCalls = []
   })
 
   it('SQL-adds the grant to both fields without absorbing it into a custom limit', async () => {
-    mocks.rows = [
-      [{ id: 'org-1', creditBalance: '0.001', orgUsageLimit: '100' }],
-      [],
-      [{ value: 0 }],
-    ]
-    mocks.returningRows = [[{ creditBalance: '0.006', orgUsageLimit: '100.005' }]]
+    queueTableRows(organization, [{ id: 'org-1', creditBalance: '0.001', orgUsageLimit: '100' }])
+    queueTableRows(member, [{ value: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { creditBalance: '0.006', orgUsageLimit: '100.005' },
+    ])
 
     const result = await grantDashboardOrganizationBalance(
       'org-1',
@@ -139,10 +104,10 @@ describe('grantDashboardOrganizationBalance', () => {
       { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' }
     )
 
-    expect(mocks.updateSets[0].creditBalance).toBeDefined()
-    expect(mocks.updateSets[0].creditBalance).not.toBe('0.005')
-    expect(mocks.updateSets[0].orgUsageLimit).toBeDefined()
-    expect(mocks.updateSets).toHaveLength(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledTimes(1)
+    expect(updateSetValues().creditBalance).toBeDefined()
+    expect(updateSetValues().creditBalance).not.toBe('0.005')
+    expect(updateSetValues().orgUsageLimit).toBeDefined()
     expect(mocks.idempotencyCalls[0]?.namespace).toBe('admin-credit-grant')
     expect(result).toEqual({ prepaidBalanceDollars: 0.006, usageLimitDollars: 100.005 })
     expect(mocks.recordAudit).toHaveBeenCalledWith(
@@ -154,22 +119,18 @@ describe('grantDashboardOrganizationBalance', () => {
 describe('grantDashboardUserBalance', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.rows = []
-    mocks.returningRows = []
+    resetDbChainMock()
     mocks.billingSubscriptions = []
-    mocks.updateSets = []
     mocks.idempotencyCalls = []
   })
 
   it('resets a free account to free-plus-prepaid before adding the grant', async () => {
-    mocks.rows = [
-      [{ id: 'user-1' }],
-      [],
-      [{ creditBalance: '0.001', currentUsageLimit: '100' }],
-      [],
-    ]
+    queueTableRows(user, [{ id: 'user-1' }])
+    queueTableRows(userStats, [{ creditBalance: '0.001', currentUsageLimit: '100' }])
     mocks.billingSubscriptions = [null, null]
-    mocks.returningRows = [[{ creditBalance: '0.006', currentUsageLimit: '5.006' }]]
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { creditBalance: '0.006', currentUsageLimit: '5.006' },
+    ])
 
     const result = await grantDashboardUserBalance(
       'user-1',
@@ -179,12 +140,12 @@ describe('grantDashboardUserBalance', () => {
       { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' }
     )
 
-    expect(mocks.updateSets).toHaveLength(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledTimes(1)
     expect(mocks.acquireUserLock).toHaveBeenCalledWith(expect.anything(), 'user-1')
     expect(mocks.idempotencyCalls[0]?.namespace).toBe('admin-credit-grant')
-    expect(mocks.updateSets[0].creditBalance).toBeDefined()
-    expect(mocks.updateSets[0].currentUsageLimit).toBeDefined()
-    expect(JSON.stringify(mocks.updateSets[0].currentUsageLimit)).not.toContain('greatest')
+    expect(updateSetValues().creditBalance).toBeDefined()
+    expect(updateSetValues().currentUsageLimit).toBeDefined()
+    expect(JSON.stringify(updateSetValues().currentUsageLimit)).not.toContain('greatest')
     expect(result).toEqual({ prepaidBalanceDollars: 0.006, usageLimitDollars: 5.006 })
     expect(mocks.recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -200,14 +161,12 @@ describe('grantDashboardUserBalance', () => {
       status: 'active',
       plan: 'pro',
     }
-    mocks.rows = [
-      [{ id: 'user-1' }],
-      [],
-      [{ creditBalance: '0.001', currentUsageLimit: '100' }],
-      [],
-    ]
+    queueTableRows(user, [{ id: 'user-1' }])
+    queueTableRows(userStats, [{ creditBalance: '0.001', currentUsageLimit: '100' }])
     mocks.billingSubscriptions = [personalSubscription, personalSubscription]
-    mocks.returningRows = [[{ creditBalance: '0.006', currentUsageLimit: '100.005' }]]
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { creditBalance: '0.006', currentUsageLimit: '100.005' },
+    ])
 
     const result = await grantDashboardUserBalance(
       'user-1',
@@ -217,7 +176,7 @@ describe('grantDashboardUserBalance', () => {
       { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' }
     )
 
-    expect(JSON.stringify(mocks.updateSets[0].currentUsageLimit)).toContain('greatest')
+    expect(JSON.stringify(updateSetValues().currentUsageLimit)).toContain('greatest')
     expect(result).toEqual({ prepaidBalanceDollars: 0.006, usageLimitDollars: 100.005 })
   })
 
@@ -227,12 +186,10 @@ describe('grantDashboardUserBalance', () => {
       status: 'active',
       plan: 'enterprise',
     }
-    mocks.rows = [
-      [{ id: 'user-1' }],
-      [{ organizationId: 'org-1' }],
-      [{ creditBalance: '0', currentUsageLimit: null }],
-      [{ organizationId: 'org-1' }],
-    ]
+    queueTableRows(user, [{ id: 'user-1' }])
+    queueTableRows(member, [{ organizationId: 'org-1' }])
+    queueTableRows(userStats, [{ creditBalance: '0', currentUsageLimit: null }])
+    queueTableRows(member, [{ organizationId: 'org-1' }])
     mocks.billingSubscriptions = [organizationSubscription]
 
     await expect(
@@ -243,7 +200,7 @@ describe('grantDashboardUserBalance', () => {
       })
     ).rejects.toThrow('grant prepaid balance from Organizations instead')
 
-    expect(mocks.updateSets).toHaveLength(0)
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 })
@@ -251,15 +208,13 @@ describe('grantDashboardUserBalance', () => {
 describe('addDashboardOrganizationMember', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.rows = []
-    mocks.returningRows = []
-    mocks.updateSets = []
-    mocks.transferMembership.mockReset()
-    mocks.moveWorkspace.mockReset()
+    resetDbChainMock()
+    mocks.billingSubscriptions = []
+    mocks.idempotencyCalls = []
   })
 
   it('rejects an existing member inside the transaction before touching their cap', async () => {
-    mocks.rows = [[], [{ plan: 'enterprise' }]]
+    queueTableRows(subscription, [{ plan: 'enterprise' }])
     mocks.ensureMembership.mockResolvedValue({
       success: true,
       memberId: 'member-1',
@@ -285,10 +240,8 @@ describe('addDashboardOrganizationMember', () => {
   })
 
   it('uses the canonical transfer service and reports each selected personal workspace move', async () => {
-    mocks.rows = [
-      [{ id: 'workspace-1' }, { id: 'workspace-2' }],
-      [{ id: 'member-old', organizationId: 'org-old' }],
-    ]
+    queueTableRows(workspace, [{ id: 'workspace-1' }, { id: 'workspace-2' }])
+    queueTableRows(member, [{ id: 'member-old', organizationId: 'org-old' }])
     mocks.transferMembership.mockResolvedValue({
       success: true,
       memberId: 'member-new',

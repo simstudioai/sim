@@ -1,16 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockFlags,
   mockResolveWorkspaceBillingPayer,
   mockGetPlanTypeForLimits,
   mockGetBillingDisabledTableLimits,
   mockGetTablePlanLimits,
 } = vi.hoisted(() => ({
-  mockFlags: { isBillingEnabled: true },
   mockResolveWorkspaceBillingPayer: vi.fn(),
   mockGetPlanTypeForLimits: vi.fn(),
   mockGetBillingDisabledTableLimits: vi.fn(),
@@ -22,11 +21,6 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 }))
 vi.mock('@/lib/billing/plan-helpers', () => ({
   getPlanTypeForLimits: mockGetPlanTypeForLimits,
-}))
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isBillingEnabled() {
-    return mockFlags.isBillingEnabled
-  },
 }))
 vi.mock('@/lib/table/constants', () => ({
   getBillingDisabledTableLimits: mockGetBillingDisabledTableLimits,
@@ -56,7 +50,7 @@ const nextWorkspaceId = () => `ws-${++wsCounter}`
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mockFlags.isBillingEnabled = true
+  setEnvFlags({ isBillingEnabled: true })
   mockGetTablePlanLimits.mockReturnValue(LIMITS)
   mockGetBillingDisabledTableLimits.mockReturnValue({
     maxTables: Number.MAX_SAFE_INTEGER,
@@ -69,6 +63,8 @@ beforeEach(() => {
   })
   mockGetPlanTypeForLimits.mockReturnValue('pro')
 })
+
+afterAll(resetEnvFlagsMock)
 
 describe('getWorkspaceTableLimits', () => {
   it('returns the limits for the workspace subscription plan', async () => {
@@ -96,7 +92,7 @@ describe('getWorkspaceTableLimits', () => {
   })
 
   it('bypasses billing plan resolution entirely when billing is disabled', async () => {
-    mockFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
     mockGetBillingDisabledTableLimits.mockReturnValue({
       maxTables: Number.MAX_SAFE_INTEGER,
       maxRowsPerTable: 12345,

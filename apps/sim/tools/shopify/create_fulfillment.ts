@@ -1,3 +1,4 @@
+import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 import type {
   ShopifyCreateFulfillmentParams,
   ShopifyFulfillmentResponse,
@@ -61,7 +62,7 @@ export const shopifyCreateFulfillmentTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://${params.domain || params.shopDomain || params.idToken}/admin/api/2024-10/graphql.json`,
+      `https://${params.domain || params.shopDomain || params.idToken}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
     method: 'POST',
     headers: (params) => {
       if (!params.accessToken) {

@@ -1,105 +1,50 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { deleteCopilotApiKeyQuerySchema } from '@/lib/api/contracts'
 import { getSession } from '@/lib/auth'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
-import { fetchGo } from '@/lib/copilot/request/go/fetch'
-import { getMothershipBaseURL } from '@/lib/copilot/server/agent-url'
-import { env } from '@/lib/core/config/env'
+import {
+  CopilotApiKeyError,
+  deleteCopilotApiKey,
+  listCopilotApiKeys,
+} from '@/lib/copilot/server/api-keys'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
-export const GET = withRouteHandler(async (request: NextRequest) => {
+function errorResponse(error: unknown, fallback: string): NextResponse {
+  const status = error instanceof CopilotApiKeyError ? error.upstreamStatus : undefined
+  const message = error instanceof CopilotApiKeyError ? error.message : fallback
+  return NextResponse.json({ error: message }, { status: status ?? 500 })
+}
+
+export const GET = withRouteHandler(async () => {
+  const session = await getSession()
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const userId = session.user.id
-    const mothershipBaseURL = await getMothershipBaseURL({ userId })
-
-    const res = await fetchGo(`${mothershipBaseURL}/api/validate-key/get-api-keys`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
-      },
-      body: JSON.stringify({ userId }),
-      spanName: 'sim → go /api/validate-key/get-api-keys',
-      operation: 'get_api_keys',
-      attributes: { [TraceAttr.UserId]: userId },
-    })
-
-    if (!res.ok) {
-      return NextResponse.json({ error: 'Failed to get keys' }, { status: res.status || 500 })
-    }
-
-    const apiKeys = (await res.json().catch(() => null)) as
-      | { id: string; apiKey: string; name?: string; createdAt?: string; lastUsed?: string }[]
-      | null
-
-    if (!Array.isArray(apiKeys)) {
-      return NextResponse.json({ error: 'Invalid response from Sim Agent' }, { status: 500 })
-    }
-
-    const keys = apiKeys.map((k) => {
-      const value = typeof k.apiKey === 'string' ? k.apiKey : ''
-      const last6 = value.slice(-6)
-      const displayKey = `•••••${last6}`
-      return {
-        id: k.id,
-        displayKey,
-        name: k.name || null,
-        createdAt: k.createdAt || null,
-        lastUsed: k.lastUsed || null,
-      }
-    })
-
+    const keys = await listCopilotApiKeys(session.user.id)
     return NextResponse.json({ keys }, { status: 200 })
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to get keys' }, { status: 500 })
+    return errorResponse(error, 'Failed to get keys')
   }
 })
 
 export const DELETE = withRouteHandler(async (request: NextRequest) => {
+  const session = await getSession()
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const queryResult = deleteCopilotApiKeyQuerySchema.safeParse(
+    Object.fromEntries(new URL(request.url).searchParams)
+  )
+  if (!queryResult.success) {
+    return NextResponse.json({ error: 'id is required' }, { status: 400 })
+  }
+
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const userId = session.user.id
-    const mothershipBaseURL = await getMothershipBaseURL({ userId })
-    const queryResult = deleteCopilotApiKeyQuerySchema.safeParse(
-      Object.fromEntries(new URL(request.url).searchParams)
-    )
-    if (!queryResult.success) {
-      return NextResponse.json({ error: 'id is required' }, { status: 400 })
-    }
-    const { id } = queryResult.data
-
-    const res = await fetchGo(`${mothershipBaseURL}/api/validate-key/delete`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
-      },
-      body: JSON.stringify({ userId, apiKeyId: id }),
-      spanName: 'sim → go /api/validate-key/delete',
-      operation: 'delete_api_key',
-      attributes: { [TraceAttr.UserId]: userId, [TraceAttr.ApiKeyId]: id },
-    })
-
-    if (!res.ok) {
-      return NextResponse.json({ error: 'Failed to delete key' }, { status: res.status || 500 })
-    }
-
-    const data = (await res.json().catch(() => null)) as { success?: boolean } | null
-    if (!data?.success) {
-      return NextResponse.json({ error: 'Invalid response from Sim Agent' }, { status: 500 })
-    }
-
+    await deleteCopilotApiKey(session.user.id, queryResult.data.id)
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to delete key' }, { status: 500 })
+    return errorResponse(error, 'Failed to delete key')
   }
 })

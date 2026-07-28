@@ -86,8 +86,11 @@ export async function getOrganizationSubscription(
 /**
  * Check if a subscription is scoped to an organization by looking up its
  * `referenceId` in the organization table. This is the authoritative
- * answer — the plan name alone is unreliable because `pro_*` plans can be
- * attached to organizations (and we should treat them as org-scoped).
+ * answer — the plan name alone is unreliable because a team plan can be
+ * transiently user-referenced between checkout and webhook re-homing.
+ * (The converse cannot happen: org-referenced subscriptions only ever
+ * hold Team or Enterprise plans, enforced at checkout authorization and
+ * in the Stripe plan sync.)
  *
  * Use this in server contexts (webhooks, jobs) where we only have the
  * subscription row, not a user perspective. If you do have a user id,

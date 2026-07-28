@@ -51,8 +51,14 @@ import {
   canonicalWorkspaceFilePath,
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
-import type { DeploymentData, KbTagDefinitionSummary } from '@/lib/copilot/vfs/serializers'
+import type {
+  DeploymentData,
+  KbTagDefinitionSummary,
+  VfsServiceAccountAuth,
+} from '@/lib/copilot/vfs/serializers'
 import {
+  describeServiceAccountForOAuthProvider,
+  serializeApiKeyIntegrations,
   serializeApiKeys,
   serializeBlockSchema,
   serializeBuiltinTriggerSchema,
@@ -92,7 +98,7 @@ import {
   workspacePlansBackingFolderPath,
 } from '@/lib/copilot/vfs/workflow-aliases'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
+import { isDocSandboxEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   getAccessibleEnvCredentials,
@@ -103,6 +109,7 @@ import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/executi
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
+import { getSharesForResources } from '@/lib/public-shares/share-manager'
 import { listTables } from '@/lib/table/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -133,6 +140,7 @@ import type { BlockConfig, BlockIcon } from '@/blocks/types'
 import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import type { ToolConfig } from '@/tools/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 const logger = createLogger('WorkspaceVFS')
@@ -227,23 +235,36 @@ function getStaticComponentFiles(): Map<string, string> {
   // files (overviews, oauth/api-key summaries) that all viewers receive.
   const allBlocks = Object.values(BLOCK_REGISTRY)
   const visibleBlocks = allBlocks.filter((b) => !b.hideFromToolbar)
+  const exposedTools = getExposedIntegrationTools()
+  const toolConfigs = new Map<string, ToolConfig>()
+  for (const { toolId, config } of exposedTools) {
+    toolConfigs.set(toolId, config)
+    toolConfigs.set(config.id, config)
+  }
 
   let blocksFiltered = 0
   for (const block of visibleBlocks) {
     const path = `components/blocks/${block.type}.json`
-    files.set(path, serializeBlockSchema(block))
+    files.set(path, serializeBlockSchema(block, { toolConfigs }))
   }
   blocksFiltered = allBlocks.length - visibleBlocks.length
 
   let integrationCount = 0
 
-  const oauthServices = new Map<string, { provider: string; operations: string[] }>()
-  const apiKeyServices = new Map<string, { params: string[]; operations: string[] }>()
+  // `serviceAccount` marks services that also accept a shared service-account
+  // credential (connect AS AN APPLICATION, not as the user) — the same
+  // `auth.serviceAccount` shape the per-operation schemas carry, so the agent
+  // discovers all three auth modes (oauth / api_key / service account) from one
+  // uniform field instead of a separate file.
+  const oauthServices = new Map<
+    string,
+    { provider: string; operations: string[]; serviceAccount?: VfsServiceAccountAuth }
+  >()
 
   // Integration tools come from the shared exposed-tool set (latest version of
   // each operation owned by a visible block), the same set used to build the
   // deferred callable tools — so discovery and execution can never drift.
-  for (const exposedTool of getExposedIntegrationTools()) {
+  for (const exposedTool of exposedTools) {
     const { config: tool, service, operation, blockType, preview } = exposedTool
     const path = `components/integrations/${service}/${operation}.json`
     files.set(path, serializeIntegrationSchema(tool))
@@ -259,19 +280,10 @@ function getStaticComponentFiles(): Map<string, string> {
       if (existing) {
         existing.operations.push(operation)
       } else {
-        oauthServices.set(service, { provider: tool.oauth.provider, operations: [operation] })
-      }
-    } else if (tool.hosting?.apiKeyParam) {
-      const existing = apiKeyServices.get(service)
-      if (existing) {
-        if (!existing.params.includes(tool.hosting.apiKeyParam)) {
-          existing.params.push(tool.hosting.apiKeyParam)
-        }
-        existing.operations.push(operation)
-      } else {
-        apiKeyServices.set(service, {
-          params: [tool.hosting.apiKeyParam],
+        oauthServices.set(service, {
+          provider: tool.oauth.provider,
           operations: [operation],
+          serviceAccount: describeServiceAccountForOAuthProvider(tool.oauth.provider),
         })
       }
     }
@@ -283,7 +295,7 @@ function getStaticComponentFiles(): Map<string, string> {
   )
   files.set(
     'environment/api-key-integrations.json',
-    JSON.stringify(Object.fromEntries(apiKeyServices), null, 2)
+    serializeApiKeyIntegrations(exposedTools, isHosted)
   )
 
   files.set(
@@ -923,7 +935,7 @@ export class WorkspaceVFS {
           totalLines: 1,
         }
       }
-      if (isE2BDocEnabled && (await getE2BDocFormat(record.name))) {
+      if (isDocSandboxEnabled && (await getE2BDocFormat(record.name))) {
         bin = (
           await compileDoc({ source: code, fileName: record.name, workspaceId: this._workspaceId })
         ).buffer
@@ -976,7 +988,7 @@ export class WorkspaceVFS {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
-        const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(record.name) : null
+        const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
         if (!e2bFmt && !taskId) return null
 
@@ -1102,7 +1114,7 @@ export class WorkspaceVFS {
     }
 
     const extractMatch = /^files\/.+\/extract$/.test(path)
-    if (extractMatch && isE2BDocEnabled) {
+    if (extractMatch && isDocSandboxEnabled) {
       let record: WorkspaceFileRecord | null = null
       try {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'extract')
@@ -1171,7 +1183,7 @@ export class WorkspaceVFS {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled-check')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
-        const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(record.name) : null
+        const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
         const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
         if (!e2bFmt && !taskId && !isMermaidFile) return null
@@ -1526,7 +1538,6 @@ export class WorkspaceVFS {
     return workflowRows.map((wf) => ({
       id: wf.id,
       name: wf.name,
-      description: wf.description,
       isDeployed: wf.isDeployed,
       lastRunAt: wf.lastRunAt,
       folderPath: wf.folderId ? (folderPaths.get(wf.folderId) ?? null) : null,
@@ -1745,6 +1756,23 @@ export class WorkspaceVFS {
         includeReservedSystemFiles: true,
         throwOnError: true,
       })
+      // Batch-load public share state so each file's metadata carries an ambient
+      // `shared` flag (mirrors how the files-list UI enriches rows) — no N+1.
+      // Fail soft: share state is only metadata enrichment, so a lookup failure
+      // must not drop the whole file tree (the outer catch returns []) — fall back
+      // to no shares, and files still materialize with `shared: false`.
+      let shareByFileId: Awaited<ReturnType<typeof getSharesForResources>> = new Map()
+      try {
+        shareByFileId = await getSharesForResources(
+          'file',
+          files.map((file) => file.id)
+        )
+      } catch (error) {
+        logger.warn('Failed to load file share state; file metadata will show shared: false', {
+          workspaceId,
+          error: toError(error).message,
+        })
+      }
       for (const folder of folders) {
         if (
           !workflowArtifactsEnabled &&
@@ -1763,6 +1791,8 @@ export class WorkspaceVFS {
         if (!workflowArtifactsEnabled && isWorkflowAliasBackingPath(filePath)) {
           continue
         }
+        const share = shareByFileId.get(file.id)
+        const shared = share?.isActive ?? false
         this.files.set(
           filePath,
           serializeFileMeta({
@@ -1775,6 +1805,9 @@ export class WorkspaceVFS {
             size: file.size,
             uploadedAt: file.uploadedAt,
             updatedAt: file.updatedAt,
+            shared,
+            shareAuthType: shared ? share?.authType : undefined,
+            shareUrl: shared ? share?.url : undefined,
           })
         )
       }
@@ -2121,9 +2154,11 @@ export class WorkspaceVFS {
   }
 
   /**
-   * Advertise workspace skills in the VFS without eagerly loading their bodies.
-   * Paths are registered as lazy so glob/WORKSPACE.md see them, but full content
-   * is fetched only when read (or a grep whose scope touches the path) resolves them.
+   * Advertise the workspace skills in the VFS without eagerly loading their
+   * bodies. Paths are registered as lazy so glob/WORKSPACE.md see them, but
+   * full content is fetched only when read (or a grep whose scope touches the
+   * path) resolves them. Skills are workspace-visible — everyone with
+   * workspace access sees and uses every skill.
    */
   private async materializeSkills(
     workspaceId: string
@@ -2214,7 +2249,8 @@ export class WorkspaceVFS {
           and(
             eq(copilotChats.workspaceId, workspaceId),
             eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership')
+            eq(copilotChats.type, 'mothership'),
+            isNull(copilotChats.deletedAt)
           )
         )
         .orderBy(desc(copilotChats.updatedAt))
@@ -2537,6 +2573,7 @@ export class WorkspaceVFS {
             displayName: c.displayName,
             role: c.role,
             scope: null,
+            credentialType: c.type,
             createdAt: c.updatedAt,
           })),
         ])

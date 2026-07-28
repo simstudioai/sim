@@ -595,6 +595,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
         remapConditionIds(
           newSubBlocks as Record<string, SubBlockState>,
           clonedSubBlockValues,
+          block.type,
           id,
           newId
         )

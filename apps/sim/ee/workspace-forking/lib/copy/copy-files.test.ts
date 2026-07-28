@@ -2,7 +2,6 @@
  * @vitest-environment node
  */
 import {
-  dbChainMock,
   dbChainMockFns,
   resetDbChainMock,
   storageServiceMock,
@@ -15,7 +14,6 @@ const { mockIncrementStorageUsageInTx, mockResolveStorageBillingContext } = vi.h
   mockResolveStorageBillingContext: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 vi.mock('@/lib/billing/storage', () => ({
   incrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageInTx,

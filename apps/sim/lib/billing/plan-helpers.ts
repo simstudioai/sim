@@ -47,11 +47,13 @@ export function isPaid(plan: string | null | undefined): boolean {
 }
 
 /**
- * True when the plan **name** is a team/enterprise plan. This is a
- * plan-name check, NOT a scope check — a `pro_*` plan attached to an
- * organization is org-scoped at the billing level even though this
- * returns `false` for it. For scope decisions use
- * `isOrgScopedSubscription` (sync) or `isSubscriptionOrgScoped` (async).
+ * True when the plan **name** is a team/enterprise plan — the only plans
+ * that may be referenced to an organization (org-referenced subscriptions
+ * never hold `pro_*` plans; checkout authorization and the Stripe plan
+ * sync both enforce this). This is a plan-name check, NOT a scope check:
+ * a team plan can be transiently user-referenced between checkout and
+ * webhook re-homing. For scope decisions use `isOrgScopedSubscription`
+ * (sync) or `isSubscriptionOrgScoped` (async).
  */
 export function isOrgPlan(plan: string | null | undefined): boolean {
   return isTeam(plan) || isEnterprise(plan)

@@ -2,13 +2,16 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import type { DeployedWorkflowSummary } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
 import type {
   ForkCopyableLabel,
   ForkCopyableSourceResource,
 } from '@/ee/workspace-forking/lib/mapping/resources'
 import {
   assembleForkCopyableUnmapped,
+  buildForkPromotePlanItems,
   buildPromoteWorkflowIdMap,
+  collectForkArchivedTargets,
   collectForkCopyableIdsByKind,
   collectForkUnreferencedCopyables,
 } from '@/ee/workspace-forking/lib/promote/promote-plan'
@@ -95,6 +98,196 @@ describe('buildPromoteWorkflowIdMap', () => {
       items: [{ sourceWorkflowId: 's', targetWorkflowId: 't-new' }],
     })
     expect(map.get('s')).toBe('t-new')
+  })
+
+  it('still seeds a sync-excluded mapped pair (sibling references keep resolving)', () => {
+    // An excluded workflow never becomes an item, but its identity pair survives
+    // (source exists + target active), so a synced sibling that references it
+    // repoints to the existing target instead of clearing.
+    const map = buildPromoteWorkflowIdMap({
+      identityMap: new Map([['excluded-src', 'excluded-tgt']]),
+      existingSourceIds: new Set(['excluded-src']),
+      targetActiveIds: new Set(['excluded-tgt']),
+      items: [{ sourceWorkflowId: 'a-src', targetWorkflowId: 'a-tgt' }],
+    })
+    expect(map.get('excluded-src')).toBe('excluded-tgt')
+  })
+})
+
+const deployed = (id: string, name = id): DeployedWorkflowSummary => ({
+  id,
+  name,
+  description: null,
+  folderId: null,
+  sortOrder: 0,
+  isPublicApi: false,
+})
+
+/**
+ * `buildForkPromotePlanItems` decides which deployed source workflows a promote
+ * writes and how (replace vs create), and implements the target side of
+ * "Exclude from sync": an excluded mapped target must never be replaced. These
+ * cases lock in that a skipped target is reported (for the diff preview) and
+ * never written.
+ */
+describe('buildForkPromotePlanItems', () => {
+  it('classifies a mapped-active target as replace (carrying its name) and an unmapped source as create', () => {
+    const { items, excludedTargets } = buildForkPromotePlanItems({
+      deployedSourceWorkflows: [deployed('a-src', 'Alpha'), deployed('b-src', 'Beta')],
+      sourceStateIds: new Set(['a-src', 'b-src']),
+      identityMap: new Map([['a-src', 'a-tgt']]),
+      targetActiveIds: new Set(['a-tgt']),
+      targetNameById: new Map([['a-tgt', 'Alpha (prod)']]),
+      excludedTargetIds: new Set(),
+    })
+    expect(excludedTargets).toEqual([])
+    expect(items).toHaveLength(2)
+    expect(items[0]).toMatchObject({
+      sourceWorkflowId: 'a-src',
+      targetWorkflowId: 'a-tgt',
+      targetName: 'Alpha (prod)',
+      mode: 'replace',
+    })
+    expect(items[1]).toMatchObject({ sourceWorkflowId: 'b-src', targetName: null, mode: 'create' })
+    expect(items[1].targetWorkflowId).not.toBe('b-src')
+  })
+
+  it('skips a source whose state failed to load', () => {
+    const { items } = buildForkPromotePlanItems({
+      deployedSourceWorkflows: [deployed('a-src')],
+      sourceStateIds: new Set(),
+      identityMap: new Map(),
+      targetActiveIds: new Set(),
+      targetNameById: new Map(),
+      excludedTargetIds: new Set(),
+    })
+    expect(items).toEqual([])
+  })
+
+  it('never replaces a sync-excluded mapped target and reports it for the preview', () => {
+    const { items, excludedTargets } = buildForkPromotePlanItems({
+      deployedSourceWorkflows: [deployed('a-src', 'Alpha'), deployed('b-src', 'Beta')],
+      sourceStateIds: new Set(['a-src', 'b-src']),
+      identityMap: new Map([
+        ['a-src', 'a-tgt'],
+        ['b-src', 'b-tgt'],
+      ]),
+      targetActiveIds: new Set(['a-tgt', 'b-tgt']),
+      targetNameById: new Map([
+        ['a-tgt', 'Alpha (prod)'],
+        ['b-tgt', 'Beta (prod)'],
+      ]),
+      excludedTargetIds: new Set(['b-tgt']),
+    })
+    expect(items.map((item) => item.sourceWorkflowId)).toEqual(['a-src'])
+    expect(excludedTargets).toEqual([{ id: 'b-tgt', name: 'Beta (prod)' }])
+  })
+
+  it('treats an excluded-but-archived mapped target as create (recreated fresh, like any dead target)', () => {
+    // Exclusion protects a LIVE target. Once the target is archived the identity
+    // match already fails, so the source recreates a fresh (non-excluded) copy -
+    // same as the pre-existing dead-target behavior.
+    const { items, excludedTargets } = buildForkPromotePlanItems({
+      deployedSourceWorkflows: [deployed('a-src')],
+      sourceStateIds: new Set(['a-src']),
+      identityMap: new Map([['a-src', 'a-tgt']]),
+      targetActiveIds: new Set(),
+      targetNameById: new Map(),
+      excludedTargetIds: new Set(['a-tgt']),
+    })
+    expect(excludedTargets).toEqual([])
+    expect(items).toHaveLength(1)
+    expect(items[0].mode).toBe('create')
+  })
+})
+
+/**
+ * `collectForkArchivedTargets` removes previously-mapped targets whose source was
+ * deleted. These cases lock in the two protections: a source that still EXISTS
+ * (even excluded/undeployed) never archives its counterpart, and a sync-excluded
+ * target is never archived even when its source is gone.
+ */
+describe('collectForkArchivedTargets', () => {
+  const workflowRow = (parentResourceId: string, childResourceId: string | null) => ({
+    resourceType: 'workflow',
+    parentResourceId,
+    childResourceId,
+  })
+
+  it('archives a mapped active target whose source was deleted', () => {
+    const { archivedTargetIds, archivedTargets, excludedTargets } = collectForkArchivedTargets({
+      mappingRows: [workflowRow('gone-src', 'gone-tgt')],
+      sourceIsParent: true,
+      existingSourceIds: new Set(),
+      writtenTargetIds: new Set(),
+      targetActiveIds: new Set(['gone-tgt']),
+      targetNameById: new Map([['gone-tgt', 'Gone']]),
+      excludedTargetIds: new Set(),
+    })
+    expect(archivedTargetIds).toEqual(['gone-tgt'])
+    expect(archivedTargets).toEqual([{ id: 'gone-tgt', name: 'Gone' }])
+    expect(excludedTargets).toEqual([])
+  })
+
+  it('keeps a target whose source still exists (a sync-excluded source never archives its counterpart)', () => {
+    // The caller builds existingSourceIds from ALL non-archived source workflows,
+    // independent of the deployed/excluded source set - so an excluded source
+    // stays "existing" and its previously-synced counterpart is left untouched.
+    const { archivedTargetIds } = collectForkArchivedTargets({
+      mappingRows: [workflowRow('excluded-src', 'mapped-tgt')],
+      sourceIsParent: true,
+      existingSourceIds: new Set(['excluded-src']),
+      writtenTargetIds: new Set(),
+      targetActiveIds: new Set(['mapped-tgt']),
+      targetNameById: new Map([['mapped-tgt', 'Mapped']]),
+      excludedTargetIds: new Set(),
+    })
+    expect(archivedTargetIds).toEqual([])
+  })
+
+  it('never archives a sync-excluded target, reporting it for the preview instead', () => {
+    const { archivedTargetIds, excludedTargets } = collectForkArchivedTargets({
+      mappingRows: [workflowRow('gone-src', 'protected-tgt')],
+      sourceIsParent: true,
+      existingSourceIds: new Set(),
+      writtenTargetIds: new Set(),
+      targetActiveIds: new Set(['protected-tgt']),
+      targetNameById: new Map([['protected-tgt', 'Protected']]),
+      excludedTargetIds: new Set(['protected-tgt']),
+    })
+    expect(archivedTargetIds).toEqual([])
+    expect(excludedTargets).toEqual([{ id: 'protected-tgt', name: 'Protected' }])
+  })
+
+  it('skips written targets, inactive targets, unfilled mappings, and non-workflow rows', () => {
+    const { archivedTargetIds } = collectForkArchivedTargets({
+      mappingRows: [
+        workflowRow('gone-1', 'written-tgt'),
+        workflowRow('gone-2', 'archived-tgt'),
+        workflowRow('gone-3', null),
+        { resourceType: 'table', parentResourceId: 'gone-4', childResourceId: 'tbl-tgt' },
+      ],
+      sourceIsParent: true,
+      existingSourceIds: new Set(),
+      writtenTargetIds: new Set(['written-tgt']),
+      targetActiveIds: new Set(['written-tgt']),
+      targetNameById: new Map(),
+      excludedTargetIds: new Set(),
+    })
+    expect(archivedTargetIds).toEqual([])
+  })
+
+  it('orients source/target by direction (pull: child is the source side)', () => {
+    const { archivedTargetIds } = collectForkArchivedTargets({
+      mappingRows: [workflowRow('parent-tgt', 'child-src')],
+      sourceIsParent: false,
+      existingSourceIds: new Set(),
+      writtenTargetIds: new Set(),
+      targetActiveIds: new Set(['parent-tgt']),
+      targetNameById: new Map([['parent-tgt', 'Parent']]),
+      excludedTargetIds: new Set(),
+    })
+    expect(archivedTargetIds).toEqual(['parent-tgt'])
   })
 })
 

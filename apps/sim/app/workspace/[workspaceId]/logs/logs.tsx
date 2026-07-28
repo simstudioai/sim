@@ -302,7 +302,9 @@ export default function Logs() {
     (query: { state: { data?: WorkflowLogDetail } }) => {
       if (!isLive) return false
       const status = query.state.data?.status
-      return status === 'running' || status === 'pending' ? ACTIVE_RUN_DETAIL_REFRESH_MS : false
+      return status === 'running' || status === 'pending' || status === 'redacting'
+        ? ACTIVE_RUN_DETAIL_REFRESH_MS
+        : false
     },
     [isLive]
   )

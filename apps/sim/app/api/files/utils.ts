@@ -99,9 +99,9 @@ export function extractFilename(path: string): string {
     .replace(/\/\.\./g, '')
     .replace(/\.\.\//g, '')
 
-  if (filename.startsWith('s3/') || filename.startsWith('blob/')) {
+  if (filename.startsWith('s3/') || filename.startsWith('blob/') || filename.startsWith('gcs/')) {
     const parts = filename.split('/')
-    const prefix = parts[0] // 's3' or 'blob'
+    const prefix = parts[0] // 's3', 'blob', or 'gcs'
     const keyParts = parts.slice(1)
 
     const sanitizedKeyParts = keyParts

@@ -483,7 +483,7 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
       providerSlug,
       contextWindow: model.contextWindow ?? null,
       releaseDate: model.releaseDate ?? null,
-      deprecated: model.deprecated ?? false,
+      deprecated: !!model.sunset,
       pricing: model.pricing,
       capabilities: mergedCapabilities,
       capabilityTags,

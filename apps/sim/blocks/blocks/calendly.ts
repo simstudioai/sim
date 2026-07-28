@@ -334,7 +334,7 @@ export const CalendlyBlockMeta = {
   templates: [
     {
       icon: CalendlyIcon,
-      title: 'Scheduling follow-up automator',
+      title: 'Calendly booking follow-up',
       prompt:
         'Build a workflow that monitors new Calendly bookings, researches each attendee and their company, prepares a pre-meeting brief with relevant context, and sends a personalized confirmation email with an agenda and any prep materials.',
       modules: ['agent', 'workflows'],

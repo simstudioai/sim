@@ -41,12 +41,13 @@ const TOKEN_TO_TIME_RANGE: Record<string, TimeRange> = Object.fromEntries(
 ) as Record<string, TimeRange>
 
 /**
- * Parser for the `timeRange` param. Serializes labels to kebab tokens and
- * tolerantly maps unknown tokens back to the default ("All time").
+ * Parser for the `timeRange` param. Serializes labels to kebab tokens. Unknown
+ * tokens parse to `null` so each consuming surface's `.withDefault(...)` decides
+ * the fallback (logs: "All time"; audit-logs: "Past 30 days").
  */
 export const parseAsTimeRange = createParser<TimeRange>({
   parse(value) {
-    return TOKEN_TO_TIME_RANGE[value] ?? DEFAULT_TIME_RANGE
+    return TOKEN_TO_TIME_RANGE[value] ?? null
   },
   serialize(value) {
     return TIME_RANGE_TO_TOKEN[value] ?? 'all-time'
@@ -70,6 +71,21 @@ export const parseAsLogLevel = createParser<LogLevel>({
     if (levels.length === 0) return 'all'
     if (levels.length === 1) return levels[0]
     return levels.join(',') as LogLevel
+  },
+  serialize(value) {
+    return value
+  },
+})
+
+/**
+ * Parser for free-form date/datetime strings (`startDate`/`endDate`). Rejects
+ * unparseable values at the URL boundary — an invalid date string reaching
+ * `new Date(...).toISOString()` throws, so a malformed deep link must parse to
+ * `null` (treated as a missing bound) instead of crashing the consumer.
+ */
+export const parseAsDateString = createParser<string>({
+  parse(value) {
+    return Number.isNaN(Date.parse(value)) ? null : value
   },
   serialize(value) {
     return value
@@ -104,8 +120,12 @@ export const parseAsTriggers = createParser<TriggerType[]>({
  */
 export const logFilterParsers = {
   timeRange: parseAsTimeRange.withDefault(DEFAULT_TIME_RANGE),
-  startDate: parseAsString,
-  endDate: parseAsString,
+  /**
+   * Deliberately nullable: only populated when timeRange is "Custom range";
+   * every preset range derives its window from the label instead.
+   */
+  startDate: parseAsDateString,
+  endDate: parseAsDateString,
   level: parseAsLogLevel.withDefault('all'),
   workflowIds: parseAsArrayOf(parseAsString).withDefault([]),
   folderIds: parseAsArrayOf(parseAsString).withDefault([]),

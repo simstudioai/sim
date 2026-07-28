@@ -11,19 +11,19 @@ import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
 import 'prismjs/components/prism-markup'
 import '@sim/emcn/components/code/code.css'
-import { Checkbox, CopyCodeButton, cn, highlight, languages } from '@sim/emcn'
+import { Checkbox, CopyCodeButton, cn, languages, highlight as prismHighlight } from '@sim/emcn'
 import { decodeVfsSegmentSafe } from '@/lib/copilot/vfs/path-utils'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
   type ContentSegment,
-  PendingTagIndicator,
   parseSpecialTags,
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import type { ChatContextKind, MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 import { sanitizeChatDisplayContent } from './chat-sanitize'
+import { ExternalLink, externalLinkHostname } from './external-link'
 
 const LANG_ALIASES: Record<string, string> = {
   js: 'javascript',
@@ -160,6 +160,38 @@ function fileIconLabel(ref: string, fallback: string): string {
   return fallback
 }
 
+/**
+ * Bounded LRU cache for Prism highlight output. Chat rows are virtualized, so a
+ * message re-highlights every time it scrolls back into view; a component
+ * `useMemo` would not survive the unmount, so the cache lives at module scope.
+ * Output for an unregistered language is never cached — it renders through the
+ * JavaScript fallback, so caching it would keep serving that stale render if the
+ * real grammar registers later in the session.
+ */
+const HIGHLIGHT_CACHE_LIMIT = 512
+const highlightCache = new Map<string, string>()
+
+function highlight(code: string, language: string): string {
+  const resolved = LANG_ALIASES[language] || language || 'javascript'
+  const grammar = languages[resolved]
+  if (!grammar) return prismHighlight(code, languages.javascript, resolved)
+
+  const key = `${resolved}\n${code}`
+  const cached = highlightCache.get(key)
+  if (cached !== undefined) {
+    highlightCache.delete(key)
+    highlightCache.set(key, cached)
+    return cached
+  }
+  const html = prismHighlight(code, grammar, resolved)
+  highlightCache.set(key, html)
+  if (highlightCache.size > HIGHLIGHT_CACHE_LIMIT) {
+    const oldest = highlightCache.keys().next().value
+    if (oldest !== undefined) highlightCache.delete(oldest)
+  }
+  return html
+}
+
 const MARKDOWN_COMPONENTS = {
   table({ children }: { children?: React.ReactNode }) {
     return (
@@ -206,9 +238,7 @@ const MARKDOWN_COMPONENTS = {
       )
     }
 
-    const resolved = LANG_ALIASES[language] || language || 'javascript'
-    const grammar = languages[resolved] || languages.javascript
-    const html = highlight(codeString.trimEnd(), grammar, resolved)
+    const html = highlight(codeString.trimEnd(), language)
 
     return (
       <div className='not-prose my-6 overflow-hidden rounded-lg border border-[var(--divider)]'>
@@ -264,6 +294,21 @@ const MARKDOWN_COMPONENTS = {
               className='relative top-0.5 size-[12px] flex-shrink-0 text-[var(--text-icon)]'
             />
           )}
+          {children}
+        </a>
+      )
+    }
+    const hostname = externalLinkHostname(href)
+    if (hostname && href) {
+      return (
+        <ExternalLink href={href} hostname={hostname}>
+          {children}
+        </ExternalLink>
+      )
+    }
+    if (href?.startsWith('mailto:')) {
+      return (
+        <a href={href} className='not-prose text-[var(--text-primary)] no-underline'>
           {children}
         </a>
       )
@@ -347,10 +392,16 @@ interface ChatContentProps {
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
   onOptionSelect?: (id: string) => void
+  onQuestionDismiss?: () => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
   onRevealStateChange?: (isRevealing: boolean) => void
-  /** Reports whether this segment is actively painting text or its own pending-tag indicator. */
+  /** Reports whether this segment is actively painting text. */
   onStreamActivityChange?: (active: boolean) => void
+  /**
+   * Reports whether a special tag is mid-stream — bytes arriving but rendering
+   * nothing (tags are suppressed until complete). A wait from the user's POV.
+   */
+  onPendingTagChange?: (pending: boolean) => void
 }
 
 function ChatContentInner({
@@ -358,9 +409,11 @@ function ChatContentInner({
   isStreaming = false,
   questionAnswers,
   onOptionSelect,
+  onQuestionDismiss,
   onWorkspaceResourceSelect,
   onRevealStateChange,
   onStreamActivityChange,
+  onPendingTagChange,
 }: ChatContentProps) {
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
   onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
@@ -394,9 +447,9 @@ function ChatContentInner({
    * position (`E`/`qe` in streamdown 2.5), so a re-parse of unchanged content
    * without the animate plugin bails at every unoverridden element (`p`,
    * `strong`, `tr`, headings, …) and leaves the stale per-char span DOM in
-   * place. Every instance renders through the streaming parser (see
-   * `streamingTree` below) so the remount only sheds the spans, never
-   * re-interprets the markdown.
+   * place. The settled instance keeps the streaming parser (`parserTree`
+   * below) so the remount only sheds the spans, never re-interprets the
+   * markdown.
    *
    * The drain is deliberately one-way: a stream that resumes afterwards
    * (reconnect/continuation) reveals paced but unfaded, because re-arming
@@ -441,18 +494,19 @@ function ChatContentInner({
   }, [isRevealing, animationDrained, streamedThisSession])
 
   /**
-   * Every mount renders through the streaming parser (remend +
-   * incomplete-markdown repair + block-split) — `mode='static'` is never used.
-   * The two pipelines parse edge-case markdown differently (unbalanced fences,
-   * list continuation across blocks), so a message you watched stream would
-   * render subtly differently from the same message reloaded from the DB; one
-   * pipeline makes in-session and refreshed renders byte-identical. The rows
-   * are virtualized, so only visible messages pay the block-split mount cost.
-   * `streamingTree` (the remount key and animation props) still drops at
-   * drain, so a settled instance re-renders through the SAME parser minus the
-   * per-word animation spans — identical pixels.
+   * `parserTree` (drives `mode`) stays latched for the mount's life: streaming
+   * mode is the only one that applies remend/incomplete-markdown repair and
+   * block-split parsing, so a settled message must KEEP the streaming parser —
+   * swapping to `mode='static'` at drain re-parses the same source through a
+   * different pipeline (no remend, whole-doc parse) and visibly flashes on any
+   * reply with unbalanced markdown. `streamingTree` (drives the remount key
+   * and animation props) additionally drops at drain, so the settled instance
+   * re-renders through the SAME parser minus the per-word animation spans —
+   * byte-identical pixels. Only never-streamed mounts (reloaded history)
+   * render static.
    */
-  const streamingTree = (isRevealing || streamedThisSession) && !animationDrained
+  const parserTree = isRevealing || streamedThisSession
+  const streamingTree = parserTree && !animationDrained
 
   /**
    * One-way fade cutoff (see {@link FADE_MAX_REVEALED_CHARS}). Latched so a
@@ -481,12 +535,17 @@ function ChatContentInner({
     () => parseSpecialTags(streamedContent, isRevealing),
     [streamedContent, isRevealing]
   )
-  const hasPendingIndicator = parsed.hasPendingTag && isRevealing
 
   useEffect(() => {
-    onStreamActivityChange?.(hasRevealBacklog || hasPendingIndicator)
+    onStreamActivityChange?.(hasRevealBacklog)
     return () => onStreamActivityChange?.(false)
-  }, [hasPendingIndicator, hasRevealBacklog, onStreamActivityChange])
+  }, [hasRevealBacklog, onStreamActivityChange])
+
+  const hasPendingTag = parsed.hasPendingTag && isRevealing
+  useEffect(() => {
+    onPendingTagChange?.(hasPendingTag)
+    return () => onPendingTagChange?.(false)
+  }, [hasPendingTag, onPendingTagChange])
 
   type BlockSegment = Exclude<
     ContentSegment,
@@ -555,6 +614,7 @@ function ChatContentInner({
             >
               <Streamdown
                 key={streamingTree ? 'stream' : 'settled'}
+                mode={parserTree ? undefined : 'static'}
                 animated={fadeActive ? STREAM_ANIMATION : false}
                 isAnimating={streamingTree}
                 components={MARKDOWN_COMPONENTS}
@@ -570,10 +630,10 @@ function ChatContentInner({
             segment={group.segment}
             questionAnswers={questionAnswers}
             onOptionSelect={onOptionSelect}
+            onQuestionDismiss={onQuestionDismiss}
           />
         )
       })}
-      {hasPendingIndicator && <PendingTagIndicator />}
     </div>
   )
 }

@@ -1,37 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { account } from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUpdate, mockSet, mockWhere, mockSelect, mockSelectRows, sqlCalls } = vi.hoisted(() => {
-  const mockSelectRows = vi.fn()
-  return {
-    mockUpdate: vi.fn(),
-    mockSet: vi.fn(),
-    mockWhere: vi.fn(),
-    mockSelectRows,
-    mockSelect: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: mockSelectRows,
-        })),
-      })),
-    })),
-    sqlCalls: [] as Array<{ strings: readonly string[]; values: unknown[] }>,
-  }
-})
-
-vi.mock('@sim/db', () => ({ db: { update: mockUpdate, select: mockSelect } }))
-vi.mock('@sim/db/schema', () => ({
-  webhook: {
-    id: 'webhook.id',
-    providerConfig: 'webhook.providerConfig',
-    updatedAt: 'webhook.updatedAt',
-  },
-  account: {},
-  workflow: {},
-  workflowDeploymentVersion: {},
+const { sqlCalls } = vi.hoisted(() => ({
+  sqlCalls: [] as Array<{ strings: readonly string[]; values: unknown[] }>,
 }))
+
 vi.mock('drizzle-orm', () => ({
   sql: (strings: readonly string[], ...values: unknown[]) => {
     const node = { strings, values }
@@ -59,6 +36,8 @@ import {
   resolveOAuthAccountId,
 } from '@/app/api/auth/oauth/utils'
 
+afterAll(resetDbChainMock)
+
 const logger = { error: vi.fn() } as never
 
 function allInterpolatedValues(): unknown[] {
@@ -72,10 +51,8 @@ function allSqlText(): string {
 describe('updateWebhookProviderConfig (atomic jsonb merge)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     sqlCalls.length = 0
-    mockWhere.mockResolvedValue(undefined)
-    mockSet.mockReturnValue({ where: mockWhere })
-    mockUpdate.mockReturnValue({ set: mockSet })
   })
 
   it('merges defined keys (null preserved) and removes undefined keys', async () => {
@@ -85,7 +62,7 @@ describe('updateWebhookProviderConfig (atomic jsonb merge)', () => {
       logger
     )
 
-    expect(mockUpdate).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
     expect(allInterpolatedValues()).toContain(JSON.stringify({ historyId: 'h1', nulled: null }))
     expect(allInterpolatedValues()).toContainEqual(['cleared'])
   })
@@ -114,14 +91,14 @@ describe('resolveOAuthCredential (single-credential polling)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockSelectRows.mockResolvedValue([])
+    resetDbChainMock()
   })
 
   it('resolves via credentialId: account lookup then token refresh', async () => {
     vi.mocked(resolveOAuthAccountId).mockResolvedValue({
       accountId: 'acc-1',
     } as Awaited<ReturnType<typeof resolveOAuthAccountId>>)
-    mockSelectRows.mockResolvedValue([{ userId: 'owner-1' }])
+    queueTableRows(account, [{ userId: 'owner-1' }])
     vi.mocked(refreshAccessTokenIfNeeded).mockResolvedValue('tok-abc')
 
     const token = await resolveOAuthCredential(
@@ -148,7 +125,6 @@ describe('resolveOAuthCredential (single-credential polling)', () => {
     vi.mocked(resolveOAuthAccountId).mockResolvedValue({
       accountId: 'acc-missing',
     } as Awaited<ReturnType<typeof resolveOAuthAccountId>>)
-    mockSelectRows.mockResolvedValue([])
 
     await expect(
       resolveOAuthCredential(makeWebhook({ credentialId: 'cred-1' }), 'google-email', 'req-1')

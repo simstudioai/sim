@@ -7,7 +7,7 @@ import {
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
-import { getToolCompletedTitle } from '@/lib/copilot/tools/tool-display'
+import { getToolStatusDisplayTitle } from '@/lib/copilot/tools/tool-display'
 import { getBareIconStyle } from '@/blocks/icon-color'
 import { getBlockByToolName } from '@/blocks/registry'
 import type { ToolCallStatus } from '../../../../types'
@@ -44,6 +44,8 @@ interface ToolCallItemProps {
  * rewrite in `toToolData`, the past-tense flip is applied here on success.
  * A `read` of a block or integration schema shows the block's brand icon
  * inline next to its display name (e.g. the Gmail logo before "Read Gmail").
+ * The status-aware rewrite is repeated at this final rendering boundary so
+ * live, replayed, and directly-constructed rows cannot bypass completed verbs.
  */
 export function ToolCallItem({
   toolName,
@@ -98,23 +100,14 @@ export function ToolCallItem({
 
   const isExecuting = resolveToolDisplayState(status) === 'spinner'
   const liveTitle = liveWorkspaceFileTitle || displayTitle
-  const title =
-    status === 'success' && liveWorkspaceFileTitle
-      ? (getToolCompletedTitle(liveTitle) ?? liveTitle)
-      : liveTitle
+  const title = getToolStatusDisplayTitle(liveTitle, status)
 
   const BlockIcon = (readBlock ?? gatewayBlock ?? getBlockByToolName(toolName))?.icon
 
   return (
     <div className='flex items-center gap-[6px] pl-6'>
       {BlockIcon && (
-        // Size via inline style: a custom block's image icon carries a trailing
-        // `size-full` that defeats size *classes* (it fills tiled surfaces), so a
-        // class-only size renders the uploaded icon at natural size here.
-        <BlockIcon
-          className='size-[14px] flex-shrink-0'
-          style={{ width: 14, height: 14, ...getBareIconStyle(BlockIcon) }}
-        />
+        <BlockIcon className='size-[14px] flex-shrink-0' style={getBareIconStyle(BlockIcon)} />
       )}
       {isExecuting ? (
         <ShimmerText className='text-[13px] [--shimmer-rest:var(--text-secondary)]'>

@@ -828,7 +828,7 @@ export const UptimeRobotBlockMeta = {
   templates: [
     {
       icon: UptimeRobotIcon,
-      title: 'Downtime alert to Slack',
+      title: 'UptimeRobot downtime alert to Slack',
       prompt:
         'Build a scheduled workflow that lists UptimeRobot incidents from the last hour, filters to ones that are still active, and posts a formatted Slack alert with the affected monitor name, cause, and how long it has been down.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -838,7 +838,7 @@ export const UptimeRobotBlockMeta = {
     },
     {
       icon: UptimeRobotIcon,
-      title: 'Auto-create monitors from a table',
+      title: 'UptimeRobot monitors from a table',
       prompt:
         'Create a workflow that reads a list of service URLs from a table and creates an HTTP UptimeRobot monitor for each one with a 5-minute interval, then writes the new monitor IDs back to the table.',
       modules: ['tables', 'agent', 'workflows'],
@@ -847,7 +847,7 @@ export const UptimeRobotBlockMeta = {
     },
     {
       icon: UptimeRobotIcon,
-      title: 'Incident to Linear ticket',
+      title: 'UptimeRobot incident to Linear',
       prompt:
         'Build a scheduled workflow that polls UptimeRobot for active incidents, and for any new incident creates a Linear ticket with the monitor name, cause, and root-cause URL, then posts the ticket link to Slack.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -857,7 +857,7 @@ export const UptimeRobotBlockMeta = {
     },
     {
       icon: UptimeRobotIcon,
-      title: 'Maintenance window scheduler',
+      title: 'UptimeRobot maintenance window',
       prompt:
         'Create a workflow that, before a planned deploy, creates a one-time UptimeRobot maintenance window covering the affected monitors for the next 30 minutes so alerts are suppressed during the rollout.',
       modules: ['agent', 'workflows'],
@@ -866,7 +866,7 @@ export const UptimeRobotBlockMeta = {
     },
     {
       icon: UptimeRobotIcon,
-      title: 'Daily uptime digest',
+      title: 'Daily UptimeRobot digest',
       prompt:
         'Build a scheduled daily workflow that lists all UptimeRobot monitors, summarizes how many are up versus down, lists any currently in a down state, and emails a morning availability digest to the on-call team.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -875,7 +875,7 @@ export const UptimeRobotBlockMeta = {
     },
     {
       icon: UptimeRobotIcon,
-      title: 'Status page publisher',
+      title: 'UptimeRobot status page',
       prompt:
         'Create a workflow that builds a public status page in UptimeRobot for a chosen set of monitors, uploads the company logo, and returns the public URL key so it can be shared.',
       modules: ['agent', 'files', 'workflows'],
@@ -884,7 +884,7 @@ export const UptimeRobotBlockMeta = {
     },
     {
       icon: UptimeRobotIcon,
-      title: 'Pause monitors during maintenance',
+      title: 'Pause UptimeRobot monitors',
       prompt:
         'Build a workflow that, when triggered, pauses a specific UptimeRobot monitor, waits for an upstream maintenance task to finish, then starts the monitor again and confirms it is back to a running state.',
       modules: ['agent', 'workflows'],
@@ -893,7 +893,7 @@ export const UptimeRobotBlockMeta = {
     },
     {
       icon: UptimeRobotIcon,
-      title: 'Onboard alert contacts',
+      title: 'Onboard UptimeRobot contacts',
       prompt:
         'Create a workflow that reads a list of team email addresses and adds each one as an UptimeRobot alert contact, then assigns them to the critical production monitors.',
       modules: ['agent', 'workflows'],

@@ -35,12 +35,11 @@ export const POST = withRouteHandler(
     if (!parsed.success) return parsed.response
     try {
       const actor = await getAdminAuditActor(request)
-      const { includedMonthlyDollars, usageLimitDollars, ...body } = parsed.data.body
+      const { usageLimitDollars, ...body } = parsed.data.body
       return singleResponse(
         toDashboardProvisioning(
           await issueEnterpriseProvisioning({
             ...body,
-            includedMonthlyCredits: dollarsToCredits(includedMonthlyDollars),
             usageLimitCredits:
               usageLimitDollars === undefined ? undefined : dollarsToCredits(usageLimitDollars),
             requestedByEmail: actor.email ?? 'admin-api',

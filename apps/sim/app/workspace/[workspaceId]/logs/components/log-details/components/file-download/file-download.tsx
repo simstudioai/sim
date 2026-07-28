@@ -15,7 +15,7 @@ interface FileData {
   type: string
   key: string
   url: string
-  storageProvider?: 's3' | 'blob' | 'local'
+  storageProvider?: 's3' | 'blob' | 'gcs' | 'local'
   bucketName?: string
 }
 

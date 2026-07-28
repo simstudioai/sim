@@ -37,7 +37,8 @@ import {
 } from '@/app/workspace/[workspaceId]/upgrade/search-params'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
 
-const TYPEFORM_ENTERPRISE_URL = 'https://form.typeform.com/to/jqCO12pF' as const
+/** Enterprise "Talk to sales" books time with the sales team on Cal.com. */
+const SALES_CAL_URL = 'https://cal.com/team/sim/enterprise' as const
 
 /**
  * Props for {@link Upgrade}.
@@ -149,7 +150,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
     const onClick = (): void => {
       switch (cta.intent) {
         case 'sales':
-          window.open(TYPEFORM_ENTERPRISE_URL, '_blank')
+          window.open(SALES_CAL_URL, '_blank', 'noopener,noreferrer')
           return
         case 'downgrade':
           void state.onUpgradeToOtherTier()

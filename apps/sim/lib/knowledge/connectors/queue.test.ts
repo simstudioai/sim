@@ -1,34 +1,17 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockDbChain,
-  mockExecuteSync,
-  mockIsTriggerAvailable,
-  mockResolveTriggerRegion,
-  mockTrigger,
-} = vi.hoisted(() => {
-  const chain = {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    innerJoin: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn(),
-    update: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
-  }
-  return {
-    mockDbChain: chain,
+const { mockExecuteSync, mockIsTriggerAvailable, mockResolveTriggerRegion, mockTrigger } =
+  vi.hoisted(() => ({
     mockExecuteSync: vi.fn(),
     mockIsTriggerAvailable: vi.fn(),
     mockResolveTriggerRegion: vi.fn(),
     mockTrigger: vi.fn(),
-  }
-})
+  }))
 
-vi.mock('@sim/db', () => ({ db: mockDbChain }))
 vi.mock('@trigger.dev/sdk', () => ({ tasks: { trigger: mockTrigger } }))
 vi.mock('@/lib/core/async-jobs/region', () => ({
   resolveTriggerRegion: mockResolveTriggerRegion,
@@ -66,13 +49,8 @@ const BILLING_ATTRIBUTION = {
 describe('connector sync queue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDbChain.select.mockReturnThis()
-    mockDbChain.from.mockReturnThis()
-    mockDbChain.innerJoin.mockReturnThis()
-    mockDbChain.where.mockReturnThis()
-    mockDbChain.update.mockReturnThis()
-    mockDbChain.set.mockReturnThis()
-    mockDbChain.limit.mockResolvedValue([
+    resetDbChainMock()
+    queueTableRows(schemaMock.knowledgeConnector, [
       {
         knowledgeBaseId: 'knowledge-base-1',
         connectorArchivedAt: null,
@@ -84,6 +62,10 @@ describe('connector sync queue', () => {
     mockIsTriggerAvailable.mockReturnValue(true)
     mockResolveTriggerRegion.mockResolvedValue('us-east-1')
     mockTrigger.mockResolvedValue({ id: 'run-1' })
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('preserves the actor and immutable workspace payer in the queued payload', async () => {
@@ -98,6 +80,7 @@ describe('connector sync queue', () => {
       {
         connectorId: 'connector-1',
         fullSync: true,
+        rehydrate: undefined,
         requestId: 'request-1',
         billingAttribution: BILLING_ATTRIBUTION,
       },
@@ -110,6 +93,20 @@ describe('connector sync queue', () => {
         ],
         region: 'us-east-1',
       }
+    )
+  })
+
+  it('carries the rehydrate flag into the queued payload', async () => {
+    await dispatchSync('connector-1', {
+      billingAttribution: BILLING_ATTRIBUTION,
+      rehydrate: true,
+      requestId: 'request-1',
+    })
+
+    expect(mockTrigger).toHaveBeenCalledWith(
+      'knowledge-connector-sync',
+      expect.objectContaining({ connectorId: 'connector-1', rehydrate: true }),
+      expect.anything()
     )
   })
 

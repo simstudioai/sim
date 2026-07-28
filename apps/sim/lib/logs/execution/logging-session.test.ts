@@ -1,39 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const dbMocks = vi.hoisted(() => {
-  const selectLimit = vi.fn()
-  const selectWhere = vi.fn()
-  const selectFrom = vi.fn()
-  const select = vi.fn()
-  const updateWhere = vi.fn()
-  const updateSet = vi.fn()
-  const update = vi.fn()
-  const execute = vi.fn()
-  const eq = vi.fn()
-  const and = vi.fn((...args: unknown[]) => ({ type: 'and', args }))
-  const sql = vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }))
-
-  select.mockReturnValue({ from: selectFrom })
-  selectFrom.mockReturnValue({ where: selectWhere })
-  selectWhere.mockReturnValue({ limit: selectLimit })
-
-  update.mockReturnValue({ set: updateSet })
-  updateSet.mockReturnValue({ where: updateWhere })
-
-  return {
-    select,
-    selectFrom,
-    selectWhere,
-    selectLimit,
-    update,
-    updateSet,
-    updateWhere,
-    execute,
-    eq,
-    and,
-    sql,
-  }
-})
+const dbMocks = vi.hoisted(() => ({
+  eq: vi.fn(),
+  and: vi.fn((...args: unknown[]) => ({ type: 'and', args })),
+  sql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
+}))
 
 const {
   completeWorkflowExecutionMock,
@@ -45,14 +17,6 @@ const {
   startWorkflowExecutionMock: vi.fn(),
   loadWorkflowStateForExecutionMock: vi.fn(),
   releaseExecutionSlotMock: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: dbMocks.select,
-    update: dbMocks.update,
-    execute: dbMocks.execute,
-  },
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -111,9 +75,12 @@ vi.mock('@/lib/logs/execution/logging-factory', () => ({
 import { calculateCostSummary } from '@/lib/logs/execution/logging-factory'
 import { LoggingSession } from './logging-session'
 
+afterAll(resetDbChainMock)
+
 describe('LoggingSession start snapshots', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     startWorkflowExecutionMock.mockResolvedValue({})
     loadWorkflowStateForExecutionMock.mockResolvedValue({
       blocks: {
@@ -218,9 +185,8 @@ describe('LoggingSession start snapshots', () => {
 describe('LoggingSession completion retries', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    dbMocks.selectLimit.mockResolvedValue([{ executionData: {} }])
-    dbMocks.updateWhere.mockResolvedValue(undefined)
-    dbMocks.execute.mockResolvedValue(undefined)
+    resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValue([{ executionData: {} }])
   })
 
   it('keeps completion best-effort when a later error completion retries after full completion and fallback both fail', async () => {
@@ -484,8 +450,8 @@ describe('LoggingSession completion retries', () => {
 
     await session.onBlockStart('block-1', 'Fetch', 'api', '2025-01-01T00:00:00.000Z')
 
-    expect(dbMocks.select).not.toHaveBeenCalled()
-    expect(dbMocks.execute).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(1)
   })
 
   it('enforces started marker monotonicity in the database write path', async () => {
@@ -494,7 +460,7 @@ describe('LoggingSession completion retries', () => {
     await session.onBlockStart('block-1', 'Fetch', 'api', '2025-01-01T00:00:00.000Z')
 
     expect(dbMocks.sql).toHaveBeenCalled()
-    expect(dbMocks.execute).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(1)
   })
 
   it('allows same-millisecond started markers to replace the prior marker', async () => {
@@ -517,8 +483,8 @@ describe('LoggingSession completion retries', () => {
       output: { value: true },
     })
 
-    expect(dbMocks.select).not.toHaveBeenCalled()
-    expect(dbMocks.execute).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(1)
   })
 
   it('allows same-millisecond completed markers to replace the prior marker', async () => {
@@ -646,12 +612,11 @@ describe('LoggingSession completion retries', () => {
 describe('completeWithError cancelled-status guard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    dbMocks.updateWhere.mockResolvedValue(undefined)
-    dbMocks.execute.mockResolvedValue(undefined)
+    resetDbChainMock()
   })
 
   it('skips writing failed and marks session complete when DB status is already cancelled', async () => {
-    dbMocks.selectLimit.mockResolvedValue([{ status: 'cancelled' }])
+    dbChainMockFns.limit.mockResolvedValue([{ status: 'cancelled' }])
     const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
 
     await session.safeCompleteWithError({ error: { message: 'block errored mid-cancel' } })
@@ -661,7 +626,7 @@ describe('completeWithError cancelled-status guard', () => {
   })
 
   it('writes failed when DB status is running (no cancel in flight)', async () => {
-    dbMocks.selectLimit.mockResolvedValue([{ status: 'running' }])
+    dbChainMockFns.limit.mockResolvedValue([{ status: 'running' }])
     completeWorkflowExecutionMock.mockResolvedValue({})
     const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
 
@@ -674,7 +639,7 @@ describe('completeWithError cancelled-status guard', () => {
   })
 
   it('writes failed when no execution log exists yet', async () => {
-    dbMocks.selectLimit.mockResolvedValue([])
+    dbChainMockFns.limit.mockResolvedValue([])
     completeWorkflowExecutionMock.mockResolvedValue({})
     const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
 
@@ -686,7 +651,7 @@ describe('completeWithError cancelled-status guard', () => {
   })
 
   it('deduplicates all subsequent completion attempts after guard early-return', async () => {
-    dbMocks.selectLimit.mockResolvedValue([{ status: 'cancelled' }])
+    dbChainMockFns.limit.mockResolvedValue([{ status: 'cancelled' }])
     completeWorkflowExecutionMock.mockResolvedValue({})
     const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
 
@@ -699,7 +664,7 @@ describe('completeWithError cancelled-status guard', () => {
   })
 
   it('falls through to cost-only fallback when the DB check itself throws', async () => {
-    dbMocks.selectLimit.mockRejectedValueOnce(new Error('DB connection lost'))
+    dbChainMockFns.limit.mockRejectedValueOnce(new Error('DB connection lost'))
     completeWorkflowExecutionMock.mockResolvedValue({})
     const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
 
@@ -715,28 +680,27 @@ describe('completeWithError cancelled-status guard', () => {
 describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    dbMocks.updateWhere.mockResolvedValue(undefined)
+    resetDbChainMock()
   })
 
   it('scopes UPDATE by both executionId and workflowId', async () => {
     await LoggingSession.markExecutionAsFailed('exec-1', undefined, undefined, 'wf-1')
 
-    expect(dbMocks.update).toHaveBeenCalledTimes(1)
-    expect(dbMocks.updateSet).toHaveBeenCalledTimes(1)
-    expect(dbMocks.updateWhere).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
 
-    const whereArgs = dbMocks.updateWhere.mock.calls[0]
+    const whereArgs = dbChainMockFns.where.mock.calls[0]
     expect(whereArgs).toBeDefined()
   })
 
   it('instance markAsFailed forwards workflowId to the static method', async () => {
-    const updateWhereSpy = dbMocks.updateWhere
-    dbMocks.selectLimit.mockResolvedValue([{ executionData: {} }])
+    dbChainMockFns.limit.mockResolvedValue([{ executionData: {} }])
 
     const session = new LoggingSession('wf-42', 'exec-42', 'api', 'req-1')
     await session.markAsFailed('something went wrong')
 
-    expect(updateWhereSpy).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
     expect(releaseExecutionSlotMock).toHaveBeenCalledWith('exec-42')
   })
 
@@ -795,7 +759,7 @@ describe('LoggingSession progress-marker write path', () => {
       loops: {},
       parallels: {},
     })
-    dbMocks.execute.mockResolvedValue(undefined)
+    resetDbChainMock()
   })
 
   it('writes markers to Redis (not the row) when Redis accepts the write', async () => {
@@ -815,7 +779,7 @@ describe('LoggingSession progress-marker write path', () => {
       'exec-redis',
       expect.objectContaining({ blockId: 'b1', success: true })
     )
-    expect(dbMocks.execute).not.toHaveBeenCalled()
+    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
   })
 
   it('falls back to the SQL UPDATE when the Redis write fails', async () => {
@@ -826,6 +790,6 @@ describe('LoggingSession progress-marker write path', () => {
     await session.onBlockStart('b1', 'Fetch', 'api', '2026-06-27T10:00:00.000Z')
 
     expect(setLastStartedBlockMock).toHaveBeenCalled()
-    expect(dbMocks.execute).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(1)
   })
 })

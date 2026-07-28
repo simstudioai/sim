@@ -46,6 +46,14 @@ USER pii
 # 5001 avoids colliding with the app's 3000 in local/compose runs on one host.
 EXPOSE 5001
 
+# Per-pattern regex match timeout (Presidio's `regex`-module `finditer(timeout=...)`),
+# an interactive backstop against a catastrophic user-supplied custom regex. Presidio
+# logs and skips a pattern that exceeds it — the request stays up rather than hanging.
+# Set well below the 60s library default so a pathological pattern can't stall a worker.
+# MUST be an integer — Presidio parses it with `int()`, so a float (e.g. 1.5) crashes
+# the service at import.
+ENV REGEX_TIMEOUT_SECONDS=2
+
 # start-period covers the model cold start. With PII_WORKERS>1 each worker loads
 # the five spaCy models independently and in parallel, so allow generous headroom
 # (memory-bandwidth contention stretches the wall-time beyond the single-worker case).

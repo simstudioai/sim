@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
-import { and, desc, eq } from 'drizzle-orm'
-import type { MothershipChat } from '@/lib/api/contracts/mothership-chats'
+import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm'
+import type { MothershipChat, MothershipChatScope } from '@/lib/api/contracts/mothership-chats'
 import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
 
 /**
@@ -10,10 +10,15 @@ import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
  * sidebar prefetch. Performs no auth or workspace-access checks — callers
  * enforce access before invoking. Reconciles stale live-stream markers and
  * normalizes timestamps to ISO strings to honor the wire contract.
+ *
+ * `scope` selects between live chats (`active`, the default) and soft-deleted
+ * chats (`archived`, surfaced in Recently Deleted). Archived chats skip
+ * stream-marker reconciliation — a deleted chat has no live stream to repair.
  */
 export async function listMothershipChats(
   userId: string,
-  workspaceId: string
+  workspaceId: string,
+  scope: MothershipChatScope = 'active'
 ): Promise<MothershipChat[]> {
   const chats = await db
     .select({
@@ -23,28 +28,34 @@ export async function listMothershipChats(
       activeStreamId: copilotChats.conversationId,
       lastSeenAt: copilotChats.lastSeenAt,
       pinned: copilotChats.pinned,
+      deletedAt: copilotChats.deletedAt,
     })
     .from(copilotChats)
     .where(
       and(
         eq(copilotChats.userId, userId),
         eq(copilotChats.workspaceId, workspaceId),
-        eq(copilotChats.type, 'mothership')
+        eq(copilotChats.type, 'mothership'),
+        scope === 'archived' ? isNotNull(copilotChats.deletedAt) : isNull(copilotChats.deletedAt)
       )
     )
     .orderBy(desc(copilotChats.pinned), desc(copilotChats.updatedAt))
 
-  const streamMarkers = await reconcileChatStreamMarkers(
-    chats.map((c) => ({ chatId: c.id, streamId: c.activeStreamId })),
-    { repairVerifiedStaleMarkers: true }
-  )
+  const streamMarkers =
+    scope === 'archived'
+      ? null
+      : await reconcileChatStreamMarkers(
+          chats.map((c) => ({ chatId: c.id, streamId: c.activeStreamId })),
+          { repairVerifiedStaleMarkers: true }
+        )
 
   return chats.map((c) => ({
     id: c.id,
     title: c.title,
     updatedAt: c.updatedAt.toISOString(),
-    activeStreamId: streamMarkers.get(c.id)?.streamId ?? null,
+    activeStreamId: streamMarkers?.get(c.id)?.streamId ?? null,
     lastSeenAt: c.lastSeenAt ? c.lastSeenAt.toISOString() : null,
     pinned: c.pinned,
+    deletedAt: c.deletedAt ? c.deletedAt.toISOString() : null,
   }))
 }

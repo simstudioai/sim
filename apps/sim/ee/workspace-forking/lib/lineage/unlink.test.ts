@@ -1,15 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockTransaction, mockSetForkLockTimeout, mockAcquireForkEdgeLock } = vi.hoisted(() => ({
-  mockTransaction: vi.fn(),
+const { mockSetForkLockTimeout, mockAcquireForkEdgeLock } = vi.hoisted(() => ({
   mockSetForkLockTimeout: vi.fn(),
   mockAcquireForkEdgeLock: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ db: { transaction: mockTransaction } }))
 vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => ({
   setForkLockTimeout: mockSetForkLockTimeout,
   acquireForkEdgeLock: mockAcquireForkEdgeLock,
@@ -17,49 +16,40 @@ vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => ({
 
 import { unlinkForkEdge } from '@/ee/workspace-forking/lib/lineage/unlink'
 
-/** A fake tx whose update returns `updatedRows` and whose deletes record their calls. */
-function fakeTx(updatedRows: Array<{ id: string }>) {
-  const updateWhere = vi.fn(() => ({ returning: vi.fn().mockResolvedValue(updatedRows) }))
-  const updateSet = vi.fn(() => ({ where: updateWhere }))
-  const update = vi.fn(() => ({ set: updateSet }))
-  const deleteWhere = vi.fn().mockResolvedValue(undefined)
-  const del = vi.fn(() => ({ where: deleteWhere }))
-  return { tx: { update, delete: del }, update, updateSet, del }
-}
-
 const EDGE = { childWorkspaceId: 'child-ws', parentWorkspaceId: 'parent-ws' }
+
+afterAll(resetDbChainMock)
 
 describe('unlinkForkEdge', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
   })
 
   it('nulls the child pointer and purges all four edge tables under the edge lock', async () => {
-    const { tx, update, updateSet, del } = fakeTx([{ id: 'child-ws' }])
-    mockTransaction.mockImplementation(async (cb: (t: unknown) => unknown) => cb(tx))
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'child-ws' }])
 
     const result = await unlinkForkEdge(EDGE, 'req-1')
 
     expect(result).toEqual({ unlinked: true })
     expect(mockSetForkLockTimeout).toHaveBeenCalledTimes(1)
-    expect(mockAcquireForkEdgeLock).toHaveBeenCalledWith(tx, 'child-ws')
-    expect(update).toHaveBeenCalledTimes(1)
-    expect(updateSet).toHaveBeenCalledWith(expect.objectContaining({ forkedFromWorkspaceId: null }))
-    expect(del).toHaveBeenCalledTimes(4)
+    expect(mockAcquireForkEdgeLock).toHaveBeenCalledWith(dbChainMock.db, 'child-ws')
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ forkedFromWorkspaceId: null })
+    )
+    expect(dbChainMockFns.delete).toHaveBeenCalledTimes(4)
   })
 
   it('is an idempotent no-op when the edge was already dissolved', async () => {
-    const { tx, del } = fakeTx([])
-    mockTransaction.mockImplementation(async (cb: (t: unknown) => unknown) => cb(tx))
-
     const result = await unlinkForkEdge(EDGE)
 
     expect(result).toEqual({ unlinked: false })
-    expect(del).not.toHaveBeenCalled()
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 
   it('propagates a transaction failure without swallowing it', async () => {
-    mockTransaction.mockRejectedValue(new Error('lock timeout'))
+    dbChainMockFns.transaction.mockRejectedValueOnce(new Error('lock timeout'))
     await expect(unlinkForkEdge(EDGE)).rejects.toThrow('lock timeout')
   })
 })

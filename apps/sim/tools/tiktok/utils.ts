@@ -1,8 +1,9 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import type { ZodType } from 'zod'
-import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
+import { isPayloadSizeLimitError, readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { type TikTokApiVideo, tiktokPublishInitApiDataSchema } from '@/tools/tiktok/api-schemas'
-import type { TikTokApiError, TikTokPublishResponse, TikTokVideo } from '@/tools/tiktok/types'
+import type { TikTokApiError, TikTokDraftInitResponse, TikTokVideo } from '@/tools/tiktok/types'
 
 export const TIKTOK_API_RESPONSE_MAX_BYTES = 1024 * 1024
 
@@ -68,7 +69,7 @@ interface ParsedJsonObject {
   rawBody: string
 }
 
-interface TikTokPublishInitResult {
+interface TikTokDraftInitResult {
   success: boolean
   publishId: string
   error?: string
@@ -120,13 +121,16 @@ async function readJsonObject(
       label: 'TikTok API response',
       signal: options.signal,
     })
-  } catch {
+  } catch (error) {
     options.signal?.throwIfAborted()
+    const message = isPayloadSizeLimitError(error)
+      ? 'TikTok response exceeded the maximum supported size'
+      : `TikTok response could not be read: ${getErrorMessage(error, 'unknown read error')}`
     return {
       body: null,
       error: {
         code: 'invalid_response',
-        message: 'TikTok response exceeded the maximum supported size or could not be read',
+        message,
       },
       rawBody: '',
     }
@@ -221,9 +225,9 @@ export function assertTikTokArrayLength(values: unknown[], label: string, maximu
  * The internal Sim upload route and TikTok both return publish-init envelopes.
  * Reading and normalization share one boundary.
  */
-export async function readTikTokPublishInitResponse(
+export async function readTikTokDraftInitResponse(
   response: Response
-): Promise<TikTokPublishInitResult> {
+): Promise<TikTokDraftInitResult> {
   const parsed = await readJsonObject(response)
   if (!parsed.body) {
     return {
@@ -254,7 +258,7 @@ export async function readTikTokPublishInitResponse(
     return {
       success: false,
       publishId: '',
-      error: result.error.message ?? 'Failed to initiate post',
+      error: result.error.message || result.error.code || 'Failed to initiate post',
     }
   }
 
@@ -263,15 +267,15 @@ export async function readTikTokPublishInitResponse(
     : { success: false, publishId: '', error: 'No publish ID returned' }
 }
 
-/** Converts a normalized publish result into the shared tool response shape. */
-export function toTikTokPublishToolResponse(
-  result: TikTokPublishInitResult
-): TikTokPublishResponse {
+/** Converts a normalized draft-init result into the tool response shape. */
+export function toTikTokDraftInitToolResponse(
+  result: TikTokDraftInitResult
+): TikTokDraftInitResponse {
   return result.success
     ? { success: true, output: { publishId: result.publishId } }
     : {
         success: false,
         output: { publishId: '' },
-        error: result.error ?? 'Failed to initiate TikTok publish',
+        error: result.error ?? 'Failed to initiate TikTok draft upload',
       }
 }

@@ -1289,6 +1289,7 @@ import {
   gitlabDeleteUserTool,
   gitlabDenyAccessRequestTool,
   gitlabGetFileTool,
+  gitlabGetGroupTool,
   gitlabGetIssueTool,
   gitlabGetJobLogTool,
   gitlabGetMergeRequestChangesTool,
@@ -1299,6 +1300,7 @@ import {
   gitlabListAccessRequestsTool,
   gitlabListBranchesTool,
   gitlabListCommitsTool,
+  gitlabListGroupsTool,
   gitlabListInvitationsTool,
   gitlabListIssuesTool,
   gitlabListMembersTool,
@@ -1309,6 +1311,7 @@ import {
   gitlabListReleasesTool,
   gitlabListRepositoryTreeTool,
   gitlabListSamlGroupLinksTool,
+  gitlabListUserMembershipsTool,
   gitlabMergeMergeRequestTool,
   gitlabPlayJobTool,
   gitlabRejectUserTool,
@@ -2463,6 +2466,7 @@ import {
   mailgunListMessagesTool,
   mailgunSendMessageTool,
 } from '@/tools/mailgun'
+import { managedAgentRunSessionTool } from '@/tools/managed_agent'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from '@/tools/mem0'
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from '@/tools/memory'
 import {
@@ -4263,11 +4267,9 @@ import {
   thriveUpdateUserTool,
 } from '@/tools/thrive'
 import {
-  tiktokDirectPostVideoTool,
   tiktokGetPostStatusTool,
   tiktokGetUserTool,
   tiktokListVideosTool,
-  tiktokQueryCreatorInfoTool,
   tiktokQueryVideosTool,
   tiktokUploadVideoDraftTool,
 } from '@/tools/tiktok'
@@ -4528,12 +4530,14 @@ import {
   webflowUpdateItemTool,
 } from '@/tools/webflow'
 import {
+  whatsappGetMediaTool,
   whatsappMarkReadTool,
   whatsappSendInteractiveTool,
   whatsappSendMediaTool,
   whatsappSendMessageTool,
   whatsappSendReactionTool,
   whatsappSendTemplateTool,
+  whatsappUploadMediaTool,
 } from '@/tools/whatsapp'
 import {
   wikipediaPageContentTool,
@@ -4593,7 +4597,7 @@ import {
   workdayTerminateWorkerTool,
   workdayUpdateWorkerTool,
 } from '@/tools/workday'
-import { workflowExecutorTool } from '@/tools/workflow'
+import { customBlockExecutorTool, workflowExecutorTool } from '@/tools/workflow'
 import {
   xCreateBookmarkTool,
   xCreateTweetTool,
@@ -5485,6 +5489,7 @@ export const tools: Record<string, ToolConfig> = {
   mailgun_add_list_member: mailgunAddListMemberTool,
   mailgun_list_domains: mailgunListDomainsTool,
   mailgun_get_domain: mailgunGetDomainTool,
+  managed_agent_run_session: managedAgentRunSessionTool,
   sms_send: smsSendTool,
   jira_retrieve: jiraRetrieveTool,
   jira_update: jiraUpdateTool,
@@ -5925,6 +5930,8 @@ export const tools: Record<string, ToolConfig> = {
   whatsapp_send_interactive: whatsappSendInteractiveTool,
   whatsapp_send_reaction: whatsappSendReactionTool,
   whatsapp_mark_read: whatsappMarkReadTool,
+  whatsapp_upload_media: whatsappUploadMediaTool,
+  whatsapp_get_media: whatsappGetMediaTool,
   x_write: xWriteTool,
   x_read: xReadTool,
   x_search: xSearchTool,
@@ -6387,6 +6394,7 @@ export const tools: Record<string, ToolConfig> = {
   gitlab_delete_user_identity: gitlabDeleteUserIdentityTool,
   gitlab_deny_access_request: gitlabDenyAccessRequestTool,
   gitlab_get_file: gitlabGetFileTool,
+  gitlab_get_group: gitlabGetGroupTool,
   gitlab_get_issue: gitlabGetIssueTool,
   gitlab_get_job_log: gitlabGetJobLogTool,
   gitlab_get_merge_request: gitlabGetMergeRequestTool,
@@ -6397,6 +6405,7 @@ export const tools: Record<string, ToolConfig> = {
   gitlab_list_access_requests: gitlabListAccessRequestsTool,
   gitlab_list_branches: gitlabListBranchesTool,
   gitlab_list_commits: gitlabListCommitsTool,
+  gitlab_list_groups: gitlabListGroupsTool,
   gitlab_list_invitations: gitlabListInvitationsTool,
   gitlab_list_issues: gitlabListIssuesTool,
   gitlab_list_members: gitlabListMembersTool,
@@ -6407,6 +6416,7 @@ export const tools: Record<string, ToolConfig> = {
   gitlab_list_releases: gitlabListReleasesTool,
   gitlab_list_repository_tree: gitlabListRepositoryTreeTool,
   gitlab_list_saml_group_links: gitlabListSamlGroupLinksTool,
+  gitlab_list_user_memberships: gitlabListUserMembershipsTool,
   gitlab_merge_merge_request: gitlabMergeMergeRequestTool,
   gitlab_play_job: gitlabPlayJobTool,
   gitlab_reject_user: gitlabRejectUserTool,
@@ -7518,11 +7528,9 @@ export const tools: Record<string, ToolConfig> = {
   thrive_remove_user_tags: thriveRemoveUserTagsTool,
   thrive_update_user_skills: thriveUpdateUserSkillsTool,
   thrive_get_skill_levels: thriveGetSkillLevelsTool,
-  tiktok_direct_post_video: tiktokDirectPostVideoTool,
   tiktok_get_post_status: tiktokGetPostStatusTool,
   tiktok_get_user: tiktokGetUserTool,
   tiktok_list_videos: tiktokListVideosTool,
-  tiktok_query_creator_info: tiktokQueryCreatorInfoTool,
   tiktok_query_videos: tiktokQueryVideosTool,
   tiktok_upload_video_draft: tiktokUploadVideoDraftTool,
   tinybird_events: tinybirdEventsTool,
@@ -8183,6 +8191,7 @@ export const tools: Record<string, ToolConfig> = {
   google_forms_delete_watch: googleFormsDeleteWatchTool,
   google_forms_renew_watch: googleFormsRenewWatchTool,
   workflow_executor: workflowExecutorTool,
+  deployed_block_executor: customBlockExecutorTool,
   wealthbox_read_contact: wealthboxReadContactTool,
   wealthbox_write_contact: wealthboxWriteContactTool,
   wealthbox_read_task: wealthboxReadTaskTool,

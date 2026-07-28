@@ -14,11 +14,16 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('BillingInvoices')
 
-/** Cap the number of invoices returned to the most recent statements. */
-const MAX_INVOICES = 10
+/** Cap the number of invoices returned to the most recent statements; the UI links out to Stripe's portal for the full history. */
+const MAX_INVOICES = 5
 
-/** Stripe page size when scanning for finalized invoices; also bounds the has-more probe. */
-const STRIPE_PAGE_SIZE = MAX_INVOICES + 1
+/**
+ * Stripe list page size when scanning for finalized invoices. Kept independent of
+ * (and larger than) `MAX_INVOICES` so lowering the display cap never shrinks the
+ * draft-scan window — a long tail of interspersed draft invoices could otherwise
+ * bury finalized statements past the `MAX_STRIPE_PAGES` cap and hide the section.
+ */
+const STRIPE_PAGE_SIZE = 20
 
 /** Safety cap on pagination when a customer has many draft invoices interspersed. */
 const MAX_STRIPE_PAGES = 5
@@ -63,6 +68,7 @@ async function collectFinalizedInvoices(
       customer: stripeCustomerId,
       limit: STRIPE_PAGE_SIZE,
       starting_after: startingAfter,
+      expand: ['data.lines'],
     })
 
     invoices.push(
@@ -130,17 +136,21 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const finalized = await collectFinalizedInvoices(stripe, stripeCustomerId)
     const hasMore = finalized.invoices.length > MAX_INVOICES || finalized.stripeHasMore
-    const invoices = finalized.invoices.slice(0, MAX_INVOICES).map((invoice) => ({
-      id: invoice.id as string,
-      number: invoice.number ?? null,
-      created: invoice.created,
-      total: invoice.total,
-      amountPaid: invoice.amount_paid,
-      currency: invoice.currency,
-      status: invoice.status ?? null,
-      hostedInvoiceUrl: invoice.hosted_invoice_url ?? null,
-      invoicePdf: invoice.invoice_pdf ?? null,
-    }))
+    const invoices = finalized.invoices.slice(0, MAX_INVOICES).map((invoice) => {
+      const lineDescription = invoice.lines?.data.find((line) => line.description)?.description
+      return {
+        id: invoice.id as string,
+        number: invoice.number ?? null,
+        created: invoice.created,
+        total: invoice.total,
+        amountPaid: invoice.amount_paid,
+        currency: invoice.currency,
+        status: invoice.status ?? null,
+        description: invoice.description ?? lineDescription ?? null,
+        hostedInvoiceUrl: invoice.hosted_invoice_url ?? null,
+        invoicePdf: invoice.invoice_pdf ?? null,
+      }
+    })
 
     return NextResponse.json({ success: true, invoices, hasMore })
   } catch (error) {

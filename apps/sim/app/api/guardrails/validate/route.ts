@@ -16,6 +16,7 @@ import {
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
 import { validateJson } from '@/lib/guardrails/validate_json'
 import { validatePII } from '@/lib/guardrails/validate_pii'
@@ -63,6 +64,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       piiEntityTypes,
       piiMode,
       piiLanguage,
+      piiCustomPatterns,
     } = body
 
     if (!validationType) {
@@ -280,6 +282,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       piiEntityTypes,
       piiMode,
       piiLanguage,
+      piiCustomPatterns,
       authHeaders,
       requestId
     )
@@ -392,6 +395,7 @@ async function executeValidation(
   piiEntityTypes: string[] | undefined,
   piiMode: string | undefined,
   piiLanguage: string | undefined,
+  piiCustomPatterns: CustomPiiPattern[] | undefined,
   authHeaders: { cookie?: string; authorization?: string; billingAttribution?: string } | undefined,
   requestId: string
 ): Promise<{
@@ -450,6 +454,7 @@ async function executeValidation(
       entityTypes: piiEntityTypes || [], // Empty array = detect all PII types
       mode: (piiMode as 'block' | 'mask') || 'block', // Default to block mode
       language: piiLanguage || 'en',
+      customPatterns: piiCustomPatterns,
       requestId,
     })
   }

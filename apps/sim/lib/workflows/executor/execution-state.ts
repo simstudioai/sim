@@ -142,8 +142,12 @@ export async function getLatestExecutionStateWithExecutionId(
       workflowId: row.workflowId,
       workspaceId: row.workspaceId,
       executionData: {
-        executionState: row.executionState,
-        [TRACE_STORE_REF_KEY]: row.traceStoreRef,
+        ...(row.executionState !== null && row.executionState !== undefined
+          ? { executionState: row.executionState }
+          : {}),
+        ...(row.traceStoreRef !== null && row.traceStoreRef !== undefined
+          ? { [TRACE_STORE_REF_KEY]: row.traceStoreRef }
+          : {}),
       },
     })
     if (state) return { executionId: row.executionId, state }

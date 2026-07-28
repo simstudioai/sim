@@ -161,6 +161,7 @@ function buildAppToolParams(
     requestMode: context.requestMode,
     currentAgentId: context.currentAgentId,
     enforceCredentialAccess: true,
+    ...(context.billingAttribution ? { billingAttribution: context.billingAttribution } : {}),
   }
 
   return result

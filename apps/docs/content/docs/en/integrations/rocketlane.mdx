@@ -38,7 +38,7 @@ Create a new Rocketlane project with a customer, owner, dates, team members, tem
 | `memberUserIds` | array | No | User IDs of team members from your organization to add to the project |
 | `customerUserIds` | array | No | User IDs of customer stakeholders to add to the project |
 | `customerChampionUserId` | number | No | User ID of the customer champion |
-| `fields` | array | No | Custom field assignments, each with fieldId and fieldValue \(string or number matching the field type\) |
+| `fields` | array | No | Custom field assignments, each with fieldId and fieldValue \(string, number, or number array matching the field type\) |
 | `sources` | array | No | Project templates to import at creation, each with templateId, startDate \(YYYY-MM-DD\), and optional prefix |
 | `placeholders` | array | No | Placeholder-to-user mappings, each with placeholderId and user \(\{ userId \} or \{ emailId \}\); ignored unless the project is built from sources |
 | `assignProjectOwner` | boolean | No | Automatically assign unassigned tasks to the project owner \(skipped when no sources are used\) |
@@ -448,7 +448,7 @@ Update a Rocketlane project by ID, including name, dates, visibility, owner, sta
 | `ownerUserId` | number | No | User ID of the new project owner \(transfers ownership and revokes access for the previous owner\) |
 | `ownerEmailId` | string | No | Email of the new project owner |
 | `statusValue` | number | No | Value \(identifier\) of the project status |
-| `fields` | array | No | Custom field assignments, each with fieldId and fieldValue \(string or number matching the field type\) |
+| `fields` | array | No | Custom field assignments, each with fieldId and fieldValue \(string, number, or number array matching the field type\) |
 | `annualizedRecurringRevenue` | number | No | Recurring revenue of the customer subscriptions for a single calendar year |
 | `projectFee` | number | No | Total fee charged for the project |
 | `autoAllocation` | boolean | No | Whether auto allocation is enabled for the project |
@@ -1129,6 +1129,8 @@ Assign a placeholder in a Rocketlane project to a user
 |     ↳ `role` | string | Role name of the assigned user |
 |   ↳ `hourlyCostRate` | number | Latest hourly cost rate for the placeholder |
 |   ↳ `costRateCurrency` | string | Currency for the cost rate |
+|   ↳ `hourlyBillRate` | number | Latest hourly bill rate for the placeholder |
+|   ↳ `billRateCurrency` | string | Currency for the bill rate |
 
 ### `rocketlane_unassign_placeholders`
 
@@ -1261,6 +1263,8 @@ Unassign a placeholder from its user in a Rocketlane project
 |     ↳ `role` | string | Role name of the assigned user |
 |   ↳ `hourlyCostRate` | number | Latest hourly cost rate for the placeholder |
 |   ↳ `costRateCurrency` | string | Currency for the cost rate |
+|   ↳ `hourlyBillRate` | number | Latest hourly bill rate for the placeholder |
+|   ↳ `billRateCurrency` | string | Currency for the bill rate |
 
 ### `rocketlane_create_task`
 

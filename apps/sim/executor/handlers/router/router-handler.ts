@@ -13,7 +13,8 @@ import {
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAuthHeaders } from '@/executor/utils/http'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
-import { calculateCost, getProviderFromModel } from '@/providers/utils'
+import { resolveProxiedModelCost } from '@/providers/cost-policy'
+import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('RouterBlockHandler')
@@ -145,12 +146,7 @@ export class RouterBlockHandler implements BlockHandler {
         total: DEFAULTS.TOKENS.TOTAL,
       }
 
-      const cost = calculateCost(
-        result.model,
-        tokens.input || DEFAULTS.TOKENS.PROMPT,
-        tokens.output || DEFAULTS.TOKENS.COMPLETION,
-        false
-      )
+      const cost = resolveProxiedModelCost(result.cost)
 
       return {
         prompt: inputs.prompt,
@@ -331,12 +327,7 @@ export class RouterBlockHandler implements BlockHandler {
         total: DEFAULTS.TOKENS.TOTAL,
       }
 
-      const cost = calculateCost(
-        result.model,
-        tokens.input || DEFAULTS.TOKENS.PROMPT,
-        tokens.output || DEFAULTS.TOKENS.COMPLETION,
-        false
-      )
+      const cost = resolveProxiedModelCost(result.cost)
 
       return {
         context: inputs.context,

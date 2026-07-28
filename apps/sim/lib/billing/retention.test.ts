@@ -13,7 +13,7 @@ function settings(rules: PiiRedactionRule[]): DataRetentionSettings {
   return { piiRedaction: { rules } }
 }
 
-const DISABLED = { enabled: false, entityTypes: [], language: 'en' }
+const DISABLED = { enabled: false, entityTypes: [], language: 'en', customPatterns: [] }
 
 describe('resolveEffectivePiiRedaction', () => {
   const allRule: PiiRedactionRule = {
@@ -31,7 +31,12 @@ describe('resolveEffectivePiiRedaction', () => {
       expect(result).toEqual({
         input: DISABLED,
         blockOutputs: DISABLED,
-        logs: { enabled: true, entityTypes: ['EMAIL_ADDRESS', 'PHONE_NUMBER'], language: 'en' },
+        logs: {
+          enabled: true,
+          entityTypes: ['EMAIL_ADDRESS', 'PHONE_NUMBER'],
+          language: 'en',
+          customPatterns: [],
+        },
       })
     })
 
@@ -46,7 +51,7 @@ describe('resolveEffectivePiiRedaction', () => {
       expect(result).toEqual({
         input: DISABLED,
         blockOutputs: DISABLED,
-        logs: { enabled: true, entityTypes: ['US_SSN'], language: 'en' },
+        logs: { enabled: true, entityTypes: ['US_SSN'], language: 'en', customPatterns: [] },
       })
     })
 
@@ -57,7 +62,12 @@ describe('resolveEffectivePiiRedaction', () => {
         ]),
         workspaceId: 'ws-1',
       })
-      expect(result.logs).toEqual({ enabled: true, entityTypes: ['ES_NIF'], language: 'es' })
+      expect(result.logs).toEqual({
+        enabled: true,
+        entityTypes: ['ES_NIF'],
+        language: 'es',
+        customPatterns: [],
+      })
     })
 
     it('falls back to en when a stored language is unsupported/stale', () => {
@@ -67,7 +77,12 @@ describe('resolveEffectivePiiRedaction', () => {
         ]),
         workspaceId: 'ws-1',
       })
-      expect(result.logs).toEqual({ enabled: true, entityTypes: ['EMAIL_ADDRESS'], language: 'en' })
+      expect(result.logs).toEqual({
+        enabled: true,
+        entityTypes: ['EMAIL_ADDRESS'],
+        language: 'en',
+        customPatterns: [],
+      })
     })
 
     it('exempts a workspace when its specific flat rule has no entity types', () => {
@@ -102,9 +117,19 @@ describe('resolveEffectivePiiRedaction', () => {
         workspaceId: 'ws-1',
       })
       expect(result).toEqual({
-        input: { enabled: true, entityTypes: ['PERSON'], language: 'es' },
-        blockOutputs: { enabled: true, entityTypes: ['EMAIL_ADDRESS'], language: 'en' },
-        logs: { enabled: true, entityTypes: ['US_SSN', 'PHONE_NUMBER'], language: 'en' },
+        input: { enabled: true, entityTypes: ['PERSON'], language: 'es', customPatterns: [] },
+        blockOutputs: {
+          enabled: true,
+          entityTypes: ['EMAIL_ADDRESS'],
+          language: 'en',
+          customPatterns: [],
+        },
+        logs: {
+          enabled: true,
+          entityTypes: ['US_SSN', 'PHONE_NUMBER'],
+          language: 'en',
+          customPatterns: [],
+        },
       })
     })
 
@@ -125,7 +150,12 @@ describe('resolveEffectivePiiRedaction', () => {
       })
       expect(result.input).toEqual(DISABLED)
       expect(result.blockOutputs).toEqual(DISABLED)
-      expect(result.logs).toEqual({ enabled: true, entityTypes: ['PERSON'], language: 'en' })
+      expect(result.logs).toEqual({
+        enabled: true,
+        entityTypes: ['PERSON'],
+        language: 'en',
+        customPatterns: [],
+      })
     })
 
     it('strips spaCy-NER entities from blockOutputs at resolve time (regex-only)', () => {
@@ -183,9 +213,50 @@ describe('resolveEffectivePiiRedaction', () => {
         ]),
         workspaceId: 'ws-1',
       })
-      expect(result.input).toEqual({ enabled: true, entityTypes: ['PERSON'], language: 'en' })
+      expect(result.input).toEqual({
+        enabled: true,
+        entityTypes: ['PERSON'],
+        language: 'en',
+        customPatterns: [],
+      })
       // The all rule's logs entity types are NOT unioned in.
       expect(result.logs).toEqual(DISABLED)
+    })
+
+    it('carries custom patterns through each stage (blockOutputs strips NER but keeps them)', () => {
+      const result = resolveEffectivePiiRedaction({
+        orgSettings: settings([
+          {
+            id: 'r-1',
+            workspaceId: 'ws-1',
+            stages: {
+              input: {
+                enabled: true,
+                entityTypes: [],
+                customPatterns: [{ name: 'Emp', regex: 'EMP-\\d{6}', replacement: '<EMP>' }],
+              },
+              blockOutputs: {
+                enabled: true,
+                entityTypes: ['PERSON'],
+                customPatterns: [{ name: 'Tck', regex: 'TCK-\\d+', replacement: '<TCK>' }],
+              },
+              logs: stage(false, []),
+            },
+          },
+        ]),
+        workspaceId: 'ws-1',
+      })
+      // Input: enabled by custom pattern alone (no entity types).
+      expect(result.input.enabled).toBe(true)
+      expect(result.input.customPatterns).toEqual([
+        { name: 'Emp', regex: 'EMP-\\d{6}', replacement: '<EMP>' },
+      ])
+      // Block outputs: NER stripped, but the custom pattern keeps the stage enabled.
+      expect(result.blockOutputs.entityTypes).toEqual([])
+      expect(result.blockOutputs.enabled).toBe(true)
+      expect(result.blockOutputs.customPatterns).toEqual([
+        { name: 'Tck', regex: 'TCK-\\d+', replacement: '<TCK>' },
+      ])
     })
   })
 

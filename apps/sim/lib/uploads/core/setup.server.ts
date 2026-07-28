@@ -7,6 +7,7 @@ import {
   getStorageProvider,
   S3_CONFIG,
   USE_BLOB_STORAGE,
+  USE_GCS_STORAGE,
   USE_S3_STORAGE,
 } from '@/lib/uploads/config'
 
@@ -30,6 +31,11 @@ async function ensureUploadsDirectory() {
 
   if (USE_BLOB_STORAGE) {
     logger.info('Using Azure Blob storage, skipping local uploads directory creation')
+    return true
+  }
+
+  if (USE_GCS_STORAGE) {
+    logger.info('Using Google Cloud Storage, skipping local uploads directory creation')
     return true
   }
 
@@ -94,6 +100,18 @@ if (typeof process !== 'undefined') {
         `Using S3-compatible endpoint: ${env.S3_ENDPOINT} (path-style: ${S3_CONFIG.forcePathStyle})`
       )
     }
+  } else if (USE_GCS_STORAGE) {
+    // Verify GCS credentials
+    if (env.GCS_CREDENTIALS_JSON) {
+      logger.info('Using inline service-account credentials (GCS_CREDENTIALS_JSON)')
+    } else {
+      logger.info(
+        'GCS_CREDENTIALS_JSON not set — using Application Default Credentials (Workload Identity or GOOGLE_APPLICATION_CREDENTIALS)'
+      )
+      logger.info(
+        'Signed URL generation without a private key requires the iam.serviceAccounts.signBlob permission (roles/iam.serviceAccountTokenCreator)'
+      )
+    }
   } else {
     // Local storage mode
     logger.info('Using local file storage')
@@ -120,5 +138,11 @@ if (typeof process !== 'undefined') {
   }
   if (USE_S3_STORAGE && env.S3_COPILOT_BUCKET_NAME) {
     logger.info(`S3 copilot bucket: ${env.S3_COPILOT_BUCKET_NAME}`)
+  }
+  if (USE_GCS_STORAGE && env.GCS_KB_BUCKET_NAME) {
+    logger.info(`GCS knowledge base bucket: ${env.GCS_KB_BUCKET_NAME}`)
+  }
+  if (USE_GCS_STORAGE && env.GCS_COPILOT_BUCKET_NAME) {
+    logger.info(`GCS copilot bucket: ${env.GCS_COPILOT_BUCKET_NAME}`)
   }
 }

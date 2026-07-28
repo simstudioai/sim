@@ -1,7 +1,6 @@
 export { Button, buttonVariants } from './button'
 export { GeneratedPasswordInput } from './generated-password-input'
 export { Progress } from './progress'
-export { SearchHighlight } from './search-highlight'
 export {
   Select,
   SelectContent,

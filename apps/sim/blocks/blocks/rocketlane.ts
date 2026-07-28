@@ -2886,7 +2886,7 @@ export const RocketlaneBlockMeta = {
   templates: [
     {
       icon: RocketlaneIcon,
-      title: 'Client onboarding kickoff',
+      title: 'Rocketlane onboarding kickoff',
       prompt:
         'Build a workflow that creates a Rocketlane project from an onboarding template for a new customer, assigns the implementation manager placeholder, adds the account team as members, and posts a kickoff summary with the project details to Slack.',
       modules: ['agent', 'workflows'],
@@ -2896,7 +2896,7 @@ export const RocketlaneBlockMeta = {
     },
     {
       icon: RocketlaneIcon,
-      title: 'Weekly project status digest',
+      title: 'Rocketlane status digest',
       prompt:
         'Create a scheduled weekly workflow that lists active Rocketlane projects with their status and due dates, summarizes progress and anything overdue per customer, and emails the digest to the delivery team every Monday morning.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -2906,7 +2906,7 @@ export const RocketlaneBlockMeta = {
     },
     {
       icon: RocketlaneIcon,
-      title: 'Overdue task escalation',
+      title: 'Rocketlane task escalation',
       prompt:
         'Build a scheduled daily workflow that lists Rocketlane tasks with a due date before today that are not complete, marks them at risk, and posts an escalation to Slack tagging each task name, project, and assignees.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -2916,7 +2916,7 @@ export const RocketlaneBlockMeta = {
     },
     {
       icon: RocketlaneIcon,
-      title: 'Time tracking rollup',
+      title: 'Rocketlane time rollup',
       prompt:
         'Create a scheduled weekly workflow that searches Rocketlane time entries for the past week, totals billable and non-billable minutes per project, and posts a formatted utilization rollup to Slack.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -2926,7 +2926,7 @@ export const RocketlaneBlockMeta = {
     },
     {
       icon: RocketlaneIcon,
-      title: 'Invoice payment monitor',
+      title: 'Rocketlane invoice monitor',
       prompt:
         'Build a scheduled workflow that lists Rocketlane invoices with an outstanding amount greater than zero and a due date in the past, pulls their payments, and emails the finance team a list of overdue invoices with amounts outstanding.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -2936,7 +2936,7 @@ export const RocketlaneBlockMeta = {
     },
     {
       icon: RocketlaneIcon,
-      title: 'Resource allocation report',
+      title: 'Rocketlane allocation report',
       prompt:
         'Create a workflow that lists Rocketlane resource allocations for the next two weeks, writes each member, project, and allocation range into a table, and flags team members who appear in overlapping allocations.',
       modules: ['tables', 'agent', 'workflows'],
@@ -2945,7 +2945,7 @@ export const RocketlaneBlockMeta = {
     },
     {
       icon: RocketlaneIcon,
-      title: 'Timesheet reminder',
+      title: 'Rocketlane timesheet reminder',
       prompt:
         'Build a scheduled Friday workflow that lists active Rocketlane team members, searches this week’s time entries per user, and sends a Slack reminder to anyone who has logged less than their expected hours.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -2955,7 +2955,7 @@ export const RocketlaneBlockMeta = {
     },
     {
       icon: RocketlaneIcon,
-      title: 'New project scaffolding',
+      title: 'Rocketlane project scaffolding',
       prompt:
         'Create a workflow that scaffolds a delivery project in Rocketlane: create the project, add Discovery, Implementation, and Go-live phases with dates, create kickoff tasks in each phase with assignees, and set up a shared space with a kickoff document.',
       modules: ['agent', 'workflows'],

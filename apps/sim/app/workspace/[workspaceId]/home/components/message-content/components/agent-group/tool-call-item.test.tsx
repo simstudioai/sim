@@ -41,6 +41,15 @@ describe('ToolCallItem', () => {
     expect(markup).not.toContain('Writing brief.md')
   })
 
+  it('defensively applies the completed verb for every successful tool row', () => {
+    const markup = renderToStaticMarkup(
+      <ToolCallItem toolName='diff_workflows' displayTitle='Comparing workflows' status='success' />
+    )
+
+    expect(markup).toContain('Compared workflows')
+    expect(markup).not.toContain('Comparing workflows')
+  })
+
   it('renders the owning integration icon for a resolved integration operation', () => {
     vi.mocked(getBlockByToolName).mockReturnValueOnce({
       name: 'Gmail',

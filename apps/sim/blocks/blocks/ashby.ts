@@ -1037,7 +1037,7 @@ export const AshbyBlockMeta = {
     },
     {
       icon: AshbyIcon,
-      title: 'Interview note logger',
+      title: 'Ashby interview note logger',
       prompt:
         'Build a workflow that runs after every interview is logged in your meeting tool, summarizes the transcript, scores the candidate against the job requirements, creates a structured note on the matching Ashby candidate, and notifies the hiring manager in Slack.',
       modules: ['agent', 'workflows'],
@@ -1047,7 +1047,7 @@ export const AshbyBlockMeta = {
     },
     {
       icon: AshbyIcon,
-      title: 'Stage-change responder',
+      title: 'Ashby stage-change responder',
       prompt:
         'Create a workflow that detects when an Ashby application moves into a new stage, sends the candidate a stage-appropriate email, prepares the interviewer brief in a file, and updates a recruiting tracking table so coordinators always know who is next.',
       modules: ['tables', 'files', 'agent', 'workflows'],
@@ -1066,7 +1066,7 @@ export const AshbyBlockMeta = {
     },
     {
       icon: AshbyIcon,
-      title: 'Candidate research enricher',
+      title: 'Ashby candidate enricher',
       prompt:
         'Create a workflow that takes new Ashby candidates, researches each across LinkedIn and the web for relevant background, writes a structured profile summary onto the candidate as an Ashby note, and updates a recruiting table with research links.',
       modules: ['tables', 'agent', 'workflows'],
@@ -1076,7 +1076,7 @@ export const AshbyBlockMeta = {
     },
     {
       icon: AshbyIcon,
-      title: 'Offer ready brief',
+      title: 'Ashby offer-ready brief',
       prompt:
         'Build a workflow that runs when an Ashby application reaches the offer stage, gathers compensation benchmarks, interview feedback, and candidate priorities, drafts an offer brief file for the hiring manager, and Slacks the people team to start the offer process.',
       modules: ['agent', 'files', 'workflows'],

@@ -68,6 +68,105 @@ export function getGitLabApiBase(rawHost: unknown): string {
 }
 
 /**
+ * The GitLab member access levels, as the display name shown in the block and
+ * the integer the REST API expects. This is the single source of truth for the
+ * access-level enum: the block derives its combobox options from it, and runtime
+ * coercion validates against it.
+ *
+ * @see https://docs.gitlab.com/api/members/#roles
+ */
+export const GITLAB_ACCESS_LEVELS = [
+  { name: 'No access', value: 0 },
+  { name: 'Minimal access', value: 5 },
+  { name: 'Guest', value: 10 },
+  { name: 'Planner', value: 15 },
+  { name: 'Reporter', value: 20 },
+  { name: 'Security Manager', value: 25 },
+  { name: 'Developer', value: 30 },
+  { name: 'Maintainer', value: 40 },
+  { name: 'Owner', value: 50 },
+] as const
+
+/**
+ * Options for the block's access-level combobox. The `id` is the integer as a
+ * string so a literal pick serializes to the same value GitLab expects, while a
+ * reference expression (e.g. `<resolve.result.level>`) passes through untouched.
+ */
+export const GITLAB_ACCESS_LEVEL_OPTIONS: { label: string; id: string }[] =
+  GITLAB_ACCESS_LEVELS.map((level) => ({ label: level.name, id: String(level.value) }))
+
+const GITLAB_ACCESS_LEVEL_VALUES = new Set<number>(GITLAB_ACCESS_LEVELS.map((level) => level.value))
+
+const GITLAB_ACCESS_LEVEL_BY_NAME = new Map<string, number>(
+  GITLAB_ACCESS_LEVELS.map((level) => [level.name.toLowerCase(), level.value])
+)
+
+/**
+ * Error thrown when a resolved access-level value is not one of the known GitLab
+ * levels. Kept distinct so callers can surface a permissions-specific message.
+ */
+export class InvalidGitLabAccessLevelError extends Error {
+  constructor(value: unknown) {
+    const valid = GITLAB_ACCESS_LEVELS.map((level) => `${level.name} (${level.value})`).join(', ')
+    super(`Invalid GitLab access level: ${JSON.stringify(value)}. Expected one of: ${valid}.`)
+    this.name = 'InvalidGitLabAccessLevelError'
+  }
+}
+
+/**
+ * Whether an access-level field carries a value to send. Distinguishes a real
+ * level - including numeric `0` ("No access") - from "not provided" (undefined,
+ * null, or the empty-string "leave unchanged" sentinel). A bare truthiness check
+ * would wrongly treat a runtime-resolved `0` as absent, rejecting it on required
+ * operations and silently omitting it on optional ones.
+ */
+export function hasGitLabAccessLevel(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== ''
+}
+
+/**
+ * Coerces a runtime access-level value to the GitLab integer. Accepts an integer
+ * (`30`), a numeric string (`'30'`), or a level name (`'Developer'`,
+ * case-insensitive). This runs at execution time - after reference expressions
+ * have resolved - so a level computed from a policy table (by name or number) is
+ * accepted while any value outside the enum fails loudly.
+ *
+ * @throws {InvalidGitLabAccessLevelError} when the value is not a known level.
+ */
+export function coerceGitLabAccessLevel(value: unknown): number {
+  if (typeof value === 'number' && GITLAB_ACCESS_LEVEL_VALUES.has(value)) {
+    return value
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    const byName = GITLAB_ACCESS_LEVEL_BY_NAME.get(trimmed.toLowerCase())
+    if (byName !== undefined) return byName
+    const numeric = Number(trimmed)
+    if (trimmed !== '' && Number.isFinite(numeric) && GITLAB_ACCESS_LEVEL_VALUES.has(numeric)) {
+      return numeric
+    }
+  }
+  throw new InvalidGitLabAccessLevelError(value)
+}
+
+/**
+ * Coerces an optional GitLab `min_access_level` filter value. Returns undefined
+ * when the field is absent or blank, otherwise coerces via the shared
+ * access-level rules and rejects "No access" (0) — GitLab's minimum-access
+ * filter floor is 5 (Minimal access). Runs at execution time so a direct tool
+ * call with an out-of-enum value (e.g. 31 or 999) fails loudly with a clear
+ * error instead of sending an invalid filter to GitLab.
+ *
+ * @throws {InvalidGitLabAccessLevelError} when the value is not a valid filter level.
+ */
+export function coerceGitLabMinAccessLevel(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  const level = coerceGitLabAccessLevel(value)
+  if (level === 0) throw new InvalidGitLabAccessLevelError(value)
+  return level
+}
+
+/**
  * A GitLab access/membership resource is scoped either to a project or a group.
  * The two share an identical endpoint surface (`/members`, `/invitations`,
  * `/access_requests`) that differs only in the leading path segment.
@@ -75,15 +174,37 @@ export function getGitLabApiBase(rawHost: unknown): string {
 export type GitLabResourceType = 'project' | 'group'
 
 /**
+ * Encodes a GitLab project/group id or path exactly once, regardless of
+ * whether the caller already URL-encoded it. GitLab's own API docs show
+ * namespaced paths pre-encoded (e.g. `groups/gitlab-org%2Fgitlab-test`), so
+ * callers - including LLM-authored block values that mirror that convention -
+ * may pass either `mygroup/myproject` or `mygroup%2Fmyproject`. Decoding
+ * first makes both inputs converge on the same single-encoded result;
+ * without it, a pre-encoded `%2F` gets re-encoded to `%252F`, GitLab decodes
+ * that once server-side to the literal string `%2F`, and the lookup 404s.
+ */
+function encodeGitLabResourceId(resourceId: string | number): string {
+  const raw = String(resourceId).trim()
+  let decoded = raw
+  try {
+    decoded = decodeURIComponent(raw)
+  } catch {
+    // Not a valid percent-encoding (e.g. a bare `%`) - treat as already raw.
+  }
+  return encodeURIComponent(decoded)
+}
+
+/**
  * Builds the path segment for a project- or group-scoped access resource, e.g.
  * `projects/mygroup%2Fmyproject` or `groups/42`. The id is URL-encoded so that
- * URL-encoded paths (`mygroup/myproject`) and numeric ids both work.
+ * raw paths (`mygroup/myproject`), pre-encoded paths (`mygroup%2Fmyproject`),
+ * and numeric ids all work.
  */
 export function getGitLabResourcePath(
   resourceType: GitLabResourceType,
   resourceId: string | number
 ): string {
-  const encodedId = encodeURIComponent(String(resourceId).trim())
+  const encodedId = encodeGitLabResourceId(resourceId)
   const segment = resourceType === 'group' ? 'groups' : 'projects'
   return `${segment}/${encodedId}`
 }

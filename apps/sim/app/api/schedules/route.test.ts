@@ -9,13 +9,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
-vi.mock('drizzle-orm', () => ({
-  eq: vi.fn(),
-  and: vi.fn(),
-  or: vi.fn(),
-  isNull: vi.fn(),
-}))
-
 import { GET } from '@/app/api/schedules/route'
 
 function createRequest(url: string): NextRequest {

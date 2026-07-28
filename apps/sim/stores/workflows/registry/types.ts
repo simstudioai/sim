@@ -21,6 +21,8 @@ export interface WorkflowMetadata {
   sortOrder: number
   archivedAt?: Date | null
   locked?: boolean
+  forkSyncExcluded?: boolean
+  isDeployed?: boolean
 }
 
 export type HydrationPhase = 'idle' | 'creating' | 'state-loading' | 'ready' | 'error'

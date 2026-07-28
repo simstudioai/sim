@@ -168,6 +168,7 @@ export const workflow = pgTable(
     deployedAt: timestamp('deployed_at'),
     isPublicApi: boolean('is_public_api').notNull().default(false),
     locked: boolean('locked').notNull().default(false),
+    forkSyncExcluded: boolean('fork_sync_excluded').notNull().default(false),
     runCount: integer('run_count').notNull().default(0),
     lastRunAt: timestamp('last_run_at'),
     variables: json('variables').default('{}'),
@@ -1049,6 +1050,31 @@ export const skill = pgTable(
   })
 )
 
+/**
+ * Editor grants for a skill. A row makes the user an editor (edit, delete,
+ * share); workspace admins are derived editors and need no rows. Everyone with
+ * workspace access can see and use every skill regardless of rows.
+ */
+export const skillMember = pgTable(
+  'skill_member',
+  {
+    id: text('id').primaryKey(),
+    skillId: text('skill_id')
+      .notNull()
+      .references(() => skill.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    invitedBy: text('invited_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index('skill_member_user_id_idx').on(table.userId),
+    uniqueMembership: uniqueIndex('skill_member_unique').on(table.skillId, table.userId),
+  })
+)
+
 export const mothershipSettings = pgTable(
   'mothership_settings',
   {
@@ -1131,6 +1157,23 @@ export const chat = pgTable(
     // Output configuration
     outputConfigs: json('output_configs').default('[]'), // Array of {blockId, path} objects
 
+    /**
+     * When true, public chat SSE exposes provider thinking events. Independent
+     * of the `X-Sim-Stream-Protocol` header, which governs answer-text cadence
+     * rather than frame exposure. Default off — never derived from auth type or
+     * isSecureMode.
+     */
+    includeThinking: boolean('include_thinking').notNull().default(false),
+    /**
+     * When true, public chat SSE exposes tool lifecycle events. Independent of
+     * includeThinking and of the protocol header.
+     *
+     * Nullable only because the column was added after the table; readers treat
+     * null as false.
+     */
+    // contract-pending(any release): normalize nulls to false, then set DEFAULT false and NOT NULL — cosmetic only, since no reader distinguishes null from false
+    includeToolCalls: boolean('include_tool_calls'),
+
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -1152,6 +1195,13 @@ export const chat = pgTable(
   }
 )
 
+/** A user-supplied custom regex pattern; matches are replaced verbatim with `replacement`. */
+export interface CustomPiiPattern {
+  name: string
+  regex: string
+  replacement: string
+}
+
 /** Per-stage PII redaction policy stored on a {@link PiiRedactionRule}. */
 export interface PiiStagePolicy {
   enabled: boolean
@@ -1159,6 +1209,8 @@ export interface PiiStagePolicy {
   entityTypes: string[]
   /** Language whose Presidio recognizers apply (e.g. 'en', 'es'); defaults to English. */
   language?: string
+  /** User-supplied custom regex patterns applied alongside `entityTypes`. */
+  customPatterns?: CustomPiiPattern[]
 }
 
 /**
@@ -1220,12 +1272,36 @@ export interface DataRetentionSettings {
   retentionOverrides?: RetentionOverride[] | null
 }
 
+/**
+ * Org-level session policy (enterprise). Absent or empty = Better Auth
+ * defaults (30-day sliding sessions). `maxSessionHours` caps absolute session
+ * lifetime from creation; `idleTimeoutHours` caps time between refreshes.
+ * Enforced by clamping `session.expiresAt` in the Better Auth session
+ * create/update database hooks; `securityPolicyVersion` invalidates cached
+ * session cookies org-wide when bumped.
+ */
+export interface SessionPolicySettings {
+  /** Absolute session lifetime cap in hours from session creation. */
+  maxSessionHours?: number | null
+  /** Idle timeout in hours — session expires this long after its last refresh. */
+  idleTimeoutHours?: number | null
+}
+
 export const organization = pgTable('organization', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   slug: text('slug').notNull(),
   logo: text('logo'),
   metadata: json('metadata'),
+  sessionPolicySettings: json('session_policy_settings').$type<SessionPolicySettings>(),
+  /**
+   * Monotonic counter embedded in the Better Auth cookie-cache version for
+   * this org's members. Bumped on any security-policy change or org-wide
+   * session revocation so every cached session cookie in the org is
+   * invalidated (falls through to a DB session read) within the policy
+   * cache TTL instead of the 24h cookie-cache lifetime.
+   */
+  securityPolicyVersion: integer('security_policy_version').notNull().default(1),
   whitelabelSettings: json('whitelabel_settings').$type<{
     brandName?: string
     logoUrl?: string
@@ -2380,6 +2456,7 @@ export const copilotChats = pgTable(
     resources: jsonb('resources').notNull().default('[]'),
     lastSeenAt: timestamp('last_seen_at'),
     pinned: boolean('pinned').notNull().default(false),
+    deletedAt: timestamp('deleted_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -2403,6 +2480,11 @@ export const copilotChats = pgTable(
       sql`date_trunc('milliseconds', ${table.createdAt})`,
       table.id
     ),
+
+    // Soft-deleted chats surfaced in Recently Deleted (listed per user + workspace)
+    userWorkspaceDeletedPartialIdx: index('copilot_chats_user_workspace_deleted_partial_idx')
+      .on(table.userId, table.workspaceId)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
   })
 )
 
@@ -2958,6 +3040,57 @@ export const ssoProvider = pgTable(
     domainIdx: index('sso_provider_domain_idx').on(table.domain),
     userIdIdx: index('sso_provider_user_id_idx').on(table.userId),
     organizationIdIdx: index('sso_provider_organization_id_idx').on(table.organizationId),
+  })
+)
+
+/**
+ * An email domain an organization has claimed, and its verification state.
+ *
+ * A domain must be **verified** (via a DNS TXT challenge — the org places
+ * `verificationToken` in a `_sim-challenge.<domain>` record) before it can be
+ * configured for single sign-on: verifying proves the org controls the domain,
+ * which is the security precondition for wiring it to an identity provider.
+ * Existing `sso_provider` domains are grandfathered as `verified` by the
+ * backfill in migration 0266.
+ */
+export const ssoDomain = pgTable(
+  'sso_domain',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    /** Normalized (lowercase, registrable) domain — see `normalizeSSODomain`. */
+    domain: text('domain').notNull(),
+    /** `'pending'` until the DNS TXT record is observed, then `'verified'`. */
+    status: text('status').notNull().default('pending'),
+    /** High-entropy token placed in the domain's `_sim-challenge` TXT record. */
+    verificationToken: text('verification_token').notNull(),
+    verifiedAt: timestamp('verified_at'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationIdIdx: index('sso_domain_organization_id_idx').on(table.organizationId),
+    domainIdx: index('sso_domain_domain_idx').on(table.domain),
+    /**
+     * An org holds at most one row per domain. Makes claims idempotent under
+     * concurrency: two admins racing to add the same domain cannot create
+     * duplicate pending rows — the second insert hits this constraint.
+     */
+    orgDomainUnique: uniqueIndex('sso_domain_org_domain_unique').on(
+      table.organizationId,
+      table.domain
+    ),
+    /**
+     * A verified domain is globally unique — exactly one org owns it. Pending
+     * rows may coexist (multiple orgs can race to prove ownership), so the
+     * constraint is a partial unique index scoped to verified rows.
+     */
+    verifiedDomainUnique: uniqueIndex('sso_domain_verified_unique')
+      .on(table.domain)
+      .where(sql`status = 'verified'`),
   })
 )
 
@@ -3551,6 +3684,21 @@ export const userTableDefinitions = pgTable(
      * from application code — the trigger is the only writer (bypass-proof).
      */
     rowsVersion: bigint('rows_version', { mode: 'number' }).notNull().default(0),
+    /**
+     * @remarks
+     * Per-table mutation locks. Each guards one mutation verb; an admin toggles
+     * them independently. Enforced at the `lib/table` service layer (see
+     * `lib/table/mutation-locks.ts`), which covers every entry point — routes,
+     * workflow blocks, and Mothership — since all funnel through those helpers.
+     * A locked verb rejects with 423; toggling a lock requires workspace admin.
+     * Append-only = update + delete locked; read-only = all four locked. These
+     * are integrity controls (against accidental/agentic mutation), not
+     * confidentiality controls — reads and exports are never blocked.
+     */
+    schemaLocked: boolean('schema_locked').notNull().default(false),
+    insertLocked: boolean('insert_locked').notNull().default(false),
+    updateLocked: boolean('update_locked').notNull().default(false),
+    deleteLocked: boolean('delete_locked').notNull().default(false),
     archivedAt: timestamp('archived_at'),
     createdBy: text('created_by')
       .notNull()

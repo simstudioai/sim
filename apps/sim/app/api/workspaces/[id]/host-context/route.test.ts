@@ -1,17 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockGetWorkspaceHostContextForViewer } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
+const { mockGetWorkspaceHostContextForViewer } = vi.hoisted(() => ({
   mockGetWorkspaceHostContextForViewer: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
 }))
 
 vi.mock('@/lib/workspaces/host-context', () => ({
@@ -19,6 +13,8 @@ vi.mock('@/lib/workspaces/host-context', () => ({
 }))
 
 import { GET } from '@/app/api/workspaces/[id]/host-context/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const HOST_CONTEXT = {
   workspace: {

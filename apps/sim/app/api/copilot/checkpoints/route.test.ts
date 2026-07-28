@@ -3,43 +3,20 @@
  *
  * @vitest-environment node
  */
-import { authMockFns, workflowAuthzMockFns, workflowsUtilsMock } from '@sim/testing'
+import {
+  authMockFns,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+  workflowAuthzMockFns,
+  workflowsUtilsMock,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockSelect,
-  mockFrom,
-  mockWhere,
-  mockLimit,
-  mockOrderBy,
-  mockInsert,
-  mockValues,
-  mockReturning,
-  mockGetAccessibleCopilotChat,
-} = vi.hoisted(() => ({
-  mockSelect: vi.fn(),
-  mockFrom: vi.fn(),
-  mockWhere: vi.fn(),
-  mockLimit: vi.fn(),
-  mockOrderBy: vi.fn(),
-  mockInsert: vi.fn(),
-  mockValues: vi.fn(),
-  mockReturning: vi.fn(),
+const { mockGetAccessibleCopilotChat } = vi.hoisted(() => ({
   mockGetAccessibleCopilotChat: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockSelect,
-    insert: mockInsert,
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
-  desc: vi.fn((field: unknown) => ({ field, type: 'desc' })),
 }))
 
 vi.mock('@/lib/copilot/chat/lifecycle', () => ({
@@ -62,19 +39,10 @@ function createMockRequest(method: string, body: Record<string, unknown>): NextR
 describe('Copilot Checkpoints API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
 
     authMockFns.mockGetSession.mockResolvedValue(null)
 
-    mockSelect.mockReturnValue({ from: mockFrom })
-    mockFrom.mockReturnValue({ where: mockWhere })
-    mockWhere.mockReturnValue({
-      orderBy: mockOrderBy,
-      limit: mockLimit,
-    })
-    mockOrderBy.mockResolvedValue([])
-    mockLimit.mockResolvedValue([])
-    mockInsert.mockReturnValue({ values: mockValues })
-    mockValues.mockReturnValue({ returning: mockReturning })
     mockGetAccessibleCopilotChat.mockResolvedValue({
       id: 'chat-123',
       userId: 'user-123',
@@ -85,8 +53,8 @@ describe('Copilot Checkpoints API Route', () => {
     })
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   describe('POST', () => {
@@ -165,7 +133,7 @@ describe('Copilot Checkpoints API Route', () => {
         createdAt: new Date('2024-01-01'),
         updatedAt: new Date('2024-01-01'),
       }
-      mockReturning.mockResolvedValue([checkpoint])
+      dbChainMockFns.returning.mockResolvedValueOnce([checkpoint])
 
       const workflowState = { blocks: [], connections: [] }
       const req = createMockRequest('POST', {
@@ -192,8 +160,8 @@ describe('Copilot Checkpoints API Route', () => {
         },
       })
 
-      expect(mockInsert).toHaveBeenCalled()
-      expect(mockValues).toHaveBeenCalledWith({
+      expect(dbChainMockFns.insert).toHaveBeenCalled()
+      expect(dbChainMockFns.values).toHaveBeenCalledWith({
         userId: 'user-123',
         workflowId: 'workflow-123',
         chatId: 'chat-123',
@@ -214,7 +182,7 @@ describe('Copilot Checkpoints API Route', () => {
         createdAt: new Date('2024-01-01'),
         updatedAt: new Date('2024-01-01'),
       }
-      mockReturning.mockResolvedValue([checkpoint])
+      dbChainMockFns.returning.mockResolvedValueOnce([checkpoint])
 
       const workflowState = { blocks: [] }
       const req = createMockRequest('POST', {
@@ -234,7 +202,7 @@ describe('Copilot Checkpoints API Route', () => {
     it('should handle database errors during checkpoint creation', async () => {
       authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      mockReturning.mockRejectedValue(new Error('Database insert failed'))
+      dbChainMockFns.returning.mockRejectedValueOnce(new Error('Database insert failed'))
 
       const req = createMockRequest('POST', {
         workflowId: 'workflow-123',
@@ -317,7 +285,7 @@ describe('Copilot Checkpoints API Route', () => {
         },
       ]
 
-      mockOrderBy.mockResolvedValue(mockCheckpoints)
+      queueTableRows(schemaMock.workflowCheckpoints, mockCheckpoints)
 
       const req = new NextRequest('http://localhost:3000/api/copilot/checkpoints?chatId=chat-123')
 
@@ -349,15 +317,15 @@ describe('Copilot Checkpoints API Route', () => {
         ],
       })
 
-      expect(mockSelect).toHaveBeenCalled()
-      expect(mockWhere).toHaveBeenCalled()
-      expect(mockOrderBy).toHaveBeenCalled()
+      expect(dbChainMockFns.select).toHaveBeenCalled()
+      expect(dbChainMockFns.where).toHaveBeenCalled()
+      expect(dbChainMockFns.orderBy).toHaveBeenCalled()
     })
 
     it('should handle database errors when fetching checkpoints', async () => {
       authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      mockOrderBy.mockRejectedValue(new Error('Database query failed'))
+      dbChainMockFns.orderBy.mockRejectedValueOnce(new Error('Database query failed'))
 
       const req = new NextRequest('http://localhost:3000/api/copilot/checkpoints?chatId=chat-123')
 
@@ -371,7 +339,7 @@ describe('Copilot Checkpoints API Route', () => {
     it('should return empty array when no checkpoints found', async () => {
       authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      mockOrderBy.mockResolvedValue([])
+      queueTableRows(schemaMock.workflowCheckpoints, [])
 
       const req = new NextRequest('http://localhost:3000/api/copilot/checkpoints?chatId=chat-123')
 

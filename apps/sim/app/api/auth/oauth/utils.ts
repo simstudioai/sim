@@ -28,6 +28,13 @@ import {
   PROACTIVE_REFRESH_THRESHOLD_DAYS,
 } from '@/lib/oauth/microsoft'
 import {
+  extractSlackTeamId,
+  fanOutSlackTokenChain,
+  getFreshestSlackChain,
+  hasSlackChainMoved,
+  isSlackProvider,
+} from '@/lib/oauth/slack'
+import {
   getRecentTerminalError,
   isTerminalRefreshError,
   markCredentialDead,
@@ -658,25 +665,51 @@ interface CoalescedRefreshOptions {
   accountId: string
   providerId: string
   refreshToken: string
+  /** External provider account id (`account.accountId`), used to scope Slack refreshes per installation. */
+  providerAccountId?: string | null
   requestId?: string
   userId?: string
 }
+
+/**
+ * Slack lock budgets sized past `TOKEN_REFRESH_TIMEOUT_MS` (15s) in
+ * lib/oauth/oauth.ts: installation-keyed locks make every sibling row's request
+ * a follower of one refresh, so the TTL covers the provider call plus generous
+ * headroom for the surrounding DB reads and the fan-out write, and followers
+ * poll for the lock's full lifetime so a slow-but-successful refresh is still
+ * observed rather than reported as a failure. These budgets are latency knobs,
+ * not correctness guarantees — chain integrity under lock expiry or unlocked
+ * concurrent writers is enforced by the version-guarded fan-out
+ * (`ifChainUnchangedSince` in lib/oauth/slack.ts).
+ */
+const SLACK_LOCK_TTL_SEC = 30
+const SLACK_FOLLOWER_MAX_WAIT_MS = SLACK_LOCK_TTL_SEC * 1000
 
 async function performCoalescedRefresh({
   accountId,
   providerId,
   refreshToken,
+  providerAccountId,
   requestId,
   userId,
 }: CoalescedRefreshOptions): Promise<string | null> {
+  /**
+   * Slack bot tokens are per-installation (team × app): every account row for
+   * one team holds a copy of the same rotating chain, so refreshes are locked,
+   * dead-flagged, and written per installation rather than per row.
+   */
+  const slackTeamId = isSlackProvider(providerId) ? extractSlackTeamId(providerAccountId) : null
+  const scopeKey = slackTeamId ? `slack:${slackTeamId}` : accountId
+
   const logContext = {
     ...(requestId ? { requestId } : {}),
     ...(userId ? { userId } : {}),
+    ...(slackTeamId ? { slackTeamId } : {}),
     providerId,
     accountId,
   }
 
-  const deadCode = await getRecentTerminalError(accountId)
+  const deadCode = await getRecentTerminalError(scopeKey)
   if (deadCode) {
     logger.warn('Skipping refresh: credential recently failed', {
       ...logContext,
@@ -685,14 +718,49 @@ async function performCoalescedRefresh({
     return null
   }
 
-  const lockKey = `oauth:refresh:${accountId}`
+  const lockKey = `oauth:refresh:${scopeKey}`
 
   const refreshPromise = coalesceLocally(lockKey, () =>
     withLeaderLock<string>({
       key: lockKey,
+      // Installation-keyed Slack locks gather followers from every sibling row,
+      // so their wait and the lock TTL must outlast the 15s provider timeout —
+      // the 3s/10s defaults would fail followers early and let a second leader
+      // start a concurrent rotation mid-refresh.
+      ...(slackTeamId ? { maxWaitMs: SLACK_FOLLOWER_MAX_WAIT_MS, ttlSec: SLACK_LOCK_TTL_SEC } : {}),
       onLeader: async () => {
         try {
-          const result = await refreshOAuthToken(providerId, refreshToken)
+          let refreshTokenToUse = refreshToken
+          let slackChainVersion: Date | null = null
+          if (slackTeamId) {
+            const freshest = await getFreshestSlackChain(slackTeamId)
+            if (!freshest) {
+              throw new Error(
+                `No refresh-capable account row found for Slack installation ${slackTeamId}`
+              )
+            }
+            slackChainVersion = freshest.chainVersion
+            if (
+              freshest.accessToken &&
+              freshest.accessTokenExpiresAt &&
+              freshest.accessTokenExpiresAt > new Date()
+            ) {
+              await fanOutSlackTokenChain(
+                slackTeamId,
+                {
+                  accessToken: freshest.accessToken,
+                  refreshToken: freshest.refreshToken,
+                  accessTokenExpiresAt: freshest.accessTokenExpiresAt,
+                },
+                { ifChainUnchangedSince: freshest.chainVersion }
+              )
+              logger.info('Reused freshest Slack installation token', logContext)
+              return freshest.accessToken
+            }
+            refreshTokenToUse = freshest.refreshToken
+          }
+
+          const result = await refreshOAuthToken(providerId, refreshTokenToUse)
 
           if (!result.ok) {
             logger.error('Failed to refresh token', {
@@ -700,24 +768,49 @@ async function performCoalescedRefresh({
               errorCode: result.errorCode,
             })
             if (result.errorCode && isTerminalRefreshError(result.errorCode)) {
-              await markCredentialDead(accountId, result.errorCode)
+              // A refresh that lost a race with a concurrent connect fails with
+              // a revoked/rotated-out token even though the installation just
+              // got a live chain — dead-flagging then would take down a healthy
+              // credential for an hour.
+              if (
+                slackChainVersion &&
+                (await hasSlackChainMoved(slackTeamId!, slackChainVersion))
+              ) {
+                logger.info('Skipping dead flag: Slack chain moved during refresh', logContext)
+              } else {
+                await markCredentialDead(scopeKey, result.errorCode)
+              }
             }
             return null
           }
 
-          const updateData: Record<string, unknown> = {
-            accessToken: result.accessToken,
-            accessTokenExpiresAt: new Date(Date.now() + result.expiresIn * 1000),
-            updatedAt: new Date(),
-          }
-          if (result.refreshToken && result.refreshToken !== refreshToken) {
-            updateData.refreshToken = result.refreshToken
-          }
-          if (isMicrosoftProvider(providerId)) {
-            updateData.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
-          }
+          const accessTokenExpiresAt = new Date(Date.now() + result.expiresIn * 1000)
 
-          await db.update(account).set(updateData).where(eq(account.id, accountId))
+          if (slackTeamId) {
+            await fanOutSlackTokenChain(
+              slackTeamId,
+              {
+                accessToken: result.accessToken,
+                refreshToken: result.refreshToken || refreshTokenToUse,
+                accessTokenExpiresAt,
+              },
+              { ifChainUnchangedSince: slackChainVersion ?? undefined }
+            )
+          } else {
+            const updateData: Record<string, unknown> = {
+              accessToken: result.accessToken,
+              accessTokenExpiresAt,
+              updatedAt: new Date(),
+            }
+            if (result.refreshToken && result.refreshToken !== refreshToken) {
+              updateData.refreshToken = result.refreshToken
+            }
+            if (isMicrosoftProvider(providerId)) {
+              updateData.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
+            }
+
+            await db.update(account).set(updateData).where(eq(account.id, accountId))
+          }
 
           logger.info('Successfully refreshed access token', logContext)
           return result.accessToken
@@ -774,6 +867,7 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
   const connections = await db
     .select({
       id: account.id,
+      providerAccountId: account.accountId,
       accessToken: account.accessToken,
       refreshToken: account.refreshToken,
       accessTokenExpiresAt: account.accessTokenExpiresAt,
@@ -813,6 +907,7 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       accountId: credential.id,
       providerId,
       refreshToken: credential.refreshToken!,
+      providerAccountId: credential.providerAccountId,
       userId,
     })
     if (fresh) return fresh
@@ -915,6 +1010,7 @@ export async function resolveCredentialAccessToken(
       accountId: resolvedCredentialId,
       providerId: credential.providerId,
       refreshToken: credential.refreshToken!,
+      providerAccountId: credential.accountId,
       requestId,
       userId: credential.userId,
     })
@@ -1019,6 +1115,7 @@ export async function refreshTokenIfNeeded(
     accountId: resolvedCredentialId,
     providerId: credential.providerId,
     refreshToken: credential.refreshToken!,
+    providerAccountId: credential.accountId,
     requestId,
     userId: credential.userId,
   })

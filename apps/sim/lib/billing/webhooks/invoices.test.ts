@@ -3,13 +3,10 @@
  */
 import {
   createMockStripeEvent,
-  dbChainMock,
   dbChainMockFns,
-  drizzleOrmMock,
   resetDbChainMock,
   stripeClientMock,
   stripePaymentMethodMock,
-  urlsMock,
   urlsMockFns,
 } from '@sim/testing'
 import type Stripe from 'stripe'
@@ -19,9 +16,6 @@ const { mockBlockOrgMembers, mockUnblockOrgMembers } = vi.hoisted(() => ({
   mockBlockOrgMembers: vi.fn(),
   mockUnblockOrgMembers: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
-vi.mock('drizzle-orm', () => drizzleOrmMock)
 
 vi.mock('@/components/emails', () => ({
   PaymentFailedEmail: vi.fn(),
@@ -82,8 +76,6 @@ vi.mock('@/lib/billing/webhooks/idempotency', () => ({
     ),
   },
 }))
-
-vi.mock('@/lib/core/utils/urls', () => urlsMock)
 
 vi.mock('@/lib/messaging/email/mailer', () => ({
   sendEmail: vi.fn(),

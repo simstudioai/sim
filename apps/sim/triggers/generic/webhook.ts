@@ -4,7 +4,7 @@ import type { TriggerConfig } from '@/triggers/types'
 
 export const genericWebhookTrigger: TriggerConfig = {
   id: 'generic_webhook',
-  name: 'Generic Webhook',
+  name: 'Webhook Trigger',
   provider: 'generic',
   description: 'Receive webhooks from any service or API',
   version: '1.0.0',

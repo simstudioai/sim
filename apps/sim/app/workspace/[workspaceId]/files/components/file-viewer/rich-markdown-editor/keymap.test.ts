@@ -166,6 +166,22 @@ describe('divider Backspace', () => {
     expect(selection.to).toBe(doc.content.size)
     editor.destroy()
   })
+
+  it('only paints a divider inside a range selection while the editor has focus', () => {
+    const editor = editorWith('<p>a</p><hr><p>b</p>')
+    const divider = editor.view.dom.querySelector('hr')
+    editor.commands.selectAll()
+
+    expect(divider?.classList.contains('rich-leaf-in-selection')).toBe(false)
+
+    editor.view.dom.dispatchEvent(new FocusEvent('focus'))
+    expect(divider?.classList.contains('rich-leaf-in-selection')).toBe(true)
+
+    editor.view.dom.dispatchEvent(new FocusEvent('blur'))
+    expect(editor.state.selection.empty).toBe(false)
+    expect(divider?.classList.contains('rich-leaf-in-selection')).toBe(false)
+    editor.destroy()
+  })
 })
 
 describe('empty wrapped-block Backspace', () => {

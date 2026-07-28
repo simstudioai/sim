@@ -196,6 +196,34 @@ describe('buildTraceSpans', () => {
     expect(secondToolCall.output).toEqual({ status: 200, data: 'response' })
   })
 
+  it.concurrent('normalizes scalar tool results only at the trace display boundary', () => {
+    const mockExecutionResult: ExecutionResult = {
+      success: true,
+      output: { content: 'Final output' },
+      logs: [
+        {
+          blockId: 'agent-scalar',
+          blockName: 'Scalar Agent',
+          blockType: 'agent',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:01.000Z',
+          durationMs: 1000,
+          success: true,
+          output: {
+            toolCalls: {
+              list: [{ name: 'boolean_tool', result: false }],
+              count: 1,
+            },
+          },
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(mockExecutionResult)
+
+    expect(traceSpans[0].children?.[0].output).toEqual({ value: false })
+  })
+
   it.concurrent(
     'extracts tool calls from agent block output with direct toolCalls array format',
     () => {

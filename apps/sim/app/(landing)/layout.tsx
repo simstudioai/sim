@@ -6,8 +6,17 @@ import { isHosted } from '@/lib/core/config/env-flags'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { LandingShell } from '@/app/(landing)/components'
 import { HubspotPageViewTracker } from '@/app/(landing)/hubspot-page-view-tracker'
+import { XPageViewTracker } from '@/app/(landing)/x-page-view-tracker'
 
 const HUBSPOT_SCRIPT_SRC = 'https://js-na2.hs-scripts.com/246720681.js' as const
+
+const X_PIXEL_ID = 'q5xbl' as const
+
+/** X (Twitter) conversion tracking base code — loads uwt.js and fires the initial PageView. */
+const X_PIXEL_BASE_CODE = `!function(e,t,n,s,u,a){e.twq||(s=e.twq=function(){s.exe?s.exe.apply(s,arguments):s.queue.push(arguments);
+},s.version='1.1',s.queue=[],u=t.createElement(n),u.async=!0,u.src='https://static.ads-twitter.com/uwt.js',
+a=t.getElementsByTagName(n)[0],a.parentNode.insertBefore(u,a))}(window,document,'script');
+twq('config','${X_PIXEL_ID}');`
 
 /**
  * Route-group layout for the entire landing family - the home page, platform and
@@ -33,12 +42,16 @@ export default function LandingLayout({ children }: { children: ReactNode }) {
   return (
     <LandingShell>
       {children}
-      {/* HubSpot tracking — hosted only */}
+      {/* HubSpot + X pixel tracking — hosted only */}
       {isHosted && (
         <>
           <Script id='hs-script-loader' src={HUBSPOT_SCRIPT_SRC} strategy='afterInteractive' />
+          <Script id='x-pixel-base' strategy='afterInteractive'>
+            {X_PIXEL_BASE_CODE}
+          </Script>
           <Suspense fallback={null}>
             <HubspotPageViewTracker />
+            <XPageViewTracker />
           </Suspense>
         </>
       )}

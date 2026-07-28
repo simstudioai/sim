@@ -12,7 +12,7 @@ import { extractEmbeddedImageIds } from '@/lib/copilot/tools/server/files/embedd
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
-import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
+import { getServeStoragePrefix } from '@/lib/uploads/config'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
 import { verifyFileAccess } from '@/app/api/files/authorization'
@@ -106,7 +106,7 @@ export const GET = withRouteHandler(
     }
 
     if (!isMarkdown(record.originalName, record.contentType)) {
-      const storagePrefix = USE_BLOB_STORAGE ? 'blob' : 's3'
+      const storagePrefix = getServeStoragePrefix()
       const servePath = `/api/files/serve/${storagePrefix}/${encodeURIComponent(record.key)}`
       auditExport('file', 0)
       return NextResponse.redirect(new URL(servePath, request.url), { status: 302 })

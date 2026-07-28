@@ -26,7 +26,7 @@ export function CreditUsageSection({
     <SettingsSection label='Credit usage'>
       <div className='flex items-center justify-between px-2'>
         <div className='flex flex-col justify-center gap-[1px]'>
-          <span className='text-[var(--text-body)] text-sm tabular-nums'>
+          <span className='text-[var(--text-body)] text-sm'>
             {isPending || isError ? '—' : formatCreditsLabel(totalCredits ?? 0)}
           </span>
           <span className='text-[var(--text-muted)] text-caption'>Last 30 days</span>

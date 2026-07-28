@@ -5,6 +5,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { WebhookPathClaimConflictError } from '@/lib/webhooks/path-claims'
 import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
 import {
@@ -334,13 +335,16 @@ export function buildProviderConfig(
 
 /**
  * Resolves a trigger credential reference to its canonical platform credential ID while enforcing
- * that the credential belongs to the deployed workflow's workspace and OAuth service.
+ * that the credential belongs to the deployed workflow's workspace and OAuth provider.
+ *
+ * Exported for unit testing the service-to-provider boundary; not part of the public deploy API.
  */
-async function resolveTriggerCredentialId(
+export async function resolveTriggerCredentialId(
   credentialReference: string,
   workspaceId: string,
   serviceId: string
 ): Promise<string | null> {
+  const providerId = getProviderIdFromServiceId(serviceId)
   const [resolvedCredential] = await db
     .select({ id: credential.id })
     .from(credential)
@@ -348,7 +352,7 @@ async function resolveTriggerCredentialId(
       and(
         eq(credential.workspaceId, workspaceId),
         eq(credential.type, 'oauth'),
-        eq(credential.providerId, serviceId),
+        eq(credential.providerId, providerId),
         or(eq(credential.id, credentialReference), eq(credential.accountId, credentialReference))
       )
     )
@@ -357,7 +361,12 @@ async function resolveTriggerCredentialId(
   return resolvedCredential?.id ?? null
 }
 
-async function resolveWebhookConfigForBlock(input: {
+/**
+ * Resolves a trigger block to its persisted webhook config, including the
+ * Slack-specific routing branch. Exported for unit testing that branch; not part
+ * of the public deploy API.
+ */
+export async function resolveWebhookConfigForBlock(input: {
   block: BlockState
   workflow: Record<string, unknown>
   userId: string
@@ -427,29 +436,90 @@ async function resolveWebhookConfigForBlock(input: {
   let effectivePath: string | null = triggerPath
   let routingKey: string | null = null
   if (triggerId === 'slack_oauth') {
-    const appType = typeof providerConfig.appType === 'string' ? providerConfig.appType : 'custom'
-    if (appType === 'sim') {
-      const eventType =
-        typeof providerConfig.eventType === 'string' ? providerConfig.eventType : null
-      if (eventType && !SIM_SUBSCRIBED_EVENTS.includes(eventType)) {
+    // One credential picker feeds two backends. The credential's resolved kind —
+    // not a UI field — picks the branch: a Slack bot credential routes by the
+    // credential id (custom bring-your-own app); an OAuth account routes by Slack
+    // team_id on the native shared Sim app.
+    const slackCredentialId =
+      typeof providerConfig.botCredential === 'string' ? providerConfig.botCredential : undefined
+    if (!slackCredentialId) {
+      return {
+        success: false,
+        error: { message: 'Select a Slack account or bot for the trigger.', status: 400 },
+      }
+    }
+    const botCredential = await getSlackBotCredential(slackCredentialId)
+    if (botCredential) {
+      // Custom bring-your-own bot: events route by the bot credential to one
+      // shared ingest URL verified with the bot's own signing secret.
+      const workflowWorkspace =
+        typeof input.workflow.workspaceId === 'string' ? input.workflow.workspaceId : undefined
+      if (!workflowWorkspace || botCredential.workspaceId !== workflowWorkspace) {
         return {
           success: false,
           error: {
-            message:
-              'This event is not available on the Sim Slack app. Use a custom app or choose a supported event.',
+            message: 'The selected Slack bot credential is not available in this workspace.',
             status: 400,
           },
         }
       }
-      if (!credentialId) {
+      effectiveProvider = 'slack'
+      effectivePath = null
+      routingKey = slackCredentialId
+      providerConfig.credentialId = slackCredentialId
+      if (botCredential.botUserId) providerConfig.bot_user_id = botCredential.botUserId
+    } else {
+      // getSlackBotCredential also returns null for a custom bot credential that
+      // was deleted or lost its stored secrets. Name that case so the error
+      // directs the user to reconnect the bot rather than mislabeling it an OAuth
+      // account below.
+      const resolvedKind = await resolveOAuthAccountId(slackCredentialId)
+      if (resolvedKind?.credentialType === 'service_account') {
         return {
           success: false,
-          error: { message: 'Select a Slack account for the trigger.', status: 400 },
+          error: {
+            message: 'The selected Slack bot credential is missing or invalid. Reconnect it.',
+            status: 400,
+          },
         }
       }
-
+      // Native Sim app: a workspace OAuth Slack credential. Resolve it through the
+      // same workspace/provider-scoped lookup the generic credential path uses, so
+      // a pasted foreign or other-tenant credential id can't bind here and the
+      // canonical id is what routing and runtime token resolution key on.
+      const workflowWorkspace =
+        typeof input.workflow.workspaceId === 'string' ? input.workflow.workspaceId : undefined
+      const resolvedCredentialId = workflowWorkspace
+        ? await resolveTriggerCredentialId(slackCredentialId, workflowWorkspace, 'slack')
+        : null
+      if (!resolvedCredentialId) {
+        return {
+          success: false,
+          error: {
+            message: 'The selected Slack credential is not available in this workspace.',
+            status: 400,
+          },
+        }
+      }
+      // The shared app only subscribes to a fixed event set; reject anything
+      // outside it before deriving routing.
+      const eventType =
+        typeof providerConfig.eventType === 'string' ? providerConfig.eventType : null
+      if (!eventType || !SIM_SUBSCRIBED_EVENTS.includes(eventType)) {
+        return {
+          success: false,
+          error: {
+            message:
+              'This event is not available on the Sim Slack app. Use a custom bot or choose a supported event.',
+            status: 400,
+          },
+        }
+      }
+      // Resolve the credential OWNER's token (not the deploying actor's) — in a
+      // shared workspace a teammate can deploy a trigger wired to someone else's
+      // Slack account.
       let tokenOwnerUserId = input.userId
-      const resolvedAccount = await resolveOAuthAccountId(credentialId)
+      const resolvedAccount = await resolveOAuthAccountId(resolvedCredentialId)
       if (resolvedAccount?.accountId) {
         const [owner] = await db
           .select({ userId: account.userId })
@@ -459,7 +529,7 @@ async function resolveWebhookConfigForBlock(input: {
         if (owner?.userId) tokenOwnerUserId = owner.userId
       }
       const botToken = await refreshAccessTokenIfNeeded(
-        credentialId,
+        resolvedCredentialId,
         tokenOwnerUserId,
         input.requestId
       )
@@ -491,41 +561,9 @@ async function resolveWebhookConfigForBlock(input: {
       }
       effectiveProvider = 'slack_app'
       effectivePath = null
-    } else {
-      const botCredentialId =
-        typeof providerConfig.botCredential === 'string' ? providerConfig.botCredential : undefined
-      if (!botCredentialId) {
-        return {
-          success: false,
-          error: { message: 'Select a Slack bot credential for the trigger.', status: 400 },
-        }
-      }
-      const botCredential = await getSlackBotCredential(botCredentialId)
-      if (!botCredential) {
-        return {
-          success: false,
-          error: {
-            message: 'The selected Slack bot credential is missing or invalid. Reconnect it.',
-            status: 400,
-          },
-        }
-      }
-      const workflowWorkspace =
-        typeof input.workflow.workspaceId === 'string' ? input.workflow.workspaceId : undefined
-      if (!workflowWorkspace || botCredential.workspaceId !== workflowWorkspace) {
-        return {
-          success: false,
-          error: {
-            message: 'The selected Slack bot credential is not available in this workspace.',
-            status: 400,
-          },
-        }
-      }
-      effectiveProvider = 'slack'
-      effectivePath = null
-      routingKey = botCredentialId
-      providerConfig.credentialId = botCredentialId
-      if (botCredential.botUserId) providerConfig.bot_user_id = botCredential.botUserId
+      // Runtime token resolution and credential-disconnect cleanup key native
+      // (`slack_app`) rows on providerConfig.credentialId.
+      providerConfig.credentialId = resolvedCredentialId
     }
   }
 

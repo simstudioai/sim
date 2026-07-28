@@ -15,6 +15,7 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
   name: 'Mistral Parser (Legacy)',
   description: 'Extract text from PDF documents',
   hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'mistral_parse_v3' },
   authMode: AuthMode.ApiKey,
   longDescription: `Integrate Mistral Parse into the workflow. Can extract text from uploaded PDF documents, or from a URL.`,
   docsLink: 'https://docs.sim.ai/integrations/mistral_parse',
@@ -161,6 +162,7 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
   name: 'Mistral Parser',
   description: 'Extract text from PDF documents',
   hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'mistral_parse_v3' },
   subBlocks: [
     {
       id: 'fileUpload',
@@ -287,6 +289,7 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
  */
 export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
   ...MistralParseBlock,
+  sunset: undefined,
   type: 'mistral_parse_v3',
   name: 'Mistral Parser',
   description: 'Extract text from PDF documents',

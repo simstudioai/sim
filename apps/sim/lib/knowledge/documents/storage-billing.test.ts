@@ -24,8 +24,6 @@ const {
   mockGetFileMetadataByKeys: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
-
 vi.mock('@/lib/billing/storage', () => ({
   applyStorageUsageDeltasInTx: mockApplyStorageUsageDeltasInTx,
   checkStorageQuota: mockCheckStorageQuota,

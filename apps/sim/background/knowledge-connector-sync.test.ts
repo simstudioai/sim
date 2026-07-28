@@ -72,6 +72,29 @@ describe('knowledge connector sync worker', () => {
     expect(mockExecuteSync).toHaveBeenCalledWith('connector-1', {
       billingAttribution: BILLING_ATTRIBUTION,
       fullSync: true,
+      rehydrate: undefined,
+    })
+  })
+
+  it('forwards the rehydrate flag to the sync engine (async worker path)', async () => {
+    mockAssertConnectorSyncPayload.mockReturnValue({
+      connectorId: 'connector-1',
+      requestId: 'request-1',
+      rehydrate: true,
+      billingAttribution: BILLING_ATTRIBUTION,
+    })
+
+    await executeConnectorSyncJob({
+      connectorId: 'connector-1',
+      requestId: 'request-1',
+      rehydrate: true,
+      billingAttribution: BILLING_ATTRIBUTION,
+    })
+
+    expect(mockExecuteSync).toHaveBeenCalledWith('connector-1', {
+      billingAttribution: BILLING_ATTRIBUTION,
+      fullSync: undefined,
+      rehydrate: true,
     })
   })
 })

@@ -1,8 +1,8 @@
-import { createEnvMock, createMockFetch } from '@sim/testing'
-import { describe, expect, it, vi } from 'vitest'
+import { createMockFetch, resetEnvMock, setEnv } from '@sim/testing'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/config/env', () =>
-  createEnvMock({
+beforeAll(() => {
+  setEnv({
     GOOGLE_CLIENT_ID: 'google_client_id',
     GOOGLE_CLIENT_SECRET: 'google_client_secret',
     GITHUB_CLIENT_ID: 'github_client_id',
@@ -54,7 +54,9 @@ vi.mock('@/lib/core/config/env', () =>
     SPOTIFY_CLIENT_ID: 'spotify_client_id',
     SPOTIFY_CLIENT_SECRET: 'spotify_client_secret',
   })
-)
+})
+
+afterAll(resetEnvMock)
 
 import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
 import { refreshOAuthToken } from '@/lib/oauth'

@@ -1,10 +1,10 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { envFlagsMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockFlags,
   mockGetStorageLimitForBillingContext,
   mockGetStorageUsageForBillingContext,
   mockGetUserStorageLimit,
@@ -24,7 +24,6 @@ const {
   mockTxWhere,
   mockWorkspaceRow,
 } = vi.hoisted(() => ({
-  mockFlags: { isBillingEnabled: true },
   mockGetStorageLimitForBillingContext: vi.fn(),
   mockGetStorageUsageForBillingContext: vi.fn(),
   mockGetUserStorageLimit: vi.fn(),
@@ -92,17 +91,7 @@ vi.mock('@/lib/billing/storage/limits', () => ({
   getUserStorageLimit: mockGetUserStorageLimit,
   getUserStorageUsage: mockGetUserStorageUsage,
   // No FREE_STORAGE_LIMIT_GB opt-in in these tests, so enforcement === billing.
-  isStorageEnforcementEnabled: () => mockFlags.isBillingEnabled,
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  getEnv: vi.fn(() => undefined),
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isBillingEnabled() {
-    return mockFlags.isBillingEnabled
-  },
+  isStorageEnforcementEnabled: () => envFlagsMock.isBillingEnabled,
 }))
 
 vi.mock('@sim/logger', () => ({
@@ -130,10 +119,16 @@ const ORG_CONTEXT: StorageBillingContext = {
   customStorageLimitGB: null,
 }
 
+beforeAll(() => {
+  setEnvFlags({ isBillingEnabled: true })
+})
+
+afterAll(resetEnvFlagsMock)
+
 describe('workspace storage counter mutations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockFlags.isBillingEnabled = true
+    setEnvFlags({ isBillingEnabled: true })
     mockWorkspaceRow.current = {
       billedAccountUserId: 'workspace-owner',
       organizationId: 'workspace-org',
@@ -298,7 +293,7 @@ describe('workspace storage counter mutations', () => {
   })
 
   it('keeps durable workspace and payer ledgers accurate while billing is disabled', async () => {
-    mockFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
 
     await incrementStorageUsageForBillingContextInTx(mockTx as unknown as DbOrTx, ORG_CONTEXT, 100)
 

@@ -4,7 +4,7 @@
  * Tests for GET /api/v1/audit-logs/[id] — verifies the lookup is constrained
  * by the organization scope and 404s for rows outside it.
  */
-import { createMockRequest, dbChainMock, dbChainMockFns } from '@sim/testing'
+import { createMockRequest, dbChainMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -18,8 +18,6 @@ const {
   mockBuildOrgScopeCondition: vi.fn(),
   mockGetOrgWorkspaceIds: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/app/api/v1/middleware', () => ({
   checkRateLimit: mockCheckRateLimit,

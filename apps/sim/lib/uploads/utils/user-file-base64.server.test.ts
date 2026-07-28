@@ -1,14 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
 import type { UserFile } from '@/executor/types'
 
-const { mockDownloadFile, mockGetRedisClient, mockRedis, mockVerifyFileAccess } = vi.hoisted(() => {
+const { mockDownloadFile, mockRedis, mockVerifyFileAccess } = vi.hoisted(() => {
   const mockRedis = {
     get: vi.fn(),
     set: vi.fn(),
@@ -22,15 +23,14 @@ const { mockDownloadFile, mockGetRedisClient, mockRedis, mockVerifyFileAccess } 
   }
   return {
     mockDownloadFile: vi.fn(),
-    mockGetRedisClient: vi.fn(),
     mockRedis,
     mockVerifyFileAccess: vi.fn(),
   }
 })
 
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: mockGetRedisClient,
-}))
+const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
+
+afterAll(resetRedisConfigMock)
 
 vi.mock('@/lib/uploads', () => ({
   StorageService: {

@@ -39,6 +39,7 @@ import { MoreHorizontal, Pin } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { SlackIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { isMacPlatform } from '@/lib/core/utils/platform'
@@ -114,6 +115,9 @@ import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
+
+const SLACK_COMMUNITY_URL =
+  'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA'
 
 export function SidebarTooltip({
   children,
@@ -1170,6 +1174,11 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
     captureEvent(posthog, 'docs_opened', { source: 'help_menu' })
   }, [posthog])
 
+  const handleOpenSlackCommunity = useCallback(() => {
+    window.open(SLACK_COMMUNITY_URL, '_blank', 'noopener,noreferrer')
+    captureEvent(posthog, 'slack_community_opened', { source: 'help_menu' })
+  }, [posthog])
+
   const handleChatRenameBlur = useCallback(
     () => void chatFlyoutRename.saveRename(),
     [chatFlyoutRename.saveRename]
@@ -1669,6 +1678,10 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                       <DropdownMenuItem onSelect={handleOpenDocs}>
                         <BookOpen className='h-[14px] w-[14px]' />
                         Docs
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={handleOpenSlackCommunity}>
+                        <SlackIcon className='size-[14px]' />
+                        Slack Community
                       </DropdownMenuItem>
                       <DropdownMenuItem onSelect={handleOpenHelpFromMenu}>
                         <HelpCircle className='h-[14px] w-[14px]' />

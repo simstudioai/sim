@@ -19,6 +19,7 @@ import {
   Code,
   type ComboboxOption,
   Label,
+  useCopyToClipboard,
 } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -32,6 +33,8 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import {
   mcpServerIdParam,
   mcpServerIdUrlKeys,
+  serverTabParam,
+  serverTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
@@ -95,7 +98,7 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
     }
   }, [])
 
-  const [copiedConfig, setCopiedConfig] = useState(false)
+  const { copied: copiedConfig, copy: copyConfig } = useCopyToClipboard()
   const [activeConfigTab, setActiveConfigTab] = useState<McpClientType>('cursor')
   const [toolToDelete, setToolToDelete] = useState<WorkflowMcpTool | null>(null)
   const [toolToView, setToolToView] = useState<WorkflowMcpTool | null>(null)
@@ -108,7 +111,10 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
   const [editServerName, setEditServerName] = useState('')
   const [editServerDescription, setEditServerDescription] = useState('')
   const [editServerIsPublic, setEditServerIsPublic] = useState(false)
-  const [activeServerTab, setActiveServerTab] = useState<'workflows' | 'details'>('details')
+  const [activeServerTab, setActiveServerTab] = useQueryState(serverTabParam.key, {
+    ...serverTabParam.parser,
+    ...serverTabUrlKeys,
+  })
 
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null)
 
@@ -303,12 +309,9 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
 
   const handleCopyConfig = useCallback(
     (isPublic: boolean, serverName: string) => {
-      const snippet = getConfigSnippet(activeConfigTab, isPublic, serverName)
-      navigator.clipboard.writeText(snippet)
-      setCopiedConfig(true)
-      setTimeout(() => setCopiedConfig(false), 2000)
+      void copyConfig(getConfigSnippet(activeConfigTab, isPublic, serverName))
     },
-    [activeConfigTab, getConfigSnippet]
+    [activeConfigTab, getConfigSnippet, copyConfig]
   )
 
   const handleOpenEditServer = useCallback(() => {
@@ -401,7 +404,7 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
               { value: 'workflows', label: 'Workflows' },
             ]}
             value={activeServerTab}
-            onChange={(value) => setActiveServerTab(value as 'workflows' | 'details')}
+            onChange={(value) => void setActiveServerTab(value as 'workflows' | 'details')}
           />
 
           <div className='min-h-[300px] pt-4'>
@@ -574,6 +577,7 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
                       </span>
                       <Button
                         variant='ghost'
+                        aria-label={copiedConfig ? 'Configuration copied' : 'Copy configuration'}
                         onClick={() => handleCopyConfig(server.isPublic, server.name)}
                         className='!p-1.5 -my-1.5'
                       >
@@ -892,6 +896,11 @@ export function WorkflowMcpServers() {
   })
   const [serverToDelete, setServerToDelete] = useState<WorkflowMcpServer | null>(null)
   const [deletingServers, setDeletingServers] = useState<Set<string>>(() => new Set())
+  /** Cleared alongside the server id on close so the tab never lingers on the list URL. */
+  const [, setServerTab] = useQueryState(serverTabParam.key, {
+    ...serverTabParam.parser,
+    ...serverTabUrlKeys,
+  })
 
   const filteredServers = useMemo(() => {
     if (!searchTerm.trim()) return servers
@@ -948,7 +957,10 @@ export function WorkflowMcpServers() {
         canManage={canAdmin}
         workspaceId={workspaceId}
         serverId={selectedServerId}
-        onBack={() => setSelectedServerId(null, { history: 'replace' })}
+        onBack={() => {
+          void setServerTab(null, { history: 'replace' })
+          void setSelectedServerId(null, { history: 'replace' })
+        }}
       />
     )
   }
@@ -1011,7 +1023,14 @@ export function WorkflowMcpServers() {
                       <RowActionsMenu
                         label='Server actions'
                         actions={[
-                          { label: 'Details', onSelect: () => setSelectedServerId(server.id) },
+                          {
+                            label: 'Details',
+                            onSelect: () => {
+                              // A lingering ?server-tab= (dead deep link) must not re-target the next open — reset it in the same batched push.
+                              void setServerTab(null)
+                              void setSelectedServerId(server.id)
+                            },
+                          },
                           ...(canAdmin
                             ? [
                                 {

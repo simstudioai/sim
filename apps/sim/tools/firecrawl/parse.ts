@@ -1,3 +1,4 @@
+import { firecrawlHosting } from '@/tools/firecrawl/hosting'
 import type { ParseParams, ParseResponse } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -83,33 +84,7 @@ export const parseTool: ToolConfig<ParseParams, ParseResponse> = {
     },
   },
 
-  hosting: {
-    envKeyPrefix: 'FIRECRAWL_API_KEY',
-    apiKeyParam: 'apiKey',
-    byokProviderId: 'firecrawl',
-    pricing: {
-      type: 'custom',
-      getCost: (_params, output) => {
-        const creditsUsed = (output.metadata as { creditsUsed?: number })?.creditsUsed
-        if (creditsUsed == null) {
-          throw new Error('Firecrawl response missing creditsUsed field')
-        }
-
-        if (Number.isNaN(creditsUsed)) {
-          throw new Error('Firecrawl response returned a non-numeric creditsUsed field')
-        }
-
-        return {
-          cost: creditsUsed * 0.001,
-          metadata: { creditsUsed },
-        }
-      },
-    },
-    rateLimit: {
-      mode: 'per_request',
-      requestsPerMinute: 100,
-    },
-  },
+  hosting: firecrawlHosting(),
 
   request: {
     method: 'POST',
@@ -168,6 +143,7 @@ export const parseTool: ToolConfig<ParseParams, ParseResponse> = {
         links: result.links ?? [],
         metadata: result.metadata ?? null,
         warning: result.warning ?? null,
+        creditsUsed: result.creditsUsed,
       },
     }
   },

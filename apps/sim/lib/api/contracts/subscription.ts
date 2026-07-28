@@ -253,6 +253,8 @@ export const invoiceItemSchema = z.object({
   amountPaid: z.number(),
   currency: z.string(),
   status: z.string().nullable(),
+  /** Primary line-item / invoice description, e.g. "Usage overage" or the plan name. */
+  description: z.string().nullable(),
   hostedInvoiceUrl: z.string().nullable(),
   invoicePdf: z.string().nullable(),
 })

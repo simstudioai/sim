@@ -7,7 +7,10 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { loadTargetDraftSubBlocks } from '@/ee/workspace-forking/lib/copy/copy-workflows'
-import { loadSourceDeployedStates } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
+import {
+  listForkExcludedDeployedWorkflows,
+  loadSourceDeployedStates,
+} from '@/ee/workspace-forking/lib/copy/deploy-bridge'
 import { assertCanPromote } from '@/ee/workspace-forking/lib/lineage/authz'
 import { loadForkBlockMap } from '@/ee/workspace-forking/lib/mapping/block-map-store'
 import {
@@ -73,17 +76,24 @@ export const GET = withRouteHandler(
       .filter((item) => item.mode === 'replace')
       .map((item) => item.targetWorkflowId)
     const allTargetIds = plan.items.map((item) => item.targetWorkflowId)
-    const [storedValues, targetDraftByWorkflow, sourceCandidates, sourceWorkflowRows] =
-      await Promise.all([
-        loadForkDependentValues(db, auth.edge.childWorkspaceId, allTargetIds),
-        loadTargetDraftSubBlocks(db, replaceTargetIds),
-        // Source resource labels (per kind) + workflow names, for the cleared-ref list's display.
-        listForkResourceCandidates(db, auth.sourceWorkspaceId),
-        db
-          .select({ id: workflow.id, name: workflow.name })
-          .from(workflow)
-          .where(eq(workflow.workspaceId, auth.sourceWorkspaceId)),
-      ])
+    const [
+      storedValues,
+      targetDraftByWorkflow,
+      sourceCandidates,
+      sourceWorkflowRows,
+      excludedSourceWorkflows,
+    ] = await Promise.all([
+      loadForkDependentValues(db, auth.edge.childWorkspaceId, allTargetIds),
+      loadTargetDraftSubBlocks(db, replaceTargetIds),
+      // Source resource labels (per kind) + workflow names, for the cleared-ref list's display.
+      listForkResourceCandidates(db, auth.sourceWorkspaceId),
+      db
+        .select({ id: workflow.id, name: workflow.name })
+        .from(workflow)
+        .where(eq(workflow.workspaceId, auth.sourceWorkspaceId)),
+      // Deployed-but-excluded source workflows, so the preview can show what a sync skips.
+      listForkExcludedDeployedWorkflows(db, auth.sourceWorkspaceId),
+    ])
     const storedByKey = new Map(
       storedValues.map((entry) => [
         forkDependentValueKey(entry.targetWorkflowId, entry.targetBlockId, entry.subBlockKey),
@@ -204,6 +214,8 @@ export const GET = withRouteHandler(
       willCreate: plan.willCreate,
       willArchive: plan.willArchive,
       workflows,
+      excludedSourceWorkflows: excludedSourceWorkflows.map((w) => w.name),
+      excludedTargetWorkflows: plan.excludedTargets.map((t) => t.name),
       unmappedRequired: plan.unmappedRequired.map(toRef),
       unmappedOptional: plan.unmappedOptional.map(toRef),
       mcpReauthServerIds: plan.mcpReauthServerIds,

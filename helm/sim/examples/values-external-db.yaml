@@ -11,7 +11,13 @@
 #   - Network reachability from the cluster (peering, private link, or public
 #     endpoint with TLS)
 #
-# Install:
+# Install — generate each secret first in the same shell:
+#   export BETTER_AUTH_SECRET=$(openssl rand -hex 32)
+#   export ENCRYPTION_KEY=$(openssl rand -hex 32)
+#   export INTERNAL_API_SECRET=$(openssl rand -hex 32)
+#   export CRON_SECRET=$(openssl rand -hex 32)
+#   export DB_PASSWORD=$(openssl rand -hex 24)
+#
 #   helm install sim ./helm/sim \
 #     --namespace sim --create-namespace \
 #     --values ./helm/sim/examples/values-external-db.yaml \
@@ -19,9 +25,11 @@
 #     --set externalDatabase.username=simstudio_user \
 #     --set externalDatabase.password="$DB_PASSWORD" \
 #     --set externalDatabase.database=simstudio_prod \
+#     --set "networkPolicy.egress[0].to[0].ipBlock.cidr=10.20.0.0/24" \
 #     --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
 #     --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
-#     --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET"
+#     --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+#     --set app.env.CRON_SECRET="$CRON_SECRET"
 
 # Global configuration
 global:
@@ -63,7 +71,12 @@ app:
 # Realtime service
 realtime:
   enabled: true
-  replicaCount: 2
+  # Keep realtime at 1 replica unless REDIS_URL is set (in app.env — realtime
+  # shares the app secret): Socket.IO only bridges events across pods through
+  # its Redis adapter, so multi-replica realtime without Redis silently drops
+  # cross-pod collaboration updates. autoscaling.realtime.enabled is false
+  # below for the same reason — flip both once REDIS_URL is set.
+  replicaCount: 1
   
   resources:
     limits:
@@ -101,9 +114,9 @@ externalDatabase:
   enabled: true
   
   # Database connection details (REQUIRED - configure for your external database)
-  host: ""                    # Database hostname (e.g., "postgres.acme.com" or RDS endpoint)
+  host: "postgres.acme.com"   # REQUIRED - your database hostname (RDS/Cloud SQL/Azure endpoint or IP)
   port: 5432
-  username: ""                # Database username (e.g., "simstudio_user")
+  username: "simstudio_user"  # REQUIRED - your database username
   password: ""                # Database password - set via --set flag or external secret
   database: ""                # Database name (e.g., "simstudio_production")
   
@@ -142,6 +155,11 @@ ingress:
 # Production-ready features (autoscaling, monitoring, etc.)
 autoscaling:
   enabled: true
+  # Keep realtime out of the HPA until REDIS_URL is set (Socket.IO Redis
+  # adapter) — multi-replica realtime without Redis silently drops cross-pod
+  # collaboration events.
+  realtime:
+    enabled: false
   minReplicas: 2
   maxReplicas: 20
   targetCPUUtilizationPercentage: 70
@@ -161,14 +179,19 @@ monitoring:
 
 networkPolicy:
   enabled: true
-  # Custom egress rules to allow database connectivity to an external DB.
-  # The chart's app/realtime NetworkPolicies already permit egress to
-  # `postgresql.service.targetPort` when `postgresql.enabled=true`. For an
-  # external DB on a different port (or off-cluster), append to extraRules.
+  # `networkPolicy.egress` is a LIST of NetworkPolicy egress rules. With the
+  # policy on, the chart's egress allowlist only covers the in-cluster
+  # Postgres, so this rule is what lets the pods reach your external database.
+  # The CIDR below is an example, exactly like `your-db.example.com` in the
+  # install command: REQUIRED to change — set your database's subnet (or /32
+  # host) via the --set line in the install commands below, or edit it here.
+  # A wrong CIDR blocks migrations and every database connection; an empty
+  # `to:` would allow ANY host on 5432 and defeat the isolation.
   egress:
-    extraRules:
-      - to: []
-        ports:
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/16 # REQUIRED - your database subnet or /32 host CIDR
+      ports:
         - protocol: TCP
           port: 5432
 
@@ -179,6 +202,7 @@ networkPolicy:
 #   --set externalDatabase.username="your-db-user" \
 #   --set externalDatabase.password="your-db-password" \
 #   --set externalDatabase.database="your-db-name" \
+#   --set "networkPolicy.egress[0].to[0].ipBlock.cidr=10.20.0.0/24" \
 #   --set app.env.BETTER_AUTH_SECRET="$(openssl rand -hex 32)" \
 #   --set app.env.ENCRYPTION_KEY="$(openssl rand -hex 32)" \
 #   --set app.env.INTERNAL_API_SECRET="$(openssl rand -hex 32)" \

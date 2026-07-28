@@ -27,8 +27,8 @@ export const knowledgeSortParams = createSortParams(KNOWLEDGE_SORT_COLUMNS, {
  *
  * - `search` is the knowledge base name/description filter. The input is
  *   controlled directly by the instant nuqs value; only its URL write is
- *   debounced via `limitUrlUpdates` (`debounce`) on the setter — never written
- *   on every keystroke.
+ *   debounced via `useDebouncedSearchSetter` — never written on every
+ *   keystroke.
  * - `connector` filters by connector presence; `content` filters by document
  *   presence; `owner` filters by creator id. All are multi-select arrays.
  *

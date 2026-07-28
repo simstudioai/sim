@@ -3,6 +3,7 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import type { NormalizedBlockOutput } from '@/executor/types'
+import { createAgentEventReadableStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 
 /**
@@ -134,9 +135,10 @@ describe('createStreamingExecution', () => {
     vi.restoreAllMocks()
   })
 
-  it('only finalizes timing when the provider calls finalizeTiming', () => {
+  it('finalizes timing when the provider stream closes', async () => {
     const constructTime = 1_200
-    vi.spyOn(Date, 'now').mockReturnValue(constructTime)
+    const drainTime = 4_500
+    const nowMock = vi.spyOn(Date, 'now').mockReturnValue(constructTime)
 
     const result = createStreamingExecution({
       model: 'no-finalize',
@@ -154,13 +156,22 @@ describe('createStreamingExecution', () => {
       initialCost: { input: 0, output: 0, total: 0 },
       createStream: ({ output }) => {
         output.content = 'no-timing-mutation'
-        return new ReadableStream()
+        return new ReadableStream({
+          start(controller) {
+            controller.close()
+          },
+        })
       },
     })
 
+    nowMock.mockReturnValue(drainTime)
+    await result.stream.getReader().read()
+
     const timing = result.execution.output.providerTiming
-    expect(timing?.endTime).toBe(new Date(constructTime).toISOString())
-    expect(timing?.duration).toBe(constructTime - providerStartTime)
+    expect(timing?.endTime).toBe(new Date(drainTime).toISOString())
+    expect(timing?.duration).toBe(drainTime - providerStartTime)
+    expect(result.execution.metadata?.endTime).toBe(new Date(drainTime).toISOString())
+    expect(result.execution.metadata?.duration).toBe(drainTime - providerStartTime)
     expect(result.execution.isStreaming).toBeUndefined()
 
     vi.restoreAllMocks()
@@ -206,5 +217,72 @@ describe('createStreamingExecution', () => {
     })
 
     vi.restoreAllMocks()
+  })
+
+  it('propagates cancellation and finalizes timing', async () => {
+    const constructTime = 1_100
+    const cancelTime = 3_200
+    const nowMock = vi.spyOn(Date, 'now').mockReturnValue(constructTime)
+    const onCancel = vi.fn()
+
+    const result = createStreamingExecution({
+      model: 'cancel-model',
+      providerStartTime,
+      providerStartTimeISO,
+      timing: { kind: 'simple', segmentName: 'cancel-model' },
+      initialTokens: { input: 0, output: 0, total: 0 },
+      initialCost: { input: 0, output: 0, total: 0 },
+      createStream: () =>
+        new ReadableStream({
+          cancel: onCancel,
+        }),
+    })
+
+    nowMock.mockReturnValue(cancelTime)
+    await result.stream.cancel('consumer disconnected')
+
+    expect(onCancel).toHaveBeenCalledWith('consumer disconnected')
+    expect(result.execution.output.providerTiming?.duration).toBe(cancelTime - providerStartTime)
+    expect(result.execution.metadata?.duration).toBe(cancelTime - providerStartTime)
+
+    vi.restoreAllMocks()
+  })
+
+  it('defaults streamFormat to text and can attach agent-events-v1 object streams', async () => {
+    const textResult = createStreamingExecution({
+      model: 'm',
+      providerStartTime,
+      providerStartTimeISO,
+      timing: { kind: 'simple', segmentName: 'm' },
+      initialTokens: { input: 0, output: 0, total: 0 },
+      initialCost: { input: 0, output: 0, total: 0 },
+      createStream: () => new ReadableStream(),
+    })
+    expect(textResult.streamFormat).toBe('text')
+
+    const events = [
+      { type: 'thinking_delta' as const, text: 'reason' },
+      { type: 'text_delta' as const, text: 'answer', turn: 'final' as const },
+    ]
+    const eventResult = createStreamingExecution({
+      model: 'm',
+      providerStartTime,
+      providerStartTimeISO,
+      timing: { kind: 'simple', segmentName: 'm' },
+      initialTokens: { input: 0, output: 0, total: 0 },
+      initialCost: { input: 0, output: 0, total: 0 },
+      streamFormat: 'agent-events-v1',
+      createStream: () => createAgentEventReadableStream(events),
+    })
+
+    expect(eventResult.streamFormat).toBe('agent-events-v1')
+    const reader = eventResult.stream.getReader()
+    const received = []
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      received.push(value)
+    }
+    expect(received).toEqual(events)
   })
 })

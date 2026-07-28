@@ -178,6 +178,7 @@ function makePlan(overrides: Partial<ForkPromotePlan> = {}): ForkPromotePlan {
     workflowIdMap: new Map(),
     archivedTargetIds: [],
     archivedTargets: [],
+    excludedTargets: [],
     references: [],
     unmappedRequired: [],
     unmappedOptional: [],

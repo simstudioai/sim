@@ -58,7 +58,7 @@ describe('admin dashboard credit grant contract', () => {
         externalCollaboratorCount: 0,
         seats: 0,
         concurrencyLimit: null,
-        includedMonthlyDollars: 0,
+        planAllowanceDollars: null,
         usageLimitDollars: 0.001,
         effectiveUsageLimitDollars: 0.001,
         prepaidBalanceDollars: 0.001,
@@ -74,7 +74,6 @@ describe('admin dashboard credit grant contract', () => {
       adminDashboardIssueEnterpriseBodySchema.safeParse({
         ownerUserId: 'owner-1',
         monthlyInvoiceAmountUsd: 500,
-        includedMonthlyDollars: 500,
         seats: 10,
         concurrencyLimit: 1250,
         pausePaymentCollection: true,
@@ -84,13 +83,18 @@ describe('admin dashboard credit grant contract', () => {
     expect(adminDashboardLimitsBodySchema.safeParse({ concurrencyLimit: 1.5 }).success).toBe(false)
   })
 
+  it('does not expose included allowance as an editable organization control', () => {
+    expect(adminDashboardLimitsBodySchema.safeParse({ includedMonthlyDollars: 100 }).success).toBe(
+      false
+    )
+  })
+
   it('accepts null to restore the deployment-wide Enterprise concurrency default', () => {
     expect(adminDashboardLimitsBodySchema.safeParse({ concurrencyLimit: null }).success).toBe(true)
     expect(
       adminDashboardIssueEnterpriseBodySchema.safeParse({
         ownerUserId: 'owner-1',
         monthlyInvoiceAmountUsd: 500,
-        includedMonthlyDollars: 500,
         seats: 10,
         concurrencyLimit: null,
       }).success

@@ -1271,7 +1271,7 @@ export const SapS4HanaBlockMeta = {
     },
     {
       icon: SapS4HanaIcon,
-      title: 'Purchase requisition router',
+      title: 'SAP purchase requisition router',
       prompt:
         'Build a workflow exposed to internal users as a form that captures purchase requisition details, classifies the request, creates the requisition in SAP S/4HANA via OData, posts the requisition number back to the requester, and logs the request in a tracking table.',
       modules: ['tables', 'agent', 'workflows'],

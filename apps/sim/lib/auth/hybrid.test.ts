@@ -1,30 +1,29 @@
 /**
  * @vitest-environment node
  */
-import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAuthenticateApiKeyFromHeader,
-  mockGetSession,
-  mockUpdateApiKeyLastUsed,
-  mockVerifyInternalToken,
-} = vi.hoisted(() => ({
-  mockAuthenticateApiKeyFromHeader: vi.fn(),
-  mockGetSession: vi.fn(),
-  mockUpdateApiKeyLastUsed: vi.fn(),
-  mockVerifyInternalToken: vi.fn(),
-}))
+import { authMockFns } from '@sim/testing'
+import { NextRequest } from 'next/server'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockAuthenticateApiKeyFromHeader, mockUpdateApiKeyLastUsed, mockVerifyInternalToken } =
+  vi.hoisted(() => ({
+    mockAuthenticateApiKeyFromHeader: vi.fn(),
+    mockUpdateApiKeyLastUsed: vi.fn(),
+    mockVerifyInternalToken: vi.fn(),
+  }))
+
+const mockGetSession = authMockFns.mockGetSession
+
+afterAll(() => {
+  mockGetSession.mockReset()
+})
 
 vi.unmock('@/lib/auth/hybrid')
 
 vi.mock('@/lib/api-key/service', () => ({
   authenticateApiKeyFromHeader: mockAuthenticateApiKeyFromHeader,
   updateApiKeyLastUsed: mockUpdateApiKeyLastUsed,
-}))
-
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
 }))
 
 vi.mock('@/lib/auth/internal', () => ({

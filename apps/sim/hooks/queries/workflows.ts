@@ -111,12 +111,16 @@ export function useWorkflowStates(
   return map
 }
 
-export function useWorkflows(workspaceId?: string, options?: { scope?: WorkflowQueryScope }) {
+export function useWorkflows(
+  workspaceId?: string,
+  options?: { scope?: WorkflowQueryScope; enabled?: boolean }
+) {
   const { scope = 'active' } = options || {}
 
   return useQuery({
     queryKey: workflowKeys.list(workspaceId, scope),
     queryFn: workspaceId ? getWorkflowListQueryOptions(workspaceId, scope).queryFn : skipToken,
+    enabled: options?.enabled ?? true,
     placeholderData: keepPreviousData,
     staleTime: WORKFLOW_LIST_STALE_TIME,
   })
@@ -175,7 +179,7 @@ export function useCreateWorkflow() {
         body: {
           id,
           name: name || generateCreativeWorkflowName(),
-          description: description || 'New workflow',
+          description,
           workspaceId,
           folderId: folderId || null,
           sortOrder,
@@ -226,7 +230,7 @@ export function useCreateWorkflow() {
         name: variables.name || generateCreativeWorkflowName(),
         lastModified: new Date(),
         createdAt: new Date(),
-        description: variables.description || 'New workflow',
+        description: variables.description ?? '',
         workspaceId: variables.workspaceId,
         folderId: variables.folderId || null,
         sortOrder,

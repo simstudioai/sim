@@ -432,8 +432,6 @@ import {
   tiktokPostPubliclyAvailableTrigger,
   tiktokPostPublishCompleteTrigger,
   tiktokPostPublishFailedTrigger,
-  tiktokVideoPublishCompletedTrigger,
-  tiktokVideoUploadFailedTrigger,
 } from '@/triggers/tiktok'
 import { twilioSmsReceivedTrigger, twilioSmsStatusTrigger } from '@/triggers/twilio'
 import { twilioVoiceWebhookTrigger } from '@/triggers/twilio_voice'
@@ -771,8 +769,6 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   tiktok_post_publicly_available: tiktokPostPubliclyAvailableTrigger,
   tiktok_post_publish_complete: tiktokPostPublishCompleteTrigger,
   tiktok_post_publish_failed: tiktokPostPublishFailedTrigger,
-  tiktok_video_publish_completed: tiktokVideoPublishCompletedTrigger,
-  tiktok_video_upload_failed: tiktokVideoUploadFailedTrigger,
   typeform_webhook: typeformWebhookTrigger,
   whatsapp_webhook: whatsappWebhookTrigger,
   google_forms_webhook: googleFormsWebhookTrigger,

@@ -128,6 +128,20 @@ export interface ConnectorMeta {
   supportsIncrementalSync?: boolean
 
   /**
+   * Whether this connector's extracted content can change without the source item's
+   * own change-detection hash changing — e.g. a Confluence page that transcludes
+   * another page via the Include Page / Excerpt macro: editing the included page
+   * changes the container's rendered `view` output without bumping the container's
+   * version, so its version-based `contentHash` stays identical.
+   *
+   * Incremental syncs remain hash-gated (cheap). On an explicit **full resync**
+   * (`fullSync`), the engine re-hydrates and re-indexes these connectors' documents
+   * even when their hash is unchanged, so transcluded/rendered-dependency changes are
+   * picked up. Only the deliberate full resync pays this re-index cost.
+   */
+  rehydrateOnFullSync?: boolean
+
+  /**
    * Tag definitions this connector populates. Shown in the add-connector modal
    * as opt-out checkboxes. On connector creation, tag definitions are auto-created
    * on the KB for enabled slots, and mapTags output is filtered to only include them.

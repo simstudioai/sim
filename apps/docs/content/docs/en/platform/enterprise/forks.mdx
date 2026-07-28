@@ -117,6 +117,19 @@ On success you will see a toast such as **Pushed to "…"** or **Pulled from "�
 
 ---
 
+## Excluded workflows
+
+The **Excluded workflows** section on the Forks page lists this workspace's deployed workflows in their sidebar folder structure. Check a workflow — or a whole folder at once — to keep it out of forking entirely. Think of it as a `.gitignore` for syncs:
+
+- **Never sent** — pushes from this workspace do not carry it, the other side pulling from this workspace does not receive it, and creating a new fork does not copy it
+- **Never touched** — a sync into this workspace will not overwrite or archive it, even if its counterpart was deleted on the other side
+
+The setting belongs to **this workspace's copy** only. Excluding a workflow here does not exclude its counterpart in the parent or a fork — each workspace manages its own list. If the pair has synced before, the link between them is kept, so un-excluding later resumes updating the same counterpart instead of creating a duplicate.
+
+**Example:** a staging fork excludes `Scratch experiment` so it can never reach production, and production excludes `Billing hotfix` so no push from staging can ever overwrite it.
+
+---
+
 ## Activity
 
 **See activity** (or the Activity view from the Forks header) lists forks, pushes, pulls, and rollbacks that involve this workspace — including events recorded on the other side of the edge.
@@ -156,8 +169,9 @@ How each resource behaves at **fork** time vs **sync** time. Use this when you a
 
 | Resource | Fork | Sync |
 |----------|------|------|
-| Deployed workflows | Always copied as drafts | Updated / created / archived (force overwrite) |
+| Deployed workflows | Copied as drafts (unless excluded) | Updated / created / archived (force overwrite) |
 | Undeployed workflows | Not copied | Not synced |
+| [Excluded workflows](#excluded-workflows) | Never | Never — not sent, not overwritten, not archived |
 | Files | Optional copy (default on) | Map or copy |
 | Tables | Optional copy (default on) | Map or copy |
 | Knowledge bases (+ documents) | Optional copy; referenced docs come with the KB | Map or copy; documents follow the KB |
@@ -176,7 +190,7 @@ How each resource behaves at **fork** time vs **sync** time. Use this when you a
 
 ### Workflows
 
-Only **deployed** workflows move. Deploy is the commit; sync is the force push/pull of those commits.
+Only **deployed** workflows move. Deploy is the commit; sync is the force push/pull of those commits. Workflows marked [excluded](#excluded-workflows) never move in either direction.
 
 | | Behavior |
 |---|----------|
