@@ -778,6 +778,153 @@ export function memoizedIndexOf(
   return idx
 }
 
+/**
+ * How much of a body may be inspected, and whether that is all of it.
+ *
+ * The read budget, isolated from what the body turns out to BE. Both the
+ * unclosed and matched-pair paths spend it, and getting them to agree is the
+ * point: they previously applied the same constant in two shapes, and the
+ * difference between them was a bug.
+ */
+interface InspectedBody {
+  /** The prefix actually examined. */
+  text: string
+  /** True when `text` is only a prefix, so no verdict drawn from it covers the rest. */
+  truncated: boolean
+}
+
+function inspectWithin(body: string): InspectedBody {
+  return body.length > MAX_UNCLOSED_BODY_SCAN
+    ? { text: body.slice(0, MAX_UNCLOSED_BODY_SCAN), truncated: true }
+    : { text: body, truncated: false }
+}
+
+/**
+ * What a matched body turned out to BE — independent of what the parser does
+ * about it, and of where it resumes.
+ *
+ * A closed set, and that is the whole point: {@link resolveMatchedPair} and
+ * {@link resumeForClass} each switch over it exhaustively, so adding a case
+ * fails to compile until BOTH questions are answered for it. Every regression
+ * review found on this parser was one of those two answers changing without the
+ * other, which is a mistake this shape makes unrepresentable.
+ */
+type BodyClass =
+  /** Parsed, and matched its shape guard. */
+  | { kind: 'payload'; segment: ContentSegment }
+  /** A tag marker at `offsetInBody` proves the close we matched belongs elsewhere. */
+  | { kind: 'nested-marker'; offsetInBody: number }
+  /**
+   * The same proof, in a PROSE body. Separate because it resumes differently: a
+   * prose body is never blanked, so nothing is hidden from the scan and rescanning
+   * from the opener is safe, and these bodies are small enough that the extra pass
+   * is free. Resuming at the marker instead would also be correct and would emit
+   * one text segment rather than two — display-identical, since the renderer
+   * concatenates them — but it is a behaviour change and does not belong in a
+   * refactor.
+   */
+  | { kind: 'prose-nested-marker' }
+  /** Only a prefix was read, and it settled nothing. Says nothing about the rest. */
+  | { kind: 'unexamined' }
+  /** Not a payload at all — never JSON, or JSON that will not parse. */
+  | { kind: 'never-json' }
+  /** Parsed as JSON, then failed its shape guard. The only droppable class. */
+  | { kind: 'broken-payload' }
+
+/**
+ * Classify a complete body. Pure: no positions, no outcome, no resume.
+ *
+ * Order is behavioural, not stylistic. The prose-nesting rule precedes the parse
+ * because a prose body has no shape to fail — any non-empty text qualifies — so a
+ * late close would otherwise swallow whatever the streaming path already showed.
+ * The budget precedes the remaining rules so an unread remainder is never
+ * mistaken for evidence.
+ */
+function classifyBody(tagName: (typeof SPECIAL_TAG_NAMES)[number], body: string): BodyClass {
+  const isJsonBodied = JSON_BODY_TAG_NAMES.has(tagName)
+
+  if (!isJsonBodied) {
+    // Prose bodies are never blanked, so a marker here is real and its index is
+    // exact.
+    if (TAG_SHAPED_MARKER.test(body)) return { kind: 'prose-nested-marker' }
+  }
+
+  const parsed = parseSpecialTagData(tagName, body)
+  if (parsed) return { kind: 'payload', segment: parsed }
+
+  const inspected = inspectWithin(body)
+  const verdict = literalTextReason(tagName, inspected.text)
+
+  if (verdict?.reason === 'foreign-markers') {
+    return { kind: 'nested-marker', offsetInBody: verdict.markerOffset }
+  }
+  if (inspected.truncated) return { kind: 'unexamined' }
+  if (verdict?.reason === 'never-a-payload') return { kind: 'never-json' }
+
+  // Dropping text is only defensible for a payload the agent actually FORMED.
+  // `{the Q4 report}` is prose in braces and `{type: "file"}` is an ordinary
+  // model slip; bracket depth cannot tell either from a real payload, only a
+  // parse can.
+  if (isJsonBodied && !isParseableJson(body)) return { kind: 'never-json' }
+
+  return { kind: 'broken-payload' }
+}
+
+/**
+ * Where scanning continues, given what the body was. The third concern, kept
+ * apart from the other two so a change to one cannot silently alter another.
+ *
+ * Every branch is strictly greater than the opener, which is what guarantees the
+ * cursor advances and {@link memoizedIndexOf}'s cache stays coherent.
+ */
+function resumeForClass(cls: BodyClass, bodyStart: number, pastClose: number): number {
+  switch (cls.kind) {
+    case 'payload':
+    case 'broken-payload':
+    case 'never-json':
+      // The whole span was read and accounted for; continue after it.
+      return pastClose
+    case 'nested-marker':
+      // Resume AT the marker, not past the borrowed close and not at the opener.
+      // Past the close would skip a genuine tag after it; the opener would rescan
+      // a region the blanked scan could not see into, re-parsing tag syntax
+      // quoted inside a JSON string and dropping it.
+      return bodyStart + cls.offsetInBody
+    case 'prose-nested-marker':
+      // Rescan the whole body: nothing was blanked, so no marker is hidden.
+      return bodyStart
+    case 'unexamined':
+      // Resume at the first character NOT read. Everything read is emitted as
+      // text by the caller, and this advances a full window per step, so a long
+      // body costs a bounded number of re-entries.
+      return bodyStart + MAX_UNCLOSED_BODY_SCAN
+  }
+}
+
+function resolveMatchedPair(
+  tagName: (typeof SPECIAL_TAG_NAMES)[number],
+  body: string,
+  bodyStart: number,
+  pastClose: number
+): TagResolution {
+  const cls = classifyBody(tagName, body)
+  const resumeAt = resumeForClass(cls, bodyStart, pastClose)
+
+  switch (cls.kind) {
+    case 'payload':
+      return { outcome: 'segment', segment: cls.segment, resumeAt }
+    case 'broken-payload':
+      // Well-formed but the wrong shape — a broken emission. Showing the reader
+      // raw JSON is worse than showing nothing.
+      return { outcome: 'discard', resumeAt }
+    case 'nested-marker':
+    case 'prose-nested-marker':
+    case 'unexamined':
+    case 'never-json':
+      return { outcome: 'literal', resumeAt }
+  }
+}
+
 function resolveTagAt(
   content: string,
   openIndex: number,
@@ -791,8 +938,8 @@ function resolveTagAt(
   const closeIdx = memoizedIndexOf(closeCache, content, closeTag, bodyStart)
 
   if (closeIdx === -1) {
-    const inspectable = content.slice(bodyStart, bodyStart + MAX_UNCLOSED_BODY_SCAN)
-    if (isStreaming && !unclosedTagCannotResolve(tagName, inspectable)) {
+    const inspected = inspectWithin(content.slice(bodyStart))
+    if (isStreaming && !unclosedTagCannotResolve(tagName, inspected.text)) {
       return { outcome: 'pending' }
     }
     // Nothing can close it, so only the opener itself is literal. Resuming just
@@ -801,73 +948,12 @@ function resolveTagAt(
     return { outcome: 'literal', resumeAt: bodyStart }
   }
 
-  const resumeAt = closeIdx + closeTag.length
-  const body = content.slice(bodyStart, closeIdx)
-
-  // Tags never nest, so a marker inside a PROSE body proves this opener was text
-  // — the same rule the unclosed path already applies. Checked before the body is
-  // accepted, because a prose body has no shape to fail: any non-empty text
-  // qualifies, so without this the arrival of the close retroactively swallows
-  // whatever the streaming path had already released. A `<thinking>` that had
-  // been shown as text with a rendered card inside it would blank on that frame,
-  // taking the card with it. Resuming at the opener rescans the interior, so the
-  // inner tag survives; prose bodies are never blanked, so no marker is hidden
-  // from this scan the way one can be in a JSON string.
-  if (!JSON_BODY_TAG_NAMES.has(tagName) && TAG_SHAPED_MARKER.test(body)) {
-    return { outcome: 'literal', resumeAt: bodyStart }
-  }
-
-  const parsed = parseSpecialTagData(tagName, body)
-  if (parsed) return { outcome: 'segment', segment: parsed, resumeAt }
-
-  // Bound this scan the way the unclosed path is bounded: a borrowed close can
-  // stretch one body across most of the message, and the scan then reruns for
-  // every opener inside it on every streamed chunk. Both rules decide on first
-  // evidence, so a prefix reaches the same verdict for any real payload.
-  const truncated = body.length > MAX_UNCLOSED_BODY_SCAN
-  const verdict = literalTextReason(
+  return resolveMatchedPair(
     tagName,
-    truncated ? body.slice(0, MAX_UNCLOSED_BODY_SCAN) : body
+    content.slice(bodyStart, closeIdx),
+    bodyStart,
+    closeIdx + closeTag.length
   )
-
-  if (verdict?.reason === 'foreign-markers') {
-    // A marker in the body proves the close we matched opened somewhere else —
-    // this opener reached past its own missing close and borrowed a later tag's.
-    // Resume at that marker rather than past the borrowed close, so a genuine tag
-    // after it still renders instead of being swallowed into one literal span.
-    // Resuming at the MARKER and not at the opener matters: the scan ran on the
-    // blanked body, so anything before the marker may be a quoted string whose
-    // tag syntax the scan never saw. Re-scanning that raw would re-parse the
-    // quoted text as a real tag and drop it — deleting the very text this parser
-    // exists to preserve. Everything skipped is still emitted by pushText.
-    return { outcome: 'literal', resumeAt: bodyStart + verdict.markerOffset }
-  }
-  // Only a prefix was inspected, so no verdict drawn from it — "prose" or nothing
-  // at all — describes the rest of the body. Resume at the first character NOT
-  // looked at rather than past the close: everything inspected is emitted as text
-  // by the caller, and scanning continues into the remainder, so a genuine tag
-  // beyond the window still renders as a card instead of being flattened. Past
-  // the close would also risk discarding a region never examined.
-  //
-  // This advances at least MAX_UNCLOSED_BODY_SCAN per step, so a long body costs a
-  // bounded number of re-entries rather than one scan per character.
-  if (truncated) return { outcome: 'literal', resumeAt: bodyStart + MAX_UNCLOSED_BODY_SCAN }
-
-  if (verdict?.reason === 'never-a-payload') return { outcome: 'literal', resumeAt }
-
-  // Dropping text is only defensible for a payload the agent actually FORMED:
-  // syntactically valid JSON that failed its shape guard. A body that will not
-  // parse at all was never demonstrably a payload — `{the Q4 report}` is prose
-  // someone wrapped in braces, and unquoted keys or single quotes are ordinary
-  // model slips — so it is shown rather than deleted. Bracket depth cannot tell
-  // those apart from a real payload; only an actual parse can.
-  if (JSON_BODY_TAG_NAMES.has(tagName) && !isParseableJson(body)) {
-    return { outcome: 'literal', resumeAt }
-  }
-
-  // A well-formed value that failed its shape guard is a broken emission from
-  // the agent; showing the user raw JSON there would be worse than nothing.
-  return { outcome: 'discard', resumeAt }
 }
 
 /**
