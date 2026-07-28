@@ -97,8 +97,12 @@ function truncateDocsPageToInlineCap(page: { content: string; totalLines: number
   returnedLines: number
 } {
   const lines = page.content.split('\n')
+  // Route to ONE more fetch, not two. Telling the model to grep and then read
+  // costs two more uncached fetches of a page it already partly has; grep and
+  // read cost the same single fetch, so grep is an alternative to a read here,
+  // never a step before one.
   const notice = (shown: number) =>
-    `\n\n[Page truncated: showing lines 1-${shown} of ${page.totalLines}. Grep this path for the section you need, then read with offset/limit.]`
+    `\n\n[Page truncated: returned lines 1-${shown} of ${page.totalLines}. To continue, read this path with offset: ${shown}. To jump straight to a section, grep this path INSTEAD of reading it — grep is the same single fetch and returns only matching lines with their numbers.]`
 
   let kept = lines.length
   let content = page.content

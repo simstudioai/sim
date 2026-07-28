@@ -15,9 +15,10 @@
  *                                     into their parent URL; `/workflows/index.mdx`
  *                                     is a 404 on the site)
  *
- * Excluded, and intentionally absent from the VFS: `academy/` and
- * `api-reference/` (fetch those with the scrape tool if ever needed), the root
- * `index.mdx` (its URL is `/`, which redirects), and every non-`en` locale.
+ * Excluded, and intentionally absent from the VFS: every section in
+ * `UNMOUNTED_DOCS_SECTIONS` (fetch those with the scrape tool if ever needed),
+ * the root `index.mdx` (its URL is `/`, which redirects), and every non-`en`
+ * locale.
  *
  * Usage:
  *   bun run docs-manifest:generate   # write the manifest
@@ -26,7 +27,7 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { foldDocsIndexPath } from '../apps/sim/lib/copilot/docs/docs-path'
+import { foldDocsIndexPath, UNMOUNTED_DOCS_SECTIONS } from '../apps/sim/lib/copilot/docs/docs-path'
 import { formatGeneratedSource } from './format-generated-source'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
@@ -34,8 +35,12 @@ const ROOT = resolve(SCRIPT_DIR, '..')
 const DOCS_CONTENT_DIR = resolve(ROOT, 'apps/docs/content/docs/en')
 const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/copilot/generated/docs-manifest.ts')
 
-/** Top-level docs sections deliberately left out of the copilot's `docs/` tree. */
-const EXCLUDED_SECTIONS = new Set(['academy', 'api-reference'])
+/**
+ * Top-level docs sections deliberately left out of the copilot's `docs/` tree.
+ * Shared with the vector search's unscoped filter so readability and
+ * findability cannot drift apart — see `UNMOUNTED_DOCS_SECTIONS`.
+ */
+const EXCLUDED_SECTIONS = new Set<string>(UNMOUNTED_DOCS_SECTIONS)
 
 /** Collect every `.mdx` file under `dir`, as paths relative to {@link DOCS_CONTENT_DIR}. */
 async function collectMdxPaths(dir: string, prefix = ''): Promise<string[]> {

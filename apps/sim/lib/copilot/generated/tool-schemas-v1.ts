@@ -3459,7 +3459,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         topK: {
           type: 'number',
-          description: 'Number of results (default 10, max 25)',
+          description: 'Number of results (default 5, max 25)',
         },
       },
       required: ['query'],
@@ -3476,7 +3476,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         topK: {
           type: 'number',
-          description: 'Number of results (default 10, max 25)',
+          description: 'Number of results (default 5, max 25)',
         },
       },
       required: ['query'],

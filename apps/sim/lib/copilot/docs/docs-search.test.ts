@@ -241,9 +241,9 @@ describe('searchDocs topK clamping', () => {
     mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [0.1, 0.2] })
   })
 
-  it('defaults to 10 when unspecified', async () => {
+  it('defaults to 5 when unspecified', async () => {
     await searchDocs('cron')
-    expect(capturedLimit.value).toBe(10)
+    expect(capturedLimit.value).toBe(5)
   })
 
   it('caps at 25 — the documented max, which the old tool never enforced', async () => {
@@ -266,10 +266,10 @@ describe('searchDocs topK clamping', () => {
   it('falls back to the default rather than passing NaN to the query', async () => {
     // Math.min/Math.max propagate NaN, so a bare clamp would reach `.limit(NaN)`.
     await searchDocs('cron', { topK: Number.NaN })
-    expect(capturedLimit.value).toBe(10)
+    expect(capturedLimit.value).toBe(5)
     await searchDocs('cron', { topK: 'twelve' as unknown as number })
-    expect(capturedLimit.value).toBe(10)
+    expect(capturedLimit.value).toBe(5)
     await searchDocs('cron', { topK: Number.POSITIVE_INFINITY })
-    expect(capturedLimit.value).toBe(10)
+    expect(capturedLimit.value).toBe(5)
   })
 })

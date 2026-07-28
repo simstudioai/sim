@@ -3675,7 +3675,7 @@ export const SearchDocs: ToolCatalogEntry = {
           'Optional docs/ VFS path (a page such as docs/workflows/blocks/agent.mdx, or a section such as docs/workflows) that limits the search scope',
       },
       query: { type: 'string', description: 'The search query' },
-      topK: { type: 'number', description: 'Number of results (default 10, max 25)' },
+      topK: { type: 'number', description: 'Number of results (default 5, max 25)' },
     },
     required: ['query'],
   },
@@ -3690,7 +3690,7 @@ export const SearchDocumentation: ToolCatalogEntry = {
     type: 'object',
     properties: {
       query: { type: 'string', description: 'The search query' },
-      topK: { type: 'number', description: 'Number of results (default 10, max 25)' },
+      topK: { type: 'number', description: 'Number of results (default 5, max 25)' },
     },
     required: ['query'],
   },
