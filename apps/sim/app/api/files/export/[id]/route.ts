@@ -9,16 +9,27 @@ import { fileExportContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { extractEmbeddedImageIds } from '@/lib/copilot/tools/server/files/embedded-image-refs'
+import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
 import { getServeStoragePrefix } from '@/lib/uploads/config'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
+import { formatFileSize } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import { encodeFilenameForHeader } from '@/app/api/files/utils'
 
 const logger = createLogger('FilesExportAPI')
+
+/**
+ * Bundling caps. The embed list comes from scanning the document body, so its length
+ * and the bytes behind it are whatever the author put there — without these the export
+ * would materialize an unbounded number of unbounded assets in one request.
+ */
+const MAX_EXPORT_ASSETS = 100
+const MAX_EXPORT_ASSET_BYTES = 25 * 1024 * 1024
+const MAX_EXPORT_TOTAL_BYTES = 100 * 1024 * 1024
 
 const MARKDOWN_MIME_TYPES = new Set(['text/markdown', 'text/x-markdown'])
 const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown'])
@@ -136,34 +147,73 @@ export const GET = withRouteHandler(
       })
     }
 
-    const fetchResults = await Promise.allSettled(
-      imageIds.map(async (imageId) => {
-        const imgRecord = await getFileMetadataById(imageId)
-        if (!imgRecord) return null
-        const imgHasAccess = await verifyFileAccess(imgRecord.key, userId)
-        if (!imgHasAccess) return null
-        const imgBuffer = await downloadFile({
-          key: imgRecord.key,
-          context: imgRecord.context as StorageContext,
-        })
-        return { imageId, originalName: imgRecord.originalName, buffer: imgBuffer }
+    if (imageIds.length > MAX_EXPORT_ASSETS) {
+      return NextResponse.json(
+        {
+          error: `This document embeds ${imageIds.length} files, more than the ${MAX_EXPORT_ASSETS} an export can bundle.`,
+        },
+        { status: 400 }
+      )
+    }
+
+    // Metadata first: declared sizes bound the download before a byte is read, and the
+    // authorization check costs nothing to run here.
+    const assetTargets = (
+      await mapWithConcurrency(imageIds, MATERIALIZE_CONCURRENCY, async (imageId) => {
+        try {
+          const imgRecord = await getFileMetadataById(imageId)
+          if (!imgRecord) return null
+          if (!(await verifyFileAccess(imgRecord.key, userId))) return null
+          return { imageId, record: imgRecord }
+        } catch (error) {
+          logger.warn('Failed to resolve asset for export', {
+            imageId,
+            error: toError(error).message,
+          })
+          return null
+        }
       })
+    ).filter((target): target is NonNullable<typeof target> => target !== null)
+
+    const declaredAssetBytes = assetTargets.reduce((sum, target) => sum + target.record.size, 0)
+    if (declaredAssetBytes > MAX_EXPORT_TOTAL_BYTES) {
+      return NextResponse.json(
+        {
+          error: `Embedded files total ${formatFileSize(declaredAssetBytes)}, which exceeds the ${formatFileSize(MAX_EXPORT_TOTAL_BYTES)} export limit.`,
+        },
+        { status: 400 }
+      )
+    }
+
+    const fetched = await mapWithConcurrency(
+      assetTargets,
+      MATERIALIZE_CONCURRENCY,
+      async ({ imageId, record: imgRecord }) => {
+        try {
+          const buffer = await downloadFile({
+            key: imgRecord.key,
+            context: imgRecord.context as StorageContext,
+            maxBytes: MAX_EXPORT_ASSET_BYTES,
+          })
+          return { imageId, originalName: imgRecord.originalName, buffer }
+        } catch (error) {
+          // A single unreadable or oversized asset drops out of the bundle rather than
+          // failing the whole export; the markdown keeps its original link.
+          logger.warn('Failed to fetch asset for export', {
+            imageId,
+            error: toError(error).message,
+          })
+          return null
+        }
+      }
     )
 
     const assetMap = new Map<string, { filename: string; buffer: Buffer }>()
     const usedFilenames = new Set<string>()
 
-    for (let i = 0; i < fetchResults.length; i++) {
-      const result = fetchResults[i]
-      if (result.status === 'rejected') {
-        logger.warn('Failed to fetch asset for export', {
-          imageId: imageIds[i],
-          error: toError(result.reason).message,
-        })
-        continue
-      }
-      if (!result.value) continue
-      const { imageId, originalName, buffer } = result.value
+    for (const result of fetched) {
+      if (!result) continue
+      const { imageId, originalName, buffer } = result
       const preferred = safeFilename(originalName)
       const filename = deduplicatedFilename(preferred, usedFilenames, imageId)
       usedFilenames.add(filename)
