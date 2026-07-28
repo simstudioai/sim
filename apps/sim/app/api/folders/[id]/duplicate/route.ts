@@ -12,6 +12,7 @@ import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { DbOrTx } from '@/lib/db/types'
+import { deduplicateFolderName } from '@/lib/folders/naming'
 import { toFolderApi } from '@/lib/folders/queries'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -263,38 +264,6 @@ async function assertTargetParentFolderMutable(
 
     currentFolderId = folder.parentId
   }
-}
-
-async function deduplicateFolderName(
-  tx: DbOrTx,
-  workspaceId: string,
-  parentId: string | null,
-  requestedName: string
-): Promise<string> {
-  const parentCondition = parentId
-    ? eq(folderTable.parentId, parentId)
-    : isNull(folderTable.parentId)
-  const siblingRows = await tx
-    .select({ name: folderTable.name })
-    .from(folderTable)
-    .where(
-      and(
-        eq(folderTable.workspaceId, workspaceId),
-        eq(folderTable.resourceType, 'workflow'),
-        parentCondition,
-        isNull(folderTable.deletedAt)
-      )
-    )
-  const siblingNames = new Set(siblingRows.map((row) => row.name))
-  if (!siblingNames.has(requestedName)) return requestedName
-
-  let suffix = 1
-  let candidate = `${requestedName} (${suffix})`
-  while (siblingNames.has(candidate)) {
-    suffix += 1
-    candidate = `${requestedName} (${suffix})`
-  }
-  return candidate
 }
 
 async function duplicateFolderStructure(

@@ -12,6 +12,7 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, min } from 'drizzle-orm'
+import { deduplicateFolderName } from '@/lib/folders/naming'
 import { archiveWorkflowsByIdsInWorkspace } from '@/lib/workflows/lifecycle'
 import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
 import { checkForCircularReference } from '@/lib/workflows/utils'
@@ -554,6 +555,27 @@ export async function performRestoreFolder(
             .set({ parentId: null })
             .where(and(eq(folderTable.id, folderId), eq(folderTable.resourceType, 'workflow')))
         }
+      }
+
+      // Restore is a recovery action — the caller cannot rename an archived folder, so a
+      // name already taken by an active sibling would leave them permanently unable to
+      // restore. Dedup instead of failing. Safe to rename while the row is still archived:
+      // the unique index only covers active rows, so this cannot collide before the
+      // recursive restore below clears `deletedAt`. Only the restore root can conflict —
+      // descendants come back alongside the siblings they were archived with.
+      const restoredName = await deduplicateFolderName(
+        tx,
+        workspaceId,
+        folder.parentId,
+        folder.name
+      )
+      if (restoredName !== folder.name) {
+        logger.info('Renamed folder on restore to avoid a sibling name conflict', {
+          folderId,
+          from: folder.name,
+          to: restoredName,
+        })
+        await tx.update(folderTable).set({ name: restoredName }).where(eq(folderTable.id, folderId))
       }
 
       return restoreFolderRecursively(folderId, workspaceId, folder.deletedAt!, tx)
