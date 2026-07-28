@@ -27,6 +27,8 @@ interface MockView {
     isDestroyed: ReturnType<typeof vi.fn>
     setBackgroundThrottling: ReturnType<typeof vi.fn>
     capturePage: ReturnType<typeof vi.fn>
+    findInPage: ReturnType<typeof vi.fn>
+    stopFindInPage: ReturnType<typeof vi.fn>
   }
   setBackgroundColor: ReturnType<typeof vi.fn>
   setBounds: ReturnType<typeof vi.fn>
@@ -116,6 +118,7 @@ describe('browser-agent session', () => {
     )
     expect(session.browserShortcutForInput({ ...input, key: 't' }, 'darwin')).toBe('new-tab')
     expect(session.browserShortcutForInput({ ...input, key: 'w' }, 'darwin')).toBe('close-tab')
+    expect(session.browserShortcutForInput({ ...input, key: 'f' }, 'darwin')).toBe('find')
     expect(
       session.browserShortcutForInput({ ...input, key: 't', shift: true }, 'darwin')
     ).toBeNull()
@@ -167,6 +170,166 @@ describe('browser-agent session', () => {
     expect(session.listTabs()).toHaveLength(1)
     expect(session.listTabs()[0].tabId).not.toBe(first.id)
     expect(win.webContents.send).toHaveBeenLastCalledWith('browser-agent:focus-omnibox', 'clear')
+  })
+
+  it('opens the renderer find bar when the page takes Mod+F', () => {
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const tab = session.requireTab()
+    const contents = (tab.view as unknown as MockView).webContents
+    const beforeInput = contents.on.mock.calls.find(
+      ([eventName]) => eventName === 'before-input-event'
+    )?.[1] as
+      | ((event: { preventDefault: () => void }, input: Record<string, unknown>) => void)
+      | undefined
+    const event = { preventDefault: vi.fn() }
+
+    beforeInput?.(event, {
+      type: 'keyDown',
+      key: 'f',
+      isAutoRepeat: false,
+      isComposing: false,
+      shift: false,
+      control: process.platform !== 'darwin',
+      alt: false,
+      meta: process.platform === 'darwin',
+    })
+
+    // The page never sees it — otherwise a site's own Mod+F wins over find.
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(win.webContents.send).toHaveBeenLastCalledWith('browser-agent:open-find')
+  })
+
+  it('restarts the search while typing and steps without restarting on next/previous', () => {
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const tab = session.requireTab()
+    const contents = (tab.view as unknown as MockView).webContents
+
+    session.findInActiveTab({ query: 'needle', findNext: false, forward: true })
+    expect(contents.findInPage).toHaveBeenLastCalledWith('needle', {
+      forward: true,
+      findNext: false,
+    })
+
+    session.findInActiveTab({ query: 'needle', findNext: true, forward: false })
+    expect(contents.findInPage).toHaveBeenLastCalledWith('needle', {
+      forward: false,
+      findNext: true,
+    })
+
+    // Clearing the box is a stop, not a search for the empty string — and the
+    // bar has to survive it, or deleting the last character closes the bar the
+    // user is still typing in.
+    vi.mocked(win.webContents.send).mockClear()
+    session.findInActiveTab({ query: '', findNext: false, forward: true })
+    expect(contents.stopFindInPage).toHaveBeenCalledWith('clearSelection')
+    expect(contents.findInPage).toHaveBeenCalledTimes(2)
+    expect(win.webContents.send).not.toHaveBeenCalledWith('browser-agent:close-find')
+  })
+
+  it('forwards match counts only for the tab the find is running on', () => {
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const first = session.requireTab()
+    const second = session.addTab()
+    const firstContents = (first.view as unknown as MockView).webContents
+    const secondContents = (second.view as unknown as MockView).webContents
+    const foundOn = (contents: MockView['webContents']) =>
+      contents.on.mock.calls.find(([eventName]) => eventName === 'found-in-page')?.[1] as
+        | ((event: unknown, result: Record<string, unknown>) => void)
+        | undefined
+
+    session.switchTab(first.id)
+    session.findInActiveTab({ query: 'needle', findNext: false, forward: true })
+    foundOn(firstContents)?.({}, { activeMatchOrdinal: 2, matches: 7, finalUpdate: true })
+    expect(win.webContents.send).toHaveBeenLastCalledWith('browser-agent:find-result', {
+      activeMatchOrdinal: 2,
+      matches: 7,
+      final: true,
+    })
+
+    // A late result from a tab that is not being searched would relabel the bar
+    // with counts for a page the user is not looking at.
+    vi.mocked(win.webContents.send).mockClear()
+    foundOn(secondContents)?.({}, { activeMatchOrdinal: 1, matches: 3, finalUpdate: true })
+    expect(win.webContents.send).not.toHaveBeenCalledWith(
+      'browser-agent:find-result',
+      expect.anything()
+    )
+  })
+
+  it('drops the find when its page navigates away, but not on a same-document change', () => {
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const tab = session.requireTab()
+    const contents = (tab.view as unknown as MockView).webContents
+    const navigate = contents.on.mock.calls.find(
+      ([eventName]) => eventName === 'did-start-navigation'
+    )?.[1] as ((details: Record<string, unknown>) => void) | undefined
+
+    session.findInActiveTab({ query: 'needle', findNext: false, forward: true })
+    vi.mocked(win.webContents.send).mockClear()
+
+    // A pushState route change keeps the document the matches live in.
+    navigate?.({ isMainFrame: true, isSameDocument: true })
+    expect(win.webContents.send).not.toHaveBeenCalledWith('browser-agent:close-find')
+    // A subframe load likewise leaves the main document alone.
+    navigate?.({ isMainFrame: false, isSameDocument: false })
+    expect(win.webContents.send).not.toHaveBeenCalledWith('browser-agent:close-find')
+
+    navigate?.({ isMainFrame: true, isSameDocument: false })
+    expect(contents.stopFindInPage).toHaveBeenCalledWith('clearSelection')
+    expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find')
+  })
+
+  it('drops the find when the user switches to another tab', () => {
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const first = session.requireTab()
+    const second = session.addTab()
+    const firstContents = (first.view as unknown as MockView).webContents
+
+    session.switchTab(first.id)
+    session.findInActiveTab({ query: 'needle', findNext: false, forward: true })
+    vi.mocked(win.webContents.send).mockClear()
+
+    session.switchTab(second.id)
+    expect(firstContents.stopFindInPage).toHaveBeenCalledWith('clearSelection')
+    expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find')
+  })
+
+  it('returns focus to the page only when the user dismissed the bar', () => {
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const tab = session.requireTab()
+    const contents = (tab.view as unknown as MockView).webContents
+
+    // Panel teardown: the bar unmounts under a user who has already moved on,
+    // so pulling focus back into the browser would drag them back to it.
+    session.findInActiveTab({ query: 'needle', findNext: false, forward: true })
+    contents.focus.mockClear()
+    session.stopFindInActiveTab(false)
+    expect(contents.focus).not.toHaveBeenCalled()
+
+    session.findInActiveTab({ query: 'needle', findNext: false, forward: true })
+    contents.focus.mockClear()
+    session.stopFindInActiveTab(true)
+    expect(contents.focus).toHaveBeenCalled()
+  })
+
+  it('returns focus to the page even when no search was running', () => {
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const tab = session.requireTab()
+    const contents = (tab.view as unknown as MockView).webContents
+
+    // Opened and closed without typing. Focus still has to leave the bar: it is
+    // unmounting, and <body> cannot receive the Mod+F that reopens it.
+    contents.focus.mockClear()
+    session.stopFindInActiveTab(true)
+    expect(contents.focus).toHaveBeenCalled()
+
+    // Same once the box is emptied — clearing the query ends the search, so
+    // dismissing afterwards has no searched tab to key focus off either.
+    session.findInActiveTab({ query: 'needle', findNext: false, forward: true })
+    session.findInActiveTab({ query: '', findNext: false, forward: true })
+    contents.focus.mockClear()
+    session.stopFindInActiveTab(true)
+    expect(contents.focus).toHaveBeenCalled()
   })
 
   it('closes only the native browser tab targeted by the application menu accelerator', () => {

@@ -1,5 +1,7 @@
 import type {
   BrowserDataKind,
+  BrowserFindRequest,
+  BrowserFindResult,
   BrowserKnownSessionsState,
   BrowserOmniboxFocusMode,
   BrowserPageState,
@@ -160,6 +162,33 @@ const api: SimDesktopApi = {
       ipcRenderer.on('browser-agent:focus-omnibox', listener)
       return () => {
         ipcRenderer.removeListener('browser-agent:focus-omnibox', listener)
+      }
+    },
+    find: (request: BrowserFindRequest): void => {
+      ipcRenderer.send('browser-agent:find', request)
+    },
+    stopFind: (focusPage?: boolean): void => {
+      ipcRenderer.send('browser-agent:stop-find', focusPage === true)
+    },
+    onOpenFind: (callback: () => void): (() => void) => {
+      const listener = () => callback()
+      ipcRenderer.on('browser-agent:open-find', listener)
+      return () => {
+        ipcRenderer.removeListener('browser-agent:open-find', listener)
+      }
+    },
+    onCloseFind: (callback: () => void): (() => void) => {
+      const listener = () => callback()
+      ipcRenderer.on('browser-agent:close-find', listener)
+      return () => {
+        ipcRenderer.removeListener('browser-agent:close-find', listener)
+      }
+    },
+    onFindResult: (callback: (result: BrowserFindResult) => void): (() => void) => {
+      const listener = (_event: unknown, result: BrowserFindResult) => callback(result)
+      ipcRenderer.on('browser-agent:find-result', listener)
+      return () => {
+        ipcRenderer.removeListener('browser-agent:find-result', listener)
       }
     },
     onPanelSnapshot: (callback: (snapshot: BrowserPanelSnapshot) => void): (() => void) => {

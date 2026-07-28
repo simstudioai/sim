@@ -1,6 +1,8 @@
 import { join } from 'node:path'
 import {
   type BrowserDataKind,
+  type BrowserFindRequest,
+  type BrowserFindResult,
   type BrowserOmniboxFocusMode,
   type BrowserTabState,
   type BrowserTabsState,
@@ -74,7 +76,7 @@ export interface AgentSessionEvents {
  */
 const MAX_RECENTLY_CLOSED_TABS = 10
 
-export type BrowserShortcut = 'focus-omnibox' | 'new-tab' | 'close-tab'
+export type BrowserShortcut = 'focus-omnibox' | 'new-tab' | 'close-tab' | 'find'
 
 type BrowserShortcutInput = Pick<
   Input,
@@ -108,6 +110,8 @@ export function browserShortcutForInput(
       return 'new-tab'
     case 'w':
       return 'close-tab'
+    case 'f':
+      return 'find'
     default:
       return null
   }
@@ -305,6 +309,106 @@ function focusRendererOmnibox(mode: BrowserOmniboxFocusMode): void {
 }
 
 /**
+ * Opens the renderer's find bar and moves keyboard focus to it. The bar is
+ * renderer chrome rather than an overlay on the page: a renderer element that
+ * overlapped the native view would trip the occlusion path and hide the very
+ * page being searched.
+ */
+function openRendererFind(): void {
+  const win = panelWindow()
+  if (!win || win.isDestroyed()) return
+  win.webContents.focus()
+  win.webContents.send('browser-agent:open-find')
+}
+
+/**
+ * Tab a find is currently running on. Tracked because the find outlives the
+ * call that started it — Chromium keeps the highlights until it is told to
+ * stop, so leaving a tab (or navigating it) has to clear the find explicitly
+ * or the old matches stay lit under a match count that no longer describes
+ * anything on screen.
+ */
+let findingTabId: string | null = null
+
+/**
+ * Drops a tab's highlights and stops treating it as the tab being searched.
+ * Leaves the renderer's bar alone — emptying the find box and searching a
+ * different tab both end a find while the user is still typing in the bar.
+ */
+function stopFindOnTab(tabId: string | null): void {
+  if (tabId === null) return
+  const tab = tabs.find((entry) => entry.id === tabId)
+  if (tab && !tab.view.webContents.isDestroyed()) {
+    tab.view.webContents.stopFindInPage('clearSelection')
+  }
+  if (findingTabId === tabId) findingTabId = null
+}
+
+/**
+ * Stops the find and dismisses the renderer's bar, for when the page it was
+ * run against is gone — a navigation or a tab switch. Chrome dismisses find on
+ * navigation too, and a count for the previous document is worse than no bar.
+ */
+function dismissFind(tabId: string | null): void {
+  if (tabId === null) return
+  const wasFinding = findingTabId === tabId
+  stopFindOnTab(tabId)
+  if (!wasFinding) return
+  const win = panelWindow()
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('browser-agent:close-find')
+  }
+}
+
+/**
+ * Runs Chromium's own find against the active tab. An empty query stops the
+ * find rather than searching for nothing, matching what emptying Chrome's find
+ * box does — the bar stays open and ready for the next query.
+ */
+export function findInActiveTab(request: BrowserFindRequest): void {
+  const tab = activeTab()
+  if (!tab) return
+  if (request.query === '') {
+    stopFindOnTab(tab.id)
+    return
+  }
+  // A find started on another tab has to go before this one begins, or its
+  // highlights survive on a page the user can no longer see them on.
+  if (findingTabId !== null && findingTabId !== tab.id) stopFindOnTab(findingTabId)
+  findingTabId = tab.id
+  tab.view.webContents.findInPage(request.query, {
+    forward: request.forward,
+    findNext: request.findNext,
+  })
+}
+
+/**
+ * Stops the running find.
+ *
+ * `focusPage` distinguishes the user dismissing the bar — where focus is being
+ * pulled out from under them and Chrome leaves it on the page — from the bar
+ * merely unmounting because the browser panel went away. Only the renderer can
+ * tell those apart: the panel's own teardown reports bounds after its
+ * children's cleanups run, so by the time this is reached the panel still
+ * looks visible either way, and focusing the page on teardown would drag the
+ * user back to a browser they just navigated away from.
+ */
+export function stopFindInActiveTab(focusPage: boolean): void {
+  stopFindOnTab(findingTabId)
+  if (!focusPage) return
+  // Deliberately the ACTIVE tab, not whichever tab was being searched: there is
+  // often no search running at all (the bar was opened and closed without a
+  // query, or the box was emptied first, both of which clear the searched tab).
+  // Keying focus off the search left those cases with focus on the input that
+  // just unmounted, which lands on <body> — from there the page cannot receive
+  // the next Mod+F for the shell to intercept, and the renderer's own handler
+  // is scoped to the panel, so find became unopenable until something else was
+  // clicked.
+  const tab = activeTab()
+  if (tab) tab.view.webContents.focus()
+}
+
+/**
  * Opens a link from a page in another tab of this browser. Shared by the
  * window.open interception and the page's right-click menu — both have to stay
  * inside the browser resource rather than spawn a native window, and both are
@@ -405,6 +509,10 @@ function createTabView(): WebContentsView {
       focusRendererOmnibox('select')
       return
     }
+    if (shortcut === 'find') {
+      openRendererFind()
+      return
+    }
     if (shortcut === 'new-tab') {
       if (listTabs().length < MAX_BROWSER_TABS) {
         addTab()
@@ -415,6 +523,28 @@ function createTabView(): WebContentsView {
 
     const tab = tabs.find((entry) => entry.view === view)
     if (tab) closeTabFromUser(tab.id)
+  })
+  contents.on('found-in-page', (_event, result) => {
+    const tab = tabs.find((entry) => entry.view === view)
+    // Counts from a tab the user has already left would relabel the bar for
+    // whatever page is on screen now.
+    if (!tab || tab.id !== findingTabId) return
+    const win = panelWindow()
+    if (!win || win.isDestroyed()) return
+    const payload: BrowserFindResult = {
+      activeMatchOrdinal: result.activeMatchOrdinal,
+      matches: result.matches,
+      final: result.finalUpdate,
+    }
+    win.webContents.send('browser-agent:find-result', payload)
+  })
+  // A document load replaces what the find was pointing at. Same-document
+  // route changes do not, and Chromium keeps the highlights across them, so
+  // only real navigations dismiss the bar.
+  contents.on('did-start-navigation', (details) => {
+    if (!details.isMainFrame || details.isSameDocument) return
+    const tab = tabs.find((entry) => entry.view === view)
+    if (tab) dismissFind(tab.id)
   })
   // A pinned tab persists its latest top-level location, including
   // user-driven navigations that do not pass through the driver.
@@ -634,6 +764,8 @@ export function switchTab(tabId: string): AgentTab {
   restorePinnedTabs()
   const tab = tabs.find((entry) => entry.id === tabId)
   if (!tab) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
+  // The find belongs to the page it was typed against, not to the browser.
+  if (findingTabId !== null && findingTabId !== tab.id) dismissFind(findingTabId)
   const transferBrowserFocus =
     focusedBrowserTabId !== null || tabs.some((entry) => entry.view.webContents.isFocused())
   activeTabId = tab.id

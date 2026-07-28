@@ -14,6 +14,8 @@
  * offered.
  */
 import type {
+  BrowserFindRequest,
+  BrowserFindResult,
   BrowserKnownSession,
   BrowserOmniboxFocusMode,
   BrowserPageState,
@@ -194,6 +196,45 @@ export function onBrowserOmniboxFocus(
   callback: (mode: BrowserOmniboxFocusMode) => void
 ): () => void {
   return bridge()?.onFocusOmnibox?.(callback) ?? (() => {})
+}
+
+/** Whether the installed desktop shell supports find-in-page. */
+export function isBrowserFindAvailable(): boolean {
+  return typeof bridge()?.find === 'function'
+}
+
+/**
+ * Runs Chromium's find against the active page. Counts arrive separately via
+ * {@link onBrowserFindResult} — Chromium resolves them asynchronously and
+ * streams several updates per request.
+ */
+export function findInBrowserPage(request: BrowserFindRequest): void {
+  bridge()?.find?.(request)
+}
+
+/**
+ * Stops the running find and clears its highlights. Pass `focusPage` when the
+ * user dismissed the bar, so focus lands back on the page instead of being
+ * stranded on the removed input; leave it off when the bar is unmounting
+ * because the panel is going away.
+ */
+export function stopBrowserFind(focusPage = false): void {
+  bridge()?.stopFind?.(focusPage)
+}
+
+/** Subscribes to Mod+F pressed while the embedded page held focus. */
+export function onBrowserFindOpen(callback: () => void): () => void {
+  return bridge()?.onOpenFind?.(callback) ?? (() => {})
+}
+
+/** Subscribes to the shell dismissing find (navigation, tab switch). */
+export function onBrowserFindClose(callback: () => void): () => void {
+  return bridge()?.onCloseFind?.(callback) ?? (() => {})
+}
+
+/** Subscribes to match counts for the running find. */
+export function onBrowserFindResult(callback: (result: BrowserFindResult) => void): () => void {
+  return bridge()?.onFindResult?.(callback) ?? (() => {})
 }
 
 /**

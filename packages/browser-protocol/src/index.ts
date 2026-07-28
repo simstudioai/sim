@@ -157,6 +157,41 @@ export interface BrowserPageState {
   canGoForward: boolean
 }
 
+/**
+ * One find-in-page request against the active tab. Backed by Chromium's own
+ * find, so behaviour matches Chrome exactly — this only carries the query and
+ * which way to step.
+ */
+export interface BrowserFindRequest {
+  query: string
+  /**
+   * False starts a fresh search and highlights every match; true steps to the
+   * next/previous match of the search already running. Typing re-searches;
+   * Enter steps.
+   */
+  findNext: boolean
+  /** Direction for a `findNext` step. Ignored when starting a fresh search. */
+  forward: boolean
+}
+
+/**
+ * Match counts for the running find, pushed as Chromium resolves them. The
+ * counts are asynchronous and arrive in several updates per request, so the
+ * renderer must not expect one reply per {@link BrowserFindRequest}.
+ */
+export interface BrowserFindResult {
+  /** 1-based index of the highlighted match, or 0 before one is chosen. */
+  activeMatchOrdinal: number
+  /** Total matches on the page; 0 means the query is not present. */
+  matches: number
+  /**
+   * Whether the find has settled. Chromium streams provisional counts while a
+   * long page is still being scanned; only a final update is worth showing as
+   * a definitive "no results".
+   */
+  final: boolean
+}
+
 /** Summary of one live page in the desktop agent browser. */
 export interface BrowserTabState {
   tabId: string

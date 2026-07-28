@@ -7,10 +7,13 @@ import { Button, ChipInput, Popover, PopoverAnchor, PopoverContent, PopoverItem 
 import { ArrowLeft, ArrowRight, Cursor, Key, Link, RefreshCw, Search } from '@sim/emcn/icons'
 import { useTheme } from 'next-themes'
 import {
+  isBrowserFindAvailable,
   isBrowserTabPinningAvailable,
   isBrowserTabReorderingAvailable,
   loadBrowserSuggestionSources,
   onBrowserFillAvailability,
+  onBrowserFindClose,
+  onBrowserFindOpen,
   onBrowserOmniboxFocus,
   reorderBrowserTab,
   reportBrowserPanelBounds,
@@ -22,6 +25,7 @@ import {
 } from '@/lib/browser-agent/transport'
 import { BROWSER_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
+import { BrowserFindBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-find-bar'
 import { useBrowserPanelOcclusion } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserTabStrip } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-tab-strip'
 import {
@@ -139,6 +143,7 @@ export function BrowserSession({ visible }: { visible: boolean }) {
   const panelRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
+  const findInputRef = useRef<HTMLInputElement>(null)
   const fillButtonRef = useRef<HTMLButtonElement>(null)
   const panelOccluded = useBrowserPanelOcclusion(hostRef, visible)
   const { removeResource } = useMothershipResources()
@@ -175,6 +180,9 @@ export function BrowserSession({ visible }: { visible: boolean }) {
   const [suggestionCorpus, setSuggestionCorpus] = useState<UrlSuggestion[]>([])
   /** Null until the user arrows into the list, so Enter still means "go to what I typed". */
   const [activeSuggestion, setActiveSuggestion] = useState<number | null>(null)
+  /** Whether the find bar is docked above the page. */
+  const [findOpen, setFindOpen] = useState(false)
+  const findSupported = isBrowserFindAvailable()
 
   useEffect(() => onBrowserFillAvailability(setFillAvailable), [])
 
@@ -226,6 +234,51 @@ export function BrowserSession({ visible }: { visible: boolean }) {
       }
     }
   }, [])
+
+  /**
+   * Opens the find bar, or re-selects it when it is already open — pressing
+   * Mod+F twice in Chrome selects the existing query so the next keystroke
+   * replaces it.
+   */
+  const openFind = useCallback(() => {
+    setFindOpen(true)
+    requestAnimationFrame(() => {
+      findInputRef.current?.focus()
+      findInputRef.current?.select()
+    })
+  }, [])
+
+  // Mod+F reaches the panel two different ways and neither sees the other: with
+  // the embedded page focused the keystroke never becomes a renderer key event
+  // at all (the shell intercepts it and calls back), and with Sim's own chrome
+  // focused the shell never sees it. Both land here.
+  useEffect(() => {
+    if (!findSupported) return
+    return onBrowserFindOpen(openFind)
+  }, [findSupported, openFind])
+
+  useEffect(() => {
+    if (!findSupported) return
+    return onBrowserFindClose(() => setFindOpen(false))
+  }, [findSupported])
+
+  useEffect(() => {
+    if (!findSupported || !panelVisible) return
+    const panel = panelRef.current
+    if (!panel) return
+    const handleFindShortcut = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
+      if (event.key !== 'f') return
+      event.preventDefault()
+      openFind()
+    }
+    panel.addEventListener('keydown', handleFindShortcut)
+    return () => panel.removeEventListener('keydown', handleFindShortcut)
+  }, [findSupported, panelVisible, openFind])
+
+  // Unmounting the bar strands focus on a removed node; the shell hands it back
+  // to the page when it stops the find, which is where native focus is owned.
+  const closeFind = useCallback(() => setFindOpen(false), [])
 
   // Keep the embedded view glued to the host rect without forcing layout on
   // every animation frame. ResizeObserver covers panel drags/transitions and
@@ -566,6 +619,7 @@ export function BrowserSession({ visible }: { visible: boolean }) {
             </Button>
           )}
         </div>
+        {findOpen && <BrowserFindBar inputRef={findInputRef} onClose={closeFind} />}
       </div>
       {/* Host area: the real page is overlaid exactly on this rect. */}
       <div ref={hostRef} className='relative flex-1 overflow-hidden bg-[var(--bg)]'>

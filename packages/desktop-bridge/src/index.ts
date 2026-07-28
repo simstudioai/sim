@@ -1,5 +1,7 @@
 import type {
   BrowserDataKind,
+  BrowserFindRequest,
+  BrowserFindResult,
   BrowserKnownSessionsState,
   BrowserOmniboxFocusMode,
   BrowserPageState,
@@ -133,6 +135,31 @@ export interface SimDesktopBrowserAgentApi {
    * shortcuts such as Mod+L and Mod+T.
    */
   onFocusOmnibox?(callback: (mode: BrowserOmniboxFocusMode) => void): () => void
+  /**
+   * Run Chromium's find-in-page against the active tab. Results do not come
+   * back from this call — they stream through {@link onFindResult}. Optional
+   * for compatibility with desktop builds predating find-in-page.
+   */
+  find?(request: BrowserFindRequest): void
+  /**
+   * Stop the running find and clear its highlights. `focusPage` hands keyboard
+   * focus back to the page, for the user dismissing the bar; omit it when the
+   * bar is going away because the panel is.
+   */
+  stopFind?(focusPage?: boolean): void
+  /**
+   * Mod+F pressed while the embedded page had focus, which the renderer never
+   * sees as a key event. Opening the find bar is the renderer's job either
+   * way, so both entry paths land on the same handler.
+   */
+  onOpenFind?(callback: () => void): () => void
+  /**
+   * The shell dismissing the find bar — the active tab navigated away from the
+   * document the find was run against, or the user switched tabs.
+   */
+  onCloseFind?(callback: () => void): () => void
+  /** Match counts for the running find, as Chromium resolves them. */
+  onFindResult?(callback: (result: BrowserFindResult) => void): () => void
   /**
    * Subscribe to captured browser frames used beneath renderer overlays.
    * Optional for compatibility with desktop builds predating occlusion.

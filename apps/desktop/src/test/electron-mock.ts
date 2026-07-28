@@ -135,6 +135,8 @@ function createWebContentsMock() {
     close: vi.fn(),
     isDestroyed: vi.fn(() => false),
     isLoading: vi.fn(() => false),
+    findInPage: vi.fn(() => 1),
+    stopFindInPage: vi.fn(),
     setBackgroundThrottling: vi.fn(),
     getZoomFactor: vi.fn(() => 1),
     setZoomFactor: vi.fn(),

@@ -26,10 +26,12 @@ import {
 } from '@/main/browser-agent/driver'
 import { isAgentWebContents } from '@/main/browser-agent/registry'
 import {
+  findInActiveTab,
   getTabsState,
   reorderTab,
   setBrowserTheme,
   setTabPinned,
+  stopFindInActiveTab,
 } from '@/main/browser-agent/session'
 import {
   copyCredential,
@@ -561,6 +563,31 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         if (isBrowserTheme(theme)) {
           setBrowserTheme(theme)
         }
+      },
+    },
+    'browser-agent:find': {
+      kind: 'send',
+      gate: 'app-origin',
+      requires: 'browser',
+      handler: (raw) => {
+        if (typeof raw !== 'object' || raw === null) return
+        const { query, findNext, forward } = raw as Record<string, unknown>
+        if (
+          typeof query !== 'string' ||
+          typeof findNext !== 'boolean' ||
+          typeof forward !== 'boolean'
+        ) {
+          return
+        }
+        findInActiveTab({ query, findNext, forward })
+      },
+    },
+    'browser-agent:stop-find': {
+      kind: 'send',
+      gate: 'app-origin',
+      requires: 'browser',
+      handler: (focusPage) => {
+        stopFindInActiveTab(focusPage === true)
       },
     },
     // Local Chrome import. This is a user-only surface: no browser tool maps
