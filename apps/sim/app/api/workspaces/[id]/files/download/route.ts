@@ -1,11 +1,15 @@
+import { PassThrough, type Readable } from 'stream'
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import JSZip from 'jszip'
+import { toError } from '@sim/utils/errors'
+import { ZipArchive } from 'archiver'
+import lazystream from 'lazystream'
 import { type NextRequest, NextResponse } from 'next/server'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -16,6 +20,7 @@ import {
   listWorkspaceFileFolders,
   listWorkspaceFiles,
 } from '@/lib/uploads/contexts/workspace'
+import { downloadFileStream } from '@/lib/uploads/core/storage-service'
 import { formatFileSize, isRenderableDocumentName } from '@/lib/uploads/utils/file-utils'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/servable-file-response'
 import { buildZipEntryPaths } from '@/lib/uploads/zip-entry-path'
@@ -47,6 +52,24 @@ function overLimitResponse(bytes: number, qualifier = ''): NextResponse {
     },
     { status: 400 }
   )
+}
+
+/**
+ * A `Readable` that opens its storage read on first pull rather than up front. Handing
+ * the archiver one open stream per entry would hold a connection per selected file —
+ * more than the storage client pools — with most sitting idle until their turn.
+ */
+function lazyWorkspaceFileStream(file: WorkspaceFileRecord): Readable {
+  return new lazystream.Readable(() => {
+    const relay = new PassThrough()
+    downloadFileStream({ key: file.key, context: file.storageContext ?? 'workspace' })
+      .then((source) => {
+        source.on('error', (error) => relay.destroy(toError(error)))
+        source.pipe(relay)
+      })
+      .catch((error) => relay.destroy(toError(error)))
+    return relay
+  })
 }
 
 function collectDescendantFolderIds(
@@ -144,17 +167,14 @@ export const GET = withRouteHandler(
         error: null,
       }
 
-      const readEntry = async (
-        file: WorkspaceFileRecord,
-        renderable: boolean
-      ): Promise<DownloadOutcome> => {
+      const readEntry = async (file: WorkspaceFileRecord): Promise<DownloadOutcome> => {
         if (controller.signal.aborted) return skipped
         const remaining = Math.max(0, MAX_ZIP_DOWNLOAD_BYTES - renderedBytes)
-        // Only renderable documents carry a cap of their own; everything else is
-        // bounded solely by what is left of the shared budget.
-        const allowance = renderable
-          ? Math.max(file.size, RENDERED_DOCUMENT_HEADROOM_BYTES)
-          : remaining
+        // Uploads and source-backed documents are indistinguishable before the bytes
+        // are read, so the allowance is the larger of the declared size and the render
+        // headroom: a real 80 MiB deck still downloads, a small generator source cannot
+        // render unbounded.
+        const allowance = Math.max(file.size, RENDERED_DOCUMENT_HEADROOM_BYTES)
         try {
           const { buffer } = await fetchServableWorkspaceFileBuffer(file, {
             maxBytes: Math.min(remaining, allowance),
@@ -176,8 +196,7 @@ export const GET = withRouteHandler(
             return {
               ...skipped,
               overLimit: true,
-              overLimitEntry:
-                renderable && allowance <= remaining ? { name: file.name, allowance } : null,
+              overLimitEntry: allowance <= remaining ? { name: file.name, allowance } : null,
             }
           }
           // Any other error from an already-aborted read is a consequence of the
@@ -192,25 +211,16 @@ export const GET = withRouteHandler(
         }
       }
 
-      const outcomes = new Array<DownloadOutcome>(filesToZip.length)
-      const indices = filesToZip.map((_, index) => index)
-      await Promise.all([
-        mapWithConcurrency(
-          indices.filter((index) => isRenderableDocumentName(filesToZip[index].name)),
-          1,
-          async (index) => {
-            outcomes[index] = await readEntry(filesToZip[index], true)
-          }
-        ),
-        mapWithConcurrency(
-          indices.filter((index) => !isRenderableDocumentName(filesToZip[index].name)),
-          ZIP_MATERIALIZE_CONCURRENCY,
-          async (index) => {
-            outcomes[index] = await readEntry(filesToZip[index], false)
-          }
-        ),
-      ])
-      const downloads = outcomes
+      // Documents are resolved up front, one at a time: they are the only entries that
+      // need their bytes in hand, and every status this route can return is decided
+      // from them. Nothing may fail after the first byte is written — the status code
+      // is committed by then — so this has to happen before the archive starts.
+      const documentBuffers = new Map<string, Buffer>()
+      const documents = filesToZip.filter((file) => isRenderableDocumentName(file.name))
+      const downloads = await mapWithConcurrency(documents, 1, (file) => readEntry(file))
+      downloads.forEach((outcome, index) => {
+        if (outcome.buffer) documentBuffers.set(documents[index].id, outcome.buffer)
+      })
 
       // Size first: the request cannot succeed at any size-adjacent retry, and a
       // descriptive 400 beats an opaque 500 raised by whatever the abort cancelled.
@@ -250,13 +260,20 @@ export const GET = withRouteHandler(
         }))
       )
 
-      // Indexed off `downloads` so entries stay aligned with `filesToZip` by construction.
-      const zip = new JSZip()
-      downloads.forEach((result, index) => {
-        if (result.buffer) zip.file(entryPaths[index], result.buffer)
+      // Ordinary files are never materialized: each entry opens its storage read only
+      // when the archiver reaches it (`lazystream` defers the factory until first read),
+      // so peak memory is one entry rather than the whole selection. Resolved documents
+      // are appended from the buffers above.
+      const archive = new ZipArchive({ store: true })
+      archive.on('warning', (error: Error) => {
+        logger.warn('Archive warning while streaming workspace files', { error })
       })
 
-      const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' })
+      filesToZip.forEach((file, index) => {
+        const buffer = documentBuffers.get(file.id)
+        archive.append(buffer ?? lazyWorkspaceFileStream(file), { name: entryPaths[index] })
+      })
+      void archive.finalize()
 
       recordAudit({
         workspaceId,
@@ -264,7 +281,7 @@ export const GET = withRouteHandler(
         action: AuditAction.FILE_DOWNLOADED,
         resourceType: AuditResourceType.FILE,
         description: `Downloaded ${filesToZip.length} file${filesToZip.length === 1 ? '' : 's'} as zip`,
-        metadata: { fileCount: filesToZip.length, totalBytes: renderedBytes },
+        metadata: { fileCount: filesToZip.length, totalBytes: declaredBytes },
         request,
       })
       captureServerEvent(
@@ -274,18 +291,14 @@ export const GET = withRouteHandler(
         { groups: { workspace: workspaceId } }
       )
 
-      return new NextResponse(
-        // View, not copy — a 250 MB archive would otherwise cost 500 MB. Node buffers
-        // are never backed by a SharedArrayBuffer, so the narrowing is sound.
-        new Uint8Array(zipBuffer.buffer as ArrayBuffer, zipBuffer.byteOffset, zipBuffer.byteLength),
-        {
-          headers: {
-            'Content-Type': 'application/zip',
-            'Content-Disposition': 'attachment; filename="workspace-files.zip"',
-            'Cache-Control': 'no-store',
-          },
-        }
-      )
+      // No Content-Length: the archive size is not known until it has been produced.
+      return new NextResponse(nodeReadableToWebStream(archive), {
+        headers: {
+          'Content-Type': 'application/zip',
+          'Content-Disposition': 'attachment; filename="workspace-files.zip"',
+          'Cache-Control': 'no-store',
+        },
+      })
     } catch (error) {
       logger.error('Failed to download workspace file selection:', error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

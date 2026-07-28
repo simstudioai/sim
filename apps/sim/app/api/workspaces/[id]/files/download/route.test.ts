@@ -1,8 +1,8 @@
 /**
  * @vitest-environment node
  */
+import { Readable } from 'stream'
 import { createMockRequest } from '@sim/testing'
-import { sleep } from '@sim/utils/helpers'
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,12 +12,14 @@ const {
   mockListWorkspaceFiles,
   mockListWorkspaceFileFolders,
   mockFetchServableWorkspaceFileBuffer,
+  mockDownloadFileStream,
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockVerifyWorkspaceMembership: vi.fn(),
   mockListWorkspaceFiles: vi.fn(),
   mockListWorkspaceFileFolders: vi.fn(),
   mockFetchServableWorkspaceFileBuffer: vi.fn(),
+  mockDownloadFileStream: vi.fn(),
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -37,6 +39,10 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
   fetchServableWorkspaceFileBuffer: mockFetchServableWorkspaceFileBuffer,
 }))
 
+vi.mock('@/lib/uploads/core/storage-service', () => ({
+  downloadFileStream: mockDownloadFileStream,
+}))
+
 vi.mock('@sim/audit', () => ({
   recordAudit: vi.fn(),
   AuditAction: { FILE_DOWNLOADED: 'file.downloaded' },
@@ -51,8 +57,9 @@ import { GET } from '@/app/api/workspaces/[id]/files/download/route'
 
 const WORKSPACE_ID = 'ws-1'
 const context = { params: Promise.resolve({ id: WORKSPACE_ID }) }
+const MB = 1024 * 1024
 
-function workspaceFile(id: string, name: string, folderId: string | null) {
+function workspaceFile(id: string, name: string, folderId: string | null = 'folder-1') {
   return {
     id,
     name,
@@ -73,6 +80,10 @@ function requestFor(query: string) {
   )
 }
 
+async function zipFrom(response: Response) {
+  return JSZip.loadAsync(Buffer.from(await response.arrayBuffer()))
+}
+
 describe('workspace files download route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -81,12 +92,13 @@ describe('workspace files download route', () => {
     mockListWorkspaceFileFolders.mockResolvedValue([
       { id: 'folder-1', name: 'Reports', parentId: null },
     ])
+    mockDownloadFileStream.mockImplementation(async () => Readable.from([Buffer.from('plain')]))
   })
 
   it('zips the rendered bytes for a generated doc, not its stored source', async () => {
-    mockListWorkspaceFiles.mockResolvedValue([workspaceFile('f1', 'overview.docx', 'folder-1')])
+    mockListWorkspaceFiles.mockResolvedValue([workspaceFile('f1', 'overview.docx')])
     // A real .docx is a ZIP; the stored source would be plain JS text.
-    const rendered = Buffer.from('PKrendered-docx')
+    const rendered = Buffer.from('PKrendered-docx')
     mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
       buffer: rendered,
       contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -95,23 +107,61 @@ describe('workspace files download route', () => {
     const response = await GET(requestFor('fileIds=f1'), context)
 
     expect(response.status).toBe(200)
-    expect(mockFetchServableWorkspaceFileBuffer).toHaveBeenCalledTimes(1)
-
-    const zip = await JSZip.loadAsync(Buffer.from(await response.arrayBuffer()))
-    const entry = zip.file('Reports/overview.docx')
+    const entry = (await zipFrom(response)).file('Reports/overview.docx')
     expect(entry).not.toBeNull()
     expect(Buffer.from(await entry!.async('uint8array'))).toEqual(rendered)
   })
 
+  it('streams ordinary files instead of materializing them', async () => {
+    mockListWorkspaceFiles.mockResolvedValue([workspaceFile('f1', 'clip.mp4')])
+
+    const response = await GET(requestFor('fileIds=f1'), context)
+
+    expect(response.status).toBe(200)
+    // Nothing has been read yet: the entry opens its storage read only once the
+    // consumer pulls the archive, which is what keeps peak memory to one entry.
+    expect(mockDownloadFileStream).not.toHaveBeenCalled()
+
+    const zip = await zipFrom(response)
+
+    expect(mockDownloadFileStream).toHaveBeenCalledTimes(1)
+    // Never routed through the buffering document reader.
+    expect(mockFetchServableWorkspaceFileBuffer).not.toHaveBeenCalled()
+
+    const entry = zip.file('Reports/clip.mp4')
+    expect(entry).not.toBeNull()
+    expect(await entry!.async('string')).toBe('plain')
+  })
+
+  it('preserves nested folder paths across both entry kinds', async () => {
+    mockListWorkspaceFileFolders.mockResolvedValue([
+      { id: 'folder-1', name: 'Reports', parentId: null },
+      { id: 'folder-2', name: 'visuals', parentId: 'folder-1' },
+    ])
+    mockListWorkspaceFiles.mockResolvedValue([
+      workspaceFile('f1', 'summary.docx', 'folder-1'),
+      workspaceFile('f2', 'hero.png', 'folder-2'),
+    ])
+    mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
+      buffer: Buffer.from('PKdoc'),
+      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    })
+
+    const zip = await zipFrom(await GET(requestFor('fileIds=f1&fileIds=f2'), context))
+
+    expect(zip.file('Reports/summary.docx')).not.toBeNull()
+    expect(zip.file('visuals/hero.png')).not.toBeNull()
+  })
+
   it('returns 409 naming the documents whose artifacts are still compiling', async () => {
     mockListWorkspaceFiles.mockResolvedValue([
-      workspaceFile('f1', 'ready.md', 'folder-1'),
-      workspaceFile('f2', 'pending.docx', 'folder-1'),
+      workspaceFile('f1', 'ready.docx'),
+      workspaceFile('f2', 'pending.docx'),
     ])
     mockFetchServableWorkspaceFileBuffer.mockImplementation(async (file: { name: string }) => {
       if (file.name === 'pending.docx')
         throw new DocCompileUserError('Document is still being generated')
-      return { buffer: Buffer.from('ok'), contentType: 'text/markdown' }
+      return { buffer: Buffer.from('PKok'), contentType: 'application/octet-stream' }
     })
 
     const response = await GET(requestFor('fileIds=f1&fileIds=f2'), context)
@@ -119,59 +169,49 @@ describe('workspace files download route', () => {
     expect(response.status).toBe(409)
     const body = await response.json()
     expect(body.error).toContain('pending.docx')
-    expect(body.error).not.toContain('ready.md')
+    expect(body.error).not.toContain('ready.docx')
   })
 
-  it('rejects with 400, not 500, when a rendered document blows the byte budget', async () => {
-    mockListWorkspaceFiles.mockResolvedValue([workspaceFile('f1', 'huge.docx', 'folder-1')])
+  it('rejects with 400, not 500, when a document blows its own allowance', async () => {
+    mockListWorkspaceFiles.mockResolvedValue([workspaceFile('f1', 'huge.docx')])
     mockFetchServableWorkspaceFileBuffer.mockRejectedValue(
-      new PayloadSizeLimitError('servable file download exceeds limit')
+      new PayloadSizeLimitError({ label: 'servable file download', maxBytes: 1 })
     )
 
     const response = await GET(requestFor('fileIds=f1'), context)
 
     expect(response.status).toBe(400)
-    // Names the offending entry rather than blaming the whole selection.
     const body = await response.json()
     expect(body.error).toContain('huge.docx')
     expect(body.error).not.toContain('Selected files total')
   })
 
-  it('blames the entry when its render ceiling exactly equals the remaining budget', async () => {
-    // Declared at the full budget, so allowance === remaining and the caps tie.
-    const doc = { ...workspaceFile('f1', 'report.docx', 'folder-1'), size: 250 * 1024 * 1024 }
-    mockListWorkspaceFiles.mockResolvedValue([doc])
-    mockFetchServableWorkspaceFileBuffer.mockRejectedValue(
-      new PayloadSizeLimitError({ label: 'servable file download', maxBytes: 1 })
-    )
+  it('blames the shared budget once earlier documents have consumed it', async () => {
+    mockListWorkspaceFiles.mockResolvedValue([
+      workspaceFile('f1', 'first.docx'),
+      workspaceFile('f2', 'second.docx'),
+    ])
+    mockFetchServableWorkspaceFileBuffer.mockImplementation(async (file: { name: string }) => {
+      // The first document eats the whole budget, so the second's cap is the remainder.
+      if (file.name === 'first.docx') {
+        return { buffer: Buffer.alloc(240 * MB), contentType: 'application/octet-stream' }
+      }
+      throw new PayloadSizeLimitError({ label: 'servable file download', maxBytes: 1 })
+    })
 
-    const response = await GET(requestFor('fileIds=f1'), context)
-
-    expect(response.status).toBe(400)
-    // Downloading it on its own is still the way through, so name it.
-    expect((await response.json()).error).toContain('report.docx')
-  })
-
-  it('blames the shared budget, not the entry, when the entry had no smaller cap', async () => {
-    // .mp4 has no render headroom, so its cap is whatever is left of the budget.
-    mockListWorkspaceFiles.mockResolvedValue([workspaceFile('f1', 'clip.mp4', 'folder-1')])
-    mockFetchServableWorkspaceFileBuffer.mockRejectedValue(
-      new PayloadSizeLimitError({ label: 'servable file download', maxBytes: 1 })
-    )
-
-    const response = await GET(requestFor('fileIds=f1'), context)
+    const response = await GET(requestFor('fileIds=f1&fileIds=f2'), context)
 
     expect(response.status).toBe(400)
     const body = await response.json()
     expect(body.error).toContain('Selected files total')
-    expect(body.error).not.toContain('clip.mp4')
+    expect(body.error).not.toContain('second.docx')
   })
 
   it('lets an uploaded office file larger than the render headroom through', async () => {
-    const big = { ...workspaceFile('f1', 'deck.pptx', 'folder-1'), size: 80 * 1024 * 1024 }
+    const big = { ...workspaceFile('f1', 'deck.pptx'), size: 80 * MB }
     mockListWorkspaceFiles.mockResolvedValue([big])
     mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
-      buffer: Buffer.from('ok'),
+      buffer: Buffer.from('PKdeck'),
       contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     })
 
@@ -179,94 +219,13 @@ describe('workspace files download route', () => {
 
     expect(response.status).toBe(200)
     // Capped at the declared size, not the smaller render headroom.
-    expect(mockFetchServableWorkspaceFileBuffer.mock.calls[0][1].maxBytes).toBe(80 * 1024 * 1024)
-  })
-
-  it('caps rendered documents per entry so concurrent reads cannot each claim the budget', async () => {
-    mockListWorkspaceFiles.mockResolvedValue([
-      workspaceFile('f1', 'report.docx', 'folder-1'),
-      workspaceFile('f2', 'clip.mp4', 'folder-1'),
-    ])
-    mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
-      buffer: Buffer.from('ok'),
-      contentType: 'application/octet-stream',
-    })
-
-    await GET(requestFor('fileIds=f1&fileIds=f2'), context)
-
-    const maxBytesFor = (name: string) =>
-      mockFetchServableWorkspaceFileBuffer.mock.calls.find(
-        (call: [{ name: string }, { maxBytes: number }]) => call[0].name === name
-      )?.[1].maxBytes
-
-    // Only the source-backed document can render larger than it declares.
-    expect(maxBytesFor('report.docx')).toBe(50 * 1024 * 1024)
-    expect(maxBytesFor('clip.mp4')).toBe(250 * 1024 * 1024)
-  })
-
-  it('reports an oversized selection as 400 even when the abort cancels other reads', async () => {
-    const files = Array.from({ length: 40 }, (_, index) =>
-      workspaceFile(`f${index}`, `doc${index}.docx`, 'folder-1')
-    )
-    mockListWorkspaceFiles.mockResolvedValue(files)
-    mockFetchServableWorkspaceFileBuffer.mockImplementation(async (file: { name: string }) => {
-      if (file.name === 'doc0.docx')
-        throw new PayloadSizeLimitError({ label: 'servable file download', maxBytes: 1 })
-      // Everything else fails the way a cancelled read would.
-      throw new DOMException('The operation was aborted', 'AbortError')
-    })
-
-    const response = await GET(
-      requestFor(files.map((file) => `fileIds=${file.id}`).join('&')),
-      context
-    )
-
-    // Cancellation noise must not turn the size rejection into a generic 500.
-    expect(response.status).toBe(400)
-  })
-
-  it('keeps the size rejection when a hard failure aborted the read first', async () => {
-    mockListWorkspaceFiles.mockResolvedValue([
-      workspaceFile('f1', 'broken.txt', 'folder-1'),
-      workspaceFile('f2', 'huge.docx', 'folder-1'),
-    ])
-    mockFetchServableWorkspaceFileBuffer.mockImplementation(async (file: { name: string }) => {
-      if (file.name === 'broken.txt') throw new Error('storage down')
-      // Lands after the hard failure has already aborted the shared controller.
-      await sleep(1)
-      throw new PayloadSizeLimitError({ label: 'servable file download', maxBytes: 1 })
-    })
-
-    const response = await GET(requestFor('fileIds=f1&fileIds=f2'), context)
-
-    // "Select fewer files" is actionable; a generic 500 is not.
-    expect(response.status).toBe(400)
-  })
-
-  it('stops issuing reads once one hard-fails instead of draining the selection', async () => {
-    const files = Array.from({ length: 60 }, (_, index) =>
-      workspaceFile(`f${index}`, `doc${index}.txt`, 'folder-1')
-    )
-    mockListWorkspaceFiles.mockResolvedValue(files)
-    mockFetchServableWorkspaceFileBuffer.mockImplementation(async (file: { name: string }) => {
-      if (file.name === 'doc0.txt') throw new Error('storage down')
-      return { buffer: Buffer.from('ok'), contentType: 'text/plain' }
-    })
-
-    const response = await GET(
-      requestFor(files.map((file) => `fileIds=${file.id}`).join('&')),
-      context
-    )
-
-    expect(response.status).toBe(500)
-    // Reads already in flight finish, but the queued remainder is never started.
-    expect(mockFetchServableWorkspaceFileBuffer.mock.calls.length).toBeLessThan(files.length)
+    expect(mockFetchServableWorkspaceFileBuffer.mock.calls[0][1].maxBytes).toBe(80 * MB)
   })
 
   it('surfaces a storage failure as a 500 even when another document is pending', async () => {
     mockListWorkspaceFiles.mockResolvedValue([
-      workspaceFile('f1', 'pending.docx', 'folder-1'),
-      workspaceFile('f2', 'broken.txt', 'folder-1'),
+      workspaceFile('f1', 'pending.docx'),
+      workspaceFile('f2', 'broken.docx'),
     ])
     mockFetchServableWorkspaceFileBuffer.mockImplementation(async (file: { name: string }) => {
       if (file.name === 'pending.docx')
@@ -278,5 +237,36 @@ describe('workspace files download route', () => {
 
     // A 409 would tell the client to retry something that can never succeed.
     expect(response.status).toBe(500)
+  })
+
+  it('stops resolving documents once one hard-fails', async () => {
+    const files = Array.from({ length: 20 }, (_, index) =>
+      workspaceFile(`f${index}`, `doc${index}.docx`)
+    )
+    mockListWorkspaceFiles.mockResolvedValue(files)
+    mockFetchServableWorkspaceFileBuffer.mockImplementation(async (file: { name: string }) => {
+      if (file.name === 'doc0.docx') throw new Error('storage down')
+      return { buffer: Buffer.from('PKok'), contentType: 'application/octet-stream' }
+    })
+
+    const response = await GET(
+      requestFor(files.map((file) => `fileIds=${file.id}`).join('&')),
+      context
+    )
+
+    expect(response.status).toBe(500)
+    expect(mockFetchServableWorkspaceFileBuffer.mock.calls.length).toBeLessThan(files.length)
+  })
+
+  it('rejects a selection whose declared sizes already exceed the limit', async () => {
+    mockListWorkspaceFiles.mockResolvedValue([
+      { ...workspaceFile('f1', 'a.mp4'), size: 200 * MB },
+      { ...workspaceFile('f2', 'b.mp4'), size: 200 * MB },
+    ])
+
+    const response = await GET(requestFor('fileIds=f1&fileIds=f2'), context)
+
+    expect(response.status).toBe(400)
+    expect(mockDownloadFileStream).not.toHaveBeenCalled()
   })
 })
