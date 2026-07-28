@@ -2,63 +2,62 @@ const HIDDEN_INLINE_REFERENCE_PATTERN =
   /`[^`\n]*(?:internal\/tool-results\/|internal\/blocktips\/|components\/integrations\/[^`\n]*README)[^`\n]*`/g
 
 /**
- * A complete workspace-resource tag, with any backtick sitting directly against
- * either end. Replacing with the tag alone drops those backticks, which is what
- * lets the chip render when the model wrapped the tag in a code span.
+ * A complete workspace-resource tag: opener, payload, closer.
  *
- * Three constraints, each load-bearing:
+ * Two constraints on the payload, both load-bearing:
  *
- * - **The closer must be present.** Prose MENTIONING the tag name writes
- *   `<workspace_resource>` with no closer at all. Stripping a mention's opening
- *   backtick leaves the closing one unpaired, and it opens a code span that runs
- *   to the next backtick — inverting every code span in the rest of the message.
- * - **No backtick between opener and closer.** A payload is JSON and carries
- *   none, while a message explaining the syntax writes the opener and the closer
- *   as two separately backticked spans. Without this, that prose reads as one
- *   wrapped tag and loses its outer pair.
- * - **No `<workspace_resource>` between opener and closer**, via the negative
- *   lookahead. This is a cost bound, not a correctness rule: a lazy scan that may
- *   cross an opener restarts from every opener, so a message repeating the tag
- *   name is quadratic — on the main thread, for every streamed chunk.
- *
- * Backticks must be DIRECTLY adjacent. Allowing whitespace between let the
- * pattern reach past the tag and take the delimiter off a neighbouring code
- * span — `` Open `config.json` <tag> `` lost a backtick that way, and `\s*`
- * crossing a newline broke the closing fence of a code block containing a tag.
+ * - **No backtick.** A payload is JSON and carries none, so this is what tells a
+ *   real tag from prose MENTIONING the tag name — a message explaining the
+ *   syntax writes the opener and the closer as two separately backticked spans.
+ * - **No nested opener**, via the negative lookahead. A cost bound rather than a
+ *   correctness rule: a lazy scan allowed to cross an opener restarts from every
+ *   opener, so a message repeating the tag name is quadratic — on the main
+ *   thread, for every streamed chunk.
  *
  * Accepted trade: a resource whose title or path itself contains a backtick is
  * not matched, so it renders as text rather than a chip. That costs one chip and
  * is rare; the failure it replaces corrupts a whole message and is common.
  */
-const WORKSPACE_RESOURCE_TAG_WITH_BACKTICKS =
-  /`?(<workspace_resource>(?:(?!<workspace_resource>)[^`])*?<\/workspace_resource>)`?/g
-
-/**
- * An inline code span, paired the way markdown pairs one: opening backtick to
- * the next backtick on the same line.
- *
- * Pairing matters. A pattern that instead looked for "a backtick, then a tag,
- * then a backtick" would happily start at one span's delimiter and end at a
- * different span's, unwrapping the text between two unrelated spans — which is
- * how `` Open `config.json` <tag> then run `bun test` `` lost a backtick.
- */
-const CODE_SPAN_PATTERN = /`([^`\n]*)`/g
+const COMPLETE_TAG_SOURCE =
+  '<workspace_resource>(?:(?!<workspace_resource>)[^`])*?<\\/workspace_resource>'
 
 /** Non-global so {@link RegExp.test} has no `lastIndex` to carry between calls. */
-const COMPLETE_WORKSPACE_RESOURCE_TAG =
-  /<workspace_resource>(?:(?!<workspace_resource>)[^`])*?<\/workspace_resource>/
+const COMPLETE_WORKSPACE_RESOURCE_TAG = new RegExp(COMPLETE_TAG_SOURCE)
+
+/**
+ * One left-to-right pass over the two things that can own a backtick: an inline
+ * code span, and a tag with a stray backtick pressed against it.
+ *
+ * ONE pass is the design. Two separate passes each have to guess which backticks
+ * belong together, and every previous arrangement of this file got a different
+ * case wrong — a span two words away, a code fence, then a span sitting flush
+ * against the tag. Here a span consumes its own delimiters as the scan reaches
+ * them, so `` `config.json`<tag> `` keeps its pair without a special case.
+ *
+ * The trailing backtick is only taken when no further backtick follows on the
+ * line; otherwise it is not a stray at all but the opener of the next span, and
+ * `` <tag>`config.json` `` would lose that span's delimiter. A LEADING backtick
+ * needs no such guard, because a backtick that closes a span is consumed as part
+ * of that span. Of the two, only the trailing lookahead is pinned by a test —
+ * swapping the alternatives changes behaviour only for a span that both opens
+ * flush against a tag and closes elsewhere, which no fixture covers.
+ */
+const CODE_SPAN_OR_FLANKED_TAG = new RegExp(
+  `\`[^\`\\n]*\`|\`?(${COMPLETE_TAG_SOURCE})(?:\`(?![^\`\\n]*\`))?`,
+  'g'
+)
 
 export function sanitizeChatDisplayContent(content: string): string {
-  return (
-    content
-      // A tag inside a code span: drop the delimiters, keep the content. The
-      // parser extracts the tag either way, so leaving them would strand a pair
-      // of backticks around a hole once the chip is lifted out.
-      .replace(CODE_SPAN_PATTERN, (span, inner: string) =>
-        COMPLETE_WORKSPACE_RESOURCE_TAG.test(inner) ? inner : span
-      )
-      .replace(HIDDEN_INLINE_REFERENCE_PATTERN, '')
-      // A leftover backtick pressed against a tag, with no partner to pair with.
-      .replace(WORKSPACE_RESOURCE_TAG_WITH_BACKTICKS, '$1')
-  )
+  return content
+    .replace(CODE_SPAN_OR_FLANKED_TAG, (match, tag?: string) => {
+      // A tag with stray backticks against it: keep the tag, drop the strays.
+      if (tag !== undefined) return tag
+
+      // A code span. Unwrap it only when it genuinely holds a tag — the parser
+      // lifts the tag out either way, so leaving the delimiters would strand a
+      // pair of backticks around a hole. Anything else is someone else's span.
+      const inner = match.slice(1, -1)
+      return COMPLETE_WORKSPACE_RESOURCE_TAG.test(inner) ? inner : match
+    })
+    .replace(HIDDEN_INLINE_REFERENCE_PATTERN, '')
 }

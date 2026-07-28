@@ -58,6 +58,24 @@ describe('sanitizeChatDisplayContent', () => {
     expect(sanitizeChatDisplayContent(content)).toBe(content)
   })
 
+  it('leaves a code span sitting flush against the tag alone', () => {
+    // No space between them, so the span's delimiter is directly against the
+    // tag and a pattern looking for "a backtick beside a tag" cannot tell the
+    // two apart. A single pass settles it: a span consumes its own delimiters as
+    // the scan reaches them, and a trailing backtick is only taken as a stray
+    // when no further backtick follows on the line.
+    const before =
+      'Open `config.json`<workspace_resource>{"type":"file","path":"a.md","title":"a"}</workspace_resource> ok'
+    const after =
+      'Open <workspace_resource>{"type":"file","path":"a.md","title":"a"}</workspace_resource>`config.json` ok'
+    const both =
+      'Open `a`<workspace_resource>{"type":"file","path":"a.md","title":"a"}</workspace_resource>`b` ok'
+
+    expect(sanitizeChatDisplayContent(before)).toBe(before)
+    expect(sanitizeChatDisplayContent(after)).toBe(after)
+    expect(sanitizeChatDisplayContent(both)).toBe(both)
+  })
+
   it('does not break the closing fence of a code block containing a tag', () => {
     // Whitespace matching used to cross the newline and consume one of the three
     // closing backticks, so the block never closed and the rest of the message
