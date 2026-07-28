@@ -160,7 +160,14 @@ export class RedisRoomManager implements IRoomManager {
   }
 
   isReady(): boolean {
-    return this.isConnected
+    // Gate on the loaded script SHAs, not just the connection: the `ready` event flips
+    // `isConnected` true as soon as the socket connects — before `initialize()` loads the Lua
+    // scripts — so a bare `isConnected` check would report ready while `removeUserFromRoom` /
+    // `updateUserActivity` would silently no-op on a null SHA. Reporting not-ready here makes the
+    // POST endpoints return a retryable 503 during that startup window instead.
+    return (
+      this.isConnected && this.removeRoomScriptSha !== null && this.updateActivityScriptSha !== null
+    )
   }
 
   async initialize(): Promise<void> {
