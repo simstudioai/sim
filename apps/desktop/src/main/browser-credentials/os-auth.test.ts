@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const promptTouchID = vi.fn(async () => undefined)
 const canPromptTouchID = vi.fn(() => true)
@@ -30,6 +30,18 @@ const { authorizeForSecret, revokeSecretAuthorization } = await import(
 
 const GRACE_MS = 30_000
 
+const realPlatform = process.platform
+
+/**
+ * Touch ID is reachable only on darwin, so the suite pins the platform rather
+ * than inheriting the runner's. Without this the biometric expectations below
+ * pass on a Mac and fail on Linux CI, where the gate sends every call to the
+ * fallback dialog instead.
+ */
+function setPlatform(platform: NodeJS.Platform): void {
+  Object.defineProperty(process, 'platform', { value: platform, configurable: true })
+}
+
 function request(credentialId: string) {
   return { credentialId, reason: 'show a saved password', action: 'Show password' }
 }
@@ -39,8 +51,13 @@ describe('authorizeForSecret', () => {
     vi.clearAllMocks()
     vi.useRealTimers()
     revokeSecretAuthorization()
+    setPlatform('darwin')
     canPromptTouchID.mockReturnValue(true)
     promptTouchID.mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    setPlatform(realPlatform)
   })
 
   it('asks the OS the first time a credential is used', async () => {
@@ -133,5 +150,16 @@ describe('authorizeForSecret', () => {
     showMessageBox.mockRejectedValueOnce(new Error('no window'))
 
     await expect(authorizeForSecret(request('c1'))).resolves.toBe(false)
+  })
+
+  it('never reaches for Touch ID off darwin', async () => {
+    // Electron exposes canPromptTouchID on every platform; only the darwin
+    // guard keeps a non-Mac build out of the biometric path.
+    setPlatform('linux')
+
+    await expect(authorizeForSecret(request('c1'))).resolves.toBe(true)
+
+    expect(promptTouchID).not.toHaveBeenCalled()
+    expect(showMessageBox).toHaveBeenCalledTimes(1)
   })
 })
