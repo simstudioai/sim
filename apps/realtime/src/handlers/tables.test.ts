@@ -338,6 +338,61 @@ describe('setupTablesHandlers', () => {
     )
   })
 
+  it('rolls back a join superseded while addUserToRoom is in flight', async () => {
+    const { socket, handlers } = createSocket()
+    // A passes every guard and hangs committing to table-A; a newer join B commits to table-B
+    // during the hang. When A resumes, the post-commit re-check must roll back A's own
+    // registration (scoped to table-A) without touching B.
+    let aReachedAdd: () => void = () => {}
+    const aAtAdd = new Promise<void>((resolve) => {
+      aReachedAdd = resolve
+    })
+    let releaseAdd: () => void = () => {}
+    const pendingAdd = new Promise<void>((resolve) => {
+      releaseAdd = resolve
+    })
+    let addCalls = 0
+    const roomManager = createRoomManager({
+      addUserToRoom: vi.fn((): Promise<void> => {
+        addCalls += 1
+        if (addCalls === 1) {
+          aReachedAdd()
+          return pendingAdd
+        }
+        return Promise.resolve()
+      }),
+    })
+    mockAuthorizeRoom.mockResolvedValue({
+      allowed: true,
+      status: 200,
+      workspaceId: 'ws-1',
+      workspacePermission: 'admin',
+    })
+    setupTablesHandlers(socket as unknown as SetupArg, roomManager)
+
+    const joinA = handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-A' })
+    await aAtAdd // A has passed every guard and is hung committing to table-A
+    await handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-B' }) // bumps generation, commits to B
+    releaseAdd()
+    await joinA
+
+    // A rolled back its own registration (scoped to table-A) and never touched table-B.
+    expect(socket.leave).toHaveBeenCalledWith('table:table-A')
+    expect(roomManager.removeUserFromRoom).toHaveBeenCalledWith(
+      { type: ROOM_TYPES.TABLE, id: 'table-A' },
+      'socket-1'
+    )
+    expect(roomManager.removeUserFromRoom).not.toHaveBeenCalledWith(
+      { type: ROOM_TYPES.TABLE, id: 'table-B' },
+      'socket-1'
+    )
+    expect(roomManager.addUserToRoom).toHaveBeenCalledWith(
+      { type: ROOM_TYPES.TABLE, id: 'table-B' },
+      'socket-1',
+      expect.anything()
+    )
+  })
+
   it('leaves the table room on leave', async () => {
     const { socket, handlers } = createSocket()
     const roomManager = createRoomManager({

@@ -194,6 +194,17 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
 
       await roomManager.addUserToRoom(room, socket.id, presence)
 
+      // A newer join (table switch) or a leave may have committed while addUserToRoom was in
+      // flight — that newer join's own leave-prior can't reliably observe this half-written
+      // entry, so undo our registration here rather than strand the socket on the wrong table.
+      // Scoped to THIS room (`room`), so `removeUserFromRoom` only clears our socket→room map
+      // when it still points here and never touches the newer join's room.
+      if (joinGeneration !== joinAttempt || socket.disconnected) {
+        socket.leave(roomName(room))
+        await roomManager.removeUserFromRoom(room, socket.id)
+        return
+      }
+
       // Filter the join ack to live members so a new joiner never briefly sees a
       // ghost from an entry the sweep hasn't reclaimed yet.
       const presenceUsers = await filterVisiblePresence(
