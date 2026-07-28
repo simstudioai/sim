@@ -1149,6 +1149,33 @@ export function Table({
     [filterOpen, effectiveFilter, handleToggleFilter]
   )
 
+  const runStatus =
+    embedded && (selection.totalRunning > 0 || selection.hasActiveDispatch) ? (
+      <RunStatusControl
+        running={selection.totalRunning}
+        queueing={!selection.hasRunningCell}
+        onStopAll={onStopAll}
+        isStopping={cancelRunsMutation.isPending}
+      />
+    ) : null
+
+  const saveViewChip =
+    viewsEnabled && isViewDirty && userPermissions.canEdit ? (
+      <Chip onClick={handleSaveView} disabled={updateViewMutation.isPending}>
+        {activeView ? 'Save' : 'Save as view'}
+      </Chip>
+    ) : null
+
+  /** Right-aligned slot. Left `undefined` when both are absent so the options bar
+   *  doesn't render an empty flex row — a fragment would always read as truthy. */
+  const optionsTrailing =
+    runStatus || saveViewChip ? (
+      <>
+        {runStatus}
+        {saveViewChip}
+      </>
+    ) : undefined
+
   return (
     <Resource>
       {!embedded && (
@@ -1182,33 +1209,23 @@ export function Table({
         />
       )}
       {/* Sort + filter render in both modes. In embedded (mothership) mode there's no
-          Resource.Header, so the run/stop control rides in the options bar's `aside`
-          slot, just left of filter/sort. */}
+          Resource.Header, so the run/stop control rides in the options bar — pinned
+          right, opposite the menu cluster, next to Save. */}
       <Resource.Options
         sort={sortConfig}
         filter={filterConfig}
         aside={
-          <>
-            {viewsEnabled && (
-              <ViewsMenu
-                views={views}
-                activeViewId={activeView?.id ?? null}
-                onSelect={handleSelectView}
-                onRename={handleRenameView}
-                onDelete={handleDeleteView}
-                onNewView={handleNewView}
-                canEdit={userPermissions.canEdit}
-              />
-            )}
-            {embedded && (selection.totalRunning > 0 || selection.hasActiveDispatch) ? (
-              <RunStatusControl
-                running={selection.totalRunning}
-                queueing={!selection.hasRunningCell}
-                onStopAll={onStopAll}
-                isStopping={cancelRunsMutation.isPending}
-              />
-            ) : null}
-          </>
+          viewsEnabled ? (
+            <ViewsMenu
+              views={views}
+              activeViewId={activeView?.id ?? null}
+              onSelect={handleSelectView}
+              onRename={handleRenameView}
+              onDelete={handleDeleteView}
+              onNewView={handleNewView}
+              canEdit={userPermissions.canEdit}
+            />
+          ) : undefined
         }
         asideEnd={
           viewsEnabled ? (
@@ -1220,13 +1237,7 @@ export function Table({
             />
           ) : undefined
         }
-        trailing={
-          viewsEnabled && isViewDirty && userPermissions.canEdit ? (
-            <Chip onClick={handleSaveView} disabled={updateViewMutation.isPending}>
-              {activeView ? 'Save' : 'Save as view'}
-            </Chip>
-          ) : undefined
-        }
+        trailing={optionsTrailing}
       />
       {filterOpen && (
         <TableFilter
