@@ -139,8 +139,12 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
       // switch), a LEAVE, or a disconnect. Registering below would strand the socket.
       if (joinGeneration !== joinAttempt || socket.disconnected) return
 
-      // Leave a previously-joined table room if switching tables.
+      // Leave a previously-joined table room if switching tables. Re-check the generation
+      // after the lookup await: if a newer join committed to a room during it, `currentRoom`
+      // is now that room, and leaving it here would tear down the join the client actually
+      // holds. A superseded join must abort before this mutation.
       const currentRoom = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.TABLE)
+      if (joinGeneration !== joinAttempt || socket.disconnected) return
       if (currentRoom && currentRoom.id !== tableId) {
         socket.leave(roomName(currentRoom))
         await roomManager.removeUserFromRoom(currentRoom, socket.id)

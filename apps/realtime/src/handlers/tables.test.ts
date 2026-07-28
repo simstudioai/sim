@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import { ROOM_TYPES, type RoomRef } from '@sim/realtime-protocol/rooms'
 import { TABLE_PRESENCE_EVENTS } from '@sim/realtime-protocol/table-presence'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IRoomManager } from '@/rooms'
@@ -293,13 +293,13 @@ describe('setupTablesHandlers', () => {
     const aAtLookup = new Promise<void>((resolve) => {
       aReachedLookup = resolve
     })
-    let releaseLookup: (value: unknown) => void = () => {}
-    const pendingLookup = new Promise((resolve) => {
+    let releaseLookup: (value: RoomRef | null) => void = () => {}
+    const pendingLookup = new Promise<RoomRef | null>((resolve) => {
       releaseLookup = resolve
     })
     let lookupCalls = 0
     const roomManager = createRoomManager({
-      getRoomForSocket: vi.fn(() => {
+      getRoomForSocket: vi.fn((): Promise<RoomRef | null> => {
         lookupCalls += 1
         if (lookupCalls === 1) {
           aReachedLookup()
@@ -319,9 +319,16 @@ describe('setupTablesHandlers', () => {
     const joinA = handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-A' })
     await aAtLookup // A has passed its post-authorize recheck and is hung on the leave-prior lookup
     await handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-B' }) // bumps generation, completes
-    releaseLookup(null)
+    // A resumes with the socket now registered on table-B (the newer join committed there).
+    releaseLookup({ type: ROOM_TYPES.TABLE, id: 'table-B' })
     await joinA
 
+    // A must NOT tear down B's room via its leave-prior, nor register itself on table-A.
+    expect(socket.leave).not.toHaveBeenCalledWith('table:table-B')
+    expect(roomManager.removeUserFromRoom).not.toHaveBeenCalledWith(
+      { type: ROOM_TYPES.TABLE, id: 'table-B' },
+      'socket-1'
+    )
     expect(socket.join).toHaveBeenCalledWith('table:table-B')
     expect(socket.join).not.toHaveBeenCalledWith('table:table-A')
     expect(roomManager.addUserToRoom).not.toHaveBeenCalledWith(
