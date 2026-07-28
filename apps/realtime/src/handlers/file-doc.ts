@@ -176,31 +176,21 @@ function destroyRoomIfIdle(name: string) {
 const MAX_SEED_ATTEMPTS = 3
 
 /**
- * Seed a room's document server-side, once. On the first join the relay asks the app to build the
- * seed (the file's current markdown → Yjs, through the exact editor engine) and applies it — which
- * fires `doc.on('update')` and relays the seeded content to every connected client. No client is
- * elected to import content, so there is no seed handshake, deadline, or re-election.
+ * Seed a room's document server-side, once, on the first join: ask the app to build the seed (the
+ * file's current markdown → Yjs, through the exact editor engine) and apply it, which relays the
+ * content to every connected client via `doc.on('update')`. No client is elected to import content.
  *
- * Recovery, because the client's readiness gate (`synced && initialContentLoaded`) never flips until
- * the doc is seeded:
- * - **Genuinely empty/missing file** → the app returns `null`; mark the doc seeded so clients reach
- *   readiness instead of waiting forever. This is safe: `buildFileDocSeed` throws — it does not
- *   return `null` — on a read error, so `null` means the file truly has no content to lose.
- * - **Transport failure** → retry a bounded number of times against the *live* room with backoff, so
- *   already-connected clients recover without needing a fresh join; on final failure the guard is
- *   released so a later join re-attempts.
+ * `isDocSeeded` is the sufficient guard: content only ever reaches the doc alongside the seed flag
+ * (this seed, or a client's offline fallback), so an unseeded doc is genuinely empty and safe to seed.
  *
- * `isDocSeeded` is the only "already handled" guard needed: content is only ever written to the doc
- * alongside the seed flag (by this seed, or by a client's offline fallback which sets both), so a doc
- * carrying real content is always already seeded and short-circuits here. A fresh client does NOT
- * pollute the doc first — `@tiptap/y-tiptap` deliberately never writes the editor's default empty
- * paragraph to Yjs (it diffs against `createAndFill()` and renders nothing when unchanged), and real
- * edits are gated behind readiness — so an unseeded doc is genuinely empty and safe to seed. (An
- * earlier state-vector "emptiness" check here was both unnecessary and wrong: it skipped the seed on
- * any non-empty state vector, which would have stranded a client unseeded had anything ever synced
- * ahead of the seed.) After each `await`, re-verify the room is still the live, unseeded room: the
- * last owner may have left (`destroyRoomIfIdle` destroyed the doc) or a client's sync may have seeded
- * it in flight.
+ * Recovery — the client's `synced && initialContentLoaded` gate never opens until the doc is seeded:
+ * - a genuinely empty/missing file returns `null` (a read error throws instead), so still set the flag
+ *   to let clients reach readiness rather than wait forever;
+ * - a transport failure retries a bounded number of times against the live room, then releases the
+ *   guard so a later join re-attempts.
+ *
+ * After the fetch, re-check the room is still live and unseeded — an owner may have left, or a client
+ * may have seeded it, while the fetch was in flight.
  */
 async function ensureServerSeed(
   name: string,
