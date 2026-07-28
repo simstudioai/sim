@@ -627,11 +627,6 @@ export function Table({
       const notify = action === 'status' ? toast.info : toast.warning
       blockedToastIdRef.current = notify(title, {
         description: text,
-        // The provider's route-change sweep runs after child effects, so an
-        // announcement fired on a warm-cache navigation would be cleared in the
-        // same commit it was added. These toasts belong to this view, so they
-        // opt out of the sweep and are dismissed on unmount instead.
-        persistAcrossRoutes: true,
         ...(canOpenLockSettings
           ? {
               action: { label: 'Lock settings', onClick: () => setShowLockSettings(true) },
@@ -656,10 +651,9 @@ export function Table({
     showBlockedToast('status')
   }, [tableData, userPermissions.isLoading, showBlockedToast])
 
-  // Counterpart to `persistAcrossRoutes` above: a notice must not outlive the
-  // table it describes. Keyed on `tableId` because switching tables reuses this
-  // component instead of remounting it, and the action would then target the
-  // table the user just moved to.
+  // A notice must not outlive the table it describes — its action targets
+  // whichever table is current. Keyed on `tableId` so an embedded swap that
+  // changes the prop without a route change is covered too.
   useEffect(
     () => () => {
       if (!blockedToastIdRef.current) return
