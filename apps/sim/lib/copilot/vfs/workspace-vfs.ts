@@ -96,7 +96,7 @@ import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/executi
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
-import { getSharesForResources } from '@/lib/public-shares/share-manager'
+import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
 import { listTables } from '@/lib/table/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -1652,12 +1652,9 @@ export class WorkspaceVFS {
       // Fail soft: share state is only metadata enrichment, so a lookup failure
       // must not drop the whole file tree (the outer catch returns []) — fall back
       // to no shares, and files still materialize with `shared: false`.
-      let shareByFileId: Awaited<ReturnType<typeof getSharesForResources>> = new Map()
+      let shareByFileId: Awaited<ReturnType<typeof getWorkspaceShares>> = new Map()
       try {
-        shareByFileId = await getSharesForResources(
-          'file',
-          files.map((file) => file.id)
-        )
+        shareByFileId = await getWorkspaceShares('file', workspaceId)
       } catch (error) {
         logger.warn('Failed to load file share state; file metadata will show shared: false', {
           workspaceId,

@@ -230,7 +230,7 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
 
 export const workflowExecutionTask = task({
   id: 'workflow-execution',
-  machine: 'medium-1x',
+  machine: 'medium-2x',
   queue: {
     concurrencyLimit: WORKFLOW_EXECUTION_CONCURRENCY_LIMIT,
   },

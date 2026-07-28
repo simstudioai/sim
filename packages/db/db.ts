@@ -42,8 +42,23 @@ if (!connectionString) {
   throw new Error('Missing DATABASE_URL environment variable')
 }
 
+/**
+ * `fetch_types: false` skips postgres.js's `pg_catalog.pg_type` roundtrip, which
+ * it otherwise runs on every new connection before that connection's first query.
+ * It builds array parsers only — scalar types (including `jsonb` and pgvector)
+ * are unaffected — and Drizzle already parses this schema's `text[]` columns
+ * itself, so the fetch is pure connection-setup latency.
+ *
+ * The one behavior this changes: a raw `db.execute` that projects an array-typed
+ * column yields the wire form `'{a,b}'` rather than `['a','b']`, since nothing maps
+ * the result. Verified by differential test that Drizzle-typed selects and
+ * `.returning()` are unaffected — `PgArray.mapFromDriverValue` parses the wire form
+ * itself, and writes never reach the array serializer because Drizzle serializes
+ * arrays before binding.
+ */
 const poolOptions = {
   prepare: false,
+  fetch_types: false,
   idle_timeout: 20,
   connect_timeout: 30,
   onnotice: () => {},

@@ -1,4 +1,13 @@
+import { createLogger } from '@sim/logger'
 import micromatch from 'micromatch'
+import {
+  compileLinearRegex,
+  isPlainText,
+  type LinearRegex,
+  literalRegex,
+} from '@/lib/core/security/linear-regex'
+
+const logger = createLogger('VfsOperations')
 
 export interface GrepMatch {
   path: string
@@ -125,7 +134,16 @@ export function pathWithinGrepScope(filePath: string, scope: string): boolean {
 }
 
 /**
- * Regex search over VFS file contents using ECMAScript `RegExp` syntax.
+ * Regex search over VFS file contents using RE2 syntax — a subset of
+ * ECMAScript `RegExp` (see `@/lib/core/security/linear-regex`).
+ *
+ * A pattern RE2 cannot represent — negative lookaround, backreferences — is
+ * matched as a literal instead of on the backtracking engine, as is a pattern
+ * that does not compile at all (which previously returned no results). Both
+ * cases log a warning: the return shape carries results only, so there is
+ * nowhere to tell the caller inline, and a literal fallback can match the
+ * pattern's own text when grepping source that contains regexes.
+ *
  * `content` and `count` are line-oriented (split on newline, CR stripped per line).
  * `files_with_matches` tests the entire file string once, so multiline patterns can match there
  * but not in line modes.
@@ -142,19 +160,27 @@ export function grep(
   const showLineNumbers = opts?.lineNumbers ?? true
   const contextLines = opts?.context ?? 0
 
-  const flags = ignoreCase ? 'gi' : 'g'
-  let regex: RegExp
-  try {
-    regex = new RegExp(pattern, flags)
-  } catch {
-    return []
+  // Caller-supplied pattern over caller-supplied file content on the shared
+  // event loop — matched by RE2 so it cannot backtrack. Syntax RE2 cannot
+  // represent degrades to a literal rather than to the backtracking engine.
+  let regex: LinearRegex
+  if (isPlainText(pattern)) {
+    regex = literalRegex(pattern, { ignoreCase })
+  } else {
+    const linear = compileLinearRegex(pattern, { ignoreCase })
+    if (!linear) {
+      // The return shape carries results only, so the caller cannot be told
+      // inline that its regex was taken literally — log it, since silently
+      // returning "no matches" reads as "not in the file".
+      logger.warn('Grep pattern is not RE2-representable; matching it literally', { pattern })
+    }
+    regex = linear ?? literalRegex(pattern, { ignoreCase })
   }
 
   if (outputMode === 'files_with_matches') {
     const matchingFiles: string[] = []
     for (const [filePath, content] of files) {
       if (path && !pathWithinGrepScope(filePath, path)) continue
-      regex.lastIndex = 0
       if (regex.test(content)) {
         matchingFiles.push(filePath)
         if (matchingFiles.length >= maxResults) break
@@ -170,7 +196,6 @@ export function grep(
       const lines = splitLinesForGrep(content)
       let count = 0
       for (const line of lines) {
-        regex.lastIndex = 0
         if (regex.test(line)) count++
       }
       if (count > 0) {
@@ -188,7 +213,6 @@ export function grep(
 
     const lines = splitLinesForGrep(content)
     for (let i = 0; i < lines.length; i++) {
-      regex.lastIndex = 0
       if (regex.test(lines[i])) {
         if (contextLines > 0) {
           const start = Math.max(0, i - contextLines)

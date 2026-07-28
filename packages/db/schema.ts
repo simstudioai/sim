@@ -3332,6 +3332,34 @@ export const usageLog = pgTable(
         table.billingPeriodEnd
       )
       .where(sql`${table.billingEntityType} IS NOT NULL`),
+    /**
+     * Covering companion to `billingEntityPeriodIdx` — not a replacement. Carries
+     * `cost` so the billing-period aggregates resolve index-only rather than taking
+     * a heap fetch per matched row.
+     *
+     * `userId`/`createdAt` sit immediately after the shared equality prefix because
+     * the daily-refresh rollup filters on them and NOT on `billingPeriodEnd`;
+     * putting `billingPeriodEnd` in that slot would end the usable prefix at
+     * `billingPeriodStart` and leave that query scanning the whole period.
+     * `billingPeriodEnd` is functionally determined by `billingPeriodStart`, so it
+     * removes no rows and rides along as payload.
+     *
+     * `billingEntityPeriodIdx` is kept deliberately: with no high-cardinality key
+     * column it deduplicates to a fraction of this index's size, which keeps
+     * prefix-only bitmap scans cheap.
+     */
+    billingPeriodCostIdx: index('usage_log_billing_period_cost_idx')
+      .on(
+        table.billingEntityType,
+        table.billingEntityId,
+        table.billingPeriodStart,
+        table.userId,
+        table.createdAt,
+        table.billingPeriodEnd,
+        table.source,
+        table.cost
+      )
+      .where(sql`${table.billingEntityType} IS NOT NULL`),
     billingScopeAllOrNone: check(
       'usage_log_billing_scope_all_or_none',
       sql`(

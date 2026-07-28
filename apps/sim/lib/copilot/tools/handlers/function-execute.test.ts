@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const {
   mockIsFeatureEnabled,
@@ -16,6 +17,7 @@ const {
   mockListWorkspaceFiles,
   mockFindWorkspaceFileRecord,
   mockFetchWorkspaceFileBuffer,
+  mockFetchServableWorkspaceFileBuffer,
   mockGetSandboxWorkspaceFilePath,
   mockListWorkspaceFileFolders,
 } = vi.hoisted(() => ({
@@ -31,6 +33,7 @@ const {
   mockListWorkspaceFiles: vi.fn(),
   mockFindWorkspaceFileRecord: vi.fn(),
   mockFetchWorkspaceFileBuffer: vi.fn(),
+  mockFetchServableWorkspaceFileBuffer: vi.fn(),
   mockGetSandboxWorkspaceFilePath: vi.fn(),
   mockListWorkspaceFileFolders: vi.fn(),
 }))
@@ -52,6 +55,7 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
 }))
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  fetchServableWorkspaceFileBuffer: mockFetchServableWorkspaceFileBuffer,
   fetchWorkspaceFileBuffer: mockFetchWorkspaceFileBuffer,
   findWorkspaceFileRecord: mockFindWorkspaceFileRecord,
   getSandboxWorkspaceFilePath: mockGetSandboxWorkspaceFilePath,
@@ -300,6 +304,61 @@ describe('executeFunctionExecute file mounts', () => {
     expect(file.path).toBe('/home/user/files/data.csv')
     expect(file.content).toBe('name\nAda\n')
     expect(file.type).toBeUndefined()
+  })
+
+  describe('generated documents', () => {
+    const docRecord = {
+      ...fileRecord,
+      name: 'report.docx',
+      key: 'workspace/ws_1/report.docx',
+      // The stored bytes are the generator source, so the record declares its size.
+      type: 'text/x-docxjs',
+      size: 6_242,
+    }
+
+    beforeEach(() => {
+      mockFindWorkspaceFileRecord.mockReturnValue(docRecord)
+      mockListWorkspaceFiles.mockResolvedValue([docRecord])
+      mockGetSandboxWorkspaceFilePath.mockReturnValue('/home/user/files/report.docx')
+      mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
+        buffer: Buffer.from('PK\u0003\u0004rendered-docx'),
+        contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      })
+    })
+
+    it('never presigns the raw key, even on cloud storage', async () => {
+      mockHasCloudStorage.mockReturnValue(true)
+
+      await executeFunctionExecute({ inputFiles: ['files/report.docx'] }, context as never)
+
+      // Presigning record.key would hand the sandbox the generator source.
+      expect(mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
+      expect(mockFetchWorkspaceFileBuffer).not.toHaveBeenCalled()
+      expect(mockFetchServableWorkspaceFileBuffer).toHaveBeenCalledTimes(1)
+    })
+
+    it('mounts the rendered bytes as base64, not utf-8', async () => {
+      mockHasCloudStorage.mockReturnValue(true)
+
+      await executeFunctionExecute({ inputFiles: ['files/report.docx'] }, context as never)
+
+      const file = mountedFiles()[0]
+      // record.type is text/x-docxjs; keying off it would utf-8 decode a binary.
+      expect(file.encoding).toBe('base64')
+      expect(Buffer.from(file.content as string, 'base64').toString()).toContain('rendered-docx')
+    })
+
+    it('budgets the mount on rendered length, not the declared source size', async () => {
+      mockHasCloudStorage.mockReturnValue(true)
+      // A tiny source that renders past the aggregate mount budget.
+      mockFetchServableWorkspaceFileBuffer.mockRejectedValue(
+        new PayloadSizeLimitError({ label: 'servable file download', maxBytes: 1 })
+      )
+
+      await expect(
+        executeFunctionExecute({ inputFiles: ['files/report.docx'] }, context as never)
+      ).rejects.toThrow(/mount limit/)
+    })
   })
 
   it('cloud storage: throws when a file exceeds the per-file URL mount limit', async () => {

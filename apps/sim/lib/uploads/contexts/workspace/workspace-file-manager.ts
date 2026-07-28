@@ -19,6 +19,7 @@ import {
 } from '@/lib/billing/storage'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
 import { getServePathPrefix } from '@/lib/uploads'
@@ -942,7 +943,42 @@ export async function getWorkspaceFile(
 }
 
 /**
- * Download workspace file content
+ * Download the bytes a user should actually receive for a workspace file.
+ *
+ * Generated docs (docx/pptx/pdf/xlsx) store their GENERATION SOURCE as the primary
+ * file, so {@link fetchWorkspaceFileBuffer} hands back JavaScript/Python text under
+ * a `.docx` name. This resolves the rendered artifact instead, and is what every
+ * download/attachment surface should call. Reach for the raw reader only when the
+ * source itself is wanted (style extraction, compile checks, the copilot VFS).
+ *
+ * Throws `DocCompileUserError` when a generated doc's artifact is still compiling —
+ * callers turn that into a retryable 409 rather than shipping source.
+ */
+export async function fetchServableWorkspaceFileBuffer(
+  fileRecord: WorkspaceFileRecord,
+  options: { maxBytes?: number; signal?: AbortSignal; requestId?: string } = {}
+): Promise<{ buffer: Buffer; contentType: string }> {
+  const { downloadServableFileFromStorage } = await import('@/lib/uploads/utils/file-utils.server')
+
+  return downloadServableFileFromStorage(
+    {
+      id: fileRecord.id,
+      name: fileRecord.name,
+      url: fileRecord.url ?? fileRecord.path,
+      size: fileRecord.size,
+      type: fileRecord.type,
+      key: fileRecord.key,
+      context: fileRecord.storageContext ?? 'workspace',
+    },
+    options.requestId ?? generateRequestId(),
+    logger,
+    options
+  )
+}
+
+/**
+ * Download raw workspace file content. For generated docs this is the GENERATION
+ * SOURCE, not the rendered document — see {@link fetchServableWorkspaceFileBuffer}.
  */
 export async function fetchWorkspaceFileBuffer(
   fileRecord: WorkspaceFileRecord,

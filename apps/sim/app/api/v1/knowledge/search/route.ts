@@ -23,7 +23,11 @@ import {
 } from '@/app/api/knowledge/search/utils'
 import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
 import { handleError } from '@/app/api/v1/knowledge/utils'
-import { authenticateRequest, validateWorkspaceAccess } from '@/app/api/v1/middleware'
+import {
+  authenticateRequest,
+  v1ValidationErrorResponse,
+  validateWorkspaceAccess,
+} from '@/app/api/v1/middleware'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -35,7 +39,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const { requestId, userId, rateLimit } = auth
 
   try {
-    const parsed = await parseRequest(v1KnowledgeSearchContract, request, {})
+    const parsed = await parseRequest(
+      v1KnowledgeSearchContract,
+      request,
+      {},
+      {
+        validationErrorResponse: v1ValidationErrorResponse,
+      }
+    )
     if (!parsed.success) return parsed.response
 
     const { workspaceId, topK, query, tagFilters } = parsed.data.body
