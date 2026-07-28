@@ -10,18 +10,22 @@ import {
   getAccountSettingsHref,
   getOrganizationSettingsFeatures,
   getOrganizationSettingsHref,
+  getSelfHostSettingsHref,
   isOrganizationSettingsSectionAvailable,
   ORGANIZATION_SETTINGS_GROUPS,
   ORGANIZATION_SETTINGS_ITEMS,
   ORGANIZATION_SETTINGS_PATH_ALIASES,
   parseSettingsPathSection,
   resolveOrganizationSectionAccess,
+  SELFHOST_SETTINGS_GROUPS,
+  SELFHOST_SETTINGS_ITEMS,
+  SETTINGS_PLANE_CHROME,
 } from '@/components/settings/navigation'
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 import { SettingsSectionProvider } from '@/components/settings/settings-panel'
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
 import { useSettingsBeforeUnload } from '@/components/settings/use-settings-before-unload'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 
 interface StandaloneSettingsShellBaseProps {
   children: ReactNode
@@ -32,6 +36,10 @@ interface AccountSettingsShellProps extends StandaloneSettingsShellBaseProps {
   isSuperUser?: boolean
 }
 
+interface SelfHostSettingsShellProps extends StandaloneSettingsShellBaseProps {
+  plane: 'selfhost'
+}
+
 interface OrganizationSettingsShellProps extends StandaloneSettingsShellBaseProps {
   plane: 'organization'
   organizationId: string
@@ -39,7 +47,10 @@ interface OrganizationSettingsShellProps extends StandaloneSettingsShellBaseProp
   isOrganizationAdmin: boolean
 }
 
-type StandaloneSettingsShellProps = AccountSettingsShellProps | OrganizationSettingsShellProps
+type StandaloneSettingsShellProps =
+  | AccountSettingsShellProps
+  | OrganizationSettingsShellProps
+  | SelfHostSettingsShellProps
 
 export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
   const { children, plane } = props
@@ -63,6 +74,19 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
         isTargetOrganizationAdmin: isOrganizationAdmin,
       }) !== 'unavailable' && isOrganizationSettingsSectionAvailable(item.id, organizationFeatures)
   )
+  const selfHostItems = SELFHOST_SETTINGS_ITEMS.filter((item) => {
+    if (item.id === 'billing' && !isBillingEnabled) return false
+    // Chat keys are issued by the managed service, so there are none to list on
+    // a self-hosted deployment — useCopilotKeys is `enabled: isHosted` for the
+    // same reason. Self-hosters manage their keys on sim.ai.
+    if (item.id === 'chat-keys' && !isHosted) return false
+    return true
+  })
+  const selfHostSection = parseSettingsPathSection({
+    path: pathname,
+    items: SELFHOST_SETTINGS_ITEMS,
+    defaultSection: 'general',
+  })
   const accountSection = parseSettingsPathSection({
     path: pathname,
     items: ACCOUNT_SETTINGS_ITEMS,
@@ -75,25 +99,25 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
     defaultSection: 'members',
     aliases: ORGANIZATION_SETTINGS_PATH_ALIASES,
   })
-  const activeSection = plane === 'account' ? accountSection : organizationSection
-  /**
-   * The sidebar highlights only an exact nav match. A nested route that is not
-   * itself a nav item (e.g. /account/settings/chat-keys) would otherwise fall back
-   * to `defaultSection` and light up an unrelated sibling — reading as though the
-   * page lived inside it. The section above keeps its default for the title
-   * provider, which every page can still override.
-   */
-  const accountSidebarSection = parseSettingsPathSection({
-    path: pathname,
-    items: ACCOUNT_SETTINGS_ITEMS,
-    defaultSection: null,
-    aliases: ACCOUNT_SETTINGS_PATH_ALIASES,
-  })
+  const activeSection =
+    plane === 'account'
+      ? accountSection
+      : plane === 'selfhost'
+        ? selfHostSection
+        : organizationSection
   const sidebar =
-    plane === 'account' ? (
+    plane === 'selfhost' ? (
       <SettingsSidebar
-        activeSection={accountSidebarSection}
-        backHref='/workspace'
+        activeSection={selfHostSection}
+        plane={plane}
+        groups={SELFHOST_SETTINGS_GROUPS}
+        hrefForSection={getSelfHostSettingsHref}
+        items={selfHostItems}
+      />
+    ) : plane === 'account' ? (
+      <SettingsSidebar
+        activeSection={accountSection}
+        plane={plane}
         groups={ACCOUNT_SETTINGS_GROUPS}
         hrefForSection={getAccountSettingsHref}
         items={accountItems}
@@ -101,7 +125,7 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
     ) : (
       <SettingsSidebar
         activeSection={organizationSection}
-        backHref='/workspace'
+        plane={plane}
         groups={ORGANIZATION_SETTINGS_GROUPS}
         hrefForSection={(section) => getOrganizationSettingsHref(props.organizationId, section)}
         items={organizationItems}
@@ -113,7 +137,7 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
       <div className='flex h-screen w-full overflow-hidden bg-[var(--surface-1)] p-2'>
         <aside
           className='mr-2 flex w-[248px] flex-shrink-0 flex-col rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] pt-3'
-          aria-label={`${plane === 'account' ? 'Account' : 'Organization'} settings navigation`}
+          aria-label={`${SETTINGS_PLANE_CHROME[plane].label} settings navigation`}
         >
           {sidebar}
         </aside>

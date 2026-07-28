@@ -61,7 +61,7 @@
     "library:covers:check": "bun run scripts/generate-library-covers.tsx --check",
     "skills:sync": "bun run scripts/sync-skills.ts",
     "skills:check": "bun run scripts/sync-skills.ts --check",
-    "setup": "bun run scripts/setup/index.ts setup",
+    "setup": "bun install && bun run scripts/setup/index.ts setup",
     "sim": "bun run scripts/setup/index.ts",
     "doctor": "bun run scripts/setup/index.ts doctor",
     "agent-stream-docs:generate": "bun run scripts/sync-agent-stream-docs.ts",
