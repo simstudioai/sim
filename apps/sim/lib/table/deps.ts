@@ -52,13 +52,25 @@ export function isExecCancelledAfter(exec: RowExecutionMetadata | undefined, sin
 }
 
 /**
+ * True when a cell holds no value.
+ *
+ * An emptied multi-select is stored as `[]`, which is not falsy — checking only
+ * for null/undefined/`''` would read it as filled, making dependent groups
+ * eligible and running enrichments on rows that should be skipped.
+ */
+export function isEmptyCellValue(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length === 0
+  return value === null || value === undefined || value === ''
+}
+
+/**
  * A dependency column counts as unmet when its value is empty OR explicitly
  * `false`. An unchecked checkbox is treated as "dependency not satisfied", so
  * only checking a box (false→true) makes dependents eligible — unchecking
  * (true→false) never triggers a rerun.
  */
 function isDepValueUnmet(value: unknown): boolean {
-  return value === null || value === undefined || value === '' || value === false
+  return isEmptyCellValue(value) || value === false
 }
 
 /**
@@ -70,8 +82,7 @@ function isDepValueUnmet(value: unknown): boolean {
 export function areOutputsFilled(group: WorkflowGroup, row: TableRow): boolean {
   if (group.outputs.length === 0) return true
   for (const o of group.outputs) {
-    const v = row.data[o.columnName]
-    if (v === null || v === undefined || v === '') return false
+    if (isEmptyCellValue(row.data[o.columnName])) return false
   }
   return true
 }

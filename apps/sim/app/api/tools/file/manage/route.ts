@@ -41,6 +41,7 @@ import {
   downloadServableFileFromStorage,
 } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
+import { buildZipEntryPaths } from '@/lib/uploads/zip-entry-path'
 import { performMoveWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import {
   assertActiveWorkspaceAccess,
@@ -175,9 +176,8 @@ const stripExtension = (name: string): string => {
 /**
  * Reduce an arbitrary name to a safe, flat file name: takes the final path
  * segment, drops directory and traversal components, and falls back when the
- * result would be empty or a dot segment. Used for zip entry names and the
- * compress archive name so untrusted input cannot introduce nested or
- * zip-slip-style paths.
+ * result would be empty or a dot segment. Used for the compress archive name so
+ * untrusted input cannot introduce nested or zip-slip-style paths.
  */
 const toFlatFileName = (name: string, fallback: string): string => {
   const leaf = name.replace(/\\/g, '/').split('/').pop()?.trim()
@@ -185,27 +185,10 @@ const toFlatFileName = (name: string, fallback: string): string => {
   return leaf
 }
 
-/**
- * Return a zip entry name unique within `usedNames`, appending a numeric suffix
- * before the extension on collision (e.g., "data.csv" -> "data (1).csv").
- */
-const uniqueZipEntryName = (name: string, usedNames: Set<string>): string => {
-  if (!usedNames.has(name)) {
-    usedNames.add(name)
-    return name
-  }
-
-  const dot = name.lastIndexOf('.')
-  const base = dot > 0 ? name.slice(0, dot) : name
-  const ext = dot > 0 ? name.slice(dot) : ''
-  let counter = 1
-  let candidate = `${base} (${counter})${ext}`
-  while (usedNames.has(candidate)) {
-    counter += 1
-    candidate = `${base} (${counter})${ext}`
-  }
-  usedNames.add(candidate)
-  return candidate
+/** A file bound for a compress archive, paired with the workspace folder it lives in. */
+interface ArchiveEntry {
+  file: UserFile
+  folderPath: string | null
 }
 
 const isLikelyTextBuffer = (buffer: Buffer): boolean => isUtf8(buffer) && !buffer.includes(0)
@@ -678,17 +661,27 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
-        const userFiles: UserFile[] = workspaceFiles
-          .map((file) => workspaceFileToUserFile(file))
-          .filter((file): file is NonNullable<ReturnType<typeof workspaceFileToUserFile>> =>
-            Boolean(file)
-          )
-          .concat(selectedInputFiles)
+        const workspaceEntries: ArchiveEntry[] = workspaceFiles.flatMap((file) => {
+          const userFile = workspaceFileToUserFile(file)
+          return userFile ? [{ file: userFile, folderPath: file?.folderPath ?? null }] : []
+        })
+
+        // Picker/upload values carry no workspace folder, so they archive at the root.
+        const archiveEntries = workspaceEntries.concat(
+          selectedInputFiles.map((file) => ({ file, folderPath: null }))
+        )
+        const userFiles: UserFile[] = archiveEntries.map((entry) => entry.file)
+
+        // Mirror the workspace folder layout, dropping the ancestor chain the whole
+        // selection shares so archiving one folder does not nest it under its parents.
+        const entryPaths = buildZipEntryPaths(
+          archiveEntries.map((entry) => ({ name: entry.file.name, folderPath: entry.folderPath })),
+          { rebaseOnCommonFolder: true }
+        )
 
         const zip = new JSZip()
-        const usedNames = new Set<string>()
         let totalBytes = 0
-        for (const userFile of userFiles) {
+        for (const [index, userFile] of userFiles.entries()) {
           const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
           if (denied) return denied
 
@@ -707,7 +700,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               { status: 413 }
             )
           }
-          zip.file(uniqueZipEntryName(toFlatFileName(userFile.name, 'file'), usedNames), buffer)
+          zip.file(entryPaths[index], buffer)
         }
 
         const zipBuffer = await zip.generateAsync({

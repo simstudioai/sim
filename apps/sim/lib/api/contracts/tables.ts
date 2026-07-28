@@ -9,12 +9,13 @@ import type {
   RowData,
   Sort,
   TableDefinition,
+  TableLocks,
   TableMetadata,
   TableRow,
   TableRowsCursor,
   TableViewConfig,
 } from '@/lib/table'
-import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import { COLUMN_TYPES, MAX_SELECT_OPTIONS, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 
 export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
@@ -24,6 +25,61 @@ export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
  * send arbitrary strings the server would reject downstream.
  */
 export const columnTypeSchema = z.enum(COLUMN_TYPES)
+
+/** One choice in a `select` column. `id` is the stable cell key. */
+export const selectOptionSchema = z.object({
+  id: z.string().min(1, 'Option id is required'),
+  name: z
+    .string()
+    .min(1, 'Option name is required')
+    .max(100, 'Option name must be 100 characters or less'),
+})
+
+export const selectOptionsSchema = z
+  .array(selectOptionSchema)
+  .max(MAX_SELECT_OPTIONS, `A select column cannot have more than ${MAX_SELECT_OPTIONS} options`)
+
+/**
+ * Cross-field rule: a `select` column must declare a non-empty option set;
+ * other types must not carry options or `multiple`. Skipped when `type` is
+ * absent (an options-only update on an existing select column).
+ */
+function refineColumnOptions(
+  data: {
+    type?: (typeof COLUMN_TYPES)[number]
+    options?: z.infer<typeof selectOptionsSchema>
+    multiple?: boolean
+  },
+  ctx: z.RefinementCtx
+): void {
+  if (data.type === 'select') {
+    if (!data.options || data.options.length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['options'],
+        message: 'A select column must define at least one option',
+      })
+    }
+    return
+  }
+  if (data.type === undefined) return
+  if (data.options && data.options.length > 0) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['options'],
+      message: 'options are only allowed on select columns',
+    })
+  }
+  // `multiple` stored on a non-select column is inert until a later
+  // convert-to-select inherits it, silently producing a multiselect.
+  if (data.multiple) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['multiple'],
+      message: 'multiple is only allowed on select columns',
+    })
+  }
+}
 
 /**
  * Identifier for tables/columns: starts with letter or underscore, contains
@@ -79,16 +135,22 @@ export const getTableQuerySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
 })
 
-export const tableColumnSchema = z.object({
-  /** Stable column id (server-assigned). Absent on legacy/ pre-backfill columns. */
-  id: z.string().optional(),
-  name: columnNameSchema,
-  type: columnTypeSchema,
-  required: z.boolean().optional().default(false),
-  unique: z.boolean().optional().default(false),
-  /** Set when the column is a workflow group's output. */
-  workflowGroupId: z.string().optional(),
-})
+export const tableColumnSchema = z
+  .object({
+    /** Stable column id (server-assigned). Absent on legacy/ pre-backfill columns. */
+    id: z.string().optional(),
+    name: columnNameSchema,
+    type: columnTypeSchema,
+    required: z.boolean().optional().default(false),
+    unique: z.boolean().optional().default(false),
+    /** Set when the column is a workflow group's output. */
+    workflowGroupId: z.string().optional(),
+    /** Declared options for a `select` column. */
+    options: selectOptionsSchema.optional(),
+    /** A `select` column that accepts multiple options per cell. */
+    multiple: z.boolean().optional(),
+  })
+  .superRefine(refineColumnOptions)
 
 export const createTableBodySchema = z.object({
   name: tableNameSchema,
@@ -111,29 +173,66 @@ export const renameTableBodySchema = z.object({
   name: tableNameSchema,
 })
 
+/** Full per-table lock set (all four flags). */
+export const tableLocksSchema = z.object({
+  schemaLocked: z.boolean(),
+  insertLocked: z.boolean(),
+  updateLocked: z.boolean(),
+  deleteLocked: z.boolean(),
+}) satisfies z.ZodType<TableLocks>
+
+/**
+ * PATCH /api/table/[tableId] body. Both fields are optional but at least one
+ * must be present. `name` is a `write`-level rename; `locks` is an
+ * admin-only governance change (a partial — only the toggled flags are sent).
+ */
+export const updateTableBodySchema = z
+  .object({
+    workspaceId: z.string().min(1, 'Workspace ID is required'),
+    name: tableNameSchema.optional(),
+    locks: tableLocksSchema.partial().optional(),
+  })
+  .superRefine((body, ctx) => {
+    if (body.name === undefined && body.locks === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide a new name or lock changes',
+        path: ['name'],
+      })
+    }
+  })
+
 export const createTableColumnBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  column: z.object({
-    // Optional stable id — first-party undo of a delete re-creates the column
-    // with its original id so saved (id-keyed) cell data restores correctly.
-    id: z.string().optional(),
-    name: columnNameSchema,
-    type: columnTypeSchema,
-    required: z.boolean().optional(),
-    unique: z.boolean().optional(),
-    position: z.number().int().min(0).optional(),
-  }),
+  column: z
+    .object({
+      // Optional stable id — first-party undo of a delete re-creates the column
+      // with its original id so saved (id-keyed) cell data restores correctly.
+      id: z.string().optional(),
+      name: columnNameSchema,
+      type: columnTypeSchema,
+      required: z.boolean().optional(),
+      unique: z.boolean().optional(),
+      position: z.number().int().min(0).optional(),
+      options: selectOptionsSchema.optional(),
+      multiple: z.boolean().optional(),
+    })
+    .superRefine(refineColumnOptions),
 })
 
 export const updateTableColumnBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   columnName: columnNameSchema,
-  updates: z.object({
-    name: columnNameSchema.optional(),
-    type: columnTypeSchema.optional(),
-    required: z.boolean().optional(),
-    unique: z.boolean().optional(),
-  }),
+  updates: z
+    .object({
+      name: columnNameSchema.optional(),
+      type: columnTypeSchema.optional(),
+      required: z.boolean().optional(),
+      unique: z.boolean().optional(),
+      options: selectOptionsSchema.optional(),
+      multiple: z.boolean().optional(),
+    })
+    .superRefine(refineColumnOptions),
 })
 
 export const deleteTableColumnBodySchema = z.object({
@@ -447,6 +546,26 @@ export const renameTableContract = defineRouteContract({
     schema: successResponseSchema(z.object({ table: tableDefinitionSchema })),
   },
 })
+
+/**
+ * Superset of {@link renameTableContract} on the same PATCH endpoint: accepts a
+ * `name` rename and/or a `locks` change. The route applies its own permission
+ * split — `name` needs workspace `write`, `locks` needs `admin`.
+ */
+export const updateTableContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/table/[tableId]',
+  params: tableIdParamsSchema,
+  body: updateTableBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ table: tableDefinitionSchema })),
+  },
+})
+
+export type TableLocksInput = z.input<typeof tableLocksSchema>
+export type UpdateTableBody = z.input<typeof updateTableBodySchema>
+export type UpdateTableResponse = ContractJsonResponse<typeof updateTableContract>
 
 export const deleteTableContract = defineRouteContract({
   method: 'DELETE',

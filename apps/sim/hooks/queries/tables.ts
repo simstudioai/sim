@@ -16,7 +16,12 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { extractValidationIssues, isValidationError } from '@/lib/api/client/errors'
+import {
+  ApiClientError,
+  extractValidationIssues,
+  isApiClientError,
+  isValidationError,
+} from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import {
@@ -64,6 +69,7 @@ import {
   type TableFindMatch,
   type TableIdParamsInput,
   type TableJobSummary,
+  type TableLocksInput,
   type TableRowParamsInput,
   type TableRowsQueryInput,
   type TableViewConfigInput,
@@ -72,6 +78,7 @@ import {
   type UpdateTableRowBodyInput,
   type UpdateWorkflowGroupBodyInput,
   updateTableColumnContract,
+  updateTableContract,
   updateTableMetadataContract,
   updateTableRowContract,
   updateTableViewContract,
@@ -220,6 +227,23 @@ function invalidateTableSchema(queryClient: ReturnType<typeof useQueryClient>, t
 }
 
 /**
+ * Invalidate only the schema, not the rows — so cells re-render from the
+ * refetched schema without a (potentially large) rows refetch.
+ *
+ * Only for changes that are genuinely metadata-only server-side (rename,
+ * constraints, a select's option labels). Anything that rewrites stored cells
+ * must use {@link invalidateTableSchema}: deleting a column strips keys, a type
+ * change migrates select ids ↔ names, and a single↔multi toggle rewraps them.
+ */
+function invalidateTableSchemaOnly(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string
+) {
+  queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
+  queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+}
+
+/**
  * Fetch all tables for a workspace.
  */
 export function useTablesList(
@@ -228,6 +252,8 @@ export function useTablesList(
   options?: {
     /** Poll cadence, or a predicate over the current list that returns a cadence (or `false`). */
     refetchInterval?: number | false | ((tables: TableDefinition[] | undefined) => number | false)
+    /** Defer the fetch (e.g. until a menu that needs the list is open). Defaults to `true`. */
+    enabled?: boolean
   }
 ) {
   const refetchInterval = options?.refetchInterval
@@ -242,7 +268,7 @@ export function useTablesList(
       })
       return response.data.tables
     },
-    enabled: Boolean(workspaceId),
+    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     staleTime: TABLE_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
     refetchInterval:
@@ -536,11 +562,12 @@ export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) 
       })
     },
     onError: (error) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
-      invalidateTableSchema(queryClient, tableId)
+      invalidateTableSchemaOnly(queryClient, tableId)
     },
   })
 }
@@ -571,6 +598,52 @@ export function useRenameTable(workspaceId: string) {
 }
 
 /**
+ * Toggle a table's mutation locks (admin-only; the server enforces the role).
+ * Optimistically patches the detail cache so the settings switches respond
+ * instantly, reconciling on settle. Uses `exact` on the detail invalidation so
+ * the rows pages (nested under detail) aren't needlessly refetched.
+ */
+export function useUpdateTableLocks(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      tableId,
+      locks,
+    }: {
+      tableId: string
+      locks: Partial<TableLocksInput>
+    }) => {
+      return requestJson(updateTableContract, {
+        params: { tableId },
+        body: { workspaceId, locks },
+      })
+    },
+    onMutate: async ({ tableId, locks }) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
+      const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      if (previousDetail) {
+        queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
+          ...previousDetail,
+          locks: { ...previousDetail.locks, ...locks },
+        })
+      }
+      return { previousDetail }
+    },
+    onError: (error, { tableId }, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
+      }
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, { tableId }) => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    },
+  })
+}
+
+/**
  * Delete a table from a workspace.
  */
 export function useDeleteTable(workspaceId: string) {
@@ -583,7 +656,8 @@ export function useDeleteTable(workspaceId: string) {
         query: { workspaceId },
       })
     },
-    onError: (error) => {
+    onError: (error, tableId) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -615,6 +689,26 @@ function notifyRowWriteError(error: Error, onUpgrade: () => void): void {
     return
   }
   toast.error(error.message, { duration: 5000 })
+}
+
+/**
+ * Self-heals a 423 lock rejection: refreshes the (now-known-stale) table
+ * definition so the grid's gating catches up, refreshes the list, toasts the
+ * lock reason, and reports whether it handled the error. Call FIRST in a row
+ * mutation's `onError` — a lock set by another user (or Mothership) since this
+ * grid loaded is otherwise invisible until a manual refresh. `exact` avoids
+ * refetching every rows page (rowsRoot nests under detail).
+ */
+function handleTableLockRejection(
+  error: unknown,
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string
+): boolean {
+  if (!isApiClientError(error) || error.status !== 423) return false
+  void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
+  void queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+  toast.error(error.message, { duration: 5000 })
+  return true
 }
 
 export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) {
@@ -664,8 +758,10 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
         predicate: (query) => !isDefaultOrderRowsQuery(query.queryKey),
       })
     },
-    onError: (error) =>
-      notifyRowWriteError(error, () => router.push(buildUpgradeHref(workspaceId, 'tables'))),
+    onError: (error) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
+      notifyRowWriteError(error, () => router.push(buildUpgradeHref(workspaceId, 'tables')))
+    },
     onSettled: () => {
       // `reconcileCreatedRow` (onSuccess) is the source of truth for the rows
       // cache + its `totalCount`; only refresh the count surfaces here so a late
@@ -843,8 +939,10 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
         },
       })
     },
-    onError: (error) =>
-      notifyRowWriteError(error, () => router.push(buildUpgradeHref(workspaceId, 'tables'))),
+    onError: (error) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
+      notifyRowWriteError(error, () => router.push(buildUpgradeHref(workspaceId, 'tables')))
+    },
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
     },
@@ -928,6 +1026,7 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
       if (context?.didBumpRunState) {
         queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
       }
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -1001,6 +1100,7 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
       if (context?.didBumpRunState) {
         queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
       }
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -1021,6 +1121,7 @@ export function useDeleteTableRow({ workspaceId, tableId }: RowMutationContext) 
       })
     },
     onError: (error) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -1069,6 +1170,7 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
       return { deletedRowIds }
     },
     onError: (error) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -1164,6 +1266,7 @@ export function useDeleteTableRowsAsync({ workspaceId, tableId }: RowMutationCon
       if (context?.previousDetail) {
         queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
       }
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -1171,6 +1274,24 @@ export function useDeleteTableRowsAsync({ workspaceId, tableId }: RowMutationCon
 }
 
 type UpdateColumnParams = Omit<UpdateTableColumnBodyInput, 'workspaceId'>
+
+/**
+ * Whether an update drops a `select` option the column currently declares —
+ * the one options edit the server answers by rewriting cells.
+ */
+function removesSelectOption(
+  previousDetail: TableDefinition | undefined,
+  { columnName, updates }: UpdateColumnParams
+): boolean {
+  if (updates.options === undefined || previousDetail === undefined) return false
+  const lower = columnName.toLowerCase()
+  const column = previousDetail.schema.columns.find(
+    (c) => getColumnId(c) === columnName || c.name.toLowerCase() === lower
+  )
+  if (!column?.options?.length) return false
+  const keptIds = new Set(updates.options.map((o) => o.id))
+  return column.options.some((o) => !keptIds.has(o.id))
+}
 
 /**
  * Update a column (rename, type change, or constraint update).
@@ -1214,11 +1335,23 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
       if (context?.previousDetail) {
         queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
       }
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
-    onSettled: () => {
-      invalidateTableSchema(queryClient, tableId)
+    onSettled: (_data, _error, variables, context) => {
+      // A type change, a select single↔multi toggle, or removing an option
+      // rewrites stored cells server-side (option ids ↔ names, scalar ↔ array,
+      // removed ids cleared). Those need the rows refetched too — the
+      // schema-only path would leave the cache holding pre-migration values,
+      // which the grid hides but emptiness checks, filters, and dependent-group
+      // eligibility still act on. Everything else really is metadata-only.
+      const rewritesRows =
+        variables.updates.type !== undefined ||
+        variables.updates.multiple !== undefined ||
+        removesSelectOption(context?.previousDetail, variables)
+      if (rewritesRows) invalidateTableSchema(queryClient, tableId)
+      else invalidateTableSchemaOnly(queryClient, tableId)
     },
   })
 }
@@ -1517,7 +1650,8 @@ export function useRestoreTable() {
         params: { tableId },
       })
     },
-    onError: (error) => {
+    onError: (error, tableId) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -1564,7 +1698,13 @@ export function useUploadCsvToTable() {
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || 'CSV import failed')
+        // Carry the status: a plain Error drops it, and the 423 self-heal below
+        // keys off `error.status`.
+        throw new ApiClientError({
+          status: response.status,
+          body: data,
+          message: data.error || 'CSV import failed',
+        })
       }
 
       return response.json()
@@ -1700,7 +1840,8 @@ export function useImportCsvIntoTableAsync() {
       })
       return response.data
     },
-    onError: (error) => {
+    onError: (error, variables) => {
+      if (handleTableLockRejection(error, queryClient, variables.tableId)) return
       logger.error('Failed to start async CSV import:', error)
       toast.error(error.message, { duration: 5000 })
     },
@@ -1779,7 +1920,8 @@ export function useImportCsvIntoTable() {
 
       return response.json()
     },
-    onError: (error) => {
+    onError: (error, variables) => {
+      if (handleTableLockRejection(error, queryClient, variables.tableId)) return
       logger.error('Failed to import CSV into table:', error)
       toast.error(error.message, { duration: 5000 })
     },
@@ -1865,6 +2007,7 @@ export function useExportTableAsync({ workspaceId, tableId }: RowMutationContext
       void queryClient.invalidateQueries({ queryKey: tableKeys.exportJobs(workspaceId) })
     },
     onError: (error) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -1976,6 +2119,7 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
           queryClient.setQueryData(key, data)
         }
       }
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -2207,12 +2351,15 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
       const bumped = await bumpRunState(queryClient, tableId, stampedByRow)
       return { snapshots, runStateSnapshot: bumped?.snapshot, didBumpRunState: bumped !== null }
     },
-    onError: (_err, _variables, context) => {
+    onError: (error, _variables, context) => {
       if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
       // Roll back the optimistic counter bump (snapshot may be undefined).
       if (context?.didBumpRunState) {
         queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
       }
+      if (handleTableLockRejection(error, queryClient, tableId)) return
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
     },
     onSuccess: (data, { groupIds, runMode = 'all', rowIds, limit }, context) => {
       // Seed the dispatch into the overlay (drives resolveCellExec for
@@ -2273,6 +2420,7 @@ export function useAddWorkflowGroup({ workspaceId, tableId }: RowMutationContext
       })
     },
     onError: (error) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -2306,6 +2454,7 @@ export function useUpdateWorkflowGroup({ workspaceId, tableId }: RowMutationCont
       })
     },
     onError: (error) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -2330,6 +2479,7 @@ export function useDeleteWorkflowGroup({ workspaceId, tableId }: RowMutationCont
       })
     },
     onError: (error) => {
+      if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },

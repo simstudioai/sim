@@ -2,15 +2,23 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
-import type { Filter, RowData } from '@/lib/table'
+import type { Filter, RowData, TableDefinition } from '@/lib/table'
 import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { appendTableEvent } from '@/lib/table/events'
 import {
   getJobProgress,
+  markJobCanceled,
   markJobFailed,
   markJobReady,
   updateJobProgress,
 } from '@/lib/table/jobs/service'
+import {
+  assertRowUpdate,
+  type MutationProof,
+  patchColumnIds,
+  TableLockedError,
+} from '@/lib/table/mutation-locks'
+import type { DbTransaction } from '@/lib/table/planner'
 import { selectRowDataPage, updatePageByIds } from '@/lib/table/rows/ordering'
 import { getTableById } from '@/lib/table/service'
 import { buildFilterClause } from '@/lib/table/sql'
@@ -67,6 +75,46 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
     const table = await getTableById(tableId, { includeArchived: true })
     if (!table) throw new Error(`Update target table ${tableId} not found`)
 
+    // Gate the run on the update lock, then re-gate it before every page (see
+    // the loop below), so enabling the lock stops a job that is already
+    // running. Runs through `assertRowUpdate` rather than reading
+    // `updateLocked` directly so the enqueue site and the worker apply
+    // identical rules. This is a user-driven bulk patch, so it deliberately
+    // does not pass `computedWrite` — the workflow-output carve-out belongs to
+    // the cell-write path alone.
+    const cancelForLock = async (processedSoFar: number): Promise<void> => {
+      logger.info(`[${requestId}] Update job stopped — table is update-locked`, {
+        tableId,
+        jobId,
+        processedSoFar,
+      })
+      await markJobCanceled(tableId, jobId)
+      void appendTableEvent({ kind: 'job', type: 'update', tableId, jobId, status: 'canceled' })
+    }
+
+    const stopIfLocked = async (
+      fresh: TableDefinition,
+      processedSoFar: number
+    ): Promise<MutationProof<'update'> | null> => {
+      try {
+        return assertRowUpdate(fresh, patchColumnIds(data))
+      } catch (err) {
+        if (!(err instanceof TableLockedError)) throw err
+        await cancelForLock(processedSoFar)
+        return null
+      }
+    }
+
+    if ((await stopIfLocked(table, 0)) === null) return
+
+    // Runs inside each batch's transaction, under the same advisory lock the
+    // lock toggle holds, so no page can be written after a lock commits.
+    const revalidate = async (trx: DbTransaction) => {
+      const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
+      if (fresh) assertRowUpdate(fresh, patchColumnIds(data))
+      return fresh ?? undefined
+    }
+
     const filterClause = buildFilterClause(filter, USER_TABLE_ROWS_SQL_NAME, table.schema.columns)
     if (!filterClause) throw new Error('Filter is required for bulk update')
 
@@ -87,6 +135,15 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
     while (processed < budget) {
       const owns = await updateJobProgress(tableId, processed, jobId)
       if (!owns) throw new JobSupersededError()
+
+      // Cheap early-out before selecting a page we may not be allowed to
+      // write. The authoritative gate is `revalidate` below, which re-asserts
+      // inside each batch transaction. Pages already applied stay applied, as
+      // with an explicit cancel.
+      const current = await getTableById(tableId, { includeArchived: true })
+      if (!current) throw new JobSupersededError()
+      const pageProof = await stopIfLocked(current, processed)
+      if (pageProof === null) return
 
       const page = await selectRowDataPage({
         tableId,
@@ -117,12 +174,23 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
         }
       }
 
-      processed += await updatePageByIds(
-        tableId,
-        workspaceId,
-        page.map((r) => r.id),
-        patchJson
-      )
+      try {
+        processed += await updatePageByIds(
+          tableId,
+          workspaceId,
+          page.map((r) => r.id),
+          patchJson,
+          pageProof,
+          revalidate
+        )
+      } catch (err) {
+        if (!(err instanceof TableLockedError)) throw err
+        // A lock landed between batches. Batches already committed stay
+        // applied; `processed` undercounts them, which only affects the final
+        // progress number on an already-canceled job.
+        await cancelForLock(processed)
+        return
+      }
 
       if (
         processed - lastReported >= PROGRESS_INTERVAL_ROWS ||

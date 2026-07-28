@@ -1,1 +1,1 @@
-export { type AvailableResourceGroup, PlusMenuDropdown } from './plus-menu-dropdown'
+export { PlusMenuDropdown } from './plus-menu-dropdown'

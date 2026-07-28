@@ -523,6 +523,14 @@ export async function copyForkResourceContainers(
         // Start at 0 - the post-commit content copy raises it to the rows actually
         // copied, so a failed/partial copy never advertises the source's count.
         rowCount: 0,
+        // Locks are workspace-local governance and never transit a fork edge —
+        // mirrors `copy-workflows.ts` writing `locked: false`. Inheriting them
+        // would hand the fork owner a frozen workspace they may lack admin to
+        // unlock. Reset explicitly since the spread above copies every column.
+        schemaLocked: false,
+        insertLocked: false,
+        updateLocked: false,
+        deleteLocked: false,
         archivedAt: null,
         createdAt: now,
         updatedAt: now,

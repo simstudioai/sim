@@ -3684,6 +3684,21 @@ export const userTableDefinitions = pgTable(
      * from application code — the trigger is the only writer (bypass-proof).
      */
     rowsVersion: bigint('rows_version', { mode: 'number' }).notNull().default(0),
+    /**
+     * @remarks
+     * Per-table mutation locks. Each guards one mutation verb; an admin toggles
+     * them independently. Enforced at the `lib/table` service layer (see
+     * `lib/table/mutation-locks.ts`), which covers every entry point — routes,
+     * workflow blocks, and Mothership — since all funnel through those helpers.
+     * A locked verb rejects with 423; toggling a lock requires workspace admin.
+     * Append-only = update + delete locked; read-only = all four locked. These
+     * are integrity controls (against accidental/agentic mutation), not
+     * confidentiality controls — reads and exports are never blocked.
+     */
+    schemaLocked: boolean('schema_locked').notNull().default(false),
+    insertLocked: boolean('insert_locked').notNull().default(false),
+    updateLocked: boolean('update_locked').notNull().default(false),
+    deleteLocked: boolean('delete_locked').notNull().default(false),
     archivedAt: timestamp('archived_at'),
     createdBy: text('created_by')
       .notNull()

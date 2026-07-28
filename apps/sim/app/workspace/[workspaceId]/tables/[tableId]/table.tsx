@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { Chip, ChipConfirmModal, toast } from '@sim/emcn'
-import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@sim/emcn/icons'
+import { Download, Lock, Pencil, Table as TableIcon, Trash, Upload } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
@@ -56,6 +56,7 @@ import {
   ColumnsMenu,
   EnrichmentDetails,
   EnrichmentsSidebar,
+  LockSettingsModal,
   NewColumnDropdown,
   RowModal,
   RunStatusControl,
@@ -72,6 +73,12 @@ import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
 import { COLUMN_TYPE_ICONS } from './components/table-grid/headers'
 import { useTable, useTableEventStream } from './hooks'
 import {
+  type BlockedTableAction,
+  describeBlockedAction,
+  describeLocks,
+  lockedNouns,
+} from './lock-copy'
+import {
   ALL_VIEW_PARAM,
   DEFAULT_TABLE_DETAIL_SORT_DIRECTION,
   tableDetailParsers,
@@ -82,6 +89,9 @@ import { generateColumnName } from './utils'
 
 const logger = createLogger('Table')
 
+/** Blocked-action toasts carry a button, so they linger past the 5s default. */
+const BLOCKED_TOAST_MS = 8000
+
 interface TableProps {
   /** When set, the table renders without its page header / breadcrumbs / page-level
    *  options bar. Used by the mothership chat panel to embed a table inline. */
@@ -90,9 +100,16 @@ interface TableProps {
   workspaceId?: string
   tableId?: string
   /**
-   * Resolved `table-views` flag. Server-only to resolve (no client AppConfig), so
-   * the page passes it down. Defaults to `false` so the embedded mothership table
-   * — which has no server context to resolve it — stays on today's Filter/Sort bar.
+   * Whether an admin may CHANGE locks, resolved server-side by the page (the
+   * flag's gating lives in AppConfig and has no client counterpart). Defaults
+   * to false so embedded renders, which have no server resolution, fail closed
+   * — enforcement of stored locks is unaffected either way.
+   */
+  tableLocksEnabled?: boolean
+  /**
+   * Resolved `table-views` flag. Server-only to resolve for the same reason.
+   * Defaults to `false` so the embedded mothership table — which has no server
+   * context to resolve it — stays on today's Filter/Sort bar.
    */
   viewsEnabled?: boolean
 }
@@ -190,6 +207,7 @@ export function Table({
   embedded,
   workspaceId: propWorkspaceId,
   tableId: propTableId,
+  tableLocksEnabled = false,
   viewsEnabled = false,
 }: TableProps = {}) {
   const params = useParams()
@@ -213,6 +231,10 @@ export function Table({
 
   const [slideout, dispatch] = useReducer(slideoutReducer, { kind: 'none' })
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
+  const [showLockSettings, setShowLockSettings] = useState(false)
+  // Id of the last blocked-action toast, so a user who keeps typing into a
+  // locked cell replaces one notice rather than stacking a column of them.
+  const blockedToastIdRef = useRef<string | null>(null)
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
   const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
   const [deletingRows, setDeletingRows] = useState<DeletedRowSnapshot[]>([])
@@ -331,7 +353,16 @@ export function Table({
 
   // Single source of truth for `useTable` — drives both the grid render and
   // the wrapper's slideouts/modals. The grid receives the bundle as props.
-  const { tableData, columns, tableWorkflowGroups, workflows } = useTable({
+  const {
+    tableData,
+    columns,
+    tableWorkflowGroups,
+    workflows,
+    // Server-bound scopes use this: a filter condition the current schema
+    // invalidated is pruned from the rows query, so the delete must target the
+    // same predicate the grid is displaying.
+    filter: effectiveFilter,
+  } = useTable({
     workspaceId,
     tableId,
     queryOptions,
@@ -833,10 +864,23 @@ export function Table({
                 icon: Pencil,
                 onClick: handleStartTableRename,
               },
+              // Reachable with the flag off when something is locked, so an
+              // admin can always clear locks (the route allows clearing).
+              ...(userPermissions.canAdmin &&
+              (tableLocksEnabled || lockedNouns(tableData.locks).length > 0)
+                ? [
+                    {
+                      label: 'Lock settings',
+                      icon: Lock,
+                      onClick: () => setShowLockSettings(true),
+                    },
+                  ]
+                : []),
               {
                 label: 'Delete',
                 icon: Trash,
                 onClick: onRequestDeleteTable,
+                disabled: userPermissions.canEdit !== true || tableData.locks.deleteLocked,
               },
             ],
           }
@@ -844,6 +888,8 @@ export function Table({
     ],
     [
       handleNavigateBack,
+      userPermissions.canAdmin,
+      userPermissions.canEdit,
       tableData,
       tableHeaderRename.editingId,
       tableHeaderRename.editValue,
@@ -855,31 +901,88 @@ export function Table({
     ]
   )
 
-  const headerActions = useMemo(
-    () =>
-      tableData
-        ? [
-            {
-              label: 'Import CSV',
-              icon: Upload,
-              onClick: onRequestImportCsv,
-              disabled: userPermissions.canEdit !== true,
-            },
-            {
-              label: 'Export CSV',
-              icon: Download,
-              onClick: () => void handleExportCsv(),
-              disabled: tableData.rowCount === 0,
-            },
-          ]
-        : undefined,
-    [tableData, userPermissions.canEdit, handleExportCsv, onRequestImportCsv]
+  // An admin can always reach the settings on a locked table — clearing locks
+  // stays allowed with the flag off, so the kill switch can't strand one. With
+  // the flag off and nothing locked there is nothing to change, so the toast is
+  // a plain notice with no action.
+  const canOpenLockSettings =
+    userPermissions.canAdmin === true &&
+    (tableLocksEnabled || (tableData ? lockedNouns(tableData.locks).length > 0 : false))
+
+  /**
+   * Explains why a table mutation is unavailable. A toast rather than a modal:
+   * being told you can't edit shouldn't cost a dismiss click, and admins still
+   * get a direct route to the settings via the action button.
+   */
+  const showBlockedToast = useCallback(
+    (action: BlockedTableAction) => {
+      if (!tableData) return
+      if (blockedToastIdRef.current) toast.dismiss(blockedToastIdRef.current)
+      const { title, text } = describeBlockedAction(action, tableData.locks)
+      blockedToastIdRef.current = toast.warning(title, {
+        description: text,
+        ...(canOpenLockSettings
+          ? {
+              action: { label: 'Lock settings', onClick: () => setShowLockSettings(true) },
+              // An action would otherwise pin the toast open until dismissed.
+              duration: BLOCKED_TOAST_MS,
+            }
+          : {}),
+      })
+    },
+    [tableData, canOpenLockSettings]
   )
 
+  const headerActions = useMemo(() => {
+    if (!tableData) return undefined
+    // Header space is for state, not for settings: the chip appears only once
+    // something is actually locked, and names the mode so it reads at a glance.
+    // Reaching the panel on an unlocked table is the dropdown's job.
+    const anyLocked = lockedNouns(tableData.locks).length > 0
+    return [
+      ...(anyLocked
+        ? [
+            {
+              label: describeLocks(tableData.locks).name,
+              icon: Lock,
+              onClick: () =>
+                userPermissions.canAdmin ? setShowLockSettings(true) : showBlockedToast('status'),
+            },
+          ]
+        : []),
+      {
+        label: 'Import CSV',
+        icon: Upload,
+        onClick: onRequestImportCsv,
+        // An import always inserts, so the insert lock disables it outright
+        // rather than letting the dialog run to a server-side 423.
+        disabled: userPermissions.canEdit !== true || tableData.locks.insertLocked,
+      },
+      {
+        label: 'Export CSV',
+        icon: Download,
+        onClick: () => void handleExportCsv(),
+        disabled: tableData.rowCount === 0,
+      },
+    ]
+  }, [
+    tableData,
+    userPermissions.canEdit,
+    userPermissions.canAdmin,
+    handleExportCsv,
+    onRequestImportCsv,
+    showBlockedToast,
+  ])
+
+  // Adding a column is a schema change. The trigger stays visible when the
+  // table is schema-locked and explains itself instead of disappearing.
+  const canMutateSchema = userPermissions.canEdit && !tableData?.locks.schemaLocked
   const createTrigger = userPermissions.canEdit ? (
     <NewColumnDropdown
       trigger='header'
       disabled={false}
+      blocked={!canMutateSchema}
+      onBlocked={() => showBlockedToast('add-column')}
       onPickType={handleAddColumnOfType}
       onPickWorkflow={handleAddWorkflowColumn}
       onPickEnrichment={onOpenEnrichments}
@@ -932,10 +1035,13 @@ export function Table({
   const filterConfig = useMemo(
     () => ({
       mode: 'toggle' as const,
-      active: filterOpen || !!queryOptions.filter,
+      // The pruned filter, not the raw one: a condition the current schema
+      // invalidated is not applied to the grid, so showing the chip as active
+      // (and reopening that rule) would claim a filter the rows do not reflect.
+      active: filterOpen || !!effectiveFilter,
       onToggle: handleToggleFilter,
     }),
-    [filterOpen, queryOptions.filter, handleToggleFilter]
+    [filterOpen, effectiveFilter, handleToggleFilter]
   )
 
   return (
@@ -1003,7 +1109,7 @@ export function Table({
             <ColumnsMenu
               columns={columns}
               workflowGroups={tableWorkflowGroups}
-              hiddenColumns={hiddenColumns}
+              hiddenColumns={effectiveHiddenColumns}
               onChange={setHiddenColumns}
             />
           ) : undefined
@@ -1019,7 +1125,7 @@ export function Table({
       {filterOpen && (
         <TableFilter
           columns={columns}
-          filter={queryOptions.filter}
+          filter={effectiveFilter}
           onApply={handleFilterApply}
           onClose={() => setFilterOpen(false)}
         />
@@ -1036,6 +1142,8 @@ export function Table({
         workspaceId={workspaceId}
         tableId={tableId}
         embedded={embedded}
+        locks={tableData?.locks}
+        onBlockedAction={showBlockedToast}
         sidebarReservedPx={sidebarReservedPx}
         onOpenColumnConfig={onOpenColumnConfig}
         onOpenWorkflowConfig={onOpenWorkflowConfig}
@@ -1211,7 +1319,7 @@ export function Table({
         title='Delete rows'
         text={`Delete ${deletingAll ? deletingAll.estimatedCount.toLocaleString() : 0} ${
           deletingAll?.estimatedCount === 1 ? 'row' : 'rows'
-        }${queryOptions.filter ? ' matching the current filter' : ''}? This can't be undone.`}
+        }${effectiveFilter ? ' matching the current filter' : ''}? This can't be undone.`}
         confirm={{
           label: 'Delete',
           pending: deleteRowsAsyncMutation.isPending,
@@ -1220,7 +1328,7 @@ export function Table({
             if (!deletingAll) return
             const { excludeRowIds, estimatedCount } = deletingAll
             deleteRowsAsyncMutation.mutate({
-              filter: queryOptions.filter ?? undefined,
+              filter: effectiveFilter ?? undefined,
               sort: queryOptions.sort,
               excludeRowIds: excludeRowIds.length > 0 ? excludeRowIds : undefined,
               estimatedCount,
@@ -1292,6 +1400,15 @@ export function Table({
             pending: deleteTableMutation.isPending,
             pendingLabel: 'Deleting...',
           }}
+        />
+      )}
+      {tableData && userPermissions.canAdmin && (
+        <LockSettingsModal
+          isOpen={showLockSettings}
+          onClose={() => setShowLockSettings(false)}
+          workspaceId={workspaceId}
+          tableId={tableData.id}
+          locks={tableData.locks}
         />
       )}
     </Resource>
