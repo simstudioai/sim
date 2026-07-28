@@ -730,6 +730,7 @@ export function TableGrid({
     getPinnedColumns,
     getColumnWidths,
     onPersistLayout,
+    activeViewId: viewLayoutKey,
   })
   const undoRef = useRef(undo)
   undoRef.current = undo

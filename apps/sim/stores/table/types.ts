@@ -87,7 +87,24 @@ export interface UndoEntry {
   id: string
   action: TableUndoAction
   timestamp: number
+  /**
+   * Active view when the action was recorded — `null` for "All" or when views
+   * are disabled. Layout is view-owned, so a layout action is only meaningful
+   * against the view that owned it; see {@link LAYOUT_UNDO_ACTIONS}.
+   */
+  viewId: string | null
 }
+
+/**
+ * Action types whose undo writes column layout (order, widths, pinning). These
+ * are scoped to the view that was active when they were recorded; every other
+ * action type operates on rows or the schema and is table-scoped.
+ */
+export const LAYOUT_UNDO_ACTIONS = new Set<TableUndoAction['type']>([
+  'create-column',
+  'delete-column',
+  'reorder-columns',
+])
 
 export interface TableUndoStacks {
   undo: UndoEntry[]
@@ -96,10 +113,15 @@ export interface TableUndoStacks {
 
 export interface TableUndoState {
   stacks: Record<string, TableUndoStacks>
-  push: (tableId: string, action: TableUndoAction) => void
+  push: (tableId: string, action: TableUndoAction, viewId: string | null) => void
   popUndo: (tableId: string) => UndoEntry | null
   popRedo: (tableId: string) => UndoEntry | null
   patchRedoRowId: (tableId: string, oldRowId: string, newRowId: string) => void
   patchUndoRowId: (tableId: string, oldRowId: string, newRowId: string) => void
   clear: (tableId: string) => void
+  /**
+   * Drops layout actions recorded under a different view. Called on every view
+   * switch so undo can never write one view's layout into another.
+   */
+  pruneLayoutActions: (tableId: string, viewId: string | null) => void
 }

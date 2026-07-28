@@ -110,6 +110,13 @@ interface UseTableUndoProps {
    * reorder was stored rather than silently rewriting the "All" layout.
    */
   onPersistLayout?: (patch: TableMetadata) => void
+  /**
+   * Active view id (`null` for "All" or when views are disabled). Layout is
+   * view-owned, so recorded layout actions are stamped with it and dropped when
+   * the user switches away — otherwise an undo would write the outgoing view's
+   * column order into whichever view happens to be active at the time.
+   */
+  activeViewId?: string | null
 }
 
 export function useTableUndo({
@@ -123,6 +130,7 @@ export function useTableUndo({
   getPinnedColumns,
   getColumnWidths,
   onPersistLayout,
+  activeViewId = null,
 }: UseTableUndoProps) {
   const push = useTableUndoStore((s) => s.push)
   const popUndo = useTableUndoStore((s) => s.popUndo)
@@ -130,6 +138,7 @@ export function useTableUndo({
   const patchRedoRowId = useTableUndoStore((s) => s.patchRedoRowId)
   const patchUndoRowId = useTableUndoStore((s) => s.patchUndoRowId)
   const clear = useTableUndoStore((s) => s.clear)
+  const pruneLayoutActions = useTableUndoStore((s) => s.pruneLayoutActions)
   const canUndo = useTableUndoStore((s) => (s.stacks[tableId]?.undo.length ?? 0) > 0)
   const canRedo = useTableUndoStore((s) => (s.stacks[tableId]?.redo.length ?? 0) > 0)
 
@@ -161,14 +170,20 @@ export function useTableUndo({
   getColumnWidthsRef.current = getColumnWidths
   const getLocksRef = useRef(getLocks)
   getLocksRef.current = getLocks
+  const activeViewIdRef = useRef(activeViewId)
+  activeViewIdRef.current = activeViewId
 
   useEffect(() => {
     return () => clear(tableId)
   }, [clear, tableId])
 
+  useEffect(() => {
+    pruneLayoutActions(tableId, activeViewId)
+  }, [pruneLayoutActions, tableId, activeViewId])
+
   const pushUndo = useCallback(
     (action: TableUndoAction) => {
-      push(tableId, action)
+      push(tableId, action, activeViewIdRef.current)
     },
     [push, tableId]
   )
