@@ -116,8 +116,6 @@ export const Panel = memo(function Panel() {
   const router = useRouter()
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const workflowId = params.workflowId as string
-  const copilotDraftScopeKey = `${workspaceId}:copilot:${workflowId}`
 
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
@@ -153,6 +151,9 @@ export const Panel = memo(function Panel() {
   const { data: workflows = {} } = useWorkflowMap(workspaceId)
   const { data: folders = {} } = useFolderMap(workspaceId)
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const copilotDraftScopeKey = activeWorkflowId
+    ? `${workspaceId}:copilot:${activeWorkflowId}`
+    : undefined
   const { handleAutoLayout: autoLayoutWithFitView } = useAutoLayout(activeWorkflowId || null)
 
   // Check for locked blocks (disables auto-layout)
@@ -885,6 +886,7 @@ export const Panel = memo(function Panel() {
                 </div>
 
                 <MothershipChat
+                  key={copilotDraftScopeKey}
                   className='min-h-0 flex-1'
                   messages={copilotMessages}
                   isSending={copilotIsSending}
