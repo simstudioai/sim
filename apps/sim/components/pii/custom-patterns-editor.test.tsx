@@ -49,10 +49,18 @@ describe('CustomPatternsEditor', () => {
     expect(container.textContent).toMatch(/Invalid regex/)
   })
 
-  it('shows an inline error for a catastrophic-backtracking pattern', () => {
-    renderEditor([row('(a+)+$')], vi.fn())
-    expect(container.textContent).toMatch(/potentially unsafe/)
-  })
+  it.each(['(a+)+$', '(?<=id: )\\w+', '(?:https?://)?example\\.com'])(
+    'accepts %s, which the removed safe-regex2 screen rejected',
+    (pattern) => {
+      // The editor no longer runs a catastrophic-backtracking screen. It caught
+      // `(a+)+$` but passed `a*a*b`, so it deterred only the obvious spelling
+      // while blocking valid Presidio patterns like lookbehind. These patterns
+      // run in Presidio, not in this process.
+      renderEditor([row(pattern)], vi.fn())
+      expect(container.textContent).not.toMatch(/potentially unsafe/)
+      expect(container.textContent).not.toMatch(/Invalid regex/)
+    }
+  )
 
   it('appends an empty row when "Add pattern" is clicked', () => {
     const onChange = vi.fn()

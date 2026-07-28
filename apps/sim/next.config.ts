@@ -124,7 +124,6 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [
     '@1password/sdk',
     'unpdf',
-    'ffmpeg-static',
     'fluent-ffmpeg',
     'ws',
     'isolated-vm',
@@ -143,7 +142,6 @@ const nextConfig: NextConfig = {
     ],
   },
   experimental: {
-    optimizeCss: !isDev,
     turbopackFileSystemCacheForDev: false,
     /**
      * Turbopack's persistent build cache (beta) — opt-in via env so only the
