@@ -457,33 +457,39 @@ export function setupWorkspaceFileDocHandlers(
       // here would leak a dead socket's room or bind the socket to the wrong document.
       if (socket.disconnected || joinGeneration.get(socket.id) !== generation) return
 
-      // Switched documents on the same socket — leave the previous one first (a
-      // socket edits at most one document). A duplicate join of the SAME room
-      // falls through and simply re-runs the sync handshake, idempotently.
-      const currentName = socketToRoomName.get(socket.id)
-      if (currentName && currentName !== name) {
-        socket.leave(currentName)
-        cleanupFileDocForSocket(socket.id, io)
-      }
-
       const entry = getOrCreateRoom(io, room)
 
-      // A client id must be owned by at most one user, or a peer could bind an
-      // active collaborator's id and pass the per-frame ownership check to
-      // spoof/clear its caret. Distinguish a reconnect from a spoof by the owning
-      // user: the same user reclaiming its own client id (a dropped socket
-      // reconnecting reuses the Yjs client id, and its prior socket may not be
-      // cleaned up yet) takes over the stale binding; a DIFFERENT user is
-      // rejected. This runs BEFORE any state mutation below, so a rejected rebind
-      // leaves the socket's existing binding and caret untouched.
+      // A client id must be owned by at most one user, or a peer could bind an active
+      // collaborator's id and pass the per-frame ownership check to spoof/clear its caret.
+      // Distinguish a reconnect from a spoof by the owning user: the same user reclaiming its
+      // own client id (a dropped socket reconnecting reuses the Yjs client id, and its prior
+      // socket may not be cleaned up yet) takes over the stale binding; a DIFFERENT user is
+      // rejected. This runs BEFORE any teardown of the socket's current binding below, so a
+      // rejected rebind — even during a document switch — leaves the socket's existing document
+      // and caret untouched.
       for (const [otherSid, owner] of entry.owners) {
         if (owner.clientId !== clientId || otherSid === socket.id) continue
         if (owner.userId !== userId) {
           emitJoinError(socket, fileId, 'Client id already in use', 'CLIENT_ID_IN_USE', false)
           return
         }
+        // Fully evict the stale prior socket of the same user — owner + caret AND its room
+        // mapping + Socket.IO membership — so it can no longer send document (sync) frames:
+        // handleMessage's SYNC path gates on socketToRoomName, not owners. Done inline rather
+        // than via cleanupFileDocForSocket, which could destroyRoomIfIdle the room we're joining.
         entry.owners.delete(otherSid)
         awarenessProtocol.removeAwarenessStates(entry.awareness, [owner.clientId], null)
+        socketToRoomName.delete(otherSid)
+        io.in(otherSid).socketsLeave(name)
+      }
+
+      // Only now that the rebind is guaranteed to succeed, leave a previously-joined document if
+      // switching (a socket edits at most one). A duplicate join of the SAME room falls through
+      // and simply re-runs the sync handshake, idempotently.
+      const currentName = socketToRoomName.get(socket.id)
+      if (currentName && currentName !== name) {
+        socket.leave(currentName)
+        cleanupFileDocForSocket(socket.id, io)
       }
 
       // Accepted: a same socket rebinding to a NEW client id clears its old caret

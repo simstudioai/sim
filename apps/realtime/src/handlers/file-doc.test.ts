@@ -33,6 +33,8 @@ interface SentMessage {
 /** An `io` mock that records every server-originated emit with its target/except. */
 function createIo() {
   const sent: SentMessage[] = []
+  /** Records `io.in(socketId).socketsLeave(room)` — a socket forced out of a room from outside. */
+  const left: { socketId: string; room: string }[] = []
   const to = vi.fn((target: string) => ({
     except: (exclude: string) => ({
       emit: (event: string, payload: unknown) =>
@@ -40,7 +42,12 @@ function createIo() {
     }),
     emit: (event: string, payload: unknown) => sent.push({ target, event, payload }),
   }))
-  return { io: { to } as unknown as IRoomManager['io'], sent }
+  const inFn = vi.fn((socketId: string) => ({
+    socketsLeave: (room: string) => {
+      left.push({ socketId, room })
+    },
+  }))
+  return { io: { to, in: inFn } as unknown as IRoomManager['io'], sent, left }
 }
 
 /** Every socket id a test created, so `afterEach` can drop their rooms without a
@@ -581,6 +588,49 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const b = setup('socket-b', io)
     await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
     expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)?.target).toBe('socket-b')
+  })
+
+  it('fully evicts a reclaimed prior socket so it can no longer write to the doc', async () => {
+    const { io, sent, left } = createIo()
+    const a = setup('socket-a', io)
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 7 })
+    const b = setup('socket-b', io) // same default user-1
+    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 7 }) // reclaims client id 7
+
+    // The stale prior socket is forced out of the Socket.IO room...
+    expect(left).toContainEqual({ socketId: 'socket-a', room: ROOM_NAME })
+
+    // ...and its room mapping is cleared, so a later document (SYNC) frame from it is dropped
+    // (handleMessage's SYNC path gates on socketToRoomName): nothing is applied or relayed.
+    sent.length = 0
+    const doc = new Y.Doc()
+    doc.getText('t').insert(0, 'x')
+    const updateFrame = frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
+      syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(doc))
+    )
+    a.handlers[FILE_DOC_EVENTS.MESSAGE](updateFrame)
+    expect(sent.some((m) => m.event === FILE_DOC_EVENTS.MESSAGE)).toBe(false)
+  })
+
+  it('does not drop the current document when a switch is rejected for a foreign client id', async () => {
+    const { io } = createIo()
+    const a = setup('socket-a', io) // user-1
+    const other = setup('socket-c', io, { userId: 'user-b' })
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 10 }) // a owns 10 in file-1
+    await other.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-2', clientId: 99 }) // user-b owns 99 in file-2
+    a.socket.leave.mockClear()
+    a.socket.join.mockClear()
+
+    // a tries to switch to file-2 but requests client id 99, owned by a DIFFERENT user → reject.
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-2', clientId: 99 })
+
+    expect(a.socket.emit).toHaveBeenCalledWith(
+      FILE_DOC_EVENTS.JOIN_ERROR,
+      expect.objectContaining({ code: 'CLIENT_ID_IN_USE' })
+    )
+    // The rejected switch must leave file-1 intact — a is not torn out of its current document.
+    expect(a.socket.leave).not.toHaveBeenCalledWith('workspace-file-doc:file-1')
+    expect(a.socket.join).not.toHaveBeenCalledWith('workspace-file-doc:file-2')
   })
 
   it('re-elects a new seeder when the elected one misses the seed deadline', async () => {
