@@ -24,16 +24,14 @@ import { encodeFilenameForHeader } from '@/app/api/files/utils'
 const logger = createLogger('FilesExportAPI')
 
 /**
- * Bundling caps. The embed list comes from scanning the document body, so its length
- * and the bytes behind it are whatever the author put there — without these the export
- * would materialize an unbounded number of unbounded assets in one request.
+ * Byte ceilings for a bundled export. The bytes behind an embed list are whatever the
+ * author put there, so without these the export would materialize unbounded assets in
+ * one request. They match the bulk-download route, so the two export surfaces reject at
+ * the same size.
  *
- * The byte ceilings are the real bound and match the bulk-download route, so the two
- * export surfaces reject at the same size. The count is only a guard on the metadata
- * lookups that precede the byte check, so it sits far above any hand-authored document
- * rather than at a number a screenshot-heavy doc could plausibly reach.
+ * There is deliberately no count cap here: `extractEmbeddedFileRefs` already stops at
+ * `MAX_EMBEDDED_IMAGES`, so the list this route receives is bounded before it arrives.
  */
-const MAX_EXPORT_ASSETS = 500
 const MAX_EXPORT_ASSET_BYTES = 25 * 1024 * 1024
 const MAX_EXPORT_TOTAL_BYTES = 250 * 1024 * 1024
 
@@ -167,15 +165,6 @@ export const GET = withRouteHandler(
           'Content-Length': String(mdBytes.length),
         },
       })
-    }
-
-    if (imageIds.length > MAX_EXPORT_ASSETS) {
-      return NextResponse.json(
-        {
-          error: `This document embeds ${imageIds.length} files, more than the ${MAX_EXPORT_ASSETS} an export can bundle.`,
-        },
-        { status: 400 }
-      )
     }
 
     // Metadata first: declared sizes bound the download before a byte is read, and the

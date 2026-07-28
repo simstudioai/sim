@@ -80,19 +80,6 @@ describe('markdown export bundling', () => {
     mockExtractEmbeddedImageIds.mockReturnValue([])
   })
 
-  it('rejects a document embedding more assets than an export may bundle', async () => {
-    mockExtractEmbeddedImageIds.mockReturnValue(
-      Array.from({ length: 501 }, (_, index) => `img-${index}`)
-    )
-
-    const response = await GET(request(), context)
-
-    expect(response.status).toBe(400)
-    expect((await response.json()).error).toContain('501')
-    // Rejected on the embed count alone: nothing was resolved or downloaded.
-    expect(mockGetFileMetadataById).toHaveBeenCalledTimes(1)
-  })
-
   it('rejects on declared asset bytes before downloading any of them', async () => {
     mockExtractEmbeddedImageIds.mockReturnValue(['a', 'b', 'c'])
     mockGetFileMetadataById.mockImplementation(async (id: string) =>
