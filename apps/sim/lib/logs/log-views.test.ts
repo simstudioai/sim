@@ -249,6 +249,22 @@ describe('grepSpans', () => {
     expect(result.truncated).toBe(true)
   })
 
+  it('accumulates match time and truncates once the budget is spent', async () => {
+    // Guards the accumulation in `findTimed`: with that line removed,
+    // matchTimeMs stays 0, the budget never trips, and every span is scanned.
+    const big = 'x'.repeat(400_000)
+    const spans = [
+      span({ id: 'a', output: { v: big } }),
+      span({ id: 'b', output: { v: big } }),
+      span({ id: 'c', output: { v: `${big} needle` } }),
+    ]
+
+    const result = await grepSpans(spans, 'needle|nomatch', ctx, { matchTimeBudgetMs: 1 })
+
+    expect(result.truncated).toBe(true)
+    expect(result.matches).toEqual([])
+  })
+
   it('does not charge blob-store I/O to the match-time budget', async () => {
     // Each slice read sleeps well past the budget: only time spent matching
     // counts, so a slow-but-legitimate grep must still return complete results.

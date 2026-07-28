@@ -109,7 +109,7 @@ export class RegexChunker {
     if (compiled) return compiled
 
     throw new Error(
-      `Regex pattern "${pattern}" uses syntax that cannot be evaluated safely (backreferences and negative or embedded lookaround are unsupported). Use a plain delimiter, "(?=...)" to split before one and keep it, or "(?<=...)" to split after one.`
+      `Regex pattern "${pattern}" uses syntax that cannot be evaluated safely. Unsupported: negative lookaround ("(?!...)", "(?<!...)"), backreferences, and repeat counts above 1000. Positive lookaround is supported — "(?=X)" splits before a delimiter, "(?<=X)" after one, and "(?<=X)Y(?=Z)" consumes Y between them.`
     )
   }
 

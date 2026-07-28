@@ -404,9 +404,9 @@ describe('RegexChunker', () => {
       10000
     )
 
-    it.concurrent('still supports lookahead split patterns via the built-in engine', async () => {
-      // RE2 cannot represent lookaround, and splitting *before* a delimiter so
-      // it is kept is the standard use for it, so these must keep working.
+    it.concurrent('still supports lookahead split patterns', async () => {
+      // RE2 has no lookaround; compileLookaroundSplit expresses this as slicing
+      // at each match start, so the idiom keeps working on the linear engine.
       // (No `m` flag is applied, so anchor the lookahead on the delimiter
       // itself rather than on `^`.)
       const chunker = new RegexChunker({

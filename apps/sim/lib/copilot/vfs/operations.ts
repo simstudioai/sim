@@ -135,8 +135,15 @@ export function pathWithinGrepScope(filePath: string, scope: string): boolean {
 
 /**
  * Regex search over VFS file contents using RE2 syntax — a subset of
- * ECMAScript `RegExp` without lookaround or backreferences, which are matched
- * literally instead (see `@/lib/core/security/linear-regex`).
+ * ECMAScript `RegExp` (see `@/lib/core/security/linear-regex`).
+ *
+ * A pattern RE2 cannot represent — negative lookaround, backreferences — is
+ * matched as a literal instead of on the backtracking engine, as is a pattern
+ * that does not compile at all (which previously returned no results). Both
+ * cases log a warning: the return shape carries results only, so there is
+ * nowhere to tell the caller inline, and a literal fallback can match the
+ * pattern's own text when grepping source that contains regexes.
+ *
  * `content` and `count` are line-oriented (split on newline, CR stripped per line).
  * `files_with_matches` tests the entire file string once, so multiline patterns can match there
  * but not in line modes.

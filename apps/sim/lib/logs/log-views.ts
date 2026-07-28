@@ -194,10 +194,11 @@ export interface GrepSpanMatch {
 export interface GrepSpansResult {
   matches: GrepSpanMatch[]
   /**
-   * Whether the scan stopped with trace left unread — not whether a budget was
-   * reached. Every point that skips work goes through `done`, which sets this,
-   * so a budget exhausted by the very last match reports `false`: the caller's
-   * results are complete, and nothing was withheld.
+   * Whether the scan stopped early — because a budget was exhausted, the slice
+   * cap was hit, or `maxMatches` was reached. It is a "there may be more" flag,
+   * not proof that trace was left unread: reaching `maxMatches` on the final
+   * match sets it even when nothing remained. Treat it as a prompt to narrow
+   * the pattern, never as a count.
    */
   truncated: boolean
   /**

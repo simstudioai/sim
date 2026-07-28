@@ -6,7 +6,6 @@ import { describe, expect, it } from 'vitest'
 import {
   compileLinearRegex,
   compileLookaroundSplit,
-  escapeRegExp,
   isPlainText,
   literalRegex,
 } from '@/lib/core/security/linear-regex'
@@ -42,9 +41,28 @@ describe('compileLinearRegex', () => {
     expect(compileLinearRegex('ERROR')?.test('an error here')).toBe(false)
   })
 
-  it('splits equivalently to String.prototype.split', () => {
+  it('splits equivalently to String.prototype.split, minus the trailing empty', () => {
     const doc = '# One\ntext a\n\n# Two\ntext b'
     expect(compileLinearRegex('\\n\\n+')?.split(doc)).toEqual(doc.split(/\n\n+/g))
+
+    // The documented divergence: a trailing delimiter yields no empty tail.
+    expect(compileLinearRegex(',')?.split('a,b,')).toEqual(['a', 'b'])
+    expect('a,b,'.split(/,/g)).toEqual(['a', 'b', ''])
+  })
+
+  it.each([
+    ['non-breaking space', '\u00a0'],
+    ['narrow no-break space', '\u202f'],
+    ['ideographic space', '\u3000'],
+    ['line separator', '\u2028'],
+    ['vertical tab', '\v'],
+  ])('treats %s as whitespace, matching the built-in engine', (_label, ws) => {
+    // RE2's own \\s is ASCII-only. Untranslated, a \\s document splitter stops
+    // splitting on the whitespace that PDF/HTML extraction emits, silently
+    // changing stored chunk boundaries.
+    const doc = `alpha${ws}beta`
+    expect(compileLinearRegex('\\s+')?.split(doc)).toEqual(doc.split(/\s+/g))
+    expect(compileLinearRegex('\\s')?.test(doc)).toBe(true)
   })
 
   it.each([
@@ -92,10 +110,17 @@ describe('isPlainText / escapeRegExp', () => {
     (pattern) => expect(isPlainText(pattern)).toBe(false)
   )
 
-  it('escapes every metacharacter so the pattern matches only itself', () => {
-    const raw = 'a.*+?^${}()|[]\\b'
-    expect(new RegExp(escapeRegExp(raw)).test(raw)).toBe(true)
-  })
+  it.each(['.', '*', '+', '?', '^', '$', '{', '}', '(', ')', '|', '[', ']', '\\'])(
+    'escapes %s so a literal pattern matches only itself',
+    (meta) => {
+      const regex = literalRegex(`a${meta}b`)
+      expect(regex.test(`a${meta}b`)).toBe(true)
+      // Under-escaping shows up here: an unescaped metacharacter would let the
+      // pattern match text that does not contain it verbatim.
+      expect(regex.test('aXb')).toBe(false)
+      expect(regex.test('ab')).toBe(false)
+    }
+  )
 })
 
 describe('compileLookaroundSplit', () => {
@@ -125,8 +150,20 @@ describe('compileLookaroundSplit', () => {
   })
 
   it.each([
+    ['split after a period', '(?<=\\.)\\s+', 'One. Two. Three.'],
+    ['split before a heading', '\\n(?=Chapter )', 'intro\nChapter 1\nChapter 2'],
+    ['sentence splitter', '(?<=[.!?])\\s+(?=[A-Z])', 'One. Two! Three? four.'],
+  ])('handles %s, where the assertion has an affix', (_label, pattern, doc) => {
+    // These are the common shapes: a lookaround combined with other syntax.
+    // Handling only a whole-pattern assertion would reject them outright.
+    const split = compileLookaroundSplit(pattern)?.split(doc)
+    expect(split).toEqual(doc.split(new RegExp(pattern, 'g')))
+  })
+
+  it.each([
     ['negative lookahead', '(?!x)y'],
-    ['embedded lookahead', 'a(?=b)c'],
+    ['negative lookbehind', '(?<!a)b'],
+    ['backreference', '(?<=x)(a)\\1'],
     ['plain pattern', '\\n\\n'],
   ])('returns null for %s', (_label, pattern) => {
     expect(compileLookaroundSplit(pattern)).toBeNull()
