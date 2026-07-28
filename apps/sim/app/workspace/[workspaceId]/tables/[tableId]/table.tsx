@@ -556,12 +556,32 @@ export function Table({
   )
 
   /**
+   * The active view's stored config, pruned against the live columns exactly as
+   * the local state is. The server prunes on read, but the cached copy is not
+   * re-pruned when the schema changes here — so without this, deleting a hidden or
+   * sorted column makes the two sides disagree and lights Save with no user edit.
+   */
+  const storedViewConfig = useMemo<TableViewConfig | null>(() => {
+    if (!activeView) return null
+    const stored = activeView.config
+    if (columns.length === 0) return stored
+    return {
+      ...stored,
+      hiddenColumns: (stored.hiddenColumns ?? []).filter((id) => liveColumnIds.has(id)),
+      sort:
+        stored.sort && Object.keys(stored.sort).every((id) => liveColumnIds.has(id))
+          ? stored.sort
+          : null,
+    }
+  }, [activeView, columns.length, liveColumnIds])
+
+  /**
    * Whether the live state diverges from what the active view stores (or, on
    * "All", whether anything is applied at all). Drives the Save button — it is
    * the only affordance that persists, so ad-hoc exploration stays throwaway.
    */
-  const isViewDirty = activeView
-    ? !isSameViewConfig(currentViewConfig, activeView.config)
+  const isViewDirty = storedViewConfig
+    ? !isSameViewConfig(currentViewConfig, storedViewConfig)
     : Boolean(effectiveFilter) || Boolean(sortQuery) || effectiveHiddenColumns.length > 0
 
   /** Rename targets a live view rather than a snapshot, so a concurrent rename or
@@ -648,7 +668,13 @@ export function Table({
     const blank = viewModal?.blank === true
     const config: TableViewConfig = blank
       ? {
+          // `liveLayoutRef` last, so a resize/reorder/pin still in flight wins over
+          // the cached copy — otherwise the new view stores the pre-drag layout and
+          // the grid snaps back to it on selection. (With no active view the grid
+          // writes table metadata directly, which `useUpdateTableMetadata` updates
+          // optimistically, so that branch is already current.)
           ...(activeView?.config ?? tableData?.metadata),
+          ...liveLayoutRef.current,
           filter: null,
           sort: null,
           hiddenColumns: [],

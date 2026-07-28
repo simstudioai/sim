@@ -1479,7 +1479,14 @@ export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext)
     // so `isViewDirty` re-reads true and the Save chip flashes back after a save.
     onSuccess: (view) => {
       queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) =>
-        prev?.map((existing) => (existing.id === view.id ? view : existing))
+        prev?.map((existing) => {
+          if (existing.id !== view.id) return existing
+          // Layout auto-saves and an explicit Save fire concurrently, and their
+          // responses can arrive out of order. The DB merge is authoritative, so
+          // only let a row at least as new as the cached one win — otherwise a
+          // slower response rewinds the cache until the refetch lands.
+          return new Date(view.updatedAt) >= new Date(existing.updatedAt) ? view : existing
+        })
       )
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
