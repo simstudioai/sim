@@ -39,6 +39,15 @@ describe('sanitizeChatDisplayContent', () => {
     expect(backticks(sanitizeChatDisplayContent(content))).toBe(backticks(content))
   })
 
+  it('leaves prose that mentions the opener and the closer separately alone', () => {
+    // The balanced unwrap reads a backticked opener, prose, and a backticked
+    // closer as ONE wrapped tag, and strips the outer pair. This is the shape a
+    // message explaining the tag syntax naturally takes.
+    const content = 'Use `<workspace_resource>` then close with `</workspace_resource>` at the end.'
+
+    expect(sanitizeChatDisplayContent(content)).toBe(content)
+  })
+
   it('still unwraps a real tag that carries a stray backtick on one side only', () => {
     // The case the unpaired strip is actually for: the model backticked the
     // opener but not the closer (or vice versa), which would block the chip.
