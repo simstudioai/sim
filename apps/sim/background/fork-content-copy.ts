@@ -12,13 +12,14 @@ import {
  * re-run would duplicate rows; a partial failure simply leaves the fork's content
  * incomplete (the workflows themselves committed synchronously).
  *
- * Runs on `large-1x` (4 vCPU / 8 GB): the copy materializes table rows, KB chunks
- * and their embedding vectors, and file blobs in memory, and `maxAttempts: 1`
- * means an OOM is unrecoverable — a half-copied fork with no retry.
+ * Runs on `large-2x` (8 vCPU / 16 GB), matching `knowledge-connector-sync`: the
+ * copy materializes table rows, KB chunks and their embedding vectors, and file
+ * blobs in memory, and `maxAttempts: 1` means an OOM is unrecoverable — a
+ * half-copied fork with no retry.
  */
 export const forkContentCopyTask = task({
   id: 'fork-content-copy',
-  machine: 'large-1x',
+  machine: 'large-2x',
   retry: { maxAttempts: 1 },
   queue: {
     name: 'fork-content-copy',
