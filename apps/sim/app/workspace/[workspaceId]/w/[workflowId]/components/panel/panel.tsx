@@ -769,7 +769,7 @@ export const Panel = memo(function Panel() {
               />
               <Button
                 className='h-[30px] gap-2 px-2.5'
-                variant={isExecuting ? 'active' : 'tertiary'}
+                variant={isExecuting ? 'active' : 'graphite'}
                 onClick={isExecuting ? cancelWorkflow : () => runWorkflow()}
                 disabled={!isExecuting && isButtonDisabled}
               >

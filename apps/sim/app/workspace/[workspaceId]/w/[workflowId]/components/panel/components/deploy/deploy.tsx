@@ -127,7 +127,11 @@ export function Deploy({
             <Button
               className='h-[30px] gap-1.5 px-2.5'
               variant={
-                isRegistryLoading ? 'active' : changeDetected || !isDeployed ? 'tertiary' : 'active'
+                isRegistryLoading
+                  ? 'active'
+                  : changeDetected || !isDeployed
+                    ? 'graphiteSubtle'
+                    : 'active'
               }
               onClick={onDeployClick}
               disabled={isRegistryLoading || isDisabled}
