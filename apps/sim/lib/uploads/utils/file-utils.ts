@@ -211,12 +211,15 @@ export function getFileExtension(filename: string): string {
 }
 
 /**
- * Whether a file is markdown by extension (`.md` / `.markdown`) — the format that renders in the
- * collaborative rich editor. Server-safe (no client `resolvePreviewType` dependency), for gating
- * server work like the live-doc merge to files that can actually be open in that editor.
+ * Whether a file renders in the collaborative rich markdown editor. Server-safe counterpart to the
+ * client's `isMarkdownFile` (which uses `resolvePreviewType`): the editor treats a file as markdown by
+ * its `text/markdown` MIME *or* a `.md`/`.markdown` extension — MIME first, matching the client — so a
+ * `text/markdown` file with a non-`.md` name still counts. Used to gate server work (e.g. the live-doc
+ * merge) to exactly the files that can be open in that editor.
  */
-export function isMarkdownFileName(filename: string): boolean {
-  const ext = getFileExtension(filename)
+export function isMarkdownFile(file: { type?: string | null; name: string }): boolean {
+  if (file.type === 'text/markdown') return true
+  const ext = getFileExtension(file.name)
   return ext === 'md' || ext === 'markdown'
 }
 

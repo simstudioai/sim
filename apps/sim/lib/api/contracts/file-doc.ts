@@ -35,10 +35,17 @@ export const buildFileDocSeedContract = defineRouteContract({
 export const mergeFileDocBodySchema = z.object({
   /** For logging/observability only — the merge itself is stateless. */
   fileId: z.string().min(1, 'fileId is required'),
-  /** Base64-encoded `Y.encodeStateAsUpdate` of the live document as the relay currently holds it. */
-  docState: z.string().min(1, 'docState is required'),
+  /**
+   * Base64-encoded `Y.encodeStateAsUpdate` of the live document as the relay currently holds it. The
+   * bound is generous headroom over a max-size collab doc's Yjs state (base64-inflated), not a tuned
+   * limit — collab is gated to ≤256 KB documents client-side.
+   */
+  docState: z
+    .string()
+    .min(1, 'docState is required')
+    .max(16 * 1024 * 1024, 'docState is too large'),
   /** The full markdown body the caller (e.g. copilot) wants the document to become. */
-  markdown: z.string(),
+  markdown: z.string().max(8 * 1024 * 1024, 'markdown is too large'),
 })
 export type MergeFileDocBody = z.input<typeof mergeFileDocBodySchema>
 

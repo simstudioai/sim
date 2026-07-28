@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
 import { getErrorMessage } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
@@ -10,12 +11,10 @@ const NOTIFY_TIMEOUT_MS = 2000
 
 /**
  * Bound the wait on the live-doc merge. This OUTER call wraps the relay's inner relay→app `/merge`
- * request (`MERGE_REQUEST_TIMEOUT_MS`, 3s, in `apps/realtime/src/handlers/file-doc-app.ts`), so it
- * must stay comfortably ABOVE that — otherwise this aborts while the relay is still merging, and the
- * relay could apply the merge after we've returned, racing a follow-on edit. 6s leaves the inner 3s
- * plus the two network hops and the relay's own work.
+ * request (`FILE_DOC_TIMEOUTS.mergeRequestMs`), so it must stay comfortably ABOVE that — the shared
+ * constant + its test enforce the ordering. It leaves the inner merge plus the two network hops.
  */
-const APPLY_EDIT_TIMEOUT_MS = 6000
+const APPLY_EDIT_TIMEOUT_MS = FILE_DOC_TIMEOUTS.applyEditMs
 
 /**
  * Best-effort fan-out to the realtime server that a workspace's file tree changed,
@@ -55,8 +54,14 @@ export async function notifyWorkspaceFilesChanged(workspaceId: string): Promise<
  * Best-effort: ask the realtime relay to merge a copilot edit into a file's LIVE collaborative
  * document, so open editors see it stream in as a CRDT merge (Stage C) rather than the file changing
  * underneath them. No-op when no editor is connected (the relay reports `applied: false`). The file
- * itself is written durably by the caller regardless — this only drives the live view — so a dropped
- * merge merely means editors see the change on their next reload. Never throws.
+ * itself is written durably by the caller regardless — this only drives the live view. Never throws.
+ *
+ * KNOWN GAP (narrow): if an editor IS open but this merge fails (socket pod slow/down), the open
+ * editor keeps the pre-edit doc; the user's next keystroke autosaves that stale doc over the durable
+ * write, dropping the copilot edit until a reload. This is the interim cost of "durable file write +
+ * best-effort live merge + editor autosave reconciles" and is closed by the deferred move to a
+ * durable server-authoritative doc (copilot writing THROUGH the document rather than the file). Rare
+ * — it needs the socket pod unreachable exactly while the file is open — and non-corrupting.
  *
  * Awaited (not fire-and-forget) so the fetch dispatches before the route handler returns; bounded to
  * {@link APPLY_EDIT_TIMEOUT_MS}, so it adds latency only when the socket pod is unreachable.

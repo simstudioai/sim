@@ -1,27 +1,12 @@
+import { FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
 import { env, getBaseUrl } from '@/env'
 
 /**
  * The relay's client for the app's internal file-doc endpoints. The app owns the markdown↔Yjs
  * conversion engine (TipTap + jsdom) and blob/DB access; the relay owns the live document. So for any
- * operation that needs conversion, the relay delegates here over the shared `x-api-key` channel.
+ * operation that needs conversion, the relay delegates here over the shared `x-api-key` channel. The
+ * timeouts (and their ordering vs. the app-side bounds) live in the shared `FILE_DOC_TIMEOUTS`.
  */
-
-/**
- * The seed reads a (possibly cold) blob + converts it, so give it a generous bound. Collab is gated
- * client-side to ≤256 KB documents (`isRoundTripSafe`), so the conversion itself is well under a
- * second; the headroom is for the blob read. Stays under the client's readiness deadline
- * (`READINESS_DEADLINE_MS`, 12s, in `file-doc-provider.ts`), which it must.
- */
-const SEED_REQUEST_TIMEOUT_MS = 8_000
-
-/**
- * The merge is a PURE conversion (the caller supplies both the doc state and the markdown — no blob or
- * DB I/O), so it is fast and gets a tight bound. Critically it must stay BELOW the app→relay apply-edit
- * timeout (`APPLY_EDIT_TIMEOUT_MS`, in `apps/sim/lib/realtime/notify.ts`) that wraps this call — else
- * that outer request aborts while this inner one is still running, and the relay could apply a merge
- * after the caller has already moved on, racing a follow-on edit.
- */
-const MERGE_REQUEST_TIMEOUT_MS = 3_000
 
 function postToApp(path: string, payload: unknown, timeoutMs: number): Promise<Response> {
   return fetch(`${getBaseUrl()}${path}`, {
@@ -45,7 +30,7 @@ export async function fetchFileDocSeed(
   const response = await postToApp(
     '/api/internal/file-doc/seed',
     { workspaceId, fileId },
-    SEED_REQUEST_TIMEOUT_MS
+    FILE_DOC_TIMEOUTS.seedRequestMs
   )
   if (!response.ok) {
     throw new Error(`Seed fetch failed for file ${fileId}: ${response.status}`)
@@ -76,7 +61,7 @@ export async function fetchFileDocMerge(
   const response = await postToApp(
     '/api/internal/file-doc/merge',
     { fileId, docState: Buffer.from(docState).toString('base64'), markdown },
-    MERGE_REQUEST_TIMEOUT_MS
+    FILE_DOC_TIMEOUTS.mergeRequestMs
   )
   if (!response.ok) {
     throw new Error(`Merge fetch failed for file ${fileId}: ${response.status}`)

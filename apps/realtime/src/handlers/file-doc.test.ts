@@ -179,8 +179,9 @@ describe('setupWorkspaceFileDocHandlers', () => {
     // Default: the server seed builder returns no content (empty file). Tests that
     // exercise seeding override this per-case with an encoded Yjs update.
     mockFetchFileDocSeed.mockResolvedValue(null)
-    // Default: the merge builder returns a no-op update. Tests exercising copilot merges override it.
-    mockFetchFileDocMerge.mockResolvedValue(new Uint8Array())
+    // Default: the merge builder returns a valid no-op (empty-doc) update. Tests exercising copilot
+    // merges override it.
+    mockFetchFileDocMerge.mockResolvedValue(Y.encodeStateAsUpdate(new Y.Doc()))
   })
 
   afterEach(() => {
@@ -438,6 +439,32 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const result = await applyMarkdownToLiveFileDoc('file-1', '# anything')
     expect(result).toBe('no-live-room')
     expect(mockFetchFileDocMerge).not.toHaveBeenCalled()
+  })
+
+  it('serializes concurrent merges for the same file (second waits for the first)', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(encodedSeedUpdate('# Original'))
+    const { io } = createIo()
+    const { handlers } = setup('socket-1', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks()
+
+    // First merge is left in flight; the second must not start its own fetch until the first finishes.
+    const noOpUpdate = Y.encodeStateAsUpdate(new Y.Doc())
+    let resolveFirst: (v: Uint8Array) => void = () => {}
+    mockFetchFileDocMerge
+      .mockReturnValueOnce(new Promise((resolve) => (resolveFirst = resolve)))
+      .mockResolvedValueOnce(noOpUpdate)
+
+    const first = applyMarkdownToLiveFileDoc('file-1', '# One')
+    const second = applyMarkdownToLiveFileDoc('file-1', '# Two')
+    await flushMicrotasks()
+    expect(mockFetchFileDocMerge).toHaveBeenCalledTimes(1) // second is queued behind the first
+
+    resolveFirst(noOpUpdate)
+    await first
+    await second
+    // Only after the first resolved did the second run — and it snapshotted the post-first state.
+    expect(mockFetchFileDocMerge).toHaveBeenCalledTimes(2)
   })
 
   it('relays a document update to the rest of the room, excluding the sender', async () => {

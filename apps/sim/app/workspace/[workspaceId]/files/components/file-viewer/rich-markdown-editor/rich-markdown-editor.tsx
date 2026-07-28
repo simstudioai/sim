@@ -664,16 +664,16 @@ export function LoadedRichMarkdownEditor({
       setReady(false)
       return
     }
-    const config = doc.getMap('config')
+    const config = doc.getMap(FILE_DOC_SEED.configMap)
 
     const seedFromLoaded = () => {
-      if (config.get('initialContentLoaded') === true) return
+      if (config.get(FILE_DOC_SEED.flag) === true) return
       doc.transact(() => {
         editor.commands.setContent(
           parseMarkdownToDoc(splitFrontmatter(seedContentRef.current).body),
           { contentType: 'json', emitUpdate: false }
         )
-        config.set('initialContentLoaded', true)
+        config.set(FILE_DOC_SEED.flag, true)
       })
     }
 
@@ -686,7 +686,7 @@ export function LoadedRichMarkdownEditor({
     // simply "synced AND seeded" — no client-side seed import on the happy path. `seedFromLoaded`
     // remains only for the offline fallback below (a non-retryable join error / readiness timeout),
     // where it locally renders the file read-only since the server can't be reached.
-    const report = () => setReady(provider.synced && config.get('initialContentLoaded') === true)
+    const report = () => setReady(provider.synced && config.get(FILE_DOC_SEED.flag) === true)
     const onJoinError = (error: JoinFileDocError) => {
       if (error.retryable === false) seedFromLoaded()
     }

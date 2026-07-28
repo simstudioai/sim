@@ -205,21 +205,47 @@ async function ensureServerSeed(
   }
 }
 
+/** Serializes live merges per file so overlapping calls never race the same doc (see below). */
+const fileDocMergeChains = new Map<string, Promise<unknown>>()
+
 /**
  * Apply new markdown into a file's LIVE collaborative document (Stage C — copilot writing into an open
  * doc). Ships the document's current state to the app to build a minimal Yjs diff, applies it — which
  * fires `doc.on('update')` and relays the merge to every connected editor, reconciled with any
  * concurrent user edits — and reports whether it landed.
  *
+ * Merges for the same file are SERIALIZED: each waits for any in-flight merge on that doc, so it
+ * snapshots the already-updated state and its diff is computed against current content — two
+ * overlapping full-document rewrites can never each diff the same stale snapshot and apply out of
+ * order. (The relay is single-writer per file — Helm pins one replica — so an in-process chain
+ * suffices.)
+ *
  * Returns `'no-live-room'` when the file has no seeded, occupied room: an unseeded/empty doc has no
  * authoritative content to merge against, so the caller (copilot) writes the file directly instead and
  * the seed picks up the new content on the next open.
  */
-export async function applyMarkdownToLiveFileDoc(
+export function applyMarkdownToLiveFileDoc(
   fileId: string,
   markdown: string
 ): Promise<'applied' | 'no-live-room'> {
   const name = roomName(fileDocRoom(fileId))
+  const prior = fileDocMergeChains.get(name) ?? Promise.resolve()
+  // `.catch` so a failed prior merge doesn't reject this one — each merge is independent.
+  const run = prior.catch(() => {}).then(() => mergeMarkdownIntoRoom(name, fileId, markdown))
+  fileDocMergeChains.set(
+    name,
+    run.finally(() => {
+      if (fileDocMergeChains.get(name) === run) fileDocMergeChains.delete(name)
+    })
+  )
+  return run
+}
+
+async function mergeMarkdownIntoRoom(
+  name: string,
+  fileId: string,
+  markdown: string
+): Promise<'applied' | 'no-live-room'> {
   const room = fileDocRooms.get(name)
   if (!room || room.owners.size === 0 || !isDocSeeded(room.doc)) return 'no-live-room'
 

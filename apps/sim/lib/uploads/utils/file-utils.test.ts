@@ -8,7 +8,7 @@ import {
   inferContextFromKey,
   isAbortError,
   isInternalFileUrl,
-  isMarkdownFileName,
+  isMarkdownFile,
   isNetworkError,
   processSingleFileToUserFile,
   resolveTrustedFileContext,
@@ -16,18 +16,23 @@ import {
 
 const logger = createLogger('FileUtilsTest')
 
-describe('isMarkdownFileName', () => {
+describe('isMarkdownFile', () => {
   it('is true for .md and .markdown (case-insensitive)', () => {
-    expect(isMarkdownFileName('notes.md')).toBe(true)
-    expect(isMarkdownFileName('README.MD')).toBe(true)
-    expect(isMarkdownFileName('doc.markdown')).toBe(true)
+    expect(isMarkdownFile({ name: 'notes.md' })).toBe(true)
+    expect(isMarkdownFile({ name: 'README.MD' })).toBe(true)
+    expect(isMarkdownFile({ name: 'doc.markdown' })).toBe(true)
+  })
+
+  it('is true for a text/markdown MIME even without a .md name', () => {
+    expect(isMarkdownFile({ type: 'text/markdown', name: 'notes' })).toBe(true)
+    expect(isMarkdownFile({ type: 'text/markdown', name: 'doc.txt' })).toBe(true)
   })
 
   it('is false for non-markdown files', () => {
-    expect(isMarkdownFileName('script.js')).toBe(false)
-    expect(isMarkdownFileName('report.docx')).toBe(false)
-    expect(isMarkdownFileName('notes.txt')).toBe(false)
-    expect(isMarkdownFileName('noext')).toBe(false)
+    expect(isMarkdownFile({ type: 'text/javascript', name: 'script.js' })).toBe(false)
+    expect(isMarkdownFile({ name: 'report.docx' })).toBe(false)
+    expect(isMarkdownFile({ type: 'text/plain', name: 'notes.txt' })).toBe(false)
+    expect(isMarkdownFile({ name: 'noext' })).toBe(false)
   })
 })
 
