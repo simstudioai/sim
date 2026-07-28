@@ -131,14 +131,23 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
         }
       }
 
+      // Resolve the avatar before the critical section below. It is the only
+      // await that used to sit between socket.join and addUserToRoom, and a sweep
+      // eviction in that gap would socketsLeave the socket while its presence
+      // mapping did not yet exist — cleanupEvictedSocket would find nothing to
+      // remove, then this join would write presence for a socket already out of
+      // the room (a ghost collaborator until the stale sweep). Hoisting it keeps
+      // the whole re-auth -> socket.join -> addUserToRoom section await-free.
+      const avatarUrl = await resolveAvatarUrl(socket, userId)
+
       // Re-authorize immediately before joining: the access-revalidation sweep
       // may have evicted this socket while the awaits above were in flight, and
       // its eviction is recorded in the shared role cache before it runs — so a
       // revoked user resolves to null here. The resolver is single-flighted per
       // (user, workflow), so this read cannot race the sweep's and overwrite a
       // recorded revocation with a stale role; and no awaits sit between this
-      // check and socket.join, so a sweep eviction cannot interleave after it
-      // and be reversed by this join.
+      // check and addUserToRoom (avatar resolution is hoisted above), so a sweep
+      // eviction cannot interleave inside the join and be reversed by it.
       const currentRole = await resolveCurrentWorkflowRole(userId, workflowId, userRole)
       if (currentRole === null) {
         logger.warn(
@@ -156,8 +165,6 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
 
       // Join the new room
       socket.join(workflowId)
-
-      const avatarUrl = await resolveAvatarUrl(socket, userId)
 
       // Create presence entry
       const userPresence: UserPresence = {

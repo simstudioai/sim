@@ -4,12 +4,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IRoomManager } from '@/rooms'
 
-const { mockGetWorkflowState, mockVerifyWorkflowAccess, mockResolveCurrentWorkflowRole } =
-  vi.hoisted(() => ({
-    mockGetWorkflowState: vi.fn(),
-    mockVerifyWorkflowAccess: vi.fn(),
-    mockResolveCurrentWorkflowRole: vi.fn(),
-  }))
+const {
+  mockGetWorkflowState,
+  mockVerifyWorkflowAccess,
+  mockResolveCurrentWorkflowRole,
+  mockResolveAvatarUrl,
+} = vi.hoisted(() => ({
+  mockGetWorkflowState: vi.fn(),
+  mockVerifyWorkflowAccess: vi.fn(),
+  mockResolveCurrentWorkflowRole: vi.fn(),
+  mockResolveAvatarUrl: vi.fn(),
+}))
+
+vi.mock('@/handlers/avatar', () => ({
+  resolveAvatarUrl: mockResolveAvatarUrl,
+}))
 
 vi.mock('@sim/db', () => ({
   db: { select: vi.fn() },
@@ -90,6 +99,36 @@ describe('setupWorkflowHandlers', () => {
     mockGetWorkflowState.mockResolvedValue({ id: 'workflow-1', state: {} })
     mockVerifyWorkflowAccess.mockResolvedValue({ hasAccess: true, role: 'admin' })
     mockResolveCurrentWorkflowRole.mockResolvedValue('admin')
+    mockResolveAvatarUrl.mockResolvedValue('avatar.png')
+  })
+
+  it('resolves the avatar before joining so no await sits between socket.join and addUserToRoom', async () => {
+    const order: string[] = []
+    mockResolveAvatarUrl.mockImplementation(async () => {
+      order.push('avatar')
+      return 'avatar.png'
+    })
+    const { socket, handlers } = createSocket({
+      join: vi.fn(() => {
+        order.push('join')
+      }),
+    })
+    const roomManager = createRoomManager({
+      addUserToRoom: vi.fn(async () => {
+        order.push('add')
+      }),
+    })
+
+    setupWorkflowHandlers(
+      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
+      roomManager
+    )
+
+    await handlers['join-workflow']({ workflowId: 'workflow-1', tabSessionId: 'tab-1' })
+
+    // The avatar await must complete before socket.join; reintroducing it between
+    // join and addUserToRoom reopens the revoke-race ghost-presence window.
+    expect(order).toEqual(['avatar', 'join', 'add'])
   })
 
   it('includes workflowId when authentication is missing', async () => {
