@@ -11,6 +11,11 @@ import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
 import { createWorkspaceContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
 import { recoverFromStaleSession } from '@/lib/auth/stale-session-recovery'
+import {
+  buildUpgradeHref,
+  isUpgradeReason,
+  UPGRADE_REASON_PARAM,
+} from '@/lib/billing/upgrade-reasons'
 import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { useWorkspacesWithMetadata } from '@/hooks/queries/workspace'
@@ -143,6 +148,7 @@ export default function WorkspacePage() {
 
     const urlParams = new URLSearchParams(window.location.search)
     const redirectWorkflowId = urlParams.get('redirect_workflow')
+    const redirectTarget = urlParams.get('redirect')
 
     const localRecentId = WorkspaceRecencyStorage.getMostRecent()
     const findWorkspace = (id: string | null) =>
@@ -153,6 +159,19 @@ export default function WorkspacePage() {
 
     if (redirectWorkflowId) {
       handleWorkflowRedirect(redirectWorkflowId, targetWorkspace.id, router)
+      return
+    }
+
+    // `?redirect=upgrade` is how a caller that cannot know a workspace id — a
+    // self-hosted deployment, an email — reaches the plan picker.
+    if (redirectTarget === 'upgrade') {
+      const rawReason = urlParams.get(UPGRADE_REASON_PARAM)
+      const href = buildUpgradeHref(
+        targetWorkspace.id,
+        isUpgradeReason(rawReason) ? rawReason : undefined
+      )
+      logger.info(`Redirecting to upgrade: ${targetWorkspace.id}`)
+      router.replace(href)
       return
     }
 

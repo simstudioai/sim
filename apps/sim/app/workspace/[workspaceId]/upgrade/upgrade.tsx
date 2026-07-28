@@ -16,7 +16,6 @@ import {
 import { ANNUAL_DISCOUNT_RATE } from '@/lib/billing/constants'
 import { DEFAULT_UPGRADE_HEADER, UPGRADE_REASON_COPY } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   BillingPeriodToggle,
@@ -73,23 +72,16 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
     router.replace(origin ?? `/workspace/${workspaceId}/home`)
   }, [origin, router, workspaceId])
 
-  // Enterprise manages billing out-of-band, and self-hosted deployments with
-  // billing disabled have no plans to surface — redirect to home in both cases.
+  // Enterprise manages billing out-of-band, so there is no plan to pick here.
+  // The self-hosted and billing-disabled cases are build constants, not reactive
+  // state — page.tsx resolves those before this ever mounts.
   useEffect(() => {
-    if (!isBillingEnabled) {
-      router.replace(`/workspace/${workspaceId}/home`)
-      return
-    }
     if (canManageBilling && !state.isLoading && state.subscription.isEnterprise) {
       router.replace(`/workspace/${workspaceId}/home`)
     }
   }, [canManageBilling, state.isLoading, state.subscription.isEnterprise, router, workspaceId])
 
-  if (
-    !isBillingEnabled ||
-    state.isLoading ||
-    (canManageBilling && state.subscription.isEnterprise)
-  ) {
+  if (state.isLoading || (canManageBilling && state.subscription.isEnterprise)) {
     return null
   }
 
