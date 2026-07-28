@@ -40,6 +40,13 @@ export function useWorkspaceFilesRoom(workspaceId: string): void {
 
     const join = () => socket.emit('join-workspace-files', { workspaceId })
 
+    // A fresh (re)connect gets a fresh retry budget, so a prior full exhaustion doesn't leave the
+    // socket unable to retry a failed re-join until the next success.
+    const handleConnect = () => {
+      retries = 0
+      join()
+    }
+
     const handleJoinSuccess = (data: { workspaceId: string }) => {
       if (data.workspaceId !== workspaceId) return
       retries = 0
@@ -68,14 +75,14 @@ export function useWorkspaceFilesRoom(workspaceId: string): void {
 
     // Join now if the socket is already connected; `connect` covers (re)connects.
     if (socket.connected) join()
-    socket.on('connect', join)
+    socket.on('connect', handleConnect)
     socket.on('join-workspace-files-success', handleJoinSuccess)
     socket.on('join-workspace-files-error', handleJoinError)
     socket.on('workspace-files-changed', handleChanged)
 
     return () => {
       if (retryTimer) clearTimeout(retryTimer)
-      socket.off('connect', join)
+      socket.off('connect', handleConnect)
       socket.off('join-workspace-files-success', handleJoinSuccess)
       socket.off('join-workspace-files-error', handleJoinError)
       socket.off('workspace-files-changed', handleChanged)

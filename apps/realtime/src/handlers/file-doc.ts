@@ -434,6 +434,9 @@ export function setupWorkspaceFileDocHandlers(
   let currentFileId: string | null = null
 
   socket.on(FILE_DOC_EVENTS.JOIN, async ({ fileId, clientId }: JoinFileDocPayload) => {
+    // Hoisted so the catch can tell whether this join was superseded (a switch to another file)
+    // before surfacing a retryable error for the abandoned one.
+    let generation: number | undefined
     try {
       const userId = socket.userId
       const userName = socket.userName
@@ -460,7 +463,7 @@ export function setupWorkspaceFileDocHandlers(
 
       // Claim this JOIN's generation before the async authorize below, and record the file the
       // socket now intends to edit so a leave for it can cancel this join if it's still in-flight.
-      const generation = (joinGeneration.get(socket.id) ?? 0) + 1
+      generation = (joinGeneration.get(socket.id) ?? 0) + 1
       joinGeneration.set(socket.id, generation)
       currentFileId = fileId
 
@@ -582,6 +585,15 @@ export function setupWorkspaceFileDocHandlers(
         if (socketToRoomName.get(socket.id) === name) cleanupFileDocForSocket(socket.id, io)
         destroyRoomIfIdle(name)
       } catch {}
+      // Suppress the client-facing error when this join was already superseded (a switch to another
+      // file, or a disconnect): the rollback above still ran, but a retryable error naming the
+      // abandoned file could make a client re-join it and cancel the newer one (matches the sibling
+      // handlers).
+      if (
+        socket.disconnected ||
+        (generation !== undefined && joinGeneration.get(socket.id) !== generation)
+      )
+        return
       emitJoinError(socket, fileId, 'Failed to join file document', 'JOIN_FAILED', true)
     }
   })

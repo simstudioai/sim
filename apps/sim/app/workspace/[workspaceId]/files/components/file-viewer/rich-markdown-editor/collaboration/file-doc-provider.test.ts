@@ -324,4 +324,31 @@ describe('FileDocProvider', () => {
       vi.useRealTimers()
     }
   })
+
+  it('ignores a late SyncStep2 that arrives after the connect deadline (no merge, stays gated)', () => {
+    vi.useFakeTimers()
+    try {
+      const { provider, doc, fire } = createProvider(true)
+      fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'file-1' })
+
+      // Deadline lapses with no first sync → fatal fallback (editor falls back to a read-only seed).
+      vi.advanceTimersByTime(12_000)
+      expect(provider.joinError).toEqual(expect.objectContaining({ code: 'CONNECT_TIMEOUT' }))
+
+      // A delayed SyncStep2 finally arrives. Applying it would merge server content into the
+      // already-seeded doc (duplication) and flip synced→true (un-gating autosave), so it MUST be
+      // dropped once fatal.
+      const remote = new Y.Doc()
+      remote.getText('default').insert(0, 'server content')
+      const encoder = encoding.createEncoder()
+      encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
+      syncProtocol.writeSyncStep2(encoder, remote)
+      fire(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
+
+      expect(provider.synced).toBe(false)
+      expect(doc.getText('default').toString()).toBe('')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

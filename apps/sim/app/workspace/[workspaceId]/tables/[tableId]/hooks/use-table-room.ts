@@ -75,6 +75,13 @@ export function useTableRoom(tableId: string): UseTableRoomResult {
       socket.emit(TABLE_PRESENCE_EVENTS.JOIN, { tableId, tabSessionId: tabSessionIdRef.current })
     }
 
+    // A fresh (re)connect gets a fresh retry budget, so a prior full exhaustion doesn't leave the
+    // socket unable to retry a failed re-join until the next success.
+    const handleConnect = () => {
+      retries = 0
+      join()
+    }
+
     const handleJoinSuccess = (data: JoinTableSuccess) => {
       if (data.tableId !== tableId) return
       retries = 0
@@ -128,7 +135,7 @@ export function useTableRoom(tableId: string): UseTableRoomResult {
 
     // Join now if the socket is already connected; `connect` covers (re)connects.
     if (socket.connected) join()
-    socket.on('connect', join)
+    socket.on('connect', handleConnect)
     socket.on(TABLE_PRESENCE_EVENTS.JOIN_SUCCESS, handleJoinSuccess)
     socket.on(TABLE_PRESENCE_EVENTS.JOIN_ERROR, handleJoinError)
     socket.on(TABLE_PRESENCE_UPDATE_EVENT, handlePresence)
@@ -136,7 +143,7 @@ export function useTableRoom(tableId: string): UseTableRoomResult {
 
     return () => {
       if (retryTimer) clearTimeout(retryTimer)
-      socket.off('connect', join)
+      socket.off('connect', handleConnect)
       socket.off(TABLE_PRESENCE_EVENTS.JOIN_SUCCESS, handleJoinSuccess)
       socket.off(TABLE_PRESENCE_EVENTS.JOIN_ERROR, handleJoinError)
       socket.off(TABLE_PRESENCE_UPDATE_EVENT, handlePresence)

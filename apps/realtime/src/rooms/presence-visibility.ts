@@ -4,9 +4,10 @@ import type { IRoomManager, UserPresence } from '@/rooms/types'
 
 /**
  * How stale a not-live presence entry must be before a join-time sweep reclaims
- * it. Kept above the 1h socket-key TTL so a normally-idle collaborator is never
- * evicted; only genuinely-orphaned entries (e.g. a crashed pod that never fired
- * `disconnecting`) are cleared. Matches the workflow join sweep.
+ * it. The `liveIds` gate (not this threshold) is what protects an active
+ * collaborator; the threshold only bounds how long a genuinely-orphaned entry
+ * (e.g. a crashed pod that never fired `disconnecting`) lingers. Matches the
+ * workflow join sweep.
  */
 const STALE_PRESENCE_THRESHOLD_MS = 75 * 60 * 1000
 

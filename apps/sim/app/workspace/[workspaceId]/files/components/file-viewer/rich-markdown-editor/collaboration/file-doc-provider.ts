@@ -183,6 +183,13 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   }
 
   private handleMessage = (data: unknown) => {
+    // Once we've given up (a non-retryable rejection, or the connect deadline lapsed and the editor
+    // fell back to a read-only local seed), ignore ALL inbound frames. A late SyncStep2 arriving
+    // after the deadline would otherwise merge the server's state into the already-seeded doc —
+    // duplicating content — and flip `synced` true, which un-gates autosave and would persist the
+    // duplicate back to the real file. `fatal` guarding (re)join alone is not enough; it must also
+    // stop applying sync here.
+    if (this.fatal) return
     const bytes = toFileDocBytes(data)
     if (!bytes) return
 
