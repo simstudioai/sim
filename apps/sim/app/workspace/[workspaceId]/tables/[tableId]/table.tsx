@@ -156,7 +156,12 @@ function slideoutReducer(_state: SlideoutState, action: SlideoutAction): Slideou
 /** Stable identity so a loading/disabled views query doesn't remint `[]` each render. */
 const NO_VIEWS: TableViewWire[] = []
 
-type ViewModalState = { mode: 'create' } | { mode: 'rename'; viewId: string } | null
+/** `blank` starts the view from "All" (no filter/sort/hidden) so it is configured
+ *  after naming, rather than capturing whatever is currently applied. */
+type ViewModalState =
+  | { mode: 'create'; blank?: boolean }
+  | { mode: 'rename'; viewId: string }
+  | null
 
 /**
  * Order-insensitive JSON, used to compare a locally-built config against one that
@@ -561,6 +566,10 @@ export function Table({
     setViewModal({ mode: 'rename', viewId })
   }, [])
 
+  const handleNewView = useCallback(() => {
+    setViewModal({ mode: 'create', blank: true })
+  }, [])
+
   /** Column order/width/pinning auto-saves into the active view as the user drags,
    *  which is why `isSameViewConfig` excludes layout from the dirty check. Sent as
    *  a `configPatch` so the server merges it — two overlapping layout writes must
@@ -610,14 +619,30 @@ export function Table({
       )
       return
     }
+    // "New view" starts from All and is configured afterwards; "Save as view"
+    // captures what is already applied. Both keep the current column layout so
+    // creating a view never visually resets the grid.
+    const blank = viewModal?.blank === true
+    const config: TableViewConfig = blank
+      ? {
+          ...(activeView?.config ?? tableData?.metadata),
+          filter: null,
+          sort: null,
+          hiddenColumns: [],
+        }
+      : currentViewConfig
     createViewMutation.mutate(
-      { name, config: currentViewConfig },
+      { name, config },
       {
         onSuccess: (view) => {
           setViewModal(null)
-          // Mark as seeded before selecting so the resolve effect doesn't re-apply the config.
+          // Stamp before selecting so the resolve effect treats this as already
+          // seeded — it can't tell a just-created view from a dead id otherwise.
           seededViewIdRef.current = view.id
           setTableParams({ view: view.id })
+          // Which means the blank config must be applied here; nuqs batches this
+          // sort write with the `view` write above into one URL update.
+          if (blank) applyViewConfig(view.config)
         },
         onError: (error) => toast.error(getErrorMessage(error, 'Failed to create view')),
       }
@@ -1126,6 +1151,7 @@ export function Table({
                 onSelect={handleSelectView}
                 onRename={handleRenameView}
                 onDelete={handleDeleteView}
+                onNewView={handleNewView}
                 canEdit={userPermissions.canEdit}
               />
             )}
@@ -1168,7 +1194,7 @@ export function Table({
       <SaveViewModal
         open={viewsEnabled && (viewModal?.mode === 'create' || renamingView !== null)}
         onOpenChange={(open) => !open && setViewModal(null)}
-        mode={viewModal?.mode ?? 'create'}
+        mode={viewModal?.mode === 'rename' ? 'rename' : viewModal?.blank ? 'new' : 'create'}
         initialName={renamingView?.name ?? ''}
         onSubmit={handleSubmitViewName}
         isSubmitting={createViewMutation.isPending || updateViewMutation.isPending}

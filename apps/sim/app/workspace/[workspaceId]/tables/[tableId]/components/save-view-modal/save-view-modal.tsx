@@ -14,7 +14,9 @@ interface SaveViewModalProps {
   onOpenChange: (open: boolean) => void
   /** Pre-filled when renaming an existing view; empty when saving a new one. */
   initialName?: string
-  mode: 'create' | 'rename'
+  /** `new` starts blank and is configured after; `create` captures what is
+   *  already applied; `rename` retitles an existing view. */
+  mode: 'new' | 'create' | 'rename'
   onSubmit: (name: string) => void
   isSubmitting: boolean
 }
@@ -41,7 +43,7 @@ export function SaveViewModal({
   }
 
   const trimmed = name.trim()
-  const title = mode === 'create' ? 'Save as view' : 'Rename view'
+  const title = mode === 'new' ? 'New view' : mode === 'create' ? 'Save as view' : 'Rename view'
 
   const handleSubmit = () => {
     if (!trimmed || isSubmitting) return

@@ -13,7 +13,7 @@ import {
   PopoverItem,
   PopoverSection,
 } from '@sim/emcn'
-import { Check, Pencil, Trash } from '@sim/emcn/icons'
+import { Check, Pencil, Plus, Trash } from '@sim/emcn/icons'
 import type { TableViewWire } from '@/lib/api/contracts/tables'
 
 /** Label for the built-in unfiltered state. Not a stored row — `null` view id. */
@@ -34,6 +34,8 @@ interface ViewsMenuProps {
   onSelect: (viewId: string | null) => void
   onRename: (viewId: string) => void
   onDelete: (viewId: string) => void
+  /** Starts a blank view — named first, configured after. */
+  onNewView: () => void
   /** Read-only members can switch views but not modify them. */
   canEdit: boolean
 }
@@ -51,6 +53,7 @@ export const ViewsMenu = memo(function ViewsMenu({
   onSelect,
   onRename,
   onDelete,
+  onNewView,
   canEdit,
 }: ViewsMenuProps) {
   const [open, setOpen] = useState(false)
@@ -160,6 +163,20 @@ export const ViewsMenu = memo(function ViewsMenu({
             />
           ))}
         </div>
+        {canEdit && (
+          <>
+            <div className='my-1 h-px bg-[var(--border)]' />
+            <PopoverItem
+              onClick={() => runAndClose(onNewView)}
+              className='h-7 items-center gap-1.5 px-1.5 py-0 text-xs'
+            >
+              <span className='flex size-[14px] shrink-0 items-center justify-center'>
+                <Plus className='size-3 text-[var(--text-icon)]' />
+              </span>
+              <span className='min-w-0 flex-1 truncate text-left'>New view</span>
+            </PopoverItem>
+          </>
+        )}
       </PopoverContent>
     </Popover>
   )
