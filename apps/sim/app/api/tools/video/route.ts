@@ -9,6 +9,10 @@ import { getValidationErrorMessage, parseRequest, validationErrorResponse } from
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
+import {
   assertKnownSizeWithinLimit,
   DEFAULT_MAX_ERROR_BODY_BYTES,
   isPayloadSizeLimitError,
@@ -18,6 +22,12 @@ import {
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  buildFalQueueUrl,
+  FAL_QUEUE_ORIGIN,
+  MAX_FAL_QUEUE_JSON_BYTES,
+  resolveFalQueueUrl,
+} from '@/lib/media/falai'
 import { type FalAICostMetadata, getFalAICostMetadata } from '@/lib/tools/falai-pricing'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
@@ -36,7 +46,23 @@ export const dynamic = 'force-dynamic'
  */
 export const maxDuration = 5400
 
-async function readVideoResponseBuffer(response: Response, label: string): Promise<Buffer> {
+/**
+ * Structural shape shared by `fetch`'s `Response` and the SSRF-guarded
+ * `SecureFetchResponse`, so the body readers below accept either.
+ */
+interface ReadableHttpResponse {
+  ok: boolean
+  status: number
+  headers: { get(name: string): string | null }
+  body?: ReadableStream<Uint8Array> | null
+  arrayBuffer?: () => Promise<ArrayBuffer>
+  text?: () => Promise<string>
+}
+
+async function readVideoResponseBuffer(
+  response: ReadableHttpResponse,
+  label: string
+): Promise<Buffer> {
   return readResponseToBufferWithLimit(response, {
     maxBytes: MAX_VIDEO_OUTPUT_BYTES,
     label,
@@ -44,20 +70,64 @@ async function readVideoResponseBuffer(response: Response, label: string): Promi
 }
 
 async function readVideoJson<T = Record<string, unknown>>(
-  response: Response,
-  label: string
+  response: ReadableHttpResponse,
+  label: string,
+  maxBytes: number = MAX_VIDEO_JSON_BYTES
 ): Promise<T> {
   return readResponseJsonWithLimit<T>(response, {
-    maxBytes: MAX_VIDEO_JSON_BYTES,
+    maxBytes,
     label,
   })
 }
 
-async function readVideoErrorText(response: Response, label: string): Promise<string> {
+async function readVideoErrorText(response: ReadableHttpResponse, label: string): Promise<string> {
   return readResponseTextWithLimit(response, {
     maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
     label,
   }).catch(() => '')
+}
+
+/**
+ * Fetches a provider-supplied URL through the SSRF-guarded client. These URLs come out of
+ * provider response bodies, so they are untrusted input.
+ */
+async function secureGetFromUntrustedUrl(
+  url: string,
+  paramName: string,
+  options: { headers?: Record<string, string>; maxResponseBytes: number }
+) {
+  const validation = await validateUrlWithDNS(url, paramName)
+  if (!validation.isValid || !validation.resolvedIP) {
+    throw new Error(validation.error || `${paramName} failed validation`)
+  }
+  return secureFetchWithPinnedIP(url, validation.resolvedIP, {
+    method: 'GET',
+    headers: options.headers,
+    maxResponseBytes: options.maxResponseBytes,
+  })
+}
+
+/**
+ * Downloads a provider-supplied video URL through the SSRF-guarded client.
+ * `errorPrefix` overrides the thrown message so each provider keeps the exact
+ * failure string runbooks and log filters key on.
+ */
+async function downloadVideoFromUrl(
+  url: string,
+  label: string,
+  options?: { headers?: Record<string, string>; errorPrefix?: string }
+): Promise<Buffer> {
+  const response = await secureGetFromUntrustedUrl(url, 'videoUrl', {
+    headers: options?.headers,
+    maxResponseBytes: MAX_VIDEO_OUTPUT_BYTES,
+  })
+
+  if (!response.ok) {
+    await readVideoErrorText(response, `${label} error response`)
+    throw new Error(`${options?.errorPrefix ?? 'Failed to download video'}: ${response.status}`)
+  }
+
+  return readVideoResponseBuffer(response, `${label} response`)
 }
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
@@ -461,14 +531,8 @@ async function generateWithRunway(
         throw new Error('No video URL in response')
       }
 
-      const videoResponse = await fetch(videoUrl)
-      if (!videoResponse.ok) {
-        await readVideoErrorText(videoResponse, 'Runway video error response')
-        throw new Error(`Failed to download video: ${videoResponse.status}`)
-      }
-
       return {
-        buffer: await readVideoResponseBuffer(videoResponse, 'Runway video response'),
+        buffer: await downloadVideoFromUrl(videoUrl, 'Runway video'),
         width: dimensions.width,
         height: dimensions.height,
         jobId: taskId,
@@ -484,6 +548,30 @@ async function generateWithRunway(
   }
 
   throw new Error('Runway generation timed out')
+}
+
+/** Host of a provider-supplied URI for logging, without leaking the path or query. */
+function safeHostname(url: string): string {
+  try {
+    return new URL(url).host
+  } catch {
+    return 'unparseable'
+  }
+}
+
+/**
+ * True when a provider-supplied URI is served by Google. The Veo download URI comes out of
+ * the operation status body, so the `x-goog-api-key` credential is only attached when the
+ * target really is a Google host — a hostile or spoofed URI never receives the key.
+ */
+function isGoogleApiHost(url: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(url)
+    if (protocol !== 'https:') return false
+    return hostname === 'googleapis.com' || hostname.endsWith('.googleapis.com')
+  } catch {
+    return false
+  }
 }
 
 async function generateWithVeo(
@@ -583,19 +671,18 @@ async function generateWithVeo(
         throw new Error('No video URI in response')
       }
 
-      const videoResponse = await fetch(videoUri, {
-        headers: {
-          'x-goog-api-key': apiKey,
-        },
-      })
-
-      if (!videoResponse.ok) {
-        await readVideoErrorText(videoResponse, 'Veo video error response')
-        throw new Error(`Failed to download video: ${videoResponse.status}`)
+      const isGoogleHosted = isGoogleApiHost(videoUri)
+      if (!isGoogleHosted) {
+        logger.warn(
+          `[${requestId}] Veo download URI is not a Google API host; sending the request unauthenticated. A 401 here means the URI host is wrong, not the API key.`,
+          { host: safeHostname(videoUri) }
+        )
       }
 
       return {
-        buffer: await readVideoResponseBuffer(videoResponse, 'Veo video response'),
+        buffer: await downloadVideoFromUrl(videoUri, 'Veo video', {
+          headers: isGoogleHosted ? { 'x-goog-api-key': apiKey } : undefined,
+        }),
         width: dimensions.width,
         height: dimensions.height,
         jobId: operationName,
@@ -697,14 +784,8 @@ async function generateWithLuma(
         throw new Error('No video URL in response')
       }
 
-      const videoResponse = await fetch(videoUrl)
-      if (!videoResponse.ok) {
-        await readVideoErrorText(videoResponse, 'Luma video error response')
-        throw new Error(`Failed to download video: ${videoResponse.status}`)
-      }
-
       return {
-        buffer: await readVideoResponseBuffer(videoResponse, 'Luma video response'),
+        buffer: await downloadVideoFromUrl(videoUrl, 'Luma video'),
         width: dimensions.width,
         height: dimensions.height,
         jobId: generationId,
@@ -859,15 +940,10 @@ async function generateWithMiniMax(
         throw new Error('No download URL in file response')
       }
 
-      // Download the actual video file
-      const videoResponse = await fetch(videoUrl)
-      if (!videoResponse.ok) {
-        await readVideoErrorText(videoResponse, 'MiniMax video error response')
-        throw new Error(`Failed to download video from URL: ${videoResponse.status}`)
-      }
-
       return {
-        buffer: await readVideoResponseBuffer(videoResponse, 'MiniMax video response'),
+        buffer: await downloadVideoFromUrl(videoUrl, 'MiniMax video', {
+          errorPrefix: 'Failed to download video from URL',
+        }),
         width: dimensions.width,
         height: dimensions.height,
         jobId: taskId,
@@ -1160,12 +1236,20 @@ function getFalAIErrorMessage(error: unknown): string {
   return 'Unknown error'
 }
 
-function buildFalAIQueueUrl(
-  endpoint: string,
-  requestId: string,
-  path: 'response' | 'status'
-): string {
-  return `https://queue.fal.run/${endpoint}/requests/${requestId}/${path}`
+/**
+ * Requests a Fal.ai queue URL through the SSRF-guarded client. Invoked on every poll so
+ * the provider-supplied URL is revalidated each time rather than trusted once.
+ */
+async function fetchFalAIQueue(url: string, apiKey: string) {
+  return secureGetFromUntrustedUrl(url, 'falQueueUrl', {
+    headers: { Authorization: `Key ${apiKey}` },
+    maxResponseBytes: MAX_FAL_QUEUE_JSON_BYTES,
+  })
+}
+
+/** Fal.ai queue envelopes share the cap enforced by `runFalQueue`, not the generic video cap. */
+async function readFalQueueJson(response: ReadableHttpResponse, label: string): Promise<unknown> {
+  return readVideoJson<unknown>(response, label, MAX_FAL_QUEUE_JSON_BYTES)
 }
 
 async function generateWithFalAI(
@@ -1218,7 +1302,7 @@ async function generateWithFalAI(
     requestBody.generate_audio = generateAudio
   }
 
-  const createResponse = await fetch(`https://queue.fal.run/${modelConfig.endpoint}`, {
+  const createResponse = await fetch(`${FAL_QUEUE_ORIGIN}/${modelConfig.endpoint}`, {
     method: 'POST',
     headers: {
       Authorization: `Key ${apiKey}`,
@@ -1232,7 +1316,7 @@ async function generateWithFalAI(
     throw new Error(`Fal.ai API error: ${createResponse.status} - ${error}`)
   }
 
-  const createData = await readVideoJson<unknown>(createResponse, 'Fal.ai queue response')
+  const createData = await readFalQueueJson(createResponse, 'Fal.ai queue response')
   if (!isRecordLike(createData)) {
     throw new Error('Invalid Fal.ai queue response')
   }
@@ -1242,12 +1326,14 @@ async function generateWithFalAI(
     throw new Error('Fal.ai queue response missing request_id')
   }
 
-  const statusUrl =
-    getStringProperty(createData, 'status_url') ||
-    buildFalAIQueueUrl(modelConfig.endpoint, requestIdFal, 'status')
-  const responseUrl =
-    getStringProperty(createData, 'response_url') ||
-    buildFalAIQueueUrl(modelConfig.endpoint, requestIdFal, 'response')
+  const statusUrl = resolveFalQueueUrl(
+    getStringProperty(createData, 'status_url'),
+    buildFalQueueUrl(modelConfig.endpoint, requestIdFal, 'status')
+  )
+  const responseUrl = resolveFalQueueUrl(
+    getStringProperty(createData, 'response_url'),
+    buildFalQueueUrl(modelConfig.endpoint, requestIdFal, 'result')
+  )
 
   logger.info(`[${requestId}] Fal.ai request created: ${requestIdFal}`)
 
@@ -1258,18 +1344,14 @@ async function generateWithFalAI(
   while (attempts < maxAttempts) {
     await sleep(pollIntervalMs)
 
-    const statusResponse = await fetch(statusUrl, {
-      headers: {
-        Authorization: `Key ${apiKey}`,
-      },
-    })
+    const statusResponse = await fetchFalAIQueue(statusUrl, apiKey)
 
     if (!statusResponse.ok) {
       await readVideoErrorText(statusResponse, 'Fal.ai status error response')
       throw new Error(`Fal.ai status check failed: ${statusResponse.status}`)
     }
 
-    const statusData = await readVideoJson<unknown>(statusResponse, 'Fal.ai status response')
+    const statusData = await readFalQueueJson(statusResponse, 'Fal.ai status response')
     if (!isRecordLike(statusData)) {
       throw new Error('Invalid Fal.ai status response')
     }
@@ -1282,13 +1364,9 @@ async function generateWithFalAI(
 
       logger.info(`[${requestId}] Fal.ai generation completed after ${attempts * 5}s`)
 
-      const resultResponse = await fetch(
-        getStringProperty(statusData, 'response_url') || responseUrl,
-        {
-          headers: {
-            Authorization: `Key ${apiKey}`,
-          },
-        }
+      const resultResponse = await fetchFalAIQueue(
+        resolveFalQueueUrl(getStringProperty(statusData, 'response_url'), responseUrl),
+        apiKey
       )
 
       if (!resultResponse.ok) {
@@ -1296,7 +1374,7 @@ async function generateWithFalAI(
         throw new Error(`Failed to fetch result: ${resultResponse.status}`)
       }
 
-      const resultData = await readVideoJson<unknown>(resultResponse, 'Fal.ai result response')
+      const resultData = await readFalQueueJson(resultResponse, 'Fal.ai result response')
       if (!isRecordLike(resultData)) {
         throw new Error('Invalid Fal.ai result response')
       }
@@ -1309,11 +1387,7 @@ async function generateWithFalAI(
         throw new Error('No video URL in response')
       }
 
-      const videoResponse = await fetch(videoUrl)
-      if (!videoResponse.ok) {
-        await readVideoErrorText(videoResponse, 'Fal.ai video error response')
-        throw new Error(`Failed to download video: ${videoResponse.status}`)
-      }
+      const videoBuffer = await downloadVideoFromUrl(videoUrl, 'Fal.ai video')
 
       let width = getNumberProperty(videoOutput, 'width') || 1920
       let height = getNumberProperty(videoOutput, 'height') || 1080
@@ -1325,7 +1399,7 @@ async function generateWithFalAI(
       }
 
       return {
-        buffer: await readVideoResponseBuffer(videoResponse, 'Fal.ai video response'),
+        buffer: videoBuffer,
         width,
         height,
         jobId: requestIdFal,

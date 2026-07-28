@@ -24,7 +24,7 @@ vi.mock('./upload-file-reader', () => ({
   grepChatUpload,
 }))
 
-import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
+import { GlobPatternError, WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
 import { executeVfsGlob, executeVfsGrep, executeVfsRead } from './vfs'
 
 const OVERSIZED_INLINE_CONTENT = 'x'.repeat(TOOL_RESULT_MAX_INLINE_CHARS + 1)
@@ -290,6 +290,24 @@ describe('vfs grep workspace-file routing', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('single workspace file')
+  })
+
+  it('surfaces an over-cap grep path scope verbatim, like glob', async () => {
+    const vfs = makeVfs()
+    const patternError = new GlobPatternError(
+      'Glob pattern has too many wildcards (33, limit 32). Narrow the pattern with literal path segments.'
+    )
+    vfs.grep.mockRejectedValue(patternError)
+    vfs.glob.mockImplementation(() => {
+      throw patternError
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const grepResult = await executeVfsGrep({ pattern: 'x', path: '*'.repeat(33) }, GREP_CTX)
+    const globResult = await executeVfsGlob({ pattern: '*'.repeat(33) }, GREP_CTX)
+
+    expect(grepResult).toEqual({ success: false, error: patternError.message })
+    expect(grepResult).toEqual(globResult)
   })
 })
 

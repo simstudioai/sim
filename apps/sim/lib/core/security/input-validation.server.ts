@@ -6,10 +6,10 @@ import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { omit } from '@sim/utils/object'
 import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import * as ipaddr from 'ipaddr.js'
+import { getDomain } from 'tldts'
 import {
   Agent,
   type Dispatcher,
@@ -416,7 +416,11 @@ export interface SecureFetchOptions {
   maxRedirects?: number
   maxResponseBytes?: number
   signal?: AbortSignal
-  /** Drop the Authorization header when following a redirect, so it is not sent to the redirect target's origin. */
+  /**
+   * Drop the Authorization header on EVERY redirect, including same-site ones.
+   * Cross-site redirects already drop all credential-bearing headers by default
+   * (see {@link headersForRedirect}); this tightens that to same-site hops too.
+   */
   stripAuthOnRedirect?: boolean
   /**
    * Pre-validated, IP-pinned `http://` proxy URL (see {@link validateAndPinProxyUrl}).
@@ -484,6 +488,99 @@ function resolveRedirectUrl(baseUrl: string, location: string): string {
   } catch {
     throw new Error(`Invalid redirect location: ${location}`)
   }
+}
+
+/** Header names that always carry a secret, regardless of the service. */
+const CREDENTIAL_HEADER_NAMES = new Set([
+  'authorization',
+  'cookie',
+  'proxy-authorization',
+  'private-token',
+  'api-key',
+  'apikey',
+])
+
+/**
+ * Suffixes that mark a vendor-specific credential header (`x-api-key`,
+ * `x-goog-api-key`, `x-clickhouse-key`, `x-sim-signature`, `x-auth-token`, …).
+ * Over-matching is deliberate: forwarding a non-secret header one hop less often
+ * is harmless, forwarding a secret to another site is not.
+ */
+const CREDENTIAL_HEADER_SUFFIXES = ['-key', '-token', '-secret', '-password', '-signature']
+
+/**
+ * Headers the suffix rule matches that carry no secret. Dropping them changes request
+ * semantics for no security gain: `idempotency-key` is a de-duplication token (Brex
+ * transfers, webhook delivery, data drains) whose loss can duplicate a side effect, and
+ * `x-atlassian-token: no-check` is Atlassian's XSRF opt-out on attachment uploads.
+ */
+const NON_CREDENTIAL_HEADER_NAMES = new Set(['idempotency-key', 'x-atlassian-token'])
+
+function isCredentialHeader(name: string): boolean {
+  const lower = name.toLowerCase()
+  if (CREDENTIAL_HEADER_NAMES.has(lower)) return true
+  if (NON_CREDENTIAL_HEADER_NAMES.has(lower)) return false
+  if (lower.startsWith('x-auth')) return true
+  return CREDENTIAL_HEADER_SUFFIXES.some((suffix) => lower.endsWith(suffix))
+}
+
+/**
+ * A redirect is same-site when it stays on the same registrable domain (eTLD+1) without
+ * downgrading the transport. This is deliberately looser than origin equality: real
+ * providers redirect across subdomains of one service (`api.zoom.us` → a regional
+ * `*.zoom.us` host, `api.github.com` → `codeload.github.com`) and self-hosted deployments
+ * upgrade `http:` → `https:`, and those targets still require the caller's credential. A
+ * hostile or open redirect to another site is what must not receive it.
+ *
+ * IP-literal hosts have no registrable domain, so they fall back to exact host equality.
+ *
+ * `allowPrivateDomains` honors the PRIVATE section of the Public Suffix List, so providers listed
+ * there (`*.s3.amazonaws.com`, `*.blob.core.windows.net`, `*.cloudfront.net`, `*.myshopify.com`,
+ * `*.vercel.app`, …) are cross-site tenant-to-tenant rather than sharing one registrable domain.
+ *
+ * This is NOT general tenant isolation. Providers absent from the PSL private section —
+ * `atlassian.net`, `sharepoint.com`, `okta.com`, `auth0.com`, `my.salesforce.com`, `box.com` —
+ * still resolve tenant subdomains to a single registrable domain, so a redirect between two
+ * tenants of those services counts as same-site and keeps the credential. Closing that needs a
+ * per-provider rule, not a PSL flag.
+ */
+function isSameSiteRedirect(from: URL, to: URL): boolean {
+  if (from.protocol === 'https:' && to.protocol !== 'https:') return false
+  if (from.host === to.host) return true
+  const fromDomain = getDomain(from.hostname, { allowPrivateDomains: true })
+  return fromDomain !== null && fromDomain === getDomain(to.hostname, { allowPrivateDomains: true })
+}
+
+/**
+ * Builds the header set for a redirect hop. Credential-bearing headers ({@link isCredentialHeader})
+ * are dropped on any cross-site hop so a hostile or open redirect cannot exfiltrate the caller's
+ * API key, bearer token, or cookies; non-credential headers still travel. On a same-site hop
+ * everything is forwarded unless `stripAuth` is set, which drops `authorization` alone.
+ *
+ * This is deliberately weaker than {@link followRedirectsGuarded} on the undici path, which drops
+ * EVERY header cross-**origin** (not cross-site) and refuses to forward a request body at all.
+ * The node-http path keeps cross-subdomain provider hops working and still forwards bodies.
+ */
+function headersForRedirect(
+  headers: Record<string, string>,
+  fromUrl: string,
+  toUrl: string,
+  stripAuth: boolean
+): Record<string, string> {
+  let sameSite: boolean
+  try {
+    sameSite = isSameSiteRedirect(new URL(fromUrl), new URL(toUrl))
+  } catch {
+    sameSite = false
+  }
+  if (sameSite && !stripAuth) return headers
+
+  const next: Record<string, string> = {}
+  for (const [key, value] of Object.entries(headers)) {
+    if (sameSite ? key.toLowerCase() === 'authorization' : isCredentialHeader(key)) continue
+    next[key] = value
+  }
+  return next
 }
 
 /**
@@ -1051,12 +1148,15 @@ export async function secureFetchWithPinnedIP(
               settledReject(new Error(`Redirect blocked: ${validation.error}`))
               return
             }
-            const redirectOptions = options.stripAuthOnRedirect
-              ? {
-                  ...options,
-                  headers: omit(options.headers ?? {}, ['Authorization', 'authorization']),
-                }
-              : options
+            const redirectOptions = {
+              ...options,
+              headers: headersForRedirect(
+                options.headers ?? {},
+                url,
+                redirectUrl,
+                options.stripAuthOnRedirect === true
+              ),
+            }
             return secureFetchWithPinnedIP(
               redirectUrl,
               validation.resolvedIP!,

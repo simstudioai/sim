@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+/** Pinned to the SheetJS CDN, not npm — see the note in `lib/file-parsers/xlsx-parser.ts`. */
 import * as XLSX from 'xlsx'
 import { onedriveUploadContract } from '@/lib/api/contracts/tools/microsoft'
 import { parseRequest } from '@/lib/api/server'

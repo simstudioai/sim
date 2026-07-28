@@ -16,7 +16,6 @@ import { DocxPreview } from './docx-preview'
 import { resolveFileCategory } from './file-category'
 import { ImagePreview } from './image-preview'
 import type { PdfDocumentSource } from './pdf-viewer'
-import { PptxPreview } from './pptx-preview'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
 import {
   PREVIEW_LOADING_OVERLAY,
@@ -31,6 +30,23 @@ import { XlsxPreview } from './xlsx-preview'
 
 const PdfViewerCore = dynamic(() => import('./pdf-viewer').then((m) => m.PdfViewerCore), {
   ssr: false,
+})
+
+/**
+ * Lazy so `echarts` (~330 KB gzip, reached via `pptx-sandbox-host` →
+ * `lib/pptx-renderer/renderer/chart-renderer`) stays out of every bundle that
+ * statically imports this viewer - the Files page, the Home view and the public
+ * share page - instead of only the visitors who open a PowerPoint file. The
+ * fallback matches the frame `./pptx-preview` renders while it fetches, so the chunk load
+ * and the binary fetch look like one continuous loading state. Rendered inside a
+ * {@link PreviewErrorBoundary} so a rejected chunk load degrades to the preview
+ * fallback — which offers a page reload, the only way to refetch a chunk whose
+ * rejection the module system has cached — instead of unwinding to the route
+ * error boundary.
+ */
+const PptxPreview = dynamic(() => import('./pptx-preview').then((m) => m.PptxPreview), {
+  ssr: false,
+  loading: () => <PreviewLoadingFrame className='h-full flex-1' tone='surface' />,
 })
 
 const RichMarkdownEditor = dynamic(
@@ -229,7 +245,11 @@ function FileViewerContent({
   }
 
   if (category === 'pptx-previewable') {
-    return <PptxPreview key={file.id} file={file} workspaceId={workspaceId} />
+    return (
+      <PreviewErrorBoundary key={file.id} label='PowerPoint'>
+        <PptxPreview file={file} workspaceId={workspaceId} />
+      </PreviewErrorBoundary>
+    )
   }
 
   if (category === 'xlsx-previewable') {
