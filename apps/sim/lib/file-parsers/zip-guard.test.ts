@@ -5,7 +5,9 @@ import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 import {
   assertOoxmlArchiveWithinLimits,
+  isZipShaped,
   type OoxmlSizeLimits,
+  readZipCentralDirectoryStats,
   ZipBombError,
 } from '@/lib/file-parsers/zip-guard'
 
@@ -28,6 +30,85 @@ async function buildZip(
     compression: 'DEFLATE',
     comment: options.comment,
   })
+}
+
+const CENTRAL_DIRECTORY_HEADER_SIGNATURE = 0x02014b50
+
+/** Forge a zip bomb by inflating the declared uncompressed size of every central-directory record. */
+function forgeDeclaredUncompressedSize(zipBuffer: Buffer, declaredBytes: number): Buffer {
+  const forged = Buffer.from(zipBuffer)
+  for (let offset = 0; offset + 46 <= forged.length; offset++) {
+    if (forged.readUInt32LE(offset) === CENTRAL_DIRECTORY_HEADER_SIGNATURE) {
+      forged.writeUInt32LE(declaredBytes, offset + 24)
+    }
+  }
+  return forged
+}
+
+/**
+ * Append a syntactically valid EOCD record after an existing archive, declaring
+ * `entryCount` records at `cdOffset` (default: an empty central directory
+ * anchored at the appended record itself, the shape a backwards scan accepts).
+ */
+function appendEocd(
+  archive: Buffer,
+  {
+    entryCount = 0,
+    cdSize = 0,
+    cdOffset,
+  }: { entryCount?: number; cdSize?: number; cdOffset?: number } = {}
+): Buffer {
+  const eocd = Buffer.alloc(22)
+  eocd.writeUInt32LE(0x06054b50, 0)
+  eocd.writeUInt16LE(entryCount, 8)
+  eocd.writeUInt16LE(entryCount, 10)
+  eocd.writeUInt32LE(cdSize, 12)
+  eocd.writeUInt32LE(cdOffset ?? archive.length, 16)
+  return Buffer.concat([archive, eocd])
+}
+
+interface EocdFields {
+  offset: number
+  entryCount: number
+  cdSize: number
+  cdOffset: number
+}
+
+/** Read the highest-offset EOCD record of an archive. */
+function readEocd(buffer: Buffer): EocdFields {
+  for (let offset = buffer.length - 22; offset >= 0; offset--) {
+    if (buffer.readUInt32LE(offset) === 0x06054b50) {
+      return {
+        offset,
+        entryCount: buffer.readUInt16LE(offset + 10),
+        cdSize: buffer.readUInt32LE(offset + 12),
+        cdOffset: buffer.readUInt32LE(offset + 16),
+      }
+    }
+  }
+  throw new Error('no EOCD record found')
+}
+
+/** Saturate the first central-directory record's 32-bit size and declare the real size in a ZIP64 extra field. */
+function forgeZip64DeclaredUncompressedSize(zipBuffer: Buffer, declaredBytes: bigint): Buffer {
+  const cdStart = zipBuffer.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]))
+  const fileNameLength = zipBuffer.readUInt16LE(cdStart + 28)
+  const extraFieldLength = zipBuffer.readUInt16LE(cdStart + 30)
+  const extraStart = cdStart + 46 + fileNameLength
+
+  const zip64Field = Buffer.alloc(12)
+  zip64Field.writeUInt16LE(0x0001, 0)
+  zip64Field.writeUInt16LE(8, 2)
+  zip64Field.writeBigUInt64LE(declaredBytes, 4)
+
+  const head = Buffer.from(zipBuffer.subarray(0, extraStart))
+  head.writeUInt32LE(0xffffffff, cdStart + 24)
+  head.writeUInt16LE(extraFieldLength + zip64Field.length, cdStart + 30)
+
+  const forged = Buffer.concat([head, zip64Field, zipBuffer.subarray(extraStart)])
+  const eocd = readEocd(forged)
+  forged.writeUInt32LE(eocd.cdSize + zip64Field.length, eocd.offset + 12)
+  return forged
 }
 
 describe('assertOoxmlArchiveWithinLimits', () => {
@@ -97,15 +178,199 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     expect(() => assertOoxmlArchiveWithinLimits(buffer)).toThrow(ZipBombError)
   })
 
-  it('rejects a decoy EOCD signature that does not validate against the buffer tail', async () => {
+  it('ignores a decoy EOCD whose central directory does not check out', async () => {
     const realZip = await buildZip({ 'xl/worksheets/sheet1.xml': 'A'.repeat(200_000) })
-    // A decoy EOCD (zeroed central directory) appended after the genuine archive
-    // would, without tail validation, redirect the guard to an empty directory
-    // and undercount the real entries.
+    // A decoy EOCD claiming an empty central directory at offset 0 would, if
+    // trusted, undercount the real entries and let an oversized archive through.
     const decoy = Buffer.alloc(64)
     decoy.writeUInt32LE(0x06054b50, 0)
     const tampered = Buffer.concat([realZip, decoy])
+    expect(() =>
+      assertOoxmlArchiveWithinLimits(tampered, {
+        maxTotalUncompressedBytes: 100_000,
+        maxCompressionRatio: 10_000,
+        ratioCheckFloorBytes: 1024 * 1024 * 1024,
+      })
+    ).toThrow(ZipBombError)
+  })
+
+  it('accepts an archive with a single trailing NUL byte after the EOCD', async () => {
+    const buffer = await buildZip({ 'word/document.xml': '<xml>hello world</xml>' })
+    const padded = Buffer.concat([buffer, Buffer.alloc(1)])
+    expect(() => assertOoxmlArchiveWithinLimits(padded, HIGH_LIMITS)).not.toThrow()
+    await expect(JSZip.loadAsync(padded)).resolves.toBeDefined()
+  })
+
+  it('accepts an archive with a kilobyte of trailing garbage after the EOCD', async () => {
+    const buffer = await buildZip({ 'word/document.xml': '<xml>hello world</xml>' })
+    const garbage = Buffer.alloc(1024, 0xab)
+    const padded = Buffer.concat([buffer, garbage])
+    expect(() => assertOoxmlArchiveWithinLimits(padded, HIGH_LIMITS)).not.toThrow()
+    await expect(JSZip.loadAsync(padded)).resolves.toBeDefined()
+  })
+
+  it('still rejects an oversized archive that carries trailing bytes', async () => {
+    const buffer = await buildZip({ 'xl/worksheets/sheet1.xml': 'A'.repeat(200_000) })
+    const padded = Buffer.concat([buffer, Buffer.alloc(1024, 0xab)])
+    expect(() =>
+      assertOoxmlArchiveWithinLimits(padded, {
+        maxTotalUncompressedBytes: 100_000,
+        maxCompressionRatio: 10_000,
+        ratioCheckFloorBytes: 1024 * 1024 * 1024,
+      })
+    ).toThrow(ZipBombError)
+  })
+
+  it('still rejects a high-ratio archive that carries trailing bytes', async () => {
+    const buffer = await buildZip({ 'xl/worksheets/sheet1.xml': 'A'.repeat(200_000) })
+    const padded = Buffer.concat([buffer, Buffer.alloc(1024, 0xab)])
+    expect(() =>
+      assertOoxmlArchiveWithinLimits(padded, {
+        maxTotalUncompressedBytes: 1024 * 1024 * 1024,
+        maxCompressionRatio: 5,
+        ratioCheckFloorBytes: 1000,
+      })
+    ).toThrow(ZipBombError)
+  })
+
+  it('rejects a forged zip bomb under the default limits, with or without trailing bytes', async () => {
+    const archive = await buildZip({ 'word/document.xml': '<xml>hello</xml>' })
+    const bomb = forgeDeclaredUncompressedSize(archive, 0xfffffff0)
+    for (const tail of [Buffer.alloc(0), Buffer.alloc(1), Buffer.alloc(1024, 0xab)]) {
+      expect(() => assertOoxmlArchiveWithinLimits(Buffer.concat([bomb, tail]))).toThrow(
+        ZipBombError
+      )
+    }
+  })
+
+  it('rejects a bomb followed by an appended empty EOCD record', async () => {
+    const archive = await buildZip({ 'word/document.xml': '<xml>hello</xml>' })
+    const bomb = forgeDeclaredUncompressedSize(archive, 0xfffffff0)
+    // The appended record is internally consistent and sits at the highest
+    // offset, so a scan that trusts one record reads "empty archive" and lets
+    // the real central directory through.
+    const tampered = appendEocd(bomb)
     expect(() => assertOoxmlArchiveWithinLimits(tampered)).toThrow(ZipBombError)
+  })
+
+  it('rejects a bomb followed by an appended EOCD declaring a small central directory', async () => {
+    const archive = await buildZip({ 'word/document.xml': '<xml>hello</xml>' })
+    const bomb = forgeDeclaredUncompressedSize(archive, 0xfffffff0)
+    const decoyArchive = await buildZip({ 'harmless.xml': '<xml>ok</xml>' })
+    const decoy = readEocd(decoyArchive)
+    const tampered = appendEocd(Buffer.concat([bomb, decoyArchive]), {
+      entryCount: decoy.entryCount,
+      cdSize: decoy.cdSize,
+      cdOffset: bomb.length + decoy.cdOffset,
+    })
+    expect(() => assertOoxmlArchiveWithinLimits(tampered)).toThrow(ZipBombError)
+  })
+
+  it('rejects an oversized archive followed by an appended empty EOCD record', async () => {
+    const archive = await buildZip({ 'xl/worksheets/sheet1.xml': 'A'.repeat(200_000) })
+    expect(() =>
+      assertOoxmlArchiveWithinLimits(appendEocd(archive), {
+        maxTotalUncompressedBytes: 100_000,
+        maxCompressionRatio: 10_000,
+        ratioCheckFloorBytes: 1024 * 1024 * 1024,
+      })
+    ).toThrow(ZipBombError)
+  })
+
+  it('accepts a within-limits archive that carries an appended empty EOCD record', async () => {
+    const archive = await buildZip({ 'word/document.xml': '<xml>hello world</xml>' })
+    expect(() => assertOoxmlArchiveWithinLimits(appendEocd(archive), HIGH_LIMITS)).not.toThrow()
+  })
+
+  it('rejects a bomb hidden behind a single prepended byte, which JSZip still inflates', async () => {
+    const archive = await buildZip({ 'word/document.xml': 'A'.repeat(64 * 1024 * 1024) })
+    // Prepending shifts the whole archive, but the EOCD's cdOffset is absolute,
+    // so no candidate resolves. The buffer no longer starts with a ZIP
+    // signature either, so a fail-closed branch keyed on byte 0 lets it past.
+    const attack = Buffer.concat([Buffer.from([0x00]), archive])
+    expect(isZipShaped(attack)).toBe(false)
+    expect(() => assertOoxmlArchiveWithinLimits(attack)).toThrow(ZipBombError)
+
+    // The threat is real, not merely a shape: JSZip reads past the prepended
+    // byte and inflates the entry in full.
+    const loaded = await JSZip.loadAsync(attack)
+    const inflated = await loaded.file('word/document.xml')!.async('nodebuffer')
+    expect(inflated.length).toBe(64 * 1024 * 1024)
+    expect(inflated.length / attack.length).toBeGreaterThan(100)
+  }, 60_000)
+
+  it('rejects a within-limits archive behind a prepended byte', async () => {
+    // Defined, deliberate behaviour: an unresolvable EOCD is refused whether or
+    // not the archive behind it is benign. Nothing in the OOXML pipeline emits
+    // leading data, so the only producers of this shape are evasion attempts.
+    const archive = await buildZip({ 'word/document.xml': '<xml>hello world</xml>' })
+    const prepended = Buffer.concat([Buffer.from([0x00]), archive])
+    expect(() => assertOoxmlArchiveWithinLimits(prepended, HIGH_LIMITS)).toThrow(ZipBombError)
+  })
+
+  it('rejects a bomb behind a kilobyte of prepended garbage', async () => {
+    const archive = await buildZip({ 'word/document.xml': '<xml>hello</xml>' })
+    const bomb = forgeDeclaredUncompressedSize(archive, 0xfffffff0)
+    const attack = Buffer.concat([Buffer.alloc(1024, 0xab), bomb])
+    expect(() => assertOoxmlArchiveWithinLimits(attack)).toThrow(ZipBombError)
+  })
+
+  it('no-ops for a stray EOCD signature that resolves to an empty archive', () => {
+    // The zero fill after the signature reads as "0 records at offset 0", which
+    // walks cleanly to an empty central directory. A resolvable record needs no
+    // fail-closed treatment — the buffer has been inspected, and it is empty.
+    const buffer = Buffer.alloc(512)
+    Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]).copy(buffer, 0)
+    Buffer.from([0x50, 0x4b, 0x05, 0x06]).copy(buffer, 300)
+    expect(() => assertOoxmlArchiveWithinLimits(buffer)).not.toThrow()
+  })
+
+  it('rejects a non-ZIP buffer whose stray EOCD signature does not resolve', () => {
+    // A coincidental `PK\x05\x06` followed by bytes that point nowhere is
+    // ~1.5e-5 likely for random data in the 64 KiB window, and the alternative
+    // reading — "not ZIP-shaped, let it through" — is exactly the bypass above.
+    // Refusing costs one parse with a clear error, against an OOM that takes
+    // down every tenant sharing the worker.
+    const buffer = Buffer.alloc(512)
+    Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]).copy(buffer, 0)
+    Buffer.from([0x50, 0x4b, 0x05, 0x06]).copy(buffer, 300)
+    buffer.writeUInt16LE(4, 300 + 10)
+    buffer.writeUInt32LE(64, 300 + 16)
+    expect(() => assertOoxmlArchiveWithinLimits(buffer)).toThrow(ZipBombError)
+  })
+
+  it('rejects a buffer whose scan window is flooded with EOCD signatures', () => {
+    const buffer = Buffer.alloc(4096)
+    for (let offset = 0; offset + 4 <= buffer.length; offset += 8) {
+      Buffer.from([0x50, 0x4b, 0x05, 0x06]).copy(buffer, offset)
+    }
+    expect(() => assertOoxmlArchiveWithinLimits(buffer)).toThrow(ZipBombError)
+  })
+
+  it('reports the worst-case record count across EOCD interpretations', async () => {
+    const archive = await buildZip({ 'a.xml': 'a', 'b.xml': 'b', 'c.xml': 'c' })
+    expect(readZipCentralDirectoryStats(archive)?.entryCount).toBe(3)
+    expect(readZipCentralDirectoryStats(appendEocd(archive))?.entryCount).toBe(3)
+  })
+
+  it('reads a ZIP64 declared uncompressed size from the central-directory extra field', async () => {
+    const archive = await buildZip({ 'word/document.xml': '<xml>hello</xml>' })
+    const bomb = forgeZip64DeclaredUncompressedSize(archive, 8n * 1024n * 1024n * 1024n)
+    expect(() => assertOoxmlArchiveWithinLimits(bomb)).toThrow(ZipBombError)
+  })
+
+  it('no-ops for a legacy OLE2/CFB document', () => {
+    const ole2 = Buffer.alloc(1024)
+    Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]).copy(ole2, 0)
+    expect(() => assertOoxmlArchiveWithinLimits(ole2)).not.toThrow()
+  })
+
+  it('no-ops for a garbage buffer that is not ZIP-shaped', () => {
+    const garbage = Buffer.alloc(4096)
+    for (let i = 0; i < garbage.length; i++) {
+      garbage[i] = (i * 31 + 7) % 251
+    }
+    expect(() => assertOoxmlArchiveWithinLimits(garbage)).not.toThrow()
   })
 
   it('no-ops for buffers that are not ZIP archives', () => {

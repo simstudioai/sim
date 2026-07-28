@@ -1,20 +1,51 @@
 'use client'
 
-import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { cn } from '@sim/emcn'
+import { Component, type ErrorInfo, Fragment, type ReactNode } from 'react'
+import { Chip, cn } from '@sim/emcn'
 import { Loader } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 
 const logger = createLogger('FilePreview')
 
-export function PreviewError({ label, error }: { label: string; error: string }) {
+interface PreviewErrorAction {
+  label: string
+  onClick: () => void
+}
+
+interface PreviewErrorProps {
+  /** Format label shown in the message, e.g. "PDF". */
+  label: string
+  error: string
+  /** Recovery affordance. Omitted for fallbacks with nothing to retry. */
+  action?: PreviewErrorAction
+}
+
+export function PreviewError({ label, error, action }: PreviewErrorProps) {
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
       <p className='font-medium text-[14px] text-[var(--text-primary)]'>
         Failed to preview {label}
       </p>
       <p className='text-[13px] text-[var(--text-muted)]'>{error}</p>
+      {action ? (
+        <Chip className='mt-[4px]' onClick={action.onClick}>
+          {action.label}
+        </Chip>
+      ) : null}
     </div>
+  )
+}
+
+/**
+ * A `next/dynamic` / `React.lazy` chunk fetch that rejected. The module system
+ * caches the rejection on the lazy component itself, so re-rendering it throws
+ * the same error synchronously — only a fresh page load can refetch the chunk.
+ */
+function isChunkLoadError(error: Error | undefined): boolean {
+  if (!error) return false
+  if (error.name === 'ChunkLoadError') return true
+  return (
+    error.message.includes('Loading chunk') || error.message.includes('dynamically imported module')
   )
 }
 
@@ -27,6 +58,8 @@ interface PreviewErrorBoundaryProps {
 interface PreviewErrorBoundaryState {
   hasError: boolean
   error?: Error
+  /** Bumped by "Try again" so the retried subtree remounts rather than resuming. */
+  attempt: number
 }
 
 /**
@@ -35,9 +68,15 @@ interface PreviewErrorBoundaryState {
  * PreviewError fallback instead of unwinding to the route-level error boundary
  * and replacing the whole workspace view.
  *
- * Callers must `key` this boundary by the identity of the rendered content
- * (e.g. file id + data version) — the error state resets only via remount, so
- * keying the child alone would leave a tripped boundary stuck on the fallback.
+ * The fallback recovers in place, so a tripped boundary is never stuck:
+ * - A render-time crash offers "Try again", which clears the error and remounts
+ *   the subtree. If the cause is still there the child throws once more and the
+ *   fallback returns — bounded, never a retry loop.
+ * - A rejected chunk load is cached by the module system and cannot be retried
+ *   by re-rendering, so it offers "Reload page" instead.
+ *
+ * Keying the boundary by content identity (e.g. file id + data version) is still
+ * worthwhile so a *different* file starts from a clean boundary.
  */
 export class PreviewErrorBoundary extends Component<
   PreviewErrorBoundaryProps,
@@ -45,9 +84,12 @@ export class PreviewErrorBoundary extends Component<
 > {
   public state: PreviewErrorBoundaryState = {
     hasError: false,
+    attempt: 0,
   }
 
-  public static getDerivedStateFromError(error: Error): PreviewErrorBoundaryState {
+  public static getDerivedStateFromError(
+    error: Error
+  ): Pick<PreviewErrorBoundaryState, 'hasError' | 'error'> {
     return { hasError: true, error }
   }
 
@@ -59,17 +101,36 @@ export class PreviewErrorBoundary extends Component<
     })
   }
 
+  private readonly handleRetry = () => {
+    this.setState((previous) => ({
+      hasError: false,
+      error: undefined,
+      attempt: previous.attempt + 1,
+    }))
+  }
+
+  private readonly handleReload = () => {
+    window.location.reload()
+  }
+
   public render() {
-    if (this.state.hasError) {
+    const { attempt, error, hasError } = this.state
+
+    if (hasError) {
       return (
         <PreviewError
           label={this.props.label}
-          error={this.state.error?.message ?? 'An unexpected error occurred'}
+          error={error?.message ?? 'An unexpected error occurred'}
+          action={
+            isChunkLoadError(error)
+              ? { label: 'Reload page', onClick: this.handleReload }
+              : { label: 'Try again', onClick: this.handleRetry }
+          }
         />
       )
     }
 
-    return this.props.children
+    return <Fragment key={attempt}>{this.props.children}</Fragment>
   }
 }
 

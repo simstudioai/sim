@@ -308,6 +308,76 @@ describe('LoopOrchestrator', () => {
     )
   })
 
+  describe('while condition serialization', () => {
+    /**
+     * Runs one while-loop condition evaluation with `resolved` standing in for the value a
+     * `<block.output>` reference resolves to, and returns the JavaScript handed to the VM.
+     */
+    async function evaluatedCode(resolved: unknown): Promise<string> {
+      const resolver = { resolveSingleReference: vi.fn().mockResolvedValue(resolved) }
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: false })
+      const orchestrator = new LoopOrchestrator(
+        { loopConfigs: new Map(), parallelConfigs: new Map(), nodes: new Map() } as any,
+        createState(),
+        resolver as any
+      )
+      const ctx = createContext({
+        iteration: 0,
+        currentIterationOutputs: new Map(),
+        allIterationOutputs: [],
+        loopType: 'while',
+        condition: '<condition.output>',
+      })
+
+      await orchestrator.evaluateInitialCondition(ctx, 'loop-1')
+
+      return mockExecuteInIsolatedVM.mock.calls.at(-1)?.[0].code
+    }
+
+    it('inlines an ordinary string as a quoted literal', async () => {
+      expect(await evaluatedCode('hello')).toBe('return Boolean("hello")')
+    })
+
+    it('keeps numbers, booleans and null unquoted', async () => {
+      expect(await evaluatedCode(42)).toBe('return Boolean(42)')
+      expect(await evaluatedCode(true)).toBe('return Boolean(true)')
+      expect(await evaluatedCode(null)).toBe('return Boolean(null)')
+    })
+
+    it('still folds a boolean-valued string to a bare boolean', async () => {
+      expect(await evaluatedCode('true')).toBe('return Boolean(true)')
+      expect(await evaluatedCode(' FALSE ')).toBe('return Boolean(false)')
+    })
+
+    it('serializes objects and arrays', async () => {
+      expect(await evaluatedCode({ a: 1 })).toBe('return Boolean({"a":1})')
+      expect(await evaluatedCode(['x'])).toBe('return Boolean(["x"])')
+    })
+
+    it('escapes a quote instead of closing the literal', async () => {
+      const code = await evaluatedCode('he said "hi"')
+      expect(code).toBe('return Boolean("he said \\"hi\\"")')
+      expect(() => new Function(code)()).not.toThrow()
+      expect(new Function(code)()).toBe(true)
+    })
+
+    it('escapes a newline instead of breaking the statement', async () => {
+      const code = await evaluatedCode('line1\nline2')
+      expect(code).toBe('return Boolean("line1\\nline2")')
+      expect(code).not.toContain('\n')
+      expect(new Function(code)()).toBe(true)
+    })
+
+    it('treats an injection payload as data, not code', async () => {
+      // A block output an attacker controls — an API response, webhook body, or model
+      // completion. Wrapped in quotes by hand this closed the literal and ran.
+      const code = await evaluatedCode('" + (globalThis.__pwned = true) + "')
+      expect(code).toBe('return Boolean("\\" + (globalThis.__pwned = true) + \\"")')
+      new Function(code)()
+      expect((globalThis as Record<string, unknown>).__pwned).toBeUndefined()
+    })
+  })
+
   it('exits doWhile loops when the configured iteration cap is reached', async () => {
     const { orchestrator } = createOrchestrator()
     const ctx = createContext({

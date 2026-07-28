@@ -22,12 +22,21 @@ const ZIP64_EOCD_SIGNATURE = 0x06064b50
 const CENTRAL_DIRECTORY_HEADER_SIGNATURE = 0x02014b50
 const ZIP64_EXTRA_FIELD_ID = 0x0001
 
+const EOCD_SIGNATURE_BYTES = Buffer.from([0x50, 0x4b, 0x05, 0x06])
+
 const EOCD_MIN_SIZE = 22
 const ZIP64_EOCD_LOCATOR_SIZE = 20
 const CENTRAL_DIRECTORY_HEADER_MIN_SIZE = 46
 const MAX_EOCD_COMMENT_SIZE = 0xffff
 const UINT32_SENTINEL = 0xffffffff
 const UINT16_SENTINEL = 0xffff
+
+/**
+ * Ceiling on EOCD signatures considered in the scan window. A real archive has
+ * one (plus, rarely, a stray match inside trailing data); a buffer stuffed with
+ * more is an attempt to flood the candidate set, and is refused outright.
+ */
+const MAX_EOCD_CANDIDATES = 128
 
 export interface OoxmlSizeLimits {
   /** Hard ceiling on the summed declared uncompressed size of all entries. */
@@ -74,25 +83,38 @@ export function isZipShaped(buffer: Buffer): boolean {
   return signature === LOCAL_FILE_HEADER_SIGNATURE || signature === EOCD_SIGNATURE
 }
 
+interface EocdScan {
+  /** Offsets to evaluate; empty when the window is flooded past {@link MAX_EOCD_CANDIDATES}. */
+  candidates: number[]
+  /** Whether the window holds at least one EOCD signature, flooded or not. */
+  sawSignature: boolean
+}
+
 /**
- * Locate the End Of Central Directory record by scanning backwards from the end
- * of the buffer (it sits within the trailing 22 + comment bytes). A candidate
- * is only accepted when its declared comment length places the record exactly
- * at the buffer tail, so a decoy EOCD signature planted in the comment region
- * cannot redirect the guard to a smaller, attacker-chosen central directory.
+ * Every EOCD signature offset in the trailing 22 + 65535 comment-length window.
+ * Trailing bytes after the EOCD are common in the wild (self-extracting stubs,
+ * appended signatures, generator padding), so the record is not required to end
+ * at the buffer tail. Every candidate is returned rather than the first that
+ * looks plausible: the decompression libraries this guard protects each pick
+ * their own record, so the archive is evaluated under all of them. A flooded
+ * window yields no candidates but still reports the signature, so the caller
+ * refuses the buffer rather than reading it as "not a ZIP".
  */
-function findEocdOffset(buffer: Buffer): number {
-  const minStart = Math.max(0, buffer.length - EOCD_MIN_SIZE - MAX_EOCD_COMMENT_SIZE)
-  for (let offset = buffer.length - EOCD_MIN_SIZE; offset >= minStart; offset--) {
-    if (buffer.readUInt32LE(offset) !== EOCD_SIGNATURE) {
-      continue
+function findEocdCandidates(buffer: Buffer): EocdScan {
+  const windowStart = Math.max(0, buffer.length - EOCD_MIN_SIZE - MAX_EOCD_COMMENT_SIZE)
+  const lastOffset = buffer.length - EOCD_MIN_SIZE
+  const candidates: number[] = []
+
+  let offset = buffer.indexOf(EOCD_SIGNATURE_BYTES, windowStart)
+  while (offset !== -1 && offset <= lastOffset) {
+    if (candidates.length >= MAX_EOCD_CANDIDATES) {
+      return { candidates: [], sawSignature: true }
     }
-    const commentLength = buffer.readUInt16LE(offset + 20)
-    if (offset + EOCD_MIN_SIZE + commentLength === buffer.length) {
-      return offset
-    }
+    candidates.push(offset)
+    offset = buffer.indexOf(EOCD_SIGNATURE_BYTES, offset + 1)
   }
-  return -1
+
+  return { candidates, sawSignature: candidates.length > 0 }
 }
 
 interface CentralDirectoryLocation {
@@ -171,88 +193,45 @@ function readUncompressedSize(
   return uncompressedSize
 }
 
-/**
- * Sum the declared uncompressed size of every central-directory entry. Returns
- * `null` when the buffer is not a parseable ZIP archive (e.g. legacy binary
- * `.xls`/`.doc`, or a misidentified plaintext file) so the caller can defer to
- * the downstream parser. Stops early once the running total exceeds the limit.
- */
-function sumDeclaredUncompressedSize(buffer: Buffer, abortAboveBytes: number): number | null {
-  if (buffer.length < EOCD_MIN_SIZE) {
-    return null
-  }
-
-  const eocdOffset = findEocdOffset(buffer)
-  if (eocdOffset < 0) {
-    return null
-  }
-
-  const location = locateCentralDirectory(buffer, eocdOffset)
-  if (!location) {
-    return null
-  }
-
-  let total = 0
-  let cursor = location.offset
-  for (let entry = 0; entry < location.entryCount; entry++) {
-    if (cursor + CENTRAL_DIRECTORY_HEADER_MIN_SIZE > buffer.length) {
-      return null
-    }
-    if (buffer.readUInt32LE(cursor) !== CENTRAL_DIRECTORY_HEADER_SIGNATURE) {
-      return null
-    }
-
-    const fileNameLength = buffer.readUInt16LE(cursor + 28)
-    const extraFieldLength = buffer.readUInt16LE(cursor + 30)
-    const commentLength = buffer.readUInt16LE(cursor + 32)
-
-    total += readUncompressedSize(buffer, cursor, fileNameLength, extraFieldLength)
-    if (total > abortAboveBytes) {
-      return total
-    }
-
-    cursor += CENTRAL_DIRECTORY_HEADER_MIN_SIZE + fileNameLength + extraFieldLength + commentLength
-  }
-
-  return total
-}
-
-/** Parse-time shape of a ZIP central directory, read without decompressing anything. */
-export interface ZipCentralDirectoryStats {
-  /** Records in the contiguous central-directory run — what a per-signature parser allocates. */
+interface CentralDirectoryWalk {
+  /** Records in the contiguous central-directory run at the candidate's offset. */
   entryCount: number
+  /** Summed declared uncompressed size across those records. */
+  declaredUncompressedBytes: number
   /** Summed declared extra-field bytes across those records. */
   totalExtraFieldBytes: number
 }
 
 /**
- * Walk the real central directory (EOCD-anchored, decoy-resistant, ZIP64-aware —
- * the same anchoring as {@link assertOoxmlArchiveWithinLimits}) and report its
- * record count and summed extra-field bytes, so callers can bound a parser's
- * object graph before handing it the buffer. The walk covers the CONTIGUOUS run
- * of records at the central-directory offset rather than trusting the EOCD's
- * declared count, because that run is what JSZip actually allocates one entry
- * per — a lied count can neither hide records nor inflate the tally. Unlike a
- * raw whole-buffer signature scan, STORED entry payloads (e.g. a nested `.zip`
- * archived without recompression) are never miscounted as records. Returns
- * `null` when the buffer is not a parseable ZIP, so callers can fail closed.
+ * Walk the contiguous run of central-directory records anchored by one EOCD
+ * candidate. The run — not the candidate's declared entry count — is what a
+ * per-signature parser allocates, so a lied count can neither hide records nor
+ * inflate the tally. Returns `null` when the candidate is unresolvable or when
+ * the run length disagrees with the declared count: an inconsistent record is
+ * suspicious (an empty EOCD appended after a real central directory has exactly
+ * this shape) and must never be read as "empty archive". Stops early, and skips
+ * the consistency check, once the running total exceeds the limit — the archive
+ * is already over budget under this interpretation. Runs are memoized by central
+ * directory offset, so many candidates aimed at one directory cost one walk.
  */
-export function readZipCentralDirectoryStats(buffer: Buffer): ZipCentralDirectoryStats | null {
-  if (buffer.length < EOCD_MIN_SIZE) {
-    return null
-  }
-
-  const eocdOffset = findEocdOffset(buffer)
-  if (eocdOffset < 0) {
-    return null
-  }
-
+function walkCentralDirectory(
+  buffer: Buffer,
+  eocdOffset: number,
+  abortAboveBytes: number,
+  runCache: Map<number, CentralDirectoryWalk>
+): CentralDirectoryWalk | null {
   const location = locateCentralDirectory(buffer, eocdOffset)
   if (!location) {
     return null
   }
 
+  const cached = runCache.get(location.offset)
+  if (cached) {
+    return cached.entryCount === location.entryCount ? cached : null
+  }
+
   let entryCount = 0
+  let declaredUncompressedBytes = 0
   let totalExtraFieldBytes = 0
   let cursor = location.offset
   while (
@@ -265,35 +244,144 @@ export function readZipCentralDirectoryStats(buffer: Buffer): ZipCentralDirector
 
     entryCount += 1
     totalExtraFieldBytes += extraFieldLength
+    declaredUncompressedBytes += readUncompressedSize(
+      buffer,
+      cursor,
+      fileNameLength,
+      extraFieldLength
+    )
+    if (declaredUncompressedBytes > abortAboveBytes) {
+      return { entryCount, declaredUncompressedBytes, totalExtraFieldBytes }
+    }
+
     cursor += CENTRAL_DIRECTORY_HEADER_MIN_SIZE + fileNameLength + extraFieldLength + commentLength
   }
 
-  if (entryCount < location.entryCount) {
-    return null
+  const walk = { entryCount, declaredUncompressedBytes, totalExtraFieldBytes }
+  runCache.set(location.offset, walk)
+  return entryCount === location.entryCount ? walk : null
+}
+
+interface ArchiveInspection {
+  /** Worst case across resolvable EOCD interpretations, or `null` when none resolved. */
+  worst: CentralDirectoryWalk | null
+  /** Whether the scan window held at least one EOCD signature. */
+  sawEocdSignature: boolean
+}
+
+/**
+ * Evaluate the archive under every EOCD candidate and return the worst case of
+ * each measure. yauzl, JSZip and SheetJS each select their own EOCD record, so
+ * the guard must not depend on guessing which one the downstream parser reads:
+ * if ANY interpretation is over budget, the archive is rejected.
+ *
+ * `worst` is `null` when no candidate resolves. `sawEocdSignature` separates the
+ * two ways that happens: a buffer with no EOCD signature at all is simply not a
+ * ZIP (legacy binary `.xls`/`.doc`, misidentified plaintext), while a buffer
+ * that carries an EOCD signature the guard cannot follow is unverifiable and
+ * must be refused — see {@link assertOoxmlArchiveWithinLimits}.
+ */
+function inspectArchive(buffer: Buffer, abortAboveBytes: number): ArchiveInspection {
+  if (buffer.length < EOCD_MIN_SIZE) {
+    return { worst: null, sawEocdSignature: false }
   }
 
-  return { entryCount, totalExtraFieldBytes }
+  const { candidates, sawSignature } = findEocdCandidates(buffer)
+
+  let worst: CentralDirectoryWalk | null = null
+  const runCache = new Map<number, CentralDirectoryWalk>()
+  for (const candidate of candidates) {
+    const walk = walkCentralDirectory(buffer, candidate, abortAboveBytes, runCache)
+    if (!walk) {
+      continue
+    }
+    worst = worst
+      ? {
+          entryCount: Math.max(worst.entryCount, walk.entryCount),
+          declaredUncompressedBytes: Math.max(
+            worst.declaredUncompressedBytes,
+            walk.declaredUncompressedBytes
+          ),
+          totalExtraFieldBytes: Math.max(worst.totalExtraFieldBytes, walk.totalExtraFieldBytes),
+        }
+      : walk
+    if (worst.declaredUncompressedBytes > abortAboveBytes) {
+      break
+    }
+  }
+
+  return { worst, sawEocdSignature: sawSignature }
+}
+
+/** Parse-time shape of a ZIP central directory, read without decompressing anything. */
+export interface ZipCentralDirectoryStats {
+  /** Records in the contiguous central-directory run — what a per-signature parser allocates. */
+  entryCount: number
+  /** Summed declared extra-field bytes across those records. */
+  totalExtraFieldBytes: number
+}
+
+/**
+ * Walk the central directory (EOCD-anchored, decoy-resistant, ZIP64-aware — the
+ * same anchoring as {@link assertOoxmlArchiveWithinLimits}) and report the
+ * worst-case record count and summed extra-field bytes across every EOCD
+ * interpretation, so callers can bound a parser's object graph before handing
+ * it the buffer. Each walk covers the CONTIGUOUS run of records at the central
+ * directory offset rather than trusting the EOCD's declared count, because that
+ * run is what JSZip actually allocates one entry per. Unlike a raw whole-buffer
+ * signature scan, STORED entry payloads (e.g. a nested `.zip` archived without
+ * recompression) are never miscounted as records. Returns `null` when no EOCD
+ * candidate resolves, so callers can fail closed.
+ */
+export function readZipCentralDirectoryStats(buffer: Buffer): ZipCentralDirectoryStats | null {
+  const { worst } = inspectArchive(buffer, Number.POSITIVE_INFINITY)
+  if (!worst) {
+    return null
+  }
+  return { entryCount: worst.entryCount, totalExtraFieldBytes: worst.totalExtraFieldBytes }
 }
 
 /**
  * Reject an OOXML archive whose declared expanded size or compression ratio
  * exceeds safe bounds, before any decompression library materializes it.
  *
- * Fails closed: a ZIP-shaped buffer whose central directory cannot be parsed is
- * rejected rather than passed through, so a malformed archive that a downstream
- * library still inflates cannot bypass the guard. Genuinely non-ZIP inputs
- * (legacy OLE `.xls`/`.doc`, misidentified plaintext) no-op and defer to the
- * downstream parser's own validation and fallbacks.
+ * The limits are applied to the WORST case across every EOCD interpretation of
+ * the buffer, not to one chosen record: the libraries downstream do not agree on
+ * which EOCD they read, so an archive that is a bomb under any of them is
+ * rejected.
+ *
+ * Fails closed on two shapes, so a buffer a downstream library still inflates
+ * cannot bypass the guard:
+ *
+ * - The buffer begins with a ZIP signature but no central directory resolves.
+ * - The buffer carries an EOCD signature that resolves to nothing. This is the
+ *   prepended-bytes evasion: JSZip tolerates arbitrary leading data, but the
+ *   EOCD's `cdOffset` is absolute, so shifting the archive by even one byte
+ *   makes every candidate unwalkable while the archive still inflates. Keying
+ *   the fail-closed branch on the leading signature alone let a 1.2 GiB bomb
+ *   through. A buffer holding an EOCD record the guard cannot follow is the
+ *   shape of an evasion attempt, not of a non-ZIP file, so it is refused
+ *   regardless of what byte 0 says. A non-ZIP document that happens to contain
+ *   the four EOCD bytes in its trailing 64 KiB is also refused; that costs one
+ *   parse with an explicit error, against an OOM that takes down every tenant
+ *   on the worker.
+ *
+ * Genuinely non-ZIP inputs (legacy OLE `.xls`/`.doc`, misidentified plaintext)
+ * carry no EOCD signature, so they no-op and defer to the downstream parser's
+ * own validation and fallbacks.
  */
 export function assertOoxmlArchiveWithinLimits(
   buffer: Buffer,
   limits: OoxmlSizeLimits = DEFAULT_OOXML_SIZE_LIMITS
 ): void {
-  const totalUncompressed = sumDeclaredUncompressedSize(buffer, limits.maxTotalUncompressedBytes)
+  const { worst, sawEocdSignature } = inspectArchive(buffer, limits.maxTotalUncompressedBytes)
+  const totalUncompressed = worst ? worst.declaredUncompressedBytes : null
   if (totalUncompressed === null) {
-    if (isZipShaped(buffer)) {
-      logger.warn('Rejected ZIP-shaped archive: central directory could not be parsed', {
+    if (sawEocdSignature || isZipShaped(buffer)) {
+      logger.warn('Rejected archive: central directory could not be parsed', {
         compressedBytes: buffer.length,
+        sawEocdSignature,
+        zipShaped: isZipShaped(buffer),
       })
       throw new ZipBombError(
         'Unable to inspect ZIP central directory; refusing to parse an unverifiable ZIP-shaped archive'

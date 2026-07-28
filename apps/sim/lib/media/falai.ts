@@ -18,7 +18,14 @@ const logger = createLogger('FalMediaClient')
 
 // Generated media (esp. video) can be large.
 export const MAX_MEDIA_BYTES = 250 * 1024 * 1024
-const MAX_MEDIA_JSON_BYTES = 4 * 1024 * 1024
+
+/**
+ * Cap for Fal.ai queue status/result envelopes, shared by every caller so the same
+ * completion cannot succeed through one entry point and fail through another. The envelope
+ * itself is kilobyte-scale, but some models inline the output as a base64 data URI, so the
+ * bound keeps headroom for that while still capping what a single poll can buffer.
+ */
+export const MAX_FAL_QUEUE_JSON_BYTES = 4 * 1024 * 1024
 const POLL_INTERVAL_MS = 3000
 
 /**
@@ -61,8 +68,92 @@ export function getNumberProp(
   return typeof value === 'number' ? value : undefined
 }
 
-function falQueueUrl(endpoint: string, requestId: string, path: 'status' | 'response'): string {
-  return `https://queue.fal.run/${endpoint}/requests/${requestId}/${path}`
+export const FAL_QUEUE_ORIGIN = 'https://queue.fal.run'
+
+/**
+ * Fal.ai routes queue polling under the app id (`{owner}/{alias}`) ONLY — a model's sub-path
+ * is part of the submit URL but not the queue URL. `queue.fal.run` answers
+ * `/fal-ai/kling-video/requests/{id}/status` but 405s on
+ * `/fal-ai/kling-video/v3/pro/text-to-video/requests/{id}/status`.
+ */
+function falQueueAppId(endpoint: string): string {
+  return endpoint.split('/').slice(0, 2).join('/')
+}
+
+/**
+ * Builds a Fal.ai queue URL. `status` polls progress; `result` fetches the completed payload
+ * and takes no path suffix (`/response` is not a route — `queue.fal.run` 405s on it).
+ */
+export function buildFalQueueUrl(
+  endpoint: string,
+  requestId: string,
+  kind: 'status' | 'result'
+): string {
+  const base = `${FAL_QUEUE_ORIGIN}/${falQueueAppId(endpoint)}/requests/${requestId}`
+  return kind === 'status' ? `${base}/status` : base
+}
+
+/** The only queue paths `queue.fal.run` routes: `/{app}/requests/{id}` and `.../status`. */
+const FAL_QUEUE_PATH_PATTERN = /^\/(?:[^/]+\/)+requests\/[^/]+(?:\/status)?$/u
+
+/**
+ * Accepts a queue URL echoed back by Fal.ai only while it stays on the queue origin we
+ * submitted to AND matches a routable queue path, otherwise falls back to the URL we
+ * construct ourselves. Queue polling carries `Authorization: Key <apiKey>`, so an
+ * attacker-influenced `status_url` / `response_url` would otherwise hand the Fal.ai key to
+ * an arbitrary host. Origin alone is not enough: Fal.ai echoes a `response_url` suffixed
+ * with `/response`, which is not a GET route (405), so that suffix is stripped first.
+ */
+export function resolveFalQueueUrl(candidate: string | undefined, fallback: string): string {
+  if (!candidate) return fallback
+
+  let url: URL
+  try {
+    url = new URL(candidate)
+  } catch {
+    logger.warn('Fal.ai queue URL is not a valid URL; using constructed fallback', { fallback })
+    return fallback
+  }
+
+  if (url.origin !== FAL_QUEUE_ORIGIN) {
+    logger.warn('Fal.ai queue URL left the queue origin; using constructed fallback', {
+      candidate,
+      fallback,
+    })
+    return fallback
+  }
+
+  const path = url.pathname.replace(/\/response$/u, '')
+  const wantsStatus = fallback.endsWith('/status')
+  if (!FAL_QUEUE_PATH_PATTERN.test(path) || path.endsWith('/status') !== wantsStatus) {
+    logger.warn('Fal.ai queue URL is not a routable queue path; using constructed fallback', {
+      candidate,
+      fallback,
+    })
+    return fallback
+  }
+
+  const normalized = `${FAL_QUEUE_ORIGIN}${path}${url.search}`
+  if (normalized !== candidate) {
+    logger.warn('Normalized Fal.ai queue URL to a routable shape', { candidate, normalized })
+  }
+  return normalized
+}
+
+/**
+ * Requests a Fal.ai queue URL through the SSRF-guarded client. Invoked on every poll so the
+ * provider-supplied URL is revalidated each time rather than trusted once.
+ */
+async function fetchFalQueue(url: string, apiKey: string) {
+  const validation = await validateUrlWithDNS(url, 'falQueueUrl')
+  if (!validation.isValid || !validation.resolvedIP) {
+    throw new Error(validation.error || 'Fal.ai queue URL failed validation')
+  }
+  return secureFetchWithPinnedIP(url, validation.resolvedIP, {
+    method: 'GET',
+    headers: { Authorization: `Key ${apiKey}` },
+    maxResponseBytes: MAX_FAL_QUEUE_JSON_BYTES,
+  })
 }
 
 function falErrorMessage(error: unknown): string {
@@ -85,7 +176,7 @@ export async function runFalQueue(
   input: Record<string, unknown>,
   apiKey: string
 ): Promise<FalQueueResult> {
-  const createResponse = await fetch(`https://queue.fal.run/${endpoint}`, {
+  const createResponse = await fetch(`${FAL_QUEUE_ORIGIN}/${endpoint}`, {
     method: 'POST',
     headers: { Authorization: `Key ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -99,7 +190,7 @@ export async function runFalQueue(
   }
 
   const createData = await readResponseJsonWithLimit(createResponse, {
-    maxBytes: MAX_MEDIA_JSON_BYTES,
+    maxBytes: MAX_FAL_QUEUE_JSON_BYTES,
     label: 'Fal.ai create response',
   })
   if (!isRecordLike(createData)) throw new Error('Invalid Fal.ai queue response')
@@ -107,16 +198,20 @@ export async function runFalQueue(
   const requestId = getStringProp(createData, 'request_id')
   if (!requestId) throw new Error('Fal.ai queue response missing request_id')
 
-  const statusUrl =
-    getStringProp(createData, 'status_url') || falQueueUrl(endpoint, requestId, 'status')
-  const responseUrl =
-    getStringProp(createData, 'response_url') || falQueueUrl(endpoint, requestId, 'response')
+  const statusUrl = resolveFalQueueUrl(
+    getStringProp(createData, 'status_url'),
+    buildFalQueueUrl(endpoint, requestId, 'status')
+  )
+  const responseUrl = resolveFalQueueUrl(
+    getStringProp(createData, 'response_url'),
+    buildFalQueueUrl(endpoint, requestId, 'result')
+  )
 
   const maxAttempts = Math.ceil(getMaxExecutionTimeout() / POLL_INTERVAL_MS)
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await sleep(POLL_INTERVAL_MS)
 
-    const statusResponse = await fetch(statusUrl, { headers: { Authorization: `Key ${apiKey}` } })
+    const statusResponse = await fetchFalQueue(statusUrl, apiKey)
     if (!statusResponse.ok) {
       const body = await readResponseTextWithLimit(statusResponse, {
         maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -128,7 +223,7 @@ export async function runFalQueue(
     }
 
     const statusData = await readResponseJsonWithLimit(statusResponse, {
-      maxBytes: MAX_MEDIA_JSON_BYTES,
+      maxBytes: MAX_FAL_QUEUE_JSON_BYTES,
       label: 'Fal.ai status response',
     })
     if (!isRecordLike(statusData)) throw new Error('Invalid Fal.ai status response')
@@ -138,9 +233,10 @@ export async function runFalQueue(
       if (statusData.error) {
         throw new Error(`Fal.ai generation failed: ${falErrorMessage(statusData.error)}`)
       }
-      const resultResponse = await fetch(getStringProp(statusData, 'response_url') || responseUrl, {
-        headers: { Authorization: `Key ${apiKey}` },
-      })
+      const resultResponse = await fetchFalQueue(
+        resolveFalQueueUrl(getStringProp(statusData, 'response_url'), responseUrl),
+        apiKey
+      )
       if (!resultResponse.ok) {
         const body = await readResponseTextWithLimit(resultResponse, {
           maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -151,7 +247,7 @@ export async function runFalQueue(
         )
       }
       const resultData = await readResponseJsonWithLimit(resultResponse, {
-        maxBytes: MAX_MEDIA_JSON_BYTES,
+        maxBytes: MAX_FAL_QUEUE_JSON_BYTES,
         label: 'Fal.ai result response',
       })
       if (!isRecordLike(resultData)) throw new Error('Invalid Fal.ai result response')
