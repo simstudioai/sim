@@ -27,6 +27,14 @@ interface NewColumnDropdownProps {
   onPickType: (type: ColumnDefinition['type']) => void
   onPickWorkflow: () => void
   onPickEnrichment: () => void
+  /**
+   * When true, the trigger stays visible and clickable but opens nothing — it
+   * calls {@link onBlocked} instead. Used when the table is schema-locked:
+   * hiding the control leaves the user guessing, so it stays and explains.
+   * Paired required so `blocked` can never be set without a handler.
+   */
+  blocked: boolean
+  onBlocked: () => void
 }
 
 /**
@@ -40,27 +48,44 @@ export function NewColumnDropdown({
   onPickType,
   onPickWorkflow,
   onPickEnrichment,
+  blocked,
+  onBlocked,
 }: NewColumnDropdownProps) {
+  const triggerButton =
+    trigger === 'header' ? (
+      <button
+        type='button'
+        className={chipVariants()}
+        disabled={disabled}
+        onClick={blocked ? onBlocked : undefined}
+      >
+        <Plus className={chipContentIconClass} />
+        <span className={chipContentLabelClass}>New column</span>
+        <ChipChevronDown />
+      </button>
+    ) : (
+      <button
+        type='button'
+        className='flex h-[20px] cursor-pointer items-center gap-2 outline-none'
+        disabled={disabled}
+        onClick={blocked ? onBlocked : undefined}
+      >
+        <Plus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+        <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
+      </button>
+    )
+
+  if (blocked) {
+    return trigger === 'inline-header' ? (
+      <th className={CELL_HEADER}>{triggerButton}</th>
+    ) : (
+      triggerButton
+    )
+  }
+
   const menu = (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        {trigger === 'header' ? (
-          <button type='button' className={chipVariants()} disabled={disabled}>
-            <Plus className={chipContentIconClass} />
-            <span className={chipContentLabelClass}>New column</span>
-            <ChipChevronDown />
-          </button>
-        ) : (
-          <button
-            type='button'
-            className='flex h-[20px] cursor-pointer items-center gap-2 outline-none'
-            disabled={disabled}
-          >
-            <Plus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-            <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
-          </button>
-        )}
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild>{triggerButton}</DropdownMenuTrigger>
       <DropdownMenuContent align='start' side='bottom' sideOffset={4}>
         <>
           <DropdownMenuItem onSelect={onPickEnrichment}>

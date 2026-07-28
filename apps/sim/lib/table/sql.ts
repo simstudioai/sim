@@ -24,7 +24,45 @@ import type {
 } from '@/lib/table/types'
 
 type ColumnType = ColumnDefinition['type']
-type ColumnTypeMap = ReadonlyMap<string, ColumnType>
+type ColumnMap = ReadonlyMap<string, ColumnDefinition>
+
+/**
+ * Operators that make sense on a `select` column (whose values are opaque option
+ * ids), split by cardinality. A single-select cell holds one id, so it compares
+ * for equality; a multi-select cell holds an array of ids, so the question is
+ * membership — hence contains / does-not-contain. `$eq` against an array cell
+ * can never be true (`{"t":["a"]} @> {"t":"a"}` is false in Postgres), so
+ * allowing it would silently match nothing.
+ */
+export const SINGLE_SELECT_OPERATORS = new Set(['$eq', '$ne', '$in', '$nin', '$empty'])
+export const MULTI_SELECT_OPERATORS = new Set(['$contains', '$ncontains', '$empty'])
+
+/**
+ * The same allowlists in the v2 bare-operator grammar, applied inside
+ * `fieldPredicate` so both wire formats gate identically. Not derived from the
+ * `$` sets above by string surgery because the mapping is not 1:1 — `$empty`
+ * splits into `isEmpty`/`isNotEmpty`. `isNull`/`isNotNull` have no `$`
+ * equivalent and are allowed on both: a strict null check is meaningful on any
+ * column, select included.
+ */
+const SINGLE_SELECT_OPS = new Set<FilterOp>([
+  'eq',
+  'ne',
+  'in',
+  'nin',
+  'isEmpty',
+  'isNotEmpty',
+  'isNull',
+  'isNotNull',
+])
+const MULTI_SELECT_OPS = new Set<FilterOp>([
+  'contains',
+  'ncontains',
+  'isEmpty',
+  'isNotEmpty',
+  'isNull',
+  'isNotNull',
+])
 
 /**
  * Returns the Postgres cast needed to compare a JSONB text value of the given
@@ -44,12 +82,13 @@ function jsonbCastForType(type: ColumnType | undefined): 'numeric' | 'timestampt
 }
 
 /**
- * Maps a column's **stable id** (the JSONB storage key, via `getColumnId`) to
- * its type. Filter/sort objects arrive keyed by column id, so the lookups in the
- * clause builders use ids — not display names.
+ * Maps a column's **stable id** (the JSONB storage key, via `getColumnId`) to its
+ * definition. Filter/sort objects arrive keyed by column id, so the lookups in the
+ * clause builders use ids — not display names. The full definition (not just the
+ * type) is kept so the select branches can read `options`/`multiple`.
  */
-function buildColumnTypeMap(columns: ColumnDefinition[]): ColumnTypeMap {
-  return new Map(columns.map((col) => [getColumnId(col), col.type]))
+function buildColumnMap(columns: ColumnDefinition[]): ColumnMap {
+  return new Map(columns.map((col) => [getColumnId(col), col]))
 }
 
 /**
@@ -120,14 +159,14 @@ export function buildFilterClause(
   tableName: string,
   columns: ColumnDefinition[]
 ): SQL | undefined {
-  const columnTypeMap = buildColumnTypeMap(columns)
-  return buildFilterClauseInternal(filter, tableName, columnTypeMap)
+  const columnMap = buildColumnMap(columns)
+  return buildFilterClauseInternal(filter, tableName, columnMap)
 }
 
 function buildFilterClauseInternal(
   filter: Filter,
   tableName: string,
-  columnTypeMap: ColumnTypeMap
+  columnMap: ColumnMap
 ): SQL | undefined {
   const conditions: SQL[] = []
 
@@ -139,7 +178,7 @@ function buildFilterClauseInternal(
     // This represents a case where the filter is a logical OR of multiple filters
     // e.g. { $or: [{ status: 'active' }, { status: 'pending' }] }
     if (field === '$or' && Array.isArray(condition)) {
-      const orClause = buildLogicalClause(condition as Filter[], tableName, 'OR', columnTypeMap)
+      const orClause = buildLogicalClause(condition as Filter[], tableName, 'OR', columnMap)
       if (orClause) {
         conditions.push(orClause)
       }
@@ -149,7 +188,7 @@ function buildFilterClauseInternal(
     // This represents a case where the filter is a logical AND of multiple filters
     // e.g. { $and: [{ status: 'active' }, { status: 'pending' }] }
     if (field === '$and' && Array.isArray(condition)) {
-      const andClause = buildLogicalClause(condition as Filter[], tableName, 'AND', columnTypeMap)
+      const andClause = buildLogicalClause(condition as Filter[], tableName, 'AND', columnMap)
       if (andClause) {
         conditions.push(andClause)
       }
@@ -180,7 +219,7 @@ function buildFilterClauseInternal(
       tableName,
       field,
       condition as JsonValue | ConditionOperators,
-      columnTypeMap.get(field)
+      columnMap.get(field)
     )
     conditions.push(...fieldConditions)
   }
@@ -204,7 +243,7 @@ export function buildPredicateClause(
   tableName: string,
   columns: ColumnDefinition[]
 ): SQL | undefined {
-  return buildPredicateNode(predicate, tableName, buildColumnTypeMap(columns))
+  return buildPredicateNode(predicate, tableName, buildColumnMap(columns))
 }
 
 function isPredicateGroup(node: PredicateNode): node is TablePredicate {
@@ -214,14 +253,14 @@ function isPredicateGroup(node: PredicateNode): node is TablePredicate {
 function buildPredicateNode(
   node: PredicateNode,
   tableName: string,
-  columnTypeMap: ColumnTypeMap
+  columnMap: ColumnMap
 ): SQL | undefined {
   if (isPredicateGroup(node)) {
     const isAll = 'all' in node
     const members = isAll ? node.all : node.any
     const clauses: SQL[] = []
     for (const member of members) {
-      const clause = buildPredicateNode(member, tableName, columnTypeMap)
+      const clause = buildPredicateNode(member, tableName, columnMap)
       if (clause) clauses.push(clause)
     }
     if (clauses.length === 0) return undefined
@@ -230,7 +269,7 @@ function buildPredicateNode(
   }
 
   const leaf = node as Predicate
-  return fieldPredicate(tableName, leaf.field, leaf.op, leaf.value, columnTypeMap.get(leaf.field))
+  return fieldPredicate(tableName, leaf.field, leaf.op, leaf.value, columnMap.get(leaf.field))
 }
 
 /**
@@ -264,7 +303,7 @@ export function buildSortClause(
   columns: ColumnDefinition[]
 ): SQL | undefined {
   const clauses: SQL[] = []
-  const columnTypeMap = buildColumnTypeMap(columns)
+  const columnMap = buildColumnMap(columns)
 
   for (const [field, direction] of Object.entries(sort)) {
     validateFieldName(field)
@@ -275,8 +314,7 @@ export function buildSortClause(
       )
     }
 
-    const columnType = columnTypeMap.get(field)
-    clauses.push(buildSortFieldClause(tableName, field, direction, columnType))
+    clauses.push(buildSortFieldClause(tableName, field, direction, columnMap.get(field)))
   }
 
   return clauses.length > 0 ? sql.join(clauses, sql.raw(', ')) : undefined
@@ -360,10 +398,13 @@ function buildFieldCondition(
   tableName: string,
   field: string,
   condition: JsonValue | ConditionOperators,
-  columnType: ColumnType | undefined
+  column: ColumnDefinition | undefined
 ): SQL[] {
   validateFieldName(field)
 
+  const columnType = column?.type
+  const isSelect = columnType === 'select'
+  const isMultiSelect = isSelect && column?.multiple === true
   const conditions: SQL[] = []
 
   if (isRecordLike(condition)) {
@@ -371,17 +412,26 @@ function buildFieldCondition(
       // Validate against the legacy `$`-whitelist, then normalize onto the shared
       // `FilterOp` so v1 and v2 emit byte-identical leaf SQL.
       validateOperator(op)
+      // Select values are opaque option ids — range/pattern operators are meaningless.
+      if (isSelect) {
+        const allowed = isMultiSelect ? MULTI_SELECT_OPERATORS : SINGLE_SELECT_OPERATORS
+        if (!allowed.has(op)) {
+          throw new TableQueryValidationError(
+            `Operator "${op}" is not supported on ${isMultiSelect ? 'multi-select' : 'select'} column "${field}". Allowed: ${Array.from(allowed).join(', ')}`
+          )
+        }
+      }
 
       if (op === '$empty') {
         // `$empty: true/false` maps onto the valueless v2 ops.
         const filterOp: FilterOp = coerceEmptyFlag(field, value) ? 'isEmpty' : 'isNotEmpty'
-        const clause = fieldPredicate(tableName, field, filterOp, undefined, columnType)
+        const clause = fieldPredicate(tableName, field, filterOp, undefined, column)
         if (clause) conditions.push(clause)
         continue
       }
 
       // Every other `$op` is `op` minus the leading `$` (e.g. `$gte` → `gte`).
-      const clause = fieldPredicate(tableName, field, op.slice(1) as FilterOp, value, columnType)
+      const clause = fieldPredicate(tableName, field, op.slice(1) as FilterOp, value, column)
       if (clause) conditions.push(clause)
     }
   } else {
@@ -389,9 +439,16 @@ function buildFieldCondition(
     // Example: { name: 'John' } is equivalent to { name: { $eq: 'John' } }
     // isRecordLike's negation can't structurally exclude ConditionOperators (no index
     // signature), so the JsonValue-only shape of this branch is asserted, not inferred.
-    // Routes through the unified `fieldPredicate` leaf ('eq' → containment) like every
-    // other matcher, so equality semantics stay defined in exactly one place.
-    const clause = fieldPredicate(tableName, field, 'eq', condition as JsonValue, columnType)
+    // Routes through the unified `fieldPredicate` leaf like every other matcher,
+    // so equality semantics stay defined in exactly one place.
+    //
+    // On a multi-select the shorthand reads as "holds this option" — the cell is
+    // an array of option ids, so scalar equality can never be true. It maps to
+    // `contains` (membership). An EXPLICIT `$eq` on a multi-select still errors
+    // via the select allowlist: writing it out is a mistake worth naming, while
+    // the shorthand has an unambiguous intent.
+    const shorthandOp: FilterOp = column?.type === 'select' && column.multiple ? 'contains' : 'eq'
+    const clause = fieldPredicate(tableName, field, shorthandOp, condition as JsonValue, column)
     if (clause) conditions.push(clause)
   }
 
@@ -418,15 +475,47 @@ export function fieldPredicate(
   field: string,
   op: FilterOp,
   value: JsonValue | undefined,
-  columnType: ColumnType | undefined
+  column: ColumnDefinition | undefined
 ): SQL | undefined {
   validateFieldName(field)
 
-  // System columns (`createdAt`/`updatedAt`) are real timestamptz columns, not
+  // System columns (`createdAt`/`updatedAt`/`id`) are real row columns, not
   // JSONB keys — dispatch before the `data->>` builders below, which would
   // silently match nothing (the key never exists in `data`).
   if (isSystemColumn(field)) {
     return buildSystemColumnClause(tableName, field, op, value)
+  }
+
+  const columnType = column?.type
+  const isSelect = columnType === 'select'
+  // A multi-select cell holds an ARRAY of option ids, so equality against a
+  // scalar can never be true; the question is membership. Gating and clause
+  // choice both live here rather than in `buildFieldCondition` so the v2
+  // predicate grammar gets the identical treatment.
+  const isMultiSelect = isSelect && column?.multiple === true
+
+  if (isSelect) {
+    const allowed = isMultiSelect ? MULTI_SELECT_OPS : SINGLE_SELECT_OPS
+    if (!allowed.has(op)) {
+      throw new TableQueryValidationError(
+        `Operator "${op}" is not supported on ${isMultiSelect ? 'multi-select' : 'select'} column "${field}". Allowed: ${Array.from(allowed).join(', ')}`
+      )
+    }
+  }
+
+  if (isMultiSelect) {
+    switch (op) {
+      case 'contains':
+        return buildArrayMembershipClause(tableName, field, value as JsonValue)
+      case 'ncontains':
+        return sql`NOT (${buildArrayMembershipClause(tableName, field, value as JsonValue)})`
+      case 'isEmpty':
+        return buildEmptyClause(tableName, field, true, true)
+      case 'isNotEmpty':
+        return buildEmptyClause(tableName, field, false, true)
+      default:
+        break
+    }
   }
 
   switch (op) {
@@ -524,11 +613,11 @@ function buildLogicalClause(
   subFilters: Filter[],
   tableName: string,
   operator: 'OR' | 'AND',
-  columnTypeMap: ColumnTypeMap
+  columnMap: ColumnMap
 ): SQL | undefined {
   const clauses: SQL[] = []
   for (const subFilter of subFilters) {
-    const clause = buildFilterClauseInternal(subFilter, tableName, columnTypeMap)
+    const clause = buildFilterClauseInternal(subFilter, tableName, columnMap)
     if (clause) {
       clauses.push(clause)
     }
@@ -661,6 +750,19 @@ function buildSystemColumnClause(
 /** Builds JSONB containment clause: `data @> '{"field": value}'::jsonb` (uses GIN index) */
 function buildContainmentClause(tableName: string, field: string, value: JsonValue): SQL {
   const jsonObj = JSON.stringify({ [field]: value })
+  return sql`${sql.raw(`${tableName}.data`)} @> ${jsonObj}::jsonb`
+}
+
+/**
+ * Builds an array-membership clause for a multi-select cell:
+ * `data @> '{"field": [value]}'::jsonb`.
+ *
+ * The value is wrapped in an array because Postgres containment requires
+ * matching structure — `{"t":["a","b"]} @> {"t":"a"}` is **false**, while
+ * `{"t":["a","b"]} @> {"t":["a"]}` is true. Same GIN index as the scalar form.
+ */
+function buildArrayMembershipClause(tableName: string, field: string, value: JsonValue): SQL {
+  const jsonObj = JSON.stringify({ [field]: [value] })
   return sql`${sql.raw(`${tableName}.data`)} @> ${jsonObj}::jsonb`
 }
 
@@ -803,11 +905,24 @@ function coerceEmptyFlag(field: string, value: unknown): boolean {
 /**
  * Builds an emptiness check against a JSONB cell. `isEmpty` matches null cells
  * (absent key or JSON null, both surfaced as SQL NULL by `->>`) and empty
- * strings; the negation requires the cell to be present and non-empty.
+ * strings; the negation requires the cell to be present and non-empty. A
+ * multiselect cell holds a JSON array, so `->>'field'` renders `[]` (not '')
+ * when nothing is selected — treat that text as empty too.
  */
-function buildEmptyClause(tableName: string, field: string, isEmpty: boolean): SQL {
+function buildEmptyClause(
+  tableName: string,
+  field: string,
+  isEmpty: boolean,
+  isArray = false
+): SQL {
   const escapedField = field.replace(/'/g, "''")
   const cell = sql.raw(`${tableName}.data->>'${escapedField}'`)
+  if (isArray) {
+    // A multiselect renders `[]` when nothing is selected; treat that as empty too.
+    return isEmpty
+      ? sql`(${cell} IS NULL OR ${cell} = '' OR ${cell} = '[]')`
+      : sql`(${cell} IS NOT NULL AND ${cell} <> '' AND ${cell} <> '[]')`
+  }
   return isEmpty
     ? sql`(${cell} IS NULL OR ${cell} = '')`
     : sql`(${cell} IS NOT NULL AND ${cell} <> '')`
@@ -839,7 +954,7 @@ function buildSortFieldClause(
   tableName: string,
   field: string,
   direction: 'asc' | 'desc',
-  columnType: ColumnType | undefined
+  column: ColumnDefinition | undefined
 ): SQL {
   const escapedField = field.replace(/'/g, "''")
   const directionSql = direction.toUpperCase()
@@ -849,7 +964,20 @@ function buildSortFieldClause(
   }
 
   const jsonbExtract = `${tableName}.data->>'${escapedField}'`
-  const cast = jsonbCastForType(columnType)
+
+  // Select cells store opaque option ids; sort by the option **name** so ordering
+  // is alphabetical by the label the user sees, not by the internal id. A stored
+  // id with no matching option (deleted) falls back to the raw text.
+  if (column?.type === 'select') {
+    const orderExpr = buildSelectNameOrderExpr(
+      jsonbExtract,
+      `${tableName}.data->'${escapedField}'`,
+      column
+    )
+    return sql.raw(`${orderExpr} ${directionSql} NULLS LAST`)
+  }
+
+  const cast = jsonbCastForType(column?.type)
 
   if (cast === null) {
     // Sort as text (string, boolean, json, or unknown types)
@@ -858,4 +986,37 @@ function buildSortFieldClause(
 
   // NULLS LAST so rows with null/invalid values sort to the bottom regardless of direction
   return sql.raw(`(${jsonbExtract})::${cast} ${directionSql} NULLS LAST`)
+}
+
+/**
+ * Builds a `CASE` expression mapping a select cell's stored option id (the JSONB
+ * text extract) to its option name, so an ORDER BY sorts alphabetically by label.
+ * Ids and names are SQL-escaped and embedded literally (options are trusted schema
+ * data, not caller input); an unmapped id falls through to the raw extract.
+ *
+ * A multiselect cell is an array of ids, which matches no single-id branch — it
+ * sorts on its elements resolved to names and joined in stored order, the same
+ * text the grid renders and an export writes. A scalar left over from before a
+ * single→multi toggle still takes the single-id branch.
+ */
+function buildSelectNameOrderExpr(
+  jsonbExtract: string,
+  jsonbValue: string,
+  column: ColumnDefinition
+): string {
+  const options = column.options ?? []
+  if (options.length === 0) return jsonbExtract
+  const whens = options
+    .map((o) => `WHEN '${o.id.replace(/'/g, "''")}' THEN '${o.name.replace(/'/g, "''")}'`)
+    .join(' ')
+  const singleExpr = `CASE ${jsonbExtract} ${whens} ELSE ${jsonbExtract} END`
+  if (!column.multiple) return singleExpr
+
+  const nameById = JSON.stringify(
+    Object.fromEntries(new Map(options.map((o) => [o.id, o.name])))
+  ).replace(/'/g, "''")
+  return `CASE WHEN jsonb_typeof(${jsonbValue}) = 'array' THEN (
+    SELECT string_agg(COALESCE('${nameById}'::jsonb ->> e.v, e.v), ', ' ORDER BY e.ord)
+    FROM jsonb_array_elements_text(${jsonbValue}) WITH ORDINALITY AS e(v, ord)
+  ) ELSE ${singleExpr} END`
 }

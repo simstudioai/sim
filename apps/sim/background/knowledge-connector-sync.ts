@@ -40,7 +40,7 @@ export async function executeConnectorSyncJob(payload: unknown) {
 export const knowledgeConnectorSync = task({
   id: 'knowledge-connector-sync',
   maxDuration: 1800,
-  machine: 'large-1x',
+  machine: 'large-2x',
   retry: {
     maxAttempts: 3,
     factor: 2,

@@ -163,7 +163,10 @@ export function getTablePlanLimits(): TablePlanLimitsByPlan {
   }
 }
 
-export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json'] as const
+export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json', 'select'] as const
+
+/** Maximum number of options a `select`/`multiselect` column may declare. */
+export const MAX_SELECT_OPTIONS = 100
 
 /**
  * The v2 filter operators, as a runtime tuple so both the `FilterOp` type and

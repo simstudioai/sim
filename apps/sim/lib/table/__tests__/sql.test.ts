@@ -14,10 +14,17 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  MULTI_SELECT_FILTER_OPERATORS,
+  SINGLE_SELECT_FILTER_OPERATORS,
+  UI_TO_WIRE_OPERATOR,
+} from '@/lib/table/query-builder/constants'
+import {
   buildFilterClause,
   buildPredicateClause,
   buildSortClause,
   fieldPredicate,
+  MULTI_SELECT_OPERATORS,
+  SINGLE_SELECT_OPERATORS,
 } from '@/lib/table/sql'
 import type { ColumnDefinition, Filter, Sort, TablePredicate } from '@/lib/table/types'
 
@@ -78,6 +85,11 @@ function renderSql(node: SqlNode | unknown): string {
 
 function render(node: unknown): string {
   return renderSql(node)
+}
+
+/** fieldPredicate takes a ColumnDefinition; these tests only care about its type. */
+function col(type: ColumnDefinition['type'], name = 'c'): ColumnDefinition {
+  return { name, type }
 }
 
 const TABLE = 'user_table_rows'
@@ -432,6 +444,128 @@ describe('SQL Builder', () => {
     })
   })
 
+  describe('select columns', () => {
+    const statusCol: ColumnDefinition = {
+      id: 'status',
+      name: 'status',
+      type: 'select',
+      options: [
+        { id: 'opt_open', name: 'Open' },
+        { id: 'opt_closed', name: 'Closed' },
+      ],
+    }
+    const tagsCol: ColumnDefinition = {
+      id: 'tags',
+      name: 'tags',
+      type: 'select',
+      multiple: true,
+      options: [{ id: 'opt_a', name: 'Alpha' }],
+    }
+
+    it('filters a select by option id via containment', () => {
+      const out = render(buildFilterClause({ status: 'opt_open' }, TABLE, [statusCol]))
+      expect(out).toContain('user_table_rows.data @>')
+      expect(out).toContain('"status":"opt_open"')
+    })
+
+    it('rejects a range operator on a select column', () => {
+      expect(() => buildFilterClause({ status: { $gt: 'opt_open' } }, TABLE, [statusCol])).toThrow(
+        'not supported on select'
+      )
+    })
+
+    it('rejects a pattern operator on a select column', () => {
+      expect(() =>
+        buildFilterClause({ status: { $contains: 'Open' } }, TABLE, [statusCol])
+      ).toThrow('not supported on select')
+    })
+
+    it('treats a multiselect empty array as $empty', () => {
+      const out = render(buildFilterClause({ tags: { $empty: true } }, TABLE, [tagsCol]))
+      expect(out).toContain("= '[]'")
+    })
+
+    it('filters a multiselect by ARRAY membership, not scalar equality', () => {
+      // `{"tags":["opt_a"]} @> {"tags":"opt_a"}` is FALSE in Postgres — the
+      // operand has to be wrapped or the filter silently matches nothing.
+      const out = render(buildFilterClause({ tags: { $contains: 'opt_a' } }, TABLE, [tagsCol]))
+      expect(out).toContain('user_table_rows.data @>')
+      expect(out).toContain('"tags":["opt_a"]')
+      expect(out).not.toContain('"tags":"opt_a"')
+      expect(out).not.toContain('ILIKE')
+    })
+
+    it('negates multiselect membership for $ncontains', () => {
+      const out = render(buildFilterClause({ tags: { $ncontains: 'opt_a' } }, TABLE, [tagsCol]))
+      expect(out).toContain('NOT (')
+      expect(out).toContain('"tags":["opt_a"]')
+    })
+
+    it('rejects explicit equality on a multiselect — it could never match', () => {
+      expect(() => buildFilterClause({ tags: { $eq: 'opt_a' } }, TABLE, [tagsCol])).toThrow(
+        'not supported on multi-select'
+      )
+    })
+
+    it('reads the equality shorthand on a multiselect as membership', () => {
+      // The shorthand bypasses the operator whitelist, so it has to compile to
+      // membership itself or it silently matches nothing.
+      const out = render(buildFilterClause({ tags: 'opt_a' }, TABLE, [tagsCol]))
+      expect(out).toContain('"tags":["opt_a"]')
+    })
+
+    it('rejects membership operators on a single select', () => {
+      expect(() =>
+        buildFilterClause({ status: { $contains: 'opt_open' } }, TABLE, [statusCol])
+      ).toThrow('not supported on select')
+    })
+
+    it('still uses ILIKE for $contains on a plain string column', () => {
+      const strCol: ColumnDefinition = { id: 'name', name: 'name', type: 'string' }
+      const out = render(buildFilterClause({ name: { $contains: 'jo' } }, TABLE, [strCol]))
+      expect(out).toContain('ILIKE')
+    })
+
+    it('sorts a select column alphabetically by option name via CASE', () => {
+      const out = render(buildSortClause({ status: 'asc' }, TABLE, [statusCol]))
+      expect(out).toContain('CASE')
+      expect(out).toContain("WHEN 'opt_open' THEN 'Open'")
+      expect(out).toContain("WHEN 'opt_closed' THEN 'Closed'")
+      expect(out.trim().endsWith('ASC NULLS LAST')).toBe(true)
+    })
+
+    it('sorts a multiselect by its option names, not the raw id array', () => {
+      // A multi cell extracts as `["opt_b","opt_a"]`, which matches no single-id
+      // CASE branch — without the array arm it would order on that opaque text.
+      const out = render(buildSortClause({ tags: 'asc' }, TABLE, [tagsCol]))
+      expect(out).toContain('jsonb_array_elements_text')
+      expect(out).toContain('string_agg')
+      expect(out).toContain('ORDER BY e.ord')
+      // The scalar arm survives for values left over from a single→multi toggle.
+      expect(out).toContain('CASE')
+      expect(out.trim().endsWith('ASC NULLS LAST')).toBe(true)
+    })
+  })
+
+  describe('select operator whitelists stay in step with the filter UI', () => {
+    // The picker offers exactly the UI set and `pruneFilterForColumns` DROPS
+    // anything outside it, so a UI set narrower than the server's silently
+    // discards a filter the server would have accepted (this shipped: `in`/`nin`
+    // were missing from the single-select set). Assert the mapping instead of
+    // trusting the two lists to be kept in sync by hand.
+    const toWire = (op: string) => UI_TO_WIRE_OPERATOR[op] ?? `$${op}`
+
+    it('single-select UI operators map onto the server whitelist exactly', () => {
+      const mapped = new Set([...SINGLE_SELECT_FILTER_OPERATORS].map(toWire))
+      expect(mapped).toEqual(SINGLE_SELECT_OPERATORS)
+    })
+
+    it('multi-select UI operators map onto the server whitelist exactly', () => {
+      const mapped = new Set([...MULTI_SELECT_FILTER_OPERATORS].map(toWire))
+      expect(mapped).toEqual(MULTI_SELECT_OPERATORS)
+    })
+  })
+
   describe('Field name validation', () => {
     it('accepts valid identifiers', () => {
       const valid = ['name', 'user_id', '_private', 'Count123', 'a']
@@ -471,7 +605,7 @@ describe('fieldPredicate (shared leaf)', () => {
     op: Parameters<typeof fieldPredicate>[2],
     value: unknown,
     colType?: ColumnDefinition['type']
-  ) => render(fieldPredicate(TABLE, 'wins', op, value as never, colType))
+  ) => render(fieldPredicate(TABLE, 'wins', op, value as never, colType && col(colType, 'wins')))
 
   it('eq emits case-sensitive JSONB containment (no lower())', () => {
     const out = render(fieldPredicate(TABLE, 'slack_user_id', 'eq', 'U333', undefined))
@@ -593,22 +727,22 @@ describe('fieldPredicate (shared leaf)', () => {
   })
 
   it('filters createdAt / updatedAt as real timestamptz columns, not JSONB keys', () => {
-    const gte = render(fieldPredicate(TABLE, 'createdAt', 'gte', '2026-01-01', 'date'))
+    const gte = render(fieldPredicate(TABLE, 'createdAt', 'gte', '2026-01-01', col('date')))
     expect(gte).toContain(`${TABLE}.created_at`)
     expect(gte).toContain('::timestamptz')
     expect(gte).not.toContain("data->>'createdAt'")
 
-    const lt = render(fieldPredicate(TABLE, 'updatedAt', 'lt', '2026-06-01', 'date'))
+    const lt = render(fieldPredicate(TABLE, 'updatedAt', 'lt', '2026-06-01', col('date')))
     expect(lt).toContain(`${TABLE}.updated_at`)
     expect(lt).toContain('::timestamptz')
   })
 
   it('supports in / isNull on system columns', () => {
-    expect(render(fieldPredicate(TABLE, 'createdAt', 'isNull', undefined, 'date'))).toContain(
+    expect(render(fieldPredicate(TABLE, 'createdAt', 'isNull', undefined, col('date')))).toContain(
       `${TABLE}.created_at IS NULL`
     )
     const inClause = render(
-      fieldPredicate(TABLE, 'createdAt', 'in', ['2026-01-01', '2026-02-01'], 'date')
+      fieldPredicate(TABLE, 'createdAt', 'in', ['2026-01-01', '2026-02-01'], col('date'))
     )
     expect(inClause).toContain(`${TABLE}.created_at`)
     expect(inClause).toContain('::timestamptz')
@@ -629,46 +763,50 @@ describe('system columns (#5920)', () => {
     // TimeZone setting, so a UTC-3 day range (the reporter's exact query) lands
     // off by the offset at both boundaries.
     for (const field of ['createdAt', 'updatedAt'] as const) {
-      const out = render(fieldPredicate(TABLE, field, 'gte', '2026-07-24T03:00:00.000Z', 'date'))
+      const out = render(
+        fieldPredicate(TABLE, field, 'gte', '2026-07-24T03:00:00.000Z', col('date'))
+      )
       expect(out).toContain("::timestamptz AT TIME ZONE 'UTC'")
     }
   })
 
   it('filters id as the real text column, with no timestamptz cast', () => {
-    const out = render(fieldPredicate(TABLE, 'id', 'eq', 'row-123', 'string'))
+    const out = render(fieldPredicate(TABLE, 'id', 'eq', 'row-123', col('string')))
     expect(out).toContain(`${TABLE}.id =`)
     expect(out).not.toContain("data->>'id'")
     expect(out).not.toContain('timestamptz')
   })
 
   it('supports the pattern ops on id (text), which are meaningless on timestamps', () => {
-    expect(render(fieldPredicate(TABLE, 'id', 'contains', 'abc', 'string'))).toContain(
+    expect(render(fieldPredicate(TABLE, 'id', 'contains', 'abc', col('string')))).toContain(
       `${TABLE}.id ILIKE`
     )
-    expect(render(fieldPredicate(TABLE, 'id', 'startsWith', 'abc', 'string'))).toContain(
+    expect(render(fieldPredicate(TABLE, 'id', 'startsWith', 'abc', col('string')))).toContain(
       `${TABLE}.id ILIKE`
     )
-    expect(render(fieldPredicate(TABLE, 'id', 'like', 'ab*', 'string'))).toContain(
+    expect(render(fieldPredicate(TABLE, 'id', 'like', 'ab*', col('string')))).toContain(
       `${TABLE}.id LIKE`
     )
-    expect(render(fieldPredicate(TABLE, 'id', 'ncontains', 'abc', 'string'))).toContain('NOT (')
+    expect(render(fieldPredicate(TABLE, 'id', 'ncontains', 'abc', col('string')))).toContain(
+      'NOT ('
+    )
 
-    expect(() => fieldPredicate(TABLE, 'createdAt', 'contains', 'abc', 'date')).toThrow(
+    expect(() => fieldPredicate(TABLE, 'createdAt', 'contains', 'abc', col('date'))).toThrow(
       /not supported on the built-in column "createdAt"/
     )
   })
 
   it('rejects an empty pattern on id rather than matching every row', () => {
-    expect(() => fieldPredicate(TABLE, 'id', 'contains', '', 'string')).toThrow(
+    expect(() => fieldPredicate(TABLE, 'id', 'contains', '', col('string'))).toThrow(
       /requires a non-empty value/
     )
   })
 
   it('supports id in ranges and membership', () => {
-    expect(render(fieldPredicate(TABLE, 'id', 'gt', 'row-100', 'string'))).toContain(
+    expect(render(fieldPredicate(TABLE, 'id', 'gt', 'row-100', col('string')))).toContain(
       `${TABLE}.id >`
     )
-    const inClause = render(fieldPredicate(TABLE, 'id', 'in', ['a', 'b'], 'string'))
+    const inClause = render(fieldPredicate(TABLE, 'id', 'in', ['a', 'b'], col('string')))
     expect(inClause).toContain(`${TABLE}.id IN (`)
   })
 
@@ -677,12 +815,12 @@ describe('system columns (#5920)', () => {
   })
 
   it('maps isEmpty/isNotEmpty to IS NULL / IS NOT NULL (not inverted)', () => {
-    expect(render(fieldPredicate(TABLE, 'createdAt', 'isEmpty', undefined, 'date'))).toContain(
+    expect(render(fieldPredicate(TABLE, 'createdAt', 'isEmpty', undefined, col('date')))).toContain(
       'IS NULL'
     )
-    expect(render(fieldPredicate(TABLE, 'createdAt', 'isNotEmpty', undefined, 'date'))).toContain(
-      'IS NOT NULL'
-    )
+    expect(
+      render(fieldPredicate(TABLE, 'createdAt', 'isNotEmpty', undefined, col('date')))
+    ).toContain('IS NOT NULL')
   })
 
   it('reaches the same clause through the legacy $-grammar', () => {

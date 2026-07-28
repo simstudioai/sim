@@ -31,6 +31,7 @@ vi.mock('@sim/utils/id', () => ({
 
 vi.mock('@/app/api/table/utils', async () => {
   const { NextResponse } = await import('next/server')
+  const { TableLockedError } = await import('@/lib/table/mutation-locks')
   return {
     checkAccess: mockCheckAccess,
     accessError: (result: { status: number }) => {
@@ -38,6 +39,10 @@ vi.mock('@/app/api/table/utils', async () => {
       return NextResponse.json({ error: message }, { status: result.status })
     },
     csvProxyBodyCapResponse: () => null,
+    tableLockErrorResponse: (error: unknown) =>
+      error instanceof TableLockedError
+        ? NextResponse.json({ error: error.message, lock: error.lock }, { status: 423 })
+        : null,
     multipartErrorResponse: (error: { code: string; message: string }) =>
       NextResponse.json(
         { error: error.message },
@@ -74,6 +79,7 @@ vi.mock('@/lib/table/billing', () => ({
     limit >= 0 && current + added > limit,
 }))
 
+import { TableLockedError } from '@/lib/table/mutation-locks'
 import { POST } from '@/app/api/table/[tableId]/import/route'
 
 function createCsvFile(contents: string, name = 'data.csv', type = 'text/csv'): File {
@@ -375,6 +381,21 @@ describe('POST /api/table/[tableId]/import', () => {
     const data = await response.json()
     expect(data.error).toMatch(/must be unique/)
     expect(data.data?.insertedCount).toBe(0)
+  })
+
+  it('maps a lock violation from importAppendRows to 423, not 500', async () => {
+    // The append branch returns instead of rethrowing, so it must map the lock
+    // error itself — the outer catch's mapper never sees it.
+    mockImportAppendRows.mockRejectedValueOnce(new TableLockedError('insert'))
+    const response = await callPost(
+      createFormData(createCsvFile('name,age\nAlice,30'), { mode: 'append' })
+    )
+    expect(response.status).toBe(423)
+    const data = await response.json()
+    expect(data.lock).toBe('insert')
+    // A `details` array would make the client treat it as a validation error
+    // and swallow the toast.
+    expect(data.details).toBeUndefined()
   })
 
   it('accepts TSV files', async () => {

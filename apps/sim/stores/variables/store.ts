@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import JSON5 from 'json5'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { normalizeName } from '@/executor/constants'
@@ -32,7 +31,7 @@ function validateVariable(variable: Variable): string | undefined {
             return 'Not a valid object format'
           }
 
-          const parsed = JSON5.parse(valueToEvaluate)
+          const parsed = JSON.parse(valueToEvaluate)
 
           if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
             return 'Not a valid object'
@@ -45,7 +44,7 @@ function validateVariable(variable: Variable): string | undefined {
         }
       case 'array':
         try {
-          const parsed = JSON5.parse(String(variable.value))
+          const parsed = JSON.parse(String(variable.value))
           if (!Array.isArray(parsed)) {
             return 'Not a valid array'
           }

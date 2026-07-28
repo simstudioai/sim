@@ -413,7 +413,11 @@ describe('Chat Identifier API Route', () => {
       )
     }, 10000)
 
-    it('preserves the legacy tool policy when includeToolCalls is null', async () => {
+    /**
+     * A row predating the column has no tool policy, so it has not opted in.
+     * Thinking must not drag tool frames along with it.
+     */
+    it('reads a null tool policy as off rather than inheriting thinking', async () => {
       const thinkingChatResult = [
         { ...mockChatResult[0], includeThinking: true, includeToolCalls: null },
       ]
@@ -447,7 +451,7 @@ describe('Chat Identifier API Route', () => {
       const options = vi.mocked(createStreamingResponse).mock.calls[0][0]
       expect(options.streamConfig).toMatchObject({
         includeThinking: true,
-        includeToolCalls: true,
+        includeToolCalls: false,
       })
 
       await options.executeFn({
@@ -458,7 +462,7 @@ describe('Chat Identifier API Route', () => {
       const executeOptions = vi.mocked(executeWorkflow).mock.calls[0][4]
       expect(executeOptions).toMatchObject({
         includeThinking: true,
-        includeToolCalls: true,
+        includeToolCalls: false,
         agentEvents: true,
       })
     }, 10000)
@@ -513,7 +517,11 @@ describe('Chat Identifier API Route', () => {
       })
     }, 10000)
 
-    it('keeps agent events off when the protocol header is missing, even with policy on', async () => {
+    /**
+     * Chat degrades rather than rejecting: the policy comes from the
+     * deployment, so an un-negotiated client made no bad request.
+     */
+    it('keeps agent events off without the protocol header, even with policy on', async () => {
       const thinkingChatResult = [
         { ...mockChatResult[0], includeThinking: true, includeToolCalls: false },
       ]

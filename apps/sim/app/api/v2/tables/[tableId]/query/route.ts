@@ -6,17 +6,13 @@ import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { Sort, TablePredicate, TableSchema } from '@/lib/table'
-import {
-  buildIdByName,
-  buildNameById,
-  predicateNamesToIds,
-  rowDataIdToName,
-  sortSpecNamesToIds,
-} from '@/lib/table'
+import { buildIdByName, predicateNamesToIds, sortSpecNamesToIds } from '@/lib/table'
+import { namedRowMapper } from '@/lib/table/cell-format'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
 import { decodeCursor } from '@/lib/table/rows/cursor'
 import { queryRows } from '@/lib/table/rows/service'
+import { resolvePredicateSelectValues } from '@/lib/table/select-values'
 import { accessError, checkAccess, tablesV2GateError } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -89,11 +85,16 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Query
     }
 
     const idByName = buildIdByName(schema)
-    const nameById = buildNameById(schema)
+    // Fuses the id→name key remap with select-cell value formatting, so a select
+    // cell surfaces its option NAME rather than the stored option id.
+    const toNamedRow = namedRowMapper(schema.columns)
     let predicate: TablePredicate | undefined = parsed.data.body.predicate
     if (predicate) {
       validatePredicate(predicate, schema.columns)
-      predicate = predicateNamesToIds(predicate, idByName)
+      predicate = resolvePredicateSelectValues(
+        predicateNamesToIds(predicate, idByName),
+        schema.columns
+      )
     }
     let sortSpec = sort
     if (sortSpec?.length) {
@@ -129,7 +130,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Query
         data: {
           rows: result.rows.map((r) => ({
             id: r.id,
-            data: rowDataIdToName(r.data, nameById),
+            data: toNamedRow(r.data),
             createdAt:
               r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
             updatedAt:

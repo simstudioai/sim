@@ -27,7 +27,7 @@ import { usePostHog } from 'posthog-js/react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { captureEvent } from '@/lib/posthog/client'
-import { triggerFileDownload } from '@/lib/uploads/client/download'
+import { triggerArchiveDownload, triggerFileDownload } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import {
@@ -951,6 +951,7 @@ export function Files() {
         })
       } catch (err) {
         logger.error('Failed to download file:', err)
+        toast.error(getErrorMessage(err, `Failed to download "${file.name}"`))
       }
     },
     [workspaceId]
@@ -1071,25 +1072,44 @@ export function Files() {
     setShowDeleteConfirm(true)
   }, [selectedFileIds, selectedFolderIds, files, folders])
 
-  const handleBulkDownload = useCallback(() => {
+  const [isDownloadingArchive, setIsDownloadingArchive] = useState(false)
+  // Ref as well as state: two clicks in the same tick would both pass a state check,
+  // and each concurrent archive holds the whole zip in tab memory.
+  const archiveDownloadInFlightRef = useRef(false)
+
+  const downloadArchive = useCallback(
+    async (selection: { fileIds?: string[]; folderIds?: string[] }) => {
+      if (archiveDownloadInFlightRef.current) return
+      archiveDownloadInFlightRef.current = true
+      setIsDownloadingArchive(true)
+      try {
+        await triggerArchiveDownload({ workspaceId, ...selection })
+      } catch (err) {
+        logger.error('Failed to download selection:', err)
+        toast.error(getErrorMessage(err, 'Failed to download the selected files'))
+      } finally {
+        archiveDownloadInFlightRef.current = false
+        setIsDownloadingArchive(false)
+      }
+    },
+    [workspaceId]
+  )
+
+  const handleBulkDownload = useCallback(async () => {
     const selectedFiles = files.filter((file) => selectedFileIds.includes(file.id))
     if (selectedFiles.length === 1 && selectedFolderIds.length === 0) {
       handleDownload(selectedFiles[0])
       return
     }
 
-    const query = new URLSearchParams()
-    for (const fileId of selectedFileIds) query.append('fileIds', fileId)
-    for (const folderId of selectedFolderIds) query.append('folderIds', folderId)
-
-    if (query.size === 0) return
+    if (selectedFileIds.length === 0 && selectedFolderIds.length === 0) return
     captureEvent(posthogRef.current, 'file_downloaded', {
       workspace_id: workspaceId,
       is_bulk: true,
       file_count: selectedFileIds.length + selectedFolderIds.length,
     })
-    window.location.href = `/api/workspaces/${workspaceId}/files/download?${query.toString()}`
-  }, [selectedFileIds, selectedFolderIds, files, handleDownload, workspaceId])
+    await downloadArchive({ fileIds: selectedFileIds, folderIds: selectedFolderIds })
+  }, [selectedFileIds, selectedFolderIds, files, handleDownload, downloadArchive, workspaceId])
 
   const fileDetailBreadcrumbs = useMemo(() => {
     if (!selectedFile) return []
@@ -1280,18 +1300,19 @@ export function Files() {
     if (!item) return
     const rowId = item.kind === 'file' ? fileRowId(item.file.id) : folderRowId(item.folder.id)
     if (selectedRowIds.has(rowId) && selectedRowIds.size > 1) {
-      handleBulkDownload()
+      void handleBulkDownload()
       closeContextMenu()
       return
     }
     if (item.kind === 'folder') {
-      window.location.href = `/api/workspaces/${workspaceId}/files/download?folderIds=${encodeURIComponent(item.folder.id)}`
+      const folderId = item.folder.id
       closeContextMenu()
+      void downloadArchive({ folderIds: [folderId] })
       return
     }
     handleDownload(item.file)
     closeContextMenu()
-  }, [selectedRowIds, handleBulkDownload, closeContextMenu, workspaceId, handleDownload])
+  }, [selectedRowIds, handleBulkDownload, closeContextMenu, downloadArchive, handleDownload])
 
   const handleContextMenuRename = useCallback(() => {
     const item = contextMenuItemRef.current
@@ -1981,7 +2002,9 @@ export function Files() {
                 onMove={canEdit ? handleContextMenuMove : undefined}
                 moveOptions={canEdit ? contextMenuMoveOptions : undefined}
                 onDelete={canEdit ? handleBulkDelete : undefined}
-                isLoading={bulkArchiveItems.isPending || moveItems.isPending}
+                isLoading={
+                  bulkArchiveItems.isPending || moveItems.isPending || isDownloadingArchive
+                }
               />
               {isDraggingOver ? (
                 <div className='pointer-events-none absolute inset-0 z-[var(--z-dropdown)] flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--surface-4)] transition-colors'>

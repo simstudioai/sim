@@ -6,7 +6,12 @@ import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteTable, type TableSchema } from '@/lib/table'
-import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
+import {
+  accessError,
+  checkAccess,
+  normalizeColumn,
+  tableLockErrorResponse,
+} from '@/app/api/table/utils'
 import {
   checkRateLimit,
   checkWorkspaceScope,
@@ -77,6 +82,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
           },
           rowCount: table.rowCount,
           maxRows: table.maxRows,
+          locks: table.locks,
           createdAt:
             table.createdAt instanceof Date
               ? table.createdAt.toISOString()
@@ -153,6 +159,8 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
       },
     })
   } catch (error) {
+    const lockError = tableLockErrorResponse(error)
+    if (lockError) return lockError
     logger.error(`[${requestId}] Error deleting table:`, error)
     return NextResponse.json({ error: 'Failed to delete table' }, { status: 500 })
   }

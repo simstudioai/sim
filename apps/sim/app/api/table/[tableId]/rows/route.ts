@@ -465,6 +465,7 @@ export const DELETE = withRouteHandler(
 
       if (validated.rowIds) {
         const result = await deleteRowsByIds(
+          table,
           { tableId, rowIds: validated.rowIds, workspaceId: validated.workspaceId },
           requestId
         )

@@ -3,14 +3,16 @@ import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/
 import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
 import { isPlanAliasPath, workflowAliasSandboxPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import { formatCsvValue, neutralizeCsvFormula, toCsvRow } from '@/lib/table/export-format'
+import { formatCsvCell, neutralizeCsvFormula, toCsvRow } from '@/lib/table/export-format'
 import { queryRows } from '@/lib/table/rows/service'
 import { getTableById, listTables } from '@/lib/table/service'
 import { getOrCreateTableSnapshot, SNAPSHOT_MAX_BYTES } from '@/lib/table/snapshot-cache'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
+  fetchServableWorkspaceFileBuffer,
   fetchWorkspaceFileBuffer,
   findWorkspaceFileRecord,
   getSandboxWorkspaceFilePath,
@@ -22,6 +24,7 @@ import {
   generatePresignedDownloadUrl,
   hasCloudStorage,
 } from '@/lib/uploads/core/storage-service'
+import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file-utils'
 import { executeTool as executeAppTool } from '@/tools'
 import type { ToolExecutionContext, ToolExecutionResult } from '../../tool-executor/types'
 
@@ -88,7 +91,14 @@ async function pushWorkspaceFileMount(
   mountPath: string,
   mounted: MountedBytes
 ): Promise<void> {
-  if (hasCloudStorage()) {
+  // A generated document stores its generator source, so a presigned URL for
+  // `record.key` would hand the sandbox source text under a `.docx` name and the
+  // user's script would fail on a file that looks fine. Those resolve through the
+  // servable reader instead — they are bounded by the render ceiling, so routing them
+  // through the web process rather than presigning is affordable.
+  const rendersFromSource = isGeneratedDocumentSourceType(record.type)
+
+  if (hasCloudStorage() && !rendersFromSource) {
     if (record.size > MOUNT_URL_MAX_BYTES) {
       throw new Error(
         `Input file "${mountPath}" is ${Math.round(record.size / 1024 / 1024)}MB, over the ${MOUNT_URL_MAX_BYTES / 1024 / 1024}MB per-file mount limit.`
@@ -109,19 +119,38 @@ async function pushWorkspaceFileMount(
     return
   }
 
-  if (record.size > MAX_FILE_SIZE) {
-    throw new Error(
-      `Input file "${mountPath}" is ${Math.round(record.size / 1024 / 1024)}MB, over the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit.`
-    )
+  const remainingBudget = Math.max(0, MAX_TOTAL_SIZE - mounted.buffered)
+
+  // A source-backed document declares the size of its generator, not of the document,
+  // so these pre-checks say nothing about what is about to be mounted. Its read is
+  // capped instead, and the real length is checked once it is known.
+  if (!rendersFromSource) {
+    if (record.size > MAX_FILE_SIZE) {
+      throw new Error(
+        `Input file "${mountPath}" is ${Math.round(record.size / 1024 / 1024)}MB, over the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit.`
+      )
+    }
+    if (record.size > remainingBudget) {
+      throw new Error(
+        `Mounting "${mountPath}" would exceed the ${MAX_TOTAL_SIZE / 1024 / 1024}MB total mount limit. Mount fewer or smaller files.`
+      )
+    }
   }
-  if (mounted.buffered + record.size > MAX_TOTAL_SIZE) {
-    throw new Error(
-      `Mounting "${mountPath}" would exceed the ${MAX_TOTAL_SIZE / 1024 / 1024}MB total mount limit. Mount fewer or smaller files.`
-    )
-  }
-  const buffer = await fetchWorkspaceFileBuffer(record)
+
+  const { buffer, contentType } = rendersFromSource
+    ? await fetchServableWorkspaceFileBuffer(record, {
+        maxBytes: Math.min(MAX_FILE_SIZE, remainingBudget),
+      }).catch((error) => {
+        if (!isPayloadSizeLimitError(error)) throw error
+        throw new Error(
+          `Input file "${mountPath}" renders to more than the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit, or than the mount budget left. Mount fewer or smaller files.`
+        )
+      })
+    : { buffer: await fetchWorkspaceFileBuffer(record), contentType: record.type }
+  // Keyed off the resolved type: a rendered document's source MIME is `text/x-…`, and
+  // decoding the binary as UTF-8 would corrupt it just as surely as shipping the source.
   const isText = /^text\/|application\/json|application\/xml|application\/csv/.test(
-    record.type || ''
+    contentType || ''
   )
   sandboxFiles.push({
     path: mountPath,
@@ -401,7 +430,7 @@ export async function resolveInputFiles(
       const csvLines = [toCsvRow(columns.map((column) => neutralizeCsvFormula(column.name)))]
       for (const row of rows.rows) {
         csvLines.push(
-          toCsvRow(columns.map((column) => formatCsvValue(row.data[getColumnId(column)])))
+          toCsvRow(columns.map((column) => formatCsvCell(column, row.data[getColumnId(column)])))
         )
       }
       const csvContent = csvLines.join('\n')

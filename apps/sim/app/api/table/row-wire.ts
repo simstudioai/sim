@@ -1,15 +1,15 @@
 import { AuthType, type AuthTypeValue } from '@/lib/auth/hybrid'
 import type { Filter, RowData, Sort, SortSpec, TablePredicate, TableSchema } from '@/lib/table'
+import { namedRowMapper } from '@/lib/table/cell-format'
 import {
   buildIdByName,
-  buildNameById,
   filterNamesToIds,
   predicateNamesToIds,
-  rowDataIdToName,
   rowDataNameToId,
   sortNamesToIds,
   sortSpecNamesToIds,
-} from '@/lib/table'
+} from '@/lib/table/column-keys'
+import { resolveFilterSelectValues, resolvePredicateSelectValues } from '@/lib/table/select-values'
 
 export interface RowWireTranslators {
   /** Inbound row data: wire keys → storage column ids. */
@@ -49,13 +49,17 @@ export function rowWireTranslators(
     }
   }
   const idByName = buildIdByName(schema)
-  const nameById = buildNameById(schema)
   return {
+    dataOut: namedRowMapper(schema.columns),
     dataIn: (data) => rowDataNameToId(data, idByName),
-    dataOut: (data) => rowDataIdToName(data, nameById),
-    filterIn: (filter) => filterNamesToIds(filter, idByName),
+    // Rekey field refs name → id, then resolve select operand names → ids. Both
+    // grammars need that second step: a select cell stores an option id, so a
+    // filter written with the option NAME matches nothing without it.
+    filterIn: (filter) =>
+      resolveFilterSelectValues(filterNamesToIds(filter, idByName), schema.columns),
     sortIn: (sort) => sortNamesToIds(sort, idByName),
-    predicateIn: (predicate) => predicateNamesToIds(predicate, idByName),
+    predicateIn: (predicate) =>
+      resolvePredicateSelectValues(predicateNamesToIds(predicate, idByName), schema.columns),
     sortSpecIn: (sort) => sortSpecNamesToIds(sort, idByName),
   }
 }

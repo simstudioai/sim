@@ -34,10 +34,10 @@ function SkillItem({ name, description, onClick }: SkillItemProps) {
       className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
     >
       <SkillTile />
-      <div className='flex min-w-0 flex-1 flex-col'>
-        <span className='truncate text-[14px] text-[var(--text-body)]'>{name}</span>
+      <div className='flex min-w-0 flex-1 flex-col justify-center gap-[1px]'>
+        <span className='truncate text-[var(--text-body)] text-sm'>{name}</span>
         {description && (
-          <span className='truncate text-[12px] text-[var(--text-muted)]'>{description}</span>
+          <span className='truncate text-[var(--text-muted)] text-caption'>{description}</span>
         )}
       </div>
       <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />

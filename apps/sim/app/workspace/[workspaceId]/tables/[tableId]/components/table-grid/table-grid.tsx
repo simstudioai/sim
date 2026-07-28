@@ -5,15 +5,23 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { cn, toast, useToast } from '@sim/emcn'
 import { Loader, TableX } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
-import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
+import type {
+  ColumnDefinition,
+  Filter,
+  TableLocks,
+  TableRow as TableRowType,
+  WorkflowGroup,
+} from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import type { BlockedTableAction } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import {
   useAddTableColumn,
@@ -42,6 +50,7 @@ import {
 import type { ColumnConfig } from '../column-config-sidebar'
 import { ContextMenu } from '../context-menu'
 import { NewColumnDropdown } from '../new-column-dropdown'
+import { resolveSelectOptions } from '../select-field'
 import type { WorkflowConfig } from '../workflow-sidebar'
 import { ExpandedCellPopover } from './cells'
 import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
@@ -143,6 +152,13 @@ interface TableGridProps {
   workspaceId?: string
   tableId?: string
   embedded?: boolean
+  /** The table's mutation locks; gates row/schema affordances alongside `canEdit`. */
+  locks?: TableLocks
+  /**
+   * A mutation the user attempted that a lock forbids. The wrapper explains it
+   * in a modal — locked controls stay visible and say why, rather than vanishing.
+   */
+  onBlockedAction: (action: BlockedTableAction) => void
   /**
    * Pixel width to reserve on the right of the table's scroll content for the
    * currently-open slideout panel (column config, workflow config, or log
@@ -243,10 +259,47 @@ interface TableGridProps {
   >
 }
 
-/** Serialize a cell value to its tab-separated clipboard representation. */
-function cellToText(value: unknown): string {
+/**
+ * Serialize a cell value to its tab-separated clipboard representation. A
+ * `select` cell stores option ids, so resolve them to the option name(s)
+ * (comma-joined for multi) — the clipboard shows the label, not the id.
+ */
+function cellToText(value: unknown, column?: DisplayColumn): string {
   if (value === null || value === undefined) return ''
+  if (column?.type === 'select') {
+    return resolveSelectOptions(column, value)
+      .map((o) => o.name)
+      .join(', ')
+  }
   return typeof value === 'object' ? JSON.stringify(value) : String(value)
+}
+
+/**
+ * Value-equality for a cell's stored value vs a pending edit. Primitives compare
+ * with `===`; arrays/objects (multiselect id arrays, json) compare structurally
+ * so a no-op edit — e.g. opening a multiselect and closing it unchanged — isn't
+ * treated as a change and doesn't write a row update or push an undo entry.
+ */
+function cellValuesEqual(a: unknown, b: unknown, column?: DisplayColumn): boolean {
+  if (a === b) return true
+  // An untouched multiselect cell is stored as null, but the editor commits `[]`
+  // for an empty selection — without this, opening and dismissing one unchanged
+  // would write a row update and push an undo entry. Multiselect only: on a json
+  // cell `[]` and null are genuinely different values, and treating them as equal
+  // would silently drop the edit that clears a stored `[]` (or writes one).
+  if (column?.type === 'select' && column.multiple) {
+    if (isEmptySelection(a) && isEmptySelection(b)) return true
+  }
+  if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
+    return JSON.stringify(a) === JSON.stringify(b)
+  }
+  return false
+}
+
+/** An empty multiselect, however it was stored: absent, null, or `[]`. */
+function isEmptySelection(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length === 0
+  return value === null || value === undefined
 }
 
 /**
@@ -288,6 +341,8 @@ export function TableGrid({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
   embedded,
+  locks,
+  onBlockedAction,
   sidebarReservedPx,
   onOpenColumnConfig,
   onOpenWorkflowConfig,
@@ -398,6 +453,11 @@ export function TableGrid({
     ensureAllRowsLoaded,
     ensureRowsLoadedUpTo,
     refetchRows,
+    // Server-bound scopes use this, not `queryOptions.filter` — a condition the
+    // current schema invalidated is pruned from the rows query, so a bulk action
+    // carrying the raw filter would target a predicate the grid isn't showing
+    // (and one the server rejects outright).
+    filter: effectiveFilter,
   } = useTable({ workspaceId, tableId, queryOptions })
 
   const { data: tableRunState } = useTableRunState(tableId)
@@ -490,6 +550,36 @@ export function TableGrid({
   const userPermissions = useUserPermissionsContext()
   const canEditRef = useRef(userPermissions.canEdit)
   canEditRef.current = userPermissions.canEdit
+
+  const canEditCell = userPermissions.canEdit && !locks?.updateLocked
+  const canDeleteRow = userPermissions.canEdit && !locks?.deleteLocked
+  const canMutateSchema = userPermissions.canEdit && !locks?.schemaLocked
+  // Dropping or retyping a column rewrites every row's data, so `assertColumnDestructive`
+  // requires the delete lock clear too — mirror that here or the affordance
+  // stays live on an append-only table and only fails on click.
+  const canDestroyColumn = canMutateSchema && !locks?.deleteLocked
+  // Duplicate inserts a full copied row in one shot, so unlike the blank-row
+  // paths it needs the insert lock only — it is valid on an append-only table.
+  const canInsertFullRow = userPermissions.canEdit && !locks?.insertLocked
+  // Manual grid entry is "add an empty row, then type into its cells" — the
+  // typing is an update. So a *useful* manual add needs BOTH insert and update
+  // unlocked; on an append-only table (update locked) it would leave a blank
+  // row the user can't fill. The control stays visible and explains itself via
+  // `onBlockedAction`. Full-row inserts still flow through CSV import / API /
+  // blocks / Mothership, which the insert lock alone governs server-side.
+  const canManualAddRow = userPermissions.canEdit && !locks?.insertLocked && !locks?.updateLocked
+  const canEditCellRef = useRef(canEditCell)
+  canEditCellRef.current = canEditCell
+  const canManualAddRowRef = useRef(canManualAddRow)
+  canManualAddRowRef.current = canManualAddRow
+  const canInsertFullRowRef = useRef(canInsertFullRow)
+  canInsertFullRowRef.current = canInsertFullRow
+  // Read by the closure-free double-click handler to tell "locked" apart from
+  // "no write permission" — only the former gets the explanation modal.
+  const updateLockedRef = useRef(locks?.updateLocked)
+  updateLockedRef.current = locks?.updateLocked
+  const onBlockedActionRef = useRef(onBlockedAction)
+  onBlockedActionRef.current = onBlockedAction
   const { dismiss: dismissToast } = useToast()
   const dismissToastRef = useRef(dismissToast)
   dismissToastRef.current = dismissToast
@@ -529,7 +619,7 @@ export function TableGrid({
   ) {
     // Table-scoped runs (Run all / Run empty / Run N empty) honor the active
     // filter; an explicit rowIds scope (Run selected) already names its rows.
-    const filter = rowIds ? undefined : (queryOptions.filter ?? undefined)
+    const filter = rowIds ? undefined : (effectiveFilter ?? undefined)
     onRunColumn(groupId, runMode, rowIds, limit, filter)
   }
 
@@ -610,6 +700,7 @@ export function TableGrid({
   const { pushUndo, undo, redo } = useTableUndo({
     workspaceId,
     tableId,
+    getLocks: () => locks,
     onColumnOrderChange: handleColumnOrderChange,
     onColumnRename: handleColumnRename,
     onColumnWidthsChange: handleColumnWidthsChange,
@@ -823,7 +914,7 @@ export function TableGrid({
     workspaceId,
     tableId,
     q: submittedQuery,
-    filter: queryOptions.filter,
+    filter: effectiveFilter,
     sort: queryOptions.sort,
   })
 
@@ -1153,6 +1244,26 @@ export function TableGrid({
     )
   }, [])
 
+  // Stable identity so <AddRowButton>'s React.memo still bails out; lock state
+  // is read from refs instead of being closed over.
+  const handleAddRowClick = useCallback(() => {
+    if (!canManualAddRowRef.current) {
+      onBlockedActionRef.current('add-row')
+      return
+    }
+    void handleAppendRow()
+  }, [handleAppendRow])
+
+  /** Stable stand-in for `handleDeleteColumn` when a lock forbids the drop. */
+  const handleBlockedDeleteColumn = useCallback(() => {
+    onBlockedActionRef.current('delete-column')
+  }, [])
+
+  /** Stable stand-in for the insert-column handlers when the schema is locked. */
+  const handleBlockedAddColumn = useCallback(() => {
+    onBlockedActionRef.current('add-column')
+  }, [])
+
   const handleRowContextMenu = useCallback(
     (e: React.MouseEvent, row: TableRowType) => {
       setEditingCell(null)
@@ -1432,6 +1543,12 @@ export function TableGrid({
           }
         } else if (column.type === 'date') {
           text = storageToDisplay(String(val), { seconds: true })
+        } else if (column.type === 'select') {
+          // Cells store option ids; measure the rendered pill labels instead so
+          // auto-fit doesn't size the column to opaque ids.
+          text = resolveSelectOptions(column, val)
+            .map((o) => o.name)
+            .join(', ')
         } else {
           text = String(val)
         }
@@ -1977,7 +2094,7 @@ export function TableGrid({
     (rowId: string, columnName: string, options?: { toggleBoolean?: boolean }) => {
       const column = columnsRef.current.find((c) => c.key === columnName)
       if (column?.type === 'boolean') {
-        if (!options?.toggleBoolean || !canEditRef.current) return
+        if (!options?.toggleBoolean || !canEditCellRef.current) return
         const row = rowsRef.current.find((r) => r.id === rowId)
         if (row) {
           toggleBooleanCell(rowId, columnName, row.data[columnName])
@@ -1998,13 +2115,33 @@ export function TableGrid({
       const column = columnsRef.current.find((c) => c.key === columnKey)
       if (column?.type === 'boolean') return
 
+      // Double-click means "edit this cell". On an update-locked table, say so
+      // rather than opening the expanded viewer — which looks like an editor
+      // that silently refuses to save. Only for users who could otherwise edit:
+      // without write access the lock isn't why they can't, and they still get
+      // the read-only expanded viewer below.
+      if (canEditRef.current && updateLockedRef.current) {
+        onBlockedActionRef.current('edit-cell')
+        return
+      }
+
       setSelectionFocus(null)
       setIsColumnSelection(false)
 
       // Date/number: use inline editor (calendar picker / numeric input).
-      if ((column?.type === 'date' || column?.type === 'number') && canEditRef.current) {
+      if ((column?.type === 'date' || column?.type === 'number') && canEditCellRef.current) {
         setEditingCell({ rowId, columnName })
         setInitialCharacter(null)
+        return
+      }
+
+      // Select: open the inline option dropdown when editable; never the big
+      // text popover. Read-only cells do nothing (like booleans).
+      if (column?.type === 'select') {
+        if (canEditRef.current) {
+          setEditingCell({ rowId, columnName })
+          setInitialCharacter(null)
+        }
         return
       }
 
@@ -2132,7 +2269,12 @@ export function TableGrid({
         !rowSelectionIsEmpty(rowSelectionRef.current)
       ) {
         if (editingCellRef.current) return
-        if (!canEditRef.current) return
+        if (!canEditCellRef.current) {
+          // Explain the lock rather than no-op, but only for users who
+          // could otherwise edit — for the rest it is a permission limit.
+          if (canEditRef.current) onBlockedActionRef.current('edit-cell')
+          return
+        }
         e.preventDefault()
         const rowSel = rowSelectionRef.current
         void (async () => {
@@ -2171,6 +2313,13 @@ export function TableGrid({
 
       if (e.shiftKey && e.key === 'Enter') {
         if (!canEditRef.current) return
+        // Same manual-add path as the Add row button, so it owes the same
+        // explanation rather than silently doing nothing on a locked table.
+        if (!canManualAddRowRef.current) {
+          e.preventDefault()
+          onBlockedActionRef.current('add-row')
+          return
+        }
         const row = currentRows[anchor.rowIndex]
         if (!row) return
         e.preventDefault()
@@ -2195,6 +2344,13 @@ export function TableGrid({
       if (e.key === 'Enter' || e.key === 'F2') {
         if (!canEditRef.current) return
         e.preventDefault()
+        // The primary keyboard edit path — same lock notice as double-click and
+        // Space, rather than a keypress that silently does nothing.
+        if (updateLockedRef.current) {
+          onBlockedActionRef.current('edit-cell')
+          return
+        }
+        if (!canEditCellRef.current) return
         const col = cols[anchor.colIndex]
         if (!col) return
 
@@ -2213,6 +2369,12 @@ export function TableGrid({
       if (e.key === ' ' && !e.shiftKey) {
         if (!canEditRef.current) return
         e.preventDefault()
+        // Space opens the same row editor as double-click, so it follows the
+        // update lock too — otherwise the form fills in and only 423s on save.
+        if (updateLockedRef.current) {
+          onBlockedActionRef.current('edit-cell')
+          return
+        }
         const row = currentRows[anchor.rowIndex]
         if (row) {
           onOpenRowModalRef.current(row)
@@ -2322,7 +2484,12 @@ export function TableGrid({
 
       if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
         e.preventDefault()
-        if (!canEditRef.current) return
+        if (!canEditCellRef.current) {
+          // Explain the lock rather than no-op, but only for users who
+          // could otherwise edit — for the rest it is a permission limit.
+          if (canEditRef.current) onBlockedActionRef.current('edit-cell')
+          return
+        }
         const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
         if (!sel || sel.startRow === sel.endRow) return
         const sourceRow = currentRows[sel.startRow]
@@ -2356,7 +2523,12 @@ export function TableGrid({
       }
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (!canEditRef.current) return
+        if (!canEditCellRef.current) {
+          // Explain the lock rather than no-op, but only for users who
+          // could otherwise edit — for the rest it is a permission limit.
+          if (canEditRef.current) onBlockedActionRef.current('edit-cell')
+          return
+        }
         e.preventDefault()
         const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
         if (!sel) return
@@ -2417,7 +2589,12 @@ export function TableGrid({
       }
 
       if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        if (!canEditRef.current) return
+        if (!canEditCellRef.current) {
+          // Explain the lock rather than no-op, but only for users who
+          // could otherwise edit — for the rest it is a permission limit.
+          if (canEditRef.current) onBlockedActionRef.current('edit-cell')
+          return
+        }
         const col = cols[anchor.colIndex]
         // Workflow-output cells are editable: the user can override the
         // workflow's value if they want. Booleans toggle on space/click —
@@ -2494,8 +2671,9 @@ export function TableGrid({
         } catch (error) {
           // Rejects if the row load failed or the payload is too large for the
           // clipboard — either way nothing landed, so report a plain failure
-          // rather than implying a size cap was hit.
-          logger.error(`Failed to ${verbLower} rows`, { error })
+          // rather than implying a size cap was hit. Log the message explicitly:
+          // a DOMException (e.g. lost transient activation) serializes to `{}`.
+          logger.error(`Failed to ${verbLower} rows`, { error: getErrorMessage(error) })
           dismissToastRef.current(loadingToastId)
           toast.error(`Failed to ${verbLower} — please try again`)
           return
@@ -2569,7 +2747,7 @@ export function TableGrid({
               ? () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS)
               : async () => ({ rows: rowsRef.current, hasMore: false }),
           selectRow: (row) => rowSelectionIncludes(rowSel, row.id),
-          buildCells: (row) => cols.map((col) => cellToText(row.data[col.key])),
+          buildCells: (row) => cols.map((col) => cellToText(row.data[col.key], col)),
           verb: 'Copied',
           estimatedCount: rowSel.kind === 'some' ? rowSel.ids.size : selectAllTotalRef.current,
         })
@@ -2590,10 +2768,12 @@ export function TableGrid({
           const name = cols[c]?.key
           if (name) colNames.push(name)
         }
+        const colByKey = new Map(cols.map((c) => [c.key, c]))
         writeSelectionToClipboard({
           loadRows: () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS),
           selectRow: () => true,
-          buildCells: (row) => colNames.map((name) => cellToText(row.data[name])),
+          buildCells: (row) =>
+            colNames.map((name) => cellToText(row.data[name], colByKey.get(name))),
           verb: 'Copied',
           estimatedCount: selectAllTotalRef.current,
         })
@@ -2606,7 +2786,7 @@ export function TableGrid({
         for (let c = sel.startCol; c <= sel.endCol; c++) {
           if (c >= cols.length) break
           const row = currentRows[r]
-          cells.push(row ? cellToText(row.data[cols[c].key]) : '')
+          cells.push(row ? cellToText(row.data[cols[c].key], cols[c]) : '')
         }
         lines.push(cells.join('\t'))
       }
@@ -2617,7 +2797,12 @@ export function TableGrid({
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
       if (editingCellRef.current) return
-      if (!canEditRef.current) return
+      if (!canEditCellRef.current) {
+        // Explain the lock rather than no-op, but only for users who
+        // could otherwise edit — for the rest it is a permission limit.
+        if (canEditRef.current) onBlockedActionRef.current('edit-cell')
+        return
+      }
 
       const rowSel = rowSelectionRef.current
       const cols = columnsRef.current
@@ -2631,7 +2816,7 @@ export function TableGrid({
               ? () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS)
               : async () => ({ rows: rowsRef.current, hasMore: false }),
           selectRow: (row) => rowSelectionIncludes(rowSel, row.id),
-          buildCells: (row) => cols.map((col) => cellToText(row.data[col.key])),
+          buildCells: (row) => cols.map((col) => cellToText(row.data[col.key], col)),
           verb: 'Cut',
           estimatedCount: rowSel.kind === 'some' ? rowSel.ids.size : selectAllTotalRef.current,
           afterCopy: (copied) =>
@@ -2657,10 +2842,12 @@ export function TableGrid({
           const name = cols[c]?.key
           if (name) colNames.push(name)
         }
+        const colByKey = new Map(cols.map((c) => [c.key, c]))
         writeSelectionToClipboard({
           loadRows: () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS),
           selectRow: () => true,
-          buildCells: (row) => colNames.map((name) => cellToText(row.data[name])),
+          buildCells: (row) =>
+            colNames.map((name) => cellToText(row.data[name], colByKey.get(name))),
           verb: 'Cut',
           estimatedCount: selectAllTotalRef.current,
           afterCopy: (copied) => clearCutRows(copied, colNames),
@@ -2680,7 +2867,7 @@ export function TableGrid({
         for (let c = sel.startCol; c <= sel.endCol; c++) {
           if (c < cols.length) {
             const colName = cols[c].key
-            cells.push(cellToText(row.data[colName]))
+            cells.push(cellToText(row.data[colName], cols[c]))
             previousData[colName] = row.data[colName] ?? null
             updates[colName] = null
           }
@@ -2756,6 +2943,20 @@ export function TableGrid({
         } else {
           createBatchRows.push(rowData)
         }
+      }
+
+      // A paste can do two different things at once: overwrite existing rows
+      // (an update) and extend past the last row (a full-row insert). Gate each
+      // against its own lock, and refuse the whole paste rather than applying
+      // half of it — so a full-row paste-append still works on an append-only
+      // table, while an overwrite on that same table explains itself.
+      if (updateBatch.length > 0 && !canEditCellRef.current) {
+        onBlockedActionRef.current('edit-cell')
+        return
+      }
+      if (createBatchRows.length > 0 && !canInsertFullRowRef.current) {
+        onBlockedActionRef.current('add-row')
+        return
       }
 
       if (updateBatch.length > 0) {
@@ -2887,7 +3088,8 @@ export function TableGrid({
 
       const oldValue = row.data[columnName] ?? null
       const normalizedValue = value ?? null
-      const changed = oldValue !== normalizedValue
+      const column = columnsRef.current.find((c) => c.key === columnName)
+      const changed = !cellValuesEqual(oldValue, normalizedValue, column)
 
       if (changed) {
         pushUndoRef.current({
@@ -3151,6 +3353,10 @@ export function TableGrid({
           columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
           columnUnique: entry.def?.unique ?? false,
           columnRequired: entry.def?.required ?? false,
+          // Without these a deleted select column can't be re-created — it is
+          // invalid with no options, and the saved cell data is option ids.
+          ...(entry.def?.options ? { columnOptions: entry.def.options } : {}),
+          ...(entry.def?.multiple ? { columnMultiple: true } : {}),
           cellData,
           previousOrder: orderSnapshot,
           previousWidth,
@@ -3309,7 +3515,7 @@ export function TableGrid({
    *  mirroring the action bar's Play/Refresh; deselected rows are excluded. */
   const runSelection = (runMode: RunMode) => {
     if (contextMenuIsSelectAll) {
-      const filter = queryOptions.filter ?? undefined
+      const filter = effectiveFilter ?? undefined
       const excluded =
         rowSelection.kind === 'all' && rowSelection.excluded
           ? [...rowSelection.excluded]
@@ -3332,7 +3538,7 @@ export function TableGrid({
         rowSelection.kind === 'all' && rowSelection.excluded
           ? [...rowSelection.excluded]
           : undefined
-      onStopAllRows(queryOptions.filter ?? undefined, excluded)
+      onStopAllRows(effectiveFilter ?? undefined, excluded)
     } else {
       onStopRows(contextMenuRowIds)
     }
@@ -3460,7 +3666,7 @@ export function TableGrid({
           rowIds: rows.map((r) => r.id),
           allRows: true,
           rowCount: Math.max(0, selectAllTotalRef.current - excluded),
-          filter: queryOptions.filter ?? undefined,
+          filter: effectiveFilter ?? undefined,
           excludeRowIds: rowSelection.excluded ? [...rowSelection.excluded] : undefined,
         }
       }
@@ -3485,7 +3691,14 @@ export function TableGrid({
     }
     if (rowIds.length === 0) return null
     return { groupIds: [...groupIdsInRect], rowIds, allRows: false, rowCount: rowIds.length }
-  }, [rowSelection, normalizedSelection, rows, displayColumns, tableWorkflowGroupIds])
+  }, [
+    rowSelection,
+    normalizedSelection,
+    rows,
+    displayColumns,
+    tableWorkflowGroupIds,
+    effectiveFilter,
+  ])
 
   const selectionStats = useMemo<SelectionSnapshot['selectionStats']>(() => {
     if (!selectedRunScope) {
@@ -3661,19 +3874,40 @@ export function TableGrid({
                                 onSelectGroup={handleGroupSelect}
                                 onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
                                 onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
-                                hasActiveFilter={Boolean(queryOptions.filter)}
+                                hasActiveFilter={Boolean(effectiveFilter)}
                                 selectedRowIds={selectedRowIds}
+                                // Every locked action passes its blocked handler rather
+                                // than `undefined`: `ColumnOptionsMenu` only mounts when
+                                // all three handlers exist, so withholding one would hide
+                                // the whole menu — and each item should explain the lock
+                                // rather than silently vanish or fail with a 423 toast.
                                 onInsertLeft={
-                                  userPermissions.canEdit ? handleInsertColumnLeft : undefined
+                                  !userPermissions.canEdit
+                                    ? undefined
+                                    : canMutateSchema
+                                      ? handleInsertColumnLeft
+                                      : handleBlockedAddColumn
                                 }
                                 onInsertRight={
-                                  userPermissions.canEdit ? handleInsertColumnRight : undefined
+                                  !userPermissions.canEdit
+                                    ? undefined
+                                    : canMutateSchema
+                                      ? handleInsertColumnRight
+                                      : handleBlockedAddColumn
                                 }
                                 onDeleteColumn={
-                                  userPermissions.canEdit ? handleDeleteColumn : undefined
+                                  !userPermissions.canEdit
+                                    ? undefined
+                                    : canDestroyColumn
+                                      ? handleDeleteColumn
+                                      : handleBlockedDeleteColumn
                                 }
                                 onDeleteGroup={
-                                  userPermissions.canEdit ? handleDeleteWorkflowGroup : undefined
+                                  !userPermissions.canEdit
+                                    ? undefined
+                                    : canDestroyColumn
+                                      ? handleDeleteWorkflowGroup
+                                      : handleBlockedDeleteColumn
                                 }
                                 onViewWorkflow={
                                   workflowGroupById.get(g.groupId)?.type === 'enrichment'
@@ -3736,6 +3970,11 @@ export function TableGrid({
                             key={column.key}
                             column={column}
                             colIndex={idx}
+                            // Permission-only: `readOnly` swaps the whole header for a
+                            // static label, which would also kill pin, column-select and
+                            // open-config — all metadata, not schema. The schema lock is
+                            // enforced per-action instead (insert/delete below), and a
+                            // rename attempt surfaces the server's 423 as a toast.
                             readOnly={!userPermissions.canEdit}
                             isRenaming={columnRename.editingId === column.key}
                             isColumnSelected={
@@ -3751,9 +3990,17 @@ export function TableGrid({
                             onRenameSubmit={columnRename.submitRename}
                             onRenameCancel={columnRename.cancelRename}
                             onColumnSelect={handleColumnSelect}
-                            onInsertLeft={handleInsertColumnLeft}
-                            onInsertRight={handleInsertColumnRight}
-                            onDeleteColumn={handleDeleteColumn}
+                            // Required props here, and the menu is already
+                            // suppressed for non-editors by `readOnly`.
+                            onInsertLeft={
+                              canMutateSchema ? handleInsertColumnLeft : handleBlockedAddColumn
+                            }
+                            onInsertRight={
+                              canMutateSchema ? handleInsertColumnRight : handleBlockedAddColumn
+                            }
+                            onDeleteColumn={
+                              canDestroyColumn ? handleDeleteColumn : handleBlockedDeleteColumn
+                            }
                             onResizeStart={handleColumnResizeStart}
                             onResize={handleColumnResize}
                             onResizeEnd={handleColumnResizeEnd}
@@ -3778,6 +4025,8 @@ export function TableGrid({
                         <NewColumnDropdown
                           trigger='inline-header'
                           disabled={addColumnMutation.isPending}
+                          blocked={!canMutateSchema}
+                          onBlocked={() => onBlockedAction('add-column')}
                           onPickType={handleAddColumnOfType}
                           onPickWorkflow={handleAddWorkflowColumn}
                           onPickEnrichment={onOpenEnrichments}
@@ -3908,7 +4157,7 @@ export function TableGrid({
             )}
           </div>
           {!isLoadingTable && !isLoadingRows && userPermissions.canEdit && (
-            <AddRowButton onClick={handleAppendRow} />
+            <AddRowButton onClick={handleAddRowClick} />
           )}
         </div>
       </div>
@@ -3944,9 +4193,10 @@ export function TableGrid({
         runningInSelectionCount={runningInContextSelection}
         hasWorkflowColumns={hasWorkflowColumns}
         workflowCellScoped={Boolean(contextMenuGroupId)}
-        disableEdit={!userPermissions.canEdit}
-        disableInsert={!userPermissions.canEdit}
-        disableDelete={!userPermissions.canEdit}
+        disableEdit={!canEditCell}
+        disableInsert={!canManualAddRow}
+        disableDuplicate={!canInsertFullRow}
+        disableDelete={!canDeleteRow}
       />
 
       <ExpandedCellPopover
@@ -3955,7 +4205,7 @@ export function TableGrid({
         rows={rows}
         columns={displayColumns}
         onSave={handleInlineSave}
-        canEdit={userPermissions.canEdit}
+        canEdit={canEditCell}
         scrollContainer={scrollRef.current}
       />
     </div>

@@ -27,6 +27,8 @@ export type ApiEndpoint =
   | 'workflow-detail'
   | 'workflow-deploy'
   | 'workflow-rollback'
+  | 'workflow-export'
+  | 'workflow-import'
   | 'audit-logs'
   | 'tables'
   | 'table-detail'

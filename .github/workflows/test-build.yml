@@ -60,7 +60,7 @@ jobs:
           path: ./.turbo
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
 
       # Surfaces known CVEs in the dependency tree. Non-blocking until the
       # existing advisory backlog is triaged, then flip to a required gate by
@@ -278,7 +278,7 @@ jobs:
           fi
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Build application
         env:
