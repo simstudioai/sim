@@ -8,6 +8,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { PinButton } from '@/components/pin-button'
 import type { TableDefinition } from '@/lib/table'
 import { CSV_ASYNC_IMPORT_THRESHOLD_BYTES, generateUniqueTableName } from '@/lib/table/constants'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -33,6 +34,7 @@ import {
   tablesUrlKeys,
 } from '@/app/workspace/[workspaceId]/tables/search-params'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { usePinnedIds } from '@/hooks/queries/pinned-items'
 import {
   cancelTableJob,
   downloadTableExport,
@@ -78,6 +80,7 @@ export function Tables() {
 
   const { data: tables = [], error } = useTablesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
+  const pinnedTableIds = usePinnedIds(workspaceId, 'table')
 
   if (error) {
     logger.error('Failed to load tables:', error)
@@ -160,6 +163,12 @@ export function Tables() {
       result = result.filter((t) => ownerFilter.includes(t.createdBy))
     }
     return [...result].sort((a, b) => {
+      // Pinned tables float to the top of every sort/direction — pinning is a
+      // user-declared priority, not another sort key to be inverted by `desc`.
+      const aPinned = pinnedTableIds.has(a.id)
+      const bPinned = pinnedTableIds.has(b.id)
+      if (aPinned !== bPinned) return aPinned ? -1 : 1
+
       let cmp = 0
       switch (sortColumn) {
         case 'name':
@@ -186,7 +195,16 @@ export function Tables() {
       }
       return sortDirection === 'asc' ? cmp : -cmp
     })
-  }, [tables, debouncedSearchTerm, rowCountFilter, ownerFilter, sortColumn, sortDirection, members])
+  }, [
+    tables,
+    debouncedSearchTerm,
+    rowCountFilter,
+    ownerFilter,
+    sortColumn,
+    sortDirection,
+    members,
+    pinnedTableIds,
+  ])
 
   const rows: ResourceRow[] = useMemo(
     () =>
@@ -196,6 +214,15 @@ export function Tables() {
           name: {
             icon: <TableIcon className='size-[14px]' />,
             label: table.name,
+            endAdornment: (
+              <PinButton
+                workspaceId={workspaceId}
+                resourceType='table'
+                resourceId={table.id}
+                pinned={pinnedTableIds.has(table.id)}
+                className='ml-2'
+              />
+            ),
             editing:
               tableRename.editingId === table.id
                 ? {
@@ -222,6 +249,8 @@ export function Tables() {
     [
       processedTables,
       members,
+      workspaceId,
+      pinnedTableIds,
       tableRename.editingId,
       tableRename.editValue,
       tableRename.setEditValue,
