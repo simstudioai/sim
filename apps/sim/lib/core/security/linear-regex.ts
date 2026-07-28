@@ -250,11 +250,14 @@ function parseSplitShape(pattern: string): SplitShape | null {
  * lookahead text doubles as the next boundary's lookbehind would be swallowed
  * (`(?<=\w)\s+(?=[A-Z])` over `A B C D` would split only half the gaps).
  *
- * Known divergence: when delimiters themselves overlap — a single-character
- * middle whose matches abut, as in `(?<=\w).(?=\w)` — a match starting behind
- * the cursor is dropped instead of emitting the empty segment the built-in
- * engine would. Splitters that consume whitespace or punctuation between
- * tokens do not overlap and are unaffected.
+ * Known divergence: a delimiter that self-overlaps — `(?<=aa)` over `aaaaa`,
+ * or a single-character middle whose matches abut as in `(?<=\w).(?=\w)` —
+ * yields fewer boundaries than the built-in engine. Matching every position
+ * would mean restarting the scan one character past each match start, which is
+ * quadratic on a multi-megabyte document and forfeits the linear guarantee
+ * this module exists for. Delimiters that do not self-overlap — punctuation,
+ * tags, whitespace between tokens — are exact, and
+ * `linear-regex.differential.test.ts` pins that.
  */
 export function compileLookaroundSplit(
   pattern: string,
