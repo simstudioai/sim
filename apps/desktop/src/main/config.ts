@@ -1,7 +1,10 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { readFileSync } from 'node:fs'
 import { createLogger } from '@sim/logger'
 import { isLoopbackHostname } from '@sim/security/ssrf'
+import { writeJsonFileAtomicallySync } from '@/main/atomic-json-file'
+
+/** settings.json is meant to be readable when a user opens it. */
+const SETTINGS_INDENT = 2
 
 const logger = createLogger('DesktopConfig')
 
@@ -187,6 +190,25 @@ export interface ConfigStore {
   setOrigin(origin: string): OriginValidation
   get<K extends keyof DesktopSettings>(key: K): DesktopSettings[K]
   set<K extends keyof DesktopSettings>(key: K, value: DesktopSettings[K]): void
+  /** Writes any debounced change immediately. Called on quit. */
+  flush(): void
+}
+
+/**
+ * How long settings changes coalesce before hitting disk. Long enough to
+ * absorb a burst (a resize drag, a run of navigations), short enough that a
+ * crash loses nothing a user would notice.
+ */
+const SAVE_DEBOUNCE_MS = 400
+
+/**
+ * Whether a settings write is a no-op. Identity first, then structurally,
+ * because the array- and object-valued settings are rebuilt
+ * on every write and would never be reference-equal.
+ */
+function isSameSetting(current: unknown, next: unknown): boolean {
+  if (current === next) return true
+  return JSON.stringify(current) === JSON.stringify(next)
 }
 
 /**
@@ -214,15 +236,32 @@ export function createConfigStore(
     logger.warn('Ignoring invalid SIM_DESKTOP_ORIGIN override', { value: env.SIM_DESKTOP_ORIGIN })
   }
 
-  const save = () => {
+  let saveTimer: ReturnType<typeof setTimeout> | null = null
+
+  /** Writes the whole file now and cancels any pending debounced write. */
+  const writeNow = () => {
+    if (saveTimer) clearTimeout(saveTimer)
+    saveTimer = null
     try {
-      mkdirSync(dirname(filePath), { recursive: true })
-      const tempPath = `${filePath}.tmp`
-      writeFileSync(tempPath, JSON.stringify(settings, null, 2), { mode: 0o600 })
-      renameSync(tempPath, filePath)
+      writeJsonFileAtomicallySync(filePath, settings, SETTINGS_INDENT)
     } catch (error) {
       logger.error('Failed to persist desktop settings', { error })
     }
+  }
+
+  /**
+   * Coalesces writes. `save` is a synchronous mkdir + write + rename of the
+   * whole settings file on the main thread, and the callers are not rare: the
+   * known-sites list is rewritten on browser navigation and sign-in, pinned
+   * tabs on every pin change, window bounds on every resize step. Debouncing
+   * here rather than per-caller is what makes that safe by default — two
+   * callers had already hand-rolled their own timers, and the ones that had
+   * not were paying a full fsync per event.
+   */
+  const save = () => {
+    if (saveTimer) return
+    saveTimer = setTimeout(writeNow, SAVE_DEBOUNCE_MS)
+    saveTimer.unref?.()
   }
 
   return {
@@ -237,7 +276,10 @@ export function createConfigStore(
       const validated = validateOriginInput(raw)
       if (validated.ok) {
         settings.origin = validated.origin
-        save()
+        // Not debounced: changing the origin tears the session down and
+        // reloads, so a pending write could be lost on the way out — and this
+        // is the one setting whose loss strands the app on the wrong server.
+        writeNow()
       }
       return validated
     },
@@ -245,11 +287,19 @@ export function createConfigStore(
       return settings[key]
     },
     set(key, value) {
-      if (settings[key] === value) {
+      // Structural, not `===`. Reference equality can never hold for the array
+      // values this store carries (known sites, pinned tabs, window bounds are
+      // all freshly built), so the guard was dead for exactly the keys written
+      // most often — every one of them fell through to a write.
+      if (isSameSetting(settings[key], value)) {
         return
       }
       settings[key] = value
       save()
+    },
+    flush() {
+      if (!saveTimer) return
+      writeNow()
     },
   }
 }

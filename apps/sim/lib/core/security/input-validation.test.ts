@@ -1097,6 +1097,20 @@ describe('validateExternalUrl', () => {
       expect(result.isValid).toBe(true)
     })
 
+    /**
+     * The whole 127.0.0.0/8 range is the same machine. Matching only the
+     * 127.0.0.1 literal made this validator disagree with MCP's domain-check,
+     * which has always used the shared range helper — so the same self-hosted
+     * address was localhost to one caller and a plain http URL to the other.
+     */
+    it.concurrent('should treat the rest of the loopback range as localhost too', () => {
+      expect(validateExternalUrl('http://127.0.0.2/api').isValid).toBe(true)
+      expect(validateExternalUrl('http://127.1.2.3/api').isValid).toBe(true)
+      // Still only loopback — neighbouring private ranges stay rejected.
+      expect(validateExternalUrl('http://10.0.0.1/api').isValid).toBe(false)
+      expect(validateExternalUrl('http://192.168.1.1/api').isValid).toBe(false)
+    })
+
     it.concurrent('should accept https IPv6 loopback', () => {
       const result = validateExternalUrl('https://[::1]/api')
       expect(result.isValid).toBe(true)

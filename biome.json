@@ -27,6 +27,7 @@
       "!**/public/worker-*.js",
       "!**/public/fallback-*.js",
       "!**/apps/docs/.source",
+      "!**/apps/desktop/release",
       "!**/venv",
       "!**/.venv",
       "!**/uploads",

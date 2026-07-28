@@ -82,6 +82,9 @@ describe('createConfigStore', () => {
     expect(store.getOrigin()).toBe(DEFAULT_ORIGIN)
     store.set('zoomLevel', 1.5)
     store.set('lastRoute', '/workspace/ws1')
+    // Writes coalesce; quitting flushes them. Without this the file on disk is
+    // still empty, which is the point of the debounce.
+    store.flush()
 
     const reloaded = createConfigStore(filePath, {})
     expect(reloaded.get('zoomLevel')).toBe(1.5)
@@ -119,7 +122,41 @@ describe('createConfigStore', () => {
     const store = createConfigStore(filePath, { SIM_DESKTOP_ORIGIN: 'http://127.0.0.1:4600' })
     expect(store.getOrigin()).toBe('http://127.0.0.1:4600')
     store.set('zoomLevel', 1)
+    store.flush()
     expect(JSON.parse(readFileSync(filePath, 'utf8')).origin).toBe(DEFAULT_ORIGIN)
+  })
+
+  it('coalesces repeated writes and skips ones that change nothing', () => {
+    const filePath = tempSettingsPath()
+    const store = createConfigStore(filePath, {})
+
+    // Reference equality can never hold for an array value, so this guard used
+    // to be dead for exactly the settings written most often — every browser
+    // navigation fell through to a synchronous whole-file write.
+    store.set('browserPinnedTabUrls', ['https://a.example/'])
+    store.flush()
+    const afterFirst = readFileSync(filePath, 'utf8')
+
+    store.set('browserPinnedTabUrls', ['https://a.example/'])
+    store.flush()
+    expect(readFileSync(filePath, 'utf8')).toBe(afterFirst)
+
+    store.set('browserPinnedTabUrls', ['https://b.example/'])
+    store.flush()
+    expect(JSON.parse(readFileSync(filePath, 'utf8')).browserPinnedTabUrls).toEqual([
+      'https://b.example/',
+    ])
+  })
+
+  it('writes a new origin immediately rather than debouncing it', () => {
+    // Changing the origin tears down and reloads, so a pending write could be
+    // lost on the way out — and losing it strands the app on the old server.
+    const filePath = tempSettingsPath()
+    const store = createConfigStore(filePath, {})
+
+    store.setOrigin('https://sim.example.com')
+
+    expect(JSON.parse(readFileSync(filePath, 'utf8')).origin).toBe('https://sim.example.com')
   })
 
   it('ignores an invalid SIM_DESKTOP_ORIGIN override', () => {

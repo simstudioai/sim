@@ -6,6 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 import type { LocalFilesystemMount, LocalFilesystemResponse } from '@sim/desktop-bridge'
+import {
+  DEFAULT_GREP_CONTEXT,
+  DEFAULT_GREP_RESULTS,
+  DEFAULT_READ_LINES,
+} from '@sim/desktop-bridge/local-filesystem-limits'
 import { shell } from 'electron'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import type {
@@ -229,6 +234,47 @@ describe('LocalFilesystemService', () => {
     ).resolves.toMatchObject({ ok: false, code: 'INVALID_REQUEST' })
   })
 
+  it('authorizes a request whose omitted args resolved to the shared defaults', async () => {
+    // The failure mode this guards is silent: with an arg omitted there is no
+    // value on the wire to disagree about, only two defaulting tables — the
+    // renderer's, resolving what to send, and the authorizer's, resolving what
+    // to expect. If they drift, a legitimate tool call is DENIED rather than
+    // erroring. Both now read these from @sim/desktop-bridge; this pins the
+    // authorizer half to them.
+    const granted = await mount(service)
+    const vfsRoot = `user-local/${encodeURIComponent(granted.name)}--${granted.id}`
+
+    expect(
+      service.isAuthorizedClientToolRequest(
+        {
+          operation: 'read',
+          uri: `${granted.uri}README.md`,
+          startLine: 1,
+          lineCount: DEFAULT_READ_LINES,
+          requestId: 'read-defaults',
+        },
+        { toolName: 'read', args: { path: `${vfsRoot}/README.md` } }
+      )
+    ).toBe(true)
+
+    expect(
+      service.isAuthorizedClientToolRequest(
+        {
+          operation: 'grep',
+          uri: granted.uri,
+          pattern: 'TODO',
+          caseSensitive: true,
+          outputMode: 'content',
+          lineNumbers: true,
+          context: DEFAULT_GREP_CONTEXT,
+          maxResults: DEFAULT_GREP_RESULTS,
+          requestId: 'grep-defaults',
+        },
+        { toolName: 'grep', args: { path: 'user-local', pattern: 'TODO' } }
+      )
+    ).toBe(true)
+  })
+
   it('binds privileged client reads and searches to server-persisted tool args', async () => {
     const granted = await mount(service)
     const vfsRoot = `user-local/${encodeURIComponent(granted.name)}--${granted.id}`
@@ -385,6 +431,21 @@ describe('LocalFilesystemService', () => {
     })
 
     expect(traversal).toMatchObject({ ok: false, code: 'ACCESS_DENIED' })
+  })
+
+  it('reads a child whose name merely starts with dots', async () => {
+    // The containment check compares path SEGMENTS. Testing the two leading
+    // characters instead denies real files: `..config` is an ordinary name,
+    // not a walk out of the root.
+    await writeFile(join(root, '..config'), 'kept\n')
+    const granted = await mount(service)
+
+    const response = await service.handle({
+      operation: 'read',
+      uri: `${granted.uri}..config`,
+    })
+
+    expect(response.ok).toBe(true)
   })
 
   it('clears all grants without touching files on disk', async () => {

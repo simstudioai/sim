@@ -1,3 +1,7 @@
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { MAX_TERMINALS } from '@sim/terminal-protocol'
 import { describe, expect, it, vi } from 'vitest'
 import { TerminalService } from '@/main/terminal'
 
@@ -58,6 +62,8 @@ vi.mock('@/main/terminal/session', async () => {
             return state.busy
           },
           hasShellIntegration: true,
+          /** Real sessions poll the pty here; a stub's cwd only ever changes on open. */
+          refreshCwd: async () => {},
           dispose: () => {
             state.disposed = true
           },
@@ -121,7 +127,56 @@ describe('closing terminals', () => {
 
     expect(() => terminal.closeTerminal('no-such-terminal')).toThrow()
   })
+
+  it('persists the active terminal cwd on dispose', () => {
+    // The saved cwd is what the next launch reopens into. It is otherwise only
+    // written when a session REPORTS a cwd change, and switching tabs is not
+    // one — so without an explicit save at teardown, quitting after a switch
+    // reopens in the directory of whichever tab last moved.
+    // Real directories: a remembered cwd that no longer exists falls back to
+    // home, which would make this assert nothing.
+    const projectA = mkdtempSync(join(tmpdir(), 'sim-term-a-'))
+    const projectB = mkdtempSync(join(tmpdir(), 'sim-term-b-'))
+    const saveCwd = vi.fn()
+    const terminal = new TerminalService({ loadCwd: () => projectA, saveCwd })
+    terminal.start({ cols: 80, rows: 24 })
+    const first = terminal.getTabs().activeTerminalId as string
+    terminal.openTerminal(projectB)
+    terminal.switchTerminal(first)
+    saveCwd.mockClear()
+
+    terminal.dispose()
+
+    expect(saveCwd).toHaveBeenCalledWith(projectA)
+  })
 })
+
+type OwnerWindow = Parameters<TerminalService['closeFocusedTerminal']>[0]
+
+/**
+ * A stand-in for one app window and the renderer inside it.
+ *
+ * Focus claims are bound to the renderer that made them, and every accelerator
+ * arrives from a window, so the pair travels together — `contents` makes the
+ * claim, `window` is what a Cmd-W from that window looks like. Two stubs model
+ * two windows, which is what the cross-window cases need.
+ */
+function rendererStub() {
+  const listeners = new Map<string, (...args: unknown[]) => void>()
+  const contents = {
+    isDestroyed: () => false,
+    once: (event: string, fn: (...args: unknown[]) => void) => listeners.set(event, fn),
+    on: (event: string, fn: (...args: unknown[]) => void) => listeners.set(event, fn),
+    removeListener: (event: string) => listeners.delete(event),
+  } as unknown as Parameters<TerminalService['setPanelFocused']>[1]
+  return {
+    contents,
+    /** The window hosting this renderer, for the accelerator-side calls. */
+    window: { webContents: contents } as unknown as OwnerWindow,
+    /** Fire a main-process lifecycle event the renderer would not survive. */
+    emit: (event: string, ...args: unknown[]) => listeners.get(event)?.(...args),
+  }
+}
 
 describe('focus-gated shortcuts', () => {
   it('ignores close and reopen while the panel is not focused', () => {
@@ -129,32 +184,35 @@ describe('focus-gated shortcuts', () => {
     // when the user is working somewhere else entirely.
     const terminal = service()
     terminal.start({ cols: 80, rows: 24 })
+    const renderer = rendererStub()
 
-    expect(terminal.closeFocusedTerminal()).toBe(false)
-    expect(terminal.reopenClosedTerminal()).toBe(false)
+    expect(terminal.closeFocusedTerminal(renderer.window)).toBe(false)
+    expect(terminal.reopenClosedTerminal(renderer.window)).toBe(false)
   })
 
   it('closes the active terminal once the panel has focus', () => {
     const terminal = service()
     terminal.start({ cols: 80, rows: 24 })
     terminal.openTerminal()
-    terminal.setPanelFocused(true)
+    const renderer = rendererStub()
+    terminal.setPanelFocused(true, renderer.contents)
 
-    expect(terminal.closeFocusedTerminal()).toBe(true)
+    expect(terminal.closeFocusedTerminal(renderer.window)).toBe(true)
     expect(terminal.getTabs().tabs).toHaveLength(1)
   })
 
   it('reopens a closed terminal, and has nothing to reopen before one closes', () => {
     const terminal = service()
     terminal.start({ cols: 80, rows: 24 })
-    terminal.setPanelFocused(true)
+    const renderer = rendererStub()
+    terminal.setPanelFocused(true, renderer.contents)
 
-    expect(terminal.reopenClosedTerminal()).toBe(false)
+    expect(terminal.reopenClosedTerminal(renderer.window)).toBe(false)
 
     const second = terminal.openTerminal()
     terminal.closeTerminal(second.activeTerminalId as string)
 
-    expect(terminal.reopenClosedTerminal()).toBe(true)
+    expect(terminal.reopenClosedTerminal(renderer.window)).toBe(true)
     expect(terminal.getTabs().tabs).toHaveLength(2)
   })
 
@@ -163,12 +221,122 @@ describe('focus-gated shortcuts', () => {
     // it would just add a duplicate of the shell already on screen.
     const terminal = service()
     const started = terminal.start({ cols: 80, rows: 24 })
-    terminal.setPanelFocused(true)
+    const renderer = rendererStub()
+    terminal.setPanelFocused(true, renderer.contents)
 
     terminal.closeTerminal(started.activeTerminalId as string)
 
-    expect(terminal.reopenClosedTerminal()).toBe(false)
+    expect(terminal.reopenClosedTerminal(renderer.window)).toBe(false)
     expect(terminal.getTabs().tabs).toHaveLength(1)
+  })
+
+  it('drops the focus claim when the renderer that made it reloads', () => {
+    // A reload never runs the renderer's cleanup, so nothing sends focus:false.
+    // The claim used to latch true forever, and the next Cmd-W destroyed a
+    // shell the user could no longer see.
+    const terminal = service()
+    terminal.start({ cols: 80, rows: 24 })
+    terminal.openTerminal()
+    const renderer = rendererStub()
+    terminal.setPanelFocused(true, renderer.contents)
+
+    renderer.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false })
+
+    expect(terminal.closeFocusedTerminal(renderer.window)).toBe(false)
+    expect(terminal.getTabs().tabs).toHaveLength(2)
+  })
+
+  it('keeps the claim across a same-document route change', () => {
+    const terminal = service()
+    terminal.start({ cols: 80, rows: 24 })
+    terminal.openTerminal()
+    const renderer = rendererStub()
+    terminal.setPanelFocused(true, renderer.contents)
+
+    renderer.emit('did-start-navigation', { isMainFrame: true, isSameDocument: true })
+
+    expect(terminal.closeFocusedTerminal(renderer.window)).toBe(true)
+  })
+
+  it('answers only the window whose renderer holds the claim', () => {
+    const terminal = service()
+    terminal.start({ cols: 80, rows: 24 })
+    terminal.openTerminal()
+    const renderer = rendererStub()
+    terminal.setPanelFocused(true, renderer.contents)
+
+    expect(terminal.closeFocusedTerminal(rendererStub().window)).toBe(false)
+    // And null — no window at all cannot be the window a claim answers for.
+    expect(terminal.closeFocusedTerminal(null)).toBe(false)
+
+    expect(terminal.closeFocusedTerminal(renderer.window)).toBe(true)
+  })
+
+  it('does not consume the reopen history when already at the terminal cap', () => {
+    const terminal = service()
+    terminal.start({ cols: 80, rows: 24 })
+    const renderer = rendererStub()
+    terminal.setPanelFocused(true, renderer.contents)
+
+    const closed = terminal.openTerminal('/alpha')
+    terminal.closeTerminal(closed.activeTerminalId as string)
+    while (terminal.getTabs().tabs.length < MAX_TERMINALS) terminal.openTerminal()
+
+    // Refused, and without opening anything.
+    expect(terminal.reopenClosedTerminal(renderer.window)).toBe(false)
+    expect(terminal.getTabs().tabs).toHaveLength(MAX_TERMINALS)
+
+    // NOTE: that the '/alpha' entry SURVIVES the refusal is the actual point of
+    // the guard, and it is not observable from out here — every close prepends
+    // one history entry and frees exactly one slot, so a reopen can never walk
+    // back past the entries created by the closes that made room for it. The
+    // ordering in reopenClosedTerminal (check the cap, then shift) is what
+    // carries it; this test only pins the refusal itself.
+    terminal.closeTerminal(terminal.getTabs().activeTerminalId as string)
+    expect(terminal.reopenClosedTerminal(renderer.window)).toBe(true)
+  })
+
+  it('ignores a blur reported by a renderer that does not hold the claim', () => {
+    // Every renderer reports its own blur, so a second window switching away
+    // from its terminal sends `false` from a WebContents that never claimed.
+    // Honouring that erased the live claim of the window the user was typing
+    // in, and their next Cmd-W closed that window with its shells running.
+    const terminal = service()
+    terminal.start({ cols: 80, rows: 24 })
+    terminal.openTerminal()
+    const holder = rendererStub()
+    const other = rendererStub()
+    terminal.setPanelFocused(true, holder.contents)
+
+    terminal.setPanelFocused(false, other.contents)
+
+    expect(terminal.closeFocusedTerminal(holder.window)).toBe(true)
+  })
+
+  it('honours a blur from the renderer that does hold the claim', () => {
+    const terminal = service()
+    terminal.start({ cols: 80, rows: 24 })
+    terminal.openTerminal()
+    const holder = rendererStub()
+    terminal.setPanelFocused(true, holder.contents)
+
+    terminal.setPanelFocused(false, holder.contents)
+
+    expect(terminal.closeFocusedTerminal(holder.window)).toBe(false)
+  })
+
+  it('drops the focus claim when the whole service is disposed', () => {
+    const terminal = service()
+    terminal.start({ cols: 80, rows: 24 })
+    const renderer = rendererStub()
+    terminal.setPanelFocused(true, renderer.contents)
+
+    terminal.dispose()
+    // A fresh shell after teardown, so this asserts the CLAIM was dropped
+    // rather than passing on the "no active terminal" arm.
+    terminal.start({ cols: 80, rows: 24 })
+
+    expect(terminal.closeFocusedTerminal(renderer.window)).toBe(false)
   })
 })
 

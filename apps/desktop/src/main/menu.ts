@@ -21,8 +21,8 @@ export interface MenuDeps {
    * Cmd-Shift-T reach here whatever the user is looking at; each panel gets
    * asked whether the keystroke was meant for it before the window acts.
    */
-  closeFocusedTerminal: () => boolean
-  reopenClosedTerminal: () => boolean
+  closeFocusedTerminal: (win: BrowserWindow | null) => boolean
+  reopenClosedTerminal: (win: BrowserWindow | null) => boolean
   toggleSidebar: () => void
   signOut: () => void
   checkForUpdates: () => void
@@ -108,9 +108,9 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
           label: 'Reopen Closed Tab',
           accelerator: 'CmdOrCtrl+Shift+T',
           click: (_item, focusedWindow) => {
-            if (deps.reopenClosedTerminal()) return
             const win =
               focusedWindow instanceof BrowserWindow ? focusedWindow : deps.getMainWindow()
+            if (deps.reopenClosedTerminal(win)) return
             deps.reopenClosedBrowserTab(win)
           },
         },
@@ -118,9 +118,11 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
           label: 'Close Window',
           accelerator: 'CmdOrCtrl+W',
           click: (_item, focusedWindow) => {
-            if (deps.closeFocusedTerminal()) return
             const win =
               focusedWindow instanceof BrowserWindow ? focusedWindow : deps.getMainWindow()
+            // Both panels are asked window-scoped, so a claim made in one window
+            // cannot answer an accelerator fired in another.
+            if (deps.closeFocusedTerminal(win)) return
             if (deps.closeFocusedBrowserTab(win)) return
             if (win && !win.isDestroyed()) win.close()
           },

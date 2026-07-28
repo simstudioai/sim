@@ -141,11 +141,37 @@ let browserTheme: BrowserTheme = 'system'
 /** Prevent hidden-page throttling only while an agent action needs the page to make progress. */
 let automationActive = false
 
+/**
+ * Returns the module to the state it had before any session ran.
+ *
+ * {@link initSession} names itself as the session boundary but set three of
+ * these fields and left the rest, so a second call would inherit the first
+ * session's tab id counter, theme, pinned-restore latch and persisted-list
+ * digest — the last of which would then suppress the new session's first save
+ * as an unchanged write. Nothing re-inits in production today, which is
+ * exactly why the gap stayed invisible, and why the tests had to reset the
+ * whole MODULE (`vi.resetModules()`, which the root CLAUDE.md forbids) just to
+ * get a clean one.
+ */
+function resetSessionState(): void {
+  // Tears down live views and clears tabs, the reopen list, the active tab,
+  // the find, and the focused-tab timer. Notifies the OUTGOING handlers, which
+  // is why it runs before the new ones are installed.
+  closeLiveTabs()
+  nextTabId = 1
+  pinnedTabsRestored = false
+  lastPersistedPinnedTabs = null
+  pinnedTabPersistence = null
+  browserTheme = 'system'
+  automationActive = false
+}
+
 export function initSession(
   handlers: AgentSessionEvents,
   mainWindowProvider: () => BrowserWindow | null,
   persistence?: PinnedTabPersistence
 ): void {
+  resetSessionState()
   events = handlers
   getMainWindow = mainWindowProvider
   if (persistence) {
@@ -815,6 +841,10 @@ export function reorderTab(tabId: string, targetIndex: number): AgentTab {
 function forgetTab(tab: AgentTab): void {
   const index = tabs.indexOf(tab)
   if (index < 0) return
+  // Before the splice, while the tab is still resolvable: a find left running
+  // on a tab that is going away keeps `findingTabId` naming a dead tab and
+  // leaves the bar open counting matches on a page nobody can see.
+  dismissFind(tab.id)
   tabs.splice(index, 1)
   const transferBrowserFocus = focusedBrowserTabId === tab.id
   clearFocusedBrowserTab(tab.id)
@@ -847,6 +877,8 @@ export function closeTab(tabId: string): void {
   if (tabs[index].pinned) {
     throw new SessionError('Pinned tabs cannot be closed. Unpin the tab first.')
   }
+  // Before the splice, while the tab is still resolvable — see forgetTab.
+  dismissFind(tabId)
   const [tab] = tabs.splice(index, 1)
   recentlyClosedTabUrls.unshift(
     sanitizeRestorableUrl(tab.view.webContents.getURL()) ?? 'about:blank'
@@ -977,6 +1009,7 @@ function closeTabFromUser(tabId: string): void {
 /** Destroys every live view and forgets which one was active. */
 function closeLiveTabs(): void {
   detachAttachedView()
+  dismissFind(findingTabId)
   for (const tab of tabs.splice(0)) {
     if (!tab.view.webContents.isDestroyed()) {
       tab.view.webContents.close()

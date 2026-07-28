@@ -4,6 +4,14 @@ import type {
   LocalFilesystemRequest,
   LocalFilesystemResponse,
 } from '@sim/desktop-bridge'
+import {
+  DEFAULT_GREP_CONTEXT,
+  DEFAULT_GREP_RESULTS,
+  DEFAULT_READ_LINES,
+  MAX_GREP_CONTEXT,
+  MAX_GREP_RESULTS,
+  MAX_READ_LINES,
+} from '@sim/desktop-bridge/local-filesystem-limits'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import micromatch from 'micromatch'
@@ -14,8 +22,12 @@ import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import { getDesktopBridge } from '@/lib/desktop'
 
 const logger = createLogger('CopilotLocalFilesystemTool')
+/**
+ * This glob runs entirely in the renderer against already-listed mounts, so
+ * unlike the grep and read limits it is nobody else's business — the shell
+ * never authorizes against it. Deliberately local.
+ */
 const MAX_USER_LOCAL_GLOB_RESULTS = 500
-const MAX_USER_LOCAL_GREP_RESULTS = 200
 
 const VFS_GLOB_OPTIONS: micromatch.Options = {
   bash: false,
@@ -211,7 +223,10 @@ async function executeUserLocalRead(
   const mount = mountForPath(mounts, path)
   const offset = Math.max(0, Math.trunc(optionalNumber(args.offset) ?? 0))
   const requestedLimit = optionalNumber(args.limit)
-  const lineCount = Math.min(2000, Math.max(1, Math.trunc(requestedLimit ?? 2000)))
+  const lineCount = Math.min(
+    MAX_READ_LINES,
+    Math.max(1, Math.trunc(requestedLimit ?? DEFAULT_READ_LINES))
+  )
   const data = await invokeBridge(
     {
       operation: 'read',
@@ -240,8 +255,8 @@ async function executeUserLocalGrep(
       ? args.output_mode
       : 'content'
   const maxResults = Math.min(
-    MAX_USER_LOCAL_GREP_RESULTS,
-    Math.max(1, Math.trunc(optionalNumber(args.maxResults) ?? 50))
+    MAX_GREP_RESULTS,
+    Math.max(1, Math.trunc(optionalNumber(args.maxResults) ?? DEFAULT_GREP_RESULTS))
   )
   const mounts = await listMounts()
   const targets =
@@ -272,7 +287,10 @@ async function executeUserLocalGrep(
         maxResults,
         outputMode,
         lineNumbers: args.lineNumbers !== false,
-        context: Math.min(20, Math.max(0, Math.trunc(optionalNumber(args.context) ?? 0))),
+        context: Math.min(
+          MAX_GREP_CONTEXT,
+          Math.max(0, Math.trunc(optionalNumber(args.context) ?? DEFAULT_GREP_CONTEXT))
+        ),
         requestId,
       },
       signal

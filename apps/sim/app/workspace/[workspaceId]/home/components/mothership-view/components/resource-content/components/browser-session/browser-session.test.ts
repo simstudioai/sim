@@ -2,11 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, expect, it, vi } from 'vitest'
-import {
-  resolveUrlBarInput,
-  selectFocusedOmniboxOnNextFrame,
-  trackBrowserPanelFocus,
-} from './browser-session'
+import { resolveUrlBarInput, selectFocusedOmniboxOnNextFrame } from './browser-session'
 
 describe('resolveUrlBarInput', () => {
   it('passes explicit schemes through untouched', () => {
@@ -35,35 +31,6 @@ describe('resolveUrlBarInput', () => {
       'https://www.google.com/search?q=what%20is%20sim.ai%20pricing'
     )
     expect(resolveUrlBarInput('electron')).toBe('https://www.google.com/search?q=electron')
-  })
-})
-
-describe('trackBrowserPanelFocus', () => {
-  it('owns focus on mount, follows interaction, and releases it outside or on cleanup', () => {
-    const panel = document.createElement('div')
-    const panelButton = document.createElement('button')
-    const outsideButton = document.createElement('button')
-    panel.appendChild(panelButton)
-    document.body.append(panel, outsideButton)
-    const reportFocus = vi.fn()
-
-    const cleanup = trackBrowserPanelFocus(panel, reportFocus)
-    expect(reportFocus).toHaveBeenLastCalledWith(true)
-
-    outsideButton.dispatchEvent(new Event('pointerdown', { bubbles: true }))
-    expect(reportFocus).toHaveBeenLastCalledWith(false)
-
-    panelButton.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
-    expect(reportFocus).toHaveBeenLastCalledWith(true)
-
-    cleanup()
-    expect(reportFocus).toHaveBeenLastCalledWith(false)
-    reportFocus.mockClear()
-    panelButton.dispatchEvent(new Event('pointerdown', { bubbles: true }))
-    expect(reportFocus).not.toHaveBeenCalled()
-
-    panel.remove()
-    outsideButton.remove()
   })
 })
 

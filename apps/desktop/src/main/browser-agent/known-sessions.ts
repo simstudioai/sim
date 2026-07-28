@@ -170,6 +170,12 @@ export class BrowserKnownSessionRegistry {
    */
   clear(): void {
     this.config.set('browserKnownSites', [])
+    // Not left to the debounce. Ordinary writes here can afford to coalesce,
+    // but this one is an erasure the user asked for: if the process dies in
+    // the coalescing window — force quit, crash, OS shutdown — the previous
+    // account's browsing trail is still on disk for whoever signs in next,
+    // and sign-out has already reported success.
+    this.config.flush()
   }
 
   list(cookieSignals: BrowserCookieSignal[]): BrowserKnownSessionsState {

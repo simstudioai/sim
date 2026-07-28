@@ -3,12 +3,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 import { BrowserWindow, WebContentsView } from 'electron'
+import * as panelModule from '@/main/browser-agent/panel'
 
 type PanelModule = typeof import('@/main/browser-agent/panel')
 
-async function freshPanel(): Promise<PanelModule> {
-  vi.resetModules()
-  return await import('@/main/browser-agent/panel')
+/**
+ * `initPanel` is a full reset of the module's session state, so a clean panel
+ * needs no module reload — which is what lets this file use a static import
+ * instead of the `vi.resetModules()` the root CLAUDE.md forbids.
+ *
+ * The reset happens here rather than being left to `showPanel`, so a test that
+ * never shows a panel still starts from a clean one.
+ */
+function freshPanel(): PanelModule {
+  panelModule.initPanel({
+    getMainWindow: () => null,
+    activeTab: () => null,
+    ensureInitialTab: () => {},
+    onViewDetached: () => {},
+  })
+  return panelModule
 }
 
 const PANEL_RECT = { x: 400, y: 64, width: 600, height: 800 }
@@ -50,8 +64,8 @@ function snapshotSentAt(win: BrowserWindow): number | undefined {
 describe('panel occlusion', () => {
   let panel: PanelModule
 
-  beforeEach(async () => {
-    panel = await freshPanel()
+  beforeEach(() => {
+    panel = freshPanel()
   })
 
   it('keeps the page up until its replacement frame exists', async () => {

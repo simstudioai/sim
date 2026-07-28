@@ -1,8 +1,8 @@
-import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { readFile } from 'node:fs/promises'
 import type { BrowserCredentialMetadata } from '@sim/desktop-bridge'
+import { generateId } from '@sim/utils/id'
 import { safeStorage } from 'electron'
+import { removeFileIfPresent, writeJsonFileAtomically } from '@/main/atomic-json-file'
 import { normalizeOrigin, normalizeUsername } from '@/main/browser-credentials/origin'
 
 /**
@@ -86,15 +86,6 @@ function toMetadata(record: CredentialRecord): BrowserCredentialMetadata {
   }
 }
 
-async function removeFile(filePath: string): Promise<void> {
-  try {
-    await unlink(filePath)
-  } catch (error) {
-    const code = (error as { code?: unknown } | null)?.code
-    if (code !== 'ENOENT') throw error
-  }
-}
-
 export class CredentialVault {
   constructor(
     private readonly filePath: string,
@@ -107,7 +98,14 @@ export class CredentialVault {
    * password features when this is false rather than degrading to plaintext.
    */
   isAvailable(): boolean {
-    return this.encryption.isEncryptionAvailable()
+    // Guarded: on a Linux box with no keyring this throws rather than
+    // returning false, and an unguarded call propagated out of a password
+    // import. The site directory has always defended against it; this did not.
+    try {
+      return this.encryption.isEncryptionAvailable()
+    } catch {
+      return false
+    }
   }
 
   /**
@@ -139,12 +137,7 @@ export class CredentialVault {
       version: VAULT_VERSION,
       ciphertext: this.encryption.encryptString(JSON.stringify(records)).toString('base64'),
     }
-    await mkdir(dirname(this.filePath), { recursive: true })
-    // Written to a temporary file and renamed so a crash mid-write cannot
-    // truncate the vault into an unrecoverable state.
-    const temporaryPath = `${this.filePath}.${process.pid}.tmp`
-    await writeFile(temporaryPath, JSON.stringify(envelope), { mode: 0o600 })
-    await rename(temporaryPath, this.filePath)
+    await writeJsonFileAtomically(this.filePath, envelope)
     return true
   }
 
@@ -262,7 +255,7 @@ export class CredentialVault {
       }
 
       const record: CredentialRecord = {
-        id: randomUUID(),
+        id: generateId(),
         origin,
         username,
         password: candidate.password,
@@ -288,6 +281,6 @@ export class CredentialVault {
    * machine cannot inherit the previous user's passwords.
    */
   async clear(): Promise<void> {
-    await removeFile(this.filePath)
+    await removeFileIfPresent(this.filePath)
   }
 }

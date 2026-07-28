@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isPrivateIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
+import { isLoopbackIp, isPrivateIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import * as ipaddr from 'ipaddr.js'
 import { isHosted } from '@/lib/core/config/env-flags'
 
@@ -724,13 +724,11 @@ export function validateExternalUrl(
 
   const cleanHostname = unwrapIpv6Brackets(hostname)
 
-  let isLocalhost = cleanHostname === 'localhost'
-  if (ipaddr.isValid(cleanHostname)) {
-    const processedIP = ipaddr.process(cleanHostname).toString()
-    if (processedIP === '127.0.0.1' || processedIP === '::1') {
-      isLocalhost = true
-    }
-  }
+  // The whole loopback range, not just 127.0.0.1: 127.0.0.2 is the same
+  // machine, and matching two literals made this validator disagree with MCP's
+  // domain-check about what "localhost" means. Both directions stay coherent —
+  // hosted rejects the wider set, self-hosted permits http on it.
+  const isLocalhost = cleanHostname === 'localhost' || isLoopbackIp(cleanHostname)
 
   if (isLocalhost && isHosted) {
     return {

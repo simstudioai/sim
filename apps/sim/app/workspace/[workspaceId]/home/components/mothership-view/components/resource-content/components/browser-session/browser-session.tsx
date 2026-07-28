@@ -24,6 +24,7 @@ import {
   showBrowserCredentialChooser,
 } from '@/lib/browser-agent/transport'
 import { BROWSER_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
+import { trackPanelFocus } from '@/lib/desktop/panel-focus'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { BrowserFindBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-find-bar'
 import { useBrowserPanelOcclusion } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
@@ -80,30 +81,6 @@ export function selectFocusedOmniboxOnNextFrame(input: HTMLInputElement): number
       input.select()
     }
   })
-}
-
-/**
- * Tracks interaction ownership for renderer-owned browser chrome. The native
- * page reports its own focus from Electron; this covers the tab strip,
- * omnibox, controls, and the initial resource selection before they are used.
- */
-export function trackBrowserPanelFocus(
-  panel: HTMLElement,
-  reportFocus: (focused: boolean) => void
-): () => void {
-  reportFocus(true)
-  const updateFocusOwner = (target: EventTarget | null) => {
-    reportFocus(target instanceof Node && panel.contains(target))
-  }
-  const handlePointerDown = (event: PointerEvent) => updateFocusOwner(event.target)
-  const handleFocusIn = (event: FocusEvent) => updateFocusOwner(event.target)
-  document.addEventListener('pointerdown', handlePointerDown, true)
-  document.addEventListener('focusin', handleFocusIn, true)
-  return () => {
-    document.removeEventListener('pointerdown', handlePointerDown, true)
-    document.removeEventListener('focusin', handleFocusIn, true)
-    reportFocus(false)
-  }
 }
 
 /** Re-report unchanged bounds before the main-process visibility lease expires. */
@@ -211,7 +188,15 @@ export function BrowserSession({ visible }: { visible: boolean }) {
   useEffect(() => {
     const panel = panelRef.current
     if (!panel || !panelVisible) return
-    return trackBrowserPanelFocus(panel, reportBrowserPanelFocused)
+    // Claimed up front, which the terminal deliberately does NOT do. The
+    // difference is that the terminal has a real signal to wait for — xterm
+    // focuses its textarea and that `focusin` bubbles — while this panel's
+    // content is a native view that emits no DOM events at all. Nothing else
+    // seeds the claim either: attaching a view does not focus it, so
+    // `webContents.isFocused()` is false until the user clicks the page. Drop
+    // this and Cmd-W closes the whole window instead of the browser tab.
+    reportBrowserPanelFocused(true)
+    return trackPanelFocus(panel, reportBrowserPanelFocused)
   }, [panelVisible])
 
   useEffect(() => {
@@ -268,7 +253,10 @@ export function BrowserSession({ visible }: { visible: boolean }) {
     if (!panel) return
     const handleFindShortcut = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
-      if (event.key !== 'f') return
+      // Caps Lock makes `key` 'F'. The shell-side handler already lowercases,
+      // so without this Mod+F worked with the page focused and silently did
+      // nothing with Sim's own chrome focused.
+      if (event.key.toLowerCase() !== 'f') return
       event.preventDefault()
       openFind()
     }

@@ -125,8 +125,21 @@ export async function copyCredential(id: string): Promise<boolean> {
  * on this machine cannot inherit the previous user's passwords.
  */
 export async function clearCredentials(): Promise<void> {
-  await credentialVault().clear()
-  await clearSites()
+  // Revoked first, and unconditionally. Both deletions below can reject on a
+  // file the OS will not let us unlink, and the sign-out caller only logs
+  // that — so a revoke sequenced after them would be skipped while sign-out
+  // still reported success, leaving the previous user's OS-auth grant live
+  // for whoever signs in next. Dropping the grant early only ever fails safe.
   revokeSecretAuthorization()
-  await coordinatorInstance?.refreshAvailability()
+  try {
+    // Both attempted regardless of each other. Sequencing them in one `try`
+    // made the second conditional on the first, so a vault file the OS would
+    // not let us unlink also left the imported site directory — hostnames and
+    // visit counts from the user's other browser — behind after sign-out.
+    const outcomes = await Promise.allSettled([credentialVault().clear(), clearSites()])
+    const failure = outcomes.find((outcome) => outcome.status === 'rejected')
+    if (failure) throw failure.reason
+  } finally {
+    await coordinatorInstance?.refreshAvailability()
+  }
 }

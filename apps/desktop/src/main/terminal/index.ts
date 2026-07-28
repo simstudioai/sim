@@ -31,7 +31,9 @@ import {
   type TerminalToolArgs,
   type TerminalToolResponse,
 } from '@sim/terminal-protocol'
+import { sleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
+import type { BrowserWindow, WebContents } from 'electron'
 import { elide, TerminalSession } from '@/main/terminal/session'
 import {
   activePane,
@@ -95,10 +97,6 @@ const HANDOFF_MAX_MS = 12 * 60 * 60 * 1000
  */
 const HANDOFF_SETTLE_MS = 5_000
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 /** How long to hold the turn before handing a still-running command back. */
 function resolveWaitMs(waitSeconds: number | undefined): number {
   const requested = Number(waitSeconds)
@@ -161,8 +159,17 @@ export class TerminalService {
   private sink: TerminalSink | null = null
   private lastEmittedTabs: string | null = null
   private cwdTimer: NodeJS.Timeout | null = null
-  /** True while the user's keyboard focus is in the terminal panel. */
-  private panelFocused = false
+  /**
+   * The renderer whose terminal panel holds the user's keyboard focus, or null.
+   *
+   * The claim IS the owner — there is deliberately no separate boolean. A
+   * second field could hold `true` with no live owner, and that combination is
+   * precisely the latch this binding exists to prevent: every reader would
+   * have to remember to reject it, and the one that forgot would close a shell
+   * nobody was looking at.
+   */
+  private focusOwner: WebContents | null = null
+  private releaseFocusListeners: (() => void) | null = null
   /** Directories of recently closed terminals, newest first, for reopening. */
   private readonly recentlyClosedCwds: string[] = []
   /** Terminals handed to the user; the value is whether they have handed back. */
@@ -324,17 +331,19 @@ export class TerminalService {
    * gone and its scrollback with them — so this reopens where it was working,
    * which is the part that is expensive for the user to retype.
    */
-  reopenClosedTerminal(): boolean {
-    if (!this.panelFocused) return false
+  reopenClosedTerminal(ownerWindow: BrowserWindow | null): boolean {
+    if (!this.ownsInteraction(ownerWindow)) return false
+    // Peeked, not shifted: at the cap there is nothing to reopen into, and
+    // consuming the entry here would drop that directory on the floor.
+    if (this.recentlyClosedCwds.length === 0 || this.sessions.size >= MAX_TERMINALS) return false
     const cwd = this.recentlyClosedCwds.shift()
-    if (cwd === undefined || this.sessions.size >= MAX_TERMINALS) return false
-    this.openTerminal(cwd ?? undefined)
+    this.openTerminal(cwd || undefined)
     return true
   }
 
   /** Closes the active terminal, but only while the panel owns interaction focus. */
-  closeFocusedTerminal(): boolean {
-    if (!this.panelFocused || !this.activeId) return false
+  closeFocusedTerminal(ownerWindow: BrowserWindow | null): boolean {
+    if (!this.ownsInteraction(ownerWindow) || !this.activeId) return false
     this.closeTerminal(this.activeId)
     return true
   }
@@ -343,9 +352,66 @@ export class TerminalService {
    * Whether the terminal panel owns keyboard focus. Menu accelerators are
    * global, so Cmd-W has to know whether the user is looking at a terminal or
    * at something else in the window before deciding what to close.
+   *
+   * The claim is bound to the renderer that made it. A reload or a window close
+   * never runs the renderer's cleanup, so without that binding the flag latched
+   * true forever and Cmd-W destroyed an invisible shell.
    */
-  setPanelFocused(focused: boolean): void {
-    this.panelFocused = focused
+  setPanelFocused(focused: boolean, owner?: WebContents | null): void {
+    if (!focused) {
+      // Only the holder may release. Every renderer reports its own blur — a
+      // second window switching away from its terminal, or tearing its panel
+      // down, sends `false` from a WebContents that never held the claim. Left
+      // ungated, that erased the live claim of the window the user was
+      // actually typing in, and their next Cmd-W closed that window with its
+      // shells still running. A release with no owner named is the shell's own
+      // teardown (dispose), which may always release.
+      if (owner && this.focusOwner && owner !== this.focusOwner) return
+      this.releaseFocusOwner()
+      return
+    }
+    this.releaseFocusOwner()
+    // An unattributable claim is dropped rather than recorded: with no live
+    // renderer behind it there is nothing that could ever release it.
+    if (!owner || owner.isDestroyed()) return
+    this.focusOwner = owner
+    const release = () => this.setPanelFocused(false, owner)
+    const onNavigate = (details: { isMainFrame: boolean; isSameDocument: boolean }) => {
+      // A same-document route change keeps the React tree that made the claim.
+      if (details.isMainFrame && !details.isSameDocument) release()
+    }
+    owner.once('destroyed', release)
+    owner.on('did-start-navigation', onNavigate)
+    this.releaseFocusListeners = () => {
+      if (owner.isDestroyed()) return
+      owner.removeListener('destroyed', release)
+      owner.removeListener('did-start-navigation', onNavigate)
+    }
+  }
+
+  /** Drops the claim and unsubscribes from the owner's lifecycle. */
+  private releaseFocusOwner(): void {
+    this.releaseFocusListeners?.()
+    this.releaseFocusListeners = null
+    this.focusOwner = null
+  }
+
+  /**
+   * Whether a global accelerator fired in the window that actually holds the
+   * focused terminal panel. Without the window check a claim made in one window
+   * answered Cmd-W in every other one.
+   */
+  private ownsInteraction(ownerWindow: BrowserWindow | null): boolean {
+    if (!this.focusOwner || this.focusOwner.isDestroyed()) return false
+    // Required, not optional, and null answers no. A window is what an
+    // accelerator arrives from, so "no window" cannot be a window this claim
+    // answers for — and making the parameter mandatory means a later caller
+    // cannot reintroduce the cross-window bug just by leaving it off.
+    if (!ownerWindow) return false
+    // The panel lives in the window's own top-level renderer, so this is an
+    // identity check on that renderer — and it keeps electron a type-only
+    // import here, which is what lets the service be tested without a shell.
+    return ownerWindow.webContents === this.focusOwner
   }
 
   private rememberClosed(cwd: string | null): void {
@@ -378,10 +444,24 @@ export class TerminalService {
   dispose(): void {
     this.disposing = true
     this.stopCwdWatch()
-    for (const session of this.sessions.values()) session.dispose()
+    // Persisted here rather than left to the onState callback, which resolves
+    // the active session out of the very map this teardown empties. Losing it
+    // reopens the next launch in whichever directory last reported a change
+    // instead of the one the user was working in.
+    const activeCwd = this.activeId ? this.sessions.get(this.activeId)?.currentCwd : null
+    if (activeCwd) this.options.saveCwd?.(activeCwd)
+    // Remove each session before disposing it: dispose() emits state, which
+    // reads back through getTabs(), and a session still in the map there is
+    // published to the renderer as a live tab after its shell is gone.
+    for (const [terminalId, session] of [...this.sessions]) {
+      this.sessions.delete(terminalId)
+      session.dispose()
+    }
     this.sessions.clear()
     this.tmuxCache.clear()
     this.activeId = null
+    // A stale claim here is what let Cmd-W close a shell that no longer exists.
+    this.setPanelFocused(false)
     this.disposing = false
   }
 
@@ -557,7 +637,7 @@ export class TerminalService {
       const deadline = Date.now() + HANDOFF_MAX_MS
       let handedBackAt: number | null = null
       while (Date.now() < deadline) {
-        await delay(HANDOFF_POLL_MS)
+        await sleep(HANDOFF_POLL_MS)
         if (!session.alive) {
           throw new TerminalError('SESSION_CLOSED', 'That terminal was closed during the handoff.')
         }
@@ -634,7 +714,7 @@ export class TerminalService {
       for (let index = 0; index < keys.length; index += 1) {
         // Paced like the pty path: a pane redraws between presses, so a batch
         // lands where the same keys pressed by hand would.
-        if (index > 0) await delay(TMUX_KEY_GAP_MS)
+        if (index > 0) await sleep(TMUX_KEY_GAP_MS)
         await sendKey(target, TMUX_KEY_NAMES[keys[index]] ?? keys[index], terminal.env)
       }
     } else if (typeof args.text === 'string') {
@@ -647,7 +727,7 @@ export class TerminalService {
       throw new TerminalError('INVALID_REQUEST', 'input needs `text`, `key`, or `keys`.')
     }
 
-    await delay(INPUT_ECHO_MS)
+    await sleep(INPUT_ECHO_MS)
     const captured = await capturePane(target, INPUT_SCREEN_LINES, terminal.env)
     return {
       sent: keys.length > 0 ? keys.join(', ') : args.text,
@@ -675,12 +755,12 @@ export class TerminalService {
     const keys = requestedKeys(args)
     if (keys.length > 0) {
       await session.pressKeys(keys)
-      await delay(INPUT_ECHO_MS)
+      await sleep(INPUT_ECHO_MS)
       return { sent: keys.join(', '), ...(await session.readScrollback(INPUT_SCREEN_LINES)) }
     }
     if (typeof args.text === 'string') {
       await session.type(args.text)
-      await delay(INPUT_ECHO_MS)
+      await sleep(INPUT_ECHO_MS)
       return { sent: args.text, ...(await session.readScrollback(INPUT_SCREEN_LINES)) }
     }
     throw new TerminalError('INVALID_REQUEST', 'input needs `text`, `key`, or `keys`.')

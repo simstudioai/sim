@@ -5,7 +5,7 @@ import http from 'http'
 import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
-import { isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from '@sim/security/ssrf'
+import { isLoopbackIp, isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import { HttpProxyAgent } from 'http-proxy-agent'
@@ -60,13 +60,8 @@ export async function validateUrlWithDNS(
   const hostnameLower = hostname.toLowerCase()
   const cleanHostname = unwrapIpv6Brackets(hostnameLower)
 
-  let isLocalhost = cleanHostname === 'localhost'
-  if (ipaddr.isValid(cleanHostname)) {
-    const processedIP = ipaddr.process(cleanHostname).toString()
-    if (processedIP === '127.0.0.1' || processedIP === '::1') {
-      isLocalhost = true
-    }
-  }
+  // Whole loopback range — see the matching note in input-validation.ts.
+  const isLocalhost = cleanHostname === 'localhost' || isLoopbackIp(cleanHostname)
 
   try {
     // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
@@ -75,12 +70,7 @@ export async function validateUrlWithDNS(
     const resolved = await dns.lookup(cleanHostname, { all: true, verbatim: true })
     const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
 
-    const resolvedIsLoopback =
-      ipaddr.isValid(address) &&
-      (() => {
-        const ip = ipaddr.process(address).toString()
-        return ip === '127.0.0.1' || ip === '::1'
-      })()
+    const resolvedIsLoopback = isLoopbackIp(address)
 
     if (isPrivateIp(address) && !(isLocalhost && resolvedIsLoopback && !isHosted)) {
       logger.warn('URL resolves to blocked IP address', {

@@ -40,6 +40,13 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
 const BRIDGE_SOURCE_PATH = resolve(ROOT, 'packages/desktop-bridge/src/index.ts')
 const PROTOCOL_SOURCE_PATH = resolve(ROOT, 'packages/browser-protocol/src/index.ts')
+const TERMINAL_PROTOCOL_SOURCE_PATH = resolve(ROOT, 'packages/terminal-protocol/src/index.ts')
+/**
+ * Protocol modules folded into the snapshot verbatim. Anything the bridge
+ * imports that carries wire shape belongs here — a package left out stays
+ * outside the freeze, and changes to it pass the audit unnoticed.
+ */
+const INLINED_PROTOCOL_PACKAGES = ['@sim/browser-protocol', '@sim/terminal-protocol'] as const
 const SNAPSHOT_PATH = resolve(ROOT, 'packages/desktop-bridge/contract-snapshot.ts')
 const MIN_VERSION_PATH = resolve(ROOT, 'apps/sim/lib/desktop/min-version.ts')
 
@@ -88,23 +95,32 @@ function isFloorRaised(next: string, previous: string): boolean {
 
 async function buildSnapshot(floor: string): Promise<string> {
   const protocol = await readFile(PROTOCOL_SOURCE_PATH, 'utf8')
+  const terminalProtocol = await readFile(TERMINAL_PROTOCOL_SOURCE_PATH, 'utf8')
   const bridgeRaw = await readFile(BRIDGE_SOURCE_PATH, 'utf8')
-  // The snapshot must be self-contained (a frozen dependency would defeat
-  // it), so the browser-protocol module is inlined and the import dropped.
-  const bridge = bridgeRaw.replace(/import type \{[^}]*\} from '@sim\/browser-protocol'\n/, '')
-  if (bridge.includes('@sim/browser-protocol')) {
-    throw new Error(
-      'packages/desktop-bridge/src/index.ts references @sim/browser-protocol in an unexpected ' +
-        'shape — update scripts/check-desktop-bridge-contract.ts to inline it.'
-    )
+  // The snapshot must be self-contained. A surviving import resolves to the
+  // CURRENT module on BOTH sides of the comparison, so every change to it is
+  // invisible to this audit — which is exactly what happened to
+  // @sim/terminal-protocol, leaving the whole terminal wire surface unfrozen.
+  const bridge = INLINED_PROTOCOL_PACKAGES.reduce(
+    (source, pkg) => source.replace(new RegExp(`import type \\{[^}]*\\} from '${pkg}'\\n`), ''),
+    bridgeRaw
+  )
+  for (const pkg of INLINED_PROTOCOL_PACKAGES) {
+    if (bridge.includes(pkg)) {
+      throw new Error(
+        `packages/desktop-bridge/src/index.ts references ${pkg} in an unexpected shape — ` +
+          'update scripts/check-desktop-bridge-contract.ts to inline it.'
+      )
+    }
   }
   const header = [
     '/**',
     ' * GENERATED FILE — DO NOT EDIT.',
     ' *',
     ' * Frozen snapshot of the desktop preload bridge type surface',
-    ' * (@sim/browser-protocol inlined into @sim/desktop-bridge) as of the last',
-    ' * accepted contract change. CI type-checks that a shell built from this',
+    ' * (@sim/browser-protocol + @sim/terminal-protocol inlined into',
+    ' * @sim/desktop-bridge) as of the last accepted contract change.',
+    ' * CI type-checks that a shell built from this',
     ' * snapshot still satisfies the current SimDesktopApi, so bridge changes',
     ' * stay backward compatible with already-installed shells.',
     ' *',
@@ -115,7 +131,7 @@ async function buildSnapshot(floor: string): Promise<string> {
     ' */',
     '',
   ].join('\n')
-  const source = `${header}${protocol}\n${bridge}`
+  const source = `${header}${protocol}\n${terminalProtocol}\n${bridge}`
   return formatGeneratedSource(source, SNAPSHOT_PATH, ROOT)
 }
 
@@ -147,6 +163,7 @@ function checkCompatibility(): { compatible: boolean; output: string } {
       types: [],
       paths: {
         '@sim/browser-protocol': [PROTOCOL_SOURCE_PATH],
+        '@sim/terminal-protocol': [TERMINAL_PROTOCOL_SOURCE_PATH],
       },
     },
     files: ['./compat.ts'],

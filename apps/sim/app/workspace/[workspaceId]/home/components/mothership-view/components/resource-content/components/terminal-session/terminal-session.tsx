@@ -23,6 +23,7 @@ import '@xterm/xterm/css/xterm.css'
 import { MAX_TERMINALS, type TerminalTabState } from '@sim/terminal-protocol'
 import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
+import { trackPanelFocus } from '@/lib/desktop/panel-focus'
 import {
   closeTerminal,
   getTerminalScrollback,
@@ -297,13 +298,6 @@ const TerminalView = memo(function TerminalView({
     fitRef.current = fit
     terminal.attachCustomKeyEventHandler((event) => handleTerminalShortcut(event, terminal))
 
-    // Focus is reported so the main process can route menu accelerators: a
-    // Cmd-W typed into a shell should close that shell, not the window.
-    const reportFocused = () => reportTerminalFocused(true)
-    const reportBlurred = () => reportTerminalFocused(false)
-    terminal.textarea?.addEventListener('focus', reportFocused)
-    terminal.textarea?.addEventListener('blur', reportBlurred)
-
     const disposeData = terminal.onData((data) => writeToTerminal(terminalId, data))
     const disposeResize = terminal.onResize(({ cols, rows }) =>
       resizeTerminal(terminalId, cols, rows)
@@ -429,9 +423,6 @@ const TerminalView = memo(function TerminalView({
       disposed = true
       showRef.current = null
       hideRef.current = null
-      reportTerminalFocused(false)
-      terminal.textarea?.removeEventListener('focus', reportFocused)
-      terminal.textarea?.removeEventListener('blur', reportBlurred)
       if (resizeTimer) clearTimeout(resizeTimer)
       observer.disconnect()
       unsubscribeData()
@@ -586,15 +577,39 @@ const TerminalView = memo(function TerminalView({
  * ordinary React subtree that happens to be a set of working terminals.
  */
 export function TerminalSession({ visible }: { visible: boolean }) {
+  const panelRef = useRef<HTMLDivElement>(null)
   const { tabs, activeTerminalId } = useCopilotTerminalStore((state) => state.tabs)
   const settledCommands = useSettledCommands(tabs)
   const { removeResource } = useMothershipResources()
   const [startError, setStartError] = useState<string | null>(null)
 
+  // Interaction ownership is reported once for the whole panel, never per tab.
+  // The shell holds a single focus flag, so a per-tab reporter would let one
+  // tab's unmount erase a sibling's live claim — and Cmd-W would then fall
+  // through to closing the window out from under a running shell.
+  //
+  // No claim on appear: xterm focuses its textarea once the panel is measurably
+  // on screen, and that focusin is the claim. Appearing is not enough, because
+  // the agent opens this panel on the user's behalf — claiming then would let a
+  // Cmd-W meant for the chat close a shell the user never touched.
   useEffect(() => {
+    const panel = panelRef.current
+    if (!panel || !visible) return
+    return trackPanelFocus(panel, reportTerminalFocused)
+  }, [visible])
+
+  useEffect(() => {
+    let active = true
     startTerminalSession({ cols: 80, rows: 24 })
-      .then(() => setStartError(null))
-      .catch((error: Error) => setStartError(error.message))
+      .then(() => {
+        if (active) setStartError(null)
+      })
+      .catch((error: Error) => {
+        if (active) setStartError(error.message)
+      })
+    return () => {
+      active = false
+    }
   }, [])
 
   // Closing the last terminal closes the panel: there is nothing left to show
@@ -689,7 +704,7 @@ export function TerminalSession({ visible }: { visible: boolean }) {
   )
 
   return (
-    <div className='flex h-full flex-col overflow-hidden bg-[var(--bg)]'>
+    <div ref={panelRef} className='flex h-full flex-col overflow-hidden bg-[var(--bg)]'>
       {tabs.length > 0 && (
         <TabStrip
           tabs={items}

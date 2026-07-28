@@ -3,13 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 import { MAX_BROWSER_TABS } from '@sim/browser-protocol'
+import { sleep } from '@sim/utils/helpers'
 import { BrowserWindow, session as electronSession } from 'electron'
+import * as panel from '@/main/browser-agent/panel'
+import * as sessionModule from '@/main/browser-agent/session'
 
 type SessionModule = typeof import('@/main/browser-agent/session')
-type PanelModule = typeof import('@/main/browser-agent/panel')
-
-/** Set by freshSession — compositing lives in its own module now. */
-let panel: PanelModule
 
 interface MockView {
   webContents: {
@@ -47,14 +46,19 @@ function mainWindowMock() {
   return win as unknown as BrowserWindow
 }
 
-async function freshSession(
-  win: BrowserWindow | null,
-  eventOverrides: Partial<import('@/main/browser-agent/session').AgentSessionEvents> = {},
-  persistence?: import('@/main/browser-agent/session').PinnedTabPersistence
-): Promise<SessionModule> {
-  vi.resetModules()
-  const session = await import('@/main/browser-agent/session')
-  panel = await import('@/main/browser-agent/panel')
+/**
+ * `initSession` is a full reset of both this module's and the panel's
+ * per-session state, so a clean session needs no module reload — which is what
+ * lets this file use static imports instead of the `vi.resetModules()` the
+ * root CLAUDE.md forbids.
+ */
+function freshSession(
+  win: BrowserWindow | null | (() => BrowserWindow | null),
+  eventOverrides: Partial<sessionModule.AgentSessionEvents> = {},
+  persistence?: sessionModule.PinnedTabPersistence
+): SessionModule {
+  const mainWindowProvider = typeof win === 'function' ? win : () => win
+  const session = sessionModule
   session.initSession(
     {
       onSessionClosed: vi.fn(),
@@ -67,7 +71,7 @@ async function freshSession(
       onTabClosed: vi.fn(),
       ...eventOverrides,
     },
-    () => win,
+    mainWindowProvider,
     persistence
   )
   return session
@@ -87,7 +91,7 @@ describe('browser-agent session', () => {
 
   beforeEach(async () => {
     win = mainWindowMock()
-    session = await freshSession(win)
+    session = freshSession(win)
   })
 
   it('creates the first tab lazily, then reuses it', () => {
@@ -97,6 +101,25 @@ describe('browser-agent session', () => {
     expect(session.ensureTab()).toBe(first)
     expect(session.listTabs()).toHaveLength(1)
     expect(session.listTabs()[0]).toMatchObject({ tabId: first.id, active: true })
+  })
+
+  it('starts a second session clean instead of inheriting the first', () => {
+    // `initSession` names itself as the session boundary but used to set three
+    // of its thirteen fields, so everything else leaked into the next session:
+    // its tabs, its theme, its find, its tab-id counter. Nothing re-inits in
+    // production today, which is exactly why the gap stayed invisible — and
+    // why these tests had to reset the whole MODULE to get a clean one.
+    const firstTab = session.ensureTab()
+    session.setBrowserTheme('dark')
+    expect(session.listTabs()).toHaveLength(1)
+
+    const second = freshSession(win)
+
+    expect(second.listTabs()).toHaveLength(0)
+    expect(second.getBrowserTheme()).toBe('system')
+    // Same id as the first session's first tab: the counter restarted, so a
+    // stale id cannot address a tab that outlived the session it came from.
+    expect(second.ensureTab().id).toBe(firstTab.id)
   })
 
   it('normalizes browser shortcuts to Command on macOS and Control elsewhere', () => {
@@ -279,6 +302,39 @@ describe('browser-agent session', () => {
     expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find')
   })
 
+  it('drops the find when the tab it is running on is closed', () => {
+    // Otherwise the searched tab id outlives the tab: the bar stays open
+    // counting matches on a page that no longer exists, and nothing clears it
+    // until the user happens to type a new query.
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    session.requireTab()
+    const second = session.addTab()
+    session.switchTab(second.id)
+    session.findInActiveTab({ query: 'needle', findNext: false, forward: true })
+    vi.mocked(win.webContents.send).mockClear()
+
+    session.closeTab(second.id)
+
+    expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find')
+  })
+
+  it('drops the find when the tab it is running on crashes', () => {
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const first = session.requireTab()
+    session.addTab()
+    session.switchTab(first.id)
+    session.findInActiveTab({ query: 'needle', findNext: false, forward: true })
+    vi.mocked(win.webContents.send).mockClear()
+
+    const contents = (first.view as unknown as MockView).webContents
+    const gone = contents.on.mock.calls.find(
+      ([eventName]) => eventName === 'render-process-gone'
+    )?.[1] as ((event: unknown, details: { reason: string }) => void) | undefined
+    gone?.({}, { reason: 'crashed' })
+
+    expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find')
+  })
+
   it('drops the find when the user switches to another tab', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     const first = session.requireTab()
@@ -452,7 +508,7 @@ describe('browser-agent session', () => {
 
   it('propagates theme changes to every existing tab', async () => {
     const onTabThemeChanged = vi.fn()
-    const themedSession = await freshSession(win, { onTabThemeChanged })
+    const themedSession = freshSession(win, { onTabThemeChanged })
     const first = themedSession.ensureTab()
     const second = themedSession.addTab()
 
@@ -550,7 +606,7 @@ describe('browser-agent session', () => {
 
   it('moves pinned tabs left and requires unpinning before any close path', async () => {
     const save = vi.fn()
-    const pinnedSession = await freshSession(
+    const pinnedSession = freshSession(
       win,
       {},
       {
@@ -577,7 +633,7 @@ describe('browser-agent session', () => {
   })
 
   it('restores pinned tabs when the browser resource opens again', async () => {
-    const restoredSession = await freshSession(
+    const restoredSession = freshSession(
       win,
       {},
       {
@@ -812,6 +868,12 @@ describe('browser-agent session', () => {
   })
 
   it('clears a stale attachment without touching a destroyed host window', () => {
+    // Production replaces the main window through the provider closure
+    // (`() => getMainWindow()`), never by re-initialising the session — which
+    // is what keeps the live tab across the swap, and the tab surviving is the
+    // whole point of re-parenting it. Driving it the same way here.
+    let host: BrowserWindow = win
+    session = freshSession(() => host)
     const tab = session.ensureTab()
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     const staleContent = (
@@ -828,19 +890,7 @@ describe('browser-agent session', () => {
     vi.mocked(win.isDestroyed).mockReturnValue(true)
 
     const replacement = mainWindowMock()
-    session.initSession(
-      {
-        onSessionClosed: vi.fn(),
-        onTabCreated: vi.fn(),
-        onActiveTabChanged: vi.fn(),
-        onTabsChanged: vi.fn(),
-        onTabThemeChanged: vi.fn(),
-        onDownloadBlocked: vi.fn(),
-        onTabNavigated: vi.fn(),
-        onTabClosed: vi.fn(),
-      },
-      () => replacement
-    )
+    host = replacement
 
     expect(() => panel.setPanelBounds(null)).not.toThrow()
     expect(staleContent.removeChildView).not.toHaveBeenCalled()
@@ -883,15 +933,15 @@ describe('browser-agent session', () => {
     ;(winZoomed as unknown as { getContentSize: ReturnType<typeof vi.fn> }).getContentSize = vi.fn(
       () => [2000, 1400]
     )
-    return freshSession(winZoomed).then((zoomedSession) => {
-      const tab = zoomedSession.ensureTab()
-      panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-      expect((tab.view as unknown as MockView).setBounds).toHaveBeenCalledWith({
-        x: 150,
-        y: 75,
-        width: 1200,
-        height: 900,
-      })
+    const zoomedSession = freshSession(winZoomed)
+
+    const tab = zoomedSession.ensureTab()
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    expect((tab.view as unknown as MockView).setBounds).toHaveBeenCalledWith({
+      x: 150,
+      y: 75,
+      width: 1200,
+      height: 900,
     })
   })
 
@@ -974,7 +1024,7 @@ describe('browser-agent session', () => {
       clearCache,
     } as unknown as ReturnType<typeof electronSession.fromPartition>)
     const save = vi.fn()
-    session = await freshSession(win, {}, { load: () => [], save })
+    session = freshSession(win, {}, { load: () => [], save })
 
     panel.setPanelBounds({ x: 0, y: 0, width: 800, height: 600 })
     const survivor = (session.ensureTab().view as unknown as MockView).webContents
@@ -994,7 +1044,7 @@ describe('browser-agent session', () => {
 
   it('does not rewrite the settings file when the pinned tabs have not changed', async () => {
     const save = vi.fn()
-    session = await freshSession(win, {}, { load: () => [], save })
+    session = freshSession(win, {}, { load: () => [], save })
     const tab = session.ensureTab()
     const contents = (tab.view as unknown as MockView).webContents
     const onNavigate = contents.on.mock.calls.find(
@@ -1014,7 +1064,7 @@ describe('browser-agent session', () => {
 
   it('persists once when a tab actually becomes pinned', async () => {
     const save = vi.fn()
-    session = await freshSession(win, {}, { load: () => [], save })
+    session = freshSession(win, {}, { load: () => [], save })
     const tab = session.ensureTab()
     ;(tab.view as unknown as MockView).webContents.getURL.mockReturnValue('https://example.com/')
     save.mockClear()
@@ -1044,7 +1094,7 @@ describe('browser-agent session', () => {
 
   it('reports the session closed when the only tab crashes', async () => {
     const onSessionClosed = vi.fn()
-    session = await freshSession(win, { onSessionClosed })
+    session = freshSession(win, { onSessionClosed })
     const contents = (session.ensureTab().view as unknown as MockView).webContents
     const onGone = contents.on.mock.calls.find(
       ([eventName]) => eventName === 'render-process-gone'
@@ -1059,7 +1109,7 @@ describe('browser-agent session', () => {
   it('hides the panel when the renderer stops renewing its bounds lease', async () => {
     vi.useFakeTimers()
     try {
-      session = await freshSession(win)
+      session = freshSession(win)
       session.ensureTab()
       panel.setPanelBounds({ x: 0, y: 0, width: 800, height: 600 }, win)
       const contentView = (
@@ -1082,7 +1132,7 @@ describe('browser-agent session', () => {
   it('keeps the panel while the renderer keeps renewing the lease', async () => {
     vi.useFakeTimers()
     try {
-      session = await freshSession(win)
+      session = freshSession(win)
       session.ensureTab()
       const bounds = { x: 0, y: 0, width: 800, height: 600 }
       panel.setPanelBounds(bounds, win)
@@ -1131,7 +1181,7 @@ describe('browser panel ownership', () => {
   beforeEach(async () => {
     win = mainWindowMock()
     other = mainWindowMock()
-    session = await freshSession(win)
+    session = freshSession(win)
   })
 
   it('lets any window claim a panel nobody owns yet', () => {
@@ -1221,7 +1271,7 @@ describe('browser panel ownership', () => {
 
     panel.setPanelOccluded(true, win)
     panel.setPanelBounds(BOUNDS, other)
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sleep(0)
 
     // The frame is a picture of the page; the window no longer showing the
     // browser has no business receiving it.
@@ -1237,7 +1287,7 @@ describe('browser panel ownership', () => {
     send.mockClear()
 
     panel.setPanelOccluded(true, win)
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sleep(0)
 
     expect(
       send.mock.calls.filter(([channel]) => channel === 'browser-agent:panel-snapshot').length
@@ -1251,7 +1301,7 @@ describe('reopening a closed tab', () => {
 
   beforeEach(async () => {
     win = mainWindowMock()
-    session = await freshSession(win)
+    session = freshSession(win)
   })
 
   it('restores an ordinary closed tab', () => {
@@ -1330,14 +1380,13 @@ describe('reopening a closed tab', () => {
 
 describe('importAgentCookies', () => {
   /** Points the mocked partition at a cookie jar and returns its `set` spy. */
-  async function withCookieJar(
-    set: ReturnType<typeof vi.fn>
-  ): Promise<typeof import('@/main/browser-agent/session')> {
+  function withCookieJar(set: ReturnType<typeof vi.fn>): SessionModule {
+    // The partition is resolved per call, not captured at module load, so
+    // re-mocking it here is enough — no module reload required.
     vi.mocked(electronSession.fromPartition).mockReturnValue({
       cookies: { set },
     } as unknown as ReturnType<typeof electronSession.fromPartition>)
-    vi.resetModules()
-    return import('@/main/browser-agent/session')
+    return sessionModule
   }
 
   const cookie = (name: string) => ({
@@ -1352,7 +1401,7 @@ describe('importAgentCookies', () => {
 
   it('writes every cookie into the dedicated browser profile', async () => {
     const set = vi.fn(async () => {})
-    const session = await withCookieJar(set)
+    const session = withCookieJar(set)
 
     const result = await session.importAgentCookies([cookie('a'), cookie('b')])
 
@@ -1368,7 +1417,7 @@ describe('importAgentCookies', () => {
     const set = vi.fn(async (details: { name: string }) => {
       if (details.name === 'bad') throw new Error('Failed to set cookie')
     })
-    const session = await withCookieJar(set)
+    const session = withCookieJar(set)
 
     const result = await session.importAgentCookies([cookie('a'), cookie('bad'), cookie('c')])
 
@@ -1378,7 +1427,7 @@ describe('importAgentCookies', () => {
 
   it('does nothing when there is nothing to import', async () => {
     const set = vi.fn(async () => {})
-    const session = await withCookieJar(set)
+    const session = withCookieJar(set)
 
     await expect(session.importAgentCookies([])).resolves.toEqual({ imported: 0, failed: 0 })
     expect(set).not.toHaveBeenCalled()

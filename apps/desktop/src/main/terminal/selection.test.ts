@@ -1,3 +1,4 @@
+import { sleep } from '@sim/utils/helpers'
 import { Terminal } from '@xterm/headless'
 import { describe, expect, it } from 'vitest'
 import { findSelectedRow } from '@/main/terminal/session'
@@ -13,7 +14,7 @@ const RESET = '\u001b[0m'
 async function screen(write: (term: Terminal) => void, rows = 8): Promise<Terminal> {
   const term = new Terminal({ cols: 40, rows, allowProposedApi: true })
   write(term)
-  await new Promise((resolve) => setTimeout(resolve, 30))
+  await sleep(30)
   return term
 }
 

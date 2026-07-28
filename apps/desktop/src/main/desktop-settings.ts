@@ -88,6 +88,12 @@ export function createDesktopSettingsService(
     getPreferences: () => readPreferences(deps.config),
     setPreference(key, value) {
       deps.config.set(key, value)
+      // Not debounced. Every branch below takes effect immediately, and
+      // `launchAtLogin` writes state the OS keeps after we exit — so a kill
+      // inside the debounce window would leave the login item registered
+      // while the switch that registered it reads off, and toggling it back
+      // on would be a no-op the store considers unchanged.
+      deps.config.flush()
       switch (key) {
         case 'launchAtLogin':
           applyLaunchAtLogin(value)

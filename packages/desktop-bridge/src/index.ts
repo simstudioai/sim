@@ -29,6 +29,14 @@ import type {
  * forwards keystrokes back. Several terminals can be open at once, each its own
  * shell, and the user and the agent share them — so working directory and
  * environment stay consistent between the two.
+ *
+ * Members added after this surface first shipped are `optional?`, matching the
+ * browser-agent surface beside it and the "feature-detect, never assume" rule
+ * in apps/desktop/README.md: one web app is served to shells of every age, and
+ * `MIN_DESKTOP_VERSION` is still `0.0.0` (no floor), so an older shell reaches
+ * this code. Declaring such a member required makes the type disagree with the
+ * renderer, which has to `?.` it anyway — and the contract audit cannot catch
+ * that, because it compares against a snapshot the same PR regenerates.
  */
 export interface SimDesktopTerminalApi {
   /** Open the first terminal, or adopt the ones already running. */
@@ -49,11 +57,11 @@ export interface SimDesktopTerminalApi {
   openTerminal(cwd?: string): Promise<TerminalTabsState>
   switchTerminal(terminalId: string): Promise<TerminalTabsState>
   closeTerminal(terminalId: string): Promise<TerminalTabsState>
-  getTabs(): Promise<TerminalTabsState>
+  getTabs?(): Promise<TerminalTabsState>
   /** End every shell. A new one starts on the next `start`. */
   dispose(): void
   /** Subscribe to PTY output batches. Returns an unsubscribe function. */
-  onData(callback: (terminalId: string, data: string) => void): () => void
+  onData?(callback: (terminalId: string, data: string) => void): () => void
   /**
    * Everything already on a terminal's screen, for a new view to paint itself
    * from. Pulled per view so the repaint cannot be aimed at the wrong set of
@@ -65,15 +73,15 @@ export interface SimDesktopTerminalApi {
    * accelerators can tell a Cmd-W meant for a terminal from one meant for the
    * window.
    */
-  setFocused(focused: boolean): void
+  setFocused?(focused: boolean): void
   /**
    * The user finishing a handoff — the hand-back chip on the waiting tool row.
    */
-  finishHandoff(terminalId: string): void
+  finishHandoff?(terminalId: string): void
   /** Subscribe to the open-terminal list and which one is active. */
-  onTabs(callback: (state: TerminalTabsState) => void): () => void
+  onTabs?(callback: (state: TerminalTabsState) => void): () => void
   /** Subscribe to command start/end, used for agent attribution in the panel. */
-  onCommand(callback: (event: TerminalCommandEvent) => void): () => void
+  onCommand?(callback: (event: TerminalCommandEvent) => void): () => void
 }
 
 /**

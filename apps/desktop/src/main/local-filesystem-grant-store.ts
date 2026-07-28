@@ -1,6 +1,6 @@
-import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { readFile } from 'node:fs/promises'
 import { safeStorage } from 'electron'
+import { removeFileIfPresent, writeJsonFileAtomically } from '@/main/atomic-json-file'
 
 const STORE_VERSION = 1
 
@@ -39,18 +39,16 @@ function isPersistedGrant(value: unknown): value is PersistedLocalFilesystemGran
   )
 }
 
-async function removeFile(filePath: string): Promise<void> {
+/**
+ * `safeStorage.isEncryptionAvailable()` throws rather than returning false on a
+ * Linux box with no keyring, and an unguarded call propagated out of grant
+ * persistence. Grants stay session-only when encryption is unavailable.
+ */
+function encryptionAvailable(encryption: EncryptionProvider): boolean {
   try {
-    await unlink(filePath)
-  } catch (error) {
-    if (
-      !error ||
-      typeof error !== 'object' ||
-      !('code' in error) ||
-      (error as { code?: unknown }).code !== 'ENOENT'
-    ) {
-      throw error
-    }
+    return encryption.isEncryptionAvailable()
+  } catch {
+    return false
   }
 }
 
@@ -66,7 +64,7 @@ export function createEncryptedLocalFilesystemGrantStore(
 ): LocalFilesystemGrantStore {
   return {
     async load() {
-      if (!encryption.isEncryptionAvailable()) return []
+      if (!encryptionAvailable(encryption)) return []
       try {
         const raw = JSON.parse(await readFile(filePath, 'utf8')) as Partial<EncryptedGrantEnvelope>
         if (raw.version !== STORE_VERSION || typeof raw.ciphertext !== 'string') return []
@@ -79,21 +77,18 @@ export function createEncryptedLocalFilesystemGrantStore(
     },
 
     async save(grants) {
-      if (!encryption.isEncryptionAvailable()) return false
+      if (!encryptionAvailable(encryption)) return false
       const encrypted = encryption.encryptString(JSON.stringify(grants))
       const envelope: EncryptedGrantEnvelope = {
         version: STORE_VERSION,
         ciphertext: encrypted.toString('base64'),
       }
-      await mkdir(dirname(filePath), { recursive: true })
-      const temporaryPath = `${filePath}.${process.pid}.tmp`
-      await writeFile(temporaryPath, JSON.stringify(envelope), { mode: 0o600 })
-      await rename(temporaryPath, filePath)
+      await writeJsonFileAtomically(filePath, envelope)
       return true
     },
 
     async clear() {
-      await removeFile(filePath)
+      await removeFileIfPresent(filePath)
     },
   }
 }

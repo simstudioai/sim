@@ -41,15 +41,20 @@ export function initTerminalTransport(): void {
   if (!terminal) return
   initialized = true
 
-  terminal.onTabs((tabs) => {
+  // Every surface below is optional-called. The same web app is served to
+  // shells of any age, and these arrived after the terminal first shipped: a
+  // bare call on an older shell threw a TypeError out of the mount effect that
+  // invokes this, taking the whole chat view to the error boundary instead of
+  // degrading to "no terminal".
+  terminal.onTabs?.((tabs) => {
     useCopilotTerminalStore.getState().setTabs(tabs)
   })
-  terminal.onCommand((event) => {
+  terminal.onCommand?.((event) => {
     useCopilotTerminalStore.getState().applyCommandEvent(event)
   })
   void terminal
-    .getTabs()
-    .then((tabs) => useCopilotTerminalStore.getState().setTabs(tabs))
+    .getTabs?.()
+    ?.then((tabs) => useCopilotTerminalStore.getState().setTabs(tabs))
     .catch(() => {})
 }
 
@@ -67,7 +72,11 @@ let dataBridgeUnsubscribe: (() => void) | null = null
 
 function ensureDataBridge(): void {
   if (dataBridgeUnsubscribe) return
-  dataBridgeUnsubscribe = bridge()?.onData((id, data) => dataHandlers.get(id)?.(data)) ?? (() => {})
+  // Only latch once a real subscription exists. Caching a no-op because the
+  // bridge happened to be absent on the first call left every terminal in the
+  // session with no output and no way to recover.
+  const unsubscribe = bridge()?.onData?.((id, data) => dataHandlers.get(id)?.(data))
+  if (unsubscribe) dataBridgeUnsubscribe = unsubscribe
 }
 
 /** Subscribes to raw PTY output for one terminal. */

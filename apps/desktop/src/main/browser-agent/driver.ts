@@ -85,6 +85,8 @@ export interface DriverCallbacks {
 
 let driverCallbacks: DriverCallbacks | null = null
 let knownSessions: BrowserKnownSessionRegistry | null = null
+/** Kept so teardown can force its erasures past the settings write debounce. */
+let configStore: ConfigStore | null = null
 
 /**
  * Page states auto-handled since the last tool result (dismissed dialogs,
@@ -190,6 +192,20 @@ export function initDriver(
 ): void {
   driverCallbacks = callbacks
   knownSessions = config ? new BrowserKnownSessionRegistry(config) : null
+  configStore = config ?? null
+  // The rest of this module's state is per-session too. Left behind, a new
+  // session inherits the previous one's pending notices, a takeover still
+  // waiting on a user who is gone, and a fingerprint that suppresses its very
+  // first tab push as a duplicate.
+  pendingNotices = []
+  takeoverActive = false
+  takeoverDone = false
+  lastTabsStateFingerprint = null
+  // The serialization chain, too. A takeover from the previous session can sit
+  // unresolved indefinitely, and its `takeoverDone` flag is reset above — so
+  // leaving the old chain head in place would queue the new session's first
+  // tool call behind a promise nothing can ever settle.
+  toolQueue = Promise.resolve()
   initFillCoordinator({
     getActiveContents: () => session.activeTab()?.view.webContents ?? null,
     onAvailabilityChanged: (available) => callbacks.onFillAvailability(available),
@@ -264,6 +280,11 @@ export async function clearBrowserProfile(): Promise<void> {
   knownSessions?.clear()
   await session.clearProfileStorage()
   await clearCredentials()
+  // Last, covering the pinned-tab list `clearProfileStorage` just emptied.
+  // Settings writes coalesce, and an erasure that is still sitting in that
+  // window when the process dies leaves the previous account's data on disk
+  // after sign-out already told the user it was gone.
+  configStore?.flush()
 }
 
 function str(params: Record<string, unknown>, key: string): string | undefined {

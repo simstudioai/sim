@@ -7,21 +7,33 @@ A thin Electron shell around the hosted Sim web app. The renderer loads the conf
 ```
 src/main/           # main process (bundled to dist/main.cjs)
   index.ts          # lifecycle + wiring
+  ipc.ts            # the single channel table: gate, version floor, handler
   config.ts         # origin + settings store (userData/settings.json)
+  app-routes.ts     # Sim routes the shell navigates to (menu + tray share them)
+  atomic-json-file.ts # crash-safe write for the encrypted userData stores
   navigation.ts     # navigation classifier + openExternalSafe
   windows.ts        # window.open policy (full app windows, MCP popup, blank children)
   window.ts         # secure BrowserWindow, permissions, crash/hang recovery
   security-guards.ts# global web-contents guards, TLS policy
+  csp.ts            # Content-Security-Policy fallback header
   handoff.ts        # 127.0.0.1 loopback login handoff + token redeem
   session-lifecycle.ts # sign-out teardown, 401 watcher, connect intercept
   load-health.ts    # offline/error page, auto-retry, watchdog
   local-filesystem.ts # session-scoped read-only directory grants + localfs:// broker
+  local-filesystem-grant-store.ts # those grants, encrypted at rest
+  desktop-settings.ts # renderer-facing settings surface
   downloads.ts      # will-download handling
   context-menu.ts   # native right-click + spellcheck
   telemetry-policy.ts # third-party analytics blocking
   observability.ts  # JSONL event log (userData/logs/desktop-events.log)
   updater.ts        # electron-updater wiring, channels, downgrade/block guards
   menu.ts           # role-based macOS menus
+  tray.ts           # tray icon, recent-chat menu, environment marker
+  browser-agent/    # the agent browser: tab lifecycle, panel geometry, CDP driver
+  terminal/         # the agent terminal: PTY sessions, tmux, shell integration
+  browser-credentials/ # saved passwords, OS-auth gated, safeStorage at rest
+  browser-sites/    # imported site directory, safeStorage at rest
+  browser-import/   # one-shot import of profiles, cookies and passwords
 src/preload/        # contextBridge IPC bridge (bundled to dist/preload.cjs)
 static/             # bundled local pages (offline.html)
 e2e/                # Playwright _electron smoke suite

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { TERMINAL_TOOL_NAME } from '@sim/terminal-protocol'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { AsyncCompletionSignal } from '@/lib/copilot/async-runs/lifecycle'
 import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/copilot/constants'
 import {
@@ -142,7 +143,7 @@ async function emitGateResult(
     logger.warn('Failed to emit permission gate tool result', {
       toolCallId,
       toolName,
-      error: err instanceof Error ? err.message : String(err),
+      error: getErrorMessage(err),
     })
   }
 }
@@ -177,7 +178,7 @@ async function emitApprovedCall(
     logger.warn('Failed to emit approved tool call frame', {
       toolCallId,
       toolName,
-      error: err instanceof Error ? err.message : String(err),
+      error: getErrorMessage(err),
     })
   }
 }

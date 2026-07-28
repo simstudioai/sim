@@ -1,5 +1,5 @@
 import { lstat, readdir, readFile, realpath, stat } from 'node:fs/promises'
-import { basename, isAbsolute, resolve, sep } from 'node:path'
+import { basename, isAbsolute, relative, resolve, sep } from 'node:path'
 import type {
   LocalFilesystemData,
   LocalFilesystemEntry,
@@ -8,6 +8,14 @@ import type {
   LocalFilesystemMount,
   LocalFilesystemResponse,
 } from '@sim/desktop-bridge'
+import {
+  DEFAULT_GREP_CONTEXT,
+  DEFAULT_GREP_RESULTS,
+  DEFAULT_READ_LINES,
+  MAX_GREP_CONTEXT,
+  MAX_GREP_RESULTS,
+  MAX_READ_LINES,
+} from '@sim/desktop-bridge/local-filesystem-limits'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { app, dialog, shell } from 'electron'
@@ -40,10 +48,8 @@ const MAX_GLOB_WILDCARDS = 6
 const GLOB_PROBE_BUDGET_MS = 100
 /** Repeated-literal path that provokes backtracking in a pathological glob. */
 const GLOB_PROBE_PATH = `${'a'.repeat(32)}/${'a'.repeat(32)}.txt`
-const MAX_GREP_RESULTS = 200
 const MAX_TEXT_FILE_BYTES = 5 * 1024 * 1024
 const MAX_GREP_SCAN_BYTES = 100 * 1024 * 1024
-const MAX_READ_LINES = 2_000
 const MAX_GREP_LINE_LENGTH = 500
 const REQUEST_ID_PATTERN = /^[^\x00-\x1f\x7f]{1,256}$/
 
@@ -88,8 +94,25 @@ export interface LocalFilesystemToolAuthorization {
   args: Record<string, unknown>
 }
 
+/**
+ * Whether a resolved path is the granted root or sits beneath it.
+ *
+ * Uses `relative()` rather than prefix arithmetic. The `${root}${sep}` sentinel
+ * that form needs to reject `/granted-evil` against `/granted` becomes `//` when
+ * the root IS a separator — and the picker lets the user grant a volume root —
+ * so every path under a granted `/` was denied while the bare root passed.
+ * `relative()` has no such edge case: it returns `''` for the root itself and a
+ * leading `..` segment for anything outside, on both separators.
+ */
 function isWithinRoot(rootPath: string, candidatePath: string): boolean {
-  return candidatePath === rootPath || candidatePath.startsWith(`${rootPath}${sep}`)
+  const rel = relative(rootPath, candidatePath)
+  if (rel === '') return true
+  // A leading `..` SEGMENT, not the two characters: `..config` is an ordinary
+  // child name, and matching it as an escape would deny a real dotfile.
+  if (rel === '..' || rel.startsWith(`..${sep}`)) return false
+  // A different Windows volume relativizes to an absolute path rather than a
+  // `..` walk, so it has to be rejected separately.
+  return !isAbsolute(rel)
 }
 
 function entryKind(entry: {
@@ -420,8 +443,8 @@ export class LocalFilesystemService {
             : 0
         const limit =
           typeof args.limit === 'number' && Number.isFinite(args.limit)
-            ? Math.min(2000, Math.max(1, Math.trunc(args.limit)))
-            : 2000
+            ? Math.min(MAX_READ_LINES, Math.max(1, Math.trunc(args.limit)))
+            : DEFAULT_READ_LINES
         return (
           expectedUri !== null &&
           request.uri === expectedUri &&
@@ -457,11 +480,11 @@ export class LocalFilesystemService {
         const maxResults =
           typeof args.maxResults === 'number' && Number.isFinite(args.maxResults)
             ? Math.min(MAX_GREP_RESULTS, Math.max(1, Math.trunc(args.maxResults)))
-            : 50
+            : DEFAULT_GREP_RESULTS
         const context =
           typeof args.context === 'number' && Number.isFinite(args.context)
-            ? Math.min(20, Math.max(0, Math.trunc(args.context)))
-            : 0
+            ? Math.min(MAX_GREP_CONTEXT, Math.max(0, Math.trunc(args.context)))
+            : DEFAULT_GREP_CONTEXT
         return (
           uriAllowed &&
           request.caseSensitive === (args.ignoreCase !== true) &&
@@ -866,7 +889,12 @@ export class LocalFilesystemService {
   ): Promise<LocalFilesystemData> {
     throwIfAborted(signal)
     const startLine = parsePositiveInteger(rawStartLine, 'startLine', 1, Number.MAX_SAFE_INTEGER)
-    const lineCount = parsePositiveInteger(rawLineCount, 'lineCount', 500, MAX_READ_LINES)
+    const lineCount = parsePositiveInteger(
+      rawLineCount,
+      'lineCount',
+      DEFAULT_READ_LINES,
+      MAX_READ_LINES
+    )
     const resolvedPath = await this.resolveUri(uri)
     const fileStat = await stat(resolvedPath.realPath)
     if (!fileStat.isFile()) {
@@ -935,12 +963,20 @@ export class LocalFilesystemService {
     if (
       !Number.isInteger(rawContext) ||
       (rawContext as number) < 0 ||
-      (rawContext as number) > 20
+      (rawContext as number) > MAX_GREP_CONTEXT
     ) {
-      throw new LocalFilesystemError('INVALID_REQUEST', 'context must be an integer from 0 to 20.')
+      throw new LocalFilesystemError(
+        'INVALID_REQUEST',
+        `context must be an integer from 0 to ${MAX_GREP_CONTEXT}.`
+      )
     }
     const contextLines = rawContext as number
-    const maxResults = parsePositiveInteger(request.maxResults, 'maxResults', 50, MAX_GREP_RESULTS)
+    const maxResults = parsePositiveInteger(
+      request.maxResults,
+      'maxResults',
+      DEFAULT_GREP_RESULTS,
+      MAX_GREP_RESULTS
+    )
 
     const include = typeof request.include === 'string' ? request.include : '**/*'
     const matcher = compileGlob(include)

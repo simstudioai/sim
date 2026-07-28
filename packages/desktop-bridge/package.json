@@ -13,6 +13,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./local-filesystem-limits": {
+      "types": "./src/local-filesystem-limits.ts",
+      "default": "./src/local-filesystem-limits.ts"
     }
   },
   "scripts": {

@@ -22,6 +22,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import type { TerminalPaneState } from '@sim/terminal-protocol'
+import { sleep } from '@sim/utils/helpers'
 
 const logger = createLogger('DesktopTmux')
 
@@ -396,7 +397,7 @@ export async function awaitRun(handle: TmuxRunHandle, waitMs: number): Promise<T
     if (isRunComplete(handle)) return pollRun(handle)
     const remaining = deadline - Date.now()
     if (remaining <= 0) return pollRun(handle)
-    await new Promise((resolve) => setTimeout(resolve, Math.min(RUN_POLL_INTERVAL_MS, remaining)))
+    await sleep(Math.min(RUN_POLL_INTERVAL_MS, remaining))
   }
 }
 

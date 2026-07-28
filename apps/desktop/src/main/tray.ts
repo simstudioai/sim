@@ -4,12 +4,8 @@ import { sleep } from '@sim/utils/helpers'
 import { truncate } from '@sim/utils/string'
 import type { MenuItemConstructorOptions, NativeImage } from 'electron'
 import { app, Menu, nativeImage, session, Tray } from 'electron'
-import {
-  APP_NAME_FOR_CHANNEL,
-  channelForOrigin,
-  type DesktopChannel,
-  isSafeInternalPath,
-} from '@/main/config'
+import { newChatRoute } from '@/main/app-routes'
+import { APP_NAME_FOR_CHANNEL, channelForOrigin, type DesktopChannel } from '@/main/config'
 
 const logger = createLogger('DesktopTray')
 
@@ -330,36 +326,6 @@ function statusDotImage(status: RecentChatStatus): NativeImage | undefined {
 
 export function chatRoute(chat: RecentChat): string {
   return `/workspace/${chat.workspaceId}/chat/${chat.id}`
-}
-
-/** Workspace id from the last visited route, or null when it carries none. */
-function workspaceIdFromRoute(lastRoute: string | undefined): string | null {
-  if (isSafeInternalPath(lastRoute)) {
-    const match = /^\/workspace\/([^/?#]+)/.exec(lastRoute)
-    if (match) {
-      return match[1]
-    }
-  }
-  return null
-}
-
-/**
- * Route for a tray-initiated "New Chat": the home (chat) surface of the
- * workspace the user was last in, falling back to the workspace picker
- * redirect when the last route carries no workspace.
- */
-export function newChatRoute(lastRoute: string | undefined): string {
-  const workspaceId = workspaceIdFromRoute(lastRoute)
-  return workspaceId ? `/workspace/${workspaceId}/home` : '/workspace'
-}
-
-/**
- * Route for "Settings…": the Sim app's settings surface for the workspace the
- * user was last in, falling back to the workspace picker redirect.
- */
-export function settingsRoute(lastRoute: string | undefined): string {
-  const workspaceId = workspaceIdFromRoute(lastRoute)
-  return workspaceId ? `/workspace/${workspaceId}/settings/desktop` : '/workspace'
 }
 
 export interface TrayDeps {

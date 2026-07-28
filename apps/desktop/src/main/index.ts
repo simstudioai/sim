@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import type { Session, WebContents } from 'electron'
 import { app, BrowserWindow, crashReporter, net, session } from 'electron'
+import { newChatRoute, settingsRoute } from '@/main/app-routes'
 import {
   clearBrowserProfile as clearAgentBrowserProfile,
   initDriver as initBrowserAgentDriver,
@@ -47,7 +48,7 @@ import {
 } from '@/main/session-lifecycle'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
 import { TerminalService } from '@/main/terminal'
-import { installTray, newChatRoute, settingsRoute, type TrayHandle } from '@/main/tray'
+import { installTray, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
 import { createMainWindow, setupPermissionHandlers } from '@/main/window'
 import { attachWindowOpenPolicy, isPopupContents } from '@/main/windows'
@@ -399,6 +400,9 @@ function main(): void {
     tray = null
     localFilesystem.close()
     terminal.dispose()
+    // Settings writes coalesce, so a change made in the last moments before
+    // quit is still pending here.
+    config.flush()
   })
 
   app.on('activate', () => {
@@ -491,8 +495,8 @@ function main(): void {
       newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
       closeFocusedBrowserTab: (win) => closeFocusedBrowserTab(win),
       reopenClosedBrowserTab: (win) => reopenClosedBrowserTab(win),
-      closeFocusedTerminal: () => terminal.closeFocusedTerminal(),
-      reopenClosedTerminal: () => terminal.reopenClosedTerminal(),
+      closeFocusedTerminal: (win) => terminal.closeFocusedTerminal(win),
+      reopenClosedTerminal: (win) => terminal.reopenClosedTerminal(win),
       toggleSidebar: () => getMainWindow()?.webContents.send('desktop:command', 'toggle-sidebar'),
       signOut: signOutFromMenu,
       checkForUpdates: () =>

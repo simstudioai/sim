@@ -86,7 +86,22 @@ let resizeBoundWindow: BrowserWindow | null = null
 const onHostResize = () => layout()
 
 export function initPanel(panelHost: PanelHost): void {
+  // A real reset, not a partial setter. Everything below is per-session state,
+  // and this call IS the session boundary — anything left behind is inherited
+  // by the next session: a stale owner window that rejects legitimate panel
+  // updates, a lease timer polling for a panel that no longer exists, a
+  // `lastApplied*` value that dedupes away the first layout of the new one.
+  detachAttachedView()
+  resetOcclusion()
+  if (leaseTimer !== null) {
+    clearInterval(leaseTimer)
+    leaseTimer = null
+  }
   host = panelHost
+  panelBounds = null
+  panelAnchor = null
+  panelLeaseAt = 0
+  panelOwnerWindow = null
 }
 
 /**

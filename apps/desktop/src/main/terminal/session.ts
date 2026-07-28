@@ -23,6 +23,7 @@ import {
   type TerminalRunResult,
   type TerminalTabState,
 } from '@sim/terminal-protocol'
+import { sleep } from '@sim/utils/helpers'
 import {
   Terminal as HeadlessTerminal,
   type IBuffer,
@@ -81,10 +82,6 @@ const CONTROL_KEY_BYTES: Record<TerminalControlKey, string> = {
 
 /** Enter, as a keyboard sends it: carriage return, never linefeed. */
 const ENTER = '\r'
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
 
 /**
  * Splits model-authored text into the separate writes a keyboard would produce.
@@ -535,13 +532,13 @@ export class TerminalSession {
 
   /** Holds a gap, then lets any resulting redraw finish before the next write. */
   private async settleBetweenKeystrokes(): Promise<void> {
-    await delay(KEYSTROKE_GAP_MS)
+    await sleep(KEYSTROKE_GAP_MS)
     const deadline = Date.now() + KEYSTROKE_SETTLE_MAX_MS
     while (!this.disposed) {
       const quietFor = Date.now() - this.lastOutputAt
       const remaining = Math.min(KEYSTROKE_GAP_MS - quietFor, deadline - Date.now())
       if (remaining <= 0) return
-      await delay(remaining)
+      await sleep(remaining)
     }
   }
 

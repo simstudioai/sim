@@ -95,6 +95,26 @@ export function parseOAuthConnectScope(raw: unknown): OAuthConnectScope | undefi
   }
 }
 
+/**
+ * A renderer-supplied dimension worth acting on. `typeof NaN === 'number'` and
+ * `NaN <= 0` is false, so a bare typeof check lets an unfinite value through
+ * every downstream positivity guard untouched.
+ */
+export function isPositiveFinite(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
+/**
+ * A renderer-supplied dimension as a usable whole number of cells.
+ *
+ * Flooring after the positivity check is not enough on its own: 0.5 passes
+ * `> 0` and floors to 0, and a zero-column pty is either a broken shell or a
+ * spawn failure. The floor of one cell is applied here so every caller gets it.
+ */
+export function toCellCount(value: unknown, fallback: number): number {
+  return isPositiveFinite(value) ? Math.max(1, Math.floor(value)) : fallback
+}
+
 /** Validates a renderer-reported panel rect (finite numbers or explicit null). */
 export function parsePanelBounds(
   raw: unknown
@@ -224,6 +244,16 @@ interface ChannelSpecBase {
   gate: ChannelGate
   passSender?: boolean
   requires?: ChannelFeature
+  /**
+   * Why this channel's `gate` or `requires` deviates from the rest of its
+   * name family. Required by `check:desktop-ipc` for any channel that does,
+   * so a new channel cannot quietly opt out of its family's surface toggle.
+   *
+   * A field rather than a comment because the deviation is a property of this
+   * object: reordering the table moves it with its channel, where a positional
+   * comment would silently transfer to whichever channel took its place.
+   */
+  deviationReason?: string
 }
 
 type ChannelSpec =
@@ -359,6 +389,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'desktop:open-external': {
       kind: 'invoke',
       gate: 'any',
+      deviationReason:
+        'the offline and error pages are local-page senders, not app-origin, and handing a support link to the system browser is the one action that must work when the app cannot reach its origin at all',
       denied: false,
       handler: (url) =>
         typeof url === 'string' ? openExternalSafe(url, deps.allowHttpLocalhost()) : false,
@@ -462,12 +494,16 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-agent:get-known-sessions': {
       kind: 'invoke',
       gate: 'app-origin',
+      deviationReason:
+        "read/reset of the surface's own data; gating it on the surface would strand the browsing trail with no way to inspect or erase it",
       denied: { sessions: [] },
       handler: () => getKnownSessions(),
     },
     'browser-agent:clear-browsing-data': {
       kind: 'invoke',
       gate: 'app-origin',
+      deviationReason:
+        'erasing browsing data has to work with the browser off, which is the state a user clearing it is most likely to be in',
       needsUserActivation: true,
       denied: { sessions: [] },
       handler: async (rawKinds) => {
@@ -655,6 +691,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:form-state': {
       kind: 'send',
       gate: 'browser-page',
+      deviationReason:
+        "the only sender in this family that is a browser PAGE rather than the Sim app, so browser-page is the correct gate and requires:'browser' follows — with the browser off no such page exists",
       requires: 'browser',
       passSender: true,
       handler: (sender, report) => {
@@ -684,6 +722,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-import:sites': {
       kind: 'invoke',
       gate: 'app-origin',
+      deviationReason:
+        'a read of already-imported data; settings lists these hosts to show what an import brought over, which is what you look at while deciding whether to enable the browser',
       denied: [],
       handler: () => listSites(),
     },
@@ -721,6 +761,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:import': {
       kind: 'invoke',
       gate: 'app-origin',
+      deviationReason:
+        "unlike its siblings this WRITES new credentials by driving the embedded browser's import path, so it needs the surface the rest of the family deliberately does without",
       requires: 'browser',
       needsUserActivation: true,
       denied: {
@@ -745,6 +787,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:show-chooser': {
       kind: 'invoke',
       gate: 'app-origin',
+      deviationReason:
+        'it fills into a live browser page, so unlike the read-only management channels beside it there is nothing to act on when the browser is off',
       requires: 'browser',
       needsUserActivation: true,
       passSender: true,
@@ -777,8 +821,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           return {
             ok: true,
             tabs: deps.terminal.start({
-              cols: Number.isFinite(cols) && cols > 0 ? Math.floor(cols) : 80,
-              rows: Number.isFinite(rows) && rows > 0 ? Math.floor(rows) : 24,
+              cols: toCellCount(cols, 80),
+              rows: toCellCount(rows, 24),
             }),
           }
         } catch (error) {
@@ -824,7 +868,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       kind: 'send',
       gate: 'app-origin',
       requires: 'terminal',
-      handler: (focused) => deps.terminal.setPanelFocused(focused === true),
+      passSender: true,
+      handler: (sender, focused) =>
+        deps.terminal.setPanelFocused(focused === true, sender as WebContents),
     },
     'terminal:scrollback': {
       kind: 'invoke',
@@ -883,18 +929,19 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       requires: 'terminal',
       handler: (terminalId, cols, rows) => {
-        if (
-          typeof terminalId === 'string' &&
-          typeof cols === 'number' &&
-          typeof rows === 'number'
-        ) {
-          deps.terminal.resize(terminalId, Math.floor(cols), Math.floor(rows))
-        }
+        // `typeof NaN === 'number'`, and the downstream `cols <= 0` guard is
+        // false for NaN, so an unfinite value reached pty.resize() intact.
+        // Matches the clamping terminal:start already applies to these fields.
+        if (typeof terminalId !== 'string') return
+        if (!isPositiveFinite(cols) || !isPositiveFinite(rows)) return
+        deps.terminal.resize(terminalId, toCellCount(cols, 1), toCellCount(rows, 1))
       },
     },
     'terminal:dispose': {
       kind: 'send',
       gate: 'app-origin',
+      deviationReason:
+        'tearing the surface down must survive the surface being off, or a terminal left running when the feature was disabled could never be reaped',
       handler: () => deps.terminal.dispose(),
     },
     'offline:retry': {

@@ -1,6 +1,6 @@
-import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { readFile } from 'node:fs/promises'
 import { safeStorage } from 'electron'
+import { removeFileIfPresent, writeJsonFileAtomically } from '@/main/atomic-json-file'
 
 /**
  * What the sites brought over from another browser are called, and what they
@@ -154,12 +154,7 @@ export class SiteDirectory {
       version: DIRECTORY_VERSION,
       payload: this.encryption.encryptString(JSON.stringify(records)).toString('base64'),
     }
-    await mkdir(dirname(this.filePath), { recursive: true })
-    // Temporary file then rename, so a crash mid-write cannot leave a
-    // half-written directory behind.
-    const temporaryPath = `${this.filePath}.tmp`
-    await writeFile(temporaryPath, JSON.stringify(envelope), { mode: 0o600 })
-    await rename(temporaryPath, this.filePath)
+    await writeJsonFileAtomically(this.filePath, envelope)
     return true
   }
 
@@ -197,10 +192,6 @@ export class SiteDirectory {
 
   /** Forgets every site. Runs with the rest of the browser teardown. */
   async clear(): Promise<void> {
-    try {
-      await unlink(this.filePath)
-    } catch {
-      // Already gone is the desired state.
-    }
+    await removeFileIfPresent(this.filePath)
   }
 }

@@ -3,19 +3,36 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 import { BrowserWindow } from 'electron'
+import * as driverModule from '@/main/browser-agent/driver'
+import * as session from '@/main/browser-agent/session'
 
 type DriverModule = typeof import('@/main/browser-agent/driver')
 
-async function freshDriver(): Promise<DriverModule> {
-  vi.resetModules()
-  return await import('@/main/browser-agent/driver')
+/**
+ * `initDriver` is a full reset of the driver's and the session's per-session
+ * state, so a clean driver needs no module reload — which is what lets this
+ * file use static imports instead of the `vi.resetModules()` the root
+ * CLAUDE.md forbids. Tests needing real callbacks call `initDriver` again;
+ * calling it twice is exactly the re-init case the reset exists for.
+ */
+function freshDriver(): DriverModule {
+  driverModule.initDriver(
+    {
+      onPageState: vi.fn(),
+      onTabsState: vi.fn(),
+      onSessionStatus: vi.fn(),
+      onFillAvailability: vi.fn(),
+    },
+    () => null
+  )
+  return driverModule
 }
 
 describe('executeTool', () => {
   let driver: DriverModule
 
   beforeEach(async () => {
-    driver = await freshDriver()
+    driver = freshDriver()
   })
 
   it('returns ok:false instead of throwing for tool-level failures', async () => {
@@ -63,7 +80,6 @@ describe('executeTool', () => {
       )
       await driver.executeTool('browser_open_tab', {})
 
-      const session = await import('@/main/browser-agent/session')
       const contents = session.requireTab().view.webContents
       vi.mocked(contents.getURL).mockReturnValue(url)
       vi.mocked(contents.executeJavaScript).mockImplementation(() => new Promise<never>(() => {}))
@@ -115,7 +131,6 @@ describe('executeTool', () => {
       )
       await driver.executeTool('browser_open_tab', {})
 
-      const session = await import('@/main/browser-agent/session')
       const contents = session.requireTab().view.webContents
       vi.mocked(contents.executeJavaScript).mockImplementation(() => new Promise<never>(() => {}))
 
@@ -146,7 +161,7 @@ describe('credential protection', () => {
   let driver: DriverModule
 
   beforeEach(async () => {
-    driver = await freshDriver()
+    driver = freshDriver()
   })
 
   /** Opens a tab on a real URL so injected page calls are not short-circuited. */
@@ -162,7 +177,6 @@ describe('credential protection', () => {
       () => win
     )
     await driver.executeTool('browser_open_tab', {})
-    const session = await import('@/main/browser-agent/session')
     const contents = session.requireTab().view.webContents
     vi.mocked(contents.getURL).mockReturnValue('https://example.com/login')
     return contents

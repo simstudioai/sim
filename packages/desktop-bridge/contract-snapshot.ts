@@ -2,8 +2,9 @@
  * GENERATED FILE — DO NOT EDIT.
  *
  * Frozen snapshot of the desktop preload bridge type surface
- * (@sim/browser-protocol inlined into @sim/desktop-bridge) as of the last
- * accepted contract change. CI type-checks that a shell built from this
+ * (@sim/browser-protocol + @sim/terminal-protocol inlined into
+ * @sim/desktop-bridge) as of the last accepted contract change.
+ * CI type-checks that a shell built from this
  * snapshot still satisfies the current SimDesktopApi, so bridge changes
  * stay backward compatible with already-installed shells.
  *
@@ -171,6 +172,41 @@ export interface BrowserPageState {
   canGoForward: boolean
 }
 
+/**
+ * One find-in-page request against the active tab. Backed by Chromium's own
+ * find, so behaviour matches Chrome exactly — this only carries the query and
+ * which way to step.
+ */
+export interface BrowserFindRequest {
+  query: string
+  /**
+   * False starts a fresh search and highlights every match; true steps to the
+   * next/previous match of the search already running. Typing re-searches;
+   * Enter steps.
+   */
+  findNext: boolean
+  /** Direction for a `findNext` step. Ignored when starting a fresh search. */
+  forward: boolean
+}
+
+/**
+ * Match counts for the running find, pushed as Chromium resolves them. The
+ * counts are asynchronous and arrive in several updates per request, so the
+ * renderer must not expect one reply per {@link BrowserFindRequest}.
+ */
+export interface BrowserFindResult {
+  /** 1-based index of the highlighted match, or 0 before one is chosen. */
+  activeMatchOrdinal: number
+  /** Total matches on the page; 0 means the query is not present. */
+  matches: number
+  /**
+   * Whether the find has settled. Chromium streams provisional counts while a
+   * long page is still being scanned; only a final update is worth showing as
+   * a definitive "no results".
+   */
+  final: boolean
+}
+
 /** Summary of one live page in the desktop agent browser. */
 export interface BrowserTabState {
   tabId: string
@@ -209,14 +245,419 @@ export interface BrowserKnownSessionsState {
   sessions: BrowserKnownSession[]
 }
 
-import type {
-  TerminalCommandEvent,
-  TerminalOperation,
-  TerminalStartOptions,
-  TerminalTabsState,
-  TerminalToolArgs,
-  TerminalToolResponse,
-} from '@sim/terminal-protocol'
+export const BROWSER_DATA_KINDS = ['cookies', 'site-data', 'cache'] as const
+
+/**
+ * A kind of browsing data the user can clear independently.
+ *
+ * Download history is deliberately absent: the built-in browser cancels every
+ * download, so there is none to clear and offering the option would be a lie.
+ * Saved passwords are absent too — they are a separate, explicit action.
+ */
+export type BrowserDataKind = (typeof BROWSER_DATA_KINDS)[number]
+
+const BROWSER_DATA_KIND_SET: ReadonlySet<string> = new Set(BROWSER_DATA_KINDS)
+
+export function isBrowserDataKind(value: unknown): value is BrowserDataKind {
+  return typeof value === 'string' && BROWSER_DATA_KIND_SET.has(value)
+}
+
+/**
+ * Shared types for the Sim agent terminal — the interactive shells built into
+ * the Sim desktop app.
+ *
+ * The Sim web app (renderer) drives real PTYs through the desktop preload
+ * bridge (`window.simDesktop.terminal`); the Electron main process owns the
+ * `node-pty` processes and streams their bytes back for xterm.js to render.
+ * The user and the agent share the same shells, so `cd`, exported variables,
+ * and scrollback are common to both.
+ *
+ * Several terminals can be open at once, each its own shell with its own
+ * working directory and scrollback, exactly like tabs in a terminal app. One is
+ * active at a time; agent tools act on the active one unless they name another.
+ *
+ * Tool names and parameter shapes mirror the mothership tool catalog
+ * (`copilot/internal/tools/catalog/terminal` in the mothership repo) — that
+ * catalog is the source of truth for what the model can call; this package is
+ * the source of truth for how those calls travel to the desktop main process.
+ */
+
+/** The single tool the model calls; what it does is in `operation`. */
+export const TERMINAL_TOOL_NAME = 'terminal'
+
+/**
+ * Names this surface used to expose, one tool per operation. Kept so rows in
+ * conversations recorded before the consolidation still render with a real
+ * title instead of a humanized tool name.
+ */
+export const LEGACY_TERMINAL_TOOL_NAMES = [
+  'terminal_run',
+  'terminal_input',
+  'terminal_read',
+  'terminal_kill',
+  'terminal_cwd',
+  'terminal_list',
+  'terminal_new',
+  'terminal_switch',
+  'terminal_close',
+] as const
+
+export type LegacyTerminalToolName = (typeof LEGACY_TERMINAL_TOOL_NAMES)[number]
+
+/**
+ * What one `terminal` call does.
+ *
+ * The first group acts on a shell — or, when that shell has tmux attached, on
+ * a pane inside it. The second group manages Sim's own tabs. `panes` is the
+ * one tmux-only operation: tmux owns its windows and splits, so the agent
+ * inspects them rather than Sim mirroring them into the tab strip. `handoff`
+ * gives the terminal to the user and waits.
+ */
+export const TERMINAL_OPERATIONS = [
+  'run',
+  'read',
+  'input',
+  'kill',
+  'cwd',
+  'list',
+  'new',
+  'switch',
+  'close',
+  'panes',
+  'handoff',
+] as const
+
+export type TerminalOperation = (typeof TERMINAL_OPERATIONS)[number]
+
+const TERMINAL_OPERATION_SET: ReadonlySet<string> = new Set(TERMINAL_OPERATIONS)
+
+export function isTerminalOperation(value: unknown): value is TerminalOperation {
+  return typeof value === 'string' && TERMINAL_OPERATION_SET.has(value)
+}
+
+export function isTerminalToolName(name: string): boolean {
+  return name === TERMINAL_TOOL_NAME
+}
+
+/**
+ * Ceiling on concurrently open terminals. Each is a live shell process with its
+ * own emulator and scrollback, so the cap bounds both memory and the number of
+ * things the user has to keep track of.
+ */
+export const MAX_TERMINALS = 8
+
+/**
+ * Largest command output handed back to the model, in characters. Output past
+ * this is middle-elided (head and tail kept) because the interesting parts of
+ * a long build log are the command echo and the failure at the end.
+ */
+export const MAX_TOOL_OUTPUT_CHARS = 30_000
+
+/** Scrollback the main process retains per terminal for reads and repaints. */
+export const MAX_SCROLLBACK_CHARS = 256_000
+
+/**
+ * Ceiling on the raw bytes buffered while capturing one command's output. A
+ * full-screen program repaints continuously and can emit megabytes a second,
+ * so capture keeps a capped head plus a rolling tail rather than growing until
+ * the command ends.
+ */
+export const MAX_CAPTURE_CHARS = 512_000
+
+/**
+ * How long `terminal_run` waits for a command before handing control back.
+ *
+ * Deliberately short. A long blocking call would leave the user watching
+ * nothing and the agent unable to react, so anything still running comes back
+ * as `running` with the output so far; the agent then polls it with `wait` and
+ * `terminal_read`. Successive reads are also how it tells progress from a
+ * stall — output that stops changing is a command waiting on input or wedged.
+ */
+export const DEFAULT_RUN_WAIT_MS = 30_000
+
+export const MAX_RUN_WAIT_MS = 120_000
+
+/**
+ * How long output must be silent, with the cursor left mid-line, before the
+ * command is treated as sitting on a prompt and handed straight back.
+ *
+ * Waiting out the full window for something as obvious as `[y/n]` reads as a
+ * hang. A command that stops mid-line has written a prompt and is waiting for
+ * an answer; one that is merely working either keeps printing or has ended its
+ * last line properly, so neither trips this.
+ */
+export const PROMPT_IDLE_MS = 2_500
+
+/**
+ * Ceiling on one batch of keystrokes. Long enough to cross a menu, short
+ * enough that a mistaken batch cannot run away with the program — every key
+ * after the first is sent without seeing what the last one did.
+ */
+export const MAX_INPUT_KEYS = 20
+
+/** Control keys the agent may send to a running foreground process. */
+export const TERMINAL_CONTROL_KEYS = [
+  'ctrl-c',
+  'ctrl-d',
+  'ctrl-z',
+  'enter',
+  'up',
+  'down',
+  'left',
+  'right',
+  'escape',
+  'tab',
+] as const
+
+export type TerminalControlKey = (typeof TERMINAL_CONTROL_KEYS)[number]
+
+const TERMINAL_CONTROL_KEY_SET: ReadonlySet<string> = new Set(TERMINAL_CONTROL_KEYS)
+
+export function isTerminalControlKey(value: unknown): value is TerminalControlKey {
+  return typeof value === 'string' && TERMINAL_CONTROL_KEY_SET.has(value)
+}
+
+export type TerminalSignal = 'SIGINT' | 'SIGTERM' | 'SIGKILL'
+
+/**
+ * Arguments for every operation, flattened into one object.
+ *
+ * A flat bag rather than a discriminated union because it has to survive a
+ * round trip through a JSON tool schema, where the model supplies whichever
+ * fields its chosen operation needs. Each operation validates the ones it
+ * requires and ignores the rest.
+ */
+export interface TerminalToolArgs {
+  /** `run`: the command line to execute. */
+  command?: string
+  /** `input`: literal text to type. */
+  text?: string
+  /** `input`: a key to press instead of text. */
+  key?: TerminalControlKey
+  /**
+   * `input`: several keys pressed in order, for stepping through a menu
+   * ("down", "down", "enter") without a round trip per keystroke. Each is a
+   * real keypress with a pause between, so the program redraws as it would
+   * under a person's hands. Capped at {@link MAX_INPUT_KEYS}.
+   */
+  keys?: TerminalControlKey[]
+  /** `read`: trailing lines to return. */
+  lines?: number
+  /** `kill`: which signal. Defaults to SIGINT. */
+  signal?: TerminalSignal
+  /** `new`: directory to open in. Defaults to the active terminal's cwd. */
+  cwd?: string
+  /** `run`: how long to wait before handing back a still-running command. */
+  waitSeconds?: number
+  /**
+   * Which terminal to act on. Omitting it targets the active one, which is
+   * what the user is looking at and what a single-terminal conversation
+   * always means.
+   */
+  terminalId?: string
+  /**
+   * Which tmux pane to act on, as a tmux target (`session:window.pane`), for
+   * a terminal that has tmux attached. Omitting it uses that session's active
+   * pane. Ignored when the terminal is a plain shell.
+   */
+  pane?: string
+  /** `handoff`: what the user needs to do, shown on the chip they click. */
+  reason?: string
+}
+
+export interface TerminalToolCall {
+  operation: TerminalOperation
+  args?: TerminalToolArgs
+}
+
+/**
+ * How a `terminal_run` ended. Only `completed` means the command is finished
+ * and the terminal is free; in every other case it is still running and still
+ * holds the foreground.
+ */
+export type TerminalRunStatus =
+  /** Exited on its own. `exitCode` is set. */
+  | 'completed'
+  /**
+   * Still going when the wait window elapsed. Not an error and not a stall —
+   * poll it rather than re-running or giving up.
+   */
+  | 'running'
+  /**
+   * Took over the screen (an editor, pager, or interactive CLI). Its output is
+   * redraws rather than text and it will not exit unaided.
+   */
+  | 'interactive'
+
+export interface TerminalRunResult {
+  command: string
+  output: string
+  status: TerminalRunStatus
+  /** Null unless `status` is `completed`. */
+  exitCode: number | null
+  durationMs: number
+  cwd: string | null
+  terminalId: string
+  /** Set when the command ran in tmux: the target it ran under. */
+  pane?: string
+  /** True when output was elided to fit {@link MAX_TOOL_OUTPUT_CHARS}. */
+  truncated: boolean
+  /**
+   * Set when the command looks like it is blocked on a prompt: it printed
+   * something, stopped mid-line, and went quiet. Answer it with terminal_input
+   * rather than waiting — it will not proceed on its own.
+   */
+  awaitingInput?: boolean
+}
+
+export interface TerminalReadResult {
+  /**
+   * The screen as text. When a row is highlighted the way a menu marks its
+   * selection, it is prefixed `[selected] ` — a TUI that indicates the current
+   * row with colour alone is otherwise invisible in plain text, leaving the
+   * agent unable to tell where it is before it starts pressing keys.
+   */
+  output: string
+  cwd: string | null
+  terminalId: string
+  /** Set when the read came from tmux: the pane it captured. */
+  pane?: string
+  truncated: boolean
+  /**
+   * The command still holding the terminal, or null when the shell is back at
+   * a prompt. This is the definitive "is it done" signal for a poll loop —
+   * seeing expected text in the output is not, because a command can print its
+   * last line well before it exits.
+   */
+  running: string | null
+}
+
+export interface TerminalCwdResult {
+  cwd: string | null
+  shellName: string | null
+  home: string | null
+  terminalId: string
+}
+
+/** One open terminal, as shown in the tab strip. */
+export interface TerminalTabState {
+  terminalId: string
+  /** Short label for the tab: the running command, else the cwd's basename. */
+  title: string
+  cwd: string | null
+  /** Command holding the foreground, when one is running. */
+  running: string | null
+  /**
+   * True while a full-screen program owns the terminal. Distinct from merely
+   * `running`: a build is transient work, an editor or coding agent is an open
+   * application that will sit there until it is quit.
+   */
+  interactive: boolean
+  active: boolean
+  /**
+   * The tmux session attached in this terminal, when one is. Its windows and
+   * panes are tmux's to manage — `panes` lists them; Sim's tab strip stays a
+   * count of the shells Sim opened.
+   */
+  tmuxSession?: string | null
+}
+
+/** One tmux pane, as reported by the `panes` operation. */
+export interface TerminalPaneState {
+  /** tmux target (`session:window.pane`), usable as the `pane` argument. */
+  target: string
+  windowName: string
+  /** The process tmux reports in the pane; a bare shell means it is idle. */
+  command: string
+  cwd: string | null
+  active: boolean
+}
+
+/**
+ * The outcome of handing a terminal to the user.
+ *
+ * Resolves when the command that was blocking finishes, so the agent picks up
+ * where it left off rather than having to guess whether the user is done. A
+ * command still going after the user says they have finished comes back with
+ * `running` set, which is the same poll-it signal a long `run` returns.
+ */
+export interface TerminalHandoffResult {
+  terminalId: string
+  reason: string
+  /** True when the user pressed the hand-back button rather than the command just ending. */
+  handedBack: boolean
+  /** The command still holding the terminal, or null when it is back at a prompt. */
+  running: string | null
+  /** The screen as it stands now. */
+  output: string
+  cwd: string | null
+}
+
+export interface TerminalPanesResult {
+  terminalId: string
+  session: string
+  panes: TerminalPaneState[]
+}
+
+export interface TerminalTabsState {
+  tabs: TerminalTabState[]
+  activeTerminalId: string | null
+}
+
+/** The result of one terminal tool invocation, as returned over the bridge. */
+export interface TerminalToolResponse {
+  ok: boolean
+  result?: unknown
+  error?: string
+  code?: TerminalErrorCode
+}
+
+export type TerminalErrorCode =
+  | 'SESSION_CLOSED'
+  /** Another command already holds the foreground in that terminal. */
+  | 'BUSY'
+  | 'TIMEOUT'
+  /**
+   * The shell never emitted integration markers, so command boundaries and
+   * exit codes are unknowable and `terminal_run` must refuse rather than guess.
+   */
+  | 'NO_SHELL_INTEGRATION'
+  | 'SPAWN_FAILED'
+  /** No terminal with that id — the ids come from terminal_list. */
+  | 'NO_SUCH_TERMINAL'
+  /** Already at {@link MAX_TERMINALS}. */
+  | 'TOO_MANY_TERMINALS'
+  /** The operation needs tmux, and this terminal has no tmux attached. */
+  | 'NO_TMUX'
+  /** No pane with that target — the targets come from the `panes` operation. */
+  | 'NO_SUCH_PANE'
+  | 'INVALID_REQUEST'
+
+export interface TerminalStartOptions {
+  cols: number
+  rows: number
+}
+
+/** One batch of PTY bytes, tagged with the terminal that produced it. */
+export interface TerminalOutputEvent {
+  terminalId: string
+  data: string
+}
+
+/**
+ * Command lifecycle, used by the panel to attribute rows to the agent and to
+ * show a running indicator. Emitted for user-typed commands too (no
+ * `toolCallId`), so the agent's `terminal_read` and the user's view agree.
+ */
+export interface TerminalCommandEvent {
+  terminalId: string
+  phase: 'start' | 'end'
+  command: string
+  /** Set when the agent initiated this command rather than the user. */
+  toolCallId?: string
+  exitCode?: number
+  durationMs?: number
+}
 
 /**
  * The agent-terminal surface of the preload bridge. Real PTYs run in the
@@ -224,6 +665,17 @@ import type {
  * forwards keystrokes back. Several terminals can be open at once, each its own
  * shell, and the user and the agent share them — so working directory and
  * environment stay consistent between the two.
+ */
+/**
+ * The agent-terminal surface of the preload bridge.
+ *
+ * Members added after this surface first shipped are `optional?`, matching the
+ * browser-agent surface beside it and the "feature-detect, never assume" rule
+ * in apps/desktop/README.md: one web app is served to shells of every age, and
+ * `MIN_DESKTOP_VERSION` is still `0.0.0` (no floor), so an older shell reaches
+ * this code. Declaring such a member required makes the type disagree with the
+ * renderer, which has to `?.` it anyway — and the contract audit cannot catch
+ * that, because it compares against a snapshot the same PR regenerates.
  */
 export interface SimDesktopTerminalApi {
   /** Open the first terminal, or adopt the ones already running. */
@@ -244,11 +696,11 @@ export interface SimDesktopTerminalApi {
   openTerminal(cwd?: string): Promise<TerminalTabsState>
   switchTerminal(terminalId: string): Promise<TerminalTabsState>
   closeTerminal(terminalId: string): Promise<TerminalTabsState>
-  getTabs(): Promise<TerminalTabsState>
+  getTabs?(): Promise<TerminalTabsState>
   /** End every shell. A new one starts on the next `start`. */
   dispose(): void
   /** Subscribe to PTY output batches. Returns an unsubscribe function. */
-  onData(callback: (terminalId: string, data: string) => void): () => void
+  onData?(callback: (terminalId: string, data: string) => void): () => void
   /**
    * Everything already on a terminal's screen, for a new view to paint itself
    * from. Pulled per view so the repaint cannot be aimed at the wrong set of
@@ -260,15 +712,15 @@ export interface SimDesktopTerminalApi {
    * accelerators can tell a Cmd-W meant for a terminal from one meant for the
    * window.
    */
-  setFocused(focused: boolean): void
+  setFocused?(focused: boolean): void
   /**
    * The user finishing a handoff — the hand-back chip on the waiting tool row.
    */
-  finishHandoff(terminalId: string): void
+  finishHandoff?(terminalId: string): void
   /** Subscribe to the open-terminal list and which one is active. */
-  onTabs(callback: (state: TerminalTabsState) => void): () => void
+  onTabs?(callback: (state: TerminalTabsState) => void): () => void
   /** Subscribe to command start/end, used for agent attribution in the panel. */
-  onCommand(callback: (event: TerminalCommandEvent) => void): () => void
+  onCommand?(callback: (event: TerminalCommandEvent) => void): () => void
 }
 
 /**
@@ -331,6 +783,31 @@ export interface SimDesktopBrowserAgentApi {
    */
   onFocusOmnibox?(callback: (mode: BrowserOmniboxFocusMode) => void): () => void
   /**
+   * Run Chromium's find-in-page against the active tab. Results do not come
+   * back from this call — they stream through {@link onFindResult}. Optional
+   * for compatibility with desktop builds predating find-in-page.
+   */
+  find?(request: BrowserFindRequest): void
+  /**
+   * Stop the running find and clear its highlights. `focusPage` hands keyboard
+   * focus back to the page, for the user dismissing the bar; omit it when the
+   * bar is going away because the panel is.
+   */
+  stopFind?(focusPage?: boolean): void
+  /**
+   * Mod+F pressed while the embedded page had focus, which the renderer never
+   * sees as a key event. Opening the find bar is the renderer's job either
+   * way, so both entry paths land on the same handler.
+   */
+  onOpenFind?(callback: () => void): () => void
+  /**
+   * The shell dismissing the find bar — the active tab navigated away from the
+   * document the find was run against, or the user switched tabs.
+   */
+  onCloseFind?(callback: () => void): () => void
+  /** Match counts for the running find, as Chromium resolves them. */
+  onFindResult?(callback: (result: BrowserFindResult) => void): () => void
+  /**
    * Subscribe to captured browser frames used beneath renderer overlays.
    * Optional for compatibility with desktop builds predating occlusion.
    */
@@ -348,11 +825,13 @@ export interface SimDesktopBrowserAgentApi {
    */
   getKnownSessions?(): Promise<BrowserKnownSessionsState>
   /**
-   * Wipe the dedicated profile — cookies, storage, cache, and the remembered
-   * browsing trail — and resolve the resulting (empty) session list. Optional
-   * for compatibility with older shells.
+   * Erase browsing data from the dedicated profile and resolve the resulting
+   * session list. Pass the kinds to clear; omit for all of them. Saved
+   * passwords are never included — deleting those is a separate action.
+   * Optional for compatibility with older shells, which ignore the argument
+   * and clear everything.
    */
-  clearBrowsingData?(): Promise<BrowserKnownSessionsState>
+  clearBrowsingData?(kinds?: readonly BrowserDataKind[]): Promise<BrowserKnownSessionsState>
   /**
    * Subscribe to live tab-list changes. Optional for compatibility with older
    * installed desktop versions.
@@ -377,12 +856,14 @@ export interface SimDesktopBrowserAgentApi {
  */
 export interface BrowserImportProfile {
   id: string
-  /** The browser's display name for this profile, e.g. `Work`. */
+  /** Browser and profile together, e.g. `Arc · Microtrades`. */
   label: string
   /** Stable browser identifier, e.g. `chrome`, `arc`, `brave`. */
   browserId?: string
   /** The browser's product name, e.g. `Arc`. */
   browserLabel?: string
+  /** The profile on its own, e.g. `Microtrades` or `Default`. */
+  profileLabel?: string
 }
 
 /**
@@ -422,9 +903,35 @@ export interface BrowserImportResult {
  * gesture, and no browser tool maps to either channel. Reading Chrome is
  * strictly read-only, and decrypted material stays in the main process.
  */
+/** A site a previous import brought over, keyed by the hostname visited there. */
+export interface BrowserSiteInfo {
+  hostname: string
+  /** Learned from the source browser's own page titles, not a built-in list. */
+  name?: string
+  /** The source browser's favicon, as a `data:` URL. */
+  icon?: string
+  /**
+   * How much the site was used in the browser it came from — an aggregate for
+   * ordering suggestions, never a visit time, a URL, or a sequence. Absent on
+   * a record written before imports started counting.
+   */
+  visits?: number
+  /** When Sim imported it; never the source browser's own last-visit time. */
+  importedAt?: string
+}
+
 export interface SimDesktopBrowserImportApi {
   /** Chrome profiles detected on this device; empty when none are readable. */
   listChromeProfiles(): Promise<BrowserImportProfile[]>
+  /**
+   * The sites previous imports brought over, so the omnibox has somewhere to
+   * start on a browser that keeps no history of its own — and can offer
+   * "Gmail" instead of `mail.google.com`.
+   *
+   * Optional — feature-detect before calling, so a newer web deployment keeps
+   * working against an installed shell that predates it.
+   */
+  listSites?(): Promise<BrowserSiteInfo[]>
   /**
    * Copy one Chrome profile's cookies into the built-in browser, preserving
    * each cookie's security attributes. Requires an active user gesture in the
@@ -482,6 +989,13 @@ export interface BrowserCredentialMetadata {
   createdAt: string
   updatedAt: string
   source: 'chrome' | 'manual'
+  /**
+   * The site's icon as a `data:` URL, copied from the source browser's own
+   * favicon store during import. Absent when that browser had no icon for the
+   * site. Never fetched over the network — doing so would disclose the list of
+   * sites the user has passwords for.
+   */
+  icon?: string
 }
 
 /**
@@ -514,6 +1028,11 @@ export interface SimDesktopBrowserCredentialsApi {
   list(): Promise<BrowserCredentialMetadata[]>
   /** Forget one credential; resolves the remaining list. */
   forget(id: string): Promise<BrowserCredentialMetadata[]>
+  /**
+   * Delete every saved password. Requires an active user gesture; resolves the
+   * resulting (empty) list. Optional — feature-detect before offering it.
+   */
+  forgetAll?(): Promise<BrowserCredentialMetadata[]>
   /**
    * Reveal one saved password so the user can read it.
    *

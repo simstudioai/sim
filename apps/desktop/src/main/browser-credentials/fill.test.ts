@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
+import { sleep } from '@sim/utils/helpers'
 import type { BrowserWindow, WebContents } from 'electron'
 import { Menu } from 'electron'
 import { FillCoordinator } from '@/main/browser-credentials/fill'
@@ -80,7 +81,7 @@ async function openChooser(context: ReturnType<typeof setup>) {
  */
 async function settle(): Promise<void> {
   for (let tick = 0; tick < 10; tick++) {
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sleep(0)
   }
 }
 

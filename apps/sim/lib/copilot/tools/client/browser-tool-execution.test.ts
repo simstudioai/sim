@@ -1,6 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
+import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockExecuteBrowserTool, mockReportCompletion } = vi.hoisted(() => ({
@@ -20,7 +21,7 @@ import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 /** Waits for the fire-and-forget execution promise chain to settle. */
 async function flush(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 0))
+  await sleep(0)
 }
 
 let toolCallCounter = 0
