@@ -712,10 +712,12 @@ export function TableGrid({
       setColumnOrder(newOrder)
       columnOrderRef.current = newOrder
     }
+    // Only the keys this action changes. Both sinks merge, and a patch carrying
+    // an unchanged `columnWidths` snapshot would clobber a concurrent resize
+    // whose write happened to land first.
     updateMetadataRef.current({
       pinnedColumns: newPinned,
       ...(orderChanged ? { columnOrder: newOrder } : {}),
-      columnWidths: columnWidthsRef.current,
     })
   }, [])
 
@@ -1776,10 +1778,7 @@ export function TableGrid({
           newOrder: finalOrder,
         })
         setColumnOrder(finalOrder)
-        updateMetadataRef.current({
-          columnWidths: columnWidthsRef.current,
-          columnOrder: finalOrder,
-        })
+        updateMetadataRef.current({ columnOrder: finalOrder })
       }
     }
     setDragColumnName(null)
@@ -3199,10 +3198,7 @@ export function TableGrid({
       const insertIdx = anchorIdx + (side === 'right' ? 1 : 0)
       newOrder.splice(insertIdx, 0, newColumn)
       setColumnOrder(newOrder)
-      updateMetadataRef.current({
-        columnWidths: columnWidthsRef.current,
-        columnOrder: newOrder,
-      })
+      updateMetadataRef.current({ columnOrder: newOrder })
     },
     []
   )
