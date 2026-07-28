@@ -667,9 +667,13 @@ export function Table({
 
   // A toast's action is captured when it is created, so a viewer who loses
   // admin access mid-toast would keep a Lock settings button that opens
-  // nothing. Drop the notice instead of leaving it dead.
+  // nothing. Dismiss on that transition only — a viewer who never had access
+  // has a legitimate action-less notice that must survive.
+  const couldOpenLockSettingsRef = useRef(canOpenLockSettings)
   useEffect(() => {
-    if (canOpenLockSettings || !blockedToastIdRef.current) return
+    const lostAccess = couldOpenLockSettingsRef.current && !canOpenLockSettings
+    couldOpenLockSettingsRef.current = canOpenLockSettings
+    if (!lostAccess || !blockedToastIdRef.current) return
     toast.dismiss(blockedToastIdRef.current)
     blockedToastIdRef.current = null
   }, [canOpenLockSettings])
