@@ -76,9 +76,11 @@ interface HomeProps {
   chatId?: string
   userName?: string
   userId?: string
+  /** Resolved server-side by the page — the embedded table can't reach AppConfig. */
+  tableViewsEnabled?: boolean
 }
 
-export function Home({ chatId, userName, userId }: HomeProps) {
+export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps) {
   useOAuthReturnRouter()
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
@@ -539,6 +541,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
             previewSession={previewSession}
             isAgentResponding={isSending}
             genericResourceData={genericResourceData ?? undefined}
+            tableViewsEnabled={tableViewsEnabled}
             className={skipResourceTransition ? '!transition-none' : undefined}
           />
         </Suspense>

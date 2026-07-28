@@ -82,6 +82,9 @@ interface ResourceContentProps {
   isAgentResponding?: boolean
   genericResourceData?: GenericResourceData
   previewContextKey?: string
+  /** Resolved server-side by the home page — the embedded table can't read
+   *  AppConfig itself, so the flag is threaded down rather than looked up. */
+  tableViewsEnabled?: boolean
   onNotFound?: (resourceId: string) => void
 }
 
@@ -144,6 +147,7 @@ export const ResourceContent = memo(function ResourceContent({
   isAgentResponding,
   genericResourceData,
   previewContextKey,
+  tableViewsEnabled,
   onNotFound,
 }: ResourceContentProps) {
   const streamFileName = previewSession?.fileName || 'file.md'
@@ -213,7 +217,15 @@ export const ResourceContent = memo(function ResourceContent({
 
   switch (resource.type) {
     case 'table':
-      return <Table key={resource.id} workspaceId={workspaceId} tableId={resource.id} embedded />
+      return (
+        <Table
+          key={resource.id}
+          workspaceId={workspaceId}
+          tableId={resource.id}
+          embedded
+          viewsEnabled={tableViewsEnabled}
+        />
+      )
 
     case 'file':
       return (
