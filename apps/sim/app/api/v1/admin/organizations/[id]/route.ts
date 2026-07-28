@@ -242,11 +242,20 @@ export const DELETE = withRouteHandler(
        * cascades. Deleting an organization out from under a live subscription
        * would strand it, and its Stripe billing, against an id that no longer
        * resolves. Refuse instead of guessing whether to cancel.
+       *
+       * Scoped to entitled statuses. A canceled or ended row bills nobody, so
+       * treating it as a blocker would make an organization that once had a
+       * subscription permanently undeletable.
        */
       const [existingSubscription] = await db
         .select({ id: subscription.id, plan: subscription.plan })
         .from(subscription)
-        .where(eq(subscription.referenceId, organizationId))
+        .where(
+          and(
+            eq(subscription.referenceId, organizationId),
+            inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+          )
+        )
         .limit(1)
 
       if (existingSubscription) {

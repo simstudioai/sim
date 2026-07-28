@@ -95,6 +95,23 @@ describe('admin organization DELETE', () => {
     expect(mockDetachOrganizationWorkspaces).not.toHaveBeenCalled()
   })
 
+  it('is not blocked by a canceled subscription', async () => {
+    queueOrganization()
+    /**
+     * The status filter runs in SQL, so a canceled row never comes back — an
+     * empty result here is what an organization whose subscription already
+     * ended looks like. Without that filter the row would block deletion
+     * forever even though it bills nobody.
+     */
+    queueTableRows(schemaMock.subscription, [])
+    queueTableRows(schemaMock.member, [{ value: 1 }])
+
+    const response = await DELETE(deleteRequest('acme-inc'), routeContext)
+
+    expect(response.status).toBe(200)
+    expect(mockDetachOrganizationWorkspaces).toHaveBeenCalledWith(ORG_ID)
+  })
+
   it('detaches workspaces before deleting the organization', async () => {
     queueOrganization()
     queueTableRows(schemaMock.subscription, [])

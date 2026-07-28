@@ -32,14 +32,6 @@ const logger = createLogger('InstanceOrganization')
 /** Bounds the wait for a concurrent provisioning attempt on another replica. */
 const INSTANCE_ORG_LOCK_TIMEOUT_MS = 10_000
 
-/**
- * Once provisioned, the instance organization's id never changes, so it is
- * cached for the life of the process. `null` is deliberately not cached — a
- * miss means provisioning has not happened yet, and the next caller should
- * retry rather than be told "no org" forever.
- */
-let cachedInstanceOrganizationId: string | null = null
-
 /** Derives a slug the same way the admin organization API does. */
 function slugifyOrganizationName(name: string): string {
   return name
@@ -95,10 +87,17 @@ export function isInstanceOrganizationMode(): boolean {
 /**
  * Returns the instance organization's id without creating it, or `null` when
  * the mode is off or provisioning has not run yet.
+ *
+ * Deliberately uncached. Caching the id per process looks free — it never
+ * changes while the organization exists — but it goes stale the moment the
+ * organization is deleted (the Admin API allows this), and every later signup
+ * then tries to join an id that no longer resolves. Clearing the cache from the
+ * delete handler would only fix the replica that served the request, leaving
+ * every other replica broken until restart. The read is one lookup on a table
+ * that holds a single row in this mode, and it only runs on the signup path, so
+ * there is nothing worth caching against that failure mode.
  */
 export async function getInstanceOrganizationId(): Promise<string | null> {
-  if (cachedInstanceOrganizationId) return cachedInstanceOrganizationId
-
   const config = getInstanceOrganizationConfig()
   if (!config) return null
 
@@ -108,7 +107,6 @@ export async function getInstanceOrganizationId(): Promise<string | null> {
     .where(eq(organization.slug, config.slug))
     .limit(1)
 
-  if (row) cachedInstanceOrganizationId = row.id
   return row?.id ?? null
 }
 
@@ -221,7 +219,6 @@ export async function ensureInstanceOrganization(
       return created.organizationId
     })
 
-    if (organizationId) cachedInstanceOrganizationId = organizationId
     return organizationId
   } catch (error) {
     /**
@@ -287,9 +284,4 @@ export async function joinInstanceOrganization(userId: string): Promise<void> {
       error: getErrorMessage(error),
     })
   }
-}
-
-/** Clears the cached id. Exported for tests. */
-export function resetInstanceOrganizationCache(): void {
-  cachedInstanceOrganizationId = null
 }

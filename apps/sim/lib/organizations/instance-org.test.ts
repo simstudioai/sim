@@ -56,7 +56,6 @@ import {
   getInstanceOrganizationConfig,
   isInstanceOrganizationMode,
   joinInstanceOrganization,
-  resetInstanceOrganizationCache,
 } from '@/lib/organizations/instance-org'
 
 const ORIGINAL_ENV = { ...process.env }
@@ -72,7 +71,6 @@ describe('instance organization', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     queuedRows.length = 0
-    resetInstanceOrganizationCache()
     setEnvFlags({ isBillingEnabled: false })
     mockSelect.mockImplementation(buildSelectChain)
     mockExecute.mockResolvedValue(undefined)
@@ -176,14 +174,25 @@ describe('instance organization', () => {
       expect(mockCreateOrganizationWithOwnerTx).not.toHaveBeenCalled()
     })
 
-    it('caches the id so repeat calls do not re-query', async () => {
+    it('re-reads the organization on every call instead of caching the id', async () => {
+      /**
+       * A per-process cache goes stale when the organization is deleted through
+       * the Admin API, and clearing it from the delete handler would only heal
+       * the replica that served that request. Re-reading keeps every replica
+       * self-correcting.
+       */
       queueRows([{ id: 'org_existing' }])
       await ensureInstanceOrganization('user-1')
       const callsAfterFirst = mockSelect.mock.calls.length
 
-      await ensureInstanceOrganization('user-2')
+      queueRows([])
+      queueRows([])
+      queueRows([])
+      mockCreateOrganizationWithOwnerTx.mockResolvedValue({ organizationId: 'org_recreated' })
+      const recreated = await ensureInstanceOrganization('user-2')
 
-      expect(mockSelect.mock.calls.length).toBe(callsAfterFirst)
+      expect(mockSelect.mock.calls.length).toBeGreaterThan(callsAfterFirst)
+      expect(recreated).toBe('org_recreated')
     })
   })
 
