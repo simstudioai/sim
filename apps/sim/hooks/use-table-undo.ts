@@ -2,7 +2,12 @@ import { useCallback, useEffect, useRef } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import { TABLE_LOCK_FLAGS, type TableLockKind, type TableLocks } from '@/lib/table/types'
+import {
+  TABLE_LOCK_FLAGS,
+  type TableLockKind,
+  type TableLocks,
+  type TableMetadata,
+} from '@/lib/table/types'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
@@ -98,6 +103,13 @@ interface UseTableUndoProps {
   onPinnedColumnsChange?: (pinned: string[]) => void
   getPinnedColumns?: () => string[]
   getColumnWidths?: () => Record<string, number>
+  /**
+   * Sink for column-layout writes (order, widths, pinning). Defaults to the
+   * table's shared metadata; with a saved view active the caller passes the
+   * view's sink instead, so undoing a reorder unwinds it where the original
+   * reorder was stored rather than silently rewriting the "All" layout.
+   */
+  onPersistLayout?: (patch: TableMetadata) => void
 }
 
 export function useTableUndo({
@@ -110,6 +122,7 @@ export function useTableUndo({
   onPinnedColumnsChange,
   getPinnedColumns,
   getColumnWidths,
+  onPersistLayout,
 }: UseTableUndoProps) {
   const push = useTableUndoStore((s) => s.push)
   const popUndo = useTableUndoStore((s) => s.popUndo)
@@ -130,6 +143,9 @@ export function useTableUndo({
   const deleteColumnMutation = useDeleteColumn({ workspaceId, tableId })
   const renameTableMutation = useRenameTable(workspaceId)
   const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
+
+  const persistLayoutRef = useRef(onPersistLayout ?? updateMetadataMutation.mutate)
+  persistLayoutRef.current = onPersistLayout ?? updateMetadataMutation.mutate
 
   const onColumnOrderChangeRef = useRef(onColumnOrderChange)
   onColumnOrderChangeRef.current = onColumnOrderChange
@@ -293,7 +309,7 @@ export function useTableUndo({
             if (direction === 'undo') {
               deleteColumnMutation.mutate(colKey, {
                 onSuccess: () => {
-                  const metadata: Record<string, unknown> = {}
+                  const metadata: TableMetadata = {}
                   const currentWidths = getColumnWidthsRef.current?.() ?? {}
                   if (colKey in currentWidths) {
                     const { [colKey]: _, ...rest } = currentWidths
@@ -307,7 +323,7 @@ export function useTableUndo({
                     metadata.pinnedColumns = newPinned
                   }
                   if (Object.keys(metadata).length > 0) {
-                    updateMetadataMutation.mutate(metadata)
+                    persistLayoutRef.current(metadata)
                   }
                 },
               })
@@ -368,7 +384,7 @@ export function useTableUndo({
                         }
                       })()
                     }
-                    const metadata: Record<string, unknown> = {}
+                    const metadata: TableMetadata = {}
                     if (action.previousOrder) {
                       onColumnOrderChangeRef.current?.(action.previousOrder)
                       metadata.columnOrder = action.previousOrder
@@ -399,7 +415,7 @@ export function useTableUndo({
                       }
                     }
                     if (Object.keys(metadata).length > 0) {
-                      updateMetadataMutation.mutate(metadata)
+                      persistLayoutRef.current(metadata)
                     }
                   },
                 }
@@ -407,7 +423,7 @@ export function useTableUndo({
             } else {
               deleteColumnMutation.mutate(colKey, {
                 onSuccess: () => {
-                  const metadata: Record<string, unknown> = {}
+                  const metadata: TableMetadata = {}
                   if (action.previousOrder) {
                     const newOrder = action.previousOrder.filter((n) => n !== colKey)
                     onColumnOrderChangeRef.current?.(newOrder)
@@ -428,7 +444,7 @@ export function useTableUndo({
                     }
                   }
                   if (Object.keys(metadata).length > 0) {
-                    updateMetadataMutation.mutate(metadata)
+                    persistLayoutRef.current(metadata)
                   }
                 },
               })
@@ -491,7 +507,7 @@ export function useTableUndo({
               ]
             }
             onColumnOrderChangeRef.current?.(order)
-            updateMetadataMutation.mutate({ columnOrder: order })
+            persistLayoutRef.current({ columnOrder: order })
             break
           }
         }
