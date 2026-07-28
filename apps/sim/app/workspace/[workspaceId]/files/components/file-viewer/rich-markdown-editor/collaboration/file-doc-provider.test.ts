@@ -1,7 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { FILE_DOC_EVENTS, FILE_DOC_MESSAGE_TYPE } from '@sim/realtime-protocol/file-doc'
+import {
+  FILE_DOC_EVENTS,
+  FILE_DOC_MESSAGE_TYPE,
+  FILE_DOC_SEED,
+} from '@sim/realtime-protocol/file-doc'
 import * as encoding from 'lib0/encoding'
 import type { Socket } from 'socket.io-client'
 import { describe, expect, it, vi } from 'vitest'
@@ -269,10 +273,10 @@ describe('FileDocProvider', () => {
       // Surfaces the same non-retryable rejection the fatal path uses, so the editor falls back to
       // showing the file read-only.
       expect(onError).toHaveBeenCalledWith(
-        expect.objectContaining({ code: 'CONNECT_TIMEOUT', retryable: false })
+        expect.objectContaining({ code: 'READINESS_TIMEOUT', retryable: false })
       )
       expect(provider.joinError).toEqual(
-        expect.objectContaining({ code: 'CONNECT_TIMEOUT', retryable: false })
+        expect.objectContaining({ code: 'READINESS_TIMEOUT', retryable: false })
       )
       // Latched fatal: a later connect must not re-join (which could sync server state in and
       // duplicate the locally-seeded content).
@@ -284,17 +288,18 @@ describe('FileDocProvider', () => {
     }
   })
 
-  it('does not fire the offline fallback once the first sync completes', () => {
+  it('does not fire the fallback once the doc is synced AND seeded', () => {
     vi.useFakeTimers()
     try {
       const { provider, fire } = createProvider(true)
       const onError = vi.fn()
       provider.on('join-error', onError)
 
-      // Complete the initial sync (server SyncStep2) before the deadline.
+      // The initial sync brings BOTH content and the server seed flag before the deadline.
       fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'file-1' })
       const remote = new Y.Doc()
       remote.getText('default').insert(0, 'hi')
+      remote.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
       const encoder = encoding.createEncoder()
       encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
       syncProtocol.writeSyncStep2(encoder, remote)
@@ -308,7 +313,37 @@ describe('FileDocProvider', () => {
     }
   })
 
-  it('ignores a late SyncStep2 that arrives after the connect deadline (no merge, stays gated)', () => {
+  it('fires the fallback when the doc synced but the server seed never landed', () => {
+    vi.useFakeTimers()
+    try {
+      const { provider, fire } = createProvider(true)
+      const onError = vi.fn()
+      provider.on('join-error', onError)
+
+      // The socket syncs an empty doc, but the server-side seed never arrives (its build persistently
+      // failed) — `synced` is true yet `initialContentLoaded` is never set.
+      fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'file-1' })
+      const remote = new Y.Doc()
+      const encoder = encoding.createEncoder()
+      encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
+      syncProtocol.writeSyncStep2(encoder, remote)
+      fire(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
+      expect(provider.synced).toBe(true)
+
+      vi.advanceTimersByTime(12_000)
+
+      // The readiness deadline still fires → the editor falls back to the stored content read-only,
+      // and `synced` is dropped so the `synced && seeded` gate stays closed (read-only, not editable).
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'READINESS_TIMEOUT', retryable: false })
+      )
+      expect(provider.synced).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('ignores a late SyncStep2 that arrives after the readiness deadline (no merge, stays gated)', () => {
     vi.useFakeTimers()
     try {
       const { provider, doc, fire } = createProvider(true)
@@ -316,7 +351,7 @@ describe('FileDocProvider', () => {
 
       // Deadline lapses with no first sync → fatal fallback (editor falls back to a read-only seed).
       vi.advanceTimersByTime(12_000)
-      expect(provider.joinError).toEqual(expect.objectContaining({ code: 'CONNECT_TIMEOUT' }))
+      expect(provider.joinError).toEqual(expect.objectContaining({ code: 'READINESS_TIMEOUT' }))
 
       // A delayed SyncStep2 finally arrives. Applying it would merge server content into the
       // already-seeded doc (duplication) and flip synced→true (un-gating autosave), so it MUST be

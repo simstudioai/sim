@@ -670,7 +670,7 @@ export function LoadedRichMarkdownEditor({
 
     // The server seeds the document (content + the `initialContentLoaded` flag), so readiness is
     // simply "synced AND seeded" — no client-side seed import on the happy path. `seedFromLoaded`
-    // remains only for the offline fallback below (a non-retryable join error / connect timeout),
+    // remains only for the offline fallback below (a non-retryable join error / readiness timeout),
     // where it locally renders the file read-only since the server can't be reached.
     const report = () => setReady(provider.synced && config.get('initialContentLoaded') === true)
     const onJoinError = (error: JoinFileDocError) => {
