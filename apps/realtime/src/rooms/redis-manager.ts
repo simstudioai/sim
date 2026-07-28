@@ -298,19 +298,28 @@ export class RedisRoomManager implements IRoomManager {
     }
   }
 
+  /**
+   * Reads and parses the room roster. Throws on a transport error (so a caller can
+   * distinguish "genuinely empty" from "read failed"); a single corrupted entry is
+   * skipped, not fatal.
+   */
+  private async readRoomUsers(room: RoomRef): Promise<UserPresence[]> {
+    const users = await this.redis.hGetAll(KEYS.roomUsers(room))
+    return Object.entries(users)
+      .map(([socketId, json]) => {
+        try {
+          return JSON.parse(json) as UserPresence
+        } catch {
+          logger.warn(`Corrupted user data for socket ${socketId}, skipping`)
+          return null
+        }
+      })
+      .filter((u): u is UserPresence => u !== null)
+  }
+
   async getRoomUsers(room: RoomRef): Promise<UserPresence[]> {
     try {
-      const users = await this.redis.hGetAll(KEYS.roomUsers(room))
-      return Object.entries(users)
-        .map(([socketId, json]) => {
-          try {
-            return JSON.parse(json) as UserPresence
-          } catch {
-            logger.warn(`Corrupted user data for socket ${socketId}, skipping`)
-            return null
-          }
-        })
-        .filter((u): u is UserPresence => u !== null)
+      return await this.readRoomUsers(room)
     } catch (error) {
       logger.error(`Failed to get room users for ${room.type}:${room.id}:`, error)
       return []
@@ -374,7 +383,20 @@ export class RedisRoomManager implements IRoomManager {
   }
 
   async broadcastPresenceUpdate(room: RoomRef, excludeSocketId?: string): Promise<void> {
-    const users = await this.getRoomUsers(room)
+    let users: UserPresence[]
+    try {
+      // Read via the throwing variant, NOT getRoomUsers: a transport error there returns `[]`, which
+      // would broadcast an empty roster and clear every remaining collaborator's presence until the
+      // next healthy update. Skip instead — the next successful join/activity broadcast (or the
+      // stale sweep) reconciles peers.
+      users = await this.readRoomUsers(room)
+    } catch (error) {
+      logger.error(
+        `Skipping presence broadcast for ${room.type}:${room.id} (roster read failed):`,
+        error
+      )
+      return
+    }
     const visible = await filterVisiblePresence(this._io, room, users, excludeSocketId)
     // io.to() with the Redis adapter broadcasts to all pods.
     this._io.to(roomName(room)).emit(presenceEventName(room.type), visible)

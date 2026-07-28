@@ -95,9 +95,6 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
     // check right before the membership commit.
     const superseded = () => joinGeneration !== joinAttempt || socket.disconnected
     if (superseded()) return
-    // Flips true once addUserToRoom lands: past that point the user is genuinely joined, so a
-    // failure in the trailing ack/broadcast steps must NOT roll them back (see the catch).
-    let committed = false
     try {
       const userId = socket.userId
       const userName = socket.userName
@@ -207,7 +204,6 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
       // this write can land after it, leaving a stale presence entry. Benign and self-correcting:
       // filterVisiblePresence hides it and sweepStalePresence reclaims it (same as the siblings).
       await roomManager.addUserToRoom(room, socket.id, presence)
-      committed = true
 
       // Filter the join ack to live members so a new joiner never briefly sees a
       // ghost from an entry the sweep hasn't reclaimed yet.
@@ -222,19 +218,24 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
         presenceUsers,
       })
 
-      await roomManager.broadcastPresenceUpdate(room)
+      // Post-success, purely decorative: notify peers. The user is already joined and acked, so a
+      // Redis blip here must not surface as a join failure — swallow it (the next healthy broadcast
+      // reconciles peers). Kept OUT of the rollback catch below, which is only for pre-success failures.
+      try {
+        await roomManager.broadcastPresenceUpdate(room)
+      } catch (error) {
+        logger.warn(`Post-join presence broadcast failed for table room ${tableId}`, error)
+      }
 
       logger.info(`User ${userId} (${userName}) joined table room ${tableId}`)
     } catch (error) {
       logger.error('Error joining table room:', error)
-      // Past the membership commit the user is genuinely joined; a failure in the trailing
-      // ack/broadcast steps must not tear them out of the room. Leave them joined.
-      if (committed) return
       // Roll back a partial join: cleanup keys off the socket→room map, so a `socket.join` that
       // landed without a matching `addUserToRoom` (a throw in between) would otherwise leave the
-      // socket stranded in the Socket.IO room, unreclaimable by any later op. Safe to run even when
-      // superseded — serialization means the newer op hasn't committed yet, so this touches only
-      // this join's own (this-table) state, never the newer op's room.
+      // socket stranded in the Socket.IO room, unreclaimable by any later op. A failure between the
+      // commit and the success ack rolls back too and surfaces a retryable error, so the client
+      // retries rather than hanging. Safe to run even when superseded — serialization means the
+      // newer op hasn't committed yet, so this touches only this join's own (this-table) state.
       try {
         const room = tableRoom(tableId)
         socket.leave(roomName(room))

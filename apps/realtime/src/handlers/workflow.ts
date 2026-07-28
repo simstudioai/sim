@@ -42,9 +42,6 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
     // check right before the membership commit.
     const superseded = () => joinGeneration !== joinAttempt || socket.disconnected
     if (superseded()) return
-    // Flips true once addUserToRoom lands: past that point the user is genuinely joined, so a
-    // failure in the trailing ack/broadcast/metric steps must NOT roll them back (see the catch).
-    let committed = false
     try {
       const userId = socket.userId
       const userName = socket.userName
@@ -223,7 +220,6 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
 
       // Add user to room — the membership commit.
       await roomManager.addUserToRoom(wf(workflowId), socket.id, userPresence)
-      committed = true
 
       // Get current presence list for the join acknowledgment, filtered to live members so a new
       // joiner never sees a ghost from an entry the stale sweep hasn't reclaimed yet.
@@ -246,22 +242,26 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       // Send workflow state
       socket.emit('workflow-state', workflowState)
 
-      // Broadcast presence update to all users in the room
-      await roomManager.broadcastPresenceUpdate(wf(workflowId))
-
-      const uniqueUserCount = await roomManager.getUniqueUserCount(wf(workflowId))
-      logger.info(
-        `User ${userId} (${userName}) joined workflow ${workflowId}. Room now has ${uniqueUserCount} unique users.`
-      )
+      // Post-success, purely decorative: notify peers and log the count. The user is already joined
+      // and acked, so a Redis blip here must not surface as a join failure — swallow it (the next
+      // healthy presence broadcast reconciles peers). It must stay OUT of the rollback catch below,
+      // which is only for pre-success failures.
+      try {
+        await roomManager.broadcastPresenceUpdate(wf(workflowId))
+        const uniqueUserCount = await roomManager.getUniqueUserCount(wf(workflowId))
+        logger.info(
+          `User ${userId} (${userName}) joined workflow ${workflowId}. Room now has ${uniqueUserCount} unique users.`
+        )
+      } catch (error) {
+        logger.warn(`Post-join presence broadcast failed for workflow ${workflowId}`, error)
+      }
     } catch (error) {
       logger.error('Error joining workflow:', error)
-      // Past the membership commit the user is genuinely joined; a failure in the trailing
-      // ack/broadcast/metric steps must not tear them out of the room (a benign Redis blip on a
-      // pure log-metric call would otherwise kick a live collaborator). Leave them joined.
-      if (committed) return
       // Roll back a partial join: cleanup keys off the socket→room map, so a `socket.join` that
       // landed without a matching `addUserToRoom` (a throw in between) would otherwise strand the
-      // socket in the Socket.IO room, unreclaimable by any later op. Safe even when superseded —
+      // socket in the Socket.IO room, unreclaimable by any later op. A failure between the commit
+      // and the success ack rolls back too and surfaces a retryable error — so the client retries
+      // rather than hanging (never left committed-but-unacked). Safe even when superseded —
       // serialization means the newer op hasn't committed yet, so this touches only this join's own
       // room state, never the newer op's.
       socket.leave(workflowId)

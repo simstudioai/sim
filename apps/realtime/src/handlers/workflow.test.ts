@@ -374,6 +374,31 @@ describe('setupWorkflowHandlers', () => {
     expect(socket.emit).not.toHaveBeenCalledWith('join-workflow-error', expect.anything())
   })
 
+  it('rolls back and surfaces a retryable error when a pre-success step fails after commit', async () => {
+    // getWorkflowState runs after addUserToRoom but before the success ack — its failure must roll
+    // back and emit a retryable error so the client retries, never hanging committed-but-unacked.
+    mockGetWorkflowState.mockRejectedValue(new Error('db blip'))
+    const { socket, handlers } = createSocket()
+    const roomManager = createRoomManager()
+
+    setupWorkflowHandlers(
+      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
+      roomManager
+    )
+
+    await handlers['join-workflow']({ workflowId: 'workflow-1', tabSessionId: 'tab-1' })
+
+    expect(socket.emit).not.toHaveBeenCalledWith('join-workflow-success', expect.anything())
+    expect(roomManager.removeUserFromRoom).toHaveBeenCalledWith(
+      { type: 'workflow', id: 'workflow-1' },
+      'socket-1'
+    )
+    expect(socket.emit).toHaveBeenCalledWith(
+      'join-workflow-error',
+      expect.objectContaining({ code: 'JOIN_WORKFLOW_FAILED', retryable: true })
+    )
+  })
+
   it('leaves the workflow room even when the session key has expired', async () => {
     const { socket, handlers } = createSocket()
     const roomManager = createRoomManager({
