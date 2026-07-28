@@ -7,20 +7,28 @@ import { env, getBaseUrl } from '@/env'
  */
 
 /**
- * Bound each request so a slow/unreachable app never wedges the relay. 8s is generous for the
- * underlying markdown↔Yjs conversion — collab is gated client-side to ≤256 KB documents
- * (`isRoundTripSafe`), which convert in well under a second. The seed additionally must stay under the
- * client's readiness deadline (`READINESS_DEADLINE_MS`, 12s, in `file-doc-provider.ts`), which this
- * satisfies.
+ * The seed reads a (possibly cold) blob + converts it, so give it a generous bound. Collab is gated
+ * client-side to ≤256 KB documents (`isRoundTripSafe`), so the conversion itself is well under a
+ * second; the headroom is for the blob read. Stays under the client's readiness deadline
+ * (`READINESS_DEADLINE_MS`, 12s, in `file-doc-provider.ts`), which it must.
  */
-const APP_REQUEST_TIMEOUT_MS = 8_000
+const SEED_REQUEST_TIMEOUT_MS = 8_000
 
-function postToApp(path: string, payload: unknown): Promise<Response> {
+/**
+ * The merge is a PURE conversion (the caller supplies both the doc state and the markdown — no blob or
+ * DB I/O), so it is fast and gets a tight bound. Critically it must stay BELOW the app→relay apply-edit
+ * timeout (`APPLY_EDIT_TIMEOUT_MS`, in `apps/sim/lib/realtime/notify.ts`) that wraps this call — else
+ * that outer request aborts while this inner one is still running, and the relay could apply a merge
+ * after the caller has already moved on, racing a follow-on edit.
+ */
+const MERGE_REQUEST_TIMEOUT_MS = 3_000
+
+function postToApp(path: string, payload: unknown, timeoutMs: number): Promise<Response> {
   return fetch(`${getBaseUrl()}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
     body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(APP_REQUEST_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   })
 }
 
@@ -34,7 +42,11 @@ export async function fetchFileDocSeed(
   workspaceId: string,
   fileId: string
 ): Promise<Uint8Array | null> {
-  const response = await postToApp('/api/internal/file-doc/seed', { workspaceId, fileId })
+  const response = await postToApp(
+    '/api/internal/file-doc/seed',
+    { workspaceId, fileId },
+    SEED_REQUEST_TIMEOUT_MS
+  )
   if (!response.ok) {
     throw new Error(`Seed fetch failed for file ${fileId}: ${response.status}`)
   }
@@ -61,11 +73,11 @@ export async function fetchFileDocMerge(
   docState: Uint8Array,
   markdown: string
 ): Promise<Uint8Array> {
-  const response = await postToApp('/api/internal/file-doc/merge', {
-    fileId,
-    docState: Buffer.from(docState).toString('base64'),
-    markdown,
-  })
+  const response = await postToApp(
+    '/api/internal/file-doc/merge',
+    { fileId, docState: Buffer.from(docState).toString('base64'), markdown },
+    MERGE_REQUEST_TIMEOUT_MS
+  )
   if (!response.ok) {
     throw new Error(`Merge fetch failed for file ${fileId}: ${response.status}`)
   }

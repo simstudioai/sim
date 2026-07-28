@@ -9,10 +9,13 @@ const logger = createLogger('RealtimeNotify')
 const NOTIFY_TIMEOUT_MS = 2000
 
 /**
- * Bound the wait on the live-doc merge. Larger than {@link NOTIFY_TIMEOUT_MS} because apply-edit is a
- * round trip (relay → app `/merge` → relay); still tight, since the merge is a sub-second conversion.
+ * Bound the wait on the live-doc merge. This OUTER call wraps the relay's inner relay→app `/merge`
+ * request (`MERGE_REQUEST_TIMEOUT_MS`, 3s, in `apps/realtime/src/handlers/file-doc-app.ts`), so it
+ * must stay comfortably ABOVE that — otherwise this aborts while the relay is still merging, and the
+ * relay could apply the merge after we've returned, racing a follow-on edit. 6s leaves the inner 3s
+ * plus the two network hops and the relay's own work.
  */
-const APPLY_EDIT_TIMEOUT_MS = 4000
+const APPLY_EDIT_TIMEOUT_MS = 6000
 
 /**
  * Best-effort fan-out to the realtime server that a workspace's file tree changed,
