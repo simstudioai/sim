@@ -1130,6 +1130,30 @@ describe('WorkflowBlockHandler', () => {
       expect(ctx.largeValueExecutionIds).toContain(extensions.executionId)
     })
 
+    it('shares one large-value id list so nested custom blocks propagate upward', async () => {
+      const ctx = customBlockContext()
+      await handler.execute(ctx, customBlock(), {})
+
+      const childIds = executorOptions[0].contextExtensions.largeValueExecutionIds
+      // Same array instance, not a copy — that is what lets a nested custom
+      // block's grandchild id reach the top-level invoker.
+      expect(childIds).toBe(ctx.largeValueExecutionIds)
+
+      // Simulate a nested custom block appending its own child id deeper down.
+      childIds.push('grandchild-execution-id')
+      expect(ctx.largeValueExecutionIds).toContain('grandchild-execution-id')
+    })
+
+    it('does not duplicate ids across repeated invocations', async () => {
+      const ctx = customBlockContext()
+      await handler.execute(ctx, customBlock(), {})
+      await handler.execute(ctx, customBlock(), {})
+
+      const ids = ctx.largeValueExecutionIds as string[]
+      expect(new Set(ids).size).toBe(ids.length)
+      expect(ids.filter((id) => id === 'parent-execution-id')).toHaveLength(1)
+    })
+
     it('never forwards the consumer SSE callbacks into the source run', async () => {
       const ctx = customBlockContext({
         onBlockStart: vi.fn(),

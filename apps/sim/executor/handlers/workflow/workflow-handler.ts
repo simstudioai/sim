@@ -255,6 +255,8 @@ export class WorkflowBlockHandler implements BlockHandler {
     let childSessionStarted = false
     /** Set once the child's session reached a terminal state, so the catch doesn't re-complete it. */
     let childSessionFinalized = false
+    /** Large-value id list shared with the child (and any nested custom blocks). */
+    let sharedLargeValueIds: string[] | undefined
     let childCancellation: { signal: AbortSignal; dispose: () => void } | undefined
     try {
       // A custom block runs the source's latest deployment; if the source has been
@@ -467,10 +469,16 @@ export class WorkflowBlockHandler implements BlockHandler {
           parentExecutionId: ctx.executionId,
         })
         // Large values are scoped by execution id, so the parent must be able to
-        // read a large exposed output the child produced.
-        ctx.largeValueExecutionIds = Array.from(
-          new Set([...(ctx.largeValueExecutionIds ?? []), childExecutionId])
-        )
+        // read a large exposed output the child produced. ONE array is shared down
+        // the whole chain rather than copied per hop: a nested custom block pushes
+        // its own child id into this same list, so a grandchild's large output is
+        // still materializable at the top level. Copying would strand those ids at
+        // the depth that created them.
+        ctx.largeValueExecutionIds ??= []
+        sharedLargeValueIds = ctx.largeValueExecutionIds
+        for (const id of [ctx.executionId, childExecutionId]) {
+          if (id && !sharedLargeValueIds.includes(id)) sharedLargeValueIds.push(id)
+        }
       }
 
       // Trusted run metadata for the child's Start block. Every field describes
@@ -525,15 +533,8 @@ export class WorkflowBlockHandler implements BlockHandler {
           executionId: childExecutionId ?? ctx.executionId,
           // Large values are cached per execution id, so a child running under its
           // own id still needs the invoking run's id to read values in its inputs.
-          ...(childExecutionId
-            ? {
-                largeValueExecutionIds: Array.from(
-                  new Set([
-                    ...(ctx.executionId ? [ctx.executionId] : []),
-                    ...(ctx.largeValueExecutionIds ?? []),
-                  ])
-                ),
-              }
+          ...(childExecutionId && sharedLargeValueIds
+            ? { largeValueExecutionIds: sharedLargeValueIds }
             : {}),
           // Same-workspace children share the parent's frozen payer decision so
           // internal tool calls (knowledge, guardrails, MCP, Mothership) can
