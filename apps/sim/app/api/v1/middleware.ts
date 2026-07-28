@@ -41,6 +41,11 @@ export interface RateLimitResult {
   allowed: boolean
   remaining: number
   resetAt: Date
+  /**
+   * Bucket capacity, matching what `remaining` counts down from. Zero on the
+   * paths that never reached the bucket (auth failure, checker error); those
+   * carry `error` and publish no rate-limit headers.
+   */
   limit: number
   retryAfterMs?: number
   userId?: string
@@ -65,7 +70,7 @@ export async function checkRateLimit(
       return {
         allowed: false,
         remaining: 0,
-        limit: 10,
+        limit: 0,
         resetAt: new Date(),
         error: auth.error,
       }
@@ -96,7 +101,16 @@ export async function checkRateLimit(
       allowed: result.allowed,
       remaining: result.remaining,
       resetAt: result.resetAt,
-      limit: config.refillRate,
+      /**
+       * The bucket's capacity, not its refill rate. `remaining` is the token
+       * count left in that bucket, and `createBucketConfig` sets
+       * `maxTokens = refillRate * burstMultiplier` — so reporting `refillRate`
+       * here published an `X-RateLimit-Limit` smaller than the
+       * `X-RateLimit-Remaining` beside it (e.g. limit 200, remaining 399), and
+       * any client computing `used = limit - remaining` got a negative number.
+       * Both headers must describe the same quantity.
+       */
+      limit: config.maxTokens,
       retryAfterMs: result.retryAfterMs,
       userId,
       workspaceId: auth.workspaceId,
@@ -107,7 +121,7 @@ export async function checkRateLimit(
     return {
       allowed: false,
       remaining: 0,
-      limit: 10,
+      limit: 0,
       resetAt: new Date(Date.now() + 60000),
       error: 'Rate limit check failed',
     }
@@ -131,14 +145,19 @@ export async function authenticateRequest(
 }
 
 export function createRateLimitResponse(result: RateLimitResult): NextResponse {
+  /**
+   * An authentication failure never reaches the token bucket, so there is no
+   * limit to report. Publishing a placeholder told unauthenticated callers they
+   * had been throttled and handed monitoring a quota that does not exist.
+   */
+  if (result.error) {
+    return NextResponse.json({ error: result.error || 'Unauthorized' }, { status: 401 })
+  }
+
   const headers = {
     'X-RateLimit-Limit': result.limit.toString(),
     'X-RateLimit-Remaining': result.remaining.toString(),
     'X-RateLimit-Reset': result.resetAt.toISOString(),
-  }
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error || 'Unauthorized' }, { status: 401, headers })
   }
 
   const retryAfterSeconds = result.retryAfterMs

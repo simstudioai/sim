@@ -7762,13 +7762,22 @@
         }
       },
       "RateLimited": {
-        "description": "Rate limit exceeded. Wait for the duration specified in the Retry-After header before retrying.",
+        "description": "Rate limit exceeded. Wait for the duration specified in the Retry-After header before retrying. The X-RateLimit-* headers below accompany every authenticated response, not just this one; they are omitted when a request fails authentication, since no rate-limit bucket is consulted in that case.",
         "headers": {
           "Retry-After": {
             "description": "Number of seconds to wait before retrying the request.",
             "schema": {
               "type": "integer"
             }
+          },
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/RateLimitLimit"
+          },
+          "X-RateLimit-Remaining": {
+            "$ref": "#/components/headers/RateLimitRemaining"
+          },
+          "X-RateLimit-Reset": {
+            "$ref": "#/components/headers/RateLimitReset"
           }
         },
         "content": {
@@ -7831,6 +7840,30 @@
               }
             }
           }
+        }
+      }
+    },
+    "headers": {
+      "RateLimitLimit": {
+        "description": "Maximum number of requests the bucket holds \u2014 its burst capacity, which is the per-minute allowance for your plan multiplied by a burst factor. `X-RateLimit-Remaining` counts down from this value, so `X-RateLimit-Limit - X-RateLimit-Remaining` is the number of requests currently consumed.",
+        "schema": {
+          "type": "integer",
+          "example": 400
+        }
+      },
+      "RateLimitRemaining": {
+        "description": "Requests still available in the current bucket. Never exceeds `X-RateLimit-Limit`.",
+        "schema": {
+          "type": "integer",
+          "example": 399
+        }
+      },
+      "RateLimitReset": {
+        "description": "ISO 8601 timestamp at which the bucket refills.",
+        "schema": {
+          "type": "string",
+          "format": "date-time",
+          "example": "2026-07-28T18:28:48.354Z"
         }
       }
     }
