@@ -211,6 +211,16 @@ export function getFileExtension(filename: string): string {
 }
 
 /**
+ * Whether a file is markdown by extension (`.md` / `.markdown`) — the format that renders in the
+ * collaborative rich editor. Server-safe (no client `resolvePreviewType` dependency), for gating
+ * server work like the live-doc merge to files that can actually be open in that editor.
+ */
+export function isMarkdownFileName(filename: string): boolean {
+  const ext = getFileExtension(filename)
+  return ext === 'md' || ext === 'markdown'
+}
+
+/**
  * Extensions whose stored bytes may be a generation source that renders to a larger
  * binary. Everything else stores exactly what it serves, so its declared size is
  * an accurate byte budget.

@@ -8,6 +8,7 @@ import {
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { mergeEditIntoLiveFileDoc } from '@/lib/realtime/notify'
 import { updateWorkspaceFileContent } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { isMarkdownFileName } from '@/lib/uploads/utils/file-utils'
 import { getE2BDocFormat } from './doc-compile'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
 import { consumeLatestFileIntent } from './file-intent-store'
@@ -244,9 +245,10 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
 
       // If a collaborator has this markdown file open, merge the edit into their live document so it
       // streams into the editor as a CRDT merge instead of the file changing under them. Best-effort
-      // and markdown-only — generated docs (docx/pptx/…) are never collaboratively edited; the durable
-      // write above is the source of truth, and the editor's own autosave mirrors the doc back to it.
-      if (!docInfo.isDoc) {
+      // and gated to markdown, the only format the collaborative editor renders — so code/text/doc
+      // edits don't pay the realtime round-trip. The durable write above is the source of truth, and
+      // the editor's own autosave mirrors the merged doc back to the file.
+      if (isMarkdownFileName(fileRecord.name)) {
         await mergeEditIntoLiveFileDoc(intent.fileId, finalContent)
       }
 

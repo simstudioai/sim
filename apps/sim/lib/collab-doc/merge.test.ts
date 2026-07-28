@@ -15,6 +15,18 @@ describe('buildFileDocMergeUpdate', () => {
     expect(yDocToMarkdown(live)).toBe(serializeMarkdownBody('# Title\n\nRewritten.'))
   })
 
+  it('strips frontmatter — merges only the body, never the YAML', () => {
+    const live = markdownToYDoc('# Title\n\nBody.')
+    const update = buildFileDocMergeUpdate(
+      Y.encodeStateAsUpdate(live),
+      '---\ntitle: X\n---\n\n# Title\n\nBody rewritten.'
+    )
+    Y.applyUpdate(live, update)
+    const md = yDocToMarkdown(live)
+    expect(md).not.toContain('title: X')
+    expect(md).toBe(serializeMarkdownBody('# Title\n\nBody rewritten.'))
+  })
+
   it('returns an empty (no-op) diff when the markdown already matches', () => {
     const live = markdownToYDoc('# Same\n\nBody.')
     const before = Y.encodeStateVector(live)
