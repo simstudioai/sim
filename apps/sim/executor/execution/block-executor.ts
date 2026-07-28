@@ -43,6 +43,10 @@ import {
   type StreamingExecution,
 } from '@/executor/types'
 import { streamingResponseFormatProcessor } from '@/executor/utils'
+import {
+  createEnvironmentSecretSanitizer,
+  type EnvironmentSecretSanitizer,
+} from '@/executor/utils/environment-secret-sanitizer'
 import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
 import {
   buildUnifiedParentIterations,
@@ -100,6 +104,10 @@ export class BlockExecutor {
 
     const blockType = block.metadata?.id ?? ''
     const isSentinel = isSentinelBlockType(blockType)
+    const sanitizeEnvironmentSecrets = createEnvironmentSecretSanitizer(
+      block.config,
+      ctx.environmentVariables
+    )
 
     // Capture startedAt and startTime at the same synchronous instant so
     // blockLog.startedAt and performance.now()-derived durationMs share a
@@ -159,7 +167,11 @@ export class BlockExecutor {
       }
 
       if (blockLog) {
-        blockLog.input = this.sanitizeInputsForLog(inputsForLog, block.metadata?.id)
+        blockLog.input = this.sanitizeInputsForLog(
+          inputsForLog,
+          sanitizeEnvironmentSecrets,
+          block.metadata?.id
+        )
       }
     } catch (error) {
       cleanupSelfReference?.()
@@ -173,6 +185,7 @@ export class BlockExecutor {
         blockLog,
         inputsForLog,
         isSentinel,
+        sanitizeEnvironmentSecrets,
         'input_resolution'
       )
     }
@@ -277,9 +290,13 @@ export class BlockExecutor {
         blockLog.endedAt = endedAt
         blockLog.durationMs = duration
         blockLog.success = true
-        blockLog.output = filterOutputForLog(block.metadata?.id || '', normalizedOutput, { block })
+        blockLog.output = this.sanitizeOutputForLog(
+          block,
+          normalizedOutput,
+          sanitizeEnvironmentSecrets
+        )
         if (normalizedOutput.childTraceSpans && Array.isArray(normalizedOutput.childTraceSpans)) {
-          blockLog.childTraceSpans = normalizedOutput.childTraceSpans
+          blockLog.childTraceSpans = sanitizeEnvironmentSecrets(normalizedOutput.childTraceSpans)
         }
       }
 
@@ -291,15 +308,17 @@ export class BlockExecutor {
           typeof normalizedOutput._childWorkflowInstanceId === 'string'
             ? normalizedOutput._childWorkflowInstanceId
             : undefined
-        const displayOutput = filterOutputForLog(block.metadata?.id || '', normalizedOutput, {
+        const displayOutput = this.sanitizeOutputForLog(
           block,
-        })
+          normalizedOutput,
+          sanitizeEnvironmentSecrets
+        )
         this.fireBlockCompleteCallback(
           blockStartPromise,
           ctx,
           node,
           block,
-          this.sanitizeInputsForLog(inputsForLog, block.metadata?.id),
+          this.sanitizeInputsForLog(inputsForLog, sanitizeEnvironmentSecrets, block.metadata?.id),
           displayOutput,
           duration,
           blockLog.startedAt,
@@ -321,6 +340,7 @@ export class BlockExecutor {
         blockLog,
         inputsForLog,
         isSentinel,
+        sanitizeEnvironmentSecrets,
         'execution',
         streamingPartialOutput
       )
@@ -379,12 +399,14 @@ export class BlockExecutor {
     blockLog: BlockLog | undefined,
     inputsForLog: Record<string, any>,
     isSentinel: boolean,
+    sanitizeEnvironmentSecrets: EnvironmentSecretSanitizer,
     phase: 'input_resolution' | 'execution',
     streamingPartialOutput?: Record<string, any>
   ): Promise<NormalizedBlockOutput> {
     const endedAt = new Date().toISOString()
     const duration = performance.now() - startTime
     const errorMessage = normalizeError(error)
+    const sanitizedErrorMessage = sanitizeEnvironmentSecrets(errorMessage)
     const hasLogInputs =
       inputsForLog && typeof inputsForLog === 'object' && Object.keys(inputsForLog).length > 0
     const input = hasLogInputs
@@ -412,8 +434,12 @@ export class BlockExecutor {
         blockLog.durationMs = duration
         blockLog.success = true
         blockLog.error = undefined
-        blockLog.input = this.sanitizeInputsForLog(input, block.metadata?.id)
-        blockLog.output = filterOutputForLog(block.metadata?.id || '', softOutput, { block })
+        blockLog.input = this.sanitizeInputsForLog(
+          input,
+          sanitizeEnvironmentSecrets,
+          block.metadata?.id
+        )
+        blockLog.output = this.sanitizeOutputForLog(block, softOutput, sanitizeEnvironmentSecrets)
       }
 
       this.execLogger.info('Block stream aborted by client; soft-completing', {
@@ -427,8 +453,8 @@ export class BlockExecutor {
           ctx,
           node,
           block,
-          this.sanitizeInputsForLog(input, block.metadata?.id),
-          filterOutputForLog(block.metadata?.id || '', softOutput, { block }),
+          this.sanitizeInputsForLog(input, sanitizeEnvironmentSecrets, block.metadata?.id),
+          this.sanitizeOutputForLog(block, softOutput, sanitizeEnvironmentSecrets),
           duration,
           blockLog.startedAt,
           blockLog.executionOrder,
@@ -463,12 +489,16 @@ export class BlockExecutor {
       blockLog.endedAt = endedAt
       blockLog.durationMs = duration
       blockLog.success = false
-      blockLog.error = errorMessage
-      blockLog.input = this.sanitizeInputsForLog(input, block.metadata?.id)
-      blockLog.output = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
+      blockLog.error = sanitizedErrorMessage
+      blockLog.input = this.sanitizeInputsForLog(
+        input,
+        sanitizeEnvironmentSecrets,
+        block.metadata?.id
+      )
+      blockLog.output = this.sanitizeOutputForLog(block, errorOutput, sanitizeEnvironmentSecrets)
 
       if (ChildWorkflowError.isChildWorkflowError(error) && error.childTraceSpans.length > 0) {
-        blockLog.childTraceSpans = error.childTraceSpans
+        blockLog.childTraceSpans = sanitizeEnvironmentSecrets(error.childTraceSpans)
       }
     }
 
@@ -477,7 +507,7 @@ export class BlockExecutor {
       {
         blockId: node.id,
         blockType: block.metadata?.id,
-        error: errorMessage,
+        error: sanitizedErrorMessage,
       }
     )
 
@@ -485,13 +515,17 @@ export class BlockExecutor {
       const childWorkflowInstanceId = ChildWorkflowError.isChildWorkflowError(error)
         ? error.childWorkflowInstanceId
         : undefined
-      const displayOutput = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
+      const displayOutput = this.sanitizeOutputForLog(
+        block,
+        errorOutput,
+        sanitizeEnvironmentSecrets
+      )
       this.fireBlockCompleteCallback(
         blockStartPromise,
         ctx,
         node,
         block,
-        this.sanitizeInputsForLog(input, block.metadata?.id),
+        this.sanitizeInputsForLog(input, sanitizeEnvironmentSecrets, block.metadata?.id),
         displayOutput,
         duration,
         blockLog.startedAt,
@@ -508,7 +542,7 @@ export class BlockExecutor {
       }
       this.execLogger.info('Block has error port - returning error output instead of throwing', {
         blockId: node.id,
-        error: errorMessage,
+        error: sanitizedErrorMessage,
       })
       return errorOutput
     }
@@ -615,6 +649,7 @@ export class BlockExecutor {
    */
   private sanitizeInputsForLog(
     inputs: Record<string, any>,
+    sanitizeEnvironmentSecrets: EnvironmentSecretSanitizer,
     blockType?: string
   ): Record<string, any> {
     // Custom (deploy-as-block) blocks run via an internal `workflow_executor`; the
@@ -671,7 +706,20 @@ export class BlockExecutor {
       }
     }
 
-    return redactApiKeys(result)
+    return sanitizeEnvironmentSecrets(redactApiKeys(result))
+  }
+
+  /**
+   * Builds the display-only output shared by persisted logs and live callbacks.
+   * Runtime output remains untouched for state, handlers, retries, and resume.
+   */
+  private sanitizeOutputForLog(
+    block: SerializedBlock,
+    output: NormalizedBlockOutput,
+    sanitizeEnvironmentSecrets: EnvironmentSecretSanitizer
+  ): NormalizedBlockOutput {
+    const filteredOutput = filterOutputForLog(block.metadata?.id ?? '', output, { block })
+    return sanitizeEnvironmentSecrets(redactApiKeys(filteredOutput)) as NormalizedBlockOutput
   }
 
   /**

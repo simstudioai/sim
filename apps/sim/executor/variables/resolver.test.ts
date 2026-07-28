@@ -137,6 +137,47 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
+  it('resolves environment variables only in runtime function code', async () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+    ctx.environmentVariables = { API_SECRET: 'resolved-secret' }
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: 'return "{{API_SECRET}}"' },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe('return "resolved-secret"')
+    expect(result.displayInputs.code).toBe('return "{{API_SECRET}}"')
+  })
+
+  it('preserves environment references in multi-part function display code', async () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+    ctx.environmentVariables = { API_SECRET: 'resolved-secret' }
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      {
+        code: [
+          { language: 'javascript', content: 'const key = "{{API_SECRET}}"' },
+          { language: 'javascript', content: 'return "{{API_SECRET}}"' },
+        ],
+      },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toEqual([
+      { language: 'javascript', content: 'const key = "resolved-secret"' },
+      { language: 'javascript', content: 'return "resolved-secret"' },
+    ])
+    expect(result.displayInputs.code).toEqual([
+      { language: 'javascript', content: 'const key = "{{API_SECRET}}"' },
+      { language: 'javascript', content: 'return "{{API_SECRET}}"' },
+    ])
+  })
+
   it('allows Variables block assignments to receive whole large refs', async () => {
     const producer = createBlock('producer', 'Producer', BlockType.API)
     const variablesBlock = createBlock('variables', 'Variables', BlockType.VARIABLES, {

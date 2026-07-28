@@ -21,6 +21,7 @@ vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
 }))
 
 import {
+  buildResumedOutput,
   PauseResumeManager,
   updateResumeOutputInAggregationBuffers,
 } from '@/lib/workflows/executor/human-in-the-loop-manager'
@@ -88,6 +89,43 @@ describe('automatic resume waiting metadata compatibility', () => {
       recordedAt: '2026-07-10T12:00:00.000Z',
       state: 'waiting',
       retryCount: 0,
+    })
+  })
+})
+
+describe('buildResumedOutput', () => {
+  it('keeps raw state and sanitized log sources separate during resume', () => {
+    const secret = 'resolved-pause-secret'
+    const resumeParams = {
+      submissionPayload: { approved: true },
+      resumeInput: { submission: { approved: true } },
+      submittedAt: '2026-07-27T12:00:00.000Z',
+      pauseKind: 'human' as const,
+      parentExecutionId: 'execution-1',
+      pauseDurationMs: 1000,
+    }
+
+    const runtimeOutput = buildResumedOutput({
+      ...resumeParams,
+      existingOutput: {
+        prompt: secret,
+        response: { data: { prompt: secret } },
+      },
+    })
+    const logOutput = buildResumedOutput({
+      ...resumeParams,
+      existingOutput: {
+        prompt: '{{TRACE_SECRET}}',
+        response: { data: { prompt: '{{TRACE_SECRET}}' } },
+      },
+    })
+
+    expect(JSON.stringify(runtimeOutput)).toContain(secret)
+    expect(JSON.stringify(logOutput)).not.toContain(secret)
+    expect(JSON.stringify(logOutput)).toContain('{{TRACE_SECRET}}')
+    expect(logOutput).toMatchObject({
+      submission: { approved: true },
+      response: { data: { submission: { approved: true } } },
     })
   })
 })

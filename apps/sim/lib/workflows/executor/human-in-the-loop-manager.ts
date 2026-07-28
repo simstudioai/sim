@@ -9,6 +9,7 @@ import type { Edge } from 'reactflow'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
+import { redactApiKeys } from '@/lib/core/security/redaction'
 import {
   createExecutionEventWriter,
   flushExecutionStreamReplayBuffer,
@@ -90,6 +91,74 @@ function isPausedOutputForContext(output: unknown, contextId: string): boolean {
   if (!isRecordLike(output)) return false
   const metadata = output._pauseMetadata
   return isRecordLike(metadata) && metadata.contextId === contextId
+}
+
+/**
+ * Rebuilds a resumed pause output from the caller's chosen source.
+ * Runtime state passes raw output, while trace logs pass their sanitized copy.
+ */
+export function buildResumedOutput(params: {
+  existingOutput: Record<string, unknown>
+  submissionPayload: Record<string, unknown>
+  resumeInput: Record<string, unknown>
+  submittedAt: string
+  pauseKind: PauseKind
+  parentExecutionId: string
+  pauseDurationMs: number
+}): Record<string, unknown> {
+  const {
+    existingOutput,
+    submissionPayload,
+    resumeInput,
+    submittedAt,
+    pauseKind,
+    parentExecutionId,
+    pauseDurationMs,
+  } = params
+  const existingResponse = isRecordLike(existingOutput.response) ? existingOutput.response : {}
+  const existingResponseData = isRecordLike(existingResponse.data) ? existingResponse.data : {}
+  const response = {
+    ...existingResponse,
+    data: {
+      ...existingResponseData,
+      submission: submissionPayload,
+      submittedAt,
+    },
+    status: existingResponse.status ?? 200,
+    headers: existingResponse.headers ?? { 'Content-Type': 'application/json' },
+    resume: existingResponse.resume ?? existingOutput.resume,
+  }
+  const output: Record<string, unknown> = {
+    ...existingOutput,
+    response,
+    submission: submissionPayload,
+    resumeInput,
+    submittedAt,
+    _resumed: true,
+    _resumedFrom: parentExecutionId,
+    _pauseDurationMs: pauseDurationMs,
+  }
+
+  if (pauseKind === 'time') {
+    output.status = 'completed'
+  }
+
+  output.resume = output.resume ?? response.resume
+  const resumeLinks = output.resume ?? response.resume
+  if (isRecordLike(resumeLinks)) {
+    if (resumeLinks.uiUrl) {
+      output.url = resumeLinks.uiUrl
+    }
+    if (resumeLinks.apiUrl) {
+      output.resumeEndpoint = resumeLinks.apiUrl
+    }
+  }
+
+  for (const [key, value] of Object.entries(submissionPayload)) {
+    output[key] = value
+  }
+
+  return output
 }
 
 export function updateResumeOutputInAggregationBuffers(
@@ -969,62 +1038,16 @@ export class PauseResumeManager {
           ? (normalizedResumeInputRaw.submission as Record<string, any>)
           : (normalizedResumeInputRaw as Record<string, any>)
 
-      const existingOutput = pauseBlockState.output || {}
-      const existingResponse = existingOutput.response || {}
-      const existingResponseData =
-        existingResponse &&
-        typeof existingResponse.data === 'object' &&
-        !Array.isArray(existingResponse.data)
-          ? existingResponse.data
-          : {}
-
       const submittedAt = new Date().toISOString()
-
-      const mergedResponseData = {
-        ...existingResponseData,
-        submission: submissionPayload,
-        submittedAt,
-      }
-
-      const mergedResponse = {
-        ...existingResponse,
-        data: mergedResponseData,
-        status: existingResponse.status ?? 200,
-        headers: existingResponse.headers ?? { 'Content-Type': 'application/json' },
-        resume: existingResponse.resume ?? existingOutput.resume,
-      }
-
-      const mergedOutput: Record<string, unknown> = {
-        ...existingOutput,
-        response: mergedResponse,
-        submission: submissionPayload,
+      const mergedOutput = buildResumedOutput({
+        existingOutput: pauseBlockState.output || {},
+        submissionPayload,
         resumeInput: normalizedResumeInputRaw,
         submittedAt,
-        _resumed: true,
-        _resumedFrom: pausedExecution.executionId,
-        _pauseDurationMs: pauseDurationMs,
-      }
-
-      if (pausePoint.pauseKind === 'time') {
-        mergedOutput.status = 'completed'
-      }
-
-      mergedOutput.resume = mergedOutput.resume ?? mergedResponse.resume
-
-      // Preserve url and resumeEndpoint from resume links
-      const resumeLinks = mergedOutput.resume ?? mergedResponse.resume
-      if (resumeLinks && typeof resumeLinks === 'object') {
-        if (resumeLinks.uiUrl) {
-          mergedOutput.url = resumeLinks.uiUrl
-        }
-        if (resumeLinks.apiUrl) {
-          mergedOutput.resumeEndpoint = resumeLinks.apiUrl
-        }
-      }
-
-      for (const [key, value] of Object.entries(submissionPayload)) {
-        mergedOutput[key] = value
-      }
+        pauseKind: pausePoint.pauseKind ?? 'human',
+        parentExecutionId: pausedExecution.executionId,
+        pauseDurationMs,
+      })
 
       pauseBlockState.output = mergedOutput
       terminalResumeOutput = mergedOutput
@@ -1056,11 +1079,21 @@ export class PauseResumeManager {
             log.blockId === contextId
         )
         if (blockLogIndex !== -1) {
-          // Filter output for logging using shared utility
-          // 'resume' is redundant with url/resumeEndpoint so we filter it out
-          const filteredOutput = filterOutputForLog('human_in_the_loop', mergedOutput, {
-            additionalHiddenKeys: ['resume'],
+          const existingLogOutput = stateCopy.blockLogs[blockLogIndex].output ?? {}
+          const resumedLogOutput = buildResumedOutput({
+            existingOutput: existingLogOutput,
+            submissionPayload,
+            resumeInput: normalizedResumeInputRaw,
+            submittedAt,
+            pauseKind: pausePoint.pauseKind ?? 'human',
+            parentExecutionId: pausedExecution.executionId,
+            pauseDurationMs,
           })
+          const filteredOutput = redactApiKeys(
+            filterOutputForLog('human_in_the_loop', resumedLogOutput, {
+              additionalHiddenKeys: ['resume'],
+            })
+          )
           stateCopy.blockLogs[blockLogIndex] = {
             ...stateCopy.blockLogs[blockLogIndex],
             blockId: stateBlockKey,

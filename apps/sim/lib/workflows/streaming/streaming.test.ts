@@ -1309,6 +1309,65 @@ describe('createStreamingResponse agent-events-v1', () => {
     expect(events).toContainEqual({ event: 'error', error: 'Client cancelled request' })
   })
 
+  it('does not replace sanitized trace content with raw streamed text', async () => {
+    const secret = 'raw-stream-secret'
+    const safeComplete = vi.fn(async () => {})
+    const stream = await createStreamingResponse({
+      requestId: 'request-1',
+      streamConfig: {},
+      executeFn: async ({ onStream }) => {
+        const textStream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(`Echo ${secret}`))
+            controller.close()
+          },
+        })
+
+        await onStream({
+          stream: textStream,
+          streamFormat: 'text',
+          execution: {
+            blockId: 'agent-1',
+            success: true,
+            output: { content: `Echo ${secret}` },
+            logs: [],
+            metadata: {},
+          },
+        } as any)
+
+        return {
+          success: true,
+          output: { content: `Echo ${secret}` },
+          logs: [
+            {
+              blockId: 'agent-1',
+              blockName: 'Agent',
+              blockType: 'agent',
+              input: { prompt: 'Use {{TRACE_SECRET}}' },
+              output: { content: 'Echo {{TRACE_SECRET}}' },
+              startedAt: '2026-01-01T00:00:00.000Z',
+              endedAt: '2026-01-01T00:00:00.001Z',
+              durationMs: 1,
+              executionOrder: 1,
+              success: true,
+            },
+          ],
+          _streamingMetadata: {
+            loggingSession: { safeComplete },
+            processedInput: {},
+          },
+        } as any
+      },
+    })
+
+    await collectSSEEvents(stream)
+
+    expect(safeComplete).toHaveBeenCalledOnce()
+    const serializedSpans = JSON.stringify(safeComplete.mock.calls[0][0].traceSpans)
+    expect(serializedSpans).not.toContain(secret)
+    expect(serializedSpans).toContain('{{TRACE_SECRET}}')
+  })
+
   it('thinking never enters streamedChunks / log content rewrite', async () => {
     const headers = new Headers({
       'x-sim-stream-protocol': 'agent-events-v1',

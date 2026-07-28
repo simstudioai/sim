@@ -367,9 +367,9 @@ export class VariableResolver {
   /**
    * Resolves a code template for a function block. Block output references are stored
    * in `contextVarAccumulator` as named variables (e.g. `__blockRef_0`) and replaced
-   * with those variable names in the returned code string. Non-block references (loop
-   * items, workflow variables, env vars) are still inlined as literals so they remain
-   * available without any extra passing mechanism.
+   * with those variable names in the returned code string. Environment variables are
+   * inlined only in runtime code; display code keeps their unresolved references so
+   * logs and function errors do not expose their values.
    */
   private async resolveCodeWithContextVars(
     ctx: ExecutionContext,
@@ -595,10 +595,6 @@ export class VariableResolver {
     }
 
     result = await replaceEnvVarsAsync(result, async (match) => {
-      const resolved = await this.resolveReference(match, resolutionContext)
-      return typeof resolved === 'string' ? resolved : match
-    })
-    displayResult = await replaceEnvVarsAsync(displayResult, async (match) => {
       const resolved = await this.resolveReference(match, resolutionContext)
       return typeof resolved === 'string' ? resolved : match
     })

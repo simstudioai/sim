@@ -4,11 +4,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { BlockType } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
+import { serializePauseSnapshot } from '@/executor/execution/snapshot-serializer'
 import { ExecutionState } from '@/executor/execution/state'
-import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import type { ContextExtensions } from '@/executor/execution/types'
+import type { BlockHandler, ExecutionContext, ExecutionResult } from '@/executor/types'
 import { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
@@ -75,11 +78,347 @@ function createNode(block: SerializedBlock): DAGNode {
   }
 }
 
+function createExecutorForTest(
+  block: SerializedBlock,
+  state: ExecutionState,
+  handler: BlockHandler,
+  extensions: Partial<ContextExtensions> = {}
+): BlockExecutor {
+  const workflow: SerializedWorkflow = {
+    version: '1',
+    blocks: [block],
+    connections: [],
+    loops: {},
+    parallels: {},
+  }
+  const resolver = new VariableResolver(workflow, {}, state)
+
+  return new BlockExecutor(
+    [handler],
+    resolver,
+    {
+      workspaceId: 'workspace-1',
+      executionId: 'execution-1',
+      userId: 'user-1',
+      metadata: {
+        requestId: 'request-1',
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        triggerType: 'manual',
+        useDraftState: false,
+        startTime: new Date().toISOString(),
+      },
+      ...extensions,
+    },
+    state
+  )
+}
+
 describe('BlockExecutor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearLargeValueCacheForTests()
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
+  })
+
+  it.each([
+    { label: 'provider time segments', includeTimeSegments: true },
+    { label: 'fallback tool calls', includeTimeSegments: false },
+  ])(
+    'sanitizes agent trace I/O while preserving runtime values with $label',
+    async ({ includeTimeSegments }) => {
+      const secret = 'trace-secret/value'
+      const unreferencedValue = 'us-east-1'
+      const block: SerializedBlock = {
+        ...createBlock(),
+        id: 'agent-block-1',
+        metadata: { id: BlockType.AGENT, name: 'Agent' },
+        config: {
+          tool: BlockType.AGENT,
+          params: {
+            prompt: 'Use {{TRACE_SECRET}}',
+          },
+        },
+      }
+      const state = new ExecutionState()
+      const execute = vi.fn(async (_ctx, _block, inputs) => {
+        expect(inputs.prompt).toBe(`Use ${secret}`)
+        return {
+          content: `Echoed ${secret}`,
+          region: unreferencedValue,
+          providerTiming: {
+            startTime: '2024-01-01T10:00:00.000Z',
+            endTime: '2024-01-01T10:00:02.000Z',
+            duration: 2000,
+            ...(includeTimeSegments && {
+              timeSegments: [
+                {
+                  type: 'model' as const,
+                  name: 'Model',
+                  startTime: 1704103200000,
+                  endTime: 1704103201000,
+                  duration: 1000,
+                  assistantContent: `Calling with ${secret}`,
+                  toolCalls: [
+                    {
+                      id: 'call-1',
+                      name: 'lookup',
+                      arguments: { query: secret },
+                    },
+                  ],
+                },
+                {
+                  type: 'tool' as const,
+                  name: 'lookup',
+                  startTime: 1704103201000,
+                  endTime: 1704103202000,
+                  duration: 1000,
+                },
+              ],
+            }),
+          },
+          toolCalls: {
+            list: [
+              {
+                name: 'lookup',
+                arguments: { query: secret },
+                result: { echoed: secret },
+                duration: 1000,
+              },
+            ],
+            count: 1,
+          },
+          childTraceSpans: [
+            {
+              id: 'child-1',
+              name: 'Child',
+              type: 'function',
+              duration: 1,
+              startTime: '2024-01-01T10:00:00.000Z',
+              endTime: '2024-01-01T10:00:00.001Z',
+              input: { query: secret },
+              output: { echoed: secret },
+            },
+          ],
+        }
+      })
+      const handler: BlockHandler = {
+        canHandle: () => true,
+        execute,
+      }
+      const onBlockComplete = vi.fn(async () => {})
+      const executor = createExecutorForTest(block, state, handler, { onBlockComplete })
+      const ctx = createContext(state)
+      ctx.environmentVariables = {
+        TRACE_SECRET: secret,
+        UNREFERENCED_REGION: unreferencedValue,
+      }
+
+      const output = await executor.execute(ctx, createNode(block), block)
+
+      expect(output.content).toBe(`Echoed ${secret}`)
+      expect(output.toolCalls.list[0].arguments.query).toBe(secret)
+      expect(state.getBlockOutput(block.id)?.content).toBe(`Echoed ${secret}`)
+
+      await vi.waitFor(() => {
+        expect(onBlockComplete).toHaveBeenCalled()
+      })
+
+      const serializedLog = JSON.stringify(ctx.blockLogs[0])
+      const serializedCallback = JSON.stringify(onBlockComplete.mock.calls[0])
+      expect(serializedLog).not.toContain(secret)
+      expect(serializedLog).toContain('{{TRACE_SECRET}}')
+      expect(serializedLog).toContain(unreferencedValue)
+      expect(serializedCallback).not.toContain(secret)
+      expect(serializedCallback).toContain('{{TRACE_SECRET}}')
+
+      const { traceSpans } = buildTraceSpans({
+        success: true,
+        output: {},
+        logs: ctx.blockLogs,
+      } as ExecutionResult)
+      const serializedSpans = JSON.stringify(traceSpans)
+      expect(serializedSpans).not.toContain(secret)
+      expect(serializedSpans).toContain('{{TRACE_SECRET}}')
+    }
+  )
+
+  it('sanitizes failed logs and callbacks while preserving runtime errors', async () => {
+    const secret = 'failure-secret'
+    const block: SerializedBlock = {
+      ...createBlock(),
+      config: {
+        tool: BlockType.FUNCTION,
+        params: {
+          code: 'throw new Error("{{TRACE_SECRET}}")',
+        },
+      },
+    }
+    const state = new ExecutionState()
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (_ctx, _block, inputs) => {
+        expect(inputs.code).toContain(secret)
+        throw new Error(`Execution failed with ${secret}`)
+      },
+    }
+    const onBlockComplete = vi.fn(async () => {})
+    const executor = createExecutorForTest(block, state, handler, { onBlockComplete })
+    const ctx = createContext(state)
+    ctx.environmentVariables = { TRACE_SECRET: secret }
+
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(secret)
+
+    expect(state.getBlockOutput(block.id)?.error).toContain(secret)
+    expect(ctx.blockLogs[0].error).toBe('Execution failed with {{TRACE_SECRET}}')
+    expect(JSON.stringify(ctx.blockLogs[0])).not.toContain(secret)
+    await vi.waitFor(() => {
+      expect(onBlockComplete).toHaveBeenCalled()
+    })
+    expect(JSON.stringify(onBlockComplete.mock.calls[0])).not.toContain(secret)
+  })
+
+  it('sanitizes error-handler logs without changing the handled runtime output', async () => {
+    const secret = 'handled-secret'
+    const block: SerializedBlock = {
+      ...createBlock(),
+      config: {
+        tool: BlockType.FUNCTION,
+        params: {
+          code: 'throw new Error("{{TRACE_SECRET}}")',
+        },
+      },
+    }
+    const state = new ExecutionState()
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async () => {
+        throw new Error(`Handled ${secret}`)
+      },
+    }
+    const executor = createExecutorForTest(block, state, handler)
+    const infoSpy = vi.spyOn(
+      (
+        executor as unknown as {
+          execLogger: { info: (message: string, metadata?: Record<string, unknown>) => void }
+        }
+      ).execLogger,
+      'info'
+    )
+    const ctx = createContext(state)
+    ctx.environmentVariables = { TRACE_SECRET: secret }
+    const node = createNode(block)
+    node.outgoingEdges.set('error-edge', {
+      id: 'error-edge',
+      source: block.id,
+      target: 'error-handler',
+      sourceHandle: 'error',
+      targetHandle: 'target',
+    })
+
+    const output = await executor.execute(ctx, node, block)
+
+    expect(output.error).toBe(`Handled ${secret}`)
+    expect(state.getBlockOutput(block.id)?.error).toBe(`Handled ${secret}`)
+    expect(ctx.blockLogs[0].errorHandled).toBe(true)
+    expect(JSON.stringify(ctx.blockLogs[0])).not.toContain(secret)
+    expect(JSON.stringify(ctx.blockLogs[0])).toContain('{{TRACE_SECRET}}')
+    expect(infoSpy).toHaveBeenCalledWith(
+      'Block has error port - returning error output instead of throwing',
+      expect.objectContaining({ error: 'Handled {{TRACE_SECRET}}' })
+    )
+  })
+
+  it('sanitizes soft-abort agent inputs while leaving execution resolution unchanged', async () => {
+    const secret = 'abort-secret'
+    const block: SerializedBlock = {
+      ...createBlock(),
+      id: 'agent-block-1',
+      metadata: { id: BlockType.AGENT, name: 'Agent' },
+      config: {
+        tool: BlockType.AGENT,
+        params: {
+          prompt: 'Use {{TRACE_SECRET}}',
+        },
+      },
+    }
+    const state = new ExecutionState()
+    const abortController = new AbortController()
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (_ctx, _block, inputs) => {
+        expect(inputs.prompt).toBe(`Use ${secret}`)
+        abortController.abort('user')
+        throw new DOMException(`Stopped ${secret}`, 'AbortError')
+      },
+    }
+    const onBlockComplete = vi.fn(async () => {})
+    const executor = createExecutorForTest(block, state, handler, { onBlockComplete })
+    const ctx = createContext(state)
+    ctx.environmentVariables = { TRACE_SECRET: secret }
+    ctx.abortSignal = abortController.signal
+
+    const output = await executor.execute(ctx, createNode(block), block)
+
+    expect(output).toEqual({ content: '' })
+    expect(ctx.blockLogs[0].success).toBe(true)
+    expect(JSON.stringify(ctx.blockLogs[0])).not.toContain(secret)
+    expect(JSON.stringify(ctx.blockLogs[0])).toContain('{{TRACE_SECRET}}')
+    await vi.waitFor(() => {
+      expect(onBlockComplete).toHaveBeenCalled()
+    })
+    expect(JSON.stringify(onBlockComplete.mock.calls[0])).not.toContain(secret)
+  })
+
+  it('keeps snapshot state executable and re-resolves current values on retry', async () => {
+    const firstSecret = 'first-runtime-secret'
+    const secondSecret = 'second-runtime-secret'
+    const block: SerializedBlock = {
+      ...createBlock(),
+      config: {
+        tool: BlockType.FUNCTION,
+        params: {
+          code: 'return "{{TRACE_SECRET}}"',
+        },
+      },
+    }
+    const state = new ExecutionState()
+    const receivedRuntimeCode: string[] = []
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (_ctx, _block, inputs) => {
+        receivedRuntimeCode.push(inputs.code)
+        return { result: inputs.code }
+      },
+    }
+    const executor = createExecutorForTest(block, state, handler)
+    const firstContext = createContext(state)
+    firstContext.environmentVariables = { TRACE_SECRET: firstSecret }
+
+    await executor.execute(firstContext, createNode(block), block)
+    const snapshot = JSON.parse(serializePauseSnapshot(firstContext, ['next-block']).snapshot) as {
+      state: {
+        blockStates: Record<string, { output: { result: string } }>
+        blockLogs: ExecutionContext['blockLogs']
+      }
+    }
+
+    expect(snapshot.state.blockStates[block.id].output.result).toContain(firstSecret)
+    expect(JSON.stringify(snapshot.state.blockLogs)).not.toContain(firstSecret)
+    expect(JSON.stringify(snapshot.state.blockLogs)).toContain('{{TRACE_SECRET}}')
+
+    const resumedContext = createContext(state)
+    resumedContext.blockLogs.push(...snapshot.state.blockLogs)
+    resumedContext.environmentVariables = { TRACE_SECRET: secondSecret }
+
+    await executor.execute(resumedContext, createNode(block), block)
+
+    expect(receivedRuntimeCode).toEqual([`return "${firstSecret}"`, `return "${secondSecret}"`])
+    expect(state.getBlockOutput(block.id)?.result).toContain(secondSecret)
+    expect(JSON.stringify(resumedContext.blockLogs)).not.toContain(firstSecret)
+    expect(JSON.stringify(resumedContext.blockLogs)).not.toContain(secondSecret)
   })
 
   it('persists function output arrays as manifests in execution state', async () => {
@@ -439,20 +778,20 @@ describe('BlockExecutor', () => {
 })
 
 describe('BlockExecutor streaming pump', () => {
-  function createAgentBlock(): SerializedBlock {
+  function createAgentBlock(params: Record<string, unknown> = {}): SerializedBlock {
     return {
       id: 'agent-block-1',
       metadata: { id: BlockType.AGENT, name: 'Agent' },
       position: { x: 0, y: 0 },
-      config: { tool: BlockType.AGENT, params: {} },
+      config: { tool: BlockType.AGENT, params },
       inputs: {},
       outputs: {},
       enabled: true,
     }
   }
 
-  function createExecutor(handler: BlockHandler) {
-    const block = createAgentBlock()
+  function createExecutor(handler: BlockHandler, params: Record<string, unknown> = {}) {
+    const block = createAgentBlock(params)
     const workflow: SerializedWorkflow = {
       version: '1',
       blocks: [block],
@@ -676,16 +1015,20 @@ describe('BlockExecutor streaming pump', () => {
   })
 
   it('fails on timeout but keeps drained answer text in block output', async () => {
+    const secret = 'partial-stream-secret'
     const abortController = new AbortController()
     const handler = createAgentEventsStreamingHandler({
       events: [
-        { type: 'text_delta', text: 'partial before timeout', turn: 'final' },
+        { type: 'text_delta', text: `partial ${secret} before timeout`, turn: 'final' },
         { type: 'thinking_delta', text: 'more' },
       ],
     })
 
-    const { executor, block, state } = createExecutor(handler)
+    const { executor, block, state } = createExecutor(handler, {
+      prompt: '{{TRACE_SECRET}}',
+    })
     const ctx = createContext(state)
+    ctx.environmentVariables = { TRACE_SECRET: secret }
     ctx.abortSignal = abortController.signal
     ctx.onStream = async (streamingExec) => {
       streamingExec.subscribe?.({ onEvent: async () => {} })
@@ -707,7 +1050,9 @@ describe('BlockExecutor streaming pump', () => {
 
     const output = state.getBlockOutput(block.id)
     expect(output?.error).toBeTruthy()
-    expect(output?.content).toBe('partial before timeout')
+    expect(output?.content).toBe(`partial ${secret} before timeout`)
+    expect(JSON.stringify(ctx.blockLogs[0])).not.toContain(secret)
+    expect(ctx.blockLogs[0].output?.content).toBe('partial {{TRACE_SECRET}} before timeout')
   })
 
   it('with PII redaction: no live forward and strips thinking from traces', async () => {
