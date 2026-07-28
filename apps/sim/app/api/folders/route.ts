@@ -5,7 +5,7 @@ import { createFolderContract, listFoldersContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { listFoldersForWorkspace } from '@/lib/folders/queries'
+import { listFoldersForWorkspace, toFolderApi } from '@/lib/folders/queries'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { performCreateFolder } from '@/lib/workflows/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -29,7 +29,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const parsed = await parseRequest(listFoldersContract, request, {})
     if (!parsed.success) return parsed.response
-    const { workspaceId, scope } = parsed.data.query
+    const { workspaceId, resourceType, scope } = parsed.data.query
 
     // Check if user has workspace permissions
     const workspacePermission = await getUserEntityPermissions(
@@ -42,7 +42,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Access denied to this workspace' }, { status: 403 })
     }
 
-    const folders = await listFoldersForWorkspace(workspaceId, scope)
+    const folders = await listFoldersForWorkspace(workspaceId, scope, resourceType)
 
     return NextResponse.json({ folders })
   } catch (error) {
@@ -66,7 +66,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       name,
       workspaceId,
       parentId,
-      color,
       sortOrder: providedSortOrder,
     } = parsed.data.body
 
@@ -91,7 +90,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       workspaceId,
       name,
       parentId,
-      color,
       sortOrder: providedSortOrder,
     })
 
@@ -113,7 +111,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       { groups: { workspace: workspaceId } }
     )
 
-    return NextResponse.json({ folder: newFolder })
+    return NextResponse.json({ folder: toFolderApi(newFolder) })
   } catch (error) {
     if (error instanceof FolderLockedError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
