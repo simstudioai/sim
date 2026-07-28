@@ -1,8 +1,8 @@
 'use client'
 
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { cn, toast } from '@sim/emcn'
-import type { JoinFileDocError } from '@sim/realtime-protocol/file-doc'
+import { FILE_DOC_SEED, type JoinFileDocError } from '@sim/realtime-protocol/file-doc'
 import type { Extensions, JSONContent } from '@tiptap/core'
 import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import { Fragment, Slice } from '@tiptap/pm/model'
@@ -307,6 +307,20 @@ export function LoadedRichMarkdownEditor({
   onSaveShortcutRef.current = onSaveShortcut
 
   /**
+   * The frontmatter to re-attach to the body on save. For a collaborative doc it lives in the CRDT
+   * (config map, seeded/updated server-side), so a server edit that changes it is reflected rather
+   * than reverted by this editor's stale open-time copy; falls back to the locked `settledRef` copy
+   * before the seed lands and for non-collaborative documents.
+   */
+  const resolveSaveFrontmatter = useCallback((): string => {
+    const fromDoc = collaboration?.doc
+      .getMap(FILE_DOC_SEED.configMap)
+      .get(FILE_DOC_SEED.frontmatterKey)
+    if (typeof fromDoc === 'string') return fromDoc
+    return settledRef.current?.frontmatter ?? ''
+  }, [collaboration])
+
+  /**
    * While the file is still unnamed, name it after its leading heading: `onDeriveTitleFromHeading` is
    * called (debounced) so the caller can rename the file, and `fileNameRef` lets the onUpdate handler
    * read the current name without re-subscribing. See {@link isUntitledName}.
@@ -573,7 +587,7 @@ export function LoadedRichMarkdownEditor({
     onUpdate: ({ editor, transaction }) => {
       const md = postProcessSerializedMarkdown(editor.getMarkdown())
       lastSyncedBodyRef.current = md
-      onChangeRef.current(applyFrontmatter(settledRef.current?.frontmatter ?? '', md))
+      onChangeRef.current(applyFrontmatter(resolveSaveFrontmatter(), md))
       // While the file is still untitled, name it after its leading heading once typing settles — but
       // only for the LOCAL user's own edits. `isChangeOrigin` is true for a remote Yjs change (a peer
       // typing); bail BEFORE touching the timer so a remote edit never cancels or reschedules the local

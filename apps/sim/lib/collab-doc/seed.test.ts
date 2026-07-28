@@ -60,6 +60,18 @@ describe('buildFileDocSeed', () => {
     expect(doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag)).toBe(true)
   })
 
+  it('carries the frontmatter in the config map (not the body)', async () => {
+    mockFetchBuffer.mockResolvedValue(Buffer.from('---\ntitle: X\n---\n\n# Body', 'utf-8'))
+    const seed = await buildFileDocSeed('ws-1', 'file-1')
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, seed!.update)
+    expect(doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.frontmatterKey)).toContain(
+      'title: X'
+    )
+    // …and the frontmatter is NOT in the collaborative body.
+    expect(yDocToMarkdown(doc)).not.toContain('title: X')
+  })
+
   it('returns null for a missing file', async () => {
     mockGetWorkspaceFile.mockResolvedValue(null)
     expect(await buildFileDocSeed('ws-1', 'missing')).toBeNull()

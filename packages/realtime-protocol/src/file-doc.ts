@@ -71,6 +71,14 @@ export type FileDocMessageType = (typeof FILE_DOC_MESSAGE_TYPE)[keyof typeof FIL
 export const FILE_DOC_SEED = {
   configMap: 'config',
   flag: 'initialContentLoaded',
+  /**
+   * The file's raw YAML frontmatter string, stored in the config map so it lives in the CRDT and
+   * merges across clients. The collaborative document body never contains frontmatter (it is stripped
+   * on seed); the editor re-attaches THIS value on autosave. Keeping it in the doc — rather than
+   * locked at open time — is what lets a server-side edit (e.g. copilot) that changes the frontmatter
+   * be reflected instead of reverted by an open editor's autosave.
+   */
+  frontmatterKey: 'frontmatter',
 } as const
 
 /** Client → server join request. `fileId` is the `workspace_files.id`. */

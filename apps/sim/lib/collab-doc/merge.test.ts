@@ -1,6 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
+import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
 import { serializeMarkdownBody } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
@@ -15,7 +16,7 @@ describe('buildFileDocMergeUpdate', () => {
     expect(yDocToMarkdown(live)).toBe(serializeMarkdownBody('# Title\n\nRewritten.'))
   })
 
-  it('strips frontmatter — merges only the body, never the YAML', () => {
+  it('strips frontmatter from the body but stores it in the config for the editor to re-attach', () => {
     const live = markdownToYDoc('# Title\n\nBody.')
     const update = buildFileDocMergeUpdate(
       Y.encodeStateAsUpdate(live),
@@ -25,6 +26,11 @@ describe('buildFileDocMergeUpdate', () => {
     const md = yDocToMarkdown(live)
     expect(md).not.toContain('title: X')
     expect(md).toBe(serializeMarkdownBody('# Title\n\nBody rewritten.'))
+    // The updated frontmatter is carried in the config map, so an open editor re-attaches the NEW
+    // value on autosave instead of reverting to its stale open-time copy.
+    expect(live.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.frontmatterKey)).toContain(
+      'title: X'
+    )
   })
 
   it('returns an empty (no-op) diff when the markdown already matches', () => {
