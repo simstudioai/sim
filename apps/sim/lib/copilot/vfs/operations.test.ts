@@ -138,3 +138,35 @@ describe('grep', () => {
     expect(hits).toHaveLength(1)
   })
 })
+
+describe('grep regex safety', () => {
+  it('runs a catastrophic pattern in linear time', () => {
+    // `a*a*b` takes minutes on a backtracking engine against this content;
+    // both the pattern and the file content are caller-supplied.
+    const files = vfsFromEntries([['notes.md', `${'a'.repeat(10000)}!`]])
+
+    const start = Date.now()
+    grep(files, 'a*a*b')
+
+    expect(Date.now() - start).toBeLessThan(2000)
+  })
+
+  it('still interprets regex syntax', () => {
+    const files = vfsFromEntries([['log.txt', 'req finished status=503']])
+    expect(grep(files, 'status=\\d+')).toHaveLength(1)
+    expect(grep(files, 'status=\\d+', undefined, { outputMode: 'count' })).toEqual([
+      { path: 'log.txt', count: 1 },
+    ])
+  })
+
+  it('matches syntax RE2 cannot represent literally instead of not at all', () => {
+    const files = vfsFromEntries([['log.txt', 'contains (?=x) verbatim']])
+    expect(grep(files, '(?=x)')).toHaveLength(1)
+  })
+
+  it('honours ignoreCase across repeated line tests', () => {
+    const files = vfsFromEntries([['log.txt', 'Alpha\nALPHA\nalpha']])
+    expect(grep(files, 'alpha', undefined, { ignoreCase: true })).toHaveLength(3)
+    expect(grep(files, 'alpha')).toHaveLength(1)
+  })
+})

@@ -35,10 +35,22 @@ describe('customPatternSchema', () => {
     }
   })
 
-  it('rejects a catastrophic-backtracking regex at the boundary', () => {
-    expect(
-      customPatternSchema.safeParse({ name: 'evil', regex: '(a+)+$', replacement: '' }).success
-    ).toBe(false)
+  it('no longer screens for catastrophic backtracking, which never worked here', () => {
+    // This used to reject `(a+)+$` via `safe-regex2`. The screen was removed:
+    // it caught that shape but passed `a*a*b`, which is just as catastrophic,
+    // so it only ever deterred the obvious spelling of a misconfiguration a
+    // user can inflict on their own workspace. It also rejected valid patterns
+    // (lookbehind, optional groups) that Presidio accepts.
+    //
+    // These patterns run in Presidio, not in this process, so they cannot
+    // stall this event loop; Presidio's own timeout is the bound. In-process
+    // matching uses `compileLinearRegex`, which cannot backtrack at all.
+    for (const regex of ['(a+)+$', 'a*a*b', '(?<=id: )\\w+']) {
+      expect(
+        customPatternSchema.safeParse({ name: 'p', regex, replacement: '' }).success,
+        `pattern ${regex} should be accepted`
+      ).toBe(true)
+    }
   })
 })
 
