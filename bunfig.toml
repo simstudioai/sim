@@ -18,6 +18,14 @@ minimumReleaseAge = 604800
 # @anthropic-ai/sdk is exactly pinned to 0.114.0, vetted for the agent-events
 # streaming work (adaptive thinking display types + transform-json-schema);
 # published 2026-07-23, it ages out of the gate on 2026-07-30 — drop this entry then.
+# @e2b/code-interpreter (2.7.0, published 2026-07-23) and its `e2b` dependency
+# (2.36.1, published 2026-07-27) carry the fix for Pi's Create PR runs dying mid-stream
+# with "protocol error: received unsupported compressed output": e2b 2.36.0 moved envd's
+# Connect transport off the 2.0.0-rc.3 connect-web and onto undici 8 for Node >= 22.19.0,
+# which is this app's engine floor. Only these two are excluded — the rest of the chain
+# (@connectrpc/connect{,-web} 2.1.2, @bufbuild/protobuf 2.13.0, undici 8.8.0) already
+# clears the gate, and `tar` resolves to 7.5.21, which satisfies e2b's ^7.5.19 without
+# an exception. They age out on 2026-07-30 and 2026-08-03 — drop both entries then.
 minimumReleaseAgeExcludes = [
   "@typescript/native-preview",
   "@earendil-works/pi-agent-core",
@@ -31,6 +39,8 @@ minimumReleaseAgeExcludes = [
   "@next/swc-linux-arm64-gnu",
   "@next/swc-linux-x64-gnu",
   "@anthropic-ai/sdk",
+  "@e2b/code-interpreter",
+  "e2b",
 ]
 
 [run]
