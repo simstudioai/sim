@@ -165,10 +165,17 @@ describe('WorkflowBlockBorder mount', () => {
     expect(getWorkflowBorderFrameDeltaSeconds(10_000, 100)).toBeCloseTo(1 / 30)
   })
 
-  it('reveals action-menu content only after the opening swell is ready', () => {
-    expect(isActionMenuSwellReady(1, 0.79)).toBe(false)
-    expect(isActionMenuSwellReady(1, 0.8)).toBe(true)
+  it('reveals action-menu content only once the swell can contain it', () => {
+    /* The row clips to the swell, so revealing it while the swell is shorter
+       than the buttons collides the icons with the card's top edge. Pin the
+       ratio, not the threshold constant — 24px of buttons in a 28px swell. */
+    const ACTION_ROW_HEIGHT_PX = 24
+    const OPEN_SWELL_HEIGHT_PX = 28
+    const minimumSafeFraction = ACTION_ROW_HEIGHT_PX / OPEN_SWELL_HEIGHT_PX
+
+    expect(isActionMenuSwellReady(1, minimumSafeFraction - 0.001)).toBe(false)
     expect(isActionMenuSwellReady(1, 1)).toBe(true)
+    /* Never reveal while retracting, however far open the swell still is. */
     expect(isActionMenuSwellReady(0, 1)).toBe(false)
   })
 

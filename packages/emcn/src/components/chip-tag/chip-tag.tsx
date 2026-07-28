@@ -24,8 +24,26 @@ import { cn } from '../../lib/cn'
  *   inverse-surface convention one step softer than near-black. For eyebrow
  *   kickers and emphasis labels that should read as a solid chip rather than a
  *   bordered one.
- * - `workflow` — a restrained type cue for workflow cards. Pair with `tone`;
- *   the icon remains the non-color identifier.
+ * - `workflow` — the brand type cue for workflow cards. Pair with `tone`; the
+ *   icon inherits the label colour and remains the non-colour identifier.
+ *
+ *   These are fixed brand values, not derived ones — do not "correct" a hex
+ *   for contrast or gamut. Every label is one of two inks: `#F8F8F8` when the
+ *   fill is dark, `#1A1A1A` when it is light. `#3B3B3B` appears only as
+ *   `inverse`'s fill, never as text. One value serves both modes; the tones
+ *   carry no `dark:` overrides.
+ *
+ *   Contrast against the paired ink varies, and two pairs sit under WCAG AA
+ *   (4.5:1) for normal text: `green` at 3.98:1 and `orange` at 3.15:1. These
+ *   are brand decisions rather than oversights. Because the label is short and
+ *   always duplicated by an icon and the block name beside it, the tag is a
+ *   redundant cue rather than the sole carrier of the information — but do not
+ *   reuse either pairing anywhere the label stands alone.
+ *
+ *   `neutral` is the only tone that is not a solid fill — an unmapped block
+ *   type reads as a white, outlined slot rather than as one more colour in the
+ *   set. Every other tone is fill-only, so it is also the only one whose edge
+ *   depends on the ring rather than on the fill itself.
  * - `invite` — recipient pill used in invite/sharing flows. Borrows the chip
  *   family's icon gap (`gap-1.5`), `--text-body` label, and `--text-icon`
  *   leading/trailing icons; pairs with the `invalid` boolean to flip to an
@@ -49,11 +67,11 @@ const chipTagVariants = cva(
       tone: {
         neutral: '',
         inverse: '',
-        teal: '',
-        indigo: '',
-        indigoStrong: '',
-        violet: '',
-        amber: '',
+        ash: '',
+        orange: '',
+        blue: '',
+        green: '',
+        yellow: '',
       },
     },
     compoundVariants: [
@@ -65,45 +83,18 @@ const chipTagVariants = cva(
       {
         variant: 'workflow',
         tone: 'neutral',
-        className:
-          'bg-[oklch(0.91_0.012_230)] text-[oklch(0.29_0.015_230)] dark:bg-[oklch(0.32_0.012_230)] dark:text-[oklch(0.9_0.015_230)]',
+        /* The only outlined tone. An unmapped block type reads as an empty
+           slot rather than a colour, so the fill is plain white and an inset
+           ring — not a border — carries the edge, keeping the tag the same
+           size as every filled sibling. */
+        className: 'bg-[#FFFFFF] text-[#1A1A1A] shadow-[inset_0_0_0_1px_#C3C3C3]',
       },
-      {
-        variant: 'workflow',
-        tone: 'inverse',
-        className:
-          'bg-[oklch(0.4386_0_0)] text-[oklch(1_0_0)] dark:bg-[oklch(1_0_0)] dark:text-[oklch(0.4386_0_0)]',
-      },
-      {
-        variant: 'workflow',
-        tone: 'teal',
-        className:
-          'bg-[oklch(0.91_0.025_190)] text-[oklch(0.3_0.045_190)] dark:bg-[oklch(0.31_0.035_190)] dark:text-[oklch(0.9_0.035_190)]',
-      },
-      {
-        variant: 'workflow',
-        tone: 'indigo',
-        className:
-          'bg-[oklch(0.91_0.03_270)] text-[oklch(0.3_0.05_270)] dark:bg-[oklch(0.31_0.04_270)] dark:text-[oklch(0.9_0.035_270)]',
-      },
-      {
-        variant: 'workflow',
-        tone: 'indigoStrong',
-        className:
-          'bg-[oklch(0.88_0.065_270)] text-[oklch(0.28_0.075_270)] dark:bg-[oklch(0.33_0.065_270)] dark:text-[oklch(0.92_0.05_270)]',
-      },
-      {
-        variant: 'workflow',
-        tone: 'violet',
-        className:
-          'bg-[oklch(0.91_0.028_305)] text-[oklch(0.3_0.045_305)] dark:bg-[oklch(0.31_0.04_305)] dark:text-[oklch(0.9_0.035_305)]',
-      },
-      {
-        variant: 'workflow',
-        tone: 'amber',
-        className:
-          'bg-[oklch(0.92_0.032_80)] text-[oklch(0.32_0.055_70)] dark:bg-[oklch(0.32_0.04_80)] dark:text-[oklch(0.91_0.04_80)]',
-      },
+      { variant: 'workflow', tone: 'inverse', className: 'bg-[#3B3B3B] text-[#F8F8F8]' },
+      { variant: 'workflow', tone: 'ash', className: 'bg-[#E6E6E6] text-[#1A1A1A]' },
+      { variant: 'workflow', tone: 'orange', className: 'bg-[#FF4C00] text-[#F8F8F8]' },
+      { variant: 'workflow', tone: 'blue', className: 'bg-[#0062FF] text-[#F8F8F8]' },
+      { variant: 'workflow', tone: 'green', className: 'bg-[#188F00] text-[#F8F8F8]' },
+      { variant: 'workflow', tone: 'yellow', className: 'bg-[#FFEF08] text-[#1A1A1A]' },
     ],
     defaultVariants: {
       variant: 'mono',
@@ -168,7 +159,13 @@ export function ChipTag({
   rightIconDisabled,
   ...props
 }: ChipTagProps) {
-  const iconClass = cn('size-[14px] flex-shrink-0', !invalid && 'text-[var(--text-icon)]')
+  /* `workflow` icons inherit the tone's tinted label colour. The shared
+     `--text-icon` gray is tuned for this component's light surfaces and would
+     all but disappear on a tone's deep fill. */
+  const iconClass = cn(
+    'size-[14px] flex-shrink-0',
+    !invalid && variant !== 'workflow' && 'text-[var(--text-icon)]'
+  )
   const interactive = RightIcon != null && onRightIconClick != null
 
   return (
