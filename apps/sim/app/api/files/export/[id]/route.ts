@@ -10,6 +10,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { extractEmbeddedImageIds } from '@/lib/copilot/tools/server/files/embedded-image-refs'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
@@ -130,12 +131,24 @@ export const GET = withRouteHandler(
 
     // Capped like everything else in the bundle: the document body is usually the
     // largest single entry, so leaving it unbounded left the export limit unenforced
-    // against the one item most able to exceed it.
-    const mdBuffer = await downloadFile({
-      key: record.key,
-      context: record.context as StorageContext,
-      maxBytes: MAX_EXPORT_TOTAL_BYTES,
-    })
+    // against the one item most able to exceed it. A body that alone exceeds the limit
+    // is a size rejection, so it reports as one rather than as a server error.
+    let mdBuffer: Buffer
+    try {
+      mdBuffer = await downloadFile({
+        key: record.key,
+        context: record.context as StorageContext,
+        maxBytes: MAX_EXPORT_TOTAL_BYTES,
+      })
+    } catch (error) {
+      if (!isPayloadSizeLimitError(error)) throw error
+      return NextResponse.json(
+        {
+          error: `This document exceeds the ${formatFileSize(MAX_EXPORT_TOTAL_BYTES)} export limit.`,
+        },
+        { status: 400 }
+      )
+    }
     let mdContent = mdBuffer.toString('utf-8')
 
     const imageIds = extractEmbeddedImageIds(mdContent)

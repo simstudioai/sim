@@ -4,6 +4,7 @@
 import { createMockRequest } from '@sim/testing'
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const {
   mockCheckAuth,
@@ -134,6 +135,19 @@ describe('markdown export bundling', () => {
 
     const bodyCall = mockDownloadFile.mock.calls.find(([options]) => options.key.endsWith('doc.md'))
     expect(bodyCall?.[0].maxBytes).toBe(250 * MB)
+  })
+
+  it('reports an oversized body as a size rejection, not a server error', async () => {
+    mockExtractEmbeddedImageIds.mockReturnValue([])
+    mockDownloadFile.mockRejectedValue(
+      new PayloadSizeLimitError({ label: 'storage file download', maxBytes: 1 })
+    )
+
+    const response = await GET(request(), context)
+
+    // The cap exists to produce a clear limit message; a 500 would hide it.
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toContain('export limit')
   })
 
   it('caps each asset download rather than trusting its declared size', async () => {
