@@ -14,8 +14,12 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: vi.fn(() => ({ data: null, isPending: false })),
 }))
 
-import type { ContentSegment } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
+import type {
+  ContentSegment,
+  IndexOfCache,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
 import {
+  memoizedIndexOf,
   parseQuestionTagBody,
   parseSpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
@@ -618,4 +622,47 @@ describe('service_account tag validation', () => {
       expect(segments.some((segment) => segment.type === 'credential')).toBe(false)
     }
   )
+})
+
+describe('memoizedIndexOf', () => {
+  const CONTENT =
+    'Use <workspace_resource> for files. Use <question> for cards. ' +
+    '<options>[{"title":"Ship","description":"go"}]</options> and <question> again.'
+  const NEEDLES = ['<workspace_resource>', '<question>', '<options>', '<thinking>']
+
+  it('matches plain indexOf as the cursor advances', () => {
+    const cache: IndexOfCache = new Map()
+    for (let from = 0; from <= CONTENT.length; from++) {
+      for (const needle of NEEDLES) {
+        expect(memoizedIndexOf(cache, CONTENT, needle, from)).toBe(CONTENT.indexOf(needle, from))
+      }
+    }
+  })
+
+  it('stays correct when the cursor moves BACKWARD', () => {
+    // The cache is only reused when the new `from` is at or beyond the offset the
+    // entry was searched at. Without that guard a cached hit — or a cached -1 —
+    // is returned for a region it never examined, and the parser silently
+    // mis-parses rather than failing loudly.
+    //
+    // parseSpecialTags never walks backward today, so this cannot be provoked
+    // through the public API; the point is that a future change to a resume point
+    // costs a redundant scan instead of a wrong answer.
+    const cache: IndexOfCache = new Map()
+    const offsets = [70, 5, 100, 0, 45, 62, 12, CONTENT.length, 40, 3]
+    for (const from of offsets) {
+      for (const needle of NEEDLES) {
+        expect(memoizedIndexOf(cache, CONTENT, needle, from)).toBe(CONTENT.indexOf(needle, from))
+      }
+    }
+  })
+
+  it('caches an absent needle instead of rescanning', () => {
+    const cache: IndexOfCache = new Map()
+    expect(memoizedIndexOf(cache, CONTENT, '<thinking>', 0)).toBe(-1)
+    // Same offset or later: answerable from the entry, since absence from 0
+    // implies absence from anywhere after it.
+    expect(memoizedIndexOf(cache, CONTENT, '<thinking>', 30)).toBe(-1)
+    expect(cache.get('<thinking>')).toEqual({ idx: -1, from: 0 })
+  })
 })

@@ -710,6 +710,16 @@ function literalTextReason(
   return null
 }
 
+/** One memoized `indexOf` result, with the `from` it was computed at. */
+interface IndexOfCacheEntry {
+  /** Result of `content.indexOf(needle, from)`, or -1 when absent from that point on. */
+  idx: number
+  /** The offset the search started at. The entry says nothing about content before it. */
+  from: number
+}
+
+export type IndexOfCache = Map<string, IndexOfCacheEntry>
+
 /**
  * `content.indexOf(needle, from)` memoized per needle.
  *
@@ -720,19 +730,32 @@ function literalTextReason(
  * the buffer for every opener, which is quadratic on a message that mentions a
  * tag name many times — and this parse re-runs for every streamed chunk.
  *
- * Safe because `from` only ever increases within a parse: a cached -1 stays -1,
- * and a cached hit at or after `from` is still the first hit at or after `from`.
+ * A cached result is only valid from the offset it was searched at, so the entry
+ * carries that offset and is reused only when the new `from` is at or beyond it:
+ *
+ * - `idx === -1` means no hit at or after `entry.from`, so there is none at or
+ *   after any later `from` either.
+ * - `idx >= from` means the first hit at or after `entry.from` is still ahead of
+ *   `from`, so nothing lies between them and it is still the first hit.
+ *
+ * Storing `from` is what makes this correct for ANY call order rather than only
+ * for a monotonically advancing cursor. The cursor is monotonic today — every
+ * non-pending outcome resumes strictly past its opener — but that is a property
+ * of {@link resolveTagAt}'s resume points, and one of them deliberately resumes
+ * back inside a span it already examined. A future adjustment that let the cursor
+ * regress would, without this check, return a stale index and silently mis-parse
+ * rather than fail loudly. With it, the worst case is a redundant scan.
  */
-function memoizedIndexOf(
-  cache: Map<string, number>,
+export function memoizedIndexOf(
+  cache: IndexOfCache,
   content: string,
   needle: string,
   from: number
 ): number {
-  const cached = cache.get(needle)
-  if (cached !== undefined && (cached === -1 || cached >= from)) return cached
+  const entry = cache.get(needle)
+  if (entry && from >= entry.from && (entry.idx === -1 || entry.idx >= from)) return entry.idx
   const idx = content.indexOf(needle, from)
-  cache.set(needle, idx)
+  cache.set(needle, { idx, from })
   return idx
 }
 
@@ -741,7 +764,7 @@ function resolveTagAt(
   openIndex: number,
   tagName: (typeof SPECIAL_TAG_NAMES)[number],
   isStreaming: boolean,
-  closeCache: Map<string, number>
+  closeCache: IndexOfCache
 ): TagResolution {
   const openTag = `<${tagName}>`
   const closeTag = `</${tagName}>`
@@ -821,8 +844,8 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
     if (text) segments.push({ type: 'text', content: text })
   }
 
-  const openerCache = new Map<string, number>()
-  const closeCache = new Map<string, number>()
+  const openerCache: IndexOfCache = new Map()
+  const closeCache: IndexOfCache = new Map()
 
   while (cursor < content.length) {
     let nearestStart = -1
