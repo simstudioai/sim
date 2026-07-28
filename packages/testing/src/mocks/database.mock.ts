@@ -25,6 +25,13 @@ export function createMockSql() {
     }),
   })
 
+  // Binds a value as a single parameter — drizzle's escape hatch for passing an
+  // array to Postgres as an array rather than expanding it into a value list.
+  sqlFn.param = (value: any) => ({
+    value,
+    toSQL: () => ({ sql: '?', params: [value] }),
+  })
+
   return sqlFn
 }
 
