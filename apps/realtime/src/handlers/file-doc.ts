@@ -143,16 +143,6 @@ function isDocSeeded(doc: Y.Doc): boolean {
 }
 
 /**
- * Whether the document holds no content from any client yet. An untouched `Y.Doc` encodes an empty
- * state vector (no client→clock entries → a single `0` byte); any applied update grows it. The seed
- * only applies to a still-empty doc, so a client that synced its own content in first (e.g. a
- * reconnect with a locally-edited doc racing the seed fetch) is never union-duplicated by the seed.
- */
-function isDocEmpty(doc: Y.Doc): boolean {
-  return Y.encodeStateVector(doc).length <= 1
-}
-
-/**
  * Decode the client IDs an awareness update carries, without applying it, to
  * check a frame only touches its sender's own presence. Mirrors the wire format
  * of `awarenessProtocol.encodeAwarenessUpdate`: a count, then per client a
@@ -193,16 +183,21 @@ const MAX_SEED_ATTEMPTS = 3
  *
  * Recovery, because the client's readiness gate (`synced && initialContentLoaded`) never flips until
  * the doc is seeded:
- * - **Genuinely empty/missing file** → the app returns `null`; mark the (empty) doc seeded so clients
- *   reach readiness instead of waiting forever. This is safe: `buildFileDocSeed` throws — it does not
+ * - **Genuinely empty/missing file** → the app returns `null`; mark the doc seeded so clients reach
+ *   readiness instead of waiting forever. This is safe: `buildFileDocSeed` throws — it does not
  *   return `null` — on a read error, so `null` means the file truly has no content to lose.
  * - **Transport failure** → retry a bounded number of times against the *live* room with backoff, so
  *   already-connected clients recover without needing a fresh join; on final failure the guard is
  *   released so a later join re-attempts.
  *
- * After each `await`, re-verify the room is still the live, empty, unseeded room before touching it:
- * the last owner may have left (`destroyRoomIfIdle` destroyed the doc) or a client's sync may have
- * seeded it in flight.
+ * `isDocSeeded` is the only "already handled" guard needed: content is only ever written to the doc
+ * alongside the seed flag (by this seed, or by a client's offline fallback which sets both), so a doc
+ * carrying real content is always already seeded and short-circuits here. It is therefore correct to
+ * seed a doc that a fresh client's editor has synced a bare empty-paragraph placeholder into (that
+ * placeholder is unseeded) — the earlier state-vector "emptiness" check wrongly skipped exactly that
+ * common case and stranded the client unseeded. After each `await`, re-verify the room is still the
+ * live, unseeded room: the last owner may have left (`destroyRoomIfIdle` destroyed the doc) or a
+ * client's sync may have seeded it in flight.
  */
 async function ensureServerSeed(
   name: string,
@@ -215,7 +210,7 @@ async function ensureServerSeed(
   for (let attempt = 1; attempt <= MAX_SEED_ATTEMPTS; attempt++) {
     try {
       const update = await fetchFileDocSeed(workspaceId, room.fileId)
-      if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc) || !isDocEmpty(room.doc)) return
+      if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
       if (update) Y.applyUpdate(room.doc, update)
       else room.doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
       return

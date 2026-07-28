@@ -366,6 +366,41 @@ describe('setupWorkspaceFileDocHandlers', () => {
     await expect(flushMicrotasks()).resolves.toBeUndefined()
   })
 
+  it('still seeds when a client synced a bare placeholder into the doc before the seed returned', async () => {
+    // Reproduces the readiness-strand: a fresh editor's Collaboration binding writes an empty
+    // paragraph into its local Y.Doc on mount, which syncs to the server (making the doc non-empty
+    // but still UNSEEDED) before the seed fetch resolves. The seed must still apply and set the flag,
+    // or the client's `synced && initialContentLoaded` gate never opens.
+    let resolveSeed: (v: Uint8Array | null) => void = () => {}
+    mockFetchFileDocSeed.mockReturnValueOnce(new Promise((resolve) => (resolveSeed = resolve)))
+    const { io } = createIo()
+    const { socket, handlers } = setup('socket-1', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+
+    // The client syncs a placeholder update — content in the doc, but no seed flag.
+    const placeholder = new Y.Doc()
+    placeholder.getText(FILE_DOC_FIELD).insert(0, 'x')
+    handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
+        syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(placeholder))
+      )
+    )
+    resolveSeed(encodedSeedUpdate('# Seeded'))
+    await flushMicrotasks()
+
+    socket.emit.mockClear()
+    handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) => syncProtocol.writeSyncStep1(e, new Y.Doc()))
+    )
+    const reply = socket.emit.mock.calls.find(
+      ([event, payload]) => event === FILE_DOC_EVENTS.MESSAGE && payload instanceof Uint8Array
+    )
+    const clientDoc = new Y.Doc()
+    applySyncReply(reply?.[1] as Uint8Array, clientDoc)
+    expect(clientDoc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag)).toBe(true)
+    expect(clientDoc.getText(FILE_DOC_FIELD).toString()).toContain('# Seeded')
+  })
+
   it('relays a document update to the rest of the room, excluding the sender', async () => {
     const { io, sent } = createIo()
     const a = setup('socket-a', io)
