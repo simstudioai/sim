@@ -123,9 +123,20 @@ FOR EACH ROW EXECUTE FUNCTION "folder_parent_resource_type_match"();
 -- Only active rows are deduplicated: the unique index is partial (WHERE deleted_at IS NULL),
 -- so archived rows are exempt and keep their original names.
 --
--- ON CONFLICT (id) DO NOTHING makes this statement re-runnable, which is what allows a
--- catch-up pass after the deploy has drained to adopt any folder an old-code pod created
--- while the rollout was still in flight.
+-- Replay-safety: `ON CONFLICT (id)` alone is NOT enough. It covers primary-key collisions,
+-- but not `folder_workspace_resource_parent_name_active_unique` — on a replay, a folder
+-- created in the source table between runs can be handed a name a previously-migrated row
+-- already holds, which would abort the migration and wedge the deploy.
+--
+-- The `NOT EXISTS` guard makes the whole backfill a no-op once any row of this resourceType
+-- is present. The statement runs inside the migration transaction, so it is all-or-nothing:
+-- a failure before the COMMIT rolls it back entirely and a replay redoes it from scratch,
+-- while a failure after the COMMIT (i.e. in the CONCURRENTLY block) leaves it fully applied
+-- and a replay correctly skips it.
+--
+-- Folders an old-code pod creates during the rollout are deliberately NOT adopted here —
+-- that is the separate post-drain catch-up pass, which can re-run this SELECT with the
+-- guard removed once writers have cut over.
 INSERT INTO "folder" (id, resource_type, name, user_id, workspace_id, parent_id, locked, sort_order, created_at, updated_at, deleted_at)
 WITH active AS (
 	SELECT id, workspace_id, coalesce(parent_id, '') AS scope, name, created_at
@@ -158,6 +169,7 @@ SELECT
 	f.created_at, f.updated_at, f.archived_at
 FROM "workflow_folder" f
 LEFT JOIN renamed r ON r.id = f.id
+WHERE NOT EXISTS (SELECT 1 FROM "folder" WHERE resource_type = 'workflow')
 ON CONFLICT (id) DO NOTHING;
 --> statement-breakpoint
 -- Backfill: same for file folders. `workspace_file_folders` has no `locked` column, so file
@@ -199,6 +211,7 @@ SELECT
 	f.created_at, f.updated_at, f.deleted_at
 FROM "workspace_file_folders" f
 LEFT JOIN renamed r ON r.id = f.id
+WHERE NOT EXISTS (SELECT 1 FROM "folder" WHERE resource_type = 'file')
 ON CONFLICT (id) DO NOTHING;
 --> statement-breakpoint
 -- The self-referencing parent FK is added AFTER the backfills above, not before.
