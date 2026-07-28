@@ -6,6 +6,7 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
+import { mergeEditIntoLiveFileDoc } from '@/lib/realtime/notify'
 import { updateWorkspaceFileContent } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getE2BDocFormat } from './doc-compile'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
@@ -240,6 +241,14 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
         fileBuffer,
         compiled.sourceMime
       )
+
+      // If a collaborator has this markdown file open, merge the edit into their live document so it
+      // streams into the editor as a CRDT merge instead of the file changing under them. Best-effort
+      // and markdown-only — generated docs (docx/pptx/…) are never collaboratively edited; the durable
+      // write above is the source of truth, and the editor's own autosave mirrors the doc back to it.
+      if (!docInfo.isDoc) {
+        await mergeEditIntoLiveFileDoc(intent.fileId, finalContent)
+      }
 
       const verb =
         operation === 'append' ? 'appended to' : operation === 'update' ? 'updated' : 'patched'
