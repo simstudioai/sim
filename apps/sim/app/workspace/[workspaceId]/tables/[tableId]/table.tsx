@@ -447,7 +447,11 @@ export function Table({
     if (!viewsEnabled || !viewsLoaded) return
 
     if (seededViewIdRef.current === undefined) {
-      if (activeViewId === null) {
+      // Embedded tables bind these parsers to the HOST page's URL, which the
+      // mothership panel keeps across resource switches. A param left by the
+      // previously-open table must not decide this one's initial view, so the
+      // first resolve ignores it and lets this table pick its own default.
+      if (activeViewId === null || embedded) {
         const defaultView = views.find((view) => view.isDefault)
         if (defaultView) {
           seededViewIdRef.current = defaultView.id
@@ -458,6 +462,7 @@ export function Table({
         // No view to adopt. Deliberately does NOT apply an empty config — that
         // would clear a deep-linked `?sort=` on mount.
         seededViewIdRef.current = null
+        if (embedded && activeViewId !== null) setTableParams({ view: ALL_VIEW_PARAM })
         return
       }
       if (activeViewId === ALL_VIEW_PARAM) {
@@ -507,6 +512,7 @@ export function Table({
     views,
     activeView,
     activeViewId,
+    embedded,
     sortColumn,
     applyViewConfig,
     setTableParams,
@@ -545,9 +551,26 @@ export function Table({
    *  order / pins the grid is rendering (they live in the table's shared metadata
    *  until a view owns them) instead of creating a layout-less view that then
    *  resets the grid. Updates never send this — they send a merge patch. */
+  /** Last layout the grid reported, patch by patch. View layout writes have no
+   *  optimistic cache update, so `activeView.config` lags an in-flight resize —
+   *  this is what a new view copies so the grid can't snap back.
+   *
+   *  Declared above the consumers that read it during render, and reset on every
+   *  view change: it holds patches for ONE view, so carrying them across a switch
+   *  would let a new view inherit the previous view's widths/order/pins. */
+  const liveLayoutRef = useRef<TableMetadata>({})
+
+  useEffect(() => {
+    liveLayoutRef.current = {}
+  }, [activeView?.id])
+
   const currentViewConfig = useMemo<TableViewConfig>(
     () => ({
+      // `liveLayoutRef` after the cached config for the same reason the blank-view
+      // payload does it: a resize/reorder/pin still in flight would otherwise be
+      // captured at its pre-drag value and snap back when the view is selected.
       ...(activeView?.config ?? tableData?.metadata),
+      ...liveLayoutRef.current,
       filter: effectiveFilter,
       sort: sortQuery,
       hiddenColumns: effectiveHiddenColumns,
@@ -609,11 +632,6 @@ export function Table({
    *  a `configPatch` so the server merges it — two overlapping layout writes must
    *  not each replace the whole blob from their own snapshot. With no view active
    *  the grid keeps writing the table's shared metadata. */
-  /** Last layout the grid reported, patch by patch. View layout writes have no
-   *  optimistic cache update, so `activeView.config` lags an in-flight resize —
-   *  this is what a blank "New view" copies so the grid can't snap back. */
-  const liveLayoutRef = useRef<TableMetadata>({})
-
   const handlePersistLayout = useCallback(
     (patch: TableMetadata) => {
       liveLayoutRef.current = { ...liveLayoutRef.current, ...patch }
