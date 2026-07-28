@@ -26,10 +26,15 @@ const logger = createLogger('FilesExportAPI')
  * Bundling caps. The embed list comes from scanning the document body, so its length
  * and the bytes behind it are whatever the author put there — without these the export
  * would materialize an unbounded number of unbounded assets in one request.
+ *
+ * The byte ceilings are the real bound and match the bulk-download route, so the two
+ * export surfaces reject at the same size. The count is only a guard on the metadata
+ * lookups that precede the byte check, so it sits far above any hand-authored document
+ * rather than at a number a screenshot-heavy doc could plausibly reach.
  */
-const MAX_EXPORT_ASSETS = 100
+const MAX_EXPORT_ASSETS = 500
 const MAX_EXPORT_ASSET_BYTES = 25 * 1024 * 1024
-const MAX_EXPORT_TOTAL_BYTES = 100 * 1024 * 1024
+const MAX_EXPORT_TOTAL_BYTES = 250 * 1024 * 1024
 
 const MARKDOWN_MIME_TYPES = new Set(['text/markdown', 'text/x-markdown'])
 const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown'])

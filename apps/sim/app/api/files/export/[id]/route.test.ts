@@ -81,13 +81,13 @@ describe('markdown export bundling', () => {
 
   it('rejects a document embedding more assets than an export may bundle', async () => {
     mockExtractEmbeddedImageIds.mockReturnValue(
-      Array.from({ length: 101 }, (_, index) => `img-${index}`)
+      Array.from({ length: 501 }, (_, index) => `img-${index}`)
     )
 
     const response = await GET(request(), context)
 
     expect(response.status).toBe(400)
-    expect((await response.json()).error).toContain('101')
+    expect((await response.json()).error).toContain('501')
     // Rejected on the embed count alone: nothing was resolved or downloaded.
     expect(mockGetFileMetadataById).toHaveBeenCalledTimes(1)
   })
@@ -105,14 +105,14 @@ describe('markdown export bundling', () => {
             size: 1024,
             workspaceId: 'ws-1',
           }
-        : assetRecord(id, 40 * MB)
+        : assetRecord(id, 100 * MB)
     )
 
     const response = await GET(request(), context)
 
     expect(response.status).toBe(400)
     expect((await response.json()).error).toContain('exceeds')
-    // Only the markdown body was read; the 120 MB of assets never left storage.
+    // Only the markdown body was read; the 300 MB of assets never left storage.
     expect(mockDownloadFile).toHaveBeenCalledTimes(1)
   })
 
