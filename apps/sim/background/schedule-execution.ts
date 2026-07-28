@@ -1457,7 +1457,7 @@ export async function executeJobInline(payload: JobExecutionPayload) {
 
 export const scheduleExecutionTaskOptions = {
   id: 'schedule-execution',
-  machine: 'medium-1x' as const,
+  machine: 'medium-2x' as const,
   retry: {
     maxAttempts: 1,
   },
