@@ -804,6 +804,19 @@ function resolveTagAt(
   const resumeAt = closeIdx + closeTag.length
   const body = content.slice(bodyStart, closeIdx)
 
+  // Tags never nest, so a marker inside a PROSE body proves this opener was text
+  // — the same rule the unclosed path already applies. Checked before the body is
+  // accepted, because a prose body has no shape to fail: any non-empty text
+  // qualifies, so without this the arrival of the close retroactively swallows
+  // whatever the streaming path had already released. A `<thinking>` that had
+  // been shown as text with a rendered card inside it would blank on that frame,
+  // taking the card with it. Resuming at the opener rescans the interior, so the
+  // inner tag survives; prose bodies are never blanked, so no marker is hidden
+  // from this scan the way one can be in a JSON string.
+  if (!JSON_BODY_TAG_NAMES.has(tagName) && TAG_SHAPED_MARKER.test(body)) {
+    return { outcome: 'literal', resumeAt: bodyStart }
+  }
+
   const parsed = parseSpecialTagData(tagName, body)
   if (parsed) return { outcome: 'segment', segment: parsed, resumeAt }
 
