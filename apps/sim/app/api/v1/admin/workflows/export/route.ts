@@ -26,17 +26,14 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sanitizePathSegment } from '@/lib/workflows/operations/import-export'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
   internalErrorResponse,
   listResponse,
 } from '@/app/api/v1/admin/responses'
-import {
-  parseWorkflowVariables,
-  type WorkflowExportPayload,
-  type WorkflowExportState,
-} from '@/app/api/v1/admin/types'
+import type { WorkflowExportPayload, WorkflowExportState } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminWorkflowsExportAPI')
 

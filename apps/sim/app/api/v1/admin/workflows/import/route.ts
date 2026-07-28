@@ -24,20 +24,17 @@ import { adminV1ImportWorkflowContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
+import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
+import { normalizeImportedVariables } from '@/lib/workflows/variables/parse'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
 } from '@/app/api/v1/admin/responses'
-import {
-  extractWorkflowMetadata,
-  type VariableType,
-  type WorkflowImportRequest,
-  type WorkflowVariable,
-} from '@/app/api/v1/admin/types'
+import { extractWorkflowMetadata, type WorkflowImportRequest } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminWorkflowImportAPI')
 
@@ -110,49 +107,29 @@ export const POST = withRouteHandler(
         variables: {},
       })
 
-      const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowData)
+      /**
+       * Same normalization the editor and the v1 import API run, via the one
+       * shared implementation — without it this route wrote raw parsed state,
+       * so a dangling edge tripped the `workflow_edges` foreign key and a block
+       * missing its backfilled columns could land unopenable.
+       */
+      const { state: preparedState, warnings } = prepareWorkflowStateForPersistence(workflowData)
+      if (warnings.length > 0) {
+        logger.warn('Admin API: normalized imported workflow with warnings', { warnings })
+      }
+
+      const saveResult = await saveWorkflowToNormalizedTables(workflowId, {
+        ...workflowData,
+        ...preparedState,
+      })
 
       if (!saveResult.success) {
         await db.delete(workflow).where(eq(workflow.id, workflowId))
         return internalErrorResponse(`Failed to save workflow state: ${saveResult.error}`)
       }
 
-      if (
-        workflowData.variables &&
-        typeof workflowData.variables === 'object' &&
-        !Array.isArray(workflowData.variables)
-      ) {
-        const variablesRecord: Record<string, WorkflowVariable> = {}
-        const vars = workflowData.variables as Record<
-          string,
-          { id?: string; name: string; type?: VariableType; value: unknown }
-        >
-        Object.entries(vars).forEach(([key, v]) => {
-          const varId = v.id || key
-          variablesRecord[varId] = {
-            id: varId,
-            name: v.name,
-            type: v.type ?? 'string',
-            value: v.value,
-          }
-        })
-
-        await db
-          .update(workflow)
-          .set({ variables: variablesRecord, updatedAt: new Date() })
-          .where(eq(workflow.id, workflowId))
-      } else if (workflowData.variables && Array.isArray(workflowData.variables)) {
-        const variablesRecord: Record<string, WorkflowVariable> = {}
-        workflowData.variables.forEach((v) => {
-          const varId = v.id || generateId()
-          variablesRecord[varId] = {
-            id: varId,
-            name: v.name,
-            type: (v.type as VariableType) ?? 'string',
-            value: v.value,
-          }
-        })
-
+      const variablesRecord = normalizeImportedVariables(workflowData.variables)
+      if (Object.keys(variablesRecord).length > 0) {
         await db
           .update(workflow)
           .set({ variables: variablesRecord, updatedAt: new Date() })

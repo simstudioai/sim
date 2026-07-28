@@ -21,6 +21,7 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { exportFolderToZip, sanitizePathSegment } from '@/lib/workflows/operations/import-export'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 import { encodeFilenameForHeader } from '@/app/api/files/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
@@ -28,11 +29,7 @@ import {
   notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
-import {
-  type FolderExportPayload,
-  parseWorkflowVariables,
-  type WorkflowExportState,
-} from '@/app/api/v1/admin/types'
+import type { FolderExportPayload, WorkflowExportState } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminFolderExportAPI')
 
