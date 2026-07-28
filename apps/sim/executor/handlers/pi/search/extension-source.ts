@@ -177,6 +177,9 @@ function extractRecords(provider, payload) {
   if (provider === "serper") {
     return Array.isArray(payload.organic) ? payload.organic : []
   }
+  if (provider !== "firecrawl") {
+    throw new Error("Unsupported search provider: " + provider)
+  }
   const data = payload.data
   if (Array.isArray(data)) return data
   if (!isRecord(data)) return []
@@ -210,12 +213,16 @@ function normalizeRecords(provider, records, limit) {
         snippet: firstText(record.excerpts),
         publishedDate: firstText(record.publish_date, record.publishedDate),
       })
-    } else {
+    } else if (provider === "firecrawl") {
       built = buildResult({
         title: record.title,
         url: record.url,
         snippet: firstText(record.description, record.snippet),
       })
+    } else {
+      // Never the trailing else: an unmirrored provider would otherwise be normalized with
+      // Firecrawl's field names and quietly return nothing.
+      throw new Error("Unsupported search provider: " + provider)
     }
     if (built) results.push(built)
   }

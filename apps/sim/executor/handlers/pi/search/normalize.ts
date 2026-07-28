@@ -311,6 +311,13 @@ export function normalizePiSearchRecords(
           snippet: firstText(record.description, record.snippet),
         })
         break
+      default: {
+        // Unlike the sibling switches this one assigns rather than returns, so without an explicit
+        // exhaustiveness check a new provider would compile clean and silently normalize to zero
+        // results. `satisfies never` fails the build instead.
+        const unhandled: never = provider
+        throw new Error(`Unhandled Pi search provider: ${String(unhandled)}`)
+      }
     }
 
     if (built) results.push(built)

@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { PiSearchProvider } from '@/executor/handlers/pi/keys'
+import { PI_SEARCH_PROVIDERS, type PiSearchProvider } from '@/executor/handlers/pi/keys'
 import {
   PI_SEARCH_API_KEY_ENV_VAR,
   PI_SEARCH_EXTENSION_PATH,
@@ -257,6 +257,13 @@ describe('normalization parity with the host adapter', () => {
       },
     },
   }
+
+  // `Record<PiSearchProvider, unknown>` on `payloads` is not enforced anywhere — test files are
+  // excluded from tsconfig and vitest only transpiles — so a provider missing here would be quietly
+  // skipped by `it.each` instead of failing. This assertion is what actually holds the copies together.
+  it('covers every registered search provider', () => {
+    expect(Object.keys(payloads).sort()).toEqual(Object.keys(PI_SEARCH_PROVIDERS).sort())
+  })
 
   it.each(Object.keys(payloads) as PiSearchProvider[])(
     'produces the same envelope as normalize.ts for %s',
