@@ -128,9 +128,13 @@ export const GET = withRouteHandler(
       return NextResponse.redirect(new URL(servePath, request.url), { status: 302 })
     }
 
+    // Capped like everything else in the bundle: the document body is usually the
+    // largest single entry, so leaving it unbounded left the export limit unenforced
+    // against the one item most able to exceed it.
     const mdBuffer = await downloadFile({
       key: record.key,
       context: record.context as StorageContext,
+      maxBytes: MAX_EXPORT_TOTAL_BYTES,
     })
     let mdContent = mdBuffer.toString('utf-8')
 
@@ -180,11 +184,14 @@ export const GET = withRouteHandler(
       })
     ).filter((target): target is NonNullable<typeof target> => target !== null)
 
-    const declaredAssetBytes = assetTargets.reduce((sum, target) => sum + target.record.size, 0)
-    if (declaredAssetBytes > MAX_EXPORT_TOTAL_BYTES) {
+    // The body counts against the same budget as its assets — the zip holds both, so a
+    // limit that measured only the attachments would not describe the archive produced.
+    const bundleBytes =
+      mdBuffer.length + assetTargets.reduce((sum, target) => sum + target.record.size, 0)
+    if (bundleBytes > MAX_EXPORT_TOTAL_BYTES) {
       return NextResponse.json(
         {
-          error: `Embedded files total ${formatFileSize(declaredAssetBytes)}, which exceeds the ${formatFileSize(MAX_EXPORT_TOTAL_BYTES)} export limit.`,
+          error: `This document and its embedded files total ${formatFileSize(bundleBytes)}, which exceeds the ${formatFileSize(MAX_EXPORT_TOTAL_BYTES)} export limit.`,
         },
         { status: 400 }
       )
