@@ -72,7 +72,9 @@ function lazyWorkspaceFileStream(file: WorkspaceFileRecord): Readable {
         key: file.key,
         context: file.storageContext ?? 'workspace',
       })
-    })()
+    })(),
+    // `Readable.from` defaults to object mode; these are bytes headed for an archive.
+    { objectMode: false }
   )
 }
 

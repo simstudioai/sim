@@ -1289,7 +1289,7 @@ export function Files() {
     if (!item) return
     const rowId = item.kind === 'file' ? fileRowId(item.file.id) : folderRowId(item.folder.id)
     if (selectedRowIds.has(rowId) && selectedRowIds.size > 1) {
-      handleBulkDownload()
+      void handleBulkDownload()
       closeContextMenu()
       return
     }
