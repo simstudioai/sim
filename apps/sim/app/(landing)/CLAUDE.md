@@ -44,7 +44,7 @@ Target: Lighthouse 95+ on mobile, LCP < 2.0s, CLS < 0.05, minimal hydration cost
 
 `page.tsx` owns the metadata (title, description, OG/Twitter, canonical, robots) - keep it the single source of truth and keep it aligned with the constitution's claim hierarchy. Beyond metadata:
 
-- **One `<h1>`, in the hero, containing "Sim" and "AI workspace".** Strict hierarchy below it: H2 per section, H3 for items within a section. Never skip levels, never add a second H1.
+- **One `<h1>`, in the hero, containing "AI workspace".** The brand carries in the title tag, the meta description, and the hero's `sr-only` summary, so the H1 itself is free to lead with the non-brand keywords people actually search ("AI workspace", "AI agents") rather than spending its first two words on "Sim is the". Whichever wording it uses, the hero's `sr-only` paragraph must still open by naming Sim. Strict hierarchy below it: H2 per section, H3 for items within a section. Never skip levels, never add a second H1.
 - **Semantic landmarks**: `<header>`, `<main>`, `<footer>`, `<nav>`; each section is `<section id="…" aria-labelledby="…-heading">`. Decorative/animated elements get `aria-hidden='true'`.
 - **Structured data**: emit JSON-LD (`Organization`, `WebSite`, `WebApplication` with `featureList`, `FAQPage` if an FAQ exists) from a server component rendered before visible content. Keep `featureList` in sync with the features actually shown on the page.
 - **Crawlable links**: all internal navigation uses Next `<Link>` with real `href`s - never `onClick` navigation. External links get `rel='noopener noreferrer'`.
