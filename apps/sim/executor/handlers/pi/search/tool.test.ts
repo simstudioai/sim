@@ -21,7 +21,7 @@ import type { ExecutionContext } from '@/executor/types'
 const ctx = { executionId: 'exec-1', workspaceId: 'ws-1' } as unknown as ExecutionContext
 
 function buildTool(provider: 'exa' | 'serper' | 'parallel' | 'firecrawl' = 'exa') {
-  return buildPiSearchToolSpec(ctx, { provider, apiKey: 'key-123', keySource: 'byok' }, 'local')
+  return buildPiSearchToolSpec(ctx, { provider, apiKey: 'key-123' }, 'local')
 }
 
 async function run(
@@ -37,16 +37,8 @@ beforeEach(() => {
 
 describe('buildPiSearchToolSpec', () => {
   it('exposes one tool name and the untrusted-data guidelines in every mode', () => {
-    const local = buildPiSearchToolSpec(
-      ctx,
-      { provider: 'exa', apiKey: 'k', keySource: 'block' },
-      'local'
-    )
-    const review = buildPiSearchToolSpec(
-      ctx,
-      { provider: 'exa', apiKey: 'k', keySource: 'block' },
-      'cloud_review'
-    )
+    const local = buildPiSearchToolSpec(ctx, { provider: 'exa', apiKey: 'k' }, 'local')
+    const review = buildPiSearchToolSpec(ctx, { provider: 'exa', apiKey: 'k' }, 'cloud_review')
 
     expect(local.name).toBe('web_search')
     expect(review.name).toBe('web_search')

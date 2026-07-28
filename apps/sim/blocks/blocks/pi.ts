@@ -91,7 +91,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
   - Use Review Code to analyze an existing PR and leave summary + inline review comments.
   - Use Local Dev to edit a repo on your own machine; expose the machine on a public hostname/tunnel so Sim can reach it over SSH.
   - Create PR requires your own provider API key because the model runs in the sandbox. Review Code keeps the model key in Sim and can use either BYOK or a hosted key.
-  - Internet Search is off by default and always needs your own key for the selected provider, from the block field or Settings > BYOK. Leave it on None unless the task genuinely needs external information.
+  - Internet Search is off by default and always needs your own key for the selected provider, entered on the block. There is no workspace BYOK fallback and no hosted key. Leave it on None unless the task genuinely needs external information.
   `,
   category: 'blocks',
   integrationType: IntegrationType.AI,
@@ -165,7 +165,11 @@ export const PiBlock: BlockConfig<PiResponse> = {
       password: true,
       paramVisibility: 'user-only',
       connectionDroppable: false,
-      placeholder: 'Falls back to the key stored in Settings > BYOK',
+      placeholder: 'Your key for the selected provider',
+      // The only source: search has no workspace BYOK fallback and never uses a Sim-hosted key, and
+      // unlike the model key this field is shown on every deployment. Marking it required is what
+      // surfaces that in the editor rather than at the start of a run.
+      required: true,
       // Scoped to the editor on purpose: the clear-on-switch is driven by `dependsOn` through the
       // collaborative setter, so a workflow imported, forked, or updated through the API keeps
       // whatever key was stored. Promising an unconditional clear would be wrong in exactly the

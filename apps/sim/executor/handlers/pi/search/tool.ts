@@ -67,15 +67,12 @@ function describePiSearchFailure(label: string, status: unknown, error: unknown)
  */
 export function buildPiSearchToolSpec(
   ctx: ExecutionContext,
-  search: Pick<PiSearchConfig, 'provider' | 'apiKey' | 'keySource'>,
+  search: Pick<PiSearchConfig, 'provider' | 'apiKey'>,
   mode: 'local' | 'cloud_review'
 ): PiToolSpec {
   const { label, toolId } = PI_SEARCH_PROVIDERS[search.provider]
   const logContext = {
     provider: search.provider,
-    // A populated block field shadows a stored workspace key without a word anywhere else, so this
-    // is what turns "search suddenly fails after switching providers" into a one-line diagnosis.
-    keySource: search.keySource,
     mode,
     executionId: ctx.executionId,
   }

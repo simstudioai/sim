@@ -187,7 +187,6 @@ describe('runLocalPi secret boundaries', () => {
     params.search = {
       provider: 'exa',
       apiKey: 'sk-search-key',
-      keySource: 'byok',
       tool: {
         name: 'web_search',
         description: 'Search the web',
