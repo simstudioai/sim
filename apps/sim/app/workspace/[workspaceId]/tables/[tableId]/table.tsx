@@ -656,13 +656,17 @@ export function Table({
     showBlockedToast('status')
   }, [tableData, userPermissions.isLoading, showBlockedToast])
 
-  // Counterpart to `persistAcrossRoutes` above: this view's toasts don't trail
-  // the user once it goes away.
+  // Counterpart to `persistAcrossRoutes` above: a notice must not outlive the
+  // table it describes. Keyed on `tableId` because switching tables reuses this
+  // component instead of remounting it, and the action would then target the
+  // table the user just moved to.
   useEffect(
     () => () => {
-      if (blockedToastIdRef.current) toast.dismiss(blockedToastIdRef.current)
+      if (!blockedToastIdRef.current) return
+      toast.dismiss(blockedToastIdRef.current)
+      blockedToastIdRef.current = null
     },
-    []
+    [tableId]
   )
 
   // A toast's action is captured when it is created, so a viewer who loses
