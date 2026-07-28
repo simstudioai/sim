@@ -28,13 +28,20 @@ export function PreviewError({ label, error, action }: PreviewErrorProps) {
       </p>
       <p className='text-[13px] text-[var(--text-muted)]'>{error}</p>
       {action ? (
-        <Chip className='mt-[4px]' onClick={action.onClick}>
+        <Chip variant='primary' className='mt-[4px]' onClick={action.onClick}>
           {action.label}
         </Chip>
       ) : null}
     </div>
   )
 }
+
+/**
+ * webpack's chunk-load failure messages. The JS form is `Loading chunk 5 failed`
+ * and the stylesheet form is `Loading CSS chunk 5 failed`, so a plain
+ * `Loading chunk` substring test misses every CSS chunk 404.
+ */
+const CHUNK_LOAD_MESSAGE = /Loading (?:CSS )?chunk/
 
 /**
  * A `next/dynamic` / `React.lazy` chunk fetch that rejected. The module system
@@ -45,7 +52,7 @@ function isChunkLoadError(error: Error | undefined): boolean {
   if (!error) return false
   if (error.name === 'ChunkLoadError') return true
   return (
-    error.message.includes('Loading chunk') || error.message.includes('dynamically imported module')
+    CHUNK_LOAD_MESSAGE.test(error.message) || error.message.includes('dynamically imported module')
   )
 }
 

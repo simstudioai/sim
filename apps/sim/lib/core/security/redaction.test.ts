@@ -789,7 +789,16 @@ describe('originally-missed secret keys', () => {
     'stripeKey',
     'signingKey',
     'privateKeyPem',
-    'session_id',
+    'secretKey',
+    'secretValue',
+    'tokenValue',
+    'secrets',
+    'passwords',
+    'accessTokens',
+    'refreshTokens',
+    'authTokens',
+    'sessionTokens',
+    'clientSecrets',
     'ssn',
     'connectionString',
     'serviceAccountJson',
@@ -815,6 +824,30 @@ describe('originally-missed secret keys', () => {
     expect(isSensitiveKey(key)).toBe(true)
     expect(redactApiKeys({ [key]: 'https://example.com/x' })[key]).toBe(REDACTED_MARKER)
   })
+
+  /** One-shot links whose path segment embeds the same token as the sibling `*Token`. */
+  const ONE_SHOT_LOCATORS = [
+    'activationUrl',
+    'inviteLink',
+    'inviteUrl',
+    'invitationLink',
+    'magicLink',
+    'resetLink',
+    'verificationUrl',
+    'confirmationLink',
+  ]
+
+  it.concurrent.each(ONE_SHOT_LOCATORS)('treats %s as sensitive', (key) => {
+    expect(isSensitiveKey(key)).toBe(true)
+    expect(redactApiKeys({ [key]: 'https://example.com/x/tok' })[key]).toBe(REDACTED_MARKER)
+  })
+
+  it.concurrent('redacts the value half of a secrets-manager record', () => {
+    const result = redactApiKeys({ secretKey: 'DB_URL', secretValue: 'postgres://u:p@h/db' })
+
+    expect(result.secretKey).toBe(REDACTED_MARKER)
+    expect(result.secretValue).toBe(REDACTED_MARKER)
+  })
 })
 
 describe('non-secret keys that must stay readable', () => {
@@ -835,7 +868,6 @@ describe('non-secret keys that must stay readable', () => {
     'partitionKey',
     'sortKey',
     'keySkills',
-    'hasApiKey',
     'apiKeyId',
     'keyName',
     'publicKey',
@@ -850,6 +882,20 @@ describe('non-secret keys that must stay readable', () => {
     'session_recording_opt_in',
     'private',
     'activeSessions',
+    'cursor',
+    'nextCursor',
+    'sessionId',
+    'session_id',
+    'subagentSessionId',
+    'mcpSessionId',
+    'authorizationUrl',
+    'authorizationEndpoint',
+    'SSO_OIDC_AUTHORIZATION_ENDPOINT',
+    'BETTER_AUTH_URL',
+    'profileUrl',
+    'callbackUrl',
+    'webhookUrl',
+    'loginUrl',
   ]
 
   it.concurrent.each(MUST_KEEP)('keeps %s', (key) => {
@@ -870,6 +916,29 @@ describe('non-secret keys that must stay readable', () => {
     expect(result.customSigningKey).toBe(false)
     expect(result.withCredentials).toBe(true)
     expect(result.password).toBe(REDACTED_MARKER)
+  })
+
+  it.concurrent('exempts `has…`/`is…` flags by value type, not by name', () => {
+    const result = redactApiKeys({
+      hasApiKey: true,
+      isPrivate: false,
+      hasSecret: 'sk-supersecret-value',
+      hasPassword: 'hunter2',
+    })
+
+    expect(result.hasApiKey).toBe(true)
+    expect(result.isPrivate).toBe(false)
+    expect(result.hasSecret).toBe(REDACTED_MARKER)
+    expect(result.hasPassword).toBe(REDACTED_MARKER)
+    expect(isSensitiveKey('hasSecret')).toBe(true)
+  })
+})
+
+describe('normalizeKey is linear in key length', () => {
+  it.concurrent('classifies a 400k-character uppercase key in bounded time', () => {
+    const start = performance.now()
+    expect(isSensitiveKey('A'.repeat(400_000))).toBe(false)
+    expect(performance.now() - start).toBeLessThan(1000)
   })
 })
 
@@ -920,8 +989,8 @@ describe('array elements are redacted like scalars', () => {
   })
 })
 
-describe('persisted-log path matches the analytics path', () => {
-  it.concurrent('redacts Bearer tokens embedded in error strings', () => {
+describe('credential literals embedded in string values', () => {
+  it.concurrent('redacts Bearer tokens on both the persisted-log and analytics paths', () => {
     const event = { error: `failed: Authorization: Bearer ${['abc123', 'xyz456789'].join('')}` }
 
     expect(JSON.stringify(redactApiKeys(event))).not.toContain(['abc123', 'xyz456789'].join(''))
@@ -944,5 +1013,36 @@ describe('persisted-log path matches the analytics path', () => {
       downloadUrl: 'https://files.example.com/report.pdf?token=abcdef1234567890',
     })
     expect(result.downloadUrl).toBe(`https://files.example.com/report.pdf?token=${REDACTED_MARKER}`)
+  })
+})
+
+describe('sanitizeEventData handles user files like redactApiKeys', () => {
+  const userFile = {
+    id: 'file-123',
+    name: 'document.pdf',
+    url: 'http://localhost/api/files/serve/x',
+    size: 12345,
+    type: 'application/pdf',
+    key: 'workspace/abc/secret-path.pdf',
+    context: 'execution',
+    base64: 'A'.repeat(200),
+  }
+
+  it.concurrent('drops the internal storage key and truncates base64', () => {
+    const result = sanitizeEventData(userFile)
+
+    expect(result).not.toHaveProperty('key')
+    expect(result).not.toHaveProperty('context')
+    expect(result.base64).toBe(TRUNCATED_MARKER)
+    expect(result.id).toBe('file-123')
+    expect(result.url).toBe('http://localhost/api/files/serve/x')
+  })
+
+  it.concurrent('matches the redactApiKeys shape for the same file', () => {
+    expect(sanitizeEventData(userFile)).toEqual(redactApiKeys(userFile))
+  })
+
+  it.concurrent('truncates a bare base64 field outside a user file', () => {
+    expect(sanitizeEventData({ label: 'x', base64: 'A'.repeat(200) }).base64).toBe(TRUNCATED_MARKER)
   })
 })

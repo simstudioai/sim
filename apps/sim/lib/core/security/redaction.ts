@@ -23,27 +23,38 @@ const NON_SENSITIVE_KEYS = new Set([
   'fetch_xml_paging_cookie',
 ])
 
-/** `hasApiKey` / `isPrivate` carry a boolean presence flag, never the secret. */
-const BOOLEAN_FLAG_KEY = /^(?:has|is)_/
-
 /**
- * Words that make a key a credential when they end it. Anchored on a separator
- * so a secret word is caught in any position (`openai_api_key`, `x-api-key`,
- * `set-cookie`, `secretAccessKey`) while record identifiers that merely contain
- * `key` (`issueKey`, `partitionKey`, `keyPoints`) stay readable.
+ * Words that carry a secret when they end a key, and whose `<word>Url` /
+ * `<word>Link` locator is as sensitive as the secret itself: `resetPasswordUrl`
+ * is a one-shot account-takeover link, `accessTokenUrl` hands out a bearer token.
  *
- * `…Key` is only a credential behind an explicit qualifier — vendor names are
- * listed because `<vendor>Key` is conventionally that vendor's secret.
+ * Anchored on a separator so a secret word is caught in any position
+ * (`openai_api_key`, `x-api-key`, `secretAccessKey`) while record identifiers
+ * that merely contain `key` (`issueKey`, `partitionKey`, `keyPoints`) stay
+ * readable. `…Key` is only a credential behind an explicit qualifier — vendor
+ * names are listed because `<vendor>Key` is conventionally that vendor's secret.
+ *
+ * `token` stays singular: `promptTokens`/`totalTokens` are usage counters, so
+ * plural forms are enumerated only where they are unambiguously credentials.
  */
-const SECRET_WORDS = [
+const SECRET_LOCATOR_WORDS = [
   'api_?keys?',
   '(?:access|anthropic|app|auth|client|decryption|deploy|encryption|license|master|openai|private|resend|root|secret|sendgrid|sign|signing|stripe|twilio)_keys?',
-  'secret',
-  'password',
+  'secrets?',
+  'passwords?',
+  'token',
+  '(?:access|api|auth|bearer|id|refresh|session)_tokens',
+  'credentials?',
+].join('|')
+
+/**
+ * Secret words with no meaningful locator form. Kept out of the locator group so
+ * `authorizationUrl`, `authorizationEndpoint`, and `BETTER_AUTH_URL` stay
+ * readable — an OIDC authorization endpoint is published discovery metadata.
+ */
+const SECRET_WORDS_ONLY = [
   'passwd',
   'passphrase',
-  'token',
-  'credentials?',
   'authorization',
   'auth',
   'bearer',
@@ -51,21 +62,32 @@ const SECRET_WORDS = [
   'jwt',
   'pem',
   'ssn',
-  'session_id',
   'connection_string',
   'service_account_json',
   'code_verifier',
   'kubeconfig',
 ].join('|')
 
+const SECRET_WORDS = `${SECRET_LOCATOR_WORDS}|${SECRET_WORDS_ONLY}`
+
 /**
- * A locator for a secret is as sensitive as the secret: `resetPasswordUrl` is a
- * one-shot account-takeover link, `accessTokenUrl` hands out a bearer token.
+ * One-shot credential locators. The token is embedded in the URL path rather
+ * than named by the key, so `activationUrl` leaks exactly what the redacted
+ * `activationToken` beside it protects. Scoped to single-use flows so ordinary
+ * `*Url` fields stay readable.
  */
+const ONE_SHOT_LOCATOR_WORDS =
+  'activation|invitation|invite|magic|reset|verification|verify|confirmation|confirm'
+
 const SECRET_LOCATOR_SUFFIXES = 'url|uri|endpoint|link'
 
+/**
+ * `…_value` behind a secret word is the plaintext secret, not its name — a
+ * secrets-manager record is `{ secretKey, secretValue }` and the value half is
+ * the one that must never reach a log.
+ */
 const SENSITIVE_KEY_PATTERN = new RegExp(
-  `(?:^|_)(?:${SECRET_WORDS})(?:_(?:${SECRET_LOCATOR_SUFFIXES}))?$`
+  `(?:^|_)(?:(?:${SECRET_WORDS})(?:_value)?|(?:${SECRET_LOCATOR_WORDS}|${ONE_SHOT_LOCATOR_WORDS})_(?:${SECRET_LOCATOR_SUFFIXES}))$`
 )
 
 /**
@@ -80,7 +102,13 @@ const SENSITIVE_SUBSTRING =
   /(?:password|passwd|passphrase|privatekey|accesstoken|refreshtoken|clientsecret|connectionstring|authorization|kubeconfig)$/
 
 const CAMEL_BOUNDARY = /([a-z0-9])([A-Z])/g
-const ACRONYM_BOUNDARY = /([A-Z]+)([A-Z][a-z])/g
+/**
+ * Only the final uppercase char before the boundary matters — it is copied
+ * straight back as `$1`. A `[A-Z]+` prefix here would backtrack the whole
+ * uppercase run at every start offset, making an attacker-supplied key name a
+ * quadratic event-loop stall.
+ */
+const ACRONYM_BOUNDARY = /([A-Z])([A-Z][a-z])/g
 const NON_ALPHANUMERIC = /[^a-z0-9]+/g
 
 /**
@@ -169,14 +197,10 @@ const SENSITIVE_VALUE_PATTERNS: Array<{ pattern: RegExp; replacement: string }> 
   },
 ]
 
-/**
- * Reports whether an object key is likely to hold a secret and must be redacted
- * before the value reaches a log sink.
- */
+/** Whether a key name alone marks it a credential; the value is gated separately. */
 export function isSensitiveKey(key: string): boolean {
   const normalized = normalizeKey(key)
   if (NON_SENSITIVE_KEYS.has(normalized)) return false
-  if (BOOLEAN_FLAG_KEY.test(normalized)) return false
   if (SENSITIVE_KEY_PATTERN.test(normalized)) return true
   return SENSITIVE_SUBSTRING.test(normalized.replaceAll('_', ''))
 }
@@ -296,6 +320,21 @@ export function sanitizeEventData(event: any): any {
     return event.map((item) => sanitizeEventData(item))
   }
 
+  if (isUserFile(event)) {
+    const filtered = filterUserFileForDisplay(event)
+    const file: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(filtered)) {
+      if (isLargeDataKey(key) && typeof value === 'string') {
+        file[key] = TRUNCATED_MARKER
+      } else if (typeof value === 'string') {
+        file[key] = redactSensitiveValues(value)
+      } else {
+        file[key] = value
+      }
+    }
+    return file
+  }
+
   const sanitized: Record<string, unknown> = {}
 
   for (const [key, value] of Object.entries(event)) {
@@ -305,6 +344,11 @@ export function sanitizeEventData(event: any): any {
     }
 
     if (isSensitiveKey(key) && isRedactableValue(value)) {
+      continue
+    }
+
+    if (isLargeDataKey(key) && typeof value === 'string') {
+      sanitized[key] = TRUNCATED_MARKER
       continue
     }
 

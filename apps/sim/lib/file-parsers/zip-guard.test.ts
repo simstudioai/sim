@@ -89,6 +89,32 @@ function readEocd(buffer: Buffer): EocdFields {
   throw new Error('no EOCD record found')
 }
 
+/**
+ * Splice a 22-byte empty-EOCD decoy between the local file data and the central
+ * directory, then rewrite the real EOCD to point past it and to declare one more
+ * record than the directory holds. The decoy resolves trivially ("0 records at
+ * offset 0"), and JSZip does not error on a count mismatch — it keeps whatever
+ * records it found — so a guard that discards the mismatched candidate measures
+ * nothing at all and reads the archive as empty.
+ */
+function spliceCountMismatchDecoy(archive: Buffer): Buffer {
+  const eocd = readEocd(archive)
+  const decoy = Buffer.alloc(22)
+  decoy.writeUInt32LE(0x06054b50, 0)
+
+  const realEocd = Buffer.from(archive.subarray(eocd.offset))
+  realEocd.writeUInt16LE(eocd.entryCount + 1, 8)
+  realEocd.writeUInt16LE(eocd.entryCount + 1, 10)
+  realEocd.writeUInt32LE(eocd.cdOffset + decoy.length, 16)
+
+  return Buffer.concat([
+    archive.subarray(0, eocd.cdOffset),
+    decoy,
+    archive.subarray(eocd.cdOffset, eocd.offset),
+    realEocd,
+  ])
+}
+
 /** Saturate the first central-directory record's 32-bit size and declare the real size in a ZIP64 extra field. */
 function forgeZip64DeclaredUncompressedSize(zipBuffer: Buffer, declaredBytes: bigint): Buffer {
   const cdStart = zipBuffer.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]))
@@ -297,7 +323,106 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     const inflated = await loaded.file('word/document.xml')!.async('nodebuffer')
     expect(inflated.length).toBe(64 * 1024 * 1024)
     expect(inflated.length / attack.length).toBeGreaterThan(100)
-  }, 60_000)
+
+    // Same bomb, with the real EOCD pushed past the 64 KiB comment window by
+    // trailing junk. A spec-correct windowed scan sees no EOCD signature at all
+    // and, with byte 0 no longer a ZIP signature, no-ops entirely — while JSZip,
+    // which scans to offset 0, still finds the record and inflates 64 MiB. The
+    // guard must model the parser, so the scan covers the whole buffer.
+    const windowed = Buffer.concat([attack, Buffer.alloc(70_000, 0xab)])
+    expect(isZipShaped(windowed)).toBe(false)
+    expect(() => assertOoxmlArchiveWithinLimits(windowed)).toThrow(ZipBombError)
+
+    const loadedWindowed = await JSZip.loadAsync(windowed)
+    const inflatedWindowed = await loadedWindowed.file('word/document.xml')!.async('nodebuffer')
+    expect(inflatedWindowed.length).toBe(64 * 1024 * 1024)
+  }, 120_000)
+
+  it('rejects a within-limits archive whose EOCD sits past the 64 KiB comment window', async () => {
+    const archive = await buildZip({ 'word/document.xml': '<xml>hello world</xml>' })
+    const attack = Buffer.concat([Buffer.from([0x00]), archive, Buffer.alloc(70_000, 0xab)])
+    expect(() => assertOoxmlArchiveWithinLimits(attack, HIGH_LIMITS)).toThrow(ZipBombError)
+  })
+
+  it('rejects a bomb whose EOCD lies about the entry count behind an empty-EOCD decoy', async () => {
+    const archive = await buildZip({ 'word/document.xml': '<xml>hello</xml>' })
+    const bomb = forgeDeclaredUncompressedSize(archive, 200_000)
+    // Discarding the count-mismatched candidate measured NOTHING for the only
+    // interpretation JSZip actually parses, leaving the trivially-resolvable
+    // decoy as the whole verdict: "empty archive". The declared size stays under
+    // the absolute cap so the ratio check — not the walk's early size abort — is
+    // what has to see the entry.
+    expect(() =>
+      assertOoxmlArchiveWithinLimits(spliceCountMismatchDecoy(bomb), {
+        maxTotalUncompressedBytes: 1024 * 1024 * 1024,
+        maxCompressionRatio: 5,
+        ratioCheckFloorBytes: 1000,
+      })
+    ).toThrow(ZipBombError)
+  })
+
+  it('measures the real central directory when the EOCD lies about the entry count', async () => {
+    const archive = await buildZip({ 'a.xml': 'a', 'b.xml': 'b', 'c.xml': 'c' })
+    expect(readZipCentralDirectoryStats(spliceCountMismatchDecoy(archive))?.entryCount).toBe(3)
+  })
+
+  it('rejects a prepended bomb that also carries an empty-EOCD decoy', async () => {
+    const archive = await buildZip({ 'word/document.xml': '<xml>hello</xml>' })
+    const bomb = forgeDeclaredUncompressedSize(archive, 0xfffffff0)
+    // Prepending shifts the real EOCD's absolute cdOffset out from under the
+    // guard while JSZip rebases past the leading byte; the decoy then supplies a
+    // clean "empty archive" reading. A resolvable candidate must not excuse an
+    // unresolvable one.
+    const attack = Buffer.concat([Buffer.from([0x00]), spliceCountMismatchDecoy(bomb)])
+    expect(() => assertOoxmlArchiveWithinLimits(attack)).toThrow(ZipBombError)
+  })
+
+  it('refuses an EOCD signature truncated by the buffer end', () => {
+    // Too close to the tail to hold a full record, so it yields no candidate —
+    // but it is still a ZIP signature the guard could not follow, and reading it
+    // as "not a ZIP" is the same fail-open the prepend evasion exploits.
+    const buffer = Buffer.alloc(64)
+    Buffer.from([0x50, 0x4b, 0x05, 0x06]).copy(buffer, 50)
+    expect(() => assertOoxmlArchiveWithinLimits(buffer)).toThrow(ZipBombError)
+  })
+
+  it('refuses, quickly, a buffer whose candidates each anchor a distinct maximal walk', () => {
+    // The run cache is keyed by central-directory offset, so distinct offsets
+    // defeat it and cost MAX_EOCD_CANDIDATES full walks. The shared record budget
+    // bounds that, and exhausting it is unverifiable rather than "measured 0".
+    const buffer = Buffer.alloc(4 * 1024 * 1024)
+    for (let offset = 0; offset + 46 <= buffer.length; offset += 46) {
+      buffer.writeUInt32LE(CENTRAL_DIRECTORY_HEADER_SIGNATURE, offset)
+    }
+    for (let i = 0; i < 128; i++) {
+      const offset = buffer.length - 128 * 22 + i * 22
+      buffer.writeUInt32LE(0x06054b50, offset)
+      buffer.writeUInt32LE(i * 46, offset + 16)
+    }
+
+    const start = performance.now()
+    expect(() => assertOoxmlArchiveWithinLimits(buffer)).toThrow(ZipBombError)
+    expect(performance.now() - start).toBeLessThan(250)
+  })
+
+  it('survives a central-directory record whose extra field runs past the buffer end', () => {
+    // A truncated directory can declare an extra field longer than what remains.
+    // An unclamped read raises a raw RangeError, which escapes callers that
+    // expect a typed archive error (the upload path calls this outside any try).
+    const buffer = Buffer.alloc(68)
+    buffer.writeUInt32LE(0x06054b50, 0)
+    buffer.writeUInt16LE(1, 8)
+    buffer.writeUInt16LE(1, 10)
+    buffer.writeUInt32LE(22, 16)
+    buffer.writeUInt32LE(CENTRAL_DIRECTORY_HEADER_SIGNATURE, 22)
+    buffer.writeUInt32LE(0xffffffff, 22 + 24)
+    buffer.writeUInt16LE(0xffff, 22 + 30)
+
+    expect(readZipCentralDirectoryStats(buffer)).toEqual({
+      entryCount: 1,
+      totalExtraFieldBytes: 0xffff,
+    })
+  })
 
   it('rejects a within-limits archive behind a prepended byte', async () => {
     // Defined, deliberate behaviour: an unresolvable EOCD is refused whether or
@@ -357,6 +482,33 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     const archive = await buildZip({ 'word/document.xml': '<xml>hello</xml>' })
     const bomb = forgeZip64DeclaredUncompressedSize(archive, 8n * 1024n * 1024n * 1024n)
     expect(() => assertOoxmlArchiveWithinLimits(bomb)).toThrow(ZipBombError)
+  })
+
+  it('no-ops for a legacy OLE2 document containing the EOCD byte sequence', () => {
+    // Non-ZIP documents carry these four bytes by chance, and the OOXML parsers
+    // depend on a no-op here so their OLE2/plaintext fallback can run. The
+    // record's cdOffset lands outside the buffer, so no parser can read a
+    // directory from it and it carries no signal either way.
+    const body = Buffer.alloc(4096, 0x41)
+    Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]).copy(body, 0)
+    const stray = Buffer.alloc(22)
+    stray.writeUInt32LE(0x06054b50, 0)
+    stray.writeUInt16LE(3, 8)
+    stray.writeUInt16LE(3, 10)
+    stray.writeUInt32LE(0xdeadbe, 12)
+    stray.writeUInt32LE(0xdeadbe, 16)
+    stray.copy(body, 2000)
+
+    expect(() => assertOoxmlArchiveWithinLimits(body)).not.toThrow()
+  })
+
+  it('no-ops for plaintext containing the EOCD byte sequence', () => {
+    const text = Buffer.concat([
+      Buffer.from('Quarterly report. '.repeat(50)),
+      Buffer.from([0x50, 0x4b, 0x05, 0x06]),
+      Buffer.from('...more prose follows here.'.repeat(50)),
+    ])
+    expect(() => assertOoxmlArchiveWithinLimits(text)).not.toThrow()
   })
 
   it('no-ops for a legacy OLE2/CFB document', () => {

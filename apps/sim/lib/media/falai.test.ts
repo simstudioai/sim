@@ -142,12 +142,13 @@ describe('runFalQueue', () => {
     )
   })
 
-  it('rejects a same-origin candidate whose path is not a routable queue path', async () => {
+  it('rejects a same-origin queue path of the wrong kind (result offered for status, and vice versa)', async () => {
     fetchMock.mockResolvedValue(
       new Response(
         JSON.stringify({
           request_id: 'req-7',
-          // Same origin, but not `/{app}/requests/{id}[/status]` — never routable.
+          // Both are routable queue paths, but each is the *other* kind: the status
+          // slot is handed a result path and the result slot a status path.
           status_url: 'https://queue.fal.run/fal-ai/test/requests/req-7',
           response_url: 'https://queue.fal.run/fal-ai/test/requests/req-7/status',
         }),
@@ -163,6 +164,30 @@ describe('runFalQueue', () => {
     expect(mockSecureFetchWithPinnedIP.mock.calls.map(([url]) => url)).toEqual([
       'https://queue.fal.run/fal-ai/test/requests/req-7/status',
       'https://queue.fal.run/fal-ai/test/requests/req-7',
+    ])
+  })
+
+  it('rejects a same-origin candidate whose path is not a queue path at all', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          request_id: 'req-9',
+          // Same origin, but neither shape matches `/{app…}/requests/{id}[/status]`.
+          status_url: 'https://queue.fal.run/admin',
+          response_url: 'https://queue.fal.run/a/b/c',
+        }),
+        { status: 200 }
+      )
+    )
+    mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
+      .mockResolvedValueOnce(jsonResponse({ video: { url: 'https://cdn.fal.media/a.mp4' } }))
+
+    await runFalQueue('fal-ai/test', { prompt: 'hi' }, 'fal-key')
+
+    expect(mockSecureFetchWithPinnedIP.mock.calls.map(([url]) => url)).toEqual([
+      'https://queue.fal.run/fal-ai/test/requests/req-9/status',
+      'https://queue.fal.run/fal-ai/test/requests/req-9',
     ])
   })
 

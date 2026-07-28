@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import JSZip from 'jszip'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 
 const CENTRAL_DIRECTORY_HEADER_SIGNATURE = 0x02014b50
@@ -37,14 +37,56 @@ function forgeDeclaredUncompressedSize(zipBuffer: Buffer, declaredBytes: number)
 }
 
 describe('extractDocumentStyle zip-bomb guard', () => {
+  /**
+   * `extractDocumentStyle` swallows every failure and returns `null`, and a
+   * forged archive is one JSZip rejects on its own — so asserting `null` passes
+   * with the guard deleted. Spying on the decompressor is what actually proves
+   * the buffer never reached it.
+   */
+  let loadAsync: ReturnType<typeof vi.spyOn<typeof JSZip, 'loadAsync'>>
+
+  beforeEach(() => {
+    loadAsync = vi.spyOn(JSZip, 'loadAsync')
+  })
+
+  afterEach(() => {
+    loadAsync.mockRestore()
+  })
+
   it('refuses an archive whose declared expansion exceeds the limit', async () => {
     const bomb = forgeDeclaredUncompressedSize(await buildDocxArchive(), 0xfffffff0)
+
     await expect(extractDocumentStyle(bomb, 'docx')).resolves.toBeNull()
+    expect(loadAsync).not.toHaveBeenCalled()
+  })
+
+  it('refuses a bomb whose EOCD lies about the entry count behind an empty-EOCD decoy', async () => {
+    const bomb = forgeDeclaredUncompressedSize(await buildDocxArchive(), 0xfffffff0)
+    const eocdOffset = bomb.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]))
+    const cdOffset = bomb.readUInt32LE(eocdOffset + 16)
+    const decoy = Buffer.alloc(22)
+    decoy.writeUInt32LE(0x06054b50, 0)
+
+    const realEocd = Buffer.from(bomb.subarray(eocdOffset))
+    realEocd.writeUInt16LE(bomb.readUInt16LE(eocdOffset + 10) + 1, 8)
+    realEocd.writeUInt16LE(bomb.readUInt16LE(eocdOffset + 10) + 1, 10)
+    realEocd.writeUInt32LE(cdOffset + decoy.length, 16)
+
+    const attack = Buffer.concat([
+      bomb.subarray(0, cdOffset),
+      decoy,
+      bomb.subarray(cdOffset, eocdOffset),
+      realEocd,
+    ])
+
+    await expect(extractDocumentStyle(attack, 'docx')).resolves.toBeNull()
+    expect(loadAsync).not.toHaveBeenCalled()
   })
 
   it('still extracts style from a well-formed archive', async () => {
     const summary = await extractDocumentStyle(await buildDocxArchive(), 'docx')
 
+    expect(loadAsync).toHaveBeenCalledTimes(1)
     expect(summary).not.toBeNull()
     expect(summary?.theme?.fonts.minor).toBe('Calibri')
     expect(summary?.theme?.colors.accent1).toBe('4472C4')

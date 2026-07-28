@@ -37,7 +37,7 @@ const PdfViewerCore = dynamic(() => import('./pdf-viewer').then((m) => m.PdfView
  * `lib/pptx-renderer/renderer/chart-renderer`) stays out of every bundle that
  * statically imports this viewer - the Files page, the Home view and the public
  * share page - instead of only the visitors who open a PowerPoint file. The
- * fallback matches {@link PptxPreview}'s own pre-fetch frame, so the chunk load
+ * fallback matches the frame `./pptx-preview` renders while it fetches, so the chunk load
  * and the binary fetch look like one continuous loading state. Rendered inside a
  * {@link PreviewErrorBoundary} so a rejected chunk load degrades to the preview
  * fallback — which offers a page reload, the only way to refetch a chunk whose

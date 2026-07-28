@@ -550,6 +550,15 @@ async function generateWithRunway(
   throw new Error('Runway generation timed out')
 }
 
+/** Host of a provider-supplied URI for logging, without leaking the path or query. */
+function safeHostname(url: string): string {
+  try {
+    return new URL(url).host
+  } catch {
+    return 'unparseable'
+  }
+}
+
 /**
  * True when a provider-supplied URI is served by Google. The Veo download URI comes out of
  * the operation status body, so the `x-goog-api-key` credential is only attached when the
@@ -662,9 +671,17 @@ async function generateWithVeo(
         throw new Error('No video URI in response')
       }
 
+      const isGoogleHosted = isGoogleApiHost(videoUri)
+      if (!isGoogleHosted) {
+        logger.warn(
+          `[${requestId}] Veo download URI is not a Google API host; sending the request unauthenticated. A 401 here means the URI host is wrong, not the API key.`,
+          { host: safeHostname(videoUri) }
+        )
+      }
+
       return {
         buffer: await downloadVideoFromUrl(videoUri, 'Veo video', {
-          headers: isGoogleApiHost(videoUri) ? { 'x-goog-api-key': apiKey } : undefined,
+          headers: isGoogleHosted ? { 'x-goog-api-key': apiKey } : undefined,
         }),
         width: dimensions.width,
         height: dimensions.height,

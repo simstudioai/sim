@@ -171,6 +171,18 @@ const SURROGATE_CHAR = /[\uD800-\uDFFF]/
  */
 const RESERVED_CHAR = /[\u{E000}-\u{E002}\u{E800}-\u{EFFF}]/u
 
+/** The bounds of {@link RESERVED_CHAR}, for rejecting a class range that spans them. */
+const RESERVED_FIRST = 0xe000
+const RESERVED_LAST = 0xefff
+
+/**
+ * Escapes picomatch never emits — it escapes only punctuation. A `\` before a word character
+ * is therefore caller text passed through verbatim, and RE2 reads several of those as
+ * something ECMAScript does not: `\A` and `\z` are zero-width anchors rather than literals,
+ * and `\p{…}` is a Unicode class that would consume a segment marker.
+ */
+const WORD_ESCAPE = /[A-Za-z0-9]/
+
 /** Rewrite every surrogate code unit to its {@link SURROGATE_ESCAPE_BASE} counterpart. */
 function escapeSurrogates(text: string): string {
   if (!SURROGATE_CHAR.test(text)) return text
@@ -293,6 +305,48 @@ function classEnd(source: string, at: number): number {
   return i < source.length ? i + 1 : -1
 }
 
+/**
+ * True when a character-class body can be handed to RE2 unchanged.
+ *
+ * Two shapes cannot. A `\<word char>` escape is caller passthrough RE2 reinterprets (see
+ * {@link WORD_ESCAPE}). A range whose endpoints bracket the reserved block lets the class
+ * consume a segment marker or half a remapped astral character, which shifts every later
+ * atom one position left — `[\u{2000}-\u{F000}].env` would match `.env` by eating its
+ * {@link SEG_DOT}, bypassing `dot: false` entirely.
+ */
+function classBodyIsRepresentable(body: string): boolean {
+  let previous = -1
+  let i = 0
+  while (i < body.length) {
+    if (body[i] === '-' && previous >= 0 && i + 1 < body.length) {
+      i += 1
+      let high: number
+      if (body[i] === '\\') {
+        const next = body[i + 1]
+        if (next === undefined || WORD_ESCAPE.test(next)) return false
+        high = next.charCodeAt(0)
+        i += 2
+      } else {
+        high = body.charCodeAt(i)
+        i += 1
+      }
+      if (previous <= RESERVED_LAST && high >= RESERVED_FIRST) return false
+      previous = -1
+      continue
+    }
+    if (body[i] === '\\') {
+      const next = body[i + 1]
+      if (next === undefined || WORD_ESCAPE.test(next)) return false
+      previous = next.charCodeAt(0)
+      i += 2
+      continue
+    }
+    previous = body.charCodeAt(i)
+    i += 1
+  }
+  return true
+}
+
 /** Index of the `)` closing the group opened at `at`, or -1. */
 function groupEnd(source: string, at: number): number {
   let depth = 0
@@ -329,14 +383,20 @@ function readQuantifier(source: string, at: number): string {
   return ''
 }
 
+/**
+ * True when a `{n,m}` bound is zero-padded. RE2 reads `a{00}` as the literal text `a{00}`
+ * where ECMAScript reads a repeat, so the two engines cannot be reconciled and the source is
+ * refused rather than emitted with a silently different meaning.
+ */
+function hasPaddedBound(quantifier: string): boolean {
+  return /^\{0\d|,0\d/.test(quantifier)
+}
+
 /** True when `quantifier` lets the atom it follows match nothing. */
 function isOptionalQuantifier(quantifier: string): boolean {
-  return (
-    quantifier.startsWith('?') ||
-    quantifier.startsWith('*') ||
-    quantifier.startsWith('{0,') ||
-    quantifier === '{0}'
-  )
+  if (quantifier.startsWith('?') || quantifier.startsWith('*')) return true
+  const bounded = /^\{(\d+)(?:,\d*)?\}$/.exec(quantifier)
+  return bounded !== null && Number(bounded[1]) === 0
 }
 
 /** True when every match of the balanced token run `[start, end)` consumes at least one character. */
@@ -667,6 +727,7 @@ function rewriteGlobSource(generated: string): string | null {
       i += 1
       const quantifier = readQuantifier(source, i)
       if (quantifier) {
+        if (hasPaddedBound(quantifier)) return null
         parts.push(quantifier)
         i += quantifier.length
       }
@@ -716,7 +777,7 @@ function rewriteGlobSource(generated: string): string | null {
     let isSlash = false
     if (char === '\\') {
       const next = source[i + 1]
-      if (next === undefined) return null
+      if (next === undefined || WORD_ESCAPE.test(next)) return null
       atom = `\\${next}`
       atomEnd = i + 2
       isSlash = next === '/'
@@ -725,6 +786,7 @@ function rewriteGlobSource(generated: string): string | null {
       if (end === -1) return null
       const negated = source[i + 1] === '^'
       const body = source.slice(negated ? i + 2 : i + 1, end - 1)
+      if (!classBodyIsRepresentable(body)) return null
       atom = negated ? `[^${body}${ALL_MARKERS_RE}]` : `[${body}]`
       atomEnd = end
     } else if (char === '.') {
@@ -739,6 +801,7 @@ function rewriteGlobSource(generated: string): string | null {
     }
 
     const quantifier = readQuantifier(source, atomEnd)
+    if (hasPaddedBound(quantifier)) return null
     const optional = isOptionalQuantifier(quantifier)
     const atBoundary = boundary
     // A class picomatch did not exclude `/` from (its POSIX expansions, and the `.` those
@@ -835,6 +898,23 @@ function markPathSegments(path: string): string | null {
 }
 
 /**
+ * The inner regex of picomatch's negation wrapper `^(?!^(?:X)$).*$` as a standalone
+ * `^(?:X)$`, or `null` when `source` is not one.
+ *
+ * A `!`-prefixed glob is a documented micromatch feature, and the wrapper's lookahead is the
+ * one shape RE2 cannot take. Reading the inner pattern off the generated source rather than
+ * off the pattern text inherits picomatch's own `!` rules exactly — leading position only,
+ * `!!` cancelling, `!(` not counting — instead of restating them here.
+ */
+function negatedInnerSource(source: string): string | null {
+  const prefix = '^(?!^(?:'
+  const suffix = ')$).*$'
+  if (source.length < prefix.length + suffix.length) return null
+  if (!source.startsWith(prefix) || !source.endsWith(suffix)) return null
+  return groupEnd(source, 1) === source.length - 4 ? source.slice(4, source.length - 4) : null
+}
+
+/**
  * Compile a caller-supplied glob into a matcher that cannot backtrack.
  *
  * `micromatch.isMatch` compiles each `*` to `[^/]*?` and runs it on the backtracking engine,
@@ -842,9 +922,9 @@ function markPathSegments(path: string): string | null {
  * and paths come from an authenticated caller's tool call.
  *
  * The regex is picomatch's own from `makeRe`, rewritten by {@link rewriteGlobSource}, so the
- * semantics of {@link VFS_GLOB_OPTIONS} are unchanged. Returns `null` when the pattern is over
- * the safety caps or is not RE2-representable; callers treat that as "matches nothing" rather
- * than falling back to the backtracking engine.
+ * semantics of {@link VFS_GLOB_OPTIONS} are unchanged. Returns `null` when the pattern is not
+ * RE2-representable; callers treat that as "matches nothing" rather than falling back to the
+ * backtracking engine. Throws {@link GlobPatternError} when the pattern is over the safety caps.
  */
 export function compileGlobMatcher(pattern: string): GlobMatcher | null {
   if (pattern.length > MAX_GLOB_PATTERN_LENGTH) {
@@ -869,7 +949,8 @@ export function compileGlobMatcher(pattern: string): GlobMatcher | null {
     return null
   }
 
-  const source = rewriteGlobSource(generated.source)
+  const negatedBody = negatedInnerSource(generated.source)
+  const source = rewriteGlobSource(negatedBody ?? generated.source)
   const linear = source === null ? null : compileLinearRegex(source)
   if (!linear) {
     logger.warn('Glob pattern is not RE2-representable; matching nothing', { pattern })
@@ -883,8 +964,12 @@ export function compileGlobMatcher(pattern: string): GlobMatcher | null {
       // `+(a)` with `noext`. Both are kept so behaviour is unchanged.
       if (path === '') return false
       if (path === pattern) return true
+      // A negated pattern's wrapper ends in `.*$`, which under no `s` flag also requires the
+      // whole path to be free of line terminators.
+      if (negatedBody !== null && LINE_TERMINATOR.test(path)) return false
       const marked = markPathSegments(path)
-      return marked !== null && linear.test(marked)
+      if (marked === null) return false
+      return negatedBody !== null ? !linear.test(marked) : linear.test(marked)
     },
   }
 }
@@ -903,6 +988,7 @@ function splitLinesForGrep(content: string): string[] {
  * same matcher {@link glob} uses, so it cannot backtrack either. Other characters (including
  * `[`, `{`, spaces) use directory-prefix logic so literal VFS path segments are not parsed as
  * glob syntax. Trailing slashes are stripped so `files/` and `files` both scope under `files/...`.
+ * Throws {@link GlobPatternError} for a scope outside the safety caps, which both callers catch.
  *
  * Exported so the lazy VFS can resolve exactly the lazy artifacts a scoped grep will consider,
  * keeping "what we materialize" identical to "what grep filters in".

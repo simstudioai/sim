@@ -84,6 +84,20 @@ describe('PreviewErrorBoundary', () => {
     expect(actionLabels()).toEqual(['Reload page'])
   })
 
+  it('offers a page reload for a failed CSS chunk, whose message omits "Loading chunk"', async () => {
+    const Broken = lazy(() => Promise.reject(new Error('Loading CSS chunk 4821 failed')))
+
+    await render(
+      <PreviewErrorBoundary label='PowerPoint'>
+        <Suspense fallback={<span>loading</span>}>
+          <Broken />
+        </Suspense>
+      </PreviewErrorBoundary>
+    )
+
+    expect(actionLabels()).toEqual(['Reload page'])
+  })
+
   it('renders children when nothing throws', async () => {
     await render(
       <PreviewErrorBoundary label='PowerPoint'>

@@ -732,10 +732,8 @@ export class LoopOrchestrator {
             if (lower === 'true' || lower === 'false') {
               return lower
             }
-            /**
-             * Serialized rather than hand-quoted: the value is a block output, so a `"` or
-             * newline would close the literal early and run as code in the condition VM.
-             */
+            // Serialized rather than hand-quoted: the value is a block output, so a `"` or
+            // newline would close the literal early and run as code in the condition VM.
             return JSON.stringify(resolved)
           }
           return JSON.stringify(resolved)

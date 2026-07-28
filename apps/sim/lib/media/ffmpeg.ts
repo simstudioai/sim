@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
 import ffmpeg from 'fluent-ffmpeg'
 
 const logger = createLogger('MediaFfmpeg')
@@ -191,11 +192,9 @@ function escapeFilterValue(value: string): string {
   return escapeFilterLevel(escapeFilterLevel(value))
 }
 
-const DRAWTEXT_FILENAME = 'drawtext.txt'
-
 /**
  * Writes caller-supplied overlay text to a file inside the operation's temp dir
- * and returns the `drawtext` filter string that reads it.
+ * and returns the `drawtext` filter string that reads it, plus the path written.
  *
  * Routing the text through `textfile=` keeps it out of the filter-option string
  * entirely, so no value in `text` can introduce or alter a filter option. Only
@@ -203,14 +202,17 @@ const DRAWTEXT_FILENAME = 'drawtext.txt'
  * reaches the filtergraph, and it is escaped for filesystems whose paths can
  * contain filtergraph metacharacters. `expansion=none` disables `%{…}` text
  * expansion so the content renders literally.
+ *
+ * The filename is derived per call so two overlays built in the same temp dir
+ * cannot clobber each other's text.
  */
 async function buildDrawtextFilter(
   dir: string,
   text: string,
   position: string | undefined
-): Promise<string> {
+): Promise<{ filter: string; textPath: string }> {
   const pos = TEXT_POSITION[position || 'bottom'] || TEXT_POSITION.bottom
-  const textPath = path.join(dir, DRAWTEXT_FILENAME)
+  const textPath = path.join(dir, `drawtext-${generateShortId(8)}.txt`)
   await fs.writeFile(textPath, text, 'utf-8')
 
   const options = [
@@ -225,7 +227,7 @@ async function buildDrawtextFilter(
     `y=${pos.y}`,
   ].join(':')
 
-  return `drawtext=${options}`
+  return { filter: `drawtext=${options}`, textPath }
 }
 
 async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
@@ -534,9 +536,9 @@ async function addText(
   options: FfmpegOptions
 ): Promise<FfmpegResult> {
   if (!options.text) throw new Error('add_text requires text')
-  const drawtext = await buildDrawtextFilter(dir, options.text, options.position)
+  const { filter } = await buildDrawtextFilter(dir, options.text, options.position)
   const outputPath = path.join(dir, 'out.mp4')
-  const command = ffmpeg(inputPath).videoFilters(drawtext).outputOptions(['-c:a', 'copy'])
+  const command = ffmpeg(inputPath).videoFilters(filter).outputOptions(['-c:a', 'copy'])
   await runCommand(command, outputPath)
   return readOut(outputPath, 'mp4')
 }

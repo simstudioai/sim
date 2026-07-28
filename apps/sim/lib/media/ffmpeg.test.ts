@@ -54,25 +54,34 @@ describe('buildDrawtextFilter', () => {
   })
 
   it('routes the text through textfile and never inlines it', async () => {
-    const filter = await buildDrawtextFilter(dir, 'Hello world', 'bottom')
+    const { filter, textPath } = await buildDrawtextFilter(dir, 'Hello world', 'bottom')
 
     expect(filter.startsWith('drawtext=')).toBe(true)
-    expect(filter).toContain(`textfile=${path.join(dir, 'drawtext.txt')}`)
+    expect(filter).toContain(`textfile=${textPath}`)
     expect(filter).not.toContain('Hello world')
     expect(filter).not.toContain(':text=')
-    expect(await fs.readFile(path.join(dir, 'drawtext.txt'), 'utf-8')).toBe('Hello world')
+    expect(await fs.readFile(textPath, 'utf-8')).toBe('Hello world')
+  })
+
+  it('writes a distinct text file per call so two overlays cannot clobber each other', async () => {
+    const first = await buildDrawtextFilter(dir, 'first overlay', 'bottom')
+    const second = await buildDrawtextFilter(dir, 'second overlay', 'bottom')
+
+    expect(second.textPath).not.toBe(first.textPath)
+    expect(await fs.readFile(first.textPath, 'utf-8')).toBe('first overlay')
+    expect(await fs.readFile(second.textPath, 'utf-8')).toBe('second overlay')
   })
 
   it('disables %{} expansion so text renders literally', async () => {
-    const filter = await buildDrawtextFilter(dir, '100% of %{pts}', 'bottom')
+    const { filter, textPath } = await buildDrawtextFilter(dir, '100% of %{pts}', 'bottom')
 
     expect(filter).toContain('expansion=none')
-    expect(await fs.readFile(path.join(dir, 'drawtext.txt'), 'utf-8')).toBe('100% of %{pts}')
+    expect(await fs.readFile(textPath, 'utf-8')).toBe('100% of %{pts}')
   })
 
   it('cannot introduce a new filter option from the text value', async () => {
     const injection = "a':x=90:fontcolor=red,drawbox=0:0:100:100:red\\:,[in]scale=2[out];"
-    const filter = await buildDrawtextFilter(dir, injection, 'bottom')
+    const { filter, textPath } = await buildDrawtextFilter(dir, injection, 'bottom')
 
     const options = filter.replace(/^drawtext=/, '').split(':')
     const optionNames = options.map((option) => option.split('=')[0])
@@ -92,7 +101,7 @@ describe('buildDrawtextFilter', () => {
     expect(filter).not.toContain('fontcolor=red')
     expect(filter).toContain('fontcolor=white')
     expect(filter).not.toContain('x=90')
-    expect(await fs.readFile(path.join(dir, 'drawtext.txt'), 'utf-8')).toBe(injection)
+    expect(await fs.readFile(textPath, 'utf-8')).toBe(injection)
   })
 
   it.each([
@@ -105,9 +114,9 @@ describe('buildDrawtextFilter', () => {
     ['textfile option injection', 'x:textfile=/etc/passwd'],
     ['fontfile option injection', 'x:fontfile=/etc/shadow'],
   ])('writes %s verbatim to the text file', async (_label, text) => {
-    const filter = await buildDrawtextFilter(dir, text, 'center')
+    const { filter, textPath } = await buildDrawtextFilter(dir, text, 'center')
 
-    expect(await fs.readFile(path.join(dir, 'drawtext.txt'), 'utf-8')).toBe(text)
+    expect(await fs.readFile(textPath, 'utf-8')).toBe(text)
     expect(filter.replace(/^drawtext=/, '').split(':').length).toBe(9)
     expect(filter).toContain('x=(w-text_w)/2')
     expect(filter).toContain('y=(h-text_h)/2')
@@ -115,15 +124,20 @@ describe('buildDrawtextFilter', () => {
   })
 
   it('escapes a temp dir path containing filtergraph metacharacters', async () => {
-    const trickyDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ffmpeg-test-'))
-    const filter = await buildDrawtextFilter(trickyDir, 'text', 'top')
+    const trickyDir = path.join(dir, "a:b'c[d]")
+    await fs.mkdir(trickyDir, { recursive: true })
 
-    expect(filter).toContain(`textfile=${escapeFilterValue(path.join(trickyDir, 'drawtext.txt'))}`)
-    await fs.rm(trickyDir, { recursive: true, force: true })
+    const { filter, textPath } = await buildDrawtextFilter(trickyDir, 'text', 'top')
+
+    // The literal expected escaping, not a restatement of the implementation:
+    // each metacharacter survives as three backslashes plus itself.
+    const escapedSegment = String.raw`a\\\:b\\\'c\\\[d\\\]`
+    expect(filter).toContain(`textfile=${dir}/${escapedSegment}/${path.basename(textPath)}`)
+    expect(filter).not.toContain(`textfile=${trickyDir}/`)
   })
 
   it('falls back to the bottom position for an unknown position', async () => {
-    const filter = await buildDrawtextFilter(dir, 'text', 'nowhere')
+    const { filter } = await buildDrawtextFilter(dir, 'text', 'nowhere')
 
     expect(filter).toContain('y=h*0.86')
   })
@@ -167,7 +181,7 @@ describe.skipIf(!hasFfmpeg())('runs through real ffmpeg', () => {
   ])('reads the text file from a dir containing %s', async (_label, name) => {
     const dir = path.join(base, name)
     await fs.mkdir(dir, { recursive: true })
-    const filter = await buildDrawtextFilter(dir, 'hello', 'bottom')
+    const { filter } = await buildDrawtextFilter(dir, 'hello', 'bottom')
 
     expect(() =>
       execFileSync(

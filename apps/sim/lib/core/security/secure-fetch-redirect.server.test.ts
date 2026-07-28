@@ -199,6 +199,7 @@ describe('secureFetchWithPinnedIP redirect credential handling', () => {
       { headers: { Authorization: 'Basic dHdpbGlv' } }
     )
 
+    expect(capturedRequests).toHaveLength(2)
     expect(headersOfHop(1).Authorization).toBeUndefined()
   })
 
@@ -276,6 +277,7 @@ describe('secureFetchWithPinnedIP redirect credential handling', () => {
       allowHttp: true,
     })
 
+    expect(capturedRequests).toHaveLength(2)
     expect(headersOfHop(1).Authorization).toBeUndefined()
   })
 

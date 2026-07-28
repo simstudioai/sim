@@ -3,7 +3,12 @@
  */
 import micromatch from 'micromatch'
 import { describe, expect, it } from 'vitest'
-import { compileGlobMatcher, VFS_GLOB_OPTIONS } from '@/lib/copilot/vfs/operations'
+import {
+  compileGlobMatcher,
+  glob,
+  pathWithinGrepScope,
+  VFS_GLOB_OPTIONS,
+} from '@/lib/copilot/vfs/operations'
 
 /**
  * Differential test: {@link compileGlobMatcher} runs micromatch's own compiled pattern on
@@ -24,6 +29,9 @@ const ASTRAL = '\u{1F600}'
 const HIGH_SURROGATE = '\uD83D'
 const LOW_SURROGATE = '\uDE00'
 
+/** A class range wide enough to bracket the private-use markers the translation reserves. */
+const WIDE_CLASS = '[\u{2000}-\u{F000}]'
+
 /**
  * Atoms for the exhaustive grid. Negated classes and parentheses are included because
  * picomatch treats `[^…]` and `(` specially even under `noext`, and neither goes through
@@ -31,7 +39,10 @@ const LOW_SURROGATE = '\uDE00'
  * marker slot opened inside one branch of a group is not the one the next branch or the
  * position after the group needs. The astral and lone-surrogate atoms are included because
  * picomatch counts UTF-16 code units and RE2 counts code points, so every `?` and `[^…]`
- * next to one is a place the two engines can disagree.
+ * next to one is a place the two engines can disagree. The escape atoms and the wide class
+ * range are included because picomatch passes a caller's `\X` and `[x-y]` through verbatim and
+ * RE2 reads several of those differently than ECMAScript does, and `!` because it is the one
+ * glob feature whose compiled shape is a lookahead.
  */
 const ATOMS = [
   'a',
@@ -60,6 +71,11 @@ const ATOMS = [
   '(',
   ')',
   '|',
+  '!',
+  '\\a',
+  '\\A',
+  '\\p{L}',
+  WIDE_CLASS,
   ASTRAL,
   HIGH_SURROGATE,
   LOW_SURROGATE,
@@ -228,6 +244,18 @@ function buildPatterns(): string[] {
   return Array.from(patterns)
 }
 
+/**
+ * Atoms RE2 cannot be handed at all: it reads `\A` and `\z` as anchors, `\a` as BEL, `\p{…}`
+ * as a Unicode class, and a range spanning the private-use block would consume a segment
+ * marker. They are compared like every other pattern but held out of the unrepresentable
+ * ratio, which measures how often a pattern someone might type is refused.
+ */
+const REFUSED_ATOMS = ['\\a', '\\A', '\\p{L}', WIDE_CLASS] as const
+
+function containsRefusedAtom(pattern: string): boolean {
+  return REFUSED_ATOMS.some((atom) => pattern.includes(atom))
+}
+
 function expectAgreement(pattern: string, path: string) {
   const matcher = compileGlobMatcher(pattern)
   const expected = micromatch.isMatch(path, pattern, GLOB_OPTIONS)
@@ -241,12 +269,15 @@ describe('glob matcher equivalence with micromatch', () => {
     const patterns = buildPatterns()
     const mismatches: string[] = []
     let unrepresentable = 0
+    let translatable = 0
     let compared = 0
 
     for (const pattern of patterns) {
       const matcher = compileGlobMatcher(pattern)
+      const held = containsRefusedAtom(pattern)
+      if (!held) translatable++
       if (!matcher) {
-        unrepresentable++
+        if (!held) unrepresentable++
         continue
       }
       for (const path of PATHS) {
@@ -263,7 +294,7 @@ describe('glob matcher equivalence with micromatch', () => {
 
     expect(mismatches).toEqual([])
     expect(compared).toBeGreaterThan(6_000_000)
-    expect(unrepresentable / patterns.length).toBeLessThan(0.08)
+    expect(unrepresentable / translatable).toBeLessThan(0.08)
   }, 120_000)
 
   it('covers the shapes the translation keys on', () => {
@@ -335,6 +366,66 @@ describe('glob matcher equivalence with micromatch', () => {
       }
     }
     expect(compileGlobMatcher('(a|b)?*')?.matches('.hidden')).toBe(true)
+  })
+
+  it('refuses the escape alphabet picomatch never emits', () => {
+    // picomatch escapes only punctuation, so `\A`, `\z`, `\a` and `\p{…}` are caller text it
+    // passes through. RE2 reads them as anchors, BEL and a Unicode class — and `\p{Any}`
+    // consumes the segment markers, taking `dot: false` with it.
+    for (const [pattern, path] of [
+      ['\\A**/**', 'secrets/prod.key'],
+      ['\\A**/**', 'README.md'],
+      ['\\p{Any}**/**', '.git/config'],
+      ['*\\z', 'README.md'],
+      ['[^\\a]', 'a'],
+    ] as const) {
+      expectAgreement(pattern, path)
+    }
+    // `[\a-z]` is the fail-safe half of the same rule: ECMAScript reads `\a` as a literal `a`
+    // and matches, and refusing costs a match rather than granting one.
+    expect(compileGlobMatcher('[\\a-z]')).toBeNull()
+    expect(compileGlobMatcher('\\A**/**')).toBeNull()
+    expect(pathWithinGrepScope('secrets/prod.key', '\\A**/**')).toBe(false)
+  })
+
+  it('refuses a class range spanning the reserved code points', () => {
+    // The range brackets the segment markers and the surrogate escape block, so the class
+    // consumes a marker where micromatch requires a real character and every later atom
+    // matches one position to the left.
+    for (const [pattern, path] of [
+      [`${WIDE_CLASS}.env`, '.env'],
+      [`${WIDE_CLASS}*`, '.env'],
+      [`${WIDE_CLASS}.git/config`, '.git/config'],
+      [`${WIDE_CLASS}..`, '..'],
+      [`[^a${WIDE_CLASS.slice(1)}`, '.env'],
+    ] as const) {
+      expectAgreement(pattern, path)
+    }
+    // A pair of such classes spans both halves of a remapped astral character, which is the
+    // fail-safe half of the rule: micromatch matches it and refusing costs that match.
+    expect(compileGlobMatcher(`${WIDE_CLASS}${WIDE_CLASS}`)).toBeNull()
+    expect(compileGlobMatcher(`${WIDE_CLASS}.env`)).toBeNull()
+    expect(pathWithinGrepScope('.env', `${WIDE_CLASS}*`)).toBe(false)
+  })
+
+  it('matches negated patterns instead of silently matching nothing', () => {
+    const files = new Map([
+      ['a.ts', ''],
+      ['b.js', ''],
+    ])
+    expect(glob(files, '!*.ts')).toEqual(['b.js'])
+    for (const pattern of ['!*.ts', '!.env', '!**/*.md', '!a', '!', '!!a', '!!*.ts', '!(a)']) {
+      for (const path of PATHS) {
+        expectAgreement(pattern, path)
+      }
+    }
+  })
+
+  it('refuses a zero-padded repeat bound RE2 reads as literal text', () => {
+    for (const pattern of ['a{00}b', 'a{00,2}b', '.{00,}*', 'a{1,02}b']) {
+      expect(compileGlobMatcher(pattern), pattern).toBeNull()
+    }
+    expect(compileGlobMatcher('a{0,2}b'), 'a{0,2}b').not.toBeNull()
   })
 
   it('rejects the empty path the way micromatch does', () => {
