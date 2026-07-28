@@ -36,7 +36,7 @@
   "author": "Sim",
   "license": "Apache-2.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=18"
   },
   "dependencies": {
     "chalk": "5.6.2",
