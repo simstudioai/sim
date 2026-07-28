@@ -110,13 +110,12 @@ describe('workspace list prefetches', () => {
         userId: 'u-1',
         workspaceId: WORKSPACE_ID,
         parentId: null,
-        color: null,
-        isExpanded: true,
+        resourceType: 'workflow',
         locked: false,
         sortOrder: 0,
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-02T00:00:00.000Z',
-        archivedAt: null,
+        deletedAt: null,
       }
       const files = [{ id: 'f-1' }]
       mockPrefetchInternalJson.mockImplementation(async (path: string) =>
@@ -131,11 +130,12 @@ describe('workspace list prefetches', () => {
       )
       const cachedFolders = client.getQueryData(folderKeys.list(WORKSPACE_ID, 'active')) as Array<{
         id: string
-        color: string
+        resourceType: string
         createdAt: Date
       }>
       expect(cachedFolders).toHaveLength(1)
-      expect(cachedFolders[0].color).toBe('#6B7280')
+      expect(cachedFolders[0].resourceType).toBe('workflow')
+      // The wire shape carries ISO strings; the client shape carries Dates.
       expect(cachedFolders[0].createdAt).toBeInstanceOf(Date)
       expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toEqual(files)
     })

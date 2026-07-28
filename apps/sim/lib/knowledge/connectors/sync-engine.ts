@@ -17,6 +17,7 @@ import {
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import { hardDeleteDocuments, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
 import { StorageService } from '@/lib/uploads'
@@ -377,6 +378,10 @@ export function resolveTagMapping(
  * Resolves an access token for a connector based on its auth mode.
  * OAuth connectors refresh via the credential system; API key connectors
  * decrypt the key stored in the dedicated `encryptedApiKey` column.
+ *
+ * `userId` must be the user who owns the credential's OAuth account — not the
+ * knowledge base owner. Workspace-scoped credentials are routinely authorized by
+ * a different member, and token reads are scoped to `account.userId`.
  */
 async function resolveAccessToken(
   connector: { credentialId: string | null; encryptedApiKey: string | null },
@@ -529,7 +534,31 @@ export async function executeSync(
   let syncExitedCleanly = false
 
   try {
-    let accessToken = await resolveAccessToken(connector, connectorConfig, userId)
+    /**
+     * OAuth credentials are workspace-scoped and shared, so the member who authorized
+     * one is often not the knowledge base owner. Resolve the credential's own account
+     * owner — token reads are scoped to `account.userId`, so passing the KB owner
+     * resolves no token at all. Resolved once here rather than inside
+     * `resolveAccessToken` so per-page refreshes don't repeat the lookup.
+     */
+    let credentialUserId = userId
+    if (connectorConfig.auth.mode === 'oauth' && connector.credentialId) {
+      const identity = await resolveCredentialTokenIdentity(
+        connector.credentialId,
+        kbOwner.workspaceId
+      )
+      if (!identity) {
+        throw new Error(
+          `Credential ${connector.credentialId} is not usable from workspace ${kbOwner.workspaceId} — reconnect the credential`
+        )
+      }
+      // Service accounts mint their own token and ignore the acting user.
+      if (identity.kind === 'oauth') {
+        credentialUserId = identity.userId
+      }
+    }
+
+    let accessToken = await resolveAccessToken(connector, connectorConfig, credentialUserId)
 
     const externalDocs: ExternalDocument[] = []
     let cursor: string | undefined
@@ -605,7 +634,7 @@ export async function executeSync(
 
     for (let pageNum = 0; hasMore && pageNum < MAX_PAGES; pageNum++) {
       if (pageNum > 0 && connectorConfig.auth.mode === 'oauth') {
-        accessToken = await resolveAccessToken(connector, connectorConfig, userId)
+        accessToken = await resolveAccessToken(connector, connectorConfig, credentialUserId)
       }
 
       const page = await connectorConfig.listDocuments(
@@ -795,7 +824,7 @@ export async function executeSync(
 
       if (deferredOps.length > 0) {
         if (connectorConfig.auth.mode === 'oauth') {
-          accessToken = await resolveAccessToken(connector, connectorConfig, userId)
+          accessToken = await resolveAccessToken(connector, connectorConfig, credentialUserId)
         }
 
         const hydrated = await Promise.allSettled(

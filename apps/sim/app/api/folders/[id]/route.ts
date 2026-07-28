@@ -8,6 +8,7 @@ import { updateFolderContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { toFolderApi } from '@/lib/folders/queries'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { performDeleteFolder, performUpdateFolder } from '@/lib/workflows/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -38,7 +39,7 @@ export const PUT = withRouteHandler(
       if (!parsed.success) return parsed.response
 
       const { id } = parsed.data.params
-      const { name, color, isExpanded, locked, parentId, sortOrder } = parsed.data.body
+      const { name, locked, parentId, sortOrder } = parsed.data.body
 
       // Verify the folder exists
       const existingFolder = await db
@@ -85,8 +86,6 @@ export const PUT = withRouteHandler(
         workspaceId: existingFolder.workspaceId,
         userId: session.user.id,
         name,
-        color,
-        isExpanded,
         locked,
         parentId,
         sortOrder,
@@ -100,7 +99,7 @@ export const PUT = withRouteHandler(
 
       logger.info('Updated folder:', { id, updates: parsed.data.body })
 
-      return NextResponse.json({ folder: result.folder })
+      return NextResponse.json({ folder: toFolderApi(result.folder) })
     } catch (error) {
       if (error instanceof FolderLockedError) {
         return NextResponse.json({ error: error.message }, { status: error.status })

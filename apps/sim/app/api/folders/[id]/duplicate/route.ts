@@ -12,6 +12,7 @@ import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { DbOrTx } from '@/lib/db/types'
+import { toFolderApi } from '@/lib/folders/queries'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -33,7 +34,7 @@ export const POST = withRouteHandler(
     try {
       const parsed = await parseRequest(duplicateFolderContract, req, context)
       if (!parsed.success) return parsed.response
-      const { name, workspaceId, parentId, color, newId: clientNewId } = parsed.data.body
+      const { name, workspaceId, parentId, newId: clientNewId } = parsed.data.body
 
       logger.info(`[${requestId}] Duplicating folder ${sourceFolderId} for user ${session.user.id}`)
 
@@ -106,7 +107,7 @@ export const POST = withRouteHandler(
           userId: session.user.id,
           workspaceId: targetWorkspaceId,
           name: deduplicatedName,
-          color: color || sourceFolder.color,
+          color: sourceFolder.color,
           parentId: targetParentId,
           sortOrder,
           isExpanded: false,
@@ -172,7 +173,7 @@ export const POST = withRouteHandler(
         .where(eq(workflowFolder.id, newFolderId))
         .then((rows) => rows[0])
 
-      return NextResponse.json({ folder: duplicatedFolder }, { status: 201 })
+      return NextResponse.json({ folder: toFolderApi(duplicatedFolder) }, { status: 201 })
     } catch (error) {
       if (error instanceof Error) {
         if (error instanceof FolderLockedError) {

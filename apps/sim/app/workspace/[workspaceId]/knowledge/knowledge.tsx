@@ -7,6 +7,7 @@ import { Database } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { PinButton } from '@/components/pin-button'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type {
@@ -43,6 +44,7 @@ import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sideb
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { useDeleteKnowledgeBase, useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
+import { usePinnedIds } from '@/hooks/queries/pinned-items'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
@@ -143,6 +145,7 @@ export function Knowledge() {
 
   const { knowledgeBases, error } = useKnowledgeBasesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
+  const pinnedBaseIds = usePinnedIds(workspaceId, 'knowledge_base')
 
   if (error) {
     logger.error('Failed to load knowledge bases:', error)
@@ -289,6 +292,12 @@ export function Knowledge() {
     const col = activeSort?.column ?? 'updated'
     const dir = activeSort?.direction ?? 'desc'
     return [...result].sort((a, b) => {
+      // Pinned bases float to the top of every sort/direction — pinning is a
+      // user-declared priority, not another sort key to be inverted by `desc`.
+      const aPinned = pinnedBaseIds.has(a.id)
+      const bPinned = pinnedBaseIds.has(b.id)
+      if (aPinned !== bPinned) return aPinned ? -1 : 1
+
       let cmp = 0
       switch (col) {
         case 'name':
@@ -327,6 +336,7 @@ export function Knowledge() {
     ownerFilter,
     activeSort,
     members,
+    pinnedBaseIds,
   ])
 
   const rows: ResourceRow[] = useMemo(
@@ -339,6 +349,15 @@ export function Knowledge() {
             name: {
               icon: KNOWLEDGE_BASE_ICON,
               label: kb.name,
+              endAdornment: (
+                <PinButton
+                  workspaceId={workspaceId}
+                  resourceType='knowledge_base'
+                  resourceId={kb.id}
+                  pinned={pinnedBaseIds.has(kb.id)}
+                  className='ml-2'
+                />
+              ),
             },
             documents: {
               label: String(kbWithCount.docCount || 0),
@@ -353,7 +372,7 @@ export function Knowledge() {
           },
         }
       }),
-    [processedKBs, members]
+    [processedKBs, members, workspaceId, pinnedBaseIds]
   )
 
   const handleRowClick = useCallback(
