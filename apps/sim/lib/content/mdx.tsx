@@ -1,7 +1,32 @@
+import type { ComponentPropsWithoutRef } from 'react'
 import clsx from 'clsx'
 import type { MDXRemoteProps } from 'next-mdx-remote/rsc'
 import { CodeBlock } from '@/lib/content/code'
+import { SITE_URL } from '@/lib/core/utils/urls'
 import { ContentImage } from '@/app/(landing)/components/content-image'
+
+/**
+ * Apex host for every Sim-owned property, derived from the canonical site URL
+ * rather than the environment so a post renders identically in dev, preview,
+ * and production.
+ */
+const SITE_APEX_HOST = new URL(SITE_URL).hostname.replace(/^www\./, '')
+
+/**
+ * True only for links that leave Sim entirely. Relative hrefs, in-page anchors,
+ * the apex host, and any Sim subdomain (`www.`, `docs.`) are first-party and keep
+ * default same-tab navigation so internal linking stays crawlable. The leading dot
+ * in the suffix check keeps lookalike domains such as `evil-sim.ai` external.
+ */
+function isExternalHref(href: string | undefined): boolean {
+  if (!href || !/^https?:\/\//i.test(href)) return false
+  try {
+    const { hostname } = new URL(href)
+    return hostname !== SITE_APEX_HOST && !hostname.endsWith(`.${SITE_APEX_HOST}`)
+  } catch {
+    return false
+  }
+}
 
 export const mdxComponents: MDXRemoteProps['components'] = {
   img: (props: any) => (
@@ -82,9 +107,15 @@ export const mdxComponents: MDXRemoteProps['components'] = {
     if (isAnchorLink) {
       return <a {...props} className={clsx('text-inherit no-underline', props.className)} />
     }
+    /**
+     * Outbound citations in post bodies open in a new tab and carry
+     * `rel="noopener noreferrer"`, per `.claude/rules/landing-seo-geo.md`.
+     */
+    const isExternal = isExternalHref(props.href)
     return (
       <a
         {...props}
+        {...(isExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
         className={clsx(
           'font-medium text-[var(--text-primary)] underline hover:text-[var(--text-primary)]',
           props.className
@@ -92,6 +123,21 @@ export const mdxComponents: MDXRemoteProps['components'] = {
       />
     )
   },
+  /**
+   * GFM comparison tables run up to nine columns of prose, which no phone can
+   * fit. Without a scroll container the table sets the page's content width and
+   * the whole article scrolls sideways, clipping body copy at both edges. The
+   * wrapper confines that scrolling to the table's own axis.
+   *
+   * `min-w` keeps columns from collapsing to one word per line inside the
+   * scroll area — narrow enough that tables which already fit (two or three
+   * columns on a tablet, anything on desktop) never gain a scrollbar.
+   */
+  table: ({ className, ...props }: ComponentPropsWithoutRef<'table'>) => (
+    <div className='my-6 w-full overflow-x-auto'>
+      <table {...props} className={clsx('my-0 min-w-[520px]', className)} />
+    </div>
+  ),
   figure: (props: any) => (
     <figure {...props} className={clsx('my-8 overflow-hidden rounded-lg', props.className)} />
   ),

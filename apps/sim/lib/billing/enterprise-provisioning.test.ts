@@ -1,11 +1,10 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  select: vi.fn(),
-  update: vi.fn(),
   subscriptionsCreate: vi.fn(),
   subscriptionsList: vi.fn(),
   subscriptionsUpdate: vi.fn(),
@@ -27,49 +26,7 @@ vi.mock('@sim/audit', () => ({
   recordAudit: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mocks.select,
-    update: mocks.update,
-    transaction: vi.fn(),
-  },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  member: { userId: 'userId', organizationId: 'organizationId', role: 'role' },
-  organization: { id: 'id', name: 'name' },
-  outboxEvent: {
-    id: 'id',
-    eventType: 'eventType',
-    payload: 'payload',
-    status: 'status',
-    createdAt: 'createdAt',
-  },
-  subscription: {
-    id: 'id',
-    referenceId: 'referenceId',
-    status: 'status',
-    stripeSubscriptionId: 'stripeSubscriptionId',
-    metadata: 'metadata',
-  },
-  user: {
-    id: 'id',
-    name: 'name',
-    email: 'email',
-    stripeCustomerId: 'stripeCustomerId',
-  },
-}))
-
 vi.mock('@sim/utils/id', () => ({ generateId: vi.fn(() => 'generated-id') }))
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(() => 'and'),
-  count: vi.fn(() => 'count'),
-  desc: vi.fn(() => 'desc'),
-  eq: vi.fn(() => 'eq'),
-  inArray: vi.fn(() => 'inArray'),
-  isNull: vi.fn(() => 'isNull'),
-  sql: vi.fn(() => 'sql'),
-}))
 vi.mock('@/lib/billing/organizations/membership', () => ({
   acquireOrganizationMutationLock: vi.fn(),
 }))
@@ -107,26 +64,9 @@ import {
   syncEnterpriseMetadataInStripe,
 } from '@/lib/billing/enterprise-provisioning'
 
-function selectChain(rows: unknown[]) {
-  const chain = {
-    from: vi.fn(),
-    innerJoin: vi.fn(),
-    leftJoin: vi.fn(),
-    where: vi.fn(),
-    orderBy: vi.fn(),
-    for: vi.fn(),
-    limit: vi.fn().mockResolvedValue(rows),
-    then: (resolve: (value: unknown[]) => unknown, reject: (reason: unknown) => unknown) =>
-      Promise.resolve(rows).then(resolve, reject),
-  }
-  chain.from.mockReturnValue(chain)
-  chain.innerJoin.mockReturnValue(chain)
-  chain.leftJoin.mockReturnValue(chain)
-  chain.where.mockReturnValue(chain)
-  chain.orderBy.mockReturnValue(chain)
-  chain.for.mockReturnValue(chain)
-  return chain
-}
+afterAll(() => {
+  resetDbChainMock()
+})
 
 function operationPayload(overrides: Record<string, unknown> = {}) {
   return {
@@ -256,29 +196,26 @@ function arrangeWorkerReads(
   finalLocalSubscriptions: unknown[] = localSubscriptions,
   finalMemberCount = 1
 ) {
-  mocks.select
-    .mockReturnValueOnce(
-      selectChain([
-        {
-          ownerId: 'owner-1',
-          ownerName: 'Owner',
-          ownerEmail: 'owner@example.com',
-          ownerStripeCustomerId: 'cus_1',
-          organizationName: 'Acme',
-          ownerRole: 'owner',
-        },
-      ])
-    )
-    .mockReturnValueOnce(selectChain([{ value: 1 }]))
-    .mockReturnValueOnce(selectChain(localSubscriptions))
-    .mockReturnValueOnce(selectChain(finalLocalSubscriptions))
-    .mockReturnValueOnce(selectChain([{ value: finalMemberCount }]))
+  queueTableRows(schemaMock.user, [
+    {
+      ownerId: 'owner-1',
+      ownerName: 'Owner',
+      ownerEmail: 'owner@example.com',
+      ownerStripeCustomerId: 'cus_1',
+      organizationName: 'Acme',
+      ownerRole: 'owner',
+    },
+  ])
+  queueTableRows(schemaMock.member, [{ value: 1 }])
+  queueTableRows(schemaMock.subscription, localSubscriptions)
+  queueTableRows(schemaMock.subscription, finalLocalSubscriptions)
+  queueTableRows(schemaMock.member, [{ value: finalMemberCount }])
 }
 
 describe('Enterprise issuance outbox handler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.select.mockReset()
+    resetDbChainMock()
     mocks.subscriptionsList.mockResolvedValue({ data: [], has_more: false })
     mocks.customersList.mockResolvedValue({ data: [], has_more: false })
     mocks.pricesList.mockResolvedValue({ data: [], has_more: false })
@@ -468,7 +405,7 @@ describe('Enterprise issuance outbox handler', () => {
       context()
     )
 
-    expect(mocks.select).not.toHaveBeenCalled()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
     expect(mocks.subscriptionsCreate).not.toHaveBeenCalled()
   })
 
@@ -482,7 +419,7 @@ describe('Enterprise issuance outbox handler', () => {
 describe('Enterprise metadata outbox handler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.select.mockReset()
+    resetDbChainMock()
   })
 
   it('pushes only the latest full desired metadata under an operation-stable key', async () => {
@@ -498,13 +435,12 @@ describe('Enterprise metadata outbox handler', () => {
         concurrencyLimit: 1250,
       },
     }
-    mocks.select
-      .mockReturnValueOnce(
-        selectChain([{ stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} }])
-      )
-      .mockReturnValueOnce(selectChain([{ metadata: {} }]))
-      .mockReturnValueOnce(selectChain([{ id: 'metadata-event-1', payload }]))
-      .mockReturnValueOnce(selectChain([{ value: 10 }]))
+    queueTableRows(schemaMock.subscription, [
+      { stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} },
+    ])
+    queueTableRows(schemaMock.subscription, [{ metadata: {} }])
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'metadata-event-1', payload }])
+    queueTableRows(schemaMock.member, [{ value: 10 }])
     mocks.subscriptionsUpdate.mockResolvedValue({ id: 'sub_1' })
 
     await expect(
@@ -546,13 +482,12 @@ describe('Enterprise metadata outbox handler', () => {
         concurrencyLimit: null,
       },
     }
-    mocks.select
-      .mockReturnValueOnce(
-        selectChain([{ stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} }])
-      )
-      .mockReturnValueOnce(selectChain([{ metadata: {} }]))
-      .mockReturnValueOnce(selectChain([{ id: 'metadata-event-2', payload }]))
-      .mockReturnValueOnce(selectChain([{ value: 10 }]))
+    queueTableRows(schemaMock.subscription, [
+      { stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} },
+    ])
+    queueTableRows(schemaMock.subscription, [{ metadata: {} }])
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'metadata-event-2', payload }])
+    queueTableRows(schemaMock.member, [{ value: 10 }])
     mocks.subscriptionsUpdate.mockResolvedValue({ id: 'sub_1' })
 
     await expect(
@@ -583,24 +518,21 @@ describe('Enterprise metadata outbox handler', () => {
       deliveryRevision: 0,
       metadata: { seats: 12 },
     }
-    mocks.select
-      .mockReturnValueOnce(
-        selectChain([{ stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} }])
-      )
-      .mockReturnValueOnce(selectChain([{ metadata: {} }]))
-      .mockReturnValueOnce(
-        selectChain([
-          {
-            id: 'newer-event',
-            payload: {
-              subscriptionId: 'local-sub-1',
-              revision: 4,
-              deliveryRevision: 0,
-              metadata: { seats: 15 },
-            },
-          },
-        ])
-      )
+    queueTableRows(schemaMock.subscription, [
+      { stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} },
+    ])
+    queueTableRows(schemaMock.subscription, [{ metadata: {} }])
+    queueTableRows(schemaMock.outboxEvent, [
+      {
+        id: 'newer-event',
+        payload: {
+          subscriptionId: 'local-sub-1',
+          revision: 4,
+          deliveryRevision: 0,
+          metadata: { seats: 15 },
+        },
+      },
+    ])
 
     await syncEnterpriseMetadataInStripe(payload, {
       eventId: 'older-event',
@@ -619,15 +551,13 @@ describe('Enterprise metadata outbox handler', () => {
       deliveryRevision: 0,
       metadata: { seats: 15 },
     }
-    mocks.select.mockReturnValueOnce(
-      selectChain([
-        {
-          stripeSubscriptionId: 'sub_1',
-          referenceId: 'org-1',
-          metadata: { simConfigOperationId: 'metadata-event-1' },
-        },
-      ])
-    )
+    queueTableRows(schemaMock.subscription, [
+      {
+        stripeSubscriptionId: 'sub_1',
+        referenceId: 'org-1',
+        metadata: { simConfigOperationId: 'metadata-event-1' },
+      },
+    ])
 
     await syncEnterpriseMetadataInStripe(payload, {
       eventId: 'metadata-event-1',

@@ -15,19 +15,31 @@ import { createLogger } from '@sim/logger'
 import { and, count, eq, sql } from 'drizzle-orm'
 import { columnMatchesRef, generateColumnId, getColumnId } from '@/lib/table/column-keys'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutation-locks'
+import type { DbTransaction } from '@/lib/table/planner'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
+import { selectValueToNames } from '@/lib/table/select-values'
 import { withLockedTable } from '@/lib/table/service'
 import { scaledStatementTimeoutMs, setTableTxTimeouts } from '@/lib/table/tx'
 import type {
+  ColumnDefinition,
   DeleteColumnData,
+  JsonValue,
   RenameColumnData,
   RowData,
+  SelectOption,
   TableDefinition,
   TableMetadata,
   TableSchema,
   UpdateColumnConstraintsData,
+  UpdateColumnOptionsData,
   UpdateColumnTypeData,
 } from '@/lib/table/types'
+import {
+  resolveSelectOptionId,
+  splitMultiSelectInput,
+  validateColumnDefinition,
+} from '@/lib/table/validation'
 import { assertValidSchema, stripGroupDeps } from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableColumnService')
@@ -50,10 +62,13 @@ export async function addTableColumn(
     required?: boolean
     unique?: boolean
     position?: number
+    options?: SelectOption[]
+    multiple?: boolean
   },
   requestId: string
 ): Promise<TableDefinition> {
   return withLockedTable(tableId, async (table, trx) => {
+    assertSchemaMutable(table)
     if (!NAME_PATTERN.test(column.name)) {
       throw new Error(
         `Invalid column name "${column.name}". Must start with a letter or underscore and contain only alphanumeric characters and underscores.`
@@ -91,7 +106,15 @@ export async function addTableColumn(
       type: column.type as TableSchema['columns'][number]['type'],
       required: column.required ?? false,
       unique: column.unique ?? false,
+      ...(column.options ? { options: column.options } : {}),
+      ...(column.multiple ? { multiple: true } : {}),
     }
+
+    const columnValidation = validateColumnDefinition(newColumn)
+    if (!columnValidation.valid) {
+      throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
+    }
+
     const newColumnId = getColumnId(newColumn)
 
     const columns = [...schema.columns]
@@ -157,6 +180,7 @@ export async function renameColumn(
   requestId: string
 ): Promise<TableDefinition> {
   return withLockedTable(data.tableId, async (table, trx) => {
+    assertSchemaMutable(table)
     if (!NAME_PATTERN.test(data.newName)) {
       throw new Error(
         `Invalid column name "${data.newName}". Column names must start with a letter or underscore, followed by alphanumeric characters or underscores.`
@@ -291,6 +315,7 @@ export async function deleteColumn(
   requestId: string
 ): Promise<TableDefinition> {
   const { def, stripKey } = await withLockedTable(data.tableId, async (table, trx) => {
+    assertColumnDestructive(table)
     const schema = table.schema
     const columnIndex = schema.columns.findIndex((c) => columnMatchesRef(c, data.columnName))
     if (columnIndex === -1) {
@@ -369,6 +394,7 @@ export async function deleteColumns(
   requestId: string
 ): Promise<TableDefinition> {
   const { def, stripKeys } = await withLockedTable(data.tableId, async (table, trx) => {
+    assertColumnDestructive(table)
     const schema = table.schema
     const namesToDelete = new Set<string>()
     const idsToDelete = new Set<string>()
@@ -461,6 +487,8 @@ export async function updateColumnType(
   requestId: string
 ): Promise<TableDefinition> {
   return withLockedTable(data.tableId, async (table, trx) => {
+    // Retype reinterprets every stored value under a new type — destructive.
+    assertColumnDestructive(table)
     // Scale both statement and idle timeouts to row count: the compatibility
     // check below iterates every row in Node between the row SELECT and the
     // schema UPDATE, leaving the transaction idle for that gap. The default 5s
@@ -502,15 +530,60 @@ export async function updateColumnType(
         )
       )
 
+    // Options the column will carry after the change — a `select` value is only
+    // compatible if it resolves against this set.
+    const isSelectType = data.newType === 'select'
+    const targetOptions = data.options ?? column.options ?? []
+    const targetMultiple = data.multiple ?? column.multiple
+    // Leaving `select` behind: stored cells hold option ids, which mean nothing
+    // once the column is text/number/etc. Check compatibility against the option
+    // NAME — that's what the cell will actually become (migrated below).
+    const convertingAwayFromSelect = column.type === 'select' && !isSelectType
+    // The constraint the column ends up with, which may be arriving in this same
+    // request. `updateColumnConstraints` runs as its own transaction afterwards,
+    // so validating against the column's CURRENT flag would let the conversion
+    // commit and only then fail the constraint.
+    const targetRequired = !!(data.required ?? column.required)
+
+    // Rows missing the key (or holding null/`[]`) are filtered out of `rows`
+    // entirely, so the loop below can never see them — they have to be counted
+    // separately, through the same predicate the constraint write will use.
+    if (targetRequired) {
+      const emptyCount = await countEmptyCells(trx, data.tableId, columnKey)
+      if (emptyCount > 0) {
+        throw new Error(
+          `Cannot change column "${column.name}" to a required "${data.newType}": ${emptyCount} row(s) have null, missing, or empty values. Fill them first, or apply the type change without making the column required.`
+        )
+      }
+    }
+
     let incompatibleCount = 0
+    let blankCount = 0
     for (const row of rows) {
       const rowData = row.data as RowData
       const value = rowData[columnKey]
       if (value === null || value === undefined) continue
 
-      if (!isValueCompatibleWithType(value, data.newType)) {
-        incompatibleCount++
+      const effective = convertingAwayFromSelect ? selectValueForConversion(column, value) : value
+
+      if (
+        !isValueCompatibleWithType(
+          effective,
+          data.newType,
+          targetOptions,
+          !!targetMultiple,
+          targetRequired
+        )
+      ) {
+        if (effective === null || effective === '') blankCount++
+        else incompatibleCount++
       }
+    }
+
+    if (blankCount > 0) {
+      throw new Error(
+        `Cannot change column "${column.name}" to a required "${data.newType}": ${blankCount} row(s) are empty. Fill them first, or apply the type change without making the column required.`
+      )
     }
 
     if (incompatibleCount > 0) {
@@ -519,11 +592,39 @@ export async function updateColumnType(
       )
     }
 
-    const updatedColumns = schema.columns.map((c, i) =>
-      i === columnIndex ? { ...c, type: data.newType } : c
-    )
+    const updatedColumns = schema.columns.map((c, i) => {
+      if (i !== columnIndex) return c
+      // Drop any prior select config, then re-add when the target type uses it.
+      const { options: _prevOptions, multiple: _prevMultiple, ...rest } = c
+      return isSelectType
+        ? {
+            ...rest,
+            type: data.newType,
+            options: data.options ?? c.options,
+            ...(targetMultiple ? { multiple: true } : {}),
+            // Select columns carry no unique constraint: it would compare the
+            // stored option id, capping each option at one row table-wide, and
+            // the UI hides the toggle so it could never be cleared again. Drop
+            // it here rather than in each caller — the sidebar was the only one
+            // clearing it, leaving the v1 and agent paths to strand it.
+            unique: false,
+          }
+        : { ...rest, type: data.newType }
+    })
+
+    const columnValidation = validateColumnDefinition(updatedColumns[columnIndex])
+    if (!columnValidation.valid) {
+      throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
+    }
+
     const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
     const now = new Date()
+
+    if (convertingAwayFromSelect) {
+      await migrateSelectCellsToNames(trx, data.tableId, columnKey, column.options ?? [])
+    } else if (isSelectType) {
+      await migrateCellsToSelectIds(trx, data.tableId, columnKey, targetOptions, !!targetMultiple)
+    }
 
     await trx
       .update(userTableDefinitions)
@@ -551,6 +652,7 @@ export async function updateColumnConstraints(
   requestId: string
 ): Promise<TableDefinition> {
   return withLockedTable(data.tableId, async (table, trx) => {
+    assertSchemaMutable(table)
     // Scale both statement and idle timeouts to row count: the required/unique
     // validation runs between separate queries inside this transaction, leaving
     // it briefly idle. Match `updateColumnType` so the default 5s
@@ -576,21 +678,18 @@ export async function updateColumnConstraints(
       )
     }
     if (data.required === true && !column.required) {
-      const [result] = await trx
-        .select({ count: count() })
-        .from(userTableRows)
-        .where(
-          and(
-            eq(userTableRows.tableId, data.tableId),
-            sql`(NOT (${userTableRows.data} ? ${columnKey}) OR ${userTableRows.data}->>${columnKey}::text IS NULL)`
-          )
-        )
-
-      if (result.count > 0) {
+      const emptyCount = await countEmptyCells(trx, data.tableId, columnKey)
+      if (emptyCount > 0) {
         throw new Error(
-          `Cannot set column "${column.name}" as required: ${result.count} row(s) have null or missing values`
+          `Cannot set column "${column.name}" as required: ${emptyCount} row(s) have null, missing, or empty values`
         )
       }
+    }
+
+    if (data.unique === true && column.type === 'select') {
+      throw new Error(
+        `Cannot set column "${column.name}" as unique: select columns compare stored option ids, which would allow only one row per option.`
+      )
     }
 
     if (data.unique === true && !column.unique) {
@@ -629,17 +728,471 @@ export async function updateColumnConstraints(
 }
 
 /**
- * Checks if a value is compatible with a target column type.
+ * Updates the option set (and optional single/multi mode) of a `select` column
+ * without changing its type. Existing cell values are left untouched — ids that
+ * no longer match an option render as a neutral fallback pill until reassigned;
+ * a single↔multi toggle is reconciled lazily on the next row write.
  */
-function isValueCompatibleWithType(
+export async function updateColumnOptions(
+  data: UpdateColumnOptionsData,
+  requestId: string
+): Promise<TableDefinition> {
+  return withLockedTable(data.tableId, async (table, trx) => {
+    const schema = table.schema
+    const columnIndex = schema.columns.findIndex((c) => columnMatchesRef(c, data.columnName))
+    if (columnIndex === -1) {
+      throw new Error(`Column "${data.columnName}" not found`)
+    }
+
+    const column = schema.columns[columnIndex]
+    if (column.type !== 'select') {
+      throw new Error(`Cannot set options on column "${column.name}" of type "${column.type}"`)
+    }
+
+    const columnKey = getColumnId(column)
+
+    const { multiple: _prevMultiple, ...columnRest } = column
+    const updatedColumn = {
+      ...columnRest,
+      options: data.options,
+      ...((data.multiple ?? column.multiple) ? { multiple: true } : {}),
+    }
+    const columnValidation = validateColumnDefinition(updatedColumn)
+    if (!columnValidation.valid) {
+      throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
+    }
+
+    const updatedColumns = schema.columns.map((c, i) => (i === columnIndex ? updatedColumn : c))
+    const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
+    const now = new Date()
+
+    const nextMultiple = !!(data.multiple ?? column.multiple)
+    const wasMultiple = !!column.multiple
+    const keptIds = new Set(data.options.map((o) => o.id))
+    const removedAny = (column.options ?? []).some((o) => !keptIds.has(o.id))
+    const togglingCardinality = nextMultiple !== wasMultiple
+    const targetRequired = !!(data.required ?? column.required)
+
+    // Newly imposing `required` in the same request: rows that are ALREADY empty
+    // would fail the separate constraint write after this one commits, so they
+    // have to be caught here, through the same predicate that write will use.
+    if (targetRequired && !column.required) {
+      const emptyCount = await countEmptyCells(trx, data.tableId, columnKey)
+      if (emptyCount > 0) {
+        throw new Error(
+          `Cannot make column "${column.name}" required: ${emptyCount} row(s) have null, missing, or empty values. Fill them first.`
+        )
+      }
+    }
+
+    if (togglingCardinality || removedAny) {
+      const timeoutMs = scaledStatementTimeoutMs(table.rowCount ?? 0, {
+        baseMs: 60_000,
+        perRowMs: 2,
+      })
+      await setTableTxTimeouts(trx, { statementMs: timeoutMs, idleMs: timeoutMs })
+    }
+
+    // Removal runs FIRST, before the multi→single guard and the shape migration.
+    // Both of those read the cells: the guard would otherwise count options this
+    // same request is dropping, and the migration keeps a multi cell's FIRST
+    // element — which could be a removed id sitting ahead of a kept one, so the
+    // surviving option would be discarded and the dead one kept.
+    //
+    // Cells are still in their pre-toggle shape here, so this passes the CURRENT
+    // cardinality, not the target one.
+    if (removedAny) {
+      // On a required column, clearing is not an option: it would leave rows the
+      // write path rejects, and `updateColumnConstraints` refuses to CREATE that
+      // state, so producing it here would be inconsistent. Make the caller
+      // reassign those rows first.
+      //
+      // Gated on the constraint the column ENDS UP with, which may be arriving
+      // in this same request: validating against the current flag both blocks a
+      // removal paired with `required: false` that is about to be fine, and lets
+      // a removal paired with `required: true` clear cells and then fail the
+      // constraint write, leaving this change committed behind an error.
+      if (targetRequired) {
+        const strandedCount = await countCellsLosingTheirOptions(
+          trx,
+          data.tableId,
+          columnKey,
+          data.options,
+          wasMultiple
+        )
+        if (strandedCount > 0) {
+          throw new Error(
+            `Cannot remove options from required column "${column.name}": ${strandedCount} row(s) would be left empty. Reassign those rows to a remaining option first.`
+          )
+        }
+      }
+      await clearRemovedSelectOptions(trx, data.tableId, columnKey, data.options, wasMultiple)
+    }
+
+    // Switching multiple → single drops all but the first option in any cell
+    // that still holds several — block it rather than silently losing data.
+    // Counted after the removal above, so dropping surplus options and turning
+    // multiselect off in one save is allowed when every cell ends up with one.
+    if (wasMultiple && !nextMultiple) {
+      const rows = await trx
+        .select({ data: userTableRows.data })
+        .from(userTableRows)
+        .where(
+          and(eq(userTableRows.tableId, data.tableId), sql`${userTableRows.data} ? ${columnKey}`)
+        )
+
+      let multiValuedCount = 0
+      for (const row of rows) {
+        const value = (row.data as RowData)[columnKey]
+        if (Array.isArray(value) && value.length > 1) multiValuedCount++
+      }
+
+      if (multiValuedCount > 0) {
+        throw new Error(
+          `Cannot switch column "${column.name}" to single-select: ${multiValuedCount} row(s) have multiple options selected. Reduce them to one option first.`
+        )
+      }
+    }
+
+    // A single↔multi toggle changes the stored shape (scalar id vs array of
+    // ids). Multi filters compile to array containment, which never matches a
+    // scalar, so leaving cells un-normalized would silently drop every
+    // pre-toggle row out of its own column's filters.
+    if (togglingCardinality) {
+      await migrateCellsToSelectIds(trx, data.tableId, columnKey, data.options, nextMultiple)
+    }
+
+    await trx
+      .update(userTableDefinitions)
+      .set({ schema: updatedSchema, updatedAt: now })
+      .where(eq(userTableDefinitions.id, data.tableId))
+
+    logger.info(
+      `[${requestId}] Updated options for column "${column.name}" in table ${data.tableId}`
+    )
+
+    return { ...table, schema: updatedSchema, updatedAt: now }
+  })
+}
+
+/**
+ * Rewrites a column's cells from stored option **ids** to option **names**, for
+ * a column that is ceasing to be a `select`. A multi cell joins comma-separated
+ * — the same shape it exports as.
+ *
+ * An id whose option no longer exists becomes null, matching
+ * {@link selectValueForConversion}, which is what the compatibility check ran
+ * on. Passing it through instead would leave an opaque `opt_…` in a typed cell
+ * the check had already accounted as empty.
+ *
+ * Set-based: one statement per stored shape, driven by a jsonb id→name map, so
+ * cost is independent of row count.
+ */
+async function migrateSelectCellsToNames(
+  trx: DbTransaction,
+  tableId: string,
+  columnKey: string,
+  options: SelectOption[]
+): Promise<void> {
+  const nameById = JSON.stringify(Object.fromEntries(options.map((o) => [o.id, o.name])))
+  await trx.execute(
+    sql`UPDATE ${userTableRows}
+        SET data = jsonb_set(data, ARRAY[${columnKey}::text],
+          COALESCE(${nameById}::jsonb -> (data->>${columnKey}::text), 'null'::jsonb))
+        WHERE table_id = ${tableId}
+          AND jsonb_typeof(data->${columnKey}::text) = 'string'`
+  )
+  await trx.execute(
+    sql`UPDATE ${userTableRows}
+        SET data = jsonb_set(data, ARRAY[${columnKey}::text], COALESCE(to_jsonb((
+              SELECT string_agg(${nameById}::jsonb ->> e.v, ', ' ORDER BY e.ord)
+              FROM jsonb_array_elements_text(data->${columnKey}::text) WITH ORDINALITY AS e(v, ord)
+              WHERE ${nameById}::jsonb ? e.v
+            )), 'null'::jsonb))
+        WHERE table_id = ${tableId}
+          AND jsonb_typeof(data->${columnKey}::text) = 'array'`
+  )
+}
+
+/**
+ * Rewrites a column's cells into the canonical `select` storage shape: the
+ * option **id**, wrapped in an array when the column is `multiple`.
+ *
+ * Needed in both directions of a select change. Converting *to* select, cells
+ * hold option names (that is what made them compatible) but every reader —
+ * pills, filters, exports — resolves by id. Toggling single→multi, cells hold a
+ * scalar id while multi filters compile to array containment, which a scalar
+ * never matches. Either way the cell silently drops out until it is re-edited.
+ *
+ * The map keys ids, names, and lower-cased names — ids so re-running is a no-op,
+ * lower-cased names because `resolveSelectOptionId` accepts a case-mismatched
+ * name and a cell that passed that check must actually migrate. Duplicate option
+ * names are rejected case-insensitively at validation, so the folded key is
+ * unambiguous; lookups still try the exact form first to preserve its precedence.
+ */
+async function migrateCellsToSelectIds(
+  trx: DbTransaction,
+  tableId: string,
+  columnKey: string,
+  options: SelectOption[],
+  multiple: boolean
+): Promise<void> {
+  // Ids are written last so an id always outranks any option's name, matching
+  // `resolveSelectOptionId`'s id-before-name precedence. A single flat pass
+  // would let a later option whose *name* equals an earlier option's *id*
+  // overwrite that id entry and repoint its cells at the wrong option.
+  // A Map, not plain-object assignment: an option named `__proto__` would set
+  // the prototype instead of an own key and drop out of the serialized map.
+  const refs = new Map<string, string>()
+  for (const o of options) {
+    refs.set(o.name.toLowerCase(), o.id)
+    refs.set(o.name, o.id)
+  }
+  for (const o of options) {
+    refs.set(o.id, o.id)
+  }
+  const idByRef = JSON.stringify(Object.fromEntries(refs))
+
+  if (multiple) {
+    // A string cell reaching a multi target is either one option name or the
+    // comma-joined form a multiselect converts to text as. Try the whole string
+    // first so an option whose own name contains a comma still wins, then split
+    // — mirroring `splitMultiSelectInput` on the write path, including its
+    // first-occurrence dedup.
+    await trx.execute(
+      sql`UPDATE ${userTableRows}
+          SET data = jsonb_set(data, ARRAY[${columnKey}::text],
+            CASE WHEN data->>${columnKey}::text = '' THEN '[]'::jsonb
+                 WHEN COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text)) IS NOT NULL
+                   THEN jsonb_build_array(COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text)))
+                 ELSE COALESCE((
+                   SELECT jsonb_agg(v ORDER BY ord) FROM (
+                     SELECT COALESCE(${idByRef}::jsonb -> btrim(part), ${idByRef}::jsonb -> lower(btrim(part)), to_jsonb(btrim(part))) AS v,
+                            min(o) AS ord
+                     FROM unnest(string_to_array(data->>${columnKey}::text, ',')) WITH ORDINALITY AS u(part, o)
+                     WHERE btrim(part) <> ''
+                     GROUP BY 1
+                   ) d), '[]'::jsonb)
+            END)
+          WHERE table_id = ${tableId}
+            AND jsonb_typeof(data->${columnKey}::text) = 'string'`
+    )
+    await trx.execute(
+      sql`UPDATE ${userTableRows}
+          SET data = jsonb_set(data, ARRAY[${columnKey}::text], COALESCE((
+                SELECT jsonb_agg(COALESCE(${idByRef}::jsonb -> e.v, ${idByRef}::jsonb -> lower(e.v), to_jsonb(e.v)) ORDER BY e.ord)
+                FROM jsonb_array_elements_text(data->${columnKey}::text) WITH ORDINALITY AS e(v, ord)
+              ), '[]'::jsonb))
+          WHERE table_id = ${tableId}
+            AND jsonb_typeof(data->${columnKey}::text) = 'array'`
+    )
+    return
+  }
+
+  // A cleared cell is stored as '' — compatibility lets it through, so it has
+  // to land as null rather than an '' that fails option membership on the next
+  // write.
+  await trx.execute(
+    sql`UPDATE ${userTableRows}
+        SET data = jsonb_set(data, ARRAY[${columnKey}::text],
+          CASE WHEN data->>${columnKey}::text = '' THEN 'null'::jsonb
+               ELSE COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text), data->${columnKey}::text)
+          END)
+        WHERE table_id = ${tableId}
+          AND jsonb_typeof(data->${columnKey}::text) = 'string'`
+  )
+  // Compatibility already rejected multi-valued cells for a single target, so
+  // any array here holds at most one option.
+  await trx.execute(
+    sql`UPDATE ${userTableRows}
+        SET data = jsonb_set(data, ARRAY[${columnKey}::text],
+          COALESCE(${idByRef}::jsonb -> (data->${columnKey}::text->>0), ${idByRef}::jsonb -> lower(data->${columnKey}::text->>0), data->${columnKey}::text->0, 'null'::jsonb))
+        WHERE table_id = ${tableId}
+          AND jsonb_typeof(data->${columnKey}::text) = 'array'`
+  )
+}
+
+/**
+ * Rows whose cell counts as empty for a `required` constraint: the key is
+ * missing, the value is JSON null, or it is an emptied multiselect `[]`.
+ *
+ * Single source of truth. `updateColumnType`'s pre-flight and
+ * `updateColumnConstraints` both ask this question, and they run as separate
+ * transactions — when the two definitions drifted, a combined type+required
+ * request passed the first check, committed the conversion, and only then
+ * failed the constraint write.
+ */
+async function countEmptyCells(
+  trx: DbTransaction,
+  tableId: string,
+  columnKey: string
+): Promise<number> {
+  const [result] = await trx
+    .select({ count: count() })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.tableId, tableId),
+        sql`(NOT (${userTableRows.data} ? ${columnKey})
+             OR ${userTableRows.data}->>${columnKey}::text IS NULL
+             OR ${userTableRows.data}->${columnKey}::text = '[]'::jsonb)`
+      )
+    )
+  return result?.count ?? 0
+}
+
+/**
+ * Rows that removing these options would leave with no selection at all — a
+ * single cell holding a removed id, or a multi cell whose every element is
+ * being removed. Rows that keep at least one option are unaffected.
+ */
+async function countCellsLosingTheirOptions(
+  trx: DbTransaction,
+  tableId: string,
+  columnKey: string,
+  options: SelectOption[],
+  multiple: boolean
+): Promise<number> {
+  const keptIds = JSON.stringify(options.map((o) => o.id))
+
+  if (multiple) {
+    const [result] = await trx
+      .select({ count: count() })
+      .from(userTableRows)
+      .where(
+        and(
+          eq(userTableRows.tableId, tableId),
+          sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'array'`,
+          sql`${userTableRows.data}->${columnKey}::text <> '[]'::jsonb`,
+          // The type guard above is not ordered against this predicate, so the
+          // element expansion has to guard its own argument — otherwise a scalar
+          // cell left over from a single→multi toggle raises "cannot get array
+          // length of a scalar" before the guard is ever applied.
+          sql`NOT EXISTS (
+                SELECT 1 FROM jsonb_array_elements_text(
+                  CASE WHEN jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'array'
+                       THEN ${userTableRows.data}->${columnKey}::text ELSE '[]'::jsonb END
+                ) e
+                WHERE ${keptIds}::jsonb @> jsonb_build_array(e)
+              )`
+        )
+      )
+    return result?.count ?? 0
+  }
+
+  const [result] = await trx
+    .select({ count: count() })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.tableId, tableId),
+        sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'string'`,
+        sql`${userTableRows.data}->>${columnKey}::text <> ''`,
+        sql`NOT (${keptIds}::jsonb @> jsonb_build_array(${userTableRows.data}->${columnKey}::text))`
+      )
+    )
+  return result?.count ?? 0
+}
+
+/**
+ * Clears stored ids that are no longer in a `select` column's option set.
+ *
+ * A single cell holding a removed option becomes null; a multi cell drops just
+ * the removed elements. Kept set-based off a jsonb array of the surviving ids.
+ */
+async function clearRemovedSelectOptions(
+  trx: DbTransaction,
+  tableId: string,
+  columnKey: string,
+  options: SelectOption[],
+  multiple: boolean
+): Promise<void> {
+  const keptIds = JSON.stringify(options.map((o) => o.id))
+
+  if (multiple) {
+    await trx.execute(
+      sql`UPDATE ${userTableRows}
+          SET data = jsonb_set(data, ARRAY[${columnKey}::text], COALESCE((
+                SELECT jsonb_agg(e.v ORDER BY e.ord)
+                FROM jsonb_array_elements(data->${columnKey}::text) WITH ORDINALITY AS e(v, ord)
+                WHERE ${keptIds}::jsonb @> jsonb_build_array(e.v)
+              ), '[]'::jsonb))
+          WHERE table_id = ${tableId}
+            AND jsonb_typeof(data->${columnKey}::text) = 'array'
+            AND NOT (${keptIds}::jsonb @> (data->${columnKey}::text))`
+    )
+    return
+  }
+
+  await trx.execute(
+    sql`UPDATE ${userTableRows}
+        SET data = jsonb_set(data, ARRAY[${columnKey}::text], 'null'::jsonb)
+        WHERE table_id = ${tableId}
+          AND jsonb_typeof(data->${columnKey}::text) = 'string'
+          AND data->>${columnKey}::text <> ''
+          AND NOT (${keptIds}::jsonb @> jsonb_build_array(data->${columnKey}::text))`
+  )
+}
+
+/**
+ * The value a `select` cell becomes when its column converts to another type:
+ * the option **name**, since the stored id is meaningless outside the column.
+ * Multi-select flattens to a comma-joined string — the same shape a multi cell
+ * exports as — and an empty or fully-orphaned cell becomes null.
+ */
+export function selectValueForConversion(column: ColumnDefinition, value: unknown): JsonValue {
+  const names = selectValueToNames(column, value)
+  if (Array.isArray(names)) return names.length > 0 ? names.join(', ') : null
+  return names
+}
+
+/**
+ * Checks if a value is compatible with a target column type. For `select`,
+ * `targetOptions` is the option set the column will carry after the change: a
+ * value is compatible only if every part of it resolves to one of those options
+ * (by id or name). This blocks a conversion that would otherwise strand or
+ * silently drop values on the next row write.
+ *
+ * Callers converting *away* from `select` must pass the resolved option
+ * name(s), not the stored ids — see {@link selectValueForConversion}.
+ */
+export function isValueCompatibleWithType(
   value: unknown,
-  targetType: (typeof COLUMN_TYPES)[number]
+  targetType: (typeof COLUMN_TYPES)[number],
+  targetOptions: SelectOption[] = [],
+  targetMultiple = false,
+  targetRequired = false
 ): boolean {
   if (value === null || value === undefined) return true
 
   switch (targetType) {
     case 'string':
-      return true
+      // Arrays and objects can't become text — the write-path coercion rejects
+      // them and would null the cell. Multi-select values are flattened before
+      // this check, so anything still structured here is genuinely lossy.
+      return typeof value !== 'object'
+    case 'select': {
+      // A cleared select cell is written as '' — still convertible, unless the
+      // target is required. Required only rejects null/undefined on a write, so
+      // a required string column legitimately holds ''; the migration turns that
+      // into null (or [] for a multi), and every later update of that row would
+      // then fail its own required check.
+      if (value === '') return !targetRequired
+      // Read the value exactly as the write-path coercion will. A multi target
+      // splits a comma-delimited string, so a multiselect → text → multiselect
+      // round-trip (text holding this feature's own `Bug, Docs` export shape)
+      // stays convertible instead of being rejected as one unknown option.
+      const parts = targetMultiple
+        ? splitMultiSelectInput(value as JsonValue)
+        : Array.isArray(value)
+          ? value
+          : [value]
+      // A single-select target can't hold several options. `updateColumnOptions`
+      // blocks the same transition; without this the next coerce would silently
+      // keep only the first id.
+      if (!targetMultiple && parts.length > 1) return false
+      return parts.every((v) => resolveSelectOptionId(v as JsonValue, targetOptions) !== null)
+    }
     case 'number': {
       if (typeof value === 'number') return Number.isFinite(value)
       if (typeof value === 'string') {

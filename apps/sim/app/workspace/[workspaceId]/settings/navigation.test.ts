@@ -35,10 +35,10 @@ describe('unified settings navigation', () => {
       { id: 'apikeys', label: 'Sim API keys', section: 'system' },
       { id: 'workflow-mcp-servers', label: 'MCP servers', section: 'system' },
       { id: 'byok', label: 'BYOK', section: 'system' },
-      { id: 'copilot', label: 'Chat keys', section: 'system' },
       { id: 'inbox', label: 'Sim mailer', section: 'system' },
       { id: 'recently-deleted', label: 'Recently deleted', section: 'system' },
       { id: 'sso', label: 'Single sign-on', section: 'enterprise' },
+      { id: 'sessions', label: 'Session policies', section: 'enterprise' },
       { id: 'data-retention', label: 'Data retention', section: 'enterprise' },
       { id: 'data-drains', label: 'Data drains', section: 'enterprise' },
       { id: 'whitelabeling', label: 'Whitelabeling', section: 'enterprise' },
@@ -49,10 +49,12 @@ describe('unified settings navigation', () => {
   })
 
   it('derives every unified item from exactly one registry entry', () => {
-    expect(allNavigationItems).toHaveLength(SETTINGS_SECTION_REGISTRY.length)
+    expect(allNavigationItems).toHaveLength(
+      SETTINGS_SECTION_REGISTRY.filter(({ unified }) => unified).length
+    )
     for (const item of allNavigationItems) {
       expect(
-        SETTINGS_SECTION_REGISTRY.filter(({ unified }) => unified.id === item.id)
+        SETTINGS_SECTION_REGISTRY.filter(({ unified }) => unified?.id === item.id)
       ).toHaveLength(1)
     }
   })

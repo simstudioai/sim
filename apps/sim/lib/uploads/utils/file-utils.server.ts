@@ -20,6 +20,7 @@ import {
   getMimeTypeFromExtension,
   inferContextFromKey,
   isInternalFileUrl,
+  isRenderableDocumentName,
   processSingleFileToUserFile,
   type RawFileInput,
   resolveTrustedFileContext,
@@ -375,8 +376,8 @@ export async function downloadServableFileFromStorage(
 
   // Cheap pre-filter so only generated-doc candidates pay for the heavier resolver
   // import below.
-  const ext = getFileExtension(userFile.name)
-  if (ext !== 'pdf' && ext !== 'docx' && ext !== 'pptx' && ext !== 'xlsx') {
+  if (!isRenderableDocumentName(userFile.name)) {
+    const ext = getFileExtension(userFile.name)
     return { buffer, contentType: userFile.type || getMimeTypeFromExtension(ext) }
   }
 

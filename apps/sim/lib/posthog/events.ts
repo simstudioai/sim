@@ -213,6 +213,16 @@ export interface PostHogEventMap {
     source?: 'settings' | 'tool_input'
   }
 
+  skill_shared: {
+    skill_id: string
+    workspace_id: string
+  }
+
+  skill_unshared: {
+    skill_id: string
+    workspace_id: string
+  }
+
   workspace_deleted: {
     workspace_id: string
     workflow_count: number
@@ -380,7 +390,7 @@ export interface PostHogEventMap {
   }
 
   settings_tab_viewed: {
-    plane: 'account' | 'organization' | 'workspace'
+    plane: 'account' | 'organization' | 'selfhost' | 'workspace'
     section: string
   }
 
@@ -545,6 +555,10 @@ export interface PostHogEventMap {
   docs_opened: {
     source: 'help_menu' | 'editor_button' | 'toolbar_context_menu'
     block_type?: string
+  }
+
+  slack_community_opened: {
+    source: 'help_menu'
   }
 
   search_result_selected: {

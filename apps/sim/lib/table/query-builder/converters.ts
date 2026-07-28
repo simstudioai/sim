@@ -4,7 +4,13 @@
 
 import { generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
+import { columnMatchesRef } from '@/lib/table/column-keys'
+import {
+  MULTI_SELECT_FILTER_OPERATORS,
+  SINGLE_SELECT_FILTER_OPERATORS,
+} from '@/lib/table/query-builder/constants'
 import type {
+  ColumnDefinition,
   Filter,
   FilterRule,
   JsonValue,
@@ -13,8 +19,18 @@ import type {
   SortRule,
 } from '@/lib/table/types'
 
-/** Converts UI filter rules to a Filter object for API queries. */
-export function filterRulesToFilter(rules: FilterRule[]): Filter | null {
+/**
+ * Converts UI filter rules to a Filter object for API queries.
+ *
+ * Pass `columns` whenever they are known. A `select` value is an opaque option
+ * id, and ids are caller-supplied strings — an id of `"1"`, `"true"` or
+ * `"null"` would otherwise be coerced to a number/boolean/null and then compared
+ * against the stored JSON string by containment, matching nothing.
+ */
+export function filterRulesToFilter(
+  rules: FilterRule[],
+  columns: ColumnDefinition[] = []
+): Filter | null {
   if (rules.length === 0) return null
 
   const orGroups: Filter[] = []
@@ -34,7 +50,8 @@ export function filterRulesToFilter(rules: FilterRule[]): Filter | null {
     // applied; the row just contributes no condition.
     if (!rule.column) continue
 
-    const ruleValue = toRuleValue(rule.operator, rule.value)
+    const isSelect = columns.find((c) => columnMatchesRef(c, rule.column))?.type === 'select'
+    const ruleValue = toRuleValue(rule.operator, rule.value, isSelect)
     const existing = currentGroup[rule.column]
     currentGroup[rule.column] =
       existing === undefined
@@ -61,6 +78,38 @@ export function filterToRules(filter: Filter | null): FilterRule[] {
   }
 
   return parseFilterGroup(filter)
+}
+
+/**
+ * Drops filter conditions a `select` column no longer accepts.
+ *
+ * The server rejects an unsupported operator on a select column outright, so a
+ * filter applied before a column became `select` — or before its `multiple`
+ * flag flipped — would make every subsequent query throw and leave the grid
+ * stuck until the user cleared the filter by hand. Pruning the dead condition
+ * instead degrades to a broader result set, which is recoverable.
+ *
+ * Only conditions on a column we can positively identify as `select` are
+ * dropped; an unresolved column name is left for the server to judge.
+ */
+export function pruneFilterForColumns(
+  filter: Filter | null,
+  columns: ColumnDefinition[]
+): Filter | null {
+  if (!filter) return null
+
+  const rules = filterToRules(filter)
+  const kept = rules.filter((rule) => {
+    const column = columns.find((c) => columnMatchesRef(c, rule.column))
+    if (column?.type !== 'select') return true
+    const allowed = column.multiple ? MULTI_SELECT_FILTER_OPERATORS : SINGLE_SELECT_FILTER_OPERATORS
+    return allowed.has(rule.operator)
+  })
+
+  if (kept.length === rules.length) return filter
+  // Columns forwarded: the round-trip through rules would otherwise re-coerce a
+  // select option id like `"1"` into a number on the way back out.
+  return filterRulesToFilter(kept, columns)
 }
 
 /** Converts a single UI sort rule to a Sort object for API queries. */
@@ -94,10 +143,10 @@ export function sortToRules(sort: Sort | null): SortRule[] {
   }))
 }
 
-function toRuleValue(operator: string, value: string): JsonValue {
+function toRuleValue(operator: string, value: string, keepAsText = false): JsonValue {
   if (operator === 'isEmpty') return { $empty: true }
   if (operator === 'isNotEmpty') return { $empty: false }
-  const parsedValue = parseValue(value, operator)
+  const parsedValue = parseValue(value, operator, keepAsText)
   return operator === 'eq' ? parsedValue : { [`$${operator}`]: parsedValue }
 }
 
@@ -143,13 +192,17 @@ function applyLogicalOperators(groups: FilterRule[][]): FilterRule[] {
 const ARRAY_OPERATORS = new Set(['in', 'nin'])
 const TEXT_MATCH_OPERATORS = new Set(['contains', 'ncontains', 'startsWith', 'endsWith'])
 
-function parseValue(value: string, operator: string): JsonValue {
+function parseValue(value: string, operator: string, keepAsText = false): JsonValue {
   if (ARRAY_OPERATORS.has(operator)) {
     return value
       .split(',')
       .map((part) => part.trim())
-      .map((part) => parseScalar(part))
+      .map((part) => (keepAsText ? part : parseScalar(part)))
   }
+
+  // An opaque identifier (a select option id) must never be coerced — see
+  // `filterRulesToFilter`.
+  if (keepAsText) return value
 
   // Substring/prefix/suffix matches are textual — keep the raw string so a value
   // like "123" isn't coerced to a number the SQL builder's ILIKE path can't use.

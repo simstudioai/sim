@@ -35,13 +35,6 @@ vi.mock('@sim/db', () => ({
   workflowSchedule: {},
 }))
 
-vi.mock('drizzle-orm', () => ({
-  eq: vi.fn(),
-  and: vi.fn(),
-  isNull: vi.fn(),
-  sql: Object.assign(vi.fn(), { raw: vi.fn() }),
-}))
-
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)

@@ -41,7 +41,17 @@ export interface PlusMenuHandle {
   open: (anchor: { left: number; top: number }, options?: { mention?: boolean }) => void
   close: () => void
   moveActive: (delta: number) => void
-  selectActive: () => boolean
+  /**
+   * Confirms the highlighted candidate.
+   *
+   * - `selected` — a candidate was inserted.
+   * - `empty` — the lists are loaded and nothing matches, so the caller should
+   *   let the key through (Enter submits, Tab does its default).
+   * - `hydrating` — the lists are still loading, so "nothing matches" is not yet
+   *   knowable. The caller must swallow the key rather than submit a message
+   *   with the mention left as raw text.
+   */
+  selectActive: () => 'selected' | 'empty' | 'hydrating'
 }
 
 /**

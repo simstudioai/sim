@@ -55,7 +55,7 @@ const KNOWLEDGE_CONFIG: SolutionsPageConfig = {
   rows: [
     {
       id: 'memory',
-      title: 'Give agents memory of your data.',
+      title: 'Give AI agents memory of your data.',
       subtitle:
         'Sim turns your docs and sources into searchable memory every agent can read, so answers come from your data instead of guesswork.',
       cta: { label: 'Explore Knowledge Base', href: '/signup' },

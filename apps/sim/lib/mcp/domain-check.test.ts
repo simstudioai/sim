@@ -1,20 +1,17 @@
 /**
  * @vitest-environment node
  */
-import { inputValidationMock, inputValidationMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  envFlagsMockFns,
+  inputValidationMock,
+  inputValidationMockFns,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetAllowedMcpDomainsFromEnv, mockDnsLookup, hostedFlag } = vi.hoisted(() => ({
-  mockGetAllowedMcpDomainsFromEnv: vi.fn<() => string[] | null>(),
+const { mockDnsLookup } = vi.hoisted(() => ({
   mockDnsLookup: vi.fn(),
-  hostedFlag: { value: false },
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  getAllowedMcpDomainsFromEnv: mockGetAllowedMcpDomainsFromEnv,
-  get isHosted() {
-    return hostedFlag.value
-  },
 }))
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
@@ -47,6 +44,10 @@ import {
   validateMcpDomain,
   validateMcpServerSsrf,
 } from './domain-check'
+
+const mockGetAllowedMcpDomainsFromEnv = envFlagsMockFns.getAllowedMcpDomainsFromEnv
+
+afterAll(resetEnvFlagsMock)
 
 describe('McpDomainNotAllowedError', () => {
   it.concurrent('creates error with correct name and message', () => {
@@ -335,7 +336,7 @@ describe('validateMcpServerSsrf', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetAllowedMcpDomainsFromEnv.mockReturnValue(null)
-    hostedFlag.value = false
+    setEnvFlags({ isHosted: false })
   })
 
   it('returns null for undefined URL', async () => {
@@ -453,7 +454,7 @@ describe('validateMcpServerSsrf', () => {
 
   describe('hosted environment', () => {
     beforeEach(() => {
-      hostedFlag.value = true
+      setEnvFlags({ isHosted: true })
     })
 
     it('rejects localhost URLs on hosted', async () => {
@@ -515,7 +516,7 @@ describe('validateMcpServerSsrf', () => {
 
   describe('self-hosted environment (regression)', () => {
     beforeEach(() => {
-      hostedFlag.value = false
+      setEnvFlags({ isHosted: false })
     })
 
     it('still allows localhost URLs (returns null, no pinning needed)', async () => {

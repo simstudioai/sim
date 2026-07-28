@@ -3876,7 +3876,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             column: {
               type: 'object',
-              description: 'Column definition for add_column: { name, type, unique?, position? }',
+              description:
+                'Column definition for add_column: { name, type, unique?, position? }. For a select (enum) column also pass { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select.',
             },
             columnName: {
               type: 'string',
@@ -4003,6 +4004,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 "Import mode for import_file. 'append' (default) adds rows; 'replace' truncates existing rows in a transaction before inserting the new rows.",
               enum: ['append', 'replace'],
             },
+            multiple: {
+              type: 'boolean',
+              description:
+                'Whether a select (enum) cell may hold several options (default false). Switching an existing column from true to false fails if any row has more than one option selected.',
+            },
             name: {
               type: 'string',
               description:
@@ -4016,11 +4022,19 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             newType: {
               type: 'string',
               description:
-                'New column type (optional for update_column). Types: string, number, boolean, date, json',
+                "New column type (optional for update_column). Types: string, number, boolean, date, json, select. Converting a column to select also requires options; the conversion fails if any existing cell value doesn't match one of them.",
             },
             offset: {
               type: 'number',
               description: 'Number of rows to skip (optional for query_rows, default 0)',
+            },
+            options: {
+              type: 'array',
+              description:
+                'Choices for a select (enum) column, as a list of display names, e.g. ["Open", "Closed"]. Required when creating or converting to a select column. On update_column this REPLACES the option list: options kept by name keep their cells, and cells holding a removed option are cleared. Max 100.',
+              items: {
+                type: 'string',
+              },
             },
             outputColumnNames: {
               type: 'object',
@@ -4114,7 +4128,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             schema: {
               type: 'object',
               description:
-                "Table schema with columns array (required for 'create'). Each column: { name, type, unique? }",
+                'Table schema with columns array (required for \'create\'). Each column: { name, type, unique? }. A select (enum) column also takes { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select.',
             },
             scope: {
               type: 'string',

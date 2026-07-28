@@ -4,33 +4,22 @@
 import {
   auditMock,
   createMockRequest,
+  dbChainMockFns,
   hybridAuthMockFns,
   knowledgeApiUtilsMock,
   knowledgeApiUtilsMockFns,
   requestUtilsMockFns,
+  resetDbChainMock,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDispatchSync, mockDbChain, mockResolveBillingAttribution } = vi.hoisted(() => {
-  const chain = {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    orderBy: vi.fn().mockResolvedValue([]),
-    limit: vi.fn().mockResolvedValue([]),
-    update: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
-  }
-  return {
-    mockDispatchSync: vi.fn().mockResolvedValue(undefined),
-    mockDbChain: chain,
-    mockResolveBillingAttribution: vi.fn(),
-  }
-})
+const { mockDispatchSync, mockResolveBillingAttribution } = vi.hoisted(() => ({
+  mockDispatchSync: vi.fn().mockResolvedValue(undefined),
+  mockResolveBillingAttribution: vi.fn(),
+}))
 
 const mockCheckWriteAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseWriteAccess
 
-vi.mock('@sim/db', () => ({ db: mockDbChain }))
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   requireBillingAttributionHeader: vi.fn(),
@@ -48,14 +37,12 @@ describe('Connector Manual Sync API Route', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('test-req-id')
-    mockDbChain.select.mockReturnThis()
-    mockDbChain.from.mockReturnThis()
-    mockDbChain.where.mockReturnThis()
-    mockDbChain.orderBy.mockResolvedValue([])
-    mockDbChain.limit.mockResolvedValue([])
-    mockDbChain.update.mockReturnThis()
-    mockDbChain.set.mockReturnThis()
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('returns 401 when unauthenticated', async () => {
@@ -76,7 +63,7 @@ describe('Connector Manual Sync API Route', () => {
       userId: 'user-1',
     })
     mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
-    mockDbChain.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValueOnce([])
 
     const req = createMockRequest('POST')
     const response = await POST(req as never, { params: mockParams })
@@ -90,7 +77,7 @@ describe('Connector Manual Sync API Route', () => {
       userId: 'user-1',
     })
     mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
-    mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456', status: 'syncing' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-456', status: 'syncing' }])
 
     const req = createMockRequest('POST')
     const response = await POST(req as never, { params: mockParams })
@@ -122,7 +109,7 @@ describe('Connector Manual Sync API Route', () => {
       hasAccess: true,
       knowledgeBase: { workspaceId: 'ws-1', name: 'Test KB' },
     })
-    mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456', status: 'active' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-456', status: 'active' }])
     mockResolveBillingAttribution.mockResolvedValue(billingAttribution)
 
     const req = createMockRequest('POST')
@@ -166,7 +153,7 @@ describe('Connector Manual Sync API Route', () => {
       hasAccess: true,
       knowledgeBase: { workspaceId: 'ws-1', name: 'Test KB' },
     })
-    mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456', status: 'active' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-456', status: 'active' }])
     mockResolveBillingAttribution.mockResolvedValue(billingAttribution)
 
     const req = createMockRequest(

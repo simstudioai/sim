@@ -212,7 +212,7 @@ export const {Service}Block: BlockConfig = {
 ```typescript
 // Basic: Visual selector
 {
-  id: 'channel',
+  id: 'channelSelector',
   type: 'channel-selector',
   mode: 'basic',
   canonicalParamId: 'channel',
@@ -227,10 +227,19 @@ export const {Service}Block: BlockConfig = {
 }
 ```
 
+Note neither subblock `id` is `channel` — the canonical id is a third name that both members map
+onto, and it is the only one that survives serialization.
+
 **Critical Canonical Param Rules:**
 - `canonicalParamId` must NOT match any subblock's `id` in the block
-- `canonicalParamId` must be unique per operation/condition context
-- Only use `canonicalParamId` to link basic/advanced alternatives for the same logical parameter
+- `canonicalParamId` must be unique **block-wide**, not per operation. `buildCanonicalIndex` keys
+  groups by `canonicalParamId` across all subblocks and a group holds exactly one `basicId`, so two
+  operations that each need their own pair must use two different canonical ids
+- Only use `canonicalParamId` to link basic/advanced alternatives for the same logical parameter.
+  A pair carries ONE concept — for files that means upload (basic) + file reference (advanced), as
+  in Gmail attachments (`blocks/blocks/gmail.ts`). Never overload the advanced side with alternate
+  identifiers like a URL or a provider asset ID; give those their own subblocks, mark all the
+  mutually exclusive sources `required: false`, and enforce "exactly one" at execution
 - `mode` only controls UI visibility, NOT serialization. Without `canonicalParamId`, both basic and advanced field values would be sent
 - Every subblock `id` must be unique within the block. Duplicate IDs cause conflicts even with different conditions
 - **Required consistency:** If one subblock in a canonical group has `required: true`, ALL subblocks in that group must have `required: true` (prevents bypassing validation by switching modes)

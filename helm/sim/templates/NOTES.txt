@@ -46,7 +46,7 @@ Your release is named {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
 
 3. Required secrets:
 
-   Sim requires three application secrets and a Postgres password to start.
+   Sim requires four application secrets and a Postgres password to start.
    {{- if .Values.externalSecrets.enabled }}
 
    Using External Secrets Operator. Verify the ExternalSecret has synced:
@@ -86,9 +86,9 @@ Your release is named {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
 
 5. Upgrade notes (read before upgrading from a chart version released before this one):
 
-   * externalSecrets.apiVersion default is "v1beta1" (was "v1"). v1beta1 is
-     supported by every ESO release from v0.7+ through current. If you're on
-     ESO v0.17+ and want the graduated v1 API, set externalSecrets.apiVersion: "v1".
+   * externalSecrets.apiVersion defaults to "v1". Current ESO releases no
+     longer serve v1beta1 (the compatibility path was removed in 2026) — set
+     externalSecrets.apiVersion: "v1beta1" only if you still run ESO < 0.17.
    * networkPolicy.egress remains a list of custom egress rules (unchanged).
      Cloud-metadata CIDR blocking is now configured via networkPolicy.egressExceptCidrs
      (defaults to AWS/GCP/Azure IMDS + ECS task metadata).

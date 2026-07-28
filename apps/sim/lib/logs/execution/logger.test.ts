@@ -1,36 +1,10 @@
-import { envFlagsMock } from '@sim/testing'
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { usageLog, workflow } from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { ExecutionLogger } from '@/lib/logs/execution/logger'
 
-const dbSelectMock = vi.hoisted(() => vi.fn())
-const dbExecuteMock = vi.hoisted(() => vi.fn())
-const txUpdateMock = vi.hoisted(() =>
-  vi.fn(() => ({ set: () => ({ where: () => Promise.resolve() }) }))
-)
-
-vi.mock('@sim/db', () => {
-  // The reconcile runs inside db.transaction with an advisory lock. The tx
-  // shares dbSelectMock so the existing call-order seeding (call 1 = workflow
-  // row via .limit, call 2 = already-billed via .groupBy) still applies;
-  // tx.execute (set_config + pg_advisory_xact_lock) is a no-op; tx.update backs
-  // the exact cost_total refine.
-  const tx = {
-    select: dbSelectMock,
-    insert: vi.fn(),
-    update: txUpdateMock,
-    execute: dbExecuteMock,
-  }
-  return {
-    db: {
-      select: dbSelectMock,
-      insert: vi.fn(),
-      update: vi.fn(),
-      execute: dbExecuteMock,
-      transaction: vi.fn(async (cb: (txArg: typeof tx) => Promise<unknown>) => cb(tx)),
-    },
-  }
-})
+afterAll(resetDbChainMock)
 
 // Mock billing modules
 vi.mock('@/lib/billing/core/subscription', () => ({
@@ -96,8 +70,6 @@ vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillPayerOverageThreshold: vi.fn(() => Promise.resolve()),
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
-
 // Mock security module
 vi.mock('@/lib/core/security/redaction', () => ({
   redactApiKeys: vi.fn((data) => data),
@@ -146,6 +118,7 @@ describe('ExecutionLogger', () => {
   beforeEach(() => {
     logger = new ExecutionLogger()
     vi.clearAllMocks()
+    resetDbChainMock()
   })
 
   describe('class instantiation', () => {
@@ -546,6 +519,7 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
   beforeEach(() => {
     logger = new ExecutionLogger() as any
     vi.clearAllMocks()
+    resetDbChainMock()
   })
 
   const costSummary = (overrides: Record<string, unknown> = {}) => ({
@@ -568,22 +542,12 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     },
   }
 
-  // db.select() is called twice in recordExecutionUsage: first the workflow row
-  // (terminated by .limit), then the already-billed usage_log rows (terminated
-  // by .groupBy). Return each in order.
+  // recordExecutionUsage reads two tables: the workflow row (from(workflow)
+  // ... .limit(1)), then the already-billed usage_log rows (from(usageLog)
+  // ... .groupBy(...)). Route each result set by its table.
   const mockDb = (billedRows: Array<Record<string, unknown>>) => {
-    let call = 0
-    dbSelectMock.mockImplementation(() => {
-      call += 1
-      const rows = call === 1 ? [{ id: 'workflow-1', workspaceId: 'ws-1' }] : billedRows
-      const chain: any = {
-        from: () => chain,
-        where: () => chain,
-        limit: () => Promise.resolve(rows),
-        groupBy: () => Promise.resolve(rows),
-      }
-      return chain
-    })
+    queueTableRows(workflow, [{ id: 'workflow-1', workspaceId: 'ws-1' }])
+    queueTableRows(usageLog, billedRows)
   }
 
   const run = (
@@ -636,12 +600,12 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     // Returns the amount recorded at this boundary (drives threshold-email math).
     expect(recorded).toBeCloseTo(1.005, 8)
     // cost_total is refined to the exact ledger sum inside the locked tx.
-    expect(txUpdateMock).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
   })
 
   test('leaves Mothership model spend to cumulative update-cost while ledgering ordinary models', async () => {
     const setCostTotalMock = vi.fn(() => ({ where: () => Promise.resolve() }))
-    txUpdateMock.mockImplementationOnce(() => ({ set: setCostTotalMock }))
+    dbChainMockFns.update.mockReturnValueOnce({ set: setCostTotalMock })
 
     const recorded = await run(
       costSummary({
@@ -935,7 +899,7 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     )
 
     // set_config('lock_timeout') + pg_advisory_xact_lock both run on the tx.
-    expect(dbExecuteMock).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(2)
     expect(recordUsage).toHaveBeenCalledTimes(1)
     // The ledger INSERT participates in the locked transaction.
     expect(vi.mocked(recordUsage).mock.calls[0][0]).toHaveProperty('tx')

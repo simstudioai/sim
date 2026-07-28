@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { dbFor } from '@sim/db'
 import { copilotChats, copilotMessages, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, inArray, isNull } from 'drizzle-orm'
@@ -9,6 +9,9 @@ import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 
 const logger = createLogger('ChatCleanup')
+
+/** Chat cleanup only ever runs from cleanup jobs, so its reads use the cleanup pool. */
+const cleanupDb = dbFor('cleanup')
 
 const COPILOT_CLEANUP_BATCH_SIZE = 1000
 /** Bounds how many chats' `copilot_messages` rows are scanned per query. */
@@ -42,7 +45,7 @@ export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
 
   for (const chunk of chunkArray(chatIds, CHAT_FILE_COLLECT_CHUNK_SIZE)) {
     const [linkedFiles, messageRows] = await Promise.all([
-      db
+      cleanupDb
         .select({
           key: workspaceFiles.key,
           context: workspaceFiles.context,
@@ -58,7 +61,7 @@ export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
         ),
       // Scan every message row for the chat (no deleted_at filter): this is a
       // deletion path collecting blob keys, so attachments on any row count.
-      db
+      cleanupDb
         .select({ content: copilotMessages.content, chatId: copilotMessages.chatId })
         .from(copilotMessages)
         .where(inArray(copilotMessages.chatId, chunk)),
@@ -205,7 +208,7 @@ export async function prepareChatCleanup(
       // whose rows are actually gone, so a surviving row never loses its data.
       const survivors = new Set<string>()
       for (const chunk of chunkArray(chatIds, CHAT_FILE_COLLECT_CHUNK_SIZE)) {
-        const rows = await db
+        const rows = await cleanupDb
           .select({ id: copilotChats.id })
           .from(copilotChats)
           .where(inArray(copilotChats.id, chunk))

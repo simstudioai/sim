@@ -3,26 +3,14 @@
  *
  * @vitest-environment node
  */
-import { auditMock, authMockFns, createMockRequest, knowledgeApiUtilsMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockDbChain } = vi.hoisted(() => {
-  const mockDbChain = {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
-    update: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
-    delete: vi.fn().mockReturnThis(),
-    transaction: vi.fn(),
-  }
-  return { mockDbChain }
-})
-
-vi.mock('@sim/db', () => ({
-  db: mockDbChain,
-}))
+import {
+  auditMock,
+  authMockFns,
+  createMockRequest,
+  knowledgeApiUtilsMock,
+  resetDbChainMock,
+} from '@sim/testing'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 
@@ -82,20 +70,9 @@ describe('Document By ID API Route', () => {
     deletedAt: null,
   }
 
-  const resetMocks = () => {
-    vi.clearAllMocks()
-    Object.values(mockDbChain).forEach((fn) => {
-      if (typeof fn === 'function') {
-        fn.mockClear().mockReset()
-        if (fn !== mockDbChain.transaction) {
-          fn.mockReturnThis()
-        }
-      }
-    })
-  }
-
   beforeEach(() => {
-    resetMocks()
+    vi.clearAllMocks()
+    resetDbChainMock()
 
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('mock-uuid-1234-5678'),
@@ -104,6 +81,10 @@ describe('Document By ID API Route', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   describe('GET /api/knowledge/[id]/documents/[documentId]', () => {

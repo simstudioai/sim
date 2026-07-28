@@ -2,11 +2,9 @@
  * @vitest-environment node
  */
 import {
-  authMock,
   authMockFns,
   createMockRequest,
   createSession,
-  dbChainMock,
   dbChainMockFns,
   resetDbChainMock,
 } from '@sim/testing'
@@ -17,9 +15,6 @@ const { mockAcquireOrganizationMutationLock, mockAssertNoUnresolvedEnterpriseIss
     mockAcquireOrganizationMutationLock: vi.fn(),
     mockAssertNoUnresolvedEnterpriseIssuance: vi.fn(),
   }))
-
-vi.mock('@sim/db', () => dbChainMock)
-vi.mock('@/lib/auth', () => authMock)
 
 vi.mock('@/lib/billing/enterprise-outbox', () => {
   class EnterpriseIssuanceInProgressError extends Error {}

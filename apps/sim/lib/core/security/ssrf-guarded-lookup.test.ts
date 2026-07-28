@@ -7,7 +7,24 @@ const { mockDnsLookup } = vi.hoisted(() => ({ mockDnsLookup: vi.fn() }))
 
 vi.mock('dns/promises', () => ({ default: { lookup: mockDnsLookup } }))
 
-import { createSsrfGuardedLookup } from '@/lib/core/security/input-validation.server'
+/**
+ * Query-suffixed import gives this file a private instance of the module under
+ * test. Under `isolate: false` the worker's module graph is shared across test
+ * files, so the plain specifier may already be cached with the real
+ * `dns/promises` binding (mocks never reach an already-evaluated module) — and
+ * evaluating it here under this file's mocks would poison it for later files.
+ * The suffixed id is unique to this file, so it always evaluates fresh with
+ * the mock above.
+ */
+declare module '@/lib/core/security/input-validation.server?ssrf-guarded-lookup-test' {
+  // biome-ignore lint/suspicious/noExportsInTest: ambient type re-declaration for the query-suffixed specifier, not a runtime export
+  export * from '@/lib/core/security/input-validation.server'
+}
+
+import {
+  createSsrfGuardedLookup,
+  followRedirectsGuarded,
+} from '@/lib/core/security/input-validation.server?ssrf-guarded-lookup-test'
 
 type LookupResult = { address: string; family: number }
 
@@ -95,8 +112,6 @@ describe('createSsrfGuardedLookup', () => {
     expect(r.address).toHaveLength(2)
   })
 })
-
-import { followRedirectsGuarded } from '@/lib/core/security/input-validation.server'
 
 function redirectTo(location: string, status = 302): Response {
   return new Response(null, { status, headers: { location } })

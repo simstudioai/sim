@@ -481,6 +481,8 @@ export interface AccessibleOAuthCredential {
   providerId: string
   displayName: string
   role: 'admin' | 'member'
+  /** Distinguishes a personal OAuth connection from a shared service account. */
+  type: 'oauth' | 'service_account'
   updatedAt: Date
 }
 
@@ -498,6 +500,7 @@ export async function getAccessibleOAuthCredentials(
         id: credential.id,
         providerId: credential.providerId,
         displayName: credential.displayName,
+        type: credential.type,
         updatedAt: credential.updatedAt,
       })
       .from(credential)
@@ -515,6 +518,7 @@ export async function getAccessibleOAuthCredentials(
         providerId: row.providerId,
         displayName: row.displayName,
         role: 'admin' as const,
+        type: row.type as AccessibleOAuthCredential['type'],
         updatedAt: row.updatedAt,
       }))
   }
@@ -525,6 +529,7 @@ export async function getAccessibleOAuthCredentials(
       providerId: credential.providerId,
       displayName: credential.displayName,
       role: credentialMember.role,
+      type: credential.type,
       updatedAt: credential.updatedAt,
     })
     .from(credential)
@@ -550,6 +555,7 @@ export async function getAccessibleOAuthCredentials(
       providerId: row.providerId!,
       displayName: row.displayName,
       role: row.role,
+      type: row.type as AccessibleOAuthCredential['type'],
       updatedAt: row.updatedAt,
     }))
 }

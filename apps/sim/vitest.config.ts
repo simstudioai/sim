@@ -20,6 +20,8 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     pool: 'threads',
     isolate: true,
+    unstubEnvs: true,
+    unstubGlobals: true,
     fileParallelism: true,
     maxConcurrency: 10,
     testTimeout: 10000,

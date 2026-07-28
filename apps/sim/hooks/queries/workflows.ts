@@ -111,12 +111,16 @@ export function useWorkflowStates(
   return map
 }
 
-export function useWorkflows(workspaceId?: string, options?: { scope?: WorkflowQueryScope }) {
+export function useWorkflows(
+  workspaceId?: string,
+  options?: { scope?: WorkflowQueryScope; enabled?: boolean }
+) {
   const { scope = 'active' } = options || {}
 
   return useQuery({
     queryKey: workflowKeys.list(workspaceId, scope),
     queryFn: workspaceId ? getWorkflowListQueryOptions(workspaceId, scope).queryFn : skipToken,
+    enabled: options?.enabled ?? true,
     placeholderData: keepPreviousData,
     staleTime: WORKFLOW_LIST_STALE_TIME,
   })

@@ -5,16 +5,16 @@
  */
 import {
   authMockFns,
-  createEnvMock,
-  dbChainMock,
   dbChainMockFns,
+  resetEnvMock,
+  setEnv,
   workflowsApiUtilsMock,
   workflowsApiUtilsMockFns,
   workflowsOrchestrationMock,
   workflowsOrchestrationMockFns,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCheckWorkflowAccessForChatCreation, mockValidateChatDeployAuth } = vi.hoisted(() => ({
   mockCheckWorkflowAccessForChatCreation: vi.fn(),
@@ -24,8 +24,6 @@ const { mockCheckWorkflowAccessForChatCreation, mockValidateChatDeployAuth } = v
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
 const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
 const mockPerformChatDeploy = workflowsOrchestrationMockFns.mockPerformChatDeploy
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 
@@ -45,19 +43,17 @@ vi.mock('@/ee/access-control/utils/permission-check', () => {
 
 vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
-vi.mock('@/lib/core/config/env', () =>
-  createEnvMock({
-    NODE_ENV: 'development',
-    NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
-  })
-)
-
 import { GET, POST } from '@/app/api/chat/route'
 import { ChatDeployAuthNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
 describe('Chat API Route', () => {
+  afterAll(() => {
+    resetEnvMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    setEnv({ NODE_ENV: 'development', NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
 
     mockCreateSuccessResponse.mockImplementation((data) => {
       return new Response(JSON.stringify(data), {
@@ -103,7 +99,13 @@ describe('Chat API Route', () => {
       const response = await GET(req)
 
       expect(response.status).toBe(200)
-      expect(mockCreateSuccessResponse).toHaveBeenCalledWith({ deployments: mockDeployments })
+      // Each row is normalized so a missing tool policy reads as off.
+      expect(mockCreateSuccessResponse).toHaveBeenCalledWith({
+        deployments: mockDeployments.map((deployment) => ({
+          ...deployment,
+          includeToolCalls: false,
+        })),
+      })
       expect(dbChainMockFns.where).toHaveBeenCalled()
     })
 
@@ -458,6 +460,8 @@ describe('Chat API Route', () => {
         expect.objectContaining({
           workflowId: 'workflow-123',
           userId: 'user-id',
+          includeThinking: false,
+          includeToolCalls: false,
         })
       )
     })

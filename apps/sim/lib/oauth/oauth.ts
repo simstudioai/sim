@@ -57,6 +57,7 @@ import {
   ZoomIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
+import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
@@ -65,6 +66,16 @@ import { parseInstagramLongLivedToken } from '@/lib/oauth/instagram'
 import type { OAuthProviderConfig } from './types'
 
 const logger = createLogger('OAuth')
+
+/**
+ * Slack scopes requested only where the app is approved for them, gated by
+ * {@link isSlackExtendedScopesEnabled}. Slack rejects the entire authorization
+ * with "unapproved permissions requested" when any requested scope is not on the
+ * app's approved list, so these stay out of the default grant.
+ */
+const SLACK_APPROVAL_GATED_SCOPES = isSlackExtendedScopesEnabled
+  ? (['assistant:write', 'app_mentions:read', 'im:history'] as const)
+  : ([] as const)
 
 export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
   'claude-platform': {
@@ -782,12 +793,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'groups:write',
           'chat:write',
           'chat:write.public',
-          // TODO: Re-add once Slack app review approves these. Requesting a scope
-          // the app is not yet approved for makes Slack reject the entire
-          // authorization with "unapproved permissions requested", breaking connect.
-          // 'assistant:write',
-          // 'app_mentions:read',
-          // 'im:history',
+          ...SLACK_APPROVAL_GATED_SCOPES,
           'im:write',
           'im:read',
           'users:read',

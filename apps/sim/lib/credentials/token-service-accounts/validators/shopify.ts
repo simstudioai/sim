@@ -9,14 +9,7 @@ import type {
   TokenServiceAccountFields,
   TokenServiceAccountValidationResult,
 } from '@/lib/credentials/token-service-accounts/server'
-
-/**
- * Pinned to match the Admin API version hardcoded in every Sim Shopify tool
- * (`apps/sim/tools/shopify/*`) — bump both together. Note 2024-10 is retired;
- * Shopify silently serves the oldest supported version for retired versions,
- * so validation and tool runtime still hit the same effective API.
- */
-const SHOPIFY_API_VERSION = '2024-10'
+import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 
 /**
  * SSRF guard: the Admin API must target the permanent `*.myshopify.com`

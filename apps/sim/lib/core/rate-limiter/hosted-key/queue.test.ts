@@ -1,8 +1,6 @@
-import { redisConfigMock, redisConfigMockFns } from '@sim/testing'
+import { redisConfigMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { HostedKeyQueue } from './queue'
-
-vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
 interface MockPipeline {
   rpush: Mock

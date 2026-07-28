@@ -1,34 +1,21 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetPlanByName, mockResolveDefaultPaymentMethod, queryQueue, stripeMock } = vi.hoisted(
-  () => {
-    const stripeMock = {
-      subscriptions: {
-        retrieve: vi.fn(),
-        update: vi.fn(),
-      },
-    }
-    return {
-      mockGetPlanByName: vi.fn(),
-      mockResolveDefaultPaymentMethod: vi.fn(),
-      queryQueue: { value: [] as unknown[][] },
-      stripeMock,
-    }
+const { mockGetPlanByName, mockResolveDefaultPaymentMethod, stripeMock } = vi.hoisted(() => {
+  const stripeMock = {
+    subscriptions: {
+      retrieve: vi.fn(),
+      update: vi.fn(),
+    },
   }
-)
-
-vi.mock('@sim/db', () => {
-  const makeChain = () => {
-    const chain: Record<string, unknown> = {}
-    chain.from = () => chain
-    chain.where = () => chain
-    chain.limit = () => Promise.resolve(queryQueue.value.shift() ?? [])
-    return chain
+  return {
+    mockGetPlanByName: vi.fn(),
+    mockResolveDefaultPaymentMethod: vi.fn(),
+    stripeMock,
   }
-  return { db: { select: () => makeChain() } }
 })
 
 vi.mock('@/lib/billing/stripe-client', () => ({
@@ -76,15 +63,26 @@ function stripeItem(overrides: {
   }
 }
 
+/** Queues the handler's pre-Stripe and re-verification subscription reads. */
+function queueSubscriptionReads(rowSets: unknown[][]) {
+  for (const rows of rowSets) {
+    queueTableRows(schemaMock.subscription, rows)
+  }
+}
+
 describe('stripeSyncSubscriptionSeats outbox handler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    queryQueue.value = []
+    resetDbChainMock()
     mockGetPlanByName.mockReturnValue({
       priceId: 'price_team_month',
       annualDiscountPriceId: 'price_team_year',
     })
     stripeMock.subscriptions.update.mockResolvedValue({})
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('reconciles both price and quantity for a Pro→Team conversion', async () => {
@@ -94,7 +92,7 @@ describe('stripeSyncSubscriptionSeats outbox handler', () => {
       status: 'active',
       stripeSubscriptionId: 'stripe_sub',
     }
-    queryQueue.value = [[row], [row]]
+    queueSubscriptionReads([[row], [row]])
     stripeMock.subscriptions.retrieve.mockResolvedValue(
       stripeItem({ quantity: 1, priceId: 'price_pro_month' })
     )
@@ -118,7 +116,7 @@ describe('stripeSyncSubscriptionSeats outbox handler', () => {
       status: 'past_due',
       stripeSubscriptionId: 'stripe_sub',
     }
-    queryQueue.value = [[row], [row]]
+    queueSubscriptionReads([[row], [row]])
     stripeMock.subscriptions.retrieve.mockResolvedValue(
       stripeItem({ quantity: 1, priceId: 'price_team_month', status: 'past_due' })
     )
@@ -139,7 +137,7 @@ describe('stripeSyncSubscriptionSeats outbox handler', () => {
       status: 'active',
       stripeSubscriptionId: 'stripe_sub',
     }
-    queryQueue.value = [[row], [row]]
+    queueSubscriptionReads([[row], [row]])
     stripeMock.subscriptions.retrieve.mockResolvedValue(
       stripeItem({ quantity: 1, priceId: 'price_pro_year', interval: 'year' })
     )
@@ -162,7 +160,7 @@ describe('stripeSyncSubscriptionSeats outbox handler', () => {
       status: 'active',
       stripeSubscriptionId: 'stripe_sub',
     }
-    queryQueue.value = [[row], [row]]
+    queueSubscriptionReads([[row], [row]])
     stripeMock.subscriptions.retrieve.mockResolvedValue(
       stripeItem({ quantity: 2, priceId: 'price_team_month' })
     )
@@ -183,7 +181,7 @@ describe('stripeSyncSubscriptionSeats outbox handler', () => {
       status: 'active',
       stripeSubscriptionId: 'stripe_sub',
     }
-    queryQueue.value = [[row], [row]]
+    queueSubscriptionReads([[row], [row]])
     stripeMock.subscriptions.retrieve.mockResolvedValue(
       stripeItem({ quantity: 2, priceId: 'price_team_month' })
     )
@@ -194,9 +192,9 @@ describe('stripeSyncSubscriptionSeats outbox handler', () => {
   })
 
   it('skips non-Team subscriptions', async () => {
-    queryQueue.value = [
+    queueSubscriptionReads([
       [{ plan: 'pro_6000', seats: 1, status: 'active', stripeSubscriptionId: 's' }],
-    ]
+    ])
 
     await seatSyncHandler({ subscriptionId: 'sub-1' }, ctx)
 

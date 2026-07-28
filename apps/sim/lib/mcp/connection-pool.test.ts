@@ -5,10 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { McpClient } from '@/lib/mcp/client'
 import { type AcquireParams, McpConnectionPool } from '@/lib/mcp/connection-pool'
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
-}))
-
 interface FakeClient extends McpClient {
   __fireClose(): void
   __setConnected(connected: boolean): void

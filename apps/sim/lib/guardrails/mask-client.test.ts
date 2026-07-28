@@ -1,16 +1,19 @@
 /**
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockToken, mockBaseUrl, mockSleep } = vi.hoisted(() => ({
+afterAll(resetUrlsMock)
+
+const { mockToken, mockSleep } = vi.hoisted(() => ({
   mockToken: vi.fn(),
-  mockBaseUrl: vi.fn(),
   mockSleep: vi.fn(),
 }))
 
+const mockBaseUrl = urlsMockFns.mockGetInternalApiBaseUrl
+
 vi.mock('@/lib/auth/internal', () => ({ generateInternalToken: mockToken }))
-vi.mock('@/lib/core/utils/urls', () => ({ getInternalApiBaseUrl: mockBaseUrl }))
 vi.mock('@sim/utils/helpers', () => ({ sleep: mockSleep }))
 
 import { maskPIIBatchViaHttp } from '@/lib/guardrails/mask-client'

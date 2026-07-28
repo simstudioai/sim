@@ -28,10 +28,9 @@ export interface SmoothBottomChaseHandle {
   kick: () => void
   /**
    * Keep the loop alive for `durationMs` even while the gap is at rest,
-   * re-checking every frame. Covers growth that arrives over several frames
-   * with no observable trigger — a CSS height animation, or a virtualizer
-   * re-measure settling after streaming stops. Repeat calls extend the
-   * deadline; there is never more than one loop.
+   * re-checking every frame. For growth that lands with no observable trigger
+   * — content mounting just after a stream's observers tear down (a stop's
+   * stopped-row/actions). Repeat calls extend the deadline; one loop only.
    */
   kickUntil: (durationMs: number) => void
   cancel: () => void
@@ -45,9 +44,12 @@ export interface SmoothBottomChaseHandle {
  *
  * Self-interrupting: chase writes only ever move the offset down, and content
  * growth leaves it where the last write put it — so an offset that moved UP
- * since the last write can only be a user scrolling away, and the loop parks
- * instead of fighting them. `shouldContinue` layers any caller-owned stickiness
- * on top (checked every frame).
+ * since the last write, MORE than the bottom itself moved up, can only be a
+ * user scrolling away, and the loop parks instead of fighting them. (A
+ * content-shrink clamp moves the offset and the bottom together — e.g. the
+ * transcript's floor drain — and must not read as a user scroll.)
+ * `shouldContinue` layers any caller-owned stickiness on top (checked every
+ * frame).
  */
 export function createSmoothBottomChase(
   target: SmoothBottomChaseTarget,
@@ -55,14 +57,14 @@ export function createSmoothBottomChase(
 ): SmoothBottomChaseHandle {
   let raf: number | null = null
   let lastTop: number | null = null
+  let lastBottomTop: number | null = null
   let deadline = 0
 
   const park = () => {
     if (raf !== null) cancelAnimationFrame(raf)
     raf = null
     lastTop = null
-    // A stale deadline must not leak into a later plain kick() — kick alone
-    // parks at rest, only a live kickUntil window idles through it.
+    lastBottomTop = null
     deadline = 0
   }
 
@@ -77,14 +79,21 @@ export function createSmoothBottomChase(
       return
     }
     const top = target.getTop()
-    if (lastTop !== null && top < lastTop - 1) {
+    const bottomTop = target.getBottomTop()
+    // A user scroll is an ACTUAL upward top move (first clause — growth alone
+    // must not trip this) that exceeds any upward move of the bottom itself
+    // (second clause — a shrink clamp moves both together).
+    const topDrop = lastTop === null ? 0 : lastTop - top
+    const bottomDrop = lastBottomTop === null ? 0 : lastBottomTop - bottomTop
+    if (topDrop > 1 && topDrop > bottomDrop + 1) {
       park()
       return
     }
-    const gap = target.getBottomTop() - top
+    lastBottomTop = bottomTop
+    const gap = bottomTop - top
     if (gap <= CHASE_REST_GAP) {
-      // Within a kickUntil deadline the loop idles at rest instead of parking,
-      // so growth in the deadline window is chased without a fresh trigger.
+      // Within a kickUntil deadline, idle at rest instead of parking so
+      // trigger-less growth inside the window is still chased.
       if (performance.now() >= deadline) {
         park()
         return
@@ -105,12 +114,12 @@ export function createSmoothBottomChase(
    * Seed the upward-move interrupt baseline at (re)start so a user scroll-up
    * between the kick and the first frame parks the loop immediately — without
    * it the first step has no baseline and writes one downward frame against
-   * the user (relevant on the teardown kickUntil, where the gesture listeners
-   * are already gone).
+   * the user.
    */
   const start = () => {
     if (raf !== null) return
     lastTop = target.getTop()
+    lastBottomTop = target.getBottomTop()
     raf = requestAnimationFrame(step)
   }
 

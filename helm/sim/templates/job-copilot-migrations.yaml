@@ -45,6 +45,13 @@ spec:
                 sleep 2
               done
               echo "Copilot PostgreSQL is ready!"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
           envFrom:
             - secretRef:
                 name: {{ include "sim.fullname" . }}-copilot-postgresql-secret

@@ -108,6 +108,19 @@ export interface WorkflowDeployedBroadcast {
   timestamp: number
 }
 
+/**
+ * `access-revoked` broadcast. Emitted to a single socket when its owner's live
+ * read access to the workflow has been revoked (workspace permission removed or
+ * downgraded to no access), forcing that client to leave the room and clear its
+ * editor state. Unlike the lifecycle broadcasts above, this targets one socket
+ * rather than the whole room — only the revoked user is evicted.
+ */
+export interface AccessRevokedBroadcast {
+  workflowId: string
+  message: string
+  timestamp: number
+}
+
 /** `operation-confirmed` ack for a previously-emitted operation. */
 export interface OperationConfirmedBroadcast {
   operationId: string

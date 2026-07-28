@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useId, useMemo, useRef, useState } from 'react'
 import {
   Checkbox,
   Chip,
@@ -27,16 +27,26 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { ChevronDown, Plus } from 'lucide-react'
+import { useQueryState } from 'nuqs'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import {
+  groupSearchParam,
+  groupSearchUrlKeys,
+  groupStatusParam,
+  groupStatusUrlKeys,
+  groupTabParam,
+  groupTabUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import {
   MemberAvatar,
   MemberRow,
 } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
@@ -53,9 +63,11 @@ import {
   useRemovePermissionGroupMember,
   useUpdatePermissionGroup,
 } from '@/ee/access-control/hooks/permission-groups'
+import { SettingRow } from '@/ee/components/setting-row'
 import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
 import { useOrganizationRoster } from '@/hooks/queries/organization'
 import { useProviderModels } from '@/hooks/queries/providers'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import {
   DYNAMIC_MODEL_PROVIDERS,
   getProviderModels,
@@ -69,6 +81,9 @@ import { getTool } from '@/tools/utils'
 const logger = createLogger('AccessControlGroupDetail')
 
 type ConfigTab = 'general' | 'providers' | 'blocks' | 'platform'
+
+/** Hoisted: rebuilding this per comparison allocated once per sort step. */
+const BLOCK_CATEGORY_ORDER: Record<string, number> = { triggers: 0, blocks: 1, tools: 2 }
 
 /** Public-file-share auth modes an admin can allow/disallow. `null` config = all allowed. */
 const FILE_SHARE_AUTH_TYPE_OPTIONS: { value: ShareAuthType; label: string }[] = [
@@ -89,6 +104,227 @@ const CHAT_DEPLOY_AUTH_TYPE_OPTIONS: { value: ShareAuthType; label: string }[] =
 const ALL_CHAT_DEPLOY_AUTH_TYPES: ShareAuthType[] = CHAT_DEPLOY_AUTH_TYPE_OPTIONS.map(
   (o) => o.value
 )
+
+type StatusFilter = 'all' | 'enabled' | 'disabled'
+
+const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: 'all', label: 'Show all' },
+  { value: 'enabled', label: 'Show enabled' },
+  { value: 'disabled', label: 'Show disabled' },
+]
+
+function matchesStatusFilter(filter: StatusFilter, enabled: boolean) {
+  return filter === 'all' || (filter === 'enabled') === enabled
+}
+
+interface StatusFilterChipProps {
+  value: StatusFilter
+  onChange: (value: StatusFilter) => void
+  /** Set when the chip is the last control in its row, so it sits flush to the edge. */
+  flush?: boolean
+}
+
+/** The All/Enabled/Disabled narrowing control shared by the three list tabs. */
+function StatusFilterChip({ value, onChange, flush }: StatusFilterChipProps) {
+  return (
+    <ChipDropdown
+      value={value}
+      onChange={(next) => onChange(next as StatusFilter)}
+      options={STATUS_FILTER_OPTIONS}
+      matchTriggerWidth={false}
+      flush={flush}
+      className='w-[140px] flex-shrink-0'
+    />
+  )
+}
+
+interface AuthModeFieldProps {
+  label: string
+  value: ShareAuthType[]
+  onChange: (values: string[]) => void
+  options: { value: ShareAuthType; label: string }[]
+  disabled: boolean
+}
+
+/**
+ * The allowed-auth-modes multi-select nested under a platform toggle. Dims and
+ * disables together with the toggle that owns it. The left padding lines both
+ * children up with the parent's label text — row gutter (8) + checkbox (16) +
+ * gap (8) = 32 — so the field reads as subordinate rather than as a sibling row.
+ * The dropdown is `flush` so its own `mx-0.5` doesn't push it 2px past the
+ * caption above it.
+ */
+function AuthModeField({ label, value, onChange, options, disabled }: AuthModeFieldProps) {
+  const labelId = useId()
+  const triggerId = useId()
+  return (
+    <div className={cn('flex flex-col gap-1.5 pt-1 pr-2 pb-2 pl-8', disabled && 'opacity-50')}>
+      <span id={labelId} className='text-[var(--text-muted)] text-caption'>
+        {label}
+      </span>
+      <ChipDropdown
+        multiple
+        flush
+        showAllOption={false}
+        id={triggerId}
+        // Both ids: `aria-labelledby` replaces the content-derived name, so
+        // naming it with the label alone would drop the selected value.
+        aria-labelledby={`${labelId} ${triggerId}`}
+        value={value}
+        onChange={onChange}
+        options={options}
+        disabled={disabled}
+        matchTriggerWidth={false}
+        className='w-[200px]'
+      />
+    </div>
+  )
+}
+
+/** Render order for the platform-feature category sections; unlisted ones follow. */
+const PLATFORM_CATEGORY_ORDER = [
+  'Sidebar',
+  'Deploy Tabs',
+  'Chat',
+  'Collaboration',
+  'Workflow Panel',
+  'Tools',
+  'Features',
+  'Settings Tabs',
+  'Logs',
+  'Files',
+]
+
+const PLATFORM_FEATURES = [
+  {
+    id: 'hide-knowledge-base',
+    label: 'Knowledge Base',
+    category: 'Sidebar',
+    configKey: 'hideKnowledgeBaseTab' as const,
+    hint: 'Hide the Knowledge Base module from the sidebar.',
+  },
+  {
+    id: 'hide-tables',
+    label: 'Tables',
+    category: 'Sidebar',
+    configKey: 'hideTablesTab' as const,
+    hint: 'Hide the Tables module from the sidebar.',
+  },
+  {
+    id: 'hide-copilot',
+    label: 'Chat',
+    category: 'Workflow Panel',
+    configKey: 'hideCopilot' as const,
+    hint: 'Hide the Chat panel so users cannot build or edit with natural language.',
+  },
+  {
+    id: 'hide-integrations',
+    label: 'Integrations',
+    category: 'Settings Tabs',
+    configKey: 'hideIntegrationsTab' as const,
+    hint: 'Hide the Integrations settings tab (OAuth connections).',
+  },
+  {
+    id: 'hide-secrets',
+    label: 'Secrets',
+    category: 'Settings Tabs',
+    configKey: 'hideSecretsTab' as const,
+    hint: 'Hide the Secrets (environment variables) settings tab.',
+  },
+  {
+    id: 'hide-api-keys',
+    label: 'API Keys',
+    category: 'Settings Tabs',
+    configKey: 'hideApiKeysTab' as const,
+    hint: 'Hide the API Keys settings tab.',
+  },
+  {
+    id: 'hide-files',
+    label: 'Files',
+    category: 'Settings Tabs',
+    configKey: 'hideFilesTab' as const,
+    hint: 'Hide the Files settings tab.',
+  },
+  {
+    id: 'hide-deploy-api',
+    label: 'API',
+    category: 'Deploy Tabs',
+    configKey: 'hideDeployApi' as const,
+    hint: 'Hide the API deployment option.',
+  },
+  {
+    id: 'hide-deploy-mcp',
+    label: 'MCP',
+    category: 'Deploy Tabs',
+    configKey: 'hideDeployMcp' as const,
+    hint: 'Hide the MCP server deployment option.',
+  },
+  {
+    id: 'disable-mcp',
+    label: 'MCP Tools',
+    category: 'Tools',
+    configKey: 'disableMcpTools' as const,
+    hint: 'Block agents from calling MCP tools.',
+  },
+  {
+    id: 'disable-custom-tools',
+    label: 'Custom Tools',
+    category: 'Tools',
+    configKey: 'disableCustomTools' as const,
+    hint: 'Block agents from calling user-defined custom tools.',
+  },
+  {
+    id: 'disable-skills',
+    label: 'Skills',
+    category: 'Tools',
+    configKey: 'disableSkills' as const,
+    hint: 'Block agents from loading skills.',
+  },
+  {
+    id: 'hide-trace-spans',
+    label: 'Trace Spans',
+    category: 'Logs',
+    configKey: 'hideTraceSpans' as const,
+    hint: 'Hide per-block trace spans in logs.',
+  },
+  {
+    id: 'disable-invitations',
+    label: 'Invitations',
+    category: 'Collaboration',
+    configKey: 'disableInvitations' as const,
+    hint: 'Prevent users from inviting others to workspaces.',
+  },
+  {
+    id: 'hide-inbox',
+    label: 'Sim Mailer',
+    category: 'Features',
+    configKey: 'hideInboxTab' as const,
+    hint: 'Hide the Sim Mailer inbox.',
+  },
+  {
+    id: 'disable-public-api',
+    label: 'Public API',
+    category: 'Features',
+    configKey: 'disablePublicApi' as const,
+    hint: 'Disable public API access to deployed workflows.',
+  },
+  // Chat and Files get a category of their own so their nested auth-mode
+  // dropdown (see `featureExtras`) reads as part of the toggle it qualifies.
+  {
+    id: 'hide-deploy-chatbot',
+    label: 'Deployment',
+    category: 'Chat',
+    configKey: 'hideDeployChatbot' as const,
+    hint: 'Hide the chat deployment option.',
+  },
+  {
+    id: 'disable-public-file-sharing',
+    label: 'Public Sharing',
+    category: 'Files',
+    configKey: 'disablePublicFileSharing' as const,
+    hint: 'Disable public file-share links.',
+  },
+]
 
 interface OrganizationMemberOption {
   userId: string
@@ -428,7 +664,7 @@ function ProviderRow({
           onCheckedChange={() => onToggleProvider()}
         />
         <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
-          {ProviderIcon && <ProviderIcon className='!h-[16px] !w-[16px]' />}
+          {ProviderIcon && <ProviderIcon className='!size-[16px]' />}
         </div>
         <button
           type='button'
@@ -521,7 +757,7 @@ function BlockToolRow({
           onClick={() => isBlockAllowed && isExpandable && setExpanded((prev) => !prev)}
           disabled={!isBlockAllowed || !isExpandable}
           className={cn(
-            'flex flex-1 items-center gap-2 text-left',
+            'flex min-w-0 flex-1 items-center gap-2 text-left',
             isBlockAllowed && isExpandable ? 'cursor-pointer' : 'cursor-default',
             !isBlockAllowed && 'opacity-60'
           )}
@@ -541,6 +777,12 @@ function BlockToolRow({
             />
           )}
         </button>
+        {/* Outside the button: an Info trigger is itself a button and cannot nest. */}
+        {block.description && (
+          <Info side='top' className={cn('flex-shrink-0', !isBlockAllowed && 'opacity-60')}>
+            {block.description}
+          </Info>
+        )}
       </div>
       {expanded && isBlockAllowed && isExpandable && (
         <div className='border-[var(--border)] border-t px-2 pt-2 pb-3'>
@@ -595,11 +837,15 @@ export function GroupDetail({
    */
   const [viewingGroup, setViewingGroup] = useState<PermissionGroup>(group)
   const [editingConfig, setEditingConfig] = useState<PermissionGroupConfig>({ ...group.config })
+  const [editingName, setEditingName] = useState(group.name.trim())
+  const [editingDescription, setEditingDescription] = useState((group.description ?? '').trim())
   const prevGroupIdRef = useRef(group.id)
   if (prevGroupIdRef.current !== group.id) {
     prevGroupIdRef.current = group.id
     setViewingGroup(group)
     setEditingConfig({ ...group.config })
+    setEditingName(group.name.trim())
+    setEditingDescription((group.description ?? '').trim())
   }
 
   /**
@@ -609,10 +855,33 @@ export function GroupDetail({
    */
   const scopeWriteSeqRef = useRef(0)
 
-  const [configTab, setConfigTab] = useState<ConfigTab>('general')
-  const [providerSearchTerm, setProviderSearchTerm] = useState('')
-  const [integrationSearchTerm, setIntegrationSearchTerm] = useState('')
-  const [platformSearchTerm, setPlatformSearchTerm] = useState('')
+  // Tab, search, and status filter are shareable detail-view state, so they live
+  // in the URL (see .claude/rules/sim-url-state.md). The three tabs never render
+  // together, so search and status share one param each rather than carrying
+  // three mutually-exclusive keys; switching tabs resets both.
+  const [configTab, setConfigTab] = useQueryState(groupTabParam.key, {
+    ...groupTabParam.parser,
+    ...groupTabUrlKeys,
+  })
+  const [searchTerm, setSearchTermParam] = useQueryState(groupSearchParam.key, {
+    ...groupSearchParam.parser,
+    ...groupSearchUrlKeys,
+  })
+  const setSearchTerm = useDebouncedSearchSetter(setSearchTermParam)
+  const [statusFilter, setStatusFilter] = useQueryState(groupStatusParam.key, {
+    ...groupStatusParam.parser,
+    ...groupStatusUrlKeys,
+  })
+
+  const handleTabChange = useCallback(
+    (value: string) => {
+      void setConfigTab(value as ConfigTab)
+      // Don't carry a provider query or an enabled-only filter into another tab.
+      setSearchTerm('')
+      void setStatusFilter(null)
+    },
+    [setConfigTab, setSearchTerm, setStatusFilter]
+  )
 
   const [showAddMembersModal, setShowAddMembersModal] = useState(false)
   const [addMembersError, setAddMembersError] = useState<string | null>(null)
@@ -642,9 +911,8 @@ export function GroupDetail({
   const allBlocks = useMemo(() => {
     const blocks = getAllBlocks().filter((b) => !isBlockTypeAccessControlExempt(b.type))
     return blocks.sort((a, b) => {
-      const categoryOrder = { triggers: 0, blocks: 1, tools: 2 }
-      const catA = categoryOrder[a.category] ?? 3
-      const catB = categoryOrder[b.category] ?? 3
+      const catA = BLOCK_CATEGORY_ORDER[a.category] ?? 3
+      const catB = BLOCK_CATEGORY_ORDER[b.category] ?? 3
       if (catA !== catB) return catA - catB
       return a.name.localeCompare(b.name)
     })
@@ -676,141 +944,24 @@ export function GroupDetail({
     return map
   }, [allBlocks])
 
-  const platformFeatures = useMemo(
-    () => [
-      {
-        id: 'hide-knowledge-base',
-        label: 'Knowledge Base',
-        category: 'Sidebar',
-        configKey: 'hideKnowledgeBaseTab' as const,
-        hint: 'Hide the Knowledge Base module from the sidebar.',
-      },
-      {
-        id: 'hide-tables',
-        label: 'Tables',
-        category: 'Sidebar',
-        configKey: 'hideTablesTab' as const,
-        hint: 'Hide the Tables module from the sidebar.',
-      },
-      {
-        id: 'hide-copilot',
-        label: 'Chat',
-        category: 'Workflow Panel',
-        configKey: 'hideCopilot' as const,
-        hint: 'Hide the Chat panel so users cannot build or edit with natural language.',
-      },
-      {
-        id: 'hide-integrations',
-        label: 'Integrations',
-        category: 'Settings Tabs',
-        configKey: 'hideIntegrationsTab' as const,
-        hint: 'Hide the Integrations settings tab (OAuth connections).',
-      },
-      {
-        id: 'hide-secrets',
-        label: 'Secrets',
-        category: 'Settings Tabs',
-        configKey: 'hideSecretsTab' as const,
-        hint: 'Hide the Secrets (environment variables) settings tab.',
-      },
-      {
-        id: 'hide-api-keys',
-        label: 'API Keys',
-        category: 'Settings Tabs',
-        configKey: 'hideApiKeysTab' as const,
-        hint: 'Hide the API Keys settings tab.',
-      },
-      {
-        id: 'hide-files',
-        label: 'Files',
-        category: 'Settings Tabs',
-        configKey: 'hideFilesTab' as const,
-        hint: 'Hide the Files settings tab.',
-      },
-      {
-        id: 'hide-deploy-api',
-        label: 'API',
-        category: 'Deploy Tabs',
-        configKey: 'hideDeployApi' as const,
-        hint: 'Hide the API deployment option.',
-      },
-      {
-        id: 'hide-deploy-mcp',
-        label: 'MCP',
-        category: 'Deploy Tabs',
-        configKey: 'hideDeployMcp' as const,
-        hint: 'Hide the MCP server deployment option.',
-      },
-      {
-        id: 'hide-deploy-chatbot',
-        label: 'Chat',
-        category: 'Deploy Tabs',
-        configKey: 'hideDeployChatbot' as const,
-        hint: 'Hide the chatbot deployment option.',
-      },
-      {
-        id: 'disable-mcp',
-        label: 'MCP Tools',
-        category: 'Tools',
-        configKey: 'disableMcpTools' as const,
-        hint: 'Block agents from calling MCP tools.',
-      },
-      {
-        id: 'disable-custom-tools',
-        label: 'Custom Tools',
-        category: 'Tools',
-        configKey: 'disableCustomTools' as const,
-        hint: 'Block agents from calling user-defined custom tools.',
-      },
-      {
-        id: 'disable-skills',
-        label: 'Skills',
-        category: 'Tools',
-        configKey: 'disableSkills' as const,
-        hint: 'Block agents from loading skills.',
-      },
-      {
-        id: 'hide-trace-spans',
-        label: 'Trace Spans',
-        category: 'Logs',
-        configKey: 'hideTraceSpans' as const,
-        hint: 'Hide per-block trace spans in logs.',
-      },
-      {
-        id: 'disable-invitations',
-        label: 'Invitations',
-        category: 'Collaboration',
-        configKey: 'disableInvitations' as const,
-        hint: 'Prevent users from inviting others to workspaces.',
-      },
-      {
-        id: 'hide-inbox',
-        label: 'Sim Mailer',
-        category: 'Features',
-        configKey: 'hideInboxTab' as const,
-        hint: 'Hide the Sim Mailer inbox.',
-      },
-      {
-        id: 'disable-public-api',
-        label: 'Public API',
-        category: 'Features',
-        configKey: 'disablePublicApi' as const,
-        hint: 'Disable public API access to deployed workflows.',
-      },
-    ],
-    []
-  )
-
-  const filteredPlatformFeatures = useMemo(() => {
-    if (!platformSearchTerm.trim()) return platformFeatures
-    const search = platformSearchTerm.toLowerCase()
-    return platformFeatures.filter(
+  const searchedPlatformFeatures = useMemo(() => {
+    const search = searchTerm.trim().toLowerCase()
+    if (!search) return PLATFORM_FEATURES
+    return PLATFORM_FEATURES.filter(
       (f) => f.label.toLowerCase().includes(search) || f.category.toLowerCase().includes(search)
     )
-  }, [platformFeatures, platformSearchTerm])
+  }, [searchTerm])
+
+  /** Split from the search pass for the same reason as the provider and block lists. */
+  const filteredPlatformFeatures = useMemo(() => {
+    if (statusFilter === 'all') return searchedPlatformFeatures
+    return searchedPlatformFeatures.filter((f) =>
+      matchesStatusFilter(statusFilter, !editingConfig[f.configKey])
+    )
+  }, [searchedPlatformFeatures, statusFilter, editingConfig])
 
   const platformCategories = useMemo(() => {
-    const categories: Record<string, typeof platformFeatures> = {}
+    const categories: Record<string, typeof PLATFORM_FEATURES> = {}
     for (const feature of filteredPlatformFeatures) {
       if (!categories[feature.category]) {
         categories[feature.category] = []
@@ -821,19 +972,9 @@ export function GroupDetail({
   }, [filteredPlatformFeatures])
 
   const platformCategorySections = useMemo(() => {
-    const order = [
-      'Sidebar',
-      'Deploy Tabs',
-      'Collaboration',
-      'Workflow Panel',
-      'Tools',
-      'Features',
-      'Settings Tabs',
-      'Logs',
-    ]
-    const known = order.filter((c) => platformCategories[c]?.length)
+    const known = PLATFORM_CATEGORY_ORDER.filter((c) => platformCategories[c]?.length)
     const extras = Object.keys(platformCategories).filter(
-      (c) => c !== 'Files' && !order.includes(c) && platformCategories[c]?.length
+      (c) => !PLATFORM_CATEGORY_ORDER.includes(c) && platformCategories[c]?.length
     )
     return [...known, ...extras].map((category) => ({
       category,
@@ -844,19 +985,81 @@ export function GroupDetail({
   const hasConfigChanges = useMemo(() => {
     return JSON.stringify(viewingGroup.config) !== JSON.stringify(editingConfig)
   }, [viewingGroup.config, editingConfig])
-  const guard = useSettingsUnsavedGuard({ isDirty: hasConfigChanges })
 
-  const filteredProviders = useMemo(() => {
-    if (!providerSearchTerm.trim()) return allProviderIds
-    const query = providerSearchTerm.toLowerCase()
+  // Both buffers are seeded trimmed and compared against a trimmed baseline. The
+  // contract trims name and description on write, but a row stored before those
+  // schemas gained `.trim()` (or written straight to the API) can still carry
+  // padding — compared raw it would open dirty with no way to clear it, since
+  // Discard restores the same padded value.
+  const trimmedName = editingName.trim()
+  const trimmedDescription = editingDescription.trim()
+  const nameChanged = trimmedName !== viewingGroup.name.trim()
+  const descriptionChanged = trimmedDescription !== (viewingGroup.description ?? '').trim()
+  const hasChanges = hasConfigChanges || nameChanged || descriptionChanged
+
+  const guard = useSettingsUnsavedGuard({ isDirty: hasChanges })
+
+  /**
+   * `null` means "everything allowed". Indexing the allow-lists once keeps the
+   * per-row membership checks O(1) — they run for every one of the ~200 block
+   * rows on each render, and again in the section-wide `every(...)` scans.
+   */
+  const allowedIntegrationSet = useMemo(
+    () =>
+      editingConfig.allowedIntegrations === null
+        ? null
+        : new Set(editingConfig.allowedIntegrations),
+    [editingConfig.allowedIntegrations]
+  )
+
+  const allowedProviderSet = useMemo(
+    () =>
+      editingConfig.allowedModelProviders === null
+        ? null
+        : new Set(editingConfig.allowedModelProviders),
+    [editingConfig.allowedModelProviders]
+  )
+
+  const isIntegrationAllowed = useCallback(
+    (blockType: string) => allowedIntegrationSet === null || allowedIntegrationSet.has(blockType),
+    [allowedIntegrationSet]
+  )
+
+  const isProviderAllowed = useCallback(
+    (providerId: string) => allowedProviderSet === null || allowedProviderSet.has(providerId),
+    [allowedProviderSet]
+  )
+
+  const searchedProviders = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase()
+    if (!query) return allProviderIds
     return allProviderIds.filter((id) => id.toLowerCase().includes(query))
-  }, [allProviderIds, providerSearchTerm])
+  }, [allProviderIds, searchTerm])
+
+  /**
+   * Split from the search pass so the common `all` case returns the searched
+   * list by reference — only the status pass depends on the allow-list, so a
+   * checkbox toggle no longer invalidates downstream consumers.
+   */
+  const filteredProviders = useMemo(() => {
+    if (statusFilter === 'all') return searchedProviders
+    return searchedProviders.filter((id) =>
+      matchesStatusFilter(statusFilter, isProviderAllowed(id))
+    )
+  }, [searchedProviders, statusFilter, isProviderAllowed])
+
+  const searchedBlocks = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase()
+    if (!query) return visibleBlocks
+    return visibleBlocks.filter((b) => b.name.toLowerCase().includes(query))
+  }, [visibleBlocks, searchTerm])
 
   const filteredBlocks = useMemo(() => {
-    if (!integrationSearchTerm.trim()) return visibleBlocks
-    const query = integrationSearchTerm.toLowerCase()
-    return visibleBlocks.filter((b) => b.name.toLowerCase().includes(query))
-  }, [visibleBlocks, integrationSearchTerm])
+    if (statusFilter === 'all') return searchedBlocks
+    return searchedBlocks.filter((b) =>
+      matchesStatusFilter(statusFilter, isIntegrationAllowed(b.type))
+    )
+  }, [searchedBlocks, statusFilter, isIntegrationAllowed])
 
   const filteredCoreBlocks = useMemo(
     () => filteredBlocks.filter((block) => block.category === 'blocks'),
@@ -885,13 +1088,6 @@ export function GroupDetail({
     const existingMemberUserIds = new Set(members.map((m) => m.userId))
     return organizationMembers.filter((m) => !existingMemberUserIds.has(m.userId))
   }, [organizationMembers, members])
-
-  const isIntegrationAllowed = useCallback(
-    (blockType: string) =>
-      editingConfig.allowedIntegrations === null ||
-      editingConfig.allowedIntegrations.includes(blockType),
-    [editingConfig.allowedIntegrations]
-  )
 
   /**
    * Drops denied tools whose integration is no longer allowed, keeping the
@@ -1002,13 +1198,6 @@ export function GroupDetail({
     }
     return counts
   }, [editingConfig.deniedTools, allBlocks])
-
-  const isProviderAllowed = useCallback(
-    (providerId: string) =>
-      editingConfig.allowedModelProviders === null ||
-      editingConfig.allowedModelProviders.includes(providerId),
-    [editingConfig.allowedModelProviders]
-  )
 
   const toggleProvider = useCallback(
     (providerId: string) => {
@@ -1130,7 +1319,7 @@ export function GroupDetail({
   const setChatDeployAuthTypes = useCallback((values: string[]) => {
     // At least one mode must stay allowed while chat deploy is enabled — an empty
     // allow-list would silently block every chat deployment. To turn chat deploy
-    // off entirely, use the Hide Chat toggle instead.
+    // off entirely, uncheck Chat → Deployment instead.
     if (values.length === 0) return
     setEditingConfig((prev) => ({
       ...prev,
@@ -1139,26 +1328,66 @@ export function GroupDetail({
     }))
   }, [])
 
-  /** Persists the editing buffer. */
-  const handleSaveConfig = useCallback(async () => {
+  /**
+   * Nested controls rendered under a platform feature's checkbox, keyed by
+   * feature id. Kept out of `PLATFORM_FEATURES` so that array stays pure data.
+   */
+  const featureExtras: Partial<Record<string, ReactNode>> = {
+    'hide-deploy-chatbot': (
+      <AuthModeField
+        label='Auth modes chat deployments may use'
+        value={chatDeployAuthValue}
+        onChange={setChatDeployAuthTypes}
+        options={CHAT_DEPLOY_AUTH_TYPE_OPTIONS}
+        disabled={editingConfig.hideDeployChatbot}
+      />
+    ),
+    'disable-public-file-sharing': (
+      <AuthModeField
+        label='Auth modes public file-share links may use'
+        value={fileShareAuthValue}
+        onChange={setFileShareAuthTypes}
+        options={FILE_SHARE_AUTH_TYPE_OPTIONS}
+        disabled={editingConfig.disablePublicFileSharing}
+      />
+    ),
+  }
+
+  /** Persists the editing buffer — name/description are only sent when they changed. */
+  const handleSaveConfig = async () => {
+    if (!trimmedName) return
     try {
-      await updatePermissionGroup.mutateAsync({
+      const result = await updatePermissionGroup.mutateAsync({
         id: viewingGroup.id,
         organizationId,
-        config: editingConfig,
+        ...(hasConfigChanges && { config: editingConfig }),
+        ...(nameChanged && { name: trimmedName }),
+        ...(descriptionChanged && { description: trimmedDescription || null }),
       })
-      setViewingGroup((prev) => ({ ...prev, config: editingConfig }))
+      // Reconcile from the server's copy, like the scope/default writes do, so a
+      // server-side normalization can't leave the dirty check comparing against a
+      // baseline that was never persisted. Editing buffers are left alone so
+      // in-flight edits survive and correctly re-mark the form dirty.
+      const saved = result.permissionGroup
+      setViewingGroup((prev) => ({
+        ...prev,
+        config: saved.config,
+        name: saved.name,
+        description: saved.description,
+      }))
     } catch (error) {
-      logger.error('Failed to update config', error)
+      logger.error('Failed to save permission group', error)
       toast.error("Couldn't save changes", {
         description: getErrorMessage(error, 'Please try again in a moment.'),
       })
     }
-  }, [viewingGroup.id, editingConfig, organizationId, updatePermissionGroup])
+  }
 
-  const handleDiscardConfig = useCallback(() => {
+  const handleDiscardConfig = () => {
     setEditingConfig({ ...viewingGroup.config })
-  }, [viewingGroup.config])
+    setEditingName(viewingGroup.name.trim())
+    setEditingDescription((viewingGroup.description ?? '').trim())
+  }
 
   const handleBack = useCallback(() => {
     guard.guardBack(onBack)
@@ -1307,10 +1536,11 @@ export function GroupDetail({
         description={viewingGroup.description ?? undefined}
         actions={[
           ...saveDiscardActions({
-            dirty: hasConfigChanges,
+            dirty: hasChanges,
             saving: updatePermissionGroup.isPending,
             onSave: handleSaveConfig,
             onDiscard: handleDiscardConfig,
+            saveDisabled: !trimmedName,
           }),
           {
             text: deletePermissionGroup.isPending ? 'Deleting...' : 'Delete',
@@ -1321,15 +1551,33 @@ export function GroupDetail({
         ]}
       >
         <div className='sticky top-0 z-10 bg-[var(--bg)]'>
-          <ChipModalTabs
-            tabs={tabs}
-            value={configTab}
-            onChange={(value) => setConfigTab(value as ConfigTab)}
-          />
+          <ChipModalTabs tabs={tabs} value={configTab} onChange={handleTabChange} />
         </div>
 
         {configTab === 'general' && (
           <>
+            <SettingsSection label='Details'>
+              <div className='flex flex-col gap-4'>
+                <SettingRow label='Name' error={!trimmedName ? 'Name is required.' : undefined}>
+                  <ChipInput
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    placeholder='e.g., Marketing Team'
+                    maxLength={100}
+                    error={!trimmedName}
+                  />
+                </SettingRow>
+                <SettingRow label='Description'>
+                  <ChipInput
+                    value={editingDescription}
+                    onChange={(e) => setEditingDescription(e.target.value)}
+                    placeholder='e.g., Limited access for marketing users'
+                    maxLength={500}
+                  />
+                </SettingRow>
+              </div>
+            </SettingsSection>
+
             <SettingsSection label='Default group'>
               <div className='flex items-center justify-between gap-3'>
                 <span className='text-[var(--text-muted)] text-small'>
@@ -1453,31 +1701,43 @@ export function GroupDetail({
               <ChipInput
                 icon={Search}
                 placeholder='Search providers...'
-                value={providerSearchTerm}
-                onChange={(e) => setProviderSearchTerm(e.target.value)}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className='min-w-0 flex-1'
               />
+              <StatusFilterChip
+                value={statusFilter}
+                onChange={(next) => void setStatusFilter(next)}
+              />
               <Chip
+                flush
                 onClick={() => setProvidersAllowed(filteredProviders, !filteredProvidersAllAllowed)}
+                disabled={filteredProviders.length === 0}
               >
                 {filteredProvidersAllAllowed ? 'Deselect All' : 'Select All'}
               </Chip>
             </div>
-            <div className='flex flex-col gap-0.5'>
-              {filteredProviders.map((providerId) => (
-                <ProviderRow
-                  key={providerId}
-                  providerId={providerId}
-                  isProviderAllowed={isProviderAllowed(providerId)}
-                  onToggleProvider={() => toggleProvider(providerId)}
-                  deniedCount={deniedCountByProvider[providerId] ?? 0}
-                  workspaceId={workspaceId}
-                  isAllowed={isModelAllowed}
-                  onToggle={toggleModel}
-                  onSetDenied={setModelsDenied}
-                />
-              ))}
-            </div>
+            {filteredProviders.length === 0 ? (
+              <SettingsEmptyState variant='inline'>
+                No providers match your filters.
+              </SettingsEmptyState>
+            ) : (
+              <div className='flex flex-col gap-0.5'>
+                {filteredProviders.map((providerId) => (
+                  <ProviderRow
+                    key={providerId}
+                    providerId={providerId}
+                    isProviderAllowed={isProviderAllowed(providerId)}
+                    onToggleProvider={() => toggleProvider(providerId)}
+                    deniedCount={deniedCountByProvider[providerId] ?? 0}
+                    workspaceId={workspaceId}
+                    isAllowed={isModelAllowed}
+                    onToggle={toggleModel}
+                    onSetDenied={setModelsDenied}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -1487,11 +1747,21 @@ export function GroupDetail({
               <ChipInput
                 icon={Search}
                 placeholder='Search blocks...'
-                value={integrationSearchTerm}
-                onChange={(e) => setIntegrationSearchTerm(e.target.value)}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className='min-w-0 flex-1'
               />
+              <StatusFilterChip
+                value={statusFilter}
+                onChange={(next) => void setStatusFilter(next)}
+                flush
+              />
             </div>
+            {filteredCoreBlocks.length === 0 && filteredToolBlocks.length === 0 && (
+              <SettingsEmptyState variant='inline'>
+                No blocks match your filters.
+              </SettingsEmptyState>
+            )}
             {filteredCoreBlocks.length > 0 && (
               <SettingsSection
                 label='Core Blocks'
@@ -1509,24 +1779,33 @@ export function GroupDetail({
                     const BlockIcon = block.icon
                     const checkboxId = `block-${block.type}`
                     return (
-                      <label
+                      <div
                         key={block.type}
-                        htmlFor={checkboxId}
-                        className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
+                        className='flex items-center gap-1.5 rounded-md pr-2 transition-colors hover-hover:bg-[var(--surface-active)]'
                       >
-                        <Checkbox
-                          id={checkboxId}
-                          checked={isIntegrationAllowed(block.type)}
-                          onCheckedChange={() => toggleIntegration(block.type)}
-                        />
-                        <div
-                          className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
-                          style={{ background: block.bgColor }}
+                        <label
+                          htmlFor={checkboxId}
+                          className='flex min-w-0 flex-1 cursor-pointer items-center gap-2 py-[5px] pl-2'
                         >
-                          {BlockIcon && <BlockIcon className='!size-[9px] text-white' />}
-                        </div>
-                        <span className='truncate font-medium text-sm'>{block.name}</span>
-                      </label>
+                          <Checkbox
+                            id={checkboxId}
+                            checked={isIntegrationAllowed(block.type)}
+                            onCheckedChange={() => toggleIntegration(block.type)}
+                          />
+                          <div
+                            className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                            style={{ background: block.bgColor }}
+                          >
+                            {BlockIcon && <BlockIcon className='!size-[9px] text-white' />}
+                          </div>
+                          <span className='truncate font-medium text-sm'>{block.name}</span>
+                        </label>
+                        {block.description && (
+                          <Info side='top' className='flex-shrink-0'>
+                            {block.description}
+                          </Info>
+                        )}
+                      </div>
                     )
                   })}
                 </div>
@@ -1575,9 +1854,13 @@ export function GroupDetail({
               <ChipInput
                 icon={Search}
                 placeholder='Search features...'
-                value={platformSearchTerm}
-                onChange={(e) => setPlatformSearchTerm(e.target.value)}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className='min-w-0 flex-1'
+              />
+              <StatusFilterChip
+                value={statusFilter}
+                onChange={(next) => void setStatusFilter(next)}
               />
               <Chip
                 onClick={() =>
@@ -1588,101 +1871,49 @@ export function GroupDetail({
                     ),
                   }))
                 }
+                flush
+                disabled={filteredPlatformFeatures.length === 0}
               >
                 {platformAllVisible ? 'Deselect All' : 'Select All'}
               </Chip>
             </div>
+            {platformCategorySections.length === 0 && (
+              <SettingsEmptyState variant='inline'>
+                No features match your filters.
+              </SettingsEmptyState>
+            )}
             {platformCategorySections.map(({ category, features }) => (
               <SettingsSection key={category} label={category}>
                 <div className='flex flex-col gap-0.5'>
                   {features.map((feature) => (
-                    <div key={feature.id} className='flex items-center gap-1.5'>
-                      <label
-                        htmlFor={feature.id}
-                        className='flex flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
-                      >
-                        <Checkbox
-                          id={feature.id}
-                          checked={!editingConfig[feature.configKey]}
-                          onCheckedChange={(checked) =>
-                            setEditingConfig((prev) => ({
-                              ...prev,
-                              [feature.configKey]: checked !== true,
-                            }))
-                          }
-                        />
-                        <span className='font-normal text-sm'>{feature.label}</span>
-                      </label>
-                      <Info side='top'>{feature.hint}</Info>
+                    <div key={feature.id} className='flex flex-col'>
+                      <div className='flex items-center gap-1.5 rounded-md pr-2 transition-colors hover-hover:bg-[var(--surface-active)]'>
+                        <label
+                          htmlFor={feature.id}
+                          className='flex flex-1 cursor-pointer items-center gap-2 py-[5px] pl-2'
+                        >
+                          <Checkbox
+                            id={feature.id}
+                            checked={!editingConfig[feature.configKey]}
+                            onCheckedChange={(checked) =>
+                              setEditingConfig((prev) => ({
+                                ...prev,
+                                [feature.configKey]: checked !== true,
+                              }))
+                            }
+                          />
+                          <span className='font-normal text-sm'>{feature.label}</span>
+                        </label>
+                        <Info side='top' className='flex-shrink-0'>
+                          {feature.hint}
+                        </Info>
+                      </div>
+                      {featureExtras[feature.id]}
                     </div>
                   ))}
                 </div>
               </SettingsSection>
             ))}
-            <SettingsSection label='Chat'>
-              <div
-                className={cn(
-                  'flex flex-col gap-1.5 px-2 pt-1',
-                  editingConfig.hideDeployChatbot && 'opacity-50'
-                )}
-              >
-                <span className='text-[var(--text-secondary)] text-xs'>
-                  Auth modes chat deployments may use
-                </span>
-                <ChipDropdown
-                  multiple
-                  showAllOption={false}
-                  allLabel='None'
-                  value={chatDeployAuthValue}
-                  onChange={setChatDeployAuthTypes}
-                  options={CHAT_DEPLOY_AUTH_TYPE_OPTIONS}
-                  disabled={editingConfig.hideDeployChatbot}
-                  matchTriggerWidth={false}
-                  className='w-[200px]'
-                />
-              </div>
-            </SettingsSection>
-            <SettingsSection label='Files'>
-              <div className='flex flex-col gap-1.5'>
-                <label
-                  htmlFor='disable-public-file-sharing'
-                  className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
-                >
-                  <Checkbox
-                    id='disable-public-file-sharing'
-                    checked={!editingConfig.disablePublicFileSharing}
-                    onCheckedChange={(checked) =>
-                      setEditingConfig((prev) => ({
-                        ...prev,
-                        disablePublicFileSharing: checked !== true,
-                      }))
-                    }
-                  />
-                  <span className='font-normal text-sm'>Public Sharing</span>
-                </label>
-                <div
-                  className={cn(
-                    'flex flex-col gap-1.5 px-2 pt-1',
-                    editingConfig.disablePublicFileSharing && 'opacity-50'
-                  )}
-                >
-                  <span className='text-[var(--text-secondary)] text-xs'>
-                    Auth modes public file-share links may use
-                  </span>
-                  <ChipDropdown
-                    multiple
-                    showAllOption={false}
-                    allLabel='None'
-                    value={fileShareAuthValue}
-                    onChange={setFileShareAuthTypes}
-                    options={FILE_SHARE_AUTH_TYPE_OPTIONS}
-                    disabled={editingConfig.disablePublicFileSharing}
-                    matchTriggerWidth={false}
-                    className='w-[200px]'
-                  />
-                </div>
-              </div>
-            </SettingsSection>
           </div>
         )}
       </SettingsPanel>

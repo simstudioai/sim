@@ -51,8 +51,13 @@ import {
   canonicalWorkspaceFilePath,
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
-import type { DeploymentData, KbTagDefinitionSummary } from '@/lib/copilot/vfs/serializers'
+import type {
+  DeploymentData,
+  KbTagDefinitionSummary,
+  VfsServiceAccountAuth,
+} from '@/lib/copilot/vfs/serializers'
 import {
+  describeServiceAccountForOAuthProvider,
   serializeApiKeyIntegrations,
   serializeApiKeys,
   serializeBlockSchema,
@@ -93,7 +98,7 @@ import {
   workspacePlansBackingFolderPath,
 } from '@/lib/copilot/vfs/workflow-aliases'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { isE2BDocEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { isDocSandboxEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   getAccessibleEnvCredentials,
@@ -246,7 +251,15 @@ function getStaticComponentFiles(): Map<string, string> {
 
   let integrationCount = 0
 
-  const oauthServices = new Map<string, { provider: string; operations: string[] }>()
+  // `serviceAccount` marks services that also accept a shared service-account
+  // credential (connect AS AN APPLICATION, not as the user) — the same
+  // `auth.serviceAccount` shape the per-operation schemas carry, so the agent
+  // discovers all three auth modes (oauth / api_key / service account) from one
+  // uniform field instead of a separate file.
+  const oauthServices = new Map<
+    string,
+    { provider: string; operations: string[]; serviceAccount?: VfsServiceAccountAuth }
+  >()
 
   // Integration tools come from the shared exposed-tool set (latest version of
   // each operation owned by a visible block), the same set used to build the
@@ -267,7 +280,11 @@ function getStaticComponentFiles(): Map<string, string> {
       if (existing) {
         existing.operations.push(operation)
       } else {
-        oauthServices.set(service, { provider: tool.oauth.provider, operations: [operation] })
+        oauthServices.set(service, {
+          provider: tool.oauth.provider,
+          operations: [operation],
+          serviceAccount: describeServiceAccountForOAuthProvider(tool.oauth.provider),
+        })
       }
     }
   }
@@ -918,7 +935,7 @@ export class WorkspaceVFS {
           totalLines: 1,
         }
       }
-      if (isE2BDocEnabled && (await getE2BDocFormat(record.name))) {
+      if (isDocSandboxEnabled && (await getE2BDocFormat(record.name))) {
         bin = (
           await compileDoc({ source: code, fileName: record.name, workspaceId: this._workspaceId })
         ).buffer
@@ -971,7 +988,7 @@ export class WorkspaceVFS {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
-        const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(record.name) : null
+        const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
         if (!e2bFmt && !taskId) return null
 
@@ -1097,7 +1114,7 @@ export class WorkspaceVFS {
     }
 
     const extractMatch = /^files\/.+\/extract$/.test(path)
-    if (extractMatch && isE2BDocEnabled) {
+    if (extractMatch && isDocSandboxEnabled) {
       let record: WorkspaceFileRecord | null = null
       try {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'extract')
@@ -1166,7 +1183,7 @@ export class WorkspaceVFS {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled-check')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
-        const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(record.name) : null
+        const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
         const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
         if (!e2bFmt && !taskId && !isMermaidFile) return null
@@ -2137,9 +2154,11 @@ export class WorkspaceVFS {
   }
 
   /**
-   * Advertise workspace skills in the VFS without eagerly loading their bodies.
-   * Paths are registered as lazy so glob/WORKSPACE.md see them, but full content
-   * is fetched only when read (or a grep whose scope touches the path) resolves them.
+   * Advertise the workspace skills in the VFS without eagerly loading their
+   * bodies. Paths are registered as lazy so glob/WORKSPACE.md see them, but
+   * full content is fetched only when read (or a grep whose scope touches the
+   * path) resolves them. Skills are workspace-visible — everyone with
+   * workspace access sees and uses every skill.
    */
   private async materializeSkills(
     workspaceId: string
@@ -2554,6 +2573,7 @@ export class WorkspaceVFS {
             displayName: c.displayName,
             role: c.role,
             scope: null,
+            credentialType: c.type,
             createdAt: c.updatedAt,
           })),
         ])

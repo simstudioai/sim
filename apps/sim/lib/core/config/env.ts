@@ -25,6 +25,8 @@ export const env = createEnv({
     DATABASE_URL_WEB:                      z.string().url().optional(),            // Per-role primary URL override; @sim/db falls back to DATABASE_URL
     DATABASE_URL_TRIGGER:                  z.string().url().optional(),            // Per-role primary URL override (trigger)
     DATABASE_URL_REALTIME:                 z.string().url().optional(),            // Per-role primary URL override (realtime)
+    DATABASE_URL_CLEANUP:                  z.string().url().optional(),            // Sub-process pool URL override (cleanup jobs, via dbFor)
+    DATABASE_URL_EXEC:                     z.string().url().optional(),            // Sub-process pool URL override (inline execution writes, via dbFor)
     DATABASE_REPLICA_URL_WEB:              z.string().url().optional(),            // Per-role replica URL override; falls back to DATABASE_REPLICA_URL
     DATABASE_REPLICA_URL_TRIGGER:          z.string().url().optional(),            // Per-role replica URL override (trigger)
     DATABASE_REPLICA_URL_REALTIME:         z.string().url().optional(),            // Per-role replica URL override (realtime)
@@ -419,6 +421,7 @@ export const env = createEnv({
     SLACK_CLIENT_ID:                       z.string().optional(),                  // Slack OAuth client ID
     SLACK_CLIENT_SECRET:                   z.string().optional(),                  // Slack OAuth client secret
     SLACK_SIGNING_SECRET:                  z.string().optional(),                  // Official Sim Slack app signing secret (verifies inbound events for the native OAuth trigger)
+    SLACK_EXTENDED_SCOPES:                 z.boolean().optional(),                 // Request app_mentions:read, assistant:write, im:history — only where the Slack app is approved for them
     REDDIT_CLIENT_ID:                      z.string().optional(),                  // Reddit OAuth client ID
     REDDIT_CLIENT_SECRET:                  z.string().optional(),                  // Reddit OAuth client secret
     WEBFLOW_CLIENT_ID:                     z.string().optional(),                  // Webflow OAuth client ID
@@ -452,6 +455,15 @@ export const env = createEnv({
     MOTHERSHIP_E2B_DOC_TEMPLATE_ID:         z.string().optional(),                  // Dedicated E2B template with python-pptx/docx/openpyxl/reportlab for document generation; when set (and E2B enabled), docs compile via Python instead of the JS isolated-vm path
     E2B_PI_TEMPLATE_ID:                     z.string().optional(),                  // E2B template ID/alias with the Pi CLI + git baked in (Create PR and Review Code)
 
+    // Remote Code Execution provider selection
+    SANDBOX_PROVIDER:                      z.string().optional(),                  // Which sandbox provider serves remote executions: 'e2b' (default) or 'daytona'
+
+    // Daytona Remote Code Execution (used when SANDBOX_PROVIDER=daytona)
+    DAYTONA_API_KEY:                       z.string().optional(),                  // Daytona API key; needs write:snapshots to build images, write:sandboxes to run them
+    DAYTONA_SHELL_SNAPSHOT_ID:             z.string().optional(),                  // Daytona snapshot mirroring mothership-shell (must carry an explicit tag; latest is rejected)
+    DAYTONA_DOC_SNAPSHOT_ID:               z.string().optional(),                  // Daytona snapshot mirroring mothership-docs
+    DAYTONA_PI_SNAPSHOT_ID:                z.string().optional(),                  // Daytona snapshot mirroring the Pi template (Create PR and Review Code)
+
     // Access Control (Permission Groups) - for self-hosted deployments
     ACCESS_CONTROL_ENABLED:                z.boolean().optional(),                 // Enable access control on self-hosted (bypasses plan requirements)
 
@@ -462,6 +474,7 @@ export const env = createEnv({
     DATA_DRAINS_ENABLED:                  z.boolean().optional(),                 // Enable data drains on self-hosted (bypasses hosted requirements)
     FORKING_ENABLED:                      z.boolean().optional(),                 // Enable workspace forking on self-hosted (bypasses hosted requirements)
     DEPLOY_AS_BLOCK:                      z.boolean().optional(),                 // Enable deploy-as-block (publish a workflow as a reusable org-wide custom block)
+    TABLE_LOCKS:                          z.boolean().optional(),                 // Enable per-table mutation locks (schema/insert/update/delete toggles)
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)
@@ -474,6 +487,9 @@ export const env = createEnv({
     // Development Tools
     REACT_GRAB_ENABLED:                    z.boolean().optional(),                 // Enable React Grab for UI element debugging in Cursor/AI agents (dev only)
     REACT_SCAN_ENABLED:                    z.boolean().optional(),                 // Enable React Scan for performance debugging (dev only)
+
+    // Network / proxy trust
+    AUTH_TRUSTED_PROXIES:                  z.string().optional(),                  // Comma-separated reverse-proxy IPs or CIDR ranges. When set, Better Auth walks the forwarded-IP chain right to left, skips these trusted hops, and uses the first untrusted address as the client IP. Leave unset to trust only single-value IP headers.
 
     // SSO Configuration (for script-based registration)
     SSO_ENABLED:                           z.boolean().optional(),                 // Enable SSO functionality
@@ -556,11 +572,13 @@ export const env = createEnv({
     // Feature Flags
     NEXT_PUBLIC_SSO_ENABLED:               z.boolean().optional(),                   // Enable SSO login UI components
     NEXT_PUBLIC_ACCESS_CONTROL_ENABLED:    z.boolean().optional(),                   // Enable access control (permission groups) on self-hosted
+    NEXT_PUBLIC_SLACK_EXTENDED_SCOPES:     z.boolean().optional(),                   // Client twin of SLACK_EXTENDED_SCOPES — set both together
     NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED:     z.boolean().optional(),                   // Enable custom blocks (deploy-as-block) settings on self-hosted
     NEXT_PUBLIC_WHITELABELING_ENABLED:     z.boolean().optional(),                   // Enable whitelabeling on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED:        z.boolean().optional(),                   // Enable audit logs on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_DATA_RETENTION_ENABLED:   z.boolean().optional(),                   // Enable data retention settings on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_DATA_DRAINS_ENABLED:      z.boolean().optional(),                   // Enable data drains on self-hosted (bypasses hosted requirements)
+    NEXT_PUBLIC_SESSION_POLICIES_ENABLED: z.boolean().optional(),                   // Enable org session policies on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_FORKING_ENABLED:          z.boolean().optional(),                   // Enable workspace forking on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED: z.boolean().optional(),                   // Show the "Workflow" column type in user tables (defaults to false)
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED:     z.boolean().optional(),                   // Enable organizations on self-hosted (bypasses plan requirements)
@@ -596,11 +614,13 @@ export const env = createEnv({
     NEXT_PUBLIC_BRAND_BACKGROUND_COLOR: process.env.NEXT_PUBLIC_BRAND_BACKGROUND_COLOR,
     NEXT_PUBLIC_SSO_ENABLED: process.env.NEXT_PUBLIC_SSO_ENABLED,
     NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: process.env.NEXT_PUBLIC_ACCESS_CONTROL_ENABLED,
+    NEXT_PUBLIC_SLACK_EXTENDED_SCOPES: process.env.NEXT_PUBLIC_SLACK_EXTENDED_SCOPES,
     NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED: process.env.NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED,
     NEXT_PUBLIC_WHITELABELING_ENABLED: process.env.NEXT_PUBLIC_WHITELABELING_ENABLED,
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED: process.env.NEXT_PUBLIC_AUDIT_LOGS_ENABLED,
     NEXT_PUBLIC_DATA_RETENTION_ENABLED: process.env.NEXT_PUBLIC_DATA_RETENTION_ENABLED,
     NEXT_PUBLIC_DATA_DRAINS_ENABLED: process.env.NEXT_PUBLIC_DATA_DRAINS_ENABLED,
+    NEXT_PUBLIC_SESSION_POLICIES_ENABLED: process.env.NEXT_PUBLIC_SESSION_POLICIES_ENABLED,
     NEXT_PUBLIC_FORKING_ENABLED: process.env.NEXT_PUBLIC_FORKING_ENABLED,
     NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED: process.env.NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED,
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED: process.env.NEXT_PUBLIC_ORGANIZATIONS_ENABLED,

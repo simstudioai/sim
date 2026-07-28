@@ -3,8 +3,8 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createMockRequest, resetEnvMock, setEnv } from '@sim/testing'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockRequestPasswordReset, mockLogger } = vi.hoisted(() => {
   const logger = {
@@ -22,9 +22,6 @@ const { mockRequestPasswordReset, mockLogger } = vi.hoisted(() => {
   }
 })
 
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: vi.fn(() => 'https://app.example.com'),
-}))
 vi.mock('@/lib/auth', () => ({
   auth: {
     api: {
@@ -43,7 +40,12 @@ import { POST } from '@/app/api/auth/forget-password/route'
 describe('Forget Password API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setEnv({ NEXT_PUBLIC_APP_URL: 'https://app.example.com' })
     mockRequestPasswordReset.mockResolvedValue(undefined)
+  })
+
+  afterAll(() => {
+    resetEnvMock()
   })
 
   afterEach(() => {

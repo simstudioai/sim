@@ -5,9 +5,7 @@ import {
   auditMock,
   dbChainMock,
   dbChainMockFns,
-  drizzleOrmMock,
   encryptionMock,
-  loggerMock,
   posthogServerMock,
   resetDbChainMock,
   schemaMock,
@@ -36,9 +34,7 @@ vi.mock('@sim/db', () => ({
 vi.mock('@sim/db/schema', () => ({
   mcpServerOauth: schemaMock.mcpServerOauth,
 }))
-vi.mock('@sim/logger', () => loggerMock)
 vi.mock('@sim/utils/id', () => ({ generateId: vi.fn() }))
-vi.mock('drizzle-orm', () => drizzleOrmMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/mcp/domain-check', () => ({
   McpDnsResolutionError: class extends Error {},

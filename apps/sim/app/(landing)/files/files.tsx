@@ -119,7 +119,7 @@ const FILES_CONFIG: SolutionsPageConfig = {
     },
     {
       id: 'agents',
-      title: 'Agents read, parse, and produce files.',
+      title: 'AI agents read, parse, and produce files.',
       subtitle:
         'Sim agents take files as inputs, pull the data out, and write new files back to the store for your team.',
       cta: { label: 'Build a file-handling agent', href: '/signup' },

@@ -18,14 +18,14 @@ import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestChatTitle } from '@/lib/copilot/request/lifecycle/start'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
-import { isE2BDocEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { isDocSandboxEnabled, isHosted } from '@/lib/core/config/env-flags'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { formatEmailAsMessage } from '@/lib/mothership/inbox/format'
 import { sendInboxResponse } from '@/lib/mothership/inbox/response'
 import type { AgentMailAttachment } from '@/lib/mothership/inbox/types'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { createFileContent, type MessageContent } from '@/lib/uploads/utils/file-utils'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { checkWorkspaceAccess, getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 const logger = createLogger('InboxExecutor')
@@ -210,21 +210,16 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       return { attachments, ...downloaded }
     }
 
-    const [
-      attachmentResult,
-      workspaceContext,
-      integrationTools,
-      userPermission,
-      billingAttribution,
-      entitlements,
-    ] = await Promise.all([
-      fetchAttachments(),
-      generateWorkspaceContext(ws.id, userId),
-      buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
-      getUserEntityPermissions(userId, 'workspace', ws.id).catch(() => null),
-      resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
-      computeWorkspaceEntitlements(ws.id, userId),
-    ])
+    const workspaceAccess = await checkWorkspaceAccess(ws.id, userId)
+    const userPermission = workspaceAccess.permission
+    const [attachmentResult, workspaceContext, integrationTools, billingAttribution, entitlements] =
+      await Promise.all([
+        fetchAttachments(),
+        generateWorkspaceContext(ws.id, userId, { workspaceAccess }),
+        buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
+        resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
+        computeWorkspaceEntitlements(ws.id, userId),
+      ])
     const { attachments, fileAttachments, storedAttachments } = attachmentResult
 
     const truncatedTask = {
@@ -242,7 +237,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       messageId: userMessageId,
       isHosted,
       workspaceContext,
-      ...(isE2BDocEnabled ? { docCompiler: 'python' } : {}),
+      ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
       ...(userPermission ? { userPermission } : {}),
       ...(entitlements.length > 0 ? { entitlements } : {}),

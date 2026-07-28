@@ -1,21 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RowExecutionMetadata, TableDefinition, WorkflowGroup } from '@/lib/table/types'
 
-const { mockAppendTableEvent, mockTransaction, mockUpdateRow, mockWriteExecutionsPatch } =
-  vi.hoisted(() => ({
-    mockAppendTableEvent: vi.fn(),
-    mockTransaction: vi.fn(),
-    mockUpdateRow: vi.fn(),
-    mockWriteExecutionsPatch: vi.fn(),
-  }))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    transaction: mockTransaction,
-  },
+const { mockAppendTableEvent, mockUpdateRow, mockWriteExecutionsPatch } = vi.hoisted(() => ({
+  mockAppendTableEvent: vi.fn(),
+  mockUpdateRow: vi.fn(),
+  mockWriteExecutionsPatch: vi.fn(),
 }))
 
 vi.mock('@/lib/table/events', () => ({
@@ -39,12 +32,22 @@ const TABLE: TableDefinition = {
     columns: [
       { id: 'first-output', name: 'First output', type: 'string' },
       { id: 'second-output', name: 'Second output', type: 'string' },
+      {
+        id: 'status-output',
+        name: 'Status output',
+        type: 'select',
+        options: [
+          { id: 'opt_open', name: 'Open' },
+          { id: 'opt_closed', name: 'Closed' },
+        ],
+      },
     ],
   },
   rowCount: 1,
   maxRows: 100,
   workspaceId: 'workspace-1',
   createdBy: 'user-1',
+  locks: { schemaLocked: false, insertLocked: false, updateLocked: false, deleteLocked: false },
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   updatedAt: new Date('2026-01-01T00:00:00.000Z'),
 }
@@ -77,9 +80,13 @@ const RUNNING_STATE: RowExecutionMetadata = {
 }
 
 describe('writeWorkflowGroupState', () => {
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
-    mockTransaction.mockImplementation(async (callback) => callback({}))
+    resetDbChainMock()
     mockWriteExecutionsPatch.mockResolvedValue('wrote')
     mockUpdateRow.mockResolvedValue({})
     mockAppendTableEvent.mockResolvedValue(null)
@@ -90,7 +97,7 @@ describe('writeWorkflowGroupState', () => {
       'wrote'
     )
 
-    expect(mockTransaction).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
     expect(mockWriteExecutionsPatch).toHaveBeenCalledWith(
       expect.anything(),
       TABLE.id,
@@ -134,7 +141,7 @@ describe('writeWorkflowGroupState', () => {
       },
       TABLE,
       CONTEXT.requestId,
-      { dataWriteMode: 'patch' }
+      { computedWrite: true }
     )
     expect(mockAppendTableEvent).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -142,6 +149,38 @@ describe('writeWorkflowGroupState', () => {
           'first-output': 'first',
           'second-output': 'second',
         },
+      })
+    )
+  })
+
+  it('emits the stored option id for a select column, not the raw workflow value', async () => {
+    // The workflow returns the option *name*; storage keys on the option id.
+    // Emitting the raw name would make the grid resolve it as an id, find
+    // nothing, and render the cell empty until the next refetch.
+    const dataPatch = { 'status-output': 'Open' }
+    await expect(
+      writeWorkflowGroupState(CONTEXT, { executionState: RUNNING_STATE, dataPatch })
+    ).resolves.toBe('wrote')
+
+    expect(mockAppendTableEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ outputs: { 'status-output': 'opt_open' } })
+    )
+    // The patch object feeds the progress writer's identity-compared retry
+    // bookkeeping, so it must survive untouched.
+    expect(dataPatch).toEqual({ 'status-output': 'Open' })
+  })
+
+  it('resolves select values in a cumulative event snapshot with no data patch', async () => {
+    await expect(
+      writeWorkflowGroupState(CONTEXT, {
+        executionState: RUNNING_STATE,
+        eventOutputs: { 'first-output': 'first', 'status-output': 'Closed' },
+      })
+    ).resolves.toBe('wrote')
+
+    expect(mockAppendTableEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outputs: { 'first-output': 'first', 'status-output': 'opt_closed' },
       })
     )
   })

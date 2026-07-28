@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Chip,
   ChipConfirmModal,
+  ChipInput,
   chipGeometryClass,
   chipVariants,
   cn,
@@ -19,7 +20,7 @@ import {
 } from '@sim/emcn'
 import { ManageWorkspace, PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { MoreHorizontal } from 'lucide-react'
+import { MoreHorizontal, Search } from 'lucide-react'
 import { useActiveOrganization } from '@/lib/auth/auth-client'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
@@ -34,6 +35,9 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 const logger = createLogger('WorkspaceHeader')
+
+/** Show the search input once the workspace list exceeds this count. */
+const WORKSPACE_SEARCH_THRESHOLD = 3
 
 /**
  * Derives the single-letter avatar initial for a workspace, ignoring the word
@@ -150,6 +154,71 @@ function WorkspaceHeaderImpl({
   const contextMenuClosedRef = useRef(true)
   const hasInputFocusedRef = useRef(false)
   const renameInputRef = useRef<HTMLInputElement | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const workspaceListRef = useRef<HTMLDivElement>(null)
+
+  const [workspaceSearch, setWorkspaceSearch] = useState('')
+  const [highlightedId, setHighlightedId] = useState<string | null>(null)
+
+  const showSearch = workspaces.length > WORKSPACE_SEARCH_THRESHOLD
+  const searchQuery = workspaceSearch.trim().toLowerCase()
+  const filteredWorkspaces =
+    showSearch && searchQuery
+      ? workspaces.filter((w) => w.name.toLowerCase().includes(searchQuery))
+      : workspaces
+
+  /**
+   * The highlighted row resolved from the highlighted workspace's identity, not
+   * a stored position. Tracking the id (rather than a numeric index) keeps the
+   * highlight on the same workspace when the list shrinks, grows, or reorders
+   * while the menu is open (a live membership change or background refetch);
+   * a missing id (filtered out) or no selection falls back to the first row.
+   * `activeIndex` is the single source of truth for Enter, the visual highlight,
+   * and the scroll target, so those three can never diverge.
+   */
+  const activeIndex = highlightedId
+    ? Math.max(
+        0,
+        filteredWorkspaces.findIndex((w) => w.id === highlightedId)
+      )
+    : 0
+
+  useEffect(() => {
+    if (!showSearch || !isWorkspaceMenuOpen) return
+    const el = workspaceListRef.current?.querySelector<HTMLElement>(
+      `[data-workspace-row-idx="${activeIndex}"]`
+    )
+    el?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex, showSearch, isWorkspaceMenuOpen])
+
+  /**
+   * Seed the highlight to the first result whenever the current one is absent —
+   * on open, or after typing filters the highlighted workspace out. This keeps
+   * `highlightedId` pinned to a real workspace identity rather than falling back
+   * to a bare positional default, so a reorder or query change carries the
+   * highlight along with its workspace instead of stranding it on whatever now
+   * occupies the first row.
+   */
+  useEffect(() => {
+    if (!showSearch || !isWorkspaceMenuOpen || filteredWorkspaces.length === 0) return
+    const present = highlightedId !== null && filteredWorkspaces.some((w) => w.id === highlightedId)
+    if (!present) setHighlightedId(filteredWorkspaces[0].id)
+  }, [highlightedId, filteredWorkspaces, showSearch, isWorkspaceMenuOpen])
+
+  /**
+   * Clear the query and highlight whenever the menu closes, by any path —
+   * selecting a workspace closes it via `setIsWorkspaceMenuOpen(false)` without
+   * routing through `onOpenChange`, so resetting here (not in the open handler)
+   * keeps a stale search from persisting into the next open. Not gated on
+   * `showSearch`: if the list drops to the threshold while a query is active the
+   * search input unmounts, and this still clears the now-invisible filter. For
+   * users who never search, both setters no-op (same value) so there is no cost.
+   */
+  useEffect(() => {
+    if (isWorkspaceMenuOpen) return
+    setWorkspaceSearch('')
+    setHighlightedId(null)
+  }, [isWorkspaceMenuOpen])
 
   const [isMounted, setIsMounted] = useState(false)
   useEffect(() => {
@@ -361,6 +430,9 @@ function WorkspaceHeaderImpl({
               return
             }
             setIsWorkspaceMenuOpen(open)
+            if (open && showSearch) {
+              requestAnimationFrame(() => searchInputRef.current?.focus())
+            }
           }}
         >
           <DropdownMenuTrigger asChild>
@@ -422,14 +494,63 @@ function WorkspaceHeaderImpl({
               </div>
             ) : (
               <>
-                <div className='-mx-1.5 flex max-h-[94px] flex-col gap-0.5 overflow-y-auto px-1.5'>
-                  {workspaces.map((workspace) => {
+                {showSearch && (
+                  <ChipInput
+                    ref={searchInputRef}
+                    icon={Search}
+                    placeholder='Search workspaces...'
+                    value={workspaceSearch}
+                    onChange={(e) => setWorkspaceSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      e.stopPropagation()
+                      if (e.nativeEvent.isComposing) return
+                      if (filteredWorkspaces.length === 0) return
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault()
+                        const next = (activeIndex + 1) % filteredWorkspaces.length
+                        setHighlightedId(filteredWorkspaces[next].id)
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault()
+                        const next =
+                          (activeIndex - 1 + filteredWorkspaces.length) % filteredWorkspaces.length
+                        setHighlightedId(filteredWorkspaces[next].id)
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault()
+                        const target = filteredWorkspaces[activeIndex]
+                        if (target) onWorkspaceSwitch(target)
+                      }
+                    }}
+                    className='mb-1.5'
+                  />
+                )}
+                <div
+                  ref={workspaceListRef}
+                  className='-mx-1.5 flex max-h-[94px] flex-col gap-0.5 overflow-y-auto px-1.5'
+                >
+                  {filteredWorkspaces.length === 0 && workspaceSearch && (
+                    <div className='px-2 py-[5px] text-[var(--text-muted)] text-caption'>
+                      No results for "{workspaceSearch}"
+                    </div>
+                  )}
+                  {filteredWorkspaces.map((workspace, idx) => {
                     const initial = getWorkspaceInitial(workspace.name)
                     const isActive = workspace.id === workspaceId
                     const isMenuOpen = menuOpenWorkspaceId === workspace.id
+                    const isKeyboardHighlighted = showSearch && idx === activeIndex
 
+                    /**
+                     * Hover-highlight is wired to `onMouseMove`, not `onMouseEnter`: a
+                     * keyboard-driven `scrollIntoView` slides rows under a stationary cursor
+                     * and fires `mouseenter`, which would hijack the keyboard selection.
+                     * `mousemove` only fires on real pointer motion, so hover follows the
+                     * mouse without fighting the arrow keys.
+                     */
                     return (
-                      <div key={workspace.id}>
+                      <div
+                        key={workspace.id}
+                        data-workspace-row-idx={showSearch ? idx : undefined}
+                        onMouseMove={showSearch ? () => setHighlightedId(workspace.id) : undefined}
+                      >
                         {editingWorkspaceId === workspace.id ? (
                           <div
                             className={chipVariants({ active: true, fullWidth: true, flush: true })}
@@ -506,7 +627,7 @@ function WorkspaceHeaderImpl({
                           <div
                             className={cn(
                               chipVariants({
-                                active: isActive || isMenuOpen,
+                                active: isActive || isMenuOpen || isKeyboardHighlighted,
                                 fullWidth: true,
                                 flush: true,
                               }),

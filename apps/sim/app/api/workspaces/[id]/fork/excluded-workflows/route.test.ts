@@ -1,20 +1,19 @@
 /**
  * @vitest-environment node
  */
-import { auditMock, auditMockFns, createMockRequest } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  auditMock,
+  auditMockFns,
+  authMockFns,
+  createMockRequest,
+  dbChainMockFns,
+  resetDbChainMock,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockAssertWorkspaceAdminAccess, mockDbUpdate, mockCaptureServerEvent } =
-  vi.hoisted(() => ({
-    mockGetSession: vi.fn(),
-    mockAssertWorkspaceAdminAccess: vi.fn(),
-    mockDbUpdate: vi.fn(),
-    mockCaptureServerEvent: vi.fn(),
-  }))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
+const { mockAssertWorkspaceAdminAccess, mockCaptureServerEvent } = vi.hoisted(() => ({
+  mockAssertWorkspaceAdminAccess: vi.fn(),
+  mockCaptureServerEvent: vi.fn(),
 }))
 
 vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({
@@ -27,32 +26,29 @@ vi.mock('@/lib/posthog/server', () => ({
   captureServerEvent: mockCaptureServerEvent,
 }))
 
-vi.mock('@sim/db', () => ({
-  db: { update: () => mockDbUpdate() },
-}))
-
 import { PUT } from '@/app/api/workspaces/[id]/fork/excluded-workflows/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const WORKSPACE_ID = 'workspace-1'
 const ADMIN_ID = 'user-1'
 const routeContext = { params: Promise.resolve({ id: WORKSPACE_ID }) }
 
 function mockUpdateReturning(rows: Array<{ id: string; name: string }>) {
-  mockDbUpdate.mockReturnValue({
-    set: vi.fn().mockReturnValue({
-      where: vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue(rows),
-      }),
-    }),
-  })
+  dbChainMockFns.returning.mockResolvedValue(rows)
 }
 
 describe('fork excluded-workflows route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mockGetSession.mockResolvedValue({ user: { id: ADMIN_ID } })
     mockAssertWorkspaceAdminAccess.mockResolvedValue({ id: WORKSPACE_ID, name: 'My Workspace' })
     mockUpdateReturning([])
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('returns 401 when there is no session', async () => {
@@ -74,7 +70,7 @@ describe('fork excluded-workflows route', () => {
     )
 
     expect(res.status).toBe(400)
-    expect(mockDbUpdate).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('requires workspace admin (and the fork entitlement gate) before writing', async () => {

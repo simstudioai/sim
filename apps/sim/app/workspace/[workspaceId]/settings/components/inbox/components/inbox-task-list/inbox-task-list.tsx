@@ -171,7 +171,7 @@ export function InboxTaskList() {
                     <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
                       {formatRelativeTime(task.createdAt)}
                     </span>
-                    <Badge variant={statusBadge.variant} className='text-xs'>
+                    <Badge variant={statusBadge.variant} size='sm'>
                       {task.status === 'processing' && (
                         <span className='mr-1 inline-block size-[6px] animate-pulse rounded-full bg-[var(--badge-amber-text)]' />
                       )}

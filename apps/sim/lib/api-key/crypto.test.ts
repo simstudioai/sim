@@ -9,15 +9,14 @@
  * @vitest-environment node
  */
 import { randomBytes } from 'crypto'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-const { mockEnv } = vi.hoisted(() => ({
-  mockEnv: { API_ENCRYPTION_KEY: undefined as string | undefined },
-}))
+beforeAll(() => {
+  setEnv({ API_ENCRYPTION_KEY: undefined })
+})
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: mockEnv,
-}))
+afterAll(resetEnvMock)
 
 import {
   decryptApiKey,
@@ -52,7 +51,7 @@ describe('hashApiKey', () => {
 
 describe('backfill idempotency — encrypted round-trip', () => {
   beforeEach(() => {
-    mockEnv.API_ENCRYPTION_KEY = FIXED_ENCRYPTION_KEY
+    setEnv({ API_ENCRYPTION_KEY: FIXED_ENCRYPTION_KEY })
   })
 
   it('re-running the backfill on the same row yields the same keyHash', async () => {

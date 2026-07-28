@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { envFlagsMockFns, resetEnvFlagsMock } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetApiKeyWithBYOK, mockGetBYOKKey, mockCalculateCost, mockShouldBill } = vi.hoisted(
   () => ({
@@ -20,9 +21,14 @@ vi.mock('@/providers/utils', () => ({
   calculateCost: mockCalculateCost,
   shouldBillModelUsage: mockShouldBill,
 }))
-vi.mock('@/lib/core/config/env-flags', () => ({ getCostMultiplier: () => 2 }))
 
 import { computePiCost, providerApiKeyEnvVar, resolvePiModelKey } from '@/executor/handlers/pi/keys'
+
+beforeAll(() => {
+  envFlagsMockFns.getCostMultiplier.mockReturnValue(2)
+})
+
+afterAll(resetEnvFlagsMock)
 
 describe('providerApiKeyEnvVar', () => {
   it('maps key-based providers and rejects unsupported ones', () => {
@@ -45,13 +51,21 @@ describe('computePiCost', () => {
   })
 
   it('returns zero cost for BYOK keys without billing', () => {
-    expect(computePiCost('claude', 100, 200, true)).toEqual({ input: 0, output: 0, total: 0 })
+    expect(computePiCost('claude', 100, 200, true)).toMatchObject({
+      input: 0,
+      output: 0,
+      total: 0,
+    })
     expect(mockCalculateCost).not.toHaveBeenCalled()
   })
 
   it('returns zero cost for non-billable models', () => {
     mockShouldBill.mockReturnValue(false)
-    expect(computePiCost('local-model', 100, 200, false)).toEqual({ input: 0, output: 0, total: 0 })
+    expect(computePiCost('local-model', 100, 200, false)).toMatchObject({
+      input: 0,
+      output: 0,
+      total: 0,
+    })
     expect(mockCalculateCost).not.toHaveBeenCalled()
   })
 

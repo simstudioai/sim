@@ -1,5 +1,9 @@
 import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
+import {
+  RESOURCE_TILE_BASE,
+  RESOURCE_TILE_FILL,
+} from '@/app/workspace/[workspaceId]/components/resource-tile'
 
 /**
  * The canonical settings "resource row": a rounded-bordered icon tile, a
@@ -20,20 +24,26 @@ interface SettingsResourceRowProps {
    * normalize to 20px so a fallback icon doesn't balloon.
    */
   iconFill?: boolean
+  /**
+   * Fills the tile like the skills/tools resource tiles instead of the default
+   * page-background tile, so a settings list can match its gallery counterpart.
+   */
+  iconFilled?: boolean
   /** Primary line — truncates. */
   title: ReactNode
   /** Secondary muted line — truncates. */
   description?: ReactNode
-  /** Trailing element pinned to the row's end (chips, actions menu, status). */
+  /**
+   * Trailing element pinned to the row's end (chips, actions menu, status). The row
+   * keeps it at its natural size — callers never need their own `flex-shrink-0`.
+   */
   trailing?: ReactNode
 }
-
-const TILE_BASE =
-  'flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)] [&_svg]:size-5'
 
 export function SettingsResourceRow({
   icon,
   iconFill = false,
+  iconFilled = false,
   title,
   description,
   trailing,
@@ -41,7 +51,13 @@ export function SettingsResourceRow({
   return (
     <div className='flex items-center justify-between gap-2.5'>
       <div className='flex min-w-0 items-center gap-2.5'>
-        <div className={cn(TILE_BASE, iconFill ? '[&_img]:size-full' : '[&_img]:size-5')}>
+        <div
+          className={cn(
+            RESOURCE_TILE_BASE,
+            iconFilled ? RESOURCE_TILE_FILL : 'bg-[var(--bg)]',
+            iconFill ? '[&_img]:size-full' : '[&_img]:size-5'
+          )}
+        >
           {icon}
         </div>
         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
@@ -51,7 +67,7 @@ export function SettingsResourceRow({
           )}
         </div>
       </div>
-      {trailing}
+      {trailing ? <div className='flex flex-shrink-0 items-center'>{trailing}</div> : null}
     </div>
   )
 }

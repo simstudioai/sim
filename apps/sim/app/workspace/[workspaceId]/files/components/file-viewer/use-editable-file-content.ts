@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import { toast } from '@sim/emcn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { GENERATED_DOCUMENT_SOURCE_TYPES } from '@/lib/uploads/utils/file-utils'
 import {
   useUpdateWorkspaceFileContent,
   useWorkspaceFileContent,
@@ -20,13 +21,7 @@ import {
  * editable text is the source program, not the compiled artifact. The serve route
  * returns that source only when asked for the raw representation.
  */
-const GENERATED_SOURCE_FILE_TYPES = new Set([
-  'text/x-pptxgenjs',
-  'text/x-docxjs',
-  'text/x-pdflibjs',
-  'text/x-python-pdf',
-  'text/x-python-xlsx',
-])
+const GENERATED_SOURCE_FILE_TYPES = GENERATED_DOCUMENT_SOURCE_TYPES
 
 /**
  * Poll cadence for the content query while the post-stream reconcile waits for a fetch showing the

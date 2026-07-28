@@ -57,7 +57,7 @@ const LOGS_CONFIG: SolutionsPageConfig = {
   rows: [
     {
       id: 'trace',
-      title: 'See exactly what every agent did.',
+      title: 'See exactly what every AI agent did.',
       subtitle:
         'Sim records every step of every agent run, so teams can follow each decision, tool call, and output on one timeline.',
       cta: { label: 'Explore Logs in Sim', href: '/signup' },

@@ -16,54 +16,16 @@ import {
   loadOauthRowByState,
   loadPreregisteredClient,
   type McpOauthCallbackReason,
+  makeTimedStep,
   mcpAuthGuarded,
   SimMcpOauthProvider,
 } from '@/lib/mcp/oauth'
 import { mcpService } from '@/lib/mcp/service'
 
 const logger = createLogger('McpOauthCallbackAPI')
+const timedStep = makeTimedStep(logger)
 
 export const dynamic = 'force-dynamic'
-
-class OauthCallbackStepTimeout extends Error {
-  constructor(step: string, ms: number) {
-    super(`MCP OAuth callback step "${step}" did not settle within ${ms}ms`)
-    this.name = 'OauthCallbackStepTimeout'
-  }
-}
-
-/**
- * Times and bounds one awaited step of the callback so a stalled operation
- * surfaces as a labeled, logged error instead of hanging the request forever.
- * The losing promise is not cancelled (a wedged DB/socket op can't be), so it
- * settles in the background with its rejection swallowed; the point is that the
- * request stops waiting on it and the logs name the exact step that stalled.
- */
-async function timedStep<T>(step: string, ms: number, fn: () => Promise<T>): Promise<T> {
-  const start = Date.now()
-  logger.info(`OAuth callback step start: ${step}`)
-  const work = Promise.resolve(fn())
-  work.catch(() => {})
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    const value = await Promise.race([
-      work,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new OauthCallbackStepTimeout(step, ms)), ms)
-        timer.unref?.()
-      }),
-    ])
-    logger.info(`OAuth callback step done: ${step} (${Date.now() - start}ms)`)
-    return value
-  } catch (error) {
-    logger.error(`OAuth callback step failed: ${step} (${Date.now() - start}ms)`, {
-      error: toError(error).message,
-    })
-    throw error
-  } finally {
-    clearTimeout(timer)
-  }
-}
 
 function escapeHtml(value: string): string {
   return value
@@ -125,12 +87,19 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     serverId?: string
   ) => htmlClose(message, ok, reason, serverId, state)
 
-  const initialRow = state ? await loadOauthRowByState(state).catch(() => null) : null
+  const initialRow = state
+    ? await timedStep('loadOauthRowByState', 15_000, () => loadOauthRowByState(state)).catch(
+        () => null
+      )
+    : null
   const stateRowServerId = initialRow?.mcpServerId
 
   if (errorParam) {
     logger.warn(`MCP OAuth callback received error: ${errorParam}`)
-    if (initialRow) await clearState(initialRow.id, 'callback:provider_error').catch(() => {})
+    if (initialRow)
+      await timedStep('clearState(provider_error)', 10_000, () =>
+        clearState(initialRow.id, 'callback:provider_error')
+      ).catch(() => {})
     return respond(`Authorization failed: ${errorParam}`, false, 'provider_error', stateRowServerId)
   }
   if (!state || !code) {
@@ -144,7 +113,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   let serverId: string | undefined
   try {
-    const session = await getSession()
+    const session = await timedStep('getSession', 15_000, () => getSession())
     if (!session?.user?.id) {
       return respond(
         'You must be signed in to complete authorization.',
@@ -169,11 +138,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const [server] = await db
-      .select({ id: mcpServers.id, url: mcpServers.url, workspaceId: mcpServers.workspaceId })
-      .from(mcpServers)
-      .where(and(eq(mcpServers.id, row.mcpServerId), isNull(mcpServers.deletedAt)))
-      .limit(1)
+    const [server] = await timedStep('loadServer', 15_000, () =>
+      db
+        .select({ id: mcpServers.id, url: mcpServers.url, workspaceId: mcpServers.workspaceId })
+        .from(mcpServers)
+        .where(and(eq(mcpServers.id, row.mcpServerId), isNull(mcpServers.deletedAt)))
+        .limit(1)
+    )
     if (!server || !server.url) {
       return respond('Server no longer exists.', false, 'server_gone', serverId)
     }

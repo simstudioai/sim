@@ -79,7 +79,6 @@ import {
   useCreateMcpServer,
   useForceRefreshMcpTools,
   useMcpServers,
-  useMcpToolsEvents,
   useStoredMcpTools,
 } from '@/hooks/queries/mcp'
 import { useWorkflowState, useWorkflows } from '@/hooks/queries/workflows'
@@ -409,7 +408,7 @@ function createToolIcon(
 ) {
   return (
     <div
-      className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
+      className='flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
       style={{ background: bgColor }}
     >
       <IconComponent className={cn('size-[10px]', getTileIconColorClass(bgColor))} />
@@ -570,7 +569,6 @@ export const ToolInput = memo(function ToolInput({
   const { data: mcpServers = [], isLoading: mcpServersLoading } = useMcpServers(workspaceId)
   const { data: storedMcpTools = [] } = useStoredMcpTools(workspaceId)
   const forceRefreshMcpTools = useForceRefreshMcpTools().mutate
-  useMcpToolsEvents(workspaceId)
   const { navigateToSettings } = useSettingsNavigation()
   const createMcpServer = useCreateMcpServer()
   const { startOauthForServer } = useMcpOauthPopup({ workspaceId })

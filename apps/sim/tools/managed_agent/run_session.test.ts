@@ -1,16 +1,21 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { runManagedAgentSession } = vi.hoisted(() => ({
-  runManagedAgentSession: vi.fn(),
-}))
-
-vi.mock('@/lib/managed-agents/run-session', () => ({ runManagedAgentSession }))
-
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as runSessionModule from '@/lib/managed-agents/run-session'
 import { managedAgentRunSessionTool } from '@/tools/managed_agent/run_session'
 import type { ManagedAgentRunSessionParams } from '@/tools/managed_agent/types'
+
+/**
+ * Spy on the real module namespace instead of vi.mock: under `isolate: false`
+ * the tool module may already be cached bound to the real run-session module,
+ * so patching the shared namespace is the only wiring that always applies.
+ */
+const runManagedAgentSession = vi.spyOn(runSessionModule, 'runManagedAgentSession')
+
+afterAll(() => {
+  runManagedAgentSession.mockRestore()
+})
 
 const run = (params: Partial<ManagedAgentRunSessionParams>) =>
   managedAgentRunSessionTool.directExecution!({

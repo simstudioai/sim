@@ -43,16 +43,49 @@ describe('createGuardedMcpFetch', () => {
     })
   })
 
-  it('builds the transport on the guarded connector with no response cap (streaming)', () => {
+  it('builds the transport on the guarded connector with no dispatcher-level response cap', () => {
     const { close } = createGuardedMcpFetch()
 
-    // No options: no `allowH2` opt-in (h1.1 default) and no maxResponseSize —
-    // the long-lived transport must stream unbounded SSE.
+    // No dispatcher options: no `allowH2` opt-in (h1.1 default) and no Agent-level
+    // maxResponseSize — the standalone GET SSE stream must stream unbounded (the body cap
+    // is applied per-response to non-GET exchanges instead).
     expect(mockCreateGuardedFetchWithDispatcher).toHaveBeenCalledWith()
 
-    // close() tears down the pooled sockets (incl. the long-lived SSE) on disconnect.
     void close()
     expect(mockDestroy).toHaveBeenCalledTimes(1)
+  })
+
+  it('caps an oversized non-GET response body but leaves the GET SSE stream unbounded', async () => {
+    const big = new Uint8Array(20 * 1024 * 1024) // 20 MiB > 16 MiB cap
+    const makeBody = () =>
+      new ReadableStream<Uint8Array>({
+        start(c) {
+          c.enqueue(big)
+          c.close()
+        },
+      })
+    sentinelFetch.mockImplementation(async () => new Response(makeBody()))
+    const { fetch: guarded } = createGuardedMcpFetch()
+
+    // A POST (tools/call) body over the cap errors when read.
+    const post = await guarded('https://mcp.example/mcp', { method: 'POST' })
+    await expect(new Response(post.body).arrayBuffer()).rejects.toThrow(/exceeded \d+ bytes/)
+
+    // The standalone GET SSE stream is not capped — its body streams through.
+    const get = await guarded('https://mcp.example/mcp', { method: 'GET' })
+    await expect(new Response(get.body).arrayBuffer()).resolves.toBeInstanceOf(ArrayBuffer)
+  })
+
+  it('preserves url and redirected on a capped response (SDK auth-metadata resolution)', async () => {
+    const small = new Response('{"ok":true}', { status: 200 })
+    Object.defineProperty(small, 'url', { value: 'https://mcp.example/mcp' })
+    Object.defineProperty(small, 'redirected', { value: true })
+    sentinelFetch.mockImplementation(async () => small)
+    const { fetch: guarded } = createGuardedMcpFetch()
+
+    const res = await guarded('https://mcp.example/mcp', { method: 'POST' })
+    expect(res.url).toBe('https://mcp.example/mcp')
+    expect(res.redirected).toBe(true)
   })
 })
 

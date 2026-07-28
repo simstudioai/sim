@@ -13,6 +13,7 @@ import {
   Search,
   Skeleton,
 } from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
 import { getUserColor } from '@/lib/workspaces/colors'
 import type { RosterMember } from '@/hooks/queries/organization'
 
@@ -207,7 +208,7 @@ export function TransferOwnershipDialog({
 
         {error && (
           <p className='px-2 text-[var(--text-error)] text-sm'>
-            {error instanceof Error && error.message ? error.message : String(error)}
+            {getErrorMessage(error) || 'Failed to transfer ownership'}
           </p>
         )}
       </div>

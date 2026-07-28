@@ -51,6 +51,11 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       visibility: 'user-or-llm',
       description: 'Form data to send (will set appropriate Content-Type)',
     },
+    proxyUrl: {
+      type: 'string',
+      visibility: 'user-only',
+      description: 'Route the request through an http:// proxy (e.g. http://user:pass@host:port).',
+    },
     timeout: {
       type: 'number',
       visibility: 'user-only',

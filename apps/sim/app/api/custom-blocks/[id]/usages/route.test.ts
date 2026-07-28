@@ -1,22 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockIsFeatureEnabled, mockHasWorkspaceAdminAccess, mockOperations } =
-  vi.hoisted(() => ({
-    mockGetSession: vi.fn(),
-    mockIsFeatureEnabled: vi.fn(),
-    mockHasWorkspaceAdminAccess: vi.fn(),
-    mockOperations: {
-      getCustomBlockManageContext: vi.fn(),
-      getCustomBlockUsageCounts: vi.fn(),
-    },
-  }))
-
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
+const { mockIsFeatureEnabled, mockHasWorkspaceAdminAccess, mockOperations } = vi.hoisted(() => ({
+  mockIsFeatureEnabled: vi.fn(),
+  mockHasWorkspaceAdminAccess: vi.fn(),
+  mockOperations: {
+    getCustomBlockManageContext: vi.fn(),
+    getCustomBlockUsageCounts: vi.fn(),
+  },
 }))
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
@@ -30,6 +24,8 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 vi.mock('@/lib/workflows/custom-blocks/operations', () => mockOperations)
 
 import { GET } from '@/app/api/custom-blocks/[id]/usages/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const MANAGE_CONTEXT = {
   organizationId: 'org-1',

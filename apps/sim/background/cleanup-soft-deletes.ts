@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { db, dbFor } from '@sim/db'
 import {
   copilotChats,
   document,
@@ -35,6 +35,13 @@ import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 
 const logger = createLogger('CleanupSoftDeletes')
+
+/**
+ * Cleanup queries run on the dedicated cleanup pool. The one exception is the
+ * billable-file transaction below, which couples row deletion with a storage
+ * billing decrement — billing writes stay on the default client.
+ */
+const cleanupDb = dbFor('cleanup')
 
 const KB_ORPHAN_BINDING_BATCH_SIZE = 500
 const KB_ORPHAN_BINDING_TOTAL_LIMIT = 5_000
@@ -80,7 +87,7 @@ async function selectExpiredWorkspaceFiles(
 ): Promise<WorkspaceFileScope> {
   const [legacyRows, multiContextRows] = await Promise.all([
     selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
-      db
+      cleanupDb
         .select({
           id: workspaceFile.id,
           key: workspaceFile.key,
@@ -97,7 +104,7 @@ async function selectExpiredWorkspaceFiles(
         .limit(chunkLimit)
     ),
     selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
-      db
+      cleanupDb
         .select({
           id: workspaceFiles.id,
           key: workspaceFiles.key,
@@ -199,7 +206,7 @@ async function deleteExpiredLegacyWorkspaceFileRows(
   const result = { deleted: 0, failed: 0 }
   for (const batch of chunkArray(rows, DEFAULT_DELETE_CHUNK_SIZE)) {
     try {
-      const deleted = await db
+      const deleted = await cleanupDb
         .delete(workspaceFile)
         .where(
           and(
@@ -239,7 +246,7 @@ async function deleteExpiredUnbilledWorkspaceFileRows(
   for (const [context, contextRows] of rowsByContext) {
     for (const batch of chunkArray(contextRows, DEFAULT_DELETE_CHUNK_SIZE)) {
       try {
-        const deleted = await db
+        const deleted = await cleanupDb
           .delete(workspaceFiles)
           .where(
             and(
@@ -342,7 +349,7 @@ async function hardDeleteKnowledgeBaseDocuments(
   label: string
 ): Promise<void> {
   for (let batch = 0; batch < KB_DOCUMENT_DELETE_MAX_BATCHES; batch++) {
-    const documentRows = await db
+    const documentRows = await cleanupDb
       .select({ id: document.id })
       .from(document)
       .where(inArray(document.knowledgeBaseId, knowledgeBaseIds))
@@ -357,7 +364,7 @@ async function hardDeleteKnowledgeBaseDocuments(
     }
   }
 
-  const remaining = await db
+  const remaining = await cleanupDb
     .select({ id: document.id })
     .from(document)
     .where(inArray(document.knowledgeBaseId, knowledgeBaseIds))
@@ -377,8 +384,9 @@ async function cleanupExpiredKnowledgeBases(
     workspaceIds,
     tableName: `${label}/knowledgeBase`,
     batchSize: KB_RETENTION_BATCH_SIZE,
+    dbClient: cleanupDb,
     selectChunk: (chunkIds, limit) =>
-      db
+      cleanupDb
         .select({ id: knowledgeBase.id })
         .from(knowledgeBase)
         .where(
@@ -457,7 +465,7 @@ async function cleanupOrphanedKnowledgeBaseBindings(
         KB_ORPHAN_BINDING_BATCH_SIZE,
         KB_ORPHAN_BINDING_TOTAL_LIMIT - attempted
       )
-      const rows = await db
+      const rows = await cleanupDb
         .select({ key: workspaceFiles.key })
         .from(workspaceFiles)
         .where(
@@ -535,7 +543,7 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
   // prematurely purge data.
   const [doomedWorkflows, fileScope, expiredSoftDeletedChats] = await Promise.all([
     selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
-      db
+      cleanupDb
         .select({ id: workflow.id })
         .from(workflow)
         .where(
@@ -549,7 +557,7 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
     ),
     selectExpiredWorkspaceFiles(workspaceIds, retentionDate),
     selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
-      db
+      cleanupDb
         .select({ id: copilotChats.id })
         .from(copilotChats)
         .where(
@@ -570,7 +578,7 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
   const doomedChatIds = new Set(softDeletedChatIds)
   if (doomedWorkflowIds.length > 0) {
     const workflowChats = await selectRowsByIdChunks(doomedWorkflowIds, (chunkIds, chunkLimit) =>
-      db
+      cleanupDb
         .select({ id: copilotChats.id })
         .from(copilotChats)
         .where(inArray(copilotChats.workflowId, chunkIds))
@@ -595,7 +603,7 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
   // spares their backend data and files.
   for (const batch of chunkArray(doomedWorkflowIds, DEFAULT_DELETE_CHUNK_SIZE)) {
     try {
-      const deleted = await db
+      const deleted = await cleanupDb
         .delete(workflow)
         .where(
           and(
@@ -618,7 +626,7 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
   // also re-checks row existence before purging external data).
   for (const batch of chunkArray(softDeletedChatIds, DEFAULT_DELETE_CHUNK_SIZE)) {
     try {
-      const deleted = await db
+      const deleted = await cleanupDb
         .delete(copilotChats)
         .where(
           and(
@@ -667,6 +675,7 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
       retentionDate,
       tableName: `${label}/${target.name}`,
       requireTimestampNotNull: true,
+      dbClient: cleanupDb,
     })
     totalDeleted += result.deleted
   }

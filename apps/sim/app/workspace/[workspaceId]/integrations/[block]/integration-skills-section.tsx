@@ -6,6 +6,7 @@ import { Check, Plus } from 'lucide-react'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components'
+import { isSkillNameConflictError } from '@/app/workspace/[workspaceId]/skills/components/utils'
 import type { SuggestedSkill } from '@/blocks/types'
 import { useCreateSkill, useSkills } from '@/hooks/queries/skills'
 
@@ -77,8 +78,15 @@ export function IntegrationSkillsSection({
         position,
         skill_count: skills.length,
       })
-    } catch {
-      toast.error(`Failed to add "${skill.name}" — please try again`)
+    } catch (error) {
+      // A name conflict just means the skill is already in this workspace —
+      // everyone with workspace access can already see and use it, so there is
+      // nothing to request and retrying can never succeed.
+      if (isSkillNameConflictError(error)) {
+        toast.error(`"${skill.name}" is already in this workspace`)
+      } else {
+        toast.error(`Failed to add "${skill.name}" — please try again`)
+      }
     } finally {
       inFlightRef.current.delete(skill.name)
       setPendingNames((prev) => {

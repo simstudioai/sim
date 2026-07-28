@@ -1,26 +1,30 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  authMockFns,
+  createMockRequest,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvMock,
+  schemaMock,
+  setEnv,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockGetSession,
   mockRecordUsage,
   mockCheckActorUsageLimits,
   mockVerifyWorkspaceMembership,
-  mockChatRows,
   mockResolveBillingAttribution,
   mockResolveSystemBillingAttribution,
   mockCheckAttributedUsageLimits,
   mockToBillingContext,
   mockCheckAndBillPayerOverageThreshold,
 } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
   mockRecordUsage: vi.fn(),
   mockCheckActorUsageLimits: vi.fn(),
   mockVerifyWorkspaceMembership: vi.fn(),
-  mockChatRows: { value: [] as Array<Record<string, unknown>> },
   mockResolveBillingAttribution: vi.fn(),
   mockResolveSystemBillingAttribution: vi.fn(),
   mockCheckAttributedUsageLimits: vi.fn(),
@@ -40,21 +44,6 @@ const SYSTEM_BILLING_ATTRIBUTION = {
   },
   payerSubscription: null,
 }
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: () => {
-      const chain: Record<string, unknown> = {}
-      chain.from = () => chain
-      chain.leftJoin = () => chain
-      chain.where = () => chain
-      chain.limit = () => Promise.resolve(mockChatRows.value)
-      return chain
-    },
-  },
-}))
-
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
 
 vi.mock('@/lib/billing/core/usage-log', () => ({ recordUsage: mockRecordUsage }))
 
@@ -77,13 +66,6 @@ vi.mock('@/app/api/workflows/utils', () => ({
   verifyWorkspaceMembership: mockVerifyWorkspaceMembership,
 }))
 
-vi.mock('@/lib/core/config/env', () => ({ env: { ELEVENLABS_API_KEY: 'test-key' } }))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isBillingEnabled: false,
-  getCostMultiplier: () => 1,
-}))
-
 vi.mock('@/lib/core/rate-limiter', () => ({
   RateLimiter: class {
     checkRateLimitDirect = vi.fn().mockResolvedValue({ allowed: true })
@@ -93,6 +75,8 @@ vi.mock('@/lib/core/rate-limiter', () => ({
 vi.mock('@/lib/core/security/deployment', () => ({ validateAuthToken: vi.fn(() => false) }))
 
 import { POST } from '@/app/api/speech/token/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const publicChatRow = {
   id: 'chat-1',
@@ -105,7 +89,8 @@ const publicChatRow = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mockChatRows.value = []
+  resetDbChainMock()
+  setEnv({ ELEVENLABS_API_KEY: 'test-key' })
   mockGetSession.mockResolvedValue({ user: { id: 'member-1' } })
   mockRecordUsage.mockResolvedValue(undefined)
   mockCheckActorUsageLimits.mockResolvedValue({ isExceeded: false })
@@ -133,6 +118,11 @@ beforeEach(() => {
     json: async () => ({ token: 'tok-123' }),
     // double-cast-allowed: minimal fetch stub for the ElevenLabs token call
   }) as unknown as typeof fetch
+})
+
+afterAll(() => {
+  resetDbChainMock()
+  resetEnvMock()
 })
 
 describe('POST /api/speech/token — usage attribution', () => {
@@ -167,7 +157,7 @@ describe('POST /api/speech/token — usage attribution', () => {
   })
 
   it('deployed chat: uses one atomic system actor and payer snapshot', async () => {
-    mockChatRows.value = [publicChatRow]
+    queueTableRows(schemaMock.chat, [publicChatRow])
 
     const res = await POST(createMockRequest('POST', { chatId: 'chat-1' }))
 
@@ -189,7 +179,7 @@ describe('POST /api/speech/token — usage attribution', () => {
   })
 
   it('deployed chat: uses the chat owner only when no workspace exists', async () => {
-    mockChatRows.value = [{ ...publicChatRow, workspaceId: null }]
+    queueTableRows(schemaMock.chat, [{ ...publicChatRow, workspaceId: null }])
 
     const res = await POST(createMockRequest('POST', { chatId: 'chat-1' }))
 

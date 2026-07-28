@@ -8,6 +8,7 @@ import type { ToolConfig } from '@/tools/types'
 import {
   serializeApiKeyIntegrations,
   serializeBlockSchema,
+  serializeCredentials,
   serializeFileMeta,
   serializeIntegrationSchema,
   serializeKBMeta,
@@ -282,5 +283,79 @@ describe('serializeKBMeta', () => {
 
     expect(empty).not.toHaveProperty('tagDefinitions')
     expect(missing).not.toHaveProperty('tagDefinitions')
+  })
+})
+
+function oauthTool(id: string, provider: string): ToolConfig {
+  return {
+    id,
+    name: id,
+    description: `Run ${id}`,
+    version: '1.0.0',
+    params: {},
+    request: { url: 'https://example.com', method: 'POST', headers: () => ({}) },
+    oauth: { required: true, provider },
+  }
+}
+
+describe('serializeIntegrationSchema — service-account auth', () => {
+  it('marks an OAuth service that also offers a service account, with its secret noun', () => {
+    // Notion connects via OAuth or via an internal integration token; the agent
+    // must be able to discover the second option from the same auth field.
+    const schema = JSON.parse(serializeIntegrationSchema(oauthTool('notion_read', 'notion')))
+    expect(schema.auth).toMatchObject({
+      type: 'oauth',
+      provider: 'notion',
+      serviceAccount: { connectNoun: 'integration secret' },
+    })
+  })
+
+  it('omits serviceAccount for an OAuth service that has no service-account flow', () => {
+    const schema = JSON.parse(serializeIntegrationSchema(oauthTool('gh_read', 'github')))
+    expect(schema.auth.type).toBe('oauth')
+    expect(schema.auth.serviceAccount).toBeUndefined()
+  })
+
+  // The preview-gate behavior (slack custom bot ↔ slack_v2) is covered in
+  // service-account-gate.test.ts, which mocks getBlock — the block registry is
+  // globally stubbed here, so slack_v2's real `preview: true` isn't observable
+  // through serializeIntegrationSchema.
+})
+
+describe('serializeCredentials — type distinguishes reconnect flow', () => {
+  const now = new Date('2026-07-21T00:00:00.000Z')
+
+  it('marks a service account so the agent reconnects it via the tag, not oauth', () => {
+    const json = JSON.parse(
+      serializeCredentials([
+        {
+          id: 'c1',
+          providerId: 'notion-service-account',
+          scope: null,
+          credentialType: 'service_account',
+          createdAt: now,
+        },
+        {
+          id: 'c2',
+          providerId: 'google-email',
+          scope: null,
+          credentialType: 'oauth',
+          createdAt: now,
+        },
+      ])
+    )
+    expect(json[0]).toMatchObject({
+      id: 'c1',
+      provider: 'notion-service-account',
+      type: 'service_account',
+    })
+    expect(json[1]).toMatchObject({ id: 'c2', provider: 'google-email', type: 'oauth' })
+  })
+
+  it('leaves env-var credentials typeless', () => {
+    const json = JSON.parse(
+      serializeCredentials([{ providerId: 'OPENAI_API_KEY', scope: 'workspace', createdAt: now }])
+    )
+    expect(json[0].type).toBeUndefined()
   })
 })

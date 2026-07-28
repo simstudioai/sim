@@ -6,25 +6,23 @@ import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
-import { getClientCredentialAccountDescriptor } from '@/lib/credentials/client-credential-accounts/descriptors'
-import { getTokenServiceAccountDescriptor } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   blockTypeToIconMap,
   type Integration,
   resolveOAuthServiceForIntegration,
 } from '@/lib/integrations'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
-import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { IntegrationSkillsSection } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-skills-section'
 import { connectParam } from '@/app/workspace/[workspaceId]/integrations/[block]/search-params'
-import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
+import {
+  ConnectServiceAccountModal,
+  useServiceAccountConnectTarget,
+} from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
-import { getBlock } from '@/blocks'
-import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
 import {
@@ -32,7 +30,6 @@ import {
   getTemplatesForBlock,
   type ScopedBlockTemplate,
 } from '@/blocks/registry'
-import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 
@@ -78,29 +75,13 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     )
   }, [credentials, oauthService])
   const [serviceAccountOpen, setServiceAccountOpen] = useState(false)
-  const isSlackBot = oauthService?.serviceAccountProviderId === SLACK_CUSTOM_BOT_PROVIDER_ID
-  const blockOverlayVersion = useCustomBlockOverlayVersion()
-  // Custom Slack bots ride the slack_v2 preview flag: the setup surface stays
-  // hidden until that block is revealed for this viewer.
-  const slackBotPreviewHidden = useMemo(() => {
-    if (!isSlackBot) return false
-    const v2 = getBlock('slack_v2')
-    return !v2 || isHiddenUnder(overlayVisibility(), v2)
-  }, [isSlackBot, blockOverlayVersion])
-  const hasServiceAccount =
-    Boolean(oauthService?.serviceAccountProviderId) && !slackBotPreviewHidden
-  // Vendor-accurate connect label: token-paste and client-credential
-  // providers use their own noun ("Add API key", "Add server-to-server app");
-  // only true service-account providers (Google, Atlassian) say
-  // "Add service account".
-  const nounDescriptor =
-    getTokenServiceAccountDescriptor(oauthService?.serviceAccountProviderId) ??
-    getClientCredentialAccountDescriptor(oauthService?.serviceAccountProviderId)
-  const serviceAccountConnectLabel = isSlackBot
-    ? 'Set up a custom bot'
-    : nounDescriptor
-      ? `Add ${nounDescriptor.connectNoun}`
-      : 'Add service account'
+  const serviceAccountTarget = useServiceAccountConnectTarget({
+    serviceAccountProviderId: oauthService?.serviceAccountProviderId,
+    serviceName: oauthService?.serviceName,
+    serviceIcon: oauthService?.serviceIcon,
+  })
+  const hasServiceAccount = Boolean(serviceAccountTarget) && !serviceAccountTarget?.hidden
+  const serviceAccountConnectLabel = serviceAccountTarget?.label ?? 'Add service account'
   const hasHandledConnectQueryRef = useRef(false)
 
   useEffect(() => {

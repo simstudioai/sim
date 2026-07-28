@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockReleaseExecutionSlot, mockReplaceLargeValueReferenceKeysWithClient } = vi.hoisted(
@@ -10,8 +10,6 @@ const { mockReleaseExecutionSlot, mockReplaceLargeValueReferenceKeysWithClient }
     mockReplaceLargeValueReferenceKeysWithClient: vi.fn(),
   })
 )
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
   releaseExecutionSlot: mockReleaseExecutionSlot,

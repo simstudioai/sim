@@ -1,17 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDnsLookup, hostedFlag } = vi.hoisted(() => ({
+const { mockDnsLookup } = vi.hoisted(() => ({
   mockDnsLookup: vi.fn(),
-  hostedFlag: { value: false },
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isHosted() {
-    return hostedFlag.value
-  },
 }))
 
 vi.mock('dns/promises', () => ({
@@ -20,10 +14,12 @@ vi.mock('dns/promises', () => ({
 
 import { validateConnectServerUrl } from '@/app/api/tools/onepassword/utils'
 
+afterAll(resetEnvFlagsMock)
+
 describe('validateConnectServerUrl', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    hostedFlag.value = false
+    setEnvFlags({ isHosted: false })
   })
 
   it('rejects a non-URL string', async () => {
@@ -32,7 +28,7 @@ describe('validateConnectServerUrl', () => {
 
   describe('hosted deployment', () => {
     beforeEach(() => {
-      hostedFlag.value = true
+      setEnvFlags({ isHosted: true })
     })
 
     it.each([
@@ -87,7 +83,7 @@ describe('validateConnectServerUrl', () => {
 
   describe('self-hosted deployment', () => {
     beforeEach(() => {
-      hostedFlag.value = false
+      setEnvFlags({ isHosted: false })
     })
 
     it.each([

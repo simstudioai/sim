@@ -1,11 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
-import {
-  type StartBlockCandidate,
-  StartBlockPath,
-  TRIGGER_TYPES,
-} from '@/lib/workflows/triggers/triggers'
+import { type StartBlockCandidate, StartBlockPath } from '@/lib/workflows/triggers/triggers'
 import { getAllBlocks, getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
@@ -238,10 +234,6 @@ export function getTriggersForSidebar(): BlockConfig[] {
 export function getTriggerDisplayName(blockType: string): string {
   const block = getBlock(blockType)
   if (!block) return blockType
-
-  if (blockType === TRIGGER_TYPES.GENERIC_WEBHOOK) {
-    return 'Webhook'
-  }
 
   return block.name
 }
