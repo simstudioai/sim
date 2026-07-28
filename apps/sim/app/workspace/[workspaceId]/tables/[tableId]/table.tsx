@@ -395,6 +395,14 @@ export function Table({
   const seededViewIdRef = useRef<string | null | undefined>(undefined)
 
   /**
+   * A view this client just created, held only until the list refetch carries it.
+   * Distinct from `seededViewIdRef`, which is stamped on EVERY selection — reusing
+   * that for the create race also matched a view that had been selected normally
+   * and then deleted, so the delete never cleaned up.
+   */
+  const pendingCreatedViewIdRef = useRef<string | null>(null)
+
+  /**
    * Applies a view's config to the live state. `keep` marks slices the user has
    * already set by hand, which win over the view's stored values on the FIRST
    * resolve only — a deep-linked `?sort=` is more specific than the view's default,
@@ -464,14 +472,18 @@ export function Table({
       return
     }
 
-    // A selected id that doesn't resolve is one of two things. Ours — "Save as
-    // view" stamps `seededViewIdRef` before writing the URL, so the id can name a
-    // view the list hasn't refetched yet; clearing there would wipe the filter
-    // just saved. Or genuinely dead (deleted by someone else, stale bookmark), in
-    // which case leaving it applied would keep the grid narrowed under an "All"
+    // The id resolved, so any create race for it is over.
+    if (activeView && pendingCreatedViewIdRef.current === activeView.id) {
+      pendingCreatedViewIdRef.current = null
+    }
+
+    // A selected id that doesn't resolve is one of two things. Ours — creation
+    // writes the URL before the list refetches, and clearing there would wipe the
+    // config just saved. Or genuinely dead (deleted by someone else, stale
+    // bookmark), where leaving it applied keeps the grid narrowed under an "All"
     // label, since the menu resolves the same missing view to null.
     if (activeViewId !== null && activeViewId !== ALL_VIEW_PARAM && !activeView) {
-      if (seededViewIdRef.current === activeViewId) return
+      if (pendingCreatedViewIdRef.current === activeViewId) return
       seededViewIdRef.current = null
       setTableParams({ view: ALL_VIEW_PARAM })
       applyViewConfig(null)
@@ -640,6 +652,7 @@ export function Table({
           // Stamp before selecting so the resolve effect treats this as already
           // seeded — it can't tell a just-created view from a dead id otherwise.
           seededViewIdRef.current = view.id
+          pendingCreatedViewIdRef.current = view.id
           setTableParams({ view: view.id })
           // Which means the blank config must be applied here; nuqs batches this
           // sort write with the `view` write above into one URL update.
