@@ -248,6 +248,27 @@ describe('workspace files download route', () => {
     expect(body.error).not.toContain('second.docx')
   })
 
+  it.each([
+    ['text/x-docxjs', 'report.docx'],
+    ['text/x-pptxgenjs', 'deck.pptx'],
+    ['text/x-pdflibjs', 'isolated.pdf'],
+    ['text/x-python-pdf', 'sandboxed.pdf'],
+    ['text/x-python-xlsx', 'sheet.xlsx'],
+  ])('resolves %s rather than streaming its source', async (type, name) => {
+    // Both PDF generators must be covered: the isolated-vm path stores pdf-lib JS and
+    // the E2B path stores Python, and either one streamed raw is the corruption bug.
+    mockListWorkspaceFiles.mockResolvedValue([{ ...workspaceFile('f1', name), type }])
+    mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
+      buffer: Buffer.from('PKrendered'),
+      contentType: 'application/octet-stream',
+    })
+
+    await zipFrom(await GET(requestFor('fileIds=f1'), context))
+
+    expect(mockFetchServableWorkspaceFileBuffer).toHaveBeenCalledTimes(1)
+    expect(mockDownloadFileStream).not.toHaveBeenCalled()
+  })
+
   it('streams an uploaded office file rather than resolving it', async () => {
     // A real upload serves exactly its stored bytes, so it must not take the buffered
     // path — otherwise a selection of large decks is held in memory for nothing.

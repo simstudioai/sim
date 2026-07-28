@@ -6,12 +6,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import {
-  DOCXJS_SOURCE_MIME,
-  PPTXGENJS_SOURCE_MIME,
-  PYTHON_PDF_SOURCE_MIME,
-  PYTHON_XLSX_SOURCE_MIME,
-} from '@/lib/copilot/tools/server/files/doc-compile'
 import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -26,6 +20,7 @@ import {
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'
 import {
   formatFileSize,
+  isGeneratedDocumentSourceType,
   isRenderableDocumentName,
   MAX_RENDERED_DOCUMENT_BYTES,
 } from '@/lib/uploads/utils/file-utils'
@@ -37,14 +32,6 @@ const logger = createLogger('WorkspaceFilesDownloadAPI')
 const MAX_ZIP_DOWNLOAD_FILES = 100
 const MAX_ZIP_DOWNLOAD_BYTES = 250 * 1024 * 1024
 
-/** Content types under which a generated document's *source* is stored. */
-const GENERATED_SOURCE_TYPES = new Set<string>([
-  DOCXJS_SOURCE_MIME,
-  PPTXGENJS_SOURCE_MIME,
-  PYTHON_PDF_SOURCE_MIME,
-  PYTHON_XLSX_SOURCE_MIME,
-])
-
 /**
  * Whether this entry's stored bytes are a generation source that has to be resolved
  * before it can go in the archive. An ordinary uploaded `.docx` serves exactly what is
@@ -55,7 +42,7 @@ const GENERATED_SOURCE_TYPES = new Set<string>([
  * a document name.
  */
 function needsRendering(file: WorkspaceFileRecord): boolean {
-  return file.type ? GENERATED_SOURCE_TYPES.has(file.type) : isRenderableDocumentName(file.name)
+  return file.type ? isGeneratedDocumentSourceType(file.type) : isRenderableDocumentName(file.name)
 }
 
 /**
