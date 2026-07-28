@@ -28,7 +28,6 @@ import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
-  rateLimitHeaders,
   v1ValidationErrorResponse,
 } from '@/app/api/v1/middleware'
 
@@ -86,15 +85,12 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
       request,
     })
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          columns: updatedTable.schema.columns.map(normalizeColumn),
-        },
+    return NextResponse.json({
+      success: true,
+      data: {
+        columns: updatedTable.schema.columns.map(normalizeColumn),
       },
-      { headers: rateLimitHeaders(rateLimit) }
-    )
+    })
   } catch (error) {
     const lockError = tableLockErrorResponse(error)
     if (lockError) return lockError
@@ -240,15 +236,12 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       request,
     })
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          columns: updatedTable.schema.columns.map(normalizeColumn),
-        },
+    return NextResponse.json({
+      success: true,
+      data: {
+        columns: updatedTable.schema.columns.map(normalizeColumn),
       },
-      { headers: rateLimitHeaders(rateLimit) }
-    )
+    })
   } catch (error) {
     const lockError = tableLockErrorResponse(error)
     if (lockError) return lockError
@@ -328,15 +321,12 @@ export const DELETE = withRouteHandler(
         request,
       })
 
-      return NextResponse.json(
-        {
-          success: true,
-          data: {
-            columns: updatedTable.schema.columns.map(normalizeColumn),
-          },
+      return NextResponse.json({
+        success: true,
+        data: {
+          columns: updatedTable.schema.columns.map(normalizeColumn),
         },
-        { headers: rateLimitHeaders(rateLimit) }
-      )
+      })
     } catch (error) {
       const lockError = tableLockErrorResponse(error)
       if (lockError) return lockError

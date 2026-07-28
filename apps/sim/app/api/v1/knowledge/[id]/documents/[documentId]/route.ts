@@ -11,11 +11,7 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteDocument } from '@/lib/knowledge/documents/service'
 import { handleError, resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
-import {
-  authenticateRequest,
-  rateLimitHeaders,
-  v1ValidationErrorResponse,
-} from '@/app/api/v1/middleware'
+import { authenticateRequest, v1ValidationErrorResponse } from '@/app/api/v1/middleware'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -85,33 +81,30 @@ export const GET = withRouteHandler(
 
       const doc = docs[0]
 
-      return NextResponse.json(
-        {
-          success: true,
-          data: {
-            document: {
-              id: doc.id,
-              knowledgeBaseId: doc.knowledgeBaseId,
-              filename: doc.filename,
-              fileSize: doc.fileSize,
-              mimeType: doc.mimeType,
-              processingStatus: doc.processingStatus,
-              processingError: doc.processingError,
-              processingStartedAt: serializeDate(doc.processingStartedAt),
-              processingCompletedAt: serializeDate(doc.processingCompletedAt),
-              chunkCount: doc.chunkCount,
-              tokenCount: doc.tokenCount,
-              characterCount: doc.characterCount,
-              enabled: doc.enabled,
-              connectorId: doc.connectorId,
-              connectorType: doc.connectorType,
-              sourceUrl: doc.sourceUrl,
-              createdAt: serializeDate(doc.uploadedAt),
-            },
+      return NextResponse.json({
+        success: true,
+        data: {
+          document: {
+            id: doc.id,
+            knowledgeBaseId: doc.knowledgeBaseId,
+            filename: doc.filename,
+            fileSize: doc.fileSize,
+            mimeType: doc.mimeType,
+            processingStatus: doc.processingStatus,
+            processingError: doc.processingError,
+            processingStartedAt: serializeDate(doc.processingStartedAt),
+            processingCompletedAt: serializeDate(doc.processingCompletedAt),
+            chunkCount: doc.chunkCount,
+            tokenCount: doc.tokenCount,
+            characterCount: doc.characterCount,
+            enabled: doc.enabled,
+            connectorId: doc.connectorId,
+            connectorType: doc.connectorType,
+            sourceUrl: doc.sourceUrl,
+            createdAt: serializeDate(doc.uploadedAt),
           },
         },
-        { headers: rateLimitHeaders(rateLimit) }
-      )
+      })
     } catch (error) {
       return handleError(requestId, error, 'Failed to get document')
     }
@@ -173,15 +166,12 @@ export const DELETE = withRouteHandler(
         request,
       })
 
-      return NextResponse.json(
-        {
-          success: true,
-          data: {
-            message: 'Document deleted successfully',
-          },
+      return NextResponse.json({
+        success: true,
+        data: {
+          message: 'Document deleted successfully',
         },
-        { headers: rateLimitHeaders(rateLimit) }
-      )
+      })
     } catch (error) {
       return handleError(requestId, error, 'Failed to delete document')
     }

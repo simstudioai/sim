@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { requiredFieldSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  requiredFieldSchema,
+  workflowIdSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const subBlockValuesSchema = z.record(z.string(), z.record(z.string(), z.unknown()))
@@ -460,7 +464,7 @@ export const workflowLogBodySchema = z.object({
 export type WorkflowLogBody = z.input<typeof workflowLogBodySchema>
 
 export const importWorkflowAsSuperuserBodySchema = z.object({
-  workflowId: requiredFieldSchema('Workflow ID is required'),
+  workflowId: workflowIdSchema,
   targetWorkspaceId: requiredFieldSchema('Target workspace ID is required'),
 })
 

@@ -14,7 +14,6 @@ import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
-  rateLimitHeaders,
   resolveWorkspaceRequestActor,
   v1ValidationErrorResponse,
 } from '@/app/api/v1/middleware'
@@ -76,28 +75,25 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
       requestId
     )
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          row: {
-            id: upsertResult.row.id,
-            data: toNamedRow(upsertResult.row.data),
-            createdAt:
-              upsertResult.row.createdAt instanceof Date
-                ? upsertResult.row.createdAt.toISOString()
-                : upsertResult.row.createdAt,
-            updatedAt:
-              upsertResult.row.updatedAt instanceof Date
-                ? upsertResult.row.updatedAt.toISOString()
-                : upsertResult.row.updatedAt,
-          },
-          operation: upsertResult.operation,
-          message: `Row ${upsertResult.operation === 'update' ? 'updated' : 'inserted'} successfully`,
+    return NextResponse.json({
+      success: true,
+      data: {
+        row: {
+          id: upsertResult.row.id,
+          data: toNamedRow(upsertResult.row.data),
+          createdAt:
+            upsertResult.row.createdAt instanceof Date
+              ? upsertResult.row.createdAt.toISOString()
+              : upsertResult.row.createdAt,
+          updatedAt:
+            upsertResult.row.updatedAt instanceof Date
+              ? upsertResult.row.updatedAt.toISOString()
+              : upsertResult.row.updatedAt,
         },
+        operation: upsertResult.operation,
+        message: `Row ${upsertResult.operation === 'update' ? 'updated' : 'inserted'} successfully`,
       },
-      { headers: rateLimitHeaders(rateLimit) }
-    )
+    })
   } catch (error) {
     const lockError = tableLockErrorResponse(error)
     if (lockError) return lockError

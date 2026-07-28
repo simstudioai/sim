@@ -25,7 +25,6 @@ import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/
 import { handleError } from '@/app/api/v1/knowledge/utils'
 import {
   authenticateRequest,
-  rateLimitHeaders,
   v1ValidationErrorResponse,
   validateWorkspaceAccess,
 } from '@/app/api/v1/middleware'
@@ -268,41 +267,38 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const documentIds = results.map((r) => r.documentId)
     const documentMetadataMap = await getDocumentMetadataByIds(documentIds)
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          results: results.map((result) => {
-            const kbTagMap = tagDefinitionsMap[result.knowledgeBaseId] || {}
-            const tags: Record<string, string | number | boolean | Date | null> = {}
+    return NextResponse.json({
+      success: true,
+      data: {
+        results: results.map((result) => {
+          const kbTagMap = tagDefinitionsMap[result.knowledgeBaseId] || {}
+          const tags: Record<string, string | number | boolean | Date | null> = {}
 
-            ALL_TAG_SLOTS.forEach((slot) => {
-              const tagValue = result[slot as keyof SearchResult]
-              if (tagValue !== null && tagValue !== undefined) {
-                const displayName = kbTagMap[slot] || slot
-                tags[displayName] = tagValue as string | number | boolean | Date | null
-              }
-            })
-
-            const docMeta = documentMetadataMap[result.documentId]
-            return {
-              documentId: result.documentId,
-              documentName: docMeta?.filename || undefined,
-              sourceUrl: docMeta?.sourceUrl ?? null,
-              content: result.content,
-              chunkIndex: result.chunkIndex,
-              metadata: tags,
-              similarity: hasQuery ? 1 - result.distance : 1,
+          ALL_TAG_SLOTS.forEach((slot) => {
+            const tagValue = result[slot as keyof SearchResult]
+            if (tagValue !== null && tagValue !== undefined) {
+              const displayName = kbTagMap[slot] || slot
+              tags[displayName] = tagValue as string | number | boolean | Date | null
             }
-          }),
-          query: query || '',
-          knowledgeBaseIds: accessibleKbIds,
-          topK,
-          totalResults: results.length,
-        },
+          })
+
+          const docMeta = documentMetadataMap[result.documentId]
+          return {
+            documentId: result.documentId,
+            documentName: docMeta?.filename || undefined,
+            sourceUrl: docMeta?.sourceUrl ?? null,
+            content: result.content,
+            chunkIndex: result.chunkIndex,
+            metadata: tags,
+            similarity: hasQuery ? 1 - result.distance : 1,
+          }
+        }),
+        query: query || '',
+        knowledgeBaseIds: accessibleKbIds,
+        topK,
+        totalResults: results.length,
       },
-      { headers: rateLimitHeaders(rateLimit) }
-    )
+    })
   } catch (error) {
     return handleError(requestId, error, 'Failed to perform search')
   }

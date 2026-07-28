@@ -4,7 +4,7 @@ import {
   knowledgeDocumentParamsSchema,
   successResponseSchema,
 } from '@/lib/api/contracts/knowledge/shared'
-import { requiredFieldSchema } from '@/lib/api/contracts/primitives'
+import { requiredFieldSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH } from '@/lib/knowledge/constants'
 
@@ -36,7 +36,7 @@ export const v1ListKnowledgeBasesQuerySchema = z.object({
 
 /** POST `/api/v1/knowledge` — create a knowledge base. */
 export const v1CreateKnowledgeBaseBodySchema = z.object({
-  workspaceId: requiredFieldSchema('Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   name: requiredFieldSchema('Name is required').max(255, 'Name must be 255 characters or less'),
   description: z
     .string()
@@ -60,7 +60,7 @@ export const v1KnowledgeWorkspaceQuerySchema = z.object({
 /** PUT `/api/v1/knowledge/[id]` — partial update with workspace scope in body. */
 export const v1UpdateKnowledgeBaseBodySchema = z
   .object({
-    workspaceId: requiredFieldSchema('Workspace ID is required'),
+    workspaceId: workspaceIdSchema,
     name: z.string().min(1).max(255, 'Name must be 255 characters or less').optional(),
     description: z
       .string()
@@ -122,7 +122,7 @@ export const v1SearchTagFilterSchema = z.object({
 /** POST `/api/v1/knowledge/search` body. */
 export const v1KnowledgeSearchBodySchema = z
   .object({
-    workspaceId: requiredFieldSchema('Workspace ID is required'),
+    workspaceId: workspaceIdSchema,
     knowledgeBaseIds: z.union([
       requiredFieldSchema('Knowledge base ID is required'),
       z

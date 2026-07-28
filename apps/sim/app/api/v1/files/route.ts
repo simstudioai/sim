@@ -22,7 +22,6 @@ import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
-  rateLimitHeaders,
   v1ValidationErrorResponse,
   validateWorkspaceAccess,
 } from '@/app/api/v1/middleware'
@@ -62,25 +61,22 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const files = await listWorkspaceFiles(workspaceId)
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          files: files.map((f) => ({
-            id: f.id,
-            name: f.name,
-            size: f.size,
-            type: f.type,
-            key: f.key,
-            uploadedBy: f.uploadedBy,
-            uploadedAt:
-              f.uploadedAt instanceof Date ? f.uploadedAt.toISOString() : String(f.uploadedAt),
-          })),
-          totalCount: files.length,
-        },
+    return NextResponse.json({
+      success: true,
+      data: {
+        files: files.map((f) => ({
+          id: f.id,
+          name: f.name,
+          size: f.size,
+          type: f.type,
+          key: f.key,
+          uploadedBy: f.uploadedBy,
+          uploadedAt:
+            f.uploadedAt instanceof Date ? f.uploadedAt.toISOString() : String(f.uploadedAt),
+        })),
+        totalCount: files.length,
       },
-      { headers: rateLimitHeaders(rateLimit) }
-    )
+    })
   } catch (error) {
     logger.error(`[${requestId}] Error listing files:`, error)
     return NextResponse.json({ error: 'Failed to list files' }, { status: 500 })
@@ -183,24 +179,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           ? String(fileRecord.uploadedAt)
           : new Date().toISOString()
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          file: {
-            id: userFile.id,
-            name: userFile.name,
-            size: userFile.size,
-            type: userFile.type,
-            key: userFile.key,
-            uploadedBy: userId,
-            uploadedAt,
-          },
-          message: 'File uploaded successfully',
+    return NextResponse.json({
+      success: true,
+      data: {
+        file: {
+          id: userFile.id,
+          name: userFile.name,
+          size: userFile.size,
+          type: userFile.type,
+          key: userFile.key,
+          uploadedBy: userId,
+          uploadedAt,
         },
+        message: 'File uploaded successfully',
       },
-      { headers: rateLimitHeaders(rateLimit) }
-    )
+    })
   } catch (error) {
     if (isPayloadSizeLimitError(error)) {
       return NextResponse.json({ error: error.message }, { status: 413 })

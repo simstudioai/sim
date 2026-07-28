@@ -15,7 +15,6 @@ import { performDeleteWorkspaceFileItems } from '@/lib/workspace-files/orchestra
 import {
   checkRateLimit,
   createRateLimitResponse,
-  rateLimitHeaders,
   v1ValidationErrorResponse,
   validateWorkspaceAccess,
 } from '@/app/api/v1/middleware'
@@ -89,7 +88,6 @@ export const GET = withRouteHandler(async (request: NextRequest, context: FileRo
       {
         status: 200,
         headers: {
-          ...rateLimitHeaders(rateLimit),
           'Content-Type': contentType || fileRecord.type || 'application/octet-stream',
           'Content-Disposition': `attachment; filename="${fileRecord.name.replace(/[^\w.-]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(fileRecord.name)}`,
           'Content-Length': String(buffer.length),
@@ -153,15 +151,12 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Fil
       `[${requestId}] Archived file: ${fileRecord.name} (${fileId}) from workspace ${workspaceId}`
     )
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          message: 'File archived successfully',
-        },
+    return NextResponse.json({
+      success: true,
+      data: {
+        message: 'File archived successfully',
       },
-      { headers: rateLimitHeaders(rateLimit) }
-    )
+    })
   } catch (error) {
     logger.error(`[${requestId}] Error deleting file:`, error)
     return NextResponse.json({ error: 'Failed to delete file' }, { status: 500 })

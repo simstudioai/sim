@@ -11,7 +11,6 @@ import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
 import { formatKnowledgeBase, handleError } from '@/app/api/v1/knowledge/utils'
 import {
   authenticateRequest,
-  rateLimitHeaders,
   v1ValidationErrorResponse,
   validateWorkspaceAccess,
 } from '@/app/api/v1/middleware'
@@ -43,16 +42,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const knowledgeBases = await getKnowledgeBases(userId, workspaceId)
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          knowledgeBases: knowledgeBases.map(formatKnowledgeBase),
-          totalCount: knowledgeBases.length,
-        },
+    return NextResponse.json({
+      success: true,
+      data: {
+        knowledgeBases: knowledgeBases.map(formatKnowledgeBase),
+        totalCount: knowledgeBases.length,
       },
-      { headers: rateLimitHeaders(rateLimit) }
-    )
+    })
   } catch (error) {
     return handleError(requestId, error, 'Failed to list knowledge bases')
   }
@@ -105,16 +101,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       request,
     })
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          knowledgeBase: formatKnowledgeBase(kb),
-          message: 'Knowledge base created successfully',
-        },
+    return NextResponse.json({
+      success: true,
+      data: {
+        knowledgeBase: formatKnowledgeBase(kb),
+        message: 'Knowledge base created successfully',
       },
-      { headers: rateLimitHeaders(rateLimit) }
-    )
+    })
   } catch (error) {
     return handleError(requestId, error, 'Failed to create knowledge base')
   }

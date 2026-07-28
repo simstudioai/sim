@@ -2,7 +2,8 @@ import { createLogger } from '@sim/logger'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
-import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
+import { getValidationErrorMessage, validationErrorResponse } from '@/lib/api/server'
+import { buildRateLimitHeaders, recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getRateLimit, RateLimiter } from '@/lib/core/rate-limiter'
@@ -99,6 +100,17 @@ export async function checkRateLimit(
     const plan = (subscription?.plan || 'free') as SubscriptionPlan
     const config = getRateLimit(plan, 'api-endpoint')
 
+    /**
+     * Recorded here — the one place the bucket is actually consulted — so
+     * `withRouteHandler` can publish the quota on every response the route
+     * returns, including error paths, without each `return` remembering to.
+     */
+    recordRateLimitSnapshot(request, {
+      limit: config.maxTokens,
+      remaining: result.remaining,
+      resetAt: result.resetAt,
+    })
+
     return {
       allowed: result.allowed,
       remaining: result.remaining,
@@ -146,23 +158,6 @@ export async function authenticateRequest(
   return { requestId, userId: rateLimit.userId!, rateLimit }
 }
 
-/**
- * The `X-RateLimit-*` trio every authenticated v1 response should carry, so a
- * client can see its remaining quota before it is throttled rather than only
- * discovering the ceiling on a 429.
- *
- * Returns an empty object when no bucket was consulted (authentication failure,
- * checker error) — publishing a fabricated quota there is worse than silence.
- */
-export function rateLimitHeaders(result: RateLimitResult): Record<string, string> {
-  if (result.error) return {}
-  return {
-    'X-RateLimit-Limit': result.limit.toString(),
-    'X-RateLimit-Remaining': result.remaining.toString(),
-    'X-RateLimit-Reset': result.resetAt.toISOString(),
-  }
-}
-
 export function createRateLimitResponse(result: RateLimitResult): NextResponse {
   /**
    * An authentication failure never reaches the token bucket, so there is no
@@ -172,8 +167,6 @@ export function createRateLimitResponse(result: RateLimitResult): NextResponse {
   if (result.error) {
     return NextResponse.json({ error: result.error || 'Unauthorized' }, { status: 401 })
   }
-
-  const headers = rateLimitHeaders(result)
 
   const retryAfterSeconds = result.retryAfterMs
     ? Math.ceil(result.retryAfterMs / 1000)
@@ -188,7 +181,7 @@ export function createRateLimitResponse(result: RateLimitResult): NextResponse {
     {
       status: 429,
       headers: {
-        ...headers,
+        ...buildRateLimitHeaders(result),
         'Retry-After': retryAfterSeconds.toString(),
       },
     }
@@ -279,12 +272,6 @@ export async function validateWorkspaceAccess(
  * v1ValidationErrorResponse })`. Routes with a more specific message of their
  * own (for example `'Invalid workflow ID'`) should keep it.
  */
-export function v1ValidationErrorResponse(error: ZodError): NextResponse {
-  return NextResponse.json(
-    {
-      error: getValidationErrorMessage(error, 'Invalid request'),
-      details: serializeZodIssues(error),
-    },
-    { status: 400 }
-  )
+export function v1ValidationErrorResponse(error: ZodError, fallback = 'Invalid request') {
+  return validationErrorResponse(error, getValidationErrorMessage(error, fallback))
 }

@@ -26,9 +26,10 @@ export const jobIdParamsSchema = z.object({
 })
 
 /**
- * Non-empty string identifier (used for workspace, workflow, user, table, etc.).
- * Prefer this over inline `z.string().min(1)` so error wording stays consistent
- * and refactors can centralize ID validation in one place.
+ * Non-empty string identifier with no custom message — suitable for internal
+ * shapes where the field name is not worth surfacing. For a required *request*
+ * field prefer {@link requiredFieldSchema} (or a named primitive below), which
+ * also names the field when it is omitted entirely.
  */
 export const nonEmptyIdSchema = z.string().min(1)
 
@@ -42,8 +43,8 @@ export const nonEmptyIdSchema = z.string().min(1)
  * message to the `z.string({ error })` constructor closes that gap.
  *
  * Prefer this over a bare `z.string().min(1, '...')` for any required request
- * field, and keep the wording specific to the field and where it belongs (for
- * example `'workspaceId query parameter is required'`).
+ * field. When a named primitive below already carries the right wording, import
+ * that instead of rebuilding it here.
  */
 export function requiredFieldSchema(message: string) {
   return z.string({ error: message }).min(1, message)
@@ -53,12 +54,6 @@ export function requiredFieldSchema(message: string) {
  * Non-empty `workspaceId` field. Same constraint as `nonEmptyIdSchema` with a
  * stable, human-readable message. Use to deduplicate the
  * `z.string().min(1, 'Workspace ID is required')` pattern across contracts.
- *
- * The message is given twice on purpose: `.min(1)` only fires for a present but
- * empty string, so without the `z.string({ error })` form an *omitted* field
- * falls back to Zod's default `Invalid input: expected string, received
- * undefined`, which does not name the field. The same applies to the sibling id
- * schemas below.
  */
 export const workspaceIdSchema = requiredFieldSchema('Workspace ID is required')
 

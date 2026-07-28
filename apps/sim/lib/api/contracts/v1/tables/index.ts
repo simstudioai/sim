@@ -1,6 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
-import { requiredFieldSchema } from '@/lib/api/contracts/primitives'
+import { requiredFieldSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
   createTableBodySchema,
   createTableColumnBodySchema,
@@ -68,7 +68,7 @@ export const v1InsertTableRowBodySchema = insertTableRowBodyBaseSchema
  * Public API batch insert body — no `positions`. Same rationale as above.
  */
 export const v1BatchInsertTableRowsBodySchema = z.object({
-  workspaceId: requiredFieldSchema('Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   rows: z
     .array(rowDataSchema)
     .min(1, 'At least one row is required')
