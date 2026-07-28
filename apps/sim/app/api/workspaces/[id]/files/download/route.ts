@@ -238,7 +238,11 @@ export const GET = withRouteHandler(
         const rendered = renderedDocuments.get(file.id)
         archive.append(rendered ?? lazyWorkspaceFileStream(file), { name: entryPaths[index] })
       })
-      void archive.finalize()
+      archive.finalize().catch((error) => {
+        // The archive's `error` event already fails the response stream; this keeps the
+        // same failure from also surfacing as an unhandled rejection.
+        logger.error('Failed to finalize workspace file archive', { error })
+      })
 
       recordAudit({
         workspaceId,

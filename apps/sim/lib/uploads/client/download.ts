@@ -7,7 +7,12 @@ export function saveBlob(blob: Blob, fileName: string): void {
   const anchor = document.createElement('a')
   anchor.href = objectUrl
   anchor.download = fileName
+  // Attached before clicking: a detached anchor works in current browsers, but every
+  // other download helper in the app attaches, and a silent no-op here would look
+  // exactly like a download that never started.
+  document.body.appendChild(anchor)
   anchor.click()
+  document.body.removeChild(anchor)
   // Deferred: revoking synchronously after click() can race the download starting.
   setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
 }
