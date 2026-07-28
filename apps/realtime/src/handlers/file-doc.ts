@@ -36,7 +36,7 @@ import * as awarenessProtocol from 'y-protocols/awareness'
 import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import { resolveAvatarUrl } from '@/handlers/avatar'
-import { fetchFileDocSeed } from '@/handlers/file-doc-seed'
+import { fetchFileDocMerge, fetchFileDocSeed } from '@/handlers/file-doc-app'
 import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import type { IRoomManager } from '@/rooms'
@@ -203,6 +203,32 @@ async function ensureServerSeed(
     logger.warn(`Server seed failed for file ${room.fileId} (workspace ${workspaceId})`, error)
     room.serverSeedStarted = false
   }
+}
+
+/**
+ * Apply new markdown into a file's LIVE collaborative document (Stage C — copilot writing into an open
+ * doc). Ships the document's current state to the app to build a minimal Yjs diff, applies it — which
+ * fires `doc.on('update')` and relays the merge to every connected editor, reconciled with any
+ * concurrent user edits — and reports whether it landed.
+ *
+ * Returns `'no-live-room'` when the file has no seeded, occupied room: an unseeded/empty doc has no
+ * authoritative content to merge against, so the caller (copilot) writes the file directly instead and
+ * the seed picks up the new content on the next open.
+ */
+export async function applyMarkdownToLiveFileDoc(
+  fileId: string,
+  markdown: string
+): Promise<'applied' | 'no-live-room'> {
+  const name = roomName(fileDocRoom(fileId))
+  const room = fileDocRooms.get(name)
+  if (!room || room.owners.size === 0 || !isDocSeeded(room.doc)) return 'no-live-room'
+
+  const update = await fetchFileDocMerge(fileId, Y.encodeStateAsUpdate(room.doc), markdown)
+  // The room may have been dropped while the diff was being built; never touch a destroyed doc.
+  if (fileDocRooms.get(name) !== room) return 'no-live-room'
+  // No transaction origin → `doc.on('update')` relays to the WHOLE room (every editor sees copilot).
+  Y.applyUpdate(room.doc, update)
+  return 'applied'
 }
 
 /**

@@ -14,20 +14,26 @@ import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import type { IRoomManager } from '@/rooms'
 
-const { mockAuthorizeRoom, mockFetchFileDocSeed } = vi.hoisted(() => ({
+const { mockAuthorizeRoom, mockFetchFileDocSeed, mockFetchFileDocMerge } = vi.hoisted(() => ({
   mockAuthorizeRoom: vi.fn(),
   mockFetchFileDocSeed: vi.fn(),
+  mockFetchFileDocMerge: vi.fn(),
 }))
 
 vi.mock('@sim/platform-authz/rooms', () => ({
   authorizeRoom: mockAuthorizeRoom,
 }))
 
-vi.mock('@/handlers/file-doc-seed', () => ({
+vi.mock('@/handlers/file-doc-app', () => ({
   fetchFileDocSeed: mockFetchFileDocSeed,
+  fetchFileDocMerge: mockFetchFileDocMerge,
 }))
 
-import { cleanupFileDocForSocket, setupWorkspaceFileDocHandlers } from '@/handlers/file-doc'
+import {
+  applyMarkdownToLiveFileDoc,
+  cleanupFileDocForSocket,
+  setupWorkspaceFileDocHandlers,
+} from '@/handlers/file-doc'
 
 type Handler = (payload?: unknown) => Promise<void> | void
 
@@ -173,6 +179,8 @@ describe('setupWorkspaceFileDocHandlers', () => {
     // Default: the server seed builder returns no content (empty file). Tests that
     // exercise seeding override this per-case with an encoded Yjs update.
     mockFetchFileDocSeed.mockResolvedValue(null)
+    // Default: the merge builder returns a no-op update. Tests exercising copilot merges override it.
+    mockFetchFileDocMerge.mockResolvedValue(new Uint8Array())
   })
 
   afterEach(() => {
@@ -397,6 +405,39 @@ describe('setupWorkspaceFileDocHandlers', () => {
     applySyncReply(reply?.[1] as Uint8Array, clientDoc)
     expect(clientDoc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag)).toBe(true)
     expect(clientDoc.getText(FILE_DOC_FIELD).toString()).toContain('# Seeded')
+  })
+
+  it('merges a copilot edit into a seeded live room and relays it to editors', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(encodedSeedUpdate('# Original'))
+    const { io, sent } = createIo()
+    const { handlers } = setup('socket-1', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks() // seed lands → room is seeded/live
+
+    // The app returns a diff (here, an update introducing text) for the relay to apply.
+    const diff = new Y.Doc()
+    diff.getText(FILE_DOC_FIELD).insert(0, 'copilot content')
+    mockFetchFileDocMerge.mockResolvedValue(Y.encodeStateAsUpdate(diff))
+    sent.length = 0
+
+    const result = await applyMarkdownToLiveFileDoc('file-1', '# Rewritten by copilot')
+
+    expect(result).toBe('applied')
+    expect(mockFetchFileDocMerge).toHaveBeenCalledWith(
+      'file-1',
+      expect.any(Uint8Array),
+      '# Rewritten by copilot'
+    )
+    // Applying the diff fires doc.on('update') → the merge is broadcast to the whole room.
+    expect(sent.some((m) => m.event === FILE_DOC_EVENTS.MESSAGE && m.target === ROOM_NAME)).toBe(
+      true
+    )
+  })
+
+  it('reports no-live-room (and does not call the app) when the file has no seeded room', async () => {
+    const result = await applyMarkdownToLiveFileDoc('file-1', '# anything')
+    expect(result).toBe('no-live-room')
+    expect(mockFetchFileDocMerge).not.toHaveBeenCalled()
   })
 
   it('relays a document update to the rest of the room, excluding the sender', async () => {
