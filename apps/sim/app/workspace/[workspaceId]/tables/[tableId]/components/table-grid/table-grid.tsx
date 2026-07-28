@@ -1894,12 +1894,21 @@ export function TableGrid({
     const serverOrder = source.columnOrder
     if (serverOrder) {
       const localOrder = columnOrderRef.current
-      const serverSet = new Set(serverOrder)
-      const localSet = new Set(localOrder ?? [])
-      const setChanged =
-        !localOrder || serverSet.size !== localSet.size || serverOrder.some((n) => !localSet.has(n))
-      if (setChanged) {
+      if (!localOrder) {
         setColumnOrder(serverOrder)
+      } else {
+        // Re-seed only when the server knows an id the local order lacks — a real
+        // schema change (a workflow group gained outputs). Ids present locally but
+        // NOT on the server are our own just-appended columns whose patch is still
+        // in flight: `viewLayout` gets a new identity on every save, so a refetch
+        // carrying the pre-append order would otherwise roll them back, and the
+        // append effect can't re-fire because `columns` is unchanged. Ids the
+        // server drops stay in the local order harmlessly — `displayColumns`
+        // skips any id with no matching column.
+        const localSet = new Set(localOrder)
+        if (serverOrder.some((id) => !localSet.has(id))) {
+          setColumnOrder(serverOrder)
+        }
       }
     }
   }, [tableData?.metadata, viewLayout, viewLayoutKey])
@@ -2229,7 +2238,11 @@ export function TableGrid({
     if (appended.length === 0) return
     const nextOrder = [...order, ...appended]
     setColumnOrder(nextOrder)
-    updateMetadataRef.current({ columnOrder: nextOrder })
+    // Render locally regardless, but only WRITE when the viewer may. Both sinks
+    // are write-gated, so a read-only member opening a view whose stored order
+    // lags the schema would otherwise fire a doomed PATCH and an error toast
+    // just by looking at it.
+    if (canEditRef.current) updateMetadataRef.current({ columnOrder: nextOrder })
   }, [columns])
 
   const deleteWorkflowGroupRef = useRef(deleteWorkflowGroupMutation.mutate)

@@ -263,6 +263,13 @@ export function Table({
   const [{ sort: sortColumn, dir: sortDirection, view: activeViewId }, setTableParams] =
     useQueryStates(tableDetailParsers, tableDetailUrlKeys)
 
+  // Read-only mirrors for the resolve effect: it must know whether the user has
+  // already applied a filter / hidden columns without re-running when they change.
+  const filterRef = useRef(filter)
+  filterRef.current = filter
+  const hiddenColumnsRef = useRef(hiddenColumns)
+  hiddenColumnsRef.current = hiddenColumns
+
   /** Resolved single-column sort, or `null` when no column is active. */
   const sortQuery = useMemo<Sort | null>(
     () => (sortColumn ? { [sortColumn]: sortDirection } : null),
@@ -387,13 +394,22 @@ export function Table({
    *  `undefined` means "nothing seeded yet" so the first resolve still runs. */
   const seededViewIdRef = useRef<string | null | undefined>(undefined)
 
-  /** `keepUrlSort` leaves an explicitly deep-linked `?sort=` alone on the first
-   *  seed — the URL is more specific than the view's stored default. */
+  /**
+   * Applies a view's config to the live state. `keep` marks slices the user has
+   * already set by hand, which win over the view's stored values on the FIRST
+   * resolve only — a deep-linked `?sort=` is more specific than the view's default,
+   * and a filter typed while the views query was still in flight shouldn't be
+   * thrown away when it lands. Switching views later passes no `keep`, so the
+   * incoming view fully replaces the outgoing one.
+   */
   const applyViewConfig = useCallback(
-    (config: TableViewConfig | null, keepUrlSort = false) => {
-      setFilter(config?.filter ?? null)
-      setHiddenColumns(config?.hiddenColumns ?? [])
-      if (keepUrlSort) return
+    (
+      config: TableViewConfig | null,
+      keep?: { sort?: boolean; filter?: boolean; hiddenColumns?: boolean }
+    ) => {
+      if (!keep?.filter) setFilter(config?.filter ?? null)
+      if (!keep?.hiddenColumns) setHiddenColumns(config?.hiddenColumns ?? [])
+      if (keep?.sort) return
       const sortEntry = config?.sort ? Object.entries(config.sort)[0] : undefined
       setTableParams({
         sort: sortEntry ? sortEntry[0] : null,
@@ -402,6 +418,13 @@ export function Table({
     },
     [setTableParams]
   )
+
+  /** What the user has already set by hand, for the first-resolve `keep`. */
+  const localWork = () => ({
+    sort: sortColumn !== null,
+    filter: filterRef.current !== null,
+    hiddenColumns: hiddenColumnsRef.current.length > 0,
+  })
 
   /**
    * Resolves the active view and seeds the local filter/sort/hidden-column state
@@ -421,7 +444,7 @@ export function Table({
         if (defaultView) {
           seededViewIdRef.current = defaultView.id
           setTableParams({ view: defaultView.id })
-          applyViewConfig(defaultView.config, sortColumn !== null)
+          applyViewConfig(defaultView.config, localWork())
           return
         }
         // No view to adopt. Deliberately does NOT apply an empty config — that
@@ -437,15 +460,23 @@ export function Table({
       // back to "All" without touching state, for the same reason. An explicit
       // `?sort=` alongside `?view=` also wins over the view's stored sort.
       seededViewIdRef.current = activeView?.id ?? null
-      if (activeView) applyViewConfig(activeView.config, sortColumn !== null)
+      if (activeView) applyViewConfig(activeView.config, localWork())
       return
     }
 
-    // A selected id that doesn't resolve yet must not clear anything: right after
-    // "Save as view" the URL names the new view before the list has refetched, and
-    // clearing there would wipe the very filter that was just saved. Only an
-    // explicit switch to "All" (`activeViewId === null`) resets.
-    if (activeViewId !== null && activeViewId !== ALL_VIEW_PARAM && !activeView) return
+    // A selected id that doesn't resolve is one of two things. Ours — "Save as
+    // view" stamps `seededViewIdRef` before writing the URL, so the id can name a
+    // view the list hasn't refetched yet; clearing there would wipe the filter
+    // just saved. Or genuinely dead (deleted by someone else, stale bookmark), in
+    // which case leaving it applied would keep the grid narrowed under an "All"
+    // label, since the menu resolves the same missing view to null.
+    if (activeViewId !== null && activeViewId !== ALL_VIEW_PARAM && !activeView) {
+      if (seededViewIdRef.current === activeViewId) return
+      seededViewIdRef.current = null
+      setTableParams({ view: ALL_VIEW_PARAM })
+      applyViewConfig(null)
+      return
+    }
 
     const nextViewId = activeView?.id ?? null
     if (seededViewIdRef.current === nextViewId) return
@@ -476,15 +507,19 @@ export function Table({
       columns.length === 0 ? hiddenColumns : hiddenColumns.filter((id) => liveColumnIds.has(id)),
     [columns.length, hiddenColumns, liveColumnIds]
   )
-  const effectiveSort = useMemo<Sort | null>(
-    () =>
-      !sortQuery || columns.length === 0
-        ? sortQuery
-        : Object.keys(sortQuery).every((id) => liveColumnIds.has(id))
-          ? sortQuery
-          : null,
-    [sortQuery, columns.length, liveColumnIds]
-  )
+
+  /**
+   * Drops a sort whose column was deleted by clearing the URL, rather than masking
+   * it in a derived value: `queryOptions` feeds the query that produces `columns`,
+   * so a pruned sort can't flow back into it without a cycle. Clearing keeps one
+   * source of truth, so the rows query, the dirty check, and the Save patch can't
+   * disagree about whether a sort is active.
+   */
+  useEffect(() => {
+    if (!sortColumn || columns.length === 0) return
+    if (liveColumnIds.has(sortColumn)) return
+    setTableParams({ sort: null, dir: null })
+  }, [sortColumn, columns.length, liveColumnIds, setTableParams])
 
   /** The payload for creating a view, and the left-hand side of the dirty check.
    *  Carries the current layout so "Save as view" from "All" captures the widths /
@@ -495,10 +530,10 @@ export function Table({
     () => ({
       ...(activeView?.config ?? tableData?.metadata),
       filter,
-      sort: effectiveSort,
+      sort: sortQuery,
       hiddenColumns: effectiveHiddenColumns,
     }),
-    [activeView, tableData?.metadata, filter, effectiveSort, effectiveHiddenColumns]
+    [activeView, tableData?.metadata, filter, sortQuery, effectiveHiddenColumns]
   )
 
   /**
@@ -508,7 +543,7 @@ export function Table({
    */
   const isViewDirty = activeView
     ? !isSameViewConfig(currentViewConfig, activeView.config)
-    : Boolean(filter) || Boolean(effectiveSort) || effectiveHiddenColumns.length > 0
+    : Boolean(filter) || Boolean(sortQuery) || effectiveHiddenColumns.length > 0
 
   /** Rename targets a live view rather than a snapshot, so a concurrent rename or
    *  delete can't leave the modal editing stale data. */
@@ -553,7 +588,7 @@ export function Table({
           viewId: activeView.id,
           configPatch: {
             filter,
-            sort: effectiveSort,
+            sort: sortQuery,
             hiddenColumns: effectiveHiddenColumns,
           },
         },
