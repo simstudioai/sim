@@ -1,6 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { type NextRequest, NextResponse } from 'next/server'
+import type { ZodError } from 'zod'
+import { getValidationErrorMessage, isZodError, validationErrorResponse } from '@/lib/api/server'
+import { buildRateLimitHeaders, recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getRateLimit, RateLimiter } from '@/lib/core/rate-limiter'
@@ -97,6 +100,13 @@ export async function checkRateLimit(
     const plan = (subscription?.plan || 'free') as SubscriptionPlan
     const config = getRateLimit(plan, 'api-endpoint')
 
+    /** Recorded here — the one place the bucket is actually consulted. */
+    recordRateLimitSnapshot(request, {
+      limit: config.maxTokens,
+      remaining: result.remaining,
+      resetAt: result.resetAt,
+    })
+
     return {
       allowed: result.allowed,
       remaining: result.remaining,
@@ -154,12 +164,6 @@ export function createRateLimitResponse(result: RateLimitResult): NextResponse {
     return NextResponse.json({ error: result.error || 'Unauthorized' }, { status: 401 })
   }
 
-  const headers = {
-    'X-RateLimit-Limit': result.limit.toString(),
-    'X-RateLimit-Remaining': result.remaining.toString(),
-    'X-RateLimit-Reset': result.resetAt.toISOString(),
-  }
-
   const retryAfterSeconds = result.retryAfterMs
     ? Math.ceil(result.retryAfterMs / 1000)
     : Math.ceil((result.resetAt.getTime() - Date.now()) / 1000)
@@ -173,7 +177,7 @@ export function createRateLimitResponse(result: RateLimitResult): NextResponse {
     {
       status: 429,
       headers: {
-        ...headers,
+        ...buildRateLimitHeaders(result),
         'Retry-After': retryAfterSeconds.toString(),
       },
     }
@@ -250,4 +254,32 @@ export async function validateWorkspaceAccess(
     return NextResponse.json({ error: 'Access denied' }, { status: 403 })
   }
   return null
+}
+
+/**
+ * Shared 400 handler for v1 contract validation failures.
+ *
+ * `parseRequest`'s default reports the literal `"Validation error"`, which tells
+ * a caller nothing about which field was wrong — the schema already produced a
+ * specific message, and the default discards it. Surfacing the first issue keeps
+ * `details` intact while making the common case self-explanatory.
+ *
+ * Pass as `parseRequest(contract, request, context, { validationErrorResponse:
+ * v1ValidationErrorResponse })`. Routes with a more specific message of their
+ * own (for example `'Invalid workflow ID'`) should keep it.
+ */
+export function v1ValidationErrorResponse(error: ZodError, fallback = 'Invalid request') {
+  return validationErrorResponse(error, getValidationErrorMessage(error, fallback))
+}
+
+/**
+ * v1 counterpart to `validationErrorResponseFromError` for unknown caught
+ * values: returns a 400 naming the failing field when the error is a
+ * `ZodError`, otherwise `null` so the caller can keep handling it.
+ */
+export function v1ValidationErrorResponseFromError(
+  error: unknown,
+  fallback = 'Invalid request'
+): NextResponse | null {
+  return isZodError(error) ? v1ValidationErrorResponse(error, fallback) : null
 }

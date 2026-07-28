@@ -9,6 +9,13 @@
 
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  buildRateLimitHeaders,
+  getRateLimitHeaders,
+  recordRateLimitSnapshot,
+} from '@/lib/api/server/rate-limit-context'
 
 const { mockAuthenticateV1Request, mockGetSubscription, mockCheckRateLimit, mockGetRateLimit } =
   vi.hoisted(() => ({
@@ -33,7 +40,11 @@ vi.mock('@/lib/core/rate-limiter', () => ({
   },
 }))
 
-import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import {
+  checkRateLimit,
+  createRateLimitResponse,
+  v1ValidationErrorResponse,
+} from '@/app/api/v1/middleware'
 
 /** Mirrors `createBucketConfig`: capacity is the per-minute rate x burst multiplier. */
 const TEAM_BUCKET = { maxTokens: 400, refillRate: 200, refillIntervalMs: 60_000 }
@@ -130,5 +141,100 @@ describe('createRateLimitResponse', () => {
     expect(response.headers.get('X-RateLimit-Remaining')).toBeNull()
     expect(response.headers.get('X-RateLimit-Reset')).toBeNull()
     await expect(response.json()).resolves.toEqual({ error: 'API key required' })
+  })
+})
+
+describe('v1ValidationErrorResponse', () => {
+  it('surfaces the schema message instead of a generic string', async () => {
+    const schema = z.object({ workspaceId: workspaceIdSchema })
+    const parsed = schema.safeParse({})
+
+    const response = v1ValidationErrorResponse(parsed.error!)
+    const body = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(body.error).toBe('Workspace ID is required')
+    expect(Array.isArray(body.details)).toBe(true)
+  })
+
+  it('keeps the issue list alongside the message', async () => {
+    const schema = z.object({ workspaceId: workspaceIdSchema })
+    const body = await v1ValidationErrorResponse(schema.safeParse({}).error!).json()
+
+    expect(body.details[0].path).toEqual(['workspaceId'])
+  })
+})
+
+describe('rate-limit snapshot context', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAuthenticateV1Request.mockResolvedValue({
+      authenticated: true,
+      userId: 'user-1',
+      keyType: 'personal',
+    })
+    mockGetSubscription.mockResolvedValue({ plan: 'team' })
+    mockGetRateLimit.mockReturnValue(TEAM_BUCKET)
+    mockCheckRateLimit.mockResolvedValue({
+      allowed: true,
+      remaining: 399,
+      resetAt: new Date('2026-07-28T18:28:48.354Z'),
+    })
+  })
+
+  const SNAPSHOT = {
+    limit: 400,
+    remaining: 399,
+    resetAt: new Date('2026-07-28T18:28:48.354Z'),
+  }
+
+  it('builds a consistent limit/remaining pair', () => {
+    const headers = buildRateLimitHeaders(SNAPSHOT)
+
+    expect(headers['X-RateLimit-Limit']).toBe('400')
+    expect(headers['X-RateLimit-Remaining']).toBe('399')
+    expect(Number(headers['X-RateLimit-Remaining'])).toBeLessThanOrEqual(
+      Number(headers['X-RateLimit-Limit'])
+    )
+    expect(headers['X-RateLimit-Reset']).toBe('2026-07-28T18:28:48.354Z')
+  })
+
+  it('returns null for a request that never consulted a bucket', () => {
+    expect(getRateLimitHeaders({})).toBeNull()
+  })
+
+  it('returns the headers once a snapshot is recorded for that request', () => {
+    const req = {}
+    recordRateLimitSnapshot(req, SNAPSHOT)
+
+    expect(getRateLimitHeaders(req)).toEqual(buildRateLimitHeaders(SNAPSHOT))
+  })
+
+  it('keeps snapshots per request, not global', () => {
+    const a = {}
+    const b = {}
+    recordRateLimitSnapshot(a, SNAPSHOT)
+
+    expect(getRateLimitHeaders(a)).not.toBeNull()
+    expect(getRateLimitHeaders(b)).toBeNull()
+  })
+
+  it('records a snapshot as a side effect of checkRateLimit', async () => {
+    const req = request()
+
+    await checkRateLimit(req, 'workflows')
+
+    const headers = getRateLimitHeaders(req)
+    expect(headers).not.toBeNull()
+    expect(headers?.['X-RateLimit-Limit']).toBe(String(TEAM_BUCKET.maxTokens))
+  })
+
+  it('records nothing when authentication fails', async () => {
+    mockAuthenticateV1Request.mockResolvedValue({ authenticated: false, error: 'API key required' })
+    const req = request()
+
+    await checkRateLimit(req, 'workflows')
+
+    expect(getRateLimitHeaders(req)).toBeNull()
   })
 })
