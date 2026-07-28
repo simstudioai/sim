@@ -15,9 +15,13 @@ interface CustomPatternsEditorProps {
 
 /**
  * Editor for user-supplied custom regex patterns. Each row is a name label, the
- * regex (validated inline for syntax + catastrophic-backtracking safety), and the
- * verbatim replacement token that matches are redacted to. Shared by the Data
- * Retention settings and any other PII-policy surface.
+ * regex (validated inline for syntax only), and the verbatim replacement token
+ * that matches are redacted to. Shared by the Data Retention settings and any
+ * other PII-policy surface.
+ *
+ * Syntax is the only check because these patterns execute in Presidio, not in
+ * this process — see `validateRegexPattern` for why a backtracking screen here
+ * was removed rather than kept.
  */
 export function CustomPatternsEditor({ patterns, onChange }: CustomPatternsEditorProps) {
   function updateRow(index: number, patch: Partial<CustomPiiPattern>) {
