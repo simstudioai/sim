@@ -28,6 +28,8 @@ import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
+  rateLimitHeaders,
+  v1ValidationErrorResponse,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableColumnsAPI')
@@ -51,7 +53,9 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
 
     const userId = rateLimit.userId!
 
-    const parsed = await parseRequest(v1AddTableColumnContract, request, context)
+    const parsed = await parseRequest(v1AddTableColumnContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
     const { tableId } = parsed.data.params
     const validated = parsed.data.body
@@ -82,12 +86,15 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
       request,
     })
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        columns: updatedTable.schema.columns.map(normalizeColumn),
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          columns: updatedTable.schema.columns.map(normalizeColumn),
+        },
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     const lockError = tableLockErrorResponse(error)
     if (lockError) return lockError
@@ -128,7 +135,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
 
     const userId = rateLimit.userId!
 
-    const parsed = await parseRequest(v1UpdateTableColumnContract, request, context)
+    const parsed = await parseRequest(v1UpdateTableColumnContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
     const { tableId } = parsed.data.params
     const validated = parsed.data.body
@@ -231,12 +240,15 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       request,
     })
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        columns: updatedTable.schema.columns.map(normalizeColumn),
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          columns: updatedTable.schema.columns.map(normalizeColumn),
+        },
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     const lockError = tableLockErrorResponse(error)
     if (lockError) return lockError
@@ -280,7 +292,9 @@ export const DELETE = withRouteHandler(
 
       const userId = rateLimit.userId!
 
-      const parsed = await parseRequest(v1DeleteTableColumnContract, request, context)
+      const parsed = await parseRequest(v1DeleteTableColumnContract, request, context, {
+        validationErrorResponse: v1ValidationErrorResponse,
+      })
       if (!parsed.success) return parsed.response
       const { tableId } = parsed.data.params
       const validated = parsed.data.body
@@ -314,12 +328,15 @@ export const DELETE = withRouteHandler(
         request,
       })
 
-      return NextResponse.json({
-        success: true,
-        data: {
-          columns: updatedTable.schema.columns.map(normalizeColumn),
+      return NextResponse.json(
+        {
+          success: true,
+          data: {
+            columns: updatedTable.schema.columns.map(normalizeColumn),
+          },
         },
-      })
+        { headers: rateLimitHeaders(rateLimit) }
+      )
     } catch (error) {
       const lockError = tableLockErrorResponse(error)
       if (lockError) return lockError

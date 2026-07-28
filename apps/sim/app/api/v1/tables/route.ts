@@ -10,6 +10,8 @@ import { normalizeColumn } from '@/app/api/table/utils'
 import {
   checkRateLimit,
   createRateLimitResponse,
+  rateLimitHeaders,
+  v1ValidationErrorResponse,
   validateWorkspaceAccess,
 } from '@/app/api/v1/middleware'
 
@@ -29,7 +31,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = rateLimit.userId!
-    const parsed = await parseRequest(v1ListTablesContract, request, {})
+    const parsed = await parseRequest(
+      v1ListTablesContract,
+      request,
+      {},
+      {
+        validationErrorResponse: v1ValidationErrorResponse,
+      }
+    )
     if (!parsed.success) return parsed.response
 
     const { workspaceId } = parsed.data.query
@@ -39,30 +48,33 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const tables = await listTables(workspaceId)
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        tables: tables.map((t) => {
-          const schemaData = t.schema as TableSchema
-          return {
-            id: t.id,
-            name: t.name,
-            description: t.description,
-            schema: {
-              columns: schemaData.columns.map(normalizeColumn),
-            },
-            rowCount: t.rowCount,
-            maxRows: t.maxRows,
-            locks: t.locks,
-            createdAt:
-              t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
-            updatedAt:
-              t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt),
-          }
-        }),
-        totalCount: tables.length,
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          tables: tables.map((t) => {
+            const schemaData = t.schema as TableSchema
+            return {
+              id: t.id,
+              name: t.name,
+              description: t.description,
+              schema: {
+                columns: schemaData.columns.map(normalizeColumn),
+              },
+              rowCount: t.rowCount,
+              maxRows: t.maxRows,
+              locks: t.locks,
+              createdAt:
+                t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
+              updatedAt:
+                t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt),
+            }
+          }),
+          totalCount: tables.length,
+        },
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     const validationResponse = validationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
@@ -84,7 +96,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const userId = rateLimit.userId!
 
-    const parsed = await parseRequest(v1CreateTableContract, request, {})
+    const parsed = await parseRequest(
+      v1CreateTableContract,
+      request,
+      {},
+      {
+        validationErrorResponse: v1ValidationErrorResponse,
+      }
+    )
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
@@ -126,31 +145,34 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       request,
     })
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        table: {
-          id: table.id,
-          name: table.name,
-          description: table.description,
-          schema: {
-            columns: (table.schema as TableSchema).columns.map(normalizeColumn),
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          table: {
+            id: table.id,
+            name: table.name,
+            description: table.description,
+            schema: {
+              columns: (table.schema as TableSchema).columns.map(normalizeColumn),
+            },
+            rowCount: table.rowCount,
+            maxRows: table.maxRows,
+            locks: table.locks,
+            createdAt:
+              table.createdAt instanceof Date
+                ? table.createdAt.toISOString()
+                : String(table.createdAt),
+            updatedAt:
+              table.updatedAt instanceof Date
+                ? table.updatedAt.toISOString()
+                : String(table.updatedAt),
           },
-          rowCount: table.rowCount,
-          maxRows: table.maxRows,
-          locks: table.locks,
-          createdAt:
-            table.createdAt instanceof Date
-              ? table.createdAt.toISOString()
-              : String(table.createdAt),
-          updatedAt:
-            table.updatedAt instanceof Date
-              ? table.updatedAt.toISOString()
-              : String(table.updatedAt),
+          message: 'Table created successfully',
         },
-        message: 'Table created successfully',
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     const validationResponse = validationErrorResponseFromError(error)
     if (validationResponse) return validationResponse

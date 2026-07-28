@@ -26,7 +26,11 @@ import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/typ
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { handleError, resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
-import { authenticateRequest } from '@/app/api/v1/middleware'
+import {
+  authenticateRequest,
+  rateLimitHeaders,
+  v1ValidationErrorResponse,
+} from '@/app/api/v1/middleware'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -44,7 +48,9 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Docume
   const { requestId, userId, rateLimit } = auth
 
   try {
-    const parsed = await parseRequest(v1ListKnowledgeDocumentsContract, request, context)
+    const parsed = await parseRequest(v1ListKnowledgeDocumentsContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
 
     const { workspaceId, limit, offset, search, enabledFilter, sortBy, sortOrder } =
@@ -67,25 +73,28 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Docume
       requestId
     )
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        documents: documentsResult.documents.map((doc) => ({
-          id: doc.id,
-          knowledgeBaseId,
-          filename: doc.filename,
-          fileSize: doc.fileSize,
-          mimeType: doc.mimeType,
-          processingStatus: doc.processingStatus,
-          chunkCount: doc.chunkCount,
-          tokenCount: doc.tokenCount,
-          characterCount: doc.characterCount,
-          enabled: doc.enabled,
-          createdAt: serializeDate(doc.uploadedAt),
-        })),
-        pagination: documentsResult.pagination,
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          documents: documentsResult.documents.map((doc) => ({
+            id: doc.id,
+            knowledgeBaseId,
+            filename: doc.filename,
+            fileSize: doc.fileSize,
+            mimeType: doc.mimeType,
+            processingStatus: doc.processingStatus,
+            chunkCount: doc.chunkCount,
+            tokenCount: doc.tokenCount,
+            characterCount: doc.characterCount,
+            enabled: doc.enabled,
+            createdAt: serializeDate(doc.uploadedAt),
+          })),
+          pagination: documentsResult.pagination,
+        },
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     return handleError(requestId, error, 'Failed to list documents')
   }
@@ -99,7 +108,9 @@ export const POST = withRouteHandler(
     const { requestId, userId, rateLimit } = auth
 
     try {
-      const parsed = await parseRequest(v1UploadKnowledgeDocumentContract, request, context)
+      const parsed = await parseRequest(v1UploadKnowledgeDocumentContract, request, context, {
+        validationErrorResponse: v1ValidationErrorResponse,
+      })
       if (!parsed.success) return parsed.response
       const { id: knowledgeBaseId } = parsed.data.params
 
@@ -227,25 +238,28 @@ export const POST = withRouteHandler(
         request,
       })
 
-      return NextResponse.json({
-        success: true,
-        data: {
-          document: {
-            id: newDocument.id,
-            knowledgeBaseId,
-            filename: newDocument.filename,
-            fileSize: newDocument.fileSize,
-            mimeType: newDocument.mimeType,
-            processingStatus: 'pending',
-            chunkCount: 0,
-            tokenCount: 0,
-            characterCount: 0,
-            enabled: newDocument.enabled,
-            createdAt: serializeDate(newDocument.uploadedAt),
+      return NextResponse.json(
+        {
+          success: true,
+          data: {
+            document: {
+              id: newDocument.id,
+              knowledgeBaseId,
+              filename: newDocument.filename,
+              fileSize: newDocument.fileSize,
+              mimeType: newDocument.mimeType,
+              processingStatus: 'pending',
+              chunkCount: 0,
+              tokenCount: 0,
+              characterCount: 0,
+              enabled: newDocument.enabled,
+              createdAt: serializeDate(newDocument.uploadedAt),
+            },
+            message: 'Document uploaded successfully. Processing will begin shortly.',
           },
-          message: 'Document uploaded successfully. Processing will begin shortly.',
         },
-      })
+        { headers: rateLimitHeaders(rateLimit) }
+      )
     } catch (error) {
       return handleError(requestId, error, 'Failed to upload document')
     }

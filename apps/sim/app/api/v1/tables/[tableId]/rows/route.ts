@@ -40,6 +40,8 @@ import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
+  type RateLimitResult,
+  rateLimitHeaders,
   resolveWorkspaceRequestActor,
 } from '@/app/api/v1/middleware'
 
@@ -57,7 +59,8 @@ async function handleBatchInsert(
   tableId: string,
   validated: V1BatchInsertTableRowsBody,
   userId: string,
-  actorUserId: string
+  actorUserId: string,
+  rateLimit: RateLimitResult
 ): Promise<NextResponse> {
   const accessResult = await checkAccess(tableId, userId, 'write')
   if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
@@ -92,20 +95,23 @@ async function handleBatchInsert(
       requestId
     )
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        rows: insertedRows.map((r) => ({
-          id: r.id,
-          data: toNamedRow(r.data),
-          position: r.position,
-          createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
-          updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : r.updatedAt,
-        })),
-        insertedCount: insertedRows.length,
-        message: `Successfully inserted ${insertedRows.length} rows`,
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          rows: insertedRows.map((r) => ({
+            id: r.id,
+            data: toNamedRow(r.data),
+            position: r.position,
+            createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
+            updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : r.updatedAt,
+          })),
+          insertedCount: insertedRows.length,
+          message: `Successfully inserted ${insertedRows.length} rows`,
+        },
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     const response = rowWriteErrorResponse(error)
     if (response) return response
@@ -178,22 +184,27 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
       requestId
     )
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        rows: result.rows.map((r) => ({
-          id: r.id,
-          data: toNamedRow(r.data),
-          position: r.position,
-          createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
-          updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
-        })),
-        rowCount: result.rowCount,
-        totalCount: result.totalCount,
-        limit: result.limit,
-        offset: result.offset,
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          rows: result.rows.map((r) => ({
+            id: r.id,
+            data: toNamedRow(r.data),
+            position: r.position,
+            createdAt:
+              r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+            updatedAt:
+              r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
+          })),
+          rowCount: result.rowCount,
+          totalCount: result.totalCount,
+          limit: result.limit,
+          offset: result.offset,
+        },
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     const validationResponse = validationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
@@ -236,7 +247,7 @@ export const POST = withRouteHandler(
             `Unable to resolve system actor for workspace ${batchValidated.workspaceId}`
           )
         }
-        return handleBatchInsert(requestId, tableId, batchValidated, userId, actorUserId)
+        return handleBatchInsert(requestId, tableId, batchValidated, userId, actorUserId, rateLimit)
       }
 
       const validated = parsed.data.body
@@ -279,19 +290,24 @@ export const POST = withRouteHandler(
         requestId
       )
 
-      return NextResponse.json({
-        success: true,
-        data: {
-          row: {
-            id: row.id,
-            data: toNamedRow(row.data),
-            position: row.position,
-            createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
-            updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
+      return NextResponse.json(
+        {
+          success: true,
+          data: {
+            row: {
+              id: row.id,
+              data: toNamedRow(row.data),
+              position: row.position,
+              createdAt:
+                row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+              updatedAt:
+                row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
+            },
+            message: 'Row inserted successfully',
           },
-          message: 'Row inserted successfully',
         },
-      })
+        { headers: rateLimitHeaders(rateLimit) }
+      )
     } catch (error) {
       const validationResponse = validationErrorResponseFromError(error)
       if (validationResponse) return validationResponse
@@ -363,23 +379,29 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
     )
 
     if (result.affectedCount === 0) {
-      return NextResponse.json({
-        success: true,
-        data: {
-          message: 'No rows matched the filter criteria',
-          updatedCount: 0,
+      return NextResponse.json(
+        {
+          success: true,
+          data: {
+            message: 'No rows matched the filter criteria',
+            updatedCount: 0,
+          },
         },
-      })
+        { headers: rateLimitHeaders(rateLimit) }
+      )
     }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        message: 'Rows updated successfully',
-        updatedCount: result.affectedCount,
-        updatedRowIds: result.affectedRowIds,
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          message: 'Rows updated successfully',
+          updatedCount: result.affectedCount,
+          updatedRowIds: result.affectedRowIds,
+        },
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     const validationResponse = validationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
@@ -432,19 +454,22 @@ export const DELETE = withRouteHandler(
           requestId
         )
 
-        return NextResponse.json({
-          success: true,
-          data: {
-            message:
-              result.deletedCount === 0
-                ? 'No matching rows found for the provided IDs'
-                : 'Rows deleted successfully',
-            deletedCount: result.deletedCount,
-            deletedRowIds: result.deletedRowIds,
-            requestedCount: result.requestedCount,
-            ...(result.missingRowIds.length > 0 ? { missingRowIds: result.missingRowIds } : {}),
+        return NextResponse.json(
+          {
+            success: true,
+            data: {
+              message:
+                result.deletedCount === 0
+                  ? 'No matching rows found for the provided IDs'
+                  : 'Rows deleted successfully',
+              deletedCount: result.deletedCount,
+              deletedRowIds: result.deletedRowIds,
+              requestedCount: result.requestedCount,
+              ...(result.missingRowIds.length > 0 ? { missingRowIds: result.missingRowIds } : {}),
+            },
           },
-        })
+          { headers: rateLimitHeaders(rateLimit) }
+        )
       }
 
       const idByName = buildIdByName(table.schema as TableSchema)
@@ -460,17 +485,20 @@ export const DELETE = withRouteHandler(
         requestId
       )
 
-      return NextResponse.json({
-        success: true,
-        data: {
-          message:
-            result.affectedCount === 0
-              ? 'No rows matched the filter criteria'
-              : 'Rows deleted successfully',
-          deletedCount: result.affectedCount,
-          deletedRowIds: result.affectedRowIds,
+      return NextResponse.json(
+        {
+          success: true,
+          data: {
+            message:
+              result.affectedCount === 0
+                ? 'No rows matched the filter criteria'
+                : 'Rows deleted successfully',
+            deletedCount: result.affectedCount,
+            deletedRowIds: result.affectedRowIds,
+          },
         },
-      })
+        { headers: rateLimitHeaders(rateLimit) }
+      )
     } catch (error) {
       const validationResponse = validationErrorResponseFromError(error)
       if (validationResponse) return validationResponse

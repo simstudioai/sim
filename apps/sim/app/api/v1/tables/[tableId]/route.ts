@@ -16,6 +16,7 @@ import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
+  rateLimitHeaders,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableDetailAPI')
@@ -70,30 +71,33 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
 
     const schemaData = table.schema as TableSchema
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        table: {
-          id: table.id,
-          name: table.name,
-          description: table.description,
-          schema: {
-            columns: schemaData.columns.map(normalizeColumn),
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          table: {
+            id: table.id,
+            name: table.name,
+            description: table.description,
+            schema: {
+              columns: schemaData.columns.map(normalizeColumn),
+            },
+            rowCount: table.rowCount,
+            maxRows: table.maxRows,
+            locks: table.locks,
+            createdAt:
+              table.createdAt instanceof Date
+                ? table.createdAt.toISOString()
+                : String(table.createdAt),
+            updatedAt:
+              table.updatedAt instanceof Date
+                ? table.updatedAt.toISOString()
+                : String(table.updatedAt),
           },
-          rowCount: table.rowCount,
-          maxRows: table.maxRows,
-          locks: table.locks,
-          createdAt:
-            table.createdAt instanceof Date
-              ? table.createdAt.toISOString()
-              : String(table.createdAt),
-          updatedAt:
-            table.updatedAt instanceof Date
-              ? table.updatedAt.toISOString()
-              : String(table.updatedAt),
         },
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     logger.error(`[${requestId}] Error getting table:`, error)
     return NextResponse.json({ error: 'Failed to get table' }, { status: 500 })
@@ -152,12 +156,15 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
       request,
     })
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        message: 'Table archived successfully',
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          message: 'Table archived successfully',
+        },
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     const lockError = tableLockErrorResponse(error)
     if (lockError) return lockError

@@ -21,6 +21,7 @@ import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
+  rateLimitHeaders,
   resolveWorkspaceRequestActor,
 } from '@/app/api/v1/middleware'
 
@@ -85,20 +86,23 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RowRou
     }
 
     const toNamedRow = namedRowMapper((result.table.schema as TableSchema).columns)
-    return NextResponse.json({
-      success: true,
-      data: {
-        row: {
-          id: row.id,
-          data: toNamedRow(row.data as RowData),
-          position: row.position,
-          createdAt:
-            row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
-          updatedAt:
-            row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt),
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          row: {
+            id: row.id,
+            data: toNamedRow(row.data as RowData),
+            position: row.position,
+            createdAt:
+              row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+            updatedAt:
+              row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt),
+          },
         },
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     logger.error(`[${requestId}] Error getting row:`, error)
     return NextResponse.json({ error: 'Failed to get row' }, { status: 500 })
@@ -159,25 +163,28 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     // Firing a second mode: 'incomplete' dispatch here would race with it AND
     // bulk-clear sibling-group outputs.
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        row: {
-          id: updatedRow.id,
-          data: toNamedRow(updatedRow.data),
-          position: updatedRow.position,
-          createdAt:
-            updatedRow.createdAt instanceof Date
-              ? updatedRow.createdAt.toISOString()
-              : updatedRow.createdAt,
-          updatedAt:
-            updatedRow.updatedAt instanceof Date
-              ? updatedRow.updatedAt.toISOString()
-              : updatedRow.updatedAt,
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          row: {
+            id: updatedRow.id,
+            data: toNamedRow(updatedRow.data),
+            position: updatedRow.position,
+            createdAt:
+              updatedRow.createdAt instanceof Date
+                ? updatedRow.createdAt.toISOString()
+                : updatedRow.createdAt,
+            updatedAt:
+              updatedRow.updatedAt instanceof Date
+                ? updatedRow.updatedAt.toISOString()
+                : updatedRow.updatedAt,
+          },
+          message: 'Row updated successfully',
         },
-        message: 'Row updated successfully',
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     const lockError = tableLockErrorResponse(error)
     if (lockError) return lockError
@@ -238,13 +245,16 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
     // enforced — the raw path would return 200 on a locked table.
     await deleteRow(result.table, rowId, requestId)
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        message: 'Row deleted successfully',
-        deletedCount: 1,
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          message: 'Row deleted successfully',
+          deletedCount: 1,
+        },
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     const lockError = tableLockErrorResponse(error)
     if (lockError) return lockError

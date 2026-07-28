@@ -14,7 +14,9 @@ import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
+  rateLimitHeaders,
   resolveWorkspaceRequestActor,
+  v1ValidationErrorResponse,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableUpsertAPI')
@@ -37,7 +39,9 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
     }
 
     const userId = rateLimit.userId!
-    const parsed = await parseRequest(v1UpsertTableRowContract, request, context)
+    const parsed = await parseRequest(v1UpsertTableRowContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
     const { tableId } = parsed.data.params
     const validated = parsed.data.body
@@ -72,25 +76,28 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
       requestId
     )
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        row: {
-          id: upsertResult.row.id,
-          data: toNamedRow(upsertResult.row.data),
-          createdAt:
-            upsertResult.row.createdAt instanceof Date
-              ? upsertResult.row.createdAt.toISOString()
-              : upsertResult.row.createdAt,
-          updatedAt:
-            upsertResult.row.updatedAt instanceof Date
-              ? upsertResult.row.updatedAt.toISOString()
-              : upsertResult.row.updatedAt,
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          row: {
+            id: upsertResult.row.id,
+            data: toNamedRow(upsertResult.row.data),
+            createdAt:
+              upsertResult.row.createdAt instanceof Date
+                ? upsertResult.row.createdAt.toISOString()
+                : upsertResult.row.createdAt,
+            updatedAt:
+              upsertResult.row.updatedAt instanceof Date
+                ? upsertResult.row.updatedAt.toISOString()
+                : upsertResult.row.updatedAt,
+          },
+          operation: upsertResult.operation,
+          message: `Row ${upsertResult.operation === 'update' ? 'updated' : 'inserted'} successfully`,
         },
-        operation: upsertResult.operation,
-        message: `Row ${upsertResult.operation === 'update' ? 'updated' : 'inserted'} successfully`,
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     const lockError = tableLockErrorResponse(error)
     if (lockError) return lockError

@@ -9,7 +9,12 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { EMBEDDING_DIMENSIONS, getConfiguredEmbeddingModel } from '@/lib/knowledge/embeddings'
 import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
 import { formatKnowledgeBase, handleError } from '@/app/api/v1/knowledge/utils'
-import { authenticateRequest, validateWorkspaceAccess } from '@/app/api/v1/middleware'
+import {
+  authenticateRequest,
+  rateLimitHeaders,
+  v1ValidationErrorResponse,
+  validateWorkspaceAccess,
+} from '@/app/api/v1/middleware'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -21,7 +26,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const { requestId, userId, rateLimit } = auth
 
   try {
-    const parsed = await parseRequest(v1ListKnowledgeBasesContract, request, {})
+    const parsed = await parseRequest(
+      v1ListKnowledgeBasesContract,
+      request,
+      {},
+      {
+        validationErrorResponse: v1ValidationErrorResponse,
+      }
+    )
     if (!parsed.success) return parsed.response
 
     const { workspaceId } = parsed.data.query
@@ -31,13 +43,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const knowledgeBases = await getKnowledgeBases(userId, workspaceId)
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        knowledgeBases: knowledgeBases.map(formatKnowledgeBase),
-        totalCount: knowledgeBases.length,
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          knowledgeBases: knowledgeBases.map(formatKnowledgeBase),
+          totalCount: knowledgeBases.length,
+        },
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     return handleError(requestId, error, 'Failed to list knowledge bases')
   }
@@ -50,7 +65,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const { requestId, userId, rateLimit } = auth
 
   try {
-    const parsed = await parseRequest(v1CreateKnowledgeBaseContract, request, {})
+    const parsed = await parseRequest(
+      v1CreateKnowledgeBaseContract,
+      request,
+      {},
+      {
+        validationErrorResponse: v1ValidationErrorResponse,
+      }
+    )
     if (!parsed.success) return parsed.response
 
     const { workspaceId, name, description, chunkingConfig } = parsed.data.body
@@ -83,13 +105,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       request,
     })
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        knowledgeBase: formatKnowledgeBase(kb),
-        message: 'Knowledge base created successfully',
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          knowledgeBase: formatKnowledgeBase(kb),
+          message: 'Knowledge base created successfully',
+        },
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     return handleError(requestId, error, 'Failed to create knowledge base')
   }

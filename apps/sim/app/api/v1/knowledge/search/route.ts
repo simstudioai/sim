@@ -23,7 +23,12 @@ import {
 } from '@/app/api/knowledge/search/utils'
 import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
 import { handleError } from '@/app/api/v1/knowledge/utils'
-import { authenticateRequest, validateWorkspaceAccess } from '@/app/api/v1/middleware'
+import {
+  authenticateRequest,
+  rateLimitHeaders,
+  v1ValidationErrorResponse,
+  validateWorkspaceAccess,
+} from '@/app/api/v1/middleware'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -35,7 +40,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const { requestId, userId, rateLimit } = auth
 
   try {
-    const parsed = await parseRequest(v1KnowledgeSearchContract, request, {})
+    const parsed = await parseRequest(
+      v1KnowledgeSearchContract,
+      request,
+      {},
+      {
+        validationErrorResponse: v1ValidationErrorResponse,
+      }
+    )
     if (!parsed.success) return parsed.response
 
     const { workspaceId, topK, query, tagFilters } = parsed.data.body
@@ -256,38 +268,41 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const documentIds = results.map((r) => r.documentId)
     const documentMetadataMap = await getDocumentMetadataByIds(documentIds)
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        results: results.map((result) => {
-          const kbTagMap = tagDefinitionsMap[result.knowledgeBaseId] || {}
-          const tags: Record<string, string | number | boolean | Date | null> = {}
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          results: results.map((result) => {
+            const kbTagMap = tagDefinitionsMap[result.knowledgeBaseId] || {}
+            const tags: Record<string, string | number | boolean | Date | null> = {}
 
-          ALL_TAG_SLOTS.forEach((slot) => {
-            const tagValue = result[slot as keyof SearchResult]
-            if (tagValue !== null && tagValue !== undefined) {
-              const displayName = kbTagMap[slot] || slot
-              tags[displayName] = tagValue as string | number | boolean | Date | null
+            ALL_TAG_SLOTS.forEach((slot) => {
+              const tagValue = result[slot as keyof SearchResult]
+              if (tagValue !== null && tagValue !== undefined) {
+                const displayName = kbTagMap[slot] || slot
+                tags[displayName] = tagValue as string | number | boolean | Date | null
+              }
+            })
+
+            const docMeta = documentMetadataMap[result.documentId]
+            return {
+              documentId: result.documentId,
+              documentName: docMeta?.filename || undefined,
+              sourceUrl: docMeta?.sourceUrl ?? null,
+              content: result.content,
+              chunkIndex: result.chunkIndex,
+              metadata: tags,
+              similarity: hasQuery ? 1 - result.distance : 1,
             }
-          })
-
-          const docMeta = documentMetadataMap[result.documentId]
-          return {
-            documentId: result.documentId,
-            documentName: docMeta?.filename || undefined,
-            sourceUrl: docMeta?.sourceUrl ?? null,
-            content: result.content,
-            chunkIndex: result.chunkIndex,
-            metadata: tags,
-            similarity: hasQuery ? 1 - result.distance : 1,
-          }
-        }),
-        query: query || '',
-        knowledgeBaseIds: accessibleKbIds,
-        topK,
-        totalResults: results.length,
+          }),
+          query: query || '',
+          knowledgeBaseIds: accessibleKbIds,
+          topK,
+          totalResults: results.length,
+        },
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     return handleError(requestId, error, 'Failed to perform search')
   }

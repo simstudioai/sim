@@ -9,6 +9,8 @@
 
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 
 const { mockAuthenticateV1Request, mockGetSubscription, mockCheckRateLimit, mockGetRateLimit } =
   vi.hoisted(() => ({
@@ -33,7 +35,12 @@ vi.mock('@/lib/core/rate-limiter', () => ({
   },
 }))
 
-import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import {
+  checkRateLimit,
+  createRateLimitResponse,
+  rateLimitHeaders,
+  v1ValidationErrorResponse,
+} from '@/app/api/v1/middleware'
 
 /** Mirrors `createBucketConfig`: capacity is the per-minute rate x burst multiplier. */
 const TEAM_BUCKET = { maxTokens: 400, refillRate: 200, refillIntervalMs: 60_000 }
@@ -130,5 +137,57 @@ describe('createRateLimitResponse', () => {
     expect(response.headers.get('X-RateLimit-Remaining')).toBeNull()
     expect(response.headers.get('X-RateLimit-Reset')).toBeNull()
     await expect(response.json()).resolves.toEqual({ error: 'API key required' })
+  })
+})
+
+describe('rateLimitHeaders', () => {
+  it('reports a consistent limit/remaining pair', () => {
+    const headers = rateLimitHeaders({
+      allowed: true,
+      remaining: 399,
+      limit: 400,
+      resetAt: new Date('2026-07-28T18:28:48.354Z'),
+    })
+
+    expect(headers['X-RateLimit-Limit']).toBe('400')
+    expect(headers['X-RateLimit-Remaining']).toBe('399')
+    expect(Number(headers['X-RateLimit-Remaining'])).toBeLessThanOrEqual(
+      Number(headers['X-RateLimit-Limit'])
+    )
+    expect(headers['X-RateLimit-Reset']).toBe('2026-07-28T18:28:48.354Z')
+  })
+
+  it('publishes nothing when no bucket was consulted', () => {
+    expect(
+      rateLimitHeaders({
+        allowed: false,
+        remaining: 0,
+        limit: 0,
+        resetAt: new Date(),
+        error: 'API key required',
+      })
+    ).toEqual({})
+  })
+})
+
+describe('v1ValidationErrorResponse', () => {
+  it('surfaces the schema message instead of a generic string', async () => {
+    const schema = z.object({ workspaceId: workspaceIdSchema })
+    const parsed = schema.safeParse({})
+
+    const response = v1ValidationErrorResponse(parsed.error!)
+    const body = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(body.error).toBe('Workspace ID is required')
+    expect(body.error).not.toBe('Validation error')
+    expect(Array.isArray(body.details)).toBe(true)
+  })
+
+  it('keeps the issue list alongside the message', async () => {
+    const schema = z.object({ workspaceId: workspaceIdSchema })
+    const body = await v1ValidationErrorResponse(schema.safeParse({}).error!).json()
+
+    expect(body.details[0].path).toEqual(['workspaceId'])
   })
 })

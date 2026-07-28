@@ -33,6 +33,23 @@ export const jobIdParamsSchema = z.object({
 export const nonEmptyIdSchema = z.string().min(1)
 
 /**
+ * Builds a required, non-empty string schema whose message covers **both**
+ * failure modes.
+ *
+ * `.min(1, message)` alone only fires for a present-but-empty string; an omitted
+ * field falls through to Zod's default `Invalid input: expected string, received
+ * undefined`, which never names the field the caller left out. Passing the same
+ * message to the `z.string({ error })` constructor closes that gap.
+ *
+ * Prefer this over a bare `z.string().min(1, '...')` for any required request
+ * field, and keep the wording specific to the field and where it belongs (for
+ * example `'workspaceId query parameter is required'`).
+ */
+export function requiredFieldSchema(message: string) {
+  return z.string({ error: message }).min(1, message)
+}
+
+/**
  * Non-empty `workspaceId` field. Same constraint as `nonEmptyIdSchema` with a
  * stable, human-readable message. Use to deduplicate the
  * `z.string().min(1, 'Workspace ID is required')` pattern across contracts.
@@ -43,25 +60,19 @@ export const nonEmptyIdSchema = z.string().min(1)
  * undefined`, which does not name the field. The same applies to the sibling id
  * schemas below.
  */
-export const workspaceIdSchema = z
-  .string({ error: 'Workspace ID is required' })
-  .min(1, 'Workspace ID is required')
+export const workspaceIdSchema = requiredFieldSchema('Workspace ID is required')
 
 /**
  * Non-empty `organizationId` field. Same constraint as `nonEmptyIdSchema` with a
  * stable, human-readable message.
  */
-export const organizationIdSchema = z
-  .string({ error: 'Organization ID is required' })
-  .min(1, 'Organization ID is required')
+export const organizationIdSchema = requiredFieldSchema('Organization ID is required')
 
 /**
  * Non-empty `workflowId` field. Same constraint as `nonEmptyIdSchema` with a
  * stable, human-readable message.
  */
-export const workflowIdSchema = z
-  .string({ error: 'Workflow ID is required' })
-  .min(1, 'Workflow ID is required')
+export const workflowIdSchema = requiredFieldSchema('Workflow ID is required')
 
 /**
  * A `workspace_files.id` value. The column is a free-form `text` primary key, so
@@ -70,9 +81,7 @@ export const workflowIdSchema = z
  * path. Both are drawn from `[A-Za-z0-9_-]`, so accept that charset rather than a
  * UUID-only schema — a `.uuid()` constraint here silently 400s every `wf_` file.
  */
-export const workspaceFileIdSchema = z
-  .string({ error: 'File ID is required' })
-  .min(1, 'File ID is required')
+export const workspaceFileIdSchema = requiredFieldSchema('File ID is required')
   .max(128, 'File ID is too long')
   .regex(/^[A-Za-z0-9_-]+$/, 'Invalid file id')
 

@@ -13,7 +13,11 @@ import {
   handleError,
   resolveKnowledgeBase,
 } from '@/app/api/v1/knowledge/utils'
-import { authenticateRequest } from '@/app/api/v1/middleware'
+import {
+  authenticateRequest,
+  rateLimitHeaders,
+  v1ValidationErrorResponse,
+} from '@/app/api/v1/middleware'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -29,19 +33,24 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Knowle
   const { requestId, userId, rateLimit } = auth
 
   try {
-    const parsed = await parseRequest(v1GetKnowledgeBaseContract, request, context)
+    const parsed = await parseRequest(v1GetKnowledgeBaseContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
 
     const { id } = parsed.data.params
     const result = await resolveKnowledgeBase(id, parsed.data.query.workspaceId, userId, rateLimit)
     if (result instanceof NextResponse) return result
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        knowledgeBase: formatKnowledgeBase(result.kb),
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          knowledgeBase: formatKnowledgeBase(result.kb),
+        },
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     return handleError(requestId, error, 'Failed to get knowledge base')
   }
@@ -54,7 +63,9 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Knowle
   const { requestId, userId, rateLimit } = auth
 
   try {
-    const parsed = await parseRequest(v1UpdateKnowledgeBaseContract, request, context)
+    const parsed = await parseRequest(v1UpdateKnowledgeBaseContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
 
     const { id } = parsed.data.params
@@ -86,13 +97,16 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Knowle
       request,
     })
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        knowledgeBase: formatKnowledgeBase(updatedKb),
-        message: 'Knowledge base updated successfully',
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          knowledgeBase: formatKnowledgeBase(updatedKb),
+          message: 'Knowledge base updated successfully',
+        },
       },
-    })
+      { headers: rateLimitHeaders(rateLimit) }
+    )
   } catch (error) {
     return handleError(requestId, error, 'Failed to update knowledge base')
   }
@@ -106,7 +120,9 @@ export const DELETE = withRouteHandler(
     const { requestId, userId, rateLimit } = auth
 
     try {
-      const parsed = await parseRequest(v1DeleteKnowledgeBaseContract, request, context)
+      const parsed = await parseRequest(v1DeleteKnowledgeBaseContract, request, context, {
+        validationErrorResponse: v1ValidationErrorResponse,
+      })
       if (!parsed.success) return parsed.response
 
       const { id } = parsed.data.params
@@ -132,12 +148,15 @@ export const DELETE = withRouteHandler(
         request,
       })
 
-      return NextResponse.json({
-        success: true,
-        data: {
-          message: 'Knowledge base deleted successfully',
+      return NextResponse.json(
+        {
+          success: true,
+          data: {
+            message: 'Knowledge base deleted successfully',
+          },
         },
-      })
+        { headers: rateLimitHeaders(rateLimit) }
+      )
     } catch (error) {
       return handleError(requestId, error, 'Failed to delete knowledge base')
     }
