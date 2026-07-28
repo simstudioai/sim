@@ -612,6 +612,22 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(sent.some((m) => m.event === FILE_DOC_EVENTS.MESSAGE)).toBe(false)
   })
 
+  it('re-elects a seeder when the reclaimed socket held the seeder role', async () => {
+    const { io, sent } = createIo()
+    const a = setup('socket-a', io)
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 7 })
+    // a is the sole owner of an unseeded doc → elected seeder.
+    expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)?.target).toBe('socket-a')
+    sent.length = 0
+
+    const b = setup('socket-b', io) // same user-1 reconnecting, reusing client id 7
+    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 7 })
+
+    // The reclaim evicts a (the seeder) and releases the role, so the join's election picks b —
+    // the doc gets seeded instead of waiting out the deadline.
+    expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)?.target).toBe('socket-b')
+  })
+
   it('does not drop the current document when a switch is rejected for a foreign client id', async () => {
     const { io } = createIo()
     const a = setup('socket-a', io) // user-1

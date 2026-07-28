@@ -223,13 +223,11 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
       logger.info(`User ${userId} (${userName}) joined table room ${tableId}`)
     } catch (error) {
       logger.error('Error joining table room:', error)
-      // If a newer JOIN/LEAVE superseded this one while it ran, skip the rollback + error: the
-      // next serialized op cleans up any partial registration via its leave-prior, and the client
-      // already moved off this table so the error is moot. A disconnect (not a supersession) still
-      // falls through and rolls back — hence the generation-only check, not the full `superseded`.
-      if (joinGeneration !== joinAttempt) return
-      // Roll back any partial join so a failed attempt can't leave the socket in the
-      // Socket.IO room or a stale presence entry behind, before signalling a retry.
+      // Always roll back a partial join: cleanup keys off the socket→room map, so a `socket.join`
+      // that landed without a matching `addUserToRoom` (a throw in between) would otherwise leave
+      // the socket stranded in the Socket.IO room, unreclaimable by any later op. Safe to run even
+      // when superseded — serialization means the newer op hasn't committed yet, so this touches
+      // only this join's own (this-table) state, never the newer op's room.
       try {
         const room = tableRoom(tableId)
         socket.leave(roomName(room))

@@ -297,4 +297,24 @@ describe('setupTablesHandlers', () => {
     expect(roomManager.removeUserFromRoom).toHaveBeenCalledWith(TABLE_ROOM, 'socket-1')
     expect(roomManager.broadcastPresenceUpdate).toHaveBeenCalledWith(TABLE_ROOM, 'socket-1')
   })
+
+  it('rolls back the Socket.IO membership when a join fails mid-commit', async () => {
+    const { socket, handlers } = createSocket()
+    const roomManager = createRoomManager({
+      // socket.join lands first, then the presence write throws — the socket is now in the
+      // Socket.IO room with no matching socket→room map entry, unreclaimable by any later op.
+      addUserToRoom: vi.fn().mockRejectedValue(new Error('redis down')),
+    })
+    setupTablesHandlers(socket as unknown as SetupArg, roomManager)
+
+    await handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-1' })
+
+    // The catch must always roll back the partial membership, not skip it.
+    expect(socket.leave).toHaveBeenCalledWith('table:table-1')
+    expect(roomManager.removeUserFromRoom).toHaveBeenCalledWith(TABLE_ROOM, 'socket-1')
+    expect(socket.emit).toHaveBeenCalledWith(
+      TABLE_PRESENCE_EVENTS.JOIN_ERROR,
+      expect.objectContaining({ code: 'JOIN_FAILED' })
+    )
+  })
 })

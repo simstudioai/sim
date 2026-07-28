@@ -481,6 +481,10 @@ export function setupWorkspaceFileDocHandlers(
         awarenessProtocol.removeAwarenessStates(entry.awareness, [owner.clientId], null)
         socketToRoomName.delete(otherSid)
         io.in(otherSid).socketsLeave(name)
+        // If the evicted socket held the seeder role, release it so the election at the end of
+        // this join re-elects (electSeederIfNeeded no-ops while seederSocketId is set) — otherwise
+        // an unseeded document would stay empty until the seed deadline expires.
+        if (entry.seederSocketId === otherSid) entry.seederSocketId = null
       }
 
       // Only now that the rebind is guaranteed to succeed, leave a previously-joined document if
