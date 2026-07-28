@@ -131,6 +131,7 @@
     "@tiptap/react": "3.26.1",
     "@tiptap/starter-kit": "3.26.1",
     "@tiptap/suggestion": "3.26.1",
+    "@tiptap/y-tiptap": "3.0.7",
     "@trigger.dev/sdk": "4.4.3",
     "@typescript/typescript6": "^6.0.2",
     "ajv": "8.18.0",
