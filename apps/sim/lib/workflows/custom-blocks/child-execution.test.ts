@@ -51,15 +51,47 @@ describe('admitCustomBlockChildExecution', () => {
     await expect(admitCustomBlockChildExecution(attribution)).resolves.toBeUndefined()
   })
 
-  it('throws with the payer message when headroom is exhausted', async () => {
+  it('forwards the payer-scoped message, which describes the shared org', async () => {
     mockCheckAttributedUsageLimits.mockResolvedValue({
       isExceeded: true,
-      message: 'Organization usage limit exceeded',
+      scope: 'payer',
+      message: 'Organization usage limit exceeded: $50.00 pooled of $50.00 organization limit.',
     })
 
-    await expect(admitCustomBlockChildExecution(attribution)).rejects.toBeInstanceOf(
-      CustomBlockAdmissionError
+    await expect(admitCustomBlockChildExecution(attribution)).rejects.toThrow(
+      'Organization usage limit exceeded: $50.00 pooled of $50.00 organization limit.'
     )
+  })
+
+  it("never forwards the owner's personal member-cap message to a consumer", async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      scope: 'member',
+      message:
+        'Member credit limit exceeded: 900 of 1,000 credits used. Ask an admin to raise your credit limit.',
+    })
+
+    const error = await admitCustomBlockChildExecution(attribution).catch((e: Error) => e)
+
+    expect(error).toBeInstanceOf(CustomBlockAdmissionError)
+    expect(error.message).not.toContain('Member credit limit')
+    expect(error.message).not.toContain('900')
+    expect(error.message).toBe(
+      'This custom block is unavailable because a usage limit was reached. Ask an organization admin to review it.'
+    )
+  })
+
+  it("never forwards the owner's account-block message to a consumer", async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      scope: 'actor',
+      message: 'Account frozen. Please contact support to resolve this issue.',
+    })
+
+    const error = await admitCustomBlockChildExecution(attribution).catch((e: Error) => e)
+
+    expect(error.message).not.toContain('Account frozen')
+    expect(error.message).not.toContain('support')
   })
 
   it('takes no concurrency reservation', async () => {

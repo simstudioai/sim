@@ -11,11 +11,11 @@ import {
 import { BoundarySafeError } from '@/executor/errors/boundary'
 
 /**
- * The source workspace's payer has no headroom for this custom-block child run.
+ * The payer has no headroom for this custom-block child run.
  *
- * Boundary-safe: publishing and invocation are both gated on a single
- * organization, so the exhausted limit always belongs to the consumer's own org.
- * Surfacing it lets them act on it instead of seeing an opaque failure.
+ * Boundary-safe only as far as the message allows: see
+ * {@link admitCustomBlockChildExecution} for why actor-scoped denials are
+ * collapsed to {@link GENERIC_USAGE_LIMIT_MESSAGE} before reaching here.
  */
 export class CustomBlockAdmissionError extends BoundarySafeError {
   constructor(message: string) {
@@ -23,6 +23,13 @@ export class CustomBlockAdmissionError extends BoundarySafeError {
     this.name = 'CustomBlockAdmissionError'
   }
 }
+
+/**
+ * Consumer-safe stand-in for a denial whose real message describes the SOURCE
+ * workflow owner's personal billing state rather than the shared organization.
+ */
+const GENERIC_USAGE_LIMIT_MESSAGE =
+  'This custom block is unavailable because a usage limit was reached. Ask an organization admin to review it.'
 
 /**
  * Admits one custom-block child run against the SOURCE workspace's payer.
@@ -39,9 +46,23 @@ export async function admitCustomBlockChildExecution(
   attribution: BillingAttributionSnapshot
 ): Promise<void> {
   const usage = await checkAttributedUsageLimits(attribution)
-  if (usage.isExceeded) {
-    throw new CustomBlockAdmissionError(usage.message ?? 'Workspace usage limit exceeded')
-  }
+  if (!usage.isExceeded) return
+
+  // Only the payer-scoped denial describes the shared organization ("Organization
+  // usage limit exceeded: $X pooled of $Y organization limit"), which both sides
+  // genuinely share and which the consumer can act on.
+  //
+  // The other gates are evaluated against `actorUserId` — the SOURCE workflow's
+  // owner — and their text is addressed to that person: their account-frozen /
+  // payment-method state, or "Ask an organization admin to raise YOUR credit
+  // limit" against their individual member cap. Forwarding those verbatim would
+  // show one org member another's private billing state. Being in the same
+  // organization makes the *payer* shared; it does not make personal quotas
+  // shared. The `usage_limit` type still tells the consumer what kind of failure
+  // this was.
+  const message =
+    usage.scope === 'payer' && usage.message ? usage.message : GENERIC_USAGE_LIMIT_MESSAGE
+  throw new CustomBlockAdmissionError(message)
 }
 
 /**
