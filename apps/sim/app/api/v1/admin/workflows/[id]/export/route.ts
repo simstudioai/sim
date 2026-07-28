@@ -14,17 +14,14 @@ import { adminV1ExportWorkflowContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   internalErrorResponse,
   notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
-import {
-  parseWorkflowVariables,
-  type WorkflowExportPayload,
-  type WorkflowExportState,
-} from '@/app/api/v1/admin/types'
+import type { WorkflowExportPayload, WorkflowExportState } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminWorkflowExportAPI')
 

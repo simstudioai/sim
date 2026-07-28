@@ -328,53 +328,6 @@ export interface WorkspaceImportResponse {
 // =============================================================================
 
 /**
- * Parse workflow variables from database JSON format to Record format.
- * Handles both legacy Array and current Record<string, Variable> formats.
- */
-export function parseWorkflowVariables(
-  dbVariables: DbWorkflow['variables']
-): Record<string, WorkflowVariable> | undefined {
-  if (!dbVariables) return undefined
-
-  try {
-    const varsObj = typeof dbVariables === 'string' ? JSON.parse(dbVariables) : dbVariables
-
-    // Handle legacy Array format by converting to Record
-    if (Array.isArray(varsObj)) {
-      const result: Record<string, WorkflowVariable> = {}
-      for (const v of varsObj) {
-        result[v.id] = {
-          id: v.id,
-          name: v.name,
-          type: v.type,
-          value: v.value,
-        }
-      }
-      return result
-    }
-
-    // Already Record format - normalize and return
-    if (typeof varsObj === 'object' && varsObj !== null) {
-      const result: Record<string, WorkflowVariable> = {}
-      for (const [key, v] of Object.entries(varsObj)) {
-        const variable = v as { id: string; name: string; type: VariableType; value: unknown }
-        result[key] = {
-          id: variable.id,
-          name: variable.name,
-          type: variable.type,
-          value: variable.value,
-        }
-      }
-      return result
-    }
-  } catch {
-    // pass
-  }
-
-  return undefined
-}
-
-/**
  * Extract workflow metadata from various export formats.
  * Handles both full export payload and raw state formats.
  */
