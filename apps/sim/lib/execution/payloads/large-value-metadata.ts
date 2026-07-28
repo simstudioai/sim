@@ -412,7 +412,7 @@ async function pruneStaleReferences(
                 SELECT 1
                 FROM ${pausedExecutions} AS pe
                 WHERE pe.execution_id = ref.execution_id
-                  AND pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
+                  AND pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
               )
             )
             OR ref.source NOT IN ('execution_log', 'paused_snapshot')
@@ -568,7 +568,7 @@ export function unreferencedLargeValuePredicate() {
               SELECT 1
               FROM ${pausedExecutions} AS pe
               WHERE pe.execution_id = elvr.execution_id
-                AND pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
+                AND pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
             )
           )
         )
@@ -582,7 +582,7 @@ export function unreferencedLargeValuePredicate() {
       SELECT 1
       FROM ${pausedExecutions} AS owner_pe
       WHERE owner_pe.execution_id = ${executionLargeValues.ownerExecutionId}
-        AND owner_pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
+        AND owner_pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
     )
     AND NOT EXISTS (
       SELECT 1
@@ -602,7 +602,7 @@ export function unreferencedLargeValuePredicate() {
             SELECT 1
             FROM ${pausedExecutions} AS parent_owner_pe
             WHERE parent_owner_pe.execution_id = parent_value.owner_execution_id
-              AND parent_owner_pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
+              AND parent_owner_pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
           )
           OR EXISTS (
             SELECT 1
@@ -623,7 +623,7 @@ export function unreferencedLargeValuePredicate() {
                     SELECT 1
                     FROM ${pausedExecutions} AS parent_ref_pe
                     WHERE parent_ref_pe.execution_id = parent_ref.execution_id
-                      AND parent_ref_pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
+                      AND parent_ref_pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
                   )
                 )
               )
