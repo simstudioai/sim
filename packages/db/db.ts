@@ -49,9 +49,15 @@ if (!connectionString) {
  * are unaffected — and Drizzle already parses this schema's `text[]` columns
  * itself, so the fetch is pure connection-setup latency.
  *
- * Constraint this introduces: a raw `db.execute` that projects an array-typed
- * column now yields the wire form `'{a,b}'` rather than `['a','b']`. Read arrays
- * through Drizzle-typed selects, which handle both.
+ * Constraints this introduces, both limited to raw SQL that bypasses Drizzle's
+ * column mapping:
+ *  - reading an array-typed column yields the wire form `'{a,b}'`, not `['a','b']`
+ *  - binding a JS array directly as an array-typed parameter fails, because the
+ *    array serializers are registered by the same catalog fetch
+ *
+ * Neither affects Drizzle-typed selects, `.returning()`, or `sql` templates, which
+ * parse and serialize arrays themselves. A future raw postgres.js client reusing
+ * these options would need to opt back in.
  */
 const poolOptions = {
   prepare: false,

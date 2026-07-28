@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { workspaceFileFolder, workspaceFiles } from '@sim/db/schema'
-import { and, eq, inArray, isNull, or } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, type SQL } from 'drizzle-orm'
 import {
   WORKFLOW_CHANGELOG_BACKING_FOLDER,
   WORKFLOW_PLANS_BACKING_FOLDER,
@@ -147,18 +147,25 @@ export async function cleanupWorkflowAliasBacking(args: {
     .filter((f) => !f.deletedAt && isPlansFolder(f.path))
     .map((f) => f.id)
 
-  const ownsPlanFiles =
-    ownedFileFolderIds.length > 0 ? inArray(workspaceFiles.folderId, ownedFileFolderIds) : undefined
-  const ownsChangelogFile =
+  /**
+   * Collected as a list so the guard below tests the same value that is spread into
+   * `or()`. `and()` and `or()` both drop `undefined` arguments, so an ownership
+   * clause that silently resolved to nothing would leave a WHERE of workspace +
+   * context + not-deleted — which archives every file in the workspace. Gating on a
+   * non-empty list makes that unrepresentable.
+   */
+  const ownershipFilters = [
+    ownedFileFolderIds.length > 0 ? inArray(workspaceFiles.folderId, ownedFileFolderIds) : null,
     changelogFolderIds.length > 0
       ? and(
           inArray(workspaceFiles.folderId, changelogFolderIds),
           eq(workspaceFiles.originalName, `${args.workflowId}.md`)
         )
-      : undefined
+      : null,
+  ].filter((filter): filter is SQL => filter != null)
 
   let archivedFiles: { id: string }[] = []
-  if (ownsPlanFiles || ownsChangelogFile) {
+  if (ownershipFilters.length > 0) {
     archivedFiles = await db
       .update(workspaceFiles)
       .set({ deletedAt })
@@ -167,7 +174,7 @@ export async function cleanupWorkflowAliasBacking(args: {
           eq(workspaceFiles.workspaceId, args.workspaceId),
           eq(workspaceFiles.context, 'workspace'),
           isNull(workspaceFiles.deletedAt),
-          or(ownsPlanFiles, ownsChangelogFile)
+          or(...ownershipFilters)
         )
       )
       .returning({ id: workspaceFiles.id })

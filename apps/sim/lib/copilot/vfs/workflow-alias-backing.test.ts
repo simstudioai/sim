@@ -1,4 +1,4 @@
-import { drizzleOrmMock } from '@sim/testing/mocks'
+import { dbChainMockFns, drizzleOrmMock } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -119,7 +119,38 @@ describe('workflow alias backing', () => {
       expect(inArrayValues.flat()).not.toContain('unrelated')
     })
 
-    it('issues no update when the workflow owns no backing folders', async () => {
+    it('matches the changelog by the workflow-scoped filename', async () => {
+      await cleanupWorkflowAliasBacking({ workspaceId: 'workspace-1', workflowId: 'wf_1' })
+
+      expect(drizzleOrmMock.eq).toHaveBeenCalledWith(expect.anything(), 'wf_1.md')
+    })
+
+    it('restricts the update to workspace-context files', async () => {
+      await cleanupWorkflowAliasBacking({ workspaceId: 'workspace-1', workflowId: 'wf_1' })
+
+      expect(drizzleOrmMock.eq).toHaveBeenCalledWith(expect.anything(), 'workspace')
+    })
+
+    it('still archives the changelog when the workflow has no plans folder', async () => {
+      mocks.listWorkspaceFileFolders.mockResolvedValue([
+        { id: 'changelog-live', path: '.changelogs', deletedAt: null },
+        { id: 'plans-wf2', path: '.plans/wf_2', deletedAt: null },
+      ])
+
+      await cleanupWorkflowAliasBacking({ workspaceId: 'workspace-1', workflowId: 'wf_1' })
+
+      const inArrayValues = drizzleOrmMock.inArray.mock.calls.map(([, values]) => values)
+      expect(inArrayValues).toContainEqual(['changelog-live'])
+      expect(inArrayValues.flat()).not.toContain('plans-wf2')
+      expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+    })
+
+    /**
+     * The decisive guard: `and()` drops `undefined`, so an ownership clause that
+     * resolved to nothing would leave a WHERE matching every file in the
+     * workspace. No ownership must mean no UPDATE is issued at all.
+     */
+    it('issues no update at all when the workflow owns no backing folders', async () => {
       mocks.listWorkspaceFileFolders.mockResolvedValue([
         { id: 'unrelated', path: 'documents', deletedAt: null },
       ])
@@ -129,8 +160,16 @@ describe('workflow alias backing', () => {
         workflowId: 'wf_missing',
       })
 
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
       expect(drizzleOrmMock.inArray).not.toHaveBeenCalled()
       expect(result).toEqual({ files: 0, folders: 0 })
+    })
+
+    it('never archives files belonging to another workflow', async () => {
+      await cleanupWorkflowAliasBacking({ workspaceId: 'workspace-1', workflowId: 'wf_1' })
+
+      const inArrayValues = drizzleOrmMock.inArray.mock.calls.flatMap(([, values]) => values)
+      expect(inArrayValues).not.toContain('plans-wf2')
     })
   })
 })
