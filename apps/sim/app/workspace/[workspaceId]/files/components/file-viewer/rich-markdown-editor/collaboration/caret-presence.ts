@@ -135,6 +135,17 @@ export function createCaretActivityExtension(awareness: Awareness): Extension {
               destroy: () => {
                 awareness.off('change', onChange)
                 if (raf) cancelAnimationFrame(raf)
+                // Clear any pending fade timers for this editor's carets so they don't fire on
+                // detached nodes after unmount (harmless no-op, but a genuine leaked timer).
+                for (const caret of editorView.dom.querySelectorAll<HTMLElement>(
+                  '.collaboration-carets__caret'
+                )) {
+                  const timer = caretFadeTimers.get(caret)
+                  if (timer) {
+                    clearTimeout(timer)
+                    caretFadeTimers.delete(caret)
+                  }
+                }
               },
             }
           },

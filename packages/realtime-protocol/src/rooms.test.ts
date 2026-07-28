@@ -3,6 +3,7 @@ import {
   ALL_ROOM_TYPES,
   isRoomType,
   parseRoomName,
+  presenceEventName,
   ROOM_TYPES,
   type RoomRef,
   roomName,
@@ -49,6 +50,7 @@ describe('parseRoomName', () => {
       { type: ROOM_TYPES.WORKFLOW, id: 'wf-123' },
       { type: ROOM_TYPES.WORKSPACE_FILES, id: 'ws-456' },
       { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: 'file-789' },
+      { type: ROOM_TYPES.TABLE, id: 'table-abc' },
     ]
     for (const ref of refs) {
       expect(parseRoomName(roomName(ref))).toEqual(ref)
@@ -86,5 +88,18 @@ describe('isRoomType', () => {
 describe('ALL_ROOM_TYPES', () => {
   it('contains every declared room type', () => {
     expect([...ALL_ROOM_TYPES].sort()).toEqual([...Object.values(ROOM_TYPES)].sort())
+  })
+})
+
+describe('presenceEventName', () => {
+  it('keeps the bare historical name for workflow and namespaces the rest', () => {
+    // Workflow keeps `presence-update` for client back-compat; every other type is namespaced so a
+    // socket in more than one room can demux its presence streams.
+    expect(presenceEventName(ROOM_TYPES.WORKFLOW)).toBe('presence-update')
+    expect(presenceEventName(ROOM_TYPES.TABLE)).toBe('table:presence-update')
+    expect(presenceEventName(ROOM_TYPES.WORKSPACE_FILES)).toBe('workspace-files:presence-update')
+    // No two types share an event name.
+    const names = ALL_ROOM_TYPES.map(presenceEventName)
+    expect(new Set(names).size).toBe(names.length)
   })
 })

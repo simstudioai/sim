@@ -54,7 +54,13 @@ export function setupConnectionHandlers(socket: AuthenticatedSocket, roomManager
       // rooms empty). Attempt removal for any room the manager didn't already
       // remove — best-effort, since a transient Redis error can't be recovered here.
       const wasInRooms = new Map<string, RoomRef>()
-      for (const room of removedRooms) wasInRooms.set(roomName(room), room)
+      // Only presence-bearing rooms get a corrective broadcast. Manager-removed rooms are
+      // presence-bearing by construction today (only workflow/table write the socket→room hash),
+      // but filter symmetrically with the fallback path below so a future room type that ever
+      // tracks presence here can't emit a bogus presence-update no client listens to.
+      for (const room of removedRooms) {
+        if (PRESENCE_BEARING_TYPES.has(room.type)) wasInRooms.set(roomName(room), room)
+      }
       for (const name of liveRoomNames) {
         // `wasInRooms.has(name)` already excludes every room the manager removed (same
         // room-name key via the roomName/parseRoomName bijection). Skip room types with no

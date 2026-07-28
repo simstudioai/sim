@@ -688,7 +688,10 @@ export function LoadedRichMarkdownEditor({
       provider.off('synced', onProgress)
       provider.off('join-error', onJoinError)
       config.unobserve(report)
-      onCollabReadyChange(true)
+      // Report NOT ready on teardown — the safe direction. If this effect ever re-runs while mounted
+      // (a future dep change), briefly gating autosave off is harmless; reporting `true` here could
+      // ungate it while the doc is unready.
+      onCollabReadyChange(false)
     }
   }, [collaboration, editor, onCollabReadyChange, setCollabReady])
 

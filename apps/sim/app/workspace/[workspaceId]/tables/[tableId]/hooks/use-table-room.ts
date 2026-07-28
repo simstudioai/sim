@@ -94,6 +94,9 @@ export function useTableRoom(tableId: string): UseTableRoomResult {
       logger.warn('Failed to join table room', { code: data.code, error: data.error })
       if (data.retryable && retries < MAX_JOIN_RETRIES) {
         retries += 1
+        // Clear any still-pending retry before scheduling a new one, so reconnect churn can't
+        // orphan a timer that fires an extra join().
+        if (retryTimer) clearTimeout(retryTimer)
         retryTimer = setTimeout(join, JOIN_RETRY_BASE_MS * retries)
       }
     }

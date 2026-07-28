@@ -168,13 +168,18 @@ export class RedisRoomManager implements IRoomManager {
 
     try {
       await this.redis.connect()
-      this.isConnected = true
 
       this.removeRoomScriptSha = await this.redis.scriptLoad(REMOVE_ROOM_SCRIPT)
       this.updateActivityScriptSha = await this.redis.scriptLoad(UPDATE_ACTIVITY_SCRIPT)
 
+      // Mark ready only after the scripts load — isReady() gates removeUserFromRoom/updateUserActivity,
+      // which silently no-op without a script SHA. Setting the flag before scriptLoad would make
+      // isReady() lie if scriptLoad threw.
+      this.isConnected = true
+
       logger.info('RedisRoomManager connected to Redis and scripts loaded')
     } catch (error) {
+      this.isConnected = false
       logger.error('Failed to connect to Redis:', error)
       throw error
     }

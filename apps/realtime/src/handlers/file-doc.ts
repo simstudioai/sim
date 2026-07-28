@@ -50,6 +50,16 @@ const logger = createLogger('FileDocHandlers')
  */
 const SEED_DEADLINE_MS = 10_000
 
+/**
+ * Max times the room re-offers seeding to its owners after every one of them has
+ * missed a deadline. Without this, a sole client whose seed *fetch fails* (not just
+ * slow) is added to `triedSeeders`, re-election finds no un-tried owner, and the
+ * document is left permanently empty until that client reloads. Each exhausted round
+ * clears `triedSeeders` and re-offers, giving a transient failure a bounded number of
+ * retries (~MAX × deadline) before the room genuinely gives up.
+ */
+const MAX_SEED_ROUNDS = 3
+
 /** A socket's presence ownership within a room. */
 interface FileDocOwner {
   /**
@@ -81,6 +91,10 @@ interface FileDocRoom {
   /** Sockets that were elected but failed to seed within the deadline; skipped
    * on re-election so a single stuck/withholding client can't block the room. */
   triedSeeders: Set<string>
+  /** Count of full re-offer rounds spent after every owner missed a deadline;
+   * bounds the retry loop (see {@link MAX_SEED_ROUNDS}) so a permanently-broken
+   * seed doesn't reset forever. */
+  seedRounds: number
 }
 
 /** Live documents keyed by Socket.IO room name. Module-global: one Y.Doc per file. */
@@ -222,6 +236,19 @@ function electSeederIfNeeded(io: Server, room: FileDocRoom) {
     room.triedSeeders.add(elected)
     room.seederSocketId = null
     electSeederIfNeeded(io, room)
+    // If that left no seeder (every current owner has now been tried) while the doc is still
+    // unseeded and owners remain, re-offer the whole room a bounded number of times — otherwise a
+    // sole client whose seed fetch failed leaves the document permanently empty.
+    if (
+      room.seederSocketId === null &&
+      !isDocSeeded(room.doc) &&
+      room.owners.size > 0 &&
+      room.seedRounds < MAX_SEED_ROUNDS
+    ) {
+      room.seedRounds += 1
+      room.triedSeeders.clear()
+      electSeederIfNeeded(io, room)
+    }
   }, SEED_DEADLINE_MS)
 }
 
@@ -248,6 +275,7 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     seederSocketId: null,
     seedTimer: null,
     triedSeeders: new Set(),
+    seedRounds: 0,
   }
   fileDocRooms.set(name, room)
 
@@ -418,7 +446,14 @@ export function setupWorkspaceFileDocHandlers(
         emitJoinError(socket, fileId, 'Realtime unavailable', 'ROOM_MANAGER_UNAVAILABLE', true)
         return
       }
-      if (typeof fileId !== 'string' || fileId.length === 0 || typeof clientId !== 'number') {
+      if (
+        typeof fileId !== 'string' ||
+        fileId.length === 0 ||
+        // A Yjs clientID is a uint32; reject NaN/Infinity/negative/non-integer so a malformed id
+        // can't become a bogus ownership key.
+        !Number.isInteger(clientId) ||
+        clientId < 0
+      ) {
         emitJoinError(socket, fileId, 'Invalid join payload', 'INVALID_PAYLOAD', false)
         return
       }

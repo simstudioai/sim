@@ -665,6 +665,22 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(sent.find((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)?.target).toBe('socket-b')
   })
 
+  it('re-offers seeding to a sole client that missed the deadline, then gives up after a bound', async () => {
+    const { io, sent } = createIo()
+    const a = setup('socket-a', io)
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    expect(sent.filter((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST).length).toBe(1)
+
+    // The sole client keeps missing the deadline. Without recovery it would be permanently excluded
+    // (empty document forever); instead it is re-offered a bounded number of rounds.
+    for (let i = 0; i < 6; i++) vi.advanceTimersByTime(10_000)
+
+    // Initial offer + MAX_SEED_ROUNDS (3) re-offers = 4 total, all to socket-a; then it stops.
+    const requests = sent.filter((m) => m.event === FILE_DOC_EVENTS.SEED_REQUEST)
+    expect(requests.length).toBe(4)
+    expect(requests.every((m) => m.target === 'socket-a')).toBe(true)
+  })
+
   it('cancels the seed deadline once the document is seeded', async () => {
     const { io, sent } = createIo()
     const a = setup('socket-a', io)

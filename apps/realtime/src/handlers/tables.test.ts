@@ -187,6 +187,37 @@ describe('setupTablesHandlers', () => {
     expect(toEmit).not.toHaveBeenCalled()
   })
 
+  it('strips unknown/oversized fields from an otherwise-valid selection before storing or relaying', async () => {
+    const { socket, handlers, toEmit } = createSocket()
+    const roomManager = createRoomManager({
+      getRoomForSocket: vi.fn().mockResolvedValue(TABLE_ROOM),
+    })
+    setupTablesHandlers(socket as unknown as SetupArg, roomManager)
+
+    await handlers[TABLE_PRESENCE_EVENTS.CELL_SELECTION]({
+      cell: {
+        anchor: { rowId: 'row-1', columnId: 'col-a', junk: 'x'.repeat(10_000) },
+        focus: { rowId: 'row-1', columnId: 'col-a' },
+        editing: true,
+        bloat: 'x'.repeat(100_000),
+      },
+    })
+
+    // Only the whitelisted fields survive — a hostile peer can't amplify an oversized object.
+    const expected = {
+      anchor: { rowId: 'row-1', columnId: 'col-a' },
+      focus: { rowId: 'row-1', columnId: 'col-a' },
+      editing: true,
+    }
+    expect(roomManager.updateUserActivity).toHaveBeenCalledWith(TABLE_ROOM, 'socket-1', {
+      cell: expected,
+    })
+    expect(toEmit).toHaveBeenCalledWith(TABLE_PRESENCE_EVENTS.CELL_SELECTION, {
+      socketId: 'socket-1',
+      cell: expected,
+    })
+  })
+
   it('skips a superseded queued join on a fast table switch', async () => {
     const { socket, handlers } = createSocket()
     const roomManager = createRoomManager()

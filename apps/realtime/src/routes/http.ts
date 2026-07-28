@@ -42,6 +42,10 @@ function readRequestBody(req: IncomingMessage): Promise<string> {
   })
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0
+}
+
 function sendSuccess(res: ServerResponse): void {
   res.writeHead(200, { 'Content-Type': 'application/json' })
   res.end(JSON.stringify({ success: true }))
@@ -102,6 +106,7 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       try {
         const body = await readRequestBody(req)
         const { workflowId } = JSON.parse(body)
+        if (!isNonEmptyString(workflowId)) return sendError(res, 'Invalid workflowId', 400)
         await workflowRoomService.handleWorkflowDeletion(workflowId)
         sendSuccess(res)
       } catch (error) {
@@ -116,6 +121,7 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       try {
         const body = await readRequestBody(req)
         const { workflowId } = JSON.parse(body)
+        if (!isNonEmptyString(workflowId)) return sendError(res, 'Invalid workflowId', 400)
         await workflowRoomService.handleWorkflowUpdate(workflowId)
         sendSuccess(res)
       } catch (error) {
@@ -130,6 +136,7 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       try {
         const body = await readRequestBody(req)
         const { workflowId } = JSON.parse(body)
+        if (!isNonEmptyString(workflowId)) return sendError(res, 'Invalid workflowId', 400)
         await workflowRoomService.handleWorkflowDeployed(workflowId)
         sendSuccess(res)
       } catch (error) {
@@ -144,6 +151,7 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       try {
         const body = await readRequestBody(req)
         const { workflowId, timestamp } = JSON.parse(body)
+        if (!isNonEmptyString(workflowId)) return sendError(res, 'Invalid workflowId', 400)
         await workflowRoomService.handleWorkflowRevert(workflowId, timestamp)
         sendSuccess(res)
       } catch (error) {

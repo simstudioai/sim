@@ -266,6 +266,10 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       // room state, never the newer op's.
       socket.leave(workflowId)
       await roomManager.removeUserFromRoom(wf(workflowId), socket.id)
+      // Suppress the client-facing error when this join was already superseded: the client has moved
+      // to a newer workflow, and a retryable error naming the abandoned one could make it re-join and
+      // supersede the newer join (an A/B flicker). The rollback above still runs.
+      if (superseded()) return
       const isReady = roomManager.isReady()
       socket.emit('join-workflow-error', {
         workflowId,

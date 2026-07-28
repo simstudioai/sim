@@ -78,6 +78,17 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
   let opChain: Promise<void> = Promise.resolve()
 
   socket.on(TABLE_PRESENCE_EVENTS.JOIN, ({ tableId, tabSessionId }: JoinTablePayload) => {
+    // Validate the id BEFORE claiming a generation, so a malformed join can't advance
+    // joinGeneration and cancel a legitimate in-flight join for another table.
+    if (typeof tableId !== 'string' || tableId.length === 0) {
+      socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, {
+        tableId: typeof tableId === 'string' ? tableId : '',
+        error: 'Invalid table id',
+        code: 'INVALID_PAYLOAD',
+        retryable: false,
+      })
+      return
+    }
     const joinAttempt = (joinGeneration += 1)
     currentTableId = tableId
     opChain = opChain
@@ -115,17 +126,6 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
           error: 'Realtime unavailable',
           code: 'ROOM_MANAGER_UNAVAILABLE',
           retryable: true,
-        })
-        return
-      }
-
-      // Validate the client-supplied id before it reaches the DB query.
-      if (typeof tableId !== 'string' || tableId.length === 0) {
-        socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, {
-          tableId: typeof tableId === 'string' ? tableId : '',
-          error: 'Invalid table id',
-          code: 'INVALID_PAYLOAD',
-          retryable: false,
         })
         return
       }
@@ -244,6 +244,10 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
         // Best-effort rollback — the original join failure is the one surfaced below, so a
         // secondary cleanup error must not mask it or throw out of the error handler.
       }
+      // Suppress the client-facing error when this join was already superseded: the client has moved
+      // to a newer table, and a retryable error naming the abandoned one could make it re-join and
+      // supersede the newer join. The rollback above still runs.
+      if (superseded()) return
       socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, {
         tableId,
         error: 'Failed to join table',

@@ -44,41 +44,43 @@ export function setupWorkspaceFilesHandlers(
   let currentWorkspace: string | null = null
 
   socket.on('join-workspace-files', async ({ workspaceId }: JoinPayload) => {
+    // Validate synchronously BEFORE claiming a generation, so a rejected/malformed join can't
+    // advance joinGeneration and cancel a legitimate in-flight join for another workspace.
+    if (!socket.userId || !socket.userName) {
+      socket.emit('join-workspace-files-error', {
+        workspaceId,
+        error: 'Authentication required',
+        code: 'AUTHENTICATION_REQUIRED',
+        retryable: false,
+      })
+      return
+    }
+
+    if (!roomManager.isReady()) {
+      socket.emit('join-workspace-files-error', {
+        workspaceId,
+        error: 'Realtime unavailable',
+        code: 'ROOM_MANAGER_UNAVAILABLE',
+        retryable: true,
+      })
+      return
+    }
+
+    // Validate the client-supplied id before it reaches the DB query (join payloads are
+    // otherwise raw client input) and before advancing the generation.
+    if (typeof workspaceId !== 'string' || workspaceId.length === 0) {
+      socket.emit('join-workspace-files-error', {
+        workspaceId: typeof workspaceId === 'string' ? workspaceId : '',
+        error: 'Invalid workspace id',
+        code: 'INVALID_PAYLOAD',
+        retryable: false,
+      })
+      return
+    }
+
     const joinAttempt = (joinGeneration += 1)
     currentWorkspace = workspaceId
     try {
-      if (!socket.userId || !socket.userName) {
-        socket.emit('join-workspace-files-error', {
-          workspaceId,
-          error: 'Authentication required',
-          code: 'AUTHENTICATION_REQUIRED',
-          retryable: false,
-        })
-        return
-      }
-
-      if (!roomManager.isReady()) {
-        socket.emit('join-workspace-files-error', {
-          workspaceId,
-          error: 'Realtime unavailable',
-          code: 'ROOM_MANAGER_UNAVAILABLE',
-          retryable: true,
-        })
-        return
-      }
-
-      // Validate the client-supplied id before it reaches the DB query (join payloads are
-      // otherwise raw client input).
-      if (typeof workspaceId !== 'string' || workspaceId.length === 0) {
-        socket.emit('join-workspace-files-error', {
-          workspaceId: typeof workspaceId === 'string' ? workspaceId : '',
-          error: 'Invalid workspace id',
-          code: 'INVALID_PAYLOAD',
-          retryable: false,
-        })
-        return
-      }
-
       const room = filesRoom(workspaceId)
 
       const authorized = await resolveRoomJoinAuth({
@@ -115,6 +117,10 @@ export function setupWorkspaceFilesHandlers(
       try {
         socket.leave(roomName(filesRoom(workspaceId)))
       } catch {}
+      // Suppress the client-facing error when this join was already superseded: the client has
+      // switched to a newer workspace, and a retryable error naming the abandoned one could make it
+      // re-join and cancel the newer join. The leave above still runs.
+      if (joinGeneration !== joinAttempt || socket.disconnected) return
       socket.emit('join-workspace-files-error', {
         workspaceId,
         error: 'Failed to join workspace files',
