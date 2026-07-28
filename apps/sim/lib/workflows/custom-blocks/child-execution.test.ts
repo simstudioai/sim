@@ -23,6 +23,7 @@ import {
   CustomBlockAdmissionError,
   createChildCancellationSignal,
 } from '@/lib/workflows/custom-blocks/child-execution'
+import { isBoundarySafeError } from '@/executor/errors/boundary'
 
 const attribution = { actorUserId: 'owner-1', workspaceId: 'workspace-source' } as any
 
@@ -131,5 +132,15 @@ describe('createChildCancellationSignal', () => {
     dispose()
 
     expect(mockUnsubscribe).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('CustomBlockAdmissionError', () => {
+  it('is boundary-safe so the consumer sees a usage-limit classification', () => {
+    const error = new CustomBlockAdmissionError('Organization usage limit exceeded')
+
+    expect(isBoundarySafeError(error)).toBe(true)
+    expect(error.errorType).toBe('usage_limit')
+    expect(error.message).toBe('Organization usage limit exceeded')
   })
 })

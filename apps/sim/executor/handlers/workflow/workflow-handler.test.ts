@@ -2,6 +2,7 @@ import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing
 import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { getBlock } from '@/blocks/registry'
 import { BlockType } from '@/executor/constants'
+import { BoundarySafeError } from '@/executor/errors/boundary'
 import {
   findMissingRequiredCustomBlockInputs,
   remapCustomBlockInputKeys,
@@ -1159,10 +1160,11 @@ describe('WorkflowBlockHandler', () => {
     })
 
     it('records a cancelled child through the cancellation path', async () => {
+      // Cancellation is reported on `ExecutionResult.status`, not on metadata.
       mockExecutorExecute.mockResolvedValue({
         success: true,
         output: {},
-        metadata: { status: 'cancelled' },
+        status: 'cancelled',
       })
 
       await handler.execute(customBlockContext(), customBlock(), {})
@@ -1201,6 +1203,61 @@ describe('WorkflowBlockHandler', () => {
       expect(error.executionResult).toBeUndefined()
       // The chain is severed at the trust boundary.
       expect(error.cause).toBeUndefined()
+    })
+
+    it('never leaks the source workflow name when the child returns success: false', async () => {
+      mockExecutorExecute.mockResolvedValue({
+        success: false,
+        output: {},
+        error: 'Function 1: internal detail',
+      })
+
+      const error = await handler
+        .execute(customBlockContext(), customBlock(), {})
+        .catch((e: any) => e)
+
+      expect(error.message).not.toContain('Source Workflow')
+      expect(error.message).not.toContain('internal detail')
+      expect(error.consumerFacing.errorType).toBe('execution_failed')
+      expect(error.childWorkflowName).toBe('Published Block')
+    })
+
+    it('classifies an unavailable block so consumers can branch on it', async () => {
+      mockGetCustomBlockAuthority.mockResolvedValue(null)
+
+      const error = await handler
+        .execute(customBlockContext(), customBlock(), {})
+        .catch((e: any) => e)
+
+      expect(error.consumerFacing.errorType).toBe('unavailable')
+      expect(error.message).toBe('This custom block is no longer available')
+    })
+
+    it('classifies an admission denial as a usage limit, not a generic failure', async () => {
+      // `CustomBlockAdmissionError` is a `BoundarySafeError` of this type; the
+      // class itself is covered in child-execution.test.ts.
+      mockAdmitCustomBlockChildExecution.mockRejectedValue(
+        new BoundarySafeError({
+          errorType: 'usage_limit',
+          message: 'Organization usage limit exceeded',
+        })
+      )
+
+      const error = await handler
+        .execute(customBlockContext(), customBlock(), {})
+        .catch((e: any) => e)
+
+      expect(error.consumerFacing.errorType).toBe('usage_limit')
+      expect(error.message).toBe('Organization usage limit exceeded')
+    })
+
+    it('keeps the depth-limit classification instead of collapsing to generic', async () => {
+      const ctx = customBlockContext({ callChain: Array.from({ length: 30 }, (_, i) => `wf-${i}`) })
+
+      const error = await handler.execute(ctx, customBlock(), {}).catch((e: any) => e)
+
+      expect(error.consumerFacing.errorType).toBe('depth_limit')
+      expect(error.childWorkflowName).toBe('Published Block')
     })
 
     it('surfaces a missing-required-input failure verbatim', async () => {

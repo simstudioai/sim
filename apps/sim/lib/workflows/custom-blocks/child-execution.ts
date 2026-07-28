@@ -4,11 +4,18 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { getCancellationChannel } from '@/lib/execution/cancellation'
+import { BoundarySafeError } from '@/executor/errors/boundary'
 
-/** The source workspace's payer has no headroom for this custom-block child run. */
-export class CustomBlockAdmissionError extends Error {
+/**
+ * The source workspace's payer has no headroom for this custom-block child run.
+ *
+ * Boundary-safe: publishing and invocation are both gated on a single
+ * organization, so the exhausted limit always belongs to the consumer's own org.
+ * Surfacing it lets them act on it instead of seeing an opaque failure.
+ */
+export class CustomBlockAdmissionError extends BoundarySafeError {
   constructor(message: string) {
-    super(message)
+    super({ message, errorType: 'usage_limit' })
     this.name = 'CustomBlockAdmissionError'
   }
 }

@@ -115,7 +115,7 @@ function wrapInWorkflowRoot(
     duration: actualWorkflowDuration,
     startTime: new Date(earliestStart).toISOString(),
     endTime: new Date(latestEnd).toISOString(),
-    status: grouped.some(hasUnhandledError) ? 'error' : 'success',
+    status: traceSpansIndicateFailure(grouped) ? 'error' : 'success',
     children: grouped,
     ...(totalCost > 0 && { cost: { total: totalCost } }),
   }

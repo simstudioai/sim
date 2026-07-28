@@ -8,6 +8,12 @@ export type CustomBlockErrorType =
   | 'not_deployed'
   | 'unavailable'
   | 'depth_limit'
+  /**
+   * The payer had no usage headroom, so the child never ran. Safe to surface:
+   * a custom block always resolves within the consumer's own organization, so
+   * the exhausted limit is their org's, not a foreign publisher's.
+   */
+  | 'usage_limit'
   | 'execution_failed'
 
 /** What a failed custom block tells its consumer. Leaks nothing about the source run. */
