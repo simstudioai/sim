@@ -76,6 +76,10 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
   socket.on(TABLE_PRESENCE_EVENTS.JOIN, async ({ tableId, tabSessionId }: JoinTablePayload) => {
     const joinAttempt = (joinGeneration += 1)
     currentTableId = tableId
+    // True once this JOIN has been superseded — a newer JOIN (table switch) bumped
+    // joinGeneration, or the socket disconnected. Re-checked after each async step below so a
+    // stale join can't mutate room state. (The catch uses a narrower check — see there.)
+    const superseded = () => joinGeneration !== joinAttempt || socket.disconnected
     try {
       const userId = socket.userId
       const userName = socket.userName
@@ -129,22 +133,20 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
       })
       if (!authorized) return
 
-      // A newer JOIN started on this socket during authorize (or the socket dropped):
-      // abort so a stale join can't leave the room the client has since moved to.
       // Server-authenticated avatar for the presence roster. Resolved up-front so the guard
       // below also covers this await (mirrors the file-doc join).
       const avatarUrl = await resolveAvatarUrl(socket, userId)
 
       // Abort a JOIN superseded during authorize/avatar resolution — a newer JOIN (table
       // switch), a LEAVE, or a disconnect. Registering below would strand the socket.
-      if (joinGeneration !== joinAttempt || socket.disconnected) return
+      if (superseded()) return
 
       // Leave a previously-joined table room if switching tables. Re-check the generation
       // after the lookup await: if a newer join committed to a room during it, `currentRoom`
       // is now that room, and leaving it here would tear down the join the client actually
       // holds. A superseded join must abort before this mutation.
       const currentRoom = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.TABLE)
-      if (joinGeneration !== joinAttempt || socket.disconnected) return
+      if (superseded()) return
       if (currentRoom && currentRoom.id !== tableId) {
         socket.leave(roomName(currentRoom))
         await roomManager.removeUserFromRoom(currentRoom, socket.id)
@@ -176,7 +178,7 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
       // LEAVE, or a disconnect during the leave/sweep awaits above must abort here — otherwise
       // this superseded join would join the room and register presence, stranding the socket in
       // the wrong table. No await sits between this guard and addUserToRoom (the commit).
-      if (joinGeneration !== joinAttempt || socket.disconnected) return
+      if (superseded()) return
 
       socket.join(roomName(room))
 
@@ -199,7 +201,7 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
       // entry, so undo our registration here rather than strand the socket on the wrong table.
       // Scoped to THIS room (`room`), so `removeUserFromRoom` only clears our socket→room map
       // when it still points here and never touches the newer join's room.
-      if (joinGeneration !== joinAttempt || socket.disconnected) {
+      if (superseded()) {
         socket.leave(roomName(room))
         await roomManager.removeUserFromRoom(room, socket.id)
         return
@@ -233,7 +235,10 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
         const room = tableRoom(tableId)
         socket.leave(roomName(room))
         await roomManager.removeUserFromRoom(room, socket.id)
-      } catch {}
+      } catch {
+        // Best-effort rollback — the original join failure is the one surfaced below, so a
+        // secondary cleanup error must not mask it or throw out of the error handler.
+      }
       socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, {
         tableId,
         error: 'Failed to join table',
