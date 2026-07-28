@@ -1898,13 +1898,6 @@
       "when": 1785267088106,
       "tag": "0271_usage_log_billing_period_cost_idx",
       "breakpoints": true
-    },
-    {
-      "idx": 272,
-      "version": "7",
-      "when": 1785269120290,
-      "tag": "0272_copilot_tool_permission_decision",
-      "breakpoints": true
     }
   ]
 }
