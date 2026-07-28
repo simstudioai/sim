@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull, min, type SQL, sql } from 'drizzle-orm'
+import { collectDescendantFolderIds } from '@/lib/folders/subtree'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceFileFolders')
@@ -521,34 +522,6 @@ export async function ensureWorkspaceFileFolderPath(params: {
   }
 
   return parentId
-}
-
-function collectDescendantFolderIds(
-  folders: Array<Pick<WorkspaceFileFolderRecord, 'id' | 'parentId'>>,
-  folderId: string
-): string[] {
-  const childrenByParent = new Map<string, string[]>()
-
-  for (const folder of folders) {
-    if (!folder.parentId) continue
-    const children = childrenByParent.get(folder.parentId) ?? []
-    children.push(folder.id)
-    childrenByParent.set(folder.parentId, children)
-  }
-
-  const descendants: string[] = []
-  const seen = new Set([folderId])
-  const visit = (id: string) => {
-    for (const childId of childrenByParent.get(id) ?? []) {
-      if (seen.has(childId)) continue
-      seen.add(childId)
-      descendants.push(childId)
-      visit(childId)
-    }
-  }
-  visit(folderId)
-
-  return descendants
 }
 
 export async function updateWorkspaceFileFolder(params: {

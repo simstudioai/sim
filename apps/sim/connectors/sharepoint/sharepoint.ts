@@ -56,6 +56,27 @@ interface DriveItemListResponse {
   '@odata.nextLink'?: string
 }
 
+/** Microsoft Graph drive (document library) shape (subset of fields we use). */
+interface Drive {
+  id: string
+  name?: string
+  webUrl?: string
+}
+
+interface DriveListResponse {
+  value: Drive[]
+}
+
+/** A configured folder path resolved to a concrete drive and starting folder. */
+interface ResolvedFolderTarget {
+  driveId: string
+  driveName: string
+  /** Undefined when the sync starts at the drive root. */
+  folderId?: string
+}
+
+type RetryOptions = Parameters<typeof fetchWithRetry>[2]
+
 /**
  * Returns true when the file extension is in the supported text set.
  */
@@ -66,36 +87,15 @@ function isSupportedTextFile(name: string): boolean {
 }
 
 /**
- * Resolves a SharePoint site URL like "contoso.sharepoint.com/sites/mysite"
- * into a Microsoft Graph siteId.
+ * Issues an authenticated Graph GET. Non-OK responses are returned as-is so
+ * callers can distinguish 404 (not found) from a genuine failure.
  */
-async function resolveSiteId(
+function graphGet(
+  url: string,
   accessToken: string,
-  siteUrl: string,
-  retryOptions?: Parameters<typeof fetchWithRetry>[2]
-): Promise<{ id: string; displayName: string }> {
-  // Normalise: strip protocol, trailing slashes
-  const cleaned = siteUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '')
-
-  // Split into hostname and server-relative path
-  const firstSlash = cleaned.indexOf('/')
-  let hostname: string
-  let serverRelativePath: string
-
-  if (firstSlash === -1) {
-    hostname = cleaned
-    serverRelativePath = ''
-  } else {
-    hostname = cleaned.slice(0, firstSlash)
-    serverRelativePath = cleaned.slice(firstSlash)
-  }
-
-  // Graph endpoint: GET /sites/{hostname}:/{path}
-  const url = serverRelativePath
-    ? `${GRAPH_BASE}/sites/${hostname}:${serverRelativePath}`
-    : `${GRAPH_BASE}/sites/${hostname}`
-
-  const response = await fetchWithRetry(
+  retryOptions?: RetryOptions
+): Promise<Response> {
+  return fetchWithRetry(
     url,
     {
       method: 'GET',
@@ -106,6 +106,42 @@ async function resolveSiteId(
     },
     retryOptions
   )
+}
+
+/**
+ * Splits a SharePoint site URL into its hostname and server-relative site path,
+ * e.g. "contoso.sharepoint.com/sites/hr" → { hostname, serverRelativePath: "/sites/hr" }.
+ * A root site yields an empty server-relative path.
+ */
+function splitSiteUrl(siteUrl: string): { hostname: string; serverRelativePath: string } {
+  const cleaned = siteUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '')
+  const firstSlash = cleaned.indexOf('/')
+  if (firstSlash === -1) {
+    return { hostname: cleaned, serverRelativePath: '' }
+  }
+  return {
+    hostname: cleaned.slice(0, firstSlash),
+    serverRelativePath: cleaned.slice(firstSlash),
+  }
+}
+
+/**
+ * Resolves a SharePoint site URL like "contoso.sharepoint.com/sites/mysite"
+ * into a Microsoft Graph siteId.
+ */
+async function resolveSiteId(
+  accessToken: string,
+  siteUrl: string,
+  retryOptions?: RetryOptions
+): Promise<{ id: string; displayName: string }> {
+  const { hostname, serverRelativePath } = splitSiteUrl(siteUrl)
+
+  // Graph endpoint: GET /sites/{hostname}:/{path}
+  const url = serverRelativePath
+    ? `${GRAPH_BASE}/sites/${hostname}:${serverRelativePath}`
+    : `${GRAPH_BASE}/sites/${hostname}`
+
+  const response = await graphGet(url, accessToken, retryOptions)
 
   if (!response.ok) {
     const errorText = await response.text()
@@ -128,11 +164,11 @@ async function resolveSiteId(
  */
 async function downloadFileContent(
   accessToken: string,
-  siteId: string,
+  driveId: string,
   itemId: string,
   fileName: string
 ): Promise<string> {
-  const url = `${GRAPH_BASE}/sites/${siteId}/drive/items/${itemId}/content`
+  const url = `${GRAPH_BASE}/drives/${driveId}/items/${itemId}/content`
 
   const response = await fetchWithRetry(url, {
     method: 'GET',
@@ -159,11 +195,11 @@ async function downloadFileContent(
  */
 async function fetchFileContent(
   accessToken: string,
-  siteId: string,
+  driveId: string,
   itemId: string,
   fileName: string
 ): Promise<string> {
-  const raw = await downloadFileContent(accessToken, siteId, itemId, fileName)
+  const raw = await downloadFileContent(accessToken, driveId, itemId, fileName)
   if (fileName.toLowerCase().endsWith('.html') || fileName.toLowerCase().endsWith('.htm')) {
     return htmlToPlainText(raw)
   }
@@ -194,28 +230,21 @@ function itemToStub(item: DriveItem, siteName: string): ExternalDocument {
 }
 
 /**
- * Lists items in a folder. When folderId is omitted the root of the default
- * document library is listed.
+ * Lists items in a folder. When folderId is omitted the root of the drive is listed.
  */
 async function listFolderItems(
   accessToken: string,
-  siteId: string,
+  driveId: string,
   folderId?: string,
   nextLink?: string
 ): Promise<DriveItemListResponse> {
   const url =
     nextLink ??
     (folderId
-      ? `${GRAPH_BASE}/sites/${siteId}/drive/items/${folderId}/children?$top=200`
-      : `${GRAPH_BASE}/sites/${siteId}/drive/root/children?$top=200`)
+      ? `${GRAPH_BASE}/drives/${driveId}/items/${folderId}/children?$top=200`
+      : `${GRAPH_BASE}/drives/${driveId}/root/children?$top=200`)
 
-  const response = await fetchWithRetry(url, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: 'application/json',
-    },
-  })
+  const response = await graphGet(url, accessToken)
 
   if (!response.ok) {
     const errorText = await response.text()
@@ -226,43 +255,370 @@ async function listFolderItems(
 }
 
 /**
- * Resolves a slash-separated folder path (e.g. "Documents/Reports") to a
- * DriveItem ID by walking the path segments from root.
+ * Folder-path resolution is layered, and every layer after the first only runs
+ * once the previous one has returned 404. The first layer is byte-exact path
+ * addressing against the site's default document library — identical to the
+ * behaviour that shipped before drive-aware resolution existed — so any
+ * configuration that resolves today keeps resolving to the same item.
  */
-async function resolveFolderPath(
+
+/** Bounds the children walk so a pathological library cannot spin forever. */
+const MAX_CHILD_PAGES_PER_SEGMENT = 50
+
+/** Number of sibling names quoted back in a "folder not found" error. */
+const MAX_SUGGESTED_NAMES = 25
+
+/**
+ * Folds away the differences that make a visually-correct folder name fail
+ * byte-exact path addressing: Unicode composition, invisible characters, and
+ * whitespace variants (a non-breaking space renders identically to a space).
+ * Case is folded because SharePoint item names are themselves case-insensitive —
+ * two siblings cannot differ by case alone, so this cannot merge distinct items.
+ */
+export function normalizeSegment(value: string): string {
+  return value
+    .normalize('NFC')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+/** Splits a slash-separated path into non-empty, trimmed segments. */
+function toPathSegments(path: string): string[] {
+  return path
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+}
+
+function encodePathSegments(segments: string[]): string {
+  return segments.map(encodeURIComponent).join('/')
+}
+
+/**
+ * Fetches a drive item by its path relative to the drive root. Returns null on
+ * 404 so callers can fall through to the next resolution layer. An empty
+ * segment list addresses the drive root itself.
+ */
+async function getItemByPath(
+  accessToken: string,
+  driveId: string,
+  segments: string[],
+  retryOptions?: RetryOptions
+): Promise<DriveItem | null> {
+  const url =
+    segments.length === 0
+      ? `${GRAPH_BASE}/drives/${driveId}/root`
+      : `${GRAPH_BASE}/drives/${driveId}/root:/${encodePathSegments(segments)}`
+
+  const response = await graphGet(url, accessToken, retryOptions)
+
+  if (response.status === 404) return null
+  if (!response.ok) {
+    throw new Error(`Failed to resolve folder path: ${response.status}`)
+  }
+
+  return (await response.json()) as DriveItem
+}
+
+/**
+ * Lists every child folder of a drive item, following pagination.
+ */
+async function listChildFolders(
+  accessToken: string,
+  driveId: string,
+  parentId: string | undefined,
+  retryOptions?: RetryOptions
+): Promise<DriveItem[]> {
+  const folders: DriveItem[] = []
+  let url = parentId
+    ? `${GRAPH_BASE}/drives/${driveId}/items/${parentId}/children?$top=200&$select=id,name,folder`
+    : `${GRAPH_BASE}/drives/${driveId}/root/children?$top=200&$select=id,name,folder`
+
+  for (let page = 0; page < MAX_CHILD_PAGES_PER_SEGMENT; page++) {
+    const response = await graphGet(url, accessToken, retryOptions)
+    if (response.status === 404) break
+    if (!response.ok) {
+      throw new Error(`Failed to list folder contents: ${response.status}`)
+    }
+
+    const data = (await response.json()) as DriveItemListResponse
+    for (const item of data.value) {
+      if (item.folder) folders.push(item)
+    }
+
+    const nextLink = data['@odata.nextLink']
+    if (!nextLink) break
+    url = nextLink
+  }
+
+  return folders
+}
+
+/**
+ * Walks a path segment by segment, matching each against the child folder names
+ * under normalization. Returns null when a segment has no match. Throws when a
+ * segment matches more than one sibling, rather than silently picking one.
+ */
+async function walkPathByChildren(
+  accessToken: string,
+  driveId: string,
+  segments: string[],
+  retryOptions?: RetryOptions
+): Promise<DriveItem | null> {
+  let current: DriveItem | null = null
+
+  for (const segment of segments) {
+    const children = await listChildFolders(accessToken, driveId, current?.id, retryOptions)
+    const target = normalizeSegment(segment)
+    const matches = children.filter((child) => normalizeSegment(child.name) === target)
+
+    if (matches.length === 0) return null
+    if (matches.length > 1) {
+      const names = matches.map((match) => `"${match.name}"`).join(', ')
+      throw new Error(
+        `Folder path segment "${segment}" matches more than one folder (${names}). Rename one of them or use a more specific path.`
+      )
+    }
+
+    current = matches[0]
+  }
+
+  return current
+}
+
+/**
+ * Extracts a document-library-relative path from a SharePoint URL. Handles both
+ * an address-bar library URL and the "?id=" form that SharePoint produces when
+ * copying a link to a folder. Returns null when the URL is a tokenized sharing
+ * link, whose target can only be resolved through an endpoint requiring write
+ * scopes this connector deliberately does not request.
+ */
+export function serverRelativePathFromUrl(rawUrl: string, siteUrl: string): string[] | null {
+  let url: URL
+  try {
+    url = new URL(rawUrl)
+  } catch {
+    throw new Error(
+      `"${rawUrl}" is not a valid URL. Enter a folder path relative to the document library, or paste the folder URL from your browser's address bar.`
+    )
+  }
+
+  if (/^\/:[a-z]:\//i.test(url.pathname)) return null
+
+  const idParam = url.searchParams.get('id')
+  const rawPath = idParam ?? decodeURIComponent(url.pathname)
+
+  let segments = toPathSegments(rawPath)
+
+  const { serverRelativePath } = splitSiteUrl(siteUrl)
+  const siteSegments = toPathSegments(serverRelativePath)
+  const sitePrefixMatches = siteSegments.every(
+    (segment, index) => normalizeSegment(segments[index] ?? '') === normalizeSegment(segment)
+  )
+  if (siteSegments.length > 0 && sitePrefixMatches) {
+    segments = segments.slice(siteSegments.length)
+  }
+
+  const formsIndex = segments.findIndex((segment) => normalizeSegment(segment) === 'forms')
+  if (formsIndex !== -1) {
+    segments = segments.slice(0, formsIndex)
+  }
+
+  return segments
+}
+
+/**
+ * Resolves the configured folder path to a concrete drive and folder.
+ *
+ * Layers, each attempted only after the previous returned no match:
+ * 1. Byte-exact path addressing against the site's default document library.
+ * 2. The same path re-interpreted with a leading document-library name (the
+ *    library is addressed directly; the remainder is the drive-relative path).
+ * 3. A normalized, segment-by-segment children walk of both candidates, which
+ *    recovers names carrying invisible or non-breaking whitespace.
+ */
+export async function resolveFolderTarget(
   accessToken: string,
   siteId: string,
-  folderPath: string
-): Promise<string> {
-  const cleaned = folderPath.replace(/^\/+|\/+$/g, '')
-  if (!cleaned) {
-    throw new Error('Folder path is empty after normalisation')
+  siteUrl: string,
+  siteName: string,
+  rawFolderPath: string | undefined,
+  retryOptions?: RetryOptions
+): Promise<ResolvedFolderTarget> {
+  const defaultDriveResponse = await graphGet(
+    `${GRAPH_BASE}/sites/${siteId}/drive?$select=id,name,webUrl`,
+    accessToken,
+    retryOptions
+  )
+  if (!defaultDriveResponse.ok) {
+    throw new Error(
+      `Failed to open the default document library for site "${siteUrl}": ${defaultDriveResponse.status}`
+    )
+  }
+  const defaultDrive = (await defaultDriveResponse.json()) as Drive
+  const defaultDriveName = defaultDrive.name || 'Documents'
+
+  const trimmed = rawFolderPath?.trim()
+  if (!trimmed) {
+    return { driveId: defaultDrive.id, driveName: defaultDriveName }
   }
 
-  const encoded = cleaned.split('/').map(encodeURIComponent).join('/')
-  const url = `${GRAPH_BASE}/sites/${siteId}/drive/root:/${encoded}`
+  let segments: string[]
+  if (/^https?:\/\//i.test(trimmed)) {
+    const fromUrl = serverRelativePathFromUrl(trimmed, siteUrl)
+    if (fromUrl === null) {
+      throw new Error(
+        'That is a SharePoint sharing link, which cannot be resolved with read-only access. Open the folder in SharePoint and paste the URL from the browser address bar instead, or enter the folder path relative to the document library.'
+      )
+    }
+    segments = fromUrl
+  } else {
+    segments = toPathSegments(trimmed)
+  }
 
-  const response = await fetchWithRetry(url, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: 'application/json',
-    },
+  if (segments.length === 0) {
+    return { driveId: defaultDrive.id, driveName: defaultDriveName }
+  }
+
+  const exact = await getItemByPath(accessToken, defaultDrive.id, segments, retryOptions)
+  if (exact) {
+    if (!exact.folder) throw new Error(`Path "${trimmed}" is not a folder`)
+    return { driveId: defaultDrive.id, driveName: defaultDriveName, folderId: exact.id }
+  }
+
+  logger.info('SharePoint folder path did not resolve by exact path; trying fallbacks', {
+    siteUrl,
+    folderPath: trimmed,
+    defaultLibrary: defaultDriveName,
   })
 
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error(`Folder not found: "${folderPath}"`)
+  const drives = await listSiteDrives(accessToken, siteId, retryOptions)
+  const libraryMatch = drives.find((drive) => matchesDriveName(drive, segments[0]))
+
+  if (libraryMatch) {
+    const remainder = segments.slice(1)
+    const driveName = libraryMatch.name || segments[0]
+
+    if (remainder.length === 0) {
+      return { driveId: libraryMatch.id, driveName }
     }
-    throw new Error(`Failed to resolve folder path "${folderPath}": ${response.status}`)
+
+    const inLibrary = await getItemByPath(accessToken, libraryMatch.id, remainder, retryOptions)
+    if (inLibrary) {
+      if (!inLibrary.folder) throw new Error(`Path "${trimmed}" is not a folder`)
+      return { driveId: libraryMatch.id, driveName, folderId: inLibrary.id }
+    }
+
+    const walkedInLibrary = await walkPathByChildren(
+      accessToken,
+      libraryMatch.id,
+      remainder,
+      retryOptions
+    )
+    if (walkedInLibrary) {
+      return { driveId: libraryMatch.id, driveName, folderId: walkedInLibrary.id }
+    }
   }
 
-  const item = (await response.json()) as DriveItem
-  if (!item.folder) {
-    throw new Error(`Path "${folderPath}" is not a folder`)
+  const walked = await walkPathByChildren(accessToken, defaultDrive.id, segments, retryOptions)
+  if (walked) {
+    return { driveId: defaultDrive.id, driveName: defaultDriveName, folderId: walked.id }
   }
 
-  return item.id
+  throw new Error(
+    await buildFolderNotFoundMessage(
+      accessToken,
+      { id: defaultDrive.id, name: defaultDriveName },
+      siteName || siteUrl,
+      trimmed,
+      segments,
+      drives,
+      retryOptions
+    )
+  )
+}
+
+/** Lists the site's document libraries. */
+async function listSiteDrives(
+  accessToken: string,
+  siteId: string,
+  retryOptions?: RetryOptions
+): Promise<Drive[]> {
+  const response = await graphGet(
+    `${GRAPH_BASE}/sites/${siteId}/drives?$select=id,name,webUrl`,
+    accessToken,
+    retryOptions
+  )
+  if (!response.ok) return []
+  const data = (await response.json()) as DriveListResponse
+  return data.value ?? []
+}
+
+/**
+ * Matches a path segment against a document library by display name or by the
+ * trailing segment of its URL, which is where "Shared Documents" lives for a
+ * library displayed as "Documents".
+ */
+function matchesDriveName(drive: Drive, segment: string): boolean {
+  const target = normalizeSegment(segment)
+  if (drive.name && normalizeSegment(drive.name) === target) return true
+  if (!drive.webUrl) return false
+  const urlLeaf = drive.webUrl.split('/').filter(Boolean).pop()
+  return Boolean(urlLeaf && normalizeSegment(decodeURIComponent(urlLeaf)) === target)
+}
+
+/**
+ * Builds a diagnostic failure message naming the site, the library searched,
+ * the path attempted, and the folders that actually exist at that level.
+ */
+async function buildFolderNotFoundMessage(
+  accessToken: string,
+  drive: { id: string; name: string },
+  siteName: string,
+  rawFolderPath: string,
+  segments: string[],
+  drives: Drive[],
+  retryOptions?: RetryOptions
+): Promise<string> {
+  const parts = [
+    `Folder not found: "${rawFolderPath}".`,
+    `Searched site "${siteName}", document library "${drive.name}", for the library-relative path "${segments.join('/')}".`,
+  ]
+
+  try {
+    const topLevel = await listChildFolders(accessToken, drive.id, undefined, retryOptions)
+    if (topLevel.length > 0) {
+      const names = topLevel
+        .slice(0, MAX_SUGGESTED_NAMES)
+        .map((item) => `"${item.name}"`)
+        .join(', ')
+      const suffix = topLevel.length > MAX_SUGGESTED_NAMES ? ', …' : ''
+      parts.push(`Folders in "${drive.name}": ${names}${suffix}.`)
+    } else {
+      parts.push(`"${drive.name}" has no top-level folders.`)
+    }
+  } catch {
+    parts.push(`Could not list the contents of "${drive.name}".`)
+  }
+
+  if (drives.length > 1) {
+    const libraryNames = drives
+      .map((item) => item.name)
+      .filter(Boolean)
+      .map((name) => `"${name}"`)
+      .join(', ')
+    if (libraryNames) {
+      parts.push(`Document libraries on this site: ${libraryNames}.`)
+    }
+  }
+
+  parts.push(
+    'The folder path is relative to the document library root, so a leading "Documents" or "Shared Documents" should be omitted unless a folder by that name really exists.'
+  )
+
+  return parts.join(' ')
 }
 
 /**
@@ -314,15 +670,26 @@ export const sharepointConnector: ConnectorConfig = {
       }
     }
 
-    // Resolve starting folder if configured (cache in syncContext)
+    // Resolve the target library and starting folder (cache in syncContext)
+    let driveId: string
     let rootFolderId: string | undefined
-    const folderPath = (sourceConfig.folderPath as string)?.trim()
-    if (folderPath) {
-      if (syncContext?.rootFolderId) {
-        rootFolderId = syncContext.rootFolderId as string
-      } else {
-        rootFolderId = await resolveFolderPath(accessToken, siteId, folderPath)
-        if (syncContext) syncContext.rootFolderId = rootFolderId
+    if (syncContext?.driveId) {
+      driveId = syncContext.driveId as string
+      rootFolderId = syncContext.rootFolderId as string | undefined
+    } else {
+      const target = await resolveFolderTarget(
+        accessToken,
+        siteId,
+        siteUrl,
+        siteName,
+        sourceConfig.folderPath as string | undefined
+      )
+      driveId = target.driveId
+      rootFolderId = target.folderId
+      if (syncContext) {
+        syncContext.driveId = target.driveId
+        syncContext.driveName = target.driveName
+        syncContext.rootFolderId = target.folderId
       }
     }
 
@@ -342,7 +709,7 @@ export const sharepointConnector: ConnectorConfig = {
     let totalFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
     // Process one page of items from the current folder
-    const data = await listFolderItems(accessToken, siteId, state.currentFolder, state.nextLink)
+    const data = await listFolderItems(accessToken, driveId, state.currentFolder, state.nextLink)
 
     // Separate files and subfolders
     const subfolders: string[] = []
@@ -429,14 +796,29 @@ export const sharepointConnector: ConnectorConfig = {
       }
     }
 
-    const url = `${GRAPH_BASE}/sites/${siteId}/drive/items/${externalId}`
-    const response = await fetchWithRetry(url, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    })
+    /**
+     * `listDocuments` caches the resolved library on the shared syncContext, so
+     * this only re-resolves when a document is hydrated outside a listing pass.
+     */
+    let driveId = syncContext?.driveId as string | undefined
+    if (!driveId) {
+      const target = await resolveFolderTarget(
+        accessToken,
+        siteId,
+        siteUrl,
+        siteName ?? siteUrl,
+        sourceConfig.folderPath as string | undefined
+      )
+      driveId = target.driveId
+      if (syncContext) {
+        syncContext.driveId = target.driveId
+        syncContext.driveName = target.driveName
+        syncContext.rootFolderId = target.folderId
+      }
+    }
+
+    const url = `${GRAPH_BASE}/drives/${driveId}/items/${externalId}`
+    const response = await graphGet(url, accessToken)
 
     if (!response.ok) {
       if (response.status === 404) return null
@@ -450,7 +832,7 @@ export const sharepointConnector: ConnectorConfig = {
     }
 
     try {
-      const content = await fetchFileContent(accessToken, siteId, item.id, item.name)
+      const content = await fetchFileContent(accessToken, driveId, item.id, item.name)
       if (!content.trim()) return null
 
       const stub = itemToStub(item, siteName ?? siteUrl)
@@ -486,41 +868,19 @@ export const sharepointConnector: ConnectorConfig = {
 
     try {
       const site = await resolveSiteId(accessToken, siteUrl, VALIDATE_RETRY_OPTIONS)
-      const siteId = site.id
 
-      // If a folder path is configured, verify it exists
-      const folderPath = (sourceConfig.folderPath as string)?.trim()
-      if (folderPath) {
-        const encodedPath = folderPath
-          .replace(/^\/+|\/+$/g, '')
-          .split('/')
-          .map(encodeURIComponent)
-          .join('/')
-        const folderUrl = `${GRAPH_BASE}/sites/${siteId}/drive/root:/${encodedPath}`
-        const response = await fetchWithRetry(
-          folderUrl,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              Accept: 'application/json',
-            },
-          },
-          VALIDATE_RETRY_OPTIONS
-        )
-
-        if (!response.ok) {
-          if (response.status === 404) {
-            return { valid: false, error: `Folder not found: "${folderPath}"` }
-          }
-          return { valid: false, error: `Failed to access folder: ${response.status}` }
-        }
-
-        const item = (await response.json()) as DriveItem
-        if (!item.folder) {
-          return { valid: false, error: `Path "${folderPath}" is not a folder` }
-        }
-      }
+      /**
+       * Resolves through the same layered path as a sync, so a configuration
+       * accepted here is one the sync can actually open.
+       */
+      await resolveFolderTarget(
+        accessToken,
+        site.id,
+        siteUrl,
+        site.displayName,
+        sourceConfig.folderPath as string | undefined,
+        VALIDATE_RETRY_OPTIONS
+      )
 
       return { valid: true }
     } catch (error) {

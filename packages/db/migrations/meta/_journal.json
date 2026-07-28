@@ -1898,6 +1898,20 @@
       "when": 1785267088106,
       "tag": "0271_usage_log_billing_period_cost_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 272,
+      "version": "7",
+      "when": 1785267616623,
+      "tag": "0272_generic_folders_and_pinning",
+      "breakpoints": true
+    },
+    {
+      "idx": 273,
+      "version": "7",
+      "when": 1785281897201,
+      "tag": "0273_copilot_tool_permission_decision",
+      "breakpoints": true
     }
   ]
 }
