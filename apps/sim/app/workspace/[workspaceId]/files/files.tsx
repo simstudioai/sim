@@ -1072,13 +1072,24 @@ export function Files() {
     setShowDeleteConfirm(true)
   }, [selectedFileIds, selectedFolderIds, files, folders])
 
+  const [isDownloadingArchive, setIsDownloadingArchive] = useState(false)
+  // Ref as well as state: two clicks in the same tick would both pass a state check,
+  // and each concurrent archive holds the whole zip in tab memory.
+  const archiveDownloadInFlightRef = useRef(false)
+
   const downloadArchive = useCallback(
     async (selection: { fileIds?: string[]; folderIds?: string[] }) => {
+      if (archiveDownloadInFlightRef.current) return
+      archiveDownloadInFlightRef.current = true
+      setIsDownloadingArchive(true)
       try {
         await triggerArchiveDownload({ workspaceId, ...selection })
       } catch (err) {
         logger.error('Failed to download selection:', err)
         toast.error(getErrorMessage(err, 'Failed to download the selected files'))
+      } finally {
+        archiveDownloadInFlightRef.current = false
+        setIsDownloadingArchive(false)
       }
     },
     [workspaceId]
@@ -1991,7 +2002,9 @@ export function Files() {
                 onMove={canEdit ? handleContextMenuMove : undefined}
                 moveOptions={canEdit ? contextMenuMoveOptions : undefined}
                 onDelete={canEdit ? handleBulkDelete : undefined}
-                isLoading={bulkArchiveItems.isPending || moveItems.isPending}
+                isLoading={
+                  bulkArchiveItems.isPending || moveItems.isPending || isDownloadingArchive
+                }
               />
               {isDraggingOver ? (
                 <div className='pointer-events-none absolute inset-0 z-[var(--z-dropdown)] flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--surface-4)] transition-colors'>
