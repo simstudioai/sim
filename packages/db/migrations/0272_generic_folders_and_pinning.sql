@@ -1,5 +1,11 @@
-CREATE TYPE "public"."folder_resource_type" AS ENUM('workflow', 'file', 'knowledge_base', 'table');--> statement-breakpoint
-CREATE TABLE "folder" (
+-- Replay-safety: this file ends in CONCURRENTLY index ops below an embedded COMMIT,
+-- so a failure there replays the whole file from the top — every statement here is
+-- idempotent (matches the pattern in 0250_workspace_forking.sql).
+DO $$ BEGIN
+	CREATE TYPE "public"."folder_resource_type" AS ENUM('workflow', 'file', 'knowledge_base', 'table');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "folder" (
 	"id" text PRIMARY KEY NOT NULL,
 	"resource_type" "folder_resource_type" NOT NULL,
 	"name" text NOT NULL,
@@ -13,7 +19,7 @@ CREATE TABLE "folder" (
 	"deleted_at" timestamp
 );
 --> statement-breakpoint
-CREATE TABLE "pinned_item" (
+CREATE TABLE IF NOT EXISTS "pinned_item" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"workspace_id" text NOT NULL,
@@ -30,27 +36,39 @@ CREATE TABLE "pinned_item" (
 -- workflow.folderId in schema.ts. The invariant is enforced in the application layer
 -- on both the old and new code paths meanwhile.
 -- migration-safe: strictly loosens the column, no cross-deploy write can be rejected by removing this constraint; see contract-pending marker on workflow.folderId in schema.ts
-ALTER TABLE "workflow" DROP CONSTRAINT "workflow_folder_id_workflow_folder_id_fk";
+ALTER TABLE "workflow" DROP CONSTRAINT IF EXISTS "workflow_folder_id_workflow_folder_id_fk";
 --> statement-breakpoint
 -- Same reasoning as the workflow.folder_id drop above.
 -- migration-safe: strictly loosens the column, no cross-deploy write can be rejected by removing this constraint; see contract-pending marker on workspaceFiles.folderId in schema.ts
-ALTER TABLE "workspace_files" DROP CONSTRAINT "workspace_files_folder_id_workspace_file_folders_id_fk";
+ALTER TABLE "workspace_files" DROP CONSTRAINT IF EXISTS "workspace_files_folder_id_workspace_file_folders_id_fk";
 --> statement-breakpoint
-ALTER TABLE "knowledge_base" ADD COLUMN "folder_id" text;--> statement-breakpoint
-ALTER TABLE "user_table_definitions" ADD COLUMN "folder_id" text;--> statement-breakpoint
-ALTER TABLE "folder" ADD CONSTRAINT "folder_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "folder" ADD CONSTRAINT "folder_workspace_id_workspace_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "pinned_item" ADD CONSTRAINT "pinned_item_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "pinned_item" ADD CONSTRAINT "pinned_item_workspace_id_workspace_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "folder_user_idx" ON "folder" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "folder_workspace_resource_parent_idx" ON "folder" USING btree ("workspace_id","resource_type","parent_id");--> statement-breakpoint
-CREATE INDEX "folder_parent_sort_idx" ON "folder" USING btree ("parent_id","sort_order");--> statement-breakpoint
-CREATE INDEX "folder_deleted_at_idx" ON "folder" USING btree ("deleted_at");--> statement-breakpoint
-CREATE INDEX "folder_workspace_deleted_partial_idx" ON "folder" USING btree ("workspace_id","deleted_at") WHERE "folder"."deleted_at" IS NOT NULL;--> statement-breakpoint
-CREATE UNIQUE INDEX "folder_workspace_resource_parent_name_active_unique" ON "folder" USING btree ("workspace_id","resource_type",coalesce("parent_id", ''),"name") WHERE "folder"."deleted_at" IS NULL;--> statement-breakpoint
-CREATE INDEX "pinned_item_user_workspace_idx" ON "pinned_item" USING btree ("user_id","workspace_id");--> statement-breakpoint
-CREATE INDEX "pinned_item_resource_idx" ON "pinned_item" USING btree ("resource_type","resource_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "pinned_item_user_resource_unique" ON "pinned_item" USING btree ("user_id","resource_type","resource_id");--> statement-breakpoint
+ALTER TABLE "knowledge_base" ADD COLUMN IF NOT EXISTS "folder_id" text;--> statement-breakpoint
+ALTER TABLE "user_table_definitions" ADD COLUMN IF NOT EXISTS "folder_id" text;--> statement-breakpoint
+DO $$ BEGIN
+	ALTER TABLE "folder" ADD CONSTRAINT "folder_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+	ALTER TABLE "folder" ADD CONSTRAINT "folder_workspace_id_workspace_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+	ALTER TABLE "pinned_item" ADD CONSTRAINT "pinned_item_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+	ALTER TABLE "pinned_item" ADD CONSTRAINT "pinned_item_workspace_id_workspace_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "folder_user_idx" ON "folder" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "folder_workspace_resource_parent_idx" ON "folder" USING btree ("workspace_id","resource_type","parent_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "folder_parent_sort_idx" ON "folder" USING btree ("parent_id","sort_order");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "folder_deleted_at_idx" ON "folder" USING btree ("deleted_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "folder_workspace_deleted_partial_idx" ON "folder" USING btree ("workspace_id","deleted_at") WHERE "folder"."deleted_at" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "folder_workspace_resource_parent_name_active_unique" ON "folder" USING btree ("workspace_id","resource_type",coalesce("parent_id", ''),"name") WHERE "folder"."deleted_at" IS NULL;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "pinned_item_user_workspace_idx" ON "pinned_item" USING btree ("user_id","workspace_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "pinned_item_resource_idx" ON "pinned_item" USING btree ("resource_type","resource_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "pinned_item_user_resource_unique" ON "pinned_item" USING btree ("user_id","resource_type","resource_id");--> statement-breakpoint
 -- A folder may only be parented by a folder of the same resourceType in the same
 -- workspace. Neither invariant is expressible as a plain FK, so it is enforced here as
 -- defense-in-depth behind the application-layer check. BEFORE INSERT OR UPDATE covers the
@@ -61,7 +79,7 @@ CREATE UNIQUE INDEX "pinned_item_user_resource_unique" ON "pinned_item" USING bt
 -- whose parent has not been inserted yet finds no parent row, and passes rather than
 -- raising. The real referential check is the FK, which Postgres evaluates as an
 -- AFTER-ROW trigger at end of statement, once every row is present.
-CREATE FUNCTION "folder_parent_resource_type_match"() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION "folder_parent_resource_type_match"() RETURNS trigger AS $$
 DECLARE
 	parent_resource_type "folder_resource_type";
 	parent_workspace_id text;
@@ -82,6 +100,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 --> statement-breakpoint
+DROP TRIGGER IF EXISTS "folder_parent_resource_type_match" ON "folder";--> statement-breakpoint
 CREATE TRIGGER "folder_parent_resource_type_match"
 BEFORE INSERT OR UPDATE ON "folder"
 FOR EACH ROW EXECUTE FUNCTION "folder_parent_resource_type_match"();
@@ -187,16 +206,25 @@ ON CONFLICT (id) DO NOTHING;
 -- single INSERT...SELECT carrying children and parents in arbitrary order would in fact
 -- satisfy it — but creating the constraint here removes any dependence on that subtlety,
 -- costs nothing on a table this size, and makes the backfill obviously correct on review.
-ALTER TABLE "folder" ADD CONSTRAINT "folder_parent_id_folder_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."folder"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+DO $$ BEGIN
+	ALTER TABLE "folder" ADD CONSTRAINT "folder_parent_id_folder_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."folder"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
 -- knowledge_base.folder_id / user_table_definitions.folder_id were added earlier in this
 -- migration and are all-NULL, and no deployed code reads or writes them yet — so adding
 -- their FK here (unlike the workflow/workspace_files drops above) carries no cross-deploy
 -- write-compatibility risk. NOT VALID + an immediate VALIDATE avoids the full-table lock a
 -- plain ADD CONSTRAINT takes; validating an all-NULL column is instant either way, but this
 -- matches the established pattern (see migrations/0243_kb_workspace_cascade.sql).
-ALTER TABLE "knowledge_base" ADD CONSTRAINT "knowledge_base_folder_id_folder_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."folder"("id") ON DELETE set null ON UPDATE no action NOT VALID;--> statement-breakpoint
+DO $$ BEGIN
+	ALTER TABLE "knowledge_base" ADD CONSTRAINT "knowledge_base_folder_id_folder_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."folder"("id") ON DELETE set null ON UPDATE no action NOT VALID;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
 ALTER TABLE "knowledge_base" VALIDATE CONSTRAINT "knowledge_base_folder_id_folder_id_fk";--> statement-breakpoint
-ALTER TABLE "user_table_definitions" ADD CONSTRAINT "user_table_definitions_folder_id_folder_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."folder"("id") ON DELETE set null ON UPDATE no action NOT VALID;--> statement-breakpoint
+DO $$ BEGIN
+	ALTER TABLE "user_table_definitions" ADD CONSTRAINT "user_table_definitions_folder_id_folder_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."folder"("id") ON DELETE set null ON UPDATE no action NOT VALID;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
 ALTER TABLE "user_table_definitions" VALIDATE CONSTRAINT "user_table_definitions_folder_id_folder_id_fk";--> statement-breakpoint
 -- knowledge_base and user_table_definitions are existing, populated tables: build their new
 -- indexes CONCURRENTLY so the build never takes ACCESS EXCLUSIVE on a live relation (runner
