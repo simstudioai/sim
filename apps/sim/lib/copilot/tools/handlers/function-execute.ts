@@ -10,6 +10,7 @@ import { getTableById, listTables } from '@/lib/table/service'
 import { getOrCreateTableSnapshot, SNAPSHOT_MAX_BYTES } from '@/lib/table/snapshot-cache'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
+  fetchServableWorkspaceFileBuffer,
   fetchWorkspaceFileBuffer,
   findWorkspaceFileRecord,
   getSandboxWorkspaceFilePath,
@@ -21,6 +22,7 @@ import {
   generatePresignedDownloadUrl,
   hasCloudStorage,
 } from '@/lib/uploads/core/storage-service'
+import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file-utils'
 import { executeTool as executeAppTool } from '@/tools'
 import type { ToolExecutionContext, ToolExecutionResult } from '../../tool-executor/types'
 
@@ -87,7 +89,14 @@ async function pushWorkspaceFileMount(
   mountPath: string,
   mounted: MountedBytes
 ): Promise<void> {
-  if (hasCloudStorage()) {
+  // A generated document stores its generator source, so a presigned URL for
+  // `record.key` would hand the sandbox source text under a `.docx` name and the
+  // user's script would fail on a file that looks fine. Those resolve through the
+  // servable reader instead — they are bounded by the render ceiling, so routing them
+  // through the web process rather than presigning is affordable.
+  const rendersFromSource = isGeneratedDocumentSourceType(record.type)
+
+  if (hasCloudStorage() && !rendersFromSource) {
     if (record.size > MOUNT_URL_MAX_BYTES) {
       throw new Error(
         `Input file "${mountPath}" is ${Math.round(record.size / 1024 / 1024)}MB, over the ${MOUNT_URL_MAX_BYTES / 1024 / 1024}MB per-file mount limit.`
@@ -118,9 +127,13 @@ async function pushWorkspaceFileMount(
       `Mounting "${mountPath}" would exceed the ${MAX_TOTAL_SIZE / 1024 / 1024}MB total mount limit. Mount fewer or smaller files.`
     )
   }
-  const buffer = await fetchWorkspaceFileBuffer(record)
+  const { buffer, contentType } = rendersFromSource
+    ? await fetchServableWorkspaceFileBuffer(record, { maxBytes: MAX_FILE_SIZE })
+    : { buffer: await fetchWorkspaceFileBuffer(record), contentType: record.type }
+  // Keyed off the resolved type: a rendered document's source MIME is `text/x-…`, and
+  // decoding the binary as UTF-8 would corrupt it just as surely as shipping the source.
   const isText = /^text\/|application\/json|application\/xml|application\/csv/.test(
-    record.type || ''
+    contentType || ''
   )
   sandboxFiles.push({
     path: mountPath,
