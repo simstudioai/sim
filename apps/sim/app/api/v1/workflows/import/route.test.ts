@@ -75,7 +75,7 @@ vi.mock('@sim/db', () => ({
       })),
     })),
     delete: mockDbDelete,
-    update: mockDbUpdate,
+    transaction: vi.fn(async (fn: (tx: unknown) => Promise<void>) => fn({ update: mockDbUpdate })),
   },
 }))
 
@@ -223,7 +223,11 @@ describe('POST /api/v1/workflows/import', () => {
       createdAt: CREATED_AT.toISOString(),
       updatedAt: CREATED_AT.toISOString(),
     })
-    expect(mockSaveWorkflowToNormalizedTables).toHaveBeenCalledWith('wf-new', expect.anything())
+    expect(mockSaveWorkflowToNormalizedTables).toHaveBeenCalledWith(
+      'wf-new',
+      expect.anything(),
+      expect.anything()
+    )
   })
 
   it('derives the name from the export envelope and deduplicates it', async () => {
@@ -313,10 +317,47 @@ describe('POST /api/v1/workflows/import', () => {
     expect(mockDbUpdate).not.toHaveBeenCalled()
   })
 
+  it('writes the graph and variables inside a single transaction', async () => {
+    mockParseWorkflowJson.mockReturnValue({
+      data: {
+        ...PARSED_STATE,
+        variables: { 'var-1': { id: 'var-1', name: 'host', type: 'string', value: 'x' } },
+      },
+      errors: [],
+    })
+
+    await POST(makeRequest(validBody()))
+
+    const tx = { update: mockDbUpdate }
+    expect(mockSaveWorkflowToNormalizedTables).toHaveBeenCalledWith('wf-new', expect.anything(), tx)
+    expect(mockDbUpdate).toHaveBeenCalled()
+  })
+
   it('deletes the created row and returns 500 when persisting state fails', async () => {
     const whereSpy = vi.fn().mockResolvedValue(undefined)
     mockDbDelete.mockReturnValue({ where: whereSpy })
     mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: false, error: 'boom' })
+
+    const response = await POST(makeRequest(validBody()))
+
+    expect(response.status).toBe(500)
+    expect(mockDbDelete).toHaveBeenCalled()
+    expect(whereSpy).toHaveBeenCalled()
+  })
+
+  it('rolls back the created workflow when the variables write throws', async () => {
+    const whereSpy = vi.fn().mockResolvedValue(undefined)
+    mockDbDelete.mockReturnValue({ where: whereSpy })
+    mockDbUpdate.mockImplementation(() => {
+      throw new Error('variables write failed')
+    })
+    mockParseWorkflowJson.mockReturnValue({
+      data: {
+        ...PARSED_STATE,
+        variables: { 'var-1': { id: 'var-1', name: 'host', type: 'string', value: 'x' } },
+      },
+      errors: [],
+    })
 
     const response = await POST(makeRequest(validBody()))
 

@@ -1245,7 +1245,7 @@
       "get": {
         "operationId": "exportWorkflow",
         "summary": "Export Workflow",
-        "description": "Export a workflow as a portable JSON envelope that POST /api/v1/workflows/import accepts verbatim. Stored credentials and secret field values are redacted from the payload, while `{{ENV_VAR}}` references and block positions are preserved. Requires read permission on the workflow's workspace. Returns 404 when the workflow does not exist or you do not have access to it.",
+        "description": "Export a workflow as a portable JSON envelope that POST /api/v1/workflows/import accepts verbatim. Credential and password field values stored on blocks are redacted from the payload, while `{{ENV_VAR}}` references and block positions are preserved. Workflow variables are returned as stored \u2014 they are plaintext configuration readable by anyone with workspace read, and secrets belong in environment variables, which travel as unresolved references. Requires read permission on the workflow's workspace. Returns 404 when the workflow does not exist or you do not have access to it.",
         "tags": ["Workflows"],
         "x-codeSamples": [
           {
@@ -7575,7 +7575,7 @@
           },
           "variables": {
             "type": "object",
-            "description": "Workflow-level variables, keyed by variable id.",
+            "description": "Workflow-level variables, keyed by variable id. Emitted as stored \u2014 treat as plaintext configuration, not a secret store.",
             "additionalProperties": true,
             "example": {}
           }
@@ -7583,7 +7583,7 @@
       },
       "WorkflowExport": {
         "type": "object",
-        "description": "A portable workflow export envelope. Pass this object straight back to POST /api/v1/workflows/import to recreate the workflow. Stored credentials and secret field values are redacted; `{{ENV_VAR}}` references are preserved.",
+        "description": "A portable workflow export envelope. Pass this object straight back to POST /api/v1/workflows/import to recreate the workflow. Credential and password field values stored on blocks are redacted; `{{ENV_VAR}}` references and workflow variables are preserved as stored.",
         "properties": {
           "version": {
             "type": "string",

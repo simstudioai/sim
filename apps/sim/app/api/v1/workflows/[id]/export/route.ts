@@ -67,8 +67,16 @@ function toExportedEdge(edge: Edge): ExportedEdge {
  *
  * Unlike the admin export (`/api/v1/admin/workflows/[id]/export`), which emits
  * the raw state for backup/restore, this surface runs the payload through
- * `sanitizeForExport`: stored credentials and secret sub-block values are
- * stripped while `{{ENV_VAR}}` references and block positions are preserved.
+ * `sanitizeForExport`: block sub-block values declared `password: true` or
+ * `oauth-input` are nulled, while `{{ENV_VAR}}` references and block positions
+ * are preserved.
+ *
+ * Workflow **variables** are emitted as stored, matching `GET
+ * /api/v1/workflows/[id]` and the in-app export. Variables are plaintext
+ * workflow configuration readable by anyone with workspace read (the same
+ * permission this route requires); secrets belong in environment variables,
+ * which travel as unresolved `{{ENV_VAR}}` references. Redacting them here
+ * would break import round-trips without narrowing access.
  */
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {

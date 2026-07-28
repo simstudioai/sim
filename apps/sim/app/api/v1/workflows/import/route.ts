@@ -229,22 +229,35 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const workflowId = created.workflow.id
 
-    const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState)
-    if (!saveResult.success) {
-      await db.delete(workflow).where(eq(workflow.id, workflowId))
-      logger.error(`[${requestId}] Failed to persist imported workflow state`, {
-        workflowId,
-        error: saveResult.error,
-      })
-      return NextResponse.json({ error: 'Failed to save workflow state' }, { status: 500 })
-    }
-
     const variables = toVariablesRecord(workflowState.variables)
-    if (Object.keys(variables).length > 0) {
-      await db
-        .update(workflow)
-        .set({ variables, updatedAt: new Date() })
-        .where(eq(workflow.id, workflowId))
+
+    /**
+     * The graph and the variables are written in one transaction so an import
+     * can never half-land, and any failure deletes the shell row created above
+     * — a caller that receives an error must not be left with a partially
+     * imported workflow in their workspace.
+     */
+    try {
+      await db.transaction(async (tx) => {
+        const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
+        if (!saveResult.success) {
+          throw new Error(saveResult.error || 'Failed to save workflow state')
+        }
+
+        if (Object.keys(variables).length > 0) {
+          await tx
+            .update(workflow)
+            .set({ variables, updatedAt: new Date() })
+            .where(eq(workflow.id, workflowId))
+        }
+      })
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to persist imported workflow, rolling back`, {
+        workflowId,
+        error: getErrorMessage(error, 'Unknown error'),
+      })
+      await db.delete(workflow).where(eq(workflow.id, workflowId))
+      return NextResponse.json({ error: 'Failed to save workflow state' }, { status: 500 })
     }
 
     logger.info(`[${requestId}] Imported workflow ${workflowId} into workspace ${workspaceId}`, {
