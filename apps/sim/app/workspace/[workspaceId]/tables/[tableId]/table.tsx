@@ -72,12 +72,7 @@ import {
 import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
 import { COLUMN_TYPE_ICONS } from './components/table-grid/headers'
 import { useTable, useTableEventStream } from './hooks'
-import {
-  type BlockedTableAction,
-  describeBlockedAction,
-  describeLocks,
-  lockedNouns,
-} from './lock-copy'
+import { type BlockedTableAction, describeBlockedAction, lockedNouns } from './lock-copy'
 import {
   ALL_VIEW_PARAM,
   DEFAULT_TABLE_DETAIL_SORT_DIRECTION,
@@ -979,7 +974,10 @@ export function Table({
       if (!tableData) return
       if (blockedToastIdRef.current) toast.dismiss(blockedToastIdRef.current)
       const { title, text } = describeBlockedAction(action, tableData.locks)
-      blockedToastIdRef.current = toast.warning(title, {
+      // 'status' is the on-open announcement — nothing was refused, so it reads
+      // as information rather than a warning.
+      const notify = action === 'status' ? toast.info : toast.warning
+      blockedToastIdRef.current = notify(title, {
         description: text,
         ...(canOpenLockSettings
           ? {
@@ -993,23 +991,48 @@ export function Table({
     [tableData, canOpenLockSettings]
   )
 
+  // Announce the lock state once per table on open. Unlike the re-rendering
+  // permission gates, this fires once and can't self-correct, so it waits for
+  // `canAdmin` to settle instead of treating loading as permitted.
+  const announcedLockTableIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!tableData || userPermissions.isLoading) return
+    if (announcedLockTableIdRef.current === tableData.id) return
+    announcedLockTableIdRef.current = tableData.id
+    if (lockedNouns(tableData.locks).length === 0) return
+    showBlockedToast('status')
+  }, [tableData, userPermissions.isLoading, showBlockedToast])
+
+  // A notice must not outlive the table it describes — its action targets
+  // whichever table is current. Keyed on `tableId` so an embedded swap that
+  // changes the prop without a route change is covered too. Leaving ends the
+  // visit, so the latch resets and coming back announces again.
+  useEffect(
+    () => () => {
+      announcedLockTableIdRef.current = null
+      if (!blockedToastIdRef.current) return
+      toast.dismiss(blockedToastIdRef.current)
+      blockedToastIdRef.current = null
+    },
+    [tableId]
+  )
+
+  // A toast's action is captured when it is created, so a viewer who loses
+  // admin access mid-toast would keep a Lock settings button that opens
+  // nothing. Dismiss on that transition only — a viewer who never had access
+  // has a legitimate action-less notice that must survive.
+  const couldOpenLockSettingsRef = useRef(canOpenLockSettings)
+  useEffect(() => {
+    const lostAccess = couldOpenLockSettingsRef.current && !canOpenLockSettings
+    couldOpenLockSettingsRef.current = canOpenLockSettings
+    if (!lostAccess || !blockedToastIdRef.current) return
+    toast.dismiss(blockedToastIdRef.current)
+    blockedToastIdRef.current = null
+  }, [canOpenLockSettings])
+
   const headerActions = useMemo(() => {
     if (!tableData) return undefined
-    // Header space is for state, not for settings: the chip appears only once
-    // something is actually locked, and names the mode so it reads at a glance.
-    // Reaching the panel on an unlocked table is the dropdown's job.
-    const anyLocked = lockedNouns(tableData.locks).length > 0
     return [
-      ...(anyLocked
-        ? [
-            {
-              label: describeLocks(tableData.locks).name,
-              icon: Lock,
-              onClick: () =>
-                userPermissions.canAdmin ? setShowLockSettings(true) : showBlockedToast('status'),
-            },
-          ]
-        : []),
       {
         label: 'Import CSV',
         icon: Upload,
@@ -1025,14 +1048,7 @@ export function Table({
         disabled: tableData.rowCount === 0,
       },
     ]
-  }, [
-    tableData,
-    userPermissions.canEdit,
-    userPermissions.canAdmin,
-    handleExportCsv,
-    onRequestImportCsv,
-    showBlockedToast,
-  ])
+  }, [tableData, userPermissions.canEdit, handleExportCsv, onRequestImportCsv])
 
   // Adding a column is a schema change. The trigger stays visible when the
   // table is schema-locked and explains itself instead of disappearing.

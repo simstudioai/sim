@@ -11,6 +11,7 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { splitWorkspaceFilePath } from '@/lib/copilot/tools/server/files/workspace-file'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
@@ -685,7 +686,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
           if (denied) return denied
 
-          const buffer = await downloadFileFromStorage(userFile, requestId, logger, {
+          // Generated docs store their generation source, not the rendered binary, so
+          // the archive must carry the servable bytes instead of the raw source text.
+          // A still-compiling artifact throws, and the handler's catch turns that into
+          // the shared 409 via `docNotReadyResponse`.
+          const { buffer } = await downloadServableFileFromStorage(userFile, requestId, logger, {
             maxBytes: MAX_COMPRESS_FILE_BYTES,
           })
           totalBytes += buffer.length
@@ -864,6 +869,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
     const notReady = docNotReadyResponse(error)
     if (notReady) return notReady
+    // A file over its per-file cap is a size rejection, not a fault. Rendered
+    // documents can cross it even when the stored source was well under.
+    if (isPayloadSizeLimitError(error)) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 413 })
+    }
     if (error instanceof ShareValidationError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 })
     }
