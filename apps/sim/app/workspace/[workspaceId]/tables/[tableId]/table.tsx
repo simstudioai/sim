@@ -358,7 +358,11 @@ export function Table({
     ((previousName: string, newName: string) => void) | null
   >(null)
 
-  const { data: views = NO_VIEWS, isSuccess: viewsLoaded } = useTableViews({
+  const {
+    data: views = NO_VIEWS,
+    isSuccess: viewsLoaded,
+    isError: viewsFailed,
+  } = useTableViews({
     workspaceId,
     tableId,
     enabled: viewsEnabled,
@@ -388,6 +392,12 @@ export function Table({
    *  longer resolves (deleted, stale bookmark) falls back to "All" rather than
    *  rendering an empty view. */
   const activeView = activeViewId ? (views.find((view) => view.id === activeViewId) ?? null) : null
+
+  /** The views query hasn't settled, so which view owns the layout isn't known
+   *  yet and layout writes must go nowhere. An ERROR counts as settled: the table
+   *  falls back to All and writes resume against shared metadata, rather than
+   *  staying silently suppressed for the rest of the session. */
+  const viewOwnerUnknown = viewsEnabled && !viewsLoaded && !viewsFailed
 
   const [viewModal, setViewModal] = useState<ViewModalState>(null)
   /** Which view id the local filter/sort/hidden state was last seeded from.
@@ -643,8 +653,10 @@ export function Table({
   /** Column order/width/pinning auto-saves into the active view as the user drags,
    *  which is why `isSameViewConfig` excludes layout from the dirty check. Sent as
    *  a `configPatch` so the server merges it — two overlapping layout writes must
-   *  not each replace the whole blob from their own snapshot. With no view active
-   *  the grid keeps writing the table's shared metadata. */
+   *  not each replace the whole blob from their own snapshot. With All selected
+   *  the sink is unbound and the grid writes the table's shared metadata instead;
+   *  while the views query is still loading the sink IS bound and the write is
+   *  suppressed, because the owner isn't known yet. */
   const handlePersistLayout = useCallback(
     (patch: TableMetadata) => {
       liveLayoutRef.current = { ...liveLayoutRef.current, ...patch }
@@ -1340,7 +1352,14 @@ export function Table({
         hiddenColumns={effectiveHiddenColumns}
         viewLayout={activeView?.config ?? null}
         viewLayoutKey={activeView?.id ?? null}
-        onPersistLayout={activeView ? handlePersistLayout : undefined}
+        onPersistLayout={
+          // While the views query is in flight the layout owner is unknown, so
+          // the sink is bound anyway: `handlePersistLayout` buffers into
+          // `liveLayoutRef` and suppresses the write. Leaving it unset would fall
+          // through to the table's shared metadata and corrupt All's layout for a
+          // table that is about to adopt a view.
+          viewOwnerUnknown || activeView ? handlePersistLayout : undefined
+        }
         columnRenameSinkRef={columnRenameSinkRef}
         afterDeleteRowsSinkRef={afterDeleteRowsSinkRef}
         afterDeleteAllSinkRef={afterDeleteAllSinkRef}

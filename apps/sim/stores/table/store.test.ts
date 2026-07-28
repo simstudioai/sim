@@ -12,6 +12,18 @@ const reorder: TableUndoAction = {
   previousOrder: ['a', 'b'],
   newOrder: ['b', 'a'],
 }
+const deleteColumn: TableUndoAction = {
+  type: 'delete-column',
+  columnName: 'a',
+  columnType: 'string',
+  columnPosition: 0,
+  columnUnique: false,
+  columnRequired: false,
+  cellData: [],
+  previousOrder: ['a', 'b'],
+  previousWidth: null,
+  previousPinnedColumns: null,
+}
 const updateCell: TableUndoAction = {
   type: 'update-cell',
   rowId: 'r1',
@@ -63,6 +75,19 @@ describe('pruneLayoutActions', () => {
     store.pruneLayoutActions(TABLE, 'view-b')
 
     expect(useTableUndoStore.getState().stacks[TABLE]?.redo).toHaveLength(0)
+  })
+
+  it('keeps column create/delete across a view switch — they are schema ops', () => {
+    const store = useTableUndoStore.getState()
+    store.push(TABLE, deleteColumn, 'view-a')
+
+    store.pruneLayoutActions(TABLE, 'view-b')
+
+    const undo = useTableUndoStore.getState().stacks[TABLE]?.undo
+    expect(undo).toHaveLength(1)
+    expect(undo?.[0].action.type).toBe('delete-column')
+    // Its recorded owner survives so the replay can drop just the layout half.
+    expect(undo?.[0].viewId).toBe('view-a')
   })
 
   it('treats All (null) as its own owner', () => {

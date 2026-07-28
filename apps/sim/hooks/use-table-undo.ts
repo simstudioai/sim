@@ -189,7 +189,12 @@ export function useTableUndo({
   )
 
   const executeAction = useCallback(
-    async (action: TableUndoAction, direction: 'undo' | 'redo') => {
+    async (action: TableUndoAction, direction: 'undo' | 'redo', entryViewId: string | null) => {
+      // Column create/delete are table-scoped, so they stay undoable after a view
+      // switch — but the layout they recorded belongs to the view that was active
+      // at the time. Replaying it elsewhere would write one view's order/widths
+      // into another, so the schema half runs and the layout half is dropped.
+      const entryOwnsLayout = entryViewId === activeViewIdRef.current
       try {
         switch (action.type) {
           case 'update-cell': {
@@ -338,7 +343,7 @@ export function useTableUndo({
                     metadata.pinnedColumns = newPinned
                   }
                   if (Object.keys(metadata).length > 0) {
-                    persistLayoutRef.current(metadata)
+                    if (entryOwnsLayout) persistLayoutRef.current(metadata)
                   }
                 },
               })
@@ -430,7 +435,7 @@ export function useTableUndo({
                       }
                     }
                     if (Object.keys(metadata).length > 0) {
-                      persistLayoutRef.current(metadata)
+                      if (entryOwnsLayout) persistLayoutRef.current(metadata)
                     }
                   },
                 }
@@ -459,7 +464,7 @@ export function useTableUndo({
                     }
                   }
                   if (Object.keys(metadata).length > 0) {
-                    persistLayoutRef.current(metadata)
+                    if (entryOwnsLayout) persistLayoutRef.current(metadata)
                   }
                 },
               })
@@ -521,6 +526,10 @@ export function useTableUndo({
                 ...restored.filter((n) => !pinnedSet.has(n)),
               ]
             }
+            // Pruning already drops these on a view switch, so a mismatch here
+            // should be unreachable; the guard keeps the invariant local rather
+            // than dependent on when the prune effect happens to run.
+            if (!entryOwnsLayout) break
             onColumnOrderChangeRef.current?.(order)
             persistLayoutRef.current({ columnOrder: order })
             break
@@ -546,7 +555,7 @@ export function useTableUndo({
     }
     const entry = popUndo(tableId)
     if (!entry) return
-    void runWithoutRecording(() => executeAction(entry.action, 'undo'))
+    void runWithoutRecording(() => executeAction(entry.action, 'undo', entry.viewId))
   }, [popUndo, tableId, executeAction])
 
   const redo = useCallback(() => {
@@ -560,7 +569,7 @@ export function useTableUndo({
     }
     const entry = popRedo(tableId)
     if (!entry) return
-    void runWithoutRecording(() => executeAction(entry.action, 'redo'))
+    void runWithoutRecording(() => executeAction(entry.action, 'redo', entry.viewId))
   }, [popRedo, tableId, executeAction])
 
   return { pushUndo, undo, redo, canUndo, canRedo }

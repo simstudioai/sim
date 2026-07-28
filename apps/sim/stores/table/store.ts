@@ -7,7 +7,7 @@ import { generateShortId } from '@sim/utils/id'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import type { TableUndoAction, TableUndoStacks, TableUndoState, UndoEntry } from './types'
-import { LAYOUT_UNDO_ACTIONS } from './types'
+import { VIEW_SCOPED_UNDO_ACTIONS } from './types'
 
 const STACK_CAPACITY = 100
 const EMPTY_STACKS: TableUndoStacks = { undo: [], redo: [] }
@@ -192,7 +192,7 @@ export const useTableUndoStore = create<TableUndoState>()(
         const current = get().stacks[tableId]
         if (!current) return
         const owned = (entry: UndoEntry) =>
-          !LAYOUT_UNDO_ACTIONS.has(entry.action.type) || entry.viewId === viewId
+          !VIEW_SCOPED_UNDO_ACTIONS.has(entry.action.type) || entry.viewId === viewId
         const undo = current.undo.filter(owned)
         const redo = current.redo.filter(owned)
         if (undo.length === current.undo.length && redo.length === current.redo.length) return
