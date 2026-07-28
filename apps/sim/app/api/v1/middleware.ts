@@ -100,11 +100,7 @@ export async function checkRateLimit(
     const plan = (subscription?.plan || 'free') as SubscriptionPlan
     const config = getRateLimit(plan, 'api-endpoint')
 
-    /**
-     * Recorded here — the one place the bucket is actually consulted — so
-     * `withRouteHandler` can publish the quota on every response the route
-     * returns, including error paths, without each `return` remembering to.
-     */
+    /** Recorded here — the one place the bucket is actually consulted. */
     recordRateLimitSnapshot(request, {
       limit: config.maxTokens,
       remaining: result.remaining,

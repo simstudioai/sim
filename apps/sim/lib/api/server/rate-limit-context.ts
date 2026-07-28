@@ -1,3 +1,9 @@
+export interface RateLimitSnapshot {
+  limit: number
+  remaining: number
+  resetAt: Date
+}
+
 /**
  * Request-scoped carrier for the rate-limit snapshot, so response headers can be
  * attached once at the route boundary instead of at every `return`.
@@ -14,12 +20,6 @@
  * Routes that never record a snapshot (everything outside the v1 API) read
  * `undefined` and are left untouched.
  */
-export interface RateLimitSnapshot {
-  limit: number
-  remaining: number
-  resetAt: Date
-}
-
 const snapshots = new WeakMap<object, RateLimitSnapshot>()
 
 /**
@@ -31,11 +31,7 @@ export function recordRateLimitSnapshot(request: object, snapshot: RateLimitSnap
   snapshots.set(request, snapshot)
 }
 
-/**
- * The `X-RateLimit-*` trio. The single definition of these header names and
- * their formatting — every emitter goes through here so a change to the header
- * contract lands in one place.
- */
+/** The single definition of the `X-RateLimit-*` header names and formatting. */
 export function buildRateLimitHeaders(snapshot: RateLimitSnapshot): Record<string, string> {
   return {
     'X-RateLimit-Limit': snapshot.limit.toString(),

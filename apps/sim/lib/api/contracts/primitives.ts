@@ -50,23 +50,13 @@ export function requiredFieldSchema(message: string) {
   return z.string({ error: message }).min(1, message)
 }
 
-/**
- * Non-empty `workspaceId` field. Same constraint as `nonEmptyIdSchema` with a
- * stable, human-readable message. Use to deduplicate the
- * `z.string().min(1, 'Workspace ID is required')` pattern across contracts.
- */
+/** Non-empty `workspaceId` field with a stable, human-readable message. */
 export const workspaceIdSchema = requiredFieldSchema('Workspace ID is required')
 
-/**
- * Non-empty `organizationId` field. Same constraint as `nonEmptyIdSchema` with a
- * stable, human-readable message.
- */
+/** Non-empty `organizationId` field with a stable, human-readable message. */
 export const organizationIdSchema = requiredFieldSchema('Organization ID is required')
 
-/**
- * Non-empty `workflowId` field. Same constraint as `nonEmptyIdSchema` with a
- * stable, human-readable message.
- */
+/** Non-empty `workflowId` field with a stable, human-readable message. */
 export const workflowIdSchema = requiredFieldSchema('Workflow ID is required')
 
 /**

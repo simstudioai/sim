@@ -37,15 +37,6 @@ function readTypedErrorStatus(error: unknown): number | undefined {
 }
 
 /**
- * Wraps a Next.js API route handler with centralized error reporting.
- *
- * - Generates a unique request ID and stores it in AsyncLocalStorage so every
- *   logger in the request lifecycle automatically includes it
- * - Logs all 4xx and 5xx responses with method, path, status, duration
- * - Catches unhandled errors, logs them, and returns a 500 with the request ID
- * - Attaches `x-request-id` response header
- */
-/**
  * Stamps the request id, plus the rate-limit trio when the route consulted a
  * bucket for this request. Applied on both the success and the unhandled-error
  * path so a caller can read its quota from any response — including the 4xx and
@@ -65,6 +56,16 @@ function applyResponseHeaders(
   }
 }
 
+/**
+ * Wraps a Next.js API route handler with centralized error reporting.
+ *
+ * - Generates a unique request ID and stores it in AsyncLocalStorage so every
+ *   logger in the request lifecycle automatically includes it
+ * - Logs all 4xx and 5xx responses with method, path, status, duration
+ * - Catches unhandled errors, logs them, and returns a 500 with the request ID
+ * - Attaches `x-request-id`, plus the rate-limit headers when the route
+ *   recorded a snapshot for the request
+ */
 export function withRouteHandler<T>(handler: RouteHandler<T>): RouteHandler<T> {
   return async (request: NextRequest, context: T) => {
     const requestId = generateRequestId()
