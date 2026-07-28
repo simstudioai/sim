@@ -691,9 +691,28 @@ export function LoadedRichMarkdownEditor({
       if (error.retryable === false) seedFromLoaded()
     }
 
+    // A server edit that changes ONLY the frontmatter (e.g. copilot) updates the config map but not
+    // the body fragment, so TipTap's `onUpdate` never fires and the autosave draft would keep the
+    // stale open-time frontmatter — an explicit save could then revert the live change. Re-attach the
+    // new frontmatter to the current body and push a fresh draft whenever it changes on its own.
+    let lastFrontmatter = config.get(FILE_DOC_SEED.frontmatterKey)
+    const syncFrontmatter = () => {
+      const current = config.get(FILE_DOC_SEED.frontmatterKey)
+      if (current === lastFrontmatter) return
+      lastFrontmatter = current
+      // Null body ref ⇒ no body has synced yet (e.g. this fired before the seed's own `onUpdate`);
+      // that path re-attaches the frontmatter itself, so there is nothing to do here.
+      if (lastSyncedBodyRef.current !== null) {
+        onChangeRef.current(
+          applyFrontmatter(typeof current === 'string' ? current : '', lastSyncedBodyRef.current)
+        )
+      }
+    }
+
     provider.on('synced', report)
     provider.on('join-error', onJoinError)
     config.observe(report)
+    config.observe(syncFrontmatter)
     report()
     if (provider.joinError) onJoinError(provider.joinError)
 
@@ -701,6 +720,7 @@ export function LoadedRichMarkdownEditor({
       provider.off('synced', report)
       provider.off('join-error', onJoinError)
       config.unobserve(report)
+      config.unobserve(syncFrontmatter)
       // Report NOT ready on teardown — the safe direction. If this effect ever re-runs while mounted
       // (a future dep change), briefly gating autosave off is harmless; reporting `true` here could
       // ungate it while the doc is unready.
