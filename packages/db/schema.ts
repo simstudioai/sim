@@ -3309,6 +3309,24 @@ export const usageLog = pgTable(
         table.billingPeriodEnd
       )
       .where(sql`${table.billingEntityType} IS NOT NULL`),
+    /**
+     * Covering variant of `billingEntityPeriodIdx`. The trailing columns carry the
+     * billing-period aggregates' remaining predicates and `cost` itself, so those
+     * sums resolve index-only instead of taking a heap fetch per matched row.
+     * Supersedes `billingEntityPeriodIdx`, which is dropped separately.
+     */
+    billingPeriodCostIdx: index('usage_log_billing_period_cost_idx')
+      .on(
+        table.billingEntityType,
+        table.billingEntityId,
+        table.billingPeriodStart,
+        table.billingPeriodEnd,
+        table.source,
+        table.userId,
+        table.createdAt,
+        table.cost
+      )
+      .where(sql`${table.billingEntityType} IS NOT NULL`),
     billingScopeAllOrNone: check(
       'usage_log_billing_scope_all_or_none',
       sql`(
