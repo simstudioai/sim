@@ -96,7 +96,13 @@ describe('buildCustomBlockConfig', () => {
 
   it('exposes the full result and hides plumbing when no outputs are curated', () => {
     const config = buildCustomBlockConfig(row, fields, { icon })
-    expect(Object.keys(config.outputs).sort()).toEqual(['error', 'result', 'success'])
+    expect(Object.keys(config.outputs).sort()).toEqual([
+      'error',
+      'errorRef',
+      'errorType',
+      'result',
+      'success',
+    ])
     expect(config.outputs.childWorkflowId).toBeUndefined()
     expect(config.outputs.childTraceSpans).toBeUndefined()
   })

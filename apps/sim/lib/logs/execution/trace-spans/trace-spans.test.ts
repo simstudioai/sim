@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import {
+  buildTraceSpans,
+  hasUnhandledError,
+  traceSpansIndicateFailure,
+} from '@/lib/logs/execution/trace-spans/trace-spans'
+import type { TraceSpan } from '@/lib/logs/types'
 import { stripCustomToolPrefix } from '@/executor/constants'
 import type { ExecutionResult } from '@/executor/types'
 
@@ -2316,5 +2321,63 @@ describe('nested subflow grouping via parentIterations', () => {
       toolCost: 0.015,
       total: 0.018,
     })
+  })
+})
+
+describe('hasUnhandledError', () => {
+  const span = (overrides: Partial<TraceSpan>): TraceSpan =>
+    ({
+      id: 's',
+      name: 'n',
+      type: 'agent',
+      duration: 0,
+      startTime: '',
+      endTime: '',
+      ...overrides,
+    }) as TraceSpan
+
+  it('reports an unhandled error', () => {
+    expect(hasUnhandledError(span({ status: 'error' }))).toBe(true)
+  })
+
+  it('ignores an error an error-handler path already handled', () => {
+    expect(hasUnhandledError(span({ status: 'error', errorHandled: true }))).toBe(false)
+  })
+
+  it('stops at a successful mothership boundary that recovered from a failed child', () => {
+    const boundary = span({
+      type: 'mothership',
+      status: 'success',
+      children: [span({ status: 'error' })],
+    })
+
+    expect(hasUnhandledError(boundary)).toBe(false)
+  })
+
+  it('still descends through a successful workflow span', () => {
+    const parent = span({
+      type: 'workflow',
+      status: 'success',
+      children: [span({ status: 'error' })],
+    })
+
+    expect(hasUnhandledError(parent)).toBe(true)
+  })
+
+  it('only counts failed tool calls when explicitly asked', () => {
+    const withFailedTool = span({
+      status: 'success',
+      toolCalls: [{ name: 't', error: 'boom' }],
+    } as Partial<TraceSpan>)
+
+    expect(hasUnhandledError(withFailedTool)).toBe(false)
+    expect(hasUnhandledError(withFailedTool, { includeToolCalls: true })).toBe(true)
+  })
+})
+
+describe('traceSpansIndicateFailure', () => {
+  it('is false for no spans', () => {
+    expect(traceSpansIndicateFailure(undefined)).toBe(false)
+    expect(traceSpansIndicateFailure([])).toBe(false)
   })
 })

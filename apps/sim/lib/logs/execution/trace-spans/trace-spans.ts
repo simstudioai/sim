@@ -133,11 +133,40 @@ function addRelativeTimestamps(spans: TraceSpan[], workflowStartMs: number): voi
   }
 }
 
-/** True if this span (or any descendant) has an unhandled error. */
-function hasUnhandledError(span: TraceSpan): boolean {
+/** Options for {@link hasUnhandledError}. */
+export interface UnhandledErrorOptions {
+  /**
+   * Also treat a failed tool call as an unhandled error. Off by default: an
+   * agent that retried past a failed tool call still succeeded, so counting
+   * tool calls would flip those runs to failed.
+   */
+  includeToolCalls?: boolean
+}
+
+/**
+ * True if this span (or any descendant) has an error nothing handled. The
+ * single source of truth for "did this fail?" — used for the run's root span
+ * status, the persisted log level, and the UI's failure badge, so all three
+ * agree on error boundaries.
+ */
+export function hasUnhandledError(span: TraceSpan, options?: UnhandledErrorOptions): boolean {
   if (span.status === 'error' && !span.errorHandled) return true
   if (span.status === 'success' && SUCCESSFUL_CHILD_ERROR_BOUNDARY_BLOCK_TYPES.has(span.type)) {
     return false
   }
-  return span.children?.some(hasUnhandledError) ?? false
+  if (span.children?.length) {
+    return span.children.some((child) => hasUnhandledError(child, options))
+  }
+  if (options?.includeToolCalls && span.toolCalls?.length && !span.errorHandled) {
+    return span.toolCalls.some((call) => call.error)
+  }
+  return false
+}
+
+/** True when a completed run should be recorded as failed. */
+export function traceSpansIndicateFailure(
+  spans: TraceSpan[] | undefined,
+  options?: UnhandledErrorOptions
+): boolean {
+  return spans?.some((span) => hasUnhandledError(span, options)) ?? false
 }

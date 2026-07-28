@@ -93,6 +93,28 @@ export function describeError(error: unknown): DescribedError {
   }
 }
 
+/**
+ * First link in the `.cause` chain (including `error` itself) matching
+ * `predicate`. Lets a caller recover a specific wrapped error class instead of
+ * re-parsing a formatted message. Cycle-safe and depth-bounded, mirroring
+ * {@link describeError}'s walk.
+ */
+export function findCause<T>(
+  error: unknown,
+  predicate: (value: unknown) => value is T
+): T | undefined {
+  const seen = new Set<unknown>()
+  let current: unknown = error
+
+  while (current instanceof Error && !seen.has(current) && seen.size < 10) {
+    seen.add(current)
+    if (predicate(current)) return current
+    current = current.cause
+  }
+
+  return undefined
+}
+
 function readPgErrorField(error: unknown, field: string): string | undefined {
   const seen = new Set<unknown>()
   let current: unknown = error

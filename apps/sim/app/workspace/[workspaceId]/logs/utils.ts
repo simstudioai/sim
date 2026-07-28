@@ -85,6 +85,7 @@ const TRIGGER_VARIANT_MAP: Record<string, React.ComponentProps<typeof Badge>['va
   copilot: 'pink',
   mothership: 'pink',
   workflow: 'blue-secondary',
+  custom_block: 'blue-secondary',
 }
 
 interface StatusBadgeProps {

@@ -32,7 +32,7 @@ export type JobType =
   | 'cleanup-tasks'
   | 'run-data-drain'
 
-export type AsyncExecutionCorrelationSource = 'workflow' | 'schedule' | 'webhook'
+export type AsyncExecutionCorrelationSource = 'workflow' | 'schedule' | 'webhook' | 'custom_block'
 
 export interface AsyncExecutionCorrelation {
   executionId: string
@@ -45,6 +45,11 @@ export interface AsyncExecutionCorrelation {
   path?: string
   provider?: string
   scheduledFor?: string
+  /**
+   * Workspace of the invoking run. Set for custom-block children, whose invoker
+   * lives in a different workspace than the log row this correlation lands on.
+   */
+  invokerWorkspaceId?: string
 }
 
 export interface Job<TPayload = unknown, TOutput = unknown> {

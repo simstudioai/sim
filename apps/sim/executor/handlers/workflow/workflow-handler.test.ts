@@ -16,14 +16,60 @@ const {
   mockResolveBillingAttribution,
   mockGetCustomBlockAuthority,
   mockGetUserEmailById,
+  mockAdmitCustomBlockChildExecution,
+  mockBuildTraceSpans,
+  mockSafeStart,
+  mockSafeComplete,
+  mockSafeCompleteWithError,
+  mockSafeCompleteWithCancellation,
+  mockDispose,
   executorOptions,
+  loggingSessionArgs,
 } = vi.hoisted(() => ({
   mockExecutorExecute: vi.fn(),
   mockCreateSnapshot: vi.fn(),
   mockResolveBillingAttribution: vi.fn(),
   mockGetCustomBlockAuthority: vi.fn(),
   mockGetUserEmailById: vi.fn(),
+  mockAdmitCustomBlockChildExecution: vi.fn(),
+  mockBuildTraceSpans: vi.fn(),
+  mockSafeStart: vi.fn(),
+  mockSafeComplete: vi.fn(),
+  mockSafeCompleteWithError: vi.fn(),
+  mockSafeCompleteWithCancellation: vi.fn(),
+  mockDispose: vi.fn(),
   executorOptions: [] as Array<Record<string, any>>,
+  loggingSessionArgs: [] as Array<any[]>,
+}))
+
+vi.mock('@/lib/logs/execution/logging-session', () => ({
+  LoggingSession: class {
+    constructor(...args: any[]) {
+      loggingSessionArgs.push(args)
+    }
+    safeStart = mockSafeStart
+    safeComplete = mockSafeComplete
+    safeCompleteWithError = mockSafeCompleteWithError
+    safeCompleteWithCancellation = mockSafeCompleteWithCancellation
+    onBlockStart = vi.fn()
+    onBlockComplete = vi.fn()
+  },
+}))
+
+vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
+  buildTraceSpans: mockBuildTraceSpans,
+}))
+
+vi.mock('@/lib/workflows/custom-blocks/child-execution', () => ({
+  admitCustomBlockChildExecution: mockAdmitCustomBlockChildExecution,
+  buildCustomBlockCorrelation: (params: Record<string, any>) =>
+    params.invokerExecutionId
+      ? { source: 'custom_block', executionId: params.invokerExecutionId }
+      : undefined,
+  createChildCancellationSignal: () => ({
+    signal: new AbortController().signal,
+    dispose: mockDispose,
+  }),
 }))
 
 vi.mock('@/executor', () => ({
@@ -167,6 +213,10 @@ describe('WorkflowBlockHandler', () => {
     // Reset all mocks
     vi.clearAllMocks()
     executorOptions.length = 0
+    loggingSessionArgs.length = 0
+    mockSafeStart.mockResolvedValue(true)
+    mockAdmitCustomBlockChildExecution.mockResolvedValue(undefined)
+    mockBuildTraceSpans.mockReturnValue({ traceSpans: [], totalDuration: 0 })
 
     // Setup default fetch mock
     mockFetch.mockResolvedValue({
@@ -963,6 +1013,279 @@ describe('WorkflowBlockHandler', () => {
     })
   })
 
+  describe('custom block child execution', () => {
+    const customBlock = () => ({
+      ...mockBlock,
+      metadata: { id: 'custom_block_abc', name: 'Published Block' },
+    })
+
+    function customBlockContext(overrides: Record<string, any> = {}) {
+      return {
+        ...mockContext,
+        workspaceId: 'workspace-consumer',
+        executionId: 'parent-execution-id',
+        metadata: { ...mockContext.metadata, requestId: 'req-1' },
+        ...overrides,
+      } as unknown as ExecutionContext
+    }
+
+    beforeEach(() => {
+      mockGetCustomBlockAuthority.mockResolvedValue({
+        workflowId: 'source-workflow-id',
+        organizationId: 'org-1',
+        ownerUserId: 'owner-9',
+        exposedOutputs: [],
+        requiredInputIds: [],
+      })
+      mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
+        personalDecrypted: {},
+        workspaceDecrypted: {},
+        personalEncrypted: { SECRET: 'enc' },
+        workspaceEncrypted: {},
+      })
+      mockResolveBillingAttribution.mockResolvedValue({
+        actorUserId: 'owner-9',
+        workspaceId: 'workspace-source',
+      })
+      mockFetch.mockImplementation(async (url: unknown) => {
+        if (String(url).includes('/deployed')) {
+          return {
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                data: { deployedState: { blocks: {}, edges: [], loops: {}, parallels: {} } },
+              }),
+          }
+        }
+        return {
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: { name: 'Source Workflow', workspaceId: 'workspace-source', variables: {} },
+            }),
+        }
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+    })
+
+    it('opens a session on the source workflow with a fresh id and no base charge', async () => {
+      await handler.execute(customBlockContext(), customBlock(), {})
+
+      expect(loggingSessionArgs).toHaveLength(1)
+      const [workflowId, executionId, trigger, requestId, reservationId, options] =
+        loggingSessionArgs[0]
+      expect(workflowId).toBe('source-workflow-id')
+      expect(executionId).not.toBe('parent-execution-id')
+      expect(reservationId).toBe(executionId)
+      expect(trigger).toBe('custom_block')
+      expect(requestId).toBe('req-1')
+      expect(options).toEqual({ baseExecutionCharge: 0 })
+    })
+
+    it('starts the session against the source workspace and payer', async () => {
+      await handler.execute(customBlockContext(), customBlock(), {})
+
+      expect(mockSafeStart).toHaveBeenCalledTimes(1)
+      const params = mockSafeStart.mock.calls[0][0]
+      expect(params.workspaceId).toBe('workspace-source')
+      expect(params.actorUserId).toBe('owner-9')
+      expect(params.billingAttribution).toEqual({
+        actorUserId: 'owner-9',
+        workspaceId: 'workspace-source',
+      })
+      expect(params.variables).toEqual({ SECRET: 'enc' })
+      expect(params.triggerData.correlation).toEqual({
+        source: 'custom_block',
+        executionId: 'parent-execution-id',
+      })
+    })
+
+    it('admits against the source payer before executing', async () => {
+      await handler.execute(customBlockContext(), customBlock(), {})
+
+      expect(mockAdmitCustomBlockChildExecution).toHaveBeenCalledWith({
+        actorUserId: 'owner-9',
+        workspaceId: 'workspace-source',
+      })
+    })
+
+    it('does not execute when admission is denied', async () => {
+      mockAdmitCustomBlockChildExecution.mockRejectedValue(new Error('no headroom'))
+
+      await expect(handler.execute(customBlockContext(), customBlock(), {})).rejects.toThrow()
+
+      expect(mockExecutorExecute).not.toHaveBeenCalled()
+      expect(loggingSessionArgs).toHaveLength(0)
+    })
+
+    it('runs the child under its own execution id but keeps the parent readable', async () => {
+      const ctx = customBlockContext()
+      await handler.execute(ctx, customBlock(), {})
+
+      const extensions = executorOptions[0].contextExtensions
+      expect(extensions.executionId).not.toBe('parent-execution-id')
+      expect(extensions.largeValueExecutionIds).toContain('parent-execution-id')
+      expect(ctx.largeValueExecutionIds).toContain(extensions.executionId)
+    })
+
+    it('never forwards the consumer SSE callbacks into the source run', async () => {
+      const ctx = customBlockContext({
+        onBlockStart: vi.fn(),
+        onBlockComplete: vi.fn(),
+        onStream: vi.fn(),
+        onChildWorkflowInstanceReady: vi.fn(),
+      })
+
+      await handler.execute(ctx, customBlock(), {})
+
+      const extensions = executorOptions[0].contextExtensions
+      expect(extensions.onStream).toBeUndefined()
+      expect(extensions.onChildWorkflowInstanceReady).toBeUndefined()
+      expect(extensions.childWorkflowContext).toBeUndefined()
+      expect(ctx.onChildWorkflowInstanceReady).not.toHaveBeenCalled()
+      // Block markers exist, but they belong to the CHILD's session.
+      expect(extensions.onBlockStart).toBeTypeOf('function')
+      expect(extensions.onBlockStart).not.toBe(ctx.onBlockStart)
+      expect(extensions.onBlockComplete).not.toBe(ctx.onBlockComplete)
+    })
+
+    it('completes the child session and disposes the cancellation bridge', async () => {
+      await handler.execute(customBlockContext(), customBlock(), {})
+
+      expect(mockSafeComplete).toHaveBeenCalledTimes(1)
+      expect(mockSafeCompleteWithError).not.toHaveBeenCalled()
+      expect(mockDispose).toHaveBeenCalledTimes(1)
+    })
+
+    it('records a cancelled child through the cancellation path', async () => {
+      mockExecutorExecute.mockResolvedValue({
+        success: true,
+        output: {},
+        metadata: { status: 'cancelled' },
+      })
+
+      await handler.execute(customBlockContext(), customBlock(), {})
+
+      expect(mockSafeCompleteWithCancellation).toHaveBeenCalledTimes(1)
+      expect(mockSafeComplete).not.toHaveBeenCalled()
+    })
+
+    it('records the real failure on the child log and hides it from the consumer', async () => {
+      mockExecutorExecute.mockRejectedValue(new Error('Function 1: secret internals blew up'))
+
+      await expect(handler.execute(customBlockContext(), customBlock(), {})).rejects.toMatchObject({
+        message: expect.stringContaining('Custom block execution failed'),
+      })
+
+      expect(mockSafeCompleteWithError).toHaveBeenCalledTimes(1)
+      expect(mockSafeCompleteWithError.mock.calls[0][0].error.message).toBe(
+        'Function 1: secret internals blew up'
+      )
+      expect(mockDispose).toHaveBeenCalledTimes(1)
+    })
+
+    it('gives the consumer an opaque ref and error class, never the source detail', async () => {
+      mockExecutorExecute.mockRejectedValue(new Error('Function 1: secret internals blew up'))
+
+      const error = await handler
+        .execute(customBlockContext(), customBlock(), {})
+        .catch((e: any) => e)
+
+      expect(error.consumerFacing.errorType).toBe('execution_failed')
+      expect(error.consumerFacing.ref).toBeDefined()
+      expect(error.message).toContain(error.consumerFacing.ref)
+      expect(error.message).not.toContain('secret internals')
+      expect(error.childWorkflowName).toBe('Published Block')
+      expect(error.childTraceSpans).toEqual([])
+      expect(error.executionResult).toBeUndefined()
+      // The chain is severed at the trust boundary.
+      expect(error.cause).toBeUndefined()
+    })
+
+    it('surfaces a missing-required-input failure verbatim', async () => {
+      mockGetCustomBlockAuthority.mockResolvedValue({
+        workflowId: 'source-workflow-id',
+        organizationId: 'org-1',
+        ownerUserId: 'owner-9',
+        exposedOutputs: [],
+        requiredInputIds: ['field-1'],
+      })
+      mockFetch.mockImplementation(async (url: unknown) => {
+        if (String(url).includes('/deployed')) {
+          return {
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                data: {
+                  deployedState: {
+                    blocks: {
+                      starter: {
+                        type: 'start_trigger',
+                        subBlocks: {
+                          inputFormat: {
+                            value: [{ id: 'field-1', name: 'Username', type: 'string' }],
+                          },
+                        },
+                      },
+                    },
+                    edges: [],
+                    loops: {},
+                    parallels: {},
+                  },
+                },
+              }),
+          }
+        }
+        return {
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: { name: 'Source Workflow', workspaceId: 'workspace-source', variables: {} },
+            }),
+        }
+      })
+
+      const error = await handler
+        .execute(customBlockContext(), customBlock(), { inputMapping: '{}' })
+        .catch((e: any) => e)
+
+      expect(error.message).toContain('missing required fields')
+      expect(error.message).toContain('Username')
+      expect(error.consumerFacing.errorType).toBe('missing_inputs')
+      expect(mockExecutorExecute).not.toHaveBeenCalled()
+    })
+
+    it('leaves regular workflow blocks entirely alone', async () => {
+      const ctx = {
+        ...mockContext,
+        workspaceId: 'workspace-1',
+        executionId: 'parent-execution-id',
+        onBlockStart: vi.fn(),
+        onStream: vi.fn(),
+      } as unknown as ExecutionContext
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Child Workflow',
+              workspaceId: 'workspace-1',
+              state: { blocks: [], edges: [], loops: {}, parallels: {} },
+            },
+          }),
+      })
+
+      await handler.execute(ctx, mockBlock, { workflowId: 'child-workflow-id' })
+
+      expect(loggingSessionArgs).toHaveLength(0)
+      const extensions = executorOptions[0].contextExtensions
+      expect(extensions.executionId).toBe('parent-execution-id')
+      expect(extensions.onStream).toBe(ctx.onStream)
+      expect(extensions.childWorkflowContext).toBeDefined()
+    })
+  })
+
   describe('projectCustomBlockOutput', () => {
     const childResult = {
       success: true,
@@ -971,33 +1294,27 @@ describe('WorkflowBlockHandler', () => {
     }
 
     it('maps each curated output to its named field plus system fields', () => {
-      const result = (handler as any).projectCustomBlockOutput(
-        childResult,
-        [{ blockId: 'b1', path: 'data.x', name: 'answer' }],
-        0.5
-      )
+      const result = (handler as any).projectCustomBlockOutput(childResult, [
+        { blockId: 'b1', path: 'data.x', name: 'answer' },
+      ])
 
-      expect(result).toEqual({ answer: 42, success: true, cost: { total: 0.5 } })
+      expect(result).toEqual({ answer: 42, success: true })
     })
 
-    it('never lets an exposed output named cost clobber the billed cost', () => {
-      const result = (handler as any).projectCustomBlockOutput(
-        childResult,
-        [{ blockId: 'b1', path: 'price', name: 'cost' }],
-        0.5
-      )
+    it('never reports cost on the consumer block — the child bills its own run', () => {
+      const result = (handler as any).projectCustomBlockOutput(childResult, [
+        { blockId: 'b1', path: 'data.x', name: 'answer' },
+      ])
 
-      expect(result.cost).toEqual({ total: 0.5 })
-      expect(result.success).toBe(true)
+      expect(result.cost).toBeUndefined()
     })
 
     it('exposes the whole child result when no outputs are curated', () => {
-      const result = (handler as any).projectCustomBlockOutput(childResult, [], 0.5)
+      const result = (handler as any).projectCustomBlockOutput(childResult, [])
 
       expect(result).toEqual({
         success: true,
         result: { data: 'whole result' },
-        cost: { total: 0.5 },
       })
     })
   })

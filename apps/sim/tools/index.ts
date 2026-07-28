@@ -37,6 +37,7 @@ import type { ExecutionContext, UserFile } from '@/executor/types'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
+import { HostedKeyRateLimitedError, HostedKeyUnavailableError } from '@/tools/errors'
 import type {
   BYOKProviderId,
   OAuthTokenPayload,
@@ -366,18 +367,18 @@ async function injectHostedKeyIfNeeded(
       workflowId,
     })
 
-    const error = new Error(acquireResult.error || `Rate limit exceeded for ${tool.id}`)
-    ;(error as any).status = 429
-    ;(error as any).retryAfterMs = acquireResult.retryAfterMs
-    throw error
+    throw new HostedKeyRateLimitedError(
+      acquireResult.error || `Rate limit exceeded for ${tool.id}`,
+      acquireResult.retryAfterMs
+    )
   }
 
   // Handle no keys configured (503)
   if (!acquireResult.success) {
     logger.error(`[${requestId}] No hosted keys configured for ${tool.id}: ${acquireResult.error}`)
-    const error = new Error(acquireResult.error || `No hosted keys configured for ${tool.id}`)
-    ;(error as any).status = 503
-    throw error
+    throw new HostedKeyUnavailableError(
+      acquireResult.error || `No hosted keys configured for ${tool.id}`
+    )
   }
 
   params[apiKeyParam] = acquireResult.key

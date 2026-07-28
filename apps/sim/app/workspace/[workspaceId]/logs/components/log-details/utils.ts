@@ -2,6 +2,7 @@ import type React from 'react'
 import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import { formatCreditCost } from '@/lib/billing/credits/conversion'
 import { perceivedBrightness } from '@/lib/colors'
+import { hasUnhandledError } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
@@ -43,10 +44,7 @@ export function hasErrorInTree(span: TraceSpan): boolean {
 }
 
 export function hasUnhandledErrorInTree(span: TraceSpan): boolean {
-  if (span.status === 'error' && !span.errorHandled) return true
-  if (span.children?.length) return span.children.some(hasUnhandledErrorInTree)
-  if (span.toolCalls?.length && !span.errorHandled) return span.toolCalls.some((tc) => tc.error)
-  return false
+  return hasUnhandledError(span, { includeToolCalls: true })
 }
 
 export function getBlockIconAndColor(

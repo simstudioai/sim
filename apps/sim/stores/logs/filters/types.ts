@@ -31,6 +31,7 @@ export const CORE_TRIGGER_TYPES = [
   'copilot',
   'mothership',
   'workflow',
+  'custom_block',
 ] as const
 
 export type CoreTriggerType = (typeof CORE_TRIGGER_TYPES)[number]

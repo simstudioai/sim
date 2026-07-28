@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { describeError, getPostgresErrorCode, toError } from './errors.js'
+import { describeError, findCause, getPostgresErrorCode, toError } from './errors.js'
 
 describe('toError', () => {
   it('returns the same Error when given an Error', () => {
@@ -125,5 +125,33 @@ describe('describeError', () => {
       described = describeError(a)
     }).not.toThrow()
     expect(described?.causeChain?.length).toBeLessThanOrEqual(10)
+  })
+})
+
+describe('findCause', () => {
+  class Marker extends Error {}
+  const isMarker = (value: unknown): value is Marker => value instanceof Marker
+
+  it('returns the error itself when it matches', () => {
+    const marker = new Marker('hit')
+    expect(findCause(marker, isMarker)).toBe(marker)
+  })
+
+  it('finds a match further down the cause chain', () => {
+    const marker = new Marker('deep')
+    const wrapped = new Error('outer', { cause: new Error('middle', { cause: marker }) })
+    expect(findCause(wrapped, isMarker)).toBe(marker)
+  })
+
+  it('returns undefined when nothing matches', () => {
+    expect(findCause(new Error('plain'), isMarker)).toBeUndefined()
+  })
+
+  it('survives a cyclic chain', () => {
+    const a = new Error('a')
+    const b = new Error('b')
+    Object.assign(a, { cause: b })
+    Object.assign(b, { cause: a })
+    expect(findCause(a, isMarker)).toBeUndefined()
   })
 })

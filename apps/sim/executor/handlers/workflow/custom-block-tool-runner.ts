@@ -2,11 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
-import {
-  aggregateChildCost,
-  WorkflowBlockHandler,
-} from '@/executor/handlers/workflow/workflow-handler'
+import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 import type { ToolResponse } from '@/tools/types'
@@ -80,9 +76,10 @@ export function buildCustomBlockExecutionContext(
  * Runs a published custom block (deploy-as-block) as an Agent tool, in-process via
  * `WorkflowBlockHandler` — the same invocation boundary the canvas uses — so
  * authority (org-scoped owner identity, latest deployment, curated outputs,
- * required-input enforcement, cost roll-up) is resolved server-side from the block
- * type. No HTTP hop and no body-field trust: the block type + consumer workspace
- * come from the server-set `_context`, not the model.
+ * required-input enforcement) is resolved server-side from the block type, and the
+ * child's spend is billed to the source workspace by its own logging session. No
+ * HTTP hop and no body-field trust: the block type + consumer workspace come from
+ * the server-set `_context`, not the model.
  *
  * Lives in a server-only module (dynamic-imported by `executeTool`) so the
  * client-bundled tool registry never pulls in the executor/db dependency graph.
@@ -108,25 +105,16 @@ export async function runCustomBlockTool(params: CustomBlockToolParams): Promise
       inputMapping: params.inputMapping,
     })
     // Custom blocks never stream (no `onStream` on the synthetic ctx), so the
-    // handler always returns the projected BlockOutput object (with `cost.total`).
+    // handler always returns the projected BlockOutput object.
     const normalized: Record<string, any> =
       output && typeof output === 'object' && !Array.isArray(output) ? output : { result: output }
     return { success: true, output: normalized }
   } catch (error) {
-    // The handler throws a consumer-safe `ChildWorkflowError` on failure. Its trace
-    // spans are the only carrier of spend the child already incurred before failing,
-    // so roll that up onto the failed result too — otherwise a partially-run child is
-    // recorded as zero-cost.
+    // The handler throws a consumer-safe `ChildWorkflowError` on failure. The
+    // child's own logging session already billed whatever it spent before failing,
+    // so nothing is rolled up here.
     const message = getErrorMessage(error, 'Custom block execution failed')
-    const failedChildSpans = ChildWorkflowError.isChildWorkflowError(error)
-      ? error.childTraceSpans
-      : []
-    const childCost = aggregateChildCost(failedChildSpans)
     logger.info('Custom block tool execution failed', { blockType: params.blockType, message })
-    return {
-      success: false,
-      output: childCost > 0 ? { cost: { total: childCost } } : {},
-      error: message,
-    }
+    return { success: false, output: {}, error: message }
   }
 }

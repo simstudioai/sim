@@ -311,7 +311,7 @@ describe('LoggingSession completion retries', () => {
       session.safeComplete({ finalOutput: { ok: true }, traceSpans })
     ).resolves.toBeUndefined()
 
-    expect(calculateCostSummary).toHaveBeenLastCalledWith(traceSpans)
+    expect(calculateCostSummary).toHaveBeenLastCalledWith(traceSpans, undefined)
     expect(completeWorkflowExecutionMock).toHaveBeenLastCalledWith(
       expect.objectContaining({
         executionId: 'execution-6',

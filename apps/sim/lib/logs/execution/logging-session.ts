@@ -8,6 +8,7 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attr
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { executionLogger } from '@/lib/logs/execution/logger'
 import {
+  type CostSummaryOptions,
   calculateCostSummary,
   createEnvironmentObject,
   createTriggerObject,
@@ -20,6 +21,7 @@ import {
   setLastCompletedBlock,
   setLastStartedBlock,
 } from '@/lib/logs/execution/progress-markers'
+import { traceSpansIndicateFailure } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type {
   ExecutionEnvironment,
   ExecutionFinalizationPath,
@@ -133,6 +135,14 @@ export interface SessionPausedParams {
   workflowInput?: any
 }
 
+export interface LoggingSessionOptions {
+  /**
+   * Overrides the per-run fixed charge. Pass `0` for a run whose base charge is
+   * already paid by its invoker, so it adds no second execution fee.
+   */
+  baseExecutionCharge?: number
+}
+
 export class LoggingSession {
   private workflowId: string
   private executionId: string
@@ -153,6 +163,7 @@ export class LoggingSession {
   private completionPromise: Promise<void> | null = null
   private completionAttempt: CompletionAttempt | null = null
   private completionAttemptFailed = false
+  private costOptions?: CostSummaryOptions
   private pendingProgressWrites = new Set<Promise<void>>()
   private postExecutionPromise: Promise<void> | null = null
 
@@ -161,13 +172,18 @@ export class LoggingSession {
     executionId: string,
     triggerType: ExecutionTrigger['type'],
     requestId?: string,
-    reservationId = executionId
+    reservationId = executionId,
+    options?: LoggingSessionOptions
   ) {
     this.workflowId = workflowId
     this.executionId = executionId
     this.reservationId = reservationId
     this.triggerType = triggerType
     this.requestId = requestId
+    this.costOptions =
+      options?.baseExecutionCharge !== undefined
+        ? { baseExecutionCharge: options.baseExecutionCharge }
+        : undefined
   }
 
   async onBlockStart(
@@ -407,7 +423,7 @@ export class LoggingSession {
       params
 
     try {
-      const costSummary = calculateCostSummary(traceSpans || [])
+      const costSummary = calculateCostSummary(traceSpans || [], this.costOptions)
       const endTime = endedAt || new Date().toISOString()
       const duration = totalDurationMs || 0
 
@@ -430,16 +446,7 @@ export class LoggingSession {
             '@/lib/core/telemetry'
           )
 
-          const hasErrors = traceSpans.some((span: any) => {
-            const checkForErrors = (s: any): boolean => {
-              if (s.status === 'error' && !s.errorHandled) return true
-              if (s.children && Array.isArray(s.children)) {
-                return s.children.some(checkForErrors)
-              }
-              return false
-            }
-            return checkForErrors(span)
-          })
+          const hasErrors = traceSpansIndicateFailure(traceSpans)
 
           PlatformEvents.workflowExecuted({
             workflowId: this.workflowId,
@@ -528,7 +535,7 @@ export class LoggingSession {
             models: {},
             charges: {},
           }
-        : calculateCostSummary(traceSpans)
+        : calculateCostSummary(traceSpans, this.costOptions)
 
       const message = error?.message || 'Run failed before starting blocks'
 
@@ -639,7 +646,7 @@ export class LoggingSession {
 
       // calculateCostSummary handles empty/undefined spans by returning the
       // base-charge summary, so no separate no-spans literal is needed.
-      const costSummary = calculateCostSummary(traceSpans)
+      const costSummary = calculateCostSummary(traceSpans, this.costOptions)
 
       await this.completeExecutionWithFinalization({
         endedAt: endTime.toISOString(),
@@ -733,7 +740,7 @@ export class LoggingSession {
 
       // calculateCostSummary handles empty/undefined spans by returning the
       // base-charge summary, so no separate no-spans literal is needed.
-      const costSummary = calculateCostSummary(traceSpans)
+      const costSummary = calculateCostSummary(traceSpans, this.costOptions)
 
       await this.completeExecutionWithFinalization({
         endedAt: endTime.toISOString(),
@@ -1138,7 +1145,7 @@ export class LoggingSession {
       // from the in-memory trace spans when available (this fallback fires when
       // persisting spans failed, not when computing them did), else just the
       // base execution charge.
-      const costSummary = calculateCostSummary(params.traceSpans)
+      const costSummary = calculateCostSummary(params.traceSpans, this.costOptions)
 
       const finalOutput = params.finalOutput || { _fallback: true, error: params.errorMessage }
 
