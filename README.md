@@ -27,12 +27,11 @@
 ### Self-hosted
 
 ```bash
-npx simstudio
+git clone https://github.com/simstudioai/sim.git && cd sim
+bun run setup
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
-
-Docker must be installed and running. Use `-p, --port <port>` to run Sim on a different port, or `--no-pull` to skip pulling the latest Docker images.
 
 <p align="center">
   <img src="apps/sim/public/static/readme-platform.png" alt="The Sim platform — chat on the left, the visual workflow builder on the right" width="100%"/>
@@ -77,12 +76,6 @@ Docker must be installed and running. Use `-p, --port <port>` to run Sim on a di
 
 **Requirements:** [Bun](https://bun.sh/) and [Docker](https://www.docker.com/).
 
-```bash
-git clone https://github.com/simstudioai/sim.git && cd sim
-bun install
-bun run setup
-```
-
 `bun run setup` is an interactive wizard: it provisions the database, generates secrets, writes your `.env` files, connects a Chat API key, and starts Sim the way you choose:
 
 - **Local dev** — run from source to contribute or hack on Sim
@@ -110,7 +103,7 @@ Sim also supports local models via [Ollama](https://ollama.ai) and [vLLM](https:
 
 ## Chat API Keys
 
-Chat is a Sim-managed service. `bun run setup` connects a Chat API key for you — sign in when it opens your browser and the key is stored automatically. To view, create, or revoke keys later, go to [sim.ai/account/settings/chat-keys](https://sim.ai/account/settings/chat-keys).
+Chat is a Sim-managed service. `bun run setup` connects a Chat API key for you — sign in when it opens your browser and the key is stored automatically. To view, create, or revoke keys later, go to [sim.ai/selfhost/settings/chat-keys](https://sim.ai/selfhost/settings/chat-keys).
 
 ## Environment Variables
 
