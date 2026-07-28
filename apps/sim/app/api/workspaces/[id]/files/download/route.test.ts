@@ -191,6 +191,42 @@ describe('workspace files download route', () => {
     expect(body.error).not.toContain('Selected files total')
   })
 
+  it('counts streamed files against the same budget as rendered documents', async () => {
+    // 200 MB of ordinary files leaves 50 MB of the 250 MB budget for documents.
+    mockListWorkspaceFiles.mockResolvedValue([
+      { ...workspaceFile('f1', 'clip.mp4'), size: 200 * MB },
+      generatedDocument('f2', 'report.docx'),
+    ])
+    mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
+      buffer: Buffer.from('PKdoc'),
+      contentType: 'application/octet-stream',
+    })
+
+    await zipFrom(await GET(requestFor('fileIds=f1&fileIds=f2'), context))
+
+    // Without reserving the streamed bytes the document would get the full 50 MB
+    // ceiling, letting the archive ship 250 MB of documents on top of 200 MB of video.
+    expect(mockFetchServableWorkspaceFileBuffer.mock.calls[0][1].maxBytes).toBe(50 * MB)
+  })
+
+  it('rejects when streamed files leave no budget for a document', async () => {
+    mockListWorkspaceFiles.mockResolvedValue([
+      { ...workspaceFile('f1', 'clip.mp4'), size: 249 * MB },
+      generatedDocument('f2', 'report.docx'),
+    ])
+    mockFetchServableWorkspaceFileBuffer.mockRejectedValue(
+      new PayloadSizeLimitError({ label: 'servable file download', maxBytes: 1 })
+    )
+
+    const response = await GET(requestFor('fileIds=f1&fileIds=f2'), context)
+
+    expect(response.status).toBe(400)
+    const body = await response.json()
+    expect(body.error).toContain('once documents are rendered')
+    // No byte count: the rendered total is not knowable, so quoting one would mislead.
+    expect(body.error).not.toContain('Selected files total')
+  })
+
   it('blames the shared budget once earlier documents have consumed it', async () => {
     mockListWorkspaceFiles.mockResolvedValue([
       generatedDocument('f1', 'first.docx'),
@@ -208,7 +244,7 @@ describe('workspace files download route', () => {
 
     expect(response.status).toBe(400)
     const body = await response.json()
-    expect(body.error).toContain('Selected files total')
+    expect(body.error).toContain('once documents are rendered')
     expect(body.error).not.toContain('second.docx')
   })
 
@@ -237,7 +273,7 @@ describe('workspace files download route', () => {
       contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     })
 
-    await GET(requestFor('fileIds=f1'), context)
+    await zipFrom(await GET(requestFor('fileIds=f1'), context))
 
     expect(mockFetchServableWorkspaceFileBuffer.mock.calls[0][1].maxBytes).toBe(50 * MB)
   })

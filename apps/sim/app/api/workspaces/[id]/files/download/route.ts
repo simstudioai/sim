@@ -87,6 +87,20 @@ function selectionTooLargeResponse(bytes: number): NextResponse {
   )
 }
 
+/**
+ * The rendered archive would exceed the limit even though the declared sizes did not —
+ * generated documents render to more than the source they declared, so no accurate byte
+ * count exists to quote here.
+ */
+function archiveTooLargeResponse(): NextResponse {
+  return NextResponse.json(
+    {
+      error: `The selected files exceed the ${formatFileSize(MAX_ZIP_DOWNLOAD_BYTES)} download limit once documents are rendered. Select fewer files.`,
+    },
+    { status: 400 }
+  )
+}
+
 function collectDescendantFolderIds(
   selectedFolderIds: string[],
   folders: Array<{ id: string; parentId: string | null }>
@@ -153,6 +167,13 @@ export const GET = withRouteHandler(
         return selectionTooLargeResponse(declaredBytes)
       }
 
+      // Streamed entries ship exactly what they declared, so their share of the budget is
+      // known up front and is reserved here. Documents then draw from what is left —
+      // one budget across both kinds, or the archive could ship two full limits' worth.
+      const reservedForStreamed = filesToZip
+        .filter((file) => !needsRendering(file))
+        .reduce((sum, file) => sum + file.size, 0)
+
       // Generated documents are resolved before the archive starts: once the first byte
       // is written the status code is committed, so anything that can still fail the
       // request has to fail here. Their buffers are held until the archive is assembled,
@@ -164,7 +185,7 @@ export const GET = withRouteHandler(
       for (const file of filesToZip) {
         if (!needsRendering(file)) continue
 
-        const remaining = MAX_ZIP_DOWNLOAD_BYTES - renderedBytes
+        const remaining = Math.max(0, MAX_ZIP_DOWNLOAD_BYTES - reservedForStreamed - renderedBytes)
         // A source's declared size says nothing about what it renders to, so the cap is
         // the per-document ceiling, bounded by what is left of the budget.
         const allowance = Math.min(remaining, MAX_RENDERED_DOCUMENT_BYTES)
@@ -184,7 +205,7 @@ export const GET = withRouteHandler(
                   },
                   { status: 400 }
                 )
-              : selectionTooLargeResponse(declaredBytes)
+              : archiveTooLargeResponse()
           }
           // Pending artifacts are collected so the 409 can name all of them; anything
           // else dooms the request and waiting cannot fix it.
