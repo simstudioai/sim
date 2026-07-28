@@ -32,6 +32,14 @@ interface UseTableParams {
   workspaceId: string
   tableId: string
   queryOptions: QueryOptions
+  /**
+   * Holds the rows query until the caller's filter/sort are settled. The wrapper
+   * resolves the active view asynchronously, so without this the first fetch runs
+   * against an empty filter and the grid paints the unfiltered set before
+   * refetching — a visible flash of the wrong rows on every load that adopts a
+   * default view or opens a `?table-view=` link.
+   */
+  rowsEnabled?: boolean
 }
 
 interface FetchNextPageResult {
@@ -88,7 +96,12 @@ export interface UseTableReturn {
  * stays in the `Table` component — moving it here would push every keystroke
  * through this hook's return value and re-render everything.
  */
-export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams): UseTableReturn {
+export function useTable({
+  workspaceId,
+  tableId,
+  queryOptions,
+  rowsEnabled = true,
+}: UseTableParams): UseTableReturn {
   const queryClient = useQueryClient()
   const { data: tableData, isLoading: isLoadingTable } = useTableQuery(workspaceId, tableId)
 
@@ -115,7 +128,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     pageSize: TABLE_LIMITS.MAX_QUERY_LIMIT,
     filter,
     sort: queryOptions.sort,
-    enabled: Boolean(workspaceId && tableId),
+    enabled: Boolean(workspaceId && tableId) && rowsEnabled,
   })
 
   const rows = useMemo<TableRow[]>(

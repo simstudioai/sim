@@ -1895,8 +1895,15 @@
     {
       "idx": 271,
       "version": "7",
-      "when": 1785205151669,
-      "tag": "0271_table_views",
+      "when": 1785267088106,
+      "tag": "0271_usage_log_billing_period_cost_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 272,
+      "version": "7",
+      "when": 1785267977587,
+      "tag": "0272_table_views",
       "breakpoints": true
     }
   ]

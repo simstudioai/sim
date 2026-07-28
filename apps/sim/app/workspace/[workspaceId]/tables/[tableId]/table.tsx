@@ -358,6 +358,14 @@ export function Table({
     ((previousName: string, newName: string) => void) | null
   >(null)
 
+  // Declared before `useTable`: the rows query is gated on `viewsLoaded`, since a
+  // view owns the filter/sort the query runs with.
+  const { data: views = NO_VIEWS, isSuccess: viewsLoaded } = useTableViews({
+    workspaceId,
+    tableId,
+    enabled: viewsEnabled,
+  })
+
   // Single source of truth for `useTable` — drives both the grid render and
   // the wrapper's slideouts/modals. The grid receives the bundle as props.
   const {
@@ -373,12 +381,10 @@ export function Table({
     workspaceId,
     tableId,
     queryOptions,
-  })
-
-  const { data: views = NO_VIEWS, isSuccess: viewsLoaded } = useTableViews({
-    workspaceId,
-    tableId,
-    enabled: viewsEnabled,
+    // Without this the first fetch runs against an empty filter and the grid
+    // paints the unfiltered set before refetching. Gates only the first pass —
+    // `viewsLoaded` stays true after, so later filter edits fetch immediately.
+    rowsEnabled: !viewsEnabled || viewsLoaded,
   })
   const createViewMutation = useCreateTableView({ workspaceId, tableId })
   const updateViewMutation = useUpdateTableView({ workspaceId, tableId })
@@ -468,7 +474,14 @@ export function Table({
       // back to "All" without touching state, for the same reason. An explicit
       // `?sort=` alongside `?view=` also wins over the view's stored sort.
       seededViewIdRef.current = activeView?.id ?? null
-      if (activeView) applyViewConfig(activeView.config, localWork())
+      if (activeView) {
+        applyViewConfig(activeView.config, localWork())
+      } else {
+        // Nothing to apply, but the URL still names a view that no longer exists.
+        // Rewrite it so a stale bookmark can't be copied on, and so the param
+        // matches the All the UI is already showing.
+        setTableParams({ view: ALL_VIEW_PARAM })
+      }
       return
     }
 
@@ -590,13 +603,16 @@ export function Table({
   const handlePersistLayout = useCallback(
     (patch: TableMetadata) => {
       liveLayoutRef.current = { ...liveLayoutRef.current, ...patch }
-      if (!activeView) return
+      // The resize grip and drag handles stay live for read-only members, so
+      // without this a resize fires a write-gated PATCH and an error toast. Local
+      // layout still updates — only the persist is suppressed.
+      if (!activeView || !userPermissions.canEdit) return
       updateViewMutation.mutate(
         { viewId: activeView.id, configPatch: patch },
         { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save layout')) }
       )
     },
-    [activeView]
+    [activeView, userPermissions.canEdit]
   )
 
   const handleSaveView = () => {
