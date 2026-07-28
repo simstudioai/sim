@@ -39,8 +39,6 @@ export interface PerformUpdateFolderParams {
   workspaceId: string
   userId: string
   name?: string
-  color?: string
-  isExpanded?: boolean
   locked?: boolean
   parentId?: string | null
   sortOrder?: number
@@ -203,10 +201,10 @@ export async function performUpdateFolder(
       }
     }
 
-    const updates: Record<string, unknown> = { updatedAt: new Date() }
+    // Typed against the table rather than `Record<string, unknown>`: the loose type is what
+    // let `color`/`isExpanded` survive the cutover here after the create path dropped them.
+    const updates: Partial<typeof folderTable.$inferInsert> = { updatedAt: new Date() }
     if (params.name !== undefined) updates.name = params.name.trim()
-    if (params.color !== undefined) updates.color = params.color
-    if (params.isExpanded !== undefined) updates.isExpanded = params.isExpanded
     if (params.locked !== undefined) updates.locked = params.locked
     if (params.parentId !== undefined) updates.parentId = params.parentId || null
     if (params.sortOrder !== undefined) updates.sortOrder = params.sortOrder
