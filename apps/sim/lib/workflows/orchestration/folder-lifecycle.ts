@@ -9,6 +9,7 @@ import {
   workflowSchedule,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, min } from 'drizzle-orm'
 import { archiveWorkflowsByIdsInWorkspace } from '@/lib/workflows/lifecycle'
@@ -174,6 +175,18 @@ export async function performCreateFolder(
 
     return { success: true, folder }
   } catch (error) {
+    // `folder` carries a unique index on (workspaceId, resourceType, parent, name) for active
+    // rows that `workflow_folder` never had, so a duplicate sibling name is newly rejectable
+    // here. Map it to a 409 rather than letting it surface as a 500 — the client-side dedup
+    // in useFolderCreateWithDedup is best-effort and races, and the copilot/import paths
+    // create folders by name.
+    if (getPostgresErrorCode(error) === '23505') {
+      return {
+        success: false,
+        error: 'A folder with this name already exists in this location',
+        errorCode: 'conflict',
+      }
+    }
     logger.error('Failed to create workflow folder', { error })
     return { success: false, error: 'Internal server error', errorCode: 'internal' }
   }
@@ -229,6 +242,13 @@ export async function performUpdateFolder(
 
     return { success: true, folder }
   } catch (error) {
+    if (getPostgresErrorCode(error) === '23505') {
+      return {
+        success: false,
+        error: 'A folder with this name already exists in this location',
+        errorCode: 'conflict',
+      }
+    }
     logger.error('Failed to update workflow folder', { error })
     return { success: false, error: 'Internal server error', errorCode: 'internal' }
   }
@@ -519,23 +539,38 @@ export async function performRestoreFolder(
     return { success: false, error: 'Cannot restore folder into an archived workspace' }
   }
 
-  const restoredStats = await db.transaction(async (tx) => {
-    if (folder.parentId) {
-      const [parentFolder] = await tx
-        .select({ archivedAt: folderTable.deletedAt })
-        .from(folderTable)
-        .where(and(eq(folderTable.id, folder.parentId), eq(folderTable.resourceType, 'workflow')))
+  let restoredStats: { folders: number; workflows: number }
+  try {
+    restoredStats = await db.transaction(async (tx) => {
+      if (folder.parentId) {
+        const [parentFolder] = await tx
+          .select({ archivedAt: folderTable.deletedAt })
+          .from(folderTable)
+          .where(and(eq(folderTable.id, folder.parentId), eq(folderTable.resourceType, 'workflow')))
 
-      if (!parentFolder || parentFolder.archivedAt) {
-        await tx
-          .update(folderTable)
-          .set({ parentId: null })
-          .where(and(eq(folderTable.id, folderId), eq(folderTable.resourceType, 'workflow')))
+        if (!parentFolder || parentFolder.archivedAt) {
+          await tx
+            .update(folderTable)
+            .set({ parentId: null })
+            .where(and(eq(folderTable.id, folderId), eq(folderTable.resourceType, 'workflow')))
+        }
+      }
+
+      return restoreFolderRecursively(folderId, workspaceId, folder.deletedAt!, tx)
+    })
+  } catch (error) {
+    // Restoring clears `deletedAt`, which brings the row back under the generic table's
+    // partial unique index on active (workspaceId, resourceType, parent, name) — a
+    // constraint `workflow_folder` never had. If a sibling has since taken the name, report
+    // it as a conflict rather than a 500, so the caller can rename and retry.
+    if (getPostgresErrorCode(error) === '23505') {
+      return {
+        success: false,
+        error: 'A folder with this name already exists in this location',
       }
     }
-
-    return restoreFolderRecursively(folderId, workspaceId, folder.deletedAt!, tx)
-  })
+    throw error
+  }
 
   logger.info('Restored folder and all contents:', { folderId, restoredStats })
 
