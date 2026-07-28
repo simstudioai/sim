@@ -44,6 +44,7 @@ import {
   useRenameTable,
   useRunColumn,
   useTableViews,
+  useUpdateTableMetadata,
   useUpdateTableView,
 } from '@/hooks/queries/tables'
 import { useInlineRename } from '@/hooks/use-inline-rename'
@@ -386,6 +387,7 @@ export function Table({
   })
   const createViewMutation = useCreateTableView({ workspaceId, tableId })
   const updateViewMutation = useUpdateTableView({ workspaceId, tableId })
+  const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
   const deleteViewMutation = useDeleteTableView({ workspaceId, tableId })
 
   /** The selected view, or `null` for the built-in "All" state. A view id that no
@@ -587,6 +589,28 @@ export function Table({
     liveLayoutRef.current = {}
   }, [activeView?.id])
 
+  /** Layout captured before the views query settled, when no owner was known. */
+  const pendingLayoutRef = useRef<TableMetadata>({})
+
+  /**
+   * Resolves that buffer once the owner is known.
+   *
+   * Settling on All re-seeds nothing — `viewLayoutKey` never changed — so the
+   * user's resize is still on screen and has to be persisted or it silently
+   * disappears on refresh. Adopting a view instead re-seeds the grid from that
+   * view's config, which already replaced the gesture on screen, so the buffer is
+   * dropped to match what the user is looking at.
+   */
+  useEffect(() => {
+    if (viewOwnerUnknown) return
+    const pending = pendingLayoutRef.current
+    pendingLayoutRef.current = {}
+    if (activeView || !userPermissions.canEdit) return
+    if (Object.keys(pending).length === 0) return
+    updateMetadataMutation.mutate(pending)
+    // `.mutate` is stable in TanStack Query v5, so it stays out of the deps.
+  }, [viewOwnerUnknown, activeView, userPermissions.canEdit])
+
   const currentViewConfig = useMemo<TableViewConfig>(
     () => ({
       // `liveLayoutRef` after the cached config for the same reason the blank-view
@@ -663,13 +687,19 @@ export function Table({
       // The resize grip and drag handles stay live for read-only members, so
       // without this a resize fires a write-gated PATCH and an error toast. Local
       // layout still updates — only the persist is suppressed.
-      if (!activeView || !userPermissions.canEdit) return
+      if (!userPermissions.canEdit) return
+      // Owner not known yet — hold the patch until the views query settles.
+      if (viewOwnerUnknown) {
+        pendingLayoutRef.current = { ...pendingLayoutRef.current, ...patch }
+        return
+      }
+      if (!activeView) return
       updateViewMutation.mutate(
         { viewId: activeView.id, configPatch: patch },
         { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save layout')) }
       )
     },
-    [activeView, userPermissions.canEdit]
+    [activeView, userPermissions.canEdit, viewOwnerUnknown]
   )
 
   const handleSaveView = () => {
