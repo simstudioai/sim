@@ -14,6 +14,7 @@ import {
   PI_SEARCH_MAX_SNIPPET_LENGTH,
   PI_SEARCH_MAX_TITLE_LENGTH,
   PI_SEARCH_TOOL_PARAMETERS,
+  PI_SEARCH_TRUNCATED_MESSAGE,
   parsePiSearchArgs,
   serializePiSearchEnvelope,
 } from '@/executor/handlers/pi/search/normalize'
@@ -29,6 +30,20 @@ describe('parsePiSearchArgs', () => {
     expect(parsePiSearchArgs({ query: 'pi', numResults: 'many' }).numResults).toBe(
       PI_SEARCH_DEFAULT_RESULTS
     )
+  })
+
+  // `Number(null)` / `Number('')` / `Number([])` are a finite 0, so a naive clamp turns every one of
+  // these into a single result — the opposite of the documented default.
+  it('treats a blank or null result count as absent, not as zero', () => {
+    for (const numResults of [null, undefined, '', '   ', []]) {
+      expect(parsePiSearchArgs({ query: 'pi', numResults }).numResults).toBe(
+        PI_SEARCH_DEFAULT_RESULTS
+      )
+    }
+  })
+
+  it('accepts a numeric string the way it accepts a number', () => {
+    expect(parsePiSearchArgs({ query: 'pi', numResults: '3' }).numResults).toBe(3)
   })
 
   it('clamps the result count instead of failing the call', () => {
@@ -201,6 +216,25 @@ describe('normalizePiSearchRecords', () => {
     ).toEqual([{ title: 'Kept', url: 'https://example.com/ok', snippet: '(no snippet)' }])
   })
 
+  // `url` is the one field that must stay byte-exact to stay resolvable, so unlike title/snippet it
+  // is dropped rather than whitespace-collapsed — collapsing would emit a different, still-dead link.
+  it('drops links carrying whitespace or control characters', () => {
+    expect(
+      normalizePiSearchRecords(
+        'exa',
+        [
+          { title: 'Space', url: 'https://example.com/a b' },
+          { title: 'Newline', url: 'https://example.com/a\nb' },
+          { title: 'Tab', url: 'https://example.com/a\tb' },
+          { title: 'Nul', url: 'https://example.com/a\u0000b' },
+          { title: 'Del', url: 'https://example.com/a\u007fb' },
+          { title: 'Kept', url: 'https://example.com/a-b_c%20d' },
+        ],
+        10
+      )
+    ).toEqual([{ title: 'Kept', url: 'https://example.com/a-b_c%20d', snippet: '(no snippet)' }])
+  })
+
   it('honors the requested limit', () => {
     const records = Array.from({ length: 9 }, (_, i) => ({
       title: `T${i}`,
@@ -242,6 +276,25 @@ describe('serializePiSearchEnvelope', () => {
       results: [{ title: 'A', url: 'https://example.com/a', snippet: 'S' }],
     })
     expect('publishedDate' in parsed.results[0]).toBe(false)
+  })
+
+  it('says so when results were dropped, instead of reading as a complete answer', () => {
+    const results = Array.from({ length: 10 }, (_, i) => ({
+      title: '見'.repeat(PI_SEARCH_MAX_TITLE_LENGTH),
+      url: `https://example.com/${i}?${'q'.repeat(1500)}`,
+      snippet: '漢'.repeat(PI_SEARCH_MAX_SNIPPET_LENGTH),
+    }))
+    const parsed = JSON.parse(serializePiSearchEnvelope(results))
+
+    expect(parsed.results.length).toBeLessThan(results.length)
+    expect(parsed.message).toBe(PI_SEARCH_TRUNCATED_MESSAGE)
+  })
+
+  it('stays silent when everything fit', () => {
+    const parsed = JSON.parse(
+      serializePiSearchEnvelope([{ title: 'A', url: 'https://example.com/a', snippet: 'S' }])
+    )
+    expect('message' in parsed).toBe(false)
   })
 
   // The per-field caps count UTF-16 units, so ten maximal results only exceed the byte ceiling once

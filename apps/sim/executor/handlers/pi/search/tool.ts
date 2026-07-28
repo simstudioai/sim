@@ -15,7 +15,7 @@ import {
   extractPiSearchRecords,
   normalizePiSearchRecords,
   PI_SEARCH_BUDGET_MESSAGE,
-  PI_SEARCH_MAX_CALLS_PER_RUN,
+  PI_SEARCH_MAX_CALLS_PER_EXECUTION,
   PI_SEARCH_PROMPT_GUIDELINES,
   PI_SEARCH_TIMEOUT_MS,
   PI_SEARCH_TOOL_DESCRIPTION,
@@ -80,7 +80,8 @@ export function buildPiSearchToolSpec(
     executionId: ctx.executionId,
   }
 
-  // Per spec, i.e. per run: the handler builds one of these for each Pi execution.
+  // Per spec, i.e. per block execution: the handler builds one of these for each Pi execution, so
+  // a Pi block inside a Loop gets a fresh allowance per iteration. See the constant for why.
   let calls = 0
 
   return {
@@ -92,7 +93,7 @@ export function buildPiSearchToolSpec(
       const { query, numResults } = parsePiSearchArgs(args)
 
       calls += 1
-      if (calls > PI_SEARCH_MAX_CALLS_PER_RUN) {
+      if (calls > PI_SEARCH_MAX_CALLS_PER_EXECUTION) {
         logger.warn('Pi search budget exhausted', { ...logContext, calls })
         return { text: PI_SEARCH_BUDGET_MESSAGE, isError: true }
       }

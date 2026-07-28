@@ -16,7 +16,8 @@ const REVIEW_TOOLS_COMMAND = `python3 ${REVIEW_TOOLS_SCRIPT_PATH}`
 const REVIEW_TOOL_TIMEOUT_MS = 30_000
 /**
  * Both ceilings bound `runOperation`, i.e. sandbox traffic only. Optional web search is registered
- * separately by the review backend and counts against its own `PI_SEARCH_MAX_CALLS_PER_RUN` instead.
+ * separately by the review backend and counts against its own
+ * `PI_SEARCH_MAX_CALLS_PER_EXECUTION` instead.
  */
 const MAX_TOOL_CALLS = 200
 const MAX_TOOL_OUTPUT_BYTES = 5_000_000

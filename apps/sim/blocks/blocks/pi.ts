@@ -166,8 +166,12 @@ export const PiBlock: BlockConfig<PiResponse> = {
       paramVisibility: 'user-only',
       connectionDroppable: false,
       placeholder: 'Falls back to the key stored in Settings > BYOK',
+      // Scoped to the editor on purpose: the clear-on-switch is driven by `dependsOn` through the
+      // collaborative setter, so a workflow imported, forked, or updated through the API keeps
+      // whatever key was stored. Promising an unconditional clear would be wrong in exactly the
+      // case where sending the previous provider's key to a new vendor actually matters.
       tooltip:
-        'Key for the selected search provider. Switching providers clears this field, so re-enter the key for the provider you picked.',
+        'Key for the selected search provider. Changing the provider in the editor clears this field, so re-enter the key for the one you picked. Imported or API-updated workflows keep the saved key — check it belongs to the selected provider.',
       condition: getSearchApiKeyCondition(),
       dependsOn: ['searchProvider'],
     },
