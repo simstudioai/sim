@@ -2,7 +2,6 @@ import { requestRaw } from '@/lib/api/client/request'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 
-/** Hand a fetched blob to the browser as a file save, then release the object URL. */
 export function saveBlob(blob: Blob, fileName: string): void {
   const objectUrl = URL.createObjectURL(blob)
   const anchor = document.createElement('a')

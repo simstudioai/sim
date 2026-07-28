@@ -27,7 +27,7 @@ import { downloadFileStream } from '@/lib/uploads/core/storage-service'
 import {
   formatFileSize,
   isRenderableDocumentName,
-  RENDERED_DOCUMENT_HEADROOM_BYTES,
+  MAX_RENDERED_DOCUMENT_BYTES,
 } from '@/lib/uploads/utils/file-utils'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/servable-file-response'
 import { buildZipEntryPaths } from '@/lib/uploads/zip-entry-path'
@@ -153,10 +153,10 @@ export const GET = withRouteHandler(
         return selectionTooLargeResponse(declaredBytes)
       }
 
-      // Generated documents are resolved before the archive starts. They are the only
-      // entries whose bytes decide anything, and every status this route returns comes
-      // from them — once the first byte is written the status code is committed. They
-      // resolve one at a time so at most one rendered document is resident.
+      // Generated documents are resolved before the archive starts: once the first byte
+      // is written the status code is committed, so anything that can still fail the
+      // request has to fail here. Their buffers are held until the archive is assembled,
+      // bounded by what is left of the request's byte budget.
       const renderedDocuments = new Map<string, Buffer>()
       const pendingNames: string[] = []
       let renderedBytes = 0
@@ -165,9 +165,9 @@ export const GET = withRouteHandler(
         if (!needsRendering(file)) continue
 
         const remaining = MAX_ZIP_DOWNLOAD_BYTES - renderedBytes
-        // A source renders to something larger than it declared, so the allowance is the
-        // render headroom — bounded by what is left of the request's budget.
-        const allowance = Math.min(remaining, RENDERED_DOCUMENT_HEADROOM_BYTES)
+        // A source's declared size says nothing about what it renders to, so the cap is
+        // the per-document ceiling, bounded by what is left of the budget.
+        const allowance = Math.min(remaining, MAX_RENDERED_DOCUMENT_BYTES)
 
         try {
           const { buffer } = await fetchServableWorkspaceFileBuffer(file, { maxBytes: allowance })
@@ -177,10 +177,10 @@ export const GET = withRouteHandler(
           if (error instanceof PayloadSizeLimitError) {
             // Blamed on the entry when its own ceiling was the binding cap; otherwise the
             // documents ahead of it have consumed the budget.
-            return allowance === RENDERED_DOCUMENT_HEADROOM_BYTES
+            return allowance === MAX_RENDERED_DOCUMENT_BYTES
               ? NextResponse.json(
                   {
-                    error: `"${file.name}" renders to more than ${formatFileSize(RENDERED_DOCUMENT_HEADROOM_BYTES)} and is too large to include in a zip; download it on its own instead.`,
+                    error: `"${file.name}" renders to more than ${formatFileSize(MAX_RENDERED_DOCUMENT_BYTES)} and is too large to include in a zip; download it on its own instead.`,
                   },
                   { status: 400 }
                 )

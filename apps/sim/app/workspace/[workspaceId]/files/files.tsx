@@ -951,7 +951,7 @@ export function Files() {
         })
       } catch (err) {
         logger.error('Failed to download file:', err)
-        toast.error(toError(err).message)
+        toast.error(getErrorMessage(err, `Failed to download "${file.name}"`))
       }
     },
     [workspaceId]
@@ -1078,7 +1078,7 @@ export function Files() {
         await triggerArchiveDownload({ workspaceId, ...selection })
       } catch (err) {
         logger.error('Failed to download selection:', err)
-        toast.error(toError(err).message)
+        toast.error(getErrorMessage(err, 'Failed to download the selected files'))
       }
     },
     [workspaceId]

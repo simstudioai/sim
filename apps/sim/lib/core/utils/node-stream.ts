@@ -1,4 +1,4 @@
-import type { Readable } from 'stream'
+import type { Readable } from 'node:stream'
 
 /**
  * Bridges a Node `Readable` into a WHATWG `ReadableStream` suitable for a `Response`
