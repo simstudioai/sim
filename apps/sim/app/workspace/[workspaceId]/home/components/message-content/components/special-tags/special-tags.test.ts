@@ -522,6 +522,36 @@ describe('parseSpecialTags with <question>', () => {
     expect(renderedText(done.segments)).toBe('a <thinking>b <thinking> c')
   })
 
+  it('keeps reasoning suppressed when the body merely contains angle brackets', () => {
+    // The nesting rule keys on tag NAMES, not on anything tag-shaped. Reasoning
+    // that mentions `<div>` or a generic is still reasoning; releasing it would
+    // put the model's thinking on screen for an incidental angle bracket.
+    const { segments } = parseSpecialTags('a <thinking>weighing a <div> here</thinking> b', false)
+
+    expect(segments.some((segment) => segment.type === 'thinking')).toBe(true)
+    expect(visibleView(segments).text).toBe('a  b')
+  })
+
+  it('renders nothing for a message that is only a discarded payload', () => {
+    // `discard` emits no segment, so this is the one case that can end the parse
+    // with an empty segment list. The fallback for an empty list is to emit the
+    // raw content — which would put back the exact raw JSON the discard removed.
+    const { segments } = parseSpecialTags('<question>{"type":"single_select"}</question>', false)
+
+    expect(visibleView(segments).text).toBe('')
+  })
+
+  it('settles a long prose mention without scanning the whole window', () => {
+    // Viability rejects on the first non-whitespace character when it is not `{`
+    // or `[` — the common case. Testing that before blanking avoids copying a
+    // full window per opener per chunk: 43ms to 2ms on this input.
+    const content = 'The <workspace_resource> tag is used here. '.repeat(2000)
+
+    const startedAt = performance.now()
+    parseSpecialTags(content, true)
+    expect(performance.now() - startedAt).toBeLessThan(20)
+  })
+
   it('does not let a late thinking close swallow content already on screen', () => {
     // A nested marker disproves the outer <thinking> mid-stream, so its text is
     // released and the inner tag renders as a card. A prose body has no shape to
