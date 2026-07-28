@@ -172,11 +172,18 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
       // entry from the known target room via the explicit ref below.
       const removed = await roomManager.removeUserFromRoom(wf(workflowId), socketId)
       if (!removed) {
-        // The socket is still connected and hasn't moved/re-joined, yet the removal
-        // wasn't confirmed — a transport error the manager swallowed into false, or a
-        // lost race. Defer and retry next sweep rather than leave a revoked
-        // collaborator's stale presence entry behind.
-        throw new Error('room-state removal not confirmed')
+        // `false` conflates two outcomes: the entry was already gone (a no-op), or a
+        // transport error the manager swallowed. Only retry when the socket is still mapped
+        // to THIS room — then a false result is a genuine, deferrable failure. When a healthy
+        // getRoomForSocket above returned no workflow mapping (`currentWorkflowId === null`),
+        // the presence entry is already gone, so the cleanup is complete: dropping it avoids
+        // re-enqueuing a still-connected socket forever. (A real Redis outage throws at
+        // getRoomForSocket and is deferred by the outer catch, never reaching here.)
+        if (currentWorkflowId === workflowId) {
+          throw new Error('room-state removal not confirmed')
+        }
+        pendingCleanups.delete(key)
+        return
       }
 
       await roomManager.broadcastPresenceUpdate(wf(workflowId))

@@ -131,6 +131,12 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
 
       // A newer JOIN started on this socket during authorize (or the socket dropped):
       // abort so a stale join can't leave the room the client has since moved to.
+      // Server-authenticated avatar for the presence roster. Resolved up-front so the guard
+      // below also covers this await (mirrors the file-doc join).
+      const avatarUrl = await resolveAvatarUrl(socket, userId)
+
+      // Abort a JOIN superseded during authorize/avatar resolution — a newer JOIN (table
+      // switch), a LEAVE, or a disconnect. Registering below would strand the socket.
       if (joinGeneration !== joinAttempt || socket.disconnected) return
 
       // Leave a previously-joined table room if switching tables.
@@ -162,6 +168,12 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
         }
       }
 
+      // Final re-check immediately before the membership commit: a newer JOIN (table switch), a
+      // LEAVE, or a disconnect during the leave/sweep awaits above must abort here — otherwise
+      // this superseded join would join the room and register presence, stranding the socket in
+      // the wrong table. No await sits between this guard and addUserToRoom (the commit).
+      if (joinGeneration !== joinAttempt || socket.disconnected) return
+
       socket.join(roomName(room))
 
       const presence: UserPresence = {
@@ -173,7 +185,7 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
         joinedAt: Date.now(),
         lastActivity: Date.now(),
         role: authorized.workspacePermission ?? 'read',
-        avatarUrl: await resolveAvatarUrl(socket, userId),
+        avatarUrl,
       }
 
       await roomManager.addUserToRoom(room, socket.id, presence)
@@ -196,6 +208,10 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
       logger.info(`User ${userId} (${userName}) joined table room ${tableId}`)
     } catch (error) {
       logger.error('Error joining table room:', error)
+      // A superseded join (a newer join/leave bumped the generation) must NOT roll back — it
+      // would tear down room state a newer successful join to the same table now holds — nor
+      // signal an error for a table the client already left.
+      if (joinGeneration !== joinAttempt) return
       // Roll back any partial join so a failed attempt can't leave the socket in the
       // Socket.IO room or a stale presence entry behind, before signalling a retry.
       try {

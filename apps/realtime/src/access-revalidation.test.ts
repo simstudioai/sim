@@ -226,25 +226,25 @@ describe('access-revalidation sweep', () => {
     expect(manager.broadcastPresenceUpdate).toHaveBeenCalledWith({ type: 'workflow', id: 'wf-1' })
   })
 
-  it('defers cleanup when removal fails with expired socket mappings', async () => {
+  it('drops eviction cleanup when the socket is no longer mapped to the room (no infinite retry)', async () => {
     const socket = makeSocket('sock-1', 'user-1', 'wf-1')
     const manager = makeManager([socket], [{ socketId: 'sock-1', role: 'read' }])
-    // Mapping keys already expired (lookup resolves null) AND the removal fails
-    // (the Redis manager swallows the transport error into null) — the failed
-    // removal must still defer instead of reading as success.
-    manager.removeUserFromRoom.mockResolvedValueOnce(false)
+    // A healthy lookup shows the socket is no longer mapped to any workflow room (its presence
+    // is already gone), and removeUserFromRoom reports a no-op `false`. This is "already clean",
+    // not a deferrable failure — the cleanup must drop it, never re-enqueue a still-connected
+    // socket forever. (A genuine failure — still mapped + false — is covered by the next test.)
+    manager.getRoomForSocket.mockResolvedValue(null)
+    manager.removeUserFromRoom.mockResolvedValue(false)
     mockResolveRole.mockResolvedValue(null)
 
     const sweep = startAccessRevalidationSweep(manager)
     await sweep.runOnce()
-
-    expect(manager.broadcastPresenceUpdate).not.toHaveBeenCalled()
-
     await sweep.runOnce()
     sweep.stop()
 
-    expect(manager.removeUserFromRoom).toHaveBeenCalledTimes(2)
-    expect(manager.broadcastPresenceUpdate).toHaveBeenCalledWith({ type: 'workflow', id: 'wf-1' })
+    // Attempted once, then dropped — not re-enqueued across passes, and no broadcast.
+    expect(manager.removeUserFromRoom).toHaveBeenCalledTimes(1)
+    expect(manager.broadcastPresenceUpdate).not.toHaveBeenCalled()
   })
 
   it('defers cleanup when the manager swallows a removal failure into null', async () => {

@@ -284,6 +284,53 @@ describe('setupTablesHandlers', () => {
     )
   })
 
+  it('aborts a join superseded during the post-authorize leave/sweep window', async () => {
+    const { socket, handlers } = createSocket()
+    // Hold A hung on its leave-prior lookup (which runs AFTER the post-authorize recheck), then
+    // fire a newer join B. When A resumes, the final generation guard before the membership
+    // commit must abort it — the post-authorize awaits are no longer an unguarded window.
+    let aReachedLookup: () => void = () => {}
+    const aAtLookup = new Promise<void>((resolve) => {
+      aReachedLookup = resolve
+    })
+    let releaseLookup: (value: unknown) => void = () => {}
+    const pendingLookup = new Promise((resolve) => {
+      releaseLookup = resolve
+    })
+    let lookupCalls = 0
+    const roomManager = createRoomManager({
+      getRoomForSocket: vi.fn(() => {
+        lookupCalls += 1
+        if (lookupCalls === 1) {
+          aReachedLookup()
+          return pendingLookup
+        }
+        return Promise.resolve(null)
+      }),
+    })
+    mockAuthorizeRoom.mockResolvedValue({
+      allowed: true,
+      status: 200,
+      workspaceId: 'ws-1',
+      workspacePermission: 'admin',
+    })
+    setupTablesHandlers(socket as unknown as SetupArg, roomManager)
+
+    const joinA = handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-A' })
+    await aAtLookup // A has passed its post-authorize recheck and is hung on the leave-prior lookup
+    await handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-B' }) // bumps generation, completes
+    releaseLookup(null)
+    await joinA
+
+    expect(socket.join).toHaveBeenCalledWith('table:table-B')
+    expect(socket.join).not.toHaveBeenCalledWith('table:table-A')
+    expect(roomManager.addUserToRoom).not.toHaveBeenCalledWith(
+      { type: ROOM_TYPES.TABLE, id: 'table-A' },
+      expect.anything(),
+      expect.anything()
+    )
+  })
+
   it('leaves the table room on leave', async () => {
     const { socket, handlers } = createSocket()
     const roomManager = createRoomManager({
