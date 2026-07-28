@@ -573,10 +573,13 @@ export function setupWorkspaceFileDocHandlers(
       try {
         const name = roomName(fileDocRoom(fileId))
         socket.leave(name)
-        cleanupFileDocForSocket(socket.id, io)
-        // If the failure happened after `getOrCreateRoom` but before the socket
-        // registered as an owner, `cleanupFileDocForSocket` (which keys off
-        // `socketToRoomName`) can't drop the freshly-created empty room — do it here.
+        // Roll back ONLY this join's target room. cleanupFileDocForSocket keys off socketToRoomName,
+        // which — if the join failed before rebinding to the target (e.g. a switch that threw during
+        // client-id reclaim) — still points at the socket's PRIOR, valid document. Running it then
+        // would tear down a document the socket is validly in. So only run it when the binding
+        // already points at the target; otherwise the socket never registered as an owner of this
+        // room and the only leftover is a freshly-created empty room, dropped below.
+        if (socketToRoomName.get(socket.id) === name) cleanupFileDocForSocket(socket.id, io)
         destroyRoomIfIdle(name)
       } catch {}
       emitJoinError(socket, fileId, 'Failed to join file document', 'JOIN_FAILED', true)

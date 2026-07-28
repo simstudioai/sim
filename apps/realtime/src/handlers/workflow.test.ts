@@ -310,6 +310,34 @@ describe('setupWorkflowHandlers', () => {
     )
   })
 
+  it('does not let a malformed join cancel a valid in-flight join', async () => {
+    const { socket, handlers } = createSocket()
+    const roomManager = createRoomManager()
+
+    setupWorkflowHandlers(
+      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
+      roomManager
+    )
+
+    const validJoin = handlers['join-workflow']({ workflowId: 'workflow-a', tabSessionId: 'tab-1' })
+    // A malformed join arrives mid-flight — it must be rejected WITHOUT advancing the generation,
+    // so it can't supersede the valid join already in flight.
+    handlers['join-workflow']({ workflowId: '', tabSessionId: 'tab-1' })
+    await validJoin
+
+    expect(socket.emit).toHaveBeenCalledWith(
+      'join-workflow-error',
+      expect.objectContaining({ code: 'INVALID_PAYLOAD' })
+    )
+    // The valid join still committed — not superseded by the malformed one.
+    expect(socket.join).toHaveBeenCalledWith('workflow-a')
+    expect(roomManager.addUserToRoom).toHaveBeenCalledWith(
+      { type: 'workflow', id: 'workflow-a' },
+      'socket-1',
+      expect.anything()
+    )
+  })
+
   it('cancels an in-flight join when a leave is enqueued before it commits', async () => {
     const { socket, handlers } = createSocket()
     const roomManager = createRoomManager()

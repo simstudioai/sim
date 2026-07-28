@@ -22,6 +22,17 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
   let opChain: Promise<void> = Promise.resolve()
 
   socket.on('join-workflow', ({ workflowId, tabSessionId }) => {
+    // Validate the id BEFORE claiming a generation, so a malformed join can't advance joinGeneration
+    // and cancel a legitimate in-flight switch (matches tables/workspace-files).
+    if (typeof workflowId !== 'string' || workflowId.length === 0) {
+      socket.emit('join-workflow-error', {
+        workflowId: typeof workflowId === 'string' ? workflowId : '',
+        error: 'Invalid workflow id',
+        code: 'INVALID_PAYLOAD',
+        retryable: false,
+      })
+      return
+    }
     const joinAttempt = (joinGeneration += 1)
     opChain = opChain
       .then(() => runJoin(workflowId, tabSessionId, joinAttempt))
