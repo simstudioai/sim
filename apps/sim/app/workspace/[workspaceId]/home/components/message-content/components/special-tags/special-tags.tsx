@@ -551,6 +551,11 @@ const MAX_UNCLOSED_BODY_SCAN = 4096
  * emitting one would shrink the output and shift every later offset left.
  */
 function blankJsonStringLiterals(body: string): string {
+  // With no quote there is no string literal, so the loop below would copy the
+  // body to itself character by character. Both callers reach here on bodies
+  // that are usually plain prose, and this runs per opener per streamed chunk.
+  if (!body.includes('"')) return body
+
   let out = ''
   let inString = false
   let escaped = false
@@ -810,24 +815,11 @@ interface InspectedBody {
   truncated: boolean
 }
 
-function inspectWithin(body: string): InspectedBody {
-  return body.length > MAX_UNCLOSED_BODY_SCAN
-    ? { text: body.slice(0, MAX_UNCLOSED_BODY_SCAN), truncated: true }
-    : { text: body, truncated: false }
-}
-
-/**
- * {@link inspectWithin} for a body that has not been cut out of the buffer yet.
- *
- * Slices once, already bounded. Taking `content.slice(bodyStart)` first and
- * bounding after copies the entire rest of the message — on every opener, on
- * every streamed chunk — and throws all but the window away.
- */
-function inspectFrom(content: string, bodyStart: number): InspectedBody {
-  const end = bodyStart + MAX_UNCLOSED_BODY_SCAN
-  return end < content.length
-    ? { text: content.slice(bodyStart, end), truncated: true }
-    : { text: content.slice(bodyStart), truncated: false }
+function inspectWithin(source: string, start = 0): InspectedBody {
+  const end = start + MAX_UNCLOSED_BODY_SCAN
+  return end < source.length
+    ? { text: source.slice(start, end), truncated: true }
+    : { text: start === 0 ? source : source.slice(start), truncated: false }
 }
 
 /**
@@ -972,7 +964,7 @@ function resolveTagAt(
   const closeIdx = memoizedIndexOf(closeCache, content, closeTag, bodyStart)
 
   if (closeIdx === -1) {
-    const inspected = inspectFrom(content, bodyStart)
+    const inspected = inspectWithin(content, bodyStart)
     if (isStreaming && !unclosedTagCannotResolve(tagName, inspected.text)) {
       return { outcome: 'pending' }
     }

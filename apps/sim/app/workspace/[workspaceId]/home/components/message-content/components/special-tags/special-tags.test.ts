@@ -823,10 +823,22 @@ describe('parser properties', () => {
 
   const pick = <T>(rng: () => number, xs: T[]): T => xs[Math.floor(rng() * xs.length)]
 
-  function buildLossless(rng: () => number): string {
+  function buildLossless(rng: () => number, pool = LOSSLESS_FRAGMENTS): string {
     const n = 1 + Math.floor(rng() * 5)
-    return Array.from({ length: n }, () => pick(rng, LOSSLESS_FRAGMENTS)).join('')
+    return Array.from({ length: n }, () => pick(rng, pool)).join('')
   }
+
+  /**
+   * The same shapes without the window-crossing filler.
+   *
+   * Frame replay parses every prefix, so message length multiplies into parse
+   * count — the filler fragment alone took that property to ~1M parses and 1.7s,
+   * 95% of this file's runtime. Retraction is a property of what happens AT a
+   * frame boundary, so it is exercised by the boundaries, not by message size.
+   * The scan window still gets its coverage from the other properties, which
+   * parse each message once.
+   */
+  const SHORT_FRAGMENTS = LOSSLESS_FRAGMENTS.filter((fragment) => fragment.length < 200)
 
   it('never loses a character of a message with nothing droppable in it', () => {
     // The headline guarantee. Only a well-formed payload that failed its shape
@@ -876,22 +888,20 @@ describe('parser properties', () => {
 
     for (let seed = 1; seed <= 120; seed++) {
       const rng = makeRng(seed)
-      const raw = `${buildLossless(rng)}${pick(rng, VALID_TAGS)}${buildLossless(rng)}`
+      const raw = `${buildLossless(rng, SHORT_FRAGMENTS)}${pick(rng, VALID_TAGS)}${buildLossless(rng, SHORT_FRAGMENTS)}`
 
       let previousCards = 0
       let previousText = ''
-      for (let end = 1; end <= raw.length; end += 7) {
-        const view = visibleView(parseSpecialTags(raw.slice(0, end), true).segments)
-
-        expect(view.cardCount, `seed ${seed} at ${end}: card un-rendered`).toBeGreaterThanOrEqual(
+      for (const frame of replayFrames(raw, 7)) {
+        expect(frame.cardCount, `seed ${seed}: card un-rendered`).toBeGreaterThanOrEqual(
           previousCards
         )
 
         const stable = previousText.slice(0, Math.max(0, previousText.length - LONGEST_OPENER))
-        expect(view.text.startsWith(stable), `seed ${seed} at ${end}: text retracted`).toBe(true)
+        expect(frame.text.startsWith(stable), `seed ${seed}: text retracted`).toBe(true)
 
-        previousCards = view.cardCount
-        previousText = view.text
+        previousCards = frame.cardCount
+        previousText = frame.text
       }
     }
   })
