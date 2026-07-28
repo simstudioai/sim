@@ -24,6 +24,7 @@ import { adminV1ImportWorkflowContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
+import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import { normalizeImportedVariables } from '@/lib/workflows/variables/parse'
@@ -106,7 +107,21 @@ export const POST = withRouteHandler(
         variables: {},
       })
 
-      const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowData)
+      /**
+       * Same normalization the editor and the v1 import API run, via the one
+       * shared implementation — without it this route wrote raw parsed state,
+       * so a dangling edge tripped the `workflow_edges` foreign key and a block
+       * missing its backfilled columns could land unopenable.
+       */
+      const { state: preparedState, warnings } = prepareWorkflowStateForPersistence(workflowData)
+      if (warnings.length > 0) {
+        logger.warn('Admin API: normalized imported workflow with warnings', { warnings })
+      }
+
+      const saveResult = await saveWorkflowToNormalizedTables(workflowId, {
+        ...workflowData,
+        ...preparedState,
+      })
 
       if (!saveResult.success) {
         await db.delete(workflow).where(eq(workflow.id, workflowId))

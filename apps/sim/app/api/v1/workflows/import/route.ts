@@ -49,6 +49,18 @@ const MAX_IMPORT_BODY_BYTES = 10 * 1024 * 1024
 
 const DEFAULT_IMPORTED_WORKFLOW_NAME = 'Imported Workflow'
 
+const TRUNCATION_SUFFIX = '...'
+
+/**
+ * Caps a payload-derived string at `maxLength` *including* the ellipsis.
+ * `truncate` appends its suffix after slicing, so passing the limit straight
+ * through would yield `maxLength + 3` characters and overshoot the very bound
+ * this is enforcing.
+ */
+function capLength(value: string, maxLength: number): string {
+  return truncate(value, maxLength - TRUNCATION_SUFFIX.length, TRUNCATION_SUFFIX)
+}
+
 /**
  * Reads a dot-delimited path off a parsed payload and returns it only when it
  * is a non-empty string, so blank metadata falls through to the next candidate.
@@ -59,7 +71,7 @@ function readString(source: unknown, path: string): string | undefined {
     if (!current || typeof current !== 'object') return undefined
     current = (current as Record<string, unknown>)[segment]
   }
-  return typeof current === 'string' && current.trim() ? current : undefined
+  return typeof current === 'string' && current.trim() ? current.trim() : undefined
 }
 
 /**
@@ -83,10 +95,15 @@ function unwrapResponseEnvelope(payload: unknown): unknown {
  * the importer takes: the export envelope (`workflow.*`, `state.metadata.*`)
  * and a bare state (`metadata.*`).
  *
- * Payload-derived values are truncated to the same bounds the contract applies
- * to the explicit overrides — otherwise the declared `maxLength` would not be
- * the effective one, and a caller could store an unbounded name simply by
- * embedding it in the payload instead of passing it as a field.
+ * Candidate order deliberately matches `extractWorkflowName` — the resolver the
+ * in-app importer has always used — so the same payload yields the same name on
+ * both surfaces. The in-app version additionally falls back to the uploaded
+ * filename, which has no analogue here; that is the only intended difference.
+ *
+ * Payload-derived values are capped at the same bounds the contract applies to
+ * the explicit overrides, otherwise the declared `maxLength` would not be the
+ * effective one — a caller could store an unbounded name simply by embedding it
+ * in the payload instead of passing it as a field.
  */
 function resolveImportedMetadata(
   rawPayload: unknown,
@@ -97,9 +114,9 @@ function resolveImportedMetadata(
 
   const name =
     overrideName ||
-    truncate(
-      readString(payload, 'workflow.name') ||
-        readString(payload, 'state.metadata.name') ||
+    capLength(
+      readString(payload, 'state.metadata.name') ||
+        readString(payload, 'workflow.name') ||
         readString(payload, 'metadata.name') ||
         DEFAULT_IMPORTED_WORKFLOW_NAME,
       V1_IMPORT_NAME_MAX_LENGTH
@@ -107,9 +124,9 @@ function resolveImportedMetadata(
 
   const description =
     overrideDescription ??
-    truncate(
-      readString(payload, 'workflow.description') ??
-        readString(payload, 'state.metadata.description') ??
+    capLength(
+      readString(payload, 'state.metadata.description') ??
+        readString(payload, 'workflow.description') ??
         readString(payload, 'metadata.description') ??
         '',
       V1_IMPORT_DESCRIPTION_MAX_LENGTH

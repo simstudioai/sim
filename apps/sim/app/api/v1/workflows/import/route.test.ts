@@ -406,6 +406,37 @@ describe('POST /api/v1/workflows/import', () => {
     expect(whereSpy).toHaveBeenCalled()
   })
 
+  it('caps a payload-derived name at the declared bound, ellipsis included', async () => {
+    await POST(
+      makeRequest(
+        validBody({
+          workflow: { ...EXPORT_ENVELOPE, workflow: { name: 'N'.repeat(500) } },
+        })
+      )
+    )
+
+    const { name } = mockPerformCreateWorkflow.mock.calls[0][0]
+    expect(name.length).toBeLessThanOrEqual(200)
+    expect(name.endsWith('...')).toBe(true)
+  })
+
+  it('prefers state.metadata.name, matching the in-app importer', async () => {
+    await POST(
+      makeRequest(
+        validBody({
+          workflow: {
+            workflow: { name: 'FromWorkflow' },
+            state: { ...EXPORT_ENVELOPE.state, metadata: { name: 'FromStateMetadata' } },
+          },
+        })
+      )
+    )
+
+    expect(mockPerformCreateWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'FromStateMetadata' })
+    )
+  })
+
   it('unwraps an export response envelope so its metadata still resolves', async () => {
     await POST(makeRequest(validBody({ workflow: { data: EXPORT_ENVELOPE, limits: {} } })))
 
