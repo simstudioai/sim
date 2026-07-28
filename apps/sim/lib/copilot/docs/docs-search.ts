@@ -3,13 +3,13 @@ import { docsEmbeddings } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, like, notLike, or, sql } from 'drizzle-orm'
 import { docsPathForSourceDocument, isDocsDir, isDocsPage } from '@/lib/copilot/docs/docs-corpus'
-import { docsSourceCandidates } from '@/lib/copilot/docs/docs-path'
+import { docsSourceCandidates, UNMOUNTED_DOCS_SECTIONS } from '@/lib/copilot/docs/docs-path'
 import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 
 const logger = createLogger('DocsSearch')
 
 const SIMILARITY_THRESHOLD = 0.3
-const DEFAULT_TOP_K = 10
+const DEFAULT_TOP_K = 5
 const MAX_TOP_K = 25
 
 export interface DocsSearchResult {
@@ -58,16 +58,17 @@ export class DocsSearchScopeError extends Error {
  * `workflows/index.mdx` (or `workflows.mdx`) on disk. A directory scope covers
  * the whole subtree plus the overview in either layout.
  *
- * Returns undefined for an unscoped search, which excludes `academy/` and
- * `api-reference/`: both are indexed but neither is mounted in the VFS, so a hit
- * there would be a chunk the agent cannot then read.
+ * An unscoped search excludes every {@link UNMOUNTED_DOCS_SECTIONS} section:
+ * they are indexed but not mounted in the VFS, so a hit there would be a chunk
+ * the agent cannot then read.
  */
 function scopeCondition(path?: string) {
   const normalized = (path ?? '').trim().replace(/^\/+/, '').replace(/\/+$/, '')
   if (normalized === '' || normalized === 'docs') {
     return and(
-      notLike(docsEmbeddings.sourceDocument, 'academy/%'),
-      notLike(docsEmbeddings.sourceDocument, 'api-reference/%')
+      ...UNMOUNTED_DOCS_SECTIONS.map((section) =>
+        notLike(docsEmbeddings.sourceDocument, `${section}/%`)
+      )
     )
   }
 
