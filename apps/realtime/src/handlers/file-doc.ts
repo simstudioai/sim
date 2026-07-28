@@ -192,12 +192,15 @@ const MAX_SEED_ATTEMPTS = 3
  *
  * `isDocSeeded` is the only "already handled" guard needed: content is only ever written to the doc
  * alongside the seed flag (by this seed, or by a client's offline fallback which sets both), so a doc
- * carrying real content is always already seeded and short-circuits here. It is therefore correct to
- * seed a doc that a fresh client's editor has synced a bare empty-paragraph placeholder into (that
- * placeholder is unseeded) — the earlier state-vector "emptiness" check wrongly skipped exactly that
- * common case and stranded the client unseeded. After each `await`, re-verify the room is still the
- * live, unseeded room: the last owner may have left (`destroyRoomIfIdle` destroyed the doc) or a
- * client's sync may have seeded it in flight.
+ * carrying real content is always already seeded and short-circuits here. A fresh client does NOT
+ * pollute the doc first — `@tiptap/y-tiptap` deliberately never writes the editor's default empty
+ * paragraph to Yjs (it diffs against `createAndFill()` and renders nothing when unchanged), and real
+ * edits are gated behind readiness — so an unseeded doc is genuinely empty and safe to seed. (An
+ * earlier state-vector "emptiness" check here was both unnecessary and wrong: it skipped the seed on
+ * any non-empty state vector, which would have stranded a client unseeded had anything ever synced
+ * ahead of the seed.) After each `await`, re-verify the room is still the live, unseeded room: the
+ * last owner may have left (`destroyRoomIfIdle` destroyed the doc) or a client's sync may have seeded
+ * it in flight.
  */
 async function ensureServerSeed(
   name: string,

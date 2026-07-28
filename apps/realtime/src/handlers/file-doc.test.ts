@@ -366,11 +366,12 @@ describe('setupWorkspaceFileDocHandlers', () => {
     await expect(flushMicrotasks()).resolves.toBeUndefined()
   })
 
-  it('still seeds when a client synced a bare placeholder into the doc before the seed returned', async () => {
-    // Reproduces the readiness-strand: a fresh editor's Collaboration binding writes an empty
-    // paragraph into its local Y.Doc on mount, which syncs to the server (making the doc non-empty
-    // but still UNSEEDED) before the seed fetch resolves. The seed must still apply and set the flag,
-    // or the client's `synced && initialContentLoaded` gate never opens.
+  it('still seeds when content was synced into the doc before the seed returned', async () => {
+    // Defensive: the guard is `isDocSeeded`, NOT doc-emptiness. In practice a fresh client never
+    // writes ahead of the seed (@tiptap/y-tiptap suppresses the empty-paragraph placeholder and real
+    // edits are readiness-gated), but even if some update landed content in the doc before the seed
+    // fetch resolved, the seed must still apply and set the flag — or the client's
+    // `synced && initialContentLoaded` gate would never open.
     let resolveSeed: (v: Uint8Array | null) => void = () => {}
     mockFetchFileDocSeed.mockReturnValueOnce(new Promise((resolve) => (resolveSeed = resolve)))
     const { io } = createIo()
