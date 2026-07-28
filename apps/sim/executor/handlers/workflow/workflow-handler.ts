@@ -464,7 +464,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         }
         // The child no longer shares the parent's execution id, so it no longer
         // hears the parent's cancellation event — bridge it explicitly.
-        childCancellation = createChildCancellationSignal({
+        childCancellation = await createChildCancellationSignal({
           parentSignal: ctx.abortSignal,
           parentExecutionId: ctx.executionId,
         })

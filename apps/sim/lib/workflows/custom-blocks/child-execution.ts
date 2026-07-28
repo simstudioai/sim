@@ -3,7 +3,11 @@ import {
   checkAttributedUsageLimits,
 } from '@/lib/billing/core/billing-attribution'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
-import { getCancellationChannel } from '@/lib/execution/cancellation'
+import {
+  getCancellationChannel,
+  isExecutionCancelled,
+  isRedisCancellationEnabled,
+} from '@/lib/execution/cancellation'
 import { BoundarySafeError } from '@/executor/errors/boundary'
 
 /**
@@ -73,10 +77,10 @@ export function buildCustomBlockCorrelation(params: {
  * leak one abort listener and one channel subscription per iteration onto a
  * long-lived parent signal.
  */
-export function createChildCancellationSignal(params: {
+export async function createChildCancellationSignal(params: {
   parentSignal?: AbortSignal
   parentExecutionId?: string
-}): { signal: AbortSignal; dispose: () => void } {
+}): Promise<{ signal: AbortSignal; dispose: () => void }> {
   const controller = new AbortController()
 
   if (params.parentSignal?.aborted) {
@@ -90,9 +94,23 @@ export function createChildCancellationSignal(params: {
   let unsubscribe: (() => void) | undefined
   if (params.parentExecutionId) {
     const parentExecutionId = params.parentExecutionId
+    // Subscribe BEFORE the durable read, mirroring `markExecutionCancelled`'s
+    // write-durable-then-publish order: a cancel published during the read is
+    // caught by the subscription, and one published earlier — while the child's
+    // session and admission were still being set up — by the read itself. The
+    // child's own engine backstop cannot cover this, since it checks the CHILD's
+    // execution id, which is never the one marked cancelled.
     unsubscribe = getCancellationChannel().subscribe((event) => {
       if (event.executionId === parentExecutionId) controller.abort()
     })
+    if (isRedisCancellationEnabled()) {
+      try {
+        if (await isExecutionCancelled(parentExecutionId)) controller.abort()
+      } catch {
+        // Fail open, matching the engine's own backstop: a failed read must not
+        // stop a child whose parent was never actually cancelled.
+      }
+    }
   }
 
   return {
