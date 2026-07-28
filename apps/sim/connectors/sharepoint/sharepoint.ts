@@ -527,14 +527,25 @@ export async function resolveFolderTarget(
     return { driveId: defaultDrive.id, driveName: defaultDriveName, folderId: walked.id }
   }
 
+  /**
+   * When the first segment named a real library, that library is the one the
+   * user meant — report against it and its remainder, not against the default
+   * library and the full path, which would blame the wrong library and advise
+   * stripping a prefix that was correct.
+   */
+  const reportDrive = libraryMatch
+    ? { id: libraryMatch.id, name: libraryMatch.name || segments[0] }
+    : { id: defaultDrive.id, name: defaultDriveName }
+
   throw new Error(
     await buildFolderNotFoundMessage(
       accessToken,
-      { id: defaultDrive.id, name: defaultDriveName },
+      reportDrive,
       siteName || siteUrl,
       trimmed,
-      segments,
+      libraryMatch ? segments.slice(1) : segments,
       drives,
+      !libraryMatch,
       retryOptions
     )
   )
@@ -572,6 +583,11 @@ function matchesDriveName(drive: Drive, segment: string): boolean {
 /**
  * Builds a diagnostic failure message naming the site, the library searched,
  * the path attempted, and the folders that actually exist at that level.
+ *
+ * `searchedDefaultLibrary` gates the advice about stripping a leading library
+ * name: that hint only applies when the path was interpreted against the site's
+ * default library, and would be actively misleading when the caller supplied a
+ * library name that matched.
  */
 async function buildFolderNotFoundMessage(
   accessToken: string,
@@ -580,6 +596,7 @@ async function buildFolderNotFoundMessage(
   rawFolderPath: string,
   segments: string[],
   drives: Drive[],
+  searchedDefaultLibrary: boolean,
   retryOptions?: RetryOptions
 ): Promise<string> {
   const parts = [
@@ -614,9 +631,11 @@ async function buildFolderNotFoundMessage(
     }
   }
 
-  parts.push(
-    'The folder path is relative to the document library root, so a leading "Documents" or "Shared Documents" should be omitted unless a folder by that name really exists.'
-  )
+  if (searchedDefaultLibrary) {
+    parts.push(
+      'The folder path is relative to the document library root, so a leading "Documents" or "Shared Documents" should be omitted unless a folder by that name really exists.'
+    )
+  }
 
   return parts.join(' ')
 }
