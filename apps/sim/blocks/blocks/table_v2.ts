@@ -18,6 +18,9 @@ import { getTrigger } from '@/triggers'
 
 function parseJSON(value: string | unknown, fieldName: string): unknown {
   if (typeof value !== 'string') return value
+  // A blank editor field means "no filter/order", not malformed JSON. Without
+  // this, clearing the field throws `Unexpected end of JSON input` at run time.
+  if (value.trim() === '') return undefined
   try {
     return JSON.parse(value)
   } catch (error) {

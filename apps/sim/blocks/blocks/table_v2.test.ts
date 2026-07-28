@@ -91,3 +91,29 @@ describe('table_v2 bulk transformers', () => {
     expect(out.filter).toEqual({ all: [{ field: 'name', op: 'eq', value: 'x' }] })
   })
 })
+
+/**
+ * The Filter/Order fields are canonical pairs: a builder array in Builder mode,
+ * a JSON string in Editor mode. Clearing the editor field is the ordinary way to
+ * say "no filter" — it must not surface as a JSON parse error at run time.
+ */
+describe('table_v2 blank and malformed editor inputs', () => {
+  const base = { operation: 'query_rows', tableId: 'tbl_1', limit: '10' }
+
+  it('treats a blank / whitespace filter or order as absent', () => {
+    for (const value of ['', '   ', '\n']) {
+      expect(params({ ...base, filterInput: value }).filter).toBeUndefined()
+      expect(params({ ...base, sortInput: value }).order).toBeUndefined()
+    }
+  })
+
+  it('treats an empty builder array as absent', () => {
+    expect(params({ ...base, filterInput: [] }).filter).toBeUndefined()
+    expect(params({ ...base, sortInput: [] }).order).toBeUndefined()
+  })
+
+  it('still reports genuinely malformed JSON', () => {
+    expect(() => params({ ...base, filterInput: '{not json}' })).toThrow(/Invalid JSON in Filter/)
+    expect(() => params({ ...base, sortInput: '{not json}' })).toThrow(/Invalid JSON in Sort/)
+  })
+})
