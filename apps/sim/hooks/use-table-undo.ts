@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react'
+import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { TABLE_LIMITS } from '@/lib/table/constants'
+import { TABLE_LOCK_FLAGS, type TableLockKind, type TableLocks } from '@/lib/table/types'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
@@ -18,6 +20,67 @@ import type { TableUndoAction } from '@/stores/table/types'
 
 const logger = createLogger('useTableUndo')
 
+/**
+ * The mutation verb an undo/redo of `action` would perform in `direction`. Undo
+ * inverts row create/delete (undoing a create deletes; undoing a delete
+ * re-inserts), so the verb depends on direction. Column ops are always `schema`;
+ * rename/reorder touch no locked verb (`null`).
+ */
+function undoActionVerbs(action: TableUndoAction, direction: 'undo' | 'redo'): TableLockKind[] {
+  const undoing = direction === 'undo'
+  switch (action.type) {
+    case 'update-cell':
+    case 'update-cells':
+    case 'clear-cells':
+      return ['update']
+    case 'create-row':
+    case 'create-rows':
+      return undoing ? ['delete'] : ['insert']
+    case 'delete-rows':
+      return undoing ? ['insert'] : ['delete']
+    // Dropping or retyping a column clears its value from every row, so those
+    // directions need the delete lock clear too — mirroring
+    // `assertColumnDestructive`. Undoing a delete-column re-adds the column and
+    // writes the saved cells back, which is a row update.
+    case 'create-column':
+      return undoing ? ['schema', 'delete'] : ['schema']
+    case 'delete-column':
+      return undoing ? ['schema', 'update'] : ['schema', 'delete']
+    case 'update-column-type':
+      return ['schema', 'delete']
+    case 'rename-column':
+    case 'toggle-column-constraint':
+      return ['schema']
+    default:
+      return []
+  }
+}
+
+/** The first lock (if any) that would block replaying `action` in `direction`. */
+function undoActionBlockedBy(
+  action: TableUndoAction,
+  direction: 'undo' | 'redo',
+  locks: TableLocks | undefined
+): TableLockKind | null {
+  if (!locks) return null
+  return undoActionVerbs(action, direction).find((kind) => locks[TABLE_LOCK_FLAGS[kind]]) ?? null
+}
+
+const BLOCKED_UNDO_MESSAGE: Record<TableLockKind, string> = {
+  insert: 'This table is insert-locked — that step cannot be undone.',
+  update: 'This table is update-locked — that step cannot be undone.',
+  delete: 'This table is delete-locked — that step cannot be undone.',
+  schema: 'This table is schema-locked — that step cannot be undone.',
+}
+
+/**
+ * Top of a stack without popping, so a lock-blocked step can be left in place
+ * rather than popped-and-lost — see `undo`/`redo`.
+ */
+function peekAction(tableId: string, stack: 'undo' | 'redo'): TableUndoAction | undefined {
+  return useTableUndoStore.getState().stacks[tableId]?.[stack].at(-1)?.action
+}
+
 export function extractCreatedRowId(response: Record<string, unknown>): string | undefined {
   const data = response?.data as Record<string, unknown> | undefined
   const row = data?.row as Record<string, unknown> | undefined
@@ -27,6 +90,8 @@ export function extractCreatedRowId(response: Record<string, unknown>): string |
 interface UseTableUndoProps {
   workspaceId: string
   tableId: string
+  /** Current table locks, so undo/redo skips a step whose verb is locked. */
+  getLocks?: () => TableLocks | undefined
   onColumnOrderChange?: (order: string[]) => void
   onColumnRename?: (oldName: string, newName: string) => void
   onColumnWidthsChange?: (widths: Record<string, number>) => void
@@ -38,6 +103,7 @@ interface UseTableUndoProps {
 export function useTableUndo({
   workspaceId,
   tableId,
+  getLocks,
   onColumnOrderChange,
   onColumnRename,
   onColumnWidthsChange,
@@ -77,6 +143,8 @@ export function useTableUndo({
   getPinnedColumnsRef.current = getPinnedColumns
   const getColumnWidthsRef = useRef(getColumnWidths)
   getColumnWidthsRef.current = getColumnWidths
+  const getLocksRef = useRef(getLocks)
+  getLocksRef.current = getLocks
 
   useEffect(() => {
     return () => clear(tableId)
@@ -268,6 +336,10 @@ export function useTableUndo({
                   type: action.columnType,
                   required: action.columnRequired,
                   unique: action.columnUnique,
+                  // A select column is rejected without its options, and the
+                  // cell data restored below is keyed by those option ids.
+                  ...(action.columnOptions ? { options: action.columnOptions } : {}),
+                  ...(action.columnMultiple ? { multiple: true } : {}),
                   position: action.columnPosition,
                 },
                 {
@@ -431,12 +503,30 @@ export function useTableUndo({
   )
 
   const undo = useCallback(() => {
+    // Check the lock BEFORE popping — a blocked step must stay on the stack, not
+    // be silently discarded (the mutation would 423 and the entry would be lost).
+    const next = peekAction(tableId, 'undo')
+    if (next) {
+      const blocked = undoActionBlockedBy(next, 'undo', getLocksRef.current?.())
+      if (blocked) {
+        toast.error(BLOCKED_UNDO_MESSAGE[blocked], { duration: 5000 })
+        return
+      }
+    }
     const entry = popUndo(tableId)
     if (!entry) return
     void runWithoutRecording(() => executeAction(entry.action, 'undo'))
   }, [popUndo, tableId, executeAction])
 
   const redo = useCallback(() => {
+    const next = peekAction(tableId, 'redo')
+    if (next) {
+      const blocked = undoActionBlockedBy(next, 'redo', getLocksRef.current?.())
+      if (blocked) {
+        toast.error(BLOCKED_UNDO_MESSAGE[blocked], { duration: 5000 })
+        return
+      }
+    }
     const entry = popRedo(tableId)
     if (!entry) return
     void runWithoutRecording(() => executeAction(entry.action, 'redo'))

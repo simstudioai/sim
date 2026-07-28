@@ -62,7 +62,7 @@ export const GET = withRouteHandler(
 
       const result = {
         ...safeData,
-        includeToolCalls: safeData.includeToolCalls ?? safeData.includeThinking ?? false,
+        includeToolCalls: safeData.includeToolCalls ?? false,
         chatUrl,
         hasPassword: !!password,
       }
@@ -257,16 +257,8 @@ export const PATCH = withRouteHandler(
         updateData.includeThinking = includeThinking
       }
 
-      /**
-       * Grandfathering must resolve against the thinking value this request is
-       * setting, not the stored one. Before `includeToolCalls` existed,
-       * `includeThinking` gated tool frames too, so a partial update turning
-       * thinking off has to turn them off as well rather than materializing the
-       * stale `true` and silently leaving tool frames enabled.
-       */
-      const effectiveIncludeThinking = includeThinking ?? existingChatRecord.includeThinking
-      updateData.includeToolCalls =
-        includeToolCalls ?? existingChatRecord.includeToolCalls ?? effectiveIncludeThinking ?? false
+      // Partial updates keep the stored value; a row predating the column reads false.
+      updateData.includeToolCalls = includeToolCalls ?? existingChatRecord.includeToolCalls ?? false
 
       const emailCount = Array.isArray(updateData.allowedEmails)
         ? updateData.allowedEmails.length

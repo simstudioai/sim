@@ -17,6 +17,7 @@ import {
   parseSettingsPathSection,
   resolveOrganizationSectionAccess,
   resolveWorkspaceNavigation,
+  SELFHOST_SETTINGS_ITEMS,
   SETTINGS_SECTION_REGISTRY,
   WORKSPACE_SETTINGS_ITEMS,
   WORKSPACE_SETTINGS_PATH_ALIASES,
@@ -38,11 +39,9 @@ describe('settings navigation boundaries', () => {
       'apikeys',
       'workflow-mcp-servers',
       'byok',
-      'copilot',
       'inbox',
       'recently-deleted',
       'sso',
-      'domains',
       'sessions',
       'data-retention',
       'data-drains',
@@ -55,17 +54,16 @@ describe('settings navigation boundaries', () => {
       'general',
       'billing',
       'api-keys',
-      'copilot',
       'admin',
       'mothership',
     ])
+    expect(SELFHOST_SETTINGS_ITEMS.map(({ id }) => id)).toEqual(['general', 'billing', 'chat-keys'])
     expect(ORGANIZATION_SETTINGS_ITEMS.map(({ id }) => id)).toEqual([
       'members',
       'billing',
       'access-control',
       'audit-logs',
       'sso',
-      'domains',
       'sessions',
       'data-retention',
       'data-drains',
@@ -87,12 +85,17 @@ describe('settings navigation boundaries', () => {
   })
 
   it('has one registry source for every unified and plane item', () => {
-    const unifiedIds = SETTINGS_SECTION_REGISTRY.map(({ unified }) => unified.id)
+    const unifiedIds = SETTINGS_SECTION_REGISTRY.flatMap(({ unified }) =>
+      unified ? [unified.id] : []
+    )
     const accountIds = SETTINGS_SECTION_REGISTRY.flatMap(({ planes }) =>
       planes?.account ? [planes.account.id] : []
     )
     const organizationIds = SETTINGS_SECTION_REGISTRY.flatMap(({ planes }) =>
       planes?.organization ? [planes.organization.id] : []
+    )
+    const selfHostIds = SETTINGS_SECTION_REGISTRY.flatMap(({ planes }) =>
+      planes?.selfhost ? [planes.selfhost.id] : []
     )
     const workspaceIds = SETTINGS_SECTION_REGISTRY.flatMap(({ planes }) =>
       planes?.workspace ? [planes.workspace.id] : []
@@ -101,6 +104,7 @@ describe('settings navigation boundaries', () => {
     expect(new Set(unifiedIds).size).toBe(unifiedIds.length)
     expect(new Set(accountIds).size).toBe(accountIds.length)
     expect(new Set(organizationIds).size).toBe(organizationIds.length)
+    expect(new Set(selfHostIds).size).toBe(selfHostIds.length)
     expect(new Set(workspaceIds).size).toBe(workspaceIds.length)
     expect([...unifiedIds].sort()).toEqual(
       buildUnifiedSettingsNavigation()
@@ -111,6 +115,7 @@ describe('settings navigation boundaries', () => {
     expect([...organizationIds].sort()).toEqual(
       ORGANIZATION_SETTINGS_ITEMS.map(({ id }) => id).sort()
     )
+    expect([...selfHostIds].sort()).toEqual(SELFHOST_SETTINGS_ITEMS.map(({ id }) => id).sort())
     expect([...workspaceIds].sort()).toEqual(WORKSPACE_SETTINGS_ITEMS.map(({ id }) => id).sort())
   })
 
@@ -121,7 +126,6 @@ describe('settings navigation boundaries', () => {
       'billing',
       'data-drains',
       'data-retention',
-      'domains',
       'organization',
       'sessions',
       'sso',

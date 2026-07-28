@@ -145,6 +145,28 @@ export const isAppConfigEnabled =
   isHosted && Boolean(env.APPCONFIG_APPLICATION && env.APPCONFIG_ENVIRONMENT)
 
 /**
+ * Whether the deployment's Slack app is approved for `app_mentions:read`,
+ * `assistant:write`, and `im:history` — the scopes backing the native Sim app
+ * trigger's mention, assistant-thread, and DM events.
+ *
+ * Off by default because Slack rejects the ENTIRE authorization when it requests
+ * a scope the app is not approved for, breaking every Slack connect. Sim Cloud's
+ * app is directory-listed and pinned to its review-approved set, so this stays
+ * off there until review lands; a self-hosted deployment pointing at its own
+ * (unlisted) Slack app can opt in.
+ *
+ * Server code reads `SLACK_EXTENDED_SCOPES`. Server-only vars never reach browser
+ * bundles, so client evaluation reads the `NEXT_PUBLIC_SLACK_EXTENDED_SCOPES`
+ * twin (see {@link isBillingEnabled}) — deployments must set both together. The
+ * server value decides the grant; the client value only decides what the credential
+ * pickers advertise and treat as missing.
+ */
+export const isSlackExtendedScopesEnabled =
+  typeof window === 'undefined'
+    ? isTruthy(env.SLACK_EXTENDED_SCOPES)
+    : isTruthy(getEnv('NEXT_PUBLIC_SLACK_EXTENDED_SCOPES'))
+
+/**
  * Is Trigger.dev enabled for async job processing
  */
 export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)

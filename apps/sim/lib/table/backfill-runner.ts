@@ -176,7 +176,10 @@ async function processBackfillPage(opts: {
   await batchUpdateRows(
     { tableId: table.id, updates, workspaceId: table.workspaceId, actorUserId },
     table,
-    requestId
+    requestId,
+    // Every patched key is a workflow-group output column, so a backfill is a
+    // computed write and stays allowed on an update-locked table.
+    { computedWrite: true }
   )
   return updates.length
 }

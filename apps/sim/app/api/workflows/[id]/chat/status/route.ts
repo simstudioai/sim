@@ -74,10 +74,7 @@ export const GET = withRouteHandler(
               allowedEmails: deploymentResults[0].allowedEmails,
               outputConfigs: deploymentResults[0].outputConfigs,
               includeThinking: deploymentResults[0].includeThinking ?? false,
-              includeToolCalls:
-                deploymentResults[0].includeToolCalls ??
-                deploymentResults[0].includeThinking ??
-                false,
+              includeToolCalls: deploymentResults[0].includeToolCalls ?? false,
               hasPassword: Boolean(deploymentResults[0].password),
             }
           : null

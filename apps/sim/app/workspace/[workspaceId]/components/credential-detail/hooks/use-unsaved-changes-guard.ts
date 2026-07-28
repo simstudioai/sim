@@ -26,9 +26,22 @@ interface UseUnsavedChangesGuardParams {
 export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesGuardParams) {
   const router = useRouter()
   const [showUnsavedAlert, setShowUnsavedAlert] = useState(false)
+  const [isReleased, setIsReleased] = useState(false)
   const hasSentinelRef = useRef(false)
 
   useEffect(() => {
+    // The caller is navigating away — popping the seeded entry would cancel it. But
+    // Back during that window consumes the entry with no listener left to re-push
+    // it, so track that: a later rearm() must seed a fresh one rather than trust a
+    // stale ref and leave the surface unguarded.
+    if (isReleased) {
+      if (!hasSentinelRef.current) return
+      const handleSentinelConsumed = () => {
+        hasSentinelRef.current = false
+      }
+      window.addEventListener('popstate', handleSentinelConsumed)
+      return () => window.removeEventListener('popstate', handleSentinelConsumed)
+    }
     if (!isDirty) {
       // Clean again while still mounted (saved/reverted): pop the seeded entry so
       // it can't pile up across edit/save cycles. This runs in the effect body,
@@ -58,16 +71,16 @@ export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesG
       window.removeEventListener('beforeunload', handleBeforeUnload)
       window.removeEventListener('popstate', handlePopState)
     }
-  }, [isDirty])
+  }, [isDirty, isReleased])
 
   const handleBackClick = useCallback(
     (event: MouseEvent<HTMLAnchorElement>) => {
-      if (isDirty) {
+      if (isDirty && !isReleased) {
         event.preventDefault()
         setShowUnsavedAlert(true)
       }
     },
-    [isDirty]
+    [isDirty, isReleased]
   )
 
   const confirmDiscard = useCallback(() => {
@@ -75,5 +88,25 @@ export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesG
     router.push(backHref)
   }, [router, backHref])
 
-  return { showUnsavedAlert, setShowUnsavedAlert, handleBackClick, confirmDiscard }
+  /**
+   * Retires the guard: no unload warning, no Back trap (browser or the in-app back
+   * link), and no pop of the seeded entry when the form goes clean. Call it before
+   * navigating away on a successful save, and navigate with `router.replace` so the
+   * seeded entry is the one consumed. An operation that goes clean before it
+   * resolves (an optimistic delete) must release up front and {@link rearm} if it
+   * fails.
+   */
+  const release = useCallback(() => setIsReleased(true), [])
+
+  /** Restores guarding after a released operation failed and the surface stays. */
+  const rearm = useCallback(() => setIsReleased(false), [])
+
+  return {
+    showUnsavedAlert,
+    setShowUnsavedAlert,
+    handleBackClick,
+    confirmDiscard,
+    release,
+    rearm,
+  }
 }

@@ -531,6 +531,28 @@ const nextConfig: NextConfig = {
       }
     )
 
+    /**
+     * Indexed 404s from an external SEO audit. The capability paths read as
+     * tool/feature pages and map to the integrations catalog; the rest have no
+     * closer successor than the homepage.
+     *
+     * `/security` is deliberately excluded: security.txt advertises it as the
+     * RFC 9116 `Policy` URI, so a permanent redirect to marketing would both
+     * mislead that link and shadow a real policy page added later.
+     */
+    redirects.push(
+      ...['read', 'research', 'scrape'].map((slug) => ({
+        source: `/${slug}`,
+        destination: '/integrations',
+        permanent: true,
+      })),
+      ...['actions', 'crawl', 'fast'].map((slug) => ({
+        source: `/${slug}`,
+        destination: '/',
+        permanent: true,
+      }))
+    )
+
     return redirects
   },
   async rewrites() {

@@ -141,6 +141,15 @@ export type TableEvent =
       dispatchId?: string
       message: string
     }
+  | {
+      /** The table definition changed in a way that isn't row/cell data — a
+       *  lock toggle or a schema mutation. Carries no payload; the client just
+       *  invalidates the table-detail query so every open viewer re-reads the
+       *  fresh locks/schema (otherwise an idle grid stays stale and writes 423). */
+      kind: 'definition'
+      tableId: string
+      reason: 'locks' | 'schema'
+    }
 
 export interface TableEventEntry {
   eventId: number

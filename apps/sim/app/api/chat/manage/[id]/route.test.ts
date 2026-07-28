@@ -160,7 +160,8 @@ describe('Chat Edit API Route', () => {
       expect(data.title).toBe('Test Chat')
       expect(data.chatUrl).toBe('http://localhost:3000/chat/test-chat')
       expect(data.hasPassword).toBe(true)
-      expect(data.includeToolCalls).toBe(true)
+      // Stored null is not an opt-in.
+      expect(data.includeToolCalls).toBe(false)
     })
   })
 
@@ -227,8 +228,9 @@ describe('Chat Edit API Route', () => {
 
       expect(response.status).toBe(200)
       expect(dbChainMockFns.update).toHaveBeenCalled()
+      // An unrelated field update materializes the stored null as false.
       expect(dbChainMockFns.set).toHaveBeenCalledWith(
-        expect.objectContaining({ includeToolCalls: true })
+        expect.objectContaining({ includeToolCalls: false })
       )
       const data = await response.json()
       expect(data.id).toBe('chat-123')
@@ -236,10 +238,7 @@ describe('Chat Edit API Route', () => {
       expect(data.message).toBe('Chat deployment updated successfully')
     })
 
-    it('turns grandfathered tool calls off when the same update disables thinking', async () => {
-      // Before includeToolCalls existed, includeThinking gated tool frames too.
-      // Resolving the fallback against the stored value would materialize the
-      // stale `true` and silently leave tool frames on.
+    it('leaves tool calls off when a row without a tool policy disables thinking', async () => {
       authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-id' } })
 
       mockCheckChatAccess.mockResolvedValue({

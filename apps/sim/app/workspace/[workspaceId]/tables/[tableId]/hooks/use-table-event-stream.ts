@@ -379,6 +379,15 @@ export function useTableEventStream({
           else if (entry.event?.kind === 'dispatch') applyDispatch(entry.event)
           else if (entry.event?.kind === 'job') applyJob(entry.event)
           else if (entry.event?.kind === 'usageLimitReached') applyUsageLimit(entry.event)
+          else if (entry.event?.kind === 'definition') {
+            // A lock/schema change on the definition — re-read it so every open
+            // viewer's gating updates. `exact` avoids refetching every rows page
+            // (rowsRoot nests under detail); no row data changed.
+            void queryClient.invalidateQueries({
+              queryKey: tableKeys.detail(tableId),
+              exact: true,
+            })
+          }
         } catch (err) {
           logger.warn('Failed to parse table event', { tableId, err })
         }
