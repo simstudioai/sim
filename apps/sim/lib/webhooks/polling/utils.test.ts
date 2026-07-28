@@ -9,18 +9,23 @@ const { sqlCalls } = vi.hoisted(() => ({
   sqlCalls: [] as Array<{ strings: readonly string[]; values: unknown[] }>,
 }))
 
-vi.mock('drizzle-orm', () => ({
-  sql: (strings: readonly string[], ...values: unknown[]) => {
+vi.mock('drizzle-orm', () => {
+  const sql = (strings: readonly string[], ...values: unknown[]) => {
     const node = { strings, values }
     sqlCalls.push(node)
     return node
-  },
-  and: vi.fn(),
-  eq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
-  isNull: vi.fn(),
-  ne: vi.fn(),
-  or: vi.fn(),
-}))
+  }
+  // Identity, so a `sql.param(arr)` value still shows up verbatim in `values`.
+  sql.param = (value: unknown) => value
+  return {
+    sql,
+    and: vi.fn(),
+    eq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
+    isNull: vi.fn(),
+    ne: vi.fn(),
+    or: vi.fn(),
+  }
+})
 vi.mock('@/app/api/auth/oauth/utils', () => ({
   getOAuthToken: vi.fn(),
   refreshAccessTokenIfNeeded: vi.fn(),

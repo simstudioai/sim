@@ -396,7 +396,7 @@ async function pruneStaleReferences(
       WHERE ref.ctid IN (
         SELECT ref.ctid
         FROM ${executionLargeValueReferences} AS ref
-        WHERE ref.workspace_id = ANY(${workspaceIds}::text[])
+        WHERE ref.workspace_id = ANY(${sql.param(workspaceIds)}::text[])
           AND (
             (
               ref.source = 'execution_log'
@@ -437,7 +437,7 @@ async function pruneDeletedParentDependencies(
       WHERE dependency.ctid IN (
         SELECT dependency.ctid
         FROM ${executionLargeValueDependencies} AS dependency
-        WHERE dependency.workspace_id = ANY(${workspaceIds}::text[])
+        WHERE dependency.workspace_id = ANY(${sql.param(workspaceIds)}::text[])
           AND (
             EXISTS (
               SELECT 1
@@ -472,7 +472,7 @@ async function pruneDeletedLargeValueTombstones(
       WHERE value.ctid IN (
         SELECT value.ctid
         FROM ${executionLargeValues} AS value
-        WHERE value.workspace_id = ANY(${workspaceIds}::text[])
+        WHERE value.workspace_id = ANY(${sql.param(workspaceIds)}::text[])
           AND value.deleted_at IS NOT NULL
           AND value.deleted_at < ${deletedBefore}
           AND NOT EXISTS (
