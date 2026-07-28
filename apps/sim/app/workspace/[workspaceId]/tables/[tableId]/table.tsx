@@ -448,21 +448,34 @@ export function Table({
 
     if (seededViewIdRef.current === undefined) {
       // Embedded tables bind these parsers to the HOST page's URL, which the
-      // mothership panel keeps across resource switches. A param left by the
-      // previously-open table must not decide this one's initial view, so the
-      // first resolve ignores it and lets this table pick its own default.
-      if (activeViewId === null || embedded) {
+      // mothership panel keeps across resource switches. A view id this table
+      // can't resolve was left by the previously-open resource — ignore it so
+      // this table picks its own default. A param it CAN resolve is honoured,
+      // including an explicit All: that is a real bookmark or a remount after
+      // switching resources away and back, not leakage.
+      const inheritedParams =
+        embedded &&
+        activeViewId !== null &&
+        activeViewId !== ALL_VIEW_PARAM &&
+        !views.some((view) => view.id === activeViewId)
+
+      if (activeViewId === null || inheritedParams) {
         const defaultView = views.find((view) => view.isDefault)
+        // `sort` rides the same host URL, so when the view id is inherited the
+        // sort beside it is too — not local work, and it must not suppress the
+        // default view's own sort.
+        const keep = inheritedParams ? { ...localWork(), sort: false } : localWork()
         if (defaultView) {
           seededViewIdRef.current = defaultView.id
           setTableParams({ view: defaultView.id })
-          applyViewConfig(defaultView.config, localWork())
+          applyViewConfig(defaultView.config, keep)
           return
         }
         // No view to adopt. Deliberately does NOT apply an empty config — that
-        // would clear a deep-linked `?sort=` on mount.
+        // would clear a deep-linked `?sort=` on mount. Inherited params are the
+        // exception: nothing about them refers to this table, so they're cleared.
         seededViewIdRef.current = null
-        if (embedded && activeViewId !== null) setTableParams({ view: ALL_VIEW_PARAM })
+        if (inheritedParams) setTableParams({ view: ALL_VIEW_PARAM, sort: null, dir: null })
         return
       }
       if (activeViewId === ALL_VIEW_PARAM) {
