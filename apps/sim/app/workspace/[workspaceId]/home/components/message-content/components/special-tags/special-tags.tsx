@@ -516,10 +516,9 @@ const JSON_BODY_TAG_NAMES: ReadonlySet<(typeof SPECIAL_TAG_NAMES)[number]> = new
  * first character that breaks JSON viability — so a bounded window reaches the
  * same verdict as the full remainder for any payload a tag actually carries.
  * Unbounded, the check is O(body length) and runs once per opener inside a parse
- * that re-runs for every streamed chunk: a long reply repeatedly mentioning a tag
- * name cost seconds of main-thread time, and one 58KB reply whose early close was
- * misspelled — so a single body stretched most of the message — cost 242ms per
- * parse against 35ms bounded.
+ * that re-runs for every streamed chunk. A long reply repeatedly mentioning a
+ * tag name, or one whose misspelled early close stretches a single body across
+ * most of the message, is then quadratic in the length of the reply.
  *
  * The window's one blind spot, and why it is accepted: a JSON body whose
  * top-level value closes BEYOND the window, followed by prose and no closing tag,
@@ -619,36 +618,6 @@ function isViableJsonPrefixOf(scannable: string): boolean {
 }
 
 /**
- * True when an opening tag with no close yet can NEVER resolve, so the text
- * after it should be shown immediately instead of held back until the stream
- * ends.
- *
- * Without this, a message that merely mentions a tag in prose goes blank from
- * that point on for the rest of the stream — the text is only restored once
- * streaming stops.
- *
- * One rule decides it, chosen by body kind:
- *
- * - **JSON-bodied tags** must stay a viable JSON prefix. Depth is tracked rather
- *   than testing the first character alone, so a body whose top-level value has
- *   already closed is caught the moment stray content follows it — a mention in
- *   prose (no `{` at all), a misspelled close like `</workflow_resource>`, a
- *   truncated `</workspac`, or no close whatsoever.
- * - **The prose-bodied tag** has no JSON to test, so the only evidence available
- *   is that tags never nest: another special-tag marker in the body — opening or
- *   closing, foreign or its own name — means this opener was literal text.
- *
- * Scanning for nested markers on a JSON body too was redundant: any marker
- * outside a string literal is itself content the JSON rule already rejects, and
- * markers inside one are legitimate quoted syntax that must NOT count as
- * evidence. It cost 14 substring scans per opener per streamed chunk to catch
- * nothing the viability rule misses.
- *
- * Both are conservative: they only fire on content that could not have parsed.
- * A false positive would merely show text early that a later chunk resolves
- * into a tag — the end-of-stream parse still produces the correct final render.
- */
-/**
  * Whether `text` contains a marker for one of the tags this parser knows.
  *
  * Deliberately the tag NAMES rather than anything tag-shaped. A prose body may
@@ -661,6 +630,32 @@ function hasSpecialTagMarker(text: string): boolean {
   return SPECIAL_TAG_NAMES.some((name) => text.includes(`</${name}>`) || text.includes(`<${name}>`))
 }
 
+/**
+ * True when an opening tag with no close yet can NEVER resolve, so the text
+ * after it should be shown immediately instead of held back until the stream
+ * ends. Without it, a message that merely mentions a tag in prose goes blank
+ * from that point on until streaming stops.
+ *
+ * One rule decides it, chosen by body kind:
+ *
+ * - **JSON-bodied tags** must stay a viable JSON prefix. Depth is tracked rather
+ *   than testing the first character alone, so a body whose top-level value has
+ *   already closed is caught the moment stray content follows it — a mention in
+ *   prose (no `{` at all), a misspelled close like `</workflow_resource>`, a
+ *   truncated `</workspac`, or no close whatsoever.
+ * - **The prose-bodied tag** has no JSON to test, so the only evidence available
+ *   is that tags never nest: a marker for another special tag in the body means
+ *   this opener was literal text.
+ *
+ * Nested markers are NOT scanned for on a JSON body. A marker outside a string
+ * literal is content the viability rule already rejects, and one inside is
+ * legitimate quoted syntax that must not count as evidence — so the scan cost a
+ * pass per tag name, open and close, to catch nothing.
+ *
+ * Both rules are conservative: they fire only on content that could not have
+ * parsed. A false positive merely shows text early that a later chunk resolves
+ * into a tag, and the end-of-stream parse still renders correctly.
+ */
 function unclosedTagCannotResolve(
   tagName: (typeof SPECIAL_TAG_NAMES)[number],
   body: string
@@ -672,8 +667,7 @@ function unclosedTagCannotResolve(
   // Cheap rejection before the expensive one. isViableJsonPrefixOf decides on
   // the first non-whitespace character when it is not `{` or `[` — which is the
   // common case, a tag name mentioned in prose — so testing it here avoids
-  // blanking up to a full window of text only to throw the copy away. Measured
-  // at 86KB of such prose: 43ms per streaming parse before, 2.4ms after.
+  // blanking up to a full window of text only to throw the copy away.
   const firstChar = pending.trimStart().charAt(0)
   if (firstChar !== '' && firstChar !== '{' && firstChar !== '[') return true
 
@@ -804,9 +798,8 @@ export function memoizedIndexOf(
  * How much of a body may be inspected, and whether that is all of it.
  *
  * The read budget, isolated from what the body turns out to BE. Both the
- * unclosed and matched-pair paths spend it, and getting them to agree is the
- * point: they previously applied the same constant in two shapes, and the
- * difference between them was a bug.
+ * unclosed and matched-pair paths spend it through this one function, so they
+ * cannot drift out of agreement about how much of a body may be read.
  */
 interface InspectedBody {
   /** The prefix actually examined. */
@@ -988,9 +981,6 @@ function resolveTagAt(
  * tags are suppressed and flagged via `hasPendingTag` so the caller can show a
  * loading indicator, and a trailing partial opening marker (`<opt`, `<usage_`)
  * is stripped during streaming so it never flashes as raw markup.
- *
- * Adjacent text segments are concatenated by the renderer, so emitting a span
- * as several pieces is display-neutral.
  */
 export function parseSpecialTags(content: string, isStreaming: boolean): ParsedSpecialContent {
   const segments: ContentSegment[] = []

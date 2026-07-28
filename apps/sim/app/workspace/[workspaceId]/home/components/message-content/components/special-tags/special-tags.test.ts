@@ -223,8 +223,6 @@ describe('parseSpecialTags with <question>', () => {
   })
 
   it('still parses a valid tag that follows a rejected one', () => {
-    // Before the rewrite, rejecting an unclosed tag abandoned the rest of the
-    // message, so this <options> tag was never parsed at all.
     const { segments } = parseSpecialTags(
       'I use <thinking> loosely here. Anyway: <options>[{"title":"A","description":"d"}]</options> done.',
       false
@@ -437,8 +435,6 @@ describe('parseSpecialTags with <question>', () => {
   })
 
   it('shows prose immediately mid-stream instead of blanking the rest', () => {
-    // The failure this replaces: everything after the marker stayed invisible
-    // for the remainder of the stream, then reappeared when it ended.
     const content = 'The `<workspace_resource>` chip only renders for a real file.'
     const { segments, hasPendingTag } = parseSpecialTags(content, true)
     expect(hasPendingTag).toBe(false)
@@ -627,9 +623,6 @@ describe('parseSpecialTags with <question>', () => {
       'The `<workspace_resource>` file chip only renders when its path points to a real file.'
     const { segments, hasPendingTag } = parseSpecialTags(content, false)
     expect(hasPendingTag).toBe(false)
-    // Asserted on the joined text, not segment boundaries: the renderer
-    // concatenates adjacent text segments, so how the span is split is not
-    // observable to a reader.
     expect(segments.every((segment) => segment.type === 'text')).toBe(true)
     expect(renderedText(segments)).toBe(content)
   })

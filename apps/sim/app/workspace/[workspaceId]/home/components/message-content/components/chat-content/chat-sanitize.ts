@@ -19,8 +19,7 @@ const HIDDEN_INLINE_REFERENCE_PATTERN =
  * - **No `<workspace_resource>` between opener and closer**, via the negative
  *   lookahead. This is a cost bound, not a correctness rule: a lazy scan that may
  *   cross an opener restarts from every opener, so a message repeating the tag
- *   name is quadratic. Measured at 168KB of such prose: 154ms per call without
- *   it, 0.34ms with — and this runs on the main thread for every streamed chunk.
+ *   name is quadratic — on the main thread, for every streamed chunk.
  *
  * Backticks must be DIRECTLY adjacent. Allowing whitespace between let the
  * pattern reach past the tag and take the delimiter off a neighbouring code
