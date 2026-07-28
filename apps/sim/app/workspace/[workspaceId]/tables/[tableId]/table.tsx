@@ -358,8 +358,6 @@ export function Table({
     ((previousName: string, newName: string) => void) | null
   >(null)
 
-  // Declared before `useTable`: the rows query is gated on `viewsLoaded`, since a
-  // view owns the filter/sort the query runs with.
   const { data: views = NO_VIEWS, isSuccess: viewsLoaded } = useTableViews({
     workspaceId,
     tableId,
@@ -381,10 +379,6 @@ export function Table({
     workspaceId,
     tableId,
     queryOptions,
-    // Without this the first fetch runs against an empty filter and the grid
-    // paints the unfiltered set before refetching. Gates only the first pass —
-    // `viewsLoaded` stays true after, so later filter edits fetch immediately.
-    rowsEnabled: !viewsEnabled || viewsLoaded,
   })
   const createViewMutation = useCreateTableView({ workspaceId, tableId })
   const updateViewMutation = useUpdateTableView({ workspaceId, tableId })
