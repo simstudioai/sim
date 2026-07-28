@@ -41,8 +41,10 @@ import {
   extractWorkflowsFromZip,
   parseWorkflowJson,
 } from '@/lib/workflows/operations/import-export'
+import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
+import { normalizeImportedVariables } from '@/lib/workflows/variables/parse'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
@@ -52,7 +54,6 @@ import {
 } from '@/app/api/v1/admin/responses'
 import type {
   ImportResult,
-  WorkflowVariable,
   WorkspaceImportRequest,
   WorkspaceImportResponse,
 } from '@/app/api/v1/admin/types'
@@ -270,7 +271,22 @@ async function importSingleWorkflow(
       variables: {},
     })
 
-    const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowData)
+    /**
+     * Same normalization the editor, the v1 import API and the single-workflow
+     * admin import run, via the one shared implementation. Without it this route
+     * wrote raw parsed state, so a dangling edge tripped the `workflow_edges`
+     * foreign key and failed the restore, and blocks missing their backfilled
+     * columns could land unopenable.
+     */
+    const { state: preparedState, warnings } = prepareWorkflowStateForPersistence(workflowData)
+    if (warnings.length > 0) {
+      logger.warn(`Admin API: normalized "${dedupedName}" with warnings`, { warnings })
+    }
+
+    const saveResult = await saveWorkflowToNormalizedTables(workflowId, {
+      ...workflowData,
+      ...preparedState,
+    })
 
     if (!saveResult.success) {
       await db.delete(workflow).where(eq(workflow.id, workflowId))
@@ -282,18 +298,13 @@ async function importSingleWorkflow(
       }
     }
 
-    if (workflowData.variables && Array.isArray(workflowData.variables)) {
-      const variablesRecord: Record<string, WorkflowVariable> = {}
-      workflowData.variables.forEach((v) => {
-        const varId = v.id || generateId()
-        variablesRecord[varId] = {
-          id: varId,
-          name: v.name,
-          type: v.type || 'string',
-          value: v.value,
-        }
-      })
-
+    /**
+     * Previously guarded on `Array.isArray`, which silently dropped every
+     * variable in the current record form — the exact shape this workspace's
+     * own export emits — so an export/import round trip lost all of them.
+     */
+    const variablesRecord = normalizeImportedVariables(workflowData.variables)
+    if (Object.keys(variablesRecord).length > 0) {
       await db
         .update(workflow)
         .set({ variables: variablesRecord, updatedAt: new Date() })
