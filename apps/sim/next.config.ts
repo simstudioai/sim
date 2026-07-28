@@ -132,9 +132,16 @@ const nextConfig: NextConfig = {
     '@daytonaio/sdk',
     '@earendil-works/pi-ai',
     '@earendil-works/pi-coding-agent',
+    // The collab-doc seed converter lazily `require`s jsdom for a headless TipTap editor. Keep it
+    // external so webpack doesn't try to bundle jsdom's dynamic internal requires.
+    'jsdom',
   ],
   outputFileTracingIncludes: {
     '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],
+    // The seed endpoint's lazy `require('jsdom')` is invisible to the standalone file tracer, so
+    // force jsdom (and its transitive deps, followed from its static requires) into the trace —
+    // otherwise a Docker/standalone build omits it and the endpoint 500s with MODULE_NOT_FOUND.
+    '/api/internal/file-doc/seed': ['./node_modules/jsdom/**/*'],
     '/*': [
       './node_modules/sharp/**/*',
       './node_modules/@img/**/*',

@@ -1,9 +1,9 @@
 import {
   FILE_DOC_EVENTS,
   FILE_DOC_MESSAGE_TYPE,
+  FILE_DOC_SEED,
   type JoinFileDocError,
   type JoinFileDocSuccess,
-  type SeedRequestPayload,
   toFileDocBytes,
 } from '@sim/realtime-protocol/file-doc'
 import * as decoding from 'lib0/decoding'
@@ -17,26 +17,26 @@ import type * as Y from 'yjs'
 /**
  * Events emitted by {@link FileDocProvider}.
  * - `synced`: the first full document sync with the server completed.
- * - `seed-request`: the server elected this client to seed the document's initial
- *   content from the file's stored markdown (the editor does the import, guarded
- *   by the CRDT `initialContentLoaded` flag).
  * - `join-error`: the server rejected the join (e.g. lost write access).
  */
 interface FileDocProviderEvents {
   synced: (synced: boolean) => void
-  'seed-request': () => void
   'join-error': (error: JoinFileDocError) => void
 }
 
 /**
- * How long to wait for a first document sync before giving up. If the realtime server is
- * unreachable (offline, server down, socket never connects) the provider would otherwise never
- * sync and the editor would sit blank and read-only forever. On this deadline the provider latches
- * fatal and surfaces a non-retryable `join-error` — the exact path a fatal rejection uses — so the
- * editor falls back to showing the file's stored content read-only. Generous enough to clear a slow
- * connect; a socket that connects at all syncs well within it (SyncStep2 for a fresh doc is cheap).
+ * How long to wait to reach a USABLE editor — connected, synced, AND seeded (`initialContentLoaded`
+ * set by the server seed) — before giving up. It guards two failure modes with one timer:
+ * - the realtime server is unreachable, so the first sync never arrives; and
+ * - the socket syncs an empty doc but the server-side seed never lands (its build persistently fails
+ *   / exhausts its retries), which `synced` alone would wrongly treat as "connected, all good".
+ *
+ * On the deadline the provider latches fatal and surfaces a non-retryable `join-error` — the exact
+ * path a fatal rejection uses — so the editor falls back to showing the file's stored content
+ * read-only instead of a permanently blank pane. Generous enough to clear a slow connect + seed
+ * round-trip; a healthy cold open reaches readiness well within it.
  */
-const CONNECT_DEADLINE_MS = 12_000
+const READINESS_DEADLINE_MS = 12_000
 
 /**
  * The client half of the collaborative file-document protocol: a Yjs provider
@@ -54,14 +54,8 @@ const CONNECT_DEADLINE_MS = 12_000
 export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   synced = false
   /**
-   * Latched `true` when the server elects this client to seed the document. The
-   * `seed-request` event is transient and can fire before a consumer subscribes,
-   * so consumers read this flag on subscription rather than relying on the event.
-   */
-  shouldSeed = false
-  /**
-   * The latched non-retryable join rejection, or `null`. Like {@link shouldSeed},
-   * the `join-error` event is transient and can fire before a consumer subscribes,
+   * The latched non-retryable join rejection, or `null`. The `join-error` event is
+   * transient and can fire before a consumer subscribes,
    * so consumers read this on subscription to detect a fatal failure they missed.
    */
   joinError: JoinFileDocError | null = null
@@ -70,8 +64,8 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   /** Set on a non-retryable join rejection (e.g. lost write access) so the
    * provider stops attempting to (re)join until the owner tears it down. */
   private fatal = false
-  /** Deadline for the first sync; fires the offline fallback if the server is never reached. */
-  private connectTimer: ReturnType<typeof setTimeout> | null = null
+  /** Deadline for reaching readiness (synced + seeded); fires the fallback if it is never reached. */
+  private readinessTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(
     private readonly socket: Socket,
@@ -96,42 +90,58 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     socket.on(FILE_DOC_EVENTS.MESSAGE, this.handleMessage)
     socket.on(FILE_DOC_EVENTS.JOIN_SUCCESS, this.handleJoinSuccess)
     socket.on(FILE_DOC_EVENTS.JOIN_ERROR, this.handleJoinError)
-    socket.on(FILE_DOC_EVENTS.SEED_REQUEST, this.handleSeedRequest)
     socket.on('connect', this.handleConnect)
     doc.on('update', this.handleDocUpdate)
     awareness.on('update', this.handleAwarenessUpdate)
+    // Watch the seed flag so reaching "seeded" (server seed applied) can clear the readiness deadline.
+    doc.getMap(FILE_DOC_SEED.configMap).observe(this.handleConfigChange)
 
     if (socket.connected) this.join()
 
-    // Arm the offline fallback: if no first sync arrives before the deadline, give up (below).
-    this.connectTimer = setTimeout(this.handleConnectDeadline, CONNECT_DEADLINE_MS)
+    // Arm the fallback: if we don't reach readiness (synced + seeded) before the deadline, give up.
+    this.readinessTimer = setTimeout(this.handleReadinessDeadline, READINESS_DEADLINE_MS)
+  }
+
+  /** Whether the server seed has recorded the initial content on the doc. */
+  private isSeeded(): boolean {
+    return this.doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag) === true
+  }
+
+  /** Clear the readiness deadline once the editor is usable (synced AND seeded). */
+  private handleConfigChange = () => {
+    if (this.synced && this.isSeeded()) this.clearReadinessTimer()
   }
 
   /**
-   * The first sync never arrived within {@link CONNECT_DEADLINE_MS} — the realtime server is
-   * unreachable. Latch fatal (so a late reconnect can't sync server state in and merge-duplicate the
-   * content the editor is about to seed locally) and surface a synthetic non-retryable join-error, so
-   * the owner falls back to the read-only, non-collaborative view exactly as it does for a real
-   * fatal rejection. No-op if we already synced, already failed fatally, or were torn down.
+   * Readiness was never reached within {@link READINESS_DEADLINE_MS} — either the realtime server is
+   * unreachable (never synced) or it synced but the server-side seed never landed (synced yet
+   * unseeded). Reset `synced` (so the editor gates read-only), latch fatal (so a late reconnect or
+   * seed can't sync server state in and merge-duplicate the content the editor is about to render
+   * locally), and surface a synthetic non-retryable join-error — the exact path a fatal rejection
+   * uses — so the owner falls back to the read-only view of the file's stored content instead of a
+   * blank pane. No-op if we already reached readiness, already failed fatally, or were torn down.
    */
-  private handleConnectDeadline = () => {
-    this.connectTimer = null
-    if (this.synced || this.fatal || this.disposed) return
+  private handleReadinessDeadline = () => {
+    this.readinessTimer = null
+    if ((this.synced && this.isSeeded()) || this.fatal || this.disposed) return
     const error: JoinFileDocError = {
       fileId: this.fileId,
-      error: 'Realtime connection timed out',
-      code: 'CONNECT_TIMEOUT',
+      error: 'Realtime document was not ready in time',
+      code: 'READINESS_TIMEOUT',
       retryable: false,
     }
     this.fatal = true
     this.joinError = error
+    // Drop `synced` so the editor's `synced && seeded` gate stays closed → the fallback renders the
+    // stored content read-only rather than becoming editable on a doc the server never seeded.
+    this.setSynced(false)
     this.emit('join-error', [error])
   }
 
-  private clearConnectTimer() {
-    if (this.connectTimer !== null) {
-      clearTimeout(this.connectTimer)
-      this.connectTimer = null
+  private clearReadinessTimer() {
+    if (this.readinessTimer !== null) {
+      clearTimeout(this.readinessTimer)
+      this.readinessTimer = null
     }
   }
 
@@ -171,15 +181,9 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     if (data.retryable === false) {
       this.fatal = true
       this.joinError = data
-      this.clearConnectTimer()
+      this.clearReadinessTimer()
     }
     this.emit('join-error', [data])
-  }
-
-  private handleSeedRequest = (data: SeedRequestPayload) => {
-    if (data.fileId !== this.fileId) return
-    this.shouldSeed = true
-    this.emit('seed-request', [])
   }
 
   private handleMessage = (data: unknown) => {
@@ -221,6 +225,11 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   }
 
   private handleDocUpdate = (update: Uint8Array, origin: unknown) => {
+    // Once fatal (a non-retryable rejection, or the readiness deadline lapsed), the editor may render
+    // the stored content into the doc locally as its read-only fallback. Never relay those local
+    // writes — the server never seeded this doc, so echoing them would push unseeded content to peers
+    // (and each fallen-back client would do so, union-duplicating). A fatal client is fully local.
+    if (this.fatal) return
     // Updates we applied from the server carry `this` as origin — don't echo them.
     if (origin === this) return
     const encoder = encoding.createEncoder()
@@ -272,7 +281,9 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   private setSynced(synced: boolean) {
     if (this.synced === synced) return
     this.synced = synced
-    if (synced) this.clearConnectTimer()
+    // Readiness needs synced AND seeded; only clear the deadline when both hold (the seed may have
+    // arrived first, or may still be pending — `handleConfigChange` clears it if seeded arrives later).
+    if (synced && this.isSeeded()) this.clearReadinessTimer()
     this.emit('synced', [synced])
   }
 
@@ -287,7 +298,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       return
     }
     this.disposed = true
-    this.clearConnectTimer()
+    this.clearReadinessTimer()
 
     awarenessProtocol.removeAwarenessStates(this.awareness, [this.doc.clientID], 'provider-destroy')
 
@@ -295,9 +306,9 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     this.socket.off(FILE_DOC_EVENTS.MESSAGE, this.handleMessage)
     this.socket.off(FILE_DOC_EVENTS.JOIN_SUCCESS, this.handleJoinSuccess)
     this.socket.off(FILE_DOC_EVENTS.JOIN_ERROR, this.handleJoinError)
-    this.socket.off(FILE_DOC_EVENTS.SEED_REQUEST, this.handleSeedRequest)
     this.socket.off('connect', this.handleConnect)
     this.doc.off('update', this.handleDocUpdate)
+    this.doc.getMap(FILE_DOC_SEED.configMap).unobserve(this.handleConfigChange)
     this.awareness.off('update', this.handleAwarenessUpdate)
 
     super.destroy()
