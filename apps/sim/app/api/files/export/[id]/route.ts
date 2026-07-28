@@ -10,6 +10,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { extractEmbeddedImageIds } from '@/lib/copilot/tools/server/files/embedded-image-refs'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
@@ -23,16 +24,14 @@ import { encodeFilenameForHeader } from '@/app/api/files/utils'
 const logger = createLogger('FilesExportAPI')
 
 /**
- * Bundling caps. The embed list comes from scanning the document body, so its length
- * and the bytes behind it are whatever the author put there — without these the export
- * would materialize an unbounded number of unbounded assets in one request.
+ * Byte ceilings for a bundled export. The bytes behind an embed list are whatever the
+ * author put there, so without these the export would materialize unbounded assets in
+ * one request. They match the bulk-download route, so the two export surfaces reject at
+ * the same size.
  *
- * The byte ceilings are the real bound and match the bulk-download route, so the two
- * export surfaces reject at the same size. The count is only a guard on the metadata
- * lookups that precede the byte check, so it sits far above any hand-authored document
- * rather than at a number a screenshot-heavy doc could plausibly reach.
+ * There is deliberately no count cap here: `extractEmbeddedFileRefs` already stops at
+ * `MAX_EMBEDDED_IMAGES`, so the list this route receives is bounded before it arrives.
  */
-const MAX_EXPORT_ASSETS = 500
 const MAX_EXPORT_ASSET_BYTES = 25 * 1024 * 1024
 const MAX_EXPORT_TOTAL_BYTES = 250 * 1024 * 1024
 
@@ -128,10 +127,26 @@ export const GET = withRouteHandler(
       return NextResponse.redirect(new URL(servePath, request.url), { status: 302 })
     }
 
-    const mdBuffer = await downloadFile({
-      key: record.key,
-      context: record.context as StorageContext,
-    })
+    // Capped like everything else in the bundle: the document body is usually the
+    // largest single entry, so leaving it unbounded left the export limit unenforced
+    // against the one item most able to exceed it. A body that alone exceeds the limit
+    // is a size rejection, so it reports as one rather than as a server error.
+    let mdBuffer: Buffer
+    try {
+      mdBuffer = await downloadFile({
+        key: record.key,
+        context: record.context as StorageContext,
+        maxBytes: MAX_EXPORT_TOTAL_BYTES,
+      })
+    } catch (error) {
+      if (!isPayloadSizeLimitError(error)) throw error
+      return NextResponse.json(
+        {
+          error: `This document exceeds the ${formatFileSize(MAX_EXPORT_TOTAL_BYTES)} export limit.`,
+        },
+        { status: 400 }
+      )
+    }
     let mdContent = mdBuffer.toString('utf-8')
 
     const imageIds = extractEmbeddedImageIds(mdContent)
@@ -150,15 +165,6 @@ export const GET = withRouteHandler(
           'Content-Length': String(mdBytes.length),
         },
       })
-    }
-
-    if (imageIds.length > MAX_EXPORT_ASSETS) {
-      return NextResponse.json(
-        {
-          error: `This document embeds ${imageIds.length} files, more than the ${MAX_EXPORT_ASSETS} an export can bundle.`,
-        },
-        { status: 400 }
-      )
     }
 
     // Metadata first: declared sizes bound the download before a byte is read, and the
@@ -180,11 +186,14 @@ export const GET = withRouteHandler(
       })
     ).filter((target): target is NonNullable<typeof target> => target !== null)
 
-    const declaredAssetBytes = assetTargets.reduce((sum, target) => sum + target.record.size, 0)
-    if (declaredAssetBytes > MAX_EXPORT_TOTAL_BYTES) {
+    // The body counts against the same budget as its assets — the zip holds both, so a
+    // limit that measured only the attachments would not describe the archive produced.
+    const bundleBytes =
+      mdBuffer.length + assetTargets.reduce((sum, target) => sum + target.record.size, 0)
+    if (bundleBytes > MAX_EXPORT_TOTAL_BYTES) {
       return NextResponse.json(
         {
-          error: `Embedded files total ${formatFileSize(declaredAssetBytes)}, which exceeds the ${formatFileSize(MAX_EXPORT_TOTAL_BYTES)} export limit.`,
+          error: `This document and its embedded files total ${formatFileSize(bundleBytes)}, which exceeds the ${formatFileSize(MAX_EXPORT_TOTAL_BYTES)} export limit.`,
         },
         { status: 400 }
       )
