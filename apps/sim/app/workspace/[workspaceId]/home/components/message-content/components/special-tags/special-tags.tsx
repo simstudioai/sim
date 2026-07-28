@@ -392,6 +392,25 @@ export function parseTextTagBody(body: string): string | null {
   return body.trim() ? body : null
 }
 
+/**
+ * Whether `body` is syntactically valid JSON, regardless of its shape.
+ *
+ * Separates "the agent formed a payload that failed its shape guard" from "this
+ * was never JSON" — the line that decides whether a failed body may be dropped
+ * or must be shown (see {@link resolveTagAt}). Costs a second parse of a body
+ * that already failed one, which is the rare path; the common cases never reach
+ * it, since a valid payload returns earlier and prose is rejected by the cheaper
+ * viability rule before this runs.
+ */
+function isParseableJson(body: string): boolean {
+  try {
+    JSON.parse(body)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function parseTagAttributes(openTag: string): Record<string, string> {
   const attributes: Record<string, string> = {}
   const attributePattern = /([A-Za-z_:][A-Za-z0-9_:-]*)="([^"]*)"/g
@@ -822,6 +841,16 @@ function resolveTagAt(
   if (truncated) return { outcome: 'literal', resumeAt: bodyStart + MAX_UNCLOSED_BODY_SCAN }
 
   if (verdict?.reason === 'never-a-payload') return { outcome: 'literal', resumeAt }
+
+  // Dropping text is only defensible for a payload the agent actually FORMED:
+  // syntactically valid JSON that failed its shape guard. A body that will not
+  // parse at all was never demonstrably a payload — `{the Q4 report}` is prose
+  // someone wrapped in braces, and unquoted keys or single quotes are ordinary
+  // model slips — so it is shown rather than deleted. Bracket depth cannot tell
+  // those apart from a real payload; only an actual parse can.
+  if (JSON_BODY_TAG_NAMES.has(tagName) && !isParseableJson(body)) {
+    return { outcome: 'literal', resumeAt }
+  }
 
   // A well-formed value that failed its shape guard is a broken emission from
   // the agent; showing the user raw JSON there would be worse than nothing.

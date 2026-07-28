@@ -262,6 +262,23 @@ describe('parseSpecialTags with <question>', () => {
     expect(rendered).toContain('to handle the welcome sequence')
   })
 
+  it('shows a body that will not parse at all, rather than dropping it', () => {
+    // `discard` is only defensible for a payload the agent actually FORMED —
+    // valid JSON that failed its shape guard. Bracket depth cannot tell prose
+    // wrapped in braces from a real payload, so without an actual parse these
+    // were deleted: the first is a resource name someone wrote in braces, the
+    // other two are the commonest JSON slips a model makes.
+    const cases = [
+      'I saved <workspace_resource>{the Q4 report}</workspace_resource> for you.',
+      'See <workspace_resource>{type: "file", path: "a.md"}</workspace_resource> ok',
+      "See <workspace_resource>{'type':'file'}</workspace_resource> ok",
+    ]
+    for (const raw of cases) {
+      const { segments } = parseSpecialTags(raw, false)
+      expect(renderedText(segments)).toBe(raw)
+    }
+  })
+
   it('still drops a marker-free malformed payload rather than showing raw JSON', () => {
     // The complement of the case above: no tag markers in the body, so this is
     // a genuinely broken emission from the agent, not swallowed prose.
