@@ -116,10 +116,14 @@ export function resolveFilterSelectValues(filter: Filter, columns: ColumnDefinit
  * op:'eq', value:'Open'}`) compares the option NAME against the stored option
  * ID and silently matches nothing.
  *
- * Only value-carrying comparison ops are resolved. Pattern ops (`contains`,
- * `like`, …) are deliberately left alone: they match against the raw stored
- * cell, and rewriting their operand to an id would change what the user asked
- * for. The valueless ops carry nothing to resolve.
+ * Mirrors the `$`-grammar set exactly: equality/membership on a single select
+ * (`eq`/`ne`/`in`/`nin`) AND `contains`/`ncontains`, which on a MULTI-select are
+ * not pattern matches at all — the cell is an array of option ids, so those ops
+ * express membership and their operand is an option, not a substring. Leaving
+ * them out is what made a correctly-formed multi-select filter match nothing.
+ * The remaining pattern ops (`like`, `startsWith`, …) are rejected on select
+ * columns by `fieldPredicate`'s allowlist, so they never reach here. The
+ * valueless ops carry nothing to resolve.
  */
 export function resolvePredicateSelectValues(
   predicate: TablePredicate,
@@ -130,7 +134,7 @@ export function resolvePredicateSelectValues(
   )
   if (selectById.size === 0) return predicate
 
-  const RESOLVED_OPS = new Set<FilterOp>(['eq', 'ne', 'in', 'nin'])
+  const RESOLVED_OPS = new Set<FilterOp>(['eq', 'ne', 'in', 'nin', 'contains', 'ncontains'])
 
   const walk = (node: PredicateNode): PredicateNode => {
     if ('all' in node) return { all: node.all.map(walk) }
