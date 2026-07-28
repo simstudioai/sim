@@ -1,4 +1,4 @@
-import { workflow, workflowBlocks, workflowFolder } from '@sim/db/schema'
+import { workflow, workflowBlocks, folder as workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
@@ -75,7 +75,11 @@ export async function resolveForkFolderMapping({
     .select()
     .from(workflowFolder)
     .where(
-      and(eq(workflowFolder.workspaceId, sourceWorkspaceId), isNull(workflowFolder.archivedAt))
+      and(
+        eq(workflowFolder.workspaceId, sourceWorkspaceId),
+        eq(workflowFolder.resourceType, 'workflow'),
+        isNull(workflowFolder.deletedAt)
+      )
     )
 
   if (sourceFolders.length === 0) return map
@@ -98,7 +102,11 @@ export async function resolveForkFolderMapping({
     .select()
     .from(workflowFolder)
     .where(
-      and(eq(workflowFolder.workspaceId, targetWorkspaceId), isNull(workflowFolder.archivedAt))
+      and(
+        eq(workflowFolder.workspaceId, targetWorkspaceId),
+        eq(workflowFolder.resourceType, 'workflow'),
+        isNull(workflowFolder.deletedAt)
+      )
     )
 
   const targetByKey = new Map<string, string>()

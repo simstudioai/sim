@@ -13,7 +13,7 @@ import type {
   user,
   userStats,
   workflow,
-  workflowFolder,
+  folder as workflowFolder,
   workspace,
 } from '@sim/db/schema'
 import type { InferSelectModel } from 'drizzle-orm'
@@ -156,6 +156,11 @@ export interface AdminFolder {
   id: string
   name: string
   parentId: string | null
+  /**
+   * Always `null` since folders moved to the generic `folder` table, which has no `color`
+   * column (it had no consumer). Retained so the v1 admin response shape stays stable for
+   * existing API clients rather than silently dropping a documented field.
+   */
   color: string | null
   sortOrder: number
   createdAt: string
@@ -167,7 +172,7 @@ export function toAdminFolder(dbFolder: DbWorkflowFolder): AdminFolder {
     id: dbFolder.id,
     name: dbFolder.name,
     parentId: dbFolder.parentId,
-    color: dbFolder.color,
+    color: null,
     sortOrder: dbFolder.sortOrder,
     createdAt: dbFolder.createdAt.toISOString(),
     updatedAt: dbFolder.updatedAt.toISOString(),

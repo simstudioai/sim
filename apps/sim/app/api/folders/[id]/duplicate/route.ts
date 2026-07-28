@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { workflow, workflowFolder } from '@sim/db/schema'
+import { workflow, folder as workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { FolderLockedError } from '@sim/platform-authz/workflow'
 import { generateId } from '@sim/utils/id'
@@ -41,7 +41,7 @@ export const POST = withRouteHandler(
       const sourceFolder = await db
         .select()
         .from(workflowFolder)
-        .where(and(eq(workflowFolder.id, sourceFolderId), isNull(workflowFolder.archivedAt)))
+        .where(and(eq(workflowFolder.id, sourceFolderId), isNull(workflowFolder.deletedAt)))
         .then((rows) => rows[0])
 
       if (!sourceFolder) {
@@ -80,7 +80,13 @@ export const POST = withRouteHandler(
           tx
             .select({ minSortOrder: min(workflowFolder.sortOrder) })
             .from(workflowFolder)
-            .where(and(eq(workflowFolder.workspaceId, targetWorkspaceId), folderParentCondition)),
+            .where(
+              and(
+                eq(workflowFolder.workspaceId, targetWorkspaceId),
+                eq(workflowFolder.resourceType, 'workflow'),
+                folderParentCondition
+              )
+            ),
           tx
             .select({ minSortOrder: min(workflow.sortOrder) })
             .from(workflow)
@@ -104,13 +110,12 @@ export const POST = withRouteHandler(
 
         await tx.insert(workflowFolder).values({
           id: newFolderId,
+          resourceType: 'workflow',
           userId: session.user.id,
           workspaceId: targetWorkspaceId,
           name: deduplicatedName,
-          color: sourceFolder.color,
           parentId: targetParentId,
           sortOrder,
-          isExpanded: false,
           locked: false,
           createdAt: now,
           updatedAt: now,
@@ -234,7 +239,7 @@ async function assertTargetParentFolderMutable(
         parentId: workflowFolder.parentId,
         workspaceId: workflowFolder.workspaceId,
         locked: workflowFolder.locked,
-        archivedAt: workflowFolder.archivedAt,
+        archivedAt: workflowFolder.deletedAt,
       })
       .from(workflowFolder)
       .where(eq(workflowFolder.id, currentFolderId))
@@ -269,8 +274,9 @@ async function deduplicateFolderName(
     .where(
       and(
         eq(workflowFolder.workspaceId, workspaceId),
+        eq(workflowFolder.resourceType, 'workflow'),
         parentCondition,
-        isNull(workflowFolder.archivedAt)
+        isNull(workflowFolder.deletedAt)
       )
     )
   const siblingNames = new Set(siblingRows.map((row) => row.name))
@@ -302,7 +308,8 @@ async function duplicateFolderStructure(
       and(
         eq(workflowFolder.parentId, sourceFolderId),
         eq(workflowFolder.workspaceId, sourceWorkspaceId),
-        isNull(workflowFolder.archivedAt)
+        eq(workflowFolder.resourceType, 'workflow'),
+        isNull(workflowFolder.deletedAt)
       )
     )
 
@@ -312,13 +319,12 @@ async function duplicateFolderStructure(
 
     await tx.insert(workflowFolder).values({
       id: newChildFolderId,
+      resourceType: 'workflow',
       userId,
       workspaceId: targetWorkspaceId,
       name: childFolder.name,
-      color: childFolder.color,
       parentId: newParentFolderId,
       sortOrder: childFolder.sortOrder,
-      isExpanded: false,
       locked: false,
       createdAt: timestamp,
       updatedAt: timestamp,

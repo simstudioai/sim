@@ -4,7 +4,7 @@ import {
   chat,
   webhook,
   workflow,
-  workflowFolder,
+  folder as workflowFolder,
   workflowMcpTool,
   workflowSchedule,
 } from '@sim/db/schema'
@@ -67,7 +67,7 @@ async function assertParentFolderInWorkspace(
   const [parent] = await db
     .select({
       workspaceId: workflowFolder.workspaceId,
-      archivedAt: workflowFolder.archivedAt,
+      archivedAt: workflowFolder.deletedAt,
     })
     .from(workflowFolder)
     .where(eq(workflowFolder.id, parentId))
@@ -95,7 +95,13 @@ async function nextFolderSortOrder(
     db
       .select({ minSortOrder: min(workflowFolder.sortOrder) })
       .from(workflowFolder)
-      .where(and(eq(workflowFolder.workspaceId, workspaceId), folderParentCondition)),
+      .where(
+        and(
+          eq(workflowFolder.workspaceId, workspaceId),
+          eq(workflowFolder.resourceType, 'workflow'),
+          folderParentCondition
+        )
+      ),
     db
       .select({ minSortOrder: min(workflow.sortOrder) })
       .from(workflow)
@@ -141,11 +147,11 @@ export async function performCreateFolder(
       .insert(workflowFolder)
       .values({
         id: folderId,
+        resourceType: 'workflow',
         name: params.name.trim(),
         userId: params.userId,
         workspaceId: params.workspaceId,
         parentId,
-        color: params.color || '#6B7280',
         sortOrder,
       })
       .returning()
@@ -164,7 +170,6 @@ export async function performCreateFolder(
         name: folder.name,
         workspaceId: params.workspaceId,
         parentId: parentId || undefined,
-        color: folder.color,
         sortOrder: folder.sortOrder,
       },
     })
@@ -212,7 +217,8 @@ export async function performUpdateFolder(
       .where(
         and(
           eq(workflowFolder.id, params.folderId),
-          eq(workflowFolder.workspaceId, params.workspaceId)
+          eq(workflowFolder.workspaceId, params.workspaceId),
+          eq(workflowFolder.resourceType, 'workflow')
         )
       )
       .returning()
@@ -250,7 +256,8 @@ async function deleteFolderRecursively(
       and(
         eq(workflowFolder.parentId, folderId),
         eq(workflowFolder.workspaceId, workspaceId),
-        isNull(workflowFolder.archivedAt)
+        eq(workflowFolder.resourceType, 'workflow'),
+        isNull(workflowFolder.deletedAt)
       )
     )
 
@@ -282,7 +289,7 @@ async function deleteFolderRecursively(
 
   await db
     .update(workflowFolder)
-    .set({ archivedAt: timestamp })
+    .set({ deletedAt: timestamp })
     .where(eq(workflowFolder.id, folderId))
   stats.folders += 1
 
@@ -318,7 +325,8 @@ async function countWorkflowsInFolderRecursively(
       and(
         eq(workflowFolder.parentId, folderId),
         eq(workflowFolder.workspaceId, workspaceId),
-        isNull(workflowFolder.archivedAt)
+        eq(workflowFolder.resourceType, 'workflow'),
+        isNull(workflowFolder.deletedAt)
       )
     )
 
@@ -406,7 +414,7 @@ async function restoreFolderRecursively(
 ): Promise<{ folders: number; workflows: number }> {
   const stats = { folders: 0, workflows: 0 }
 
-  await tx.update(workflowFolder).set({ archivedAt: null }).where(eq(workflowFolder.id, folderId))
+  await tx.update(workflowFolder).set({ deletedAt: null }).where(eq(workflowFolder.id, folderId))
   stats.folders += 1
 
   const archivedWorkflows = await tx
@@ -447,7 +455,8 @@ async function restoreFolderRecursively(
       and(
         eq(workflowFolder.parentId, folderId),
         eq(workflowFolder.workspaceId, workspaceId),
-        eq(workflowFolder.archivedAt, folderArchivedAt)
+        eq(workflowFolder.resourceType, 'workflow'),
+        eq(workflowFolder.deletedAt, folderArchivedAt)
       )
     )
 
@@ -487,13 +496,19 @@ export async function performRestoreFolder(
   const [folder] = await db
     .select()
     .from(workflowFolder)
-    .where(and(eq(workflowFolder.id, folderId), eq(workflowFolder.workspaceId, workspaceId)))
+    .where(
+      and(
+        eq(workflowFolder.id, folderId),
+        eq(workflowFolder.workspaceId, workspaceId),
+        eq(workflowFolder.resourceType, 'workflow')
+      )
+    )
 
   if (!folder) {
     return { success: false, error: 'Folder not found' }
   }
 
-  if (!folder.archivedAt) {
+  if (!folder.deletedAt) {
     return { success: true, restoredItems: { folders: 0, workflows: 0 } }
   }
 
@@ -506,7 +521,7 @@ export async function performRestoreFolder(
   const restoredStats = await db.transaction(async (tx) => {
     if (folder.parentId) {
       const [parentFolder] = await tx
-        .select({ archivedAt: workflowFolder.archivedAt })
+        .select({ archivedAt: workflowFolder.deletedAt })
         .from(workflowFolder)
         .where(eq(workflowFolder.id, folder.parentId))
 
@@ -518,7 +533,7 @@ export async function performRestoreFolder(
       }
     }
 
-    return restoreFolderRecursively(folderId, workspaceId, folder.archivedAt!, tx)
+    return restoreFolderRecursively(folderId, workspaceId, folder.deletedAt!, tx)
   })
 
   logger.info('Restored folder and all contents:', { folderId, restoredStats })

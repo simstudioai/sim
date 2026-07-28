@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { workflowFolder } from '@sim/db/schema'
+import { folder as workflowFolder } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 
 /**
@@ -25,7 +25,13 @@ export async function expandFolderIdsWithDescendants(
   const rows = await db
     .select({ id: workflowFolder.id, parentId: workflowFolder.parentId })
     .from(workflowFolder)
-    .where(and(eq(workflowFolder.workspaceId, workspaceId), isNull(workflowFolder.archivedAt)))
+    .where(
+      and(
+        eq(workflowFolder.workspaceId, workspaceId),
+        eq(workflowFolder.resourceType, 'workflow'),
+        isNull(workflowFolder.deletedAt)
+      )
+    )
 
   const childrenByParent = new Map<string, string[]>()
   for (const row of rows) {

@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { workflow, workflowFolder } from '@sim/db/schema'
+import { workflow, folder as workflowFolder } from '@sim/db/schema'
 import { and, asc, eq, isNull } from 'drizzle-orm'
 import {
   buildWorkflowAliasWorkflowEntries,
@@ -46,7 +46,11 @@ export async function resolveWorkflowAliasForWorkspace(args: {
       })
       .from(workflowFolder)
       .where(
-        and(eq(workflowFolder.workspaceId, args.workspaceId), isNull(workflowFolder.archivedAt))
+        and(
+          eq(workflowFolder.workspaceId, args.workspaceId),
+          eq(workflowFolder.resourceType, 'workflow'),
+          isNull(workflowFolder.deletedAt)
+        )
       )
       .orderBy(asc(workflowFolder.sortOrder), asc(workflowFolder.createdAt)),
   ])

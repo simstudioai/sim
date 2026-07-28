@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
-import { workflowFolder } from '@sim/db/schema'
+import { folder as workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
-import { eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { reorderFoldersContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
@@ -60,7 +60,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
         .select({
           id: workflowFolder.id,
           workspaceId: workflowFolder.workspaceId,
-          archivedAt: workflowFolder.archivedAt,
+          archivedAt: workflowFolder.deletedAt,
         })
         .from(workflowFolder)
         .where(inArray(workflowFolder.id, targetParentIds))
@@ -83,7 +83,13 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
     const workspaceFolders = await db
       .select({ id: workflowFolder.id, parentId: workflowFolder.parentId })
       .from(workflowFolder)
-      .where(eq(workflowFolder.workspaceId, workspaceId))
+      .where(
+        and(
+          eq(workflowFolder.workspaceId, workspaceId),
+          eq(workflowFolder.resourceType, 'workflow'),
+          eq(workflowFolder.resourceType, 'workflow')
+        )
+      )
 
     const parentById = new Map<string, string | null>()
     for (const folder of workspaceFolders) {

@@ -12,9 +12,9 @@
  */
 
 import { db } from '@sim/db'
-import { workflow, workflowFolder } from '@sim/db/schema'
+import { workflow, folder as workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { adminV1ExportFolderContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
@@ -130,7 +130,13 @@ export const GET = withRouteHandler(
           parentId: workflowFolder.parentId,
         })
         .from(workflowFolder)
-        .where(eq(workflowFolder.workspaceId, folderData.workspaceId))
+        .where(
+          and(
+            eq(workflowFolder.workspaceId, folderData.workspaceId),
+            eq(workflowFolder.resourceType, 'workflow'),
+            eq(workflowFolder.resourceType, 'workflow')
+          )
+        )
 
       const workflowsInFolder = collectWorkflowsInFolder(folderId, allWorkflows, allFolders)
       const subfolders = collectSubfolders(folderId, allFolders)

@@ -7,7 +7,7 @@ import {
   memory,
   userTableDefinitions,
   workflow,
-  workflowFolder,
+  folder as workflowFolder,
   workflowMcpServer,
   workspaceFile,
   workspaceFiles,
@@ -414,7 +414,7 @@ async function cleanupExpiredKnowledgeBases(
 const CLEANUP_TARGETS = [
   {
     table: workflowFolder,
-    softDeleteCol: workflowFolder.archivedAt,
+    softDeleteCol: workflowFolder.deletedAt,
     wsCol: workflowFolder.workspaceId,
     name: 'workflowFolder',
   },

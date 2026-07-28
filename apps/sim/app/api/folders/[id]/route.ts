@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { workflowFolder } from '@sim/db/schema'
+import { folder as workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
 import { eq } from 'drizzle-orm'

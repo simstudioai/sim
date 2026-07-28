@@ -12,7 +12,7 @@ import {
   skill as skillTable,
   workflowDeploymentVersion,
   workflowExecutionLogs,
-  workflowFolder,
+  folder as workflowFolder,
   workflowMcpServer,
   workflowMcpTool,
   workflowSchedule,
@@ -2413,11 +2413,15 @@ export class WorkspaceVFS {
           .select({
             id: workflowFolder.id,
             name: workflowFolder.name,
-            archivedAt: workflowFolder.archivedAt,
+            archivedAt: workflowFolder.deletedAt,
           })
           .from(workflowFolder)
           .where(
-            and(eq(workflowFolder.workspaceId, workspaceId), isNotNull(workflowFolder.archivedAt))
+            and(
+              eq(workflowFolder.workspaceId, workspaceId),
+              eq(workflowFolder.resourceType, 'workflow'),
+              isNotNull(workflowFolder.deletedAt)
+            )
           ),
         listTables(workspaceId, { scope: 'archived' }),
         listWorkspaceFiles(workspaceId, { scope: 'archived' }),

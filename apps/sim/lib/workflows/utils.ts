@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { workflowFolder, workflow as workflowTable } from '@sim/db/schema'
+import { folder as workflowFolder, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { generateId } from '@sim/utils/id'
@@ -418,7 +418,13 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
     db
       .select({ minOrder: min(workflowFolder.sortOrder) })
       .from(workflowFolder)
-      .where(and(eq(workflowFolder.workspaceId, workspaceId), folderParentCondition)),
+      .where(
+        and(
+          eq(workflowFolder.workspaceId, workspaceId),
+          eq(workflowFolder.resourceType, 'workflow'),
+          folderParentCondition
+        )
+      ),
   ])
 
   const minSortOrder = [workflowMinResult?.minOrder, folderMinResult?.minOrder].reduce<
@@ -500,7 +506,13 @@ export async function verifyFolderWorkspace(
   const [row] = await db
     .select({ id: workflowFolder.id })
     .from(workflowFolder)
-    .where(and(eq(workflowFolder.id, folderId), eq(workflowFolder.workspaceId, workspaceId)))
+    .where(
+      and(
+        eq(workflowFolder.id, folderId),
+        eq(workflowFolder.workspaceId, workspaceId),
+        eq(workflowFolder.resourceType, 'workflow')
+      )
+    )
     .limit(1)
   return Boolean(row)
 }
@@ -541,6 +553,12 @@ export async function listFolders(workspaceId: string) {
       locked: workflowFolder.locked,
     })
     .from(workflowFolder)
-    .where(and(eq(workflowFolder.workspaceId, workspaceId), isNull(workflowFolder.archivedAt)))
+    .where(
+      and(
+        eq(workflowFolder.workspaceId, workspaceId),
+        eq(workflowFolder.resourceType, 'workflow'),
+        isNull(workflowFolder.deletedAt)
+      )
+    )
     .orderBy(asc(workflowFolder.sortOrder), asc(workflowFolder.createdAt))
 }

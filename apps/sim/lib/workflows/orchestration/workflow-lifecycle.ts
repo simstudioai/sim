@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { workflow, workflowFolder } from '@sim/db/schema'
+import { workflow, folder as workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isFolderInWorkspace } from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
@@ -138,7 +138,13 @@ async function nextWorkflowSortOrder(
     db
       .select({ minOrder: min(workflowFolder.sortOrder) })
       .from(workflowFolder)
-      .where(and(eq(workflowFolder.workspaceId, workspaceId), folderParentCondition)),
+      .where(
+        and(
+          eq(workflowFolder.workspaceId, workspaceId),
+          eq(workflowFolder.resourceType, 'workflow'),
+          folderParentCondition
+        )
+      ),
   ])
 
   const minSortOrder = [workflowMinResult?.minOrder, folderMinResult?.minOrder].reduce<
