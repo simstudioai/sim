@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
-import { getValidationErrorMessage, validationErrorResponse } from '@/lib/api/server'
+import { getValidationErrorMessage, isZodError, validationErrorResponse } from '@/lib/api/server'
 import { buildRateLimitHeaders, recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter'
@@ -270,4 +270,16 @@ export async function validateWorkspaceAccess(
  */
 export function v1ValidationErrorResponse(error: ZodError, fallback = 'Invalid request') {
   return validationErrorResponse(error, getValidationErrorMessage(error, fallback))
+}
+
+/**
+ * v1 counterpart to `validationErrorResponseFromError` for unknown caught
+ * values: returns a 400 naming the failing field when the error is a
+ * `ZodError`, otherwise `null` so the caller can keep handling it.
+ */
+export function v1ValidationErrorResponseFromError(
+  error: unknown,
+  fallback = 'Invalid request'
+): NextResponse | null {
+  return isZodError(error) ? v1ValidationErrorResponse(error, fallback) : null
 }

@@ -6,7 +6,7 @@ import {
   v1DeleteTableColumnContract,
   v1UpdateTableColumnContract,
 } from '@/lib/api/contracts/v1/tables'
-import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -29,6 +29,7 @@ import {
   checkWorkspaceScope,
   createRateLimitResponse,
   v1ValidationErrorResponse,
+  v1ValidationErrorResponseFromError,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableColumnsAPI')
@@ -94,7 +95,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
   } catch (error) {
     const lockError = tableLockErrorResponse(error)
     if (lockError) return lockError
-    const validationResponse = validationErrorResponseFromError(error)
+    const validationResponse = v1ValidationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
     if (error instanceof Error) {
@@ -245,7 +246,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
   } catch (error) {
     const lockError = tableLockErrorResponse(error)
     if (lockError) return lockError
-    const validationResponse = validationErrorResponseFromError(error)
+    const validationResponse = v1ValidationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
     if (error instanceof Error) {
@@ -330,7 +331,7 @@ export const DELETE = withRouteHandler(
     } catch (error) {
       const lockError = tableLockErrorResponse(error)
       if (lockError) return lockError
-      const validationResponse = validationErrorResponseFromError(error)
+      const validationResponse = v1ValidationErrorResponseFromError(error)
       if (validationResponse) return validationResponse
 
       if (error instanceof Error) {

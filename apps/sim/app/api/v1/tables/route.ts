@@ -2,7 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1CreateTableContract, v1ListTablesContract } from '@/lib/api/contracts/v1/tables'
-import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createTable, getWorkspaceTableLimits, listTables, type TableSchema } from '@/lib/table'
@@ -11,6 +11,7 @@ import {
   checkRateLimit,
   createRateLimitResponse,
   v1ValidationErrorResponse,
+  v1ValidationErrorResponseFromError,
   validateWorkspaceAccess,
 } from '@/app/api/v1/middleware'
 
@@ -72,7 +73,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    const validationResponse = validationErrorResponseFromError(error)
+    const validationResponse = v1ValidationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
     logger.error(`[${requestId}] Error listing tables:`, error)
@@ -167,7 +168,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    const validationResponse = validationErrorResponseFromError(error)
+    const validationResponse = v1ValidationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
     if (error instanceof Error) {
