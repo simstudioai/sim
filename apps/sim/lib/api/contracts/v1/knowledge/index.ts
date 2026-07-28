@@ -37,7 +37,7 @@ export const v1ListKnowledgeBasesQuerySchema = z.object({
 /** POST `/api/v1/knowledge` — create a knowledge base. */
 export const v1CreateKnowledgeBaseBodySchema = z.object({
   workspaceId: requiredFieldSchema('Workspace ID is required'),
-  name: z.string().min(1, 'Name is required').max(255, 'Name must be 255 characters or less'),
+  name: requiredFieldSchema('Name is required').max(255, 'Name must be 255 characters or less'),
   description: z
     .string()
     .max(
@@ -124,7 +124,7 @@ export const v1KnowledgeSearchBodySchema = z
   .object({
     workspaceId: requiredFieldSchema('Workspace ID is required'),
     knowledgeBaseIds: z.union([
-      z.string().min(1, 'Knowledge base ID is required'),
+      requiredFieldSchema('Knowledge base ID is required'),
       z
         .array(z.string().min(1))
         .min(1, 'At least one knowledge base ID is required')

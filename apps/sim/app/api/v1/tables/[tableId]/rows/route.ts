@@ -43,6 +43,7 @@ import {
   type RateLimitResult,
   rateLimitHeaders,
   resolveWorkspaceRequestActor,
+  v1ValidationErrorResponse,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableRowsAPI')
@@ -230,7 +231,9 @@ export const POST = withRouteHandler(
       }
 
       const userId = rateLimit.userId!
-      const parsed = await parseRequest(v1CreateTableRowContract, request, context)
+      const parsed = await parseRequest(v1CreateTableRowContract, request, context, {
+        validationErrorResponse: v1ValidationErrorResponse,
+      })
       if (!parsed.success) return parsed.response
 
       const { tableId } = parsed.data.params
@@ -332,7 +335,9 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
     }
 
     const userId = rateLimit.userId!
-    const parsed = await parseRequest(v1UpdateRowsByFilterContract, request, context)
+    const parsed = await parseRequest(v1UpdateRowsByFilterContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
     const { tableId } = parsed.data.params
     const validated = parsed.data.body
@@ -430,7 +435,9 @@ export const DELETE = withRouteHandler(
       }
 
       const userId = rateLimit.userId!
-      const parsed = await parseRequest(v1DeleteTableRowsContract, request, context)
+      const parsed = await parseRequest(v1DeleteTableRowsContract, request, context, {
+        validationErrorResponse: v1ValidationErrorResponse,
+      })
       if (!parsed.success) return parsed.response
       const { tableId } = parsed.data.params
       const validated = parsed.data.body

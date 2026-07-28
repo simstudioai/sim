@@ -89,6 +89,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: FileRo
       {
         status: 200,
         headers: {
+          ...rateLimitHeaders(rateLimit),
           'Content-Type': contentType || fileRecord.type || 'application/octet-stream',
           'Content-Disposition': `attachment; filename="${fileRecord.name.replace(/[^\w.-]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(fileRecord.name)}`,
           'Content-Length': String(buffer.length),

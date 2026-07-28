@@ -23,6 +23,7 @@ import {
   createRateLimitResponse,
   rateLimitHeaders,
   resolveWorkspaceRequestActor,
+  v1ValidationErrorResponse,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableRowAPI')
@@ -120,7 +121,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     }
 
     const userId = rateLimit.userId!
-    const parsed = await parseRequest(v1UpdateTableRowContract, request, context)
+    const parsed = await parseRequest(v1UpdateTableRowContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
     const { tableId, rowId } = parsed.data.params
     const validated = parsed.data.body
