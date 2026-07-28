@@ -48,6 +48,38 @@ describe('sanitizeChatDisplayContent', () => {
     expect(sanitizeChatDisplayContent(content)).toBe(content)
   })
 
+  it('leaves a neighbouring code span alone', () => {
+    // Only a backtick DIRECTLY against the tag is the tag's wrapping. Allowing
+    // whitespace between let the pattern reach past the tag and take the
+    // delimiter off an unrelated span, breaking its pair.
+    const content =
+      'Open `config.json` <workspace_resource>{"type":"file","path":"a.md","title":"a"}</workspace_resource> then run `bun test`.'
+
+    expect(sanitizeChatDisplayContent(content)).toBe(content)
+  })
+
+  it('does not break the closing fence of a code block containing a tag', () => {
+    // Whitespace matching used to cross the newline and consume one of the three
+    // closing backticks, so the block never closed and the rest of the message
+    // rendered as code.
+    const content =
+      'Example:\n```md\n<workspace_resource>{"type":"file","path":"a.md","title":"a"}</workspace_resource>\n```\nDone.'
+
+    expect(sanitizeChatDisplayContent(content)).toBe(content)
+  })
+
+  it('stays linear on a message that repeats the tag name without ever closing it', () => {
+    // A lazy scan allowed to cross an opener restarts from every opener, which
+    // is quadratic — 154ms for this input before the bound, on the main thread,
+    // for every streamed chunk. Generous ceiling so the test pins the complexity
+    // rather than the machine.
+    const content = 'The <workspace_resource> tag is used here. '.repeat(4000)
+
+    const startedAt = performance.now()
+    sanitizeChatDisplayContent(content)
+    expect(performance.now() - startedAt).toBeLessThan(50)
+  })
+
   it('still unwraps a real tag that carries a stray backtick on one side only', () => {
     // The case the unpaired strip is actually for: the model backticked the
     // opener but not the closer (or vice versa), which would block the chip.
