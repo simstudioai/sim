@@ -774,3 +774,50 @@ describe('buildPredicateClause (v2 grammar)', () => {
     expect(() => buildPredicateClause(p, TABLE, [])).toThrow('Invalid field name')
   })
 })
+
+/**
+ * Cross-version safety. If a client speaking the v2 predicate grammar reaches a
+ * server that predates it, the predicate arrives at the LEGACY `$`-compiler as
+ * `{ all: [...] }`. That used to be skipped as "an array on a regular field",
+ * compiling to no WHERE clause — which on a bulk delete means every row rather
+ * than none. The guard turns that into a loud, self-describing failure, and it
+ * sits at the one choke point every filter path shares (`queryRows`,
+ * `update-runner`, `delete-runner`, inline and background).
+ */
+describe('legacy compiler rejects a v2 predicate (version-mismatch fail-fast)', () => {
+  it('throws on a top-level all/any group instead of emitting no clause', () => {
+    for (const group of ['all', 'any'] as const) {
+      expect(() =>
+        buildFilterClause(
+          { [group]: [{ field: 'tenant_id', op: 'eq', value: 'acme' }] } as unknown as Filter,
+          TABLE,
+          NO_COLUMNS
+        )
+      ).toThrow(/v2 predicate tree/)
+    }
+  })
+
+  it('catches one nested inside a legacy $or', () => {
+    expect(() =>
+      buildFilterClause(
+        {
+          $or: [{ status: 'a' }, { all: [{ field: 'tenant_id', op: 'eq', value: 'acme' }] }],
+        } as unknown as Filter,
+        TABLE,
+        NO_COLUMNS
+      )
+    ).toThrow(/v2 predicate tree/)
+  })
+
+  it('leaves legitimate legacy filters alone', () => {
+    expect(buildFilterClause({ status: 'archived' }, TABLE, NO_COLUMNS)).toBeDefined()
+    expect(
+      buildFilterClause({ $or: [{ status: 'a' }, { status: 'b' }] }, TABLE, NO_COLUMNS)
+    ).toBeDefined()
+    // An ordinary column holding an array stays a silent skip — only the
+    // predicate discriminators `all`/`any` are treated as a version mismatch.
+    expect(() =>
+      buildFilterClause({ status: ['a', 'b'] } as unknown as Filter, TABLE, NO_COLUMNS)
+    ).not.toThrow()
+  })
+})

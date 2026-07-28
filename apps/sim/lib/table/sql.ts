@@ -157,6 +157,18 @@ function buildFilterClauseInternal(
     }
 
     // Skip arrays for regular fields - arrays are only valid for $or and $and.
+    // A v2 predicate tree (`{ all | any: [...] }`) that reaches this legacy
+    // compiler is a VERSION MISMATCH — a caller speaking the newer grammar
+    // against an older server. Skipping it as "an array on a regular field"
+    // compiles to no WHERE clause at all, which on a bulk delete means every
+    // row rather than none. Fail fast and name the mismatch instead.
+    if ((field === 'all' || field === 'any') && Array.isArray(condition)) {
+      throw new TableQueryValidationError(
+        `Filter looks like a v2 predicate tree ("${field}" group) but reached the legacy filter compiler. ` +
+          'This usually means a client is sending the predicate grammar to a server that predates it.'
+      )
+    }
+
     // If we encounter an array here, it's likely malformed input (e.g., { name: [filter1, filter2] })
     // which doesn't have a clear semantic meaning, so we skip it.
     if (Array.isArray(condition)) {
