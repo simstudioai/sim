@@ -380,6 +380,30 @@ describe('parseSpecialTags with <question>', () => {
     expect(renderedText(parseSpecialTags(oversized, false).segments)).toBe(oversized)
   })
 
+  it('still finds a valid tag sitting past the scan window inside a borrowed body', () => {
+    // The first opener has no close of its own, so it borrows the inner tag's.
+    // Its body is marker-free prose for far longer than the scan window, so the
+    // truncated inspection sees only prose and can say nothing about the rest.
+    //
+    // Resuming past the borrowed close would flatten the inner tag to text purely
+    // because of where it fell relative to the window. Resuming at the first
+    // uninspected character finds it. Asserted at three lengths so the boundary
+    // itself is covered, not just one side of it.
+    const inner =
+      '<workspace_resource>{"type":"file","path":"files/b.md","title":"b.md"}</workspace_resource>'
+    const build = (proseChars: number) =>
+      `See <workspace_resource>${'prose word '.repeat(Math.ceil(proseChars / 11))}${inner} end`
+
+    for (const proseChars of [1_000, 6_000, 60_000]) {
+      const raw = build(proseChars)
+      const { segments } = parseSpecialTags(raw, false)
+      expect(segments.filter((segment) => segment.type === 'workspace_resource')).toHaveLength(1)
+      // The prose around it survives too — the span is emitted, not skipped.
+      expect(renderedText(segments)).toContain('See <workspace_resource>prose word')
+      expect(renderedText(segments)).toContain(' end')
+    }
+  })
+
   it('still renders a matched pair whose body IS valid', () => {
     const raw =
       'see <workspace_resource>{"type":"file","path":"files/a.md","title":"a.md"}</workspace_resource> ok'

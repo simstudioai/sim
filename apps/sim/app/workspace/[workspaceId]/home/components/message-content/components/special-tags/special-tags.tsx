@@ -810,11 +810,18 @@ function resolveTagAt(
     // exists to preserve. Everything skipped is still emitted by pushText.
     return { outcome: 'literal', resumeAt: bodyStart + verdict.markerOffset }
   }
-  if (verdict?.reason === 'never-a-payload') return { outcome: 'literal', resumeAt }
+  // Only a prefix was inspected, so no verdict drawn from it — "prose" or nothing
+  // at all — describes the rest of the body. Resume at the first character NOT
+  // looked at rather than past the close: everything inspected is emitted as text
+  // by the caller, and scanning continues into the remainder, so a genuine tag
+  // beyond the window still renders as a card instead of being flattened. Past
+  // the close would also risk discarding a region never examined.
+  //
+  // This advances at least MAX_UNCLOSED_BODY_SCAN per step, so a long body costs a
+  // bounded number of re-entries rather than one scan per character.
+  if (truncated) return { outcome: 'literal', resumeAt: bodyStart + MAX_UNCLOSED_BODY_SCAN }
 
-  // Only a prefix was inspected, so "no reason found" is not evidence the body was
-  // a real payload — discarding here would delete text that was never examined.
-  if (truncated) return { outcome: 'literal', resumeAt }
+  if (verdict?.reason === 'never-a-payload') return { outcome: 'literal', resumeAt }
 
   // A well-formed value that failed its shape guard is a broken emission from
   // the agent; showing the user raw JSON there would be worse than nothing.
