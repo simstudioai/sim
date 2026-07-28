@@ -350,6 +350,30 @@ describe('setupWorkflowHandlers', () => {
     )
   })
 
+  it('does not roll back a committed join when a post-success step fails', async () => {
+    const { socket, handlers } = createSocket()
+    const roomManager = createRoomManager({
+      // Trailing broadcast (post-addUserToRoom, post-success-ack) fails on a Redis blip.
+      broadcastPresenceUpdate: vi.fn().mockRejectedValue(new Error('redis blip')),
+    })
+
+    setupWorkflowHandlers(
+      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
+      roomManager
+    )
+
+    await handlers['join-workflow']({ workflowId: 'workflow-1', tabSessionId: 'tab-1' })
+
+    // The user is genuinely joined and was acked; the trailing failure must NOT tear them out.
+    expect(socket.emit).toHaveBeenCalledWith(
+      'join-workflow-success',
+      expect.objectContaining({ workflowId: 'workflow-1' })
+    )
+    expect(socket.leave).not.toHaveBeenCalled()
+    expect(roomManager.removeUserFromRoom).not.toHaveBeenCalled()
+    expect(socket.emit).not.toHaveBeenCalledWith('join-workflow-error', expect.anything())
+  })
+
   it('leaves the workflow room even when the session key has expired', async () => {
     const { socket, handlers } = createSocket()
     const roomManager = createRoomManager({

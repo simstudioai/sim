@@ -107,9 +107,11 @@ export function createCaretActivityExtension(awareness: Awareness): Extension {
         new Plugin({
           key: new PluginKey('collaborationCaretActivity'),
           view: (editorView) => {
-            // Coalesce bursts of awareness changes into a single rAF: at most one forced
-            // layout read + one flush per frame, however many peers moved. Accumulate the
-            // changed client ids, then re-activate each matching (reused) caret node.
+            // Coalesce bursts of awareness changes into a single rAF per frame, however many
+            // peers moved: accumulate the changed client ids, then re-activate each matching
+            // (reused) caret node once. The shared editorRight is read once up front; each moving
+            // caret then does one getBoundingClientRect for its edge-flip measure (bounded by the
+            // small number of concurrently-moving peers, not the awareness event rate).
             let raf = 0
             const pending = new Set<number>()
             const flush = () => {

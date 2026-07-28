@@ -21,8 +21,8 @@ export interface RoomWorkspace {
 /**
  * Resolves a room's owning workspace from its {@link RoomRef.id}. Returns `null`
  * when the underlying resource is missing/archived (→ a 404 authorization
- * result). One resolver per {@link RoomType}; this is the single place a new
- * room type declares its resource→workspace lookup.
+ * result). One resolver per workspace-scoped {@link RoomType}; this is the single
+ * place a new such room type declares its resource→workspace lookup.
  */
 export type RoomWorkspaceResolver = (roomId: string) => Promise<RoomWorkspace | null>
 
@@ -120,10 +120,12 @@ export async function authorizeRoom(params: {
 
   const resolver = ROOM_WORKSPACE_RESOLVERS[room.type]
   if (!resolver) {
+    // Either an unknown type or one deliberately outside this authorizer (workflow authorizes via
+    // its own path); both are not-authorizable-here → 400.
     return {
       allowed: false,
       status: 400,
-      message: `Unknown room type: ${room.type}`,
+      message: `Room type not authorizable here: ${room.type}`,
       workspaceId: null,
       workspacePermission: null,
     }

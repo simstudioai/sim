@@ -5,6 +5,7 @@ import { resolveAvatarUrl } from '@/handlers/avatar'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { resolveCurrentWorkflowRole, verifyWorkflowAccess } from '@/middleware/permissions'
 import { type IRoomManager, type UserPresence, workflowRoom as wf } from '@/rooms'
+import { filterVisiblePresence } from '@/rooms/presence-visibility'
 
 const logger = createLogger('WorkflowHandlers')
 
@@ -41,6 +42,9 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
     // check right before the membership commit.
     const superseded = () => joinGeneration !== joinAttempt || socket.disconnected
     if (superseded()) return
+    // Flips true once addUserToRoom lands: past that point the user is genuinely joined, so a
+    // failure in the trailing ack/broadcast/metric steps must NOT roll them back (see the catch).
+    let committed = false
     try {
       const userId = socket.userId
       const userName = socket.userName
@@ -95,9 +99,10 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
         return
       }
 
-      // Leave current workflow room if in one
+      // Leave a previously-joined workflow room if switching workflows. Guard on a DIFFERENT id so a
+      // re-join of the SAME workflow doesn't leave→re-add and flicker presence for peers.
       const currentRoom = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.WORKFLOW)
-      if (currentRoom) {
+      if (currentRoom && currentRoom.id !== workflowId) {
         socket.leave(currentRoom.id)
         await roomManager.removeUserFromRoom(currentRoom, socket.id)
         await roomManager.broadcastPresenceUpdate(currentRoom)
@@ -216,11 +221,17 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
         avatarUrl,
       }
 
-      // Add user to room
+      // Add user to room — the membership commit.
       await roomManager.addUserToRoom(wf(workflowId), socket.id, userPresence)
+      committed = true
 
-      // Get current presence list for the join acknowledgment
-      const presenceUsers = await roomManager.getRoomUsers(wf(workflowId))
+      // Get current presence list for the join acknowledgment, filtered to live members so a new
+      // joiner never sees a ghost from an entry the stale sweep hasn't reclaimed yet.
+      const presenceUsers = await filterVisiblePresence(
+        roomManager.io,
+        wf(workflowId),
+        await roomManager.getRoomUsers(wf(workflowId))
+      )
 
       // Get workflow state
       const workflowState = await getWorkflowState(workflowId)
@@ -244,9 +255,13 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       )
     } catch (error) {
       logger.error('Error joining workflow:', error)
-      // Always roll back a partial join: cleanup keys off the socket→room map, so a `socket.join`
-      // that landed without a matching `addUserToRoom` (a throw in between) would otherwise strand
-      // the socket in the Socket.IO room, unreclaimable by any later op. Safe even when superseded —
+      // Past the membership commit the user is genuinely joined; a failure in the trailing
+      // ack/broadcast/metric steps must not tear them out of the room (a benign Redis blip on a
+      // pure log-metric call would otherwise kick a live collaborator). Leave them joined.
+      if (committed) return
+      // Roll back a partial join: cleanup keys off the socket→room map, so a `socket.join` that
+      // landed without a matching `addUserToRoom` (a throw in between) would otherwise strand the
+      // socket in the Socket.IO room, unreclaimable by any later op. Safe even when superseded —
       // serialization means the newer op hasn't committed yet, so this touches only this join's own
       // room state, never the newer op's.
       socket.leave(workflowId)

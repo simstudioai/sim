@@ -31,8 +31,15 @@ const KEYS = {
 
 /** TTL for the socket's room-set. Long enough that an idle-but-connected socket is not evicted. */
 const SOCKET_ROOMS_TTL = 24 * 60 * 60
-/** TTL for the shared session key; refreshed on every activity update. */
-const SESSION_TTL = 60 * 60
+/**
+ * The shared session key MUST share the room-set TTL. `getRoomForSocket` reads the room-set and the
+ * workflow handlers gate edits/presence on `room && session`, so a session that expired while the
+ * room-set is still alive would wedge an active-but-idle collaborator into "session expired" until a
+ * full reload — the activity update only `EXPIRE`s the session, which cannot resurrect an
+ * already-gone key (only `addUserToRoom` re-`HSET`s it). Both are refreshed together on every
+ * activity, so they expire together.
+ */
+const SESSION_TTL = SOCKET_ROOMS_TTL
 
 /**
  * Atomic single-room removal. Removes a socket from one room's presence, drops
