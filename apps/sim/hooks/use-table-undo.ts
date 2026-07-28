@@ -194,7 +194,12 @@ export function useTableUndo({
       // switch — but the layout they recorded belongs to the view that was active
       // at the time. Replaying it elsewhere would write one view's order/widths
       // into another, so the schema half runs and the layout half is dropped.
-      const entryOwnsLayout = entryViewId === activeViewIdRef.current
+      //
+      // Evaluated at CALL time, not here: these writes happen in mutation success
+      // callbacks, and `persistLayoutRef` is rebound on every render. A guard
+      // resolved up front would still hold from before a switch while the sink it
+      // guards already pointed at the destination view.
+      const entryOwnsLayout = () => entryViewId === activeViewIdRef.current
       try {
         switch (action.type) {
           case 'update-cell': {
@@ -343,7 +348,7 @@ export function useTableUndo({
                     metadata.pinnedColumns = newPinned
                   }
                   if (Object.keys(metadata).length > 0) {
-                    if (entryOwnsLayout) persistLayoutRef.current(metadata)
+                    if (entryOwnsLayout()) persistLayoutRef.current(metadata)
                   }
                 },
               })
@@ -435,7 +440,7 @@ export function useTableUndo({
                       }
                     }
                     if (Object.keys(metadata).length > 0) {
-                      if (entryOwnsLayout) persistLayoutRef.current(metadata)
+                      if (entryOwnsLayout()) persistLayoutRef.current(metadata)
                     }
                   },
                 }
@@ -464,7 +469,7 @@ export function useTableUndo({
                     }
                   }
                   if (Object.keys(metadata).length > 0) {
-                    if (entryOwnsLayout) persistLayoutRef.current(metadata)
+                    if (entryOwnsLayout()) persistLayoutRef.current(metadata)
                   }
                 },
               })
@@ -529,7 +534,7 @@ export function useTableUndo({
             // Pruning already drops these on a view switch, so a mismatch here
             // should be unreachable; the guard keeps the invariant local rather
             // than dependent on when the prune effect happens to run.
-            if (!entryOwnsLayout) break
+            if (!entryOwnsLayout()) break
             onColumnOrderChangeRef.current?.(order)
             persistLayoutRef.current({ columnOrder: order })
             break
