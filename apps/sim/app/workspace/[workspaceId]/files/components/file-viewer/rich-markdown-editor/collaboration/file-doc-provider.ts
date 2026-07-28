@@ -29,6 +29,16 @@ interface FileDocProviderEvents {
 }
 
 /**
+ * How long to wait for a first document sync before giving up. If the realtime server is
+ * unreachable (offline, server down, socket never connects) the provider would otherwise never
+ * sync and the editor would sit blank and read-only forever. On this deadline the provider latches
+ * fatal and surfaces a non-retryable `join-error` — the exact path a fatal rejection uses — so the
+ * editor falls back to showing the file's stored content read-only. Generous enough to clear a slow
+ * connect; a socket that connects at all syncs well within it (SyncStep2 for a fresh doc is cheap).
+ */
+const CONNECT_DEADLINE_MS = 12_000
+
+/**
  * The client half of the collaborative file-document protocol: a Yjs provider
  * that carries document sync + awareness over the shared, already-authenticated
  * Socket.IO connection (the server relay lives in
@@ -60,6 +70,8 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   /** Set on a non-retryable join rejection (e.g. lost write access) so the
    * provider stops attempting to (re)join until the owner tears it down. */
   private fatal = false
+  /** Deadline for the first sync; fires the offline fallback if the server is never reached. */
+  private connectTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(
     private readonly socket: Socket,
@@ -90,6 +102,37 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     awareness.on('update', this.handleAwarenessUpdate)
 
     if (socket.connected) this.join()
+
+    // Arm the offline fallback: if no first sync arrives before the deadline, give up (below).
+    this.connectTimer = setTimeout(this.handleConnectDeadline, CONNECT_DEADLINE_MS)
+  }
+
+  /**
+   * The first sync never arrived within {@link CONNECT_DEADLINE_MS} — the realtime server is
+   * unreachable. Latch fatal (so a late reconnect can't sync server state in and merge-duplicate the
+   * content the editor is about to seed locally) and surface a synthetic non-retryable join-error, so
+   * the owner falls back to the read-only, non-collaborative view exactly as it does for a real
+   * fatal rejection. No-op if we already synced, already failed fatally, or were torn down.
+   */
+  private handleConnectDeadline = () => {
+    this.connectTimer = null
+    if (this.synced || this.fatal || this.disposed) return
+    const error: JoinFileDocError = {
+      fileId: this.fileId,
+      error: 'Realtime connection timed out',
+      code: 'CONNECT_TIMEOUT',
+      retryable: false,
+    }
+    this.fatal = true
+    this.joinError = error
+    this.emit('join-error', [error])
+  }
+
+  private clearConnectTimer() {
+    if (this.connectTimer !== null) {
+      clearTimeout(this.connectTimer)
+      this.connectTimer = null
+    }
   }
 
   /** Join the room, binding our client id so the server only accepts awareness we own. */
@@ -128,6 +171,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     if (data.retryable === false) {
       this.fatal = true
       this.joinError = data
+      this.clearConnectTimer()
     }
     this.emit('join-error', [data])
   }
@@ -221,6 +265,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   private setSynced(synced: boolean) {
     if (this.synced === synced) return
     this.synced = synced
+    if (synced) this.clearConnectTimer()
     this.emit('synced', [synced])
   }
 
@@ -235,6 +280,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       return
     }
     this.disposed = true
+    this.clearConnectTimer()
 
     awarenessProtocol.removeAwarenessStates(this.awareness, [this.doc.clientID], 'provider-destroy')
 

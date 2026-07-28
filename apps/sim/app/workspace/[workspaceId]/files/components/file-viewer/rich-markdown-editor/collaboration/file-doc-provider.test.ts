@@ -273,4 +273,55 @@ describe('FileDocProvider', () => {
     doc.getText('default').insert(0, 'y')
     expect(emittedMessages(emit)).toHaveLength(0)
   })
+
+  it('gives up with a non-retryable join-error when the first sync never arrives (offline)', () => {
+    vi.useFakeTimers()
+    try {
+      const { provider, emit, fire } = createProvider(false) // socket never connects
+      const onError = vi.fn()
+      provider.on('join-error', onError)
+
+      vi.advanceTimersByTime(12_000)
+
+      // Surfaces the same non-retryable rejection the fatal path uses, so the editor falls back to
+      // showing the file read-only.
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'CONNECT_TIMEOUT', retryable: false })
+      )
+      expect(provider.joinError).toEqual(
+        expect.objectContaining({ code: 'CONNECT_TIMEOUT', retryable: false })
+      )
+      // Latched fatal: a later connect must not re-join (which could sync server state in and
+      // duplicate the locally-seeded content).
+      emit.mockClear()
+      fire('connect')
+      expect(emit).not.toHaveBeenCalledWith(FILE_DOC_EVENTS.JOIN, expect.anything())
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not fire the offline fallback once the first sync completes', () => {
+    vi.useFakeTimers()
+    try {
+      const { provider, fire } = createProvider(true)
+      const onError = vi.fn()
+      provider.on('join-error', onError)
+
+      // Complete the initial sync (server SyncStep2) before the deadline.
+      fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'file-1' })
+      const remote = new Y.Doc()
+      remote.getText('default').insert(0, 'hi')
+      const encoder = encoding.createEncoder()
+      encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
+      syncProtocol.writeSyncStep2(encoder, remote)
+      fire(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
+      expect(provider.synced).toBe(true)
+
+      vi.advanceTimersByTime(12_000)
+      expect(onError).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
