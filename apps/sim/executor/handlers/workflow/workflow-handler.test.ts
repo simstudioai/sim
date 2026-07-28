@@ -1160,17 +1160,35 @@ describe('WorkflowBlockHandler', () => {
     })
 
     it('records a cancelled child through the cancellation path', async () => {
-      // Cancellation is reported on `ExecutionResult.status`, not on metadata.
+      // Production shape: the engine reports cancellation as `success: false`
+      // plus `status: 'cancelled'` on the ExecutionResult (never on metadata).
       mockExecutorExecute.mockResolvedValue({
-        success: true,
+        success: false,
         output: {},
         status: 'cancelled',
       })
 
-      await handler.execute(customBlockContext(), customBlock(), {})
+      await handler.execute(customBlockContext(), customBlock(), {}).catch(() => {})
 
       expect(mockSafeCompleteWithCancellation).toHaveBeenCalledTimes(1)
       expect(mockSafeComplete).not.toHaveBeenCalled()
+      // Already finalized as cancelled — must not be re-completed as an error.
+      expect(mockSafeCompleteWithError).not.toHaveBeenCalled()
+    })
+
+    it('tells the consumer a cancellation was a cancellation, not a generic failure', async () => {
+      mockExecutorExecute.mockResolvedValue({
+        success: false,
+        output: {},
+        status: 'cancelled',
+      })
+
+      const error = await handler
+        .execute(customBlockContext(), customBlock(), {})
+        .catch((e: any) => e)
+
+      expect(error.consumerFacing.errorType).toBe('cancelled')
+      expect(error.message).toBe('Custom block execution was cancelled')
     })
 
     it('records the real failure on the child log and hides it from the consumer', async () => {

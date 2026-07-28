@@ -14,6 +14,8 @@ export type CustomBlockErrorType =
    * the exhausted limit is their org's, not a foreign publisher's.
    */
   | 'usage_limit'
+  /** The child run was cancelled (the invoking run aborted or was cancelled). */
+  | 'cancelled'
   | 'execution_failed'
 
 /** What a failed custom block tells its consumer. Leaks nothing about the source run. */

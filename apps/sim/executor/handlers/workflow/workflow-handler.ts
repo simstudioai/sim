@@ -253,6 +253,8 @@ export class WorkflowBlockHandler implements BlockHandler {
     let childExecutionId: string | undefined
     let childSession: LoggingSession | undefined
     let childSessionStarted = false
+    /** Set once the child's session reached a terminal state, so the catch doesn't re-complete it. */
+    let childSessionFinalized = false
     let childCancellation: { signal: AbortSignal; dispose: () => void } | undefined
     try {
       // A custom block runs the source's latest deployment; if the source has been
@@ -599,12 +601,24 @@ export class WorkflowBlockHandler implements BlockHandler {
 
       if (childSession && childSessionStarted) {
         await this.finalizeChildSession(childSession, executionResult, duration, childWorkflowInput)
+        childSessionFinalized = true
       }
 
       logger.info(`Child workflow ${childWorkflowName} completed in ${Math.round(duration)}ms`, {
         success: executionResult.success,
         hasLogs: (executionResult.logs?.length ?? 0) > 0,
       })
+
+      // A cancelled run comes back as `success: false`, so without this it would
+      // fall through to `mapChildOutputToParent` and reach the consumer as a
+      // generic `execution_failed`. Classify it instead — the message names
+      // nothing about the source, so it crosses the boundary verbatim.
+      if (isCustomBlock && executionResult.status === 'cancelled') {
+        throw new BoundarySafeError({
+          errorType: 'cancelled',
+          message: 'Custom block execution was cancelled',
+        })
+      }
 
       // A custom block's spans never reach the parent — they belong to the child's
       // own log row in the source workspace — so don't build them here at all.
@@ -636,7 +650,7 @@ export class WorkflowBlockHandler implements BlockHandler {
 
       // The child's own log row records the real failure in the source workspace,
       // so the publisher sees what the consumer deliberately cannot.
-      if (childSession && childSessionStarted) {
+      if (childSession && childSessionStarted && !childSessionFinalized) {
         await this.failChildSession(childSession, error)
       }
 
