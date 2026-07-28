@@ -7,13 +7,13 @@
 
 import type {
   auditLog,
+  folder as folderTable,
   member,
   organization,
   subscription,
   user,
   userStats,
   workflow,
-  folder as workflowFolder,
   workspace,
 } from '@sim/db/schema'
 import type { InferSelectModel } from 'drizzle-orm'
@@ -27,7 +27,7 @@ import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/typ
 export type DbUser = InferSelectModel<typeof user>
 export type DbWorkspace = InferSelectModel<typeof workspace>
 export type DbWorkflow = InferSelectModel<typeof workflow>
-export type DbWorkflowFolder = InferSelectModel<typeof workflowFolder>
+export type DbWorkflowFolder = InferSelectModel<typeof folderTable>
 export type DbOrganization = InferSelectModel<typeof organization>
 export type DbSubscription = InferSelectModel<typeof subscription>
 export type DbMember = InferSelectModel<typeof member>

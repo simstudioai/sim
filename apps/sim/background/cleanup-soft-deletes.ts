@@ -2,12 +2,12 @@ import { db, dbFor } from '@sim/db'
 import {
   copilotChats,
   document,
+  folder as folderTable,
   knowledgeBase,
   mcpServers,
   memory,
   userTableDefinitions,
   workflow,
-  folder as workflowFolder,
   workflowMcpServer,
   workspaceFile,
   workspaceFiles,
@@ -413,10 +413,14 @@ async function cleanupExpiredKnowledgeBases(
  */
 const CLEANUP_TARGETS = [
   {
-    table: workflowFolder,
-    softDeleteCol: workflowFolder.deletedAt,
-    wsCol: workflowFolder.workspaceId,
-    name: 'workflowFolder',
+    table: folderTable,
+    softDeleteCol: folderTable.deletedAt,
+    wsCol: folderTable.workspaceId,
+    // `folder` is shared by all four resource types. Only workflow folders are cut over to
+    // it; file/knowledge_base/table rows are still owned elsewhere, so this pass must not
+    // hard-delete them.
+    additionalPredicate: eq(folderTable.resourceType, 'workflow'),
+    name: 'folder',
   },
   {
     table: userTableDefinitions,
@@ -675,6 +679,7 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
       retentionDate,
       tableName: `${label}/${target.name}`,
       requireTimestampNotNull: true,
+      additionalPredicate: 'additionalPredicate' in target ? target.additionalPredicate : undefined,
       dbClient: cleanupDb,
     })
     totalDeleted += result.deleted

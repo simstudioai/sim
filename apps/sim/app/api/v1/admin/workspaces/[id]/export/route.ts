@@ -13,7 +13,7 @@
 
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { workflow, folder as workflowFolder, workspace } from '@sim/db/schema'
+import { folder as folderTable, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
@@ -68,13 +68,9 @@ export const GET = withRouteHandler(
 
       const folders = await db
         .select()
-        .from(workflowFolder)
+        .from(folderTable)
         .where(
-          and(
-            eq(workflowFolder.workspaceId, workspaceId),
-            eq(workflowFolder.resourceType, 'workflow'),
-            eq(workflowFolder.resourceType, 'workflow')
-          )
+          and(eq(folderTable.workspaceId, workspaceId), eq(folderTable.resourceType, 'workflow'))
         )
 
       const workflowExports: Array<{

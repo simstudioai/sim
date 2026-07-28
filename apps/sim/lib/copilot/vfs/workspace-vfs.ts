@@ -5,6 +5,7 @@ import {
   copilotChats,
   customTools as customToolsTable,
   document,
+  folder as folderTable,
   jobExecutionLogs,
   knowledgeBaseTagDefinitions,
   knowledgeConnector,
@@ -12,7 +13,6 @@ import {
   skill as skillTable,
   workflowDeploymentVersion,
   workflowExecutionLogs,
-  folder as workflowFolder,
   workflowMcpServer,
   workflowMcpTool,
   workflowSchedule,
@@ -2411,16 +2411,16 @@ export class WorkspaceVFS {
         listWorkflows(workspaceId, { scope: 'archived' }),
         db
           .select({
-            id: workflowFolder.id,
-            name: workflowFolder.name,
-            archivedAt: workflowFolder.deletedAt,
+            id: folderTable.id,
+            name: folderTable.name,
+            archivedAt: folderTable.deletedAt,
           })
-          .from(workflowFolder)
+          .from(folderTable)
           .where(
             and(
-              eq(workflowFolder.workspaceId, workspaceId),
-              eq(workflowFolder.resourceType, 'workflow'),
-              isNotNull(workflowFolder.deletedAt)
+              eq(folderTable.workspaceId, workspaceId),
+              eq(folderTable.resourceType, 'workflow'),
+              isNotNull(folderTable.deletedAt)
             )
           ),
         listTables(workspaceId, { scope: 'archived' }),

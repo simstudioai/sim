@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
 import {
+  folder as folderTable,
   knowledgeBase,
   knowledgeConnector,
   mcpServers,
   userTableDefinitions,
   workflow,
-  folder as workflowFolder,
   workflowSchedule,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -379,16 +379,16 @@ async function buildWorkspaceMdData(
 
       db
         .select({
-          id: workflowFolder.id,
-          name: workflowFolder.name,
-          parentId: workflowFolder.parentId,
+          id: folderTable.id,
+          name: folderTable.name,
+          parentId: folderTable.parentId,
         })
-        .from(workflowFolder)
+        .from(folderTable)
         .where(
           and(
-            eq(workflowFolder.workspaceId, workspaceId),
-            eq(workflowFolder.resourceType, 'workflow'),
-            isNull(workflowFolder.deletedAt)
+            eq(folderTable.workspaceId, workspaceId),
+            eq(folderTable.resourceType, 'workflow'),
+            isNull(folderTable.deletedAt)
           )
         ),
 

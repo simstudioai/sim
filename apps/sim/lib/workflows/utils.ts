@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { folder as workflowFolder, workflow as workflowTable } from '@sim/db/schema'
+import { folder as folderTable, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { generateId } from '@sim/utils/id'
@@ -401,8 +401,8 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
     ? eq(workflowTable.folderId, folderId)
     : isNull(workflowTable.folderId)
   const folderParentCondition = folderId
-    ? eq(workflowFolder.parentId, folderId)
-    : isNull(workflowFolder.parentId)
+    ? eq(folderTable.parentId, folderId)
+    : isNull(folderTable.parentId)
 
   const [[workflowMinResult], [folderMinResult]] = await Promise.all([
     db
@@ -416,12 +416,12 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
         )
       ),
     db
-      .select({ minOrder: min(workflowFolder.sortOrder) })
-      .from(workflowFolder)
+      .select({ minOrder: min(folderTable.sortOrder) })
+      .from(folderTable)
       .where(
         and(
-          eq(workflowFolder.workspaceId, workspaceId),
-          eq(workflowFolder.resourceType, 'workflow'),
+          eq(folderTable.workspaceId, workspaceId),
+          eq(folderTable.resourceType, 'workflow'),
           folderParentCondition
         )
       ),
@@ -492,31 +492,28 @@ export async function setWorkflowVariables(workflowId: string, variables: Record
 
 // ── Folder CRUD ──
 
-export interface CreateFolderInput {
-  userId: string
-  workspaceId: string
-  name: string
-  parentId?: string | null
-}
-
 export async function verifyFolderWorkspace(
   folderId: string,
   workspaceId: string
 ): Promise<boolean> {
   const [row] = await db
-    .select({ id: workflowFolder.id })
-    .from(workflowFolder)
+    .select({ id: folderTable.id })
+    .from(folderTable)
     .where(
       and(
-        eq(workflowFolder.id, folderId),
-        eq(workflowFolder.workspaceId, workspaceId),
-        eq(workflowFolder.resourceType, 'workflow')
+        eq(folderTable.id, folderId),
+        eq(folderTable.workspaceId, workspaceId),
+        eq(folderTable.resourceType, 'workflow')
       )
     )
     .limit(1)
   return Boolean(row)
 }
 
+/**
+ * Walks the parent chain upward from `parentId` to check whether re-parenting `folderId`
+ * under it would form a cycle. Returns true when a cycle would be created.
+ */
 export async function checkForCircularReference(
   folderId: string,
   parentId: string
@@ -532,9 +529,9 @@ export async function checkForCircularReference(
     visited.add(currentParentId)
 
     const [parent] = await db
-      .select({ parentId: workflowFolder.parentId })
-      .from(workflowFolder)
-      .where(eq(workflowFolder.id, currentParentId))
+      .select({ parentId: folderTable.parentId })
+      .from(folderTable)
+      .where(and(eq(folderTable.id, currentParentId), eq(folderTable.resourceType, 'workflow')))
       .limit(1)
 
     currentParentId = parent?.parentId || null
@@ -546,19 +543,19 @@ export async function checkForCircularReference(
 export async function listFolders(workspaceId: string) {
   return db
     .select({
-      folderId: workflowFolder.id,
-      folderName: workflowFolder.name,
-      parentId: workflowFolder.parentId,
-      sortOrder: workflowFolder.sortOrder,
-      locked: workflowFolder.locked,
+      folderId: folderTable.id,
+      folderName: folderTable.name,
+      parentId: folderTable.parentId,
+      sortOrder: folderTable.sortOrder,
+      locked: folderTable.locked,
     })
-    .from(workflowFolder)
+    .from(folderTable)
     .where(
       and(
-        eq(workflowFolder.workspaceId, workspaceId),
-        eq(workflowFolder.resourceType, 'workflow'),
-        isNull(workflowFolder.deletedAt)
+        eq(folderTable.workspaceId, workspaceId),
+        eq(folderTable.resourceType, 'workflow'),
+        isNull(folderTable.deletedAt)
       )
     )
-    .orderBy(asc(workflowFolder.sortOrder), asc(workflowFolder.createdAt))
+    .orderBy(asc(folderTable.sortOrder), asc(folderTable.createdAt))
 }

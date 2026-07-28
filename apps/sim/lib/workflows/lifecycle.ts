@@ -2,10 +2,10 @@ import { db } from '@sim/db'
 import {
   apiKey,
   chat,
+  folder as folderTable,
   webhook,
   workflow,
   workflowDeploymentVersion,
-  folder as workflowFolder,
   workflowMcpTool,
   workflowSchedule,
   workspace,
@@ -240,9 +240,11 @@ export async function restoreWorkflow(
   let clearFolderId = false
   if (existingWorkflow.folderId) {
     const [folder] = await db
-      .select({ archivedAt: workflowFolder.deletedAt })
-      .from(workflowFolder)
-      .where(eq(workflowFolder.id, existingWorkflow.folderId))
+      .select({ archivedAt: folderTable.deletedAt })
+      .from(folderTable)
+      .where(
+        and(eq(folderTable.id, existingWorkflow.folderId), eq(folderTable.resourceType, 'workflow'))
+      )
 
     if (!folder || folder.archivedAt) {
       clearFolderId = true

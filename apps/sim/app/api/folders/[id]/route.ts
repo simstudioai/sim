@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
-import { folder as workflowFolder } from '@sim/db/schema'
+import { folder as folderTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateFolderContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
@@ -44,8 +44,8 @@ export const PUT = withRouteHandler(
       // Verify the folder exists
       const existingFolder = await db
         .select()
-        .from(workflowFolder)
-        .where(eq(workflowFolder.id, id))
+        .from(folderTable)
+        .where(and(eq(folderTable.id, id), eq(folderTable.resourceType, 'workflow')))
         .then((rows) => rows[0])
 
       if (!existingFolder) {
@@ -125,8 +125,8 @@ export const DELETE = withRouteHandler(
       // Verify the folder exists
       const existingFolder = await db
         .select()
-        .from(workflowFolder)
-        .where(eq(workflowFolder.id, id))
+        .from(folderTable)
+        .where(and(eq(folderTable.id, id), eq(folderTable.resourceType, 'workflow')))
         .then((rows) => rows[0])
 
       if (!existingFolder) {

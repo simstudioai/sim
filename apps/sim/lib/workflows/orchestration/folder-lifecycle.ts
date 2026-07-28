@@ -2,9 +2,9 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   chat,
+  folder as folderTable,
   webhook,
   workflow,
-  folder as workflowFolder,
   workflowMcpTool,
   workflowSchedule,
 } from '@sim/db/schema'
@@ -31,7 +31,7 @@ export interface PerformCreateFolderResult {
   success: boolean
   error?: string
   errorCode?: OrchestrationErrorCode
-  folder?: typeof workflowFolder.$inferSelect
+  folder?: typeof folderTable.$inferSelect
 }
 
 export interface PerformUpdateFolderParams {
@@ -50,7 +50,7 @@ export interface PerformUpdateFolderResult {
   success: boolean
   error?: string
   errorCode?: OrchestrationErrorCode
-  folder?: typeof workflowFolder.$inferSelect
+  folder?: typeof folderTable.$inferSelect
 }
 
 /**
@@ -66,11 +66,11 @@ async function assertParentFolderInWorkspace(
 ): Promise<{ error: string; errorCode: OrchestrationErrorCode } | null> {
   const [parent] = await db
     .select({
-      workspaceId: workflowFolder.workspaceId,
-      archivedAt: workflowFolder.deletedAt,
+      workspaceId: folderTable.workspaceId,
+      archivedAt: folderTable.deletedAt,
     })
-    .from(workflowFolder)
-    .where(eq(workflowFolder.id, parentId))
+    .from(folderTable)
+    .where(and(eq(folderTable.id, parentId), eq(folderTable.resourceType, 'workflow')))
     .limit(1)
 
   if (!parent || parent.workspaceId !== workspaceId || parent.archivedAt) {
@@ -85,20 +85,20 @@ async function nextFolderSortOrder(
   parentId: string | null | undefined
 ): Promise<number> {
   const folderParentCondition = parentId
-    ? eq(workflowFolder.parentId, parentId)
-    : isNull(workflowFolder.parentId)
+    ? eq(folderTable.parentId, parentId)
+    : isNull(folderTable.parentId)
   const workflowParentCondition = parentId
     ? eq(workflow.folderId, parentId)
     : isNull(workflow.folderId)
 
   const [[folderResult], [workflowResult]] = await Promise.all([
     db
-      .select({ minSortOrder: min(workflowFolder.sortOrder) })
-      .from(workflowFolder)
+      .select({ minSortOrder: min(folderTable.sortOrder) })
+      .from(folderTable)
       .where(
         and(
-          eq(workflowFolder.workspaceId, workspaceId),
-          eq(workflowFolder.resourceType, 'workflow'),
+          eq(folderTable.workspaceId, workspaceId),
+          eq(folderTable.resourceType, 'workflow'),
           folderParentCondition
         )
       ),
@@ -144,7 +144,7 @@ export async function performCreateFolder(
         : await nextFolderSortOrder(params.workspaceId, parentId)
 
     const [folder] = await db
-      .insert(workflowFolder)
+      .insert(folderTable)
       .values({
         id: folderId,
         resourceType: 'workflow',
@@ -212,13 +212,13 @@ export async function performUpdateFolder(
     if (params.sortOrder !== undefined) updates.sortOrder = params.sortOrder
 
     const [folder] = await db
-      .update(workflowFolder)
+      .update(folderTable)
       .set(updates)
       .where(
         and(
-          eq(workflowFolder.id, params.folderId),
-          eq(workflowFolder.workspaceId, params.workspaceId),
-          eq(workflowFolder.resourceType, 'workflow')
+          eq(folderTable.id, params.folderId),
+          eq(folderTable.workspaceId, params.workspaceId),
+          eq(folderTable.resourceType, 'workflow')
         )
       )
       .returning()
@@ -250,14 +250,14 @@ async function deleteFolderRecursively(
   const stats = { folders: 0, workflows: 0 }
 
   const childFolders = await db
-    .select({ id: workflowFolder.id })
-    .from(workflowFolder)
+    .select({ id: folderTable.id })
+    .from(folderTable)
     .where(
       and(
-        eq(workflowFolder.parentId, folderId),
-        eq(workflowFolder.workspaceId, workspaceId),
-        eq(workflowFolder.resourceType, 'workflow'),
-        isNull(workflowFolder.deletedAt)
+        eq(folderTable.parentId, folderId),
+        eq(folderTable.workspaceId, workspaceId),
+        eq(folderTable.resourceType, 'workflow'),
+        isNull(folderTable.deletedAt)
       )
     )
 
@@ -288,9 +288,9 @@ async function deleteFolderRecursively(
   }
 
   await db
-    .update(workflowFolder)
+    .update(folderTable)
     .set({ deletedAt: timestamp })
-    .where(eq(workflowFolder.id, folderId))
+    .where(and(eq(folderTable.id, folderId), eq(folderTable.resourceType, 'workflow')))
   stats.folders += 1
 
   return stats
@@ -319,14 +319,14 @@ async function countWorkflowsInFolderRecursively(
   count += workflowsInFolder.length
 
   const childFolders = await db
-    .select({ id: workflowFolder.id })
-    .from(workflowFolder)
+    .select({ id: folderTable.id })
+    .from(folderTable)
     .where(
       and(
-        eq(workflowFolder.parentId, folderId),
-        eq(workflowFolder.workspaceId, workspaceId),
-        eq(workflowFolder.resourceType, 'workflow'),
-        isNull(workflowFolder.deletedAt)
+        eq(folderTable.parentId, folderId),
+        eq(folderTable.workspaceId, workspaceId),
+        eq(folderTable.resourceType, 'workflow'),
+        isNull(folderTable.deletedAt)
       )
     )
 
@@ -414,7 +414,10 @@ async function restoreFolderRecursively(
 ): Promise<{ folders: number; workflows: number }> {
   const stats = { folders: 0, workflows: 0 }
 
-  await tx.update(workflowFolder).set({ deletedAt: null }).where(eq(workflowFolder.id, folderId))
+  await tx
+    .update(folderTable)
+    .set({ deletedAt: null })
+    .where(and(eq(folderTable.id, folderId), eq(folderTable.resourceType, 'workflow')))
   stats.folders += 1
 
   const archivedWorkflows = await tx
@@ -449,14 +452,14 @@ async function restoreFolderRecursively(
   }
 
   const archivedChildren = await tx
-    .select({ id: workflowFolder.id })
-    .from(workflowFolder)
+    .select({ id: folderTable.id })
+    .from(folderTable)
     .where(
       and(
-        eq(workflowFolder.parentId, folderId),
-        eq(workflowFolder.workspaceId, workspaceId),
-        eq(workflowFolder.resourceType, 'workflow'),
-        eq(workflowFolder.deletedAt, folderArchivedAt)
+        eq(folderTable.parentId, folderId),
+        eq(folderTable.workspaceId, workspaceId),
+        eq(folderTable.resourceType, 'workflow'),
+        eq(folderTable.deletedAt, folderArchivedAt)
       )
     )
 
@@ -495,12 +498,12 @@ export async function performRestoreFolder(
 
   const [folder] = await db
     .select()
-    .from(workflowFolder)
+    .from(folderTable)
     .where(
       and(
-        eq(workflowFolder.id, folderId),
-        eq(workflowFolder.workspaceId, workspaceId),
-        eq(workflowFolder.resourceType, 'workflow')
+        eq(folderTable.id, folderId),
+        eq(folderTable.workspaceId, workspaceId),
+        eq(folderTable.resourceType, 'workflow')
       )
     )
 
@@ -521,15 +524,15 @@ export async function performRestoreFolder(
   const restoredStats = await db.transaction(async (tx) => {
     if (folder.parentId) {
       const [parentFolder] = await tx
-        .select({ archivedAt: workflowFolder.deletedAt })
-        .from(workflowFolder)
-        .where(eq(workflowFolder.id, folder.parentId))
+        .select({ archivedAt: folderTable.deletedAt })
+        .from(folderTable)
+        .where(and(eq(folderTable.id, folder.parentId), eq(folderTable.resourceType, 'workflow')))
 
       if (!parentFolder || parentFolder.archivedAt) {
         await tx
-          .update(workflowFolder)
+          .update(folderTable)
           .set({ parentId: null })
-          .where(eq(workflowFolder.id, folderId))
+          .where(and(eq(folderTable.id, folderId), eq(folderTable.resourceType, 'workflow')))
       }
     }
 

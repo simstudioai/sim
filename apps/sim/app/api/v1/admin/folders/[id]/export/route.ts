@@ -12,7 +12,7 @@
  */
 
 import { db } from '@sim/db'
-import { workflow, folder as workflowFolder } from '@sim/db/schema'
+import { folder as folderTable, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
@@ -106,12 +106,12 @@ export const GET = withRouteHandler(
     try {
       const [folderData] = await db
         .select({
-          id: workflowFolder.id,
-          name: workflowFolder.name,
-          workspaceId: workflowFolder.workspaceId,
+          id: folderTable.id,
+          name: folderTable.name,
+          workspaceId: folderTable.workspaceId,
         })
-        .from(workflowFolder)
-        .where(eq(workflowFolder.id, folderId))
+        .from(folderTable)
+        .where(and(eq(folderTable.id, folderId), eq(folderTable.resourceType, 'workflow')))
         .limit(1)
 
       if (!folderData) {
@@ -125,16 +125,15 @@ export const GET = withRouteHandler(
 
       const allFolders = await db
         .select({
-          id: workflowFolder.id,
-          name: workflowFolder.name,
-          parentId: workflowFolder.parentId,
+          id: folderTable.id,
+          name: folderTable.name,
+          parentId: folderTable.parentId,
         })
-        .from(workflowFolder)
+        .from(folderTable)
         .where(
           and(
-            eq(workflowFolder.workspaceId, folderData.workspaceId),
-            eq(workflowFolder.resourceType, 'workflow'),
-            eq(workflowFolder.resourceType, 'workflow')
+            eq(folderTable.workspaceId, folderData.workspaceId),
+            eq(folderTable.resourceType, 'workflow')
           )
         )
 

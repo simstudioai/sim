@@ -26,13 +26,6 @@ export async function listFoldersForWorkspace(
   scope: FolderQueryScope,
   resourceType: FolderResourceType = 'workflow'
 ): Promise<FolderApi[]> {
-  // Only workflow folders have been cut over to the `folder` table. File folders are still
-  // written to `workspace_file_folders` by `uploads/contexts/workspace`, so the `file` rows
-  // the migration backfilled here are a frozen snapshot — serving them would return stale
-  // data. `knowledge_base` and `table` folders have no writer at all yet. Returning empty is
-  // correct for those until each type's writers move over.
-  if (resourceType !== 'workflow') return []
-
   const scopeFilter = scope === 'archived' ? isNotNull(folder.deletedAt) : isNull(folder.deletedAt)
 
   const rows = await db
