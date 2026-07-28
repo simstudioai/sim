@@ -62,10 +62,40 @@ export function ConnectorSelectorField({
   }, [field.dependsOn, sourceConfig, configFields, canonicalModes])
 
   const isEnabled = !disabled && !!credentialId && depsResolved
-  const { data: options = [], isLoading } = useSelectorOptions(field.selectorKey, {
+  const {
+    data: options = [],
+    isLoading,
+    hasMore,
+    isFetchingMore,
+    truncated,
+    error,
+  } = useSelectorOptions(field.selectorKey, {
     context,
     enabled: isEnabled,
   })
+
+  /**
+   * Shown when the combobox has nothing to display. `isLoading` renders a spinner
+   * instead until the first page lands, so by the time this is visible the list has
+   * loaded at least once and is empty because the user's search matched none of the
+   * options loaded *so far* — the wording is phrased for that case.
+   *
+   * Paginated selectors drain in the background and filter client-side, so an
+   * option that has not drained yet is genuinely absent. A flat "none found" reads
+   * as "it does not exist" and sends users off to enter the value by hand, which is
+   * exactly what happened with a Confluence space on a site whose drain runs for
+   * ~38s. Each branch instead explains why the list may still be incomplete.
+   *
+   * `error` is checked first: the drain halts on a failed page but leaves `hasMore`
+   * set, so a failure would otherwise claim to be loading forever.
+   */
+  const emptyMessage = useMemo(() => {
+    const noun = field.title.toLowerCase()
+    if (error) return `No match — could not load all ${noun}. Enter the value directly`
+    if (hasMore || isFetchingMore) return `No match yet — still loading ${noun}…`
+    if (truncated) return `No match in the ${noun} loaded — enter the value directly`
+    return `No ${noun} found`
+  }, [field.title, error, hasMore, isFetchingMore, truncated])
 
   const comboboxOptions = useMemo<ComboboxOption[]>(
     () => options.map((opt) => ({ label: opt.label, value: opt.id })),
@@ -99,7 +129,7 @@ export function ConnectorSelectorField({
               : field.placeholder || `Select ${field.title.toLowerCase()}`
         }
         disabled={disabled || !credentialId || !depsResolved}
-        emptyMessage={`No ${field.title.toLowerCase()} found`}
+        emptyMessage={emptyMessage}
       />
     )
   }
@@ -120,7 +150,7 @@ export function ConnectorSelectorField({
             : field.placeholder || `Select ${field.title.toLowerCase()}`
       }
       disabled={disabled || !credentialId || !depsResolved}
-      emptyMessage={`No ${field.title.toLowerCase()} found`}
+      emptyMessage={emptyMessage}
     />
   )
 }
