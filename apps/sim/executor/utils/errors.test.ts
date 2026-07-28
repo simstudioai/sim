@@ -83,3 +83,50 @@ describe('buildBlockExecutionError', () => {
     expect(wrapped.cause).toBeUndefined()
   })
 })
+
+describe('hosted-key status survives the ToolResponse flattening', () => {
+  /**
+   * `executeTool` catches a thrown error and returns a `ToolResponse`, so the
+   * status has to ride `ToolResponse.statusCode` and be re-attached by
+   * `generic-handler`. This reproduces that hand-off end to end.
+   */
+  function errorFromFailedToolResponse(response: {
+    error: string
+    output: Record<string, unknown>
+    statusCode?: number
+  }): Error {
+    const error = new Error(response.error)
+    Object.assign(error, {
+      output: response.output,
+      ...(typeof response.statusCode === 'number' ? { statusCode: response.statusCode } : {}),
+    })
+    return buildBlockExecutionError({ block, error })
+  }
+
+  it('forwards a hosted-key 429 to the API caller', () => {
+    const wrapped = errorFromFailedToolResponse({
+      error: 'Rate limit exceeded',
+      output: {},
+      statusCode: 429,
+    })
+    expect(getExecutionErrorStatus(wrapped)).toBe(429)
+  })
+
+  it('forwards a hosted-key 503 to the API caller', () => {
+    const wrapped = errorFromFailedToolResponse({
+      error: 'No hosted keys configured',
+      output: {},
+      statusCode: 503,
+    })
+    expect(getExecutionErrorStatus(wrapped)).toBe(503)
+  })
+
+  it("never adopts an upstream provider's status as our own", () => {
+    // A provider 404 rides `output`, never `statusCode`, so it must not surface.
+    const wrapped = errorFromFailedToolResponse({
+      error: 'HTTP 404: Not Found',
+      output: { status: 404, statusText: 'Not Found' },
+    })
+    expect(getExecutionErrorStatus(wrapped)).toBe(500)
+  })
+})

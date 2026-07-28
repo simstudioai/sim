@@ -18,6 +18,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { HttpError } from '@/lib/core/utils/http-error'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   isPayloadSizeLimitError,
@@ -1502,6 +1503,10 @@ export async function executeTool(
       success: false,
       output: errorDetails,
       error: errorMessage,
+      // Sim's own status (hosted-key 429/503) survives the flattening from a
+      // thrown error into a result object; an upstream provider's status stays
+      // on `output` where it cannot be mistaken for ours.
+      ...(error instanceof HttpError ? { statusCode: error.statusCode } : {}),
       timing: {
         startTime: startTimeISO,
         endTime: endTimeISO,

@@ -93,6 +93,13 @@ export interface ToolResponse {
   success: boolean // Whether the tool execution was successful
   output: Record<string, any> // The structured output from the tool
   error?: string // Error message if success is false
+  /**
+   * HTTP status owned by SIM itself (e.g. hosted-key rate limiting or
+   * exhaustion), carried so it survives the throw → `ToolResponse` flattening
+   * and can reach the API caller. Deliberately NOT the upstream provider's
+   * status — a provider's 404 must never become the workflow API's status.
+   */
+  statusCode?: number
   resources?: MothershipResource[] // Resources to auto-open/show in UI
   largeValueKeys?: string[]
   fileKeys?: string[]

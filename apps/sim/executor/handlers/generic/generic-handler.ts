@@ -94,6 +94,10 @@ export class GenericBlockHandler implements BlockHandler {
           blockName: block.metadata?.name || 'Unnamed Block',
           output: result.output || {},
           timestamp: new Date().toISOString(),
+          // `executeTool` flattens a thrown error into a result, so Sim's own
+          // status (hosted-key 429/503) would be lost here. Carry it onto the
+          // error so `getExecutionErrorStatus` can still reach the API caller.
+          ...(typeof result.statusCode === 'number' ? { statusCode: result.statusCode } : {}),
         })
 
         throw error
