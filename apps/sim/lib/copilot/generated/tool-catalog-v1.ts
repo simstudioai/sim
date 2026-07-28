@@ -3032,6 +3032,7 @@ export const GetPlatformActions: ToolCatalogEntry = {
   route: 'sim',
   mode: 'async',
   parameters: { type: 'object', properties: {} },
+  hidden: true,
 }
 
 export const GetWorkflowData: ToolCatalogEntry = {
