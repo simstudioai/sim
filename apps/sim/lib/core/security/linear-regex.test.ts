@@ -168,4 +168,33 @@ describe('compileLookaroundSplit', () => {
   ])('returns null for %s', (_label, pattern) => {
     expect(compileLookaroundSplit(pattern)).toBeNull()
   })
+
+  it.each([
+    ['leading assertion', '(?<=\\.)\\s+|\\n\\n'],
+    ['empty middle', '(?<=</p>)|<hr>'],
+    ['trailing assertion', 'a|b(?=c)'],
+  ])('rejects %s with top-level alternation rather than reshaping it', (_label, pattern) => {
+    // `(?<=X)A|B` means `((?<=X)A)|B`; rebuilt as `(?:X)(A|B)` it would demand
+    // the assertion before both branches. No grouping recovers that, so the
+    // only correct answer is to decline the pattern.
+    expect(compileLookaroundSplit(pattern)).toBeNull()
+  })
+
+  it('is unaffected by a capturing group inside the lookbehind', () => {
+    // The middle is captured by name, so group numbering cannot shift.
+    expect(compileLookaroundSplit('(?<=(a))b')?.split('xaby')).toEqual(['xa', 'y'])
+
+    const optional = compileLookaroundSplit('(?<=(a)|b)c')
+    expect(optional?.find('bc')).toBe(1)
+    expect(optional?.test('bc')).toBe(true)
+  })
+
+  it.each([
+    ['(?<=\\w)\\s+(?=[A-Z])', 'A B C D'],
+    ['(?<=\\w)\\s+(?=\\w)', 'a b c d e'],
+  ])('does not consume assertion text between boundaries (%s)', (pattern, doc) => {
+    // The lookahead of one boundary is the lookbehind of the next. Consuming
+    // it would swallow every other split.
+    expect(compileLookaroundSplit(pattern)?.split(doc)).toEqual(doc.split(new RegExp(pattern, 'g')))
+  })
 })

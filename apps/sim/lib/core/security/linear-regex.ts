@@ -151,6 +151,36 @@ interface SplitShape {
 }
 
 /**
+ * True when `pattern` has a `|` outside any group or character class.
+ *
+ * A split shape cannot be decomposed when its middle alternates at the top
+ * level: `(?<=\.)\s+|\n\n` means `((?<=\.)\s+)|(\n\n)`, so the assertion binds
+ * to the first branch only. Rebuilding it as `(?:\.)(\s+|\n\n)` would require
+ * the period before *either* branch — a silently different pattern. No grouping
+ * fixes that, so such patterns are rejected rather than reshaped.
+ */
+function hasTopLevelAlternation(pattern: string): boolean {
+  let depth = 0
+  let inClass = false
+  for (let i = 0; i < pattern.length; i++) {
+    const char = pattern[i]
+    if (char === '\\') {
+      i += 1
+      continue
+    }
+    if (inClass) {
+      if (char === ']') inClass = false
+      continue
+    }
+    if (char === '[') inClass = true
+    else if (char === '(') depth += 1
+    else if (char === ')') depth -= 1
+    else if (char === '|' && depth === 0) return true
+  }
+  return false
+}
+
+/**
  * Decompose a split pattern into `(?<=behind) middle (?=ahead)`, with either
  * assertion optional. Returns `null` when neither is present (the caller should
  * compile normally) or when the shape is anything else.
@@ -195,6 +225,7 @@ function parseSplitShape(pattern: string): SplitShape | null {
   }
 
   if (!behind && !ahead) return null
+  if (hasTopLevelAlternation(rest)) return null
   return { behind, middle: rest, ahead }
 }
 
@@ -208,13 +239,22 @@ function parseSplitShape(pattern: string): SplitShape | null {
  * it, `(?<=X)` alone splits after one, and `(?<=[.!?])\s+(?=[A-Z])` — the
  * sentence splitter — consumes the whitespace between them.
  *
- * Returns `null` for negative lookaround, backreferences, or any body RE2
- * cannot represent.
+ * Returns `null` for negative lookaround, backreferences, a middle that
+ * alternates at the top level, or any body RE2 cannot represent.
  *
- * Two divergences from the built-in engine, both narrow: RE2 iterates
- * non-overlapping matches, so a self-overlapping delimiter (`(?=aa)` over
- * `aaaa`) yields fewer boundaries; and `test`/`find` report on the compiled
- * form rather than the zero-width assertion position.
+ * Two details make the reconstruction faithful rather than approximate. The
+ * middle is captured by *name*, so a capturing group inside `behind` cannot
+ * shift the index out from under it. And each iteration resumes the search at
+ * the end of the previous delimiter rather than at the end of the whole match,
+ * so the assertion text is not consumed — without that, every boundary whose
+ * lookahead text doubles as the next boundary's lookbehind would be swallowed
+ * (`(?<=\w)\s+(?=[A-Z])` over `A B C D` would split only half the gaps).
+ *
+ * Known divergence: when delimiters themselves overlap — a single-character
+ * middle whose matches abut, as in `(?<=\w).(?=\w)` — a match starting behind
+ * the cursor is dropped instead of emitting the empty segment the built-in
+ * engine would. Splitters that consume whitespace or punctuation between
+ * tokens do not overlap and are unaffected.
  */
 export function compileLookaroundSplit(
   pattern: string,
@@ -225,7 +265,7 @@ export function compileLookaroundSplit(
 
   const behind = shape.behind ? `(?:${shape.behind})` : ''
   const ahead = shape.ahead ? `(?:${shape.ahead})` : ''
-  const source = translateToRe2(`${behind}(${shape.middle})${ahead}`)
+  const source = translateToRe2(`${behind}(?P<mid>${shape.middle})${ahead}`)
 
   let compiled: ReturnType<typeof RE2JS.compile>
   try {
@@ -234,24 +274,31 @@ export function compileLookaroundSplit(
     return null
   }
 
+  /** Span of the delimiter itself — what `String.prototype.split` removes. */
+  const delimiterAt = (text: string, from: number): { start: number; end: number } | null => {
+    const matcher = compiled.matcher(text)
+    if (!matcher.find(from)) return null
+    return { start: matcher.start('mid'), end: matcher.end('mid') }
+  }
+
   return {
     test: (text) => compiled.matcher(text).find(),
-    find: (text) => {
-      const matcher = compiled.matcher(text)
-      return matcher.find() ? matcher.start(1) : -1
-    },
+    find: (text) => delimiterAt(text, 0)?.start ?? -1,
     split: (text) => {
       const segments: string[] = []
-      const matcher = compiled.matcher(text)
       let cursor = 0
-      while (matcher.find()) {
-        const from = matcher.start(1)
-        const to = matcher.end(1)
+      let searchFrom = 0
+      while (searchFrom <= text.length) {
+        const span = delimiterAt(text, searchFrom)
+        if (!span) break
+        // Always advance, so a zero-width delimiter cannot spin.
+        searchFrom = span.end > span.start ? span.end : span.start + 1
         // Skip a boundary behind the cursor, or one that would only emit an
-        // empty leading/trailing segment.
-        if (from < cursor || (from === cursor && to === cursor) || from >= text.length) continue
-        segments.push(text.slice(cursor, from))
-        cursor = to
+        // empty leading or trailing segment.
+        if (span.start < cursor || span.start >= text.length) continue
+        if (span.start === cursor && span.end === cursor) continue
+        segments.push(text.slice(cursor, span.start))
+        cursor = span.end
       }
       segments.push(text.slice(cursor))
       return segments
