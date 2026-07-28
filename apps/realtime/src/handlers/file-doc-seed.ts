@@ -1,11 +1,14 @@
 import { env, getBaseUrl } from '@/env'
 
 /**
- * Bound the seed fetch so a slow/unreachable app never wedges a room's first join. Sized for the
- * worst case the app allows — converting a `MAX_SEED_BYTES` (5 MB) document markdown→Yjs plus a cold
- * blob read — so a large-but-valid file is not perpetually timed out into the retry path.
+ * Bound the seed fetch so a slow/unreachable app never wedges a room's first join. Kept comfortably
+ * BELOW the client's readiness deadline (`READINESS_DEADLINE_MS`, 12s, in `file-doc-provider.ts`), so
+ * a single attempt either lands or fails within the window the client is willing to wait — otherwise
+ * the client gives up first and a late success can't reach it. Generous for a real seed: collab is
+ * gated client-side to ≤256 KB documents (`isRoundTripSafe`), which convert markdown→Yjs in well
+ * under a second; the 5 MB server cap is only a backstop and is never reached for a collab file.
  */
-const SEED_FETCH_TIMEOUT_MS = 20_000
+const SEED_FETCH_TIMEOUT_MS = 8_000
 
 /**
  * Ask the app to build a server-authoritative seed (markdown → Yjs) for a file's collaborative

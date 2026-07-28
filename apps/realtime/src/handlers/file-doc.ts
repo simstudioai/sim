@@ -29,8 +29,6 @@ import {
   toFileDocBytes,
 } from '@sim/realtime-protocol/file-doc'
 import { ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
-import { sleep } from '@sim/utils/helpers'
-import { backoffWithJitter } from '@sim/utils/retry'
 import * as decoding from 'lib0/decoding'
 import * as encoding from 'lib0/encoding'
 import type { Server } from 'socket.io'
@@ -172,9 +170,6 @@ function destroyRoomIfIdle(name: string) {
   fileDocRooms.delete(name)
 }
 
-/** How many times a single room re-attempts a failed seed fetch before leaving it to the next join. */
-const MAX_SEED_ATTEMPTS = 3
-
 /**
  * Seed a room's document server-side, once, on the first join: ask the app to build the seed (the
  * file's current markdown → Yjs, through the exact editor engine) and apply it, which relays the
@@ -182,15 +177,15 @@ const MAX_SEED_ATTEMPTS = 3
  *
  * `isDocSeeded` is the sufficient guard: content only ever reaches the doc alongside the seed flag
  * (this seed, or a client's offline fallback), so an unseeded doc is genuinely empty and safe to seed.
+ * A genuinely empty/missing file returns `null` (a read error throws instead), so still set the flag —
+ * an empty doc must reach readiness, not wait forever. After the fetch, re-check the room is still
+ * live and unseeded (an owner may have left, or a client seeded it, while the fetch was in flight).
  *
- * Recovery — the client's `synced && initialContentLoaded` gate never opens until the doc is seeded:
- * - a genuinely empty/missing file returns `null` (a read error throws instead), so still set the flag
- *   to let clients reach readiness rather than wait forever;
- * - a transport failure retries a bounded number of times against the live room, then releases the
- *   guard so a later join re-attempts.
- *
- * After the fetch, re-check the room is still live and unseeded — an owner may have left, or a client
- * may have seeded it, while the fetch was in flight.
+ * Recovery on failure is deliberately simple — no in-room retry loop: a single attempt bounded by a
+ * timeout shorter than the client's readiness deadline, then release the guard. A transient failure
+ * is re-attempted by the next join/reconnect; a persistent one lets the connected client's readiness
+ * deadline lapse into its read-only fallback. (An in-room backoff retry can outlast that client
+ * deadline, so it would keep trying a doc the client has already given up on — worse, not better.)
  */
 async function ensureServerSeed(
   name: string,
@@ -199,27 +194,14 @@ async function ensureServerSeed(
 ): Promise<void> {
   if (room.serverSeedStarted || isDocSeeded(room.doc)) return
   room.serverSeedStarted = true
-
-  for (let attempt = 1; attempt <= MAX_SEED_ATTEMPTS; attempt++) {
-    try {
-      const update = await fetchFileDocSeed(workspaceId, room.fileId)
-      if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
-      if (update) Y.applyUpdate(room.doc, update)
-      else room.doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
-      return
-    } catch (error) {
-      // Stop retrying a room that emptied out (or was replaced) during the failed attempt.
-      const alive = fileDocRooms.get(name) === room && room.owners.size > 0
-      if (attempt >= MAX_SEED_ATTEMPTS || !alive) {
-        logger.warn(
-          `Server seed failed for file ${room.fileId} (workspace ${workspaceId}) after ${attempt} attempt(s); a later join will retry`,
-          error
-        )
-        room.serverSeedStarted = false
-        return
-      }
-      await sleep(backoffWithJitter(attempt, null))
-    }
+  try {
+    const update = await fetchFileDocSeed(workspaceId, room.fileId)
+    if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
+    if (update) Y.applyUpdate(room.doc, update)
+    else room.doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+  } catch (error) {
+    logger.warn(`Server seed failed for file ${room.fileId} (workspace ${workspaceId})`, error)
+    room.serverSeedStarted = false
   }
 }
 

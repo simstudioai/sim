@@ -164,11 +164,6 @@ function joinSuccessFileId(socket: { emit: ReturnType<typeof vi.fn> }) {
 describe('setupWorkspaceFileDocHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // Fake timers so the seed-retry backoff (`sleep(backoffWithJitter(...))`) is driven
-    // deterministically (`advanceTimersByTimeAsync`) and never fires into a later test. Fake timers
-    // do NOT fake microtasks, so `flushMicrotasks`' awaited `Promise.resolve()`s still settle the
-    // fire-and-forget seed — reliable because the success-path mock resolves in a single await hop.
-    vi.useFakeTimers()
     mockAuthorizeRoom.mockResolvedValue({
       allowed: true,
       status: 200,
@@ -187,8 +182,6 @@ describe('setupWorkspaceFileDocHandlers', () => {
     // map is cleared and never bleeds a counter into the next test.
     for (const id of createdSocketIds) cleanupFileDocForSocket(id, io, true)
     createdSocketIds.clear()
-    vi.clearAllTimers()
-    vi.useRealTimers()
   })
 
   it('rejects join when the socket is not authenticated', async () => {
@@ -327,19 +320,23 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(clientDoc.getText(FILE_DOC_FIELD).toString()).toBe('')
   })
 
-  it('retries a failed seed fetch against the live room, then succeeds', async () => {
+  it('makes one seed attempt and releases the guard on failure so a later join retries', async () => {
     mockFetchFileDocSeed
       .mockRejectedValueOnce(new Error('transport blip'))
       .mockResolvedValueOnce(encodedSeedUpdate('# Recovered'))
     const { io } = createIo()
     const { socket, handlers } = setup('socket-1', io)
 
+    // First join: a single attempt that fails — no in-room retry loop.
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    // Clear the backoff between the failed attempt and the retry.
-    await vi.advanceTimersByTimeAsync(5000)
     await flushMicrotasks()
+    expect(mockFetchFileDocSeed).toHaveBeenCalledTimes(1)
 
+    // The guard was released, so a subsequent join re-attempts and this time the seed lands.
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+    await flushMicrotasks()
     expect(mockFetchFileDocSeed).toHaveBeenCalledTimes(2)
+
     socket.emit.mockClear()
     handlers[FILE_DOC_EVENTS.MESSAGE](
       frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) => syncProtocol.writeSyncStep1(e, new Y.Doc()))
