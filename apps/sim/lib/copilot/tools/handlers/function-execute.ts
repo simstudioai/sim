@@ -3,6 +3,7 @@ import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/
 import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
 import { isPlanAliasPath, workflowAliasSandboxPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { getColumnId } from '@/lib/table/column-keys'
 import { formatCsvCell, neutralizeCsvFormula, toCsvRow } from '@/lib/table/export-format'
 import { queryRows } from '@/lib/table/rows/service'
@@ -117,18 +118,33 @@ async function pushWorkspaceFileMount(
     return
   }
 
-  if (record.size > MAX_FILE_SIZE) {
-    throw new Error(
-      `Input file "${mountPath}" is ${Math.round(record.size / 1024 / 1024)}MB, over the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit.`
-    )
+  const remainingBudget = Math.max(0, MAX_TOTAL_SIZE - mounted.buffered)
+
+  // A source-backed document declares the size of its generator, not of the document,
+  // so these pre-checks say nothing about what is about to be mounted. Its read is
+  // capped instead, and the real length is checked once it is known.
+  if (!rendersFromSource) {
+    if (record.size > MAX_FILE_SIZE) {
+      throw new Error(
+        `Input file "${mountPath}" is ${Math.round(record.size / 1024 / 1024)}MB, over the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit.`
+      )
+    }
+    if (record.size > remainingBudget) {
+      throw new Error(
+        `Mounting "${mountPath}" would exceed the ${MAX_TOTAL_SIZE / 1024 / 1024}MB total mount limit. Mount fewer or smaller files.`
+      )
+    }
   }
-  if (mounted.buffered + record.size > MAX_TOTAL_SIZE) {
-    throw new Error(
-      `Mounting "${mountPath}" would exceed the ${MAX_TOTAL_SIZE / 1024 / 1024}MB total mount limit. Mount fewer or smaller files.`
-    )
-  }
+
   const { buffer, contentType } = rendersFromSource
-    ? await fetchServableWorkspaceFileBuffer(record, { maxBytes: MAX_FILE_SIZE })
+    ? await fetchServableWorkspaceFileBuffer(record, {
+        maxBytes: Math.min(MAX_FILE_SIZE, remainingBudget),
+      }).catch((error) => {
+        if (!isPayloadSizeLimitError(error)) throw error
+        throw new Error(
+          `Input file "${mountPath}" renders to more than the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit, or than the mount budget left. Mount fewer or smaller files.`
+        )
+      })
     : { buffer: await fetchWorkspaceFileBuffer(record), contentType: record.type }
   // Keyed off the resolved type: a rendered document's source MIME is `text/x-…`, and
   // decoding the binary as UTF-8 would corrupt it just as surely as shipping the source.
