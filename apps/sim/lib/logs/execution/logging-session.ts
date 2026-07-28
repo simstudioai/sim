@@ -30,6 +30,7 @@ import type {
   WorkflowState,
 } from '@/lib/logs/types'
 import type { SerializableExecutionState } from '@/executor/execution/types'
+import type { EnvironmentSecretSanitizer } from '@/executor/utils/environment-secret-sanitizer'
 
 type TriggerData = Record<string, unknown> & {
   correlation?: NonNullable<ExecutionTrigger['data']>['correlation']
@@ -85,6 +86,8 @@ const execDb = dbFor('exec')
 const logger = createLogger('LoggingSession')
 
 type CompletionAttempt = 'complete' | 'error' | 'cancelled' | 'paused'
+
+const identityEnvironmentSecretSanitizer: EnvironmentSecretSanitizer = <T>(value: T): T => value
 
 export interface SessionStartParams {
   userId?: string
@@ -155,6 +158,8 @@ export class LoggingSession {
   private completionAttemptFailed = false
   private pendingProgressWrites = new Set<Promise<void>>()
   private postExecutionPromise: Promise<void> | null = null
+  private environmentSecretSanitizer: EnvironmentSecretSanitizer =
+    identityEnvironmentSecretSanitizer
 
   constructor(
     workflowId: string,
@@ -168,6 +173,19 @@ export class LoggingSession {
     this.reservationId = reservationId
     this.triggerType = triggerType
     this.requestId = requestId
+  }
+
+  /**
+   * Installs the workflow-scoped sanitizer used only for persisted and emitted
+   * observability values. The closure is retained in memory for this session
+   * and is never added to execution data.
+   */
+  setEnvironmentSecretSanitizer(sanitizer: EnvironmentSecretSanitizer): void {
+    this.environmentSecretSanitizer = sanitizer
+  }
+
+  private sanitizeForLog<T>(value: T): T {
+    return this.environmentSecretSanitizer(value)
   }
 
   async onBlockStart(
@@ -287,17 +305,24 @@ export class LoggingSession {
     level?: 'info' | 'error'
     status?: 'completed' | 'failed' | 'cancelled' | 'pending'
   }): Promise<void> {
+    const finalOutput = this.sanitizeForLog(params.finalOutput)
+    const traceSpans = this.sanitizeForLog(params.traceSpans)
+    const completionFailure =
+      params.completionFailure === undefined
+        ? undefined
+        : this.sanitizeForLog(params.completionFailure)
+
     await executionLogger.completeWorkflowExecution({
       executionId: this.executionId,
       endedAt: params.endedAt,
       totalDurationMs: params.totalDurationMs,
       costSummary: params.costSummary,
-      finalOutput: params.finalOutput,
-      traceSpans: params.traceSpans,
+      finalOutput,
+      traceSpans,
       workflowInput: params.workflowInput,
       executionState: params.executionState,
       finalizationPath: params.finalizationPath,
-      completionFailure: params.completionFailure,
+      completionFailure,
       isResume: this.isResume,
       level: params.level,
       status: params.status,
@@ -403,11 +428,13 @@ export class LoggingSession {
     }
     this.completing = true
 
-    const { endedAt, totalDurationMs, finalOutput, traceSpans, workflowInput, executionState } =
-      params
+    const { endedAt, totalDurationMs, workflowInput, executionState } = params
+    const finalOutput = this.sanitizeForLog(params.finalOutput || {})
+    const rawTraceSpans = params.traceSpans || []
+    const traceSpans = this.sanitizeForLog(rawTraceSpans)
 
     try {
-      const costSummary = calculateCostSummary(traceSpans || [])
+      const costSummary = calculateCostSummary(rawTraceSpans)
       const endTime = endedAt || new Date().toISOString()
       const duration = totalDurationMs || 0
 
@@ -415,8 +442,8 @@ export class LoggingSession {
         endedAt: endTime,
         totalDurationMs: duration,
         costSummary,
-        finalOutput: finalOutput || {},
-        traceSpans: traceSpans || [],
+        finalOutput,
+        traceSpans,
         workflowInput,
         executionState,
         finalizationPath: 'completed',
@@ -424,13 +451,13 @@ export class LoggingSession {
 
       this.completed = true
 
-      if (traceSpans && traceSpans.length > 0) {
+      if (traceSpans.length > 0) {
         try {
           const { PlatformEvents, createOTelSpansForWorkflowExecution } = await import(
             '@/lib/core/telemetry'
           )
 
-          const hasErrors = traceSpans.some((span: any) => {
+          const hasErrors = rawTraceSpans.some((span: any) => {
             const checkForErrors = (s: any): boolean => {
               if (s.status === 'error' && !s.errorHandled) return true
               if (s.children && Array.isArray(s.children)) {
@@ -506,13 +533,15 @@ export class LoggingSession {
         return
       }
 
-      const { endedAt, totalDurationMs, error, traceSpans, skipCost } = params
+      const { endedAt, totalDurationMs, error, skipCost } = params
+      const rawTraceSpans = params.traceSpans || []
+      const traceSpans = this.sanitizeForLog(rawTraceSpans)
 
       const endTime = endedAt ? new Date(endedAt) : new Date()
       const durationMs = typeof totalDurationMs === 'number' ? totalDurationMs : 0
       const startTime = new Date(endTime.getTime() - Math.max(1, durationMs))
 
-      const hasProvidedSpans = Array.isArray(traceSpans) && traceSpans.length > 0
+      const hasProvidedSpans = traceSpans.length > 0
 
       // calculateCostSummary([]) / (undefined) already returns the base-charge
       // summary, so the no-spans branch needs no separate literal.
@@ -528,9 +557,9 @@ export class LoggingSession {
             models: {},
             charges: {},
           }
-        : calculateCostSummary(traceSpans)
+        : calculateCostSummary(rawTraceSpans)
 
-      const message = error?.message || 'Run failed before starting blocks'
+      const message = this.sanitizeForLog(error?.message || 'Run failed before starting blocks')
 
       const errorSpan: TraceSpan = {
         id: 'workflow-error-root',
@@ -615,7 +644,9 @@ export class LoggingSession {
     this.completing = true
 
     try {
-      const { endedAt, totalDurationMs, traceSpans } = params
+      const { endedAt, totalDurationMs } = params
+      const rawTraceSpans = params.traceSpans || []
+      const traceSpans = this.sanitizeForLog(rawTraceSpans)
 
       const endTime = endedAt ? new Date(endedAt) : new Date()
       const durationMs = typeof totalDurationMs === 'number' ? totalDurationMs : 0
@@ -639,14 +670,14 @@ export class LoggingSession {
 
       // calculateCostSummary handles empty/undefined spans by returning the
       // base-charge summary, so no separate no-spans literal is needed.
-      const costSummary = calculateCostSummary(traceSpans)
+      const costSummary = calculateCostSummary(rawTraceSpans)
 
       await this.completeExecutionWithFinalization({
         endedAt: endTime.toISOString(),
         totalDurationMs: Math.max(1, durationMs),
         costSummary,
         finalOutput: { cancelled: true },
-        traceSpans: traceSpans || [],
+        traceSpans,
         finalizationPath: 'cancelled',
         status: 'cancelled',
       })
@@ -662,11 +693,11 @@ export class LoggingSession {
           durationMs: Math.max(1, durationMs),
           status: 'cancelled',
           trigger: this.triggerType,
-          blocksExecuted: traceSpans?.length || 0,
+          blocksExecuted: traceSpans.length,
           hasErrors: false,
         })
 
-        if (traceSpans && traceSpans.length > 0) {
+        if (traceSpans.length > 0) {
           const startTime = new Date(endTime.getTime() - Math.max(1, durationMs))
           createOTelSpansForWorkflowExecution({
             workflowId: this.workflowId,
@@ -709,7 +740,9 @@ export class LoggingSession {
     this.completing = true
 
     try {
-      const { endedAt, totalDurationMs, traceSpans, workflowInput } = params
+      const { endedAt, totalDurationMs, workflowInput } = params
+      const rawTraceSpans = params.traceSpans || []
+      const traceSpans = this.sanitizeForLog(rawTraceSpans)
 
       const endTime = endedAt ? new Date(endedAt) : new Date()
       const durationMs = typeof totalDurationMs === 'number' ? totalDurationMs : 0
@@ -733,14 +766,14 @@ export class LoggingSession {
 
       // calculateCostSummary handles empty/undefined spans by returning the
       // base-charge summary, so no separate no-spans literal is needed.
-      const costSummary = calculateCostSummary(traceSpans)
+      const costSummary = calculateCostSummary(rawTraceSpans)
 
       await this.completeExecutionWithFinalization({
         endedAt: endTime.toISOString(),
         totalDurationMs: Math.max(1, durationMs),
         costSummary,
         finalOutput: { paused: true },
-        traceSpans: traceSpans || [],
+        traceSpans,
         workflowInput,
         finalizationPath: 'paused',
         status: 'pending',
@@ -757,12 +790,12 @@ export class LoggingSession {
           durationMs: Math.max(1, durationMs),
           status: 'paused',
           trigger: this.triggerType,
-          blocksExecuted: traceSpans?.length || 0,
+          blocksExecuted: traceSpans.length,
           hasErrors: false,
           totalCost: costSummary.totalCost || 0,
         })
 
-        if (traceSpans && traceSpans.length > 0) {
+        if (traceSpans.length > 0) {
           const startTime = new Date(endTime.getTime() - Math.max(1, durationMs))
           createOTelSpansForWorkflowExecution({
             workflowId: this.workflowId,

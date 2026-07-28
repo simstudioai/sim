@@ -23,6 +23,7 @@ const {
   onBlockStartPersistenceMock,
   executorConstructorMock,
   findStartBlockMock,
+  setEnvironmentSecretSanitizerMock,
 } = vi.hoisted(() => ({
   mergeSubblockStateWithValuesMock: vi.fn(),
   safeStartMock: vi.fn(),
@@ -38,6 +39,7 @@ const {
   onBlockStartPersistenceMock: vi.fn(),
   executorConstructorMock: vi.fn(),
   findStartBlockMock: vi.fn(),
+  setEnvironmentSecretSanitizerMock: vi.fn(),
 }))
 
 const getPersonalAndWorkspaceEnvMock = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
@@ -110,6 +112,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     hasCompleted: hasCompletedMock,
     onBlockStart: onBlockStartPersistenceMock,
     onBlockComplete: vi.fn(),
+    setEnvironmentSecretSanitizer: setEnvironmentSecretSanitizerMock,
     setPostExecutionPromise: vi.fn(),
     waitForPostExecution: vi.fn().mockResolvedValue(undefined),
   }
@@ -498,6 +501,148 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       'clearCancellation',
       'updateRunCounts',
     ])
+  })
+
+  it('registers a workflow-scoped log sanitizer while preserving raw runtime output', async () => {
+    const secret = 'sk-demo-core-7f3a91'
+    const runtimeOutput = {
+      keyWasResolved: true,
+      echoedKey: secret,
+      ordinary: 'us-east-1',
+    }
+
+    getPersonalAndWorkspaceEnvMock.mockResolvedValue({
+      personalEncrypted: {},
+      workspaceEncrypted: { OPENAI_API_KEY: 'encrypted' },
+      personalDecrypted: {},
+      workspaceDecrypted: {
+        OPENAI_API_KEY: secret,
+        UNREFERENCED_REGION: 'us-east-1',
+      },
+    })
+    serializeWorkflowMock.mockReturnValue({
+      blocks: [
+        {
+          id: 'function-1',
+          config: {
+            tool: 'function',
+            params: { code: 'return "{{OPENAI_API_KEY}}"' },
+          },
+        },
+      ],
+      connections: [],
+      loops: {},
+      parallels: {},
+    })
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: runtimeOutput,
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    const result = await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+
+    const sanitizer = setEnvironmentSecretSanitizerMock.mock.calls[0]?.[0]
+    expect(sanitizer).toBeTypeOf('function')
+    expect(sanitizer(runtimeOutput)).toEqual({
+      keyWasResolved: true,
+      echoedKey: '{{OPENAI_API_KEY}}',
+      ordinary: 'us-east-1',
+    })
+    expect(result.output).toEqual(runtimeOutput)
+    expect(result.output.echoedKey).toBe(secret)
+    expect(safeCompleteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ finalOutput: runtimeOutput })
+    )
+  })
+
+  it('rebuilds the log sanitizer with current environment values for resumed runs', async () => {
+    const firstSecret = 'sk-demo-before-resume'
+    const resumedSecret = 'sk-demo-after-resume'
+    const workflowWithSecret = {
+      blocks: [
+        {
+          id: 'function-1',
+          config: {
+            tool: 'function',
+            params: { code: 'return "{{OPENAI_API_KEY}}"' },
+          },
+        },
+      ],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+
+    serializeWorkflowMock.mockReturnValue(workflowWithSecret)
+    getPersonalAndWorkspaceEnvMock
+      .mockResolvedValueOnce({
+        personalEncrypted: {},
+        workspaceEncrypted: { OPENAI_API_KEY: 'encrypted-before' },
+        personalDecrypted: {},
+        workspaceDecrypted: { OPENAI_API_KEY: firstSecret },
+      })
+      .mockResolvedValueOnce({
+        personalEncrypted: {},
+        workspaceEncrypted: { OPENAI_API_KEY: 'encrypted-after' },
+        personalDecrypted: {},
+        workspaceDecrypted: { OPENAI_API_KEY: resumedSecret },
+      })
+    executorExecuteMock
+      .mockResolvedValueOnce({
+        success: true,
+        status: 'completed',
+        output: { echoedKey: firstSecret },
+        logs: [],
+        metadata: { duration: 1, startTime: 'start', endTime: 'end' },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        status: 'completed',
+        output: { echoedKey: resumedSecret },
+        logs: [],
+        metadata: { duration: 1, startTime: 'start', endTime: 'end' },
+      })
+
+    await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+
+    const resumedSnapshot = createSnapshot()
+    resumedSnapshot.metadata = {
+      ...resumedSnapshot.metadata,
+      executionId: 'execution-resumed',
+      resumeFromSnapshot: true,
+      resumeTerminalNoop: true,
+    } as any
+
+    const resumedResult = await executeWorkflowCore({
+      snapshot: resumedSnapshot as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+      skipLogCreation: true,
+    })
+    await loggingSession.setPostExecutionPromise.mock.calls[1][0]
+
+    const initialSanitizer = setEnvironmentSecretSanitizerMock.mock.calls[0]?.[0]
+    const resumedSanitizer = setEnvironmentSecretSanitizerMock.mock.calls[1]?.[0]
+    expect(initialSanitizer({ echoedKey: firstSecret })).toEqual({
+      echoedKey: '{{OPENAI_API_KEY}}',
+    })
+    expect(resumedSanitizer({ echoedKey: resumedSecret })).toEqual({
+      echoedKey: '{{OPENAI_API_KEY}}',
+    })
+    expect(resumedResult.output).toEqual({ echoedKey: resumedSecret })
   })
 
   it('awaits wrapped lifecycle persistence before terminal finalization returns', async () => {

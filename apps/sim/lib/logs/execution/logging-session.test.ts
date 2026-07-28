@@ -73,6 +73,7 @@ vi.mock('@/lib/logs/execution/logging-factory', () => ({
 }))
 
 import { calculateCostSummary } from '@/lib/logs/execution/logging-factory'
+import { createEnvironmentSecretSanitizer } from '@/executor/utils/environment-secret-sanitizer'
 import { LoggingSession } from './logging-session'
 
 afterAll(resetDbChainMock)
@@ -263,6 +264,123 @@ describe('LoggingSession completion retries', () => {
       expect.objectContaining({
         executionId: 'execution-5',
         finalOutput: { ok: true, stage: 'done' },
+        finalizationPath: 'fallback_completed',
+      })
+    )
+  })
+
+  it('sanitizes workflow output and final trace spans without mutating runtime values', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-safe', 'api', 'req-1')
+    const secret = 'sk-demo / trace?token=7f3a91'
+    const rawFinalOutput = {
+      result: {
+        resolvedAtRuntime: true,
+        echoed: `prefix:${secret}:suffix`,
+        encoded: encodeURIComponent(secret),
+        ordinary: 'us-east-1',
+      },
+    }
+    const rawTraceSpans = [
+      {
+        id: 'span-safe',
+        name: 'Function',
+        type: 'function',
+        duration: 1,
+        startTime: '2026-07-01T00:00:00.000Z',
+        endTime: '2026-07-01T00:00:00.001Z',
+        status: 'success',
+        output: { echoed: secret },
+      },
+    ]
+
+    session.setEnvironmentSecretSanitizer(
+      createEnvironmentSecretSanitizer(
+        { code: 'return "{{OPENAI_API_KEY}}"' },
+        {
+          OPENAI_API_KEY: secret,
+          UNREFERENCED_REGION: 'us-east-1',
+        }
+      )
+    )
+    completeWorkflowExecutionMock.mockResolvedValue({})
+
+    await session.safeComplete({
+      finalOutput: rawFinalOutput,
+      traceSpans: rawTraceSpans as any,
+    })
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        finalOutput: {
+          result: {
+            resolvedAtRuntime: true,
+            echoed: 'prefix:{{OPENAI_API_KEY}}:suffix',
+            encoded: '{{OPENAI_API_KEY}}',
+            ordinary: 'us-east-1',
+          },
+        },
+        traceSpans: [
+          expect.objectContaining({
+            output: { echoed: '{{OPENAI_API_KEY}}' },
+          }),
+        ],
+      })
+    )
+    expect(rawFinalOutput.result.echoed).toBe(`prefix:${secret}:suffix`)
+    expect(rawTraceSpans[0].output.echoed).toBe(secret)
+    expect(calculateCostSummary).toHaveBeenCalledWith(rawTraceSpans)
+  })
+
+  it('sanitizes synthetic workflow errors and completion failure metadata', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-error-safe', 'api', 'req-1')
+    const secret = 'sk-demo-error-7f3a91'
+
+    session.setEnvironmentSecretSanitizer(
+      createEnvironmentSecretSanitizer(
+        { code: 'throw new Error("{{OPENAI_API_KEY}}")' },
+        { OPENAI_API_KEY: secret }
+      )
+    )
+    completeWorkflowExecutionMock.mockResolvedValue({})
+
+    await session.safeCompleteWithError({
+      error: { message: `Function failed with ${secret}` },
+    })
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        finalOutput: { error: 'Function failed with {{OPENAI_API_KEY}}' },
+        traceSpans: [
+          expect.objectContaining({
+            output: { error: 'Function failed with {{OPENAI_API_KEY}}' },
+          }),
+        ],
+        completionFailure: 'Function failed with {{OPENAI_API_KEY}}',
+      })
+    )
+  })
+
+  it('keeps workflow output sanitized when completion falls back to cost-only persistence', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-fallback-safe', 'api', 'req-1')
+    const secret = 'sk-demo-fallback-7f3a91'
+
+    session.setEnvironmentSecretSanitizer(
+      createEnvironmentSecretSanitizer(
+        { code: 'return "{{OPENAI_API_KEY}}"' },
+        { OPENAI_API_KEY: secret }
+      )
+    )
+    completeWorkflowExecutionMock
+      .mockRejectedValueOnce(new Error('primary persistence failed'))
+      .mockResolvedValueOnce({})
+
+    await session.safeComplete({
+      finalOutput: { echoed: secret },
+    })
+
+    expect(completeWorkflowExecutionMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        finalOutput: { echoed: '{{OPENAI_API_KEY}}' },
         finalizationPath: 'fallback_completed',
       })
     )

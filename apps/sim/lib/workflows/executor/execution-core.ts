@@ -44,6 +44,7 @@ import type {
   NormalizedBlockOutput,
   StartBlockRunMetadata,
 } from '@/executor/types'
+import { createEnvironmentSecretSanitizer } from '@/executor/utils/environment-secret-sanitizer'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { isRunMetadataEnabled } from '@/executor/utils/start-block'
 import { buildParallelSentinelEndId, buildSentinelEndId } from '@/executor/utils/subflow-utils'
@@ -522,6 +523,12 @@ async function executeWorkflowCoreImpl(
       loops,
       parallels,
       true
+    )
+    loggingSession.setEnvironmentSecretSanitizer(
+      createEnvironmentSecretSanitizer(
+        serializedWorkflow.blocks.map((block) => block.config),
+        decryptedEnvVars
+      )
     )
 
     processedInput = input || {}

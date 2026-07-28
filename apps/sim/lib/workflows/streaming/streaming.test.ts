@@ -8,6 +8,7 @@ import {
   agentStreamProtocolResponseHeaders,
   createStreamingResponse,
 } from '@/lib/workflows/streaming/streaming'
+import { createEnvironmentSecretSanitizer } from '@/executor/utils/environment-secret-sanitizer'
 
 const { mockDownloadFile } = vi.hoisted(() => ({
   mockDownloadFile: vi.fn(),
@@ -1311,7 +1312,18 @@ describe('createStreamingResponse agent-events-v1', () => {
 
   it('does not replace sanitized trace content with raw streamed text', async () => {
     const secret = 'raw-stream-secret'
-    const safeComplete = vi.fn(async () => {})
+    const sanitizer = createEnvironmentSecretSanitizer(
+      { prompt: 'Use {{TRACE_SECRET}}' },
+      { TRACE_SECRET: secret }
+    )
+    const persistedCompletion = vi.fn()
+    const safeComplete = vi.fn(async (params: Record<string, any>) => {
+      persistedCompletion({
+        ...params,
+        finalOutput: sanitizer(params.finalOutput),
+        traceSpans: sanitizer(params.traceSpans),
+      })
+    })
     const stream = await createStreamingResponse({
       requestId: 'request-1',
       streamConfig: {},
@@ -1360,12 +1372,16 @@ describe('createStreamingResponse agent-events-v1', () => {
       },
     })
 
-    await collectSSEEvents(stream)
+    const events = await collectSSEEvents(stream)
 
     expect(safeComplete).toHaveBeenCalledOnce()
-    const serializedSpans = JSON.stringify(safeComplete.mock.calls[0][0].traceSpans)
-    expect(serializedSpans).not.toContain(secret)
-    expect(serializedSpans).toContain('{{TRACE_SECRET}}')
+    expect(persistedCompletion).toHaveBeenCalledOnce()
+    const serializedCompletion = JSON.stringify(persistedCompletion.mock.calls[0][0])
+    expect(serializedCompletion).not.toContain(secret)
+    expect(serializedCompletion).toContain('{{TRACE_SECRET}}')
+
+    const finalEvent = events.find((event) => event.event === 'final')
+    expect(JSON.stringify(finalEvent)).toContain(secret)
   })
 
   it('thinking never enters streamedChunks / log content rewrite', async () => {
