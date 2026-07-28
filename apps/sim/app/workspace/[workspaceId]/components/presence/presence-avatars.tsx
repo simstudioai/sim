@@ -1,6 +1,5 @@
 'use client'
 
-import { useMemo } from 'react'
 import { Avatar, AvatarFallback, AvatarImage, cn, Tooltip } from '@sim/emcn'
 import { getUserColor } from '@/lib/workspaces/colors'
 
@@ -80,15 +79,10 @@ export function PresenceAvatars({
   maxVisible = DEFAULT_MAX_VISIBLE,
   className,
 }: PresenceAvatarsProps) {
-  const { visibleUsers, overflowCount } = useMemo(() => {
-    if (users.length === 0) {
-      return { visibleUsers: [] as PresenceAvatarUser[], overflowCount: 0 }
-    }
-    const visible = users.slice(0, maxVisible)
-    const overflow = Math.max(0, users.length - maxVisible)
-    // Reverse so the rightmost avatar stays stable as new ones reveal on the left.
-    return { visibleUsers: [...visible].reverse(), overflowCount: overflow }
-  }, [users, maxVisible])
+  // Reverse so the rightmost avatar stays stable as new ones reveal on the left.
+  // slice() already returns a fresh array, so the in-place reverse is safe.
+  const visibleUsers = users.slice(0, maxVisible).reverse()
+  const overflowCount = Math.max(0, users.length - maxVisible)
 
   if (visibleUsers.length === 0) {
     return null

@@ -1,7 +1,6 @@
 import { db, userTableDefinitions, workspace, workspaceFiles } from '@sim/db'
 import { ROOM_TYPES, type RoomRef, type RoomType } from '@sim/realtime-protocol/rooms'
 import { and, eq, isNull } from 'drizzle-orm'
-import { getActiveWorkflowContext } from './workflow'
 import {
   type PermissionType,
   permissionSatisfies,
@@ -73,20 +72,17 @@ async function resolveTableWorkspace(tableId: string): Promise<RoomWorkspace | n
 }
 
 /**
- * Single source of truth mapping each room type to its resource→workspace
- * lookup. Every realtime room is workspace-scoped and authorizes through the
- * same effective-permission resolver, so a room type only has to say *which*
- * workspace it belongs to. Adding a room type = adding one entry here.
+ * Maps each workspace-scoped room type to its resource→workspace lookup. These
+ * rooms authorize uniformly through {@link authorizeRoom}: resolve *which*
+ * workspace the room belongs to, then gate on effective workspace permission.
+ *
+ * Workflow is intentionally absent: it authorizes through its own dedicated path
+ * (`authorizeWorkflowByWorkspacePermission` + the realtime role cache in
+ * `middleware/permissions`) and never flows through {@link authorizeRoom}. A
+ * workflow ref reaching here is therefore an unknown type (400) by design.
+ * Adding a *workspace-scoped* room type = adding one entry here.
  */
-const ROOM_WORKSPACE_RESOLVERS: Record<RoomType, RoomWorkspaceResolver> = {
-  [ROOM_TYPES.WORKFLOW]: async (workflowId) => {
-    const context = await getActiveWorkflowContext(workflowId)
-    if (!context?.workspaceId) return null
-    return {
-      workspaceId: context.workspaceId,
-      workspaceOrganizationId: context.workspaceOrganizationId,
-    }
-  },
+const ROOM_WORKSPACE_RESOLVERS: Partial<Record<RoomType, RoomWorkspaceResolver>> = {
   // A workspace-files room is addressed directly by its workspace id.
   [ROOM_TYPES.WORKSPACE_FILES]: resolveWorkspaceRoomWorkspace,
   // A file-doc room is addressed by file id; resolve it to its workspace.
@@ -104,10 +100,12 @@ export interface RoomAuthorizationResult {
 }
 
 /**
- * Authorizes a user against a realtime room. Mirrors
- * `authorizeWorkflowByWorkspacePermission` (the exemplary workflow authorizer)
- * but generalized over room type: resolve the room's workspace, then gate on the
- * user's effective workspace permission under the read < write < admin ordering.
+ * Authorizes a user against a workspace-scoped realtime room (workspace-files,
+ * file-doc, table). Mirrors `authorizeWorkflowByWorkspacePermission` (the
+ * exemplary workflow authorizer) but generalized over room type: resolve the
+ * room's workspace, then gate on the user's effective workspace permission under
+ * the read < write < admin ordering. Workflow rooms use their own authorizer and
+ * do not pass through here (see {@link ROOM_WORKSPACE_RESOLVERS}).
  *
  * Returns a denial (never throws) for unknown room type (400), missing/archived
  * resource (404), and insufficient permission (403), so realtime handlers and

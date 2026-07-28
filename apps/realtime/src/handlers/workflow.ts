@@ -9,7 +9,38 @@ import { type IRoomManager, type UserPresence, workflowRoom as wf } from '@/room
 const logger = createLogger('WorkflowHandlers')
 
 export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
-  socket.on('join-workflow', async ({ workflowId, tabSessionId }) => {
+  // Monotonic per-socket generation: each JOIN/LEAVE bumps it synchronously on arrival, and a
+  // queued or in-flight op that finds a newer generation aborts — a fast workflow switch A→B thus
+  // cancels A the instant B arrives.
+  let joinGeneration = 0
+  // Serialize this socket's room mutations (JOIN + LEAVE) so their multi-step async Redis commits
+  // can never interleave: two concurrent joins would otherwise race on the single-valued
+  // socket→room map (a late addUserToRoom clobbering a newer join's entry, leaving the socket a
+  // ghost in the old room and receiving its operation broadcasts). This matches the sibling
+  // handlers (tables, file-doc, workspace-files).
+  let opChain: Promise<void> = Promise.resolve()
+
+  socket.on('join-workflow', ({ workflowId, tabSessionId }) => {
+    const joinAttempt = (joinGeneration += 1)
+    opChain = opChain
+      .then(() => runJoin(workflowId, tabSessionId, joinAttempt))
+      .catch((error) => logger.error('Error joining workflow:', error))
+    // Returned so callers awaiting this op (e.g. tests) can await its completion; Socket.IO
+    // ignores a handler's return value.
+    return opChain
+  })
+
+  async function runJoin(
+    workflowId: string,
+    tabSessionId: string | undefined,
+    joinAttempt: number
+  ) {
+    // True once this JOIN has been superseded — a newer JOIN/LEAVE bumped joinGeneration, or the
+    // socket disconnected. Because ops are serialized, no other op mutates room state while this
+    // one runs, so only two checks are needed: skip a superseded queued op (here), and one final
+    // check right before the membership commit.
+    const superseded = () => joinGeneration !== joinAttempt || socket.disconnected
+    if (superseded()) return
     try {
       const userId = socket.userId
       const userName = socket.userName
@@ -163,6 +194,12 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       }
       userRole = currentRole
 
+      // Final re-check before the membership commit: a LEAVE or a newer JOIN enqueued during the
+      // awaits above bumped the generation, or the socket disconnected. Abort before registering.
+      // (This guards against a superseding op; the avatar hoist above guards against the off-chain
+      // access-revalidation sweep, which does not bump the generation.)
+      if (superseded()) return
+
       // Join the new room
       socket.join(workflowId)
 
@@ -207,7 +244,11 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       )
     } catch (error) {
       logger.error('Error joining workflow:', error)
-      // Undo socket.join and room manager entry if any operation failed
+      // Always roll back a partial join: cleanup keys off the socket→room map, so a `socket.join`
+      // that landed without a matching `addUserToRoom` (a throw in between) would otherwise strand
+      // the socket in the Socket.IO room, unreclaimable by any later op. Safe even when superseded —
+      // serialization means the newer op hasn't committed yet, so this touches only this join's own
+      // room state, never the newer op's.
       socket.leave(workflowId)
       await roomManager.removeUserFromRoom(wf(workflowId), socket.id)
       const isReady = roomManager.isReady()
@@ -218,26 +259,33 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
         retryable: true,
       })
     }
+  }
+
+  socket.on('leave-workflow', () => {
+    // A leave always cancels any in-flight/queued join for this socket (the client emits it with no
+    // payload — there is no partial-switch case as there is for tables). Bumped synchronously here,
+    // before the teardown is enqueued, so it cancels a running join at its next generation check.
+    joinGeneration += 1
+    opChain = opChain
+      .then(() => runLeave())
+      .catch((error) => logger.error('Error leaving workflow:', error))
+    return opChain
   })
 
-  socket.on('leave-workflow', async () => {
+  async function runLeave() {
     try {
-      if (!roomManager.isReady()) {
-        return
-      }
-
+      if (!roomManager.isReady()) return
       const room = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.WORKFLOW)
-      const session = await roomManager.getUserSession(socket.id)
-
-      if (room && session) {
-        socket.leave(room.id)
-        await roomManager.removeUserFromRoom(room, socket.id)
-        await roomManager.broadcastPresenceUpdate(room)
-
-        logger.info(`User ${session.userId} (${session.userName}) left workflow ${room.id}`)
-      }
+      // The room ref alone is sufficient to leave; no session lookup is gated in front of it, so an
+      // idle user whose 1h session key expired (while the 24h room mapping is still live) can still
+      // leave cleanly instead of being stranded as a ghost until disconnect.
+      if (!room) return
+      socket.leave(room.id)
+      await roomManager.removeUserFromRoom(room, socket.id)
+      await roomManager.broadcastPresenceUpdate(room)
+      logger.info(`User ${socket.userId} (${socket.userName}) left workflow ${room.id}`)
     } catch (error) {
       logger.error('Error leaving workflow:', error)
     }
-  })
+  }
 }

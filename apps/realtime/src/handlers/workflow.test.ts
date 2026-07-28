@@ -42,13 +42,14 @@ interface JoinWorkflowPayload {
 }
 
 function createSocket(overrides?: Partial<Record<string, unknown>>) {
-  const handlers: Record<string, (payload: JoinWorkflowPayload) => Promise<void> | void> = {}
+  // leave-workflow takes no payload; join-workflow takes one — so the stored handler's arg is optional.
+  const handlers: Record<string, (payload?: JoinWorkflowPayload) => Promise<void> | void> = {}
   const socket = {
     id: 'socket-1',
     userId: 'user-1',
     userName: 'Test User',
     userImage: 'avatar.png',
-    on: vi.fn((event: string, handler: (payload: JoinWorkflowPayload) => Promise<void> | void) => {
+    on: vi.fn((event: string, handler: (payload?: JoinWorkflowPayload) => Promise<void> | void) => {
       handlers[event] = handler
     }),
     emit: vi.fn(),
@@ -278,6 +279,99 @@ describe('setupWorkflowHandlers', () => {
       error: 'Failed to join workflow',
       code: 'JOIN_WORKFLOW_FAILED',
       retryable: true,
+    })
+  })
+
+  it('cancels a superseded queued join on a fast workflow switch', async () => {
+    const { socket, handlers } = createSocket()
+    const roomManager = createRoomManager()
+
+    setupWorkflowHandlers(
+      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
+      roomManager
+    )
+
+    // Enqueue A without awaiting, then B: B bumps the generation synchronously, so A is superseded
+    // before its queued op runs and must never commit.
+    handlers['join-workflow']({ workflowId: 'workflow-a', tabSessionId: 'tab-1' })
+    await handlers['join-workflow']({ workflowId: 'workflow-b', tabSessionId: 'tab-1' })
+
+    expect(socket.join).toHaveBeenCalledWith('workflow-b')
+    expect(socket.join).not.toHaveBeenCalledWith('workflow-a')
+    expect(roomManager.addUserToRoom).toHaveBeenCalledWith(
+      { type: 'workflow', id: 'workflow-b' },
+      'socket-1',
+      expect.anything()
+    )
+    expect(roomManager.addUserToRoom).not.toHaveBeenCalledWith(
+      { type: 'workflow', id: 'workflow-a' },
+      'socket-1',
+      expect.anything()
+    )
+  })
+
+  it('cancels an in-flight join when a leave is enqueued before it commits', async () => {
+    const { socket, handlers } = createSocket()
+    const roomManager = createRoomManager()
+
+    setupWorkflowHandlers(
+      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
+      roomManager
+    )
+
+    handlers['join-workflow']({ workflowId: 'workflow-1', tabSessionId: 'tab-1' })
+    await handlers['leave-workflow']()
+
+    expect(socket.join).not.toHaveBeenCalled()
+    expect(roomManager.addUserToRoom).not.toHaveBeenCalled()
+  })
+
+  it('rolls back the workflow membership when addUserToRoom fails mid-commit', async () => {
+    const { socket, handlers } = createSocket()
+    const roomManager = createRoomManager({
+      addUserToRoom: vi.fn().mockRejectedValue(new Error('redis down')),
+    })
+
+    setupWorkflowHandlers(
+      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
+      roomManager
+    )
+
+    await handlers['join-workflow']({ workflowId: 'workflow-1', tabSessionId: 'tab-1' })
+
+    expect(socket.leave).toHaveBeenCalledWith('workflow-1')
+    expect(roomManager.removeUserFromRoom).toHaveBeenCalledWith(
+      { type: 'workflow', id: 'workflow-1' },
+      'socket-1'
+    )
+    expect(socket.emit).toHaveBeenCalledWith(
+      'join-workflow-error',
+      expect.objectContaining({ code: 'JOIN_WORKFLOW_FAILED' })
+    )
+  })
+
+  it('leaves the workflow room even when the session key has expired', async () => {
+    const { socket, handlers } = createSocket()
+    const roomManager = createRoomManager({
+      getRoomForSocket: vi.fn().mockResolvedValue({ type: 'workflow', id: 'workflow-1' }),
+      getUserSession: vi.fn().mockResolvedValue(null),
+    })
+
+    setupWorkflowHandlers(
+      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
+      roomManager
+    )
+
+    await handlers['leave-workflow']()
+
+    expect(socket.leave).toHaveBeenCalledWith('workflow-1')
+    expect(roomManager.removeUserFromRoom).toHaveBeenCalledWith(
+      { type: 'workflow', id: 'workflow-1' },
+      'socket-1'
+    )
+    expect(roomManager.broadcastPresenceUpdate).toHaveBeenCalledWith({
+      type: 'workflow',
+      id: 'workflow-1',
     })
   })
 })

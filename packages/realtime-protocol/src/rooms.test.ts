@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   ALL_ROOM_TYPES,
   isRoomType,
-  isSameRoom,
   parseRoomName,
   ROOM_TYPES,
   type RoomRef,
@@ -81,15 +80,6 @@ describe('isRoomType', () => {
     expect(isRoomType(ROOM_TYPES.WORKFLOW)).toBe(true)
     expect(isRoomType(ROOM_TYPES.WORKSPACE_FILES)).toBe(true)
     expect(isRoomType('nope')).toBe(false)
-  })
-})
-
-describe('isSameRoom', () => {
-  it('compares by type and id', () => {
-    const a: RoomRef = { type: ROOM_TYPES.WORKSPACE_FILES, id: 'ws-1' }
-    expect(isSameRoom(a, { ...a })).toBe(true)
-    expect(isSameRoom(a, { type: ROOM_TYPES.WORKFLOW, id: 'ws-1' })).toBe(false)
-    expect(isSameRoom(a, { type: ROOM_TYPES.WORKSPACE_FILES, id: 'ws-2' })).toBe(false)
   })
 })
 
