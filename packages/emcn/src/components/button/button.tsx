@@ -21,6 +21,13 @@ const buttonVariants = cva(
         secondary: 'bg-[var(--brand-secondary)] text-[var(--text-primary)]',
         tertiary:
           'bg-[var(--brand-accent)] text-[var(--text-inverse)] hover-hover:text-[var(--text-inverse)] hover-hover:bg-[var(--brand-accent-hover)] dark:bg-[var(--brand-accent)] dark:hover-hover:bg-[var(--brand-accent-hover)] dark:text-[var(--text-inverse)] dark:hover-hover:text-[var(--text-inverse)]',
+        /* Fixed brand pairs, matching the workflow type tags rather than the
+           theme tokens — `graphite` is the Agent tag's fill and ink. Both hold
+           one value across modes, so neither takes a `dark:` override. */
+        graphite:
+          'bg-[#3B3B3B] text-[#F8F8F8] hover-hover:text-[#F8F8F8] hover-hover:brightness-125',
+        graphiteSubtle:
+          'bg-[#E6E6E6] text-[#3B3B3B] hover-hover:text-[#3B3B3B] hover-hover:brightness-[0.96]',
         ghost: 'text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)]',
         subtle:
           'text-[var(--text-body)] hover-hover:text-[var(--text-body)] hover-hover:bg-[var(--surface-4)]',

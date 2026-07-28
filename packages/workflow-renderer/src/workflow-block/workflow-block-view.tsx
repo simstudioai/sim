@@ -102,14 +102,14 @@ export function getNearestBranchCursorHandleId(
 
 const WORKFLOW_TYPE_ACCENTS = {
   agent: { variant: 'workflow', tone: 'inverse' },
-  api: { variant: 'workflow', tone: 'indigo' },
-  condition: { variant: 'workflow', tone: 'violet' },
-  credential: { variant: 'workflow', tone: 'amber' },
-  file: { variant: 'workflow', tone: 'indigo' },
-  file_v5: { variant: 'workflow', tone: 'indigo' },
-  function: { variant: 'workflow', tone: 'violet' },
-  router_v2: { variant: 'workflow', tone: 'indigoStrong' },
-  table: { variant: 'workflow', tone: 'teal' },
+  api: { variant: 'workflow', tone: 'orange' },
+  condition: { variant: 'workflow', tone: 'ash' },
+  credential: { variant: 'workflow', tone: 'yellow' },
+  file: { variant: 'workflow', tone: 'orange' },
+  file_v5: { variant: 'workflow', tone: 'orange' },
+  function: { variant: 'workflow', tone: 'ash' },
+  router_v2: { variant: 'workflow', tone: 'blue' },
+  table: { variant: 'workflow', tone: 'green' },
 } as const
 
 const DEFAULT_WORKFLOW_TYPE_ACCENT = { variant: 'workflow', tone: 'neutral' } as const
@@ -796,7 +796,15 @@ export function WorkflowBlockView({
         className={cn(
           'workflow-drag-handle relative z-[20] w-[250px] cursor-grab select-none rounded-2xl [&:active]:cursor-grabbing'
         )}
-        style={blockHeight && blockHeight > 0 ? { minHeight: blockHeight } : undefined}
+        /* Never let the host fall below the shortest silhouette the border can
+           paint. `blockHeight` arrives from the deterministic-dimensions pass
+           and is already floored at MIN_PAINTED_HEIGHT, but it is absent on the
+           first frames — and with no floor the host collapses to its natural
+           content height (~25px for a header-only trigger). The border builds
+           its perimeter from `host.offsetHeight`, so that window paints a
+           sub-floor card: the action-menu tab is squashed and its icon row
+           spills onto the card. */
+        style={{ minHeight: Math.max(blockHeight ?? 0, BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT) }}
       >
         <WorkflowBlockBorder
           nodeId={id}
@@ -868,9 +876,14 @@ export function WorkflowBlockView({
             'flex items-center justify-between px-2',
             hasContentBelowHeader && 'h-[40px]'
           )}
+          /* Header-only cards stretch the header to the full card so its
+             `items-center` centres the title and type tag. Floored for the
+             same reason the host is: without it the row collapses to its
+             natural height on the frames before `blockHeight` arrives and the
+             content pins to the top of the card. */
           style={
-            !hasContentBelowHeader && blockHeight && blockHeight > 0
-              ? { height: blockHeight }
+            !hasContentBelowHeader
+              ? { height: Math.max(blockHeight ?? 0, BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT) }
               : undefined
           }
         >

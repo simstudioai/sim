@@ -5,6 +5,7 @@ import {
   type PositionedSourceHandleSide,
   type WorkflowCardSide,
 } from '@sim/workflow-types/workflow'
+import { BLOCK_DIMENSIONS } from '../dimensions'
 
 const BORDER_PADDING_PX = 36
 const SAMPLE_SPACING_PX = 1
@@ -70,7 +71,14 @@ const SPRING_STIFFNESS = 300
 const SPRING_DAMPING = 32
 const ACTION_MENU_SPRING_STIFFNESS = 480
 const ACTION_MENU_SPRING_DAMPING = 38
-const ACTION_MENU_CONTENT_READY_THRESHOLD = 0.8
+/**
+ * Must stay above the action row's own height as a fraction of the fully-open
+ * swell (24px of buttons in a 28px swell = 0.857). Below that the row is
+ * revealed while the swell is still shorter than it is, and because the row
+ * clips to the swell height the icons collide with the card's top edge for the
+ * remainder of the opening spring.
+ */
+const ACTION_MENU_CONTENT_READY_THRESHOLD = 0.9
 /** Quick deswell when the swell hands off to a hovered knob. */
 const CURSOR_SNAP_SPRING_STIFFNESS = 560
 const CURSOR_SNAP_SPRING_DAMPING = 42
@@ -867,7 +875,11 @@ export function WorkflowBlockBorder({
       /* offsetWidth/Height, not getBoundingClientRect: the card sits inside
          the canvas' zoom transform and a scaled rect would drift the geometry. */
       const width = host.offsetWidth
-      const nextHeight = host.offsetHeight
+      /* Clamped: below MIN_PAINTED_HEIGHT the perimeter has no straight run
+         left on the vertical edges and the action-menu tab collapses into the
+         corner arcs. The host carries the same floor; this keeps the geometry
+         correct even if a caller sizes one some other way. */
+      const nextHeight = Math.max(host.offsetHeight, BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT)
       if (Number.isFinite(width) && Number.isFinite(nextHeight) && width > 0 && nextHeight > 0) {
         setSize((current) =>
           current.width === width && current.height === nextHeight
