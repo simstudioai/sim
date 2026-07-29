@@ -193,17 +193,11 @@ export function Knowledge() {
   const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
   const { mutateAsync: deleteKnowledgeBaseMutation } = useDeleteKnowledgeBase(workspaceId)
 
-  const {
-    currentFolderId,
-    setCurrentFolderId,
-    breadcrumbs,
-    folders,
-    folderById,
-    isLoading: foldersLoading,
-  } = useFolderNavigation({
-    resourceType: FOLDER_RESOURCE_TYPE,
-    workspaceId,
-  })
+  const { currentFolderId, setCurrentFolderId, breadcrumbs, folders, folderById, foldersResolved } =
+    useFolderNavigation({
+      resourceType: FOLDER_RESOURCE_TYPE,
+      workspaceId,
+    })
 
   const createFolder = useCreateFolder()
   const updateFolder = useUpdateFolder()
@@ -432,13 +426,15 @@ export function Knowledge() {
      * A `folderId` that no longer names an active folder — a base restored on its own out of
      * Recently Deleted while its folder stayed archived, or a cascade that failed partway —
      * would otherwise match no level at all and leave the base unreachable from every view.
-     * Fall it back to the root instead. Skipped while the folder list is still loading, when
-     * an empty index would transiently drag every base to the root.
+     * Fall it back to the root instead — but only once `foldersResolved` says the index is the
+     * complete set for THIS workspace. Gating on a loading flag instead would treat an errored
+     * fetch, a disabled query, or the previous workspace's cached folders as "no such folder"
+     * and drag every foldered base to the root.
      */
     let result = filterKnowledgeBases(knowledgeBases, debouncedSearchQuery).filter((kb) => {
       const folderId = kb.folderId ?? null
       const effectiveFolderId =
-        foldersLoading || !folderId || folderById.has(folderId) ? folderId : null
+        !foldersResolved || !folderId || folderById.has(folderId) ? folderId : null
       return effectiveFolderId === currentFolderId
     })
 
@@ -507,7 +503,7 @@ export function Knowledge() {
     knowledgeBases,
     currentFolderId,
     folderById,
-    foldersLoading,
+    foldersResolved,
     debouncedSearchQuery,
     connectorFilter,
     contentFilter,

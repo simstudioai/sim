@@ -29,7 +29,16 @@ export interface FolderNavigation {
   /** Every active folder in this resource's tree, as returned by the folders API. */
   folders: WorkflowFolder[]
   folderById: Map<string, WorkflowFolder>
-  isLoading: boolean
+  /**
+   * Whether `folders`/`folderById` can be trusted to be the COMPLETE set for this workspace.
+   *
+   * Deliberately exposed instead of `isLoading`, which is a footgun here: it is false for a
+   * disabled query (no `workspaceId`), false for an errored one, and — because `useFolders`
+   * sets `keepPreviousData` — false while the previous workspace's folders are still on screen
+   * during a switch. A caller deciding "this resource's `folderId` does not resolve, so treat it
+   * as an orphan" off `isLoading` would dump every foldered row at the root in all three.
+   */
+  foldersResolved: boolean
 }
 
 const EMPTY_FOLDERS: WorkflowFolder[] = []
@@ -54,7 +63,6 @@ export function useFolderNavigation({
 
   const {
     data: folders = EMPTY_FOLDERS,
-    isLoading,
     isSuccess,
     isPlaceholderData,
   } = useFolders(workspaceId, { resourceType })
@@ -67,7 +75,7 @@ export function useFolderNavigation({
    * folders during a workspace switch. In all three the list is empty or stale, and healing
    * off it would throw away a perfectly good folder.
    */
-  const foldersAreAuthoritative = isSuccess && !isPlaceholderData
+  const foldersResolved = isSuccess && !isPlaceholderData
 
   const setCurrentFolderId = useCallback(
     (folderId: string | null) => {
@@ -92,10 +100,11 @@ export function useFolderNavigation({
    * and upload actions keep targeting that id, so a new resource is filed somewhere nothing
    * can reach.
    *
-   * Waits for `isLoading` so an empty index mid-fetch never evicts a perfectly good id.
+   * Gated on {@link FolderNavigation.foldersResolved} so an empty or stale index never evicts a
+   * perfectly good id.
    */
   useEffect(() => {
-    if (!foldersAreAuthoritative || !currentFolderId || folderById.has(currentFolderId)) return
+    if (!foldersResolved || !currentFolderId || folderById.has(currentFolderId)) return
     /**
      * `history: 'replace'`, overriding the `push` these params default to. Opening a folder is
      * a navigation and belongs in the back stack; correcting a URL that never pointed anywhere
@@ -103,7 +112,7 @@ export function useFolderNavigation({
      * and pushes again, so Back never escapes the page.
      */
     void setFolderParams({ folderId: null }, { history: 'replace' })
-  }, [foldersAreAuthoritative, currentFolderId, folderById, setFolderParams])
+  }, [foldersResolved, currentFolderId, folderById, setFolderParams])
 
   const breadcrumbs = useMemo(() => {
     if (!currentFolderId) return EMPTY_FOLDERS
@@ -135,6 +144,6 @@ export function useFolderNavigation({
     breadcrumbs,
     folders,
     folderById,
-    isLoading,
+    foldersResolved,
   }
 }

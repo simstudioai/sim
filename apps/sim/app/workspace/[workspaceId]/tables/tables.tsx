@@ -127,7 +127,7 @@ export function Tables() {
     breadcrumbs: folderChain,
     folders,
     folderById,
-    isLoading: foldersLoading,
+    foldersResolved,
   } = useFolderNavigation({
     resourceType: 'table',
     workspaceId,
@@ -302,13 +302,15 @@ export function Tables() {
      * A `folderId` that no longer names an active folder — restored on its own out
      * of Recently Deleted while its folder stayed archived — would otherwise match
      * no level at all and leave the table unreachable from every view. Fall it back
-     * to the root instead. Skipped while the folder list is still loading, when an
-     * empty index would transiently drag every table to the root.
+     * to the root instead — but only once `foldersResolved` says the index is the complete
+     * set for THIS workspace. Gating on a loading flag instead would treat an errored fetch,
+     * a disabled query, or the previous workspace's cached folders as "no such folder" and
+     * drag every foldered table to the root.
      */
     let result = tables.filter((t) => {
       const folderId = t.folderId ?? null
       const effectiveFolderId =
-        foldersLoading || !folderId || folderById.has(folderId) ? folderId : null
+        !foldersResolved || !folderId || folderById.has(folderId) ? folderId : null
       return effectiveFolderId === currentFolderId
     })
     if (query) result = result.filter((t) => t.name.toLowerCase().includes(query))
@@ -361,7 +363,7 @@ export function Tables() {
     tables,
     currentFolderId,
     folderById,
-    foldersLoading,
+    foldersResolved,
     debouncedSearchTerm,
     rowCountFilter,
     ownerFilter,
