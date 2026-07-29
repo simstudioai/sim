@@ -38,14 +38,18 @@ export async function buildFileDocSeed(
 
   const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_SEED_BYTES })
   const markdown = buffer.toString('utf-8')
-  const { body } = splitFrontmatter(markdown)
+  const { frontmatter, body } = splitFrontmatter(markdown)
 
   const ydoc = markdownToYDoc(body)
   try {
+    const config = ydoc.getMap(FILE_DOC_SEED.configMap)
     // Mark the document seeded IN the same doc, so the client's readiness gate
     // (`synced && initialContentLoaded === true`) recognizes a server-seeded doc without any
     // client-seeder handshake, and a stray re-election can never seed on top of it.
-    ydoc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+    config.set(FILE_DOC_SEED.flag, true)
+    // Carry the frontmatter in the doc (not the body) so it merges across clients and a later
+    // server-side edit can update it — the editor re-attaches this on autosave.
+    config.set(FILE_DOC_SEED.frontmatterKey, frontmatter)
     return { update: Y.encodeStateAsUpdate(ydoc) }
   } finally {
     ydoc.destroy()

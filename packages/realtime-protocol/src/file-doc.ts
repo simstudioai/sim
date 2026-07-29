@@ -71,6 +71,35 @@ export type FileDocMessageType = (typeof FILE_DOC_MESSAGE_TYPE)[keyof typeof FIL
 export const FILE_DOC_SEED = {
   configMap: 'config',
   flag: 'initialContentLoaded',
+  /**
+   * The file's raw YAML frontmatter string, stored in the config map so it lives in the CRDT and
+   * merges across clients. The collaborative document body never contains frontmatter (it is stripped
+   * on seed); the editor re-attaches THIS value on autosave. Keeping it in the doc — rather than
+   * locked at open time — is what lets a server-side edit (e.g. copilot) that changes the frontmatter
+   * be reflected instead of reverted by an open editor's autosave.
+   */
+  frontmatterKey: 'frontmatter',
+} as const
+
+/**
+ * The timeouts for the file-doc conversion round-trips, in ONE place because two of the pairs form an
+ * ordering invariant that would otherwise live only in prose comments across two apps. A nested call's
+ * bound must exceed the bound of the call it wraps, or the outer aborts while the inner is still
+ * running — orphaning work that lands late (see the assertion in the accompanying test):
+ *
+ * - `applyEditMs` (app → relay `apply-edit`, in `apps/sim`) wraps `mergeRequestMs` (relay → app
+ *   `/merge`, in `apps/realtime`), so `mergeRequestMs < applyEditMs`.
+ * - `readinessDeadlineMs` (the client's give-up-and-fall-back-read-only deadline) must outlast
+ *   `seedRequestMs` (relay → app `/seed`), so `seedRequestMs < readinessDeadlineMs`.
+ *
+ * The seed request gets more headroom than the merge because it reads a (possibly cold) blob before
+ * converting; the merge is a pure in-memory conversion the caller fully supplies.
+ */
+export const FILE_DOC_TIMEOUTS = {
+  seedRequestMs: 8_000,
+  mergeRequestMs: 3_000,
+  applyEditMs: 6_000,
+  readinessDeadlineMs: 12_000,
 } as const
 
 /** Client → server join request. `fileId` is the `workspace_files.id`. */

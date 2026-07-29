@@ -2,6 +2,7 @@ import {
   FILE_DOC_EVENTS,
   FILE_DOC_MESSAGE_TYPE,
   FILE_DOC_SEED,
+  FILE_DOC_TIMEOUTS,
   type JoinFileDocError,
   type JoinFileDocSuccess,
   toFileDocBytes,
@@ -34,9 +35,10 @@ interface FileDocProviderEvents {
  * On the deadline the provider latches fatal and surfaces a non-retryable `join-error` — the exact
  * path a fatal rejection uses — so the editor falls back to showing the file's stored content
  * read-only instead of a permanently blank pane. Generous enough to clear a slow connect + seed
- * round-trip; a healthy cold open reaches readiness well within it.
+ * round-trip; a healthy cold open reaches readiness well within it. Shared with (and must exceed) the
+ * relay's seed-fetch timeout — see `FILE_DOC_TIMEOUTS` and its ordering test.
  */
-const READINESS_DEADLINE_MS = 12_000
+const READINESS_DEADLINE_MS = FILE_DOC_TIMEOUTS.readinessDeadlineMs
 
 /**
  * The client half of the collaborative file-document protocol: a Yjs provider

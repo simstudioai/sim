@@ -8,12 +8,33 @@ import {
   inferContextFromKey,
   isAbortError,
   isInternalFileUrl,
+  isMarkdownFile,
   isNetworkError,
   processSingleFileToUserFile,
   resolveTrustedFileContext,
 } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FileUtilsTest')
+
+describe('isMarkdownFile', () => {
+  it('is true for .md and .markdown (case-insensitive)', () => {
+    expect(isMarkdownFile({ name: 'notes.md' })).toBe(true)
+    expect(isMarkdownFile({ name: 'README.MD' })).toBe(true)
+    expect(isMarkdownFile({ name: 'doc.markdown' })).toBe(true)
+  })
+
+  it('is true for a text/markdown MIME even without a .md name', () => {
+    expect(isMarkdownFile({ type: 'text/markdown', name: 'notes' })).toBe(true)
+    expect(isMarkdownFile({ type: 'text/markdown', name: 'doc.txt' })).toBe(true)
+  })
+
+  it('is false for non-markdown files', () => {
+    expect(isMarkdownFile({ type: 'text/javascript', name: 'script.js' })).toBe(false)
+    expect(isMarkdownFile({ name: 'report.docx' })).toBe(false)
+    expect(isMarkdownFile({ type: 'text/plain', name: 'notes.txt' })).toBe(false)
+    expect(isMarkdownFile({ name: 'noext' })).toBe(false)
+  })
+})
 
 describe('extractStorageKey', () => {
   it('strips every provider serve prefix', () => {

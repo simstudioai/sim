@@ -1,8 +1,8 @@
 'use client'
 
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { cn, toast } from '@sim/emcn'
-import type { JoinFileDocError } from '@sim/realtime-protocol/file-doc'
+import { FILE_DOC_SEED, type JoinFileDocError } from '@sim/realtime-protocol/file-doc'
 import type { Extensions, JSONContent } from '@tiptap/core'
 import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import { Fragment, Slice } from '@tiptap/pm/model'
@@ -307,6 +307,20 @@ export function LoadedRichMarkdownEditor({
   onSaveShortcutRef.current = onSaveShortcut
 
   /**
+   * The frontmatter to re-attach to the body on save. For a collaborative doc it lives in the CRDT
+   * (config map, seeded/updated server-side), so a server edit that changes it is reflected rather
+   * than reverted by this editor's stale open-time copy; falls back to the locked `settledRef` copy
+   * before the seed lands and for non-collaborative documents.
+   */
+  const resolveSaveFrontmatter = useCallback((): string => {
+    const fromDoc = collaboration?.doc
+      .getMap(FILE_DOC_SEED.configMap)
+      .get(FILE_DOC_SEED.frontmatterKey)
+    if (typeof fromDoc === 'string') return fromDoc
+    return settledRef.current?.frontmatter ?? ''
+  }, [collaboration])
+
+  /**
    * While the file is still unnamed, name it after its leading heading: `onDeriveTitleFromHeading` is
    * called (debounced) so the caller can rename the file, and `fileNameRef` lets the onUpdate handler
    * read the current name without re-subscribing. See {@link isUntitledName}.
@@ -573,7 +587,7 @@ export function LoadedRichMarkdownEditor({
     onUpdate: ({ editor, transaction }) => {
       const md = postProcessSerializedMarkdown(editor.getMarkdown())
       lastSyncedBodyRef.current = md
-      onChangeRef.current(applyFrontmatter(settledRef.current?.frontmatter ?? '', md))
+      onChangeRef.current(applyFrontmatter(resolveSaveFrontmatter(), md))
       // While the file is still untitled, name it after its leading heading once typing settles — but
       // only for the LOCAL user's own edits. `isChangeOrigin` is true for a remote Yjs change (a peer
       // typing); bail BEFORE touching the timer so a remote edit never cancels or reschedules the local
@@ -650,16 +664,16 @@ export function LoadedRichMarkdownEditor({
       setReady(false)
       return
     }
-    const config = doc.getMap('config')
+    const config = doc.getMap(FILE_DOC_SEED.configMap)
 
     const seedFromLoaded = () => {
-      if (config.get('initialContentLoaded') === true) return
+      if (config.get(FILE_DOC_SEED.flag) === true) return
       doc.transact(() => {
         editor.commands.setContent(
           parseMarkdownToDoc(splitFrontmatter(seedContentRef.current).body),
           { contentType: 'json', emitUpdate: false }
         )
-        config.set('initialContentLoaded', true)
+        config.set(FILE_DOC_SEED.flag, true)
       })
     }
 
@@ -672,14 +686,33 @@ export function LoadedRichMarkdownEditor({
     // simply "synced AND seeded" — no client-side seed import on the happy path. `seedFromLoaded`
     // remains only for the offline fallback below (a non-retryable join error / readiness timeout),
     // where it locally renders the file read-only since the server can't be reached.
-    const report = () => setReady(provider.synced && config.get('initialContentLoaded') === true)
+    const report = () => setReady(provider.synced && config.get(FILE_DOC_SEED.flag) === true)
     const onJoinError = (error: JoinFileDocError) => {
       if (error.retryable === false) seedFromLoaded()
+    }
+
+    // A server edit that changes ONLY the frontmatter (e.g. copilot) updates the config map but not
+    // the body fragment, so TipTap's `onUpdate` never fires and the autosave draft would keep the
+    // stale open-time frontmatter — an explicit save could then revert the live change. Re-attach the
+    // new frontmatter to the current body and push a fresh draft whenever it changes on its own.
+    let lastFrontmatter = config.get(FILE_DOC_SEED.frontmatterKey)
+    const syncFrontmatter = () => {
+      const current = config.get(FILE_DOC_SEED.frontmatterKey)
+      if (current === lastFrontmatter) return
+      lastFrontmatter = current
+      // Null body ref ⇒ no body has synced yet (e.g. this fired before the seed's own `onUpdate`);
+      // that path re-attaches the frontmatter itself, so there is nothing to do here.
+      if (lastSyncedBodyRef.current !== null) {
+        onChangeRef.current(
+          applyFrontmatter(typeof current === 'string' ? current : '', lastSyncedBodyRef.current)
+        )
+      }
     }
 
     provider.on('synced', report)
     provider.on('join-error', onJoinError)
     config.observe(report)
+    config.observe(syncFrontmatter)
     report()
     if (provider.joinError) onJoinError(provider.joinError)
 
@@ -687,6 +720,7 @@ export function LoadedRichMarkdownEditor({
       provider.off('synced', report)
       provider.off('join-error', onJoinError)
       config.unobserve(report)
+      config.unobserve(syncFrontmatter)
       // Report NOT ready on teardown — the safe direction. If this effect ever re-runs while mounted
       // (a future dep change), briefly gating autosave off is harmless; reporting `true` here could
       // ungate it while the doc is unready.

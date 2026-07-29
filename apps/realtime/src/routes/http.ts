@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'http'
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { safeCompare } from '@sim/security/compare'
 import { env } from '@/env'
+import { applyMarkdownToLiveFileDoc } from '@/handlers/file-doc'
 import { type IRoomManager, WorkflowRoomService } from '@/rooms'
 
 interface Logger {
@@ -179,6 +180,26 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       } catch (error) {
         logger.error('Error handling workspace files changed notification:', error)
         sendError(res, 'Failed to process files change notification')
+      }
+      return
+    }
+
+    // Merge a copilot edit into a file's LIVE collaborative document so it streams into open editors
+    // (Stage C). Returns `{ applied }`: when false, no seeded live room exists and the caller writes
+    // the file directly instead. Any live user edits are preserved — the app builds a minimal CRDT diff.
+    if (req.method === 'POST' && req.url === '/api/file-doc/apply-edit') {
+      try {
+        const body = await readRequestBody(req)
+        const { fileId, markdown } = JSON.parse(body)
+        if (!isNonEmptyString(fileId) || typeof markdown !== 'string') {
+          return sendError(res, 'Invalid fileId or markdown', 400)
+        }
+        const result = await applyMarkdownToLiveFileDoc(fileId, markdown)
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ applied: result === 'applied' }))
+      } catch (error) {
+        logger.error('Error applying copilot edit to live file-doc:', error)
+        sendError(res, 'Failed to apply edit to live document')
       }
       return
     }
