@@ -133,6 +133,51 @@ describe('executeOpenResource', () => {
     })
   })
 
+  it('reopens a View from its persisted composite resource id', async () => {
+    getTableViewMock.mockResolvedValue({
+      id: 'view_1',
+      tableId: 'tbl_1',
+      name: 'Qualified leads',
+    })
+    getTableByIdMock.mockResolvedValue({
+      id: 'tbl_1',
+      workspaceId: 'workspace-1',
+      name: 'Leads',
+    })
+
+    const result = await executeOpenResource(
+      { resources: [{ type: 'view', id: 'tbl_1:view_1' }] },
+      { userId: 'user-1', workflowId: 'workflow-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(getTableViewMock).toHaveBeenCalledWith('view_1')
+    expect(result).toMatchObject({
+      success: true,
+      output: { opened: 1, errors: [] },
+      resources: [{ type: 'view', id: 'tbl_1:view_1', title: 'Qualified leads' }],
+    })
+  })
+
+  it('refuses a composite View id with the wrong source Table', async () => {
+    getTableViewMock.mockResolvedValue({
+      id: 'view_1',
+      tableId: 'tbl_actual',
+      name: 'Qualified leads',
+    })
+
+    const result = await executeOpenResource(
+      { resources: [{ type: 'view', id: 'tbl_claimed:view_1' }] },
+      { userId: 'user-1', workflowId: 'workflow-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(getTableByIdMock).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      success: false,
+      output: { opened: 0, errors: ['View does not belong to the specified Table.'] },
+      resources: [],
+    })
+  })
+
   it('refuses a View whose source Table belongs to another workspace', async () => {
     getTableViewMock.mockResolvedValue({
       id: 'view_1',

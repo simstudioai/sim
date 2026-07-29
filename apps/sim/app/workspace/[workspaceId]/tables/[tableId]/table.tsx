@@ -264,17 +264,35 @@ export function Table({
    *  panel's Columns section edits it and the active view persists it. */
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([])
 
-  const [{ sort: sortColumn, dir: sortDirection, view: activeViewId }, setTableParams] =
+  const [{ sort: sortColumn, dir: sortDirection, view: urlActiveViewId }, setTableParams] =
     useQueryStates(tableDetailParsers, tableDetailUrlKeys)
 
-  /** A chat View resource owns its initial selection. After seeding, normal
-   * selector and URL behavior take over so users can switch Views as usual. */
-  const seededPropViewRef = useRef<string | undefined>(undefined)
+  /**
+   * An embedded View must own the first render synchronously. Seeding only the
+   * host URL in an effect races the view resolver: it can adopt Default view
+   * before the URL write lands and clear the requested chat resource.
+   *
+   * Keep a local selection only for View-resource embeds; page Tables and plain
+   * Table resources continue to use the URL as their sole source of truth.
+   */
+  const [embeddedActiveViewId, setEmbeddedActiveViewId] = useState<string | null>(
+    () => propViewId ?? null
+  )
+  const activeViewId = propViewId ? embeddedActiveViewId : urlActiveViewId
+  const syncedPropViewRef = useRef<string | undefined>(undefined)
   useEffect(() => {
-    if (!propViewId || seededPropViewRef.current === propViewId) return
-    seededPropViewRef.current = propViewId
+    if (!propViewId || syncedPropViewRef.current === propViewId) return
+    syncedPropViewRef.current = propViewId
+    setEmbeddedActiveViewId(propViewId)
     void setTableParams({ view: propViewId })
   }, [propViewId, setTableParams])
+  const setActiveViewId = useCallback(
+    (viewId: string) => {
+      if (propViewId) setEmbeddedActiveViewId(viewId)
+      void setTableParams({ view: viewId })
+    },
+    [propViewId, setTableParams]
+  )
 
   // Read-only mirrors for the resolve effect: it must know whether the user has
   // already applied a filter / hidden columns without re-running when they change.
@@ -552,7 +570,7 @@ export function Table({
         const keep = inheritedParams ? { ...localWork(), sort: false } : localWork()
         if (defaultView) {
           seededViewIdRef.current = defaultView.id
-          setTableParams({ view: defaultView.id })
+          setActiveViewId(defaultView.id)
           applyViewConfig(defaultView.config, keep)
           resolvePendingLayout(true)
           return
@@ -561,7 +579,10 @@ export function Table({
         // would clear a deep-linked `?sort=` on mount. Inherited params are the
         // exception: nothing about them refers to this table, so they're cleared.
         seededViewIdRef.current = null
-        if (inheritedParams) setTableParams({ view: ALL_VIEW_PARAM, sort: null, dir: null })
+        if (inheritedParams) {
+          setActiveViewId(ALL_VIEW_PARAM)
+          setTableParams({ sort: null, dir: null })
+        }
         resolvePendingLayout(false)
         return
       }
@@ -581,7 +602,7 @@ export function Table({
         // Nothing to apply, but the URL still names a view that no longer exists.
         // Rewrite it so a stale bookmark can't be copied on, and so the param
         // matches the All the UI is already showing.
-        setTableParams({ view: ALL_VIEW_PARAM })
+        setActiveViewId(ALL_VIEW_PARAM)
       }
       return
     }
@@ -599,7 +620,7 @@ export function Table({
     if (activeViewId !== null && activeViewId !== ALL_VIEW_PARAM && !activeView) {
       if (pendingCreatedViewIdRef.current === activeViewId) return
       seededViewIdRef.current = null
-      setTableParams({ view: ALL_VIEW_PARAM })
+      setActiveViewId(ALL_VIEW_PARAM)
       applyViewConfig(null)
       return
     }
@@ -623,7 +644,7 @@ export function Table({
     embedded,
     sortColumn,
     applyViewConfig,
-    setTableParams,
+    setActiveViewId,
     resolvePendingLayout,
   ])
 
@@ -707,9 +728,9 @@ export function Table({
 
   const handleSelectView = useCallback(
     (viewId: string | null) => {
-      setTableParams({ view: viewId ?? ALL_VIEW_PARAM })
+      setActiveViewId(viewId ?? ALL_VIEW_PARAM)
     },
-    [setTableParams]
+    [setActiveViewId]
   )
 
   const handleRenameView = useCallback((viewId: string) => {
@@ -816,7 +837,7 @@ export function Table({
           // seeded — it can't tell a just-created view from a dead id otherwise.
           seededViewIdRef.current = view.id
           pendingCreatedViewIdRef.current = view.id
-          setTableParams({ view: view.id })
+          setActiveViewId(view.id)
           // Which means the blank config must be applied here; nuqs batches this
           // sort write with the `view` write above into one URL update.
           if (blank) applyViewConfig(view.config)
@@ -830,12 +851,12 @@ export function Table({
     (viewId: string) => {
       deleteViewMutation.mutate(viewId, {
         onSuccess: () => {
-          if (viewId === activeViewId) setTableParams({ view: ALL_VIEW_PARAM })
+          if (viewId === activeViewId) setActiveViewId(ALL_VIEW_PARAM)
         },
         onError: (error) => toast.error(getErrorMessage(error, 'Failed to delete view')),
       })
     },
-    [activeViewId, setTableParams]
+    [activeViewId, setActiveViewId]
   )
 
   const runColumnMutation = useRunColumn({ workspaceId, tableId })

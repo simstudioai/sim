@@ -5,6 +5,7 @@ import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/typ
 import {
   type MothershipResource,
   MothershipResourceType,
+  parseTableViewResourceId,
   tableViewResourceId,
 } from '@/lib/copilot/resources/types'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
@@ -68,8 +69,12 @@ async function resolveResource(
   }
   if (resourceType === 'view') {
     if (!item.id) return { error: 'view resources require `id`.' }
-    const view = await getTableView(item.id)
+    const parsedId = parseTableViewResourceId(item.id)
+    const view = await getTableView(parsedId?.viewId ?? item.id)
     if (!view) return { error: `No View with id "${item.id}".` }
+    if (parsedId && parsedId.tableId !== view.tableId) {
+      return { error: 'View does not belong to the specified Table.' }
+    }
     const table = await getTableById(view.tableId)
     if (!table || (context.workspaceId && table.workspaceId !== context.workspaceId)) {
       return { error: 'View not found in the current workspace.' }
