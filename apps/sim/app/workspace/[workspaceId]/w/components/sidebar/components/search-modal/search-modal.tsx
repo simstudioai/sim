@@ -714,6 +714,9 @@ export function SearchModal({
               {showSection('actions') && (
                 <ActionsGroup items={filteredActions} onSelect={handleActionSelect} />
               )}
+              {showSection('workspaces') && (
+                <WorkspacesGroup items={filteredWorkspaces} onSelect={handleWorkspaceSelect} />
+              )}
               {showSection('connectedAccounts') && (
                 <ConnectedAccountsGroup
                   items={filteredConnectedAccounts}
@@ -752,9 +755,6 @@ export function SearchModal({
               )}
               {showSection('toolOperations') && (
                 <ToolOpsGroup items={filteredToolOps} onSelect={handleToolOperationSelect} />
-              )}
-              {showSection('workspaces') && (
-                <WorkspacesGroup items={filteredWorkspaces} onSelect={handleWorkspaceSelect} />
               )}
               {showSection('docs') && <DocsGroup items={filteredDocs} onSelect={handleDocSelect} />}
               {showSection('pages') && (

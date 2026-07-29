@@ -58,6 +58,7 @@ export interface SearchData {
  */
 export const SEARCH_SECTIONS = [
   'actions',
+  'workspaces',
   'connectedAccounts',
   'integrations',
   'blocks',
@@ -69,7 +70,6 @@ export const SEARCH_SECTIONS = [
   'files',
   'knowledgeBases',
   'toolOperations',
-  'workspaces',
   'docs',
   'pages',
 ] as const
