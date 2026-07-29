@@ -1,9 +1,9 @@
 import { db } from '@sim/db'
-import { workflowFolder, workflow as workflowTable } from '@sim/db/schema'
+import { folder as folderTable, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, isNull, max, min, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, min, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { materializeInlineExecutionValue } from '@/lib/execution/payloads/inline-materialization.server'
@@ -400,8 +400,8 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
     ? eq(workflowTable.folderId, folderId)
     : isNull(workflowTable.folderId)
   const folderParentCondition = folderId
-    ? eq(workflowFolder.parentId, folderId)
-    : isNull(workflowFolder.parentId)
+    ? eq(folderTable.parentId, folderId)
+    : isNull(folderTable.parentId)
 
   const [[workflowMinResult], [folderMinResult]] = await Promise.all([
     db
@@ -415,9 +415,15 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
         )
       ),
     db
-      .select({ minOrder: min(workflowFolder.sortOrder) })
-      .from(workflowFolder)
-      .where(and(eq(workflowFolder.workspaceId, workspaceId), folderParentCondition)),
+      .select({ minOrder: min(folderTable.sortOrder) })
+      .from(folderTable)
+      .where(
+        and(
+          eq(folderTable.workspaceId, workspaceId),
+          eq(folderTable.resourceType, 'workflow'),
+          folderParentCondition
+        )
+      ),
   ])
 
   const minSortOrder = [workflowMinResult?.minOrder, folderMinResult?.minOrder].reduce<
@@ -483,91 +489,27 @@ export async function setWorkflowVariables(workflowId: string, variables: Record
 
 // ── Folder CRUD ──
 
-export interface CreateFolderInput {
-  userId: string
-  workspaceId: string
-  name: string
-  parentId?: string | null
-}
-
-export async function createFolderRecord(params: CreateFolderInput) {
-  const { userId, workspaceId, name, parentId = null } = params
-
-  const [maxResult] = await db
-    .select({ maxOrder: max(workflowFolder.sortOrder) })
-    .from(workflowFolder)
-    .where(
-      and(
-        eq(workflowFolder.workspaceId, workspaceId),
-        parentId ? eq(workflowFolder.parentId, parentId) : isNull(workflowFolder.parentId)
-      )
-    )
-  const sortOrder = (maxResult?.maxOrder ?? 0) + 1
-
-  const folderId = generateId()
-  await db.insert(workflowFolder).values({
-    id: folderId,
-    userId,
-    workspaceId,
-    parentId,
-    name,
-    sortOrder,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  })
-
-  return { folderId, name, workspaceId, parentId }
-}
-
-export async function updateFolderRecord(
-  folderId: string,
-  updates: { name?: string; parentId?: string | null }
-) {
-  const setData: Record<string, unknown> = { updatedAt: new Date() }
-  if (updates.name !== undefined) setData.name = updates.name
-  if (updates.parentId !== undefined) setData.parentId = updates.parentId
-  await db.update(workflowFolder).set(setData).where(eq(workflowFolder.id, folderId))
-}
-
 export async function verifyFolderWorkspace(
   folderId: string,
   workspaceId: string
 ): Promise<boolean> {
   const [row] = await db
-    .select({ id: workflowFolder.id })
-    .from(workflowFolder)
-    .where(and(eq(workflowFolder.id, folderId), eq(workflowFolder.workspaceId, workspaceId)))
+    .select({ id: folderTable.id })
+    .from(folderTable)
+    .where(
+      and(
+        eq(folderTable.id, folderId),
+        eq(folderTable.workspaceId, workspaceId),
+        eq(folderTable.resourceType, 'workflow')
+      )
+    )
     .limit(1)
   return Boolean(row)
 }
 
-export async function deleteFolderRecord(folderId: string): Promise<boolean> {
-  const [folder] = await db
-    .select({ parentId: workflowFolder.parentId })
-    .from(workflowFolder)
-    .where(eq(workflowFolder.id, folderId))
-    .limit(1)
-
-  if (!folder) return false
-
-  await db
-    .update(workflowTable)
-    .set({ folderId: folder.parentId, updatedAt: new Date() })
-    .where(eq(workflowTable.folderId, folderId))
-
-  await db
-    .update(workflowFolder)
-    .set({ parentId: folder.parentId, updatedAt: new Date() })
-    .where(eq(workflowFolder.parentId, folderId))
-
-  await db.delete(workflowFolder).where(eq(workflowFolder.id, folderId))
-
-  return true
-}
-
 /**
- * Checks whether setting `parentId` as the parent of `folderId` would
- * create a circular reference in the folder tree.
+ * Walks the parent chain upward from `parentId` to check whether re-parenting `folderId`
+ * under it would form a cycle. Returns true when a cycle would be created.
  */
 export async function checkForCircularReference(
   folderId: string,
@@ -584,9 +526,9 @@ export async function checkForCircularReference(
     visited.add(currentParentId)
 
     const [parent] = await db
-      .select({ parentId: workflowFolder.parentId })
-      .from(workflowFolder)
-      .where(eq(workflowFolder.id, currentParentId))
+      .select({ parentId: folderTable.parentId })
+      .from(folderTable)
+      .where(and(eq(folderTable.id, currentParentId), eq(folderTable.resourceType, 'workflow')))
       .limit(1)
 
     currentParentId = parent?.parentId || null
@@ -598,13 +540,19 @@ export async function checkForCircularReference(
 export async function listFolders(workspaceId: string) {
   return db
     .select({
-      folderId: workflowFolder.id,
-      folderName: workflowFolder.name,
-      parentId: workflowFolder.parentId,
-      sortOrder: workflowFolder.sortOrder,
-      locked: workflowFolder.locked,
+      folderId: folderTable.id,
+      folderName: folderTable.name,
+      parentId: folderTable.parentId,
+      sortOrder: folderTable.sortOrder,
+      locked: folderTable.locked,
     })
-    .from(workflowFolder)
-    .where(and(eq(workflowFolder.workspaceId, workspaceId), isNull(workflowFolder.archivedAt)))
-    .orderBy(asc(workflowFolder.sortOrder), asc(workflowFolder.createdAt))
+    .from(folderTable)
+    .where(
+      and(
+        eq(folderTable.workspaceId, workspaceId),
+        eq(folderTable.resourceType, 'workflow'),
+        isNull(folderTable.deletedAt)
+      )
+    )
+    .orderBy(asc(folderTable.sortOrder), asc(folderTable.createdAt))
 }

@@ -18,7 +18,8 @@ import { GithubIcon, GoogleIcon, MicrosoftIcon } from '@/components/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { type AuthProviderStatusResponse, getAuthProvidersContract } from '@/lib/api/contracts/auth'
 import { client } from '@/lib/auth/auth-client'
-import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
+import { getEnv, isFalsy } from '@/lib/core/config/env'
+import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { captureClientEvent } from '@/lib/posthog/client'
 import type { PostHogEventMap } from '@/lib/posthog/events'
 import { getBrandConfig } from '@/ee/whitelabeling'
@@ -75,7 +76,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
     fetchProviderStatus().then(setProviderStatus)
   }, [])
 
-  const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
+  const ssoEnabled = isSsoEnabled
   const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
 
   /**

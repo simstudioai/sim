@@ -25,7 +25,6 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
-import { PinButton } from '@/components/pin-button'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { captureEvent } from '@/lib/posthog/client'
 import { triggerArchiveDownload, triggerFileDownload } from '@/lib/uploads/client/download'
@@ -85,7 +84,7 @@ import {
 } from '@/app/workspace/[workspaceId]/files/search-params'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { usePinnedIds } from '@/hooks/queries/pinned-items'
+import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
 import {
   useBulkArchiveWorkspaceFileItems,
@@ -215,6 +214,10 @@ export function Files() {
   const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS } = useWorkspaceFileFolders(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const pinnedFileIds = usePinnedIds(workspaceId, 'file')
+  // Folders pin under their own resource type, so their pinned set is a separate query.
+  const pinnedFolderIds = usePinnedIds(workspaceId, 'folder')
+  const pinItem = usePinItem()
+  const unpinItem = useUnpinItem()
   const membersById = useMemo(() => {
     const map = new Map<string, WorkspaceMember>()
     for (const member of members ?? []) map.set(member.userId, member)
@@ -398,6 +401,12 @@ export function Files() {
     const col = activeSort?.column ?? 'name'
     const dir = activeSort?.direction ?? 'asc'
     return [...searched].sort((a, b) => {
+      // Pinned folders float to the top of every sort/direction — pinning is a
+      // user-declared priority, not another sort key to be inverted by `desc`.
+      const aPinned = pinnedFolderIds.has(a.id)
+      const bPinned = pinnedFolderIds.has(b.id)
+      if (aPinned !== bPinned) return aPinned ? -1 : 1
+
       let cmp = 0
       if (col === 'updated') {
         cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
@@ -408,7 +417,7 @@ export function Files() {
       }
       return dir === 'asc' ? cmp : -cmp
     })
-  }, [folders, currentFolderId, debouncedSearchTerm, activeSort])
+  }, [folders, currentFolderId, debouncedSearchTerm, activeSort, pinnedFolderIds])
 
   const filteredFiles = useMemo(() => {
     const needle = debouncedSearchTerm.trim().toLowerCase()
@@ -521,15 +530,6 @@ export function Files() {
           name: {
             icon: <Icon className='size-[14px]' />,
             label: file.name,
-            endAdornment: (
-              <PinButton
-                workspaceId={workspaceId}
-                resourceType='file'
-                resourceId={file.id}
-                pinned={pinnedFileIds.has(file.id)}
-                className='ml-2'
-              />
-            ),
           },
           size: {
             label: formatFileSize(file.size, { includeBytes: true }),
@@ -547,7 +547,7 @@ export function Files() {
     })
 
     return [...folderRows, ...fileRows]
-  }, [visibleFolders, filteredFiles, membersById, folderSizeMap, workspaceId, pinnedFileIds])
+  }, [visibleFolders, filteredFiles, membersById, folderSizeMap])
 
   const rows: ResourceRow[] = useMemo(() => {
     if (!listRename.editingId) return baseRows
@@ -1365,6 +1365,17 @@ export function Files() {
     closeContextMenu()
   }, [selectedRowIds, handleBulkDelete, closeContextMenu])
 
+  const handleContextMenuTogglePin = useCallback(() => {
+    const item = contextMenuItemRef.current
+    if (!item) return
+    const resourceType = item.kind === 'folder' ? 'folder' : 'file'
+    const pinned =
+      item.kind === 'folder' ? pinnedFolderIds.has(item.id) : pinnedFileIds.has(item.id)
+    const mutation = pinned ? unpinItem : pinItem
+    mutation.mutate({ workspaceId, resourceType, resourceId: item.id })
+    closeContextMenu()
+  }, [workspaceId, pinnedFolderIds, pinnedFileIds, closeContextMenu])
+
   const handleContextMenuMove = useCallback(
     async (optionValue: string) => {
       const targetFolderId = optionValue === '__root__' ? null : optionValue
@@ -1985,6 +1996,16 @@ export function Files() {
     )
   }
 
+  /**
+   * Read off the same ref the context-menu handlers use, so the menu's Pin/Unpin label
+   * describes the row that was right-clicked. Opening the menu is a state change, so
+   * this re-reads on the render that shows it.
+   */
+  const contextMenuItem = contextMenuItemRef.current
+  const isContextMenuItemPinned = contextMenuItem
+    ? (contextMenuItem.kind === 'folder' ? pinnedFolderIds : pinnedFileIds).has(contextMenuItem.id)
+    : false
+
   return (
     <div
       className='relative flex h-full flex-col overflow-hidden'
@@ -2064,11 +2085,9 @@ export function Files() {
         onRename={handleContextMenuRename}
         onDelete={handleContextMenuDelete}
         onMove={handleContextMenuMove}
-        onShare={
-          canEdit && contextMenuItemRef.current?.kind === 'file'
-            ? handleContextMenuShare
-            : undefined
-        }
+        onShare={canEdit && contextMenuItem?.kind === 'file' ? handleContextMenuShare : undefined}
+        onTogglePin={handleContextMenuTogglePin}
+        pinned={isContextMenuItemPinned}
         moveOptions={contextMenuMoveOptions}
         canEdit={canEdit}
         selectedCount={selectedRowIds.size}

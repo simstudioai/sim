@@ -58,15 +58,6 @@ export interface ResourceCell {
    * resting cell exactly (same gap, weight, icon size).
    */
   editing?: ResourceCellEditing
-  /**
-   * Trailing node pinned to the far edge of the cell, after the label. Use this for
-   * per-row affordances (e.g. a pin toggle) so the canonical icon + truncating-label
-   * rendering is reused rather than re-derived in a `content` node. Suppressed while
-   * the cell is in rename mode, where the input owns the full width.
-   *
-   * The row sets `group`, so an adornment may use `group-hover:` to reveal itself.
-   */
-  endAdornment?: ReactNode
 }
 
 export interface ResourceRow {
@@ -497,16 +488,9 @@ interface CellContentProps {
   label: string
   content?: ReactNode
   editing?: ResourceCellEditing
-  endAdornment?: ReactNode
 }
 
-const CellContent = memo(function CellContent({
-  icon,
-  label,
-  content,
-  editing,
-  endAdornment,
-}: CellContentProps) {
+const CellContent = memo(function CellContent({ icon, label, content, editing }: CellContentProps) {
   if (editing) {
     return (
       <span className={cn('flex min-w-0 items-center', chipContentGap)}>
@@ -522,17 +506,10 @@ const CellContent = memo(function CellContent({
     )
   }
   if (content) return <>{content}</>
-  const body = (
+  return (
     <span className={cn('flex min-w-0 items-center', chipContentGap)}>
       {icon && <span className={cellIconNodeClass}>{icon}</span>}
       <FloatingOverflowText label={label} className={cn('block', chipContentLabelClass)} />
-    </span>
-  )
-  if (!endAdornment) return body
-  return (
-    <span className='flex min-w-0 flex-1 items-center justify-between'>
-      {body}
-      {endAdornment}
     </span>
   )
 })
@@ -661,7 +638,7 @@ const DataRow = memo(function DataRow({
       data-resource-row
       data-row-id={row.id}
       className={cn(
-        'group grid w-full transition-colors',
+        'grid w-full transition-colors',
         isWindowed && 'absolute top-0 left-0',
         !isAnyDragActive && 'hover-hover:bg-[var(--surface-3)]',
         onRowClick && 'cursor-pointer',
@@ -704,7 +681,6 @@ const DataRow = memo(function DataRow({
               label={cell?.label || EMPTY_CELL_PLACEHOLDER}
               content={cell?.content}
               editing={cell?.editing}
-              endAdornment={cell?.endAdornment}
             />
           </div>
         )

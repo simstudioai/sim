@@ -11,8 +11,8 @@ import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { invalidateSecurityPolicyVersionCache } from '@/lib/auth/security-policy'
 import { eagerClampOrgSessions, invalidateSessionPolicyCache } from '@/lib/auth/session-policy'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
+import { isBillingEnabled, isSessionPoliciesEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SessionPolicyAPI')
@@ -60,7 +60,10 @@ export const GET = withRouteHandler(
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
-    const isEnterprise = !isBillingEnabled || (await isOrganizationOnEnterprisePlan(organizationId))
+    const isEnterprise = await isOrganizationFeatureEntitled(
+      organizationId,
+      isSessionPoliciesEnabled
+    )
 
     return NextResponse.json({
       success: true,
@@ -113,14 +116,16 @@ export const PUT = withRouteHandler(
       )
     }
 
-    if (isBillingEnabled) {
-      const hasEnterprise = await isOrganizationOnEnterprisePlan(organizationId)
-      if (!hasEnterprise) {
-        return NextResponse.json(
-          { error: 'Session policies are available on Enterprise plans only' },
-          { status: 403 }
-        )
-      }
+    const entitled = await isOrganizationFeatureEntitled(organizationId, isSessionPoliciesEnabled)
+    if (!entitled) {
+      return NextResponse.json(
+        {
+          error: isBillingEnabled
+            ? 'Session policies are available on Enterprise plans only'
+            : 'Session policies are disabled. Set ENTERPRISE_ENABLED or SESSION_POLICIES_ENABLED to enable them.',
+        },
+        { status: 403 }
+      )
     }
 
     const [currentOrg] = await db

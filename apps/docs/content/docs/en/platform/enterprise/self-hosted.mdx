@@ -1,0 +1,211 @@
+---
+title: Self-hosted Enterprise
+description: Run the full enterprise feature set on a self-hosted deployment without billing
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+On Sim Cloud, enterprise features are unlocked by an Enterprise subscription. Self-hosted deployments have no subscription, so they are unlocked by environment configuration instead.
+
+There are two parts to getting this right, and skipping the second is the most common reason features appear to do nothing:
+
+1. **Enable the features** with `ENTERPRISE_ENABLED`.
+2. **Give them an organization to apply to.** Whitelabeling, PII redaction, permission groups, data drains, and audit scoping all read their settings from the organization that owns a workspace. A deployment where everyone works in personal workspaces has no organization for those settings to come from.
+
+## Enable the feature set
+
+Set the master switch and its client twin. Both are required — the server value decides access, and the `NEXT_PUBLIC_` value decides what the settings UI shows.
+
+```bash
+ENTERPRISE_ENABLED=true
+NEXT_PUBLIC_ENTERPRISE_ENABLED=true
+```
+
+That turns on organizations, permission groups, SSO, whitelabeling, audit logs, session policies, data retention, data drains, workspace forks, and the inbox.
+
+### Turning one feature off
+
+Every feature keeps its own flag, and an explicitly set flag always wins over the master switch. To run the suite without data drains:
+
+```bash
+ENTERPRISE_ENABLED=true
+NEXT_PUBLIC_ENTERPRISE_ENABLED=true
+DATA_DRAINS_ENABLED=false
+NEXT_PUBLIC_DATA_DRAINS_ENABLED=false
+```
+
+The individual flags also work on their own if you would rather opt in one at a time and leave the master switch unset.
+
+| Feature | Server variable | Client variable |
+|---------|-----------------|-----------------|
+| Everything below | `ENTERPRISE_ENABLED` | `NEXT_PUBLIC_ENTERPRISE_ENABLED` |
+| Organizations | `ORGANIZATIONS_ENABLED` | `NEXT_PUBLIC_ORGANIZATIONS_ENABLED` |
+| Permission groups | `ACCESS_CONTROL_ENABLED` | `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` |
+| SAML and OIDC sign-in | `SSO_ENABLED` | `NEXT_PUBLIC_SSO_ENABLED` |
+| Custom branding | `WHITELABELING_ENABLED` | `NEXT_PUBLIC_WHITELABELING_ENABLED` |
+| Audit logs | `AUDIT_LOGS_ENABLED` | `NEXT_PUBLIC_AUDIT_LOGS_ENABLED` |
+| Session policies | `SESSION_POLICIES_ENABLED` | `NEXT_PUBLIC_SESSION_POLICIES_ENABLED` |
+| Data retention deletion | `DATA_RETENTION_ENABLED` | `NEXT_PUBLIC_DATA_RETENTION_ENABLED` |
+| Data drains | `DATA_DRAINS_ENABLED` | `NEXT_PUBLIC_DATA_DRAINS_ENABLED` |
+| Workspace forks | `FORKING_ENABLED` | — |
+| Sim Mailer inbox | `INBOX_ENABLED` | `NEXT_PUBLIC_INBOX_ENABLED` |
+
+<Callout type="warning">
+  Data retention is the one feature that deletes data. Its flag controls the cleanup pass, not the settings screen — retention windows are always configurable. Nothing is ever deleted until you enable it, and even then only against windows you configured explicitly. Sim never applies the hosted plan defaults to a self-hosted deployment.
+</Callout>
+
+## Choose an organization model
+
+### Pattern 1: one organization for the whole instance
+
+Best when everyone on the deployment belongs to the same company. Set a name and every user joins that organization automatically at signup, with their workspaces created org-owned.
+
+```bash
+INSTANCE_ORG_NAME="Acme Inc"
+```
+
+Optionally pin the slug and the owner:
+
+```bash
+INSTANCE_ORG_SLUG=acme-inc
+INSTANCE_ORG_OWNER_EMAIL=admin@acme.com
+```
+
+The organization is created the first time a user signs up. If `INSTANCE_ORG_OWNER_EMAIL` is not set, or names a user who does not exist yet, the first user to sign up becomes the owner; move ownership later with the Admin API. Provisioning is idempotent and safe across multiple replicas.
+
+<Callout type="info">
+  Instance-organization mode only applies when billing is disabled. With billing enabled, organizations are created through the normal subscription flow and these variables are ignored.
+</Callout>
+
+#### Existing deployments
+
+Users and workspaces created before you set `INSTANCE_ORG_NAME` stay where they are. Move them across once with the backfill script, which adds every user to the organization and attaches their workspaces:
+
+```bash
+# Preview
+DATABASE_URL=... INSTANCE_ORG_NAME="Acme Inc" \
+  bun run apps/sim/scripts/consolidate-users-into-organization.ts
+
+# Apply
+DATABASE_URL=... INSTANCE_ORG_NAME="Acme Inc" \
+  bun run apps/sim/scripts/consolidate-users-into-organization.ts --apply
+```
+
+It is a dry run unless you pass `--apply`, and it is safe to re-run. Users who already belong to a different organization are reported and skipped, since a user can only belong to one.
+
+### Pattern 2: many organizations you manage yourself
+
+Best when one deployment serves several teams that should not see each other's data. Leave `INSTANCE_ORG_NAME` unset and provision organizations through the Admin API.
+
+Set an admin key first:
+
+```bash
+ADMIN_API_KEY=$(openssl rand -hex 32)
+```
+
+<Steps>
+<Step>
+### Create an organization
+
+The owner must not already belong to another organization.
+
+```bash
+curl -X POST https://sim.example.com/api/v1/admin/organizations \
+  -H "x-admin-key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Acme Inc", "ownerId": "user_123", "slug": "acme-inc"}'
+```
+</Step>
+
+<Step>
+### Add members
+
+```bash
+curl -X POST https://sim.example.com/api/v1/admin/organizations/$ORG_ID/members \
+  -H "x-admin-key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "user_456", "role": "member"}'
+```
+</Step>
+
+<Step>
+### Move a workspace into the organization
+
+Organization-scoped features only apply to workspaces the organization owns.
+
+```bash
+curl -X POST https://sim.example.com/api/v1/admin/dashboard/workspaces/$WORKSPACE_ID/move \
+  -H "x-admin-key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"destinationOrganizationId\": \"$ORG_ID\"}"
+```
+</Step>
+
+<Step>
+### Configure organization settings
+
+Branding, retention, and session policies can be set from the API instead of the UI.
+
+<Tabs items={['Whitelabel', 'Data retention', 'Session policy']}>
+<Tab value="Whitelabel">
+```bash
+curl -X PATCH https://sim.example.com/api/v1/admin/organizations/$ORG_ID/whitelabel \
+  -H "x-admin-key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"brandName": "Acme AI", "hidePoweredBySim": true}'
+```
+</Tab>
+<Tab value="Data retention">
+```bash
+curl -X PATCH https://sim.example.com/api/v1/admin/organizations/$ORG_ID/data-retention \
+  -H "x-admin-key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"logRetentionHours": 2160}'
+```
+</Tab>
+<Tab value="Session policy">
+```bash
+curl -X PATCH https://sim.example.com/api/v1/admin/organizations/$ORG_ID/session-policy \
+  -H "x-admin-key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"maxSessionHours": 168, "idleTimeoutHours": 48}'
+```
+</Tab>
+</Tabs>
+</Step>
+</Steps>
+
+Deleting an organization requires echoing its slug, because the delete cascades to members, invitations, and permission groups, and detaches its workspaces:
+
+```bash
+curl -X DELETE "https://sim.example.com/api/v1/admin/organizations/$ORG_ID?confirmSlug=acme-inc" \
+  -H "x-admin-key: $ADMIN_API_KEY"
+```
+
+## Verifying it worked
+
+If a feature is enabled but nothing appears, check these in order.
+
+**The settings section is missing.** The `NEXT_PUBLIC_` twin is not set, or the app was not restarted after adding it. Client variables are read at build and boot.
+
+**The section appears but the API returns 403.** The server-side variable is missing while its client twin is set. Set both.
+
+**The feature is on but has no effect inside a workspace.** The workspace is not owned by an organization. Check `workspace_mode` and `organization_id`:
+
+```sql
+SELECT id, name, workspace_mode, organization_id FROM workspace;
+```
+
+A workspace showing `personal` or a null `organization_id` will not pick up branding, PII redaction, permission groups, or drains. Use the backfill script or the workspace move endpoint.
+
+**Retention is configured but nothing is deleted.** `DATA_RETENTION_ENABLED` is unset. Configuring windows and running the cleanup pass are separate switches by design.
+
+## Related
+
+- [Environment variables](/platform/self-hosting/environment-variables)
+- [Single Sign-On](/platform/enterprise/sso)
+- [Access control](/platform/enterprise/access-control)
+- [Roles and permissions](/platform/permissions)
+- [Workspaces](/platform/workspaces)
