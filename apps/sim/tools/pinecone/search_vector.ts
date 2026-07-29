@@ -76,8 +76,8 @@ export const searchVectorTool: ToolConfig<PineconeSearchVectorParams, PineconeRe
           ? JSON.parse(params.filter)
           : params.filter
         : undefined,
-      includeValues: true, //TODO: Make this dynamic
-      includeMetadata: true, //TODO: Make this dynamic
+      includeValues: params.includeValues ?? false,
+      includeMetadata: params.includeMetadata ?? false
     }),
   },
 

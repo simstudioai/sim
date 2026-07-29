@@ -514,6 +514,15 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
         if (params.deleteAll != null && params.deleteAll !== '') {
           result.deleteAll = params.deleteAll === true || params.deleteAll === 'true'
         }
+        if (params.options != null && params.options !== '') {
+          const options = Array.isArray(params.options)
+            ? params.options
+            : typeof params.options === 'string'
+              ? JSON.parse(params.options)
+              : []
+          result.includeValues = options.includes('includeValues')
+          result.includeMetadata = options.includes('includeMetadata')
+        }
         return result
       },
     },
