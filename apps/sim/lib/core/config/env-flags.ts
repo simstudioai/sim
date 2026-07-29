@@ -51,6 +51,18 @@ export const isCopilotBillingAttributionV1Enabled = isTruthy(
 export const isCopilotBillingProtocolRequired = isTruthy(env.COPILOT_BILLING_PROTOCOL_REQUIRED)
 
 /**
+ * Holds tools the catalog marks `requiresApproval` — shell commands, workflow
+ * runs, sandboxed code, deployments, integration calls — behind an explicit
+ * Allow / Skip prompt, blocking the mothership turn until the user answers.
+ *
+ * Off by default: turning it on makes the copilot prompt on its most frequently
+ * used tools, so it is an opt-in change in how the product feels, not just a
+ * safety toggle. With it off nothing is stamped, gated, or persisted, and an
+ * approval stamp arriving from Go is cleared on the way to the client.
+ */
+export const isCopilotToolPermissionsEnabled = isTruthy(env.COPILOT_TOOL_PERMISSIONS_ENABLED)
+
+/**
  * Is billing enforcement enabled.
  *
  * Server code reads `BILLING_ENABLED`. Server-only vars never reach browser

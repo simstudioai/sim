@@ -275,7 +275,10 @@ export async function executeVfsRead(
             success: false,
             error: isOversizedReadPlaceholder(uploadResult.content)
               ? uploadResult.content
-              : 'Read result too large to return inline. Use grep with a more specific pattern or narrower path to locate the relevant section, then retry read with offset/limit. Avoid catch-all greps or full-file reads because they waste context window.',
+              : // Same as the workspace-file branch below: this size gate runs on
+                // the whole upload before any window, so "retry with offset/limit"
+                // would loop. Point at grep scoped to this path instead.
+                `Read result too large to return inline. Grep this single upload instead of reading it — grep({pattern: "...", path: "${path}"}) — because offset/limit do NOT shrink an upload read: the size check runs on the whole file before the window is applied.`,
           }
         }
         const windowedUpload = applyWindow(uploadResult)

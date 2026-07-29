@@ -13,18 +13,22 @@ import {
   Tooltip,
   toast,
 } from '@sim/emcn'
+import { Cursor, TerminalWindow } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { ThinkingLoader } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
+import { isBrowserAgentAvailable, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
+import { getDesktopBridge } from '@/lib/desktop'
 import {
   resolveOAuthServiceForSlug,
   resolveServiceAccountIntegration,
 } from '@/lib/integrations/oauth-service'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
+import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { QuestionDisplay } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
 import type {
@@ -88,6 +92,9 @@ export const CREDENTIAL_TAG_TYPES = [
   'credential_id',
   'link',
   'secret_input',
+  'folder_access',
+  'browser_takeover',
+  'terminal_handoff',
   'service_account',
 ] as const
 
@@ -102,8 +109,9 @@ export interface CredentialTagData {
   type: CredentialTagType
   provider?: string
   /**
-   * Env-var key name to save the pasted secret under (secret_input only),
-   * e.g. "OPENAI_API_KEY".
+   * Env-var key name to save the pasted secret under (secret_input), e.g.
+   * "OPENAI_API_KEY"; the folder hint for folder_access; the takeover reason
+   * for browser_takeover; what the user needs to do for terminal_handoff.
    */
   name?: string
   /** Where a secret_input value is persisted. Defaults to "workspace". */
@@ -250,6 +258,16 @@ function isCredentialTagData(value: unknown): value is CredentialTagData {
     }
     return typeof value.name === 'string' && value.name.trim().length > 0
   }
+  // folder_access, browser_takeover and terminal_handoff are value-less action
+  // chips (optional `name` carries the folder hint / reason).
+  if (
+    value.type === 'folder_access' ||
+    value.type === 'browser_takeover' ||
+    value.type === 'terminal_handoff'
+  ) {
+    return value.name === undefined || typeof value.name === 'string'
+  }
+
   // A service_account tag is a control, not a value: it names the provider
   // whose setup form to open, and the user types the secret into that form —
   // so it never carries a `value`, but it is useless without a provider. An
@@ -359,6 +377,28 @@ export function parseLastQuestionTag(content: string): QuestionTagData | null {
   return parseQuestionTagBody(last.slice('<question>'.length, -'</question>'.length))
 }
 
+/**
+ * Recovers the question text from a `<question>` body that failed validation.
+ * A well-formed tag with an invalid body renders as nothing, which silently
+ * drops the question the assistant was blocking on and leaves the message
+ * looking truncated. The prompts are still answerable in the chat input, so
+ * surfacing them as plain text degrades to a prose question instead of losing
+ * it. A body that is not even parseable JSON has nothing to recover.
+ */
+function recoverQuestionPrompts(body: string): string | null {
+  try {
+    const parsed = JSON.parse(body) as unknown
+    const items = Array.isArray(parsed) ? parsed : [parsed]
+    const prompts = items
+      .filter(isRecord)
+      .map((item) => (typeof item.prompt === 'string' ? item.prompt.trim() : ''))
+      .filter((prompt) => prompt.length > 0)
+    return prompts.length > 0 ? prompts.join('\n\n') : null
+  } catch {
+    return null
+  }
+}
+
 export function parseQuestionTagBody(body: string): QuestionTagData | null {
   try {
     const parsed = JSON.parse(body) as unknown
@@ -418,6 +458,7 @@ function parseSpecialTagData(
   tagName: (typeof SPECIAL_TAG_NAMES)[number],
   body: string
 ):
+  | { type: 'text'; content: string }
   | { type: 'thinking'; content: string }
   | { type: 'options'; data: OptionsTagData }
   | { type: 'usage_upgrade'; data: UsageUpgradeTagData }
@@ -458,7 +499,9 @@ function parseSpecialTagData(
 
   if (tagName === 'question') {
     const data = parseQuestionTagBody(body)
-    return data ? { type: 'question', data } : null
+    if (data) return { type: 'question', data }
+    const recovered = recoverQuestionPrompts(body)
+    return recovered ? { type: 'text', content: recovered } : null
   }
 
   return null
@@ -910,6 +953,118 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
 }
 
 /**
+ * Folder icon for the local-folder grant chip (matches the credential chip
+ * icon sizing).
+ */
+const FolderGrantIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'>
+    <path
+      d='M1.5 4.5A1.5 1.5 0 0 1 3 3h3.2l1.6 1.8H13A1.5 1.5 0 0 1 14.5 6.3v5.2A1.5 1.5 0 0 1 13 13H3a1.5 1.5 0 0 1-1.5-1.5v-7z'
+      stroke='currentColor'
+      strokeWidth='1.2'
+      strokeLinejoin='round'
+    />
+  </svg>
+)
+
+/**
+ * Inline grant chip rendered for
+ * `<credential>{"type":"folder_access","name":"Desktop"}</credential>`.
+ * Clicking opens the desktop app's native folder picker (read-only grant,
+ * same flow as the Desktop settings folder picker). Renders nothing outside the
+ * desktop app — there is no local filesystem bridge to grant against.
+ */
+function FolderAccessDisplay({ data }: { data: CredentialTagData }) {
+  const [picking, setPicking] = useState(false)
+  const [grantedName, setGrantedName] = useState<string | null>(null)
+
+  const bridge = getDesktopBridge()
+  if (!bridge?.localFilesystem) return null
+
+  const hint = (data.name ?? '').trim()
+  const label = grantedName
+    ? `Access granted — ${grantedName}`
+    : hint
+      ? `Grant access to ${hint}`
+      : 'Grant access to a local folder'
+
+  const handleClick = async () => {
+    if (picking || grantedName) return
+    setPicking(true)
+    try {
+      const response = await bridge.localFilesystem({ operation: 'mount_directory' })
+      if (response.ok && 'mount' in response.data && response.data.mount) {
+        setGrantedName(response.data.mount.name)
+        toast.success(`Granted access to ${response.data.mount.name}`)
+      }
+    } catch {
+      toast.error("Couldn't open the folder picker. Please try again.")
+    } finally {
+      setPicking(false)
+    }
+  }
+
+  return (
+    <button
+      type='button'
+      onClick={() => void handleClick()}
+      disabled={picking || grantedName !== null}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors',
+        grantedName === null && !picking && 'hover-hover:bg-[var(--surface-5)]',
+        picking && 'opacity-60'
+      )}
+    >
+      <FolderGrantIcon className='size-[16px] shrink-0' />
+      <span className='flex-1 text-[var(--text-body)] text-sm'>
+        {picking ? 'Choose a folder…' : label}
+      </span>
+      {grantedName === null && (
+        <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+      )}
+    </button>
+  )
+}
+
+/**
+ * Inline hand-back chip rendered while `browser_request_takeover` waits on
+ * the user (`{"type":"browser_takeover","name":"Please sign in to LinkedIn"}`).
+ * Same chip as the other credential actions; clicking hands control of the
+ * agent browser back to Sim. Renders nothing outside the desktop app — there
+ * is no agent browser to hand back.
+ */
+function BrowserTakeoverDisplay({ data }: { data: CredentialTagData }) {
+  const [handedBack, setHandedBack] = useState(false)
+
+  if (!isBrowserAgentAvailable()) return null
+
+  const reason = (data.name ?? '').trim()
+  const label = handedBack
+    ? 'Handed control back to Sim'
+    : reason || 'Take over in the browser, then hand control back'
+
+  return (
+    <button
+      type='button'
+      onClick={() => {
+        if (handedBack) return
+        setHandedBack(true)
+        sendBrowserPanelAction('takeover-done')
+      }}
+      disabled={handedBack}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors',
+        !handedBack && 'hover-hover:bg-[var(--surface-5)]'
+      )}
+    >
+      <Cursor className='size-[16px] shrink-0' />
+      <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
+      {!handedBack && <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
+    </button>
+  )
+}
+
+/**
  * Inline "set up a service account" control rendered for
  * `<credential>{"type":"service_account","provider":"slack"}</credential>`.
  *
@@ -1005,11 +1160,35 @@ function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
   const label = reconnectCredentialId
     ? `Reconnect ${reconnectCredential?.displayName ?? integrationName}`
     : `Connect ${integrationName}`
+
+  /**
+   * Desktop app: OAuth cannot run in an embedded window — not in the app
+   * window (better-auth binds the flow's state to the initiating browser's
+   * cookies) and not in the Sim browser panel (its partition isn't signed in
+   * to Sim, and Google/Microsoft reject embedded user agents outright). So
+   * the chip hands the whole flow to the system browser via the connect
+   * handoff, carrying the workspace/credential scope from the authorize URL;
+   * completion returns through the app's loopback and refreshes credentials.
+   */
+  const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    const bridge = getDesktopBridge()
+    if (!bridge?.beginOAuthConnect || !data.value) return
+    event.preventDefault()
+    const url = new URL(data.value)
+    const providerId = url.searchParams.get('providerId') ?? data.provider
+    if (!providerId) return
+    void bridge.beginOAuthConnect(providerId, {
+      workspaceId: url.searchParams.get('workspaceId') ?? undefined,
+      credentialId: url.searchParams.get('credentialId') ?? undefined,
+    })
+  }
+
   return (
     <a
       href={data.value}
       target='_blank'
       rel='noopener noreferrer'
+      onClick={handleClick}
       className='flex items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
     >
       {createElement(Icon, { className: 'size-[16px] shrink-0' })}
@@ -1019,9 +1198,60 @@ function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
   )
 }
 
-function CredentialDisplay({ data }: { data: CredentialTagData }) {
+/**
+ * Inline hand-back chip rendered while a terminal handoff waits on the user —
+ * a command sitting on a prompt only they can answer. Without it the tool row
+ * just spins: the command is blocked in a panel the user may not even be
+ * looking at, with nothing saying it wants them. Clicking tells the waiting
+ * handoff they are done; the terminal id rides in `value` so the click reaches
+ * the right shell. Renders nothing outside the desktop app.
+ */
+function TerminalHandoffDisplay({ data }: { data: CredentialTagData }) {
+  const [handedBack, setHandedBack] = useState(false)
+
+  if (!isTerminalAvailable()) return null
+
+  const reason = (data.name ?? '').trim()
+  const label = handedBack
+    ? 'Handed control back to Sim'
+    : reason || 'Finish in the terminal, then hand control back'
+
+  return (
+    <button
+      type='button'
+      onClick={() => {
+        if (handedBack) return
+        setHandedBack(true)
+        finishTerminalHandoff(data.value ?? '')
+      }}
+      disabled={handedBack}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors',
+        !handedBack && 'hover-hover:bg-[var(--surface-5)]'
+      )}
+    >
+      <TerminalWindow className='size-[16px] shrink-0' />
+      <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
+      {!handedBack && <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
+    </button>
+  )
+}
+
+export function CredentialDisplay({ data }: { data: CredentialTagData }) {
   if (data.type === 'secret_input') {
     return <SecretInputDisplay data={data} />
+  }
+
+  if (data.type === 'folder_access') {
+    return <FolderAccessDisplay data={data} />
+  }
+
+  if (data.type === 'browser_takeover') {
+    return <BrowserTakeoverDisplay data={data} />
+  }
+
+  if (data.type === 'terminal_handoff') {
+    return <TerminalHandoffDisplay data={data} />
   }
 
   if (data.type === 'link') {

@@ -33,6 +33,10 @@ export function usePersonalEnvironment() {
     queryKey: environmentKeys.personal(),
     queryFn: ({ signal }) => fetchPersonalEnvironment(signal),
     staleTime: PERSONAL_ENVIRONMENT_STALE_TIME,
+    // Pinned off (not inheriting the desktop QueryClient default): the secrets
+    // manager seeds an editable form from this data, so a background focus
+    // refetch during a concurrent edit would drop the user's unsaved rows.
+    refetchOnWindowFocus: false,
   })
 }
 
@@ -49,6 +53,9 @@ export function useWorkspaceEnvironment<TData = WorkspaceEnvironmentData>(
     enabled: !!workspaceId,
     staleTime: WORKSPACE_ENVIRONMENT_STALE_TIME,
     placeholderData: keepPreviousData,
+    // See usePersonalEnvironment: seeds an editable form, so a focus refetch
+    // during a concurrent workspace-env edit must not clobber unsaved rows.
+    refetchOnWindowFocus: false,
     ...options,
   })
 }

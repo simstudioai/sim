@@ -5,6 +5,7 @@ import { cn } from '@sim/emcn'
 import {
   Calendar,
   Connections,
+  Cursor,
   Database,
   File as FileIcon,
   Folder as FolderIcon,
@@ -212,6 +213,24 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IntegrationDropdownItem {...props} />,
   },
+  browser: {
+    type: 'browser',
+    label: 'Browser',
+    icon: Cursor,
+    renderTabIcon: (_resource, className) => (
+      <Cursor className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Cursor} />,
+  },
+  terminal: {
+    type: 'terminal',
+    label: 'Terminal',
+    icon: TerminalWindow,
+    renderTabIcon: (_resource, className) => (
+      <TerminalWindow className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={TerminalWindow} />,
+  },
 } as const
 
 export const RESOURCE_TYPES = Object.values(RESOURCE_REGISTRY)
@@ -267,6 +286,17 @@ const RESOURCE_INVALIDATORS: Record<
    * invalidate when one is added.
    */
   integration: () => {},
+  /**
+   * The browser panel hosts the desktop app's natively embedded browser view
+   * (in-memory page state, no server-backed query), so there is nothing to
+   * invalidate.
+   */
+  browser: () => {},
+  /**
+   * The terminal panel is backed by a live PTY in the desktop app, not a
+   * server-backed query, so there is nothing to invalidate.
+   */
+  terminal: () => {},
 }
 
 /**

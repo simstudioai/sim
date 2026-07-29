@@ -29,6 +29,14 @@ export type ChatContext =
   | { kind: 'filefolder'; fileFolderId: string; label: string }
   | { kind: 'scheduledtask'; scheduleId: string; label: string }
   | { kind: 'docs'; label: string }
+  /**
+   * A tab in the desktop browser or terminal panel, dragged into the input to
+   * say "this one". A pointer rather than a snapshot: the agent reads the tab
+   * with its own tools, so what it sees is the live state at the moment it
+   * looks rather than whatever was on screen when the message was sent.
+   */
+  | { kind: 'browser_tab'; tabId: string; label: string }
+  | { kind: 'terminal_tab'; terminalId: string; label: string }
   | { kind: 'slash_command'; command: string; label: string }
   | { kind: 'integration'; blockType: string; label: string }
   | { kind: 'skill'; skillId: string; label: string }
