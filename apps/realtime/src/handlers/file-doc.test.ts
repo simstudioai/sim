@@ -14,11 +14,13 @@ import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import type { IRoomManager } from '@/rooms'
 
-const { mockAuthorizeRoom, mockFetchFileDocSeed, mockFetchFileDocMerge } = vi.hoisted(() => ({
-  mockAuthorizeRoom: vi.fn(),
-  mockFetchFileDocSeed: vi.fn(),
-  mockFetchFileDocMerge: vi.fn(),
-}))
+const { mockAuthorizeRoom, mockFetchFileDocSeed, mockFetchFileDocMerge, mockFetchFileDocPersist } =
+  vi.hoisted(() => ({
+    mockAuthorizeRoom: vi.fn(),
+    mockFetchFileDocSeed: vi.fn(),
+    mockFetchFileDocMerge: vi.fn(),
+    mockFetchFileDocPersist: vi.fn(),
+  }))
 
 vi.mock('@sim/platform-authz/rooms', () => ({
   authorizeRoom: mockAuthorizeRoom,
@@ -27,6 +29,7 @@ vi.mock('@sim/platform-authz/rooms', () => ({
 vi.mock('@/handlers/file-doc-app', () => ({
   fetchFileDocSeed: mockFetchFileDocSeed,
   fetchFileDocMerge: mockFetchFileDocMerge,
+  fetchFileDocPersist: mockFetchFileDocPersist,
 }))
 
 import {
@@ -63,7 +66,10 @@ function createIo() {
       left.push({ socketId, room })
     },
   }))
-  return { io: { to, in: inFn } as unknown as IRoomManager['io'], sent, left }
+  // Doc-sync frames fan out via `io.local.to(...)` (cross-task delivery rides the Redis stream, not the
+  // adapter). With the store disabled in tests, `local` is the whole room — mirror `to` so those emits
+  // are recorded identically. Awareness/presence still use `io.to(...)`.
+  return { io: { to, in: inFn, local: { to } } as unknown as IRoomManager['io'], sent, left }
 }
 
 /** Every socket id a test created, so `afterEach` can drop their rooms without a

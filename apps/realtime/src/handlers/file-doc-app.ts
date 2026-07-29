@@ -72,3 +72,26 @@ export async function fetchFileDocMerge(
   }
   return new Uint8Array(Buffer.from(body.update, 'base64'))
 }
+
+/**
+ * Ask the app to project a live collaborative document back to durable markdown and write it to the
+ * file (Yjs → markdown, through the exact editor engine). This is the server-authoritative durable
+ * path — called debounced while the doc is edited and when the last collaborator leaves — that
+ * replaces the editor's client autosave, so a server/copilot edit can't be clobbered by a stale
+ * keystroke. THROWS on a transport failure so the caller can log/retry on the next debounce.
+ */
+export async function fetchFileDocPersist(
+  workspaceId: string,
+  fileId: string,
+  userId: string,
+  docState: Uint8Array
+): Promise<void> {
+  const response = await postToApp(
+    '/api/internal/file-doc/persist',
+    { workspaceId, fileId, userId, docState: Buffer.from(docState).toString('base64') },
+    FILE_DOC_TIMEOUTS.persistRequestMs
+  )
+  if (!response.ok) {
+    throw new Error(`Persist failed for file ${fileId}: ${response.status}`)
+  }
+}

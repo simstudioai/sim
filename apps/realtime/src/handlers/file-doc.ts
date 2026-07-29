@@ -6,15 +6,20 @@
  * and the room abstraction, rather than a separate ws server. Clients speak the
  * `y-protocols` sync + awareness protocols; the server applies and relays them.
  *
- * No durable Yjs state is kept yet: the document lives only while at least one
- * collaborator is connected, and is re-seeded from the file's stored markdown on
- * the next cold open (the markdown, saved by a client through the content API, is
- * the durable source of truth). Durable Yjs snapshots are a separate follow-up.
+ * Multi-replica safe. The in-memory {@link Y.Doc} is NOT authoritative on its own — every task
+ * converges on one CRDT per file through the shared Redis-Streams backend in {@link file-doc-store}:
+ * each applied update is published to the file's stream and every task's tailer applies it to its own
+ * doc and fans it out to its own clients, so two tasks can never split-brain. Consequently doc-sync
+ * messages are broadcast LOCALLY ({@link io.local}) and cross-task delivery rides the stream — NOT the
+ * Socket.IO adapter (that would double-deliver). Awareness/presence stay on the adapter: they are
+ * ephemeral and need neither convergence nor replay. When `REDIS_URL` is unset the store is disabled
+ * and this falls back to the original single-replica behavior (local doc, local seed, local fan-out).
  *
- * Single-writer assumption: the authoritative {@link Y.Doc} is held in this
- * process's memory, so correctness assumes one realtime replica per file (Helm
- * pins `realtime.replicaCount: 1`). Horizontal scaling would need a shared Yjs
- * backend (y-redis / Hocuspocus) — out of scope here.
+ * Durability: the live doc is projected back to the file's markdown server-side — debounced while it is
+ * edited and flushed when the last collaborator leaves — via the app's `/persist` endpoint (the app
+ * owns the conversion engine). This replaces the editor's client autosave, closing the copilot
+ * clobber-window, and the Redis stream is the crash buffer between flushes. The markdown file remains
+ * the long-term source of truth; the Redis stream is ephemeral (TTL'd, heartbeat-refreshed while live).
  *
  * @module
  */
@@ -23,12 +28,15 @@ import {
   FILE_DOC_EVENTS,
   FILE_DOC_MESSAGE_TYPE,
   FILE_DOC_SEED,
+  FILE_DOC_TIMEOUTS,
   type FileDocPresenceUser,
   type JoinFileDocPayload,
   type LeaveFileDocPayload,
   toFileDocBytes,
 } from '@sim/realtime-protocol/file-doc'
 import { ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
+import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import * as decoding from 'lib0/decoding'
 import * as encoding from 'lib0/encoding'
 import type { Server } from 'socket.io'
@@ -36,12 +44,28 @@ import * as awarenessProtocol from 'y-protocols/awareness'
 import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import { resolveAvatarUrl } from '@/handlers/avatar'
-import { fetchFileDocMerge, fetchFileDocSeed } from '@/handlers/file-doc-app'
+import { fetchFileDocMerge, fetchFileDocPersist, fetchFileDocSeed } from '@/handlers/file-doc-app'
+import { getFileDocStore, REDIS_ORIGIN } from '@/handlers/file-doc-store'
 import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import type { IRoomManager } from '@/rooms'
 
 const logger = createLogger('FileDocHandlers')
+
+/**
+ * The transaction origin the server stamps on a SEED apply, so `doc.on('update')` can broadcast + share
+ * it (peers still need the seed) but skip the debounced persist — the seed IS the file's current
+ * content, so writing it straight back would only churn a redundant blob version.
+ */
+const SEED_ORIGIN = Symbol('file-doc-seed')
+
+/** Debounce window for the server-side project-to-markdown persist while a doc is actively edited. */
+const PERSIST_DEBOUNCE_MS = 5_000
+
+/** Cross-task merge-lock wait: while a peer task is merging the same file, retry at this cadence for up
+ * to ~`mergeRequestMs` so we diff against the peer's RESULT rather than racing it; then proceed. */
+const MERGE_LOCK_RETRY_MS = 200
+const MERGE_LOCK_RETRIES = Math.ceil(FILE_DOC_TIMEOUTS.mergeRequestMs / MERGE_LOCK_RETRY_MS)
 
 /** A socket's presence ownership within a room. */
 interface FileDocOwner {
@@ -70,6 +94,12 @@ interface FileDocRoom {
   /** True once the server-side seed fetch has started, so concurrent joins don't each fetch.
    * Reset on a fetch FAILURE so a later join can retry (a genuinely empty file stays empty). */
   serverSeedStarted: boolean
+  /** The workspace this file belongs to, captured at join — needed to persist back to markdown. */
+  workspaceId: string | null
+  /** The last collaborator to edit here, for persist attribution (blob metadata) only. */
+  lastEditorUserId: string | null
+  /** The pending debounced persist timer, if any. */
+  persistTimer: ReturnType<typeof setTimeout> | null
 }
 
 /** Live documents keyed by Socket.IO room name. Module-global: one Y.Doc per file. */
@@ -108,9 +138,73 @@ function originSocketId(origin: unknown): string | null {
   return typeof origin === 'string' ? origin : null
 }
 
+/**
+ * Broadcast an AWARENESS frame to the room ACROSS tasks via the Socket.IO Redis adapter. Awareness
+ * (cursors/selection) is ephemeral and needs no convergence or replay, so the adapter's cross-task
+ * fan-out is exactly right for it.
+ */
 function broadcast(io: Server, name: string, payload: Uint8Array, exceptSocketId: string | null) {
   const channel = exceptSocketId ? io.to(name).except(exceptSocketId) : io.to(name)
   channel.emit(FILE_DOC_EVENTS.MESSAGE, payload)
+}
+
+/**
+ * Broadcast a DOC-SYNC frame to this task's LOCAL clients only. Cross-task delivery rides the shared
+ * Redis stream (each task's tailer applies the update and runs its OWN local fan-out), so using the
+ * adapter here would double-deliver and amplify. With no adapter (single-pod dev) `io.local` is the
+ * whole room, so behavior is unchanged.
+ */
+function broadcastLocal(
+  io: Server,
+  name: string,
+  payload: Uint8Array,
+  exceptSocketId: string | null
+) {
+  const channel = exceptSocketId ? io.local.to(name).except(exceptSocketId) : io.local.to(name)
+  channel.emit(FILE_DOC_EVENTS.MESSAGE, payload)
+}
+
+/**
+ * Schedule a debounced server-side persist of the live doc back to durable markdown. Coalesces rapid
+ * edits; a no-op until the room knows its workspace (set at join). The final flush on last-disconnect
+ * is separate ({@link flushPersist} with `final`).
+ */
+function schedulePersist(name: string, room: FileDocRoom): void {
+  if (!room.workspaceId || !room.lastEditorUserId) return
+  if (room.persistTimer) clearTimeout(room.persistTimer)
+  room.persistTimer = setTimeout(() => {
+    room.persistTimer = null
+    void flushPersist(name, room, false)
+  }, PERSIST_DEBOUNCE_MS)
+}
+
+/**
+ * Project the live doc to markdown and write it durably via the app. `final` (last collaborator
+ * leaving) always writes; a debounced mid-edit flush first claims a cross-task slot (held for the whole
+ * write, so a concurrent task can't issue an overlapping blob write) so tasks don't each write a
+ * redundant version. Best-effort: never throws (a failure is retried on the next debounce; the stream
+ * holds the state meanwhile).
+ *
+ * Persists the AUTHORITATIVE shared state (the stream), not this task's local doc: a copilot merge — or
+ * a peer's edit — published by another task may not be integrated into `room.doc` yet, and a
+ * last-disconnect flush of that lagging local doc would clobber the durable file (the exact
+ * copilot-write regression a naive local-doc flush reintroduces). Reading from the stream also means
+ * the enabled path never touches `room.doc`, so `void flushPersist(name, room, true)` is safe to fire
+ * immediately before the caller destroys it. When disabled the local doc IS authoritative, and is
+ * encoded synchronously (before the first await) so the same fire-then-destroy ordering holds.
+ */
+async function flushPersist(name: string, room: FileDocRoom, final: boolean): Promise<void> {
+  if (!isDocSeeded(room.doc) || !room.workspaceId || !room.lastEditorUserId) return
+  const store = getFileDocStore()
+  try {
+    if (!final && !(await store.acquirePersistSlot(name, FILE_DOC_TIMEOUTS.persistRequestMs)))
+      return
+    const shared = store.enabled ? await store.getStreamState(name) : null
+    const docState = shared ?? Y.encodeStateAsUpdate(room.doc)
+    await fetchFileDocPersist(room.workspaceId, room.fileId, room.lastEditorUserId, docState)
+  } catch (error) {
+    logger.warn(`Persist failed for file ${room.fileId}`, { error: getErrorMessage(error) })
+  }
 }
 
 /**
@@ -159,12 +253,22 @@ function awarenessUpdateClientIds(update: Uint8Array): number[] {
 }
 
 /**
- * Drop a room's document + awareness once it has no owners, so an idle file holds no memory.
- * A later joiner re-creates and re-seeds it from the file's current markdown.
+ * Drop a room's document + awareness once it has no owners on THIS task, so an idle file holds no
+ * memory. Before dropping, flush the converged doc back to durable markdown (the last collaborator on
+ * this task leaving) and detach from the shared stream. A later joiner re-creates it — catching up
+ * from the stream if the doc is still live on another task, or re-seeding from markdown otherwise.
  */
 function destroyRoomIfIdle(name: string) {
   const room = fileDocRooms.get(name)
   if (!room || room.owners.size > 0) return
+  if (room.persistTimer) {
+    clearTimeout(room.persistTimer)
+    room.persistTimer = null
+  }
+  // Final durable flush BEFORE teardown — `flushPersist` encodes the doc synchronously (before the
+  // destroy below) and awaits the write in the background. Best-effort; never throws.
+  void flushPersist(name, room, true)
+  getFileDocStore().detachRoom(name)
   room.awareness.destroy()
   room.doc.destroy()
   fileDocRooms.delete(name)
@@ -194,14 +298,32 @@ async function ensureServerSeed(
 ): Promise<void> {
   if (room.serverSeedStarted || isDocSeeded(room.doc)) return
   room.serverSeedStarted = true
+  const store = getFileDocStore()
+  // Exactly one task across the cluster builds the seed; the others receive it via the stream (the fix
+  // for split-brain seeding). `shouldSeed` is true here on a single-pod deployment.
+  if (!(await store.shouldSeed(name))) {
+    // A peer is seeding (or already did). Release our guard so a later join can retry if the seed never
+    // arrives (e.g. the seeder died); the stream / this doc being seeded makes a retry safe.
+    room.serverSeedStarted = false
+    return
+  }
+  // We hold the seed lock — release it on EVERY exit from here (one `finally`, impossible to leak).
   try {
     const update = await fetchFileDocSeed(workspaceId, room.fileId)
     if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
-    if (update) Y.applyUpdate(room.doc, update)
-    else room.doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+    // SEED_ORIGIN → `doc.on('update')` shares the seed to the stream (peers need it) but skips the
+    // persist (the seed is the file's current content, so a persist would only churn a blob version).
+    if (update) Y.applyUpdate(room.doc, update, SEED_ORIGIN)
+    else
+      room.doc.transact(
+        () => room.doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true),
+        SEED_ORIGIN
+      )
   } catch (error) {
     logger.warn(`Server seed failed for file ${room.fileId} (workspace ${workspaceId})`, error)
     room.serverSeedStarted = false
+  } finally {
+    await store.releaseSeedLock(name)
   }
 }
 
@@ -214,15 +336,18 @@ const fileDocMergeChains = new Map<string, Promise<unknown>>()
  * fires `doc.on('update')` and relays the merge to every connected editor, reconciled with any
  * concurrent user edits — and reports whether it landed.
  *
- * Merges for the same file are SERIALIZED: each waits for any in-flight merge on that doc, so it
- * snapshots the already-updated state and its diff is computed against current content — two
- * overlapping full-document rewrites can never each diff the same stale snapshot and apply out of
- * order. (The relay is single-writer per file — Helm pins one replica — so an in-process chain
- * suffices.)
+ * Merges for the same file are SERIALIZED — within a task by the {@link fileDocMergeChains} promise
+ * chain, and ACROSS tasks by a Redis merge lock (below) — so each diff is computed against the previous
+ * merge's result, never the same stale base concurrently.
  *
- * Returns `'no-live-room'` when the file has no seeded, occupied room: an unseeded/empty doc has no
- * authoritative content to merge against, so the caller (copilot) writes the file directly instead and
- * the seed picks up the new content on the next open.
+ * Multi-task: the diff is computed against, and published to, the file's SHARED stream state — so the
+ * merge reaches the live doc no matter which task holds it (the apply-edit HTTP call can land on any
+ * task). Every task's tailer then applies it and fans it out to its own clients. Because the merge
+ * always lands in the stream while the stream exists, the stream can never go stale relative to a
+ * copilot direct file write.
+ *
+ * Returns `'no-live-room'` when there is no shared state to merge against (no doc is or was recently
+ * live): the caller (copilot) writes the file directly and the next open seeds from that markdown.
  */
 export function applyMarkdownToLiveFileDoc(
   fileId: string,
@@ -246,9 +371,38 @@ async function mergeMarkdownIntoRoom(
   fileId: string,
   markdown: string
 ): Promise<'applied' | 'no-live-room'> {
+  const store = getFileDocStore()
+
+  if (store.enabled) {
+    // Serialize merges to this file ACROSS tasks — the per-file chain above only covers this process.
+    // Two copilot edits to the same file landing on different tasks must not diff the SAME shared base
+    // and publish conflicting full-document rewrites; wait briefly for a peer's merge to finish so we
+    // diff against its RESULT. If the holder is stuck past the wait (likely dead; its lock TTL will
+    // lapse), proceed anyway rather than drop the edit.
+    const lockTtl = FILE_DOC_TIMEOUTS.mergeRequestMs + 2_000
+    let acquired = await store.acquireMergeSlot(name, lockTtl)
+    for (let i = 0; !acquired && i < MERGE_LOCK_RETRIES; i++) {
+      await sleep(MERGE_LOCK_RETRY_MS)
+      acquired = await store.acquireMergeSlot(name, lockTtl)
+    }
+    try {
+      // Compute the diff against the committed SHARED state and PUBLISH it — every task with the doc
+      // live (including this one, via its own tailer) applies it and fans it out to its clients, so the
+      // merge reaches the live doc no matter which task the apply-edit call landed on. An empty stream
+      // means no doc is (or was recently) live → nothing to merge into.
+      const base = await store.getStreamState(name)
+      if (!base) return 'no-live-room'
+      const diff = await fetchFileDocMerge(fileId, base, markdown)
+      store.publish(name, diff)
+      return 'applied'
+    } finally {
+      if (acquired) await store.releaseMergeSlot(name)
+    }
+  }
+
+  // Single-replica fallback: apply straight to the local authoritative doc.
   const room = fileDocRooms.get(name)
   if (!room || room.owners.size === 0 || !isDocSeeded(room.doc)) return 'no-live-room'
-
   const update = await fetchFileDocMerge(fileId, Y.encodeStateAsUpdate(room.doc), markdown)
   // The room may have been dropped while the diff was being built; never touch a destroyed doc.
   if (fileDocRooms.get(name) !== room) return 'no-live-room'
@@ -278,14 +432,26 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     awareness,
     owners: new Map(),
     serverSeedStarted: false,
+    workspaceId: null,
+    lastEditorUserId: null,
+    persistTimer: null,
   }
+  // Register synchronously BEFORE the async catch-up so a concurrent join sees this room, not a second.
   fileDocRooms.set(name, room)
 
   doc.on('update', (update: Uint8Array, origin: unknown) => {
     const encoder = encoding.createEncoder()
     encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
     syncProtocol.writeUpdate(encoder, update)
-    broadcast(io, name, encoding.toUint8Array(encoder), originSocketId(origin))
+    // Fan out to THIS task's clients only (excluding the origin socket if local). Cross-task delivery
+    // rides the shared stream — every task's tailer applies + runs its own local fan-out.
+    broadcastLocal(io, name, encoding.toUint8Array(encoder), originSocketId(origin))
+    // Share every locally-originated update to the stream so peers converge; an update that ARRIVED
+    // from the stream (REDIS_ORIGIN) is already there — never re-publish it.
+    if (origin !== REDIS_ORIGIN) getFileDocStore().publish(name, update)
+    // Persist real edits (user edits + copilot merges) back to markdown, debounced. Skip the seed (it
+    // is the file's current content) and stream-relayed updates (their originating task persists them).
+    if (origin !== REDIS_ORIGIN && origin !== SEED_ORIGIN) schedulePersist(name, room)
   })
 
   awareness.on('update', ({ added, updated, removed }: AwarenessChange, origin: unknown) => {
@@ -299,6 +465,10 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     )
     broadcast(io, name, encoding.toUint8Array(encoder), originSocketId(origin))
   })
+
+  // Load the shared state into the doc and start tailing the stream (fire-and-forget: content streams
+  // in via `doc.on('update')` as it lands, mirroring the fire-and-forget seed below). Disabled → no-op.
+  void getFileDocStore().attachRoom(name, doc)
 
   return room
 }
@@ -335,6 +505,9 @@ function handleMessage(socket: AuthenticatedSocket, data: unknown) {
 
     switch (messageType) {
       case FILE_DOC_MESSAGE_TYPE.SYNC: {
+        // Attribute a server-side persist of the resulting edit to the actual editor (blob metadata).
+        const editor = room.owners.get(socket.id)?.userId
+        if (editor) room.lastEditorUserId = editor
         const encoder = encoding.createEncoder()
         encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
         // `socket.id` is the transaction origin, so the doc's `update` handler
@@ -533,6 +706,11 @@ export function setupWorkspaceFileDocHandlers(
       entry.owners.set(socket.id, { clientId, userId, userName, avatarUrl })
       socketToRoomName.set(socket.id, name)
       socket.join(name)
+
+      // Capture what the server-side persist needs: the workspace to write back to, and the current
+      // user for attribution (refreshed to the actual editor on each edit in `handleMessage`).
+      if (authorized.workspaceId) entry.workspaceId = authorized.workspaceId
+      entry.lastEditorUserId = userId
 
       socket.emit(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId })
       // Server-authenticated roster → everyone in the room, including this joiner.

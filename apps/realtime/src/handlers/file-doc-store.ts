@@ -1,0 +1,419 @@
+/**
+ * Shared, multi-replica Yjs backend for the collaborative file-document relay, over Redis Streams.
+ *
+ * The relay keeps an in-memory {@link Y.Doc} per open file (for the sync handshake, awareness, and
+ * copilot merges), but on a horizontally-scaled deployment (multiple ECS tasks, autoscaling) that
+ * per-process doc is NOT authoritative on its own: two tasks each seeding the same file from markdown
+ * would mint independent Yjs client ids and union into duplicated content (split-brain), and a task
+ * only ever sees the edits of ITS OWN clients. This module makes every task converge on ONE CRDT per
+ * file by treating a Redis Stream as the shared, ordered, replayable log of Yjs updates — the union of
+ * a stream's entries IS the document. It is the "shared Yjs backend (y-redis / Hocuspocus)" the relay's
+ * single-replica model always deferred, built natively for our Socket.IO transport on the Redis the
+ * Socket.IO adapter already runs.
+ *
+ * How it fits the relay's message flow (see `file-doc.ts`):
+ * - Doc-sync messages no longer ride the Socket.IO Redis ADAPTER cross-pod. Instead each applied
+ *   update is {@link publish}ed to the stream; every task's multiplexed reader
+ *   applies it to its local doc (origin {@link REDIS_ORIGIN}) and fans it out to ITS OWN clients. So a
+ *   client receives each update exactly once, from its own task's local broadcast — no adapter
+ *   amplification, and every task's doc stays converged. (Awareness/presence stay on the adapter: they
+ *   are ephemeral and need no convergence or replay.)
+ * - {@link attachRoom} does a synchronous catch-up read from the head of the stream when a task first
+ *   opens a file, so a late-joining task (the normal case under autoscaling) loads the current shared
+ *   state before its first client syncs. Catch-up + tail are seamless: the tailer resumes from the
+ *   exact id catch-up stopped at.
+ * - {@link shouldSeed} coordinates the one-time seed with a Redis lock AND an empty-stream check, so
+ *   exactly one task ever writes the seed cluster-wide (the fix for split-brain).
+ *
+ * When `REDIS_URL` is unset (single-pod dev) the store is DISABLED and every method degrades to the
+ * relay's original single-replica behavior: seed locally, no stream, no tailer.
+ *
+ * @module
+ */
+import { createLogger } from '@sim/logger'
+import { FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
+import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
+import { createClient, type RedisClientType } from 'redis'
+import * as Y from 'yjs'
+
+const logger = createLogger('FileDocStore')
+
+/**
+ * The transaction origin the store stamps on updates it applies from the stream. The relay's
+ * `doc.on('update')` handler uses it to distinguish an update that ARRIVED from a peer (fan out to
+ * local clients, but do NOT re-publish — it is already in the stream) from a local edit (fan out AND
+ * publish). It must be a non-string sentinel so it is never mistaken for a socket id.
+ */
+export const REDIS_ORIGIN = Symbol('file-doc-redis')
+
+const STREAM_PREFIX = 'filedoc:stream:'
+const SEED_LOCK_PREFIX = 'filedoc:seedlock:'
+const COMPACT_LOCK_PREFIX = 'filedoc:compactlock:'
+const PERSIST_LOCK_PREFIX = 'filedoc:persistlock:'
+const MERGE_LOCK_PREFIX = 'filedoc:mergelock:'
+
+/** The single field each stream entry carries — a base64 Yjs update. */
+const UPDATE_FIELD = 'u'
+
+/** How long a blocking multiplexed read waits before re-snapshotting the live room set. Also bounds
+ * how long a room attached mid-block waits for its first cross-task update (updates are not lost — the
+ * next read resumes from its last id — only briefly delayed). */
+const READ_BLOCK_MS = 1_000
+/** Idle poll cadence when NO room is open on this task, so a freshly-attached room is picked up fast
+ * without busy-spinning an empty task. */
+const IDLE_POLL_MS = 250
+/** Max entries drained per stream per read. */
+const READ_COUNT = 200
+/** Compact a stream once it exceeds this many entries (snapshot + trim). */
+const COMPACT_THRESHOLD = 400
+/** Check whether compaction is due only every Nth local publish, to avoid an XLEN per keystroke. */
+const COMPACT_CHECK_EVERY = 64
+/** The seed lock is held across the app seed fetch (hard-bounded at `seedRequestMs`) plus the apply +
+ * publish. The generous cushion over `seedRequestMs` means only a multi-second event-loop stall — not
+ * ordinary latency — could expire it mid-seed, so the single-seeder invariant does not hinge on a tight
+ * 2s margin coupled to an unrelated timeout. */
+const SEED_LOCK_TTL_MS = FILE_DOC_TIMEOUTS.seedRequestMs + 12_000
+/** How long a stream survives with no heartbeat — long enough that an occupied-but-idle doc never
+ * loses its shared state (the heartbeat refreshes it while any task holds the room). */
+const STREAM_TTL_SEC = 600
+/** Refresh every occupied stream's TTL on this cadence, so a live doc's stream never expires. */
+const HEARTBEAT_MS = 60_000
+
+const streamKey = (name: string) => `${STREAM_PREFIX}${name}`
+
+/**
+ * Decode one stream entry's base64 Yjs update and apply it to `doc`. A malformed entry is logged and
+ * SKIPPED — never thrown — so one bad frame can neither wedge the tailer nor abort a headless
+ * stream-fold. Shared by the tailer/catch-up (applies with {@link REDIS_ORIGIN}) and the merge-base
+ * reconstruction (no origin — a throwaway doc), so the two can never diverge on how an entry is read.
+ */
+function applyEntryToDoc(
+  doc: Y.Doc,
+  id: string,
+  message: Record<string, string>,
+  origin?: unknown
+): void {
+  const encoded = message[UPDATE_FIELD]
+  if (!encoded) return
+  try {
+    Y.applyUpdate(doc, new Uint8Array(Buffer.from(encoded, 'base64')), origin)
+  } catch (error) {
+    logger.warn('FileDocStore dropping malformed stream entry', {
+      id,
+      error: getErrorMessage(error),
+    })
+  }
+}
+
+/** One locally-open room the store tracks: its doc and the last stream id applied to it. */
+interface StoreRoom {
+  doc: Y.Doc
+  /** The id of the last stream entry applied to `doc`; the tailer resumes strictly after it. */
+  lastId: string
+  /** Local publish count, to pace compaction checks. */
+  publishes: number
+}
+
+/**
+ * The Redis-Streams shared Yjs backend. A single instance per process. `enabled` is false when there
+ * is no `REDIS_URL`, in which case every method is a no-op and the relay runs single-replica.
+ */
+export class FileDocStore {
+  readonly enabled: boolean
+  /** Command connection: XADD / locks / XLEN / XTRIM / EXPIRE. */
+  private write: RedisClientType | null = null
+  /** Dedicated connection for blocking XREAD (a blocking command monopolizes its connection). */
+  private read: RedisClientType | null = null
+  private readonly rooms = new Map<string, StoreRoom>()
+  private running = false
+  private heartbeat: ReturnType<typeof setInterval> | null = null
+
+  constructor(private readonly redisUrl: string | undefined) {
+    this.enabled = Boolean(redisUrl)
+  }
+
+  /** Connect the two Redis clients and start the multiplexed reader + TTL heartbeat. Idempotent. */
+  async init(): Promise<void> {
+    if (!this.enabled || this.running || !this.redisUrl) return
+    const options = {
+      url: this.redisUrl,
+      socket: {
+        reconnectStrategy: (retries: number) => {
+          if (retries > 10) return new Error('FileDocStore Redis reconnection failed')
+          return Math.min(retries * 100, 3000)
+        },
+      },
+    }
+    this.write = createClient(options)
+    this.read = this.write.duplicate()
+    this.write.on('error', (err) => logger.error('FileDocStore write client error:', err))
+    this.read.on('error', (err) => logger.error('FileDocStore read client error:', err))
+    await Promise.all([this.write.connect(), this.read.connect()])
+    this.running = true
+    void this.runReader()
+    this.heartbeat = setInterval(() => void this.refreshTtls(), HEARTBEAT_MS)
+    logger.info('FileDocStore ready — shared Yjs backend over Redis Streams enabled')
+  }
+
+  /** Stop the reader/heartbeat and close both clients. */
+  async shutdown(): Promise<void> {
+    this.running = false
+    if (this.heartbeat) clearInterval(this.heartbeat)
+    this.heartbeat = null
+    await Promise.all([this.write?.quit().catch(() => {}), this.read?.quit().catch(() => {})])
+    this.write = null
+    this.read = null
+  }
+
+  /**
+   * Register a locally-opened room and load the shared state into its doc: read the whole stream from
+   * the head, apply every entry (origin {@link REDIS_ORIGIN}), and remember the last id so the tailer
+   * resumes exactly after it. A brand-new file has an empty stream and loads nothing (it is seeded
+   * shortly after, via {@link shouldSeed}). No-op when disabled.
+   */
+  async attachRoom(name: string, doc: Y.Doc): Promise<void> {
+    if (!this.enabled || !this.write) return
+    // Register BEFORE the async read so a concurrent publish/tailer for this room can't be missed —
+    // the tailer resumes from `lastId`, which the catch-up advances.
+    const room: StoreRoom = { doc, lastId: '0', publishes: 0 }
+    this.rooms.set(name, room)
+    try {
+      const entries = await this.write.xRange(streamKey(name), '-', '+')
+      for (const entry of entries) {
+        // The room can be detached + its doc destroyed while catch-up is in flight (a fast open→close);
+        // stop touching it the moment that happens.
+        if (this.rooms.get(name) !== room) return
+        this.applyEntry(room, entry.id, entry.message)
+      }
+      await this.write.expire(streamKey(name), STREAM_TTL_SEC)
+    } catch (error) {
+      logger.warn(`FileDocStore catch-up failed for ${name}`, { error: getErrorMessage(error) })
+    }
+  }
+
+  /** Deregister a room the relay is destroying, so the tailer stops touching its (about-to-be-destroyed) doc. */
+  detachRoom(name: string): void {
+    this.rooms.delete(name)
+  }
+
+  /**
+   * Append a locally-applied update to the shared stream so every task converges. Called from the
+   * relay's `doc.on('update')` for local edits only (never for {@link REDIS_ORIGIN} updates — those
+   * already came from the stream). No-op when disabled.
+   */
+  publish(name: string, update: Uint8Array): void {
+    if (!this.enabled || !this.write) return
+    const room = this.rooms.get(name)
+    void this.write
+      .xAdd(streamKey(name), '*', { [UPDATE_FIELD]: Buffer.from(update).toString('base64') })
+      .then(() => this.write?.expire(streamKey(name), STREAM_TTL_SEC))
+      .then(() => {
+        if (room && ++room.publishes % COMPACT_CHECK_EVERY === 0) return this.maybeCompact(name)
+      })
+      .catch((error) =>
+        logger.warn(`FileDocStore publish failed for ${name}`, { error: getErrorMessage(error) })
+      )
+  }
+
+  /**
+   * Decide whether THIS task should build and write the file's one-time seed. Returns true only when
+   * the shared stream is genuinely empty AND this task wins the seed lock — so exactly one task across
+   * the cluster ever seeds a file, even if several open it at once (the fix for split-brain seeding).
+   * When disabled, always true (single-replica: seed locally).
+   */
+  async shouldSeed(name: string): Promise<boolean> {
+    if (!this.enabled || !this.write) return true
+    try {
+      const won = await this.write.set(`${SEED_LOCK_PREFIX}${name}`, '1', {
+        NX: true,
+        PX: SEED_LOCK_TTL_MS,
+      })
+      if (won !== 'OK') return false
+      // The lock could be free yet the stream already seeded (a prior holder seeded then its lock
+      // expired). Re-check under the lock so we never write a SECOND seed on top of an existing one.
+      if ((await this.write.xLen(streamKey(name))) > 0) {
+        await this.releaseSeedLock(name)
+        return false
+      }
+      return true
+    } catch (error) {
+      logger.warn(`FileDocStore shouldSeed failed for ${name}`, { error: getErrorMessage(error) })
+      return false
+    }
+  }
+
+  /**
+   * Build the file's current shared state from the stream, headless (no registered room), for a merge
+   * that must reach the live doc regardless of which task holds it. Returns the encoded Yjs state, or
+   * `null` when the stream is empty — i.e. no doc is (or was recently) live, so there is nothing to
+   * merge into and the caller should fall back to a direct file write. Disabled → always null.
+   */
+  async getStreamState(name: string): Promise<Uint8Array | null> {
+    if (!this.enabled || !this.write) return null
+    const entries = await this.write.xRange(streamKey(name), '-', '+')
+    if (entries.length === 0) return null
+    const doc = new Y.Doc()
+    try {
+      for (const entry of entries) applyEntryToDoc(doc, entry.id, entry.message)
+      return Y.encodeStateAsUpdate(doc)
+    } finally {
+      doc.destroy()
+    }
+  }
+
+  /** Release the seed lock (best-effort) once the seed has been published or a seed attempt failed. */
+  async releaseSeedLock(name: string): Promise<void> {
+    if (!this.enabled || !this.write) return
+    await this.write.del(`${SEED_LOCK_PREFIX}${name}`).catch(() => {})
+  }
+
+  /**
+   * Try to claim the right to persist this file for the current debounce window, so concurrent tasks
+   * editing the same file don't each write a redundant blob version. Returns true (proceed) when
+   * disabled, or when this task wins a short lock. The final last-collaborator flush does NOT gate on
+   * this — it must always write.
+   */
+  async acquirePersistSlot(name: string, ttlMs: number): Promise<boolean> {
+    if (!this.enabled || !this.write) return true
+    try {
+      const won = await this.write.set(`${PERSIST_LOCK_PREFIX}${name}`, '1', {
+        NX: true,
+        PX: ttlMs,
+      })
+      return won === 'OK'
+    } catch {
+      return true
+    }
+  }
+
+  /**
+   * Try to claim the cross-task right to merge new content into this file. The relay already serializes
+   * merges per task; this extends that across tasks so two copilot edits to the same file landing on
+   * different tasks don't each diff the SAME shared base and publish conflicting full-document rewrites.
+   * The loser waits and retries so it diffs against the winner's RESULT (correct sequential merge).
+   * Returns true (proceed) when disabled or once the lock is won. Release with {@link releaseMergeSlot}.
+   */
+  async acquireMergeSlot(name: string, ttlMs: number): Promise<boolean> {
+    if (!this.enabled || !this.write) return true
+    try {
+      return (
+        (await this.write.set(`${MERGE_LOCK_PREFIX}${name}`, '1', { NX: true, PX: ttlMs })) === 'OK'
+      )
+    } catch {
+      return true
+    }
+  }
+
+  async releaseMergeSlot(name: string): Promise<void> {
+    if (!this.enabled || !this.write) return
+    await this.write.del(`${MERGE_LOCK_PREFIX}${name}`).catch(() => {})
+  }
+
+  private applyEntry(room: StoreRoom, id: string, message: Record<string, string>): void {
+    room.lastId = id
+    applyEntryToDoc(room.doc, id, message, REDIS_ORIGIN)
+  }
+
+  /**
+   * The single multiplexed tail loop: block-read every locally-open room's stream from its last id and
+   * apply new entries. One blocking connection for the whole process regardless of open-file count.
+   */
+  private async runReader(): Promise<void> {
+    while (this.running && this.read) {
+      const snapshot = [...this.rooms.entries()]
+      if (snapshot.length === 0) {
+        await sleep(IDLE_POLL_MS)
+        continue
+      }
+      try {
+        const res = await this.read.xRead(
+          snapshot.map(([name, room]) => ({ key: streamKey(name), id: room.lastId })),
+          { BLOCK: READ_BLOCK_MS, COUNT: READ_COUNT }
+        )
+        if (!res) continue
+        for (const stream of res) {
+          const name = stream.name.slice(STREAM_PREFIX.length)
+          const room = this.rooms.get(name)
+          if (!room) continue // detached mid-read; its doc is being destroyed
+          for (const entry of stream.messages) this.applyEntry(room, entry.id, entry.message)
+        }
+      } catch (error) {
+        if (!this.running) break
+        logger.warn('FileDocStore reader error; retrying', { error: getErrorMessage(error) })
+        await sleep(500)
+      }
+    }
+  }
+
+  /**
+   * Snapshot-then-trim compaction: append a full-state snapshot and drop the older deltas it subsumes,
+   * so the stream stays bounded while a fresh task can still catch up from the head. Lock-guarded so
+   * only one task compacts a given stream at a time (concurrent snapshot+trim would race). Trims only up
+   * to what the snapshot provably contains — never un-integrated peer entries (see below).
+   */
+  private async maybeCompact(name: string): Promise<void> {
+    if (!this.write) return
+    const room = this.rooms.get(name)
+    if (!room) return
+    try {
+      if ((await this.write.xLen(streamKey(name))) < COMPACT_THRESHOLD) return
+      const won = await this.write.set(`${COMPACT_LOCK_PREFIX}${name}`, '1', {
+        NX: true,
+        PX: 10_000,
+      })
+      if (won !== 'OK') return
+      try {
+        // Capture the snapshot AND the id it covers in one synchronous step (no await between): the
+        // snapshot is `room.doc`, which holds exactly what this task's tailer has integrated — every
+        // entry up to `room.lastId`. Entries a peer task published AFTER that (id > lastId) are NOT in
+        // the snapshot and this task's blocking reader may not have seen them yet, so we must NOT trim
+        // them — only entries the snapshot provably subsumes (id <= lastId). Trimming to the freshly
+        // appended snapshot id instead would silently drop those un-integrated peer entries.
+        const upTo = room.lastId
+        const snapshot = Buffer.from(Y.encodeStateAsUpdate(room.doc)).toString('base64')
+        await this.write.xAdd(streamKey(name), '*', { [UPDATE_FIELD]: snapshot })
+        // MINID keeps entries with id >= upTo: the snapshot, any un-integrated peer entries, and
+        // `upTo` itself (redundant with the snapshot, harmless); it drops only the folded older deltas.
+        await this.write.xTrim(streamKey(name), 'MINID', upTo)
+      } finally {
+        await this.write.del(`${COMPACT_LOCK_PREFIX}${name}`).catch(() => {})
+      }
+    } catch (error) {
+      logger.warn(`FileDocStore compaction failed for ${name}`, { error: getErrorMessage(error) })
+    }
+  }
+
+  private async refreshTtls(): Promise<void> {
+    if (!this.write) return
+    for (const name of this.rooms.keys()) {
+      await this.write.expire(streamKey(name), STREAM_TTL_SEC).catch(() => {})
+    }
+  }
+}
+
+let store: FileDocStore | null = null
+
+/**
+ * Initialize the process-wide store from the realtime server bootstrap (alongside the socket adapter).
+ * Authoritative: if a disabled placeholder was lazily created by an early {@link getFileDocStore} call,
+ * this REPLACES it with the real, connected store — so the bootstrap can never silently no-op. A second
+ * call once already initialized is a no-op.
+ */
+export async function initFileDocStore(redisUrl: string | undefined): Promise<FileDocStore> {
+  if (store?.enabled) return store
+  store = new FileDocStore(redisUrl)
+  await store.init()
+  return store
+}
+
+/** The process-wide store. Returns a disabled instance if init was never called (e.g. in unit tests). */
+export function getFileDocStore(): FileDocStore {
+  if (!store) store = new FileDocStore(undefined)
+  return store
+}
+
+/** Test-only: reset the singleton so a test can install its own instance. */
+export function __setFileDocStoreForTest(next: FileDocStore | null): void {
+  store = next
+}
