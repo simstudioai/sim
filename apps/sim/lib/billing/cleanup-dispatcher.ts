@@ -13,7 +13,7 @@ import { getJobQueue } from '@/lib/core/async-jobs'
 import { shouldExecuteInline } from '@/lib/core/async-jobs/config'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isBillingEnabled, isDataRetentionEnabled } from '@/lib/core/config/env-flags'
 import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
 import { isOrganizationWorkspace, WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
@@ -137,6 +137,22 @@ async function resolvePersonalPlanTypesByBilledUserId(
 async function resolvePlanTypesByWorkspaceId(
   rows: WorkspaceCleanupScopeRow[]
 ): Promise<Map<string, PlanCategory>> {
+  /**
+   * Without billing there are no subscription rows to read, and the per-plan
+   * defaults describe hosted tiers the operator never bought — falling through
+   * to them would expire logs on a 30-day free-tier window nobody chose.
+   *
+   * Classifying every workspace as enterprise gives the semantics a self-hosted
+   * deployment actually wants: enterprise carries no default, so retention
+   * comes only from explicitly configured `organization.dataRetentionSettings`
+   * and a workspace with nothing configured keeps its data forever. It also
+   * keeps org-owned workspaces in scope, which the subscription lookup below
+   * would otherwise skip on every billing-free deployment.
+   */
+  if (!isBillingEnabled) {
+    return new Map(rows.map((row) => [row.id, 'enterprise' as PlanCategory]))
+  }
+
   const userScopedRows = rows.filter((row) => row.workspaceMode !== WORKSPACE_MODE.ORGANIZATION)
   const userPlanByBilledUserId = await resolvePersonalPlanTypesByBilledUserId(userScopedRows)
   const entries = await Promise.all(
@@ -274,7 +290,19 @@ async function forEachCleanupChunk(
     }
   }
 
-  if (housekeepingPlan && housekeepingPlan !== 'enterprise' && !housekeepingAssigned) {
+  /**
+   * Global housekeeping is keyed to a plan's default retention window, so it
+   * only makes sense where those plans exist. Emitting it with billing off
+   * would reach for the hosted free-tier window — the same 30 days the
+   * per-workspace pass deliberately refuses to apply — and act on it, which is
+   * exactly the rule `resolvePlanTypesByWorkspaceId` exists to enforce.
+   */
+  if (
+    isBillingEnabled &&
+    housekeepingPlan &&
+    housekeepingPlan !== 'enterprise' &&
+    !housekeepingAssigned
+  ) {
     const retentionHours = config.defaults[housekeepingPlan]
     if (retentionHours != null) {
       await emitChunk({
@@ -302,11 +330,16 @@ export async function dispatchCleanupJobs(jobType: CleanupJobType): Promise<{
   workspaceCount: number
 }> {
   /**
-   * Plan-based retention is a hosted billing policy. Billing-disabled
-   * deployments must never delete user data on the hosted defaults.
+   * Plan-based retention is a hosted billing policy, so a billing-disabled
+   * deployment must never start expiring data on hosted defaults it never
+   * chose. Retention is therefore opt-in off-hosted: the operator turns it on
+   * with `DATA_RETENTION_ENABLED` (or the `ENTERPRISE_ENABLED` suite switch)
+   * after configuring the windows they want.
    */
-  if (!isBillingEnabled) {
-    logger.info(`[${jobType}] Skipping cleanup dispatch: billing is disabled`)
+  if (!isBillingEnabled && !isDataRetentionEnabled) {
+    logger.info(
+      `[${jobType}] Skipping cleanup dispatch: billing is disabled and data retention is not enabled`
+    )
     return { jobIds: [], jobCount: 0, chunkCount: 0, workspaceCount: 0 }
   }
 

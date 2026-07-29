@@ -16,7 +16,7 @@ import { Send } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { GeneratedPasswordInput } from '@/components/ui'
 import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { useFileShare, useUpsertFileShare } from '@/hooks/queries/public-shares'
@@ -91,7 +91,7 @@ export function ShareModal({
   const isAuthTypeAllowed = (mode: ShareAuthType) =>
     allowedAuthTypes === null || allowedAuthTypes.includes(mode)
 
-  const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')) || savedAccessMode === 'sso'
+  const ssoEnabled = isSsoEnabled || savedAccessMode === 'sso'
   const candidateAuthTypes: ShareAuthType[] = [
     'public',
     'password',

@@ -105,6 +105,7 @@ import {
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
@@ -327,6 +328,15 @@ export const auth = betterAuth({
               error,
             })
           }
+
+          /**
+           * Places the user in the instance organization before they reach the
+           * workspace list, so their first workspace is created org-owned and
+           * org-scoped enterprise settings apply to it from the start. No-ops
+           * unless `INSTANCE_ORG_NAME` is set, and swallows its own failures so
+           * organization setup can never block a signup.
+           */
+          await joinInstanceOrganization(user.id)
 
           if (isHosted && user.email && user.emailVerified) {
             try {
@@ -3228,8 +3238,14 @@ export const auth = betterAuth({
         },
       ],
     }),
-    // Include SSO plugin when enabled
-    ...(env.SSO_ENABLED
+    /**
+     * Include SSO plugin when enabled. Resolved through `isSsoEnabled` rather
+     * than the raw env var so the `ENTERPRISE_ENABLED` suite switch registers
+     * the plugin too — reading `env.SSO_ENABLED` here would leave the settings
+     * section visible and `hasSSOAccess` passing while sign-in silently had no
+     * SSO provider behind it.
+     */
+    ...(isSsoEnabled
       ? [
           sso({
             /**
