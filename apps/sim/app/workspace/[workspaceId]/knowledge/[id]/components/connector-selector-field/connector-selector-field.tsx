@@ -118,6 +118,18 @@ export function ConnectorSelectorField({
    * trigger showing a raw id for something the user just picked.
    */
   const [resolvedOptions, setResolvedOptions] = useState<Record<string, string>>({})
+  /**
+   * Ids are only meaningful within one selector context, so switching credential,
+   * domain, or a dependency must drop what was resolved under the old one — the
+   * queries re-key, but remembered labels would otherwise linger and mislabel.
+   * Keyed on the serialized context rather than its identity: the memo also depends
+   * on `sourceConfig`, so its identity changes on unrelated field edits.
+   */
+  const contextKey = useMemo(() => JSON.stringify(context), [context])
+  useEffect(() => {
+    setResolvedOptions((prev) => (Object.keys(prev).length > 0 ? {} : prev))
+  }, [contextKey])
+
   useEffect(() => {
     const found = [searchedOption, selectedOption].filter(Boolean) as SelectorOption[]
     if (found.length === 0) return
