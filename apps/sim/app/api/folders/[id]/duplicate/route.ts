@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { folder as folderTable, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { FolderLockedError } from '@sim/platform-authz/workflow'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -198,6 +199,20 @@ export const POST = withRouteHandler(
     } catch (error) {
       if (error instanceof FolderLockedError) {
         return NextResponse.json({ error: error.message }, { status: error.status })
+      }
+
+      /**
+       * `newId` is client-supplied, so replaying a duplicate whose response was lost hits the
+       * primary key rather than the name index. A name collision is equally reachable: dedup
+       * runs before the INSERT, but a concurrent create can take the name in between. Either
+       * way this is a conflict the caller can act on, not a server fault.
+       */
+      if (getPostgresErrorCode(error) === '23505') {
+        logger.warn(`[${requestId}] Folder duplication conflicted`, { sourceFolderId })
+        return NextResponse.json(
+          { error: 'A folder with this name already exists in this location' },
+          { status: 409 }
+        )
       }
 
       if (error instanceof FolderDuplicationError) {

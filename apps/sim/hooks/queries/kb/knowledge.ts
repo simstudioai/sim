@@ -27,7 +27,6 @@ import {
   type KnowledgeBaseData,
   type KnowledgeChunksResponse,
   type KnowledgeDocumentsResponse,
-  type KnowledgeScope,
   listDocumentTagDefinitionsContract,
   listKnowledgeBasesContract,
   listKnowledgeChunksContract,
@@ -47,10 +46,9 @@ import {
 } from '@/lib/api/contracts/knowledge'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import { type KnowledgeQueryScope, knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 const logger = createLogger('KnowledgeQueries')
-
-type KnowledgeQueryScope = KnowledgeScope
 
 export type {
   DocumentTagDefinitionData,
@@ -70,30 +68,6 @@ export const KNOWLEDGE_CHUNK_SEARCH_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_TAG_DEFINITION_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_TAG_USAGE_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_DOCUMENT_TAG_DEFINITION_LIST_STALE_TIME = 60 * 1000
-
-export const knowledgeKeys = {
-  all: ['knowledge'] as const,
-  lists: () => [...knowledgeKeys.all, 'list'] as const,
-  list: (workspaceId?: string, scope: KnowledgeQueryScope = 'active') =>
-    [...knowledgeKeys.lists(), workspaceId ?? 'all', scope] as const,
-  details: () => [...knowledgeKeys.all, 'detail'] as const,
-  detail: (knowledgeBaseId?: string) =>
-    [...knowledgeKeys.details(), knowledgeBaseId ?? ''] as const,
-  tagDefinitions: (knowledgeBaseId: string) =>
-    [...knowledgeKeys.detail(knowledgeBaseId), 'tagDefinitions'] as const,
-  tagUsage: (knowledgeBaseId: string) =>
-    [...knowledgeKeys.detail(knowledgeBaseId), 'tagUsage'] as const,
-  documents: (knowledgeBaseId: string, paramsKey: string) =>
-    [...knowledgeKeys.detail(knowledgeBaseId), 'documents', paramsKey] as const,
-  document: (knowledgeBaseId: string, documentId: string) =>
-    [...knowledgeKeys.detail(knowledgeBaseId), 'document', documentId] as const,
-  documentTagDefinitions: (knowledgeBaseId: string, documentId: string) =>
-    [...knowledgeKeys.document(knowledgeBaseId, documentId), 'tagDefinitions'] as const,
-  chunks: (knowledgeBaseId: string, documentId: string, paramsKey: string) =>
-    [...knowledgeKeys.document(knowledgeBaseId, documentId), 'chunks', paramsKey] as const,
-  chunkSearch: (knowledgeBaseId: string, documentId: string, searchKey: string) =>
-    [...knowledgeKeys.document(knowledgeBaseId, documentId), 'search', searchKey] as const,
-}
 
 export async function fetchKnowledgeBases(
   workspaceId?: string,

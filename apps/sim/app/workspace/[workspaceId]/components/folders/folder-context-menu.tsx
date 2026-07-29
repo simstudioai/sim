@@ -32,8 +32,12 @@ interface FolderContextMenuProps {
 }
 
 /**
- * Row context menu for a folder, shared across every foldered resource list so a folder
- * offers the same actions on Knowledge, Tables, and Files.
+ * Row context menu for a folder, shared by the resource lists built on the generic folder
+ * engine — Knowledge and Tables — so a folder offers the same actions on both.
+ *
+ * Files is deliberately not a consumer: its rows carry multi-select and bulk actions, so a
+ * folder there routes through `FileRowContextMenu` alongside the file rows it is selected
+ * with. Converging the two is follow-up work.
  *
  * Mirrors the resource-row menus (`KnowledgeBaseContextMenu`, `FileRowContextMenu`): a
  * `DropdownMenu` anchored to a one-pixel fixed trigger at the cursor, non-modal so the list

@@ -1912,9 +1912,11 @@ export const workspaceFile = pgTable(
  * cover folders created after it ran (migration 0274 catches those up).
  *
  * Do NOT drop it in a contract migration until BOTH hold: the cutover has been running in
- * production long enough that a rollback is off the table, and a row-count comparison
- * against `folder WHERE resource_type = 'file'` confirms nothing was stranded. Dropping it
- * on the strength of "no code references it" alone destroys the only rollback path.
+ * production long enough that a rollback is off the table, and a FULL-ROW comparison against
+ * `folder WHERE resource_type = 'file'` confirms nothing was stranded. A row COUNT is not
+ * sufficient — the pre-0274 divergence was in row contents (names, parents, `deleted_at`),
+ * which a count check passes straight through. Dropping this on the strength of "no code
+ * references it" alone destroys the only rollback path.
  */
 export const workspaceFileFolder = pgTable(
   'workspace_file_folders',

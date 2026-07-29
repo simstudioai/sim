@@ -22,12 +22,12 @@ import type {
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
-import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { logKeys } from '@/hooks/queries/logs'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { scheduleKeys } from '@/hooks/queries/schedules'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'

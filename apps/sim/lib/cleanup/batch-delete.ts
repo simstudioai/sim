@@ -82,11 +82,14 @@ export interface ChunkedBatchDeleteOptions<TRow extends { id: string }> {
   /** Runs between SELECT and DELETE; receives the just-selected rows. */
   onBatch?: (rows: TRow[]) => Promise<void>
   /**
-   * Re-asserted on the DELETE alongside the id list. Soft-delete sweeps MUST pass the same
-   * predicate they selected on: the DELETE runs after the SELECT and after `onBatch`, and a
-   * row restored in that window would otherwise be hard-deleted — taking the children a
-   * folder restore had just brought back with it. Rows that no longer match are simply not
-   * deleted and are counted as failed, so the next run re-evaluates them.
+   * Re-asserted on the DELETE alongside the id list. A soft-delete sweep whose `onBatch` does
+   * real work before the DELETE should pass the same predicate it selected on: a row restored
+   * in that window would otherwise be hard-deleted — taking the children a folder restore had
+   * just brought back with it. Rows that no longer match are simply not deleted and are
+   * counted as failed, so the next run re-evaluates them.
+   *
+   * Optional because a sweep with no `onBatch` closes a far smaller window; the hand-rolled
+   * targets in `cleanup-soft-deletes.ts` re-check inside their own DELETE instead.
    */
   deleteFilter?: SQL
   batchSize?: number

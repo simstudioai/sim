@@ -6,10 +6,16 @@ export const folderResourceTypeSchema = z.enum(['workflow', 'file', 'knowledge_b
 export type FolderResourceType = z.output<typeof folderResourceTypeSchema>
 
 /**
- * The resource types the generic folder engine serves. Identical to
- * {@link folderResourceTypeSchema} now that every type is backed by the `folder` table;
- * kept as a separate schema so a future resource type can be added to the enum (and the
- * DB) ahead of the routes that serve it.
+ * The resource types the generic folder engine SERVES over `/api/folders`. Deliberately a
+ * subset of {@link folderResourceTypeSchema}, which mirrors the DB enum.
+ *
+ * `file` is excluded on purpose even though file folders now live in the `folder` table.
+ * Files keeps its own routes (`/api/workspaces/[id]/files/folders/**`), and those serialize
+ * every mutation behind the `workspace_file_folders:${workspaceId}` advisory lock that makes
+ * their cycle and name checks atomic. Serving the same rows here would open a second writer
+ * that bypasses that lock — and would accept names containing `/`, `\`, `.` and `..`, which
+ * the file surface forbids because a file-folder name becomes a path segment. The storage
+ * cutover does not require a second API, so there isn't one.
  *
  * The `.default` applies ONLY to an omitted value — that is what keeps an old client, which
  * never sends the field, working against a new pod. A value that is present but not in the
@@ -18,8 +24,8 @@ export type FolderResourceType = z.output<typeof folderResourceTypeSchema>
  * again. This is the deploy-ordering contract — see the note in the PR description.
  */
 export const servedFolderResourceTypeSchema = z
-  .enum(['workflow', 'file', 'knowledge_base', 'table'], {
-    error: 'resourceType must be one of workflow, file, knowledge_base, table',
+  .enum(['workflow', 'knowledge_base', 'table'], {
+    error: 'resourceType must be one of workflow, knowledge_base, table',
   })
   .default('workflow')
 

@@ -13,10 +13,10 @@ import {
   type ServedFolderResourceType,
   updateFolderContract,
 } from '@/lib/api/contracts'
-import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { type FolderQueryScope, folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import {
   createOptimisticMutationHandlers,
   generateTempId,
@@ -152,9 +152,9 @@ function invalidateCascadedResourceLists(
     case 'knowledge_base':
       return queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
     /**
-     * `file` has no case: the Files page reads and writes its folders through
-     * `/api/workspaces/[id]/files/folders/**`, which owns its own invalidation, so a
-     * cascade never reaches this hook for that tree.
+     * `file` has no case, and cannot reach here: `servedFolderResourceTypeSchema` does not
+     * serve it. Files reads and writes its folders through
+     * `/api/workspaces/[id]/files/folders/**`, which owns its own invalidation.
      */
     default:
       return

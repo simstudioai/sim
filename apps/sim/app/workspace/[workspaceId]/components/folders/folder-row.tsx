@@ -27,8 +27,10 @@ export interface FolderRowOptions {
 }
 
 /**
- * Builds the canonical folder `ResourceRow` shared by every foldered list, so a folder looks
- * and behaves identically on Knowledge, Tables, and Files. The row id is namespaced by
+ * Builds the canonical folder `ResourceRow` for the lists built on the generic folder engine
+ * (Knowledge and Tables), so a folder looks and behaves identically on both. Files still
+ * builds its own row — it carries a size roll-up and a distinct row-id scheme that also
+ * namespaces file ids. The row id here is namespaced by
  * {@link folderRowId}, so the caller's click/context-menu handlers distinguish a folder from
  * a resource with `parseFolderedRowId` rather than a second lookup.
  *

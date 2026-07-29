@@ -21,8 +21,15 @@ describe('servedFolderResourceTypeSchema', () => {
   })
 
   it('accepts every tree the engine serves', () => {
-    for (const value of ['workflow', 'file', 'knowledge_base', 'table'] as const) {
+    for (const value of ['workflow', 'knowledge_base', 'table'] as const) {
       expect(servedFolderResourceTypeSchema.parse(value)).toBe(value)
     }
+  })
+
+  it('does not serve file folders, which keep their own locked routes', () => {
+    // File folders live in `folder` after the cutover, but Files serializes every mutation
+    // behind an advisory lock and forbids `/` in names because a name is a path segment.
+    // Serving them here would be a second writer with neither property.
+    expect(servedFolderResourceTypeSchema.safeParse('file').success).toBe(false)
   })
 })
