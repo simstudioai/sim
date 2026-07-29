@@ -34,8 +34,9 @@ export function createMockSql() {
     if (encoder === undefined && Array.isArray(value)) {
       throw new Error(
         'sql.param(array) binds an array as one parameter, which fails under ' +
-          'fetch_types: false (packages/db/db.ts). Use `IN ${arr}` or ' +
-          'ARRAY[${sql.join(arr.map((v) => sql`${v}`), sql`, `)}]::text[].'
+          'fetch_types: false (packages/db/db.ts). Interpolate the array directly ' +
+          'for an expanded IN list, or build an ARRAY[...]::text[] constructor of ' +
+          'scalar binds via sql.join.'
       )
     }
     if (encoder === undefined && value instanceof Date) {
