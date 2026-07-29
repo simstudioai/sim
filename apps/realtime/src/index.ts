@@ -112,7 +112,13 @@ async function main() {
     logger.info(`Health check available at: http://localhost:${PORT}/health`)
   })
 
+  let shuttingDown = false
   const shutdown = async () => {
+    // SIGINT and SIGTERM both bind this; a double signal (or SIGTERM then SIGINT during the drain)
+    // must not run the whole teardown twice — that means a second forced-exit timer and a second
+    // Redis quit (which throws "The client is closed").
+    if (shuttingDown) return
+    shuttingDown = true
     logger.info('Shutting down Socket.IO server...')
 
     accessRevalidation.stop()
@@ -143,6 +149,15 @@ async function main() {
       await getFileDocStore().shutdown()
     } catch (error) {
       logger.error('Error during FileDocStore shutdown:', error)
+    }
+
+    // Close local client connections so `httpServer.close()` can complete its callback and exit
+    // gracefully — otherwise open websockets keep it hanging until the forced-exit timer below.
+    // Local-only: a rolling deploy must not disconnect clients pinned to other pods.
+    try {
+      io.local.disconnectSockets(true)
+    } catch (error) {
+      logger.error('Error disconnecting sockets on shutdown:', error)
     }
 
     httpServer.close(() => {

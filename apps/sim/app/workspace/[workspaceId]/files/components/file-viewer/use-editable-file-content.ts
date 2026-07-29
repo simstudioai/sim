@@ -257,9 +257,16 @@ export function useEditableFileContent({
       ),
   })
 
+  // When the client can't autosave it isn't the durability owner: the collaborative editor holds
+  // `canAutosave` permanently false because the relay persists the doc server-side (debounced + on
+  // last-disconnect), so `savedContent` never advances and raw `isDirty` would latch true after any
+  // local OR remote keystroke — surfacing a spurious "Unsaved changes" navigation prompt whose
+  // "Discard" discards nothing real. With nothing the user can save, there is nothing to warn about.
+  const isDirtyForCaller = canAutosave && isDirty
+
   useEffect(() => {
-    onDirtyChangeRef.current?.(isDirty)
-  }, [isDirty])
+    onDirtyChangeRef.current?.(isDirtyForCaller)
+  }, [isDirtyForCaller])
 
   useEffect(() => {
     onSaveStatusChangeRef.current?.(
@@ -307,6 +314,6 @@ export function useEditableFileContent({
     hasContentError: streamingContent === undefined && Boolean(error) && !isInitialized,
     saveStatus,
     saveImmediately,
-    isDirty,
+    isDirty: isDirtyForCaller,
   }
 }

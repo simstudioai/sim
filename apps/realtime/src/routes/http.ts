@@ -169,13 +169,12 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       try {
         const body = await readRequestBody(req)
         const { workspaceId } = JSON.parse(body)
-        if (typeof workspaceId === 'string' && workspaceId.length > 0) {
-          roomManager.emitToRoom(
-            { type: ROOM_TYPES.WORKSPACE_FILES, id: workspaceId },
-            'workspace-files-changed',
-            { workspaceId, timestamp: Date.now() }
-          )
-        }
+        if (!isNonEmptyString(workspaceId)) return sendError(res, 'Invalid workspaceId', 400)
+        roomManager.emitToRoom(
+          { type: ROOM_TYPES.WORKSPACE_FILES, id: workspaceId },
+          'workspace-files-changed',
+          { workspaceId, timestamp: Date.now() }
+        )
         sendSuccess(res)
       } catch (error) {
         logger.error('Error handling workspace files changed notification:', error)
