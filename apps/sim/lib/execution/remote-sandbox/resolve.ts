@@ -209,6 +209,7 @@ export async function resolveWorkspaceSandbox(args: {
     const image = await readImage(provider.id, row.specHash)
 
     if (!image || image.status !== 'ready' || !image.imageRef) {
+      await scheduleImageRepair(base, row.specHash)
       throw new Error(describeUnusableImage(row.name, image?.status, image?.errorMessage))
     }
     touchImage(row.specHash, provider.id)
@@ -257,6 +258,39 @@ async function readImage(providerId: string, specHash: string): Promise<CachedIm
   return image
 }
 
+/**
+ * Re-enqueues a build for a sandbox whose image is unusable.
+ *
+ * `ensureSandboxImage` otherwise runs only when a sandbox is saved, which left
+ * three states permanently stuck until someone re-saved it in Settings: a build
+ * that failed, a build whose worker died mid-flight, and — after switching a
+ * deployment from a `runtime` provider to a `prebuilt` one — every sandbox
+ * created while the old provider was active, since `runtime` writes no image
+ * rows at all. Repairing here costs an execution that was going to fail either
+ * way and lets the next one succeed, instead of making the user reconfigure a
+ * sandbox whose definition was never wrong.
+ *
+ * Idempotent by construction: the registry's conflict guard claims only a
+ * `failed` row, or a `pending`/`building` row that has already gone stale, so
+ * executions arriving during a healthy build enqueue nothing.
+ *
+ * Imported dynamically for the same reason as {@link sandboxDb} — the registry
+ * pulls `@sim/db` into the static import graph, which this module keeps out of
+ * the executor bundle. A repair that fails must never replace the caller's
+ * message, which is the one naming the sandbox and its build error.
+ */
+async function scheduleImageRepair(
+  spec: { language: SandboxLanguage; dependencies: string[] },
+  specHash: string
+): Promise<void> {
+  try {
+    const { ensureSandboxImage } = await import('@/lib/execution/remote-sandbox/image-registry')
+    await ensureSandboxImage({ language: spec.language, dependencies: spec.dependencies }, specHash)
+  } catch (error) {
+    logger.warn('Failed to schedule sandbox image repair', { specHash, error })
+  }
+}
+
 function assertLanguageMatches(sandbox: ResolvedSandbox, language?: CodeLanguage): void {
   if (!language || sandbox.language === language) return
   throw new Error(
@@ -270,12 +304,12 @@ function describeUnusableImage(
   errorMessage: string | null | undefined
 ): string {
   if (status === 'failed') {
-    return `Sandbox "${name}" failed to build: ${errorMessage ?? 'installation failed'}. Fix its dependencies in Settings → Sandboxes and try again.`
+    return `Sandbox "${name}" failed to build: ${errorMessage ?? 'installation failed'}. A rebuild has been queued — run again in a moment. If it keeps failing, fix its dependencies in Settings → Sandboxes.`
   }
   if (status === 'pending' || status === 'building') {
     return `Sandbox "${name}" is still building. Wait for it to finish, then run again.`
   }
-  return `Sandbox "${name}" has no completed build yet. Open Settings → Sandboxes to rebuild it.`
+  return `Sandbox "${name}" has no completed build yet. A build has been queued — run again in a moment.`
 }
 
 /**

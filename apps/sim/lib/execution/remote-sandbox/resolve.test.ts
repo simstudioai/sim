@@ -8,10 +8,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
 
-const { mockSelect, mockUpdate, mockProviderStrategy } = vi.hoisted(() => ({
+const { mockSelect, mockUpdate, mockProviderStrategy, mockEnsureSandboxImage } = vi.hoisted(() => ({
   mockSelect: vi.fn(),
   mockUpdate: vi.fn(),
   mockProviderStrategy: { current: 'prebuilt' as 'prebuilt' | 'runtime' },
+  mockEnsureSandboxImage: vi.fn(),
+}))
+
+vi.mock('@/lib/execution/remote-sandbox/image-registry', () => ({
+  ensureSandboxImage: mockEnsureSandboxImage,
 }))
 
 vi.mock('@sim/db', () => ({
@@ -83,6 +88,7 @@ beforeEach(() => {
   invalidateSandboxResolution()
   mockProviderStrategy.current = 'prebuilt'
   mockUpdate.mockReturnValue({ set: () => ({ where: () => Promise.resolve() }) })
+  mockEnsureSandboxImage.mockResolvedValue(undefined)
 })
 
 describe('resolveWorkspaceSandbox', () => {
@@ -168,6 +174,77 @@ describe('resolveWorkspaceSandbox', () => {
     ).rejects.toThrow(/no completed build/)
   })
 
+  /**
+   * A sandbox whose definition is fine but whose image is gone must not require
+   * the user to re-save it in Settings to become runnable again. Resolution
+   * re-queues the build so the next execution succeeds on its own.
+   */
+  it.each([
+    ['a failed build', [{ status: 'failed', imageRef: null, errorMessage: 'pandas not found' }]],
+    ['a missing build row', []],
+  ])('re-queues the build for %s', async (_label, imageRows) => {
+    queueSelects([SANDBOX_ROW], imageRows)
+
+    await expect(
+      resolveWorkspaceSandbox({
+        kind: 'code',
+        language: CodeLanguage.Python,
+        workspaceId: 'ws-1',
+        sandboxId: 'sbx-1',
+      })
+    ).rejects.toThrow(/queued/)
+
+    expect(mockEnsureSandboxImage).toHaveBeenCalledWith(
+      { language: 'python', dependencies: ['pandas'] },
+      'hash-1'
+    )
+  })
+
+  it('does not re-queue while a healthy build is still in flight', async () => {
+    queueSelects([SANDBOX_ROW], [{ status: 'building', imageRef: null, errorMessage: null }])
+
+    await expect(
+      resolveWorkspaceSandbox({
+        kind: 'code',
+        language: CodeLanguage.Python,
+        workspaceId: 'ws-1',
+        sandboxId: 'sbx-1',
+      })
+    ).rejects.toThrow(/still building/)
+
+    // The registry's own conflict guard decides whether a stale in-flight row is
+    // re-claimable, so calling it here is safe — but the message must not
+    // promise a rebuild that the guard will refuse.
+    expect(mockEnsureSandboxImage).toHaveBeenCalled()
+  })
+
+  it('keeps the build error when the repair itself fails', async () => {
+    queueSelects([SANDBOX_ROW], [{ status: 'failed', imageRef: null, errorMessage: 'pandas gone' }])
+    mockEnsureSandboxImage.mockRejectedValue(new Error('trigger.dev unreachable'))
+
+    await expect(
+      resolveWorkspaceSandbox({
+        kind: 'code',
+        language: CodeLanguage.Python,
+        workspaceId: 'ws-1',
+        sandboxId: 'sbx-1',
+      })
+    ).rejects.toThrow(/pandas gone/)
+  })
+
+  it('never re-queues when the image is usable', async () => {
+    queueSelects([SANDBOX_ROW], [{ status: 'ready', imageRef: 'sim-sbx-abc', errorMessage: null }])
+
+    await resolveWorkspaceSandbox({
+      kind: 'code',
+      language: CodeLanguage.Python,
+      workspaceId: 'ws-1',
+      sandboxId: 'sbx-1',
+    })
+
+    expect(mockEnsureSandboxImage).not.toHaveBeenCalled()
+  })
+
   it('rejects a deleted or cross-workspace sandbox', async () => {
     queueSelects([])
 
@@ -208,6 +285,7 @@ describe('resolveWorkspaceSandbox', () => {
     expect(resolved).toMatchObject({ strategy: 'runtime' })
     expect(resolved?.imageRef).toBeUndefined()
     expect(mockSelect).toHaveBeenCalledTimes(1)
+    expect(mockEnsureSandboxImage).not.toHaveBeenCalled()
   })
 })
 
