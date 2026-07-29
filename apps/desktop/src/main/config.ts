@@ -22,6 +22,9 @@ const logger = createLogger('DesktopConfig')
  * origins for exact equality — so an apex origin here silently leaves every
  * page off-origin, which reclassifies social login as an integration connect
  * and strands the sign-in in the browser with no way back.
+ *
+ * Changing this does NOT reach installs that already persisted the old value —
+ * see {@link canonicalOrigin}.
  */
 function isValidBakedOrigin(origin: string | undefined): origin is string {
   if (!origin) return false
@@ -150,6 +153,33 @@ export function validateOriginInput(raw: string): OriginValidation {
 }
 
 /**
+ * Stored origins that must be rewritten on load, because the app can no
+ * longer work correctly while pointed at them.
+ *
+ * Every install that shipped before DEFAULT_ORIGIN moved to www persisted the
+ * apex on first launch, and a build-time change alone never reaches them —
+ * the stored value wins over the default. Two things break if they keep it:
+ * social login is misclassified as an integration connect (see DEFAULT_ORIGIN),
+ * and, because the apex no longer equals DEFAULT_ORIGIN, partitionForOrigin
+ * would move them off `persist:sim` onto a fresh, empty jar — signing out
+ * every existing user on update. Rewriting to the canonical origin fixes the
+ * first and avoids the second: www.sim.ai IS the new DEFAULT_ORIGIN, so the
+ * partition stays `persist:sim` and the session survives.
+ *
+ * Keyed on the exact stored string, not a host pattern: this rewrites what a
+ * previous BUILD wrote, never a deliberate operator choice like a self-hosted
+ * origin that happens to redirect.
+ */
+const ORIGIN_REWRITES: Readonly<Record<string, string>> = {
+  'https://sim.ai': 'https://www.sim.ai',
+}
+
+/** Applies ORIGIN_REWRITES to a validated origin. */
+export function canonicalOrigin(origin: string): string {
+  return ORIGIN_REWRITES[origin] ?? origin
+}
+
+/**
  * Maps a server origin to its cookie/storage partition. Each origin gets an
  * isolated persistent partition so sessions never leak across instances.
  */
@@ -229,11 +259,20 @@ export function createConfigStore(
   env: NodeJS.ProcessEnv = process.env
 ): ConfigStore {
   let settings: DesktopSettings = { ...DEFAULT_SETTINGS }
+  let rewroteOrigin = false
   try {
     const parsed = JSON.parse(readFileSync(filePath, 'utf8')) as Partial<DesktopSettings>
     settings = { ...DEFAULT_SETTINGS, ...parsed }
     const validated = validateOriginInput(settings.origin)
-    settings.origin = validated.ok ? validated.origin : DEFAULT_ORIGIN
+    const loaded = validated.ok ? validated.origin : DEFAULT_ORIGIN
+    settings.origin = canonicalOrigin(loaded)
+    rewroteOrigin = settings.origin !== loaded
+    if (rewroteOrigin) {
+      logger.info('Rewrote stored server origin to its canonical form', {
+        from: loaded,
+        to: settings.origin,
+      })
+    }
   } catch {
     settings = { ...DEFAULT_SETTINGS }
   }
@@ -269,6 +308,14 @@ export function createConfigStore(
     if (saveTimer) return
     saveTimer = setTimeout(writeNow, SAVE_DEBOUNCE_MS)
     saveTimer.unref?.()
+  }
+
+  // Persist a rewrite immediately rather than waiting for the next debounced
+  // write: the partition and every navigation check already use the canonical
+  // value from here on, so a crash before the next save must not leave the
+  // file claiming an origin the running app is no longer using.
+  if (rewroteOrigin) {
+    writeNow()
   }
 
   return {

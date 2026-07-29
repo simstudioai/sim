@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   APP_NAME_FOR_CHANNEL,
+  canonicalOrigin,
   channelForOrigin,
   createConfigStore,
   DEFAULT_ORIGIN,
@@ -58,6 +59,27 @@ describe('partitionForOrigin', () => {
   })
 })
 
+describe('canonicalOrigin', () => {
+  it('rewrites the pre-www production origin', () => {
+    expect(canonicalOrigin('https://sim.ai')).toBe('https://www.sim.ai')
+  })
+
+  it('leaves every other origin alone', () => {
+    expect(canonicalOrigin('https://www.sim.ai')).toBe('https://www.sim.ai')
+    expect(canonicalOrigin('https://www.staging.sim.ai')).toBe('https://www.staging.sim.ai')
+    expect(canonicalOrigin('https://sim.acme-corp.example')).toBe('https://sim.acme-corp.example')
+    expect(canonicalOrigin('http://localhost:3000')).toBe('http://localhost:3000')
+  })
+
+  it('keeps a rewritten install on its existing cookie partition', () => {
+    // The whole point of rewriting rather than leaving the apex in place: the
+    // apex no longer equals DEFAULT_ORIGIN, so an un-rewritten install would
+    // be moved to a fresh empty jar and silently signed out on update.
+    expect(partitionForOrigin(canonicalOrigin('https://sim.ai'))).toBe('persist:sim')
+    expect(partitionForOrigin('https://sim.ai')).not.toBe('persist:sim')
+  })
+})
+
 describe('isSafeInternalPath', () => {
   it('accepts absolute same-origin paths with query', () => {
     expect(isSafeInternalPath('/workspace/ws1?tab=logs')).toBe(true)
@@ -76,6 +98,26 @@ describe('isSafeInternalPath', () => {
 })
 
 describe('createConfigStore', () => {
+  it('rewrites a stored pre-www production origin and persists it immediately', () => {
+    const filePath = tempSettingsPath()
+    writeFileSync(filePath, JSON.stringify({ origin: 'https://sim.ai', zoomLevel: 1.5 }))
+
+    const store = createConfigStore(filePath, {})
+
+    expect(store.getOrigin()).toBe('https://www.sim.ai')
+    expect(store.get('zoomLevel')).toBe(1.5)
+    // Written without waiting for the debounce, so a crash cannot leave the
+    // file pointing somewhere the running app is not.
+    expect(JSON.parse(readFileSync(filePath, 'utf8')).origin).toBe('https://www.sim.ai')
+  })
+
+  it('leaves a deliberately configured origin untouched', () => {
+    const filePath = tempSettingsPath()
+    writeFileSync(filePath, JSON.stringify({ origin: 'https://sim.acme-corp.example' }))
+
+    expect(createConfigStore(filePath, {}).getOrigin()).toBe('https://sim.acme-corp.example')
+  })
+
   it('round-trips settings through disk', () => {
     const filePath = tempSettingsPath()
     const store = createConfigStore(filePath, {})
