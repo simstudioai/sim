@@ -5,6 +5,7 @@ import {
   buildGraphEventDateTime,
   CALENDAR_RETRY,
   flattenGraphEvent,
+  isDateOnly,
   normalizeAttendees,
 } from '@/tools/outlook/calendar-utils'
 import type {
@@ -58,14 +59,14 @@ export const outlookCalendarCreateEventTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Start time (ISO 8601, e.g. 2025-06-03T10:00:00-08:00) or a date (2025-06-03) for an all-day event',
+        'Start time (ISO 8601, e.g. 2025-06-03T10:00:00-08:00). A date-only value (2025-06-03) for both start and end creates an all-day event.',
     },
     endDateTime: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description:
-        'End time (ISO 8601, e.g. 2025-06-03T11:00:00-08:00) or a date (2025-06-04) for an all-day event',
+        'End time (ISO 8601, e.g. 2025-06-03T11:00:00-08:00). A date-only value (2025-06-04) for both start and end creates an all-day event.',
     },
     timeZone: {
       type: 'string',
@@ -127,7 +128,12 @@ export const outlookCalendarCreateEventTool: ToolConfig<
       }
     },
     body: (params) => {
-      const isAllDay = toBool(params.isAllDay)
+      // Date-only bounds carry no time, so they can only mean an all-day event. Without
+      // this promotion, `2025-06-03` for both bounds would build a zero-length
+      // 00:00->00:00 timed window that Graph rejects, even though the param docs invite
+      // date-only input for all-day events.
+      const bothBoundsDateOnly = isDateOnly(params.startDateTime) && isDateOnly(params.endDateTime)
+      const isAllDay = toBool(params.isAllDay) || bothBoundsDateOnly
       const event: Record<string, unknown> = { subject: params.subject }
 
       if (isAllDay) {

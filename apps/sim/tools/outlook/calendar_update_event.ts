@@ -5,6 +5,7 @@ import {
   buildGraphEventDateTime,
   CALENDAR_RETRY,
   flattenGraphEvent,
+  isDateOnly,
   normalizeAttendees,
 } from '@/tools/outlook/calendar-utils'
 import type {
@@ -57,13 +58,15 @@ export const outlookCalendarUpdateEventTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New start time (ISO 8601) or a date (2025-06-03) for an all-day event',
+      description:
+        'New start time (ISO 8601). A date-only value (2025-06-03) converts the event to all-day.',
     },
     endDateTime: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New end time (ISO 8601) or a date (2025-06-04) for an all-day event',
+      description:
+        'New end time (ISO 8601). A date-only value (2025-06-04) converts the event to all-day.',
     },
     timeZone: {
       type: 'string',
@@ -100,7 +103,8 @@ export const outlookCalendarUpdateEventTool: ToolConfig<
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Whether the event lasts the entire day',
+      description:
+        'Whether the event lasts the entire day. Setting this true requires also sending startDateTime, since Graph needs midnight bounds.',
     },
     isOnlineMeeting: {
       type: 'boolean',
@@ -127,17 +131,30 @@ export const outlookCalendarUpdateEventTool: ToolConfig<
     body: (params) => {
       // PATCH is a partial update: only include fields the caller actually provided.
       const event: Record<string, unknown> = {}
-      const settingAllDay = params.isAllDay !== undefined && toBool(params.isAllDay)
+
+      // Date-only bounds carry no time, so they can only mean an all-day event — promote
+      // them even when the caller didn't set the flag (see calendar_create_event).
+      const providedBounds = [params.startDateTime, params.endDateTime].filter(Boolean)
+      const allProvidedBoundsDateOnly =
+        providedBounds.length > 0 && providedBounds.every((bound) => isDateOnly(bound))
+      const settingAllDay =
+        (params.isAllDay !== undefined && toBool(params.isAllDay)) || allProvidedBoundsDateOnly
 
       if (params.subject !== undefined) {
         event.subject = params.subject
       }
 
-      if (settingAllDay && (params.startDateTime || params.endDateTime)) {
-        // Converting to all-day needs midnight bounds with an exclusive end day. Graph
-        // rejects the whole PATCH if either bound is timed or the window is zero-length,
-        // so normalize both together — falling back to the supplied bound when the caller
-        // only gave one, which `buildAllDayRange` then advances to the next day.
+      if (settingAllDay) {
+        // Graph requires an all-day event's start and end to both be midnight in the same
+        // zone, so flipping isAllDay on without bounds would 400 against whatever timed
+        // start/end the event already has. Fail with an actionable message instead.
+        if (providedBounds.length === 0) {
+          throw new Error(
+            'Converting an event to all-day requires startDateTime (and preferably endDateTime): Microsoft Graph requires all-day events to have midnight start and end bounds, which cannot be derived from a partial update.'
+          )
+        }
+        // Normalize both bounds together — falling back to the supplied one when only a
+        // single bound was given, which `buildAllDayRange` then advances to the next day.
         const start = params.startDateTime || params.endDateTime!
         const end = params.endDateTime || params.startDateTime!
         const range = buildAllDayRange(start, end, params.timeZone)
@@ -164,7 +181,9 @@ export const outlookCalendarUpdateEventTool: ToolConfig<
         event.attendees = normalizeAttendees(params.attendees)
       }
 
-      if (params.isAllDay !== undefined) {
+      if (settingAllDay) {
+        event.isAllDay = true
+      } else if (params.isAllDay !== undefined) {
         event.isAllDay = toBool(params.isAllDay)
       }
 

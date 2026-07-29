@@ -80,6 +80,56 @@ describe('outlook calendar tools', () => {
     )
   })
 
+  it('treats date-only bounds as an all-day event even without the flag', () => {
+    const createBody = outlookCalendarCreateEventTool.request.body as (
+      p: unknown
+    ) => Record<string, unknown>
+    // Date-only carries no time, so this must not become a zero-length 00:00->00:00 window.
+    const created = createBody({
+      accessToken: 't',
+      subject: 'Company holiday',
+      startDateTime: '2025-06-03',
+      endDateTime: '2025-06-03',
+    })
+    expect(created.isAllDay).toBe(true)
+    expect(created.start).toEqual({ dateTime: '2025-06-03T00:00:00', timeZone: 'UTC' })
+    expect(created.end).toEqual({ dateTime: '2025-06-04T00:00:00', timeZone: 'UTC' })
+
+    const updateBody = outlookCalendarUpdateEventTool.request.body as (
+      p: unknown
+    ) => Record<string, unknown>
+    const updated = updateBody({
+      accessToken: 't',
+      eventId: 'e1',
+      startDateTime: '2025-06-03',
+      endDateTime: '2025-06-05',
+    })
+    expect(updated.isAllDay).toBe(true)
+    expect(updated.start).toEqual({ dateTime: '2025-06-03T00:00:00', timeZone: 'UTC' })
+    expect(updated.end).toEqual({ dateTime: '2025-06-05T00:00:00', timeZone: 'UTC' })
+
+    // A timed bound stays timed.
+    const timed = createBody({
+      accessToken: 't',
+      subject: 'Sync',
+      startDateTime: '2025-06-03T10:00:00Z',
+      endDateTime: '2025-06-03T11:00:00Z',
+    })
+    expect(timed.isAllDay).toBeUndefined()
+  })
+
+  it('rejects an all-day conversion that supplies no bounds', () => {
+    const body = outlookCalendarUpdateEventTool.request.body as (
+      p: unknown
+    ) => Record<string, unknown>
+    // Graph needs midnight bounds; they cannot be derived from a partial update.
+    expect(() => body({ accessToken: 't', eventId: 'e1', isAllDay: true })).toThrow(
+      /requires startDateTime/
+    )
+    // Turning all-day off without bounds is still a valid partial update.
+    expect(body({ accessToken: 't', eventId: 'e1', isAllDay: false })).toEqual({ isAllDay: false })
+  })
+
   it('normalizes an all-day update when only one bound is supplied', () => {
     const body = outlookCalendarUpdateEventTool.request.body as (
       p: unknown

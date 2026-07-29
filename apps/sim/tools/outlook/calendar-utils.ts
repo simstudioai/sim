@@ -105,6 +105,17 @@ export function buildGraphEventDateTime(value: string, timeZone?: string): Graph
   return { dateTime: trimmed, timeZone: timeZone || DEFAULT_OUTLOOK_TIME_ZONE }
 }
 
+/**
+ * True when a bound carries a date but no time (`2025-06-03`).
+ *
+ * A date-only bound has no time component, so the only coherent reading is an all-day
+ * event — the create/update tools promote such a pair rather than emitting a zero-length
+ * midnight-to-midnight timed window, which Graph rejects.
+ */
+export function isDateOnly(value: string | undefined): boolean {
+  return Boolean(value) && !value!.includes('T')
+}
+
 /** Extract the `YYYY-MM-DD` date portion from a date or datetime string. */
 function toDateOnly(value: string): string {
   const trimmed = value.trim()
