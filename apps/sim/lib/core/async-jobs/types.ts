@@ -31,6 +31,7 @@ export type JobType =
   | 'cleanup-soft-deletes'
   | 'cleanup-tasks'
   | 'run-data-drain'
+  | 'newsletter-resend-sync'
 
 export type AsyncExecutionCorrelationSource = 'workflow' | 'schedule' | 'webhook'
 

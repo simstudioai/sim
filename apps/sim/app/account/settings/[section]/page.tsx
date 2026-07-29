@@ -11,7 +11,7 @@ import {
 } from '@/components/settings/navigation'
 import { getSession } from '@/lib/auth'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { isPlatformAdmin } from '@/lib/permissions/super-user'
+import { isPlatformAdmin, verifyEffectiveSuperUser } from '@/lib/permissions/super-user'
 
 interface AccountSettingsSectionPageProps {
   params: Promise<{ section: string }>
@@ -49,6 +49,10 @@ export default async function AccountSettingsSectionPage({
   if (parsed === 'admin' || parsed === 'mothership') {
     const isSuperUser = await isPlatformAdmin(session.user.id)
     if (!isSuperUser) notFound()
+  }
+  if (parsed === 'newsletters') {
+    const { effectiveSuperUser } = await verifyEffectiveSuperUser(session.user.id)
+    if (!effectiveSuperUser) notFound()
   }
 
   /**

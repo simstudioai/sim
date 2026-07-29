@@ -3672,6 +3672,76 @@ export const asyncJobs = pgTable(
   })
 )
 
+export const newsletterAudienceRuns = pgTable(
+  'newsletter_audience_runs',
+  {
+    id: text('id').primaryKey(),
+    createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+    name: text('name').notNull(),
+    prompt: text('prompt').notNull(),
+    criteria: jsonb('criteria').notNull(),
+    status: text('status').notNull().default('draft'),
+    totalMatched: integer('total_matched').notNull().default(0),
+    excludedBanned: integer('excluded_banned').notNull().default(0),
+    excludedUnverified: integer('excluded_unverified').notNull().default(0),
+    excludedUnsubscribed: integer('excluded_unsubscribed').notNull().default(0),
+    excludedSuppressed: integer('excluded_suppressed').notNull().default(0),
+    finalRecipientCount: integer('final_recipient_count').notNull().default(0),
+    sampleRecipients: jsonb('sample_recipients').notNull().default('[]'),
+    resendSegmentId: text('resend_segment_id'),
+    resendSegmentName: text('resend_segment_name'),
+    resendSyncedAt: timestamp('resend_synced_at'),
+    snapshotVersion: integer('snapshot_version').notNull().default(0),
+    resendSyncAttempt: integer('resend_sync_attempt').notNull().default(0),
+    resendSyncJobId: text('resend_sync_job_id'),
+    error: text('error'),
+    finalizedAt: timestamp('finalized_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    createdAtIdx: index('newsletter_audience_runs_created_at_idx').on(table.createdAt),
+    createdByIdx: index('newsletter_audience_runs_created_by_idx').on(table.createdById),
+    statusIdx: index('newsletter_audience_runs_status_idx').on(table.status),
+    resendSyncJobIdx: index('newsletter_audience_runs_resend_sync_job_idx').on(
+      table.resendSyncJobId
+    ),
+  })
+)
+
+export const newsletterAudienceRecipients = pgTable(
+  'newsletter_audience_recipients',
+  {
+    id: text('id').primaryKey(),
+    runId: text('run_id')
+      .notNull()
+      .references(() => newsletterAudienceRuns.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    email: text('email').notNull(),
+    name: text('name'),
+    inclusionReason: jsonb('inclusion_reason').notNull().default('{}'),
+    snapshotVersion: integer('snapshot_version').notNull(),
+    resendContactId: text('resend_contact_id'),
+    resendStatus: text('resend_status').notNull().default('pending'),
+    error: text('error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    runIdIdx: index('newsletter_audience_recipients_run_id_idx').on(table.runId),
+    userIdIdx: index('newsletter_audience_recipients_user_id_idx').on(table.userId),
+    emailIdx: index('newsletter_audience_recipients_email_idx').on(table.email),
+    runVersionEmailUnique: uniqueIndex(
+      'newsletter_audience_recipients_run_version_email_unique'
+    ).on(table.runId, table.snapshotVersion, table.email),
+    resendStatusEmailIdx: index('newsletter_audience_recipients_resend_status_email_idx').on(
+      table.runId,
+      table.resendStatus,
+      table.email
+    ),
+  })
+)
+
 /**
  * Knowledge Connector - persistent link to an external source (Confluence, Google Drive, etc.)
  * that syncs documents into a knowledge base.

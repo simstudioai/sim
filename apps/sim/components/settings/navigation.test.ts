@@ -52,6 +52,7 @@ describe('settings navigation boundaries', () => {
       'custom-blocks',
       'admin',
       'mothership',
+      'newsletters',
     ])
     expect(ACCOUNT_SETTINGS_ITEMS.map(({ id }) => id)).toEqual([
       'general',
@@ -59,6 +60,7 @@ describe('settings navigation boundaries', () => {
       'api-keys',
       'admin',
       'mothership',
+      'newsletters',
     ])
     expect(SELFHOST_SETTINGS_ITEMS.map(({ id }) => id)).toEqual(['general', 'billing', 'chat-keys'])
     expect(ORGANIZATION_SETTINGS_ITEMS.map(({ id }) => id)).toEqual([
@@ -143,6 +145,15 @@ describe('settings navigation boundaries', () => {
     expect(organizationSso?.label).toBe(unifiedSso?.label)
     expect(organizationSso?.icon).toBe(unifiedSso?.icon)
     expect(organizationSso?.docsLink).toBe(unifiedSso?.docsLink)
+  })
+
+  it('requires effective superuser mode for newsletters', () => {
+    const newsletters = buildUnifiedSettingsNavigation().find(({ id }) => id === 'newsletters')
+
+    expect(newsletters).toMatchObject({
+      requiresAdminRole: true,
+      requiresSuperUser: true,
+    })
   })
 
   it('keeps scope-specific labels only where the surface genuinely differs', () => {

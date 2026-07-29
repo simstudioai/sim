@@ -40,7 +40,13 @@ import {
 
 export type SettingsPlane = 'account' | 'organization' | 'selfhost' | 'workspace'
 
-export type AccountSettingsSection = 'general' | 'billing' | 'api-keys' | 'admin' | 'mothership'
+export type AccountSettingsSection =
+  | 'general'
+  | 'billing'
+  | 'api-keys'
+  | 'admin'
+  | 'mothership'
+  | 'newsletters'
 
 /**
  * Settings a self-hoster needs from the managed service: their profile, what
@@ -115,6 +121,7 @@ export type UnifiedSettingsSection =
   | 'data-retention'
   | 'data-drains'
   | 'mothership'
+  | 'newsletters'
   | 'recently-deleted'
 
 export type UnifiedNavigationSection =
@@ -751,6 +758,20 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
     planes: {
       account: { id: 'mothership', group: 'platform', order: 5 },
+    },
+  },
+  {
+    label: 'Newsletters',
+    icon: Send,
+    unified: {
+      id: 'newsletters',
+      description: 'Build newsletter audience snapshots for Resend.',
+      group: 'superuser',
+      requiresSuperUser: true,
+      requiresAdminRole: true,
+    },
+    planes: {
+      account: { id: 'newsletters', group: 'platform', order: 6 },
     },
   },
 ]

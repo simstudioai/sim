@@ -15,7 +15,7 @@ import { hasWorkspaceInboxAccess } from '@/lib/billing/core/subscription'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
-import { isPlatformAdmin } from '@/lib/permissions/super-user'
+import { isPlatformAdmin, verifyEffectiveSuperUser } from '@/lib/permissions/super-user'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import {
@@ -103,6 +103,10 @@ export default async function WorkspaceSettingsSectionPage({
 
   if (parsed === 'admin' || parsed === 'mothership') {
     if (!(await isPlatformAdmin(session.user.id))) notFound()
+  }
+  if (parsed === 'newsletters') {
+    const { effectiveSuperUser } = await verifyEffectiveSuperUser(session.user.id)
+    if (!effectiveSuperUser) notFound()
   }
 
   const workspaceSection = WORKSPACE_SECTION_MAP[parsed]

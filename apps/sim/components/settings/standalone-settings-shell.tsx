@@ -34,6 +34,7 @@ interface StandaloneSettingsShellBaseProps {
 interface AccountSettingsShellProps extends StandaloneSettingsShellBaseProps {
   plane: 'account'
   isSuperUser?: boolean
+  isEffectiveSuperUser?: boolean
 }
 
 interface SelfHostSettingsShellProps extends StandaloneSettingsShellBaseProps {
@@ -59,11 +60,13 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
   const hasEnterprisePlan = plane === 'organization' ? props.hasEnterprisePlan : false
   const isOrganizationAdmin = plane === 'organization' ? props.isOrganizationAdmin : false
   const isSuperUser = plane === 'account' ? (props.isSuperUser ?? false) : false
+  const isEffectiveSuperUser = plane === 'account' ? (props.isEffectiveSuperUser ?? false) : false
 
   const organizationFeatures = getOrganizationSettingsFeatures(hasEnterprisePlan)
   const accountItems = ACCOUNT_SETTINGS_ITEMS.filter((item) => {
     if (item.id === 'billing' && !isBillingEnabled) return false
     if ((item.id === 'admin' || item.id === 'mothership') && !isSuperUser) return false
+    if (item.id === 'newsletters' && !isEffectiveSuperUser) return false
     return true
   })
   const organizationItems = ORGANIZATION_SETTINGS_ITEMS.filter(

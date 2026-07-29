@@ -45,6 +45,11 @@ const Mothership = dynamic(() =>
     (m) => m.Mothership
   )
 )
+const Newsletters = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/newsletters/newsletters').then(
+    (m) => m.Newsletters
+  )
+)
 const RecentlyDeleted = dynamic(() =>
   import(
     '@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted'
@@ -195,6 +200,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
       {effectiveSection === 'admin' && <Admin />}
       {effectiveSection === 'mothership' && <Mothership />}
+      {effectiveSection === 'newsletters' && <Newsletters />}
     </SettingsSectionProvider>
   )
 }

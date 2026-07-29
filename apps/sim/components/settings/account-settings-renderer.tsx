@@ -27,6 +27,11 @@ const Mothership = dynamic(() =>
     (module) => module.Mothership
   )
 )
+const Newsletters = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/newsletters/newsletters').then(
+    (module) => module.Newsletters
+  )
+)
 
 interface AccountSettingsRendererProps {
   section: AccountSettingsSection
@@ -43,5 +48,6 @@ export function AccountSettingsRenderer({ section }: AccountSettingsRendererProp
   if (section === 'billing') return <Billing scope='account' />
   if (section === 'api-keys') return <ApiKeys scope='personal' />
   if (section === 'admin') return <Admin />
-  return <Mothership />
+  if (section === 'mothership') return <Mothership />
+  return <Newsletters />
 }

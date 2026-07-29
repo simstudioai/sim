@@ -49,6 +49,7 @@ describe('unified settings navigation', () => {
       { id: 'custom-blocks', label: 'Custom blocks', section: 'enterprise' },
       { id: 'admin', label: 'Admin', section: 'superuser' },
       { id: 'mothership', label: 'Mothership', section: 'superuser' },
+      { id: 'newsletters', label: 'Newsletters', section: 'superuser' },
     ])
   })
 
