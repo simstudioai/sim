@@ -22,9 +22,16 @@
 -- `folder` are touched; every row already mirrored is left exactly as it is.
 --
 -- Names are deduplicated against the FIRST FREE suffix rather than a row number, because the
--- target name may already be taken by a row this block is not inserting. Only ACTIVE rows are
--- deduplicated — the partial unique index ignores soft-deleted rows, so an archived folder
+-- target name may already be taken by a row this block is not inserting. Suffixes start at
+-- ' (1)' to match 0272 and the app's own dedup, which both produce "New folder (1)",
+-- "New folder (2)", ... — starting at (2) would skip a legitimately free name. Only ACTIVE rows
+-- are deduplicated: the partial unique index ignores soft-deleted rows, so an archived folder
 -- keeps its original name and reappears under it if restored.
+--
+-- `locked` is carried over from `workflow_folder` rather than defaulted, exactly as 0272 does.
+-- The lock feature is still enforced against `folder.locked`, so defaulting a stranded locked
+-- folder to false would silently unlock it. `workspace_file_folders` has no such column — file
+-- folders have never been lockable — so the file pass writes false.
 --
 -- Rows are inserted in depth order so a parent always lands before its children: the
 -- self-referencing FK `folder_parent_id_folder_id_fk` is checked immediately, and the
@@ -64,7 +71,7 @@ BEGIN
 			FROM "workflow_folder" s
 			JOIN tree t ON t.id = s."parent_id"
 		)
-		SELECT s."id", s."name", s."user_id", s."workspace_id", s."parent_id",
+		SELECT s."id", s."name", s."user_id", s."workspace_id", s."parent_id", s."locked",
 			s."sort_order", s."created_at", s."updated_at", s."archived_at" AS deleted_at
 		FROM "workflow_folder" s
 		JOIN tree t ON t.id = s."id"
@@ -73,7 +80,7 @@ BEGIN
 	LOOP
 		candidate := rec."name";
 		IF rec.deleted_at IS NULL THEN
-			suffix := 1;
+			suffix := 0;
 			WHILE EXISTS (
 				SELECT 1 FROM "folder" f
 				WHERE f."workspace_id" = rec."workspace_id"
@@ -89,7 +96,7 @@ BEGIN
 
 		INSERT INTO "folder" (id, resource_type, name, user_id, workspace_id, parent_id, locked, sort_order, created_at, updated_at, deleted_at)
 		VALUES (rec."id", 'workflow', candidate, rec."user_id", rec."workspace_id", rec."parent_id",
-			false, rec."sort_order", rec."created_at", rec."updated_at", rec.deleted_at)
+			rec."locked", rec."sort_order", rec."created_at", rec."updated_at", rec.deleted_at)
 		ON CONFLICT (id) DO NOTHING;
 	END LOOP;
 
@@ -114,7 +121,7 @@ BEGIN
 	LOOP
 		candidate := rec."name";
 		IF rec."deleted_at" IS NULL THEN
-			suffix := 1;
+			suffix := 0;
 			WHILE EXISTS (
 				SELECT 1 FROM "folder" f
 				WHERE f."workspace_id" = rec."workspace_id"
