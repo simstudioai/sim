@@ -53,15 +53,14 @@ export async function notifyWorkspaceFilesChanged(workspaceId: string): Promise<
 /**
  * Best-effort: ask the realtime relay to merge a copilot edit into a file's LIVE collaborative
  * document, so open editors see it stream in as a CRDT merge (Stage C) rather than the file changing
- * underneath them. No-op when no editor is connected (the relay reports `applied: false`). The file
- * itself is written durably by the caller regardless — this only drives the live view. Never throws.
+ * underneath them. No-op when no doc is (or was recently) live (the relay reports `applied: false`).
+ * The file itself is written durably by the caller regardless — this only drives the live view.
+ * Never throws.
  *
- * KNOWN GAP (narrow): if an editor IS open but this merge fails (socket pod slow/down), the open
- * editor keeps the pre-edit doc; the user's next keystroke autosaves that stale doc over the durable
- * write, dropping the copilot edit until a reload. This is the interim cost of "durable file write +
- * best-effort live merge + editor autosave reconciles" and is closed by the deferred move to a
- * durable server-authoritative doc (copilot writing THROUGH the document rather than the file). Rare
- * — it needs the socket pod unreachable exactly while the file is open — and non-corrupting.
+ * The former clobber gap — an open editor's autosave dropping this edit — is now closed: a
+ * collaborative editor no longer client-autosaves (the relay persists the shared doc to markdown
+ * server-side), and the relay applies this merge THROUGH the shared Redis stream, so it reaches the
+ * live doc on whichever task holds it and can't go stale relative to this direct write.
  *
  * Awaited (not fire-and-forget) so the fetch dispatches before the route handler returns; bounded to
  * {@link APPLY_EDIT_TIMEOUT_MS}, so it adds latency only when the socket pod is unreachable.

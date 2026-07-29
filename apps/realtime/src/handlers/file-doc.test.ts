@@ -14,11 +14,13 @@ import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import type { IRoomManager } from '@/rooms'
 
-const { mockAuthorizeRoom, mockFetchFileDocSeed, mockFetchFileDocMerge } = vi.hoisted(() => ({
-  mockAuthorizeRoom: vi.fn(),
-  mockFetchFileDocSeed: vi.fn(),
-  mockFetchFileDocMerge: vi.fn(),
-}))
+const { mockAuthorizeRoom, mockFetchFileDocSeed, mockFetchFileDocMerge, mockFetchFileDocPersist } =
+  vi.hoisted(() => ({
+    mockAuthorizeRoom: vi.fn(),
+    mockFetchFileDocSeed: vi.fn(),
+    mockFetchFileDocMerge: vi.fn(),
+    mockFetchFileDocPersist: vi.fn(),
+  }))
 
 vi.mock('@sim/platform-authz/rooms', () => ({
   authorizeRoom: mockAuthorizeRoom,
@@ -27,11 +29,13 @@ vi.mock('@sim/platform-authz/rooms', () => ({
 vi.mock('@/handlers/file-doc-app', () => ({
   fetchFileDocSeed: mockFetchFileDocSeed,
   fetchFileDocMerge: mockFetchFileDocMerge,
+  fetchFileDocPersist: mockFetchFileDocPersist,
 }))
 
 import {
   applyMarkdownToLiveFileDoc,
   cleanupFileDocForSocket,
+  flushAllFileDocRooms,
   setupWorkspaceFileDocHandlers,
 } from '@/handlers/file-doc'
 
@@ -63,7 +67,10 @@ function createIo() {
       left.push({ socketId, room })
     },
   }))
-  return { io: { to, in: inFn } as unknown as IRoomManager['io'], sent, left }
+  // Doc-sync frames fan out via `io.local.to(...)` (cross-task delivery rides the Redis stream, not the
+  // adapter). With the store disabled in tests, `local` is the whole room — mirror `to` so those emits
+  // are recorded identically. Awareness/presence still use `io.to(...)`.
+  return { io: { to, in: inFn, local: { to } } as unknown as IRoomManager['io'], sent, left }
 }
 
 /** Every socket id a test created, so `afterEach` can drop their rooms without a
@@ -115,8 +122,8 @@ const FILE_DOC_FIELD = 'default'
 
 /** Let a fire-and-forget `void ensureServerSeed(...)` chain settle (mock resolves synchronously). */
 async function flushMicrotasks(): Promise<void> {
-  await Promise.resolve()
-  await Promise.resolve()
+  // Enough to drain the fire-and-forget seed chain (shouldSeed → fetch → fence → publish → apply).
+  for (let i = 0; i < 8; i++) await Promise.resolve()
 }
 
 /**
@@ -252,6 +259,68 @@ describe('setupWorkspaceFileDocHandlers', () => {
       FILE_DOC_EVENTS.JOIN_ERROR,
       expect.objectContaining({ code: 'NOT_FOUND', retryable: false })
     )
+  })
+
+  it('does NOT persist a seeded-but-unedited doc on last disconnect (no clobber of a concurrent write)', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(encodedSeedUpdate('# From server'))
+    const { io } = createIo()
+    const { handlers } = setup('socket-1', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks() // let the seed apply
+
+    // Last collaborator leaves without ever editing — projecting this seed back over the file could
+    // clobber a concurrent copilot write, so the final flush must NOT persist.
+    cleanupFileDocForSocket('socket-1', io, true)
+    await flushMicrotasks()
+    expect(mockFetchFileDocPersist).not.toHaveBeenCalled()
+  })
+
+  it('persists on last disconnect once a genuine user edit has landed', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(encodedSeedUpdate('# From server'))
+    const { io } = createIo()
+    const { handlers } = setup('socket-1', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks()
+
+    // A real user edit (socket-origin sync update) marks the doc dirty.
+    const edit = new Y.Doc()
+    edit.getText(FILE_DOC_FIELD).insert(0, 'user typed this')
+    handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
+        syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
+      )
+    )
+    await flushMicrotasks()
+
+    cleanupFileDocForSocket('socket-1', io, true)
+    await flushMicrotasks()
+    expect(mockFetchFileDocPersist).toHaveBeenCalled()
+  })
+
+  it('flushAllFileDocRooms persists open EDITED rooms (graceful shutdown), skips unedited', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(encodedSeedUpdate('# From server'))
+    const { io } = createIo()
+    const { handlers } = setup('socket-1', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks()
+
+    // Seed-only room: a graceful-shutdown flush must NOT persist it.
+    mockFetchFileDocPersist.mockClear()
+    await flushAllFileDocRooms()
+    expect(mockFetchFileDocPersist).not.toHaveBeenCalled()
+
+    // After a real user edit, the same flush persists (edits would otherwise be lost on deploy).
+    const edit = new Y.Doc()
+    edit.getText(FILE_DOC_FIELD).insert(0, 'typed')
+    handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
+        syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
+      )
+    )
+    await flushMicrotasks()
+    mockFetchFileDocPersist.mockClear()
+    await flushAllFileDocRooms()
+    expect(mockFetchFileDocPersist).toHaveBeenCalled()
   })
 
   it('joins the room, sends sync step 1, and seeds the document from the server', async () => {

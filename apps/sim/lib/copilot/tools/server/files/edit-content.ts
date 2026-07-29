@@ -246,8 +246,9 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
       // If a collaborator has this markdown file open, merge the edit into their live document so it
       // streams into the editor as a CRDT merge instead of the file changing under them. Best-effort
       // and gated to markdown, the only format the collaborative editor renders — so code/text/doc
-      // edits don't pay the realtime round-trip. The durable write above is the source of truth, and
-      // the editor's own autosave mirrors the merged doc back to the file.
+      // edits don't pay the realtime round-trip. The durable write above is the source of truth; this
+      // merges the edit into any live collaborative doc so open editors see it stream in (the relay
+      // persists the doc server-side — the collaborative editor's own client autosave is disabled).
       if (isMarkdownFile(fileRecord)) {
         await mergeEditIntoLiveFileDoc(intent.fileId, finalContent)
       }

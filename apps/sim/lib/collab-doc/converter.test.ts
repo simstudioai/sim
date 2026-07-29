@@ -1,10 +1,20 @@
 /**
  * @vitest-environment jsdom
  */
+import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
+import {
+  applyFrontmatter,
+  postProcessSerializedMarkdown,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import { serializeMarkdownBody } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
-import { applyMarkdownToYDoc, markdownToYDoc, yDocToMarkdown } from './converter'
+import {
+  applyMarkdownToYDoc,
+  markdownToYDoc,
+  yDocToFileMarkdown,
+  yDocToMarkdown,
+} from './converter'
 
 /** Representative markdown covering the custom-fidelity constructs (tables, code, lists, marks). */
 const SAMPLES = [
@@ -73,5 +83,26 @@ describe('collab-doc converter', () => {
     const merged = yDocToMarkdown(server)
     expect(merged).toContain('Alpha paragraph. EDITED')
     expect(merged).toContain('expanded by the agent')
+  })
+
+  it('yDocToFileMarkdown matches the client save composition (frontmatter + postProcess body pass)', () => {
+    // A server-side persist must be byte-identical to the editor save — `applyFrontmatter(frontmatter,
+    // postProcessSerializedMarkdown(body))` — or it drifts from a client save / the dirty-check baseline
+    // and churns the blob. This guards against the postProcess pass being dropped from the server path.
+    const frontmatter = '---\ntitle: Doc\n---\n'
+    const doc = markdownToYDoc('- one\n- two\n\n> [!NOTE]\n> hi')
+    doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.frontmatterKey, frontmatter)
+    const expected = applyFrontmatter(
+      frontmatter,
+      postProcessSerializedMarkdown(yDocToMarkdown(doc))
+    )
+    expect(yDocToFileMarkdown(doc)).toBe(expected)
+    doc.destroy()
+  })
+
+  it('yDocToFileMarkdown re-attaches empty frontmatter when the config map has none', () => {
+    const doc = markdownToYDoc('plain body\n')
+    expect(yDocToFileMarkdown(doc)).toBe(postProcessSerializedMarkdown(yDocToMarkdown(doc)))
+    doc.destroy()
   })
 })

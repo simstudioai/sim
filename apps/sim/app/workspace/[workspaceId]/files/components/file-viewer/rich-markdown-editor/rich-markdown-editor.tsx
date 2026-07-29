@@ -121,12 +121,17 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   const userName = session?.user?.name?.trim() || 'Collaborator'
 
   /**
-   * Autosave gate for the collaborative path: the child reports `false` while its
-   * shared document is still syncing/seeding and `true` once it is safe to persist
-   * the markdown mirror — so an empty or partially-synced doc can never overwrite
-   * the real file. `true` for non-collaborative files (never gated).
+   * Client-autosave gate. For a NON-collaborative file this is `true` (the client owns durability and
+   * autosaves the markdown). For a collaborative file it stays `false`: the realtime relay persists the
+   * shared document to markdown server-side, so the client must never also autosave — a stale keystroke
+   * saving over a server/copilot edit is exactly the clobber the server path closes. The child reports
+   * the right value up via `onCollabReadyChange`.
+   *
+   * Initialize from the `collaborative` prop (NOT unconditionally `true`): a collaborative file must
+   * start with autosave OFF, or a save could fire in the window before the child mounts and reports —
+   * re-clobbering exactly what this closes. The child turns it on for the non-collaborative fallback.
    */
-  const [collabReady, setCollabReady] = useState(true)
+  const [collabReady, setCollabReady] = useState(!collaborative)
 
   const {
     content,
@@ -652,8 +657,13 @@ export function LoadedRichMarkdownEditor({
    */
   useEffect(() => {
     const setReady = (ready: boolean) => {
+      // Child-local: gates editability (a user must never type into an unsynced/unseeded doc).
       setCollabReady(ready)
-      onCollabReadyChange(ready)
+      // Parent: gates CLIENT autosave. In a collaborative session the relay persists the doc to
+      // markdown server-side (debounced + on last-disconnect), so the client must NOT also autosave —
+      // a stale keystroke saving over a server/copilot edit is the clobber the server path closes.
+      // Only the non-collaborative (solo) path client-autosaves.
+      onCollabReadyChange(collaboration ? false : ready)
     }
     if (!collaboration) {
       setReady(true)

@@ -75,3 +75,45 @@ export const mergeFileDocContract = defineRouteContract({
     schema: mergeFileDocResponseSchema,
   },
 })
+
+export const persistFileDocBodySchema = z.object({
+  workspaceId: z.string().min(1, 'workspaceId is required'),
+  fileId: z.string().min(1, 'fileId is required'),
+  /** Attribution only (blob metadata) — the last collaborator to touch the live doc. */
+  userId: z.string().min(1, 'userId is required'),
+  /**
+   * Base64-encoded `Y.encodeStateAsUpdate` of the live document as the relay currently holds it — the
+   * bound matches the merge contract (generous base64 headroom over a ≤256 KB collab doc's Yjs state).
+   */
+  docState: z
+    .string()
+    .min(1, 'docState is required')
+    .max(16 * 1024 * 1024, 'docState is too large'),
+})
+export type PersistFileDocBody = z.input<typeof persistFileDocBodySchema>
+
+export const persistFileDocResponseSchema = z.object({
+  /**
+   * `true` when the document was projected to markdown and written durably to the file; `false` when
+   * the file was missing/deleted (nothing to write). A transport/conversion failure is a non-2xx.
+   */
+  persisted: z.boolean(),
+})
+export type PersistFileDocResponse = z.output<typeof persistFileDocResponseSchema>
+
+/**
+ * Internal, `x-api-key`-gated: the realtime relay asks the app to project a live collaborative
+ * document back to durable markdown (Yjs → markdown, through the exact editor engine) and write it to
+ * the file. The relay owns the live doc but not the conversion engine or blob/DB access, so it ships
+ * the current doc state here. Called debounced during editing and when the last collaborator leaves —
+ * the server-authoritative durable path that replaces the editor's client-side autosave.
+ */
+export const persistFileDocContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/internal/file-doc/persist',
+  body: persistFileDocBodySchema,
+  response: {
+    mode: 'json',
+    schema: persistFileDocResponseSchema,
+  },
+})
