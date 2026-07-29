@@ -16,7 +16,6 @@ import {
   GetBlockUpstreamReferences,
   GetDeployedWorkflowState,
   GetDeploymentLog,
-  GetPlatformActions,
   GetWorkflowData,
   GetWorkflowRunOptions,
   Glob as GlobTool,
@@ -81,7 +80,6 @@ import { executeManageSandbox } from '../tools/handlers/management/manage-sandbo
 import { executeManageSkill } from '../tools/handlers/management/manage-skill'
 import { executeMaterializeFile } from '../tools/handlers/materialize-file'
 import { executeOAuthGetAuthLink, executeOAuthRequestAccess } from '../tools/handlers/oauth'
-import { executeGetPlatformActions } from '../tools/handlers/platform'
 import { executeOpenResource } from '../tools/handlers/resources'
 import { executeRestoreResource } from '../tools/handlers/restore-resource'
 import { executeRunCode } from '../tools/handlers/run-code'
@@ -192,7 +190,6 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [OauthRequestAccess.id]: h(executeOAuthRequestAccess),
     [OpenResource.id]: h(executeOpenResource),
     [RestoreResource.id]: h(executeRestoreResource),
-    [GetPlatformActions.id]: h(executeGetPlatformActions),
     [ListIntegrationTools.id]: h(executeListIntegrationTools),
     [MaterializeFile.id]: h(executeMaterializeFile),
     [FunctionExecute.id]: h(executeFunctionExecute),
