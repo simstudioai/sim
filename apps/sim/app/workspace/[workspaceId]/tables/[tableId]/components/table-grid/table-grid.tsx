@@ -240,7 +240,13 @@ interface TableGridProps {
   viewLayoutKey?: string | null
   /** Routes layout writes to the active view. Falls back to the table-metadata
    *  mutation when absent. */
-  onPersistLayout?: (patch: TableMetadata) => void
+  /**
+   * Layout persistence sink. The grid stamps every call with the OWNER of the
+   * write — the `viewLayoutKey` it was displaying when the change happened
+   * (`null` for All) — so the parent routes by what the user was looking at,
+   * not by resolve-effect state that may lag the grid's own effects.
+   */
+  onPersistLayout?: (patch: TableMetadata, owner: string | null) => void
   /**
    * Ref the grid populates with its `handleColumnRename` so the wrapper's
    * sidebars can fire a column rename back into the grid (rewrites local
@@ -752,7 +758,9 @@ export function TableGrid({
     onPinnedColumnsChange: handlePinnedColumnsChange,
     getPinnedColumns,
     getColumnWidths,
-    onPersistLayout,
+    onPersistLayout: onPersistLayout
+      ? (patch) => onPersistLayout(patch, viewLayoutKeyRef.current)
+      : undefined,
     activeViewId: viewLayoutKey,
   })
   const undoRef = useRef(undo)
@@ -2255,7 +2263,9 @@ export function TableGrid({
   batchUpdateAsyncRef.current = batchUpdateRowsMutation.mutateAsync
 
   const updateMetadataRef = useRef(updateMetadataMutation.mutate)
-  updateMetadataRef.current = onPersistLayout ?? updateMetadataMutation.mutate
+  updateMetadataRef.current = onPersistLayout
+    ? (patch: TableMetadata) => onPersistLayout(patch, viewLayoutKeyRef.current)
+    : updateMetadataMutation.mutate
 
   /**
    * Records columns created since the layout was last saved. A new column already

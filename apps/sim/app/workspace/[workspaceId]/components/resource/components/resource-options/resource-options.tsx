@@ -312,7 +312,7 @@ export const SortDropdown = memo(function SortDropdown({
               }}
             >
               {Icon && <Icon />}
-              {option.label}
+              <FloatingOverflowText label={option.label} className='block truncate' />
               {DirectionIcon && (
                 <DirectionIcon className='ml-auto size-[12px] text-[var(--text-tertiary)]' />
               )}

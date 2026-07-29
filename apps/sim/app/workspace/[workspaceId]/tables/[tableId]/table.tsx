@@ -397,12 +397,6 @@ export function Table({
    *  rendering an empty view. */
   const activeView = activeViewId ? (views.find((view) => view.id === activeViewId) ?? null) : null
 
-  /** The views query hasn't settled, so which view owns the layout isn't known
-   *  yet and layout writes must go nowhere. An ERROR counts as settled: the table
-   *  falls back to All and writes resume against shared metadata, rather than
-   *  staying silently suppressed for the rest of the session. */
-  const viewOwnerUnknown = viewsEnabled && !viewsAvailable && !viewsErrored
-
   const [viewModal, setViewModal] = useState<ViewModalState>(null)
   /** Which view id the local filter/sort/hidden state was last seeded from.
    *  `undefined` means "nothing seeded yet" so the first resolve still runs. */
@@ -456,6 +450,11 @@ export function Table({
    *  the slower detail query is still in flight) and wipe them in metadata. */
   const pendingLayoutKeysRef = useRef<Set<keyof TableMetadata> | null>(null)
 
+  /** Whether the resolve effect has decided the initial owner — including the
+   *  terminal-error fallback to All. Until then a write that reads "All" might
+   *  actually belong to a default view about to be adopted, so it buffers. */
+  const ownerResolvedRef = useRef(false)
+
   /**
    * Resolves that pending layout once the resolve effect has picked an owner.
    *
@@ -506,17 +505,19 @@ export function Table({
   useEffect(() => {
     if (!viewsEnabled) return
     // Terminal only when the fetch failed WITHOUT ever producing a list — then
-    // the table settles to All: stamp the owner so the layout router stops
-    // buffering, and flush what was touched during the load. An error with a
-    // cached list falls through — the list is still resolvable, and treating a
-    // failed background refetch as terminal would wedge view switching until
-    // the next successful refetch.
+    // the table settles to All: mark the owner resolved so layout writes flow
+    // to shared metadata, and flush what was touched during the load. It does
+    // NOT stamp `seededViewIdRef` — that would consume the first resolve, and a
+    // later successful refetch must still run adoption (with `localWork` keep,
+    // so filters set while errored survive). An error with a cached list falls
+    // through — the list is still resolvable.
     if (viewsErrored && !viewsAvailable) {
-      seededViewIdRef.current = null
+      ownerResolvedRef.current = true
       resolvePendingLayout(false)
       return
     }
     if (!viewsAvailable) return
+    ownerResolvedRef.current = true
 
     if (seededViewIdRef.current === undefined) {
       // Embedded tables bind these parsers to the HOST page's URL, which the
@@ -594,6 +595,11 @@ export function Table({
     const nextViewId = activeView?.id ?? null
     if (seededViewIdRef.current === nextViewId) return
     seededViewIdRef.current = nextViewId
+    // Navigating away ends any create race — without this a reconcile on the
+    // destination could fall back to the still-pending created id.
+    if (pendingCreatedViewIdRef.current && pendingCreatedViewIdRef.current !== nextViewId) {
+      pendingCreatedViewIdRef.current = null
+    }
     applyViewConfig(activeView?.config ?? null)
   }, [
     viewsEnabled,
@@ -709,40 +715,37 @@ export function Table({
    *  while the views query is still loading the sink IS bound and the write is
    *  suppressed, because the owner isn't known yet. */
   const handlePersistLayout = useCallback(
-    (patch: TableMetadata) => {
+    (patch: TableMetadata, owner: string | null) => {
       // The resize grip and drag handles stay live for read-only members, so
       // without this a resize fires a write-gated PATCH and an error toast. Local
       // layout still updates — only the persist is suppressed.
       if (!userPermissions.canEdit) return
-      // Owner not decided yet — either the query is in flight, or it settled
-      // this frame and the resolve effect hasn't picked a view (adoption writes
-      // the id through the URL, so `activeView` lags a render). The grid keeps
-      // the layout either way, so only the fact of the change is recorded;
-      // `resolvePendingLayout` reads the live value once an owner exists.
-      if (viewOwnerUnknown || seededViewIdRef.current === undefined) {
+      // `owner` is stamped by the GRID — the layout source it was displaying
+      // when the write happened — so routing no longer depends on when the
+      // resolve effect ran relative to the grid's own effects. A write stamped
+      // with a view id is fully addressed: route it even before the first
+      // resolve (a deep-linked view's seed reconcile must persist, not buffer)
+      // or before the list refetch resolves a just-created view.
+      const target = owner ?? pendingCreatedViewIdRef.current
+      if (target) {
+        updateViewMutation.mutate(
+          { viewId: target, configPatch: patch },
+          { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save layout')) }
+        )
+        return
+      }
+      // Owner reads "All", but the resolve effect hasn't confirmed that yet —
+      // record the touched keys; `resolvePendingLayout` decides at settle.
+      if (!ownerResolvedRef.current) {
         pendingLayoutKeysRef.current ??= new Set()
         for (const key of Object.keys(patch) as (keyof TableMetadata)[]) {
           pendingLayoutKeysRef.current.add(key)
         }
         return
       }
-      // Routed by the OWNER RECORD, not `activeView`: the ref is stamped
-      // synchronously when the resolve effect (or view creation) picks a view,
-      // while `activeView` derives from the URL and lags a render — a write in
-      // that gap would otherwise fall through to shared metadata. This also
-      // covers a just-created view before the list refetch resolves it.
-      const ownerId = seededViewIdRef.current
-      if (ownerId !== null) {
-        updateViewMutation.mutate(
-          { viewId: ownerId, configPatch: patch },
-          { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save layout')) }
-        )
-        return
-      }
-      // All: the shared table metadata is the owner.
       updateMetadataMutation.mutate(patch)
     },
-    [userPermissions.canEdit, viewOwnerUnknown]
+    [userPermissions.canEdit]
   )
 
   const handleSaveView = () => {
