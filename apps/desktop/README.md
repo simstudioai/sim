@@ -1,6 +1,6 @@
 # Sim Desktop (macOS)
 
-A thin Electron shell around the hosted Sim web app. The renderer loads the configured origin (default `https://sim.ai`) as a normal top-level page in a bundled, pinned Chromium — rendering is identical to Chrome of that version on every machine. No UI is re-implemented and no server stack is bundled.
+A thin Electron shell around the hosted Sim web app. The renderer loads the configured origin (default `https://www.sim.ai` — the origin the server actually serves; the apex 301s there) as a normal top-level page in a bundled, pinned Chromium — rendering is identical to Chrome of that version on every machine. No UI is re-implemented and no server stack is bundled.
 
 ## Layout
 
@@ -44,7 +44,7 @@ e2e/                # Playwright _electron smoke suite
 ```bash
 bun install                 # workspace root
 cd apps/desktop
-bun run dev                 # bundle + launch against https://sim.ai
+bun run dev                 # bundle + launch against https://www.sim.ai
 SIM_DESKTOP_ORIGIN=http://localhost:3000 bun run dev   # against local sim
 ```
 
@@ -74,7 +74,7 @@ Deviations from the original plan doc (deliberate):
 
 ## Provider matrix (U5 spike — keep current)
 
-Host lists live in `src/main/navigation.ts` (`SYSTEM_BROWSER_IDP_HOSTS`, `IN_WINDOW_IDP_HOSTS`). Verified so far: Google + Microsoft blocked (by policy, not spike); GitHub assumed lenient. **Before GA, run the spike**: GitHub sign-in, consumer-Microsoft, a sample of integration connects (Notion, Slack, Linear, Atlassian, Box, Dropbox), SSO, and Turnstile-on-signup in a packaged build, then update the lists and this section.
+The host list lives in `src/main/navigation.ts` (`SYSTEM_BROWSER_IDP_HOSTS`) and now applies to **integration connects only** — sign-in always goes through the system-browser handoff whatever the IdP, so no provider needs to be classified as embed-tolerant for login. (The old `IN_WINDOW_IDP_HOSTS` list existed to keep GitHub sign-in in-window; embedding a login is a one-way door in a chrome-less shell and splits better-auth's OAuth state across two cookie jars, so it was removed.) Verified so far: Google + Microsoft block embedding by policy. **Before GA, run the spike** for connects: a sample of integration connects (Notion, Slack, Linear, Atlassian, Box, Dropbox) plus SSO and Turnstile-on-signup in a packaged build, then update the list and this section.
 
 ## Web-app coupling contract (audit on web-app changes)
 

@@ -81,6 +81,17 @@ export interface ChunkedBatchDeleteOptions<TRow extends { id: string }> {
   selectChunk: (chunkIds: string[], limit: number) => Promise<TRow[]>
   /** Runs between SELECT and DELETE; receives the just-selected rows. */
   onBatch?: (rows: TRow[]) => Promise<void>
+  /**
+   * Re-asserted on the DELETE alongside the id list. A soft-delete sweep whose `onBatch` does
+   * real work before the DELETE should pass the same predicate it selected on: a row restored
+   * in that window would otherwise be hard-deleted — taking the children a folder restore had
+   * just brought back with it. Rows that no longer match are simply not deleted and are
+   * counted as failed, so the next run re-evaluates them.
+   *
+   * Optional because a sweep with no `onBatch` closes a far smaller window; the hand-rolled
+   * targets in `cleanup-soft-deletes.ts` re-check inside their own DELETE instead.
+   */
+  deleteFilter?: SQL
   batchSize?: number
   /** Max batches per workspace chunk. */
   maxBatches?: number
@@ -112,6 +123,7 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
   tableName,
   selectChunk,
   onBatch,
+  deleteFilter,
   batchSize = DEFAULT_BATCH_SIZE,
   maxBatches = DEFAULT_MAX_BATCHES_PER_TABLE,
   totalRowLimit = DEFAULT_BATCH_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE,
@@ -161,7 +173,7 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
         const ids = rows.map((r) => r.id)
         const deleted = await dbClient
           .delete(tableDef)
-          .where(inArray(sql`id`, ids))
+          .where(deleteFilter ? and(inArray(sql`id`, ids), deleteFilter) : inArray(sql`id`, ids))
           .returning({ id: sql`id` })
 
         result.deleted += deleted.length
@@ -226,19 +238,28 @@ export async function batchDeleteByWorkspaceAndTimestamp({
   dbClient = db,
   ...rest
 }: BatchDeleteOptions): Promise<TableCleanupResult> {
+  /**
+   * Re-asserted on the DELETE, not just the SELECT. Every row here is soft-deleted and past
+   * retention, so a restore committing between the two statements is exactly the case that must
+   * not be hard-deleted — and for `folder` that would take the placement of the children the
+   * restore had just brought back with it. Rebuilt rather than reused from `selectChunk` because
+   * the id list already scopes the statement; only the eligibility half is re-checked.
+   */
+  const eligibility = [lt(timestampCol, retentionDate)]
+  if (requireTimestampNotNull) eligibility.push(isNotNull(timestampCol))
+  if (additionalPredicate) eligibility.push(additionalPredicate)
+
   return chunkedBatchDelete({
     tableDef,
     workspaceIds,
     tableName,
     dbClient,
+    deleteFilter: and(...eligibility),
     selectChunk: (chunkIds, limit) => {
-      const predicates = [inArray(workspaceIdCol, chunkIds), lt(timestampCol, retentionDate)]
-      if (requireTimestampNotNull) predicates.push(isNotNull(timestampCol))
-      if (additionalPredicate) predicates.push(additionalPredicate)
       return dbClient
         .select({ id: sql<string>`id` })
         .from(tableDef)
-        .where(and(...predicates))
+        .where(and(inArray(workspaceIdCol, chunkIds), ...eligibility))
         .limit(limit)
     },
     ...rest,

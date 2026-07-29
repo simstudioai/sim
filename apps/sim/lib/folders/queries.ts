@@ -49,6 +49,64 @@ export async function wouldCreateFolderCycle(
   return false
 }
 
+/**
+ * Loads an active folder, scoped to both its workspace and its `resourceType`.
+ *
+ * Every foldered resource needs this before writing its `folderId` column. The FK only
+ * proves the folder row exists — not that it belongs to this workspace or to this
+ * resource's tree — so without the check a caller could file a knowledge base under
+ * another tenant's folder, or under a table folder that the Knowledge page will never
+ * render, stranding the row invisibly. The DB trigger `folder_parent_resource_type_match`
+ * does not help here: it only guards folder parents.
+ *
+ * Returns `null` when the folder is missing, archived, in another workspace, or belongs to
+ * another resource's tree — a single "not a valid destination" answer.
+ */
+export async function findActiveFolder(
+  folderId: string,
+  workspaceId: string,
+  resourceType: FolderResourceType
+): Promise<typeof folder.$inferSelect | null> {
+  const [row] = await db
+    .select()
+    .from(folder)
+    .where(
+      and(
+        eq(folder.id, folderId),
+        eq(folder.workspaceId, workspaceId),
+        eq(folder.resourceType, resourceType),
+        isNull(folder.deletedAt)
+      )
+    )
+    .limit(1)
+
+  return row ?? null
+}
+
+/**
+ * Where a restored resource should land: its original folder when that folder is reachable,
+ * otherwise the workspace root.
+ *
+ * `restoringFolderIds` is what makes this safe inside a folder cascade. A `restoreChildren`
+ * hook runs BEFORE the folder rows are un-archived (see `restoreFolder` — that ordering is
+ * what keeps a partial failure retryable), so a naive "is my folder active?" check sees the
+ * folder still archived and dumps every child at the root. Passing the subtree being
+ * restored tells the check to treat those folders as already back.
+ *
+ * Without any set — a single-resource restore out of Recently Deleted — an archived folder
+ * still re-roots, because filing a row under a folder no page renders makes it unreachable.
+ */
+export async function resolveRestoredFolderId(
+  folderId: string | null | undefined,
+  workspaceId: string | null | undefined,
+  resourceType: FolderResourceType,
+  restoringFolderIds?: ReadonlySet<string>
+): Promise<string | null> {
+  if (!folderId || !workspaceId) return null
+  if (restoringFolderIds?.has(folderId)) return folderId
+  return (await findActiveFolder(folderId, workspaceId, resourceType)) ? folderId : null
+}
+
 /** Shared by `GET /api/folders` and the sidebar prefetch so the query never drifts between them. */
 export async function listFoldersForWorkspace(
   workspaceId: string,

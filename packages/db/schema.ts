@@ -209,7 +209,7 @@ export const pinnedItem = pgTable(
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
-    resourceType: text('resource_type').notNull(), // 'workflow' | 'file' | 'knowledge_base' | 'table'
+    resourceType: text('resource_type').notNull(), // 'workflow' | 'file' | 'knowledge_base' | 'table' | 'folder'
     resourceId: text('resource_id').notNull(),
     pinnedAt: timestamp('pinned_at').notNull().defaultNow(),
   },
@@ -1902,9 +1902,22 @@ export const workspaceFile = pgTable(
   })
 )
 
-// DEPRECATED: superseded by the generic `folder` table (resourceType='file'). Kept
-// (unread, unwritten) until the generic-folders cutover is verified in production; dropped
-// in a follow-up contract migration.
+/**
+ * DEPRECATED: superseded by the generic `folder` table (`resource_type = 'file'`).
+ *
+ * As of the file-folder cutover the application no longer reads or writes this table —
+ * every former query site now targets `folder` scoped to `resource_type = 'file'`. It is
+ * retained as the rollback copy for that deploy, NOT because it is already unused history:
+ * before the cutover it was the live table, and migration 0272's one-shot backfill did not
+ * cover folders created after it ran (migration 0274 catches those up).
+ *
+ * Do NOT drop it in a contract migration until BOTH hold: the cutover has been running in
+ * production long enough that a rollback is off the table, and a FULL-ROW comparison against
+ * `folder WHERE resource_type = 'file'` confirms nothing was stranded. A row COUNT is not
+ * sufficient — the pre-0274 divergence was in row contents (names, parents, `deleted_at`),
+ * which a count check passes straight through. Dropping this on the strength of "no code
+ * references it" alone destroys the only rollback path.
+ */
 export const workspaceFileFolder = pgTable(
   'workspace_file_folders',
   {

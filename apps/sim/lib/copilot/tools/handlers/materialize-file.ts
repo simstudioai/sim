@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { workflow, workspaceFileFolder, workspaceFiles } from '@sim/db/schema'
+import { folder as folderTable, workflow, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -389,12 +389,13 @@ async function executeExtract(
         )
         .limit(1),
       db
-        .select({ id: workspaceFileFolder.id })
-        .from(workspaceFileFolder)
+        .select({ id: folderTable.id })
+        .from(folderTable)
         .where(
           and(
-            eq(workspaceFileFolder.parentId, existingFolderId),
-            isNull(workspaceFileFolder.deletedAt)
+            eq(folderTable.parentId, existingFolderId),
+            eq(folderTable.resourceType, 'file'),
+            isNull(folderTable.deletedAt)
           )
         )
         .limit(1),

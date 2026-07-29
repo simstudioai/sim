@@ -24,10 +24,10 @@ export interface NavigationContext {
 }
 
 /**
- * IdP hosts that hard-block OAuth inside embedded user agents. Navigation to
- * these hosts is cancelled and rerouted: from an auth surface the app starts
- * the system-browser login handoff; from anywhere else it offers to finish the
- * integration connect in the browser (tokens land server-side either way).
+ * IdP hosts that hard-block OAuth inside embedded user agents. An integration
+ * connect heading for one of these is cancelled and offered as a finish-in-the-
+ * browser flow instead (tokens land server-side either way). Sign-in never
+ * consults this list — see {@link classifyNavigation}.
  */
 export const SYSTEM_BROWSER_IDP_HOSTS: readonly string[] = [
   'accounts.google.com',
@@ -37,14 +37,6 @@ export const SYSTEM_BROWSER_IDP_HOSTS: readonly string[] = [
   'login.windows.net',
   'sts.windows.net',
 ]
-
-/**
- * IdP hosts verified lenient toward embedded user agents (the U5 provider
- * matrix). Only consulted for navigations leaving an auth surface — everywhere
- * else unknown hosts already stay in-window because same-window departures
- * from workspace pages are OAuth connect flows in this app.
- */
-export const IN_WINDOW_IDP_HOSTS: readonly string[] = ['github.com']
 
 const AUTH_SURFACE_PREFIXES: readonly string[] = [
   '/login',
@@ -101,11 +93,21 @@ export function isAuthSurfacePath(pathname: string): boolean {
  * Classifies a top-level navigation (will-navigate / will-redirect).
  *
  * Same-window departures to non-origin hosts are OAuth flows in this app —
- * regular external links always go through window.open — so unknown hosts stay
- * in-window (lenient IdP assumption) except for the known embedded-blocking
- * hosts, which are rerouted through the system browser. Departures from auth
- * surfaces default to the system browser because SSO IdPs need real-browser
- * device claims.
+ * regular external links always go through window.open.
+ *
+ * A departure from an auth surface is a *sign-in*, and sign-in always runs in
+ * the system browser (RFC 8252), whatever the IdP. Embedding one is a one-way
+ * door: the shell has no browser chrome, so a user who reaches the IdP and
+ * decides not to continue has no way back to the app. It also splits the flow
+ * across two cookie jars — better-auth binds its OAuth state cookie to the user
+ * agent that started the flow, so an in-window start that finishes anywhere
+ * else comes back `state_mismatch`. The handoff keeps the whole flow in one
+ * jar and hands a one-time token back over the loopback.
+ *
+ * Everything else is an integration connect from a workspace page: those stay
+ * in-window (the session cookie is already in this partition) unless the IdP
+ * hard-blocks embedded user agents, which is what {@link
+ * SYSTEM_BROWSER_IDP_HOSTS} enumerates.
  */
 export function classifyNavigation(rawUrl: string, ctx: NavigationContext): MainNavigationAction {
   if (rawUrl === 'about:blank') {
@@ -125,16 +127,13 @@ export function classifyNavigation(rawUrl: string, ctx: NavigationContext): Main
   const fromAuthSurface = current
     ? current.origin === ctx.appOrigin && isAuthSurfacePath(current.pathname)
     : false
+  if (fromAuthSurface) {
+    return 'idp-system-login'
+  }
   if (matchesHostList(url.hostname, SYSTEM_BROWSER_IDP_HOSTS)) {
-    return fromAuthSurface ? 'idp-system-login' : 'idp-system-connect'
+    return 'idp-system-connect'
   }
-  if (matchesHostList(url.hostname, IN_WINDOW_IDP_HOSTS)) {
-    return 'idp-in-window'
-  }
-  if (current && current.origin !== ctx.appOrigin) {
-    return 'idp-in-window'
-  }
-  return fromAuthSurface ? 'idp-system-login' : 'idp-in-window'
+  return 'idp-in-window'
 }
 
 /**

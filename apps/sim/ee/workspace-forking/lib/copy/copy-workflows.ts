@@ -45,8 +45,9 @@ interface ResolveForkFolderMappingParams {
    * Source folder ids that will directly hold copied content (workflows); null entries
    * (root-placed content) are ignored. A source folder is copied into the target only when
    * its subtree contains at least one of these, so a fork/sync never creates folders that
-   * would end up empty. Copied workspace FILES never influence this set: they live in the
-   * separate `workspace_file_folders` entity and are flattened to root by the copy.
+   * would end up empty. Copied workspace FILES never influence this set: their folders are a
+   * separate tree (`folder` rows with `resourceType = 'file'`, which this copy only ever reads
+   * as `'workflow'`) and are flattened to root by the copy.
    */
   contentFolderIds: ReadonlyArray<string | null>
 }

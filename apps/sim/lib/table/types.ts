@@ -414,6 +414,8 @@ export interface TableDefinition {
   rowCount: number
   maxRows: number
   workspaceId: string
+  /** Folder the table lives in, or `null` at the workspace root. */
+  folderId?: string | null
   createdBy: string
   /** Per-table mutation locks; absent-as-all-false is normalized on read. */
   locks: TableLocks
@@ -568,6 +570,8 @@ export interface CreateTableData {
   schema: TableSchema
   workspaceId: string
   userId: string
+  /** Folder to create the table in. Omitted or `null` creates it at the workspace root. */
+  folderId?: string | null
   /** Optional stored row cap. Vestigial under plan-based enforcement (the column is no longer
    *  consulted on insert), but retained so callers that still set it type-check. */
   maxRows?: number
