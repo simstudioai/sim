@@ -7,9 +7,33 @@ import {
   buildGraphEventDateTime,
   DEFAULT_OUTLOOK_TIME_ZONE,
   flattenGraphEvent,
+  isDateOnly,
   normalizeAttendees,
 } from '@/tools/outlook/calendar-utils'
 import type { GraphEvent } from '@/tools/outlook/types'
+
+describe('date-only detection', () => {
+  it('matches only a bare YYYY-MM-DD', () => {
+    expect(isDateOnly('2025-06-03')).toBe(true)
+    expect(isDateOnly('  2025-06-03  ')).toBe(true)
+    expect(isDateOnly(undefined)).toBe(false)
+    expect(isDateOnly('2025-06-03T10:00:00Z')).toBe(false)
+    // Lacks a `T` but carries a time — must not be mistaken for an all-day bound, or the
+    // time would be discarded and the value would build as `... 10:00T00:00:00`.
+    expect(isDateOnly('2025-06-03 10:00')).toBe(false)
+  })
+
+  it('normalizes a space-separated datetime instead of mangling it', () => {
+    expect(buildGraphEventDateTime('2025-06-03 10:00')).toEqual({
+      dateTime: '2025-06-03T10:00',
+      timeZone: 'UTC',
+    })
+    expect(buildGraphEventDateTime('2025-06-03 10:00:30', 'America/Los_Angeles')).toEqual({
+      dateTime: '2025-06-03T10:00:30',
+      timeZone: 'America/Los_Angeles',
+    })
+  })
+})
 
 describe('buildGraphEventDateTime', () => {
   it('treats a date-only value as an all-day midnight start in the given zone', () => {

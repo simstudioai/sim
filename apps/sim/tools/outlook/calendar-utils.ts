@@ -93,7 +93,10 @@ export interface GraphAttendeeInput {
  * - A naive datetime is treated as wall-clock time in the provided (or default) zone.
  */
 export function buildGraphEventDateTime(value: string, timeZone?: string): GraphDateTimeTimeZone {
-  const trimmed = value.trim()
+  // Accept `YYYY-MM-DD HH:MM` as well as the ISO `T` form. Without this the space variant
+  // falls through to the date-only branch and yields `2025-06-03 10:00T00:00:00`, which
+  // Graph rejects — and it is a natural thing for a caller to type.
+  const trimmed = value.trim().replace(SPACE_SEPARATED_DATETIME_PATTERN, '$1T$2')
 
   if (!trimmed.includes('T')) {
     return { dateTime: `${trimmed}T00:00:00`, timeZone: timeZone || DEFAULT_OUTLOOK_TIME_ZONE }
@@ -115,15 +118,25 @@ export function buildGraphEventDateTime(value: string, timeZone?: string): Graph
   return { dateTime: trimmed, timeZone: timeZone || DEFAULT_OUTLOOK_TIME_ZONE }
 }
 
+/** Exactly `YYYY-MM-DD`, with no time component. */
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+
+/** `YYYY-MM-DD HH:MM[:SS]` — a space where ISO 8601 wants `T`. */
+const SPACE_SEPARATED_DATETIME_PATTERN = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}(?::\d{2})?)/
+
 /**
  * True when a bound carries a date but no time (`2025-06-03`).
  *
  * A date-only bound has no time component, so the only coherent reading is an all-day
  * event — the create/update tools promote such a pair rather than emitting a zero-length
  * midnight-to-midnight timed window, which Graph rejects.
+ *
+ * Matched strictly rather than as "contains no `T`": a space-separated datetime
+ * (`2025-06-03 10:00`) also lacks a `T`, and treating it as date-only would both discard
+ * the caller's time and build a malformed `2025-06-03 10:00T00:00:00` value.
  */
 export function isDateOnly(value: string | undefined): boolean {
-  return Boolean(value) && !value!.includes('T')
+  return Boolean(value) && DATE_ONLY_PATTERN.test(value!.trim())
 }
 
 /** Extract the `YYYY-MM-DD` date portion from a date or datetime string. */

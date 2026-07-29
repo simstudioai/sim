@@ -575,7 +575,7 @@ Create a new Outlook calendar event
 | `location` | string | No | Event location display name |
 | `attendees` | string | No | Attendee email addresses \(comma-separated\) |
 | `isAllDay` | boolean | No | Whether the event lasts the entire day |
-| `isOnlineMeeting` | boolean | No | Attach an online meeting to the event. Uses the mailbox default provider \(Teams on work/school accounts\); personal accounts have no supported online-meeting provider. |
+| `isOnlineMeeting` | boolean | No | Attach an online meeting to the event. The join URL depends on the meeting providers the mailbox allows \(Teams on work/school accounts\); personal accounts have no supported provider, so onlineMeeting.joinUrl stays null there. |
 
 #### Output
 
@@ -624,7 +624,7 @@ Update an existing Outlook calendar event
 | `location` | string | No | New event location display name |
 | `attendees` | string | No | Replacement attendee email addresses \(comma-separated\) |
 | `isAllDay` | boolean | No | Whether the event lasts the entire day. Setting this true requires also sending startDateTime, since Graph needs midnight bounds. |
-| `isOnlineMeeting` | boolean | No | Attach an online meeting to the event. Uses the mailbox default provider \(Teams on work/school accounts\); personal accounts have no supported online-meeting provider. |
+| `isOnlineMeeting` | boolean | No | Attach an online meeting to the event. The join URL depends on the meeting providers the mailbox allows \(Teams on work/school accounts\); personal accounts have no supported provider, so onlineMeeting.joinUrl stays null there. |
 
 #### Output
 

@@ -111,7 +111,7 @@ export const outlookCalendarUpdateEventTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Attach an online meeting to the event. Uses the mailbox default provider (Teams on work/school accounts); personal accounts have no supported online-meeting provider.',
+        'Attach an online meeting to the event. The join URL depends on the meeting providers the mailbox allows (Teams on work/school accounts); personal accounts have no supported provider, so onlineMeeting.joinUrl stays null there.',
     },
   },
 
