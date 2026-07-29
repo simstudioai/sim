@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
 import { getErrorMessage } from '@sim/utils/errors'
+import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import { env } from '@/lib/core/config/env'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 
@@ -81,6 +82,31 @@ export async function notifyWorkspaceTablesChanged(workspaceId: string): Promise
       error: getErrorMessage(error),
     })
   }
+}
+
+/**
+ * Folder resource types whose list is kept live by a workspace invalidation room: a folder mutation
+ * (create/rename/move/delete/restore) for one of these must fan out the same list-changed signal as a
+ * direct resource mutation, because a new/renamed/removed folder changes what that resource's browser
+ * shows. Extend this map as more resource lists adopt an invalidation room — `file` and
+ * `knowledge_base` currently refetch through their own paths, and `workflow` has no such list room.
+ */
+const FOLDER_RESOURCE_NOTIFIERS: Partial<
+  Record<FolderResourceType, (workspaceId: string) => Promise<void>>
+> = {
+  table: notifyWorkspaceTablesChanged,
+}
+
+/**
+ * Fan out the workspace live-list signal for a folder mutation, dispatched on the folder's resource
+ * type. A no-op for resource types without an invalidation room. Never throws (the underlying notify
+ * is best-effort). Callers `await` it so the dispatch is guaranteed before the mutation returns.
+ */
+export async function notifyFolderResourceChanged(
+  resourceType: FolderResourceType,
+  workspaceId: string
+): Promise<void> {
+  await FOLDER_RESOURCE_NOTIFIERS[resourceType]?.(workspaceId)
 }
 
 /**
