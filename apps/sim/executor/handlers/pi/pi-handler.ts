@@ -309,13 +309,12 @@ export class PiBlockHandler implements BlockHandler {
       throw error
     }
 
-    const { apiKey, source } = await resolvePiSearchKey({
+    const apiKey = resolvePiSearchKey({
       provider,
-      workspaceId: ctx.workspaceId,
       apiKey: asOptString(inputs.searchApiKey),
     })
 
-    const credentials = { provider, apiKey, keySource: source }
+    const credentials = { provider, apiKey }
     return mode === 'cloud'
       ? credentials
       : { ...credentials, tool: buildPiSearchToolSpec(ctx, credentials, mode) }

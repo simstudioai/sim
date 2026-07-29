@@ -15,7 +15,7 @@ import {
   extractPiSearchRecords,
   normalizePiSearchRecords,
   PI_SEARCH_BUDGET_MESSAGE,
-  PI_SEARCH_MAX_CALLS_PER_RUN,
+  PI_SEARCH_MAX_CALLS_PER_EXECUTION,
   PI_SEARCH_PROMPT_GUIDELINES,
   PI_SEARCH_TIMEOUT_MS,
   PI_SEARCH_TOOL_DESCRIPTION,
@@ -67,20 +67,18 @@ function describePiSearchFailure(label: string, status: unknown, error: unknown)
  */
 export function buildPiSearchToolSpec(
   ctx: ExecutionContext,
-  search: Pick<PiSearchConfig, 'provider' | 'apiKey' | 'keySource'>,
+  search: Pick<PiSearchConfig, 'provider' | 'apiKey'>,
   mode: 'local' | 'cloud_review'
 ): PiToolSpec {
   const { label, toolId } = PI_SEARCH_PROVIDERS[search.provider]
   const logContext = {
     provider: search.provider,
-    // A populated block field shadows a stored workspace key without a word anywhere else, so this
-    // is what turns "search suddenly fails after switching providers" into a one-line diagnosis.
-    keySource: search.keySource,
     mode,
     executionId: ctx.executionId,
   }
 
-  // Per spec, i.e. per run: the handler builds one of these for each Pi execution.
+  // Per spec, i.e. per block execution: the handler builds one of these for each Pi execution, so
+  // a Pi block inside a Loop gets a fresh allowance per iteration. See the constant for why.
   let calls = 0
 
   return {
@@ -92,7 +90,7 @@ export function buildPiSearchToolSpec(
       const { query, numResults } = parsePiSearchArgs(args)
 
       calls += 1
-      if (calls > PI_SEARCH_MAX_CALLS_PER_RUN) {
+      if (calls > PI_SEARCH_MAX_CALLS_PER_EXECUTION) {
         logger.warn('Pi search budget exhausted', { ...logContext, calls })
         return { text: PI_SEARCH_BUDGET_MESSAGE, isError: true }
       }

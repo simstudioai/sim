@@ -11,6 +11,7 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { splitWorkspaceFilePath } from '@/lib/copilot/tools/server/files/workspace-file'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
@@ -41,6 +42,7 @@ import {
   downloadServableFileFromStorage,
 } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
+import { buildZipEntryPaths } from '@/lib/uploads/zip-entry-path'
 import { performMoveWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import {
   assertActiveWorkspaceAccess,
@@ -175,9 +177,8 @@ const stripExtension = (name: string): string => {
 /**
  * Reduce an arbitrary name to a safe, flat file name: takes the final path
  * segment, drops directory and traversal components, and falls back when the
- * result would be empty or a dot segment. Used for zip entry names and the
- * compress archive name so untrusted input cannot introduce nested or
- * zip-slip-style paths.
+ * result would be empty or a dot segment. Used for the compress archive name so
+ * untrusted input cannot introduce nested or zip-slip-style paths.
  */
 const toFlatFileName = (name: string, fallback: string): string => {
   const leaf = name.replace(/\\/g, '/').split('/').pop()?.trim()
@@ -185,27 +186,10 @@ const toFlatFileName = (name: string, fallback: string): string => {
   return leaf
 }
 
-/**
- * Return a zip entry name unique within `usedNames`, appending a numeric suffix
- * before the extension on collision (e.g., "data.csv" -> "data (1).csv").
- */
-const uniqueZipEntryName = (name: string, usedNames: Set<string>): string => {
-  if (!usedNames.has(name)) {
-    usedNames.add(name)
-    return name
-  }
-
-  const dot = name.lastIndexOf('.')
-  const base = dot > 0 ? name.slice(0, dot) : name
-  const ext = dot > 0 ? name.slice(dot) : ''
-  let counter = 1
-  let candidate = `${base} (${counter})${ext}`
-  while (usedNames.has(candidate)) {
-    counter += 1
-    candidate = `${base} (${counter})${ext}`
-  }
-  usedNames.add(candidate)
-  return candidate
+/** A file bound for a compress archive, paired with the workspace folder it lives in. */
+interface ArchiveEntry {
+  file: UserFile
+  folderPath: string | null
 }
 
 const isLikelyTextBuffer = (buffer: Buffer): boolean => isUtf8(buffer) && !buffer.includes(0)
@@ -678,21 +662,35 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
-        const userFiles: UserFile[] = workspaceFiles
-          .map((file) => workspaceFileToUserFile(file))
-          .filter((file): file is NonNullable<ReturnType<typeof workspaceFileToUserFile>> =>
-            Boolean(file)
-          )
-          .concat(selectedInputFiles)
+        const workspaceEntries: ArchiveEntry[] = workspaceFiles.flatMap((file) => {
+          const userFile = workspaceFileToUserFile(file)
+          return userFile ? [{ file: userFile, folderPath: file?.folderPath ?? null }] : []
+        })
+
+        // Picker/upload values carry no workspace folder, so they archive at the root.
+        const archiveEntries = workspaceEntries.concat(
+          selectedInputFiles.map((file) => ({ file, folderPath: null }))
+        )
+        const userFiles: UserFile[] = archiveEntries.map((entry) => entry.file)
+
+        // Mirror the workspace folder layout, dropping the ancestor chain the whole
+        // selection shares so archiving one folder does not nest it under its parents.
+        const entryPaths = buildZipEntryPaths(
+          archiveEntries.map((entry) => ({ name: entry.file.name, folderPath: entry.folderPath })),
+          { rebaseOnCommonFolder: true }
+        )
 
         const zip = new JSZip()
-        const usedNames = new Set<string>()
         let totalBytes = 0
-        for (const userFile of userFiles) {
+        for (const [index, userFile] of userFiles.entries()) {
           const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
           if (denied) return denied
 
-          const buffer = await downloadFileFromStorage(userFile, requestId, logger, {
+          // Generated docs store their generation source, not the rendered binary, so
+          // the archive must carry the servable bytes instead of the raw source text.
+          // A still-compiling artifact throws, and the handler's catch turns that into
+          // the shared 409 via `docNotReadyResponse`.
+          const { buffer } = await downloadServableFileFromStorage(userFile, requestId, logger, {
             maxBytes: MAX_COMPRESS_FILE_BYTES,
           })
           totalBytes += buffer.length
@@ -707,7 +705,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               { status: 413 }
             )
           }
-          zip.file(uniqueZipEntryName(toFlatFileName(userFile.name, 'file'), usedNames), buffer)
+          zip.file(entryPaths[index], buffer)
         }
 
         const zipBuffer = await zip.generateAsync({
@@ -871,6 +869,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
     const notReady = docNotReadyResponse(error)
     if (notReady) return notReady
+    // A file over its per-file cap is a size rejection, not a fault. Rendered
+    // documents can cross it even when the stored source was well under.
+    if (isPayloadSizeLimitError(error)) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 413 })
+    }
     if (error instanceof ShareValidationError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 })
     }

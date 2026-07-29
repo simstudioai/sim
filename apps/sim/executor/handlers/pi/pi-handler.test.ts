@@ -43,8 +43,8 @@ vi.mock('@/executor/handlers/pi/keys', () => ({
   parsePiSearchProvider: mockParseSearchProvider,
   resolvePiSearchKey: mockResolveSearchKey,
   PI_SEARCH_PROVIDERS: {
-    exa: { label: 'Exa', byokProviderId: 'exa', toolId: 'exa_search' },
-    serper: { label: 'Serper', byokProviderId: 'serper', toolId: 'serper_search' },
+    exa: { label: 'Exa', toolId: 'exa_search' },
+    serper: { label: 'Serper', toolId: 'serper_search' },
   },
 }))
 vi.mock('@/executor/handlers/pi/search/tool', () => ({
@@ -135,7 +135,7 @@ describe('PiBlockHandler', () => {
     mockResolvePiModelId.mockImplementation((_providerId: string, modelId: string) => modelId)
     mockResolveKey.mockResolvedValue({ apiKey: 'k', isBYOK: true })
     mockParseSearchProvider.mockReturnValue('none')
-    mockResolveSearchKey.mockResolvedValue({ apiKey: 'search-key', source: 'byok' })
+    mockResolveSearchKey.mockReturnValue('search-key')
     mockBuildSearchTool.mockReturnValue({ name: 'web_search' })
     mockAssertPermissionsAllowed.mockResolvedValue(undefined)
     mockResolveSkills.mockResolvedValue([])
@@ -435,20 +435,19 @@ describe('PiBlockHandler', () => {
         localInputs({ searchProvider: 'exa', searchApiKey: 'field-key' })
       )
 
+      // No workspaceId: there is no stored-key lookup left to scope.
       expect(mockResolveSearchKey).toHaveBeenCalledWith({
         provider: 'exa',
-        workspaceId: 'ws',
         apiKey: 'field-key',
       })
       expect(mockBuildSearchTool).toHaveBeenCalledWith(
         expect.anything(),
-        { provider: 'exa', apiKey: 'search-key', keySource: 'byok' },
+        { provider: 'exa', apiKey: 'search-key' },
         'local'
       )
       expect(mockRunLocal.mock.calls[0][0].search).toEqual({
         provider: 'exa',
         apiKey: 'search-key',
-        keySource: 'byok',
         tool: { name: 'web_search' },
       })
     })
@@ -492,7 +491,6 @@ describe('PiBlockHandler', () => {
       expect(mockRunCloud.mock.calls[0][0].search).toEqual({
         provider: 'exa',
         apiKey: 'search-key',
-        keySource: 'byok',
       })
     })
 
@@ -515,7 +513,6 @@ describe('PiBlockHandler', () => {
       expect(mockRunCloud.mock.calls[0][0].search).toEqual({
         provider: 'exa',
         apiKey: 'search-key',
-        keySource: 'byok',
       })
     })
 
@@ -539,7 +536,9 @@ describe('PiBlockHandler', () => {
 
     it('fails the run before a sandbox is created when the key is missing', async () => {
       mockParseSearchProvider.mockReturnValue('exa')
-      mockResolveSearchKey.mockRejectedValue(new Error('Exa search requires your own Exa API key.'))
+      mockResolveSearchKey.mockImplementation(() => {
+        throw new Error('Exa search requires your own Exa API key.')
+      })
 
       await expect(
         handler.execute(ctx(), block, {

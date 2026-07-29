@@ -20,7 +20,6 @@ import {
   getPiWorkspaceBYOKProviderId,
   isPiSupportedProvider,
 } from '@/providers/pi-providers'
-import type { BYOKProviderId } from '@/tools/types'
 
 /** Resolved provider key and BYOK flag for a Pi run. */
 interface PiKeyResolution {
@@ -73,28 +72,19 @@ export async function resolvePiModelKey(params: ResolvePiModelKeyParams): Promis
 interface PiSearchProviderConfig {
   /** User-facing name, used in setup errors and the review prompt. */
   label: string
-  byokProviderId: BYOKProviderId
   /** Sim tool the host-side adapter executes; also the id checked against workspace tool denylists. */
   toolId: string
 }
 
 /** The search providers the Pi block offers, keyed by the `searchProvider` field value. */
 export const PI_SEARCH_PROVIDERS = {
-  exa: { label: 'Exa', byokProviderId: 'exa', toolId: 'exa_search' },
-  serper: { label: 'Serper', byokProviderId: 'serper', toolId: 'serper_search' },
-  parallel: { label: 'Parallel AI', byokProviderId: 'parallel_ai', toolId: 'parallel_search' },
-  firecrawl: { label: 'Firecrawl', byokProviderId: 'firecrawl', toolId: 'firecrawl_search' },
+  exa: { label: 'Exa', toolId: 'exa_search' },
+  serper: { label: 'Serper', toolId: 'serper_search' },
+  parallel: { label: 'Parallel AI', toolId: 'parallel_search' },
+  firecrawl: { label: 'Firecrawl', toolId: 'firecrawl_search' },
 } as const satisfies Record<string, PiSearchProviderConfig>
 
 export type PiSearchProvider = keyof typeof PI_SEARCH_PROVIDERS
-
-/** Where a resolved search key came from, carried into logs to diagnose a stale block field. */
-export type PiSearchKeySource = 'block' | 'byok'
-
-export interface PiSearchKeyResolution {
-  apiKey: string
-  source: PiSearchKeySource
-}
 
 /**
  * Resolves the `searchProvider` field, distinguishing absent from invalid.
@@ -115,29 +105,32 @@ export function parsePiSearchProvider(value: unknown): PiSearchProvider | 'none'
 }
 
 /**
- * Resolves the search key: the block's Search API Key field, else a stored workspace BYOK key,
- * else an error. Never a Sim-hosted key in any mode, because Create PR places this key inside the
- * coding sandbox and one uniform rule beats a mode-dependent one.
+ * Resolves the search key from the block's Search API Key field, which is the only source.
  *
- * Both sources are trimmed and a blank treated as absent. `executeTool` only skips hosted-key
- * injection for a key with `trim().length > 0`, so a whitespace-only value would otherwise fall
- * through to a rotating Sim-owned key on hosted deployments.
+ * Deliberately no workspace BYOK fallback, and never a Sim-hosted key. Unlike the model key, the
+ * Search API Key field is shown on every deployment — its visibility depends only on whether a
+ * provider is selected — so there is no configuration where the field is unavailable and a fallback
+ * would be needed. Reading a stored workspace key here would instead mean a member who cannot
+ * otherwise see that credential (the BYOK API only ever returns it masked, and only admins may
+ * manage it) could route it into the Create PR sandbox, where the agent holds bash and can read the
+ * environment. Requiring the key on the block keeps that exposure something the block's author
+ * opted into with a key they already hold.
+ *
+ * Trimmed, with a blank treated as absent: `executeTool` only skips hosted-key injection for a key
+ * with `trim().length > 0`, so a whitespace-only value would otherwise fall through to a rotating
+ * Sim-owned key on hosted deployments.
  */
-export async function resolvePiSearchKey(params: {
+export function resolvePiSearchKey(params: {
   provider: PiSearchProvider
-  workspaceId?: string
   apiKey?: string
-}): Promise<PiSearchKeyResolution> {
-  const { label, byokProviderId } = PI_SEARCH_PROVIDERS[params.provider]
+}): string {
+  const { label } = PI_SEARCH_PROVIDERS[params.provider]
 
   const fieldKey = params.apiKey?.trim()
-  if (fieldKey) return { apiKey: fieldKey, source: 'block' }
-
-  const stored = (await getBYOKKey(params.workspaceId, byokProviderId))?.apiKey.trim()
-  if (stored) return { apiKey: stored, source: 'byok' }
+  if (fieldKey) return fieldKey
 
   throw new Error(
-    `${label} search requires your own ${label} API key. Enter it in the block's Search API Key field, or store one in Settings > BYOK.`
+    `${label} search requires your own ${label} API key. Enter it in the block's Search API Key field.`
   )
 }
 

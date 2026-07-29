@@ -43,6 +43,7 @@ import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sideb
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { useDeleteKnowledgeBase, useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
+import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
@@ -143,6 +144,9 @@ export function Knowledge() {
 
   const { knowledgeBases, error } = useKnowledgeBasesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
+  const pinnedBaseIds = usePinnedIds(workspaceId, 'knowledge_base')
+  const pinItem = usePinItem()
+  const unpinItem = useUnpinItem()
 
   if (error) {
     logger.error('Failed to load knowledge bases:', error)
@@ -289,6 +293,12 @@ export function Knowledge() {
     const col = activeSort?.column ?? 'updated'
     const dir = activeSort?.direction ?? 'desc'
     return [...result].sort((a, b) => {
+      // Pinned bases float to the top of every sort/direction — pinning is a
+      // user-declared priority, not another sort key to be inverted by `desc`.
+      const aPinned = pinnedBaseIds.has(a.id)
+      const bPinned = pinnedBaseIds.has(b.id)
+      if (aPinned !== bPinned) return aPinned ? -1 : 1
+
       let cmp = 0
       switch (col) {
         case 'name':
@@ -327,6 +337,7 @@ export function Knowledge() {
     ownerFilter,
     activeSort,
     members,
+    pinnedBaseIds,
   ])
 
   const rows: ResourceRow[] = useMemo(
@@ -417,6 +428,14 @@ export function Knowledge() {
   const handleEdit = useCallback(() => {
     setIsEditModalOpen(true)
   }, [])
+
+  const handleTogglePin = useCallback(() => {
+    const kb = activeKnowledgeBaseRef.current
+    if (!kb) return
+    const mutation = pinnedBaseIds.has(kb.id) ? unpinItem : pinItem
+    mutation.mutate({ workspaceId, resourceType: 'knowledge_base', resourceId: kb.id })
+    closeRowContextMenu()
+  }, [workspaceId, pinnedBaseIds, closeRowContextMenu])
 
   const handleDelete = useCallback(() => {
     setIsDeleteModalOpen(true)
@@ -626,6 +645,8 @@ export function Knowledge() {
           onOpenInNewTab={handleOpenInNewTab}
           onViewTags={handleViewTags}
           onCopyId={handleCopyId}
+          onTogglePin={handleTogglePin}
+          pinned={pinnedBaseIds.has(activeKnowledgeBase.id)}
           onEdit={handleEdit}
           onDelete={handleDelete}
           showOpenInNewTab

@@ -1,5 +1,9 @@
 import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
+import {
+  RESOURCE_TILE_BASE,
+  RESOURCE_TILE_FILL,
+} from '@/app/workspace/[workspaceId]/components/resource-tile'
 
 /**
  * The canonical settings "resource row": a rounded-bordered icon tile, a
@@ -29,12 +33,12 @@ interface SettingsResourceRowProps {
   title: ReactNode
   /** Secondary muted line — truncates. */
   description?: ReactNode
-  /** Trailing element pinned to the row's end (chips, actions menu, status). */
+  /**
+   * Trailing element pinned to the row's end (chips, actions menu, status). The row
+   * keeps it at its natural size — callers never need their own `flex-shrink-0`.
+   */
   trailing?: ReactNode
 }
-
-const TILE_BASE =
-  'flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] [&_svg]:size-5'
 
 export function SettingsResourceRow({
   icon,
@@ -49,8 +53,8 @@ export function SettingsResourceRow({
       <div className='flex min-w-0 items-center gap-2.5'>
         <div
           className={cn(
-            TILE_BASE,
-            iconFilled ? 'bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' : 'bg-[var(--bg)]',
+            RESOURCE_TILE_BASE,
+            iconFilled ? RESOURCE_TILE_FILL : 'bg-[var(--bg)]',
             iconFill ? '[&_img]:size-full' : '[&_img]:size-5'
           )}
         >
@@ -63,7 +67,7 @@ export function SettingsResourceRow({
           )}
         </div>
       </div>
-      {trailing}
+      {trailing ? <div className='flex flex-shrink-0 items-center'>{trailing}</div> : null}
     </div>
   )
 }

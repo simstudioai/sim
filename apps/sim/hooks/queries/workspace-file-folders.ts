@@ -51,12 +51,13 @@ function invalidateWorkspaceFileBrowsers(
 
 export function useWorkspaceFileFolders(
   workspaceId: string,
-  scope: WorkspaceFileFolderScope = 'active'
+  scope: WorkspaceFileFolderScope = 'active',
+  options?: { enabled?: boolean }
 ) {
   return useQuery({
     queryKey: workspaceFileFolderKeys.list(workspaceId, scope),
     queryFn: ({ signal }) => fetchWorkspaceFileFolders(workspaceId, scope, signal),
-    enabled: Boolean(workspaceId),
+    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     staleTime: WORKSPACE_FILE_FOLDERS_STALE_TIME,
     placeholderData: keepPreviousData,
   })

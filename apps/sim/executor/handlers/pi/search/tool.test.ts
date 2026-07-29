@@ -9,7 +9,7 @@ vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 
 import {
   PI_SEARCH_BUDGET_MESSAGE,
-  PI_SEARCH_MAX_CALLS_PER_RUN,
+  PI_SEARCH_MAX_CALLS_PER_EXECUTION,
   PI_SEARCH_TIMEOUT_MS,
 } from '@/executor/handlers/pi/search/normalize'
 import {
@@ -21,7 +21,7 @@ import type { ExecutionContext } from '@/executor/types'
 const ctx = { executionId: 'exec-1', workspaceId: 'ws-1' } as unknown as ExecutionContext
 
 function buildTool(provider: 'exa' | 'serper' | 'parallel' | 'firecrawl' = 'exa') {
-  return buildPiSearchToolSpec(ctx, { provider, apiKey: 'key-123', keySource: 'byok' }, 'local')
+  return buildPiSearchToolSpec(ctx, { provider, apiKey: 'key-123' }, 'local')
 }
 
 async function run(
@@ -37,16 +37,8 @@ beforeEach(() => {
 
 describe('buildPiSearchToolSpec', () => {
   it('exposes one tool name and the untrusted-data guidelines in every mode', () => {
-    const local = buildPiSearchToolSpec(
-      ctx,
-      { provider: 'exa', apiKey: 'k', keySource: 'block' },
-      'local'
-    )
-    const review = buildPiSearchToolSpec(
-      ctx,
-      { provider: 'exa', apiKey: 'k', keySource: 'block' },
-      'cloud_review'
-    )
+    const local = buildPiSearchToolSpec(ctx, { provider: 'exa', apiKey: 'k' }, 'local')
+    const review = buildPiSearchToolSpec(ctx, { provider: 'exa', apiKey: 'k' }, 'cloud_review')
 
     expect(local.name).toBe('web_search')
     expect(review.name).toBe('web_search')
@@ -187,20 +179,20 @@ describe('buildPiSearchToolSpec', () => {
     mockExecuteTool.mockResolvedValue({ success: true, output: { results: [] } })
     const tool = buildTool('exa')
 
-    for (let call = 0; call < PI_SEARCH_MAX_CALLS_PER_RUN; call++) {
+    for (let call = 0; call < PI_SEARCH_MAX_CALLS_PER_EXECUTION; call++) {
       expect((await tool.execute({ query: `pi ${call}` })).isError).toBe(false)
     }
     const overBudget = await tool.execute({ query: 'one too many' })
 
     expect(overBudget.isError).toBe(true)
     expect(overBudget.text).toBe(PI_SEARCH_BUDGET_MESSAGE)
-    expect(mockExecuteTool).toHaveBeenCalledTimes(PI_SEARCH_MAX_CALLS_PER_RUN)
+    expect(mockExecuteTool).toHaveBeenCalledTimes(PI_SEARCH_MAX_CALLS_PER_EXECUTION)
   })
 
   it('budgets each run separately, so a later run starts fresh', async () => {
     mockExecuteTool.mockResolvedValue({ success: true, output: { results: [] } })
     const first = buildTool('exa')
-    for (let call = 0; call <= PI_SEARCH_MAX_CALLS_PER_RUN; call++) {
+    for (let call = 0; call <= PI_SEARCH_MAX_CALLS_PER_EXECUTION; call++) {
       await first.execute({ query: `pi ${call}` })
     }
 

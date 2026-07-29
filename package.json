@@ -8,6 +8,9 @@
     "apps/*",
     "packages/*"
   ],
+  "bin": {
+    "sim": "./scripts/setup/index.ts"
+  },
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
@@ -54,8 +57,13 @@
     "vfs-snapshot-contract:check": "bun run scripts/sync-vfs-snapshot-contract.ts --check",
     "mship:generate": "bun run scripts/generate-mship-contracts.ts",
     "mship:check": "bun run scripts/generate-mship-contracts.ts --check",
+    "library:covers": "bun run scripts/generate-library-covers.tsx",
+    "library:covers:check": "bun run scripts/generate-library-covers.tsx --check",
     "skills:sync": "bun run scripts/sync-skills.ts",
     "skills:check": "bun run scripts/sync-skills.ts --check",
+    "setup": "bun install && bun run scripts/setup/index.ts setup",
+    "sim": "bun run scripts/setup/index.ts",
+    "doctor": "bun run scripts/setup/index.ts doctor",
     "agent-stream-docs:generate": "bun run scripts/sync-agent-stream-docs.ts",
     "agent-stream-docs:check": "bun run scripts/sync-agent-stream-docs.ts --check",
     "prepare": "bun husky",
@@ -71,7 +79,8 @@
     "postgres": "^3.4.5",
     "minimatch": "^10.2.5",
     "mermaid": "11.15.0",
-    "zod": "4.3.6"
+    "zod": "4.3.6",
+    "e2b": "^2.36.1"
   },
   "optionalDependencies": {
     "@next/swc-darwin-arm64": "16.2.11",
@@ -81,13 +90,19 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.0.0-beta.5",
+    "@clack/prompts": "1.7.0",
     "@octokit/rest": "^21.0.0",
+    "@types/opentype.js": "1.3.10",
+    "@vercel/og": "0.6.8",
+    "chalk": "5.6.2",
     "glob": "13.0.0",
+    "gray-matter": "4.0.3",
     "husky": "9.1.7",
     "json-schema-to-typescript": "15.0.4",
     "lint-staged": "16.0.0",
-    "turbo": "2.9.14",
-    "yaml": "^2.8.1"
+    "opentype.js": "1.3.4",
+    "sharp": "0.35.3",
+    "turbo": "2.9.14"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,css,scss}": [
@@ -97,8 +112,5 @@
   "trustedDependencies": [
     "isolated-vm",
     "sharp"
-  ],
-  "dependencies": {
-    "@aws-sdk/client-appconfig": "3.1032.0"
-  }
+  ]
 }

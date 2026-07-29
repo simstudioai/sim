@@ -198,7 +198,7 @@ export function ChatDeploy({
             )
           : [],
         includeThinking: existingChat.includeThinking ?? false,
-        includeToolCalls: existingChat.includeToolCalls ?? existingChat.includeThinking ?? false,
+        includeToolCalls: existingChat.includeToolCalls ?? false,
       })
 
       if (existingChat.customizations?.imageUrl) {

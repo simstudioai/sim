@@ -48,7 +48,7 @@ jobs:
             ${{ runner.os }}-bun-
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
 
       # The expression maps the explicit environment input to exactly one repo
       # secret, so the job never holds another environment's database URL. An

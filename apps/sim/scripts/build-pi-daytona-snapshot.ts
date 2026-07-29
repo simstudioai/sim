@@ -24,7 +24,7 @@
  *   DAYTONA_PI_SNAPSHOT_ID=<name:tag>
  */
 
-import { Daytona, Image } from '@daytonaio/sdk'
+import { Daytona, Image } from '@daytona/sdk'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   PI_APT,

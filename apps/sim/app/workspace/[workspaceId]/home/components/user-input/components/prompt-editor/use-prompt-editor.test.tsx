@@ -7,20 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/hooks/queries/skills', () => ({ useSkills: () => ({ data: [] }) }))
 vi.mock('@/hooks/queries/mcp', () => ({ useMcpServers: () => ({ data: [] }) }))
-vi.mock('@/hooks/queries/workflows', () => ({ useWorkflows: () => ({ data: [] }) }))
-vi.mock('@/hooks/queries/tables', () => ({ useTablesList: () => ({ data: [] }) }))
-vi.mock('@/hooks/queries/workspace-files', () => ({ useWorkspaceFiles: () => ({ data: [] }) }))
-vi.mock('@/hooks/queries/kb/knowledge', () => ({ useKnowledgeBasesQuery: () => ({ data: [] }) }))
-vi.mock('@/hooks/queries/folders', () => ({ useFolders: () => ({ data: [] }) }))
-vi.mock('@/hooks/queries/workspace-file-folders', () => ({
-  useWorkspaceFileFolders: () => ({ data: [] }),
-}))
-vi.mock('@/hooks/queries/mothership-chats', () => ({ useMothershipChats: () => ({ data: [] }) }))
-vi.mock('@/hooks/queries/schedules', () => ({ useWorkspaceSchedules: () => ({ data: [] }) }))
-vi.mock('@/hooks/queries/logs', () => ({ useLogsList: () => ({ data: undefined }) }))
 vi.mock('@/blocks/integration-matcher', () => ({
   getIntegrationMatcher: () => ({ regex: null, byName: new Map() }),
-  listIntegrations: () => [],
 }))
 
 import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
@@ -91,7 +79,7 @@ describe('usePromptEditor mention menu dismissal', () => {
       open: vi.fn(),
       close: vi.fn(),
       moveActive: vi.fn(),
-      selectActive: vi.fn(() => false),
+      selectActive: vi.fn(() => 'empty' as const),
     }
   })
 

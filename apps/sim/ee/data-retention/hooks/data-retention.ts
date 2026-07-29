@@ -10,6 +10,8 @@ import {
   updateOrganizationDataRetentionContract,
 } from '@/lib/api/contracts/organization'
 
+export const DATA_RETENTION_STALE_TIME = 60 * 1000
+
 export type RetentionValues = OrganizationRetentionValues
 export type DataRetentionResponse = OrganizationDataRetention
 
@@ -34,7 +36,7 @@ export function useOrganizationRetention(orgId: string | undefined) {
     queryKey: dataRetentionKeys.settings(orgId ?? ''),
     queryFn: ({ signal }) => fetchDataRetention(orgId as string, signal),
     enabled: Boolean(orgId),
-    staleTime: 60 * 1000,
+    staleTime: DATA_RETENTION_STALE_TIME,
   })
 }
 

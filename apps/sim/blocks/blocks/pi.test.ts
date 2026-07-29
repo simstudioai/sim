@@ -66,6 +66,16 @@ describe('Pi block search fields', () => {
     expect(searchKeyVisible({ searchProvider: undefined })).toBe(false)
   })
 
+  // The field is the only source for the search key — no workspace BYOK fallback, no hosted key —
+  // so it has to be required. Safe despite the condition: the serializer's required check returns
+  // early for fields that are not visible, which is what keeps a Pi block with search off from
+  // failing validation over a key it does not need.
+  it('requires the key, which the hidden case must not enforce', () => {
+    expect(searchApiKeyField?.required).toBe(true)
+    expect(searchKeyVisible({ searchProvider: 'none' })).toBe(false)
+    expect(searchKeyVisible({})).toBe(false)
+  })
+
   // `inputs` is the block's type map, not the delivery mechanism — the handler reads resolved
   // params — but an undeclared input is a convention break the next block author would copy.
   it('declares both fields in the block input map', () => {

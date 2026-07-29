@@ -245,53 +245,37 @@ describe('resolvePiSearchKey', () => {
     vi.clearAllMocks()
   })
 
-  it('prefers the block field and reports its source', async () => {
-    await expect(
-      resolvePiSearchKey({ provider: 'exa', workspaceId: 'ws-1', apiKey: 'exa-field' })
-    ).resolves.toEqual({ apiKey: 'exa-field', source: 'block' })
+  it('returns the trimmed block field, the only source', () => {
+    expect(resolvePiSearchKey({ provider: 'exa', apiKey: '  exa-field  ' })).toBe('exa-field')
+  })
+
+  // The field is shown on every deployment, so there is no configuration where a fallback would be
+  // needed — and reading one would pull a workspace credential the runner cannot otherwise see into
+  // the Create PR sandbox.
+  it('never reads a stored workspace BYOK key', () => {
+    expect(() => resolvePiSearchKey({ provider: 'serper' })).toThrow(
+      /Serper search requires your own Serper API key/
+    )
     expect(mockGetBYOKKey).not.toHaveBeenCalled()
   })
 
-  it('falls back to the stored workspace key for the selected provider', async () => {
-    mockGetBYOKKey.mockResolvedValue({ apiKey: 'serper-stored', isBYOK: true })
-
-    await expect(resolvePiSearchKey({ provider: 'serper', workspaceId: 'ws-1' })).resolves.toEqual({
-      apiKey: 'serper-stored',
-      source: 'byok',
-    })
-    expect(mockGetBYOKKey).toHaveBeenCalledWith('ws-1', 'serper')
+  it('treats a whitespace-only key as absent, so no hosted key can be injected later', () => {
+    expect(() => resolvePiSearchKey({ provider: 'firecrawl', apiKey: '   ' })).toThrow(
+      /Firecrawl search requires your own Firecrawl API key/
+    )
+    expect(mockGetBYOKKey).not.toHaveBeenCalled()
   })
 
-  it('maps Parallel to its BYOK provider id', async () => {
-    mockGetBYOKKey.mockResolvedValue({ apiKey: 'parallel-stored', isBYOK: true })
-
-    await resolvePiSearchKey({ provider: 'parallel', workspaceId: 'ws-1' })
-    expect(mockGetBYOKKey).toHaveBeenCalledWith('ws-1', 'parallel_ai')
-  })
-
-  it('treats a whitespace-only key as absent, so no hosted key can be injected later', async () => {
-    mockGetBYOKKey.mockResolvedValue({ apiKey: '  firecrawl-stored  ', isBYOK: true })
-
-    await expect(
-      resolvePiSearchKey({ provider: 'firecrawl', workspaceId: 'ws-1', apiKey: '   ' })
-    ).resolves.toEqual({ apiKey: 'firecrawl-stored', source: 'byok' })
-    expect(mockGetBYOKKey).toHaveBeenCalledWith('ws-1', 'firecrawl')
-  })
-
-  it('never falls back to a Sim-hosted key', async () => {
-    mockGetBYOKKey.mockResolvedValue(null)
-
-    await expect(resolvePiSearchKey({ provider: 'exa', workspaceId: 'ws-1' })).rejects.toThrow(
+  it('never falls back to a Sim-hosted key', () => {
+    expect(() => resolvePiSearchKey({ provider: 'exa' })).toThrow(
       /Exa search requires your own Exa API key/
     )
     expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
   })
 
-  it('reports a blank stored key as missing rather than passing it on', async () => {
-    mockGetBYOKKey.mockResolvedValue({ apiKey: '   ', isBYOK: true })
-
-    await expect(resolvePiSearchKey({ provider: 'serper', workspaceId: 'ws-1' })).rejects.toThrow(
-      /Serper search requires your own Serper API key/
+  it('names the selected provider in the setup error, matching the dropdown label', () => {
+    expect(() => resolvePiSearchKey({ provider: 'parallel' })).toThrow(
+      /Parallel AI search requires your own Parallel AI API key/
     )
   })
 })

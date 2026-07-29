@@ -27,7 +27,7 @@ import { usePostHog } from 'posthog-js/react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { captureEvent } from '@/lib/posthog/client'
-import { triggerFileDownload } from '@/lib/uploads/client/download'
+import { triggerArchiveDownload, triggerFileDownload } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import {
@@ -84,6 +84,7 @@ import {
 } from '@/app/workspace/[workspaceId]/files/search-params'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
 import {
   useBulkArchiveWorkspaceFileItems,
@@ -212,6 +213,11 @@ export function Files() {
   const { data: files = EMPTY_WORKSPACE_FILES, isLoading, error } = useWorkspaceFiles(workspaceId)
   const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS } = useWorkspaceFileFolders(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
+  const pinnedFileIds = usePinnedIds(workspaceId, 'file')
+  // Folders pin under their own resource type, so their pinned set is a separate query.
+  const pinnedFolderIds = usePinnedIds(workspaceId, 'folder')
+  const pinItem = usePinItem()
+  const unpinItem = useUnpinItem()
   const membersById = useMemo(() => {
     const map = new Map<string, WorkspaceMember>()
     for (const member of members ?? []) map.set(member.userId, member)
@@ -395,6 +401,12 @@ export function Files() {
     const col = activeSort?.column ?? 'name'
     const dir = activeSort?.direction ?? 'asc'
     return [...searched].sort((a, b) => {
+      // Pinned folders float to the top of every sort/direction — pinning is a
+      // user-declared priority, not another sort key to be inverted by `desc`.
+      const aPinned = pinnedFolderIds.has(a.id)
+      const bPinned = pinnedFolderIds.has(b.id)
+      if (aPinned !== bPinned) return aPinned ? -1 : 1
+
       let cmp = 0
       if (col === 'updated') {
         cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
@@ -405,7 +417,7 @@ export function Files() {
       }
       return dir === 'asc' ? cmp : -cmp
     })
-  }, [folders, currentFolderId, debouncedSearchTerm, activeSort])
+  }, [folders, currentFolderId, debouncedSearchTerm, activeSort, pinnedFolderIds])
 
   const filteredFiles = useMemo(() => {
     const needle = debouncedSearchTerm.trim().toLowerCase()
@@ -443,6 +455,12 @@ export function Files() {
     const col = activeSort?.column ?? 'updated'
     const dir = activeSort?.direction ?? 'desc'
     return [...result].sort((a, b) => {
+      // Pinned files float to the top of every sort/direction — pinning is a
+      // user-declared priority, not another sort key to be inverted by `desc`.
+      const aPinned = pinnedFileIds.has(a.id)
+      const bPinned = pinnedFileIds.has(b.id)
+      if (aPinned !== bPinned) return aPinned ? -1 : 1
+
       let cmp = 0
       switch (col) {
         case 'name':
@@ -477,6 +495,7 @@ export function Files() {
     uploadedByFilter,
     activeSort,
     membersById,
+    pinnedFileIds,
   ])
 
   const baseRows: ResourceRow[] = useMemo(() => {
@@ -951,6 +970,7 @@ export function Files() {
         })
       } catch (err) {
         logger.error('Failed to download file:', err)
+        toast.error(getErrorMessage(err, `Failed to download "${file.name}"`))
       }
     },
     [workspaceId]
@@ -1071,25 +1091,44 @@ export function Files() {
     setShowDeleteConfirm(true)
   }, [selectedFileIds, selectedFolderIds, files, folders])
 
-  const handleBulkDownload = useCallback(() => {
+  const [isDownloadingArchive, setIsDownloadingArchive] = useState(false)
+  // Ref as well as state: two clicks in the same tick would both pass a state check,
+  // and each concurrent archive holds the whole zip in tab memory.
+  const archiveDownloadInFlightRef = useRef(false)
+
+  const downloadArchive = useCallback(
+    async (selection: { fileIds?: string[]; folderIds?: string[] }) => {
+      if (archiveDownloadInFlightRef.current) return
+      archiveDownloadInFlightRef.current = true
+      setIsDownloadingArchive(true)
+      try {
+        await triggerArchiveDownload({ workspaceId, ...selection })
+      } catch (err) {
+        logger.error('Failed to download selection:', err)
+        toast.error(getErrorMessage(err, 'Failed to download the selected files'))
+      } finally {
+        archiveDownloadInFlightRef.current = false
+        setIsDownloadingArchive(false)
+      }
+    },
+    [workspaceId]
+  )
+
+  const handleBulkDownload = useCallback(async () => {
     const selectedFiles = files.filter((file) => selectedFileIds.includes(file.id))
     if (selectedFiles.length === 1 && selectedFolderIds.length === 0) {
       handleDownload(selectedFiles[0])
       return
     }
 
-    const query = new URLSearchParams()
-    for (const fileId of selectedFileIds) query.append('fileIds', fileId)
-    for (const folderId of selectedFolderIds) query.append('folderIds', folderId)
-
-    if (query.size === 0) return
+    if (selectedFileIds.length === 0 && selectedFolderIds.length === 0) return
     captureEvent(posthogRef.current, 'file_downloaded', {
       workspace_id: workspaceId,
       is_bulk: true,
       file_count: selectedFileIds.length + selectedFolderIds.length,
     })
-    window.location.href = `/api/workspaces/${workspaceId}/files/download?${query.toString()}`
-  }, [selectedFileIds, selectedFolderIds, files, handleDownload, workspaceId])
+    await downloadArchive({ fileIds: selectedFileIds, folderIds: selectedFolderIds })
+  }, [selectedFileIds, selectedFolderIds, files, handleDownload, downloadArchive, workspaceId])
 
   const fileDetailBreadcrumbs = useMemo(() => {
     if (!selectedFile) return []
@@ -1280,18 +1319,19 @@ export function Files() {
     if (!item) return
     const rowId = item.kind === 'file' ? fileRowId(item.file.id) : folderRowId(item.folder.id)
     if (selectedRowIds.has(rowId) && selectedRowIds.size > 1) {
-      handleBulkDownload()
+      void handleBulkDownload()
       closeContextMenu()
       return
     }
     if (item.kind === 'folder') {
-      window.location.href = `/api/workspaces/${workspaceId}/files/download?folderIds=${encodeURIComponent(item.folder.id)}`
+      const folderId = item.folder.id
       closeContextMenu()
+      void downloadArchive({ folderIds: [folderId] })
       return
     }
     handleDownload(item.file)
     closeContextMenu()
-  }, [selectedRowIds, handleBulkDownload, closeContextMenu, workspaceId, handleDownload])
+  }, [selectedRowIds, handleBulkDownload, closeContextMenu, downloadArchive, handleDownload])
 
   const handleContextMenuRename = useCallback(() => {
     const item = contextMenuItemRef.current
@@ -1324,6 +1364,17 @@ export function Files() {
     setShowDeleteConfirm(true)
     closeContextMenu()
   }, [selectedRowIds, handleBulkDelete, closeContextMenu])
+
+  const handleContextMenuTogglePin = useCallback(() => {
+    const item = contextMenuItemRef.current
+    if (!item) return
+    const resourceType = item.kind === 'folder' ? 'folder' : 'file'
+    const pinned =
+      item.kind === 'folder' ? pinnedFolderIds.has(item.id) : pinnedFileIds.has(item.id)
+    const mutation = pinned ? unpinItem : pinItem
+    mutation.mutate({ workspaceId, resourceType, resourceId: item.id })
+    closeContextMenu()
+  }, [workspaceId, pinnedFolderIds, pinnedFileIds, closeContextMenu])
 
   const handleContextMenuMove = useCallback(
     async (optionValue: string) => {
@@ -1945,6 +1996,16 @@ export function Files() {
     )
   }
 
+  /**
+   * Read off the same ref the context-menu handlers use, so the menu's Pin/Unpin label
+   * describes the row that was right-clicked. Opening the menu is a state change, so
+   * this re-reads on the render that shows it.
+   */
+  const contextMenuItem = contextMenuItemRef.current
+  const isContextMenuItemPinned = contextMenuItem
+    ? (contextMenuItem.kind === 'folder' ? pinnedFolderIds : pinnedFileIds).has(contextMenuItem.id)
+    : false
+
   return (
     <div
       className='relative flex h-full flex-col overflow-hidden'
@@ -1981,7 +2042,9 @@ export function Files() {
                 onMove={canEdit ? handleContextMenuMove : undefined}
                 moveOptions={canEdit ? contextMenuMoveOptions : undefined}
                 onDelete={canEdit ? handleBulkDelete : undefined}
-                isLoading={bulkArchiveItems.isPending || moveItems.isPending}
+                isLoading={
+                  bulkArchiveItems.isPending || moveItems.isPending || isDownloadingArchive
+                }
               />
               {isDraggingOver ? (
                 <div className='pointer-events-none absolute inset-0 z-[var(--z-dropdown)] flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--surface-4)] transition-colors'>
@@ -2022,11 +2085,9 @@ export function Files() {
         onRename={handleContextMenuRename}
         onDelete={handleContextMenuDelete}
         onMove={handleContextMenuMove}
-        onShare={
-          canEdit && contextMenuItemRef.current?.kind === 'file'
-            ? handleContextMenuShare
-            : undefined
-        }
+        onShare={canEdit && contextMenuItem?.kind === 'file' ? handleContextMenuShare : undefined}
+        onTogglePin={handleContextMenuTogglePin}
+        pinned={isContextMenuItemPinned}
         moveOptions={contextMenuMoveOptions}
         canEdit={canEdit}
         selectedCount={selectedRowIds.size}

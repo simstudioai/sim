@@ -33,6 +33,7 @@ import {
   tablesUrlKeys,
 } from '@/app/workspace/[workspaceId]/tables/search-params'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import {
   cancelTableJob,
   downloadTableExport,
@@ -78,6 +79,9 @@ export function Tables() {
 
   const { data: tables = [], error } = useTablesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
+  const pinnedTableIds = usePinnedIds(workspaceId, 'table')
+  const pinItem = usePinItem()
+  const unpinItem = useUnpinItem()
 
   if (error) {
     logger.error('Failed to load tables:', error)
@@ -160,6 +164,12 @@ export function Tables() {
       result = result.filter((t) => ownerFilter.includes(t.createdBy))
     }
     return [...result].sort((a, b) => {
+      // Pinned tables float to the top of every sort/direction — pinning is a
+      // user-declared priority, not another sort key to be inverted by `desc`.
+      const aPinned = pinnedTableIds.has(a.id)
+      const bPinned = pinnedTableIds.has(b.id)
+      if (aPinned !== bPinned) return aPinned ? -1 : 1
+
       let cmp = 0
       switch (sortColumn) {
         case 'name':
@@ -186,7 +196,16 @@ export function Tables() {
       }
       return sortDirection === 'asc' ? cmp : -cmp
     })
-  }, [tables, debouncedSearchTerm, rowCountFilter, ownerFilter, sortColumn, sortDirection, members])
+  }, [
+    tables,
+    debouncedSearchTerm,
+    rowCountFilter,
+    ownerFilter,
+    sortColumn,
+    sortDirection,
+    members,
+    pinnedTableIds,
+  ])
 
   const rows: ResourceRow[] = useMemo(
     () =>
@@ -417,6 +436,13 @@ export function Tables() {
     [tables, handleRowCtxMenu]
   )
 
+  const handleTogglePin = useCallback(() => {
+    if (!activeTable) return
+    const mutation = pinnedTableIds.has(activeTable.id) ? unpinItem : pinItem
+    mutation.mutate({ workspaceId, resourceType: 'table', resourceId: activeTable.id })
+    closeRowContextMenu()
+  }, [workspaceId, activeTable, pinnedTableIds, closeRowContextMenu])
+
   const handleDelete = async () => {
     if (!activeTable) return
     try {
@@ -642,6 +668,8 @@ export function Tables() {
         onCopyId={() => {
           if (activeTable) navigator.clipboard.writeText(activeTable.id)
         }}
+        onTogglePin={handleTogglePin}
+        pinned={activeTable ? pinnedTableIds.has(activeTable.id) : false}
         onDelete={() => setIsDeleteDialogOpen(true)}
         onRename={() => {
           if (activeTable) tableRename.startRename(activeTable.id, activeTable.name)

@@ -6,8 +6,24 @@ import { Plus, X } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import type { ColumnDefinition, Filter, FilterRule } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
-import { COMPARISON_OPERATORS, VALUELESS_OPERATORS } from '@/lib/table/query-builder/constants'
+import {
+  COMPARISON_OPERATORS,
+  MULTI_SELECT_FILTER_OPERATORS,
+  SINGLE_SELECT_FILTER_OPERATORS,
+  VALUELESS_OPERATORS,
+} from '@/lib/table/query-builder/constants'
 import { filterRulesToFilter, filterToRules } from '@/lib/table/query-builder/converters'
+
+const SINGLE_SELECT_COMPARISON_OPERATORS = COMPARISON_OPERATORS.filter((o) =>
+  SINGLE_SELECT_FILTER_OPERATORS.has(o.value)
+)
+const MULTI_SELECT_COMPARISON_OPERATORS = COMPARISON_OPERATORS.filter((o) =>
+  MULTI_SELECT_FILTER_OPERATORS.has(o.value)
+)
+
+function selectFilterOperators(column: ColumnDefinition | undefined): Set<string> {
+  return column?.multiple ? MULTI_SELECT_FILTER_OPERATORS : SINGLE_SELECT_FILTER_OPERATORS
+}
 
 interface TableFilterProps {
   columns: ColumnDefinition[]
@@ -28,6 +44,11 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
   // `value` is the filter field key (column id); `label` is what the user sees.
   const columnOptions = useMemo(
     () => columns.map((col) => ({ value: getColumnId(col), label: col.name })),
+    [columns]
+  )
+
+  const columnById = useMemo(
+    () => new Map(columns.map((col) => [getColumnId(col), col])),
     [columns]
   )
 
@@ -53,6 +74,32 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
     setRules((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
   }, [])
 
+  // Switching a rule's column across the select boundary changes what values and
+  // operators are valid, so clear the value and coerce an unsupported operator
+  // back to `eq` — otherwise a stale free-text value or a range operator would
+  // apply against a select column and be rejected server-side.
+  const handleColumnChange = useCallback(
+    (id: string, columnId: string) => {
+      setRules((prev) =>
+        prev.map((r) => {
+          if (r.id !== id) return r
+          const previous = columnById.get(r.column)
+          const next = columnById.get(columnId)
+          const wasSelect = previous?.type === 'select'
+          const isSelect = next?.type === 'select'
+          if (!wasSelect && !isSelect) return { ...r, column: columnId }
+          // Single- and multi-select take different operators, so a switch
+          // between them has to fall back too, not just select ↔ non-select.
+          const allowed = selectFilterOperators(next)
+          const fallback = next?.multiple ? 'contains' : 'eq'
+          const operator = isSelect && !allowed.has(r.operator) ? fallback : r.operator
+          return { ...r, column: columnId, operator, value: '' }
+        })
+      )
+    },
+    [columnById]
+  )
+
   const handleToggleLogical = useCallback((id: string) => {
     setRules((prev) =>
       prev.map((r) =>
@@ -65,8 +112,8 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
     const validRules = rulesRef.current.filter(
       (r) => r.column && (r.value || VALUELESS_OPERATORS.has(r.operator))
     )
-    onApply(filterRulesToFilter(validRules))
-  }, [onApply])
+    onApply(filterRulesToFilter(validRules, columns))
+  }, [columns, onApply])
 
   const handleClear = useCallback(() => {
     setRules([createRule(columns)])
@@ -82,7 +129,9 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
             rule={rule}
             isFirst={index === 0}
             columns={columnOptions}
+            columnById={columnById}
             onUpdate={handleUpdate}
+            onColumnChange={handleColumnChange}
             onRemove={handleRemove}
             onApply={handleApply}
             onToggleLogical={handleToggleLogical}
@@ -124,7 +173,9 @@ interface FilterRuleRowProps {
   rule: FilterRule
   isFirst: boolean
   columns: Array<{ value: string; label: string }>
+  columnById: ReadonlyMap<string, ColumnDefinition>
   onUpdate: (id: string, field: keyof FilterRule, value: string) => void
+  onColumnChange: (id: string, columnId: string) => void
   onRemove: (id: string) => void
   onApply: () => void
   onToggleLogical: (id: string) => void
@@ -134,7 +185,9 @@ const FilterRuleRow = memo(function FilterRuleRow({
   rule,
   isFirst,
   columns,
+  columnById,
   onUpdate,
+  onColumnChange,
   onRemove,
   onApply,
   onToggleLogical,
@@ -146,6 +199,24 @@ const FilterRuleRow = memo(function FilterRuleRow({
     rule.column && !columns.some((col) => col.value === rule.column)
       ? [...columns, { value: rule.column, label: rule.column }]
       : columns
+
+  const selectedColumn = columnById.get(rule.column)
+  const isSelect = selectedColumn?.type === 'select'
+  const operatorOptions = !isSelect
+    ? COMPARISON_OPERATORS
+    : selectedColumn?.multiple
+      ? MULTI_SELECT_COMPARISON_OPERATORS
+      : SINGLE_SELECT_COMPARISON_OPERATORS
+
+  // A stale id (option since deleted) stays selectable so the rule still shows.
+  const selectValueOptions = isSelect
+    ? (() => {
+        const opts = (selectedColumn.options ?? []).map((o) => ({ value: o.id, label: o.name }))
+        return rule.value && !opts.some((o) => o.value === rule.value)
+          ? [...opts, { value: rule.value, label: rule.value }]
+          : opts
+      })()
+    : []
 
   return (
     <div className='flex items-center gap-1.5'>
@@ -163,7 +234,7 @@ const FilterRuleRow = memo(function FilterRuleRow({
       <ChipDropdown
         options={columnOptions}
         value={rule.column}
-        onChange={(value) => onUpdate(rule.id, 'column', value)}
+        onChange={(value) => onColumnChange(rule.id, value)}
         placeholder='Column'
         align='start'
         matchTriggerWidth={false}
@@ -171,7 +242,7 @@ const FilterRuleRow = memo(function FilterRuleRow({
       />
 
       <ChipDropdown
-        options={COMPARISON_OPERATORS}
+        options={operatorOptions}
         value={rule.operator}
         onChange={(value) => onUpdate(rule.id, 'operator', value)}
         placeholder='Operator'
@@ -182,6 +253,16 @@ const FilterRuleRow = memo(function FilterRuleRow({
 
       {VALUELESS_OPERATORS.has(rule.operator) ? (
         <div className='h-[30px] flex-1' />
+      ) : isSelect ? (
+        <ChipDropdown
+          options={selectValueOptions}
+          value={rule.value}
+          onChange={(value) => onUpdate(rule.id, 'value', value)}
+          placeholder='Select a value'
+          align='start'
+          matchTriggerWidth={false}
+          className='min-w-[100px] flex-1'
+        />
       ) : (
         <ChipInput
           value={rule.value}
@@ -208,11 +289,13 @@ const FilterRuleRow = memo(function FilterRuleRow({
 })
 
 function createRule(columns: ColumnDefinition[]): FilterRule {
+  const first = columns[0]
   return {
     id: generateShortId(),
     logicalOperator: 'and',
-    column: columns[0] ? getColumnId(columns[0]) : '',
-    operator: 'eq',
+    column: first ? getColumnId(first) : '',
+    // A multi-select can't be compared for equality — default it to membership.
+    operator: first?.type === 'select' && first.multiple ? 'contains' : 'eq',
     value: '',
   }
 }

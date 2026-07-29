@@ -227,7 +227,7 @@ export async function fetchMothershipChats(
  */
 export function useMothershipChats(
   workspaceId?: string,
-  options?: { scope?: MothershipChatScope }
+  options?: { scope?: MothershipChatScope; enabled?: boolean }
 ) {
   const scope = options?.scope ?? 'active'
   return useQuery({
@@ -235,6 +235,7 @@ export function useMothershipChats(
     queryFn: workspaceId
       ? ({ signal }) => fetchMothershipChats(workspaceId, scope, signal)
       : skipToken,
+    enabled: options?.enabled ?? true,
     placeholderData: keepPreviousData,
     staleTime: MOTHERSHIP_CHAT_LIST_STALE_TIME,
   })

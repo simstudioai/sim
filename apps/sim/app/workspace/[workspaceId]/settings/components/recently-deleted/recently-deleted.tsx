@@ -21,6 +21,7 @@ import {
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useMothershipChats, useRestoreMothershipChat } from '@/hooks/queries/mothership-chats'
@@ -31,7 +32,6 @@ import {
   useWorkspaceFileFolders,
 } from '@/hooks/queries/workspace-file-folders'
 import { useRestoreWorkspaceFile, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
-import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useUrlSort } from '@/hooks/use-url-sort'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
@@ -142,7 +142,7 @@ export function RecentlyDeleted() {
   const workspaceId = params?.workspaceId as string
   const workspacePermissions = useUserPermissionsContext()
   const canEdit = canMutateWorkspaceSettingsSection('recently-deleted', workspacePermissions)
-  const [{ tab: activeTab, search: urlSearchTerm }, setRecentlyDeletedFilters] = useQueryStates(
+  const [{ tab: activeTab }, setRecentlyDeletedFilters] = useQueryStates(
     recentlyDeletedParsers,
     recentlyDeletedUrlKeys
   )
@@ -160,9 +160,7 @@ export function RecentlyDeleted() {
    * write is debounced. Filtering below is cheap in-memory over a small list, so
    * it reads the instant value too.
    */
-  const setSearchTerm = useDebouncedSearchSetter((value, options) =>
-    setRecentlyDeletedFilters({ search: value }, options)
-  )
+  const [urlSearchTerm, setSearchTerm] = useSettingsSearch()
 
   const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set())
   const [restoredItems, setRestoredItems] = useState<Map<string, RestoredResourceEntry>>(new Map())
@@ -220,7 +218,7 @@ export function RecentlyDeleted() {
         id: folder.id,
         name: folder.name,
         type: 'folder',
-        deletedAt: folder.archivedAt ? new Date(folder.archivedAt) : new Date(folder.updatedAt),
+        deletedAt: folder.deletedAt ? new Date(folder.deletedAt) : new Date(folder.updatedAt),
         workspaceId: folder.workspaceId,
       })
     }
@@ -464,22 +462,18 @@ export function RecentlyDeleted() {
                 }
                 trailing={
                   !canRestore ? null : isRestoring ? (
-                    <Chip variant='primary' disabled className='shrink-0'>
+                    <Chip variant='primary' disabled>
                       Restoring...
                     </Chip>
                   ) : isRestored ? (
-                    <div className='flex shrink-0 items-center gap-2'>
+                    <div className='flex items-center gap-2'>
                       <span className='text-[var(--text-muted)] text-small'>Restored</span>
                       <Chip variant='primary' onClick={() => handleView(resource)}>
                         View
                       </Chip>
                     </div>
                   ) : (
-                    <Chip
-                      variant='primary'
-                      onClick={() => void handleRestore(resource)}
-                      className='shrink-0'
-                    >
+                    <Chip variant='primary' onClick={() => void handleRestore(resource)}>
                       Restore
                     </Chip>
                   )

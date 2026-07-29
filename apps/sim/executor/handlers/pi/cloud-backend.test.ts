@@ -461,7 +461,7 @@ describe('runCloudPi', () => {
   })
 
   describe('optional web search', () => {
-    const search = { provider: 'exa' as const, apiKey: 'sk-search', keySource: 'byok' as const }
+    const search = { provider: 'exa' as const, apiKey: 'sk-search' }
 
     it('runs the stock Pi command with no extension when search is off', async () => {
       await runCloudPi(baseParams(), { onEvent: vi.fn() })

@@ -17,7 +17,7 @@ import {
   EXA_MAX_TEXT_CHARACTERS,
   PI_SEARCH_BUDGET_MESSAGE,
   PI_SEARCH_DEFAULT_RESULTS,
-  PI_SEARCH_MAX_CALLS_PER_RUN,
+  PI_SEARCH_MAX_CALLS_PER_EXECUTION,
   PI_SEARCH_MAX_DATE_LENGTH,
   PI_SEARCH_MAX_ENVELOPE_BYTES,
   PI_SEARCH_MAX_QUERY_LENGTH,
@@ -32,6 +32,7 @@ import {
   PI_SEARCH_TOOL_DESCRIPTION,
   PI_SEARCH_TOOL_NAME,
   PI_SEARCH_TOOL_PARAMETERS,
+  PI_SEARCH_TRUNCATED_MESSAGE,
 } from '@/executor/handlers/pi/search/normalize'
 
 /**
@@ -71,8 +72,9 @@ const MAX_DATE_LENGTH = ${PI_SEARCH_MAX_DATE_LENGTH}
 const MAX_URL_LENGTH = ${PI_SEARCH_MAX_URL_LENGTH}
 const MAX_ENVELOPE_BYTES = ${PI_SEARCH_MAX_ENVELOPE_BYTES}
 const NO_RESULTS_MESSAGE = ${JSON.stringify(PI_SEARCH_NO_RESULTS_MESSAGE)}
+const TRUNCATED_MESSAGE = ${JSON.stringify(PI_SEARCH_TRUNCATED_MESSAGE)}
 const EXA_MAX_TEXT_CHARACTERS = ${EXA_MAX_TEXT_CHARACTERS}
-const MAX_CALLS_PER_RUN = ${PI_SEARCH_MAX_CALLS_PER_RUN}
+const MAX_CALLS_PER_RUN = ${PI_SEARCH_MAX_CALLS_PER_EXECUTION}
 const BUDGET_MESSAGE = ${JSON.stringify(PI_SEARCH_BUDGET_MESSAGE)}
 
 const PROVIDER_LABELS = {
@@ -147,10 +149,13 @@ function collapseWhitespace(value) {
   return value.replace(/\\s+/g, " ").trim()
 }
 
+const URL_FORBIDDEN_CHARACTERS = /[\\s\\u0000-\\u001f\\u007f]/
+
 function usableUrl(value) {
   const raw = asText(value).trim()
   if (!raw || raw.length > MAX_URL_LENGTH) return undefined
   if (!/^https?:\\/\\//i.test(raw)) return undefined
+  if (URL_FORBIDDEN_CHARACTERS.test(raw)) return undefined
   return raw
 }
 
@@ -172,6 +177,9 @@ function extractRecords(provider, payload) {
   }
   if (provider === "serper") {
     return Array.isArray(payload.organic) ? payload.organic : []
+  }
+  if (provider !== "firecrawl") {
+    throw new Error("Unsupported search provider: " + provider)
   }
   const data = payload.data
   if (Array.isArray(data)) return data
@@ -206,12 +214,16 @@ function normalizeRecords(provider, records, limit) {
         snippet: firstText(record.excerpts),
         publishedDate: firstText(record.publish_date, record.publishedDate),
       })
-    } else {
+    } else if (provider === "firecrawl") {
       built = buildResult({
         title: record.title,
         url: record.url,
         snippet: firstText(record.description, record.snippet),
       })
+    } else {
+      // Never the trailing else: an unmirrored provider would otherwise be normalized with
+      // Firecrawl's field names and quietly return nothing.
+      throw new Error("Unsupported search provider: " + provider)
     }
     if (built) results.push(built)
   }
@@ -222,7 +234,11 @@ function serializeEnvelope(results) {
   const kept = results.slice()
   for (;;) {
     const envelope =
-      kept.length === 0 ? { results: [], message: NO_RESULTS_MESSAGE } : { results: kept }
+      kept.length === 0
+        ? { results: [], message: NO_RESULTS_MESSAGE }
+        : kept.length < results.length
+          ? { results: kept, message: TRUNCATED_MESSAGE }
+          : { results: kept }
     const serialized = JSON.stringify(envelope)
     if (kept.length === 0 || new TextEncoder().encode(serialized).length <= MAX_ENVELOPE_BYTES) {
       return serialized
@@ -260,7 +276,7 @@ export default function (pi) {
     throw new Error("Unsupported search provider: " + provider)
   }
 
-  // Per extension load, which the CLI does once per run — same ceiling as the host adapter.
+  // Per extension load, which the CLI does once per invocation — same ceiling as the host adapter.
   let calls = 0
 
   pi.registerTool({
@@ -273,9 +289,15 @@ export default function (pi) {
       const rawQuery = params && typeof params.query === "string" ? params.query.trim() : ""
       if (!rawQuery) throw new Error("query is required")
       const query = rawQuery.slice(0, MAX_QUERY_LENGTH)
-      const rawCount = Number(params ? params.numResults : undefined)
-      const numResults = Number.isFinite(rawCount)
-        ? Math.min(MAX_RESULTS, Math.max(MIN_RESULTS, Math.floor(rawCount)))
+      const rawCount = params ? params.numResults : undefined
+      const parsedCount =
+        typeof rawCount === "number"
+          ? rawCount
+          : typeof rawCount === "string" && rawCount.trim()
+            ? Number(rawCount)
+            : Number.NaN
+      const numResults = Number.isFinite(parsedCount)
+        ? Math.min(MAX_RESULTS, Math.max(MIN_RESULTS, Math.floor(parsedCount)))
         : DEFAULT_RESULTS
 
       calls += 1

@@ -124,13 +124,12 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [
     '@1password/sdk',
     'unpdf',
-    'ffmpeg-static',
     'fluent-ffmpeg',
     'ws',
     'isolated-vm',
     '@e2b/code-interpreter',
     'e2b',
-    '@daytonaio/sdk',
+    '@daytona/sdk',
     '@earendil-works/pi-ai',
     '@earendil-works/pi-coding-agent',
   ],
@@ -143,7 +142,6 @@ const nextConfig: NextConfig = {
     ],
   },
   experimental: {
-    optimizeCss: !isDev,
     turbopackFileSystemCacheForDev: false,
     /**
      * Turbopack's persistent build cache (beta) — opt-in via env so only the
@@ -529,6 +527,28 @@ const nextConfig: NextConfig = {
         destination: '/',
         permanent: true,
       }
+    )
+
+    /**
+     * Indexed 404s from an external SEO audit. The capability paths read as
+     * tool/feature pages and map to the integrations catalog; the rest have no
+     * closer successor than the homepage.
+     *
+     * `/security` is deliberately excluded: security.txt advertises it as the
+     * RFC 9116 `Policy` URI, so a permanent redirect to marketing would both
+     * mislead that link and shadow a real policy page added later.
+     */
+    redirects.push(
+      ...['read', 'research', 'scrape'].map((slug) => ({
+        source: `/${slug}`,
+        destination: '/integrations',
+        permanent: true,
+      })),
+      ...['actions', 'crawl', 'fast'].map((slug) => ({
+        source: `/${slug}`,
+        destination: '/',
+        permanent: true,
+      }))
     )
 
     return redirects

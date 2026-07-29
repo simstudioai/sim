@@ -25,17 +25,31 @@ export const PI_SEARCH_MAX_DATE_LENGTH = 40
 export const PI_SEARCH_MAX_URL_LENGTH = 2_048
 export const PI_SEARCH_MAX_ENVELOPE_BYTES = 50_000
 export const PI_SEARCH_NO_RESULTS_MESSAGE = 'No results found.'
+/**
+ * Says so when whole results were dropped to fit {@link PI_SEARCH_MAX_ENVELOPE_BYTES}. Without it
+ * the model reads a short list as the complete answer and may conclude the web has nothing further.
+ */
+export const PI_SEARCH_TRUNCATED_MESSAGE =
+  'Some results were dropped to fit the size limit. Search again with a narrower query if you need more.'
 
 /**
- * Searches one run may make. Pi's agent loop has no turn ceiling of its own, so without this a model
- * that starts looping — or is talked into it by an injected instruction in a diff or a result — keeps
- * spending the workspace's own provider quota until Sim's execution timeout. The neighbouring
- * ceilings are the precedent: `MAX_TOOL_CALLS` in `cloud-review-tools.ts` and `MAX_TOOL_ITERATIONS`
- * in `providers/index.ts`. Sized well above what genuine research needs, since exceeding it fails
- * the tool call. Stated as a number in the Pi block docs (`workflows/blocks/pi.mdx`), so change both.
+ * Searches one Pi block execution may make. Pi's agent loop has no turn ceiling of its own, so
+ * without this a model that starts looping — or is talked into it by an injected instruction in a
+ * diff or a result — keeps spending the workspace's own provider quota until Sim's execution
+ * timeout. The neighbouring ceilings are the precedent: `MAX_TOOL_CALLS` in `cloud-review-tools.ts`
+ * and `MAX_TOOL_ITERATIONS` in `providers/index.ts`. Sized well above what genuine research needs,
+ * since exceeding it fails the tool call. Stated as a number in the Pi block docs
+ * (`workflows/blocks/pi.mdx`), so change both.
+ *
+ * Scope is one **block execution**, not one workflow run: the counter lives in the tool spec, and
+ * both adapters build a fresh spec per execution (`buildPiSearchToolSpec` from `pi-handler.ts`, and
+ * one extension load per CLI invocation). A Pi block inside a Loop or Parallel therefore gets this
+ * many searches *per iteration*. That is deliberate — a shared ceiling would fail late iterations of
+ * a legitimate fan-out — but it means the worst-case spend for a run is this times the iteration
+ * count, so bound the iterations too when the block is inside a subflow.
  */
-export const PI_SEARCH_MAX_CALLS_PER_RUN = 20
-export const PI_SEARCH_BUDGET_MESSAGE = `Web search limit reached for this run (${PI_SEARCH_MAX_CALLS_PER_RUN} searches). Continue with the information you already have.`
+export const PI_SEARCH_MAX_CALLS_PER_EXECUTION = 20
+export const PI_SEARCH_BUDGET_MESSAGE = `Web search limit reached for this Pi block execution (${PI_SEARCH_MAX_CALLS_PER_EXECUTION} searches). Continue with the information you already have.`
 
 /** Characters of page text Exa is asked for, sized to the snippet cap plus slack for trimming. */
 export const EXA_MAX_TEXT_CHARACTERS = 1_200
@@ -118,9 +132,18 @@ export function parsePiSearchArgs(args: Record<string, unknown>): PiSearchQuery 
   const rawQuery = typeof args.query === 'string' ? args.query.trim() : ''
   if (!rawQuery) throw new Error('query is required')
 
-  const rawCount = Number(args.numResults)
-  const numResults = Number.isFinite(rawCount)
-    ? Math.min(PI_SEARCH_MAX_RESULTS, Math.max(PI_SEARCH_MIN_RESULTS, Math.floor(rawCount)))
+  // `Number(null)`, `Number('')`, and `Number([])` are all a finite 0, which the clamp below would
+  // turn into 1 result rather than the documented default of 5. Only a real number or a non-blank
+  // numeric string counts as the model having asked for a count at all.
+  const rawCount = args.numResults
+  const parsedCount =
+    typeof rawCount === 'number'
+      ? rawCount
+      : typeof rawCount === 'string' && rawCount.trim()
+        ? Number(rawCount)
+        : Number.NaN
+  const numResults = Number.isFinite(parsedCount)
+    ? Math.min(PI_SEARCH_MAX_RESULTS, Math.max(PI_SEARCH_MIN_RESULTS, Math.floor(parsedCount)))
     : PI_SEARCH_DEFAULT_RESULTS
 
   return { query: rawQuery.slice(0, PI_SEARCH_MAX_QUERY_LENGTH), numResults }
@@ -176,11 +199,26 @@ function collapseWhitespace(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
 }
 
-/** Only `http(s)` links within the length cap; a truncated URL can silently become a dead one. */
+/**
+ * Whitespace (any kind) plus the C0 range and DEL. `\s` already covers tab, newline, and the
+ * Unicode spaces; the explicit ranges add the non-whitespace control characters.
+ */
+const URL_FORBIDDEN_CHARACTERS = /[\s\u0000-\u001f\u007f]/
+
+/**
+ * Only `http(s)` links within the length cap; a truncated URL can silently become a dead one.
+ *
+ * Rejected rather than collapsed when it contains inner whitespace or control characters: it is the
+ * one display field that must stay byte-exact to remain resolvable, so the whitespace handling the
+ * other fields get (`collapseWhitespace`) would produce a different, still-broken link. A URL
+ * carrying a raw space or newline is already malformed — RFC 3986 has no unescaped whitespace — so
+ * dropping the result is both safer and more honest than emitting an edited one.
+ */
 function usableUrl(value: unknown): string | undefined {
   const raw = asText(value).trim()
   if (!raw || raw.length > PI_SEARCH_MAX_URL_LENGTH) return undefined
   if (!/^https?:\/\//i.test(raw)) return undefined
+  if (URL_FORBIDDEN_CHARACTERS.test(raw)) return undefined
   return raw
 }
 
@@ -273,6 +311,13 @@ export function normalizePiSearchRecords(
           snippet: firstText(record.description, record.snippet),
         })
         break
+      default: {
+        // Unlike the sibling switches this one assigns rather than returns, so without an explicit
+        // exhaustiveness check a new provider would compile clean and silently normalize to zero
+        // results. `satisfies never` fails the build instead.
+        const unhandled: never = provider
+        throw new Error(`Unhandled Pi search provider: ${String(unhandled)}`)
+      }
     }
 
     if (built) results.push(built)
@@ -309,8 +354,14 @@ function utf8Length(value: string): number {
 export function serializePiSearchEnvelope(results: PiSearchResult[]): string {
   const kept = [...results]
   for (;;) {
+    // The message is part of what gets measured, so a truncated envelope cannot be pushed back over
+    // the ceiling by the very note that says it was truncated.
     const envelope: PiSearchEnvelope =
-      kept.length === 0 ? { results: [], message: PI_SEARCH_NO_RESULTS_MESSAGE } : { results: kept }
+      kept.length === 0
+        ? { results: [], message: PI_SEARCH_NO_RESULTS_MESSAGE }
+        : kept.length < results.length
+          ? { results: kept, message: PI_SEARCH_TRUNCATED_MESSAGE }
+          : { results: kept }
     const serialized = JSON.stringify(envelope)
     if (kept.length === 0 || utf8Length(serialized) <= PI_SEARCH_MAX_ENVELOPE_BYTES) {
       return serialized

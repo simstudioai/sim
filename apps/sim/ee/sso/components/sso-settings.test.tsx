@@ -21,6 +21,7 @@ vi.mock('@sim/emcn', () => ({
     </button>
   ),
   ChipCombobox: () => <div />,
+  ChipCopyInput: ({ value }: { value?: string }) => <input readOnly value={value ?? ''} />,
   ChipInput: ({
     value,
     onChange,
@@ -49,6 +50,12 @@ vi.mock('@sim/emcn', () => ({
 
 vi.mock('@/lib/auth/auth-client', () => ({
   useSession: mockUseSession,
+}))
+
+// Domain management is covered by its own tests and needs a QueryClient; this
+// suite only exercises the provider form's org-transition behavior.
+vi.mock('@/ee/sso/components/verified-domains-section', () => ({
+  VerifiedDomainsSection: () => <div />,
 }))
 
 vi.mock(

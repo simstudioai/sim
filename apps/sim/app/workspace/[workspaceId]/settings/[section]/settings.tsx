@@ -25,9 +25,6 @@ const ApiKeys = dynamic(() =>
 const BYOK = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/byok/byok').then((m) => m.BYOK)
 )
-const Copilot = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/copilot/copilot').then((m) => m.Copilot)
-)
 const Forks = dynamic(() => import('@/ee/workspace-forking/components/forks').then((m) => m.Forks))
 const Secrets = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets').then((m) => m.Secrets)
@@ -81,9 +78,6 @@ const AuditLogs = dynamic(() =>
   import('@/ee/audit-logs/components/audit-logs').then((m) => m.AuditLogs)
 )
 const SSO = dynamic(() => import('@/ee/sso/components/sso-settings').then((m) => m.SSO))
-const DomainSettings = dynamic(() =>
-  import('@/ee/sso/components/domain-settings').then((m) => m.DomainSettings)
-)
 const SessionPolicySettings = dynamic(() =>
   import('@/ee/session-policy/components/session-policy-settings').then(
     (m) => m.SessionPolicySettings
@@ -166,9 +160,6 @@ export function SettingsPage({ section }: SettingsPageProps) {
         />
       )}
       {effectiveSection === 'sso' && organizationId && <SSO organizationId={organizationId} />}
-      {effectiveSection === 'domains' && organizationId && (
-        <DomainSettings key={organizationId} organizationId={organizationId} />
-      )}
       {effectiveSection === 'sessions' && organizationId && (
         <SessionPolicySettings key={organizationId} organizationId={organizationId} />
       )}
@@ -182,7 +173,6 @@ export function SettingsPage({ section }: SettingsPageProps) {
         <WhitelabelingSettings organizationId={organizationId} />
       )}
       {effectiveSection === 'byok' && <BYOK />}
-      {effectiveSection === 'copilot' && <Copilot />}
       {effectiveSection === 'mcp' && <MCP />}
       {effectiveSection === 'forks' && <Forks />}
       {effectiveSection === 'custom-tools' && <CustomTools />}

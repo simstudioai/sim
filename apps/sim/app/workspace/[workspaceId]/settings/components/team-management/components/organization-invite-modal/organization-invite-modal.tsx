@@ -166,7 +166,7 @@ export function OrganizationInviteModal({
         },
       }
     )
-  }, [emails, selectedWorkspaceIds, organizationId, inviteRole, inviteMember, onOpenChange])
+  }, [emails, selectedWorkspaceIds, organizationId, inviteRole, inviteMember.mutate, onOpenChange])
 
   const resetState = useCallback(() => {
     setEmails([])

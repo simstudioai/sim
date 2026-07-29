@@ -12,7 +12,7 @@ import type { TSchema } from 'typebox'
 import type { SSHConnectionConfig } from '@/app/api/tools/ssh/utils'
 import type { Message } from '@/executor/handlers/agent/types'
 import type { PiEvent, PiRunTotals } from '@/executor/handlers/pi/events'
-import type { PiSearchKeySource, PiSearchProvider } from '@/executor/handlers/pi/keys'
+import type { PiSearchProvider } from '@/executor/handlers/pi/keys'
 import type { PiSupportedProvider } from '@/providers/pi-provider-configs'
 
 /** A conversation message seeded into the Pi run (subset of the Agent block's message). */
@@ -60,10 +60,9 @@ export interface PiToolSpec {
 export interface PiSearchConfig {
   provider: PiSearchProvider
   apiKey: string
-  keySource: PiSearchKeySource
   /**
-   * Host-side tool for the two SDK modes. Absent for sandbox modes, which register a sandbox
-   * extension instead, so a spec built here could never execute.
+   * Host-side tool for the two SDK modes. Absent for `cloud`, which has no host in the loop and
+   * registers a sandbox extension instead, so a spec built there could never execute.
    */
   tool?: PiToolSpec
 }

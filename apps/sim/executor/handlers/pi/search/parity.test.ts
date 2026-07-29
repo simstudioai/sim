@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { PiSearchProvider } from '@/executor/handlers/pi/keys'
+import { PI_SEARCH_PROVIDERS, type PiSearchProvider } from '@/executor/handlers/pi/keys'
 import {
   PI_SEARCH_API_KEY_ENV_VAR,
   PI_SEARCH_EXTENSION_SOURCE,
@@ -109,6 +109,15 @@ function buildHostRequest(provider: PiSearchProvider): CapturedRequest {
     body: body!(params),
   }
 }
+
+// `Record<PiSearchProvider, ...>` on TOOLS looks like it enforces this, but `**/*.test.ts` is
+// excluded from tsconfig and vitest only transpiles — so a provider missing from the fixture would
+// silently be skipped by `describe.each` rather than failing. This assertion is the real gate.
+describe('fixture coverage', () => {
+  it('exercises every registered search provider', () => {
+    expect(Object.keys(TOOLS).sort()).toEqual(Object.keys(PI_SEARCH_PROVIDERS).sort())
+  })
+})
 
 describe.each(Object.keys(TOOLS) as PiSearchProvider[])('%s request parity', (provider) => {
   it('sends the same url, headers, and body from the sandbox as from the host', async () => {

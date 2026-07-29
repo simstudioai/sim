@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { PiSearchProvider } from '@/executor/handlers/pi/keys'
+import { PI_SEARCH_PROVIDERS, type PiSearchProvider } from '@/executor/handlers/pi/keys'
 import {
   PI_SEARCH_API_KEY_ENV_VAR,
   PI_SEARCH_EXTENSION_PATH,
@@ -22,9 +22,13 @@ import {
   extractPiSearchRecords,
   normalizePiSearchRecords,
   PI_SEARCH_BUDGET_MESSAGE,
-  PI_SEARCH_MAX_CALLS_PER_RUN,
+  PI_SEARCH_DEFAULT_RESULTS,
+  PI_SEARCH_MAX_CALLS_PER_EXECUTION,
+  PI_SEARCH_MAX_SNIPPET_LENGTH,
+  PI_SEARCH_MAX_TITLE_LENGTH,
   PI_SEARCH_TIMEOUT_MS,
   PI_SEARCH_TOOL_NAME,
+  PI_SEARCH_TRUNCATED_MESSAGE,
   serializePiSearchEnvelope,
 } from '@/executor/handlers/pi/search/normalize'
 
@@ -182,19 +186,19 @@ describe('provider requests', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('enforces the same per-run budget as the host adapter, per extension load', async () => {
+  it('enforces the same per-execution budget as the host adapter, per extension load', async () => {
     // A fresh Response per call: a body stream can only be read once.
     fetchMock.mockImplementation(() => jsonResponse({ results: [] }))
     const tool = register('exa')
 
-    for (let call = 0; call < PI_SEARCH_MAX_CALLS_PER_RUN; call++) {
+    for (let call = 0; call < PI_SEARCH_MAX_CALLS_PER_EXECUTION; call++) {
       await tool.execute('call-1', { query: `pi ${call}` })
     }
 
     await expect(tool.execute('call-1', { query: 'one too many' })).rejects.toThrow(
       PI_SEARCH_BUDGET_MESSAGE
     )
-    expect(fetchMock).toHaveBeenCalledTimes(PI_SEARCH_MAX_CALLS_PER_RUN)
+    expect(fetchMock).toHaveBeenCalledTimes(PI_SEARCH_MAX_CALLS_PER_EXECUTION)
     // A fresh load is a fresh sandbox run, so the count starts over.
     await expect(register('exa').execute('call-1', { query: 'fresh run' })).resolves.toBeDefined()
   })
@@ -254,6 +258,13 @@ describe('normalization parity with the host adapter', () => {
     },
   }
 
+  // `Record<PiSearchProvider, unknown>` on `payloads` is not enforced anywhere — test files are
+  // excluded from tsconfig and vitest only transpiles — so a provider missing here would be quietly
+  // skipped by `it.each` instead of failing. This assertion is what actually holds the copies together.
+  it('covers every registered search provider', () => {
+    expect(Object.keys(payloads).sort()).toEqual(Object.keys(PI_SEARCH_PROVIDERS).sort())
+  })
+
   it.each(Object.keys(payloads) as PiSearchProvider[])(
     'produces the same envelope as normalize.ts for %s',
     async (provider) => {
@@ -285,6 +296,50 @@ describe('normalization parity with the host adapter', () => {
 
     const result = await register('firecrawl').execute('call-1', { query: 'pi' })
     expect(JSON.parse(result.content[0].text).results).toHaveLength(1)
+  })
+
+  // `url` is dropped rather than whitespace-collapsed in both copies; a divergence here would let
+  // the sandbox hand the agent a link the host modes would have refused.
+  it('drops links carrying whitespace or control characters, as the host adapter does', async () => {
+    const records = [
+      { title: 'Space', url: 'https://example.com/a b' },
+      { title: 'Newline', url: 'https://example.com/a\nb' },
+      { title: 'Nul', url: 'https://example.com/a\u0000b' },
+      { title: 'Del', url: 'https://example.com/a\u007fb' },
+      { title: 'Kept', url: 'https://example.com/a-b_c%20d' },
+    ]
+    fetchMock.mockResolvedValue(jsonResponse({ results: records }))
+
+    const result = await register('exa').execute('call-1', { query: 'pi', numResults: 10 })
+    expect(result.content[0].text).toBe(
+      serializePiSearchEnvelope(normalizePiSearchRecords('exa', records, 10))
+    )
+    expect(JSON.parse(result.content[0].text).results).toHaveLength(1)
+  })
+
+  it('treats a blank result count as absent, as the host adapter does', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ results: [] }))
+
+    await register('exa').execute('call-1', { query: 'pi', numResults: null })
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).numResults).toBe(PI_SEARCH_DEFAULT_RESULTS)
+  })
+
+  it('says so when results were dropped to fit the envelope, as the host adapter does', async () => {
+    const records = Array.from({ length: 10 }, (_, i) => ({
+      title: '\u898b'.repeat(PI_SEARCH_MAX_TITLE_LENGTH),
+      url: `https://example.com/${i}?${'q'.repeat(1500)}`,
+      text: '\u6f22'.repeat(PI_SEARCH_MAX_SNIPPET_LENGTH),
+    }))
+    fetchMock.mockResolvedValue(jsonResponse({ results: records }))
+
+    const result = await register('exa').execute('call-1', { query: 'pi', numResults: 10 })
+    const parsed = JSON.parse(result.content[0].text)
+
+    expect(parsed.results.length).toBeLessThan(records.length)
+    expect(parsed.message).toBe(PI_SEARCH_TRUNCATED_MESSAGE)
+    expect(result.content[0].text).toBe(
+      serializePiSearchEnvelope(normalizePiSearchRecords('exa', records, 10))
+    )
   })
 })
 

@@ -212,7 +212,7 @@ export const PUT = withRouteHandler(
         authType: deployment.authType,
         outputConfigs: deployment.outputConfigs,
         includeThinking: deployment.includeThinking ?? false,
-        includeToolCalls: deployment.includeToolCalls ?? deployment.includeThinking ?? false,
+        includeToolCalls: deployment.includeToolCalls ?? false,
       })
       setChatAuthCookie(response, deployment.id, deployment.authType, deployment.password)
 

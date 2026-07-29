@@ -29,7 +29,7 @@ export const FOLDER_LIST_STALE_TIME = 60 * 1000
 
 /**
  * Maps a wire folder row to the client `WorkflowFolder` shape (string dates →
- * `Date`, color default). Exported so the server-side home prefetch produces
+ * `Date`). Exported so the server-side home prefetch produces
  * the exact cached value `useFolders` stores, keeping the hydrated entry in
  * sync with a client fetch.
  */
@@ -40,13 +40,12 @@ export function mapFolder(folder: FolderApi): WorkflowFolder {
     userId: folder.userId,
     workspaceId: folder.workspaceId,
     parentId: folder.parentId,
-    color: folder.color ?? '#6B7280',
-    isExpanded: folder.isExpanded,
+    resourceType: folder.resourceType,
     locked: folder.locked,
     sortOrder: folder.sortOrder,
     createdAt: new Date(folder.createdAt),
     updatedAt: new Date(folder.updatedAt),
-    archivedAt: folder.archivedAt ? new Date(folder.archivedAt) : null,
+    deletedAt: folder.deletedAt ? new Date(folder.deletedAt) : null,
   }
 }
 
@@ -62,12 +61,15 @@ async function fetchFolders(
   return folders.map(mapFolder)
 }
 
-export function useFolders(workspaceId?: string, options?: { scope?: FolderQueryScope }) {
+export function useFolders(
+  workspaceId?: string,
+  options?: { scope?: FolderQueryScope; enabled?: boolean }
+) {
   const scope = options?.scope ?? 'active'
   return useQuery({
     queryKey: folderKeys.list(workspaceId, scope),
     queryFn: ({ signal }) => fetchFolders(workspaceId as string, scope, signal),
-    enabled: Boolean(workspaceId),
+    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     placeholderData: keepPreviousData,
     staleTime: FOLDER_LIST_STALE_TIME,
   })
@@ -91,7 +93,6 @@ interface CreateFolderVariables {
   workspaceId: string
   name: string
   parentId?: string
-  color?: string
   sortOrder?: number
   id?: string
 }
@@ -99,7 +100,7 @@ interface CreateFolderVariables {
 interface UpdateFolderVariables {
   workspaceId: string
   id: string
-  updates: Partial<Pick<WorkflowFolder, 'name' | 'parentId' | 'color' | 'sortOrder' | 'locked'>>
+  updates: Partial<Pick<WorkflowFolder, 'name' | 'parentId' | 'sortOrder' | 'locked'>>
 }
 
 interface DeleteFolderVariables {
@@ -112,7 +113,6 @@ interface DuplicateFolderVariables {
   id: string
   name: string
   parentId?: string | null
-  color?: string
   newId?: string
 }
 
@@ -172,8 +172,7 @@ export function useCreateFolder() {
         userId: '',
         workspaceId: variables.workspaceId,
         parentId: variables.parentId || null,
-        color: variables.color || '#808080',
-        isExpanded: false,
+        resourceType: 'workflow' as const,
         locked: false,
         sortOrder:
           variables.sortOrder ??
@@ -185,7 +184,7 @@ export function useCreateFolder() {
           ),
         createdAt: new Date(),
         updatedAt: new Date(),
-        archivedAt: null,
+        deletedAt: null,
       }
     },
     (variables) => variables.id ?? generateId()
@@ -274,8 +273,7 @@ export function useDuplicateFolderMutation() {
         userId: sourceFolder?.userId || '',
         workspaceId: variables.workspaceId,
         parentId: targetParentId,
-        color: variables.color || sourceFolder?.color || '#808080',
-        isExpanded: false,
+        resourceType: 'workflow' as const,
         locked: false,
         sortOrder: getTopInsertionSortOrder(
           currentWorkflows,
@@ -285,7 +283,7 @@ export function useDuplicateFolderMutation() {
         ),
         createdAt: new Date(),
         updatedAt: new Date(),
-        archivedAt: null,
+        deletedAt: null,
       }
     },
     (variables) => variables.newId ?? generateId()
@@ -297,7 +295,6 @@ export function useDuplicateFolderMutation() {
       workspaceId,
       name,
       parentId,
-      color,
       newId,
     }: DuplicateFolderVariables): Promise<WorkflowFolder> => {
       const { folder } = await requestJson(duplicateFolderContract, {
@@ -306,7 +303,6 @@ export function useDuplicateFolderMutation() {
           workspaceId,
           name,
           parentId: parentId ?? null,
-          color,
           newId,
         },
       })

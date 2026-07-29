@@ -472,7 +472,6 @@ describe('runCloudReviewPi', () => {
         search: {
           provider: 'exa',
           apiKey: 'sk-search',
-          keySource: 'block',
           tool: {
             name: 'web_search',
             description: 'Search the web',

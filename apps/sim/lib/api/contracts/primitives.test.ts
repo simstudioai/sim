@@ -4,8 +4,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   customPatternSchema,
+  organizationIdSchema,
   piiStagePolicySchema,
   piiStagesSchema,
+  workflowIdSchema,
+  workspaceFileIdSchema,
+  workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 
 describe('customPatternSchema', () => {
@@ -35,10 +39,22 @@ describe('customPatternSchema', () => {
     }
   })
 
-  it('rejects a catastrophic-backtracking regex at the boundary', () => {
-    expect(
-      customPatternSchema.safeParse({ name: 'evil', regex: '(a+)+$', replacement: '' }).success
-    ).toBe(false)
+  it('no longer screens for catastrophic backtracking, which never worked here', () => {
+    // This used to reject `(a+)+$` via `safe-regex2`. The screen was removed:
+    // it caught that shape but passed `a*a*b`, which is just as catastrophic,
+    // so it only ever deterred the obvious spelling of a misconfiguration a
+    // user can inflict on their own workspace. It also rejected valid patterns
+    // (lookbehind, optional groups) that Presidio accepts.
+    //
+    // These patterns run in Presidio, not in this process, so they cannot
+    // stall this event loop; Presidio's own timeout is the bound. In-process
+    // matching uses `compileLinearRegex`, which cannot backtrack at all.
+    for (const regex of ['(a+)+$', 'a*a*b', '(?<=id: )\\w+']) {
+      expect(
+        customPatternSchema.safeParse({ name: 'p', regex, replacement: '' }).success,
+        `pattern ${regex} should be accepted`
+      ).toBe(true)
+    }
   })
 })
 
@@ -88,5 +104,48 @@ describe('piiStagesSchema', () => {
     })
     expect(parsed.blockOutputs.entityTypes).toEqual([])
     expect(parsed.blockOutputs.enabled).toBe(true)
+  })
+})
+
+/**
+ * `.min(1)` only fires for a present-but-empty string, so without the
+ * `z.string({ error })` form an omitted field falls back to Zod's default
+ * "expected string, received undefined" — which does not name the field the
+ * caller left out. These are the shared id schemas every contract builds on, so
+ * the wording here is the first thing an API consumer sees on a malformed
+ * request.
+ */
+describe('shared id schemas name the field when it is missing', () => {
+  const cases = [
+    ['workspaceIdSchema', workspaceIdSchema, 'Workspace ID is required'],
+    ['organizationIdSchema', organizationIdSchema, 'Organization ID is required'],
+    ['workflowIdSchema', workflowIdSchema, 'Workflow ID is required'],
+    ['workspaceFileIdSchema', workspaceFileIdSchema, 'File ID is required'],
+  ] as const
+
+  for (const [name, schema, message] of cases) {
+    it(`${name}: omitted value reports "${message}"`, () => {
+      const result = schema.safeParse(undefined)
+
+      expect(result.success).toBe(false)
+      expect(result.error?.issues[0]?.message).toBe(message)
+    })
+
+    it(`${name}: empty string reports "${message}"`, () => {
+      const result = schema.safeParse('')
+
+      expect(result.success).toBe(false)
+      expect(result.error?.issues[0]?.message).toBe(message)
+    })
+
+    it(`${name}: a valid id still passes`, () => {
+      expect(schema.safeParse('abc-123').success).toBe(true)
+    })
+  }
+
+  it('does not leak Zod default wording for a missing field', () => {
+    const result = workspaceIdSchema.safeParse(undefined)
+
+    expect(result.error?.issues[0]?.message).not.toContain('received undefined')
   })
 })

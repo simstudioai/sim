@@ -115,6 +115,118 @@ export const verification = pgTable(
   })
 )
 
+export const folderResourceTypeEnum = pgEnum('folder_resource_type', [
+  'workflow',
+  'file',
+  'knowledge_base',
+  'table',
+])
+
+/**
+ * Generic folder hierarchy shared by workflows, files, knowledge bases, and tables.
+ * Supersedes the resource-specific `workflowFolder`/`workspaceFileFolder` tables (see
+ * the deprecation notes on those below).
+ *
+ * `resourceType` is a real `pgEnum` here — unlike `pinnedItem.resourceType` — because the
+ * set of folder-bearing resources is small and fixed. A folder may only parent a folder
+ * of the same `resourceType` in the same workspace; that invariant is enforced both in
+ * the application layer and by the `folder_parent_resource_type_match` trigger, since a
+ * plain FK cannot express it.
+ *
+ * `locked` carries over the existing workflow-folder lock feature verbatim. It is NOT
+ * extended to the other resource types — file/knowledge_base/table folders leave it at
+ * `false` and no lock cascade reads it for them. Dropping the column would regress
+ * shipped workflow-folder locking.
+ *
+ * `color` and `isExpanded` from `workflowFolder` are intentionally not carried over:
+ * `color` has no UI consumer, and `isExpanded`'s real state lives client-side in the
+ * folders Zustand store and is never read back from the DB.
+ */
+export const folder = pgTable(
+  'folder',
+  {
+    id: text('id').primaryKey(),
+    resourceType: folderResourceTypeEnum('resource_type').notNull(),
+    name: text('name').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    parentId: text('parent_id').references((): AnyPgColumn => folder.id, {
+      onDelete: 'set null',
+    }),
+    locked: boolean('locked').notNull().default(false),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at'),
+  },
+  (table) => ({
+    userIdx: index('folder_user_idx').on(table.userId),
+    workspaceResourceParentIdx: index('folder_workspace_resource_parent_idx').on(
+      table.workspaceId,
+      table.resourceType,
+      table.parentId
+    ),
+    parentSortIdx: index('folder_parent_sort_idx').on(table.parentId, table.sortOrder),
+    deletedAtIdx: index('folder_deleted_at_idx').on(table.deletedAt),
+    workspaceDeletedAtPartialIdx: index('folder_workspace_deleted_partial_idx')
+      .on(table.workspaceId, table.deletedAt)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
+    /**
+     * Mirrors `workspace_file_folders_workspace_parent_name_active_unique`, which file
+     * folders already enforce today. Workflow folders gain it here — the backfill
+     * deduplicates the existing violations.
+     */
+    workspaceResourceParentNameActiveUnique: uniqueIndex(
+      'folder_workspace_resource_parent_name_active_unique'
+    )
+      .on(table.workspaceId, table.resourceType, sql`coalesce(${table.parentId}, '')`, table.name)
+      .where(sql`${table.deletedAt} IS NULL`),
+  })
+)
+
+/**
+ * Per-user pinning of workspace resources. Polymorphic on `resourceType`, following
+ * the same shape as `publicShare.resourceType` below — deliberately plain `text`
+ * rather than a `pgEnum`, because the set of pinnable kinds is expected to grow
+ * (folders become pinnable alongside the generic-folder work) and widening a text
+ * column costs nothing where widening an enum needs a migration.
+ *
+ * Pins are per-user, not per-workspace: two members of the same workspace pin
+ * independently, which is why `userId` leads the unique index and every read path
+ * filters on the session user.
+ */
+export const pinnedItem = pgTable(
+  'pinned_item',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    resourceType: text('resource_type').notNull(), // 'workflow' | 'file' | 'knowledge_base' | 'table'
+    resourceId: text('resource_id').notNull(),
+    pinnedAt: timestamp('pinned_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userWorkspaceIdx: index('pinned_item_user_workspace_idx').on(table.userId, table.workspaceId),
+    resourceIdx: index('pinned_item_resource_idx').on(table.resourceType, table.resourceId),
+    userResourceUnique: uniqueIndex('pinned_item_user_resource_unique').on(
+      table.userId,
+      table.resourceType,
+      table.resourceId
+    ),
+  })
+)
+
+// DEPRECATED: superseded by the generic `folder` table (resourceType='workflow'). Kept
+// (unread, unwritten) until the generic-folders cutover is verified in production; dropped
+// in a follow-up contract migration.
 export const workflowFolder = pgTable(
   'workflow_folder',
   {
@@ -157,7 +269,15 @@ export const workflow = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
-    folderId: text('folder_id').references(() => workflowFolder.id, { onDelete: 'set null' }),
+    /**
+     * contract-pending: re-add `.references(() => folder.id, { onDelete: 'set null' })`
+     * once the generic-folders expand migration is fully deployed and no old-code pod can
+     * still write a workflow_folder-only id here. The expand migration only DROPs the old
+     * (now-wrong) FK target; adding the new one in the same deploy would reject writes from
+     * still-running old app code. The invariant is enforced in the application layer
+     * meanwhile.
+     */
+    folderId: text('folder_id'),
     sortOrder: integer('sort_order').notNull().default(0),
     name: text('name').notNull(),
     description: text('description'),
@@ -1158,18 +1278,20 @@ export const chat = pgTable(
     outputConfigs: json('output_configs').default('[]'), // Array of {blockId, path} objects
 
     /**
-     * When true, public chat SSE may expose provider thinking events if the
-     * client also opts in via `X-Sim-Stream-Protocol: agent-events-v1`.
-     * Default off — never derived from auth type or isSecureMode.
+     * When true, public chat SSE exposes provider thinking events. Independent
+     * of the `X-Sim-Stream-Protocol` header, which governs answer-text cadence
+     * rather than frame exposure. Default off — never derived from auth type or
+     * isSecureMode.
      */
     includeThinking: boolean('include_thinking').notNull().default(false),
     /**
-     * When true, public chat SSE may expose tool lifecycle events if the client
-     * also opts in via `X-Sim-Stream-Protocol: agent-events-v1`.
+     * When true, public chat SSE exposes tool lifecycle events. Independent of
+     * includeThinking and of the protocol header.
      *
-     * Null preserves the pre-expand policy: readers fall back to includeThinking.
+     * Nullable only because the column was added after the table; readers treat
+     * null as false.
      */
-    // contract-pending(after the includeToolCalls expand release is fully deployed): backfill include_tool_calls from include_thinking, then set DEFAULT false and NOT NULL — all new-app chat writes persist an explicit value
+    // contract-pending(any release): normalize nulls to false, then set DEFAULT false and NOT NULL — cosmetic only, since no reader distinguishes null from false
     includeToolCalls: boolean('include_tool_calls'),
 
     archivedAt: timestamp('archived_at'),
@@ -1780,6 +1902,9 @@ export const workspaceFile = pgTable(
   })
 )
 
+// DEPRECATED: superseded by the generic `folder` table (resourceType='file'). Kept
+// (unread, unwritten) until the generic-folders cutover is verified in production; dropped
+// in a follow-up contract migration.
 export const workspaceFileFolder = pgTable(
   'workspace_file_folders',
   {
@@ -1829,9 +1954,15 @@ export const workspaceFiles = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
-    folderId: text('folder_id').references(() => workspaceFileFolder.id, {
-      onDelete: 'set null',
-    }),
+    /**
+     * contract-pending: re-add `.references(() => folder.id, { onDelete: 'set null' })`
+     * once the generic-folders expand migration is fully deployed and no old-code pod can
+     * still write a workspace_file_folders-only id here. The expand migration only DROPs the old
+     * (now-wrong) FK target; adding the new one in the same deploy would reject writes from
+     * still-running old app code. The invariant is enforced in the application layer
+     * meanwhile.
+     */
+    folderId: text('folder_id'),
     context: text('context').notNull(), // 'workspace', 'mothership', 'copilot', 'chat', 'knowledge-base', 'profile-pictures', 'general', 'execution'
     chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'cascade' }),
     /**
@@ -2053,6 +2184,7 @@ export const knowledgeBase = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    folderId: text('folder_id').references(() => folder.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
     description: text('description'),
 
@@ -2081,6 +2213,7 @@ export const knowledgeBase = pgTable(
     workspaceIdIdx: index('kb_workspace_id_idx').on(table.workspaceId),
     // Composite index for user's workspaces
     userWorkspaceIdx: index('kb_user_workspace_idx').on(table.userId, table.workspaceId),
+    folderIdIdx: index('kb_folder_id_idx').on(table.folderId),
     // Index for soft delete filtering
     deletedAtIdx: index('kb_deleted_at_idx').on(table.deletedAt),
     workspaceDeletedAtPartialIdx: index('kb_workspace_deleted_partial_idx')
@@ -3307,6 +3440,34 @@ export const usageLog = pgTable(
         table.billingPeriodEnd
       )
       .where(sql`${table.billingEntityType} IS NOT NULL`),
+    /**
+     * Covering companion to `billingEntityPeriodIdx` — not a replacement. Carries
+     * `cost` so the billing-period aggregates resolve index-only rather than taking
+     * a heap fetch per matched row.
+     *
+     * `userId`/`createdAt` sit immediately after the shared equality prefix because
+     * the daily-refresh rollup filters on them and NOT on `billingPeriodEnd`;
+     * putting `billingPeriodEnd` in that slot would end the usable prefix at
+     * `billingPeriodStart` and leave that query scanning the whole period.
+     * `billingPeriodEnd` is functionally determined by `billingPeriodStart`, so it
+     * removes no rows and rides along as payload.
+     *
+     * `billingEntityPeriodIdx` is kept deliberately: with no high-cardinality key
+     * column it deduplicates to a fraction of this index's size, which keeps
+     * prefix-only bitmap scans cheap.
+     */
+    billingPeriodCostIdx: index('usage_log_billing_period_cost_idx')
+      .on(
+        table.billingEntityType,
+        table.billingEntityId,
+        table.billingPeriodStart,
+        table.userId,
+        table.createdAt,
+        table.billingPeriodEnd,
+        table.source,
+        table.cost
+      )
+      .where(sql`${table.billingEntityType} IS NOT NULL`),
     billingScopeAllOrNone: check(
       'usage_log_billing_scope_all_or_none',
       sql`(
@@ -3659,6 +3820,7 @@ export const userTableDefinitions = pgTable(
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
+    folderId: text('folder_id').references(() => folder.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
     description: text('description'),
     /**
@@ -3682,6 +3844,21 @@ export const userTableDefinitions = pgTable(
      * from application code — the trigger is the only writer (bypass-proof).
      */
     rowsVersion: bigint('rows_version', { mode: 'number' }).notNull().default(0),
+    /**
+     * @remarks
+     * Per-table mutation locks. Each guards one mutation verb; an admin toggles
+     * them independently. Enforced at the `lib/table` service layer (see
+     * `lib/table/mutation-locks.ts`), which covers every entry point — routes,
+     * workflow blocks, and Mothership — since all funnel through those helpers.
+     * A locked verb rejects with 423; toggling a lock requires workspace admin.
+     * Append-only = update + delete locked; read-only = all four locked. These
+     * are integrity controls (against accidental/agentic mutation), not
+     * confidentiality controls — reads and exports are never blocked.
+     */
+    schemaLocked: boolean('schema_locked').notNull().default(false),
+    insertLocked: boolean('insert_locked').notNull().default(false),
+    updateLocked: boolean('update_locked').notNull().default(false),
+    deleteLocked: boolean('delete_locked').notNull().default(false),
     archivedAt: timestamp('archived_at'),
     createdBy: text('created_by')
       .notNull()
@@ -3691,6 +3868,7 @@ export const userTableDefinitions = pgTable(
   },
   (table) => ({
     workspaceIdIdx: index('user_table_def_workspace_id_idx').on(table.workspaceId),
+    folderIdIdx: index('user_table_def_folder_id_idx').on(table.folderId),
     workspaceNameUnique: uniqueIndex('user_table_def_workspace_name_unique')
       .on(table.workspaceId, table.name)
       .where(sql`${table.archivedAt} IS NULL`),
