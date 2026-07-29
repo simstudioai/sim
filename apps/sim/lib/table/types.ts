@@ -286,8 +286,8 @@ export interface TableMetadata {
  * user resizes, reorders, pins, or hides columns.
  */
 export interface TableViewConfig extends TableMetadata {
-  filter?: Filter | null
-  sort?: Sort | null
+  filter?: TablePredicate | null
+  sort?: SortSpec | null
 }
 
 /** Async background-job lifecycle state for a table. NULL/undefined = idle (no job). */

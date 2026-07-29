@@ -23,6 +23,11 @@ import type {
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
+  filterRulesToPredicate,
+  filterToRules,
+  predicateToFilter,
+} from '@/lib/table/query-builder/converters'
+import {
   type BreadcrumbItem,
   type ColumnOption,
   Resource,
@@ -423,13 +428,17 @@ export function Table({
       config: TableViewConfig | null,
       keep?: { sort?: boolean; filter?: boolean; hiddenColumns?: boolean }
     ) => {
-      if (!keep?.filter) setFilter(config?.filter ?? null)
+      // Stored views speak the v2 grammar; the grid's runtime state is still the
+      // legacy Filter/Sort pair, so translate at this boundary. A stored predicate
+      // is always builder-authored (the save path converts from builder output),
+      // so the legacy projection is total here.
+      if (!keep?.filter) setFilter(config?.filter ? predicateToFilter(config.filter) : null)
       if (!keep?.hiddenColumns) setHiddenColumns(config?.hiddenColumns ?? [])
       if (keep?.sort) return
-      const sortEntry = config?.sort ? Object.entries(config.sort)[0] : undefined
+      const sortEntry = config?.sort?.[0]
       setTableParams({
-        sort: sortEntry ? sortEntry[0] : null,
-        dir: sortEntry ? (sortEntry[1] as SortDirection) : null,
+        sort: sortEntry ? sortEntry.field : null,
+        dir: sortEntry ? (sortEntry.direction as SortDirection) : null,
       })
     },
     [setTableParams]
@@ -651,11 +660,20 @@ export function Table({
   const currentViewConfig = useMemo<TableViewConfig>(
     () => ({
       ...(activeView?.config ?? tableData?.metadata),
-      filter: effectiveFilter,
-      sort: sortQuery,
+      // Views store the v2 grammar; the grid runs on the legacy pair. The filter
+      // is builder-authored, so the rule round-trip is lossless here.
+      filter: effectiveFilter ? filterRulesToPredicate(filterToRules(effectiveFilter)) : null,
+      sort: sortColumn ? [{ field: sortColumn, direction: sortDirection }] : null,
       hiddenColumns: effectiveHiddenColumns,
     }),
-    [activeView, tableData?.metadata, effectiveFilter, sortQuery, effectiveHiddenColumns]
+    [
+      activeView,
+      tableData?.metadata,
+      effectiveFilter,
+      sortColumn,
+      sortDirection,
+      effectiveHiddenColumns,
+    ]
   )
 
   /**

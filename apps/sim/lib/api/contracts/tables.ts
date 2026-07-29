@@ -1717,8 +1717,11 @@ export const tableEventStreamContract = defineRouteContract({
  * never invalidates a view.
  */
 export const tableViewConfigSchema = tableMetadataSchema.extend({
-  filter: filterSchema.nullable().optional(),
-  sort: domainObjectSchema<Sort>().nullable().optional(),
+  // The v2 predicate/sort grammar — same wire as the query routes, so a saved
+  // view gets the same strictness and depth bounds as a live filter, and its
+  // config can later feed the v2 surfaces without conversion.
+  filter: predicateSchema.nullable().optional(),
+  sort: sortSpecSchema.nullable().optional(),
 }) satisfies z.ZodType<TableViewConfig>
 
 export const tableViewSchema = z.object({
