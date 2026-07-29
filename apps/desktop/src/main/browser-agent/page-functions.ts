@@ -104,8 +104,39 @@ export function collectSnapshot(): unknown {
     // A reveal toggle flips the field to type="text" without making its
     // contents any less secret, and some forms never use type="password" at
     // all. The autocomplete token is the page's own declaration either way.
+    // Space-separated detail tokens are spec-legal and WebAuthn recommends
+    // `current-password webauthn`, so whole-string equality missed real values
+    // on exactly the type=text credential fields where autocomplete is the
+    // only signal there is.
     const hint = String(el.getAttribute('autocomplete') || '').toLowerCase()
-    return hint === 'current-password' || hint === 'new-password'
+    return hint
+      .split(/\s+/)
+      .some((token) => token === 'current-password' || token === 'new-password')
+  }
+
+  /**
+   * Fields whose value is as sensitive as a password but which the agent must
+   * still be able to FILL: one-time codes and payment details.
+   *
+   * Deliberately separate from isSecretField. That one also gates keystrokes
+   * (activeElementSecrecy feeds the driver's press-key guard), so folding these
+   * tokens into it would stop the agent completing a checkout or an OTP prompt —
+   * work it is legitimately asked to do. Only the value is withheld here.
+   */
+  const isSensitiveValueField = (el: Element | null): boolean => {
+    if (!el || el.tagName !== 'INPUT') return false
+    const hint = String(el.getAttribute('autocomplete') || '').toLowerCase()
+    return hint
+      .split(/\s+/)
+      .some(
+        (token) =>
+          token === 'one-time-code' ||
+          token === 'cc-number' ||
+          token === 'cc-csc' ||
+          token === 'cc-exp' ||
+          token === 'cc-exp-month' ||
+          token === 'cc-exp-year'
+      )
   }
 
   const roleFor = (el: Element): string => {
@@ -170,7 +201,8 @@ export function collectSnapshot(): unknown {
       // like any other. Redaction above is realm-safe and runs first, so
       // widening this cannot expose a credential field.
       const value = (el as HTMLInputElement).value
-      if (value) parts.push(`value="${cut(String(value), 120)}"`)
+      if (value && isSensitiveValueField(el)) parts.push('value-withheld')
+      else if (value) parts.push(`value="${cut(String(value), 120)}"`)
     }
     if (el.tagName === 'A') {
       const href = el.getAttribute('href')
@@ -271,8 +303,14 @@ export function clickElement(id: number): unknown {
   const isSecretField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
+    // Space-separated detail tokens are spec-legal and WebAuthn recommends
+    // `current-password webauthn`, so whole-string equality missed real values
+    // on exactly the type=text credential fields where autocomplete is the
+    // only signal there is.
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
-    return hint === 'current-password' || hint === 'new-password'
+    return hint
+      .split(/\s+/)
+      .some((token) => token === 'current-password' || token === 'new-password')
   }
 
   const el = (window.__simAgentElements || [])[id]
@@ -321,8 +359,14 @@ export function focusElementForTyping(id: number): unknown {
   const isSecretField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
+    // Space-separated detail tokens are spec-legal and WebAuthn recommends
+    // `current-password webauthn`, so whole-string equality missed real values
+    // on exactly the type=text credential fields where autocomplete is the
+    // only signal there is.
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
-    return hint === 'current-password' || hint === 'new-password'
+    return hint
+      .split(/\s+/)
+      .some((token) => token === 'current-password' || token === 'new-password')
   }
 
   const el = (window.__simAgentElements || [])[id]
@@ -372,8 +416,39 @@ export function readActiveElementState(): unknown {
   const isSecretField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
+    // Space-separated detail tokens are spec-legal and WebAuthn recommends
+    // `current-password webauthn`, so whole-string equality missed real values
+    // on exactly the type=text credential fields where autocomplete is the
+    // only signal there is.
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
-    return hint === 'current-password' || hint === 'new-password'
+    return hint
+      .split(/\s+/)
+      .some((token) => token === 'current-password' || token === 'new-password')
+  }
+
+  /**
+   * Fields whose value is as sensitive as a password but which the agent must
+   * still be able to FILL: one-time codes and payment details.
+   *
+   * Deliberately separate from isSecretField. That one also gates keystrokes
+   * (activeElementSecrecy feeds the driver's press-key guard), so folding these
+   * tokens into it would stop the agent completing a checkout or an OTP prompt —
+   * work it is legitimately asked to do. Only the value is withheld here.
+   */
+  const isSensitiveValueField = (node: Element | null): boolean => {
+    if (!node || node.tagName !== 'INPUT') return false
+    const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
+    return hint
+      .split(/\s+/)
+      .some(
+        (token) =>
+          token === 'one-time-code' ||
+          token === 'cc-number' ||
+          token === 'cc-csc' ||
+          token === 'cc-exp' ||
+          token === 'cc-exp-month' ||
+          token === 'cc-exp-year'
+      )
   }
 
   // Focus inside a frame or an open shadow root surfaces on the outer document
@@ -407,6 +482,17 @@ export function readActiveElementState(): unknown {
   if (isSecretField(active)) {
     return {
       activeElement: 'password-field',
+      selectedChars: 0,
+      valueLength: 0,
+      valuePreview: '',
+      redacted: true,
+    }
+  }
+  // Reported as the real tag rather than 'password-field': the agent may
+  // still type here, it just never learns what is already in the field.
+  if (isSensitiveValueField(active)) {
+    return {
+      activeElement: active.tagName.toLowerCase(),
       selectedChars: 0,
       valueLength: 0,
       valuePreview: '',
@@ -451,8 +537,14 @@ export function activeElementSecrecy(): string {
   const isSecretField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
+    // Space-separated detail tokens are spec-legal and WebAuthn recommends
+    // `current-password webauthn`, so whole-string equality missed real values
+    // on exactly the type=text credential fields where autocomplete is the
+    // only signal there is.
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
-    return hint === 'current-password' || hint === 'new-password'
+    return hint
+      .split(/\s+/)
+      .some((token) => token === 'current-password' || token === 'new-password')
   }
 
   let active = document.activeElement as HTMLElement | null
@@ -463,6 +555,34 @@ export function activeElementSecrecy(): string {
       active = shadow.activeElement as HTMLElement
       continue
     }
+    // A CLOSED shadow root reports `shadowRoot === null` by design and cannot
+    // be traversed from script, while focus inside it retargets to the HOST —
+    // whose tagName is never INPUT, so the fallthrough below would call it
+    // 'safe' and let a trusted CDP keystroke land on a password field the page
+    // has hidden from us. Sequential focus navigation crosses closed boundaries
+    // natively, so Tab alone is enough to get there. Treated like a
+    // cross-origin frame: not inspectable is not safe.
+    //
+    // Detected by focusability rather than by tag: `attachShadow` accepts plain
+    // div/span/section as well as custom elements, so a tag test would miss
+    // half of them. An element that is not focusable in its own right cannot be
+    // `activeElement` unless focus was retargeted out of a shadow tree, which
+    // makes "not focusable yet focused" the reliable signal. Frames stay out of
+    // it so the branch below still classifies them.
+    const focusableItself =
+      active === document.body ||
+      active.isContentEditable ||
+      active.hasAttribute('tabindex') ||
+      active.tagName === 'INPUT' ||
+      active.tagName === 'TEXTAREA' ||
+      active.tagName === 'SELECT' ||
+      active.tagName === 'BUTTON' ||
+      active.tagName === 'A' ||
+      active.tagName === 'AREA' ||
+      active.tagName === 'SUMMARY' ||
+      active.tagName === 'IFRAME' ||
+      active.tagName === 'FRAME'
+    if (!shadow && !focusableItself) return 'opaque'
     if (active.tagName === 'IFRAME' || active.tagName === 'FRAME') {
       let inner: Document | null = null
       try {
@@ -486,8 +606,14 @@ export function typeIntoElement(id: number, text: string, submit: boolean): unkn
   const isSecretField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
+    // Space-separated detail tokens are spec-legal and WebAuthn recommends
+    // `current-password webauthn`, so whole-string equality missed real values
+    // on exactly the type=text credential fields where autocomplete is the
+    // only signal there is.
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
-    return hint === 'current-password' || hint === 'new-password'
+    return hint
+      .split(/\s+/)
+      .some((token) => token === 'current-password' || token === 'new-password')
   }
 
   const el = (window.__simAgentElements || [])[id]
@@ -556,8 +682,14 @@ export function pressKeyOnPage(
   const isSecretField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
+    // Space-separated detail tokens are spec-legal and WebAuthn recommends
+    // `current-password webauthn`, so whole-string equality missed real values
+    // on exactly the type=text credential fields where autocomplete is the
+    // only signal there is.
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
-    return hint === 'current-password' || hint === 'new-password'
+    return hint
+      .split(/\s+/)
+      .some((token) => token === 'current-password' || token === 'new-password')
   }
 
   const target = (document.activeElement as HTMLElement | null) ?? document.body

@@ -140,6 +140,20 @@ describe('secret-field detection', () => {
     ],
     ['new-password field', '<input type="text" autocomplete="new-password" />'],
     ['uppercase autocomplete token', '<input type="text" autocomplete="Current-Password" />'],
+    // The spec allows space-separated detail tokens and WebAuthn recommends
+    // this exact value, so whole-string equality missed it.
+    [
+      'WebAuthn multi-token autocomplete',
+      '<input type="text" autocomplete="current-password webauthn" />',
+    ],
+    [
+      'section-scoped autocomplete',
+      '<input type="text" autocomplete="section-login current-password" />',
+    ],
+    [
+      'multi-token new-password with surrounding whitespace',
+      '<input type="text" autocomplete="  new-password   webauthn  " />',
+    ],
   ]
 
   it.each(secretCases)('clickElement refuses a %s', (_label, html) => {
@@ -276,6 +290,24 @@ describe('collectSnapshot', () => {
     expect(outline).not.toContain('value=')
   })
 
+  it.each([
+    ['a one-time code', 'one-time-code', '123456'],
+    ['a card number', 'cc-number', '4111111111111111'],
+    ['a card security code', 'cc-csc', '737'],
+    ['a card expiry', 'cc-exp', '12/29'],
+  ])('withholds the value of %s while still listing the field', (_label, token, value) => {
+    document.body.innerHTML = `<input type="text" autocomplete="${token}" value="${value}" aria-label="Field" />`
+    visible(document.querySelector('input') as HTMLInputElement)
+
+    const outline = outlineOf(collectSnapshot())
+
+    // Not reported as a password-field: the agent must still be able to fill
+    // these, it just never learns what is already there.
+    expect(outline).not.toContain('password-field')
+    expect(outline).not.toContain(value)
+    expect(outline).toContain('value-withheld')
+  })
+
   it('withholds the value of a revealed password field', () => {
     document.body.innerHTML =
       '<input type="text" autocomplete="current-password" value="hunter2" aria-label="Password" />'
@@ -315,6 +347,23 @@ describe('readActiveElementState', () => {
     setActiveElement(document, document.querySelector('input'))
 
     expect(readActiveElementState()).toMatchObject({ redacted: true, valuePreview: '' })
+  })
+
+  it.each([
+    ['a one-time code', 'one-time-code', '123456'],
+    ['a card number', 'cc-number', '4111111111111111'],
+    ['a card security code', 'cc-csc', '737'],
+  ])('withholds %s on readback but keeps the real tag', (_label, token, value) => {
+    document.body.innerHTML = `<input type="text" autocomplete="${token}" value="${value}" />`
+    setActiveElement(document, document.querySelector('input'))
+
+    expect(readActiveElementState()).toEqual({
+      activeElement: 'input',
+      selectedChars: 0,
+      valueLength: 0,
+      valuePreview: '',
+      redacted: true,
+    })
   })
 
   it('reports ordinary fields in full', () => {
@@ -384,6 +433,46 @@ describe('activeElementSecrecy', () => {
     setActiveElement(document, frame)
 
     expect(activeElementSecrecy()).toBe('opaque')
+  })
+
+  it('reports opaque for a password field inside a CLOSED shadow root', () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const shadow = host.attachShadow({ mode: 'closed' })
+    shadow.innerHTML = '<input type="password" />'
+    // Focus inside a closed root retargets to the host and `shadowRoot` reads
+    // null, which is exactly what the browser reports and what made this 'safe'.
+    setActiveElement(document, host)
+
+    expect(host.shadowRoot).toBeNull()
+    expect(activeElementSecrecy()).toBe('opaque')
+  })
+
+  it('reports opaque for a closed shadow root on a custom element', () => {
+    const host = document.createElement('my-login')
+    document.body.append(host)
+    host.attachShadow({ mode: 'closed' }).innerHTML = '<input autocomplete="new-password" />'
+    setActiveElement(document, host)
+
+    expect(activeElementSecrecy()).toBe('opaque')
+  })
+
+  it('still reports safe for a focused element that is focusable in its own right', () => {
+    // The false-positive guard: a div the page made focusable is focused
+    // itself, not hiding a shadow tree, so keystrokes are not refused.
+    document.body.innerHTML = '<div tabindex="0">menu</div>'
+    setActiveElement(document, document.querySelector('div'))
+
+    expect(activeElementSecrecy()).toBe('safe')
+  })
+
+  it('still reports safe for a focused contenteditable', () => {
+    document.body.innerHTML = '<div contenteditable="true">note</div>'
+    const editable = document.querySelector('div') as HTMLElement
+    Object.defineProperty(editable, 'isContentEditable', { get: () => true })
+    setActiveElement(document, editable)
+
+    expect(activeElementSecrecy()).toBe('safe')
   })
 
   it('descends into a same-origin frame instead of calling it opaque', () => {
