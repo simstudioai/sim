@@ -145,6 +145,25 @@ describe('findOpenPrForBranch', () => {
     )
   })
 
+  it('accepts a renamed same-repository pull request by comparing head to base', async () => {
+    mockExecuteTool.mockResolvedValueOnce(list([{ number: 7 }])).mockResolvedValueOnce({
+      success: true,
+      output: snapshot({
+        head: {
+          sha: HEAD_SHA,
+          ref: 'feature/existing',
+          repo_full_name: 'octo-renamed/demo',
+        },
+        base: { sha: BASE_SHA, ref: 'staging', repo_full_name: 'octo-renamed/demo' },
+      }),
+    })
+
+    await expect(findOpenPrForBranch(params)).resolves.toMatchObject({
+      pullNumber: 7,
+      snapshot: { headRepoFullName: 'octo-renamed/demo' },
+    })
+  })
+
   it('returns no match so Update PR can create it, but fails when ambiguous', async () => {
     mockExecuteTool.mockResolvedValueOnce(list([]))
     await expect(findOpenPrForBranch(params)).resolves.toBeUndefined()

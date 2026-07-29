@@ -136,10 +136,11 @@ export async function fetchOpenPrForBranch(
   signal?: AbortSignal
 ): Promise<BranchPullRequest> {
   const snapshot = await fetchOpenPrSnapshot(params, signal)
-  const expectedRepo = `${params.owner}/${params.repo}`.toLowerCase()
   if (
     snapshot.headRef !== params.branch ||
-    snapshot.headRepoFullName?.toLowerCase() !== expectedRepo
+    !snapshot.headRepoFullName ||
+    !snapshot.baseRepoFullName ||
+    snapshot.headRepoFullName.toLowerCase() !== snapshot.baseRepoFullName.toLowerCase()
   ) {
     throw new Error(
       `PR #${params.pullNumber} no longer points to ${params.owner}/${params.repo}:${params.branch}`
