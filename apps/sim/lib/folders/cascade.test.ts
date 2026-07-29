@@ -165,11 +165,11 @@ describe('collectArchivedSubtreeIds', () => {
 })
 
 describe('archiveFolderCascade', () => {
-  it('archives children then folders under one shared timestamp', async () => {
+  it('stamps folders before children, under one shared timestamp', async () => {
     const { tx, updateCalls } = makeTx({
       updates: [
-        [{ id: 'child-1' }, { id: 'child-2' }],
         [{ id: 'root' }, { id: 'sub' }],
+        [{ id: 'child-1' }, { id: 'child-2' }],
       ],
     })
 
@@ -177,9 +177,27 @@ describe('archiveFolderCascade', () => {
 
     expect(counts).toEqual({ folders: 2, children: 2 })
     expect(updateCalls).toHaveLength(2)
-    expect(updateCalls[0].table).toBe(CHILD_TABLE)
-    expect(updateCalls[0].set).toEqual({ archivedAt: TIMESTAMP, updatedAt: TIMESTAMP })
-    expect(updateCalls[1].set).toMatchObject({ deletedAt: TIMESTAMP })
+    // Order is load-bearing: the folder must carry the stamp before any child does, so a
+    // failed cascade can be retried onto the same snapshot instead of minting a new one.
+    expect(updateCalls[0].table).not.toBe(CHILD_TABLE)
+    expect(updateCalls[0].set).toMatchObject({ deletedAt: TIMESTAMP })
+    expect(updateCalls[1].table).toBe(CHILD_TABLE)
+    expect(updateCalls[1].set).toEqual({ archivedAt: TIMESTAMP, updatedAt: TIMESTAMP })
+  })
+
+  it('stamps the folder before invoking an archiveChildren hook', async () => {
+    const seenAtHookTime: number[] = []
+    const { tx, updateCalls } = makeTx({ updates: [[{ id: 'root' }]] })
+    const archiveChildren = vi.fn().mockImplementation(async () => {
+      seenAtHookTime.push(updateCalls.length)
+      return 3
+    })
+
+    await archiveFolderCascade(tx, makeConfig({ archiveChildren }), 'ws-1', ['root'], TIMESTAMP)
+
+    // The hook walks resources one at a time and can fail partway, so the folder stamp must
+    // already be in place by then for the retry to reuse it.
+    expect(seenAtHookTime).toEqual([1])
   })
 
   it('skips rows that were already soft-deleted independently', async () => {
@@ -192,16 +210,16 @@ describe('archiveFolderCascade', () => {
     }
   })
 
-  it('stamps children with the timestamp it is given, not one of its own', async () => {
-    const { tx, updateCalls } = makeTx({ updates: [[{ id: 'child-1' }], []] })
+  it('stamps every row with the timestamp it is given, not one of its own', async () => {
+    const { tx, updateCalls } = makeTx({ updates: [[{ id: 'root' }], [{ id: 'child-1' }]] })
 
     await archiveFolderCascade(tx, makeConfig(), 'ws-1', ['root'], TIMESTAMP)
 
     // Regression guard: deleting an already-archived folder reuses that folder's existing
     // deletedAt. A fresh stamp here would strand the children — the folder row keeps its
     // original stamp, so restore would never match them.
-    expect(updateCalls[0].set).toEqual({ archivedAt: TIMESTAMP, updatedAt: TIMESTAMP })
-    expect(updateCalls[1].set).toMatchObject({ deletedAt: TIMESTAMP })
+    expect(updateCalls[0].set).toMatchObject({ deletedAt: TIMESTAMP })
+    expect(updateCalls[1].set).toEqual({ archivedAt: TIMESTAMP, updatedAt: TIMESTAMP })
   })
 
   it('delegates to archiveChildren when a resource archives through its own lifecycle', async () => {

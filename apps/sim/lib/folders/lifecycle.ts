@@ -411,9 +411,29 @@ export async function restoreFolder(params: RestoreFolderParams): Promise<Restor
     }
   }
 
-  let restored: { folderIds: string[]; counts: { folders: number; children: number } }
+  const folderIds = await collectArchivedSubtreeIds(
+    db,
+    workspaceId,
+    resourceType,
+    folderId,
+    archivedAt
+  )
+
+  // Resources with a `restoreChildren` hook come back BEFORE the folder rows. Those hooks
+  // call canonical restores that open their own transactions, so they cannot run inside the
+  // one below — and doing them first is what keeps a partial failure recoverable. Restoring
+  // folders first would clear the root's `deletedAt`, so a later child failure would
+  // short-circuit every retry on the `!archivedAt` early return above, stranding whatever
+  // had not come back yet. In this order a failure leaves the folder archived and the whole
+  // restore simply retryable; children already restored no longer match the timestamp and
+  // are skipped.
+  const hookChildren = config.restoreChildren
+    ? await config.restoreChildren({ workspaceId, folderIds, timestamp: archivedAt })
+    : null
+
+  let counts: { folders: number; children: number }
   try {
-    restored = await db.transaction(async (tx) => {
+    counts = await db.transaction(async (tx) => {
       const now = new Date()
 
       let resolvedParentId = folder.parentId
@@ -455,25 +475,13 @@ export async function restoreFolder(params: RestoreFolderParams): Promise<Restor
         await tx.update(folderTable).set({ name: restoredName }).where(eq(folderTable.id, folderId))
       }
 
-      const folderIds = await collectArchivedSubtreeIds(
-        tx,
-        workspaceId,
-        resourceType,
-        folderId,
-        archivedAt
-      )
-
       const folders = await restoreFolderRows(tx, config, workspaceId, folderIds, archivedAt, now)
 
-      // A resource with a `restoreChildren` hook restores through its own canonical path,
-      // which opens its own transactions — running that nested inside this one would hold a
-      // folder-row transaction open across unrelated connections. Those run after the commit
-      // below instead; the default row-update path stays inside the transaction.
-      const children = config.restoreChildren
-        ? 0
-        : await restoreFolderChildren(tx, config, workspaceId, folderIds, archivedAt, now)
+      const children =
+        hookChildren ??
+        (await restoreFolderChildren(tx, config, workspaceId, folderIds, archivedAt, now))
 
-      return { folderIds, counts: { folders, children } }
+      return { folders, children }
     })
   } catch (error) {
     // Clearing `deletedAt` brings the row back under the partial unique index on active
@@ -484,17 +492,6 @@ export async function restoreFolder(params: RestoreFolderParams): Promise<Restor
     }
     throw error
   }
-
-  const counts = config.restoreChildren
-    ? {
-        folders: restored.counts.folders,
-        children: await config.restoreChildren({
-          workspaceId,
-          folderIds: restored.folderIds,
-          timestamp: archivedAt,
-        }),
-      }
-    : restored.counts
 
   logger.info('Restored folder and all contents', { folderId, resourceType, counts })
 

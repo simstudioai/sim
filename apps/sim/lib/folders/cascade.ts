@@ -80,12 +80,21 @@ function childFilter(config: FolderResourceConfig, workspaceId: string, folderId
  * Soft-deletes every folder in `folderIds` and every resource contained by them, stamping
  * one shared `timestamp` across the whole cascade.
  *
- * The shared timestamp is load-bearing: {@link restoreFolderCascade} resurrects only rows
- * whose soft-delete timestamp matches the folder's exactly, which is what stops a restore
- * from also reviving siblings that were deleted independently.
+ * The shared timestamp is load-bearing: the restore path resurrects only rows whose
+ * soft-delete timestamp matches the folder's exactly, which is what stops a restore from
+ * also reviving siblings that were deleted independently.
  *
- * Children are archived before folders so a concurrent reader never sees an active
- * resource inside a folder that has already vanished from the tree.
+ * Folders are stamped BEFORE their children, which is what makes a failed cascade
+ * recoverable. `archiveChildren` hooks walk resources one at a time through their canonical
+ * delete, so a mid-loop failure can leave some children archived and some not. With the
+ * folder already stamped, `deleteFolder` reuses that same `deletedAt` on the retry and the
+ * stragglers join the original snapshot. Stamping children first would leave the folder
+ * active, so a retry would mint a fresh timestamp and the partially-archived children could
+ * never be matched by any restore again.
+ *
+ * The cost is a window where the folder reads as deleted while a resource inside it is still
+ * active. That is the strictly better failure: it is transient and self-healing on retry,
+ * where the alternative silently and permanently strands data.
  */
 export async function archiveFolderCascade(
   tx: DbOrTx,
@@ -94,16 +103,6 @@ export async function archiveFolderCascade(
   folderIds: string[],
   timestamp: Date
 ): Promise<FolderCascadeCounts> {
-  const children = config.archiveChildren
-    ? await config.archiveChildren({ workspaceId, folderIds, timestamp })
-    : (
-        await tx
-          .update(config.table)
-          .set(config.buildSoftDeleteSet(timestamp, timestamp))
-          .where(and(childFilter(config, workspaceId, folderIds), isNull(config.deletedColumn)))
-          .returning({ id: config.idColumn })
-      ).length
-
   const archivedFolders = await tx
     .update(folderTable)
     .set({ deletedAt: timestamp, updatedAt: timestamp })
@@ -116,6 +115,16 @@ export async function archiveFolderCascade(
       )
     )
     .returning({ id: folderTable.id })
+
+  const children = config.archiveChildren
+    ? await config.archiveChildren({ workspaceId, folderIds, timestamp })
+    : (
+        await tx
+          .update(config.table)
+          .set(config.buildSoftDeleteSet(timestamp, timestamp))
+          .where(and(childFilter(config, workspaceId, folderIds), isNull(config.deletedColumn)))
+          .returning({ id: config.idColumn })
+      ).length
 
   return { folders: archivedFolders.length, children }
 }

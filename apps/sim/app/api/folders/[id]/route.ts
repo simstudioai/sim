@@ -7,6 +7,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { deleteFolderContract, updateFolderContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { HttpError } from '@/lib/core/utils/http-error'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteFolder, updateFolder } from '@/lib/folders/lifecycle'
 import { toFolderApi } from '@/lib/folders/queries'
@@ -186,6 +187,11 @@ export const DELETE = withRouteHandler(
       if (error instanceof FolderLockedError) {
         return NextResponse.json({ error: error.message }, { status: error.status })
       }
+
+      // A typed domain error carries its own status — `deleteTable` can still raise a 423
+      // `TableLockedError` if a lock is set between the subtree guard and the archive.
+      // Rethrow so `withRouteHandler` maps it instead of flattening it to a 500.
+      if (error instanceof HttpError) throw error
 
       logger.error('Error deleting folder:', { error })
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
