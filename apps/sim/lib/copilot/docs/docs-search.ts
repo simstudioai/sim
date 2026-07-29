@@ -23,11 +23,6 @@ export interface DocsSearchResult {
 }
 
 /**
- * Thrown when the caller scopes a search to a `path` that is not a real page or
- * section in the docs corpus. Surfaced verbatim so the model can correct itself
- * rather than reading an empty result as "the docs say nothing about this".
- */
-/**
  * A search result set plus why it may be shorter than `topK`. The SQL LIMIT is
  * applied before the threshold and liveness filters, so these counts are what
  * distinguishes "nothing matched" from "matches were filtered out".
@@ -42,6 +37,11 @@ export interface DocsSearchOutcome {
   droppedStale: number
 }
 
+/**
+ * Thrown when the caller scopes a search to a `path` that is not a real page or
+ * section in the docs corpus. Surfaced verbatim so the model can correct itself
+ * rather than reading an empty result as "the docs say nothing about this".
+ */
 export class DocsSearchScopeError extends Error {
   readonly code = 'DOCS_SEARCH_SCOPE' as const
   constructor(message: string) {
