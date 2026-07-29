@@ -101,32 +101,52 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const baseUrl = `https://api.atlassian.com/ex/confluence/${cloudIdValidation.sanitized}/wiki/api/v2/spaces`
     const { status, inner } = parseCursor(cursor)
 
-    /**
-     * Exact-key lookup: one request, no pagination. The dropdown drains pages in
-     * the background and filters client-side, so a space only becomes findable
-     * once its page has arrived — on a large site that is tens of seconds away.
-     * Resolving a known key directly makes it available immediately. `status` is
-     * left unset so the key matches whether the space is current or archived.
-     */
-    const params = spaceKey
-      ? new URLSearchParams({ keys: spaceKey, limit: String(PAGE_LIMIT) })
-      : new URLSearchParams({ limit: String(PAGE_LIMIT), status })
-    if (inner && !spaceKey) params.set('cursor', inner)
-    const url = `${baseUrl}?${params.toString()}`
+    const requestSpaces = async (
+      search: URLSearchParams
+    ): Promise<{ ok: true; data: any } | { ok: false; response: NextResponse }> => {
+      const response = await fetch(`${baseUrl}?${search.toString()}`, {
+        method: 'GET',
+        headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
+      })
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
-    })
+      if (!response.ok) {
+        const errorText = await response.text()
+        const message = parseAtlassianErrorMessage(response.status, response.statusText, errorText)
+        logger.error('Confluence API error response', { error: message, status: response.status })
+        return { ok: false, response: NextResponse.json({ error: message }, { status: 502 }) }
+      }
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      const message = parseAtlassianErrorMessage(response.status, response.statusText, errorText)
-      logger.error('Confluence API error response', { error: message, status: response.status })
-      return NextResponse.json({ error: message }, { status: 502 })
+      return { ok: true, data: await response.json() }
     }
 
-    const data = await response.json()
+    let data: any
+    if (spaceKey) {
+      /**
+       * Exact-key lookup, bypassing the paged drain the dropdown otherwise depends
+       * on. `status` is queried explicitly per value rather than omitted: it takes a
+       * single value on this endpoint (unlike `/pages`, where it is an array with a
+       * documented `current,archived` default), and no default is documented for
+       * `/spaces`. Archived spaces are reachable in the paged path and sync works
+       * against them, so resolving only `current` would silently miss them.
+       */
+      let result = await requestSpaces(
+        new URLSearchParams({ keys: spaceKey, limit: String(PAGE_LIMIT), status: 'current' })
+      )
+      if (!result.ok) return result.response
+      if (!result.data.results?.length) {
+        result = await requestSpaces(
+          new URLSearchParams({ keys: spaceKey, limit: String(PAGE_LIMIT), status: 'archived' })
+        )
+        if (!result.ok) return result.response
+      }
+      data = result.data
+    } else {
+      const params = new URLSearchParams({ limit: String(PAGE_LIMIT), status })
+      if (inner) params.set('cursor', inner)
+      const result = await requestSpaces(params)
+      if (!result.ok) return result.response
+      data = result.data
+    }
     const spaces = (data.results || []).map(
       (space: { id: string; name: string; key: string; status?: SpaceStatus }) => ({
         id: space.id,
