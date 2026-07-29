@@ -299,10 +299,7 @@ async function ensureUpdatePullRequest(
   secrets: readonly string[],
   signal?: AbortSignal
 ): Promise<OpenedPullRequest> {
-  if (existingPullRequest) {
-    return updatePullRequest(params, existingPullRequest, secrets, signal)
-  }
-  const newlyCreatedPullRequest = await findOpenPrForBranch(
+  const currentPullRequest = await findOpenPrForBranch(
     {
       owner: params.owner,
       repo: params.repo,
@@ -311,8 +308,14 @@ async function ensureUpdatePullRequest(
     },
     signal
   )
-  if (newlyCreatedPullRequest) {
-    return updatePullRequest(params, newlyCreatedPullRequest, secrets, signal)
+  if (existingPullRequest) {
+    if (currentPullRequest && currentPullRequest.pullNumber !== existingPullRequest.pullNumber) {
+      throw new Error(`The open pull request for branch ${branch} changed during authoring`)
+    }
+    return updatePullRequest(params, existingPullRequest, secrets, signal)
+  }
+  if (currentPullRequest) {
+    return updatePullRequest(params, currentPullRequest, secrets, signal)
   }
   const base = params.baseBranch?.trim() || (await repositoryDefaultBranch(params, signal))
   const draft = params.babysit ? false : params.prState !== 'ready'

@@ -800,6 +800,22 @@ describe('runCloudPi', () => {
       expect(result.prUrl).toBe('https://github.com/octo/demo/pull/7')
     })
 
+    it('fails when a second PR for the branch appears during authoring', async () => {
+      mockExistingBranchPullRequest()
+      mockExecuteTool.mockResolvedValueOnce({
+        success: true,
+        output: { items: [{ number: 7 }, { number: 8 }], count: 2 },
+      })
+
+      await expect(runCloudBranchPi(branchParams(), { onEvent: vi.fn() })).rejects.toThrow(
+        /multiple open pull requests/
+      )
+      expect(
+        mockExecuteTool.mock.calls.some(([tool]: [string]) => tool === 'github_update_pr')
+      ).toBe(false)
+      expect(mockRunBabysit).not.toHaveBeenCalled()
+    })
+
     it('does not claim a push happened when no-op authoring is followed by a PR error', async () => {
       mockRun.mockImplementation((command: string) => {
         if (command.includes('git clone')) {
@@ -843,6 +859,12 @@ describe('runCloudPi', () => {
         return Promise.resolve({ stdout: '__NO_CHANGES__=1', stderr: '', exitCode: 0 })
       })
       mockExecuteTool.mockImplementation((tool: string) => {
+        if (tool === 'github_list_prs_v2') {
+          return Promise.resolve({
+            success: true,
+            output: { items: [{ number: 7 }], count: 1 },
+          })
+        }
         if (tool === 'github_pr_v2') {
           return Promise.resolve(existingPullRequestOutput())
         }
