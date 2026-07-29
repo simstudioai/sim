@@ -22,8 +22,10 @@
  *   opens a file, so a late-joining task (the normal case under autoscaling) loads the current shared
  *   state before its first client syncs. Catch-up + tail are seamless: the tailer resumes from the
  *   exact id catch-up stopped at.
- * - {@link shouldSeed} coordinates the one-time seed with a Redis lock AND an empty-stream check, so
- *   exactly one task ever writes the seed cluster-wide (the fix for split-brain).
+ * - The one-time seed is written via the atomic {@link seedIfEmpty} (append-iff-empty in one Redis
+ *   step), so exactly one task ever writes the seed cluster-wide (the fix for split-brain) — even if two
+ *   tasks race. {@link shouldSeed} is a Redis lock + empty-stream check layered on top ONLY as an
+ *   efficiency gate (so tasks don't all run the seed fetch); correctness does not depend on it.
  *
  * When `REDIS_URL` is unset (single-pod dev) the store is DISABLED and every method degrades to the
  * relay's original single-replica behavior: seed locally, no stream, no tailer.
@@ -364,17 +366,20 @@ export class FileDocStore {
   }
 
   /**
-   * Decide whether THIS task should build and write the file's one-time seed. Returns a lock TOKEN only
-   * when the shared stream is genuinely empty AND this task wins the seed lock — so exactly one task
-   * across the cluster ever seeds a file, even if several open it at once (the fix for split-brain
-   * seeding). `null` otherwise. Release the token with {@link releaseSeedLock}. Disabled → always a
-   * token (single-replica: seed locally).
+   * Decide whether THIS task should run the (expensive) seed fetch + write for a file. Returns a lock
+   * TOKEN when this task wins the seed lock and the stream still looks empty; `null` otherwise. This is an
+   * EFFICIENCY gate — it stops every task that opens the file at once from each fetching the seed. It does
+   * NOT by itself guarantee a single seed: exactly-once is enforced by the atomic {@link seedIfEmpty} the
+   * token-holder then calls (the split-brain guard), so a lock that expires mid-seed cannot cause a
+   * double-seed. Release the token with {@link releaseSeedLock}. Disabled → always a token (single-replica:
+   * seed locally).
    */
   async shouldSeed(name: string): Promise<string | null> {
     const token = await this.acquireLock(`${SEED_LOCK_PREFIX}${name}`, SEED_LOCK_TTL_MS)
     if (!token || token === DISABLED_LOCK_TOKEN) return token
     // The lock could be free yet the stream already seeded (a prior holder seeded then its lock
-    // expired). Re-check under the lock so we never write a SECOND seed on top of an existing one.
+    // expired). Re-check so we skip the redundant seed fetch — the atomic seedIfEmpty would no-op anyway,
+    // but this avoids the wasted app round-trip.
     if (await this.streamHasContent(name)) {
       await this.releaseSeedLock(name, token)
       return null
