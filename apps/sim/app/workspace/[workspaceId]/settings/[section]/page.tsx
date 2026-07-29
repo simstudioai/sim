@@ -11,9 +11,10 @@ import {
 } from '@/components/settings/navigation'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
-import { hasWorkspaceInboxAccess } from '@/lib/billing/core/subscription'
+import { hasWorkspaceInboxAccess, hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
@@ -49,6 +50,7 @@ const WORKSPACE_SECTION_MAP: Partial<Record<SettingsSection, WorkspaceSettingsSe
   teammates: 'teammates',
   secrets: 'secrets',
   byok: 'byok',
+  sandboxes: 'sandboxes',
   'custom-tools': 'custom-tools',
   mcp: 'mcp',
   'workflow-mcp-servers': 'workflow-mcp-servers',
@@ -107,13 +109,16 @@ export default async function WorkspaceSettingsSectionPage({
 
   const workspaceSection = WORKSPACE_SECTION_MAP[parsed]
   if (workspaceSection) {
-    const [permissionGroup, forksAvailable, inboxAvailable] = await Promise.all([
-      hostContext.hostOrganizationId && hostContext.ownerBilling.isEnterprise
-        ? resolveWorkspaceGroup(session.user.id, hostContext.hostOrganizationId, workspaceId)
-        : null,
-      isForkingAvailableForWorkspace(hostContext.hostOrganizationId, session.user.id),
-      hasWorkspaceInboxAccess(workspaceId),
-    ])
+    const [permissionGroup, forksAvailable, inboxAvailable, sandboxesEntitled, sandboxesEnabled] =
+      await Promise.all([
+        hostContext.hostOrganizationId && hostContext.ownerBilling.isEnterprise
+          ? resolveWorkspaceGroup(session.user.id, hostContext.hostOrganizationId, workspaceId)
+          : null,
+        isForkingAvailableForWorkspace(hostContext.hostOrganizationId, session.user.id),
+        hasWorkspaceInboxAccess(workspaceId),
+        hasWorkspaceSandboxAccess(workspaceId),
+        isFeatureEnabled('custom-sandboxes', { userId: session.user.id }),
+      ])
     const customBlocksAvailable = isHosted
       ? hostContext.ownerBilling.isEnterprise
       : isTruthy(getEnv('NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED'))
@@ -125,6 +130,7 @@ export default async function WorkspaceSettingsSectionPage({
         inbox: inboxAvailable,
         customBlocks: customBlocksAvailable,
         forks: forksAvailable,
+        sandboxes: sandboxesEntitled && sandboxesEnabled,
       },
     })
     if (!navigation.some((item) => item.id === workspaceSection)) notFound()

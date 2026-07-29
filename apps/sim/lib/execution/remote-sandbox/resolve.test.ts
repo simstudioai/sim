@@ -1,0 +1,288 @@
+/**
+ * @vitest-environment node
+ *
+ * Resolution is the fail-closed boundary: a selection that cannot be honored has
+ * to surface as an explicit error, never as a baffling ModuleNotFoundError
+ * inside the user's code. These cases pin that contract down.
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { CodeLanguage } from '@/lib/execution/languages'
+
+const { mockSelect, mockUpdate, mockProviderStrategy } = vi.hoisted(() => ({
+  mockSelect: vi.fn(),
+  mockUpdate: vi.fn(),
+  mockProviderStrategy: { current: 'prebuilt' as 'prebuilt' | 'runtime' },
+}))
+
+vi.mock('@sim/db', () => ({
+  db: {
+    select: mockSelect,
+    update: mockUpdate,
+  },
+}))
+
+vi.mock('@sim/db/schema', () => ({
+  workspaceSandbox: {
+    id: 'id',
+    workspaceId: 'workspace_id',
+    name: 'name',
+    language: 'language',
+    dependencies: 'dependencies',
+    specHash: 'spec_hash',
+  },
+  sandboxImage: {
+    provider: 'provider',
+    specHash: 'spec_hash',
+    status: 'status',
+    imageRef: 'image_ref',
+    errorMessage: 'error_message',
+    lastUsedAt: 'last_used_at',
+  },
+}))
+
+vi.mock('drizzle-orm', () => ({
+  and: (...args: unknown[]) => args,
+  eq: (...args: unknown[]) => args,
+}))
+
+vi.mock('@/lib/execution/remote-sandbox/provider', () => ({
+  resolveProvider: () => ({
+    id: 'e2b',
+    get dependencyStrategy() {
+      return mockProviderStrategy.current
+    },
+  }),
+}))
+
+import {
+  invalidateSandboxResolution,
+  provisionRuntimeDependencies,
+  resolveWorkspaceSandbox,
+} from '@/lib/execution/remote-sandbox/resolve'
+
+/** Queues the rows each successive `db.select()` chain resolves to. */
+function queueSelects(...results: unknown[][]) {
+  mockSelect.mockReset()
+  for (const rows of results) {
+    mockSelect.mockReturnValueOnce({
+      from: () => ({ where: () => ({ limit: () => Promise.resolve(rows) }) }),
+    })
+  }
+}
+
+const SANDBOX_ROW = {
+  id: 'sbx-1',
+  name: 'bigquery-etl',
+  language: 'python',
+  dependencies: ['pandas'],
+  specHash: 'hash-1',
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  invalidateSandboxResolution()
+  mockProviderStrategy.current = 'prebuilt'
+  mockUpdate.mockReturnValue({ set: () => ({ where: () => Promise.resolve() }) })
+})
+
+describe('resolveWorkspaceSandbox', () => {
+  it('returns null when nothing is selected, leaving current behavior unchanged', async () => {
+    const resolved = await resolveWorkspaceSandbox({
+      kind: 'code',
+      language: CodeLanguage.Python,
+      workspaceId: 'ws-1',
+    })
+    expect(resolved).toBeNull()
+    expect(mockSelect).not.toHaveBeenCalled()
+  })
+
+  it.each(['doc', 'pi'] as const)('ignores a selection for the %s kind', async (kind) => {
+    const resolved = await resolveWorkspaceSandbox({
+      kind,
+      language: CodeLanguage.Python,
+      workspaceId: 'ws-1',
+      sandboxId: 'sbx-1',
+    })
+    expect(resolved).toBeNull()
+    expect(mockSelect).not.toHaveBeenCalled()
+  })
+
+  it('passes the ready image ref under the prebuilt strategy', async () => {
+    queueSelects([SANDBOX_ROW], [{ status: 'ready', imageRef: 'sim-sbx-abc', errorMessage: null }])
+
+    const resolved = await resolveWorkspaceSandbox({
+      kind: 'code',
+      language: CodeLanguage.Python,
+      workspaceId: 'ws-1',
+      sandboxId: 'sbx-1',
+    })
+
+    expect(resolved).toMatchObject({ strategy: 'prebuilt', imageRef: 'sim-sbx-abc' })
+    // Python needs no NODE_PATH; only JavaScript does.
+    expect(resolved?.envs).toBeUndefined()
+  })
+
+  it('carries NODE_PATH for javascript so installed packages resolve', async () => {
+    queueSelects(
+      [{ ...SANDBOX_ROW, language: 'javascript', dependencies: ['axios'] }],
+      [{ status: 'ready', imageRef: 'sim-sbx-abc', errorMessage: null }]
+    )
+
+    const resolved = await resolveWorkspaceSandbox({
+      kind: 'code',
+      language: CodeLanguage.JavaScript,
+      workspaceId: 'ws-1',
+      sandboxId: 'sbx-1',
+    })
+
+    expect(resolved?.envs?.NODE_PATH).toContain('node_modules')
+  })
+
+  it.each([
+    ['building', /still building/],
+    ['pending', /still building/],
+    ['failed', /failed to build/],
+  ])('fails closed when the build is %s', async (status, expected) => {
+    queueSelects([SANDBOX_ROW], [{ status, imageRef: null, errorMessage: 'pandas not found' }])
+
+    await expect(
+      resolveWorkspaceSandbox({
+        kind: 'code',
+        language: CodeLanguage.Python,
+        workspaceId: 'ws-1',
+        sandboxId: 'sbx-1',
+      })
+    ).rejects.toThrow(expected)
+  })
+
+  it('fails closed when the build row does not exist yet', async () => {
+    queueSelects([SANDBOX_ROW], [])
+
+    await expect(
+      resolveWorkspaceSandbox({
+        kind: 'code',
+        language: CodeLanguage.Python,
+        workspaceId: 'ws-1',
+        sandboxId: 'sbx-1',
+      })
+    ).rejects.toThrow(/no completed build/)
+  })
+
+  it('rejects a deleted or cross-workspace sandbox', async () => {
+    queueSelects([])
+
+    await expect(
+      resolveWorkspaceSandbox({
+        kind: 'code',
+        language: CodeLanguage.Python,
+        workspaceId: 'ws-other',
+        sandboxId: 'sbx-1',
+      })
+    ).rejects.toThrow(/no longer exists in this workspace/)
+  })
+
+  it('rejects a language mismatch instead of installing the wrong dependency set', async () => {
+    queueSelects([SANDBOX_ROW], [{ status: 'ready', imageRef: 'sim-sbx-abc', errorMessage: null }])
+
+    await expect(
+      resolveWorkspaceSandbox({
+        kind: 'code',
+        language: CodeLanguage.JavaScript,
+        workspaceId: 'ws-1',
+        sandboxId: 'sbx-1',
+      })
+    ).rejects.toThrow(/installs python dependencies, but this block runs javascript/)
+  })
+
+  it('never touches the build registry under the runtime strategy', async () => {
+    mockProviderStrategy.current = 'runtime'
+    queueSelects([SANDBOX_ROW])
+
+    const resolved = await resolveWorkspaceSandbox({
+      kind: 'code',
+      language: CodeLanguage.Python,
+      workspaceId: 'ws-1',
+      sandboxId: 'sbx-1',
+    })
+
+    expect(resolved).toMatchObject({ strategy: 'runtime' })
+    expect(resolved?.imageRef).toBeUndefined()
+    expect(mockSelect).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('provisionRuntimeDependencies', () => {
+  function fakeSandbox(commandResult: { stdout: string; stderr: string; exitCode: number }) {
+    return {
+      sandboxId: 'sb_1',
+      writeFile: vi.fn().mockResolvedValue(undefined),
+      runCommand: vi.fn().mockResolvedValue(commandResult),
+      runCode: vi.fn(),
+      readFile: vi.fn(),
+      kill: vi.fn(),
+    }
+  }
+
+  const RUNTIME_PY = {
+    id: 'sbx-1',
+    name: 'etl',
+    language: CodeLanguage.Python,
+    dependencies: ['pandas'],
+    strategy: 'runtime' as const,
+  }
+
+  it('writes the manifest through the filesystem API, never a shell argument', async () => {
+    const sandbox = fakeSandbox({ stdout: 'ok', stderr: '', exitCode: 0 })
+
+    await provisionRuntimeDependencies(sandbox, RUNTIME_PY)
+
+    expect(sandbox.writeFile).toHaveBeenCalledWith('/tmp/sim-requirements.txt', 'pandas\n')
+    const [command] = sandbox.runCommand.mock.calls.at(-1) as [string]
+    expect(command).toContain('-r /tmp/sim-requirements.txt')
+    expect(command).not.toContain('pandas')
+  })
+
+  it('installs javascript packages from a package.json into the shared prefix', async () => {
+    const sandbox = fakeSandbox({ stdout: 'ok', stderr: '', exitCode: 0 })
+
+    await provisionRuntimeDependencies(sandbox, {
+      ...RUNTIME_PY,
+      language: CodeLanguage.JavaScript,
+      dependencies: ['axios@^1.7.0'],
+    })
+
+    const manifestCall = sandbox.writeFile.mock.calls[0] as [string, string]
+    expect(manifestCall[0]).toMatch(/package\.json$/)
+    expect(JSON.parse(manifestCall[1]).dependencies).toEqual({ axios: '^1.7.0' })
+  })
+
+  it('aborts with the classified error so user code never runs half-installed', async () => {
+    const sandbox = fakeSandbox({
+      stdout: '',
+      stderr: 'ERROR: No matching distribution found for pandsa',
+      exitCode: 1,
+    })
+
+    await expect(provisionRuntimeDependencies(sandbox, RUNTIME_PY)).rejects.toThrow(
+      /Package "pandsa" was not found on PyPI/
+    )
+  })
+
+  it('does nothing under the prebuilt strategy', async () => {
+    const sandbox = fakeSandbox({ stdout: '', stderr: '', exitCode: 0 })
+
+    await provisionRuntimeDependencies(sandbox, { ...RUNTIME_PY, strategy: 'prebuilt' })
+
+    expect(sandbox.writeFile).not.toHaveBeenCalled()
+    expect(sandbox.runCommand).not.toHaveBeenCalled()
+  })
+
+  it('uses a timeout of its own, so a slow install cannot eat the code budget', async () => {
+    const sandbox = fakeSandbox({ stdout: 'ok', stderr: '', exitCode: 0 })
+
+    await provisionRuntimeDependencies(sandbox, RUNTIME_PY)
+
+    const [, options] = sandbox.runCommand.mock.calls.at(-1) as [string, { timeoutMs: number }]
+    expect(options.timeoutMs).toBeGreaterThan(0)
+  })
+})

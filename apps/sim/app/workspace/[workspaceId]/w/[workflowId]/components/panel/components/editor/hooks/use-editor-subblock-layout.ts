@@ -6,6 +6,7 @@ import {
   isSubBlockHidden,
   isSubBlockVisibleForMode,
   isSubBlockVisibleForTriggerMode,
+  isToolInputOnlySubBlock,
   shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
@@ -116,6 +117,9 @@ export function useEditorSubblockLayout(
 
     const visibleSubBlocks = (config.subBlocks || []).filter((block) => {
       if (block.hidden) return false
+
+      // Configures the block as an agent tool; it has no meaning on the canvas.
+      if (isToolInputOnlySubBlock(block)) return false
 
       // Filter by reactive condition (evaluated via hooks before useMemo)
       if (hiddenByReactiveCondition.has(block.id)) return false

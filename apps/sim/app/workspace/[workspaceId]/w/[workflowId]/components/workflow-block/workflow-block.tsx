@@ -30,6 +30,7 @@ import {
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isSubBlockVisibleForMode,
+  isToolInputOnlySubBlock,
   isTriggerModeSubBlock,
   resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
@@ -628,6 +629,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       if (block.hideFromPreview) return false
       if (hiddenByReactiveCondition.has(block.id)) return false
       if (!isSubBlockFeatureEnabled(block)) return false
+
+      // Configures the block as an agent tool; it has no meaning on the canvas.
+      if (isToolInputOnlySubBlock(block)) return false
       if (isSubBlockHidden(block)) return false
 
       const isPureTriggerBlock = config?.triggers?.enabled && config.category === 'triggers'

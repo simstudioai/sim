@@ -129,6 +129,13 @@ export interface ProviderToolConfig {
     required: string[]
   }
   usageControl?: ToolUsageControl
+  /**
+   * Params the model may never supply, because the tool declares them
+   * `user-only` or `hidden`. Stripped from the model's arguments before they
+   * merge with the user's — omitting them from {@link ProviderToolConfig.parameters}
+   * alone does not stop a model from emitting one anyway.
+   */
+  modelBlockedParams?: string[]
   /** Block-level params transformer — converts SubBlock values to tool-ready params */
   paramsTransform?: (params: Record<string, any>) => Record<string, any>
 }

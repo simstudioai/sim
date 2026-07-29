@@ -121,6 +121,16 @@ const FEATURE_FLAGS = {
       'the woven-in asserts stay no-ops. Off-AppConfig falls back to TABLE_LOCKS.',
     fallback: 'TABLE_LOCKS',
   },
+  'custom-sandboxes': {
+    description:
+      'Workspace-defined dependency sets (pip/npm) a Function block can select, materialized as a ' +
+      'prebuilt E2B template or installed at run time on Daytona. Gates the Settings → Sandboxes ' +
+      'surface and the routes that write sandboxes. Enforcement of a stored selection always ' +
+      'runs: stored config is the executor source of truth, so a sandbox that was once selectable ' +
+      'keeps executing if the flag flips off — an off flag means no NEW sandbox can be created, ' +
+      'not that running workflows break. Off-AppConfig falls back to CUSTOM_SANDBOXES.',
+    fallback: 'CUSTOM_SANDBOXES',
+  },
 } satisfies Record<string, FeatureFlagDefinition>
 
 /**

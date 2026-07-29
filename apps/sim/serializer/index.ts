@@ -12,6 +12,7 @@ import {
   isNonEmptyValue,
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
+  isToolInputOnlySubBlock,
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
@@ -52,6 +53,11 @@ function shouldSerializeSubBlock(
   canonicalModeOverrides?: CanonicalModeOverrides
 ): boolean {
   if (!isSubBlockFeatureEnabled(subBlockConfig)) return false
+  // Only meaningful when the block is invoked as an agent tool, where the
+  // value lives on the tool entry rather than the block. Serializing it here
+  // would let a non-UI writer (copilot, YAML import) set an invisible secret
+  // scope that the executor's env inlining does not honor.
+  if (isToolInputOnlySubBlock(subBlockConfig)) return false
   if (isSubBlockHidden(subBlockConfig)) return false
 
   if (subBlockConfig.mode === 'trigger') {

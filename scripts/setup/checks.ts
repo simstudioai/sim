@@ -385,6 +385,26 @@ function checkCoherence(ctx: CheckContext): Finding[] {
     })
   }
 
+  // NEXT_PUBLIC_SANDBOX_ENABLED is not a 1:1 twin: remote execution is available
+  // under E2B_ENABLED or, when SANDBOX_PROVIDER=daytona, DAYTONA_API_KEY. Without
+  // it the Function block hides its language dropdown and sandbox selector even
+  // though the server would happily run Python.
+  const sandboxProvider = (sim.vars.get('SANDBOX_PROVIDER') || 'e2b').toLowerCase()
+  const remoteSandboxAvailable =
+    sandboxProvider === 'daytona'
+      ? Boolean(sim.vars.get('DAYTONA_API_KEY'))
+      : isTruthy(sim.vars.get('E2B_ENABLED'))
+  if (remoteSandboxAvailable && !isTruthy(sim.vars.get('NEXT_PUBLIC_SANDBOX_ENABLED'))) {
+    findings.push({
+      group: 'coherence',
+      status: 'fail',
+      message:
+        'remote sandboxes are configured but NEXT_PUBLIC_SANDBOX_ENABLED is unset — the Function block will hide its language and sandbox controls',
+      fix: 'doctor --fix sets NEXT_PUBLIC_SANDBOX_ENABLED=true',
+      autofix: () => writeEnvValues(sim.target, { NEXT_PUBLIC_SANDBOX_ENABLED: 'true' }),
+    })
+  }
+
   const disableAuth = sim.vars.get('DISABLE_AUTH')
   if (
     isTruthy(disableAuth) &&

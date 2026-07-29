@@ -254,6 +254,13 @@ const sandboxProvider = (env.SANDBOX_PROVIDER || 'e2b').toLowerCase()
  * key is set (the shell snapshot is verified at create time, failing closed).
  * Mirrors the E2B gate exactly when the provider is E2B, so existing behavior is
  * unchanged.
+ *
+ * The browser twin is `NEXT_PUBLIC_SANDBOX_ENABLED`, read by the Function
+ * block's `showWhenEnvSet` gates. It exists because `NEXT_PUBLIC_E2B_ENABLED`
+ * has no Daytona counterpart: on a Daytona-only deployment Python executed fine
+ * but the language dropdown was hidden. Those gates still accept the old var as
+ * a fallback, so an existing deployment keeps working until it sets the new one;
+ * `bun run setup --doctor` flags the mismatch.
  */
 export const isRemoteSandboxEnabled =
   sandboxProvider === 'daytona' ? Boolean(env.DAYTONA_API_KEY) : isTruthy(env.E2B_ENABLED)

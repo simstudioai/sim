@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { filterUndefined } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { requestRaw } from '@/lib/api/client'
@@ -76,12 +77,29 @@ export interface WandConfig {
   maintainHistory?: boolean // Whether to keep conversation history
 }
 
+/**
+ * Client-supplied context the server's `wandEnrichers` expand into extra system
+ * prompt. Sent as ids only — the enricher does the DB/registry lookup, so no
+ * schema or package metadata has to round-trip through the browser.
+ */
+interface WandContextParams {
+  tableId?: string | null
+  sandboxId?: string | null
+}
+
+/** Drops the unset keys so an all-empty context is omitted from the request. */
+function buildWandContext(params?: WandContextParams): Record<string, string> | undefined {
+  const context = filterUndefined({
+    tableId: params?.tableId ?? undefined,
+    sandboxId: params?.sandboxId ?? undefined,
+  })
+  return Object.keys(context).length > 0 ? context : undefined
+}
+
 interface UseWandProps {
   wandConfig?: WandConfig
   currentValue?: string
-  contextParams?: {
-    tableId?: string | null
-  }
+  contextParams?: WandContextParams
   onGeneratedContent: (content: string) => void
   onStreamChunk?: (chunk: string) => void
   onStreamStart?: () => void
@@ -185,7 +203,7 @@ export function useWand({
               generationType: wandConfig?.generationType,
               workflowId: workflowId ?? undefined,
               workspaceId: workspaceId ?? undefined,
-              wandContext: contextParams?.tableId ? { tableId: contextParams.tableId } : undefined,
+              wandContext: buildWandContext(contextParams),
             },
             signal: abortControllerRef.current.signal,
           },
@@ -267,6 +285,7 @@ export function useWand({
       onGenerationComplete,
       queryClient,
       contextParams?.tableId,
+      contextParams?.sandboxId,
       workflowId,
       workspaceId,
       navigateToSettings,

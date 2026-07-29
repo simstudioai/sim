@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 977,
-  zodRoutes: 977,
+  totalRoutes: 980,
+  zodRoutes: 980,
   nonZodRoutes: 0,
 } as const
 
@@ -61,6 +61,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/cron/cleanup-tasks/route.ts',
   'apps/sim/app/api/cron/cleanup-soft-deletes/route.ts',
   'apps/sim/app/api/cron/cleanup-stale-executions/route.ts',
+  'apps/sim/app/api/cron/cleanup-sandbox-images/route.ts',
   'apps/sim/app/api/cron/renew-subscriptions/route.ts',
   'apps/sim/app/api/cron/reconcile-billing-seats/route.ts',
   'apps/sim/app/api/cron/reconcile-inbox-entitlement/route.ts',

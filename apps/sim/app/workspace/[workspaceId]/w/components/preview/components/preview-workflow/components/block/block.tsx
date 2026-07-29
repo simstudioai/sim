@@ -17,6 +17,7 @@ import {
   evaluateSubBlockCondition,
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
+  isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import { getTileIconColorClass } from '@/blocks/icon-color'
@@ -211,6 +212,9 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       if (subBlock.hidden) return false
       if (subBlock.hideFromPreview) return false
       if (!isSubBlockFeatureEnabled(subBlock)) return false
+
+      // Configures the block as an agent tool; it has no meaning on the canvas.
+      if (isToolInputOnlySubBlock(subBlock)) return false
 
       if (effectiveTrigger) {
         const isValidTriggerSubblock = isPureTriggerBlock

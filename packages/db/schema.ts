@@ -4135,3 +4135,86 @@ export const dataDrainRuns = pgTable(
     drainStartedIdx: index('data_drain_runs_drain_started_idx').on(table.drainId, table.startedAt),
   })
 )
+
+export const sandboxLanguageEnum = pgEnum('sandbox_language', ['javascript', 'python'])
+
+export type SandboxLanguageValue = (typeof sandboxLanguageEnum.enumValues)[number]
+
+export const sandboxImageStatusEnum = pgEnum('sandbox_image_status', [
+  'pending',
+  'building',
+  'ready',
+  'failed',
+])
+
+export type SandboxImageStatusValue = (typeof sandboxImageStatusEnum.enumValues)[number]
+
+/**
+ * A workspace's named library of dependency sets. Provider-agnostic: the same
+ * row drives a prebuilt E2B template and a Daytona runtime install, and only the
+ * materialization step differs. `specHash` is the content address shared with
+ * `sandboxImage`, so editing dependencies points the sandbox at a new build
+ * while the old one stays valid for in-flight executions.
+ */
+export const workspaceSandbox = pgTable(
+  'workspace_sandbox',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    language: sandboxLanguageEnum('language').notNull(),
+    dependencies: jsonb('dependencies').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    specHash: text('spec_hash').notNull(),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceNameUnique: uniqueIndex('workspace_sandbox_workspace_name_unique').on(
+      table.workspaceId,
+      table.name
+    ),
+    workspaceIdx: index('workspace_sandbox_workspace_idx').on(table.workspaceId),
+    specHashIdx: index('workspace_sandbox_spec_hash_idx').on(table.specHash),
+  })
+)
+
+/**
+ * Build registry for the prebuilt strategy, keyed by content address so two
+ * workspaces declaring the same dependency set share one build. Never written
+ * under a runtime-strategy provider.
+ */
+export const sandboxImage = pgTable(
+  'sandbox_image',
+  {
+    id: text('id').primaryKey(),
+    provider: text('provider').notNull(),
+    specHash: text('spec_hash').notNull(),
+    spec: jsonb('spec').notNull(),
+    status: sandboxImageStatusEnum('status').notNull().default('pending'),
+    /** Passed to the provider at create time once `status` is `ready`. */
+    imageRef: text('image_ref'),
+    /** Provider-side image identifier, when it differs from `imageRef`. */
+    providerImageId: text('provider_image_id'),
+    buildId: text('build_id'),
+    /** Classified taxonomy code; see lib/execution/remote-sandbox/build-errors.ts. */
+    errorCode: text('error_code'),
+    /** User-facing copy rendered from the code at classification time. */
+    errorMessage: text('error_message'),
+    /** Installer log tail, shown behind a disclosure. */
+    errorDetail: text('error_detail'),
+    lastUsedAt: timestamp('last_used_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    providerSpecUnique: uniqueIndex('sandbox_image_provider_spec_unique').on(
+      table.provider,
+      table.specHash
+    ),
+    statusIdx: index('sandbox_image_status_idx').on(table.status),
+    lastUsedIdx: index('sandbox_image_last_used_idx').on(table.lastUsedAt),
+  })
+)

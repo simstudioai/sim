@@ -38,6 +38,7 @@ describe('settings navigation boundaries', () => {
       'apikeys',
       'workflow-mcp-servers',
       'byok',
+      'sandboxes',
       'inbox',
       'recently-deleted',
       'sso',
@@ -71,6 +72,7 @@ describe('settings navigation boundaries', () => {
       'teammates',
       'secrets',
       'byok',
+      'sandboxes',
       'custom-tools',
       'mcp',
       'workflow-mcp-servers',
@@ -274,6 +276,7 @@ describe('settings navigation boundaries', () => {
         'teammates',
         'secrets',
         'byok',
+        'sandboxes',
         'custom-tools',
         'mcp',
         'workflow-mcp-servers',
@@ -290,6 +293,7 @@ describe('settings navigation boundaries', () => {
         'teammates',
         'secrets',
         'byok',
+        'sandboxes',
         'custom-tools',
         'mcp',
         'workflow-mcp-servers',
@@ -316,6 +320,7 @@ describe('settings navigation boundaries', () => {
           customBlocks: true,
           forks: true,
           inbox: true,
+          sandboxes: true,
         },
       })
 
@@ -339,12 +344,14 @@ describe('settings navigation boundaries', () => {
         customBlocks: true,
         forks: true,
         inbox: true,
+        sandboxes: true,
       },
     })
 
     expect(items.map(({ id }) => id)).toEqual([
       'teammates',
       'byok',
+      'sandboxes',
       'workflow-mcp-servers',
       'recently-deleted',
       'forks',

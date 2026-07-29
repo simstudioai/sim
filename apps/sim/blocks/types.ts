@@ -262,6 +262,20 @@ export interface SubBlockConfig {
   canonicalParamId?: string
   /** Controls parameter visibility in agent/tool-input context */
   paramVisibility?: 'user-or-llm' | 'user-only' | 'llm-only' | 'hidden'
+  /**
+   * Marks "nothing selected" as a real choice, so a dynamic-option control does
+   * not pre-fill itself with the first option it fetches. Without it a combobox
+   * silently writes and persists a value the user never picked.
+   */
+  emptyIsValid?: boolean
+  /**
+   * Restricts where a subblock renders. `tool-input` means it configures how the
+   * block behaves *as an agent tool* and has no meaning on the canvas, so the
+   * canvas editor skips it while the agent's tool-input config still shows it.
+   *
+   * Generic on purpose: shared code branches on this flag, never on a block type.
+   */
+  context?: 'tool-input'
   required?:
     | boolean
     | {
@@ -314,7 +328,7 @@ export interface SubBlockConfig {
   connectionDroppable?: boolean
   hidden?: boolean
   hideFromPreview?: boolean // Hide this subblock from the workflow block preview
-  showWhenEnvSet?: string // Show this subblock only when the named NEXT_PUBLIC_ env var is truthy
+  showWhenEnvSet?: string // Show this subblock only when a named NEXT_PUBLIC_ env var is truthy; comma-separated means any of them
   hideWhenHosted?: boolean // Hide this subblock when running on hosted sim
   hideWhenEnvSet?: string // Hide this subblock when the named NEXT_PUBLIC_ env var is truthy
   description?: string

@@ -59,6 +59,7 @@ export class FunctionBlockHandler implements BlockHandler {
       ...(sourceCode ? { sourceCode } : {}),
       language: inputs.language || DEFAULT_CODE_LANGUAGE,
       timeout: inputs.timeout || DEFAULT_EXECUTION_TIMEOUT_MS,
+      ...(inputs.sandboxId ? { sandboxId: inputs.sandboxId } : {}),
       envVars: normalizeStringRecord(ctx.environmentVariables),
       workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
       blockData: {},

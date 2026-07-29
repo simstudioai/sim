@@ -38,6 +38,7 @@ import {
   hasAdvancedValues,
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
+  isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
 import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
@@ -1171,6 +1172,9 @@ function PreviewEditorContent({
     if (effectiveTrigger && subBlock.mode !== 'trigger' && subBlock.mode !== 'trigger-advanced')
       return false
     if (!isSubBlockFeatureEnabled(subBlock)) return false
+
+    // Configures the block as an agent tool; it has no meaning on the canvas.
+    if (isToolInputOnlySubBlock(subBlock)) return false
     if (
       !isSubBlockVisibleForMode(
         subBlock,

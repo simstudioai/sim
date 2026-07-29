@@ -546,6 +546,42 @@ function resolveWorkflowVariables(
   return resolvedCode
 }
 
+/**
+ * Narrows the secrets an execution can see, per the block's stored scope.
+ *
+ * | Stored value                | Behavior                                        |
+ * |-----------------------------|-------------------------------------------------|
+ * | unset (every block today)   | all secrets — the regression-safe default       |
+ * | `'all'`                     | all secrets, resolved now so later additions land |
+ * | `'selected'` + names        | only those                                      |
+ * | `'selected'` + empty list   | none — an explicit deny                         |
+ *
+ * Unset and `'all'` must both inject everything: agent-authored code already
+ * reads `{{MY_SECRET}}` and `environmentVariables['MY_SECRET']` today, so a
+ * default-deny would silently break prompts that work right now.
+ */
+function scopeEnvironmentVariables(
+  envVars: Record<string, string>,
+  scope: 'all' | 'selected' | undefined,
+  mountedSecrets: string[] | undefined
+): Record<string, string> {
+  if (scope !== 'selected') return envVars
+
+  const allowed = new Set(mountedSecrets ?? [])
+  const scoped: Record<string, string> = {}
+  const missing: string[] = []
+  for (const name of allowed) {
+    if (name in envVars) scoped[name] = envVars[name]
+    else missing.push(name)
+  }
+  if (missing.length > 0) {
+    // A secret that was renamed or deleted since the block was configured. Drop
+    // it rather than failing: the code's own error is clearer than ours.
+    logger.warn('Mounted secrets no longer exist in this workspace', { missing })
+  }
+  return scoped
+}
+
 function resolveEnvironmentVariables(
   code: string,
   params: Record<string, any>,
@@ -1402,7 +1438,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       outputSandboxPath,
       overwriteFileId,
       outputs,
-      envVars = {},
+      envVars: rawEnvVars = {},
+      secretScope,
+      mountedSecrets,
+      sandboxId: selectedSandboxId,
       blockData = {},
       blockNameMapping = {},
       blockOutputSchemas = {},
@@ -1418,6 +1457,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       isCustomTool = false,
       _sandboxFiles,
     } = body
+    // Scoped before {{VAR}} resolution so the `{{NAME}}` path and the
+    // `environmentVariables[...]` dict narrow together — filtering only the dict
+    // would leave `{{OTHER_SECRET}}` resolving, which is a hole, not a scope.
+    const envVars = scopeEnvironmentVariables(rawEnvVars, secretScope, mountedSecrets)
     sourceCodeForErrors = sourceCode
     const outputFiles = getOutputFileDeclarations({
       outputs,
@@ -1548,6 +1591,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         sandboxFiles: _sandboxFiles,
         outputSandboxPath,
         outputSandboxPaths,
+        workspaceId,
+        sandboxId: selectedSandboxId,
       })
       const executionTime = Date.now() - execStart
 
@@ -1707,6 +1752,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           sandboxFiles: _sandboxFiles,
           outputSandboxPath,
           outputSandboxPaths,
+          workspaceId,
+          sandboxId: selectedSandboxId,
         })
         const executionTime = Date.now() - execStart
         stdout += e2bStdout
@@ -1795,6 +1842,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         sandboxFiles: _sandboxFiles,
         outputSandboxPath,
         outputSandboxPaths,
+        workspaceId,
+        sandboxId: selectedSandboxId,
       })
       const executionTime = Date.now() - execStart
       stdout += e2bStdout

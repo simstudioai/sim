@@ -10,6 +10,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
 
 const {
+  mockResolveSandbox,
+  mockProvisionRuntime,
   mockEnv,
   mockE2BCreate,
   mockE2BRunCode,
@@ -30,6 +32,8 @@ const {
   mockGetSessionCommand,
   mockDeleteSession,
 } = vi.hoisted(() => ({
+  mockResolveSandbox: vi.fn(),
+  mockProvisionRuntime: vi.fn(),
   mockEnv: {
     SANDBOX_PROVIDER: 'e2b' as string | undefined,
     E2B_API_KEY: 'test-key',
@@ -68,6 +72,12 @@ vi.mock('@daytonaio/sdk', () => ({
   },
 }))
 vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
+vi.mock('@/lib/execution/remote-sandbox/resolve', () => ({
+  resolveWorkspaceSandbox: mockResolveSandbox,
+  provisionRuntimeDependencies: mockProvisionRuntime,
+  invalidateSandboxResolution: vi.fn(),
+  RUNTIME_INSTALL_TIMEOUT_MS: 240_000,
+}))
 
 import {
   executeInSandbox,
@@ -75,6 +85,8 @@ import {
   SIM_RESULT_PREFIX,
   withPiSandbox,
 } from '@/lib/execution/remote-sandbox'
+import { daytonaProvider } from '@/lib/execution/remote-sandbox/daytona'
+import { e2bProvider } from '@/lib/execution/remote-sandbox/e2b'
 
 type Provider = 'e2b' | 'daytona'
 const PROVIDERS: Provider[] = ['e2b', 'daytona']
@@ -126,6 +138,8 @@ beforeEach(() => {
     delete: mockDelete,
   })
   mockExecuteCommand.mockResolvedValue({ result: '', exitCode: 0 })
+  mockResolveSandbox.mockResolvedValue(null)
+  mockProvisionRuntime.mockResolvedValue(undefined)
   mockExecuteSessionCommand.mockResolvedValue({ cmdId: 'cmd_1' })
   mockGetSessionCommand.mockResolvedValue({ exitCode: 0 })
 })
@@ -313,6 +327,149 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     ).rejects.toThrow('kaboom')
 
     expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('custom dependency sets', () => {
+  it.each(PROVIDERS)('honors imageRef for code executions [%s]', async (provider) => {
+    useProvider(provider)
+    stubCodeRun(provider, `${SIM_RESULT_PREFIX}null`)
+    mockResolveSandbox.mockResolvedValue({
+      id: 'sbx-1',
+      name: 'etl',
+      language: CodeLanguage.Python,
+      dependencies: ['pandas'],
+      strategy: 'prebuilt',
+      imageRef: 'sim-sbx-abc',
+    })
+
+    await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      workspaceId: 'ws-1',
+      sandboxId: 'sbx-1',
+    })
+
+    if (provider === 'e2b') {
+      expect(mockE2BCreate).toHaveBeenCalledWith('sim-sbx-abc', expect.anything())
+    } else {
+      expect(mockDaytonaCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ snapshot: 'sim-sbx-abc' })
+      )
+    }
+  })
+
+  it.each(PROVIDERS)('refuses to let a sandbox displace the doc image [%s]', async (provider) => {
+    useProvider(provider)
+    stubCodeRun(provider, `${SIM_RESULT_PREFIX}null`)
+    // Even if resolution somehow yields a ref, the provider gates on the kind.
+    mockResolveSandbox.mockResolvedValue({
+      id: 'sbx-1',
+      name: 'etl',
+      language: CodeLanguage.Python,
+      dependencies: ['pandas'],
+      strategy: 'prebuilt',
+      imageRef: 'sim-sbx-abc',
+    })
+
+    await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      sandboxKind: 'doc',
+      workspaceId: 'ws-1',
+      sandboxId: 'sbx-1',
+    })
+
+    if (provider === 'e2b') {
+      expect(mockE2BCreate).toHaveBeenCalledWith('mothership-docs', expect.anything())
+    } else {
+      expect(mockDaytonaCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ snapshot: 'mothership-docs:v1' })
+      )
+    }
+  })
+
+  it.each(PROVIDERS)(
+    'spends the runtime install out of the caller budget, not on top of it [%s]',
+    async (provider) => {
+      useProvider(provider)
+      stubCodeRun(provider, `${SIM_RESULT_PREFIX}null`)
+      mockResolveSandbox.mockResolvedValue({
+        id: 'sbx-1',
+        name: 'etl',
+        language: CodeLanguage.Python,
+        dependencies: ['pandas'],
+        strategy: 'runtime',
+      })
+
+      // Well under the 240s ceiling, so the caller's budget is what binds.
+      await executeInSandbox({
+        code: 'x',
+        language: CodeLanguage.Python,
+        timeoutMs: 60_000,
+        workspaceId: 'ws-1',
+        sandboxId: 'sbx-1',
+      })
+
+      // 60s budget minus the 15s reserved for the code itself.
+      expect(mockProvisionRuntime).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+        timeoutMs: 45_000,
+      })
+    }
+  )
+
+  it.each(PROVIDERS)(
+    'caps the install at its own ceiling when the budget is generous [%s]',
+    async (provider) => {
+      useProvider(provider)
+      stubCodeRun(provider, `${SIM_RESULT_PREFIX}null`)
+      mockResolveSandbox.mockResolvedValue({
+        id: 'sbx-1',
+        name: 'etl',
+        language: CodeLanguage.Python,
+        dependencies: ['pandas'],
+        strategy: 'runtime',
+      })
+
+      await executeInSandbox({
+        code: 'x',
+        language: CodeLanguage.Python,
+        timeoutMs: 900_000,
+        workspaceId: 'ws-1',
+        sandboxId: 'sbx-1',
+      })
+
+      expect(mockProvisionRuntime).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+        timeoutMs: 240_000,
+      })
+    }
+  )
+
+  it.each(PROVIDERS)('uses the env template when nothing is selected [%s]', async (provider) => {
+    useProvider(provider)
+    stubCodeRun(provider, `${SIM_RESULT_PREFIX}null`)
+
+    await executeInSandbox({ code: 'x', language: CodeLanguage.Python, timeoutMs: 1000 })
+
+    if (provider === 'e2b') {
+      expect(mockE2BCreate).toHaveBeenCalledWith('mothership-shell', expect.anything())
+    } else {
+      expect(mockDaytonaCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ snapshot: 'mothership-shell:v1' })
+      )
+    }
+    // No selection means no install step, on either strategy.
+    expect(mockE2BCommandsRun).not.toHaveBeenCalled()
+    expect(mockExecuteCommand).not.toHaveBeenCalled()
+  })
+
+  it('declares one strategy per provider, and only the prebuilt one can build', () => {
+    expect(e2bProvider.dependencyStrategy).toBe('prebuilt')
+    expect(e2bProvider.images).toBeDefined()
+    expect(daytonaProvider.dependencyStrategy).toBe('runtime')
+    expect(daytonaProvider.images).toBeUndefined()
   })
 })
 

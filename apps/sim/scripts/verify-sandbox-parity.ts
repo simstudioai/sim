@@ -20,6 +20,11 @@
  *   DAYTONA_DOC_SNAPSHOT_ID=mothership-docs:<tag> \
  *     bun run apps/sim/scripts/verify-sandbox-parity.ts
  *
+ *   # Include the dependency-set cases (needs real workspace_sandbox rows):
+ *   SANDBOX_PARITY_WORKSPACE_ID=... \
+ *   SANDBOX_PARITY_PYTHON_SANDBOX_ID=...   # a Python sandbox declaring `pandas`
+ *   SANDBOX_PARITY_JS_SANDBOX_ID=...       # a JavaScript sandbox declaring `axios`
+ *
  * Exits non-zero if any case fails, so it can be wired to a schedule later.
  */
 
@@ -33,8 +38,19 @@ interface Case {
   name: string
   /** Skipped unless the doc image is configured for the active provider. */
   needsDoc?: boolean
+  /**
+   * Skipped unless `SANDBOX_PARITY_PYTHON_SANDBOX_ID` /
+   * `SANDBOX_PARITY_JS_SANDBOX_ID` name a real workspace sandbox — resolving one
+   * needs a DB row, so it cannot be synthesized here.
+   */
+  needsSandbox?: 'python' | 'javascript'
   run: () => Promise<{ ok: boolean; detail: string }>
 }
+
+/** A workspace + sandbox to resolve the dependency-set cases against. */
+const PARITY_WORKSPACE_ID = process.env.SANDBOX_PARITY_WORKSPACE_ID
+const PARITY_PYTHON_SANDBOX_ID = process.env.SANDBOX_PARITY_PYTHON_SANDBOX_ID
+const PARITY_JS_SANDBOX_ID = process.env.SANDBOX_PARITY_JS_SANDBOX_ID
 
 const CASES: Case[] = [
   {
@@ -105,6 +121,38 @@ const CASES: Case[] = [
     },
   },
   {
+    // Prebuilt on E2B, runtime install on Daytona — the same selection must make
+    // the same import succeed on both.
+    name: 'python: a selected sandbox makes its packages importable',
+    needsSandbox: 'python',
+    run: async () => {
+      const res = await executeInSandbox({
+        code: `import json, pandas\nprint("${SIM_RESULT_PREFIX}" + json.dumps({"v": pandas.__version__}))`,
+        language: CodeLanguage.Python,
+        timeoutMs: 300_000,
+        workspaceId: PARITY_WORKSPACE_ID,
+        sandboxId: PARITY_PYTHON_SANDBOX_ID,
+      })
+      const version = (res.result as { v?: string } | null)?.v
+      return { ok: Boolean(version), detail: res.error ?? `pandas=${version}` }
+    },
+  },
+  {
+    name: 'javascript: a selected sandbox resolves its packages',
+    needsSandbox: 'javascript',
+    run: async () => {
+      const res = await executeInSandbox({
+        code: `const axios = require('axios')\nconsole.log('${SIM_RESULT_PREFIX}' + JSON.stringify({ ok: typeof axios.get === 'function' }))`,
+        language: CodeLanguage.JavaScript,
+        timeoutMs: 300_000,
+        workspaceId: PARITY_WORKSPACE_ID,
+        sandboxId: PARITY_JS_SANDBOX_ID,
+      })
+      const ok = (res.result as { ok?: boolean } | null)?.ok
+      return { ok: ok === true, detail: res.error ?? `resolved=${ok}` }
+    },
+  },
+  {
     name: 'shell: env vars + user-authored marker',
     run: async () => {
       const res = await executeShellInSandbox({
@@ -166,6 +214,13 @@ async function main() {
   for (const testCase of CASES) {
     if (testCase.needsDoc && !docConfigured) {
       console.log(`SKIP  ${testCase.name} (doc image not configured)`)
+      skipped++
+      continue
+    }
+    const sandboxId =
+      testCase.needsSandbox === 'python' ? PARITY_PYTHON_SANDBOX_ID : PARITY_JS_SANDBOX_ID
+    if (testCase.needsSandbox && !(PARITY_WORKSPACE_ID && sandboxId)) {
+      console.log(`SKIP  ${testCase.name} (no ${testCase.needsSandbox} sandbox configured)`)
       skipped++
       continue
     }

@@ -74,6 +74,73 @@ Beyond the Python standard library, the sandbox ships E2B's data-science stack p
 - **Math and testing:** `sympy`, `pytest`
 - **Sim additions:** `awscli`, `yq`, `csvkit`
 
+## Sandboxes
+
+A sandbox is a named dependency set your workspace maintains — a language plus a
+list of pip or npm packages. Select one on a Function block and its code can
+import everything on that list. Leave it empty and the block runs on the default
+image, exactly as before.
+
+Create and edit sandboxes in **Settings → Sandboxes**. Sandboxes require an
+active Max or Enterprise plan, and only workspace admins can create or edit
+them.
+
+1. **Name** the sandbox — `bigquery-etl`, `scraping`, whatever the job is.
+2. Pick the **language**. A sandbox is language-scoped, so a Python block only
+   ever lists Python sandboxes.
+3. Paste your **dependencies**, one per line. Version pins are optional.
+
+```
+google-cloud-bigquery==3.25.0
+pyairtable>=3.0
+pandas
+```
+
+Then open the block's advanced options and choose the sandbox under **Sandbox**.
+
+<Callout type="info">
+Two sandboxes with the same language and the same package list share one build,
+so duplicating a set costs nothing. Editing a package list starts a new build;
+runs already in flight keep using the old one.
+</Callout>
+
+### Build status
+
+On sim.ai, each dependency set is prebuilt into a reusable image, so runs pay no
+install cost. The status row in Settings shows **Queued**, **Building**,
+**Ready**, or **Failed**. A failed build reports what went wrong — a package that
+does not exist, a version that has no match, a resolver conflict — with the
+installer log behind a disclosure.
+
+Selecting a sandbox whose build is not **Ready** fails the run with that reason
+rather than a confusing `ModuleNotFoundError`.
+
+On a self-hosted deployment using Daytona, dependencies install inside the
+sandbox at the start of every run instead, adding roughly 10–30 seconds per
+execution. Prebuilt images require E2B.
+
+### What is allowed
+
+Package names and version specifiers only. URLs, `git+` references, `-e`, local
+paths, `--index-url`, and npm aliases are rejected, with the offending line
+number reported. A sandbox may declare up to 50 packages.
+
+## Scoping secrets for agent tools
+
+When a Function block is used as an Agent tool, its code can read every workspace
+secret by default — both `{{MY_SECRET}}` and `environmentVariables['MY_SECRET']`.
+
+To narrow that, set **Secret access** to *Selected secrets* in the block's
+tool configuration and pick the names the code may read. Two things change:
+
+- Only those secrets are injected. `{{OTHER_SECRET}}` no longer resolves either.
+- The selected **names** are added to the tool's description, so the model knows
+  what it can reference. Values are never sent to the model — they are injected
+  server-side at execution.
+
+Leaving the default (*All secrets*) resolves the list at run time, so a secret
+added next month is included automatically.
+
 ## Examples
 
 ### Reshape an API response
@@ -170,6 +237,6 @@ The lazy `sim.files` and `sim.values` helpers are available only in JavaScript f
   { question: "When does code run locally vs. in a sandbox?", answer: "JavaScript without external imports runs in a local isolated sandbox for speed. JavaScript that uses import or require runs in E2B. Python always runs in the E2B sandbox, with or without imports." },
   { question: "How do I reference outputs from other blocks inside my code?", answer: "Use angle-bracket syntax directly, like <agent.content> or <api.data>, with no quotes around the tag — Sim replaces it with the real value before execution. For environment variables, use double curly braces: {{API_KEY}}." },
   { question: "What does the Function block return?", answer: "Two outputs: result (the return value of your code, read as <function.result>) and stdout (anything logged with console.log or print, read as <function.stdout>). Include a return statement in JavaScript, or print JSON in Python, to pass data downstream." },
-  { question: "Can I make HTTP requests from a Function block?", answer: "Yes. fetch() is available in JavaScript with async/await; libraries like axios are not, only the built-in fetch. In Python, use requests or httpx in the E2B sandbox." },
+  { question: "Can I make HTTP requests from a Function block?", answer: "Yes. fetch() is available in JavaScript with async/await; libraries like axios are only available when the block has a sandbox selected. In Python, use requests or httpx in the E2B sandbox." },
   { question: "Is there a timeout for Function block execution?", answer: "Yes, a configurable execution timeout. If your code exceeds it, the run is terminated and the block reports an error. Keep this in mind for external calls or heavy processing." },
 ]} />

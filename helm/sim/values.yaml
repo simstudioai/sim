@@ -1359,6 +1359,18 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    # Deletes prebuilt sandbox images that no workspace sandbox references and that
+    # have gone unused past the retention window, from the provider and locally.
+    # A no-op on deployments whose sandbox provider installs at run time.
+    cleanupSandboxImages:
+      enabled: true
+      name: cleanup-sandbox-images
+      schedule: "30 4 * * *"
+      path: "/api/cron/cleanup-sandbox-images"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     # Processes the transactional outbox (deployment side-effects retry / dead-letter)
     # and reaps stale workspace-fork background-work rows. Both are safety nets behind
     # the immediate post-commit processing, so frequent runs keep retries timely.

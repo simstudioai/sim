@@ -1,18 +1,20 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { env } from '@/lib/core/config/env'
-import type { CodeLanguage } from '@/lib/execution/languages'
-import { daytonaProvider } from '@/lib/execution/remote-sandbox/daytona'
-import { e2bProvider } from '@/lib/execution/remote-sandbox/e2b'
+import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
+import {
+  provisionRuntimeDependencies,
+  type ResolvedSandbox,
+  RUNTIME_INSTALL_TIMEOUT_MS,
+  resolveWorkspaceSandbox,
+} from '@/lib/execution/remote-sandbox/resolve'
 import type {
+  CreateSandboxOptions,
   SandboxCommandResult,
   SandboxExecutionRequest,
   SandboxExecutionResult,
   SandboxFile,
   SandboxHandle,
   SandboxKind,
-  SandboxProvider,
-  SandboxProviderId,
   SandboxShellExecutionRequest,
 } from '@/lib/execution/remote-sandbox/types'
 
@@ -25,46 +27,9 @@ export type {
 
 const logger = createLogger('RemoteSandbox')
 
-/**
- * The known sandbox providers. Keyed by {@link SandboxProviderId}, so adding an
- * adapter is one entry here plus one member on the id union — the type makes an
- * unhandled provider a compile error, not a runtime surprise.
- */
-const PROVIDERS: Record<SandboxProviderId, SandboxProvider> = {
-  e2b: e2bProvider,
-  daytona: daytonaProvider,
-}
-
-const DEFAULT_PROVIDER: SandboxProviderId = 'e2b'
-
-/**
- * Resolves which provider serves this execution from the `SANDBOX_PROVIDER` env
- * var (defaulting to {@link DEFAULT_PROVIDER}).
- *
- * Selection is deliberately resolved ONCE, before the sandbox is created, and is
- * never revisited mid-execution: user code has side effects (HTTP calls, S3
- * writes, DB mutations), so retrying a partially-executed run on another provider
- * could duplicate them. Changing providers is a config change — set
- * `SANDBOX_PROVIDER` and redeploy; in-flight executions are unaffected.
- */
-function resolveProvider(): SandboxProvider {
-  // Normalize casing identically to env-flags' availability gate — otherwise a
-  // value like `Daytona` would pass the gate (which lowercases) but miss this
-  // lowercase-keyed map and throw at create time.
-  const configured = env.SANDBOX_PROVIDER?.toLowerCase()
-  if (!configured) return PROVIDERS[DEFAULT_PROVIDER]
-  const provider = PROVIDERS[configured as SandboxProviderId]
-  if (!provider) {
-    throw new Error(
-      `Unknown SANDBOX_PROVIDER "${env.SANDBOX_PROVIDER}" (expected one of: ${Object.keys(PROVIDERS).join(', ')})`
-    )
-  }
-  return provider
-}
-
 async function createSandbox(
   kind: SandboxKind,
-  options?: { language?: CodeLanguage }
+  options?: CreateSandboxOptions
 ): Promise<SandboxHandle> {
   const provider = resolveProvider()
   const sandbox = await provider.create(kind, options)
@@ -266,19 +231,83 @@ async function collectExportedFiles(
   }
 }
 
+/**
+ * Floor on what is left for the user's code after a runtime install. Below this
+ * the run is not worth attempting — but reporting "your code timed out" would
+ * still be the wrong story, so the install's own budget is capped to leave it.
+ */
+const MIN_CODE_BUDGET_MS = 15_000
+
+/**
+ * How long a runtime dependency install may take before it must yield to the
+ * code it is installing for. Capped by {@link RUNTIME_INSTALL_TIMEOUT_MS} and by
+ * whatever the caller's budget leaves after reserving {@link MIN_CODE_BUDGET_MS}.
+ */
+function installBudgetMs(timeoutMs: number): number {
+  return Math.max(0, Math.min(RUNTIME_INSTALL_TIMEOUT_MS, timeoutMs - MIN_CODE_BUDGET_MS))
+}
+
+/**
+ * Installs a runtime sandbox's dependencies out of the caller's budget and
+ * reports what it spent, so the code that follows can be given the remainder.
+ *
+ * Deliberately times ONLY the install. Mount materialization is not deducted —
+ * it predates this accounting and can legitimately run long for a large
+ * presigned fetch, so charging it here would shorten the code budget of existing
+ * prebuilt-strategy workflows that never had an install step at all.
+ */
+async function provisionWithinBudget(
+  sandbox: SandboxHandle,
+  selected: ResolvedSandbox | null,
+  timeoutMs: number
+): Promise<number> {
+  if (!selected) return 0
+  const startedAt = Date.now()
+  await provisionRuntimeDependencies(sandbox, selected, { timeoutMs: installBudgetMs(timeoutMs) })
+  return Date.now() - startedAt
+}
+
+/** What remains of the caller's budget once the install has taken its share. */
+function remainingBudgetMs(timeoutMs: number, installMs: number): number {
+  return Math.max(MIN_CODE_BUDGET_MS, timeoutMs - installMs)
+}
+
 export async function executeInSandbox(
   req: SandboxExecutionRequest
 ): Promise<SandboxExecutionResult> {
   const { code, language, timeoutMs } = req
+  const kind = req.sandboxKind ?? 'code'
 
-  const sandbox = await createSandbox(req.sandboxKind ?? 'code', { language })
+  // Resolved before the sandbox is created so a selection that cannot be honored
+  // fails without spending a provider create.
+  const selected = await resolveWorkspaceSandbox({
+    kind,
+    language,
+    workspaceId: req.workspaceId,
+    sandboxId: req.sandboxId,
+  })
+
+  const sandbox = await createSandbox(kind, { language, imageRef: selected?.imageRef })
   const sandboxId = sandbox.sandboxId
 
   try {
-    // Inside the try so a failed mount still kills the sandbox via the finally below.
+    // Inside the try so a failed install or mount still kills the sandbox via the
+    // finally below. Dependencies land before the inputs so user code and its
+    // mounts always see a complete environment.
+    //
+    // The install is spent OUT OF the caller's budget, not on top of it. Our
+    // caller aborts the whole request at `timeoutMs` (see `tools/index.ts`), so
+    // an install that ran to its own separate 240s ceiling would blow past that
+    // and surface a bare "Request timed out" instead of the classified install
+    // error. Under the prebuilt strategy provisioning returns immediately, so
+    // this arithmetic is a no-op there.
+    const installMs = await provisionWithinBudget(sandbox, selected, timeoutMs)
     await writeSandboxInputs(sandbox, req.sandboxFiles, {})
 
-    const execution = await sandbox.runCode(code, { timeoutMs })
+    const execution = await sandbox.runCode(code, {
+      timeoutMs: remainingBudgetMs(timeoutMs, installMs),
+      ...(selected?.envs ? { envs: selected.envs } : {}),
+    })
 
     if (execution.error) {
       const errorMessage = `${execution.error.name}: ${execution.error.value}`
@@ -337,20 +366,33 @@ export async function executeShellInSandbox(
   req: SandboxShellExecutionRequest
 ): Promise<SandboxExecutionResult> {
   const { code, envs, timeoutMs } = req
+  const kind = req.sandboxKind ?? 'shell'
 
-  const sandbox = await createSandbox(req.sandboxKind ?? 'shell')
+  // No language is passed: a shell execution runs commands rather than a language
+  // runtime, so whichever language the sandbox carries is the one it installs.
+  const selected = await resolveWorkspaceSandbox({
+    kind,
+    workspaceId: req.workspaceId,
+    sandboxId: req.sandboxId,
+  })
+
+  const sandbox = await createSandbox(kind, { imageRef: selected?.imageRef })
   const sandboxId = sandbox.sandboxId
 
   try {
-    // Inside the try so a failed mount still kills the sandbox via the finally below.
+    // Inside the try so a failed install or mount still kills the sandbox via the
+    // finally below. The install shares the caller's budget rather than adding to
+    // it — see the note in `executeInSandbox`.
+    const installMs = await provisionWithinBudget(sandbox, selected, timeoutMs)
     await writeSandboxInputs(sandbox, req.sandboxFiles, { rootUser: true })
 
     const result = await sandbox.runCommand(code, {
       envs: {
+        ...selected?.envs,
         ...envs,
         PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin',
       },
-      timeoutMs,
+      timeoutMs: remainingBudgetMs(timeoutMs, installMs),
       rootUser: true,
     })
 

@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, organization, subscription, user, userStats } from '@sim/db/schema'
+import { member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, sql } from 'drizzle-orm'
@@ -506,13 +506,61 @@ export async function isWorkspaceOnEnterprisePlan(workspaceId: string): Promise<
 const MAX_PLAN_CREDITS = 25000
 
 /**
- * Whether a plan tier entitles the inbox (Sim Mailer) feature: a Max tier
- * (credits >= 25000, covering `pro_25000` and `team_25000`) or any enterprise
- * plan. Subscription status (usable vs entitled) is gated by callers before this
- * runs — the predicate is tier-only.
+ * Whether a plan tier is Max or above: a Max tier (credits >= 25000, covering
+ * `pro_25000` and `team_25000`) or any enterprise plan. Subscription status
+ * (usable vs entitled) is gated by callers before this runs — the predicate is
+ * tier-only.
+ *
+ * Shared by the inbox (Sim Mailer) and custom sandboxes, which sit on the same
+ * entitlement tier.
  */
-function isInboxEntitledPlan(plan: string): boolean {
+function isMaxTierPlan(plan: string): boolean {
   return getPlanTierCredits(plan) >= MAX_PLAN_CREDITS || isPlanEnterprise(plan)
+}
+
+/**
+ * Whether the workspace's payer is on a usable Max-or-Enterprise subscription.
+ *
+ * Entitlement follows the workspace's billing entity — not the acting user — so
+ * any workspace admin (including an external member) qualifies when the
+ * workspace's organization, or its billed account for personal workspaces, is on
+ * a Max or enterprise plan.
+ *
+ * This is the whole tier check. Callers add only their own feature's env
+ * override on top; keeping the resolution here is what stops the Max-gated
+ * features from drifting apart as billing edge cases are handled.
+ *
+ * The personal branch reads `getEffectiveBillingStatus`, NOT `userStats.billingBlocked`
+ * directly. Both express the same shipped policy — `blockOrgMembers` fans a
+ * delinquent org's block out to every member's own row, so membership in a
+ * delinquent org blocks you on personal resources too — but the fan-out is a
+ * point-in-time write and goes stale: nothing marks a member who joins an
+ * already-blocked org, and `unblockOrgMembers` clears the row even when a second
+ * delinquent org still covers them. Re-deriving from membership is what makes
+ * the read agree with the policy in those cases.
+ */
+async function hasMaxTierWorkspaceAccess(workspaceId: string): Promise<boolean> {
+  const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
+  const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
+  if (!ws) return false
+
+  if (ws.organizationId) {
+    const [billingBlocked, orgSub] = await Promise.all([
+      isOrganizationBillingBlocked(ws.organizationId),
+      getOrganizationSubscriptionUsable(ws.organizationId),
+    ])
+    if (!orgSub) return false
+    if (!hasUsableSubscriptionAccess(orgSub.status, billingBlocked)) return false
+    return isMaxTierPlan(orgSub.plan)
+  }
+
+  const [billedSub, billingStatus] = await Promise.all([
+    getHighestPriorityPersonalSubscription(ws.billedAccountUserId),
+    getEffectiveBillingStatus(ws.billedAccountUserId),
+  ])
+  if (!billedSub) return false
+  if (!hasUsableSubscriptionAccess(billedSub.status, billingStatus.billingBlocked)) return false
+  return isMaxTierPlan(billedSub.plan)
 }
 
 /**
@@ -532,24 +580,7 @@ export async function hasWorkspaceInboxAccess(workspaceId: string): Promise<bool
   try {
     if (isInboxEnabled) return true
     if (!isBillingEnabled) return true
-
-    const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
-    const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
-    if (!ws) return false
-
-    if (ws.organizationId) {
-      if (await isOrganizationBillingBlocked(ws.organizationId)) return false
-      const orgSub = await getOrganizationSubscriptionUsable(ws.organizationId)
-      return !!orgSub && isInboxEntitledPlan(orgSub.plan)
-    }
-
-    const [billedSub, billingStatus] = await Promise.all([
-      getHighestPriorityPersonalSubscription(ws.billedAccountUserId),
-      getEffectiveBillingStatus(ws.billedAccountUserId),
-    ])
-    if (!billedSub) return false
-    if (!hasUsableSubscriptionAccess(billedSub.status, billingStatus.billingBlocked)) return false
-    return isInboxEntitledPlan(billedSub.plan)
+    return await hasMaxTierWorkspaceAccess(workspaceId)
   } catch (error) {
     logger.error('Error checking workspace inbox access', { error, workspaceId })
     return false
@@ -580,11 +611,11 @@ export async function hasWorkspaceInboxGraceAccess(workspaceId: string): Promise
     if (ws.organizationId) {
       const { getOrganizationSubscription } = await import('@/lib/billing/core/billing')
       const orgSub = await getOrganizationSubscription(ws.organizationId)
-      return !!orgSub && isInboxEntitledPlan(orgSub.plan)
+      return !!orgSub && isMaxTierPlan(orgSub.plan)
     }
 
     const billedSub = await getHighestPriorityPersonalSubscription(ws.billedAccountUserId)
-    return !!billedSub && isInboxEntitledPlan(billedSub.plan)
+    return !!billedSub && isMaxTierPlan(billedSub.plan)
   } catch (error) {
     logger.error('Error checking workspace inbox grace access', { error, workspaceId })
     return true
@@ -597,38 +628,30 @@ export async function hasWorkspaceInboxGraceAccess(workspaceId: string): Promise
 export async function hasWorkspaceLiveSyncAccess(workspaceId: string): Promise<boolean> {
   try {
     if (!isHosted || !isBillingEnabled) return true
-
-    const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
-    const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
-    if (!ws) return false
-
-    if (ws.organizationId) {
-      const [billingBlocked, orgSub] = await Promise.all([
-        isOrganizationBillingBlocked(ws.organizationId),
-        getOrganizationSubscriptionUsable(ws.organizationId),
-      ])
-      if (!orgSub) return false
-      if (!hasUsableSubscriptionAccess(orgSub.status, billingBlocked)) return false
-      return isInboxEntitledPlan(orgSub.plan)
-    }
-
-    const [billedSub, billedStatusRows] = await Promise.all([
-      getHighestPriorityPersonalSubscription(ws.billedAccountUserId),
-      db
-        .select({ billingBlocked: userStats.billingBlocked })
-        .from(userStats)
-        .where(eq(userStats.userId, ws.billedAccountUserId))
-        .limit(1),
-    ])
-    if (!billedSub) return false
-    if (
-      !hasUsableSubscriptionAccess(billedSub.status, Boolean(billedStatusRows[0]?.billingBlocked))
-    ) {
-      return false
-    }
-    return isInboxEntitledPlan(billedSub.plan)
+    return await hasMaxTierWorkspaceAccess(workspaceId)
   } catch (error) {
     logger.error('Error checking workspace live sync access', { error, workspaceId })
+    return false
+  }
+}
+
+/**
+ * Checks whether the exact workspace payer can create and edit custom sandboxes.
+ *
+ * Same entitlement as the inbox (Sim Mailer): Max or Enterprise on a usable
+ * subscription. Builds cost provider compute and storage, so this deliberately
+ * sits above the plain paid tier.
+ *
+ * This gates creating and editing only. Execution deliberately does not consult
+ * it (see `resolveWorkspaceSandbox`), so a workspace that downgrades keeps
+ * running the sandboxes it already built.
+ */
+export async function hasWorkspaceSandboxAccess(workspaceId: string): Promise<boolean> {
+  try {
+    if (!isBillingEnabled) return true
+    return await hasMaxTierWorkspaceAccess(workspaceId)
+  } catch (error) {
+    logger.error('Error checking workspace sandbox access', { error, workspaceId })
     return false
   }
 }

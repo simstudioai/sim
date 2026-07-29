@@ -1,4 +1,6 @@
 import type { CodeLanguage } from '@/lib/execution/languages'
+import type { SandboxBuildError } from '@/lib/execution/remote-sandbox/build-errors'
+import type { SandboxSpec } from '@/lib/execution/remote-sandbox/sandbox-spec'
 
 /**
  * Which vetted image a sandbox runs in. Every kind fails closed when its
@@ -30,6 +32,10 @@ export interface SandboxExecutionRequest {
    * (mothership-docs) that has python-pptx/docx/openpyxl/reportlab installed.
    */
   sandboxKind?: 'code' | 'doc'
+  /** Scope for {@link sandboxId}; a sandbox from another workspace is rejected. */
+  workspaceId?: string
+  /** Workspace sandbox whose dependency set this execution runs against. */
+  sandboxId?: string
 }
 
 export interface SandboxShellExecutionRequest {
@@ -45,6 +51,10 @@ export interface SandboxShellExecutionRequest {
    * they run in the doc image (mothership-docs).
    */
   sandboxKind?: 'shell' | 'doc'
+  /** Scope for {@link sandboxId}; a sandbox from another workspace is rejected. */
+  workspaceId?: string
+  /** Workspace sandbox whose dependency set this execution runs against. */
+  sandboxId?: string
 }
 
 export interface SandboxExecutionResult {
@@ -106,7 +116,10 @@ export interface SandboxHandle {
    * override — passing `javascript` to its `codeRun` executes the source through
    * Python instead. We create one sandbox per execution, so binding costs nothing.
    */
-  runCode(code: string, options: { timeoutMs: number }): Promise<SandboxCodeResult>
+  runCode(
+    code: string,
+    options: { timeoutMs: number; envs?: Record<string, string> }
+  ): Promise<SandboxCodeResult>
   runCommand(command: string, options: RunCommandOptions): Promise<SandboxCommandResult>
   readFile(path: string): Promise<string>
   /**
@@ -121,9 +134,59 @@ export interface SandboxHandle {
 export interface CreateSandboxOptions {
   /** Bound at creation — see {@link SandboxHandle.runCode}. */
   language?: CodeLanguage
+  /**
+   * Provider image to create from, overriding the env-configured template.
+   * Honored for `code` and `shell` only: `doc` and `pi` keep their vetted images
+   * unconditionally, so a user's dependency set can never displace the document
+   * compiler's or the coding agent's.
+   */
+  imageRef?: string
+}
+
+/**
+ * How a provider materializes a custom dependency set.
+ *
+ * `prebuilt` bakes it into a reusable image ahead of time (E2B, whose templates
+ * have no count limit and layer cheaply). `runtime` installs it inside the
+ * sandbox before user code runs (Daytona, whose 30-snapshot organization quota
+ * does not scale with tier and so cannot hold per-workspace images).
+ */
+export type SandboxDependencyStrategy = 'prebuilt' | 'runtime'
+
+export type SandboxImageStatus = 'pending' | 'building' | 'ready' | 'failed'
+
+/** Handle to an in-flight or completed provider build. */
+export interface SandboxImageBuild {
+  /** The value passed back as {@link CreateSandboxOptions.imageRef}. */
+  imageRef: string
+  buildId: string
+  /** Provider-side image identifier, when it differs from the human-facing ref. */
+  providerImageId?: string
+}
+
+export interface SandboxImageBuildStatus {
+  status: SandboxImageStatus
+  error?: SandboxBuildError
+  /** Provider log tail, kept for the failure disclosure. */
+  logs?: string
+}
+
+/**
+ * Build side of a `prebuilt` provider. Split from {@link SandboxProvider} so a
+ * `runtime` provider simply omits it and the type makes that unambiguous.
+ */
+export interface SandboxImageBuilder {
+  startBuild(spec: SandboxSpec, specHash: string): Promise<SandboxImageBuild>
+  /** `spec` is carried through so a failure can be classified against the right registry. */
+  getBuildStatus(build: SandboxImageBuild, spec: SandboxSpec): Promise<SandboxImageBuildStatus>
+  /** Removes a built image from the provider. Used by the retention sweep. */
+  deleteImage(build: SandboxImageBuild): Promise<void>
 }
 
 export interface SandboxProvider {
   readonly id: SandboxProviderId
+  readonly dependencyStrategy: SandboxDependencyStrategy
+  /** Present exactly when {@link dependencyStrategy} is `prebuilt`. */
+  readonly images?: SandboxImageBuilder
   create(kind: SandboxKind, options?: CreateSandboxOptions): Promise<SandboxHandle>
 }

@@ -6,6 +6,7 @@ import {
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
   isCanonicalPair,
+  isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isTriggerModeSubBlock,
   resolveCanonicalMode,
@@ -152,6 +153,14 @@ export interface UserToolSchemaOptions {
 export interface LLMToolSchemaResult {
   schema: ToolSchema
   enrichedDescription?: string
+  /**
+   * Params the model is never allowed to supply, because the tool declares them
+   * `user-only` or `hidden`. Omitting them from {@link schema} is not enough on
+   * its own — nothing stops a model from emitting an undeclared key, and the
+   * merge downstream seeds from the model's args — so the names travel with the
+   * schema for `prepareToolExecution` to strip.
+   */
+  modelBlockedParams?: string[]
 }
 
 export interface ValidationResult {
@@ -637,6 +646,13 @@ export async function createLLMToolSchema(
     required: [],
   }
 
+  // Derived from the declarations rather than from which branch below skipped a
+  // param: the loop's `continue`s also skip params the user simply filled in,
+  // and those are not off-limits to the model.
+  const modelBlockedParams = Object.entries(toolConfig.params)
+    .filter(([, param]) => param.visibility === 'user-only' || param.visibility === 'hidden')
+    .map(([paramId]) => paramId)
+
   for (const [paramId, param] of Object.entries(toolConfig.params)) {
     const enrichmentConfig = toolConfig.schemaEnrichment?.[paramId]
 
@@ -705,12 +721,13 @@ export async function createLLMToolSchema(
         return {
           schema: enriched.parameters as ToolSchema,
           enrichedDescription: enriched.description,
+          modelBlockedParams,
         }
       }
     }
   }
 
-  return { schema }
+  return { schema, modelBlockedParams }
 }
 
 /**
@@ -1141,6 +1158,11 @@ export function getSubBlocksForToolInput(
 
       // Hide tool API key fields when running on hosted Sim or when env var is set
       if (isSubBlockHidden(sb)) continue
+
+      // A field the deployment has switched off is not offerable here either —
+      // the canvas already hides it, and offering it in tool-input lets an author
+      // pick a value the executor will refuse (e.g. Python with no sandbox provider).
+      if (!isSubBlockFeatureEnabled(sb)) continue
 
       // Determine the effective param ID (canonical or subblock id)
       const effectiveParamId = sb.canonicalParamId || sb.id

@@ -11,6 +11,7 @@ const {
   mockCheckEnterprisePlan,
   mockGetPlanTierCredits,
   mockHasUsableSubscriptionAccess,
+  mockGetEffectiveBillingStatus,
 } = vi.hoisted(() => ({
   mockGetHighestPrioritySubscription: vi.fn(),
   mockGetHighestPriorityPersonalSubscription: vi.fn(),
@@ -18,10 +19,11 @@ const {
   mockCheckEnterprisePlan: vi.fn(),
   mockGetPlanTierCredits: vi.fn(),
   mockHasUsableSubscriptionAccess: vi.fn(),
+  mockGetEffectiveBillingStatus: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/core/access', () => ({
-  getEffectiveBillingStatus: vi.fn(),
+  getEffectiveBillingStatus: mockGetEffectiveBillingStatus,
   isOrganizationBillingBlocked: vi.fn(),
 }))
 
@@ -231,7 +233,11 @@ describe('hasWorkspaceLiveSyncAccess', () => {
     mockHasUsableSubscriptionAccess.mockImplementation(
       (status: string | null, billingBlocked: boolean) => status === 'active' && !billingBlocked
     )
-    dbChainMockFns.limit.mockResolvedValue([{ billingBlocked: false }])
+    mockGetEffectiveBillingStatus.mockResolvedValue({
+      billingBlocked: false,
+      billingBlockedReason: null,
+      blockedByOrgOwner: false,
+    })
   })
 
   it('allows live sync from the exact Max workspace payer', async () => {
@@ -263,5 +269,26 @@ describe('hasWorkspaceLiveSyncAccess', () => {
     await expect(hasWorkspaceLiveSyncAccess('workspace-host')).resolves.toBe(false)
     expect(mockGetHighestPriorityPersonalSubscription).toHaveBeenCalledWith('workspace-owner')
     expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
+  })
+
+  // The payer's own row is clean; only their membership in a delinquent org
+  // blocks them. Reading `userStats.billingBlocked` directly would let this
+  // through whenever `blockOrgMembers`' fan-out is stale — a member who joined
+  // after the block, or whose row a sibling org's unblock already cleared.
+  it('denies a paid personal payer who is blocked by their org owner', async () => {
+    mockGetHighestPriorityPersonalSubscription.mockResolvedValue({
+      referenceId: 'workspace-owner',
+      plan: 'pro_25000',
+      status: 'active',
+    })
+    mockGetPlanTierCredits.mockReturnValue(25000)
+    mockGetEffectiveBillingStatus.mockResolvedValue({
+      billingBlocked: true,
+      billingBlockedReason: 'payment_failed',
+      blockedByOrgOwner: true,
+    })
+
+    await expect(hasWorkspaceLiveSyncAccess('workspace-host')).resolves.toBe(false)
+    expect(mockGetEffectiveBillingStatus).toHaveBeenCalledWith('workspace-owner')
   })
 })
