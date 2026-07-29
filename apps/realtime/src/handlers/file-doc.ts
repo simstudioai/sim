@@ -373,24 +373,25 @@ async function ensureServerSeed(
   try {
     const update = await fetchFileDocSeed(workspaceId, room.fileId)
     if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
-    // Fence against a peer that seeded while we held a stale lock (a rare long stall): if the stream
-    // already has content it is seeded, so never write a SECOND seed on top — that would split-brain.
-    if (await store.streamHasContent(name)) {
-      // Clear the guard so a later join can retry. Safe in both cases: a genuine peer-seed arrives via
-      // the tailer (and shouldSeed/this fence then no-op), and a fail-closed Redis `xLen` error must not
-      // strand the room unseeded forever.
-      room.serverSeedStarted = false
-      return
-    }
-    // Build the seed (file content + seed flag, or just the flag for an empty/missing file), then
-    // PUBLISH it to the shared stream AWAITED *before* seeding the local doc. The doc is marked seeded
-    // only once the seed is durably shared — so if the publish fails we leave the doc unseeded and the
-    // stream empty for a clean retry, rather than serving an unpublished local seed that a peer would
-    // re-seed on top of (split-brain). SEED_ORIGIN keeps `doc.on('update')` from re-publishing it.
+    // Build the seed (file content + seed flag, or just the flag for an empty/missing file) and write it
+    // to the shared stream ATOMICALLY, iff the stream is still empty. This — NOT the seed lock — is the
+    // split-brain guard: two tasks racing (even both past an expired lock) can never both seed, because
+    // the emptiness check and the append are one Redis-side step. Publish-before-apply: the doc is marked
+    // seeded (via the local apply) only once the seed is durably in the stream, so a failed write leaves
+    // the doc unseeded and the stream empty for a clean retry. SEED_ORIGIN keeps `doc.on('update')` from
+    // re-publishing it.
     const seedUpdate = update ?? emptySeedUpdate()
-    await store.publishAndWait(name, seedUpdate)
+    const didSeed = await store.seedIfEmpty(name, seedUpdate)
     if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
-    Y.applyUpdate(room.doc, seedUpdate, SEED_ORIGIN)
+    if (didSeed) {
+      Y.applyUpdate(room.doc, seedUpdate, SEED_ORIGIN)
+    } else {
+      // A peer seeded first: its seed arrives via the tailer, so we must NOT apply our own — a second,
+      // different-client-id seed IS the split-brain. Clear the guard so a later join can retry if that
+      // peer seed somehow never lands (e.g. a fail-closed `xLen` error made `shouldSeed` skip a genuinely
+      // empty stream); a real peer-seed makes the retry a no-op.
+      room.serverSeedStarted = false
+    }
   } catch (error) {
     logger.warn(`Server seed failed for file ${room.fileId} (workspace ${workspaceId})`, error)
     room.serverSeedStarted = false
@@ -549,8 +550,11 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     // whichever task is last to leave persists real edits, even one that only tailed them. A compaction
     // snapshot on catch-up (REDIS_SNAPSHOT_ORIGIN) also counts: it folds real edits into one frame, so a
     // fresh task catching up purely from it must not treat the doc as unedited. The seed transition
-    // itself is never counted (nor a purely-local copilot merge, already durable via copilot's direct
-    // file write), so a seeded-but-unedited doc is never projected back over the file.
+    // itself is never counted, so a seeded-but-unedited doc is never projected back over the file. NOTE:
+    // in the multi-replica path a copilot merge is NOT excluded — it round-trips through the stream as
+    // REDIS_ORIGIN, indistinguishable from a peer edit, so it marks `edited`. That only ever causes an
+    // extra idempotent persist of content copilot already wrote directly (safe over-persist, never a lost
+    // edit); the single-replica path applies the merge locally with no origin and does not count it.
     const seededBefore = room.seededObserved
     if (isDocSeeded(room.doc)) room.seededObserved = true
     if (
