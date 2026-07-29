@@ -545,7 +545,7 @@ async function fetchCheckDiagnostic(
  *
  * Fanned out in small batches rather than one at a time: each Actions log is a separate
  * HTTP read of a body that can approach the executor's response cap, and a round may
- * carry up to {@link MAX_FAILING_CHECKS_IN_PROMPT} of them. Serialized, that put minutes
+ * carry up to the caller's per-round check bound of them. Serialized, that put minutes
  * of avoidable wall clock inside a budget the round loop is carefully rationing. The
  * batch size stays small so a wide matrix cannot burst GitHub's rate limiter.
  */

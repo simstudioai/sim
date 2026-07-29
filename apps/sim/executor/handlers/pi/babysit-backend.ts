@@ -110,7 +110,7 @@ const MIN_BABYSIT_BUDGET_MS = MIN_PI_TIMEOUT_MS
  */
 const MIN_ROUND_BUDGET_MS = 5 * 60 * 1000
 const ROUND_FINALIZATION_RESERVE_MS = 2 * FINALIZE_TIMEOUT_MS
-const SANDBOX_KEEPALIVE_INTERVAL_MS = 4 * 60 * 1000
+const SANDBOX_PROBE_INTERVAL_MS = 4 * 60 * 1000
 
 const BABYSIT_GUIDANCE =
   'You are fixing an existing pull request in a long-lived automated sandbox. Make only minimal ' +
@@ -431,7 +431,8 @@ function buildRoundPrompt(
 function createCancellationSignal(
   parent: AbortSignal | undefined,
   executionId: string | undefined,
-  pollMs: number
+  pollMs: number,
+  secrets: readonly string[]
 ): { signal: AbortSignal; cleanup: () => void } {
   const controller = new AbortController()
   const onAbort = () => controller.abort(parent?.reason ?? 'workflow_abort')
@@ -451,9 +452,12 @@ function createCancellationSignal(
               }
             })
             .catch((error) => {
+              // Scrubbed like every other message this file emits. A Redis poll
+              // error is unlikely to carry a run credential, but the invariant is
+              // easier to keep than to reason about per call site.
               logger.warn('Failed to poll Babysit execution cancellation', {
                 executionId,
-                error: getErrorMessage(error),
+                error: scrubPiSecrets(getErrorMessage(error), secrets),
               })
             })
             .finally(() => {
@@ -655,21 +659,30 @@ async function waitForHeadConvergence(
   return 'lagging'
 }
 
-async function waitWithSandboxKeepalive(
+/**
+ * Sleeps in slices, checking the sandbox is still answering between them.
+ *
+ * Named a probe rather than a keepalive because it cannot extend anything: E2B's
+ * `timeoutMs` counts down from create and is reset only by `Sandbox.setTimeout`,
+ * never by running a command, so `true` proves liveness and buys no time. The wait
+ * is safe today only because {@link runBabysitPiWithOptions} starts its clock
+ * before the sandbox is created, so the budget always expires first — a reordering,
+ * or a `roundWaitMs` raised past the remaining lifetime, would let E2B reap the
+ * sandbox mid-wait. Extending the lifetime would need `setTimeout` plumbed through
+ * {@link PiSandboxRunner}.
+ */
+async function waitWithSandboxProbe(
   runner: PiSandboxRunner,
   durationMs: number,
   signal: AbortSignal
 ): Promise<void> {
   let remainingMs = durationMs
   while (remainingMs > 0) {
-    const intervalMs = Math.min(remainingMs, SANDBOX_KEEPALIVE_INTERVAL_MS)
+    const intervalMs = Math.min(remainingMs, SANDBOX_PROBE_INTERVAL_MS)
     await sleepUntilAborted(intervalMs, signal)
     if (signal.aborted) throw new Error('Pi run aborted')
-    const keepalive = await raceAbort(
-      runner.run('true', { timeoutMs: FINALIZE_TIMEOUT_MS }),
-      signal
-    )
-    if (keepalive.exitCode !== 0) throw new Error('Babysit sandbox keepalive failed')
+    const probe = await raceAbort(runner.run('true', { timeoutMs: FINALIZE_TIMEOUT_MS }), signal)
+    if (probe.exitCode !== 0) throw new Error('Babysit sandbox stopped responding')
     remainingMs -= intervalMs
   }
 }
@@ -721,7 +734,8 @@ export async function runBabysitPiWithOptions(
   const cancellation = createCancellationSignal(
     context.signal,
     params.executionId,
-    options.cancellationPollMs
+    options.cancellationPollMs,
+    secrets
   )
   const { signal } = cancellation
   const startedAt = Date.now()
@@ -878,7 +892,7 @@ export async function runBabysitPiWithOptions(
             )
             return resultFor(totals, reason, progress, threadsClean, latestChecks!.checksGreen)
           }
-          await waitWithSandboxKeepalive(runner, options.roundWaitMs, signal)
+          await waitWithSandboxProbe(runner, options.roundWaitMs, signal)
           snapshot = await fetchBabysitSnapshot(params, signal)
           assertBabysitPinned(
             { headSha: pinnedHeadSha, headRef: pinnedHeadRef, baseRef: pinnedBaseRef },
@@ -1221,7 +1235,7 @@ export async function runBabysitPiWithOptions(
           remainingBeforeWait >
             options.roundWaitMs + MIN_ROUND_BUDGET_MS + ROUND_FINALIZATION_RESERVE_MS
         ) {
-          await waitWithSandboxKeepalive(runner, options.roundWaitMs, signal)
+          await waitWithSandboxProbe(runner, options.roundWaitMs, signal)
         }
 
         snapshot = await fetchBabysitSnapshot(params, signal)

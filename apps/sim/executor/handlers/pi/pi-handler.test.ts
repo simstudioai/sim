@@ -353,6 +353,43 @@ describe('PiBlockHandler', () => {
     expect(mockRunCloud.mock.calls[0][0]).not.toHaveProperty('babysit')
   })
 
+  // A `switch` arrives as a string when its value came through a variable reference,
+  // an API trigger payload, or a legacy serialized workflow.
+  it('enables Babysit when the toggle arrives as the string "true"', async () => {
+    await handler.execute(ctx(), block, {
+      mode: 'cloud',
+      task: 'build it',
+      model: 'claude',
+      owner: 'o',
+      repo: 'r',
+      githubToken: 'ghp',
+      babysitMode: 'true',
+      reviewMentions: '@greptile',
+    })
+
+    expect(mockRunCloud.mock.calls[0][0].babysit).toMatchObject({
+      reviewMentions: ['@greptile'],
+    })
+  })
+
+  // The negative polarity is the one `draft` needs: it defaults on, so a strict
+  // `!== false` read the string 'false' as truthy and opened a draft PR against
+  // the user's explicit setting.
+  it('honours a draft toggle supplied as the string "false"', async () => {
+    await handler.execute(ctx(), block, {
+      mode: 'cloud',
+      task: 'build it',
+      model: 'claude',
+      owner: 'o',
+      repo: 'r',
+      githubToken: 'ghp',
+      babysitMode: false,
+      draft: 'false',
+    })
+
+    expect(mockRunCloud.mock.calls[0][0].draft).toBe(false)
+  })
+
   it('parses review mentions as a bounded, trimmed list', () => {
     expect(parsePiReviewMentions(' @one, , @two ')).toEqual(['@one', '@two'])
     expect(parsePiReviewMentions('')).toEqual([])

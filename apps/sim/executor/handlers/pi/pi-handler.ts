@@ -73,6 +73,21 @@ function isReviewEvent(value: string): value is PiCloudReviewRunParams['reviewEv
   return REVIEW_EVENTS.some((event) => event === value)
 }
 
+/**
+ * Reads a `switch` subblock, tolerating the string form.
+ *
+ * A switch reaches a handler as `'true'`/`'false'` when its value arrived through
+ * a variable reference, an API trigger payload, or a legacy serialized workflow —
+ * `wait-handler` coerces the same way. Both polarities need it: a strict `=== true`
+ * silently disables an enabled toggle, and a strict `!== false` silently enables a
+ * disabled one.
+ */
+function isSwitchEnabled(value: unknown, defaultValue = false): boolean {
+  if (value === true || value === 'true') return true
+  if (value === false || value === 'false') return false
+  return defaultValue
+}
+
 function parsePiMode(value: unknown): PiRunParams['mode'] {
   if (value === 'cloud' || value === 'cloud_review' || value === 'local') {
     return value
@@ -246,7 +261,7 @@ export class PiBlockHandler implements BlockHandler {
     // workflow (see the same coercion in `wait-handler`). A strict boolean compare
     // silently opened a draft PR and skipped Babysit entirely while the editor showed
     // the toggle on and Reviewer Mentions as required.
-    const babysitMode = inputs.babysitMode === true || inputs.babysitMode === 'true'
+    const babysitMode = isSwitchEnabled(inputs.babysitMode)
     const reviewMentions = babysitMode ? parsePiReviewMentions(inputs.reviewMentions) : []
     if (babysitMode && reviewMentions.length === 0) {
       throw new Error('Create PR Babysit Mode requires at least one reviewer mention')
@@ -266,7 +281,10 @@ export class PiBlockHandler implements BlockHandler {
       githubToken,
       baseBranch: asOptString(inputs.baseBranch),
       branchName: asOptString(inputs.branchName),
-      draft: babysitMode ? false : inputs.draft !== false,
+      // `draft` defaults on, so the negative form is the one that must tolerate the
+      // string: `'false'` from a variable reference would otherwise read as truthy
+      // and open a draft PR against the user's explicit setting.
+      draft: babysitMode ? false : isSwitchEnabled(inputs.draft, true),
       prTitle: asOptString(inputs.prTitle),
       prBody: asOptString(inputs.prBody),
       ...(babysitMode

@@ -170,8 +170,15 @@ function mergeChangedFiles(
   return [...new Set([...(createFiles ?? []), ...(babysitFiles ?? [])])]
 }
 
+/**
+ * Joins both phases' diffs under the same ceiling each already respects
+ * individually — without the re-cap, two 200 KB diffs produced a 400 KB output.
+ */
 function mergePhaseDiffs(createDiff: string | undefined, babysitDiff: string | undefined): string {
-  return [createDiff, babysitDiff].filter((diff): diff is string => !!diff).join('\n')
+  const merged = [createDiff, babysitDiff].filter((diff): diff is string => !!diff).join('\n')
+  return merged.length > MAX_DIFF_BYTES
+    ? `${merged.slice(0, MAX_DIFF_BYTES)}\n[diff truncated]`
+    : merged
 }
 
 function combineCreateAndBabysit(created: CreatePrPhaseResult, babysit: PiRunResult): PiRunResult {
