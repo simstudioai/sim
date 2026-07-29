@@ -937,9 +937,12 @@ function resumeForClass(cls: BodyClass, bodyStart: number, pastClose: number): n
       // Rescan the whole body: nothing was blanked, so no marker is hidden.
       return bodyStart
     case 'unexamined':
-      // Resume just short of the first character NOT read. Everything read is
-      // emitted as text by the caller, and this advances nearly a full window per
-      // step, so a long body still costs a bounded number of re-entries.
+      // Resume just short of the first character NOT read: the last marker's
+      // worth of the window is held back rather than emitted as text, so it is
+      // re-scanned on the next pass instead of being flattened. Nothing is lost
+      // — the caller emits up to wherever this resumes. It still advances nearly
+      // a full window per step, so a long body costs a bounded number of
+      // re-entries.
       //
       // The rewind is load-bearing: the window edge is an arbitrary cut, so an
       // opener can straddle it. Resuming exactly at the edge leaves that opener's

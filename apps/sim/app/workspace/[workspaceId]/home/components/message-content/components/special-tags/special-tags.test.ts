@@ -916,7 +916,7 @@ describe('parser properties', () => {
   })
 
   it('renders every valid tag as a card whatever surrounds it', () => {
-    // Round-3 class: a valid tag was flattened to text purely because of how much
+    // A valid tag was flattened to text purely because of how much
     // prose preceded it, which no fixed example set would have found.
     for (let seed = 1; seed <= 400; seed++) {
       const rng = makeRng(seed)
@@ -943,7 +943,7 @@ describe('parser properties', () => {
   })
 
   it('never un-renders a card or retracts text across streamed frames', () => {
-    // Round-5 class: content already on screen disappeared when a later close
+    // Content already on screen disappeared when a later close
     // arrived. Only visible across frames, never in an end-state assertion.
     //
     // Text may shrink slightly at a frame edge: a half-arrived opening marker is
