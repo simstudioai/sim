@@ -340,6 +340,7 @@ export type OutlookExtendedResponse =
   | OutlookMarkReadResponse
   | OutlookDeleteResponse
   | OutlookCopyResponse
+  | OutlookCalendarResponse
 
 /**
  * Output definition for mail folder objects.
@@ -522,3 +523,304 @@ export interface OutlookUpdateMessageResponse extends ToolResponse {
     }
   }
 }
+
+/**
+ * Calendar output-property definitions for Microsoft Graph event responses.
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/event
+ */
+
+/**
+ * Output definition for a Graph dateTimeTimeZone value.
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/datetimetimezone
+ */
+export const OUTLOOK_EVENT_DATETIME_OUTPUT_PROPERTIES = {
+  dateTime: {
+    type: 'string',
+    description: 'Local date and time (ISO 8601, no offset)',
+    optional: true,
+  },
+  timeZone: { type: 'string', description: 'IANA or Windows time zone name', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for a flattened event attendee.
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/attendee
+ */
+export const OUTLOOK_EVENT_ATTENDEE_OUTPUT_PROPERTIES = {
+  name: { type: 'string', description: 'Attendee display name', optional: true },
+  address: { type: 'string', description: 'Attendee email address', optional: true },
+  type: {
+    type: 'string',
+    description: 'Attendee type (required, optional, or resource)',
+    optional: true,
+  },
+  response: {
+    type: 'string',
+    description: 'Attendee response status (none, accepted, declined, tentativelyAccepted, ...)',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/** Output definition for the flattened online-meeting info. */
+export const OUTLOOK_EVENT_ONLINE_MEETING_OUTPUT_PROPERTIES = {
+  joinUrl: { type: 'string', description: 'URL to join the online meeting', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/** Output definition for a cleaned calendar event returned by our tools. */
+export const OUTLOOK_EVENT_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Unique event identifier' },
+  subject: { type: 'string', description: 'Event subject/title', optional: true },
+  bodyPreview: { type: 'string', description: 'Preview of the event body', optional: true },
+  start: {
+    type: 'object',
+    description: 'Event start',
+    optional: true,
+    properties: OUTLOOK_EVENT_DATETIME_OUTPUT_PROPERTIES,
+  },
+  end: {
+    type: 'object',
+    description: 'Event end',
+    optional: true,
+    properties: OUTLOOK_EVENT_DATETIME_OUTPUT_PROPERTIES,
+  },
+  isAllDay: {
+    type: 'boolean',
+    description: 'Whether the event lasts the entire day',
+    optional: true,
+  },
+  location: { type: 'string', description: 'Event location display name', optional: true },
+  organizer: {
+    type: 'object',
+    description: 'Event organizer',
+    optional: true,
+    properties: OUTLOOK_EMAIL_ADDRESS_OUTPUT_PROPERTIES,
+  },
+  attendees: {
+    type: 'array',
+    description: 'Event attendees',
+    items: {
+      type: 'object',
+      properties: OUTLOOK_EVENT_ATTENDEE_OUTPUT_PROPERTIES,
+    },
+  },
+  onlineMeeting: {
+    type: 'object',
+    description: 'Online-meeting join details, if any',
+    optional: true,
+    properties: OUTLOOK_EVENT_ONLINE_MEETING_OUTPUT_PROPERTIES,
+  },
+  webLink: {
+    type: 'string',
+    description: 'URL that opens the event in Outlook on the web',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/** Cleaned dateTimeTimeZone value returned by our tools. */
+export interface CleanedOutlookEventDateTime {
+  dateTime?: string
+  timeZone?: string
+}
+
+/** Cleaned event attendee returned by our tools. */
+export interface CleanedOutlookEventAttendee {
+  name?: string
+  address?: string
+  type?: string
+  response?: string
+}
+
+/** Cleaned calendar event returned by our tools. */
+export interface CleanedOutlookEvent {
+  id: string
+  subject?: string
+  bodyPreview?: string
+  start?: CleanedOutlookEventDateTime
+  end?: CleanedOutlookEventDateTime
+  isAllDay?: boolean
+  location?: string
+  organizer?: {
+    name?: string
+    address?: string
+  }
+  attendees: CleanedOutlookEventAttendee[]
+  onlineMeeting?: {
+    joinUrl?: string
+  } | null
+  webLink?: string
+}
+
+/** Raw Microsoft Graph dateTimeTimeZone value. */
+export interface GraphDateTimeTimeZone {
+  dateTime: string
+  timeZone?: string
+}
+
+/** Raw Microsoft Graph emailAddress value. */
+export interface GraphEmailAddress {
+  name?: string
+  address?: string
+}
+
+/** Raw Microsoft Graph attendee value. */
+export interface GraphAttendee {
+  type?: string
+  status?: {
+    response?: string
+    time?: string
+  }
+  emailAddress?: GraphEmailAddress
+}
+
+/** Raw Microsoft Graph event resource (subset of fields we consume). */
+export interface GraphEvent {
+  id: string
+  subject?: string
+  bodyPreview?: string
+  body?: {
+    contentType?: string
+    content?: string
+  }
+  start?: GraphDateTimeTimeZone
+  end?: GraphDateTimeTimeZone
+  isAllDay?: boolean
+  isOnlineMeeting?: boolean
+  onlineMeeting?: {
+    joinUrl?: string
+  } | null
+  webLink?: string
+  location?: {
+    displayName?: string
+  }
+  organizer?: {
+    emailAddress?: GraphEmailAddress
+  }
+  attendees?: GraphAttendee[]
+  '@odata.etag'?: string
+}
+
+/** Raw Microsoft Graph list response for events / calendarView. */
+export interface GraphEventsResponse {
+  '@odata.context'?: string
+  '@odata.nextLink'?: string
+  value: GraphEvent[]
+}
+
+export interface OutlookCalendarListEventsParams {
+  accessToken: string
+  startDateTime: string
+  endDateTime: string
+  maxResults?: number
+  orderBy?: string
+  /** Full `@odata.nextLink` URL from a previous page. */
+  pageToken?: string
+}
+
+export interface OutlookCalendarListEventsResponse extends ToolResponse {
+  output: {
+    message: string
+    results: CleanedOutlookEvent[]
+    nextLink?: string
+  }
+}
+
+export interface OutlookCalendarGetEventParams {
+  accessToken: string
+  eventId: string
+}
+
+export interface OutlookCalendarGetEventResponse extends ToolResponse {
+  output: {
+    message: string
+    results: CleanedOutlookEvent
+  }
+}
+
+export interface OutlookCalendarCreateEventParams {
+  accessToken: string
+  subject: string
+  startDateTime: string
+  endDateTime: string
+  timeZone?: string
+  body?: string
+  contentType?: 'text' | 'html'
+  location?: string
+  attendees?: string | string[]
+  isAllDay?: boolean
+  isOnlineMeeting?: boolean
+}
+
+export interface OutlookCalendarCreateEventResponse extends ToolResponse {
+  output: {
+    message: string
+    results: CleanedOutlookEvent
+  }
+}
+
+export interface OutlookCalendarUpdateEventParams {
+  accessToken: string
+  eventId: string
+  subject?: string
+  startDateTime?: string
+  endDateTime?: string
+  timeZone?: string
+  body?: string
+  contentType?: 'text' | 'html'
+  location?: string
+  attendees?: string | string[]
+  isAllDay?: boolean
+  isOnlineMeeting?: boolean
+}
+
+export interface OutlookCalendarUpdateEventResponse extends ToolResponse {
+  output: {
+    message: string
+    results: CleanedOutlookEvent
+  }
+}
+
+export interface OutlookCalendarDeleteEventParams {
+  accessToken: string
+  eventId: string
+}
+
+export interface OutlookCalendarDeleteEventResponse extends ToolResponse {
+  output: {
+    message: string
+    results: {
+      eventId: string
+      status: string
+    }
+  }
+}
+
+export type OutlookCalendarResponseType = 'accept' | 'tentativelyAccept' | 'decline'
+
+export interface OutlookCalendarRespondParams {
+  accessToken: string
+  eventId: string
+  responseType: OutlookCalendarResponseType
+  comment?: string
+  sendResponse?: boolean
+}
+
+export interface OutlookCalendarRespondResponse extends ToolResponse {
+  output: {
+    message: string
+    results: {
+      eventId: string
+      responseType: OutlookCalendarResponseType
+      status: string
+      httpStatus?: number
+      requestId?: string
+    }
+  }
+}
+
+export type OutlookCalendarResponse =
+  | OutlookCalendarListEventsResponse
+  | OutlookCalendarGetEventResponse
+  | OutlookCalendarCreateEventResponse
+  | OutlookCalendarUpdateEventResponse
+  | OutlookCalendarDeleteEventResponse
+  | OutlookCalendarRespondResponse
