@@ -5,7 +5,9 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { deleteSandboxContract, updateSandboxContract } from '@/lib/api/contracts/sandboxes'
 import { parseRequest } from '@/lib/api/server'
+import { runDetached } from '@/lib/core/utils/background'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { releaseSandboxImage } from '@/lib/execution/remote-sandbox/image-registry'
 import { invalidateSandboxResolution } from '@/lib/execution/remote-sandbox/resolve'
 import {
   isSandboxNameTaken,
@@ -88,6 +90,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Sand
   // finds a `ready` row and enqueues nothing. Editing the name alone costs no build.
   if (spec.specHash !== existing.specHash) {
     await scheduleSandboxBuild(spec)
+    // The previous content address is unreferenced by this sandbox now. Release
+    // no-ops when another sandbox still declares the same package list.
+    runDetached('release-sandbox-image', () => releaseSandboxImage(existing.specHash))
     logger.info('Sandbox spec changed, scheduled a build', { workspaceId, sandboxId })
   } else {
     invalidateSandboxResolution()
@@ -115,13 +120,17 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: San
   const deleted = await db
     .delete(workspaceSandbox)
     .where(and(eq(workspaceSandbox.id, sandboxId), eq(workspaceSandbox.workspaceId, workspaceId)))
-    .returning({ id: workspaceSandbox.id })
+    .returning({ id: workspaceSandbox.id, specHash: workspaceSandbox.specHash })
 
   if (deleted.length === 0) {
     return NextResponse.json({ error: 'Sandbox not found' }, { status: 404 })
   }
 
   invalidateSandboxResolution()
+  // Detached: the row is already gone, so the caller's delete succeeded whatever
+  // the provider says. Awaiting would hold a UI delete open on a remote call the
+  // retention sweep would retry anyway.
+  runDetached('release-sandbox-image', () => releaseSandboxImage(deleted[0].specHash))
   logger.info('Deleted workspace sandbox', { workspaceId, sandboxId })
   return NextResponse.json({ success: true })
 })

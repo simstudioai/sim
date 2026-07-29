@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { sandboxImage } from '@sim/db/schema'
+import { sandboxImage, workspaceSandbox } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -246,6 +246,69 @@ export async function runSandboxImageBuild(payload: SandboxImageBuildPayload): P
 
   await writeFailure(payload, buildTimeoutError(BUILD_POLL_CAP_MS / 60_000))
   logger.warn('Sandbox image build timed out', { specHash: payload.specHash })
+}
+
+/**
+ * Deletes the provider image behind a spec hash once no sandbox references it.
+ *
+ * Called when a sandbox is deleted, and when an edit re-points one at a new
+ * content address — both leave the previous build unreferenced. Without it the
+ * image sits in provider storage until the retention sweep, which is up to
+ * `SANDBOX_IMAGE_RETENTION_DAYS` of paying to store something nothing can select.
+ *
+ * The reference check is what makes deleting this eagerly safe. Builds are keyed
+ * by content, not by workspace, so two workspaces declaring the same package list
+ * share one image, and deleting on the strength of one workspace's action would
+ * break the other. An in-flight build is left alone rather than raced; the sweep
+ * collects it once it settles.
+ *
+ * Best-effort by contract: failures are logged and swallowed, because this runs
+ * after the mutation it follows has already committed and must never turn a
+ * successful delete into an error. The sweep stays the backstop.
+ */
+export async function releaseSandboxImage(specHash: string): Promise<void> {
+  const provider = resolveProvider()
+  if (provider.dependencyStrategy !== 'prebuilt' || !provider.images) return
+  const images = provider.images
+
+  try {
+    const [referenced] = await db
+      .select({ id: workspaceSandbox.id })
+      .from(workspaceSandbox)
+      .where(eq(workspaceSandbox.specHash, specHash))
+      .limit(1)
+    if (referenced) return
+
+    const [image] = await db
+      .select({
+        id: sandboxImage.id,
+        status: sandboxImage.status,
+        imageRef: sandboxImage.imageRef,
+        buildId: sandboxImage.buildId,
+        providerImageId: sandboxImage.providerImageId,
+      })
+      .from(sandboxImage)
+      .where(and(eq(sandboxImage.provider, provider.id), eq(sandboxImage.specHash, specHash)))
+      .limit(1)
+    if (!image) return
+    if (image.status === 'pending' || image.status === 'building') return
+
+    if (image.imageRef) {
+      await images.deleteImage({
+        imageRef: image.imageRef,
+        buildId: image.buildId ?? '',
+        providerImageId: image.providerImageId ?? undefined,
+      })
+    }
+    await db.delete(sandboxImage).where(eq(sandboxImage.id, image.id))
+    invalidateSandboxResolution()
+    logger.info('Released unreferenced sandbox image', { specHash })
+  } catch (error) {
+    logger.warn('Failed to release sandbox image; the retention sweep will retry', {
+      specHash,
+      error: getErrorMessage(error),
+    })
+  }
 }
 
 /** Most rows one sweep will touch. The next run picks up whatever is left. */
