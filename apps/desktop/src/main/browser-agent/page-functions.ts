@@ -17,6 +17,11 @@
  * same-origin iframe belongs to that frame's realm, so `instanceof` against
  * the top frame's constructor returns false and would skip the check on
  * exactly the nested login forms that need it most.
+ *
+ * Every tag comparison here is upper-cased. `tagName` is lower-case for HTML
+ * elements in an XHTML document, and a raw compare there reports every
+ * credential field as ordinary — failing open on both the value redaction and
+ * the keystroke refusal that read it.
  */
 
 declare global {
@@ -99,7 +104,11 @@ export function collectSnapshot(): unknown {
   }
 
   const isSecretField = (el: Element | null): boolean => {
-    if (!el || el.tagName !== 'INPUT') return false
+    // Upper-cased: tagName is lower-case for HTML elements in an XHTML
+    // document, where a raw compare would report every credential field as
+    // ordinary — failing open on both the value redaction and the keystroke
+    // refusal that read this.
+    if (!el || String(el.tagName || '').toUpperCase() !== 'INPUT') return false
     if (String((el as HTMLInputElement).type || '').toLowerCase() === 'password') return true
     // A reveal toggle flips the field to type="text" without making its
     // contents any less secret, and some forms never use type="password" at
@@ -124,7 +133,7 @@ export function collectSnapshot(): unknown {
    * work it is legitimately asked to do. Only the value is withheld here.
    */
   const isSensitiveValueField = (el: Element | null): boolean => {
-    if (!el || el.tagName !== 'INPUT') return false
+    if (!el || String(el.tagName || '').toUpperCase() !== 'INPUT') return false
     const hint = String(el.getAttribute('autocomplete') || '').toLowerCase()
     return hint
       .split(/\s+/)
@@ -301,7 +310,7 @@ export function collectSnapshot(): unknown {
 
 export function clickElement(id: number): unknown {
   const isSecretField = (node: Element | null): boolean => {
-    if (!node || node.tagName !== 'INPUT') return false
+    if (!node || String(node.tagName || '').toUpperCase() !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint
@@ -353,7 +362,7 @@ export function clickElement(id: number): unknown {
  */
 export function focusElementForTyping(id: number): unknown {
   const isSecretField = (node: Element | null): boolean => {
-    if (!node || node.tagName !== 'INPUT') return false
+    if (!node || String(node.tagName || '').toUpperCase() !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint
@@ -406,7 +415,7 @@ export function focusElementForTyping(id: number): unknown {
  */
 export function readActiveElementState(): unknown {
   const isSecretField = (node: Element | null): boolean => {
-    if (!node || node.tagName !== 'INPUT') return false
+    if (!node || String(node.tagName || '').toUpperCase() !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint
@@ -416,7 +425,7 @@ export function readActiveElementState(): unknown {
 
   /** Sensitive-but-fillable fields; see collectSnapshot's copy for why. */
   const isSensitiveValueField = (node: Element | null): boolean => {
-    if (!node || node.tagName !== 'INPUT') return false
+    if (!node || String(node.tagName || '').toUpperCase() !== 'INPUT') return false
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint
       .split(/\s+/)
@@ -526,7 +535,7 @@ export function readActiveElementState(): unknown {
  */
 export function activeElementSecrecy(): string {
   const isSecretField = (node: Element | null): boolean => {
-    if (!node || node.tagName !== 'INPUT') return false
+    if (!node || String(node.tagName || '').toUpperCase() !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint
@@ -613,7 +622,7 @@ export function activeElementSecrecy(): string {
 
 export function typeIntoElement(id: number, text: string, submit: boolean): unknown {
   const isSecretField = (node: Element | null): boolean => {
-    if (!node || node.tagName !== 'INPUT') return false
+    if (!node || String(node.tagName || '').toUpperCase() !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint
@@ -685,7 +694,7 @@ export function pressKeyOnPage(
   alt: boolean
 ): unknown {
   const isSecretField = (node: Element | null): boolean => {
-    if (!node || node.tagName !== 'INPUT') return false
+    if (!node || String(node.tagName || '').toUpperCase() !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint

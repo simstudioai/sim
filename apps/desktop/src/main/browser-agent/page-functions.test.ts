@@ -394,6 +394,35 @@ describe('readActiveElementState', () => {
   })
 })
 
+describe('XHTML lower-case tagName', () => {
+  /** An element whose tagName reads lower-case, as it does in an XHTML document. */
+  function lowerCaseTagInput(html: string): HTMLInputElement {
+    document.body.innerHTML = html
+    const input = document.querySelector('input') as HTMLInputElement
+    Object.defineProperty(input, 'tagName', { configurable: true, get: () => 'input' })
+    return input
+  }
+
+  it('still refuses a password field whose tagName is lower-case', () => {
+    const input = lowerCaseTagInput('<input type="password" />')
+    register(visible(input))
+
+    expect(typeIntoElement(0, 'hunter2', false)).toEqual({ error: 'password' })
+    expect(input.value).toBe('')
+  })
+
+  it('still withholds the value of a lower-case-tagName credential field', () => {
+    const input = lowerCaseTagInput(
+      '<input type="password" value="hunter2" aria-label="Password" />'
+    )
+    visible(input)
+
+    const outline = outlineOf(collectSnapshot())
+
+    expect(outline).not.toContain('hunter2')
+  })
+})
+
 describe('activeElementSecrecy', () => {
   it('reports safe for an ordinary field', () => {
     document.body.innerHTML = '<input type="text" />'

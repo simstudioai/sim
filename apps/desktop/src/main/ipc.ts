@@ -326,14 +326,23 @@ function senderHasUserGesture(event: IpcMainEvent | IpcMainInvokeEvent): boolean
  * Replies the PTY solicits and the terminal must answer unprompted. All
  * machine-generated and self-delimiting, which is what makes them safe to
  * enumerate.
+ *
+ * Bodies are printable-only ({@link PTY_REPLY_BODY}), never `[\s\S]`. A real
+ * DCS or OSC reply carries text terminated by ST or BEL and never a control
+ * byte, so an unbounded interior would let a hostile renderer wrap a whole
+ * command and its submit inside a fake `ESC ] ... CR BEL` and be waved through
+ * as a reply, reopening the path this gate exists to close. X10 mouse is
+ * bounded the same way: its three bytes are offset by 32, so a control byte
+ * there is never legitimate either.
  */
+const PTY_REPLY_BODY = '[\\u0020-\\u00ff]'
 const PTY_REPLY_PATTERNS = [
   /\u001b\[[0-9;?]*[Rc]/, // DSR cursor position, device attributes
   /\u001b\[[IO]/, // focus in/out (mode 1004)
-  /\u001b\[M[\s\S]{3}/, // X10 mouse report
+  new RegExp(`\\u001b\\[M${PTY_REPLY_BODY}{3}`), // X10 mouse report
   /\u001b\[<[0-9;]*[mM]/, // SGR mouse report
-  /\u001bP[\s\S]*?\u001b\\/, // DCS response
-  /\u001b\][\s\S]*?\u0007/, // OSC response
+  new RegExp(`\\u001bP${PTY_REPLY_BODY}*?\\u001b\\\\`), // DCS response
+  new RegExp(`\\u001b\\]${PTY_REPLY_BODY}*?(?:\\u0007|\\u001b\\\\)`), // OSC response
 ]
 const PTY_REPLY = new RegExp(
   `^(?:${PTY_REPLY_PATTERNS.map((pattern) => pattern.source).join('|')})+$`
