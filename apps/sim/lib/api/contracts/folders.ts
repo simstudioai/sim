@@ -29,7 +29,13 @@ export type FolderApi = z.output<typeof folderSchema>
 
 export const listFoldersQuerySchema = z.object({
   workspaceId: z.string({ error: 'Workspace ID is required' }).min(1, 'Workspace ID is required'),
-  resourceType: folderResourceTypeSchema.default('workflow'),
+  /**
+   * Only workflow folders are served today — file folders are still written to
+   * `workspace_file_folders` and kb/table have no writer yet. Narrowed rather than
+   * accepting the full enum and silently answering "you have none", matching the same
+   * choice made on the create and reorder bodies. Widens as each type's writers land.
+   */
+  resourceType: z.literal('workflow').default('workflow'),
   scope: folderScopeSchema.default('active'),
 })
 
