@@ -7,9 +7,9 @@ import {
   batchWorkspaceInvitationsContract,
   cancelInvitationContract,
   getInvitationContract,
-  type InvitationDetails,
   listMyInvitationsContract,
   listWorkspaceInvitationsContract,
+  type MyInvitation,
   type PendingInvitationRow,
   rejectInvitationContract,
   removeWorkspaceMemberContract,
@@ -121,7 +121,7 @@ export function usePendingInvitations(workspaceId: string | undefined) {
 
 export const MY_INVITATIONS_STALE_TIME = 30 * 1000
 
-async function fetchMyPendingInvitations(signal?: AbortSignal): Promise<InvitationDetails[]> {
+async function fetchMyPendingInvitations(signal?: AbortSignal): Promise<MyInvitation[]> {
   const data = await requestJson(listMyInvitationsContract, { signal })
   return data.invitations
 }
@@ -157,8 +157,23 @@ export function useAcceptMyInvitation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ invitationId }: { invitationId: string }) =>
-      requestJson(acceptInvitationContract, { params: { id: invitationId }, body: {} }),
+    /**
+     * `disclosedWorkspaceIds` echoes the migration the caller actually showed the
+     * invitee, so acceptance rejects if the sweep set changed since. Omitting it
+     * would silently skip that guard — the in-app path must supply it for the
+     * same reason the emailed `/invite` page does.
+     */
+    mutationFn: async ({
+      invitationId,
+      disclosedWorkspaceIds,
+    }: {
+      invitationId: string
+      disclosedWorkspaceIds?: string[]
+    }) =>
+      requestJson(acceptInvitationContract, {
+        params: { id: invitationId },
+        body: { disclosedWorkspaceIds },
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: organizationKeys.all })

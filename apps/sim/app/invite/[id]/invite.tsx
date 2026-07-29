@@ -9,11 +9,13 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import {
-  acceptInvitationContract,
-  type InvitationJoinPreview,
-} from '@/lib/api/contracts/invitations'
+import { acceptInvitationContract } from '@/lib/api/contracts/invitations'
 import { client, useSession } from '@/lib/auth/auth-client'
+import {
+  buildMembershipNotice,
+  buildWorkspaceMigrationNotice,
+  MAX_LISTED_WORKSPACE_NAMES,
+} from '@/lib/invitations/disclosure-copy'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
 import { useInvitationDetails } from '@/hooks/queries/invitations'
 import { organizationKeys } from '@/hooks/queries/organization'
@@ -170,53 +172,6 @@ function getInviteError(code: string): InviteError {
       canRetry: true,
     }
   )
-}
-
-const MAX_LISTED_WORKSPACE_NAMES = 3
-
-/**
- * Disclosure appended to the accept copy when accepting moves the invitee's
- * own workspaces into the organization — said where the decision happens, so
- * accepting never silently changes who controls their work.
- */
-function buildWorkspaceMigrationNotice(
-  joinPreview: InvitationJoinPreview | null,
-  organizationLabel: string
-): string {
-  if (!joinPreview?.willJoinOrganization || joinPreview.workspacesToMove.length === 0) {
-    return ''
-  }
-
-  const names = joinPreview.workspacesToMove
-  const nameList = formatQuotedNameList(names, MAX_LISTED_WORKSPACE_NAMES)
-  const single = names.length === 1
-
-  return ` Accepting also moves your ${single ? 'workspace' : 'workspaces'} ${nameList} into ${organizationLabel}: its admins get full access, and ${single ? 'it stays' : 'they stay'} with the organization if you leave.`
-}
-
-/**
- * States what the invitee becomes, so the seat consequence is disclosed to the
- * person it applies to rather than only to the inviter. Said unconditionally
- * for membership invites — the migration notice is empty for an invitee who
- * owns no workspaces, and joining is the larger consequence either way.
- */
-function buildMembershipNotice(
-  membershipIntent: 'internal' | 'external' | undefined,
-  organizationRole: string | undefined,
-  organizationLabel: string,
-  isOrganizationScoped: boolean
-): string {
-  if (!isOrganizationScoped || !membershipIntent) return ''
-
-  if (membershipIntent === 'external') {
-    return ` You'll join as an external collaborator: you get access to the ${
-      organizationLabel === 'the organization' ? 'invited' : `${organizationLabel}`
-    } workspaces only, you don't take one of their seats, and everything you own stays yours.`
-  }
-
-  return ` You'll join ${organizationLabel} as ${
-    organizationRole && isOrgAdminRole(organizationRole) ? 'an admin' : 'a member'
-  }, which uses one of their seats.`
 }
 
 function codeFromStatus(status: number): InviteErrorCode {
@@ -547,20 +502,23 @@ export default function Invite() {
    * migration notice for membership invites — a missing preview must never
    * read as "nothing moves".
    */
-  const migrationNotice =
-    joinPreviewUnavailable && invitation?.membershipIntent !== 'external'
-      ? ` If you own personal workspaces, accepting membership moves them into ${organizationLabel}: its admins get full access, and they stay with the organization if you leave.`
-      : buildWorkspaceMigrationNotice(joinPreview, organizationLabel)
+  const migrationNotice = buildWorkspaceMigrationNotice({
+    joinPreview,
+    joinPreviewUnavailable,
+    membershipIntent: invitation?.membershipIntent,
+    organizationLabel,
+  })
   /**
    * Only disclosed when the invitation actually carries organization standing —
    * a personal-workspace invite has no seat or membership to explain.
    */
-  const membershipNotice = buildMembershipNotice(
-    invitation?.membershipIntent,
-    invitation?.role,
+  const membershipNotice = buildMembershipNotice({
+    joinPreview,
+    membershipIntent: invitation?.membershipIntent,
+    isOrganizationAdminRole: Boolean(invitation?.role && isOrgAdminRole(invitation.role)),
     organizationLabel,
-    Boolean(invitation?.organizationId || joinPreview?.organizationName)
-  )
+    isOrganizationScoped: Boolean(invitation?.organizationId || joinPreview?.organizationName),
+  })
 
   return (
     <InviteLayout>

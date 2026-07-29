@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
-import type { InvitationDetails } from '@/lib/api/contracts/invitations'
+import type { MyInvitation } from '@/lib/api/contracts/invitations'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { listPendingInvitationsForEmail } from '@/lib/invitations/core'
+import { getInvitationJoinPreview, listPendingInvitationsForEmail } from '@/lib/invitations/core'
 
 const logger = createLogger('MyInvitationsAPI')
 
@@ -22,9 +22,30 @@ export const GET = withRouteHandler(async () => {
   try {
     const invitations = await listPendingInvitationsForEmail(session.user.email)
 
+    /**
+     * Each row carries what accepting it will actually do, so the in-app list
+     * can disclose the workspace migration and echo `disclosedWorkspaceIds` on
+     * accept — the same consent contract the emailed `/invite` page honours.
+     * Disclosure-only, so a preview failure degrades to `null` (the client
+     * shows a generic notice) rather than hiding the invitation.
+     */
+    const previews = await Promise.all(
+      invitations.map(async (inv) => {
+        try {
+          return await getInvitationJoinPreview(session.user.id, inv)
+        } catch (previewError) {
+          logger.warn('Failed to compute join preview for pending invitation', {
+            invitationId: inv.id,
+            error: previewError,
+          })
+          return null
+        }
+      })
+    )
+
     return NextResponse.json({
       invitations: invitations.map(
-        (inv) =>
+        (inv, index) =>
           ({
             id: inv.id,
             kind: inv.kind,
@@ -43,7 +64,8 @@ export const GET = withRouteHandler(async () => {
               workspaceName: grant.workspaceName,
               permission: grant.permission,
             })),
-          }) satisfies InvitationDetails
+            joinPreview: previews[index],
+          }) satisfies MyInvitation
       ),
     })
   } catch (error) {

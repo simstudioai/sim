@@ -217,13 +217,27 @@ export const getInvitationContract = defineRouteContract({
   },
 })
 
+/**
+ * A pending invitation plus what accepting it will actually do. The preview
+ * rides along so the in-app list can disclose the workspace migration and echo
+ * `disclosedWorkspaceIds` on accept, exactly like the emailed `/invite` page —
+ * an accept surface without it would sweep workspaces without consent. `null`
+ * when the preview could not be computed; the client then shows the generic
+ * notice rather than treating it as "nothing moves".
+ */
+export const myInvitationSchema = invitationDetailsSchema.extend({
+  joinPreview: invitationJoinPreviewSchema.nullable(),
+})
+
+export type MyInvitation = z.output<typeof myInvitationSchema>
+
 export const listMyInvitationsContract = defineRouteContract({
   method: 'GET',
   path: '/api/invitations',
   response: {
     mode: 'json',
     schema: z.object({
-      invitations: z.array(invitationDetailsSchema),
+      invitations: z.array(myInvitationSchema),
     }),
   },
 })
