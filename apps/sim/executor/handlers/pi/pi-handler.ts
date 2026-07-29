@@ -2,8 +2,8 @@
  * Executor handler for the Pi Coding Agent block. Resolves the model key,
  * skills, and memory, selects a backend by `mode`, and runs it — streaming the
  * agent's text to the client when the block is selected for streaming output,
- * otherwise returning a plain block output. The handler depends only on the
- * {@link PiBackendRun} seam and never reaches into backend internals.
+ * otherwise returning a plain block output. Create PR optionally composes the
+ * internal Babysit continuation in its backend.
  */
 
 import { createLogger } from '@sim/logger'
@@ -55,6 +55,9 @@ import type { SerializedBlock } from '@/serializer/types'
 const logger = createLogger('PiBlockHandler')
 const DEFAULT_MODEL = 'claude-sonnet-4-6'
 const REVIEW_EVENTS = ['COMMENT', 'REQUEST_CHANGES'] as const
+const MAX_REVIEW_MENTIONS = 10
+const MAX_REVIEW_MENTION_LENGTH = 200
+const MAX_REVIEW_MENTIONS_INPUT_LENGTH = 2_000
 
 function asOptString(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
@@ -70,9 +73,64 @@ function isReviewEvent(value: string): value is PiCloudReviewRunParams['reviewEv
   return REVIEW_EVENTS.some((event) => event === value)
 }
 
+/**
+ * Reads a `switch` subblock, tolerating the string form.
+ *
+ * A switch reaches a handler as `'true'`/`'false'` when its value arrived through
+ * a variable reference, an API trigger payload, or a legacy serialized workflow —
+ * `wait-handler` coerces the same way. Both polarities need it: a strict `=== true`
+ * silently disables an enabled toggle, and a strict `!== false` silently enables a
+ * disabled one.
+ */
+function isSwitchEnabled(value: unknown, defaultValue = false): boolean {
+  if (value === true || value === 'true') return true
+  if (value === false || value === 'false') return false
+  return defaultValue
+}
+
 function parsePiMode(value: unknown): PiRunParams['mode'] {
-  if (value === 'cloud' || value === 'cloud_review' || value === 'local') return value
+  if (value === 'cloud' || value === 'cloud_review' || value === 'local') {
+    return value
+  }
   throw new Error(`Invalid Pi mode: ${String(value)}`)
+}
+
+/** Parses the bounded, comma-separated issue comments used to request re-review. */
+export function parsePiReviewMentions(value: unknown): string[] {
+  if (value === undefined || value === null || value === '') return []
+  if (typeof value !== 'string') {
+    throw new Error('Invalid reviewMentions: expected a comma-separated string.')
+  }
+  if (value.length > MAX_REVIEW_MENTIONS_INPUT_LENGTH) {
+    throw new Error(
+      `reviewMentions must be at most ${MAX_REVIEW_MENTIONS_INPUT_LENGTH} characters.`
+    )
+  }
+
+  const mentions = value
+    .split(',')
+    .map((mention) => mention.trim())
+    .filter(Boolean)
+  if (mentions.length > MAX_REVIEW_MENTIONS) {
+    throw new Error(`reviewMentions may contain at most ${MAX_REVIEW_MENTIONS} entries.`)
+  }
+  const tooLong = mentions.find((mention) => mention.length > MAX_REVIEW_MENTION_LENGTH)
+  if (tooLong) {
+    throw new Error(
+      `Each reviewMentions entry must be at most ${MAX_REVIEW_MENTION_LENGTH} characters.`
+    )
+  }
+  // Every entry becomes its own issue comment, re-posted after each pushed round, so a
+  // stray comma in prose ("@cursor review this, focusing on auth") would otherwise leave
+  // "focusing on auth" on the pull request once per round. Requiring a mention shape
+  // turns that into a setup error before anything is posted.
+  const notAMention = mentions.find((mention) => !mention.startsWith('@'))
+  if (notAMention) {
+    throw new Error(
+      `Each reviewMentions entry must start with "@" — got "${notAMention}". Separate reviewers with commas, and avoid commas inside a single mention.`
+    )
+  }
+  return mentions
 }
 
 export class PiBlockHandler implements BlockHandler {
@@ -85,10 +143,10 @@ export class PiBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput | StreamingExecution> {
+    const mode = parsePiMode(inputs.mode)
     const task = asOptString(inputs.task)
     if (!task) throw new Error('Task is required')
     const model = asOptString(inputs.model) ?? DEFAULT_MODEL
-    const mode = parsePiMode(inputs.mode)
 
     const providerId = getProviderFromModel(model)
     if (!isPiSupportedProvider(providerId)) {
@@ -150,6 +208,8 @@ export class PiBlockHandler implements BlockHandler {
       }
       return this.runPi(ctx, block, runCloudReviewPi, params)
     }
+    const skills = await resolvePiSkills(inputs.skills, ctx.workspaceId)
+
     const memoryConfig: PiMemoryConfig = {
       memoryType: asOptString(inputs.memoryType) as PiMemoryConfig['memoryType'],
       conversationId: asOptString(inputs.conversationId),
@@ -159,7 +219,7 @@ export class PiBlockHandler implements BlockHandler {
     }
     const contextualBase = {
       ...base,
-      skills: await resolvePiSkills(inputs.skills, ctx.workspaceId),
+      skills,
       initialMessages: await loadPiMemory(ctx, memoryConfig),
     }
 
@@ -196,6 +256,23 @@ export class PiBlockHandler implements BlockHandler {
     if (!owner || !repo || !githubToken) {
       throw new Error('Create PR requires repository owner, name, and a GitHub token')
     }
+    // A `switch` subblock reaches a handler as the string 'true' when its value came
+    // through a variable reference, an API trigger payload, or a legacy serialized
+    // workflow (see the same coercion in `wait-handler`). A strict boolean compare
+    // silently opened a draft PR and skipped Babysit entirely while the editor showed
+    // the toggle on and Reviewer Mentions as required.
+    const babysitMode = isSwitchEnabled(inputs.babysitMode)
+    const reviewMentions = babysitMode ? parsePiReviewMentions(inputs.reviewMentions) : []
+    if (babysitMode && reviewMentions.length === 0) {
+      throw new Error('Create PR Babysit Mode requires at least one reviewer mention')
+    }
+    const maxRounds = babysitMode
+      ? (parseOptionalNumberInput(inputs.maxRounds, 'maxRounds', {
+          integer: true,
+          min: 1,
+          max: 10,
+        }) ?? 3)
+      : undefined
     const params: PiCloudRunParams = {
       ...contextualBase,
       mode: 'cloud',
@@ -204,9 +281,21 @@ export class PiBlockHandler implements BlockHandler {
       githubToken,
       baseBranch: asOptString(inputs.baseBranch),
       branchName: asOptString(inputs.branchName),
-      draft: inputs.draft !== false,
+      // `draft` defaults on, so the negative form is the one that must tolerate the
+      // string: `'false'` from a variable reference would otherwise read as truthy
+      // and open a draft PR against the user's explicit setting.
+      draft: babysitMode ? false : isSwitchEnabled(inputs.draft, true),
       prTitle: asOptString(inputs.prTitle),
       prBody: asOptString(inputs.prBody),
+      ...(babysitMode
+        ? {
+            babysit: {
+              maxRounds: maxRounds ?? 3,
+              reviewMentions,
+              ...(ctx.executionId ? { executionId: ctx.executionId } : {}),
+            },
+          }
+        : {}),
     }
     return this.runPi(ctx, block, runCloudPi, params, memoryConfig)
   }
@@ -291,6 +380,14 @@ export class PiBlockHandler implements BlockHandler {
       ...(typeof result.commentsPosted === 'number'
         ? { commentsPosted: result.commentsPosted }
         : {}),
+      ...(typeof result.rounds === 'number' ? { rounds: result.rounds } : {}),
+      ...(typeof result.threadsClean === 'boolean' ? { threadsClean: result.threadsClean } : {}),
+      ...(typeof result.checksGreen === 'boolean' ? { checksGreen: result.checksGreen } : {}),
+      ...(typeof result.threadsResolved === 'number'
+        ? { threadsResolved: result.threadsResolved }
+        : {}),
+      ...(typeof result.commitsPushed === 'number' ? { commitsPushed: result.commitsPushed } : {}),
+      ...(typeof result.stopReason === 'string' ? { stopReason: result.stopReason } : {}),
       tokens: {
         input: totals.inputTokens,
         output: totals.outputTokens,
@@ -345,7 +442,12 @@ export class PiBlockHandler implements BlockHandler {
               this.buildOutput(result, params.model, params.isBYOK, startTime, startTimeISO)
             )
             if (memoryConfig) {
-              await appendPiMemory(ctx, memoryConfig, params.task, result.totals.finalText)
+              await appendPiMemory(
+                ctx,
+                memoryConfig,
+                params.task,
+                result.memoryText ?? result.totals.finalText
+              )
             }
             controller.close()
           } catch (error) {
@@ -372,7 +474,12 @@ export class PiBlockHandler implements BlockHandler {
       throw new Error(result.totals.errorMessage)
     }
     if (memoryConfig) {
-      await appendPiMemory(ctx, memoryConfig, params.task, result.totals.finalText)
+      await appendPiMemory(
+        ctx,
+        memoryConfig,
+        params.task,
+        result.memoryText ?? result.totals.finalText
+      )
     }
     return this.buildOutput(result, params.model, params.isBYOK, startTime, startTimeISO)
   }

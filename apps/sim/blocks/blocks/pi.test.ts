@@ -7,6 +7,14 @@ import { describe, expect, it, vi } from 'vitest'
 // deliberately does not import it — no block imports from `@/executor`. This test is what ties the
 // two copies together, so adding a provider to one and not the other fails here.
 vi.mock('@/lib/api-key/byok', () => ({ getBYOKKey: vi.fn(), getApiKeyWithBYOK: vi.fn() }))
+vi.mock('@/lib/core/config/env', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/lib/core/config/env')>()
+  return {
+    ...original,
+    getEnv: vi.fn((key: string) => (key === 'NEXT_PUBLIC_E2B_ENABLED' ? 'true' : undefined)),
+    isTruthy: vi.fn((value: unknown) => value === 'true'),
+  }
+})
 
 import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { PiBlock } from '@/blocks/blocks/pi'
@@ -73,5 +81,99 @@ describe('Pi block search fields', () => {
   it('declares both fields in the block input map', () => {
     expect(PiBlock.inputs.searchProvider).toBeDefined()
     expect(PiBlock.inputs.searchApiKey).toBeDefined()
+  })
+})
+
+describe('Pi Create PR Babysit surface', () => {
+  it('offers exactly Create PR, Review Code, and Local Dev as top-level modes', () => {
+    const mode = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'mode')
+    const options =
+      typeof mode?.options === 'function'
+        ? mode.options()
+        : (mode?.options as Array<{ id: string }> | undefined)
+
+    expect(options?.map(({ id }) => id)).toEqual(['cloud', 'cloud_review', 'local'])
+  })
+
+  it('declares the toggle, required reviewer mentions, advanced rounds, and result outputs', () => {
+    const toggle = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'babysitMode')
+    const maxRounds = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'maxRounds')
+    const mentions = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'reviewMentions')
+
+    expect(toggle).toMatchObject({
+      type: 'switch',
+      defaultValue: false,
+      condition: { field: 'mode', value: 'cloud' },
+    })
+    expect(maxRounds).toMatchObject({
+      type: 'short-input',
+      defaultValue: '3',
+      mode: 'advanced',
+      condition: {
+        field: 'mode',
+        value: 'cloud',
+        and: { field: 'babysitMode', value: [true, 'true'] },
+      },
+    })
+    expect(mentions).toMatchObject({
+      type: 'short-input',
+      defaultValue: '',
+      hideDividerBefore: true,
+      required: {
+        field: 'mode',
+        value: 'cloud',
+        and: { field: 'babysitMode', value: [true, 'true'] },
+      },
+      condition: {
+        field: 'mode',
+        value: 'cloud',
+        and: { field: 'babysitMode', value: [true, 'true'] },
+      },
+    })
+    for (const output of [
+      'rounds',
+      'threadsClean',
+      'checksGreen',
+      'threadsResolved',
+      'commitsPushed',
+      'stopReason',
+    ]) {
+      expect(PiBlock.outputs[output]).toMatchObject({
+        condition: {
+          field: 'mode',
+          value: 'cloud',
+          and: { field: 'babysitMode', value: [true, 'true'] },
+        },
+      })
+    }
+  })
+
+  it('requires a task and hides Draft PR while Babysit Mode is enabled', () => {
+    const task = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'task')
+    const draft = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'draft')
+    const skills = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'skills')
+    const tools = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'tools')
+    const memory = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'memoryType')
+    const pullNumber = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'pullNumber')
+
+    expect(task?.required).toBe(true)
+    expect(evaluateSubBlockCondition(draft?.condition, { mode: 'cloud' })).toBe(true)
+    expect(evaluateSubBlockCondition(draft?.condition, { mode: 'cloud', babysitMode: true })).toBe(
+      false
+    )
+    expect(
+      evaluateSubBlockCondition(draft?.condition, { mode: 'cloud', babysitMode: 'true' })
+    ).toBe(false)
+    expect(
+      evaluateSubBlockCondition(
+        PiBlock.subBlocks.find((subBlock) => subBlock.id === 'reviewMentions')?.condition,
+        { mode: 'cloud', babysitMode: 'true' }
+      )
+    ).toBe(true)
+    expect(evaluateSubBlockCondition(skills?.condition, { mode: 'cloud' })).toBe(true)
+    expect(evaluateSubBlockCondition(tools?.condition, { mode: 'cloud' })).toBe(false)
+    expect(evaluateSubBlockCondition(memory?.condition, { mode: 'cloud' })).toBe(true)
+    expect(evaluateSubBlockCondition(pullNumber?.condition, { mode: 'cloud' })).toBe(false)
+    expect(evaluateSubBlockCondition(pullNumber?.condition, { mode: 'cloud_review' })).toBe(true)
   })
 })
