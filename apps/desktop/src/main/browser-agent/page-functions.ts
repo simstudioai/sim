@@ -488,13 +488,18 @@ export function readActiveElementState(): unknown {
       redacted: true,
     }
   }
-  // Reported as the real tag rather than 'password-field': the agent may
-  // still type here, it just never learns what is already in the field.
+  // Only the preview is withheld, and the real tag is kept: the agent is allowed
+  // to fill these, so it still needs the readback this function exists for.
+  // Zeroing valueLength told it the field was empty after a successful type, and
+  // the natural next move is to type again — a doubled OTP or card number.
+  // A length is not a disclosure here; 6 and 16 are properties of the format.
   if (isSensitiveValueField(active)) {
+    const field = active as HTMLInputElement
+    const current = String(field.value ?? '')
     return {
       activeElement: active.tagName.toLowerCase(),
-      selectedChars: 0,
-      valueLength: 0,
+      selectedChars: Math.abs((field.selectionEnd ?? 0) - (field.selectionStart ?? 0)),
+      valueLength: current.length,
       valuePreview: '',
       redacted: true,
     }
@@ -569,19 +574,38 @@ export function activeElementSecrecy(): string {
     // `activeElement` unless focus was retargeted out of a shadow tree, which
     // makes "not focusable yet focused" the reliable signal. Frames stay out of
     // it so the branch below still classifies them.
+    // Tag compared upper-cased: tagName preserves case outside the HTML
+    // namespace and is lower-case for HTML elements in an XHTML document, where
+    // every comparison below would otherwise miss.
+    const tag = String(active.tagName || '').toUpperCase()
+    // RESIDUAL, stated rather than papered over: `tabindex` and
+    // `contenteditable` exempt an element even on a shadow-capable tag, so a
+    // host carrying either — `<div tabindex="0">` with a closed root — still
+    // reports 'safe'. A closed root is indistinguishable from no root at all
+    // (that is what `mode: 'closed'` buys the page), and `<div tabindex="0">`
+    // buttons and menu items are everywhere, so refusing them would block Enter
+    // and Space on ordinary pages to close a targeted case. The only reliable
+    // detector is `attachShadow` throwing, which is destructive. Narrowing this
+    // needs the driver to stop trusting a page-derived signal, not a better
+    // guess here.
     const focusableItself =
-      active === document.body ||
+      active === active.ownerDocument.body ||
       active.isContentEditable ||
       active.hasAttribute('tabindex') ||
-      active.tagName === 'INPUT' ||
-      active.tagName === 'TEXTAREA' ||
-      active.tagName === 'SELECT' ||
-      active.tagName === 'BUTTON' ||
-      active.tagName === 'A' ||
-      active.tagName === 'AREA' ||
-      active.tagName === 'SUMMARY' ||
-      active.tagName === 'IFRAME' ||
-      active.tagName === 'FRAME'
+      tag === 'INPUT' ||
+      tag === 'TEXTAREA' ||
+      tag === 'SELECT' ||
+      tag === 'BUTTON' ||
+      tag === 'A' ||
+      tag === 'AREA' ||
+      tag === 'SUMMARY' ||
+      tag === 'DIALOG' ||
+      tag === 'VIDEO' ||
+      tag === 'AUDIO' ||
+      tag === 'EMBED' ||
+      tag === 'OBJECT' ||
+      tag === 'IFRAME' ||
+      tag === 'FRAME'
     if (!shadow && !focusableItself) return 'opaque'
     if (active.tagName === 'IFRAME' || active.tagName === 'FRAME') {
       let inner: Document | null = null

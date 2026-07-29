@@ -27,6 +27,7 @@ import {
 import { registerAgentWebContents } from '@/main/browser-agent/registry'
 import {
   checkAgentUrl,
+  clearHostVerdictCache,
   isBlockedRequestUrl,
   isBlockedSubresourceUrl,
   subresourceNeedsResolution,
@@ -315,31 +316,45 @@ function configureAgentPartition(ses: Session): void {
   // labels differently than expected fails safe into the checked path; see
   // subresourceNeedsResolution.
   ses.webRequest.onBeforeRequest((details, callback) => {
+    // Answered exactly once, and never throwing. A throw inside the `then`
+    // below would otherwise land in the `catch` and answer a second time, and
+    // by the time an async check settles the request's loader may be gone —
+    // now the case for most subresources, not just the odd navigation.
+    let settled = false
+    const settle = (cancel: boolean) => {
+      if (settled) return
+      settled = true
+      try {
+        callback({ cancel })
+      } catch (error) {
+        logger.warn('Could not answer an agent request', { error: getErrorMessage(error) })
+      }
+    }
     if (details.resourceType === 'mainFrame' || details.resourceType === 'subFrame') {
       void checkAgentUrl(details.url)
         .then((guard) => {
           if (!guard.ok) {
             logger.warn('Blocked agent document navigation to a private host')
           }
-          callback({ cancel: !guard.ok })
+          settle(!guard.ok)
         })
         .catch((error) => {
           // Fail closed: an unexpected rejection must cancel, never leave the
           // request suspended with no callback.
           logger.error('Agent SSRF check failed; cancelling request', { error })
-          callback({ cancel: true })
+          settle(true)
         })
       return
     }
     if (!subresourceNeedsResolution(details.resourceType)) {
-      callback({ cancel: isBlockedRequestUrl(details.url) })
+      settle(isBlockedRequestUrl(details.url))
       return
     }
     void isBlockedSubresourceUrl(details.url)
-      .then((blocked) => callback({ cancel: blocked }))
+      .then((blocked) => settle(blocked))
       .catch((error) => {
         logger.error('Agent subresource SSRF check failed; cancelling request', { error })
-        callback({ cancel: true })
+        settle(true)
       })
   })
   ses.on('will-download', (_event, item) => {
@@ -1068,6 +1083,9 @@ export function closeSession(): void {
  * pinned tabs, or browsing trail.
  */
 export async function clearProfileStorage(): Promise<void> {
+  // Cached DNS verdicts are part of the browsing trail: without this a wipe
+  // leaves up to the TTL of resolved-host classifications behind.
+  clearHostVerdictCache()
   closeLiveTabs()
   // Stays true so a later restore cannot re-read the list being erased here.
   pinnedTabsRestored = true
@@ -1114,7 +1132,12 @@ export async function clearAgentData(kinds: readonly BrowserDataKind[]): Promise
   if (storages.length > 0) {
     await ses.clearStorageData({ storages } as Parameters<Session['clearStorageData']>[0])
   }
-  if (kinds.includes('cache')) await ses.clearCache()
+  if (kinds.includes('cache')) {
+    await ses.clearCache()
+    // Resolved-host verdicts are a cache too, and a user clearing the cache
+    // means all of it.
+    clearHostVerdictCache()
+  }
 }
 
 export function listTabs(): BrowserTabState[] {

@@ -20,7 +20,6 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { BrowserWindow, WebContentsView } from 'electron'
 import type { AgentTab } from '@/main/browser-agent/session'
-import { hasRecentDeliberateInput } from '@/main/input-activity'
 
 const logger = createLogger('BrowserAgentPanel')
 
@@ -334,28 +333,6 @@ function capturePanelSnapshot(onSettled?: () => void): void {
       // picture of the page, so it goes to the window still showing the
       // browser or nowhere at all.
       if (panelWindow() !== win || win.isDestroyed()) return
-      // A frame of the agent browser is content the renderer's own JS cannot
-      // otherwise read — the view is a separate process composited over the
-      // window. It is handed over so an overlay can show a placeholder instead
-      // of a blank gap, and an overlay opens because the user did something. A
-      // compromised renderer can drive set-panel-bounds, panel-action navigate
-      // and set-panel-occluded on its own, so without this the pixels of an
-      // authenticated page could be collected by script alone, bypassing the
-      // tool-call binding that guards browser_screenshot for exactly this.
-      //
-      // Skipping the send is an already-supported outcome: an empty capture
-      // returns here too, and `finally` still runs the occlusion, so no new
-      // state is introduced — at worst a placeholder is missing for one frame.
-      if (!hasRecentDeliberateInput(win.webContents)) {
-        logger.warn('Withheld browser panel snapshot with no recent user input')
-        return
-      }
-      // Downscale and JPEG-encode before crossing IPC. capturePage returns a
-      // device-pixel PNG — on a retina half-window that is millions of pixels,
-      // and toDataURL's PNG encode is synchronous on the main process, so a
-      // full-size encode stalls every window's input for the frame. This is a
-      // placeholder shown under a transient overlay, so a downscaled JPEG is
-      // indistinguishable and an order of magnitude cheaper to encode and send.
       const snapshot: BrowserPanelSnapshot = { dataUrl: encodeSnapshot(image), tabId }
       win.webContents.send('browser-agent:panel-snapshot', snapshot)
     })

@@ -342,8 +342,31 @@ describe('initUpdater manual mode (no Developer ID signature)', () => {
     await vi.advanceTimersByTimeAsync(0)
 
     // Never advertised, so the user is never offered a Download button for it.
-    expect(handle.getState()).toEqual({ status: 'idle', manual: true })
+    // 'error' rather than 'idle': a newer version exists but cannot be offered.
+    expect(handle.getState()).toMatchObject({ status: 'error', manual: true })
 
+    handle.check()
+    handle.install()
+    expect(shell.openExternal).not.toHaveBeenCalled()
+  })
+
+  it('refuses an attacker-hosted https asset', async () => {
+    const offHost = [
+      'version: 9.9.9',
+      'files:',
+      '  - url: https://attacker.example/Sim-9.9.9-universal.dmg',
+      '    sha512: abc',
+      // A lookalike host must not pass a prefix test either.
+      '  - url: https://github.com.evil.example/simstudioai/sim/releases/download/v9.9.9/Sim.dmg',
+      '    sha512: def',
+      "releaseDate: '2026-07-23T00:00:00.000Z'",
+    ].join('\n')
+    const { handle } = await createManualUpdater(async () => offHost)
+
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(handle.getState()).toMatchObject({ status: 'error', manual: true })
     handle.check()
     handle.install()
     expect(shell.openExternal).not.toHaveBeenCalled()

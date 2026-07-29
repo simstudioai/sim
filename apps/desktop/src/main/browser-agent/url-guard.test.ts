@@ -175,6 +175,50 @@ describe('isBlockedSubresourceUrl', () => {
     expect(mockLookup).not.toHaveBeenCalled()
   })
 
+  it('re-resolves once the verdict expires', async () => {
+    vi.useFakeTimers()
+    try {
+      await isBlockedSubresourceUrl('https://example.com/a.js')
+      expect(mockLookup).toHaveBeenCalledTimes(1)
+
+      await vi.advanceTimersByTimeAsync(30_001)
+      mockLookup.mockResolvedValue([{ address: '10.0.0.5', family: 4 }])
+      await expect(isBlockedSubresourceUrl('https://example.com/a.js')).resolves.toBe(true)
+      expect(mockLookup).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('caches a blocked verdict too, not only an allowed one', async () => {
+    mockLookup.mockResolvedValue([{ address: '10.0.0.5', family: 4 }])
+
+    await expect(isBlockedSubresourceUrl('https://internal.example/a.js')).resolves.toBe(true)
+    await expect(isBlockedSubresourceUrl('https://internal.example/b.js')).resolves.toBe(true)
+
+    expect(mockLookup).toHaveBeenCalledTimes(1)
+  })
+
+  it('shares one lookup across concurrent requests to the same host', async () => {
+    // Sequential calls would pass on the result cache alone; a page issues these
+    // in parallel, and one getaddrinfo per request saturates the libuv pool.
+    await Promise.all([
+      isBlockedSubresourceUrl('https://example.com/a.js'),
+      isBlockedSubresourceUrl('https://example.com/b.js'),
+      isBlockedSubresourceUrl('https://example.com/c.js'),
+      isBlockedSubresourceUrl('wss://example.com/socket'),
+    ])
+
+    expect(mockLookup).toHaveBeenCalledTimes(1)
+  })
+
+  it('treats a trailing-dot host as the same host', async () => {
+    await isBlockedSubresourceUrl('https://example.com/a.js')
+    await isBlockedSubresourceUrl('https://example.com./b.js')
+
+    expect(mockLookup).toHaveBeenCalledTimes(1)
+  })
+
   it('resolves a host once and reuses the verdict', async () => {
     await isBlockedSubresourceUrl('https://example.com/a.js')
     await isBlockedSubresourceUrl('https://example.com/b.js')

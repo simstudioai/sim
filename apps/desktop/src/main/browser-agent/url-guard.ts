@@ -122,14 +122,6 @@ export async function checkAgentUrl(rawUrl: string): Promise<UrlGuardResult> {
 }
 
 /**
- * Synchronous backstop for the agent partition's `onBeforeRequest`: blocks any
- * request whose host is a **literal** private/reserved IP. This is cheap enough
- * to run per-request and catches redirects and subresources that target the
- * metadata endpoint or an internal IP directly, without the cost of a DNS
- * lookup on every subresource. Hostnames pass here (they are classified at
- * navigation time by {@link checkAgentUrl}).
- */
-/**
  * Subresource types that keep the cheap synchronous literal-IP check.
  *
  * Images and fonts are the high-volume types and are not readable
@@ -163,14 +155,38 @@ const HOST_VERDICT_TTL_MS = 30_000
  */
 const MAX_HOST_VERDICTS = 256
 
-const hostVerdicts = new Map<string, { blocked: boolean; expiry: number }>()
+/**
+ * The in-flight or settled verdict per host.
+ *
+ * The promise is cached, not the boolean, so the requests a single page load
+ * fires at one host share one lookup. Caching only the result left every
+ * request that arrived before the first lookup settled to start its own, and
+ * `dns.lookup` is `getaddrinfo` on the libuv threadpool — four slots by
+ * default, shared with every `fs` call in the main process. A page naming a few
+ * hundred hostnames could then queue hundreds of blocking jobs, each up to
+ * {@link DNS_TIMEOUT_MS}, and stall unrelated work like the settings write or
+ * the credential vault.
+ */
+const hostVerdicts = new Map<string, { verdict: Promise<boolean>; expiry: number }>()
 
-function rememberHostVerdict(host: string, blocked: boolean): void {
+function rememberHostVerdict(host: string, verdict: Promise<boolean>): void {
   if (hostVerdicts.size >= MAX_HOST_VERDICTS) {
-    const oldest = hostVerdicts.keys().next()
-    if (!oldest.done) hostVerdicts.delete(oldest.value)
+    // Expired entries first: at capacity the queue can be full of dead ones,
+    // and evicting those before a live entry keeps a hot host resident while a
+    // hostile page churns through hostnames.
+    const now = Date.now()
+    for (const [host, entry] of hostVerdicts) {
+      if (now >= entry.expiry) hostVerdicts.delete(host)
+    }
+    if (hostVerdicts.size >= MAX_HOST_VERDICTS) {
+      const oldest = hostVerdicts.keys().next()
+      if (!oldest.done) hostVerdicts.delete(oldest.value)
+    }
   }
-  hostVerdicts.set(host, { blocked, expiry: Date.now() + HOST_VERDICT_TTL_MS })
+  // Deleted first so a refreshed host moves to the back of the eviction queue
+  // rather than keeping its original slot and being dropped while still hot.
+  hostVerdicts.delete(host)
+  hostVerdicts.set(host, { verdict, expiry: Date.now() + HOST_VERDICT_TTL_MS })
 }
 
 /** Drops every cached host classification. */
@@ -202,31 +218,48 @@ export async function isBlockedSubresourceUrl(rawUrl: string): Promise<boolean> 
   } catch {
     return false
   }
-  const host = unwrapIpv6Brackets(hostname)
+  // A trailing dot is a legal absolute name that resolves the same, so it is
+  // stripped for the key rather than caching the same host twice.
+  const host = unwrapIpv6Brackets(hostname).replace(/\.$/, '')
   if (!host) return false
   if (isIpLiteral(host)) return isBlockedAddress(host)
 
   const cached = hostVerdicts.get(host)
-  if (cached && Date.now() < cached.expiry) return cached.blocked
+  if (cached && Date.now() < cached.expiry) return cached.verdict
 
-  let blocked: boolean
-  try {
-    const resolved = await resolveHost(host)
-    blocked = resolved.some(({ address }) => isBlockedAddress(address))
-  } catch (error) {
-    logger.warn('Agent subresource host did not resolve; blocking', {
-      host,
-      error: getErrorMessage(error),
+  const verdict = resolveHost(host)
+    .then((resolved) => {
+      const blocked = resolved.some(({ address }) => isBlockedAddress(address))
+      if (blocked) {
+        logger.warn('Blocked agent subresource resolving to private IP', { host })
+      }
+      return blocked
     })
-    return true
-  }
-  rememberHostVerdict(host, blocked)
-  if (blocked) {
-    logger.warn('Blocked agent subresource resolving to private IP', { host })
-  }
-  return blocked
+    .catch((error) => {
+      logger.warn('Agent subresource host did not resolve; blocking', {
+        host,
+        error: getErrorMessage(error),
+      })
+      // Dropped rather than cached: a resolver hiccup must not block this host
+      // for the rest of the window.
+      hostVerdicts.delete(host)
+      return true
+    })
+  rememberHostVerdict(host, verdict)
+  return verdict
 }
 
+/**
+ * Synchronous backstop for the agent partition's `onBeforeRequest`: blocks any
+ * request whose host is a **literal** private/reserved IP. Cheap enough to run
+ * per-request, and it catches redirects and subresources that target the
+ * metadata endpoint or an internal IP directly.
+ *
+ * Hostnames pass here. They are classified by {@link checkAgentUrl} for document
+ * navigations and by {@link isBlockedSubresourceUrl} for every subresource type
+ * except the ones {@link subresourceNeedsResolution} exempts, which are the only
+ * requests still relying on this alone.
+ */
 export function isBlockedRequestUrl(rawUrl: string): boolean {
   try {
     // isPrivateIpHost strips IPv6 brackets itself; unwrap again for the

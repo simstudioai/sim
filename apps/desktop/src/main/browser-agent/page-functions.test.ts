@@ -353,14 +353,16 @@ describe('readActiveElementState', () => {
     ['a one-time code', 'one-time-code', '123456'],
     ['a card number', 'cc-number', '4111111111111111'],
     ['a card security code', 'cc-csc', '737'],
-  ])('withholds %s on readback but keeps the real tag', (_label, token, value) => {
+  ])('withholds %s on readback but still confirms the fill', (_label, token, value) => {
     document.body.innerHTML = `<input type="text" autocomplete="${token}" value="${value}" />`
     setActiveElement(document, document.querySelector('input'))
 
+    // valueLength is kept: without it a successful type reads as "still empty"
+    // and the agent types the code a second time.
     expect(readActiveElementState()).toEqual({
       activeElement: 'input',
       selectedChars: 0,
-      valueLength: 0,
+      valueLength: value.length,
       valuePreview: '',
       redacted: true,
     })

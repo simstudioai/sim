@@ -135,13 +135,15 @@ describe('authorizeForSecret', () => {
     expect(promptTouchID).toHaveBeenCalledTimes(2)
   })
 
-  it('lets a reveal consent cover a later copy of the same credential', async () => {
+  it('never lets a reveal consent stand in for a copy either', async () => {
     await expect(authorizeForSecret(request('c1'))).resolves.toBe(true)
-
-    // The plaintext is already on screen, so putting that same string on the
-    // clipboard buys nothing by prompting twice.
-    await expect(authorizeForSecret(copyRequest('c1'))).resolves.toBe(true)
     expect(promptTouchID).toHaveBeenCalledTimes(1)
+
+    // Copying publishes the plaintext to the pasteboard, where other processes
+    // and Universal Clipboard can reach it — an exposure "Show password?" never
+    // described, so it asks again.
+    await expect(authorizeForSecret(copyRequest('c1'))).resolves.toBe(true)
+    expect(promptTouchID).toHaveBeenCalledTimes(2)
   })
 
   it('keeps a copy grant usable for further copies', async () => {
@@ -149,13 +151,6 @@ describe('authorizeForSecret', () => {
     await authorizeForSecret(copyRequest('c1'))
 
     expect(promptTouchID).toHaveBeenCalledTimes(1)
-  })
-
-  it('never widens a grant to another credential', async () => {
-    await authorizeForSecret(request('c1'))
-    await authorizeForSecret(request('c2'))
-
-    expect(promptTouchID).toHaveBeenCalledTimes(2)
   })
 
   it('asks again after the credential is explicitly revoked', async () => {

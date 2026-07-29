@@ -21,6 +21,29 @@ export type UpdateChannel = 'latest' | 'beta' | 'alpha'
  * staging beta, prod stable — so the environment, not the client, is the
  * channel. Returns null for origins that can't host a feed.
  */
+/**
+ * Where the feed rewrites every manifest entry to. Downloads are constrained to
+ * this prefix rather than to https alone, so a feed that serves an attacker's
+ * host cannot get a bundle in front of the user's Download button.
+ */
+const RELEASE_ASSET_PREFIX = 'https://github.com/simstudioai/sim/releases/download/'
+
+/** Whether a manifest url is one of our own release assets. */
+export function isReleaseAssetUrl(rawUrl: string): boolean {
+  if (!isSafeExternalUrl(rawUrl)) return false
+  try {
+    const url = new URL(rawUrl)
+    // Compared on the parsed origin, never by prefix on the raw string, so
+    // `https://github.com.evil.example/…` cannot pass.
+    return (
+      url.origin === 'https://github.com' &&
+      url.pathname.startsWith(new URL(RELEASE_ASSET_PREFIX).pathname)
+    )
+  } catch {
+    return false
+  }
+}
+
 export function feedUrlForOrigin(origin: string): string | null {
   try {
     const url = new URL(origin)
@@ -439,20 +462,33 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         // Filtered before selection, not just before opening: the manifest is
         // whatever the configured origin served, so `smb://…/x.dmg` or a bare
         // `file:///…` would otherwise pass the suffix test and be advertised as
-        // an available update. Loopback http is kept because feedUrlForOrigin
-        // accepts an http origin, so a self-host on localhost is legitimate.
+        // an available update.
+        //
+        // Constrained to the release host, not merely to https. The feed rewrites
+        // every entry to an absolute `${RELEASE_ASSET_PREFIX}` URL, so nothing
+        // legitimate is excluded — while scheme-only validation would still admit
+        // `https://attacker.example/Sim.dmg`, and the download dialog walks the
+        // user through installing whatever it hands to the browser. That is a
+        // worse outcome than the protocol-handler launch this guards against.
         const urls = Array.from(
           manifest.matchAll(/^\s*(?:-\s*)?url:\s*(\S+)\s*$/gm),
           (m) => m[1]
-        ).filter((url) => isSafeExternalUrl(url, true))
+        ).filter(isReleaseAssetUrl)
         downloadUrl =
           urls.find((url) => url.endsWith('.dmg')) ??
           urls.find((url) => url.endsWith('.zip')) ??
           urls[0] ??
           null
         if (!downloadUrl) {
-          logger.warn('Update manifest had no usable download url')
-          setState({ status: 'idle', manual: true })
+          // 'error', not 'idle': a newer version demonstrably exists and cannot
+          // be offered, so "Sim is up to date" would strand a user whose shell
+          // the server's minimum-version gate is already blocking.
+          logger.warn('Update manifest had no usable download url', {
+            version,
+            candidates: urls.length,
+          })
+          deps.events.record('update_blocked_version', { version, reason: 'unusable-url' })
+          setState({ status: 'error', version: state.version, manual: true })
           return
         }
         deps.events.record('update_check', { available: version, manual: true })
@@ -467,9 +503,9 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       if (downloadUrl) {
         deps.events.record('update_manual_download', { url: downloadUrl })
         // Through openExternalSafe like every other external open in the app,
-        // so the scheme allowlist is enforced at the sink and not only where
-        // the url was chosen.
-        void openExternalSafe(downloadUrl, true)
+        // so the allowlist is enforced at the sink and not only where the url
+        // was chosen. No loopback exemption: every legitimate asset is https.
+        void openExternalSafe(downloadUrl)
       }
     }
 

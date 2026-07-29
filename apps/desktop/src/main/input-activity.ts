@@ -56,6 +56,21 @@ interface InputActivity {
 const activityByContents = new WeakMap<WebContents, InputActivity>()
 
 /**
+ * A pointer move with a button held down — a drag, which is intent, unlike the
+ * resting-cursor stream the passive types are excluded for. Without this a
+ * selection drag longer than the window stops counting mid-gesture.
+ */
+function isDragMove(input: InputEvent): boolean {
+  if (input.type !== 'mouseMove') return false
+  const modifiers = input.modifiers ?? []
+  return (
+    modifiers.includes('leftbuttondown') ||
+    modifiers.includes('middlebuttondown') ||
+    modifiers.includes('rightbuttondown')
+  )
+}
+
+/**
  * Records real OS input for `contents`.
  *
  * Chromium hands the main process every input event before the renderer sees
@@ -67,7 +82,7 @@ const activityByContents = new WeakMap<WebContents, InputActivity>()
  */
 export function trackInputActivity(contents: WebContents): void {
   contents.on('input-event', (_event, input) => {
-    if (!DELIBERATE_INPUT_TYPES.has(input.type)) return
+    if (!DELIBERATE_INPUT_TYPES.has(input.type) && !isDragMove(input)) return
     const now = Date.now()
     const discrete = DISCRETE_INPUT_TYPES.has(input.type)
     const activity = activityByContents.get(contents)
@@ -89,10 +104,7 @@ export function trackInputActivity(contents: WebContents): void {
  * where the legitimate caller is a person typing into xterm.js.
  */
 export function hasRecentDeliberateInput(contents: WebContents): boolean {
-  if (contents.isDestroyed()) return false
-  const activity = activityByContents.get(contents)
-  if (!activity) return false
-  return Date.now() - activity.lastDeliberateAt < DELIBERATE_INPUT_WINDOW_MS
+  return isWithin(contents, (activity) => activity.lastDeliberateAt, DELIBERATE_INPUT_WINDOW_MS)
 }
 
 /**
@@ -101,8 +113,25 @@ export function hasRecentDeliberateInput(contents: WebContents): boolean {
  * requirement is an actual click or keypress rather than mere activity.
  */
 export function hasRecentDiscreteInput(contents: WebContents): boolean {
+  return isWithin(contents, (activity) => activity.lastDiscreteAt, DISCRETE_INPUT_WINDOW_MS)
+}
+
+/**
+ * Whether a recorded stamp is inside its window.
+ *
+ * A negative elapsed fails the check rather than passing it: `Date.now()` can
+ * step backwards on an NTP correction, and `now - then < window` is true for
+ * every negative delta, which would leave an arbitrarily old stamp satisfying
+ * the gate indefinitely.
+ */
+function isWithin(
+  contents: WebContents,
+  stamp: (activity: InputActivity) => number,
+  windowMs: number
+): boolean {
   if (contents.isDestroyed()) return false
   const activity = activityByContents.get(contents)
   if (!activity) return false
-  return Date.now() - activity.lastDiscreteAt < DISCRETE_INPUT_WINDOW_MS
+  const elapsed = Date.now() - stamp(activity)
+  return elapsed >= 0 && elapsed < windowMs
 }

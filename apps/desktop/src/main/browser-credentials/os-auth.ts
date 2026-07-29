@@ -13,20 +13,21 @@ const logger = createLogger('BrowserCredentialAuth')
  * same string on the clipboard is friction that buys nothing, and teaches
  * people to approve prompts without reading them.
  *
- * That reasoning only runs one way, which is why grants carry the operation
- * they were proven for: nothing about a copy implies the user agreed to hand
- * the plaintext to the renderer.
+ * That reasoning is per-operation, which is why grants carry the one they were
+ * proven for. It justifies skipping a second prompt for the SAME operation, and
+ * nothing more: neither operation implies consent to the other's exposure.
  */
 const AUTH_GRACE_MS = 30_000
 
 /**
  * What a grant was proven for.
  *
- * The two are not equivalent, and the ordering matters: `copy` puts the
- * plaintext on the clipboard from inside the main process and returns only a
- * boolean, while `reveal` hands the string itself to the Sim renderer. So
- * `reveal` is the stronger claim and a proof of it covers a later `copy` — but
- * not the other way round.
+ * Neither operation dominates the other, so a grant satisfies only its own.
+ * `reveal` hands the plaintext to the Sim renderer; `copy` publishes it to the
+ * macOS pasteboard, which every process on the machine can read, which
+ * clipboard managers persist to disk beyond the 30s `clipboard.clear()`, and
+ * which Universal Clipboard syncs to the user's other devices. Ordering them
+ * either way lets one consent authorize an exposure the prompt never described.
  */
 export type SecretOperation = 'reveal' | 'copy'
 
@@ -54,11 +55,6 @@ export interface SecretAuthRequest {
   action: string
 }
 
-/** Whether a proof of `granted` is enough to perform `requested`. */
-function grantCovers(granted: SecretOperation, requested: SecretOperation): boolean {
-  return granted === 'reveal' || granted === requested
-}
-
 function hasFreshProof(credentialId: string, operation: SecretOperation): boolean {
   const proof = provenUntil.get(credentialId)
   if (proof === undefined) return false
@@ -66,7 +62,7 @@ function hasFreshProof(credentialId: string, operation: SecretOperation): boolea
     provenUntil.delete(credentialId)
     return false
   }
-  return grantCovers(proof.operation, operation)
+  return proof.operation === operation
 }
 
 /**

@@ -2,10 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import type { WebContents } from 'electron'
 import { BrowserWindow, WebContentsView } from 'electron'
 import * as panelModule from '@/main/browser-agent/panel'
-import { trackInputActivity } from '@/main/input-activity'
 
 type PanelModule = typeof import('@/main/browser-agent/panel')
 
@@ -29,29 +27,6 @@ function freshPanel(): PanelModule {
 
 const PANEL_RECT = { x: 400, y: 64, width: 600, height: 800 }
 
-type InputListener = (event: unknown, input: { type: string }) => void
-
-/**
- * Registers a window's renderer with the main-process input tracker and returns
- * a way to give it a real click. The occlusion snapshot is only handed over to a
- * renderer the user has recently driven, so a fixture has to say so explicitly.
- */
-function trackWindowInput(win: BrowserWindow) {
-  const listeners: InputListener[] = []
-  const contents = win.webContents as unknown as {
-    on: (channel: string, listener: InputListener) => void
-    isDestroyed: () => boolean
-  }
-  contents.on = (channel, listener) => {
-    if (channel === 'input-event') listeners.push(listener)
-  }
-  contents.isDestroyed = () => false
-  trackInputActivity(win.webContents as WebContents)
-  return () => {
-    for (const listener of listeners) listener({}, { type: 'mouseDown' })
-  }
-}
-
 /** A panel showing one tab, which is the state occlusion applies to. */
 function showPanel(panel: PanelModule) {
   const win = new BrowserWindow()
@@ -63,15 +38,13 @@ function showPanel(panel: PanelModule) {
     ensureInitialTab: () => {},
     onViewDetached: () => {},
   })
-  const press = trackWindowInput(win)
-  press()
   panel.setPanelBounds(PANEL_RECT, win)
   /** Swaps in another tab's view, as switching tabs does. */
   const switchTab = (next: WebContentsView) => {
     active = { id: 'tab-2', view: next, pinned: false }
     panel.layout()
   }
-  return { win, view, switchTab, press }
+  return { win, view, switchTab }
 }
 
 /** When the view was hidden, in the global mock invocation order. */
@@ -116,38 +89,6 @@ describe('panel occlusion', () => {
     const sent = snapshotSentAt(win)
     expect(sent).toBeDefined()
     expect(sent).toBeLessThan(hiddenAt(view) as number)
-  })
-
-  it('withholds the frame from a renderer the user has not driven', async () => {
-    const panel = freshPanel()
-    const { win, view } = showPanel(panel)
-    // A script-only caller: no real OS input has reached this renderer inside
-    // the recency window, so the pixels of the agent page are not handed over.
-    vi.useFakeTimers()
-    try {
-      vi.advanceTimersByTime(5_000)
-      panel.setPanelOccluded(true, win)
-      await vi.waitFor(() => expect(hiddenAt(view)).toBeDefined())
-    } finally {
-      vi.useRealTimers()
-    }
-
-    expect(snapshotSentAt(win)).toBeUndefined()
-  })
-
-  it('still occludes when the frame is withheld, so nothing is left half-applied', async () => {
-    const panel = freshPanel()
-    const { win, view } = showPanel(panel)
-    vi.useFakeTimers()
-    try {
-      vi.advanceTimersByTime(5_000)
-      panel.setPanelOccluded(true, win)
-      // Hiding must not depend on the snapshot: an empty capture already
-      // reaches the same path, so this is an existing outcome, not a new one.
-      await vi.waitFor(() => expect(hiddenAt(view)).toBeDefined())
-    } finally {
-      vi.useRealTimers()
-    }
   })
 
   it('stays visible when the overlay closes while the frame is being taken', async () => {

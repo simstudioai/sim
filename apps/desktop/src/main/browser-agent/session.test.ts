@@ -4,11 +4,9 @@ vi.mock('electron', () => import('@/test/electron-mock'))
 
 import { MAX_BROWSER_TABS } from '@sim/browser-protocol'
 import { sleep } from '@sim/utils/helpers'
-import type { WebContents } from 'electron'
 import { BrowserWindow, session as electronSession } from 'electron'
 import * as panel from '@/main/browser-agent/panel'
 import * as sessionModule from '@/main/browser-agent/session'
-import { trackInputActivity } from '@/main/input-activity'
 
 type SessionModule = typeof import('@/main/browser-agent/session')
 
@@ -36,8 +34,6 @@ interface MockView {
   setVisible: ReturnType<typeof vi.fn>
 }
 
-type InputListener = (event: unknown, input: { type: string }) => void
-
 function mainWindowMock() {
   const win = new BrowserWindow() as unknown as {
     contentView: {
@@ -47,20 +43,6 @@ function mainWindowMock() {
     webContents: { getZoomFactor?: ReturnType<typeof vi.fn> }
   }
   win.webContents.getZoomFactor = vi.fn(() => 1)
-  // The occlusion snapshot is only handed to a renderer the user has recently
-  // driven, so these fixtures — which stand in for a user with the panel open —
-  // register with the input tracker and report one real click.
-  const listeners: InputListener[] = []
-  const contents = win.webContents as unknown as {
-    on: (channel: string, listener: InputListener) => void
-    isDestroyed: () => boolean
-  }
-  contents.on = (channel, listener) => {
-    if (channel === 'input-event') listeners.push(listener)
-  }
-  contents.isDestroyed = () => false
-  trackInputActivity(win.webContents as unknown as WebContents)
-  for (const listener of listeners) listener({}, { type: 'mouseDown' })
   return win as unknown as BrowserWindow
 }
 
