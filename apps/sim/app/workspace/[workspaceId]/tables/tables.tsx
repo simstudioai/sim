@@ -364,6 +364,7 @@ export function Tables() {
   const baseRows: ResourceRow[] = useMemo(() => {
     const folderRows = visibleFolders.map((folder) =>
       folderRow(folder, {
+        pinned: pinnedFolderIds.has(folder.id),
         cells: {
           columns: { label: EMPTY_CELL_PLACEHOLDER },
           rows: { label: EMPTY_CELL_PLACEHOLDER },
@@ -381,6 +382,7 @@ export function Tables() {
           name: {
             icon: <TableIcon className='size-[14px]' />,
             label: table.name,
+            pinned: pinnedTableIds.has(table.id),
           },
           columns: {
             icon: <Columns3 className='size-[14px]' />,
@@ -398,7 +400,7 @@ export function Tables() {
     )
 
     return [...folderRows, ...tableRows]
-  }, [visibleFolders, processedTables, membersById])
+  }, [visibleFolders, processedTables, membersById, pinnedFolderIds, pinnedTableIds])
 
   /**
    * Layered on top of {@link baseRows} rather than folded into it so a keystroke

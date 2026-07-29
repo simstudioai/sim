@@ -491,6 +491,7 @@ export function Knowledge() {
   const baseRows: ResourceRow[] = useMemo(() => {
     const folderRows = visibleFolders.map((folder) =>
       folderRow(folder, {
+        pinned: pinnedFolderIds.has(folder.id),
         cells: {
           documents: { label: EMPTY_CELL_PLACEHOLDER },
           tokens: { label: EMPTY_CELL_PLACEHOLDER },
@@ -510,6 +511,7 @@ export function Knowledge() {
           name: {
             icon: KNOWLEDGE_BASE_ICON,
             label: kb.name,
+            pinned: pinnedBaseIds.has(kb.id),
           },
           documents: {
             label: String(kbWithCount.docCount || 0),
@@ -526,7 +528,7 @@ export function Knowledge() {
     })
 
     return [...folderRows, ...knowledgeBaseRows]
-  }, [visibleFolders, processedKBs, members])
+  }, [visibleFolders, processedKBs, members, pinnedFolderIds, pinnedBaseIds])
 
   /**
    * Rename is layered over the built rows rather than folded into the builder above, so a

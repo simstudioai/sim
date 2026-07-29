@@ -10,6 +10,13 @@ const FOLDER_ICON = <Folder className='size-[14px]' />
 
 export interface FolderRowOptions {
   /**
+   * Whether this folder is pinned. Folders pin under `resourceType: 'folder'`, a different
+   * pin namespace from the resource they contain — a page listing both resolves two
+   * `usePinnedIds` sets and passes the right one here. Drives the glyph only; the pin action
+   * lives on the row's context menu.
+   */
+  pinned?: boolean
+  /**
    * Cells for the page's non-name columns, keyed by `ResourceColumn.id`. Folders have no
    * value for most resource-specific columns, so a page passes either a derived roll-up or
    * the em-dash placeholder.
@@ -30,7 +37,7 @@ export interface FolderRowOptions {
  * field rebuilds one cell instead of every row's cells.
  */
 export function folderRow(folder: WorkflowFolder, options: FolderRowOptions = {}): ResourceRow {
-  const { cells, nameColumnId = 'name' } = options
+  const { pinned, cells, nameColumnId = 'name' } = options
 
   return {
     id: folderRowId(folder.id),
@@ -39,6 +46,7 @@ export function folderRow(folder: WorkflowFolder, options: FolderRowOptions = {}
       [nameColumnId]: {
         icon: FOLDER_ICON,
         label: folder.name,
+        pinned,
       },
     },
   }

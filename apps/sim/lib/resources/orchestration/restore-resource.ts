@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
 import type { ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
 import {
@@ -27,6 +28,21 @@ export type RestorableResourceType =
   | 'knowledgebase'
   | 'folder'
   | 'file_folder'
+  | 'knowledge_folder'
+  | 'table_folder'
+
+/**
+ * Folder trees the generic engine restores, keyed by the restorable type that names them.
+ * `'folder'` stays the workflow tree so the existing tool contract does not shift meaning;
+ * the other trees get their own names, mirroring how `file_folder` already sits beside it.
+ */
+const FOLDER_RESOURCE_TYPE_BY_RESTORABLE: Partial<
+  Record<RestorableResourceType, FolderResourceType>
+> = {
+  folder: 'workflow',
+  knowledge_folder: 'knowledge_base',
+  table_folder: 'table',
+}
 
 export interface PerformRestoreResourceParams {
   type: RestorableResourceType
@@ -132,17 +148,24 @@ export async function performRestoreResource(
         ])
       }
 
-      case 'folder': {
+      case 'folder':
+      case 'knowledge_folder':
+      case 'table_folder': {
         if (!(await hasWriteAccess(userId, workspaceId, workspaceId))) {
           return { success: false, error: 'Folder not found' }
         }
 
-        const result = await performRestoreFolder({ folderId: id, workspaceId, userId })
+        const result = await performRestoreFolder({
+          folderId: id,
+          workspaceId,
+          userId,
+          resourceType: FOLDER_RESOURCE_TYPE_BY_RESTORABLE[type],
+        })
         if (!result.success) {
           return { success: false, error: result.error || 'Failed to restore folder' }
         }
 
-        logger.info('Folder restored via restore_resource', { folderId: id })
+        logger.info('Folder restored via restore_resource', { folderId: id, type })
         return success({ type, id, restoredItems: result.restoredItems })
       }
 

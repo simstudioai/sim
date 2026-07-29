@@ -4,7 +4,7 @@ import { folder as folderTable, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { FolderLockedError } from '@sim/platform-authz/workflow'
 import { generateId } from '@sim/utils/id'
-import { and, eq, isNull, min } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { duplicateFolderContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
@@ -12,12 +12,37 @@ import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { DbOrTx } from '@/lib/db/types'
+import { nextFolderSortOrder } from '@/lib/folders/lifecycle'
 import { deduplicateFolderName } from '@/lib/folders/naming'
 import { toFolderApi } from '@/lib/folders/queries'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FolderDuplicateAPI')
+
+/**
+ * Duplication only ever copies workflow folders. Named once so the scope is stated rather
+ * than restated as a literal at every query — the engine reads its resourceType from config
+ * for exactly this reason.
+ */
+const FOLDER_RESOURCE_TYPE = 'workflow' as const
+
+/**
+ * Carries the HTTP status with the failure, so the handler maps errors by type instead of by
+ * comparing `error.message` to a literal — a coupling that breaks silently the moment
+ * someone rewords a message.
+ */
+class FolderDuplicationError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    /** Message returned to the caller when it must differ from the logged one. */
+    readonly publicMessage: string = message
+  ) {
+    super(message)
+    this.name = 'FolderDuplicationError'
+  }
+}
 
 // POST /api/folders/[id]/duplicate - Duplicate a folder with all its child folders and workflows
 export const POST = withRouteHandler(
@@ -46,13 +71,13 @@ export const POST = withRouteHandler(
           and(
             eq(folderTable.id, sourceFolderId),
             isNull(folderTable.deletedAt),
-            eq(folderTable.resourceType, 'workflow')
+            eq(folderTable.resourceType, FOLDER_RESOURCE_TYPE)
           )
         )
         .then((rows) => rows[0])
 
       if (!sourceFolder) {
-        throw new Error('Source folder not found')
+        throw new FolderDuplicationError('Source folder not found', 404)
       }
 
       const userPermission = await getUserEntityPermissions(
@@ -62,12 +87,16 @@ export const POST = withRouteHandler(
       )
 
       if (!userPermission || userPermission === 'read') {
-        throw new Error('Source folder not found or access denied')
+        throw new FolderDuplicationError(
+          'Source folder not found or access denied',
+          403,
+          'Access denied'
+        )
       }
 
       const targetWorkspaceId = workspaceId || sourceFolder.workspaceId
       if (targetWorkspaceId !== sourceFolder.workspaceId) {
-        throw new Error('Cross-workspace folder duplication is not supported')
+        throw new FolderDuplicationError('Cross-workspace folder duplication is not supported', 400)
       }
 
       const { newFolderId, folderMapping, workflowStats } = await db.transaction(async (tx) => {
@@ -76,49 +105,26 @@ export const POST = withRouteHandler(
         const targetParentId = parentId ?? sourceFolder.parentId
         await assertTargetParentFolderMutable(tx, targetParentId, targetWorkspaceId, sourceFolderId)
 
-        const folderParentCondition = targetParentId
-          ? eq(folderTable.parentId, targetParentId)
-          : isNull(folderTable.parentId)
-        const workflowParentCondition = targetParentId
-          ? eq(workflow.folderId, targetParentId)
-          : isNull(workflow.folderId)
-
-        const [[folderResult], [workflowResult]] = await Promise.all([
+        // Placement is the engine's rule (folders and workflows share one ordering space),
+        // so it is read from there rather than recomputed here.
+        const sortOrder = await nextFolderSortOrder(
+          FOLDER_RESOURCE_TYPE,
+          targetWorkspaceId,
+          targetParentId,
           tx
-            .select({ minSortOrder: min(folderTable.sortOrder) })
-            .from(folderTable)
-            .where(
-              and(
-                eq(folderTable.workspaceId, targetWorkspaceId),
-                eq(folderTable.resourceType, 'workflow'),
-                folderParentCondition
-              )
-            ),
-          tx
-            .select({ minSortOrder: min(workflow.sortOrder) })
-            .from(workflow)
-            .where(and(eq(workflow.workspaceId, targetWorkspaceId), workflowParentCondition)),
-        ])
+        )
 
-        const minSortOrder = [folderResult?.minSortOrder, workflowResult?.minSortOrder].reduce<
-          number | null
-        >((currentMin, candidate) => {
-          if (candidate == null) return currentMin
-          if (currentMin == null) return candidate
-          return Math.min(currentMin, candidate)
-        }, null)
-        const sortOrder = minSortOrder != null ? minSortOrder - 1 : 0
         const deduplicatedName = await deduplicateFolderName(
           tx,
           targetWorkspaceId,
           targetParentId,
           name,
-          'workflow'
+          FOLDER_RESOURCE_TYPE
         )
 
         await tx.insert(folderTable).values({
           id: newFolderId,
-          resourceType: 'workflow',
+          resourceType: FOLDER_RESOURCE_TYPE,
           userId: session.user.id,
           workspaceId: targetWorkspaceId,
           name: deduplicatedName,
@@ -183,41 +189,23 @@ export const POST = withRouteHandler(
       const duplicatedFolder = await db
         .select()
         .from(folderTable)
-        .where(and(eq(folderTable.id, newFolderId), eq(folderTable.resourceType, 'workflow')))
+        .where(
+          and(eq(folderTable.id, newFolderId), eq(folderTable.resourceType, FOLDER_RESOURCE_TYPE))
+        )
         .then((rows) => rows[0])
 
       return NextResponse.json({ folder: toFolderApi(duplicatedFolder) }, { status: 201 })
     } catch (error) {
-      if (error instanceof Error) {
-        if (error instanceof FolderLockedError) {
-          return NextResponse.json({ error: error.message }, { status: error.status })
-        }
+      if (error instanceof FolderLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
 
-        if (error.message === 'Source folder not found') {
-          logger.warn(`[${requestId}] Source folder ${sourceFolderId} not found`)
-          return NextResponse.json({ error: 'Source folder not found' }, { status: 404 })
-        }
-
-        if (error.message === 'Source folder not found or access denied') {
-          logger.warn(
-            `[${requestId}] User ${session.user.id} denied access to source folder ${sourceFolderId}`
-          )
-          return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-        }
-
-        if (error.message === 'Cross-workspace folder duplication is not supported') {
-          logger.warn(
-            `[${requestId}] User ${session.user.id} attempted cross-workspace folder duplication for ${sourceFolderId}`
-          )
-          return NextResponse.json({ error: error.message }, { status: 400 })
-        }
-
-        if (
-          error.message === 'Target parent folder not found' ||
-          error.message === 'Cannot duplicate folder into itself or one of its descendants'
-        ) {
-          return NextResponse.json({ error: error.message }, { status: 400 })
-        }
+      if (error instanceof FolderDuplicationError) {
+        logger.warn(`[${requestId}] Folder duplication rejected: ${error.message}`, {
+          sourceFolderId,
+          userId: session.user.id,
+        })
+        return NextResponse.json({ error: error.publicMessage }, { status: error.status })
       }
 
       const elapsed = Date.now() - startTime
@@ -250,14 +238,19 @@ async function assertTargetParentFolderMutable(
         archivedAt: folderTable.deletedAt,
       })
       .from(folderTable)
-      .where(and(eq(folderTable.id, currentFolderId), eq(folderTable.resourceType, 'workflow')))
+      .where(
+        and(eq(folderTable.id, currentFolderId), eq(folderTable.resourceType, FOLDER_RESOURCE_TYPE))
+      )
       .limit(1)
 
     if (!folder || folder.workspaceId !== targetWorkspaceId || folder.archivedAt) {
-      throw new Error('Target parent folder not found')
+      throw new FolderDuplicationError('Target parent folder not found', 400)
     }
     if (folder.id === sourceFolderId) {
-      throw new Error('Cannot duplicate folder into itself or one of its descendants')
+      throw new FolderDuplicationError(
+        'Cannot duplicate folder into itself or one of its descendants',
+        400
+      )
     }
     if (folder.locked) {
       throw new FolderLockedError()
@@ -284,7 +277,7 @@ async function duplicateFolderStructure(
       and(
         eq(folderTable.parentId, sourceFolderId),
         eq(folderTable.workspaceId, sourceWorkspaceId),
-        eq(folderTable.resourceType, 'workflow'),
+        eq(folderTable.resourceType, FOLDER_RESOURCE_TYPE),
         isNull(folderTable.deletedAt)
       )
     )
@@ -295,7 +288,7 @@ async function duplicateFolderStructure(
 
     await tx.insert(folderTable).values({
       id: newChildFolderId,
-      resourceType: 'workflow',
+      resourceType: FOLDER_RESOURCE_TYPE,
       userId,
       workspaceId: targetWorkspaceId,
       name: childFolder.name,

@@ -196,6 +196,12 @@ export async function archiveWorkflow(
 
 interface RestoreWorkflowOptions {
   requestId: string
+  /**
+   * Folder ids being restored alongside this workflow. A folder cascade restores its
+   * children BEFORE it un-archives the folder rows, so without this the re-root check below
+   * sees the folder still archived and dumps every workflow at the workspace root.
+   */
+  restoringFolderIds?: ReadonlySet<string>
 }
 
 export async function restoreWorkflow(
@@ -221,7 +227,7 @@ export async function restoreWorkflow(
   }
 
   let clearFolderId = false
-  if (existingWorkflow.folderId) {
+  if (existingWorkflow.folderId && !options.restoringFolderIds?.has(existingWorkflow.folderId)) {
     const [folder] = await db
       .select({ archivedAt: folderTable.deletedAt })
       .from(folderTable)

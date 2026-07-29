@@ -257,6 +257,37 @@ async function selectChildIds(
 }
 
 /**
+ * Restores the workflows this cascade archived, through the canonical workflow restore.
+ *
+ * A bare `workflow.archivedAt = null` is NOT the inverse of the archive: `archiveWorkflow`
+ * also archives the workflow's schedules (status `disabled`, `nextRunAt` cleared), webhooks
+ * (`isActive: false`), chats (`isActive: false`), and MCP tools. Restoring only the workflow
+ * row reports success while every schedule stays disabled forever and every chat 404s —
+ * silently, because the workflow itself looks fine.
+ *
+ * Deployment state is deliberately NOT revived: `isDeployed`/`isPublicApi` and
+ * `workflowDeploymentVersion.isActive` stay off, so a restore never re-exposes a public
+ * endpoint without an explicit redeploy. That matches the single-workflow restore path.
+ */
+async function restoreWorkflowChildren(context: CascadeChildrenContext): Promise<number> {
+  const { restoreWorkflow } = await import('@/lib/workflows/lifecycle')
+  const ids = await selectChildIds(FOLDER_RESOURCES.workflow, context, 'archived')
+
+  const restoringFolderIds = new Set(context.folderIds)
+
+  let restored = 0
+  for (const id of ids) {
+    const result = await restoreWorkflow(id, {
+      requestId: `folder-cascade-${context.folderIds[0]}`,
+      restoringFolderIds,
+    })
+    if (result.restored) restored += 1
+  }
+
+  return restored
+}
+
+/**
  * Archives the knowledge bases in a folder subtree through the canonical KB delete, which
  * also archives their documents and pauses their connectors. A bare `knowledge_base` row
  * update would leave that graph live — connectors would keep syncing into a KB the UI shows
@@ -283,9 +314,12 @@ async function archiveKnowledgeBaseChildren(context: CascadeChildrenContext): Pr
 async function restoreKnowledgeBaseChildren(context: CascadeChildrenContext): Promise<number> {
   const { restoreKnowledgeBase } = await import('@/lib/knowledge/service')
   const ids = await selectChildIds(FOLDER_RESOURCES.knowledge_base, context, 'archived')
+  const restoringFolderIds = new Set(context.folderIds)
 
   for (const id of ids) {
-    await restoreKnowledgeBase(id, `folder-cascade-${context.folderIds[0]}`)
+    await restoreKnowledgeBase(id, `folder-cascade-${context.folderIds[0]}`, {
+      restoringFolderIds,
+    })
   }
 
   return ids.length
@@ -317,9 +351,10 @@ async function archiveTableChildren(context: CascadeChildrenContext): Promise<nu
 async function restoreTableChildren(context: CascadeChildrenContext): Promise<number> {
   const { restoreTable } = await import('@/lib/table/service')
   const ids = await selectChildIds(FOLDER_RESOURCES.table, context, 'archived')
+  const restoringFolderIds = new Set(context.folderIds)
 
   for (const id of ids) {
-    await restoreTable(id, `folder-cascade-${context.folderIds[0]}`)
+    await restoreTable(id, `folder-cascade-${context.folderIds[0]}`, { restoringFolderIds })
   }
 
   return ids.length
@@ -416,6 +451,7 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
     ],
     supportsLocking: true,
     archiveChildren: archiveWorkflowChildren,
+    restoreChildren: restoreWorkflowChildren,
     guardDelete: guardLastWorkflows,
   },
   file: {

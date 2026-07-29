@@ -16,6 +16,7 @@ import { generateId } from '@sim/utils/id'
 import { and, count, eq, isNull, sql } from 'drizzle-orm'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
+import { resolveRestoredFolderId } from '@/lib/folders/queries'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
@@ -887,7 +888,11 @@ export async function deleteTable(
  * archived by a bypass path (e.g. workspace archive, which has no un-archive),
  * making the lock the thing that permanently loses the data it protects.
  */
-export async function restoreTable(tableId: string, requestId: string): Promise<void> {
+export async function restoreTable(
+  tableId: string,
+  requestId: string,
+  options?: { restoringFolderIds?: ReadonlySet<string> }
+): Promise<void> {
   const table = await getTableById(tableId, { includeArchived: true })
   if (!table) {
     throw new Error('Table not found')
@@ -904,6 +909,20 @@ export async function restoreTable(tableId: string, requestId: string): Promise<
       throw new Error('Cannot restore table into an archived workspace')
     }
   }
+
+  /**
+   * Restoring a table whose folder is still archived would file it under a folder the Tables
+   * page never renders, leaving an active row nobody can reach. Re-root it instead — the same
+   * treatment `restoreFolder` gives a folder with an archived parent. `restoringFolderIds`
+   * exempts the folder subtree this restore is part of, which is still archived at the moment
+   * the cascade calls in.
+   */
+  const restoredFolderId = await resolveRestoredFolderId(
+    table.folderId,
+    table.workspaceId,
+    'table',
+    options?.restoringFolderIds
+  )
 
   /**
    * A concurrent rename/create can claim the chosen name after `generateRestoreName`'s check (MVCC).
@@ -937,7 +956,12 @@ export async function restoreTable(tableId: string, requestId: string): Promise<
         const now = new Date()
         await tx
           .update(userTableDefinitions)
-          .set({ archivedAt: null, updatedAt: now, name: attemptedRestoreName })
+          .set({
+            archivedAt: null,
+            updatedAt: now,
+            name: attemptedRestoreName,
+            folderId: restoredFolderId,
+          })
           .where(eq(userTableDefinitions.id, tableId))
       })
       break

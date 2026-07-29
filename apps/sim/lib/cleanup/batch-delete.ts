@@ -81,6 +81,14 @@ export interface ChunkedBatchDeleteOptions<TRow extends { id: string }> {
   selectChunk: (chunkIds: string[], limit: number) => Promise<TRow[]>
   /** Runs between SELECT and DELETE; receives the just-selected rows. */
   onBatch?: (rows: TRow[]) => Promise<void>
+  /**
+   * Re-asserted on the DELETE alongside the id list. Soft-delete sweeps MUST pass the same
+   * predicate they selected on: the DELETE runs after the SELECT and after `onBatch`, and a
+   * row restored in that window would otherwise be hard-deleted — taking the children a
+   * folder restore had just brought back with it. Rows that no longer match are simply not
+   * deleted and are counted as failed, so the next run re-evaluates them.
+   */
+  deleteFilter?: SQL
   batchSize?: number
   /** Max batches per workspace chunk. */
   maxBatches?: number
@@ -112,6 +120,7 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
   tableName,
   selectChunk,
   onBatch,
+  deleteFilter,
   batchSize = DEFAULT_BATCH_SIZE,
   maxBatches = DEFAULT_MAX_BATCHES_PER_TABLE,
   totalRowLimit = DEFAULT_BATCH_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE,
@@ -161,7 +170,7 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
         const ids = rows.map((r) => r.id)
         const deleted = await dbClient
           .delete(tableDef)
-          .where(inArray(sql`id`, ids))
+          .where(deleteFilter ? and(inArray(sql`id`, ids), deleteFilter) : inArray(sql`id`, ids))
           .returning({ id: sql`id` })
 
         result.deleted += deleted.length

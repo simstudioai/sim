@@ -397,6 +397,15 @@ async function cleanupExpiredKnowledgeBases(
           )
         )
         .limit(limit),
+    /**
+     * Re-asserted on the DELETE because `onBatch` hard-deletes documents first, which leaves
+     * a real window in which a restore can land. Without it, a knowledge base restored in
+     * that window is hard-deleted anyway.
+     */
+    deleteFilter: and(
+      isNotNull(knowledgeBase.deletedAt),
+      lt(knowledgeBase.deletedAt, retentionDate)
+    ),
     onBatch: (rows) =>
       hardDeleteKnowledgeBaseDocuments(
         rows.map(({ id }) => id),

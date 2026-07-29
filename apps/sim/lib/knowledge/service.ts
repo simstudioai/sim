@@ -21,7 +21,7 @@ import {
   type StorageBillingContext,
 } from '@/lib/billing/storage'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
-import { findActiveFolder } from '@/lib/folders/queries'
+import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -793,7 +793,8 @@ export async function deleteKnowledgeBase(
  */
 export async function restoreKnowledgeBase(
   knowledgeBaseId: string,
-  requestId: string
+  requestId: string,
+  options?: { restoringFolderIds?: ReadonlySet<string> }
 ): Promise<void> {
   const [kb] = await db
     .select({
@@ -827,13 +828,15 @@ export async function restoreKnowledgeBase(
    * Restoring a knowledge base whose folder is still archived would file it under a folder
    * the Knowledge page never renders, leaving an active row nobody can reach. Re-root it
    * instead — the same treatment `restoreFolder` gives a folder with an archived parent.
+   * `restoringFolderIds` exempts the folder subtree this restore is part of, which is still
+   * archived at the moment the cascade calls in.
    */
-  const restoredFolderId =
-    kb.folderId && kb.workspaceId
-      ? (await findActiveFolder(kb.folderId, kb.workspaceId, 'knowledge_base'))
-        ? kb.folderId
-        : null
-      : null
+  const restoredFolderId = await resolveRestoredFolderId(
+    kb.folderId,
+    kb.workspaceId,
+    'knowledge_base',
+    options?.restoringFolderIds
+  )
 
   /**
    * A concurrent create/rename can commit the same active name after `generateRestoreName`'s check

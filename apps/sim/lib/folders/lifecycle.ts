@@ -6,6 +6,7 @@ import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, min } from 'drizzle-orm'
 import type { FolderCascadeCountsApi, FolderResourceType } from '@/lib/api/contracts/folders'
+import type { DbOrTx } from '@/lib/db/types'
 import {
   archiveFolderCascade,
   collectArchivedSubtreeIds,
@@ -116,17 +117,18 @@ async function assertParentFolderInWorkspace(
  * their folders, so their `sortOrder` participates; knowledge bases and tables have no
  * per-row ordering and are ignored via the absent `sortOrderColumn`.
  */
-async function nextFolderSortOrder(
+export async function nextFolderSortOrder(
   resourceType: FolderResourceType,
   workspaceId: string,
-  parentId: string | null | undefined
+  parentId: string | null | undefined,
+  tx: DbOrTx = db
 ): Promise<number> {
   const config = folderResourceConfig(resourceType)
   const folderParentCondition = parentId
     ? eq(folderTable.parentId, parentId)
     : isNull(folderTable.parentId)
 
-  const folderMinPromise = db
+  const folderMinPromise = tx
     .select({ minSortOrder: min(folderTable.sortOrder) })
     .from(folderTable)
     .where(
@@ -138,7 +140,7 @@ async function nextFolderSortOrder(
     )
 
   const childMinPromise: Promise<Array<{ minSortOrder: unknown }>> = config.sortOrderColumn
-    ? db
+    ? tx
         .select({ minSortOrder: min(config.sortOrderColumn) })
         .from(config.table)
         .where(
@@ -274,6 +276,13 @@ export async function updateFolder(params: UpdateFolderParams): Promise<FolderMu
     if (params.parentId !== undefined) updates.parentId = params.parentId || null
     if (params.sortOrder !== undefined) updates.sortOrder = params.sortOrder
 
+    /**
+     * `isNull(deletedAt)` closes a lock bypass, not just a tidiness gap: `getFolderLockStatus`
+     * skips archived rows, so an archived-but-locked folder reports unlocked. Without this,
+     * deleting a parent would make every locked subfolder beneath it freely renameable and
+     * reparentable. The engine is reachable from the copilot tools as well as the route, so
+     * the guard belongs here rather than only at the boundary.
+     */
     const [folder] = await db
       .update(folderTable)
       .set(updates)
@@ -281,7 +290,8 @@ export async function updateFolder(params: UpdateFolderParams): Promise<FolderMu
         and(
           eq(folderTable.id, params.folderId),
           eq(folderTable.workspaceId, params.workspaceId),
-          eq(folderTable.resourceType, params.resourceType)
+          eq(folderTable.resourceType, params.resourceType),
+          isNull(folderTable.deletedAt)
         )
       )
       .returning()

@@ -335,6 +335,12 @@ export function useRestoreFolder() {
   })
 }
 
+/**
+ * Workflow-only by design, unlike the other folder mutations in this file: duplication copies
+ * the workflows inside the folder, and `POST /api/folders/[id]/duplicate` has no equivalent
+ * for knowledge bases or tables. The `resourceType: 'workflow'` below is that constraint, not
+ * an oversight — generalizing it would optimistically insert a folder the route then refuses.
+ */
 export function useDuplicateFolderMutation() {
   const queryClient = useQueryClient()
 

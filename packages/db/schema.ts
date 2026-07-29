@@ -1902,9 +1902,20 @@ export const workspaceFile = pgTable(
   })
 )
 
-// DEPRECATED: superseded by the generic `folder` table (resourceType='file'). Kept
-// (unread, unwritten) until the generic-folders cutover is verified in production; dropped
-// in a follow-up contract migration.
+/**
+ * DEPRECATED: superseded by the generic `folder` table (`resource_type = 'file'`).
+ *
+ * As of the file-folder cutover the application no longer reads or writes this table —
+ * every former query site now targets `folder` scoped to `resource_type = 'file'`. It is
+ * retained as the rollback copy for that deploy, NOT because it is already unused history:
+ * before the cutover it was the live table, and migration 0272's one-shot backfill did not
+ * cover folders created after it ran (migration 0274 catches those up).
+ *
+ * Do NOT drop it in a contract migration until BOTH hold: the cutover has been running in
+ * production long enough that a rollback is off the table, and a row-count comparison
+ * against `folder WHERE resource_type = 'file'` confirms nothing was stranded. Dropping it
+ * on the strength of "no code references it" alone destroys the only rollback path.
+ */
 export const workspaceFileFolder = pgTable(
   'workspace_file_folders',
   {

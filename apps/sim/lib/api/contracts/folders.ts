@@ -10,9 +10,17 @@ export type FolderResourceType = z.output<typeof folderResourceTypeSchema>
  * {@link folderResourceTypeSchema} now that every type is backed by the `folder` table;
  * kept as a separate schema so a future resource type can be added to the enum (and the
  * DB) ahead of the routes that serve it.
+ *
+ * The `.default` applies ONLY to an omitted value — that is what keeps an old client, which
+ * never sends the field, working against a new pod. A value that is present but not in the
+ * enum is REJECTED with a 400, never silently coerced to `'workflow'`: coercing would file a
+ * knowledge-base folder into the workflow tree, where the Knowledge page can never see it
+ * again. This is the deploy-ordering contract — see the note in the PR description.
  */
 export const servedFolderResourceTypeSchema = z
-  .enum(['workflow', 'file', 'knowledge_base', 'table'])
+  .enum(['workflow', 'file', 'knowledge_base', 'table'], {
+    error: 'resourceType must be one of workflow, file, knowledge_base, table',
+  })
   .default('workflow')
 
 export type ServedFolderResourceType = z.output<typeof servedFolderResourceTypeSchema>
