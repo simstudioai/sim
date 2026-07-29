@@ -32,7 +32,7 @@ describe('searchVectorTool', () => {
       expected: { includeValues: true, includeMetadata: true },
     },
   ])('maps $name to the Pinecone query flags', ({ options, expected }) => {
-    const body = buildBody({ ...baseParams, ...options })
+    const body = buildBody({ ...baseParams, options })
 
     expect(body).toMatchObject(expected)
   })
