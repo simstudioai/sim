@@ -1,10 +1,11 @@
+import dns from 'node:dns/promises'
 import { Readable } from 'node:stream'
 import zlib from 'node:zlib'
-import dns from 'dns/promises'
 import http from 'http'
 import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
+import { resolveHostAddresses } from '@sim/security/dns'
 import { isLoopbackIp, isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
@@ -65,19 +66,23 @@ export async function validateUrlWithDNS(
   const isLocalhost = cleanHostname === 'localhost' || isLoopbackIp(cleanHostname)
 
   try {
-    // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
-    // on IPv4-only egress (e.g. AWS NAT gateways) — still-pinned consumers (providers, SSO,
-    // A2A) depend on this ordering.
-    const resolved = await dns.lookup(cleanHostname, { all: true, verbatim: true })
-    const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
+    // Every address is classified, but only the IPv4-preferred one is returned to
+    // pin: checking a single address let a host publishing both a public and a
+    // private record through whenever the public one sorted first, which is
+    // record order rather than policy.
+    const { addresses, preferred } = await resolveHostAddresses(cleanHostname)
+    const blocked = addresses.filter((address) => isPrivateIp(address))
 
-    const resolvedIsLoopback = isLoopbackIp(address)
-
-    if (isPrivateIp(address) && !(isLocalhost && resolvedIsLoopback && !isHosted)) {
+    // The localhost carve-out still applies only when every address is loopback,
+    // so `localhost` with an extra RFC1918 record does not ride it.
+    if (
+      blocked.length > 0 &&
+      !(isLocalhost && !isHosted && blocked.every((address) => isLoopbackIp(address)))
+    ) {
       logger.warn('URL resolves to blocked IP address', {
         paramName,
         hostname,
-        resolvedIP: address,
+        resolvedIP: blocked[0],
       })
       return {
         isValid: false,
@@ -87,7 +92,7 @@ export async function validateUrlWithDNS(
 
     return {
       isValid: true,
-      resolvedIP: address,
+      resolvedIP: preferred,
       originalHostname: hostname,
     }
   } catch (error) {
@@ -206,16 +211,15 @@ export async function validateDatabaseHost(
   }
 
   try {
-    // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
-    // on IPv4-only egress (e.g. AWS NAT gateways).
-    const resolved = await dns.lookup(cleanHost, { all: true, verbatim: true })
-    const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
+    const { addresses, preferred } = await resolveHostAddresses(cleanHost)
+    const address = preferred
+    const blockedAddress = addresses.find((candidate) => isPrivateIp(candidate))
 
-    if (isPrivateIp(address) && !isPrivateDatabaseHostsAllowed) {
+    if (blockedAddress !== undefined && !isPrivateDatabaseHostsAllowed) {
       logger.warn('Database host resolves to blocked IP address', {
         paramName,
         hostname: host,
-        resolvedIP: address,
+        resolvedIP: blockedAddress,
       })
       return {
         isValid: false,

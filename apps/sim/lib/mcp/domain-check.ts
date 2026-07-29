@@ -1,5 +1,5 @@
-import dns from 'dns/promises'
 import { createLogger } from '@sim/logger'
+import { resolveHostAddresses } from '@sim/security/dns'
 import { isIpLiteral, isLoopbackIp, isPrivateIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
 import { getAllowedMcpDomainsFromEnv, isHosted } from '@/lib/core/config/env-flags'
@@ -172,12 +172,12 @@ export async function validateMcpServerSsrf(url: string | undefined): Promise<st
     return cleanHostname
   }
 
+  let addresses: string[]
   let address: string
   try {
-    // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address
-    // (which `verbatim` returns first for dual-stack hosts) hangs on IPv4-only egress.
-    const resolved = await dns.lookup(cleanHostname, { all: true, verbatim: true })
-    address = (resolved.find((entry) => entry.family === 4) ?? resolved[0]).address
+    const resolved = await resolveHostAddresses(cleanHostname)
+    addresses = resolved.addresses
+    address = resolved.preferred
   } catch (error) {
     logger.warn('DNS lookup failed for MCP server URL', {
       hostname,
@@ -186,20 +186,25 @@ export async function validateMcpServerSsrf(url: string | undefined): Promise<st
     throw new McpDnsResolutionError(cleanHostname)
   }
 
-  if (isLoopbackIp(address)) {
-    if (isHosted) {
-      logger.warn('MCP server URL resolves to loopback address', {
+  // Every address is judged, not just the pinned one: a host publishing both a
+  // public and a private record would otherwise pass on record order alone. The
+  // pin stays on the IPv4-preferred address, which is what callers connect to.
+  for (const candidate of addresses) {
+    if (isLoopbackIp(candidate)) {
+      if (isHosted) {
+        logger.warn('MCP server URL resolves to loopback address', {
+          hostname,
+          resolvedIP: candidate,
+        })
+        throw new McpSsrfError('MCP server URL resolves to a loopback address')
+      }
+    } else if (isPrivateIp(candidate)) {
+      logger.warn('MCP server URL resolves to blocked IP address', {
         hostname,
-        resolvedIP: address,
+        resolvedIP: candidate,
       })
-      throw new McpSsrfError('MCP server URL resolves to a loopback address')
+      throw new McpSsrfError('MCP server URL resolves to a blocked IP address')
     }
-  } else if (isPrivateIp(address)) {
-    logger.warn('MCP server URL resolves to blocked IP address', {
-      hostname,
-      resolvedIP: address,
-    })
-    throw new McpSsrfError('MCP server URL resolves to a blocked IP address')
   }
 
   return address

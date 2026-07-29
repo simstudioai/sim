@@ -1,4 +1,3 @@
-import dns from 'dns/promises'
 import type {
   FileAttributes,
   Item,
@@ -12,6 +11,7 @@ import type {
   Website,
 } from '@1password/sdk'
 import { createLogger } from '@sim/logger'
+import { resolveHostAddresses } from '@sim/security/dns'
 import { isPrivateIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -312,12 +312,12 @@ export async function validateConnectServerUrl(serverUrl: string): Promise<strin
     return clean
   }
 
+  let addresses: string[]
   let address: string
   try {
-    // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
-    // on IPv4-only egress (e.g. AWS NAT gateways).
-    const resolved = await dns.lookup(clean, { all: true, verbatim: true })
-    address = (resolved.find((entry) => entry.family === 4) ?? resolved[0]).address
+    const resolved = await resolveHostAddresses(clean)
+    addresses = resolved.addresses
+    address = resolved.preferred
   } catch (error) {
     connectLogger.warn('DNS lookup failed for 1Password Connect server URL', {
       hostname: clean,
@@ -326,7 +326,11 @@ export async function validateConnectServerUrl(serverUrl: string): Promise<strin
     throw new Error('1Password server URL hostname could not be resolved')
   }
 
-  assertConnectIpAllowed(address, clean)
+  // Asserted on every address, pinned on the IPv4-preferred one: a host with both
+  // a public and a private record must not pass on record order alone.
+  for (const candidate of addresses) {
+    assertConnectIpAllowed(candidate, clean)
+  }
   return address
 }
 

@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockLookup } = vi.hoisted(() => ({ mockLookup: vi.fn() }))
 
+// The real resolveHostAddresses runs; only the resolver under it is mocked, so
+// its deadline and all-addresses behaviour stay covered here.
 vi.mock('node:dns/promises', () => ({
   default: { lookup: mockLookup },
 }))

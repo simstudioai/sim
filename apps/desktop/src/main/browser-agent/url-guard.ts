@@ -1,5 +1,5 @@
-import dns from 'node:dns/promises'
 import { createLogger } from '@sim/logger'
+import { resolveHostAddresses } from '@sim/security/dns'
 import {
   isIpLiteral,
   isLoopbackIp,
@@ -11,31 +11,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { parseHttpUrl } from '@/main/navigation'
 
 const logger = createLogger('BrowserAgentUrlGuard')
-
-/** Hard deadline on the SSRF DNS lookup so a slow/hung resolver can't suspend
- * the check — and the onBeforeRequest callback that awaits it — indefinitely.
- * A timeout rejects, which fails closed (blocks) via the caller's catch. */
-const DNS_TIMEOUT_MS = 5_000
-
-/** dns.lookup bounded by {@link DNS_TIMEOUT_MS}; the timer is always cleared so a
- * won race never leaves a dangling rejection. */
-async function resolveHost(host: string) {
-  const lookup = dns.lookup(host, { all: true, verbatim: true })
-  // If the timeout wins the race the lookup stays pending; swallow its eventual
-  // settlement so a late rejection can't surface as an unhandled rejection.
-  lookup.catch(() => {})
-  let timer: NodeJS.Timeout | undefined
-  try {
-    return await Promise.race([
-      lookup,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error('DNS lookup timed out')), DNS_TIMEOUT_MS)
-      }),
-    ])
-  } finally {
-    clearTimeout(timer)
-  }
-}
 
 export interface UrlGuardResult {
   ok: boolean
@@ -103,8 +78,8 @@ export async function checkAgentUrl(rawUrl: string): Promise<UrlGuardResult> {
   }
 
   try {
-    const resolved = await resolveHost(host)
-    if (resolved.some(({ address }) => isBlockedAddress(address))) {
+    const { addresses } = await resolveHostAddresses(host)
+    if (addresses.some((address) => isBlockedAddress(address))) {
       logger.warn('Blocked agent navigation resolving to private IP', { host })
       return BLOCKED
     }
@@ -163,9 +138,9 @@ const MAX_HOST_VERDICTS = 256
  * request that arrived before the first lookup settled to start its own, and
  * `dns.lookup` is `getaddrinfo` on the libuv threadpool — four slots by
  * default, shared with every `fs` call in the main process. A page naming a few
- * hundred hostnames could then queue hundreds of blocking jobs, each up to
- * {@link DNS_TIMEOUT_MS}, and stall unrelated work like the settings write or
- * the credential vault.
+ * hundred hostnames could then queue hundreds of blocking jobs, each up to the
+ * resolver deadline, and stall unrelated work like the settings write or the
+ * credential vault.
  */
 const hostVerdicts = new Map<string, { verdict: Promise<boolean>; expiry: number }>()
 
@@ -227,9 +202,9 @@ export async function isBlockedSubresourceUrl(rawUrl: string): Promise<boolean> 
   const cached = hostVerdicts.get(host)
   if (cached && Date.now() < cached.expiry) return cached.verdict
 
-  const verdict = resolveHost(host)
-    .then((resolved) => {
-      const blocked = resolved.some(({ address }) => isBlockedAddress(address))
+  const verdict = resolveHostAddresses(host)
+    .then(({ addresses }) => {
+      const blocked = addresses.some((address) => isBlockedAddress(address))
       if (blocked) {
         logger.warn('Blocked agent subresource resolving to private IP', { host })
       }
