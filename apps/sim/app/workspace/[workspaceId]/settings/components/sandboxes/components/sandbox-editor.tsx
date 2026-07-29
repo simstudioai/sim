@@ -91,7 +91,6 @@ export function SandboxEditor({
                 value: option.value,
               }))}
               disabled={disabled}
-              matchTriggerWidth={false}
             />
           </div>
         </div>
