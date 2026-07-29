@@ -17,6 +17,15 @@ interface CustomBlockExecutorContext {
   callChain?: string[]
   isDeployedContext?: boolean
   billingAttribution?: BillingAttributionSnapshot
+  /**
+   * The INVOKING agent run's execution id. Server-set, never model-supplied.
+   * Without it the child's correlation would name an id no log row ever has, so
+   * a publisher could not trace the run back to the consumer execution — and the
+   * cancellation bridge would subscribe to an id nothing ever cancels.
+   */
+  executionId?: string
+  /** The invoking run's request id, so both sides share one trace identifier. */
+  requestId?: string
 }
 
 interface CustomBlockToolParams {
@@ -29,8 +38,9 @@ interface CustomBlockToolParams {
 
 /**
  * Build a minimal top-level `ExecutionContext` for running a custom block as an
- * agent tool. Every value comes from the server-set `_context` (LLM-proof) plus a
- * fresh executionId. `WorkflowBlockHandler`'s custom-block path re-derives owner
+ * agent tool. Every value comes from the server-set `_context` (LLM-proof),
+ * including the invoking run's execution and request ids so the child's log
+ * correlation names a real execution. `WorkflowBlockHandler`'s path re-derives owner
  * identity, env, and billing from `getCustomBlockAuthority`, so this only needs the
  * fields that path reads — `workspaceId` (org-scopes the authority lookup),
  * `metadata` (read unconditionally at `executeCore`), and `callChain` (recursion
@@ -40,7 +50,9 @@ interface CustomBlockToolParams {
 export function buildCustomBlockExecutionContext(
   context: CustomBlockExecutorContext
 ): ExecutionContext {
-  const executionId = generateId()
+  // Prefer the invoking agent run's ids so correlation and cancellation both
+  // point at a real execution; fall back only when a caller could not supply them.
+  const executionId = context.executionId ?? generateId()
   return {
     workflowId: context.workflowId ?? 'custom-block-tool',
     workspaceId: context.workspaceId,
@@ -61,7 +73,7 @@ export function buildCustomBlockExecutionContext(
     // custom-block path; `duration` is the sole required field on the metadata type.
     metadata: {
       duration: 0,
-      requestId: generateId(),
+      requestId: context.requestId ?? generateId(),
       executionId,
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,

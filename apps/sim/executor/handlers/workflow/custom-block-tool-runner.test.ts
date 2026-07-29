@@ -107,3 +107,25 @@ describe('runCustomBlockTool', () => {
     expect(mockExecute).not.toHaveBeenCalled()
   })
 })
+
+describe('buildCustomBlockExecutionContext invoker identity', () => {
+  it("adopts the invoking run's ids so correlation names a real execution", () => {
+    const ctx = buildCustomBlockExecutionContext({
+      workspaceId: 'ws-1',
+      executionId: 'agent-execution-id',
+      requestId: 'agent-request-id',
+    })
+
+    expect(ctx.executionId).toBe('agent-execution-id')
+    expect(ctx.metadata.executionId).toBe('agent-execution-id')
+    expect(ctx.metadata.requestId).toBe('agent-request-id')
+  })
+
+  it('falls back to generated ids when the caller supplies none', () => {
+    const ctx = buildCustomBlockExecutionContext({ workspaceId: 'ws-1' })
+
+    expect(ctx.executionId).toBeTruthy()
+    expect(ctx.metadata.requestId).toBeTruthy()
+    expect(ctx.executionId).not.toBe(ctx.metadata.requestId)
+  })
+})
