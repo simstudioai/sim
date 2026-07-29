@@ -121,8 +121,8 @@ const FILE_DOC_FIELD = 'default'
 
 /** Let a fire-and-forget `void ensureServerSeed(...)` chain settle (mock resolves synchronously). */
 async function flushMicrotasks(): Promise<void> {
-  await Promise.resolve()
-  await Promise.resolve()
+  // Enough to drain the fire-and-forget seed chain (shouldSeed → fetch → fence → publish → apply).
+  for (let i = 0; i < 8; i++) await Promise.resolve()
 }
 
 /**

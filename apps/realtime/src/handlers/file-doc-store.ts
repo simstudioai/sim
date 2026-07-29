@@ -268,15 +268,20 @@ export class FileDocStore {
 
   /**
    * Whether the file's stream already holds content — fences a seed apply against a peer that seeded
-   * while this task held a (possibly stale) lock, so we never write a second seed (split-brain). False
-   * when disabled or on error (the caller then proceeds under its lock, as before).
+   * while this task held a (possibly stale) lock, so we never write a second seed (split-brain). Both
+   * callers treat `true` as "do not seed", so this fails CLOSED: a Redis `xLen` error returns `true`
+   * (cannot confirm the stream is empty → do not risk a double-seed). `false` only when genuinely empty,
+   * or when disabled (single-replica, where seeding locally is always correct).
    */
   async streamHasContent(name: string): Promise<boolean> {
     if (!this.enabled || !this.write) return false
     try {
       return (await this.write.xLen(streamKey(name))) > 0
-    } catch {
-      return false
+    } catch (error) {
+      logger.warn(`FileDocStore streamHasContent failed for ${name}`, {
+        error: getErrorMessage(error),
+      })
+      return true
     }
   }
 

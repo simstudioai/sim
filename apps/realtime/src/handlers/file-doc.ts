@@ -216,7 +216,19 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
   try {
     if (!final && !(await store.acquirePersistSlot(name, FILE_DOC_TIMEOUTS.persistRequestMs)))
       return
-    const docState = (store.enabled ? await store.getStreamState(name) : null) ?? localState
+    let docState = localState
+    if (store.enabled) {
+      try {
+        docState = (await store.getStreamState(name)) ?? localState
+      } catch (streamError) {
+        // A transient Redis read must NOT drop the write when we already hold a valid local snapshot —
+        // else the last-disconnect flush loses the session's edits as the room is torn down.
+        if (!localState) throw streamError
+        logger.warn(`Stream state unavailable for file ${room.fileId}; persisting local snapshot`, {
+          error: getErrorMessage(streamError),
+        })
+      }
+    }
     if (!docState) return // nothing seeded/authoritative to persist yet
     await fetchFileDocPersist(room.workspaceId, room.fileId, room.lastEditorUserId, docState)
   } catch (error) {
@@ -332,23 +344,32 @@ async function ensureServerSeed(
     // Fence against a peer that seeded while we held a stale lock (a rare long stall): if the stream
     // already has content it is seeded, so never write a SECOND seed on top — that would split-brain.
     if (await store.streamHasContent(name)) return
-    // SEED_ORIGIN → `doc.on('update')` fans the seed to THIS task's clients but does NOT publish it
-    // (nor persist it — the seed is the file's current content). We publish it EXPLICITLY and AWAIT the
-    // stream write below, so the seed is durably in the stream BEFORE the lock releases — then any later
-    // seeder's `streamHasContent` fence is guaranteed to see it. Closes the fence's publish-after-release
-    // gap that a fire-and-forget publish left open.
-    if (update) Y.applyUpdate(room.doc, update, SEED_ORIGIN)
-    else
-      room.doc.transact(
-        () => room.doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true),
-        SEED_ORIGIN
-      )
-    await store.publishAndWait(name, Y.encodeStateAsUpdate(room.doc))
+    // Build the seed (file content + seed flag, or just the flag for an empty/missing file), then
+    // PUBLISH it to the shared stream AWAITED *before* seeding the local doc. The doc is marked seeded
+    // only once the seed is durably shared — so if the publish fails we leave the doc unseeded and the
+    // stream empty for a clean retry, rather than serving an unpublished local seed that a peer would
+    // re-seed on top of (split-brain). SEED_ORIGIN keeps `doc.on('update')` from re-publishing it.
+    const seedUpdate = update ?? emptySeedUpdate()
+    await store.publishAndWait(name, seedUpdate)
+    if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
+    Y.applyUpdate(room.doc, seedUpdate, SEED_ORIGIN)
   } catch (error) {
     logger.warn(`Server seed failed for file ${room.fileId} (workspace ${workspaceId})`, error)
     room.serverSeedStarted = false
   } finally {
     await store.releaseSeedLock(name, token)
+  }
+}
+
+/** The seed update for an empty/missing file: just the `initialContentLoaded` flag, so an empty doc
+ * still reaches readiness (and its emptiness is durably shared like any seed). */
+function emptySeedUpdate(): Uint8Array {
+  const doc = new Y.Doc()
+  doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+  try {
+    return Y.encodeStateAsUpdate(doc)
+  } finally {
+    doc.destroy()
   }
 }
 

@@ -126,8 +126,12 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
    * shared document to markdown server-side, so the client must never also autosave — a stale keystroke
    * saving over a server/copilot edit is exactly the clobber the server path closes. The child reports
    * the right value up via `onCollabReadyChange`.
+   *
+   * Initialize from the `collaborative` prop (NOT unconditionally `true`): a collaborative file must
+   * start with autosave OFF, or a save could fire in the window before the child mounts and reports —
+   * re-clobbering exactly what this closes. The child turns it on for the non-collaborative fallback.
    */
-  const [collabReady, setCollabReady] = useState(true)
+  const [collabReady, setCollabReady] = useState(!collaborative)
 
   const {
     content,
