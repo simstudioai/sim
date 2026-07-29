@@ -2,6 +2,7 @@ import type { Server } from 'node:http'
 import { createServer } from 'node:http'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import type { BrowserWindow } from 'electron'
 import { app, dialog } from 'electron'
@@ -364,6 +365,28 @@ export interface AuthFlow {
  * back on /login.
  */
 export function createAuthFlow(deps: AuthFlowDeps): AuthFlow {
+  /**
+   * The main window, or null when one cannot be obtained.
+   *
+   * Both entry points below are dispatched fire-and-forget from index.ts, and
+   * the wired `ensureMainWindow` throws when no window can be created or
+   * restored — which is reachable if the user closed the window while signing
+   * in through their browser. With no global `unhandledRejection` handler in
+   * main, letting that escape turned it into an unhandled rejection raised from
+   * the loopback callback. Recorded rather than swallowed: a sign-in that
+   * cannot present itself is exactly what the event log is for.
+   */
+  const resolveWindow = async (reason: string): Promise<BrowserWindow | null> => {
+    try {
+      return await deps.ensureMainWindow()
+    } catch (error) {
+      const message = getErrorMessage(error, 'Main window unavailable')
+      deps.events.record('handoff_redeem_fail', { reason, error: message })
+      logger.error('No window available for the sign-in handoff', { reason, error: message })
+      return null
+    }
+  }
+
   const failInWindow = async (win: BrowserWindow, reason: string, status?: number) => {
     deps.events.record(
       'handoff_redeem_fail',
@@ -383,7 +406,8 @@ export function createAuthFlow(deps: AuthFlowDeps): AuthFlow {
     async beginLoginHandoff() {
       const opened = await deps.handoff.begin()
       if (!opened) {
-        const win = await deps.ensureMainWindow()
+        const win = await resolveWindow('begin_window')
+        if (!win) return
         void dialog.showMessageBox(win, {
           type: 'error',
           message: 'Couldn’t start sign-in',
@@ -392,7 +416,8 @@ export function createAuthFlow(deps: AuthFlowDeps): AuthFlow {
       }
     },
     async handleCallback(callback: HandoffCallback) {
-      const win = await deps.ensureMainWindow()
+      const win = await resolveWindow('callback_window')
+      if (!win) return
       if (!deps.handoff.consume(callback.state, 'login')) {
         await failInWindow(win, 'state')
         return

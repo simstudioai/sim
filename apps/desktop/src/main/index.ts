@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { Session, WebContents } from 'electron'
 import { app, BrowserWindow, crashReporter, net, session } from 'electron'
 import { newChatRoute, settingsRoute } from '@/main/app-routes'
@@ -54,6 +55,16 @@ import { createMainWindow, setupPermissionHandlers } from '@/main/window'
 import { attachWindowOpenPolicy, isPopupContents } from '@/main/windows'
 
 const logger = createLogger('DesktopMain')
+
+/**
+ * Backstop for the sign-in flows, which are dispatched fire-and-forget from a
+ * loopback callback and a navigation guard. The flows record their own expected
+ * failures; this catches anything they do not, so a rejection cannot surface as
+ * an unhandled one — main registers no `unhandledRejection` handler.
+ */
+function reportHandoffFailure(error: unknown): void {
+  logger.error('Sign-in handoff failed', { error: getErrorMessage(error) })
+}
 
 const OFFLINE_PAGE = 'static/offline.html'
 const DOCK_ICON_FOR_CHANNEL = {
@@ -138,7 +149,7 @@ function main(): void {
       currentUserId: () => readSessionUserId(ensureAppSession(), appOrigin()),
     },
     {
-      onLogin: (callback) => void authFlow.handleCallback(callback),
+      onLogin: (callback) => void authFlow.handleCallback(callback).catch(reportHandoffFailure),
       onConnect: (callback) => connectFlow.handleCallback(callback),
     }
   )
@@ -173,7 +184,7 @@ function main(): void {
     isPackaged: app.isPackaged,
     allowHttpLocalhost,
     isPopupContents,
-    onLoginHandoff: () => void authFlow.beginLoginHandoff(),
+    onLoginHandoff: () => void authFlow.beginLoginHandoff().catch(reportHandoffFailure),
     onConnectIntercept: (contents) => void handleConnectIntercept(contents, allowHttpLocalhost()),
   })
 
