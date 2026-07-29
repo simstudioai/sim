@@ -842,7 +842,7 @@ export async function deleteTable(
   tableId: string,
   requestId: string,
   actingUserId?: string,
-  options?: { archivedAt?: Date }
+  options?: { archivedAt?: Date; skipNotify?: boolean }
 ): Promise<void> {
   const now = options?.archivedAt ?? new Date()
   // Archiving destroys access to every row, so it is gated on the delete lock.
@@ -902,7 +902,10 @@ export async function deleteTable(
   logger.info(`[${requestId}] Archived table ${tableId}`)
 
   // Live tables list: only on a genuine archive (a no-op/already-archived delete changes nothing).
-  if (deleted?.workspaceId) await notifyWorkspaceTablesChanged(deleted.workspaceId)
+  // Skipped under a folder cascade — deleteFolder fires one folder-level notify for the whole subtree,
+  // so we don't spam one relay call per archived table.
+  if (deleted?.workspaceId && !options?.skipNotify)
+    await notifyWorkspaceTablesChanged(deleted.workspaceId)
 }
 
 /**
@@ -917,7 +920,7 @@ export async function deleteTable(
 export async function restoreTable(
   tableId: string,
   requestId: string,
-  options?: { restoringFolderIds?: ReadonlySet<string> }
+  options?: { restoringFolderIds?: ReadonlySet<string>; skipNotify?: boolean }
 ): Promise<void> {
   const table = await getTableById(tableId, { includeArchived: true })
   if (!table) {
@@ -1003,6 +1006,8 @@ export async function restoreTable(
 
   logger.info(`[${requestId}] Restored table ${tableId} as "${attemptedRestoreName}"`)
 
-  // Live tables list: a restore re-adds the table to the active list.
-  if (table.workspaceId) await notifyWorkspaceTablesChanged(table.workspaceId)
+  // Live tables list: a restore re-adds the table to the active list. Skipped under a folder cascade —
+  // restoreFolder fires one folder-level notify for the whole subtree (see deleteTable).
+  if (table.workspaceId && !options?.skipNotify)
+    await notifyWorkspaceTablesChanged(table.workspaceId)
 }
