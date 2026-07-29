@@ -1919,13 +1919,6 @@
       "when": 1785281897202,
       "tag": "0274_file_folder_cutover_reconcile",
       "breakpoints": true
-    },
-    {
-      "idx": 275,
-      "version": "7",
-      "when": 1785349080385,
-      "tag": "0275_workspace_sandboxes",
-      "breakpoints": true
     }
   ]
 }
