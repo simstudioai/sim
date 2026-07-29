@@ -268,7 +268,7 @@ function withCopySuffix(fileName: string, n: number): string {
 /**
  * Picks a display name that does not collide with an active workspace file (`original_name`).
  */
-async function allocateUniqueWorkspaceFileName(
+export async function allocateUniqueWorkspaceFileName(
   workspaceId: string,
   baseName: string,
   folderId?: string | null

@@ -7,6 +7,7 @@ import { generateShortId } from '@sim/utils/id'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import type { TableUndoAction, TableUndoStacks, TableUndoState, UndoEntry } from './types'
+import { VIEW_SCOPED_UNDO_ACTIONS } from './types'
 
 const STACK_CAPACITY = 100
 const EMPTY_STACKS: TableUndoStacks = { undo: [], redo: [] }
@@ -99,10 +100,15 @@ export const useTableUndoStore = create<TableUndoState>()(
     (set, get) => ({
       stacks: {},
 
-      push: (tableId: string, action: TableUndoAction) => {
+      push: (tableId: string, action: TableUndoAction, viewId: string | null) => {
         if (undoRedoInProgress) return
 
-        const entry: UndoEntry = { id: generateShortId(), action, timestamp: Date.now() }
+        const entry: UndoEntry = {
+          id: generateShortId(),
+          action,
+          timestamp: Date.now(),
+          viewId,
+        }
 
         set((state) => {
           const current = state.stacks[tableId] ?? EMPTY_STACKS
@@ -180,6 +186,17 @@ export const useTableUndoStore = create<TableUndoState>()(
             },
           }
         })
+      },
+
+      pruneLayoutActions: (tableId: string, viewId: string | null) => {
+        const current = get().stacks[tableId]
+        if (!current) return
+        const owned = (entry: UndoEntry) =>
+          !VIEW_SCOPED_UNDO_ACTIONS.has(entry.action.type) || entry.viewId === viewId
+        const undo = current.undo.filter(owned)
+        const redo = current.redo.filter(owned)
+        if (undo.length === current.undo.length && redo.length === current.redo.length) return
+        set((state) => ({ stacks: { ...state.stacks, [tableId]: { undo, redo } } }))
       },
 
       clear: (tableId: string) => {

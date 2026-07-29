@@ -39,12 +39,14 @@ import {
   cancelTableRunsContract,
   createTableContract,
   createTableRowContract,
+  createTableViewContract,
   type DeleteTableRowsAsyncBody,
   deleteTableColumnContract,
   deleteTableContract,
   deleteTableRowContract,
   deleteTableRowsAsyncContract,
   deleteTableRowsContract,
+  deleteTableViewContract,
   deleteWorkflowGroupContract,
   exportDownloadContract,
   exportTableAsyncContract,
@@ -58,6 +60,7 @@ import {
   listTableJobsContract,
   listTableRowsContract,
   listTablesContract,
+  listTableViewsContract,
   type RunLimit,
   type RunMode,
   renameTableContract,
@@ -69,6 +72,8 @@ import {
   type TableLocksInput,
   type TableRowParamsInput,
   type TableRowsQueryInput,
+  type TableViewConfigInput,
+  type TableViewWire,
   type UpdateTableColumnBodyInput,
   type UpdateTableRowBodyInput,
   type UpdateWorkflowGroupBodyInput,
@@ -76,6 +81,7 @@ import {
   updateTableContract,
   updateTableMetadataContract,
   updateTableRowContract,
+  updateTableViewContract,
   updateWorkflowGroupContract,
 } from '@/lib/api/contracts/tables'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
@@ -105,6 +111,7 @@ import { runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import {
   TABLE_LIST_STALE_TIME,
+  TABLE_VIEWS_STALE_TIME,
   type TableQueryScope,
   tableKeys,
 } from '@/hooks/queries/utils/table-keys'
@@ -1426,6 +1433,123 @@ export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationCont
       // exact: rowsRoot nests under detail, so a prefix match would needlessly refetch all rows
       queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
     },
+  })
+}
+
+/**
+ * Saved views on a table. The built-in "All" entry is the absence of a view and
+ * is rendered client-side, so this list contains only user-created views and is
+ * legitimately empty for a table nobody has saved a view on.
+ */
+export function useTableViews({
+  workspaceId,
+  tableId,
+  enabled = true,
+}: RowMutationContext & {
+  /** Carries the `table-views` flag, so a gated-off table never fetches. */
+  enabled?: boolean
+}) {
+  // rq-lint-allow: tableId is a globally-unique id; workspaceId is only an authz scope on the fetch and cannot collide across workspaces
+  return useQuery({
+    queryKey: tableKeys.views(tableId),
+    queryFn: async ({ signal }) => {
+      const response = await requestJson(listTableViewsContract, {
+        params: { tableId },
+        query: { workspaceId },
+        signal,
+      })
+      return response.data.views
+    },
+    enabled: enabled && Boolean(workspaceId && tableId),
+    staleTime: TABLE_VIEWS_STALE_TIME,
+  })
+}
+
+export function useCreateTableView({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ name, config }: { name: string; config: TableViewConfigInput }) => {
+      const response = await requestJson(createTableViewContract, {
+        params: { tableId },
+        body: { workspaceId, name, config },
+      })
+      return response.data.view
+    },
+    // Seed the new view into the list before the refetch lands, so the URL can
+    // select it immediately without naming a view the dropdown doesn't have yet.
+    onSuccess: (view) => {
+      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) =>
+        prev ? [...prev, view] : [view]
+      )
+    },
+    // Returned so the mutation stays pending until the refetch settles — otherwise
+    // the Save chip re-enables and flashes dirty against a stale cached config.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
+  })
+}
+
+interface UpdateTableViewParams {
+  viewId: string
+  name?: string
+  /** Full replace (explicit Save). Mutually exclusive with `configPatch`. */
+  config?: TableViewConfigInput
+  /** Server-side shallow merge — used for the grid's incremental layout writes. */
+  configPatch?: TableViewConfigInput
+  isDefault?: boolean
+}
+
+/**
+ * Patches one view — overwrite its config, rename it, or promote it to default.
+ * `isDefault: true` demotes the previous default server-side, so the whole list
+ * is invalidated rather than just the edited row.
+ */
+export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ viewId, name, config, configPatch, isDefault }: UpdateTableViewParams) => {
+      const response = await requestJson(updateTableViewContract, {
+        params: { tableId, viewId },
+        body: { workspaceId, name, config, configPatch, isDefault },
+      })
+      return response.data.view
+    },
+    // Without this the edited view's cached config stays stale until the refetch,
+    // so `isViewDirty` re-reads true and the Save chip flashes back after a save.
+    onSuccess: (view) => {
+      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) =>
+        prev?.map((existing) => {
+          if (existing.id !== view.id) return existing
+          // Layout auto-saves and an explicit Save fire concurrently, and their
+          // responses can arrive out of order. The DB merge is authoritative, so
+          // only let a row at least as new as the cached one win — otherwise a
+          // slower response rewinds the cache until the refetch lands.
+          return new Date(view.updatedAt) >= new Date(existing.updatedAt) ? view : existing
+        })
+      )
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
+  })
+}
+
+export function useDeleteTableView({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (viewId: string) => {
+      await requestJson(deleteTableViewContract, {
+        params: { tableId, viewId },
+        body: { workspaceId },
+      })
+      return viewId
+    },
+    onSuccess: (viewId) => {
+      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) =>
+        prev?.filter((view) => view.id !== viewId)
+      )
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
   })
 }
 

@@ -16,6 +16,7 @@ import type {
   ColumnDefinition,
   Filter,
   TableLocks,
+  TableMetadata,
   TableRow as TableRowType,
   WorkflowGroup,
 } from '@/lib/table'
@@ -234,11 +235,38 @@ interface TableGridProps {
   /** Filter + sort. Lifted to wrapper so a single `useTable` call serves both. */
   queryOptions: QueryOptions
   /**
+   * **Column ids** to hide from the grid. Owned by the wrapper because the filter
+   * panel's Columns section edits the same list and the active view persists it.
+   */
+  hiddenColumns?: string[]
+  /** Active view's stored layout. When set it owns column order/width/pinning
+   *  instead of the table's shared `metadata`. */
+  viewLayout?: TableMetadata | null
+  /** Identity of `viewLayout`'s source (the view id, or `null` for "All"). Changing
+   *  it re-seeds the grid — comparing the config object itself would re-seed on
+   *  every refetch. */
+  viewLayoutKey?: string | null
+  /** Routes layout writes to the active view. Falls back to the table-metadata
+   *  mutation when absent. */
+  /**
+   * Layout persistence sink. The grid stamps every call with the OWNER of the
+   * write — the `viewLayoutKey` it was displaying when the change happened
+   * (`null` for All) — so the parent routes by what the user was looking at,
+   * not by resolve-effect state that may lag the grid's own effects.
+   */
+  onPersistLayout?: (patch: TableMetadata, owner: string | null) => void
+  /**
    * Ref the grid populates with its `handleColumnRename` so the wrapper's
    * sidebars can fire a column rename back into the grid (rewrites local
    * `columnWidths` / `columnOrder` keys). The wrapper just forwards the call.
    */
   columnRenameSinkRef: React.MutableRefObject<((oldName: string, newName: string) => void) | null>
+  /**
+   * Ref the grid populates with a reader for its CURRENT column layout. The grid
+   * owns this state, so the wrapper asks for it when creating a view rather than
+   * mirroring every patch — a mirror goes stale the moment a write bypasses it.
+   */
+  layoutSnapshotSinkRef?: React.MutableRefObject<(() => TableMetadata) | null>
   /**
    * Ref the grid populates with its post-row-delete cleanup (push undo,
    * clear selection). The wrapper invokes after the row-delete modal's
@@ -372,7 +400,12 @@ export function TableGrid({
   onStopRow,
   onSelectionChange,
   queryOptions,
+  hiddenColumns,
+  viewLayout,
+  viewLayoutKey = null,
+  onPersistLayout,
   columnRenameSinkRef,
+  layoutSnapshotSinkRef,
   afterDeleteRowsSinkRef,
   afterDeleteAllSinkRef,
   confirmDeleteColumnsSinkRef,
@@ -435,7 +468,15 @@ export function TableGrid({
   const [pinnedColumns, setPinnedColumns] = useState<string[]>([])
   const pinnedColumnsRef = useRef(pinnedColumns)
   pinnedColumnsRef.current = pinnedColumns
+  /** Current layout owner (view id, or null for All) for capture-at-dispatch
+   *  guards: a mutation callback persisting layout must compare the owner it was
+   *  dispatched under against this, or a mid-flight view switch writes the
+   *  origin's layout into the destination — same rule as undo's entryOwnsLayout. */
+  const viewLayoutKeyRef = useRef(viewLayoutKey)
+  viewLayoutKeyRef.current = viewLayoutKey
   const metadataSeededRef = useRef(false)
+  /** Which layout source the grid last seeded from, so a view switch re-seeds. */
+  const seededLayoutKeyRef = useRef<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const theadRef = useRef<HTMLTableSectionElement>(null)
@@ -661,6 +702,14 @@ export function TableGrid({
   // the grid. Reads through refs, so identity stability isn't required.
   columnRenameSinkRef.current = handleColumnRename
 
+  if (layoutSnapshotSinkRef) {
+    layoutSnapshotSinkRef.current = () => ({
+      columnWidths: columnWidthsRef.current,
+      ...(columnOrderRef.current ? { columnOrder: columnOrderRef.current } : {}),
+      pinnedColumns: pinnedColumnsRef.current,
+    })
+  }
+
   function getColumnWidths() {
     return columnWidthsRef.current
   }
@@ -707,10 +756,12 @@ export function TableGrid({
       setColumnOrder(newOrder)
       columnOrderRef.current = newOrder
     }
+    // Only the keys this action changes. Both sinks merge, and a patch carrying
+    // an unchanged `columnWidths` snapshot would clobber a concurrent resize
+    // whose write happened to land first.
     updateMetadataRef.current({
       pinnedColumns: newPinned,
       ...(orderChanged ? { columnOrder: newOrder } : {}),
-      columnWidths: columnWidthsRef.current,
     })
   }, [])
 
@@ -724,6 +775,10 @@ export function TableGrid({
     onPinnedColumnsChange: handlePinnedColumnsChange,
     getPinnedColumns,
     getColumnWidths,
+    onPersistLayout: onPersistLayout
+      ? (patch) => onPersistLayout(patch, viewLayoutKeyRef.current)
+      : undefined,
+    activeViewId: viewLayoutKey,
   })
   const undoRef = useRef(undo)
   undoRef.current = undo
@@ -750,8 +805,18 @@ export function TableGrid({
         ordered.push(col)
       }
     }
+    // Hidden columns are dropped BEFORE expansion so a workflow group's
+    // `groupSize` / `isGroupStart` are computed over the surviving children —
+    // expanding first would leave the spanning header claiming columns that no
+    // longer render. Hiding every child of a group therefore removes its header
+    // entirely, and hiding a plain column between two children of the same group
+    // merges what were two header spans back into one.
+    if (hiddenColumns && hiddenColumns.length > 0) {
+      const hidden = new Set(hiddenColumns)
+      ordered = ordered.filter((col) => !hidden.has(getColumnId(col)))
+    }
     return expandToDisplayColumns(ordered, tableWorkflowGroups)
-  }, [columns, columnOrder, tableWorkflowGroups])
+  }, [columns, columnOrder, hiddenColumns, tableWorkflowGroups])
 
   /** Column id → its rendered index (matches the cells' `data-col`), for placing overlays.
    *  Only built when collaborators are present (the overlay it feeds is gated on that too),
@@ -1804,10 +1869,7 @@ export function TableGrid({
           newOrder: finalOrder,
         })
         setColumnOrder(finalOrder)
-        updateMetadataRef.current({
-          columnWidths: columnWidthsRef.current,
-          columnOrder: finalOrder,
-        })
+        updateMetadataRef.current({ columnOrder: finalOrder })
       }
     }
     setDragColumnName(null)
@@ -1898,34 +1960,50 @@ export function TableGrid({
   }, [tableData?.id])
 
   useEffect(() => {
-    if (!tableData?.metadata) return
-    if (
-      !tableData.metadata.columnWidths &&
-      !tableData.metadata.columnOrder &&
-      !tableData.metadata.pinnedColumns
-    )
-      return
-    // First load: seed all from the server and remember we've seeded.
-    if (!metadataSeededRef.current) {
+    // With a view active its config owns the layout; otherwise the table's own
+    // metadata does. Switching views re-seeds unconditionally so the incoming
+    // view's layout replaces the outgoing one.
+    const source = viewLayout ?? tableData?.metadata ?? null
+    const switchedView = viewLayoutKey !== seededLayoutKeyRef.current
+
+    if (!metadataSeededRef.current || switchedView) {
+      // A switch resets even when there is nothing to seed from — a table created
+      // with `metadata: null` would otherwise keep showing the outgoing view's
+      // layout, since layout written under a view never populates table metadata.
+      if (!source && !switchedView) return
       metadataSeededRef.current = true
-      if (tableData.metadata.columnWidths) {
-        setColumnWidths(tableData.metadata.columnWidths)
+      seededLayoutKeyRef.current = viewLayoutKey
+      setColumnWidths(source?.columnWidths ?? {})
+      // Reconcile the incoming order against the schema before seeding it. The
+      // append effect only fires when `columns` changes, so a column that arrived
+      // while another source owned the layout (or none did, during load) would
+      // otherwise render via the `displayColumns` fallback but never be written
+      // into this owner's stored order until the next drag happened to heal it.
+      const seededOrder = source?.columnOrder ?? null
+      if (seededOrder) {
+        const known = new Set(seededOrder)
+        const missing = schemaColumnsRef.current.map(getColumnId).filter((id) => !known.has(id))
+        const reconciled = missing.length > 0 ? [...seededOrder, ...missing] : seededOrder
+        setColumnOrder(reconciled)
+        if (missing.length > 0 && canEditRef.current) {
+          updateMetadataRef.current({ columnOrder: reconciled })
+        }
+      } else {
+        setColumnOrder(null)
       }
-      if (tableData.metadata.columnOrder) {
-        setColumnOrder(tableData.metadata.columnOrder)
-      }
-      if (tableData.metadata.pinnedColumns) {
-        setPinnedColumns(tableData.metadata.pinnedColumns)
-      }
+      setPinnedColumns(source?.pinnedColumns ?? [])
       return
     }
+    if (!source) return
     // After first load a collaborator (or our own committed edit) reshaped the layout.
-    // Re-apply it live, but never clobber the gesture the local user is mid-way through —
-    // their in-progress value leads the server's. Each field is guarded by reference:
-    // React Query structural sharing keeps an unchanged sub-object referentially stable,
-    // so an unrelated change (e.g. a peer's pin) doesn't re-apply widths/order.
+    // Re-apply it live from the active layout source (a view's config when one is active,
+    // else the table's own metadata), but never clobber the gesture the local user is
+    // mid-way through — their in-progress value leads the server's. Each field is guarded
+    // by reference: React Query structural sharing keeps an unchanged sub-object
+    // referentially stable, so an unrelated change (e.g. a peer's pin) doesn't re-apply
+    // widths/order.
     // Width: keep the column being actively resized on its live local value.
-    const serverWidths = tableData.metadata.columnWidths
+    const serverWidths = source.columnWidths
     if (serverWidths && serverWidths !== columnWidthsRef.current) {
       const resizing = resizingColumnRef.current
       const localWidth = resizing ? columnWidthsRef.current[resizing] : undefined
@@ -1938,17 +2016,27 @@ export function TableGrid({
       // its onSettled invalidation brings back the server's committed (merged) widths.
     }
     // Pins toggle instantly (no in-progress gesture) — apply on change.
-    const serverPins = tableData.metadata.pinnedColumns
+    const serverPins = source.pinnedColumns
     if (serverPins && serverPins !== pinnedColumnsRef.current) {
       setPinnedColumns(serverPins)
     }
-    // Order: apply unless a local column drag is in flight (an optimistic reorder would
-    // otherwise be reverted to the pre-drag order the refetch returns).
-    const serverOrder = tableData.metadata.columnOrder
+    // Order: apply the server order live (a peer reorder or our own committed edit),
+    // unless a local column drag is in flight (an optimistic reorder would otherwise be
+    // reverted to the pre-drag order the refetch returns). Preserve our own just-appended
+    // ids whose patch is still in flight by appending them — `viewLayout` gets a new
+    // identity on every save, so a refetch/view-save predating the append must not drop
+    // them; `displayColumns` harmlessly skips any id with no matching column.
+    const serverOrder = source.columnOrder
     if (serverOrder && serverOrder !== columnOrderRef.current && !dragColumnNameRef.current) {
-      setColumnOrder(serverOrder)
+      const localOrder = columnOrderRef.current
+      if (!localOrder) {
+        setColumnOrder(serverOrder)
+      } else {
+        const localOnly = localOrder.filter((id) => !serverOrder.includes(id))
+        setColumnOrder(localOnly.length > 0 ? [...serverOrder, ...localOnly] : serverOrder)
+      }
     }
-  }, [tableData?.metadata])
+  }, [tableData?.metadata, viewLayout, viewLayoutKey])
 
   useEffect(() => {
     if (!isColumnSelection || !selectionAnchor) return
@@ -2254,7 +2342,35 @@ export function TableGrid({
   batchUpdateAsyncRef.current = batchUpdateRowsMutation.mutateAsync
 
   const updateMetadataRef = useRef(updateMetadataMutation.mutate)
-  updateMetadataRef.current = updateMetadataMutation.mutate
+  updateMetadataRef.current = onPersistLayout
+    ? (patch: TableMetadata) => onPersistLayout(patch, viewLayoutKeyRef.current)
+    : updateMetadataMutation.mutate
+
+  /**
+   * Records columns created since the layout was last saved. A new column already
+   * *renders* — `displayColumns` appends anything missing from `columnOrder` — but
+   * without this only the insert-left/right path wrote it back, so creating one via
+   * "+ New column", a workflow group, or an enrichment left it out of the stored
+   * order. With a view active this writes into that view, which is what makes a
+   * column added while a view is open belong to it.
+   *
+   * No-ops when the table has no explicit order (schema order governs, nothing to
+   * record) and when nothing is missing, so it self-heals once and stays quiet.
+   */
+  useEffect(() => {
+    const order = columnOrderRef.current
+    if (!order || columns.length === 0) return
+    const known = new Set(order)
+    const appended = columns.map(getColumnId).filter((id) => !known.has(id))
+    if (appended.length === 0) return
+    const nextOrder = [...order, ...appended]
+    setColumnOrder(nextOrder)
+    // Render locally regardless, but only WRITE when the viewer may. Both sinks
+    // are write-gated, so a read-only member opening a view whose stored order
+    // lags the schema would otherwise fire a doomed PATCH and an error toast
+    // just by looking at it.
+    if (canEditRef.current) updateMetadataRef.current({ columnOrder: nextOrder })
+  }, [columns])
 
   const deleteWorkflowGroupRef = useRef(deleteWorkflowGroupMutation.mutate)
   deleteWorkflowGroupRef.current = deleteWorkflowGroupMutation.mutate
@@ -3208,10 +3324,7 @@ export function TableGrid({
       const insertIdx = anchorIdx + (side === 'right' ? 1 : 0)
       newOrder.splice(insertIdx, 0, newColumn)
       setColumnOrder(newOrder)
-      updateMetadataRef.current({
-        columnWidths: columnWidthsRef.current,
-        columnOrder: newOrder,
-      })
+      updateMetadataRef.current({ columnOrder: newOrder })
     },
     []
   )
@@ -3221,18 +3334,20 @@ export function TableGrid({
       const index = schemaColumnsRef.current.findIndex((c) => getColumnId(c) === columnId)
       if (index === -1) return
       const name = generateColumnName()
+      const owner = viewLayoutKeyRef.current
       addColumnMutation.mutate(
         { name, type: 'string', position: index },
         {
           onSuccess: (result) => {
             const newId = result.data.columns.find((c) => c.name === name)?.id ?? name
-            pushUndoRef.current({
-              type: 'create-column',
-              columnName: name,
-              columnId: newId,
-              position: index,
-            })
-            insertColumnInOrder(columnId, newId, 'left')
+            pushUndoRef.current(
+              { type: 'create-column', columnName: name, columnId: newId, position: index },
+              owner
+            )
+            // Skipped after a mid-flight view switch: the destination re-seeded
+            // its own order, and the append effect places the new column there
+            // when the schema refetch lands.
+            if (owner === viewLayoutKeyRef.current) insertColumnInOrder(columnId, newId, 'left')
           },
         }
       )
@@ -3246,18 +3361,17 @@ export function TableGrid({
       if (index === -1) return
       const name = generateColumnName()
       const position = index + 1
+      const owner = viewLayoutKeyRef.current
       addColumnMutation.mutate(
         { name, type: 'string', position },
         {
           onSuccess: (result) => {
             const newId = result.data.columns.find((c) => c.name === name)?.id ?? name
-            pushUndoRef.current({
-              type: 'create-column',
-              columnName: name,
-              columnId: newId,
-              position,
-            })
-            insertColumnInOrder(columnId, newId, 'right')
+            pushUndoRef.current(
+              { type: 'create-column', columnName: name, columnId: newId, position },
+              owner
+            )
+            if (owner === viewLayoutKeyRef.current) insertColumnInOrder(columnId, newId, 'right')
           },
         }
       )
@@ -3403,6 +3517,9 @@ export function TableGrid({
       originalPositions.set(name, { position: def ? cols.indexOf(def) : cols.length, def })
     }
     const deletedOriginalPositions: number[] = []
+    // Layout owner when the chain was dispatched — every onDeleted below fires
+    // from a mutation callback, so it must not trust the sink current by then.
+    const owner = viewLayoutKeyRef.current
 
     const deleteNext = (index: number) => {
       if (index >= columnsToDelete.length) return
@@ -3420,24 +3537,36 @@ export function TableGrid({
 
       const onDeleted = () => {
         deletedOriginalPositions.push(entry.position)
-        pushUndoRef.current({
-          type: 'delete-column',
-          // `columnToDelete` is the stable id; record the display name for re-create.
-          columnName: entry.def?.name ?? columnToDelete,
-          columnId: columnToDelete,
-          columnType: entry.def?.type ?? 'string',
-          columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
-          columnUnique: entry.def?.unique ?? false,
-          columnRequired: entry.def?.required ?? false,
-          // Without these a deleted select column can't be re-created — it is
-          // invalid with no options, and the saved cell data is option ids.
-          ...(entry.def?.options ? { columnOptions: entry.def.options } : {}),
-          ...(entry.def?.multiple ? { columnMultiple: true } : {}),
-          cellData,
-          previousOrder: orderSnapshot,
-          previousWidth,
-          previousPinnedColumns: pinnedSnapshot,
-        })
+        pushUndoRef.current(
+          {
+            type: 'delete-column',
+            // `columnToDelete` is the stable id; record the display name for re-create.
+            columnName: entry.def?.name ?? columnToDelete,
+            columnId: columnToDelete,
+            columnType: entry.def?.type ?? 'string',
+            columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
+            columnUnique: entry.def?.unique ?? false,
+            columnRequired: entry.def?.required ?? false,
+            // Without these a deleted select column can't be re-created — it is
+            // invalid with no options, and the saved cell data is option ids.
+            ...(entry.def?.options ? { columnOptions: entry.def.options } : {}),
+            ...(entry.def?.multiple ? { columnMultiple: true } : {}),
+            cellData,
+            previousOrder: orderSnapshot,
+            previousWidth,
+            previousPinnedColumns: pinnedSnapshot,
+          },
+          owner
+        )
+
+        // The cleanup below edits the ORIGIN view's layout. After a mid-flight
+        // switch the grid has re-seeded to the destination; dangling keys for
+        // the deleted column there are pruned on read, so skip rather than push
+        // origin snapshots into the destination's state or its stored config.
+        if (owner !== viewLayoutKeyRef.current) {
+          deleteNext(index + 1)
+          return
+        }
 
         const { [columnToDelete]: _removedWidth, ...cleanedWidths } = columnWidthsRef.current
         setColumnWidths(cleanedWidths)

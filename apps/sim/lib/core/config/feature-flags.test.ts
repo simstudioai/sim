@@ -159,6 +159,30 @@ describe('isFeatureEnabled', () => {
     })
   })
 
+  describe('table-views flag', () => {
+    it('falls back to TABLE_VIEWS when AppConfig is disabled', async () => {
+      envRef.TABLE_VIEWS = undefined
+      expect(await isFeatureEnabled('table-views', { userId: 'u1', orgId: 'o1' })).toBe(false)
+
+      envRef.TABLE_VIEWS = true
+      expect(await isFeatureEnabled('table-views', { userId: 'u1', orgId: 'o1' })).toBe(true)
+    })
+
+    it('targets specific orgs and users via AppConfig, ignoring the fallback secret', async () => {
+      envRef.TABLE_VIEWS = undefined
+      withAppConfig({ 'table-views': { orgIds: ['o1'], userIds: ['u9'] } })
+      expect(await isFeatureEnabled('table-views', { orgId: 'o1' })).toBe(true)
+      expect(await isFeatureEnabled('table-views', { userId: 'u9' })).toBe(true)
+      expect(await isFeatureEnabled('table-views', { userId: 'u1', orgId: 'o2' })).toBe(false)
+    })
+
+    it('resolves off with no context, so a signed-out render never gates on', async () => {
+      envRef.TABLE_VIEWS = undefined
+      withAppConfig({ 'table-views': { orgIds: ['o1'] } })
+      expect(await isFeatureEnabled('table-views')).toBe(false)
+    })
+  })
+
   it('returns false for an unknown flag', async () => {
     withAppConfig({})
     expect(await enabled('missing', { userId: 'u1' })).toBe(false)
