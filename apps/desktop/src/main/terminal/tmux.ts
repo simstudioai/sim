@@ -381,7 +381,7 @@ export function pollRun(handle: TmuxRunHandle): TmuxRunOutcome {
  * second, quadratic in output size. Liveness only needs the status file, which
  * is a few bytes; the output is read once, when the run is settled.
  */
-function isRunComplete(handle: TmuxRunHandle): boolean {
+export function isRunComplete(handle: TmuxRunHandle): boolean {
   return readIfPresent(handle.statusPath) !== null
 }
 
