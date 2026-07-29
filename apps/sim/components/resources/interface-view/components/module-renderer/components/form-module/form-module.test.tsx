@@ -73,7 +73,7 @@ const SHARE_SOURCE: ResourceSource<'interface'> = shareSource({
   seed: { name: 'Shared', layout: EMPTY_LAYOUT, modules: {} },
 })
 
-const GRANTS: ResourceGrants = { write: true, run: 'draft', manage: false }
+const GRANTS: ResourceGrants = { write: true, run: true }
 
 /** The subset of a TanStack mutation `FormModule` reads, mutable per test. */
 interface MutationState {

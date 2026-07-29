@@ -125,7 +125,7 @@ const TOKEN = 'tok-1'
 
 const EMPTY_LAYOUT: InterfaceLayout = { version: 1, grid: { rows: 1, cols: 1 }, modules: [] }
 
-const GRANTS: ResourceGrants = { write: true, run: 'draft', manage: false }
+const GRANTS: ResourceGrants = { write: true, run: true }
 
 const WORKSPACE_SOURCE: ResourceSource<'interface'> = workspaceSource({
   kind: 'interface',

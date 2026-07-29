@@ -25,7 +25,7 @@ Enforced by `bun run check:resources` (strict CI gate: `bun run check:resources:
 | Axis | Type | Replaces |
 | --- | --- | --- |
 | `source` | `WorkspaceSource<K> \| ShareSource<K>`, discriminated on `via` | `workspaceId`, `token`, `contentSource`, `isPublic`, `isShared` |
-| `grants` | `{ write: boolean; run: 'none'\|'deployed'\|'draft' }` | `canEdit`, `canRun`, `canAdmin`, `canDelete`, `disableEdit/Insert/Delete` |
+| `grants` | `{ write: boolean; run: boolean }` | `canEdit`, `canRun`, `canAdmin`, `canDelete`, `disableEdit/Insert/Delete` |
 | `host` | `'page' \| 'panel' \| 'public'` | `embedded`, `isEmbedded`, `compact`, `minimal` |
 
 There is no fourth axis. Agent streaming is **one optional prop on `FileView`** (`streaming?: FileViewStreaming`), because only files stream.

@@ -24,7 +24,7 @@ const FileView = lazy(() =>
 )
 
 /** A file module presents its file. It never offers to change it, in any scope. */
-const FILE_MODULE_GRANTS: ResourceGrants = { write: false, run: 'none' }
+const FILE_MODULE_GRANTS: ResourceGrants = { write: false, run: false }
 
 export interface FileModuleProps {
   module: Extract<InterfaceModule, { type: 'file' }>

@@ -20,29 +20,22 @@ describe('grantsFromPermissions', () => {
   it('grants nothing outside a workspace membership', () => {
     expect(grantsFromPermissions({ canRead: false, canEdit: false, canAdmin: false })).toEqual({
       write: false,
-      run: 'none',
+      run: false,
     })
   })
 
-  it('lets a read-only member run the deployed state', () => {
+  it('lets a read-only member run', () => {
     expect(grantsFromPermissions({ canRead: true, canEdit: false, canAdmin: false })).toEqual({
       write: false,
-      run: 'deployed',
+      run: true,
     })
   })
 
-  it('lets an editor run the draft state', () => {
+  it('lets an editor run', () => {
     expect(grantsFromPermissions({ canRead: true, canEdit: true, canAdmin: false })).toEqual({
       write: true,
-      run: 'draft',
+      run: true,
     })
-  })
-
-  it('never grants draft runs without write, for any permission combination', () => {
-    for (const permissions of ALL_PERMISSIONS) {
-      const grants = grantsFromPermissions(permissions)
-      if (grants.run === 'draft') expect(grants.write).toBe(true)
-    }
   })
 
   it('never grants write without an edit permission', () => {
@@ -55,7 +48,7 @@ describe('grantsFromPermissions', () => {
   it('never runs anything without at least read', () => {
     for (const permissions of ALL_PERMISSIONS) {
       if (permissions.canRead || permissions.canEdit) continue
-      expect(grantsFromPermissions(permissions).run).toBe('none')
+      expect(grantsFromPermissions(permissions).run).toBe(false)
     }
   })
 })
@@ -67,17 +60,11 @@ describe('grantsForShare', () => {
     }
   })
 
-  it('never grants a draft run', () => {
-    for (const kind of RESOURCE_KINDS) {
-      expect(grantsForShare(kind).run).not.toBe('draft')
-    }
-  })
-
-  it('runs the deployed state only for a shared interface', () => {
-    expect(grantsForShare('interface').run).toBe('deployed')
+  it('runs only for a shared interface', () => {
+    expect(grantsForShare('interface').run).toBe(true)
     for (const kind of RESOURCE_KINDS) {
       if (kind === 'interface') continue
-      expect(grantsForShare(kind).run).toBe('none')
+      expect(grantsForShare(kind).run).toBe(false)
     }
   })
 
@@ -86,7 +73,7 @@ describe('grantsForShare', () => {
     for (const kind of RESOURCE_KINDS) {
       const grants = grantsForShare(kind)
       expect(grants.write).toBe(false)
-      expect(grants.run === 'none' || grants.run === member.run).toBe(true)
+      expect(!grants.run || member.run).toBe(true)
     }
   })
 })

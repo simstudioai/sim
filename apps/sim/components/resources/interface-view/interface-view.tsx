@@ -80,7 +80,7 @@ export function InterfaceView({ source, grants, host, editing }: InterfaceViewPr
    * so the grant alone decides. Anything narrower made a workspace reader less
    * capable than an anonymous visitor holding a link to the same interface.
    */
-  const canRun = grants.run !== 'none'
+  const canRun = grants.run
 
   return (
     <ResourceProvider source={source} grants={grants} host={host}>

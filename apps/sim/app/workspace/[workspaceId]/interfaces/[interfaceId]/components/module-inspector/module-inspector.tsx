@@ -14,7 +14,6 @@ import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
 export interface ModuleInspectorProps {
   workspaceId: string
-  interfaceId: string
   /** `null` = no selection → renders the "Select a module to edit" empty state. */
   module: InterfaceModule | null
   mode: InterfaceMode

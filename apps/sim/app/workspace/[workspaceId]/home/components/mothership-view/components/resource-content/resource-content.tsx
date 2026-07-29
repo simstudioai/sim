@@ -102,7 +102,7 @@ interface ResourceContentProps {
 }
 
 /** The agent owns the file while it is streaming; nothing is edited from here. */
-const STREAMING_FILE_GRANTS: ResourceGrants = { write: false, run: 'none' }
+const STREAMING_FILE_GRANTS: ResourceGrants = { write: false, run: false }
 
 /**
  * Grace window kept locked after the agent stops streaming into the file, so the lock bridges the

@@ -421,7 +421,7 @@ A **resource** is a thing a workspace holds that can also be shared — a file, 
 Views are mounted against exactly **three axes**, defined in `apps/sim/resources/**` (pure TypeScript — no React, no `'use client'`, because a Server Component builds a share source during SSR):
 
 - `source` — where the data comes from and by what address: `WorkspaceSource<K> | ShareSource<K>`, discriminated on `via`. Replaces `workspaceId`, `token`, `contentSource`, `isPublic`. `ShareSource` declares `workspaceId?: never`, so a share token can no longer be laundered through a workspace-shaped slot.
-- `grants` — what this viewer may do: `{ write, run: 'none'|'deployed'|'draft' }`. Replaces `canEdit`, `canRun`, `canAdmin`, `disableEdit/Insert/Delete`.
+- `grants` — what this viewer may do: `{ write, run }`. Replaces `canEdit`, `canRun`, `canAdmin`, `disableEdit/Insert/Delete`.
 - `host` — who owns the URL, the router, the document frame: `'page' | 'panel' | 'public'`. Replaces `embedded`. `hostOwnsUrl(host)` is the one place the "embedded views do not write nuqs keys" rule lives.
 
 There is no fourth axis; agent streaming is one optional prop on `FileView`. Consumers CONSTRUCT the axes and MOUNT the view — never wrap it in a passthrough, never reach past its barrel, never reimplement its UI because it lacks a seam (add the seam), never import `@/app/workspace/[workspaceId]/**` from an anonymous surface (`app/f/**`, `app/i/**`, `app/(interfaces)/**`), and never read `useRouter`/`useParams`/`useQueryState`/`useUserPermissionsContext` inside a unit. A kind with no canonical view yet (`table`, `knowledge`, `log`, `schedule`) is simply absent from the check's `CANONICAL_UNITS` — no flag, shim, or placeholder.

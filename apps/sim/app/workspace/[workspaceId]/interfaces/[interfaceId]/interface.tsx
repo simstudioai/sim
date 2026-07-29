@@ -206,7 +206,6 @@ export function Interface({ workspaceId, interfaceId, host }: InterfaceProps) {
           <InterfaceView source={source} grants={grants} host={host} editing={editing} />
           <ModuleInspector
             workspaceId={workspaceId}
-            interfaceId={interfaceId}
             module={selectedModule}
             mode={mode}
             canEdit={canEdit}

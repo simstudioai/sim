@@ -31,7 +31,7 @@ because a Server Component builds a share source during SSR):
 
 ```ts
 source  // WorkspaceSource<K> | ShareSource<K>, discriminated on `via`
-grants  // { write: boolean; run: 'none' | 'deployed' | 'draft' }
+grants  // { write: boolean; run: boolean }
 host    // 'page' | 'panel' | 'public'
 ```
 
@@ -160,6 +160,37 @@ Lower value, and none has a public consumer today.
 the flag. A workflow is a live collaborative session, not a document with an address. Forcing it into
 `source`/`grants`/`host` would model the socket as an addressing concern, which it is not. Revisit
 only with a deliberate design for collaborative sessions.
+
+## Consolidation still owed inside the interfaces feature
+
+An audit of the change set confirmed these against the working tree. They are duplication the
+diff *added*, not inherited, and each has one obvious home:
+
+- **Picker copy and list wiring.** `"Select a workflow"` / `"Search workflows..."` /
+  `"No workflows in this workspace"` is spelled five times, and the three list queries
+  (`useWorkflows`/`useTablesList`/`useWorkspaceFiles`) are wired in both the inspector's
+  `ResourcePickerField` and the canvas's `ModuleResourcePicker`. One copy source; the field
+  takes a `kind` instead of four copy props.
+- **`createFormField`** is byte-identical in the inspector and the canvas form module — and one
+  copy carries a comment promising the very invariant only a shared function delivers.
+- **`toFieldErrorDetails`** is byte-identical across the two form-submit routes; the 400 wire
+  shape should have one definition.
+- **Interface grid geometry** is declared in two components (`--cell-*` and `--pane-*`) while
+  `module-chrome.ts` exists to own it.
+- **Unavailability copy** for the file and table modules is hand-rolled where
+  `source.unavailableCopy` is the declared home.
+
+Three further findings were raised but never independently refuted (their verifier agents died
+mid-run). Verify before acting on them: two barrel-style inconsistencies and one structural claim
+about `apps/sim/resources/index.ts` re-export surface.
+
+## Verification caveat worth knowing
+
+`apps/sim/tsconfig.json` excludes `**/*.test.ts(x)`, so **test files are never typechecked**. A
+stale literal in a test — a removed field, an old union member — produces no compile error, and
+vitest only catches it when the value is *asserted against* rather than merely constructed. That
+is how `manage: false` survived in two test files after the field was deleted from
+`ResourceGrants`. When changing a shared type, grep the repo; do not trust a green tsc.
 
 ## Known gaps in what already shipped
 
