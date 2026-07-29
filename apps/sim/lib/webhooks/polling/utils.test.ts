@@ -15,8 +15,9 @@ vi.mock('drizzle-orm', () => {
     sqlCalls.push(node)
     return node
   }
-  // Identity, so a `sql.param(arr)` value still shows up verbatim in `values`.
+  // Identity, so an interpolated value still shows up verbatim in `values`.
   sql.param = (value: unknown) => value
+  sql.join = (fragments: unknown[], separator: unknown) => ({ fragments, separator })
   return {
     sql,
     and: vi.fn(),
@@ -69,7 +70,7 @@ describe('updateWebhookProviderConfig (atomic jsonb merge)', () => {
 
     expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
     expect(allInterpolatedValues()).toContain(JSON.stringify({ historyId: 'h1', nulled: null }))
-    expect(allInterpolatedValues()).toContainEqual(['cleared'])
+    expect(allInterpolatedValues()).toContain('cleared')
   })
 
   it('uses merge only (no key-removal expression) when nothing is undefined', async () => {

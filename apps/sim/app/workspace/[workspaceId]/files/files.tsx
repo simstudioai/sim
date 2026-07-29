@@ -25,7 +25,6 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
-import { PinButton } from '@/components/pin-button'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { captureEvent } from '@/lib/posthog/client'
 import { triggerArchiveDownload, triggerFileDownload } from '@/lib/uploads/client/download'
@@ -62,6 +61,11 @@ import {
   Resource,
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
+import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
+import {
+  parseMoveOptionValue,
+  ROOT_MOVE_OPTION_VALUE,
+} from '@/app/workspace/[workspaceId]/components/folders'
 import { FilesActionBar } from '@/app/workspace/[workspaceId]/files/components/action-bar'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
 import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
@@ -75,7 +79,6 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
-import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import {
   filesFilterParsers,
   filesFilterUrlKeys,
@@ -85,7 +88,7 @@ import {
 } from '@/app/workspace/[workspaceId]/files/search-params'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { usePinnedIds } from '@/hooks/queries/pinned-items'
+import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
 import {
   useBulkArchiveWorkspaceFileItems,
@@ -215,6 +218,10 @@ export function Files() {
   const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS } = useWorkspaceFileFolders(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const pinnedFileIds = usePinnedIds(workspaceId, 'file')
+  // Folders pin under their own resource type, so their pinned set is a separate query.
+  const pinnedFolderIds = usePinnedIds(workspaceId, 'folder')
+  const pinItem = usePinItem()
+  const unpinItem = useUnpinItem()
   const membersById = useMemo(() => {
     const map = new Map<string, WorkspaceMember>()
     for (const member of members ?? []) map.set(member.userId, member)
@@ -375,12 +382,34 @@ export function Files() {
         directSize.set(file.folderId, (directSize.get(file.folderId) ?? 0) + file.size)
       }
     }
+    /**
+     * Children indexed once rather than re-scanning `folders` per node — the roll-up visits
+     * every folder, so the filter made this quadratic.
+     */
+    const childrenByParent = new Map<string, WorkspaceFileFolderApi[]>()
+    for (const folder of folders) {
+      if (!folder.parentId) continue
+      const siblings = childrenByParent.get(folder.parentId)
+      if (siblings) siblings.push(folder)
+      else childrenByParent.set(folder.parentId, [folder])
+    }
+
     const totalSize = new Map<string, number>()
+    /**
+     * `visiting` terminates a parent/child cycle. The optimistic folder-move write can produce
+     * one in cache, and without the guard this recurses until the stack blows and takes the
+     * whole page down — the same guard the shared folder helpers carry.
+     */
+    const visiting = new Set<string>()
     const getTotal = (folderId: string): number => {
-      if (totalSize.has(folderId)) return totalSize.get(folderId)!
-      const children = folders.filter((f) => f.parentId === folderId)
+      const cached = totalSize.get(folderId)
+      if (cached !== undefined) return cached
+      if (visiting.has(folderId)) return 0
+      visiting.add(folderId)
       const size =
-        (directSize.get(folderId) ?? 0) + children.reduce((s, c) => s + getTotal(c.id), 0)
+        (directSize.get(folderId) ?? 0) +
+        (childrenByParent.get(folderId) ?? []).reduce((sum, child) => sum + getTotal(child.id), 0)
+      visiting.delete(folderId)
       totalSize.set(folderId, size)
       return size
     }
@@ -398,6 +427,12 @@ export function Files() {
     const col = activeSort?.column ?? 'name'
     const dir = activeSort?.direction ?? 'asc'
     return [...searched].sort((a, b) => {
+      // Pinned folders float to the top of every sort/direction — pinning is a
+      // user-declared priority, not another sort key to be inverted by `desc`.
+      const aPinned = pinnedFolderIds.has(a.id)
+      const bPinned = pinnedFolderIds.has(b.id)
+      if (aPinned !== bPinned) return aPinned ? -1 : 1
+
       let cmp = 0
       if (col === 'updated') {
         cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
@@ -408,7 +443,7 @@ export function Files() {
       }
       return dir === 'asc' ? cmp : -cmp
     })
-  }, [folders, currentFolderId, debouncedSearchTerm, activeSort])
+  }, [folders, currentFolderId, debouncedSearchTerm, activeSort, pinnedFolderIds])
 
   const filteredFiles = useMemo(() => {
     const needle = debouncedSearchTerm.trim().toLowerCase()
@@ -496,6 +531,7 @@ export function Files() {
         name: {
           icon: <Folder className='size-[14px]' />,
           label: folder.name,
+          pinned: pinnedFolderIds.has(folder.id),
         },
         size: {
           label:
@@ -521,15 +557,7 @@ export function Files() {
           name: {
             icon: <Icon className='size-[14px]' />,
             label: file.name,
-            endAdornment: (
-              <PinButton
-                workspaceId={workspaceId}
-                resourceType='file'
-                resourceId={file.id}
-                pinned={pinnedFileIds.has(file.id)}
-                className='ml-2'
-              />
-            ),
+            pinned: pinnedFileIds.has(file.id),
           },
           size: {
             label: formatFileSize(file.size, { includeBytes: true }),
@@ -547,7 +575,7 @@ export function Files() {
     })
 
     return [...folderRows, ...fileRows]
-  }, [visibleFolders, filteredFiles, membersById, folderSizeMap, workspaceId, pinnedFileIds])
+  }, [visibleFolders, filteredFiles, membersById, folderSizeMap, pinnedFolderIds, pinnedFileIds])
 
   const rows: ResourceRow[] = useMemo(() => {
     if (!listRename.editingId) return baseRows
@@ -1365,9 +1393,20 @@ export function Files() {
     closeContextMenu()
   }, [selectedRowIds, handleBulkDelete, closeContextMenu])
 
+  const handleContextMenuTogglePin = useCallback(() => {
+    const item = contextMenuItemRef.current
+    if (!item) return
+    const resourceType = item.kind === 'folder' ? 'folder' : 'file'
+    const pinned =
+      item.kind === 'folder' ? pinnedFolderIds.has(item.id) : pinnedFileIds.has(item.id)
+    const mutation = pinned ? unpinItem : pinItem
+    mutation.mutate({ workspaceId, resourceType, resourceId: item.id })
+    closeContextMenu()
+  }, [workspaceId, pinnedFolderIds, pinnedFileIds, closeContextMenu])
+
   const handleContextMenuMove = useCallback(
     async (optionValue: string) => {
-      const targetFolderId = optionValue === '__root__' ? null : optionValue
+      const targetFolderId = parseMoveOptionValue(optionValue)
       try {
         await moveItems.mutateAsync({
           workspaceId,
@@ -1754,7 +1793,7 @@ export function Files() {
         .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
         .map((f) => ({ value: f.id, label: f.name, children: buildSubtree(f.id) }))
 
-    return [{ value: '__root__', label: 'Files', children: [] }, ...buildSubtree(null)]
+    return [{ value: ROOT_MOVE_OPTION_VALUE, label: 'Files', children: [] }, ...buildSubtree(null)]
   }, [folders, selectedFolderIds, descendantFolderIdsByFolderId])
 
   const sortConfig: SortConfig = useMemo(
@@ -1985,6 +2024,16 @@ export function Files() {
     )
   }
 
+  /**
+   * Read off the same ref the context-menu handlers use, so the menu's Pin/Unpin label
+   * describes the row that was right-clicked. Opening the menu is a state change, so
+   * this re-reads on the render that shows it.
+   */
+  const contextMenuItem = contextMenuItemRef.current
+  const isContextMenuItemPinned = contextMenuItem
+    ? (contextMenuItem.kind === 'folder' ? pinnedFolderIds : pinnedFileIds).has(contextMenuItem.id)
+    : false
+
   return (
     <div
       className='relative flex h-full flex-col overflow-hidden'
@@ -2064,11 +2113,9 @@ export function Files() {
         onRename={handleContextMenuRename}
         onDelete={handleContextMenuDelete}
         onMove={handleContextMenuMove}
-        onShare={
-          canEdit && contextMenuItemRef.current?.kind === 'file'
-            ? handleContextMenuShare
-            : undefined
-        }
+        onShare={canEdit && contextMenuItem?.kind === 'file' ? handleContextMenuShare : undefined}
+        onTogglePin={handleContextMenuTogglePin}
+        pinned={isContextMenuItemPinned}
         moveOptions={contextMenuMoveOptions}
         canEdit={canEdit}
         selectedCount={selectedRowIds.size}

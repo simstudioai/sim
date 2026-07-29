@@ -45,6 +45,7 @@ import {
 } from '@/lib/copilot/request/session'
 import type { ExecutionContext, OrchestratorResult } from '@/lib/copilot/request/types'
 import { persistChatResources } from '@/lib/copilot/resources/persistence'
+import { isEphemeralResource } from '@/lib/copilot/resources/types'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -82,10 +83,27 @@ const ResourceAttachmentSchema = z.object({
     'log',
     'scheduledtask',
     'generic',
+    'browser',
+    // Filtered out client-side rather than sent, but accepted here so a stray
+    // terminal attachment degrades to a no-op instead of rejecting the whole
+    // chat request.
+    'terminal',
   ]),
   id: z.string().min(1),
   title: z.string().optional(),
   active: z.boolean().optional(),
+  /**
+   * Live page URL for `browser` attachments. The agent browser lives in the
+   * desktop app, so the client supplies its state — the server has nothing
+   * to resolve it from. Web-only: this string is interpolated into LLM
+   * context, and rejecting other schemes (file://, chrome://…) keeps local
+   * host paths from ever entering the copilot payload.
+   */
+  url: z
+    .string()
+    .max(2048)
+    .regex(/^https?:\/\//, 'Must be an http(s) URL')
+    .optional(),
 })
 
 const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['type'], string> = {
@@ -99,6 +117,21 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
   log: 'Log',
   scheduledtask: 'Scheduled Task',
   generic: 'Resource',
+  browser: 'Browser',
+  terminal: 'Terminal',
+}
+
+/**
+ * Synthetic client-side panels are context-only: never persisted to the chat.
+ * Browser tab metadata is persistable even though its live page is client-held.
+ * Shares the client's rule so the two layers cannot drift.
+ */
+function isPersistableAttachment(resource: z.infer<typeof ResourceAttachmentSchema>): boolean {
+  return !isEphemeralResource({
+    type: resource.type,
+    id: resource.id,
+    title: resource.title ?? '',
+  })
 }
 
 const ChatContextSchema = z.object({
@@ -119,6 +152,8 @@ const ChatContextSchema = z.object({
     'integration',
     'skill',
     'mcp',
+    'browser_tab',
+    'terminal_tab',
   ]),
   label: z.string(),
   chatId: z.string().optional(),
@@ -134,6 +169,8 @@ const ChatContextSchema = z.object({
   skillId: z.string().optional(),
   serverId: z.string().optional(),
   scheduleId: z.string().optional(),
+  tabId: z.string().optional(),
+  terminalId: z.string().optional(),
 })
 
 const ChatMessageSchema = z.object({
@@ -154,9 +191,44 @@ const ChatMessageSchema = z.object({
   contexts: z.array(ChatContextSchema).optional(),
   commands: z.array(z.string()).optional(),
   userTimezone: z.string().optional(),
+  desktopCapabilities: z
+    .object({
+      localFilesystem: z.boolean().optional(),
+      browser: z.boolean().optional(),
+      terminal: z.boolean().optional(),
+      terminals: z
+        .array(
+          z.object({
+            id: z.string().max(64),
+            cwd: z.string().max(1024).optional(),
+            running: z.string().max(1024).optional(),
+            interactive: z.boolean().optional(),
+            active: z.boolean().optional(),
+          })
+        )
+        .max(8)
+        .optional(),
+      browserSessions: z
+        .array(
+          z.object({
+            hostname: z
+              .string()
+              .max(253)
+              .regex(/^[a-z0-9.-]+$/),
+            evidence: z.enum(['sign-in-completed', 'cookies']),
+            lastObservedAt: z.string().datetime(),
+          })
+        )
+        .max(20)
+        .optional(),
+    })
+    .optional(),
+  browserCapable: z.boolean().optional(),
 })
 
 type UnifiedChatRequest = z.infer<typeof ChatMessageSchema>
+type BrowserSessions = NonNullable<UnifiedChatRequest['desktopCapabilities']>['browserSessions']
+type Terminals = NonNullable<UnifiedChatRequest['desktopCapabilities']>['terminals']
 type UnifiedChatBranch =
   | {
       kind: 'workflow'
@@ -193,6 +265,11 @@ type UnifiedChatBranch =
         implicitFeedback?: string
         workspaceContext?: string
         vfs?: VfsSnapshotV1
+        desktopLocalFilesystem?: boolean
+        browserCapable?: boolean
+        terminalCapable?: boolean
+        terminals?: Terminals
+        browserSessions?: BrowserSessions
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
         userId: string
@@ -224,6 +301,11 @@ type UnifiedChatBranch =
         userMetadata?: { name?: string; email?: string; timezone?: string }
         workspaceContext?: string
         vfs?: VfsSnapshotV1
+        desktopLocalFilesystem?: boolean
+        browserCapable?: boolean
+        terminalCapable?: boolean
+        terminals?: Terminals
+        browserSessions?: BrowserSessions
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
         userId: string
@@ -314,6 +396,22 @@ async function resolveAgentContexts(params: {
   if (Array.isArray(resourceAttachments) && resourceAttachments.length > 0 && workspaceId) {
     const results = await Promise.allSettled(
       resourceAttachments.map(async (resource) => {
+        // The live browser panel resolves from the attachment itself: its
+        // page state is client-held (the desktop app's embedded browser),
+        // not a workspace entity the server could look up.
+        if (resource.type === 'browser') {
+          if (!resource.url) return null
+          const title = resource.title?.trim()
+          return {
+            type: 'active_resource',
+            tag: resource.active ? '@active_tab' : '@open_tab',
+            content: `The user's ${
+              resource.active ? 'currently visible browser tab' : 'other open browser tab'
+            } (driven by the browser subagent) is open on: ${
+              title ? `"${title}" — ` : ''
+            }${resource.url}`,
+          }
+        }
         const ctx = await resolveActiveResourceContext(
           resource.type,
           resource.id,
@@ -680,6 +778,11 @@ async function resolveBranch(params: {
             entitlements: payloadParams.entitlements,
             userTimezone: payloadParams.userTimezone,
             userMetadata: payloadParams.userMetadata,
+            desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
+            browserCapable: payloadParams.browserCapable,
+            terminalCapable: payloadParams.terminalCapable,
+            terminals: payloadParams.terminals,
+            browserSessions: payloadParams.browserSessions,
           },
           { selectedModel }
         ),
@@ -737,6 +840,11 @@ async function resolveBranch(params: {
           entitlements: payloadParams.entitlements,
           userTimezone: payloadParams.userTimezone,
           userMetadata: payloadParams.userMetadata,
+          desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
+          browserCapable: payloadParams.browserCapable,
+          terminalCapable: payloadParams.terminalCapable,
+          terminals: payloadParams.terminals,
+          browserSessions: payloadParams.browserSessions,
         },
         { selectedModel: '' }
       ),
@@ -883,14 +991,17 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       }
 
       if (chatIsNew && actualChatId && body.resourceAttachments?.length) {
-        await persistChatResources(
-          actualChatId,
-          body.resourceAttachments.map((r) => ({
-            type: r.type,
-            id: r.id,
-            title: r.title ?? GENERIC_RESOURCE_TITLE[r.type],
-          }))
-        )
+        const persistable = body.resourceAttachments.filter(isPersistableAttachment)
+        if (persistable.length > 0) {
+          await persistChatResources(
+            actualChatId,
+            persistable.map((r) => ({
+              type: r.type,
+              id: r.id,
+              title: r.title ?? GENERIC_RESOURCE_TITLE[r.type],
+            }))
+          )
+        }
       }
 
       let pendingStreamWaitMs = 0
@@ -1065,6 +1176,12 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 implicitFeedback: body.implicitFeedback,
                 workspaceContext,
                 vfs,
+                desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
+                browserCapable:
+                  body.desktopCapabilities?.browser === true || body.browserCapable === true,
+                terminalCapable: body.desktopCapabilities?.terminal === true,
+                terminals: body.desktopCapabilities?.terminals,
+                browserSessions: body.desktopCapabilities?.browserSessions,
               })
             : branch.buildPayload({
                 message: body.message,
@@ -1080,6 +1197,12 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 userMetadata,
                 workspaceContext,
                 vfs,
+                desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
+                browserCapable:
+                  body.desktopCapabilities?.browser === true || body.browserCapable === true,
+                terminalCapable: body.desktopCapabilities?.terminal === true,
+                terminals: body.desktopCapabilities?.terminals,
+                browserSessions: body.desktopCapabilities?.browserSessions,
               })
         },
         activeOtelRoot.context

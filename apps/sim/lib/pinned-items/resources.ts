@@ -1,4 +1,11 @@
-import { db, knowledgeBase, userTableDefinitions, workflow, workspaceFiles } from '@sim/db'
+import {
+  db,
+  folder as folderTable,
+  knowledgeBase,
+  userTableDefinitions,
+  workflow,
+  workspaceFiles,
+} from '@sim/db'
 import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import type { PinnedResourceType } from '@/lib/api/contracts/pinned-items'
@@ -46,6 +53,18 @@ const PINNED_RESOURCES: Record<PinnedResourceType, PinnedResourceConfig> = {
     idColumn: userTableDefinitions.id,
     workspaceColumn: userTableDefinitions.workspaceId,
     deletedColumn: userTableDefinitions.archivedAt,
+  },
+  /**
+   * One entry covers every folder tree. Deliberately unscoped by `resourceType`: file,
+   * knowledge-base, and table folders are all pinnable and all live in `folder`, and a
+   * folder id addresses exactly one row regardless of which tree it belongs to. The
+   * workspace filter below still scopes the check.
+   */
+  folder: {
+    table: folderTable,
+    idColumn: folderTable.id,
+    workspaceColumn: folderTable.workspaceId,
+    deletedColumn: folderTable.deletedAt,
   },
 }
 

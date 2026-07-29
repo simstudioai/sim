@@ -1,23 +1,19 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
-import {
-  chat,
-  folder as folderTable,
-  webhook,
-  workflow,
-  workflowMcpTool,
-  workflowSchedule,
-} from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, min } from 'drizzle-orm'
-import { deduplicateFolderName } from '@/lib/folders/naming'
-import { archiveWorkflowsByIdsInWorkspace } from '@/lib/workflows/lifecycle'
+import type { folder as folderTable } from '@sim/db/schema'
+import type { FolderResourceType } from '@/lib/api/contracts/folders'
+import { createFolder, deleteFolder, restoreFolder, updateFolder } from '@/lib/folders/lifecycle'
+import type { FolderMutationErrorCode } from '@/lib/folders/status'
 import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
-import { checkForCircularReference } from '@/lib/workflows/utils'
 
-const logger = createLogger('FolderLifecycle')
+/**
+ * Workflow-bound entry points into the generic folder engine in `lib/folders/lifecycle.ts`.
+ *
+ * The engine is resourceType-driven and owns the actual writes; these wrappers exist so the
+ * workflow callers that predate it (the folders API, the copilot workflow tools, the
+ * resource-restore orchestrator) keep a single, workflow-shaped signature. Everything that
+ * differs for workflows — the last-workflow delete guard, archiving through the workflow
+ * lifecycle so deployments and webhooks tear down, and restoring schedules/webhooks/chats —
+ * is declared as data on the `workflow` entry of `FOLDER_RESOURCES`, not branched on here.
+ */
 
 export interface PerformCreateFolderParams {
   userId: string
@@ -25,7 +21,6 @@ export interface PerformCreateFolderParams {
   name: string
   id?: string
   parentId?: string | null
-  color?: string
   sortOrder?: number
 }
 
@@ -46,317 +41,8 @@ export interface PerformUpdateFolderParams {
   sortOrder?: number
 }
 
-export interface PerformUpdateFolderResult {
-  success: boolean
-  error?: string
-  errorCode?: OrchestrationErrorCode
-  folder?: typeof folderTable.$inferSelect
-}
+export interface PerformUpdateFolderResult extends PerformCreateFolderResult {}
 
-/**
- * Verifies that a prospective parent folder exists, belongs to the target
- * workspace, and is not archived. Mirrors the validation in the duplicate
- * route's `assertTargetParentFolderMutable` so a caller cannot reparent a
- * folder to a non-existent id or to a folder in another workspace. Returns
- * an error result when invalid, or `null` when the parent is acceptable.
- */
-async function assertParentFolderInWorkspace(
-  parentId: string,
-  workspaceId: string
-): Promise<{ error: string; errorCode: OrchestrationErrorCode } | null> {
-  const [parent] = await db
-    .select({
-      workspaceId: folderTable.workspaceId,
-      archivedAt: folderTable.deletedAt,
-    })
-    .from(folderTable)
-    .where(and(eq(folderTable.id, parentId), eq(folderTable.resourceType, 'workflow')))
-    .limit(1)
-
-  if (!parent || parent.workspaceId !== workspaceId || parent.archivedAt) {
-    return { error: 'Parent folder not found', errorCode: 'validation' }
-  }
-
-  return null
-}
-
-async function nextFolderSortOrder(
-  workspaceId: string,
-  parentId: string | null | undefined
-): Promise<number> {
-  const folderParentCondition = parentId
-    ? eq(folderTable.parentId, parentId)
-    : isNull(folderTable.parentId)
-  const workflowParentCondition = parentId
-    ? eq(workflow.folderId, parentId)
-    : isNull(workflow.folderId)
-
-  const [[folderResult], [workflowResult]] = await Promise.all([
-    db
-      .select({ minSortOrder: min(folderTable.sortOrder) })
-      .from(folderTable)
-      .where(
-        and(
-          eq(folderTable.workspaceId, workspaceId),
-          eq(folderTable.resourceType, 'workflow'),
-          folderParentCondition
-        )
-      ),
-    db
-      .select({ minSortOrder: min(workflow.sortOrder) })
-      .from(workflow)
-      .where(and(eq(workflow.workspaceId, workspaceId), workflowParentCondition)),
-  ])
-
-  const minSortOrder = [folderResult?.minSortOrder, workflowResult?.minSortOrder].reduce<
-    number | null
-  >((currentMin, candidate) => {
-    if (candidate == null) return currentMin
-    if (currentMin == null) return candidate
-    return Math.min(currentMin, candidate)
-  }, null)
-
-  return minSortOrder != null ? minSortOrder - 1 : 0
-}
-
-export async function performCreateFolder(
-  params: PerformCreateFolderParams
-): Promise<PerformCreateFolderResult> {
-  try {
-    const folderId = params.id || generateId()
-    const parentId = params.parentId || null
-
-    if (parentId) {
-      if (parentId === folderId) {
-        return {
-          success: false,
-          error: 'Folder cannot be its own parent',
-          errorCode: 'validation',
-        }
-      }
-      const parentError = await assertParentFolderInWorkspace(parentId, params.workspaceId)
-      if (parentError) return { success: false, ...parentError }
-    }
-
-    const sortOrder =
-      params.sortOrder !== undefined
-        ? params.sortOrder
-        : await nextFolderSortOrder(params.workspaceId, parentId)
-
-    const [folder] = await db
-      .insert(folderTable)
-      .values({
-        id: folderId,
-        resourceType: 'workflow',
-        name: params.name.trim(),
-        userId: params.userId,
-        workspaceId: params.workspaceId,
-        parentId,
-        sortOrder,
-      })
-      .returning()
-
-    logger.info('Created workflow folder', { folderId, workspaceId: params.workspaceId, parentId })
-
-    recordAudit({
-      workspaceId: params.workspaceId,
-      actorId: params.userId,
-      action: AuditAction.FOLDER_CREATED,
-      resourceType: AuditResourceType.FOLDER,
-      resourceId: folderId,
-      resourceName: folder.name,
-      description: `Created folder "${folder.name}"`,
-      metadata: {
-        name: folder.name,
-        workspaceId: params.workspaceId,
-        parentId: parentId || undefined,
-        sortOrder: folder.sortOrder,
-      },
-    })
-
-    return { success: true, folder }
-  } catch (error) {
-    // `folder` carries a unique index on (workspaceId, resourceType, parent, name) for active
-    // rows that `workflow_folder` never had, so a duplicate sibling name is newly rejectable
-    // here. Map it to a 409 rather than letting it surface as a 500 — the client-side dedup
-    // in useFolderCreateWithDedup is best-effort and races, and the copilot/import paths
-    // create folders by name.
-    if (getPostgresErrorCode(error) === '23505') {
-      return {
-        success: false,
-        error: 'A folder with this name already exists in this location',
-        errorCode: 'conflict',
-      }
-    }
-    logger.error('Failed to create workflow folder', { error })
-    return { success: false, error: 'Internal server error', errorCode: 'internal' }
-  }
-}
-
-export async function performUpdateFolder(
-  params: PerformUpdateFolderParams
-): Promise<PerformUpdateFolderResult> {
-  try {
-    if (params.parentId && params.parentId === params.folderId) {
-      return { success: false, error: 'Folder cannot be its own parent', errorCode: 'validation' }
-    }
-
-    if (params.parentId) {
-      const parentError = await assertParentFolderInWorkspace(params.parentId, params.workspaceId)
-      if (parentError) return { success: false, ...parentError }
-
-      const wouldCreateCycle = await checkForCircularReference(params.folderId, params.parentId)
-      if (wouldCreateCycle) {
-        return {
-          success: false,
-          error: 'Cannot create circular folder reference',
-          errorCode: 'validation',
-        }
-      }
-    }
-
-    // Typed against the table rather than `Record<string, unknown>`: the loose type is what
-    // let `color`/`isExpanded` survive the cutover here after the create path dropped them.
-    const updates: Partial<typeof folderTable.$inferInsert> = { updatedAt: new Date() }
-    if (params.name !== undefined) updates.name = params.name.trim()
-    if (params.locked !== undefined) updates.locked = params.locked
-    if (params.parentId !== undefined) updates.parentId = params.parentId || null
-    if (params.sortOrder !== undefined) updates.sortOrder = params.sortOrder
-
-    const [folder] = await db
-      .update(folderTable)
-      .set(updates)
-      .where(
-        and(
-          eq(folderTable.id, params.folderId),
-          eq(folderTable.workspaceId, params.workspaceId),
-          eq(folderTable.resourceType, 'workflow')
-        )
-      )
-      .returning()
-
-    if (!folder) {
-      return { success: false, error: 'Folder not found', errorCode: 'not_found' }
-    }
-
-    logger.info('Updated workflow folder', { folderId: params.folderId, updates })
-
-    return { success: true, folder }
-  } catch (error) {
-    if (getPostgresErrorCode(error) === '23505') {
-      return {
-        success: false,
-        error: 'A folder with this name already exists in this location',
-        errorCode: 'conflict',
-      }
-    }
-    logger.error('Failed to update workflow folder', { error })
-    return { success: false, error: 'Internal server error', errorCode: 'internal' }
-  }
-}
-
-/**
- * Recursively deletes a folder: removes child folders first, archives non-archived
- * workflows in each folder via {@link archiveWorkflowsByIdsInWorkspace}, then deletes
- * the folder row.
- */
-async function deleteFolderRecursively(
-  folderId: string,
-  workspaceId: string,
-  archivedAt?: Date
-): Promise<{ folders: number; workflows: number }> {
-  const timestamp = archivedAt ?? new Date()
-  const stats = { folders: 0, workflows: 0 }
-
-  const childFolders = await db
-    .select({ id: folderTable.id })
-    .from(folderTable)
-    .where(
-      and(
-        eq(folderTable.parentId, folderId),
-        eq(folderTable.workspaceId, workspaceId),
-        eq(folderTable.resourceType, 'workflow'),
-        isNull(folderTable.deletedAt)
-      )
-    )
-
-  for (const childFolder of childFolders) {
-    const childStats = await deleteFolderRecursively(childFolder.id, workspaceId, timestamp)
-    stats.folders += childStats.folders
-    stats.workflows += childStats.workflows
-  }
-
-  const workflowsInFolder = await db
-    .select({ id: workflow.id })
-    .from(workflow)
-    .where(
-      and(
-        eq(workflow.folderId, folderId),
-        eq(workflow.workspaceId, workspaceId),
-        isNull(workflow.archivedAt)
-      )
-    )
-
-  if (workflowsInFolder.length > 0) {
-    await archiveWorkflowsByIdsInWorkspace(
-      workspaceId,
-      workflowsInFolder.map((entry) => entry.id),
-      { requestId: `folder-${folderId}`, archivedAt: timestamp }
-    )
-    stats.workflows += workflowsInFolder.length
-  }
-
-  await db
-    .update(folderTable)
-    .set({ deletedAt: timestamp })
-    .where(and(eq(folderTable.id, folderId), eq(folderTable.resourceType, 'workflow')))
-  stats.folders += 1
-
-  return stats
-}
-
-/**
- * Counts non-archived workflows in the folder and all descendant folders.
- */
-async function countWorkflowsInFolderRecursively(
-  folderId: string,
-  workspaceId: string
-): Promise<number> {
-  let count = 0
-
-  const workflowsInFolder = await db
-    .select({ id: workflow.id })
-    .from(workflow)
-    .where(
-      and(
-        eq(workflow.folderId, folderId),
-        eq(workflow.workspaceId, workspaceId),
-        isNull(workflow.archivedAt)
-      )
-    )
-
-  count += workflowsInFolder.length
-
-  const childFolders = await db
-    .select({ id: folderTable.id })
-    .from(folderTable)
-    .where(
-      and(
-        eq(folderTable.parentId, folderId),
-        eq(folderTable.workspaceId, workspaceId),
-        eq(folderTable.resourceType, 'workflow'),
-        isNull(folderTable.deletedAt)
-      )
-    )
-
-  for (const childFolder of childFolders) {
-    count += await countWorkflowsInFolderRecursively(childFolder.id, workspaceId)
-  }
-
-  return count
-}
-
-/** Parameters for {@link performDeleteFolder}. */
 export interface PerformDeleteFolderParams {
   folderId: string
   workspaceId: string
@@ -364,257 +50,49 @@ export interface PerformDeleteFolderParams {
   folderName?: string
 }
 
-/** Outcome of {@link performDeleteFolder}. */
 export interface PerformDeleteFolderResult {
   success: boolean
   error?: string
-  errorCode?: OrchestrationErrorCode
-  deletedItems?: { folders: number; workflows: number }
+  errorCode?: FolderMutationErrorCode
+  deletedItems?: { folders: number; workflows?: number }
 }
 
-/**
- * Performs a full folder deletion: enforces the last-workflow guard,
- * recursively archives child workflows and sub-folders, and records
- * an audit entry. Both the folders API DELETE handler and the copilot
- * delete_folder tool must use this function.
- */
-export async function performDeleteFolder(
-  params: PerformDeleteFolderParams
-): Promise<PerformDeleteFolderResult> {
-  const { folderId, workspaceId, userId, folderName } = params
-
-  const workflowsInFolder = await countWorkflowsInFolderRecursively(folderId, workspaceId)
-  const totalWorkflowsInWorkspace = await db
-    .select({ id: workflow.id })
-    .from(workflow)
-    .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt)))
-
-  if (workflowsInFolder > 0 && workflowsInFolder >= totalWorkflowsInWorkspace.length) {
-    return {
-      success: false,
-      error: 'Cannot delete folder containing the only workflow(s) in the workspace',
-      errorCode: 'validation',
-    }
-  }
-
-  const deletionStats = await deleteFolderRecursively(folderId, workspaceId)
-
-  logger.info('Deleted folder and all contents:', { folderId, deletionStats })
-
-  recordAudit({
-    workspaceId,
-    actorId: userId,
-    action: AuditAction.FOLDER_DELETED,
-    resourceType: AuditResourceType.FOLDER,
-    resourceId: folderId,
-    resourceName: folderName,
-    description: `Deleted folder "${folderName || folderId}"`,
-    metadata: {
-      affected: {
-        workflows: deletionStats.workflows,
-        subfolders: deletionStats.folders - 1,
-      },
-    },
-  })
-
-  return { success: true, deletedItems: deletionStats }
+export interface PerformRestoreFolderParams extends PerformDeleteFolderParams {
+  /**
+   * Folder tree to restore into. Defaults to `'workflow'` so every existing caller — and the
+   * copilot tool contract — is unchanged; Recently Deleted and the restore tool pass the
+   * knowledge-base or table tree explicitly.
+   */
+  resourceType?: FolderResourceType
 }
 
-/**
- * Recursively restores a folder and its children/workflows within a transaction.
- * Only restores workflows whose `archivedAt` matches the folder's — workflows
- * individually deleted before the folder are left archived.
- */
-async function restoreFolderRecursively(
-  folderId: string,
-  workspaceId: string,
-  folderArchivedAt: Date,
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0]
-): Promise<{ folders: number; workflows: number }> {
-  const stats = { folders: 0, workflows: 0 }
-
-  await tx
-    .update(folderTable)
-    .set({ deletedAt: null })
-    .where(and(eq(folderTable.id, folderId), eq(folderTable.resourceType, 'workflow')))
-  stats.folders += 1
-
-  const archivedWorkflows = await tx
-    .select({ id: workflow.id })
-    .from(workflow)
-    .where(
-      and(
-        eq(workflow.folderId, folderId),
-        eq(workflow.workspaceId, workspaceId),
-        eq(workflow.archivedAt, folderArchivedAt)
-      )
-    )
-
-  if (archivedWorkflows.length > 0) {
-    const workflowIds = archivedWorkflows.map((wf) => wf.id)
-    const now = new Date()
-    const restoreSet = { archivedAt: null, updatedAt: now }
-
-    await tx.update(workflow).set(restoreSet).where(inArray(workflow.id, workflowIds))
-    await tx
-      .update(workflowSchedule)
-      .set(restoreSet)
-      .where(inArray(workflowSchedule.workflowId, workflowIds))
-    await tx.update(webhook).set(restoreSet).where(inArray(webhook.workflowId, workflowIds))
-    await tx.update(chat).set(restoreSet).where(inArray(chat.workflowId, workflowIds))
-    await tx
-      .update(workflowMcpTool)
-      .set(restoreSet)
-      .where(inArray(workflowMcpTool.workflowId, workflowIds))
-
-    stats.workflows += archivedWorkflows.length
-  }
-
-  const archivedChildren = await tx
-    .select({ id: folderTable.id })
-    .from(folderTable)
-    .where(
-      and(
-        eq(folderTable.parentId, folderId),
-        eq(folderTable.workspaceId, workspaceId),
-        eq(folderTable.resourceType, 'workflow'),
-        eq(folderTable.deletedAt, folderArchivedAt)
-      )
-    )
-
-  for (const child of archivedChildren) {
-    const childStats = await restoreFolderRecursively(child.id, workspaceId, folderArchivedAt, tx)
-    stats.folders += childStats.folders
-    stats.workflows += childStats.workflows
-  }
-
-  return stats
-}
-
-/** Parameters for {@link performRestoreFolder}. */
-export interface PerformRestoreFolderParams {
-  folderId: string
-  workspaceId: string
-  userId: string
-  folderName?: string
-}
-
-/** Outcome of {@link performRestoreFolder}. */
 export interface PerformRestoreFolderResult {
   success: boolean
   error?: string
-  restoredItems?: { folders: number; workflows: number }
+  errorCode?: OrchestrationErrorCode
+  restoredItems?: { folders: number; workflows?: number }
 }
 
-/**
- * Restores an archived folder and all its archived children and workflows.
- * If the folder's parent is still archived, moves it to the root level.
- */
-export async function performRestoreFolder(
+export function performCreateFolder(
+  params: PerformCreateFolderParams
+): Promise<PerformCreateFolderResult> {
+  return createFolder({ ...params, resourceType: 'workflow' })
+}
+
+export function performUpdateFolder(
+  params: PerformUpdateFolderParams
+): Promise<PerformUpdateFolderResult> {
+  return updateFolder({ ...params, resourceType: 'workflow' })
+}
+
+export function performDeleteFolder(
+  params: PerformDeleteFolderParams
+): Promise<PerformDeleteFolderResult> {
+  return deleteFolder({ ...params, resourceType: 'workflow' })
+}
+
+export function performRestoreFolder(
   params: PerformRestoreFolderParams
 ): Promise<PerformRestoreFolderResult> {
-  const { folderId, workspaceId, userId, folderName } = params
-
-  const [folder] = await db
-    .select()
-    .from(folderTable)
-    .where(
-      and(
-        eq(folderTable.id, folderId),
-        eq(folderTable.workspaceId, workspaceId),
-        eq(folderTable.resourceType, 'workflow')
-      )
-    )
-
-  if (!folder) {
-    return { success: false, error: 'Folder not found' }
-  }
-
-  if (!folder.deletedAt) {
-    return { success: true, restoredItems: { folders: 0, workflows: 0 } }
-  }
-
-  const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
-  const ws = await getWorkspaceWithOwner(workspaceId)
-  if (!ws || ws.archivedAt) {
-    return { success: false, error: 'Cannot restore folder into an archived workspace' }
-  }
-
-  let restoredStats: { folders: number; workflows: number }
-  try {
-    restoredStats = await db.transaction(async (tx) => {
-      // A folder whose parent is still archived is re-rooted, so the name it has to be
-      // unique against is its *resolved* parent's sibling set, not its original one.
-      let resolvedParentId = folder.parentId
-      if (folder.parentId) {
-        const [parentFolder] = await tx
-          .select({ archivedAt: folderTable.deletedAt })
-          .from(folderTable)
-          .where(and(eq(folderTable.id, folder.parentId), eq(folderTable.resourceType, 'workflow')))
-
-        if (!parentFolder || parentFolder.archivedAt) {
-          resolvedParentId = null
-          await tx
-            .update(folderTable)
-            .set({ parentId: null })
-            .where(and(eq(folderTable.id, folderId), eq(folderTable.resourceType, 'workflow')))
-        }
-      }
-
-      // Restore is a recovery action — the caller cannot rename an archived folder, so a
-      // name already taken by an active sibling would leave them permanently unable to
-      // restore. Dedup instead of failing. Safe to rename while the row is still archived:
-      // the unique index only covers active rows, so this cannot collide before the
-      // recursive restore below clears `deletedAt`. Only the restore root can conflict —
-      // descendants come back alongside the siblings they were archived with.
-      const restoredName = await deduplicateFolderName(
-        tx,
-        workspaceId,
-        resolvedParentId,
-        folder.name
-      )
-      if (restoredName !== folder.name) {
-        logger.info('Renamed folder on restore to avoid a sibling name conflict', {
-          folderId,
-          from: folder.name,
-          to: restoredName,
-        })
-        await tx.update(folderTable).set({ name: restoredName }).where(eq(folderTable.id, folderId))
-      }
-
-      return restoreFolderRecursively(folderId, workspaceId, folder.deletedAt!, tx)
-    })
-  } catch (error) {
-    // Restoring clears `deletedAt`, which brings the row back under the generic table's
-    // partial unique index on active (workspaceId, resourceType, parent, name) — a
-    // constraint `workflow_folder` never had. If a sibling has since taken the name, report
-    // it as a conflict rather than a 500, so the caller can rename and retry.
-    if (getPostgresErrorCode(error) === '23505') {
-      return {
-        success: false,
-        error: 'A folder with this name already exists in this location',
-      }
-    }
-    throw error
-  }
-
-  logger.info('Restored folder and all contents:', { folderId, restoredStats })
-
-  recordAudit({
-    workspaceId,
-    actorId: userId,
-    action: AuditAction.FOLDER_RESTORED,
-    resourceType: AuditResourceType.FOLDER,
-    resourceId: folderId,
-    resourceName: folderName ?? folder.name,
-    description: `Restored folder "${folderName ?? folder.name}"`,
-    metadata: {
-      affected: {
-        workflows: restoredStats.workflows,
-        subfolders: restoredStats.folders - 1,
-      },
-    },
-  })
-
-  return { success: true, restoredItems: restoredStats }
+  return restoreFolder({ ...params, resourceType: params.resourceType ?? 'workflow' })
 }

@@ -2716,6 +2716,12 @@ import {
 } from '@/tools/onepassword'
 import { openAIEmbeddingsTool, openAIImageTool } from '@/tools/openai'
 import {
+  outlookCalendarCreateEventTool,
+  outlookCalendarDeleteEventTool,
+  outlookCalendarGetEventTool,
+  outlookCalendarListEventsTool,
+  outlookCalendarRespondTool,
+  outlookCalendarUpdateEventTool,
   outlookCopyTool,
   outlookCreateFolderTool,
   outlookDeleteTool,
@@ -7943,6 +7949,12 @@ export const tools: Record<string, ToolConfig> = {
   outlook_get_attachment: outlookGetAttachmentTool,
   outlook_search: outlookSearchTool,
   outlook_update_message: outlookUpdateMessageTool,
+  outlook_calendar_list_events: outlookCalendarListEventsTool,
+  outlook_calendar_get_event: outlookCalendarGetEventTool,
+  outlook_calendar_create_event: outlookCalendarCreateEventTool,
+  outlook_calendar_update_event: outlookCalendarUpdateEventTool,
+  outlook_calendar_delete_event: outlookCalendarDeleteEventTool,
+  outlook_calendar_respond: outlookCalendarRespondTool,
   pagerduty_list_incidents: pagerdutyListIncidentsTool,
   pagerduty_get_incident: pagerdutyGetIncidentTool,
   pagerduty_create_incident: pagerdutyCreateIncidentTool,

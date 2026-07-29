@@ -110,6 +110,7 @@ const DropdownMenuSubContent = React.forwardRef<
       ref={ref}
       className={cn(ANIMATION_CLASSES, CONTENT_BASE_CLASSES, 'max-w-[280px] rounded-lg', className)}
       {...props}
+      data-native-surface-overlay=''
     />
   </DropdownMenuPrimitive.Portal>
 ))
@@ -143,6 +144,7 @@ const DropdownMenuContent = React.forwardRef<
       sideOffset={sideOffset}
       className={cn(ANIMATION_CLASSES, CONTENT_BASE_CLASSES, 'max-w-[220px] rounded-xl', className)}
       {...props}
+      data-native-surface-overlay=''
     />
   </DropdownMenuPrimitive.Portal>
 ))

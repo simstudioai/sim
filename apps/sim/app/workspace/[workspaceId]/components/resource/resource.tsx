@@ -21,6 +21,7 @@ import {
   cn,
   Loader,
 } from '@sim/emcn'
+import { Pin } from '@sim/emcn/icons'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
@@ -59,14 +60,15 @@ export interface ResourceCell {
    */
   editing?: ResourceCellEditing
   /**
-   * Trailing node pinned to the far edge of the cell, after the label. Use this for
-   * per-row affordances (e.g. a pin toggle) so the canonical icon + truncating-label
-   * rendering is reused rather than re-derived in a `content` node. Suppressed while
-   * the cell is in rename mode, where the input owns the full width.
+   * Marks the row as pinned. Renders a small non-interactive glyph after the label — pinned
+   * rows sort to the top of every list, and without an indicator that ordering reads as
+   * arbitrary. Pinning itself is an action on the row's context menu, deliberately not a
+   * hover button here.
    *
-   * The row sets `group`, so an adornment may use `group-hover:` to reveal itself.
+   * Honoured only on the plain label cell: a cell rendering custom `content` owns its own
+   * layout, and the rename field replaces the label entirely while it is open.
    */
-  endAdornment?: ReactNode
+  pinned?: boolean
 }
 
 export interface ResourceRow {
@@ -497,7 +499,7 @@ interface CellContentProps {
   label: string
   content?: ReactNode
   editing?: ResourceCellEditing
-  endAdornment?: ReactNode
+  pinned?: boolean
 }
 
 const CellContent = memo(function CellContent({
@@ -505,7 +507,7 @@ const CellContent = memo(function CellContent({
   label,
   content,
   editing,
-  endAdornment,
+  pinned,
 }: CellContentProps) {
   if (editing) {
     return (
@@ -522,17 +524,17 @@ const CellContent = memo(function CellContent({
     )
   }
   if (content) return <>{content}</>
-  const body = (
+  return (
     <span className={cn('flex min-w-0 items-center', chipContentGap)}>
       {icon && <span className={cellIconNodeClass}>{icon}</span>}
       <FloatingOverflowText label={label} className={cn('block', chipContentLabelClass)} />
-    </span>
-  )
-  if (!endAdornment) return body
-  return (
-    <span className='flex min-w-0 flex-1 items-center justify-between'>
-      {body}
-      {endAdornment}
+      {pinned && (
+        <Pin
+          className='size-[12px] shrink-0 text-[var(--text-icon)]'
+          role='img'
+          aria-label='Pinned'
+        />
+      )}
     </span>
   )
 })
@@ -661,7 +663,7 @@ const DataRow = memo(function DataRow({
       data-resource-row
       data-row-id={row.id}
       className={cn(
-        'group grid w-full transition-colors',
+        'grid w-full transition-colors',
         isWindowed && 'absolute top-0 left-0',
         !isAnyDragActive && 'hover-hover:bg-[var(--surface-3)]',
         onRowClick && 'cursor-pointer',
@@ -704,7 +706,7 @@ const DataRow = memo(function DataRow({
               label={cell?.label || EMPTY_CELL_PLACEHOLDER}
               content={cell?.content}
               editing={cell?.editing}
-              endAdornment={cell?.endAdornment}
+              pinned={cell?.pinned}
             />
           </div>
         )

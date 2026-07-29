@@ -1,7 +1,7 @@
 'use client'
 
 import { Plus, Upload } from '@sim/emcn'
-import { Table as TableIcon } from '@sim/emcn/icons'
+import { FolderPlus, Table as TableIcon } from '@sim/emcn/icons'
 import {
   type ChromeActionSpec,
   ResourceChromeFallback,
@@ -18,6 +18,7 @@ const COLUMNS = [
 
 const ACTIONS: ChromeActionSpec[] = [
   { text: 'Import CSV', icon: Upload },
+  { text: 'New folder', icon: FolderPlus },
   { text: 'New table', icon: Plus, variant: 'primary' },
 ]
 

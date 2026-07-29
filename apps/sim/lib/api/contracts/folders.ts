@@ -5,6 +5,32 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 export const folderResourceTypeSchema = z.enum(['workflow', 'file', 'knowledge_base', 'table'])
 export type FolderResourceType = z.output<typeof folderResourceTypeSchema>
 
+/**
+ * The resource types the generic folder engine SERVES over `/api/folders`. Deliberately a
+ * subset of {@link folderResourceTypeSchema}, which mirrors the DB enum.
+ *
+ * `file` is excluded on purpose even though file folders now live in the `folder` table.
+ * Files keeps its own routes (`/api/workspaces/[id]/files/folders/**`), and those serialize
+ * every mutation behind the `workspace_file_folders:${workspaceId}` advisory lock that makes
+ * their cycle and name checks atomic. Serving the same rows here would open a second writer
+ * that bypasses that lock — and would accept names containing `/`, `\`, `.` and `..`, which
+ * the file surface forbids because a file-folder name becomes a path segment. The storage
+ * cutover does not require a second API, so there isn't one.
+ *
+ * The `.default` applies ONLY to an omitted value — that is what keeps an old client, which
+ * never sends the field, working against a new pod. A value that is present but not in the
+ * enum is REJECTED with a 400, never silently coerced to `'workflow'`: coercing would file a
+ * knowledge-base folder into the workflow tree, where the Knowledge page can never see it
+ * again. This is the deploy-ordering contract, pinned by `folders.test.ts`.
+ */
+export const servedFolderResourceTypeSchema = z
+  .enum(['workflow', 'knowledge_base', 'table'], {
+    error: 'resourceType must be one of workflow, knowledge_base, table',
+  })
+  .default('workflow')
+
+export type ServedFolderResourceType = z.output<typeof servedFolderResourceTypeSchema>
+
 export const folderScopeSchema = z.enum(['active', 'archived'])
 
 export const folderSchema = z.object({
@@ -29,23 +55,22 @@ export type FolderApi = z.output<typeof folderSchema>
 
 export const listFoldersQuerySchema = z.object({
   workspaceId: z.string({ error: 'Workspace ID is required' }).min(1, 'Workspace ID is required'),
-  /**
-   * Only workflow folders are served today — file folders are still written to
-   * `workspace_file_folders` and kb/table have no writer yet. Narrowed rather than
-   * accepting the full enum and silently answering "you have none", matching the same
-   * choice made on the create and reorder bodies. Widens as each type's writers land.
-   */
-  resourceType: z.literal('workflow').default('workflow'),
+  resourceType: servedFolderResourceTypeSchema,
   scope: folderScopeSchema.default('active'),
+})
+
+/**
+ * Addresses which resource's folder tree an id-keyed route operates on. Required even
+ * though folder ids are UUIDs: without it, a caller holding a knowledge-base folder id
+ * could drive it through the workflow surface.
+ */
+export const folderResourceTypeQuerySchema = z.object({
+  resourceType: servedFolderResourceTypeSchema,
 })
 
 export const createFolderBodySchema = z.object({
   id: z.string().uuid().optional(),
-  /**
-   * No `resourceType` here on purpose. The create path still writes workflow folders
-   * only, and accepting a value the route cannot honor would silently create the wrong
-   * kind of folder. It is added back with the generic `folder` table cutover.
-   */
+  resourceType: servedFolderResourceTypeSchema,
   name: z.string().trim().min(1, 'Name is required').max(255, 'Name is too long'),
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   /** Mirrors `updateFolderBodySchema.parentId` so explicit `null` (root folder) is accepted on create. */
@@ -71,6 +96,7 @@ export const updateFolderBodySchema = z.object({
 
 export const restoreFolderBodySchema = z.object({
   workspaceId: z.string({ error: 'Workspace ID is required' }).min(1, 'Workspace ID is required'),
+  resourceType: servedFolderResourceTypeSchema,
 })
 
 export const duplicateFolderBodySchema = z.object({
@@ -82,7 +108,7 @@ export const duplicateFolderBodySchema = z.object({
 
 export const reorderFoldersBodySchema = z.object({
   workspaceId: z.string(),
-  /** See `createFolderBodySchema` — reorder still operates on workflow folders only. */
+  resourceType: servedFolderResourceTypeSchema,
   updates: z
     .array(
       z.object({
@@ -134,6 +160,7 @@ export const updateFolderContract = defineRouteContract({
   method: 'PUT',
   path: '/api/folders/[id]',
   params: folderIdParamsSchema,
+  query: folderResourceTypeQuerySchema,
   body: updateFolderBodySchema,
   response: {
     mode: 'json',
@@ -147,6 +174,7 @@ export const deleteFolderContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/folders/[id]',
   params: folderIdParamsSchema,
+  query: folderResourceTypeQuerySchema,
   response: {
     mode: 'json',
     schema: z.object({

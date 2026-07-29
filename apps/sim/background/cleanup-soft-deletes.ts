@@ -397,6 +397,19 @@ async function cleanupExpiredKnowledgeBases(
           )
         )
         .limit(limit),
+    /**
+     * Re-asserted on the DELETE because `onBatch` hard-deletes documents first, which leaves a
+     * real window in which a restore can land.
+     *
+     * This narrows the window rather than closing it: the base row survives, but documents
+     * already hard-deleted by `onBatch` do not come back, so a restore landing mid-batch
+     * returns an emptied knowledge base. Closing it properly means holding a row lock across
+     * select → onBatch → delete.
+     */
+    deleteFilter: and(
+      isNotNull(knowledgeBase.deletedAt),
+      lt(knowledgeBase.deletedAt, retentionDate)
+    ),
     onBatch: (rows) =>
       hardDeleteKnowledgeBaseDocuments(
         rows.map(({ id }) => id),
@@ -416,10 +429,19 @@ const CLEANUP_TARGETS = [
     table: folderTable,
     softDeleteCol: folderTable.deletedAt,
     wsCol: folderTable.workspaceId,
-    // `folder` is shared by all four resource types. Only workflow folders are cut over to
-    // it; file/knowledge_base/table rows are still owned elsewhere, so this pass must not
-    // hard-delete them.
-    additionalPredicate: eq(folderTable.resourceType, 'workflow'),
+    /**
+     * `folder` is shared by all four resource types, every one of which now writes here.
+     * The predicate is kept (rather than dropped) so a resource type added to the enum
+     * before its cutover lands is not silently hard-deleted by this pass. One widened
+     * predicate rather than a target per type: same table, same soft-delete column, same
+     * workspace scoping — splitting it would only multiply the batched scans.
+     */
+    additionalPredicate: inArray(folderTable.resourceType, [
+      'workflow',
+      'file',
+      'knowledge_base',
+      'table',
+    ]),
     name: 'folder',
   },
   {

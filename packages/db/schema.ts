@@ -209,7 +209,7 @@ export const pinnedItem = pgTable(
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
-    resourceType: text('resource_type').notNull(), // 'workflow' | 'file' | 'knowledge_base' | 'table'
+    resourceType: text('resource_type').notNull(), // 'workflow' | 'file' | 'knowledge_base' | 'table' | 'folder'
     resourceId: text('resource_id').notNull(),
     pinnedAt: timestamp('pinned_at').notNull().defaultNow(),
   },
@@ -1902,9 +1902,22 @@ export const workspaceFile = pgTable(
   })
 )
 
-// DEPRECATED: superseded by the generic `folder` table (resourceType='file'). Kept
-// (unread, unwritten) until the generic-folders cutover is verified in production; dropped
-// in a follow-up contract migration.
+/**
+ * DEPRECATED: superseded by the generic `folder` table (`resource_type = 'file'`).
+ *
+ * As of the file-folder cutover the application no longer reads or writes this table —
+ * every former query site now targets `folder` scoped to `resource_type = 'file'`. It is
+ * retained as the rollback copy for that deploy, NOT because it is already unused history:
+ * before the cutover it was the live table, and migration 0272's one-shot backfill did not
+ * cover folders created after it ran (migration 0274 catches those up).
+ *
+ * Do NOT drop it in a contract migration until BOTH hold: the cutover has been running in
+ * production long enough that a rollback is off the table, and a FULL-ROW comparison against
+ * `folder WHERE resource_type = 'file'` confirms nothing was stranded. A row COUNT is not
+ * sufficient — the pre-0274 divergence was in row contents (names, parents, `deleted_at`),
+ * which a count check passes straight through. Dropping this on the strength of "no code
+ * references it" alone destroys the only rollback path.
+ */
 export const workspaceFileFolder = pgTable(
   'workspace_file_folders',
   {
@@ -2582,9 +2595,18 @@ export const copilotChats = pgTable(
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),
     conversationId: text('conversation_id'),
     previewYaml: text('preview_yaml'),
+    /**
+     * @deprecated Nothing reads or writes this any more — the plan artifact
+     * moved into the message transcript. Kept only so the column survives the
+     * deploy that removes its last readers; drop it in a follow-up migration
+     * once that deploy has fully rolled out (expand/contract).
+     */
     planArtifact: text('plan_artifact'),
     config: jsonb('config'),
     resources: jsonb('resources').notNull().default('[]'),
+    // Copilot tool ids the user allowed for the rest of this chat only, as
+    // opposed to the account-wide list on `settings.copilotAutoAllowedTools`.
+    autoAllowedTools: jsonb('auto_allowed_tools').notNull().default('[]'),
     lastSeenAt: timestamp('last_seen_at'),
     pinned: boolean('pinned').notNull().default(false),
     deletedAt: timestamp('deleted_at'),
@@ -2745,8 +2767,17 @@ export const copilotAsyncToolStatusEnum = pgEnum('copilot_async_tool_status', [
   'delivered',
 ])
 
+export const copilotToolPermissionDecisionEnum = pgEnum('copilot_tool_permission_decision', [
+  'allow',
+  'allow_chat',
+  'always_allow',
+  'skip',
+])
+
 export type CopilotRunStatus = (typeof copilotRunStatusEnum.enumValues)[number]
 export type CopilotAsyncToolStatus = (typeof copilotAsyncToolStatusEnum.enumValues)[number]
+export type CopilotToolPermissionDecision =
+  (typeof copilotToolPermissionDecisionEnum.enumValues)[number]
 
 export const copilotRuns = pgTable(
   'copilot_runs',
@@ -2838,6 +2869,11 @@ export const copilotAsyncToolCalls = pgTable(
     status: copilotAsyncToolStatusEnum('status').notNull().default('pending'),
     result: jsonb('result'),
     error: text('error'),
+    // Set only for tools declaring requiresApproval in the mothership tool
+    // catalog. A null decision on such a tool means the prompt is still
+    // outstanding, which is what lets it survive a reload.
+    permissionDecision: copilotToolPermissionDecisionEnum('permission_decision'),
+    permissionDecidedAt: timestamp('permission_decided_at'),
     claimedAt: timestamp('claimed_at'),
     claimedBy: text('claimed_by'),
     completedAt: timestamp('completed_at'),

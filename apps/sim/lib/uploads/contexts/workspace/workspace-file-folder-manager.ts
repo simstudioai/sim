@@ -1,14 +1,23 @@
 import { db } from '@sim/db'
-import { workspaceFileFolder, workspaceFiles } from '@sim/db/schema'
+import { folder as folderTable, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull, min, type SQL, sql } from 'drizzle-orm'
-import { isReservedWorkflowAliasBackingDisplayPath } from '@/lib/copilot/vfs/workflow-aliases'
+import { deduplicateFolderName } from '@/lib/folders/naming'
 import { collectDescendantFolderIds } from '@/lib/folders/subtree'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceFileFolders')
+
+/**
+ * File folders live in the generic `folder` table alongside workflow, knowledge-base, and
+ * table folders. Every read and write here — id-keyed lookups included — carries this
+ * predicate: folder ids are UUIDs and cannot collide, but nothing stops a caller from
+ * handing a workflow folder's id to a file-folder endpoint.
+ */
+const FILE_FOLDER_RESOURCE_TYPE = 'file' as const
+const isFileFolder = eq(folderTable.resourceType, FILE_FOLDER_RESOURCE_TYPE)
 
 /**
  * Bounds the workspace-file-folder advisory-lock wait so a stuck holder fails
@@ -103,9 +112,7 @@ function normalizeParentId(parentId?: string | null): string | null {
 
 function folderParentCondition(parentId?: string | null) {
   const normalized = normalizeParentId(parentId)
-  return normalized
-    ? eq(workspaceFileFolder.parentId, normalized)
-    : isNull(workspaceFileFolder.parentId)
+  return normalized ? eq(folderTable.parentId, normalized) : isNull(folderTable.parentId)
 }
 
 function fileFolderCondition(folderId?: string | null) {
@@ -179,17 +186,15 @@ async function getRawWorkspaceFileFolder(
   const { includeDeleted = false } = options ?? {}
   const [folder] = await db
     .select()
-    .from(workspaceFileFolder)
+    .from(folderTable)
     .where(
       includeDeleted
-        ? and(
-            eq(workspaceFileFolder.id, folderId),
-            eq(workspaceFileFolder.workspaceId, workspaceId)
-          )
+        ? and(eq(folderTable.id, folderId), eq(folderTable.workspaceId, workspaceId), isFileFolder)
         : and(
-            eq(workspaceFileFolder.id, folderId),
-            eq(workspaceFileFolder.workspaceId, workspaceId),
-            isNull(workspaceFileFolder.deletedAt)
+            eq(folderTable.id, folderId),
+            eq(folderTable.workspaceId, workspaceId),
+            isFileFolder,
+            isNull(folderTable.deletedAt)
           )
     )
     .limit(1)
@@ -204,13 +209,14 @@ async function findRawWorkspaceFileFolderByName(
 ): Promise<RawWorkspaceFileFolder | null> {
   const [folder] = await db
     .select()
-    .from(workspaceFileFolder)
+    .from(folderTable)
     .where(
       and(
-        eq(workspaceFileFolder.workspaceId, workspaceId),
-        eq(workspaceFileFolder.name, name),
+        eq(folderTable.workspaceId, workspaceId),
+        isFileFolder,
+        eq(folderTable.name, name),
         folderParentCondition(parentId),
-        isNull(workspaceFileFolder.deletedAt)
+        isNull(folderTable.deletedAt)
       )
     )
     .limit(1)
@@ -258,16 +264,8 @@ export async function getWorkspaceFileFolderPath(
 
 export async function findWorkspaceFileFolderIdByPath(
   workspaceId: string,
-  pathSegments: string[],
-  options?: { includeReservedSystemFolders?: boolean }
+  pathSegments: string[]
 ): Promise<string | null> {
-  if (
-    !options?.includeReservedSystemFolders &&
-    isReservedWorkflowAliasBackingDisplayPath(pathSegments.join('/'))
-  ) {
-    return null
-  }
-
   let parentId: string | null = null
 
   for (const rawSegment of pathSegments) {
@@ -288,34 +286,31 @@ export async function findWorkspaceFileFolderIdByPath(
 
 export async function listWorkspaceFileFolders(
   workspaceId: string,
-  options?: { scope?: WorkspaceFileFolderScope; includeReservedSystemFolders?: boolean }
+  options?: { scope?: WorkspaceFileFolderScope }
 ): Promise<WorkspaceFileFolderRecord[]> {
-  const { scope = 'active', includeReservedSystemFolders = false } = options ?? {}
+  const { scope = 'active' } = options ?? {}
   const rows = await db
     .select()
-    .from(workspaceFileFolder)
+    .from(folderTable)
     .where(
       scope === 'all'
-        ? eq(workspaceFileFolder.workspaceId, workspaceId)
+        ? and(eq(folderTable.workspaceId, workspaceId), isFileFolder)
         : scope === 'archived'
           ? and(
-              eq(workspaceFileFolder.workspaceId, workspaceId),
-              sql`${workspaceFileFolder.deletedAt} IS NOT NULL`
+              eq(folderTable.workspaceId, workspaceId),
+              isFileFolder,
+              sql`${folderTable.deletedAt} IS NOT NULL`
             )
           : and(
-              eq(workspaceFileFolder.workspaceId, workspaceId),
-              isNull(workspaceFileFolder.deletedAt)
+              eq(folderTable.workspaceId, workspaceId),
+              isFileFolder,
+              isNull(folderTable.deletedAt)
             )
     )
-    .orderBy(asc(workspaceFileFolder.sortOrder), asc(workspaceFileFolder.createdAt))
+    .orderBy(asc(folderTable.sortOrder), asc(folderTable.createdAt))
 
   const paths = buildWorkspaceFileFolderPathMap(rows)
-  return rows
-    .map((row) => mapFolder(row, paths))
-    .filter(
-      (folder) =>
-        includeReservedSystemFolders || !isReservedWorkflowAliasBackingDisplayPath(folder.path)
-    )
+  return rows.map((row) => mapFolder(row, paths))
 }
 
 export async function getWorkspaceFileFolder(
@@ -331,14 +326,11 @@ export async function getWorkspaceFileFolder(
   // per-ancestor SELECTs inside buildWorkspaceFileFolderPath.
   const allFolders = await db
     .select()
-    .from(workspaceFileFolder)
+    .from(folderTable)
     .where(
       includeDeleted
-        ? eq(workspaceFileFolder.workspaceId, workspaceId)
-        : and(
-            eq(workspaceFileFolder.workspaceId, workspaceId),
-            isNull(workspaceFileFolder.deletedAt)
-          )
+        ? and(eq(folderTable.workspaceId, workspaceId), isFileFolder)
+        : and(eq(folderTable.workspaceId, workspaceId), isFileFolder, isNull(folderTable.deletedAt))
     )
 
   const paths = buildWorkspaceFileFolderPathMap(allFolders)
@@ -375,13 +367,14 @@ export async function createWorkspaceFileFolder(params: {
     const parentId = normalizeParentId(params.parentId)
     if (parentId) {
       const [target] = await tx
-        .select({ id: workspaceFileFolder.id })
-        .from(workspaceFileFolder)
+        .select({ id: folderTable.id })
+        .from(folderTable)
         .where(
           and(
-            eq(workspaceFileFolder.id, parentId),
-            eq(workspaceFileFolder.workspaceId, params.workspaceId),
-            isNull(workspaceFileFolder.deletedAt)
+            eq(folderTable.id, parentId),
+            eq(folderTable.workspaceId, params.workspaceId),
+            isFileFolder,
+            isNull(folderTable.deletedAt)
           )
         )
         .limit(1)
@@ -392,14 +385,15 @@ export async function createWorkspaceFileFolder(params: {
     }
 
     const existingFolders = await tx
-      .select({ id: workspaceFileFolder.id })
-      .from(workspaceFileFolder)
+      .select({ id: folderTable.id })
+      .from(folderTable)
       .where(
         and(
-          eq(workspaceFileFolder.workspaceId, params.workspaceId),
-          eq(workspaceFileFolder.name, name),
+          eq(folderTable.workspaceId, params.workspaceId),
+          isFileFolder,
+          eq(folderTable.name, name),
           folderParentCondition(parentId),
-          isNull(workspaceFileFolder.deletedAt)
+          isNull(folderTable.deletedAt)
         )
       )
       .limit(1)
@@ -409,22 +403,24 @@ export async function createWorkspaceFileFolder(params: {
     }
 
     const [sortOrderResult] = await tx
-      .select({ minSortOrder: min(workspaceFileFolder.sortOrder) })
-      .from(workspaceFileFolder)
+      .select({ minSortOrder: min(folderTable.sortOrder) })
+      .from(folderTable)
       .where(
         and(
-          eq(workspaceFileFolder.workspaceId, params.workspaceId),
+          eq(folderTable.workspaceId, params.workspaceId),
+          isFileFolder,
           folderParentCondition(parentId),
-          isNull(workspaceFileFolder.deletedAt)
+          isNull(folderTable.deletedAt)
         )
       )
 
     const id = generateId()
     try {
       const [inserted] = await tx
-        .insert(workspaceFileFolder)
+        .insert(folderTable)
         .values({
           id,
+          resourceType: FILE_FOLDER_RESOURCE_TYPE,
           name,
           userId: params.userId,
           workspaceId: params.workspaceId,
@@ -456,20 +452,19 @@ export async function ensureWorkspaceFileFolderPath(params: {
   // Fast path: the whole chain already exists (the common case for repeated
   // writes into known folders) — per-segment indexed lookups instead of
   // loading the workspace's entire folder table.
-  const existing = await findWorkspaceFileFolderIdByPath(params.workspaceId, params.pathSegments, {
-    includeReservedSystemFolders: true,
-  })
+  const existing = await findWorkspaceFileFolderIdByPath(params.workspaceId, params.pathSegments)
   if (existing) return existing
 
   // Load all active folders once and build a lookup keyed by "name|parentId"
   // so we can resolve existing segments without a per-segment SELECT.
   const existingFolders = await db
     .select()
-    .from(workspaceFileFolder)
+    .from(folderTable)
     .where(
       and(
-        eq(workspaceFileFolder.workspaceId, params.workspaceId),
-        isNull(workspaceFileFolder.deletedAt)
+        eq(folderTable.workspaceId, params.workspaceId),
+        isFileFolder,
+        isNull(folderTable.deletedAt)
       )
     )
 
@@ -552,19 +547,20 @@ export async function updateWorkspaceFileFolder(params: {
 
     const [existing] = await tx
       .select()
-      .from(workspaceFileFolder)
+      .from(folderTable)
       .where(
         and(
-          eq(workspaceFileFolder.id, params.folderId),
-          eq(workspaceFileFolder.workspaceId, params.workspaceId),
-          isNull(workspaceFileFolder.deletedAt)
+          eq(folderTable.id, params.folderId),
+          eq(folderTable.workspaceId, params.workspaceId),
+          isFileFolder,
+          isNull(folderTable.deletedAt)
         )
       )
       .limit(1)
 
     if (!existing) throw new Error('Folder not found')
 
-    const updates: Partial<typeof workspaceFileFolder.$inferInsert> = { updatedAt: new Date() }
+    const updates: Partial<typeof folderTable.$inferInsert> = { updatedAt: new Date() }
     const finalName =
       params.name !== undefined
         ? normalizeWorkspaceFileItemName(params.name, 'Folder')
@@ -576,13 +572,14 @@ export async function updateWorkspaceFileFolder(params: {
 
     if (finalParentId) {
       const [target] = await tx
-        .select({ id: workspaceFileFolder.id })
-        .from(workspaceFileFolder)
+        .select({ id: folderTable.id })
+        .from(folderTable)
         .where(
           and(
-            eq(workspaceFileFolder.id, finalParentId),
-            eq(workspaceFileFolder.workspaceId, params.workspaceId),
-            isNull(workspaceFileFolder.deletedAt)
+            eq(folderTable.id, finalParentId),
+            eq(folderTable.workspaceId, params.workspaceId),
+            isFileFolder,
+            isNull(folderTable.deletedAt)
           )
         )
         .limit(1)
@@ -594,12 +591,13 @@ export async function updateWorkspaceFileFolder(params: {
 
     if (params.parentId !== undefined) {
       const activeFolders = await tx
-        .select({ id: workspaceFileFolder.id, parentId: workspaceFileFolder.parentId })
-        .from(workspaceFileFolder)
+        .select({ id: folderTable.id, parentId: folderTable.parentId })
+        .from(folderTable)
         .where(
           and(
-            eq(workspaceFileFolder.workspaceId, params.workspaceId),
-            isNull(workspaceFileFolder.deletedAt)
+            eq(folderTable.workspaceId, params.workspaceId),
+            isFileFolder,
+            isNull(folderTable.deletedAt)
           )
         )
 
@@ -611,14 +609,15 @@ export async function updateWorkspaceFileFolder(params: {
 
     if (finalName !== existing.name || finalParentId !== existing.parentId) {
       const conflictingFolders = await tx
-        .select({ id: workspaceFileFolder.id })
-        .from(workspaceFileFolder)
+        .select({ id: folderTable.id })
+        .from(folderTable)
         .where(
           and(
-            eq(workspaceFileFolder.workspaceId, params.workspaceId),
-            eq(workspaceFileFolder.name, finalName),
+            eq(folderTable.workspaceId, params.workspaceId),
+            eq(folderTable.name, finalName),
             folderParentCondition(finalParentId),
-            isNull(workspaceFileFolder.deletedAt)
+            isFileFolder,
+            isNull(folderTable.deletedAt)
           )
         )
         .limit(2)
@@ -642,13 +641,14 @@ export async function updateWorkspaceFileFolder(params: {
 
     try {
       const [updatedFolder] = await tx
-        .update(workspaceFileFolder)
+        .update(folderTable)
         .set(updates)
         .where(
           and(
-            eq(workspaceFileFolder.id, params.folderId),
-            eq(workspaceFileFolder.workspaceId, params.workspaceId),
-            isNull(workspaceFileFolder.deletedAt)
+            eq(folderTable.id, params.folderId),
+            eq(folderTable.workspaceId, params.workspaceId),
+            isFileFolder,
+            isNull(folderTable.deletedAt)
           )
         )
         .returning()
@@ -704,13 +704,14 @@ export async function moveWorkspaceFileItems(params: {
 
     if (targetFolderId) {
       const [target] = await tx
-        .select({ id: workspaceFileFolder.id })
-        .from(workspaceFileFolder)
+        .select({ id: folderTable.id })
+        .from(folderTable)
         .where(
           and(
-            eq(workspaceFileFolder.id, targetFolderId),
-            eq(workspaceFileFolder.workspaceId, params.workspaceId),
-            isNull(workspaceFileFolder.deletedAt)
+            eq(folderTable.id, targetFolderId),
+            eq(folderTable.workspaceId, params.workspaceId),
+            isFileFolder,
+            isNull(folderTable.deletedAt)
           )
         )
         .limit(1)
@@ -726,12 +727,13 @@ export async function moveWorkspaceFileItems(params: {
 
     if (folderIds.length > 0) {
       const activeFolders = await tx
-        .select({ id: workspaceFileFolder.id, parentId: workspaceFileFolder.parentId })
-        .from(workspaceFileFolder)
+        .select({ id: folderTable.id, parentId: folderTable.parentId })
+        .from(folderTable)
         .where(
           and(
-            eq(workspaceFileFolder.workspaceId, params.workspaceId),
-            isNull(workspaceFileFolder.deletedAt)
+            eq(folderTable.workspaceId, params.workspaceId),
+            isFileFolder,
+            isNull(folderTable.deletedAt)
           )
         )
 
@@ -761,13 +763,14 @@ export async function moveWorkspaceFileItems(params: {
     const movingFolders =
       folderIds.length > 0
         ? await tx
-            .select({ id: workspaceFileFolder.id, name: workspaceFileFolder.name })
-            .from(workspaceFileFolder)
+            .select({ id: folderTable.id, name: folderTable.name })
+            .from(folderTable)
             .where(
               and(
-                inArray(workspaceFileFolder.id, folderIds),
-                eq(workspaceFileFolder.workspaceId, params.workspaceId),
-                isNull(workspaceFileFolder.deletedAt)
+                inArray(folderTable.id, folderIds),
+                eq(folderTable.workspaceId, params.workspaceId),
+                isFileFolder,
+                isNull(folderTable.deletedAt)
               )
             )
         : []
@@ -806,14 +809,15 @@ export async function moveWorkspaceFileItems(params: {
     for (const folder of movingFolders) {
       movingFolderNameCounts.set(folder.name, (movingFolderNameCounts.get(folder.name) ?? 0) + 1)
       const conflictingFolders = await tx
-        .select({ id: workspaceFileFolder.id })
-        .from(workspaceFileFolder)
+        .select({ id: folderTable.id })
+        .from(folderTable)
         .where(
           and(
-            eq(workspaceFileFolder.workspaceId, params.workspaceId),
-            eq(workspaceFileFolder.name, folder.name),
+            eq(folderTable.workspaceId, params.workspaceId),
+            eq(folderTable.name, folder.name),
             folderParentCondition(targetFolderId),
-            isNull(workspaceFileFolder.deletedAt)
+            isFileFolder,
+            isNull(folderTable.deletedAt)
           )
         )
         .limit(2)
@@ -848,16 +852,17 @@ export async function moveWorkspaceFileItems(params: {
     const movedFolders =
       folderIds.length > 0
         ? await tx
-            .update(workspaceFileFolder)
+            .update(folderTable)
             .set({ parentId: targetFolderId, updatedAt: new Date() })
             .where(
               and(
-                inArray(workspaceFileFolder.id, folderIds),
-                eq(workspaceFileFolder.workspaceId, params.workspaceId),
-                isNull(workspaceFileFolder.deletedAt)
+                inArray(folderTable.id, folderIds),
+                eq(folderTable.workspaceId, params.workspaceId),
+                isFileFolder,
+                isNull(folderTable.deletedAt)
               )
             )
-            .returning({ id: workspaceFileFolder.id })
+            .returning({ id: folderTable.id })
         : []
 
     return { movedFiles: movedFiles.length, movedFolders: movedFolders.length }
@@ -874,13 +879,14 @@ export async function archiveWorkspaceFileFolderRecursive(
     await acquireWorkspaceFileFolderMutationLock(tx, workspaceId)
 
     const [folder] = await tx
-      .select({ id: workspaceFileFolder.id })
-      .from(workspaceFileFolder)
+      .select({ id: folderTable.id })
+      .from(folderTable)
       .where(
         and(
-          eq(workspaceFileFolder.id, folderId),
-          eq(workspaceFileFolder.workspaceId, workspaceId),
-          isNull(workspaceFileFolder.deletedAt)
+          eq(folderTable.id, folderId),
+          eq(folderTable.workspaceId, workspaceId),
+          isFileFolder,
+          isNull(folderTable.deletedAt)
         )
       )
       .limit(1)
@@ -888,10 +894,10 @@ export async function archiveWorkspaceFileFolderRecursive(
     if (!folder) throw new Error('Folder not found')
 
     const activeFolders = await tx
-      .select({ id: workspaceFileFolder.id, parentId: workspaceFileFolder.parentId })
-      .from(workspaceFileFolder)
+      .select({ id: folderTable.id, parentId: folderTable.parentId })
+      .from(folderTable)
       .where(
-        and(eq(workspaceFileFolder.workspaceId, workspaceId), isNull(workspaceFileFolder.deletedAt))
+        and(eq(folderTable.workspaceId, workspaceId), isFileFolder, isNull(folderTable.deletedAt))
       )
     const folderIds = [folderId, ...collectDescendantFolderIds(activeFolders, folderId)]
 
@@ -909,16 +915,17 @@ export async function archiveWorkspaceFileFolderRecursive(
       .returning({ id: workspaceFiles.id })
 
     const archivedFolders = await tx
-      .update(workspaceFileFolder)
+      .update(folderTable)
       .set({ deletedAt: now, updatedAt: now })
       .where(
         and(
-          inArray(workspaceFileFolder.id, folderIds),
-          eq(workspaceFileFolder.workspaceId, workspaceId),
-          isNull(workspaceFileFolder.deletedAt)
+          inArray(folderTable.id, folderIds),
+          eq(folderTable.workspaceId, workspaceId),
+          isFileFolder,
+          isNull(folderTable.deletedAt)
         )
       )
-      .returning({ id: workspaceFileFolder.id })
+      .returning({ id: folderTable.id })
 
     logger.info('Archived workspace file folder recursively', {
       workspaceId,
@@ -945,9 +952,9 @@ export async function restoreWorkspaceFileFolder(
 
     const raw = await tx
       .select()
-      .from(workspaceFileFolder)
+      .from(folderTable)
       .where(
-        and(eq(workspaceFileFolder.id, folderId), eq(workspaceFileFolder.workspaceId, workspaceId))
+        and(eq(folderTable.id, folderId), eq(folderTable.workspaceId, workspaceId), isFileFolder)
       )
       .limit(1)
       .then((rows) => rows[0] ?? null)
@@ -962,17 +969,41 @@ export async function restoreWorkspaceFileFolder(
     let resolvedParentId = raw.parentId
     if (resolvedParentId) {
       const parent = await tx
-        .select({ deletedAt: workspaceFileFolder.deletedAt })
-        .from(workspaceFileFolder)
+        .select({ deletedAt: folderTable.deletedAt })
+        .from(folderTable)
         .where(
           and(
-            eq(workspaceFileFolder.id, resolvedParentId),
-            eq(workspaceFileFolder.workspaceId, workspaceId)
+            eq(folderTable.id, resolvedParentId),
+            eq(folderTable.workspaceId, workspaceId),
+            isFileFolder
           )
         )
         .limit(1)
         .then((rows) => rows[0] ?? null)
       if (!parent || parent.deletedAt) resolvedParentId = null
+    }
+
+    // Clearing `deletedAt` below brings this row back under the partial unique index on
+    // active (workspaceId, resourceType, parentId, name). The caller cannot rename an
+    // archived folder, so a sibling that took the name while this folder was gone would
+    // otherwise make it permanently unrestorable — dedupe instead of erroring. Deduped
+    // against the RESOLVED parent, which re-roots when the original parent is still
+    // archived. Only the restore root can collide: descendants come back alongside the
+    // exact siblings they were archived with.
+    const restoredName = await deduplicateFolderName(
+      tx,
+      workspaceId,
+      resolvedParentId,
+      raw.name,
+      FILE_FOLDER_RESOURCE_TYPE
+    )
+    if (restoredName !== raw.name) {
+      logger.info('Renamed file folder on restore to avoid a sibling name conflict', {
+        workspaceId,
+        folderId,
+        from: raw.name,
+        to: restoredName,
+      })
     }
 
     const stats: WorkspaceFileArchiveResult = { folders: 0, files: 0 }
@@ -996,28 +1027,30 @@ export async function restoreWorkspaceFileFolder(
       stats.files += restoredFiles.length
 
       const archivedChildren = await tx
-        .select({ id: workspaceFileFolder.id })
-        .from(workspaceFileFolder)
+        .select({ id: folderTable.id })
+        .from(folderTable)
         .where(
           and(
-            eq(workspaceFileFolder.parentId, currentFolderId),
-            eq(workspaceFileFolder.workspaceId, workspaceId),
-            eq(workspaceFileFolder.deletedAt, folderDeletedAt)
+            eq(folderTable.parentId, currentFolderId),
+            eq(folderTable.workspaceId, workspaceId),
+            isFileFolder,
+            eq(folderTable.deletedAt, folderDeletedAt)
           )
         )
 
       for (const child of archivedChildren) {
         const [restoredChild] = await tx
-          .update(workspaceFileFolder)
+          .update(folderTable)
           .set({ deletedAt: null, updatedAt: new Date() })
           .where(
             and(
-              eq(workspaceFileFolder.id, child.id),
-              eq(workspaceFileFolder.workspaceId, workspaceId),
-              eq(workspaceFileFolder.deletedAt, folderDeletedAt)
+              eq(folderTable.id, child.id),
+              eq(folderTable.workspaceId, workspaceId),
+              isFileFolder,
+              eq(folderTable.deletedAt, folderDeletedAt)
             )
           )
-          .returning({ id: workspaceFileFolder.id })
+          .returning({ id: folderTable.id })
 
         if (!restoredChild) continue
         stats.folders += 1
@@ -1026,10 +1059,15 @@ export async function restoreWorkspaceFileFolder(
     }
 
     const [row] = await tx
-      .update(workspaceFileFolder)
-      .set({ deletedAt: null, parentId: resolvedParentId, updatedAt: new Date() })
+      .update(folderTable)
+      .set({
+        deletedAt: null,
+        parentId: resolvedParentId,
+        name: restoredName,
+        updatedAt: new Date(),
+      })
       .where(
-        and(eq(workspaceFileFolder.id, folderId), eq(workspaceFileFolder.workspaceId, workspaceId))
+        and(eq(folderTable.id, folderId), eq(folderTable.workspaceId, workspaceId), isFileFolder)
       )
       .returning()
 
@@ -1043,9 +1081,9 @@ export async function restoreWorkspaceFileFolder(
 
   const allFolders = await db
     .select()
-    .from(workspaceFileFolder)
+    .from(folderTable)
     .where(
-      and(eq(workspaceFileFolder.workspaceId, workspaceId), isNull(workspaceFileFolder.deletedAt))
+      and(eq(folderTable.workspaceId, workspaceId), isFileFolder, isNull(folderTable.deletedAt))
     )
   const paths = buildWorkspaceFileFolderPathMap(allFolders)
   return {
@@ -1069,12 +1107,13 @@ export async function bulkArchiveWorkspaceFileItems(params: {
     const activeFolders =
       explicitFolderIds.length > 0
         ? await tx
-            .select({ id: workspaceFileFolder.id, parentId: workspaceFileFolder.parentId })
-            .from(workspaceFileFolder)
+            .select({ id: folderTable.id, parentId: folderTable.parentId })
+            .from(folderTable)
             .where(
               and(
-                eq(workspaceFileFolder.workspaceId, params.workspaceId),
-                isNull(workspaceFileFolder.deletedAt)
+                eq(folderTable.workspaceId, params.workspaceId),
+                isFileFolder,
+                isNull(folderTable.deletedAt)
               )
             )
         : []
@@ -1118,16 +1157,17 @@ export async function bulkArchiveWorkspaceFileItems(params: {
     const archivedFolders =
       allFolderIds.length > 0
         ? await tx
-            .update(workspaceFileFolder)
+            .update(folderTable)
             .set({ deletedAt: now, updatedAt: now })
             .where(
               and(
-                inArray(workspaceFileFolder.id, allFolderIds),
-                eq(workspaceFileFolder.workspaceId, params.workspaceId),
-                isNull(workspaceFileFolder.deletedAt)
+                inArray(folderTable.id, allFolderIds),
+                eq(folderTable.workspaceId, params.workspaceId),
+                isFileFolder,
+                isNull(folderTable.deletedAt)
               )
             )
-            .returning({ id: workspaceFileFolder.id })
+            .returning({ id: folderTable.id })
         : []
 
     return {

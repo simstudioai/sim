@@ -1,6 +1,10 @@
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
-import { requiredFieldSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  folderIdSchema,
+  requiredFieldSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
 import type {
@@ -165,6 +169,12 @@ export const createTableBodySchema = z.object({
       ),
   }),
   workspaceId: workspaceIdSchema,
+  /**
+   * Folder to create the table in. Omitted or `null` creates it at the workspace
+   * root — both spellings are accepted so a client can pass the current folder
+   * through unconditionally.
+   */
+  folderId: folderIdSchema.nullable().optional(),
   initialRowCount: z.number().int().min(0).max(100).optional(),
 })
 
@@ -182,21 +192,25 @@ export const tableLocksSchema = z.object({
 }) satisfies z.ZodType<TableLocks>
 
 /**
- * PATCH /api/table/[tableId] body. Both fields are optional but at least one
- * must be present. `name` is a `write`-level rename; `locks` is an
- * admin-only governance change (a partial — only the toggled flags are sent).
+ * PATCH /api/table/[tableId] body. Every field is optional but at least one
+ * must be present. `name` is a `write`-level rename; `folderId` is a
+ * `write`-level move (explicit `null` moves the table to the workspace root, and
+ * omission leaves the placement untouched — the tri-state is deliberate here);
+ * `locks` is an admin-only governance change (a partial — only the toggled flags
+ * are sent).
  */
 export const updateTableBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
     name: tableNameSchema.optional(),
+    folderId: folderIdSchema.nullable().optional(),
     locks: tableLocksSchema.partial().optional(),
   })
   .superRefine((body, ctx) => {
-    if (body.name === undefined && body.locks === undefined) {
+    if (body.name === undefined && body.locks === undefined && body.folderId === undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Provide a new name or lock changes',
+        message: 'Provide a new name, folder, or lock changes',
         path: ['name'],
       })
     }
@@ -492,6 +506,8 @@ export const importTableAsyncBodySchema = z.object({
   workspaceId: workspaceIdSchema,
   fileKey: requiredFieldSchema('fileKey is required'),
   fileName: requiredFieldSchema('fileName is required'),
+  /** Folder to create the imported table in; omitted or `null` imports to the workspace root. */
+  folderId: folderIdSchema.nullable().optional(),
   /**
    * Whether the source object is deleted once the import is terminal. Defaults to true (the upload
    * flow stores a single-use temp object); pass false when importing an existing workspace file
@@ -786,6 +802,8 @@ export const csvFileSchema = z
 export const csvImportFormSchema = z.object({
   file: csvFileSchema,
   workspaceId: z.string({ error: 'Workspace ID is required' }).min(1, 'Workspace ID is required'),
+  /** Folder to create the imported table in; omitted imports to the workspace root. */
+  folderId: folderIdSchema.optional(),
 })
 
 export const csvImportModeSchema = z.enum(['append', 'replace'])

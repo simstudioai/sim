@@ -390,13 +390,16 @@ async function pruneStaleReferences(
   batchSize: number,
   dbClient: LargeValueMetadataClient
 ): Promise<number> {
+  // Empty input is a valid no-op, and `IN ()` is a syntax error whose failure the
+  // cleanup job swallows — keep these total rather than relying on the caller.
+  if (workspaceIds.length === 0) return 0
   const rows = await dbClient.execute<{ count: number }>(sql`
     WITH deleted AS (
       DELETE FROM ${executionLargeValueReferences} AS ref
       WHERE ref.ctid IN (
         SELECT ref.ctid
         FROM ${executionLargeValueReferences} AS ref
-        WHERE ref.workspace_id = ANY(${sql.param(workspaceIds)}::text[])
+        WHERE ref.workspace_id IN ${workspaceIds}
           AND (
             (
               ref.source = 'execution_log'
@@ -431,13 +434,16 @@ async function pruneDeletedParentDependencies(
   batchSize: number,
   dbClient: LargeValueMetadataClient
 ): Promise<number> {
+  // Empty input is a valid no-op, and `IN ()` is a syntax error whose failure the
+  // cleanup job swallows — keep these total rather than relying on the caller.
+  if (workspaceIds.length === 0) return 0
   const rows = await dbClient.execute<{ count: number }>(sql`
     WITH deleted AS (
       DELETE FROM ${executionLargeValueDependencies} AS dependency
       WHERE dependency.ctid IN (
         SELECT dependency.ctid
         FROM ${executionLargeValueDependencies} AS dependency
-        WHERE dependency.workspace_id = ANY(${sql.param(workspaceIds)}::text[])
+        WHERE dependency.workspace_id IN ${workspaceIds}
           AND (
             EXISTS (
               SELECT 1
@@ -466,15 +472,18 @@ async function pruneDeletedLargeValueTombstones(
   batchSize: number,
   dbClient: LargeValueMetadataClient
 ): Promise<number> {
+  // Empty input is a valid no-op, and `IN ()` is a syntax error whose failure the
+  // cleanup job swallows — keep these total rather than relying on the caller.
+  if (workspaceIds.length === 0) return 0
   const rows = await dbClient.execute<{ count: number }>(sql`
     WITH deleted AS (
       DELETE FROM ${executionLargeValues} AS value
       WHERE value.ctid IN (
         SELECT value.ctid
         FROM ${executionLargeValues} AS value
-        WHERE value.workspace_id = ANY(${sql.param(workspaceIds)}::text[])
+        WHERE value.workspace_id IN ${workspaceIds}
           AND value.deleted_at IS NOT NULL
-          AND value.deleted_at < ${deletedBefore}
+          AND value.deleted_at < ${sql.param(deletedBefore, executionLargeValues.deletedAt)}
           AND NOT EXISTS (
             SELECT 1
             FROM ${executionLargeValueDependencies} AS dependency

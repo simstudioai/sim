@@ -6,7 +6,6 @@ import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull, min, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { ensureWorkflowAliasBacking } from '@/lib/copilot/vfs/workflow-alias-backing'
 import { materializeInlineExecutionValue } from '@/lib/execution/payloads/inline-materialization.server'
 import type { ExecutionMaterializationContext } from '@/lib/execution/payloads/materialization.server'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
@@ -459,8 +458,6 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
     throw new Error(saveResult.error || 'Failed to save workflow state')
   }
 
-  await ensureWorkflowAliasBacking({ workspaceId, userId, workflowId, workflowName: name })
-
   return { workflowId, name, workspaceId, folderId, sortOrder, createdAt: now, updatedAt: now }
 }
 
@@ -508,36 +505,6 @@ export async function verifyFolderWorkspace(
     )
     .limit(1)
   return Boolean(row)
-}
-
-/**
- * Walks the parent chain upward from `parentId` to check whether re-parenting `folderId`
- * under it would form a cycle. Returns true when a cycle would be created.
- */
-export async function checkForCircularReference(
-  folderId: string,
-  parentId: string
-): Promise<boolean> {
-  let currentParentId: string | null = parentId
-  const visited = new Set<string>()
-
-  while (currentParentId) {
-    if (visited.has(currentParentId) || currentParentId === folderId) {
-      return true
-    }
-
-    visited.add(currentParentId)
-
-    const [parent] = await db
-      .select({ parentId: folderTable.parentId })
-      .from(folderTable)
-      .where(and(eq(folderTable.id, currentParentId), eq(folderTable.resourceType, 'workflow')))
-      .limit(1)
-
-    currentParentId = parent?.parentId || null
-  }
-
-  return false
 }
 
 export async function listFolders(workspaceId: string) {

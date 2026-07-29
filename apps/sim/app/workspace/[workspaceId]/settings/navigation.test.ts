@@ -15,6 +15,7 @@ describe('unified settings navigation', () => {
       { key: 'tools', title: 'Tools' },
       { key: 'subscription', title: 'Subscription' },
       { key: 'system', title: 'System' },
+      { key: 'desktop', title: 'Desktop' },
       { key: 'enterprise', title: 'Enterprise' },
       { key: 'superuser', title: 'Superuser' },
     ])
@@ -23,6 +24,9 @@ describe('unified settings navigation', () => {
   it('keeps account, workspace, organization, and platform settings in one catalog', () => {
     expect(allNavigationItems.map(({ id, label, section }) => ({ id, label, section }))).toEqual([
       { id: 'general', label: 'General', section: 'account' },
+      { id: 'desktop', label: 'Desktop', section: 'desktop' },
+      { id: 'browser', label: 'Browser', section: 'desktop' },
+      { id: 'terminal', label: 'Terminal', section: 'desktop' },
       { id: 'access-control', label: 'Access control', section: 'enterprise' },
       { id: 'audit-logs', label: 'Audit logs', section: 'enterprise' },
       { id: 'forks', label: 'Workspace Forks', section: 'enterprise' },

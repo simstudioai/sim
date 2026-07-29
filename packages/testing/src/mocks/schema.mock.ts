@@ -779,7 +779,6 @@ export const schemaMock = {
     model: 'model',
     conversationId: 'conversationId',
     previewYaml: 'previewYaml',
-    planArtifact: 'planArtifact',
     config: 'config',
     resources: 'resources',
     lastSeenAt: 'lastSeenAt',

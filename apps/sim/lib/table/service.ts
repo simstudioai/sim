@@ -16,6 +16,7 @@ import { generateId } from '@sim/utils/id'
 import { and, count, eq, isNull, sql } from 'drizzle-orm'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
+import { resolveRestoredFolderId } from '@/lib/folders/queries'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
@@ -160,6 +161,7 @@ export async function getTableById(
       metadata: userTableDefinitions.metadata,
       maxRows: userTableDefinitions.maxRows,
       workspaceId: userTableDefinitions.workspaceId,
+      folderId: userTableDefinitions.folderId,
       createdBy: userTableDefinitions.createdBy,
       archivedAt: userTableDefinitions.archivedAt,
       createdAt: userTableDefinitions.createdAt,
@@ -189,6 +191,7 @@ export async function getTableById(
     rowCount: Math.max(0, table.rowCount - pendingDeleteRemaining),
     maxRows: table.maxRows,
     workspaceId: table.workspaceId,
+    folderId: table.folderId,
     createdBy: table.createdBy,
     locks: readLocks(table),
     archivedAt: table.archivedAt,
@@ -218,6 +221,7 @@ export async function listTables(
       metadata: userTableDefinitions.metadata,
       maxRows: userTableDefinitions.maxRows,
       workspaceId: userTableDefinitions.workspaceId,
+      folderId: userTableDefinitions.folderId,
       createdBy: userTableDefinitions.createdBy,
       archivedAt: userTableDefinitions.archivedAt,
       createdAt: userTableDefinitions.createdAt,
@@ -255,6 +259,7 @@ export async function listTables(
       rowCount: Math.max(0, t.rowCount - pendingDeleteRemaining),
       maxRows: t.maxRows,
       workspaceId: t.workspaceId,
+      folderId: t.folderId,
       createdBy: t.createdBy,
       locks: readLocks(t),
       archivedAt: t.archivedAt,
@@ -306,6 +311,7 @@ export async function createTable(
     description: data.description ?? null,
     schema,
     workspaceId: data.workspaceId,
+    folderId: data.folderId ?? null,
     createdBy: data.userId,
     maxRows,
     archivedAt: null,
@@ -427,6 +433,7 @@ export async function createTable(
     rowCount: data.initialRowCount ?? 0,
     maxRows: newTable.maxRows,
     workspaceId: newTable.workspaceId,
+    folderId: newTable.folderId,
     createdBy: newTable.createdBy,
     locks: UNLOCKED_TABLE_LOCKS,
     archivedAt: newTable.archivedAt,
@@ -615,6 +622,74 @@ export async function renameTable(
 }
 
 /**
+ * Moves a table into `folderId`, or to the workspace root when it is `null`.
+ *
+ * The caller is responsible for verifying that the folder exists, belongs to the same
+ * workspace, is active, and carries `resourceType: 'table'` — see `findActiveFolder` in
+ * `@/lib/folders/queries`. Table names are unique workspace-wide rather than per folder, so
+ * a move can never collide on name.
+ *
+ * Deliberately asserts no mutation lock: the four `user_table_definitions` lock flags govern
+ * schema and row writes, and folder placement is neither.
+ */
+export async function moveTableToFolder(
+  tableId: string,
+  workspaceId: string,
+  folderId: string | null,
+  requestId: string,
+  actingUserId?: string
+): Promise<void> {
+  const updates: Partial<typeof userTableDefinitions.$inferInsert> = {
+    folderId,
+    updatedAt: new Date(),
+  }
+
+  /**
+   * Scoped on workspace and active state, not just id: this is exported from `@/lib/table`,
+   * so the caller's own authorization is not something the write can assume. An archived
+   * table must not be quietly reparented either — it would come back out of Recently Deleted
+   * somewhere the user never put it.
+   */
+  const result = await db
+    .update(userTableDefinitions)
+    .set(updates)
+    .where(
+      and(
+        eq(userTableDefinitions.id, tableId),
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        isNull(userTableDefinitions.archivedAt)
+      )
+    )
+    .returning({
+      name: userTableDefinitions.name,
+      createdBy: userTableDefinitions.createdBy,
+    })
+
+  if (result.length === 0) {
+    throw new Error(`Table ${tableId} not found`)
+  }
+
+  const { name, createdBy } = result[0]
+  const actorId = actingUserId ?? createdBy
+  if (actorId) {
+    recordAudit({
+      workspaceId,
+      actorId,
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: tableId,
+      resourceName: name,
+      description: folderId
+        ? `Moved table "${name}" into a folder`
+        : `Moved table "${name}" to the workspace root`,
+      metadata: { op: 'move', folderId },
+    })
+  }
+
+  logger.info(`[${requestId}] Moved table ${tableId} to folder ${folderId ?? 'root'}`)
+}
+
+/**
  * Applies a partial lock change to a table. The caller authorizes (admin-only);
  * this function does the write.
  *
@@ -747,13 +822,18 @@ export async function updateTableMetadata(
  *
  * @param tableId - Table ID to delete
  * @param requestId - Request ID for logging
+ * @param actingUserId - User performing the delete, for audit
+ * @param options.archivedAt - Shared timestamp for a bulk archive (folder cascade), so the
+ * matching restore can identify exactly the set it archived. Defaults to now, leaving
+ * single-table callers unaffected. Mirrors `archiveWorkflow`'s option of the same name.
  */
 export async function deleteTable(
   tableId: string,
   requestId: string,
-  actingUserId?: string
+  actingUserId?: string,
+  options?: { archivedAt?: Date }
 ): Promise<void> {
-  const now = new Date()
+  const now = options?.archivedAt ?? new Date()
   // Archiving destroys access to every row, so it is gated on the delete lock.
   // The guard is inline in the WHERE (atomic — no separate read, no TOCTOU);
   // a zero-row result is then disambiguated below (locked vs already-archived).
@@ -820,7 +900,11 @@ export async function deleteTable(
  * archived by a bypass path (e.g. workspace archive, which has no un-archive),
  * making the lock the thing that permanently loses the data it protects.
  */
-export async function restoreTable(tableId: string, requestId: string): Promise<void> {
+export async function restoreTable(
+  tableId: string,
+  requestId: string,
+  options?: { restoringFolderIds?: ReadonlySet<string> }
+): Promise<void> {
   const table = await getTableById(tableId, { includeArchived: true })
   if (!table) {
     throw new Error('Table not found')
@@ -837,6 +921,20 @@ export async function restoreTable(tableId: string, requestId: string): Promise<
       throw new Error('Cannot restore table into an archived workspace')
     }
   }
+
+  /**
+   * Restoring a table whose folder is still archived would file it under a folder the Tables
+   * page never renders, leaving an active row nobody can reach. Re-root it instead — the same
+   * treatment `restoreFolder` gives a folder with an archived parent. `restoringFolderIds`
+   * exempts the folder subtree this restore is part of, which is still archived at the moment
+   * the cascade calls in.
+   */
+  const restoredFolderId = await resolveRestoredFolderId(
+    table.folderId,
+    table.workspaceId,
+    'table',
+    options?.restoringFolderIds
+  )
 
   /**
    * A concurrent rename/create can claim the chosen name after `generateRestoreName`'s check (MVCC).
@@ -870,7 +968,12 @@ export async function restoreTable(tableId: string, requestId: string): Promise<
         const now = new Date()
         await tx
           .update(userTableDefinitions)
-          .set({ archivedAt: null, updatedAt: now, name: attemptedRestoreName })
+          .set({
+            archivedAt: null,
+            updatedAt: now,
+            name: attemptedRestoreName,
+            folderId: restoredFolderId,
+          })
           .where(eq(userTableDefinitions.id, tableId))
       })
       break

@@ -454,6 +454,31 @@ export async function isOrganizationOnEnterprisePlan(organizationId: string): Pr
 }
 
 /**
+ * Entitlement for a single org-scoped enterprise feature.
+ *
+ * When billing runs, the organization's plan decides and every feature moves
+ * together. When it does not, there is no plan to read, so deployment
+ * configuration decides per feature — which is what lets an operator run, say,
+ * audit logs without whitelabeling.
+ *
+ * Pass the matching flag from `@/lib/core/config/env-flags` as
+ * `selfHostEntitlement`; those already resolve the master switch and the
+ * feature's legacy default.
+ *
+ * Prefer this over calling {@link isOrganizationOnEnterprisePlan} directly in a
+ * feature gate. That helper is feature-agnostic and answers `true` for
+ * everything once billing is off, which is exactly the behavior that made
+ * self-hosted flags meaningless.
+ */
+export async function isOrganizationFeatureEntitled(
+  organizationId: string,
+  selfHostEntitlement: boolean
+): Promise<boolean> {
+  if (!isBillingEnabled) return selfHostEntitlement
+  return isOrganizationOnEnterprisePlan(organizationId)
+}
+
+/**
  * Check if user has access to SSO feature
  * Returns true if:
  * - SSO_ENABLED env var is set (self-hosted override), OR

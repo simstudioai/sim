@@ -6,8 +6,19 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
  * Mirrors `pinnedItem.resourceType` in `packages/db/schema.ts`, which is deliberately
  * plain `text` on that table rather than a `pgEnum` — the set of pinnable kinds is
  * expected to grow, and this schema is the enforcement point.
+ *
+ * `folder` covers every folder tree at once: folder ids are globally unique, so one pin
+ * namespace serves the file, knowledge-base, and table trees. It is separate from the
+ * resource's own type, which is why a page listing folders alongside its resources resolves
+ * two `usePinnedIds` sets.
  */
-export const pinnedResourceTypeSchema = z.enum(['workflow', 'file', 'knowledge_base', 'table'])
+export const pinnedResourceTypeSchema = z.enum([
+  'workflow',
+  'file',
+  'knowledge_base',
+  'table',
+  'folder',
+])
 export type PinnedResourceType = z.output<typeof pinnedResourceTypeSchema>
 
 export const pinnedItemSchema = z.object({

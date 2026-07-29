@@ -181,55 +181,31 @@ describe('extractResourcesFromToolResult', () => {
 })
 
 describe('extractDeletedResourcesFromToolResult', () => {
-  it('extracts every successfully deleted workflow from the batch result', () => {
-    const resources = extractDeletedResourcesFromToolResult(
-      'delete_workflow',
-      { workflowIds: ['wf-1', 'wf-2', 'wf-failed'] },
-      {
-        deleted: [
-          { workflowId: 'wf-1', name: 'First workflow' },
-          { workflowId: 'wf-2', name: 'Second workflow' },
-        ],
-        failed: ['wf-failed'],
-      }
-    )
-
-    expect(resources).toEqual([
-      { type: 'workflow', id: 'wf-1', title: 'First workflow' },
-      { type: 'workflow', id: 'wf-2', title: 'Second workflow' },
-    ])
-  })
-
-  it('extracts deleted files from delete_file result data', () => {
+  it('extracts every kind rm deleted and skips the ones that failed', () => {
     expect(
       extractDeletedResourcesFromToolResult(
-        'delete_file',
-        { paths: ['files/one.md', 'files/two.md'] },
+        'rm',
+        { paths: ['files/Reports/Old%20Report.pdf'] },
         {
-          success: true,
-          data: {
-            deleted: [
-              { id: 'file-1', name: 'one.md' },
-              { id: 'file-2', name: 'two.md' },
-            ],
-            failed: [],
-          },
+          results: [
+            { from: 'files/Reports/Old%20Report.pdf', kind: 'file', id: 'file-1' },
+            { from: 'files/Archive', kind: 'file_folder', id: 'folder-1' },
+            { from: 'workflows/Lead%20Router', kind: 'workflow', id: 'wf-1' },
+            { from: 'workflows/Old%20Projects', kind: 'workflow_folder', id: 'wfolder-1' },
+            { from: 'tables/Leads', kind: 'table', id: 'tbl-1' },
+            { from: 'knowledgebases/support-docs', kind: 'knowledge_base', id: 'kb-1' },
+            { from: 'files/missing.md', kind: 'file', error: 'Not found: files/missing.md' },
+          ],
         }
       )
     ).toEqual([
-      { type: 'file', id: 'file-1', title: 'one.md' },
-      { type: 'file', id: 'file-2', title: 'two.md' },
+      { type: 'file', id: 'file-1', title: 'Old Report.pdf' },
+      { type: 'filefolder', id: 'folder-1', title: 'Archive' },
+      { type: 'workflow', id: 'wf-1', title: 'Lead Router' },
+      { type: 'folder', id: 'wfolder-1', title: 'Old Projects' },
+      { type: 'table', id: 'tbl-1', title: 'Leads' },
+      { type: 'knowledgebase', id: 'kb-1', title: 'support-docs' },
     ])
-  })
-
-  it('extracts deleted file folders from delete_file_folder result data', () => {
-    expect(
-      extractDeletedResourcesFromToolResult(
-        'delete_file_folder',
-        { paths: ['files/Archive'] },
-        { success: true, data: { folders: 1, files: 2, deletedFolderIds: ['folder-1'] } }
-      )
-    ).toEqual([{ type: 'filefolder', id: 'folder-1', title: 'Folder' }])
   })
 
   it('extracts only successfully deleted tables from user_table result data', () => {
@@ -253,16 +229,6 @@ describe('extractDeletedResourcesFromToolResult', () => {
         }
       )
     ).toEqual([{ type: 'knowledgebase', id: 'kb-1', title: 'Docs' }])
-  })
-
-  it('extracts deleted workflow folders from manage_folder delete results', () => {
-    expect(
-      extractDeletedResourcesFromToolResult(
-        'manage_folder',
-        { operation: 'delete', folderId: 'folder-1' },
-        { deleted: ['folder-1'], failed: [] }
-      )
-    ).toEqual([{ type: 'folder', id: 'folder-1', title: 'Folder' }])
   })
 
   it('removes scheduledtask resources on manage_scheduled_task delete', () => {

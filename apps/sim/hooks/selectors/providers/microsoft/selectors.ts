@@ -56,6 +56,28 @@ export const microsoftSelectors = {
       }))
     },
   },
+  'outlook.calendars': {
+    key: 'outlook.calendars',
+    contracts: [selectorContracts.outlookCalendarsSelectorContract],
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'outlook.calendars',
+      context.oauthCredential ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential),
+    fetchList: async ({ context, signal }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'outlook.calendars')
+      const data = await requestJson(selectorContracts.outlookCalendarsSelectorContract, {
+        query: { credentialId },
+        signal,
+      })
+      return (data.calendars || []).map((calendar) => ({
+        id: calendar.id,
+        label: calendar.name,
+      }))
+    },
+  },
   'microsoft.teams': {
     key: 'microsoft.teams',
     contracts: [selectorContracts.microsoftTeamsSelectorContract],
@@ -363,6 +385,7 @@ export const microsoftSelectors = {
     SelectorKey,
     | 'microsoft.planner.plans'
     | 'outlook.folders'
+    | 'outlook.calendars'
     | 'microsoft.teams'
     | 'microsoft.chats'
     | 'microsoft.channels'
