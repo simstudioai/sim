@@ -214,6 +214,12 @@ export interface BatchDeleteOptions {
    * so a cleanup pass only ever removes the kind it owns.
    */
   additionalPredicate?: SQL
+  /**
+   * Runs on each selected batch before its DELETE, for side effects that must observe exactly
+   * the rows about to be removed. Forwarded to `chunkedBatchDelete`; see `deleteFilter` there
+   * for the restore-race window this opens.
+   */
+  onBatch?: (rows: { id: string }[]) => Promise<void>
   batchSize?: number
   maxBatches?: number
   workspaceChunkSize?: number
