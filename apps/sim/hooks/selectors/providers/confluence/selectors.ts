@@ -89,13 +89,16 @@ export const confluenceSelectors = {
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
     /**
-     * Paged rather than a single fetch: `/pages` is cursor-paginated, so one request
-     * returned only the first `limit` pages of however many exist and the rest were
-     * unreachable — a search for a real page silently found nothing. `search` is
-     * still forwarded as the server-side `title` filter, and pagination now applies
-     * to the filtered stream too.
+     * Deliberately a single request, not a drain. `/pages` is cursor-paginated and
+     * this list is therefore capped at `limit`, which is a real gap — but draining it
+     * is worse: with no search term `title` is unset, so the drain would walk the
+     * entire site (up to `MAX_AUTO_DRAIN_PAGES` requests) every time the dropdown
+     * opens, and the route does not forward an abort signal upstream, so superseded
+     * drains still bill the tenant's rate limit. Fixing this properly needs
+     * server-side search whose `title` semantics have been confirmed against a live
+     * instance, not brute-force loading.
      */
-    fetchPage: async ({ context, search, cursor, signal }) => {
+    fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'confluence.pages')
       const domain = ensureDomain(context, 'confluence.pages')
       const bundle = await fetchOAuthToken(credentialId, context.workflowId)
@@ -108,17 +111,13 @@ export const confluenceSelectors = {
           accessToken: bundle.accessToken,
           cloudId: bundle.cloudId,
           title: search,
-          cursor,
         },
         signal,
       })
-      return {
-        items: (data.files || []).map((file) => ({
-          id: file.id,
-          label: file.name,
-        })),
-        nextCursor: data.nextCursor,
-      }
+      return (data.files || []).map((file) => ({
+        id: file.id,
+        label: file.name,
+      }))
     },
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null

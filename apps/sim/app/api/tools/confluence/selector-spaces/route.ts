@@ -23,6 +23,27 @@ const PAGE_LIMIT = 250
 
 type SpaceStatus = 'current' | 'archived'
 
+/** A row as Confluence returns it. `status` is not marked required in the v2 schema. */
+interface SpaceRow {
+  id: string
+  name: string
+  key: string
+  status?: SpaceStatus
+}
+
+interface SpacesResponse {
+  results?: SpaceRow[]
+  _links?: { next?: string }
+}
+
+/** A row as this selector emits it, with `status` always resolved. */
+interface SelectorSpace {
+  id: string
+  name: string
+  key: string
+  status: SpaceStatus
+}
+
 /**
  * Cursor format: `<status>:<innerCursor>`. Empty inner cursor means "first page
  * of that status". When current is exhausted we hand back `archived:` so the
@@ -103,7 +124,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const requestSpaces = async (
       search: URLSearchParams
-    ): Promise<{ ok: true; data: any } | { ok: false; response: NextResponse }> => {
+    ): Promise<{ ok: true; data: SpacesResponse } | { ok: false; response: NextResponse }> => {
       const response = await fetch(`${baseUrl}?${search.toString()}`, {
         method: 'GET',
         headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
@@ -119,46 +140,54 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return { ok: true, data: await response.json() }
     }
 
-    let data: any
-    if (spaceKey) {
-      /**
-       * Exact-key lookup, bypassing the paged drain the dropdown otherwise depends
-       * on. `status` is queried explicitly per value rather than omitted: it takes a
-       * single value on this endpoint (unlike `/pages`, where it is an array with a
-       * documented `current,archived` default), and no default is documented for
-       * `/spaces`. Archived spaces are reachable in the paged path and sync works
-       * against them, so resolving only `current` would silently miss them.
-       */
-      let result = await requestSpaces(
-        new URLSearchParams({ keys: spaceKey, limit: String(PAGE_LIMIT), status: 'current' })
-      )
-      if (!result.ok) return result.response
-      if (!result.data.results?.length) {
-        result = await requestSpaces(
-          new URLSearchParams({ keys: spaceKey, limit: String(PAGE_LIMIT), status: 'archived' })
-        )
-        if (!result.ok) return result.response
-      }
-      data = result.data
-    } else {
-      const params = new URLSearchParams({ limit: String(PAGE_LIMIT), status })
-      if (inner) params.set('cursor', inner)
-      const result = await requestSpaces(params)
-      if (!result.ok) return result.response
-      data = result.data
-    }
-    const spaces = (data.results || []).map(
-      (space: { id: string; name: string; key: string; status?: SpaceStatus }) => ({
+    const toSpaces = (rows: SpaceRow[] | undefined, queried: SpaceStatus): SelectorSpace[] =>
+      (rows ?? []).map((space) => ({
         id: space.id,
         name: space.name,
         key: space.key,
-        // An exact-key lookup is not scoped to one status, so trust the row's own.
-        status: space.status ?? status,
+        // Trust the row's own status; fall back to the status this call asked for.
+        status: space.status ?? queried,
+      }))
+
+    if (spaceKey) {
+      /**
+       * Exact-key lookup, bypassing the paged drain the dropdown otherwise depends
+       * on. Both statuses are queried explicitly rather than omitting `status`: it
+       * takes a single value on this endpoint (unlike `/pages`, where it is an array
+       * with a documented `current,archived` default) and `/spaces` documents no
+       * default, while archived spaces are reachable in the paged path and sync works
+       * against them. Concurrent because the key is user-typed text, so a miss — which
+       * dominates while typing — would otherwise pay two round-trips.
+       */
+      const [current, archived] = await Promise.all([
+        requestSpaces(
+          new URLSearchParams({ keys: spaceKey, limit: String(PAGE_LIMIT), status: 'current' })
+        ),
+        requestSpaces(
+          new URLSearchParams({ keys: spaceKey, limit: String(PAGE_LIMIT), status: 'archived' })
+        ),
+      ])
+      if (!current.ok) return current.response
+      if (!archived.ok) return archived.response
+
+      // A single resolution, never a page in a drained stream, so no cursor.
+      return NextResponse.json({
+        spaces: [
+          ...toSpaces(current.data.results, 'current'),
+          ...toSpaces(archived.data.results, 'archived'),
+        ],
+        nextCursor: undefined,
       })
-    )
+    }
+
+    const params = new URLSearchParams({ limit: String(PAGE_LIMIT), status })
+    if (inner) params.set('cursor', inner)
+    const result = await requestSpaces(params)
+    if (!result.ok) return result.response
+    const data = result.data
 
     let nextInner: string | undefined
-    const nextLink = data._links?.next as string | undefined
+    const nextLink = data._links?.next
     if (nextLink) {
       try {
         nextInner = new URL(nextLink, 'https://placeholder').searchParams.get('cursor') || undefined
@@ -167,17 +196,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
-    // An exact-key lookup is a single resolution, never a page in a drained stream.
     let nextCursor: string | undefined
-    if (spaceKey) {
-      nextCursor = undefined
-    } else if (nextInner) {
+    if (nextInner) {
       nextCursor = `${status}:${nextInner}`
     } else if (status === 'current') {
       nextCursor = 'archived:'
     }
 
-    return NextResponse.json({ spaces, nextCursor })
+    return NextResponse.json({ spaces: toSpaces(data.results, status), nextCursor })
   } catch (error) {
     logger.error('Error listing Confluence spaces:', error)
     return NextResponse.json(

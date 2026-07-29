@@ -178,18 +178,23 @@ export function useSelectorOptionDetail(
     detailId: resolvedDetailId,
   }
   const hasRealDetailId = Boolean(resolvedDetailId)
-  const baseEnabled =
-    hasRealDetailId && definition.fetchById !== undefined
-      ? definition.enabled
-        ? definition.enabled(queryArgs)
-        : true
-      : false
   /**
-   * A caller's `enabled` narrows `baseEnabled` rather than replacing it: `queryFn`
-   * asserts `fetchById` is defined, so dropping that guard would throw for every
-   * selector that declares no `fetchById`.
+   * Hard precondition: `queryFn` asserts `fetchById` is defined, so this must hold
+   * however the caller configures the query — otherwise the assertion throws for the
+   * many selectors that declare no `fetchById`.
    */
-  const enabled = (args.enabled ?? true) && baseEnabled
+  const canResolveDetail = hasRealDetailId && definition.fetchById !== undefined
+  /**
+   * `definition.enabled` describes when the *list* can be fetched, so it gates on
+   * context a list needs (credential, domain, region). Resolving one already-known id
+   * can need far less — `cloudwatch.*` echoes the id back without calling AWS at all —
+   * so a caller that opts in explicitly is only narrowed by the hard precondition.
+   * Callers that pass nothing keep the list predicate as their default.
+   */
+  const enabled =
+    args.enabled !== undefined
+      ? args.enabled && canResolveDetail
+      : canResolveDetail && (definition.enabled ? definition.enabled(queryArgs) : true)
 
   const query = useQuery<SelectorOption | null>({
     queryKey: [...definition.getQueryKey(queryArgs), 'detail', resolvedDetailId ?? 'none'],

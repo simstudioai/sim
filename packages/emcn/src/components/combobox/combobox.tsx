@@ -205,8 +205,16 @@ const Combobox = memo(
        */
       const onSearchChangeRef = useRef(onSearchChange)
       onSearchChangeRef.current = onSearchChange
-      /** Single write path for the search box so `onSearchChange` cannot be missed on a reset. */
+      /**
+       * Single write path for the search box so `onSearchChange` cannot be missed on a
+       * reset. Deduped because several paths reset redundantly — Escape both handles the
+       * key and lets the popover dismiss, and an editable select blurs after selecting —
+       * which `setSearchQuery` absorbed silently but a consumer callback would not.
+       */
+      const searchQueryRef = useRef('')
       const updateSearchQuery = useCallback((next: string) => {
+        if (searchQueryRef.current === next) return
+        searchQueryRef.current = next
         setSearchQuery(next)
         onSearchChangeRef.current?.(next)
       }, [])

@@ -194,9 +194,9 @@ function getEmptyMessage(
 ): string {
   // `field.title` is singular on some connectors ("Base") and plural on others
   // ("Spaces"), so only the settled message puts the noun behind a quantifier.
-  if (state.error) return 'No match — the list is incomplete. Enter the value directly'
+  if (state.error) return 'No match — the list failed to load. Try reopening'
   if (state.hasMore || state.isFetchingMore) return 'No match yet — still loading…'
-  if (state.truncated) return 'No match in what loaded — enter the value directly'
+  if (state.truncated) return 'No match — too many to list. Try a more exact term'
   return `No ${noun} found`
 }
 
