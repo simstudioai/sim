@@ -1,3 +1,4 @@
+import { generateId } from '@sim/utils/id'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
   buildAllDayRange,
@@ -135,7 +136,16 @@ export const outlookCalendarCreateEventTool: ToolConfig<
       // date-only input for all-day events.
       const bothBoundsDateOnly = isDateOnly(params.startDateTime) && isDateOnly(params.endDateTime)
       const isAllDay = toBool(params.isAllDay) || bothBoundsDateOnly
-      const event: Record<string, unknown> = { subject: params.subject }
+      const event: Record<string, unknown> = {
+        subject: params.subject,
+        // Graph de-duplicates create-event POSTs that repeat a transactionId, which is
+        // exactly the retry case: the executor retries 5xx as well as 429, so a failure
+        // returned after Graph already committed the event would otherwise create a
+        // duplicate. The request body is built once per execution and reused across
+        // attempts, so this id is stable for all retries of this call and unique across
+        // calls. https://learn.microsoft.com/en-us/graph/api/resources/event
+        transactionId: generateId(),
+      }
 
       if (isAllDay) {
         // All-day events need midnight bounds with an exclusive end day.

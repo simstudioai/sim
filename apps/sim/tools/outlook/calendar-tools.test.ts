@@ -303,6 +303,25 @@ describe('outlook calendar tools', () => {
     expect(withComment).toEqual({ sendResponse: true, comment: 'See you there' })
   })
 
+  it('sends a stable transactionId so a retried create cannot duplicate the event', () => {
+    const body = outlookCalendarCreateEventTool.request.body as (
+      p: unknown
+    ) => Record<string, unknown>
+    const params = {
+      accessToken: 't',
+      subject: 'Sync',
+      startDateTime: '2025-06-03T10:00:00Z',
+      endDateTime: '2025-06-03T11:00:00Z',
+    }
+    const first = body(params)
+    expect(typeof first.transactionId).toBe('string')
+    expect(first.transactionId).toBeTruthy()
+
+    // Distinct executions must not share an id, or Graph would discard a genuine
+    // second event as a duplicate. (Retries reuse one body, built once per execution.)
+    expect(body(params).transactionId).not.toBe(first.transactionId)
+  })
+
   it('enables retry with backoff on every calendar tool (429/mailbox concurrency)', () => {
     for (const tool of tools) {
       expect(tool.request.retry?.enabled).toBe(true)

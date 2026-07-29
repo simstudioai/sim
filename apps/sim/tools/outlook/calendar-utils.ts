@@ -12,10 +12,20 @@ import type { ToolRetryConfig } from '@/tools/types'
  *
  * Microsoft Graph throttles a single mailbox at roughly four concurrent requests and
  * returns 429 with a `Retry-After` header when calendar operations fan out (e.g. many
- * parallel event creates in a workflow). The tool executor retries 429/5xx with backoff
- * and honors `Retry-After`. `retryIdempotentOnly` is `false` so create/update/respond
- * (POST/PATCH) also retry — a 429 is a pre-processing throttle, so retrying does not
- * duplicate the event.
+ * parallel event creates in a workflow). `retryIdempotentOnly` is `false` so
+ * create/update/respond (POST/PATCH) retry too, rather than failing the whole workflow
+ * on a throttle.
+ *
+ * The executor retries **429 and 5xx** (`isRetryableFailure`), not 429 alone, so each
+ * non-idempotent method has to be safe against a retry that follows an already-committed
+ * write:
+ * - `create_event` (POST) sends a per-execution `transactionId`; Graph uses it to discard
+ *   the duplicate POST, so a 5xx-after-commit cannot create a second event.
+ * - `update_event` (PATCH) resends the same partial body, so replaying it is a no-op.
+ * - `respond` (POST accept/decline) is state-idempotent — the resulting `responseStatus`
+ *   is identical — but a retry after a committed write can send the organizer a second
+ *   notification email. Accepted: a duplicate notification is less harmful than failing
+ *   the response outright under throttling, and Graph exposes no transactionId for it.
  */
 export const CALENDAR_RETRY: ToolRetryConfig = {
   enabled: true,
