@@ -76,8 +76,14 @@ const MAX_CAUSE_DEPTH = 8
 /**
  * HTTP status carried by a thrown value, walking the `.cause` chain so a status
  * set deep in a tool survives the block-level wrapping that rebuilds the error.
- * Reads `HttpError.statusCode` (the canonical class-based carrier) plus the
- * legacy duck-typed `statusCode`/`status` fields some paths still set.
+ *
+ * Reads only SIM-OWNED carriers: `HttpError.statusCode` (canonical) and the
+ * `statusCode` field `generic-handler` re-attaches from a failed `ToolResponse`.
+ * Deliberately does NOT read the duck-typed `status` field: that carries an
+ * UPSTREAM target's status (`api-handler` copies it off the remote response, and
+ * transformed HTTP tool errors carry it too). Adopting it would turn a remote
+ * 404 into the workflow API's 404, colliding with the statuses that route owns
+ * (404 = workflow not found, 401 = bad API key, 429 = Sim rate limit).
  */
 export function readStatusCode(value: unknown): number | undefined {
   const seen = new Set<unknown>()
@@ -89,9 +95,8 @@ export function readStatusCode(value: unknown): number | undefined {
 
     if (current instanceof HttpError) return current.statusCode
 
-    const candidate = current as unknown as { statusCode?: unknown; status?: unknown }
+    const candidate = current as unknown as { statusCode?: unknown }
     if (typeof candidate.statusCode === 'number') return candidate.statusCode
-    if (typeof candidate.status === 'number') return candidate.status
 
     current = current.cause
   }

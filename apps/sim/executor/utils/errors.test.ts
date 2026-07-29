@@ -45,8 +45,15 @@ describe('getExecutionErrorStatus', () => {
     expect(getExecutionErrorStatus(new Error('boom'))).toBe(500)
   })
 
-  it('reads the legacy duck-typed status field', () => {
-    const error = Object.assign(new Error('rate limited'), { status: 429 })
+  it("never adopts an upstream target's duck-typed status as our own", () => {
+    // `api-handler` copies the remote response's status onto the thrown error.
+    // Adopting it would make a remote 404 the workflow API's 404.
+    const error = Object.assign(new Error('HTTP 404'), { status: 404 })
+    expect(getExecutionErrorStatus(error)).toBe(500)
+  })
+
+  it('still reads a Sim-owned statusCode re-attached from a ToolResponse', () => {
+    const error = Object.assign(new Error('rate limited'), { statusCode: 429 })
     expect(getExecutionErrorStatus(error)).toBe(429)
   })
 
