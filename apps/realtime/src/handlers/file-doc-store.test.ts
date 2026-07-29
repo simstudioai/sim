@@ -13,6 +13,8 @@ interface Backing {
   streams: Map<string, { id: string; message: Record<string, string> }[]>
   kv: Map<string, string>
   seq: number
+  /** Number of upcoming xAdd calls to fail with a transient error (to exercise publish retry). */
+  failXAdd: number
 }
 
 const state = vi.hoisted(() => ({ backing: null as Backing | null }))
@@ -30,6 +32,10 @@ function makeClient(): any {
     on: () => client,
     duplicate: () => makeClient(),
     xAdd: async (key: string, _star: string, fields: Record<string, string>) => {
+      if (b().failXAdd > 0) {
+        b().failXAdd--
+        throw new Error('transient xAdd failure')
+      }
       const id = `${++b().seq}-0`
       const arr = b().streams.get(key) ?? []
       arr.push({ id, message: { ...fields } })
@@ -64,6 +70,16 @@ function makeClient(): any {
     del: async (key: string) => {
       b().kv.delete(key)
       return 1
+    },
+    // Compare-and-delete Lua (RELEASE_LOCK_SCRIPT): del only if the stored value matches the token.
+    eval: async (_script: string, opts: { keys: string[]; arguments: string[] }) => {
+      const [key] = opts.keys
+      const [token] = opts.arguments
+      if (b().kv.get(key) === token) {
+        b().kv.delete(key)
+        return 1
+      }
+      return 0
     },
     expire: async () => 1,
   }
@@ -101,7 +117,7 @@ async function newStore(): Promise<FileDocStore> {
 
 describe('FileDocStore', () => {
   beforeEach(() => {
-    state.backing = { streams: new Map(), kv: new Map(), seq: 0 }
+    state.backing = { streams: new Map(), kv: new Map(), seq: 0, failXAdd: 0 }
     stores = []
   })
 
@@ -112,20 +128,22 @@ describe('FileDocStore', () => {
   it('elects exactly one seeder across tasks (no split-brain seed)', async () => {
     const a = await newStore()
     const b = await newStore()
-    const [aWon, bWon] = await Promise.all([a.shouldSeed(NAME), b.shouldSeed(NAME)])
-    expect([aWon, bWon].filter(Boolean)).toHaveLength(1)
+    // shouldSeed returns a lock token (truthy) for the winner, null for the loser.
+    const [aTok, bTok] = await Promise.all([a.shouldSeed(NAME), b.shouldSeed(NAME)])
+    expect([aTok, bTok].filter(Boolean)).toHaveLength(1)
   })
 
   it('does not re-seed once the stream already has content (stale lock)', async () => {
     const a = await newStore()
-    expect(await a.shouldSeed(NAME)).toBe(true)
+    const token = await a.shouldSeed(NAME)
+    expect(token).toBeTruthy()
     // A seeds and releases its lock.
     a.publish(NAME, updateFor('hello'))
     await vi.waitFor(async () => expect(await a.getStreamState(NAME)).not.toBeNull())
-    await a.releaseSeedLock(NAME)
+    await a.releaseSeedLock(NAME, token as string)
     // A different task must NOT seed again — the lock is free but the stream is non-empty.
     const b = await newStore()
-    expect(await b.shouldSeed(NAME)).toBe(false)
+    expect(await b.shouldSeed(NAME)).toBeNull()
   })
 
   it('getStreamState reconstructs the shared document from the stream', async () => {
@@ -204,22 +222,50 @@ describe('FileDocStore', () => {
     doc.destroy()
   })
 
+  it('retries a transient append failure so the edit is not lost from the shared log', async () => {
+    const a = await newStore()
+    state.backing!.failXAdd = 2 // first two xAdd attempts throw; the third must succeed
+    a.publish(NAME, updateFor('resilient'))
+    await vi.waitFor(
+      async () => {
+        const doc = new Y.Doc()
+        Y.applyUpdate(doc, (await a.getStreamState(NAME))!)
+        expect(doc.getText('body').toString()).toBe('resilient')
+        doc.destroy()
+      },
+      { timeout: 2000 }
+    )
+  })
+
+  it('streamHasContent fences a seed apply against an already-seeded stream', async () => {
+    const a = await newStore()
+    expect(await a.streamHasContent(NAME)).toBe(false)
+    a.publish(NAME, updateFor('seeded'))
+    await vi.waitFor(async () => expect(await a.streamHasContent(NAME)).toBe(true))
+  })
+
   it('serializes merges across tasks via the merge lock', async () => {
     const a = await newStore()
     const b = await newStore()
-    expect(await a.acquireMergeSlot(NAME, 5_000)).toBe(true)
+    const aTok = await a.acquireMergeSlot(NAME, 5_000)
+    expect(aTok).toBeTruthy()
     // A holds it → B is refused until A releases.
-    expect(await b.acquireMergeSlot(NAME, 5_000)).toBe(false)
-    await a.releaseMergeSlot(NAME)
-    expect(await b.acquireMergeSlot(NAME, 5_000)).toBe(true)
-    await b.releaseMergeSlot(NAME)
+    expect(await b.acquireMergeSlot(NAME, 5_000)).toBeNull()
+    // A stale-holder release with the WRONG token must NOT free A's lock (compare-and-delete).
+    await b.releaseMergeSlot(NAME, 'wrong-token')
+    expect(await b.acquireMergeSlot(NAME, 5_000)).toBeNull()
+    // A releases with its real token → B can now acquire.
+    await a.releaseMergeSlot(NAME, aTok as string)
+    const bTok = await b.acquireMergeSlot(NAME, 5_000)
+    expect(bTok).toBeTruthy()
+    await b.releaseMergeSlot(NAME, bTok as string)
   })
 
   it('is disabled without a REDIS_URL and behaves single-replica', async () => {
     const store = new FileDocStore(undefined)
     expect(store.enabled).toBe(false)
-    // Seeds locally (returns true), never touches a stream.
-    expect(await store.shouldSeed(NAME)).toBe(true)
+    // Seeds locally (returns a sentinel token), never touches a stream.
+    expect(await store.shouldSeed(NAME)).toBeTruthy()
     expect(await store.getStreamState(NAME)).toBeNull()
     const doc = new Y.Doc()
     await store.attachRoom(NAME, doc) // no-op, no throw

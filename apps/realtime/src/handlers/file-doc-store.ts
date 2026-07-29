@@ -34,10 +34,19 @@ import { createLogger } from '@sim/logger'
 import { FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { generateId } from '@sim/utils/id'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { createClient, type RedisClientType } from 'redis'
 import * as Y from 'yjs'
 
 const logger = createLogger('FileDocStore')
+
+/**
+ * Compare-and-delete: release a lock ONLY if this task still holds it (its token still the value), so a
+ * lock that expired and was re-acquired by another task is never stolen by the original holder's release.
+ */
+const RELEASE_LOCK_SCRIPT =
+  "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end"
 
 /**
  * The transaction origin the store stamps on updates it applies from the stream. The relay's
@@ -56,6 +65,11 @@ const MERGE_LOCK_PREFIX = 'filedoc:mergelock:'
 /** The single field each stream entry carries — a base64 Yjs update. */
 const UPDATE_FIELD = 'u'
 
+/** Sentinel token a DISABLED store returns from a lock acquire, so single-replica callers proceed
+ * without special-casing; {@link FileDocStore.releaseLock} treats it as a no-op. Not a real UUID, so it
+ * can never collide with a {@link generateId} token. */
+const DISABLED_LOCK_TOKEN = '__disabled__'
+
 /** How long a blocking multiplexed read waits before re-snapshotting the live room set. Also bounds
  * how long a room attached mid-block waits for its first cross-task update (updates are not lost — the
  * next read resumes from its last id — only briefly delayed). */
@@ -69,11 +83,19 @@ const READ_COUNT = 200
 const COMPACT_THRESHOLD = 400
 /** Check whether compaction is due only every Nth local publish, to avoid an XLEN per keystroke. */
 const COMPACT_CHECK_EVERY = 64
-/** The seed lock is held across the app seed fetch (hard-bounded at `seedRequestMs`) plus the apply +
- * publish. The generous cushion over `seedRequestMs` means only a multi-second event-loop stall — not
- * ordinary latency — could expire it mid-seed, so the single-seeder invariant does not hinge on a tight
- * 2s margin coupled to an unrelated timeout. */
-const SEED_LOCK_TTL_MS = FILE_DOC_TIMEOUTS.seedRequestMs + 12_000
+/** Compaction critical section (snapshot + xAdd + xTrim) is fast; a generous TTL covers a slow Redis
+ * round-trip without risking expiry mid-compact. Released via compare-and-delete regardless. */
+const COMPACT_LOCK_TTL_MS = 10_000
+/** Retry a failed stream append this many times before giving up, so a transient Redis blip doesn't
+ * silently drop an edit from the shared log (which no peer would then ever see). */
+const PUBLISH_MAX_RETRIES = 3
+/** The seed lock spans the app seed fetch (hard-bounded at `seedRequestMs = 8s`) + the apply + the
+ * AWAITED seed publish. The margin comfortably exceeds the fetch bound so the lock does not expire
+ * mid-seed, while staying at the client readiness deadline (12s) so a dead seeder's lock frees when
+ * clients would recover anyway. Double-seed is prevented regardless of the margin: the seeder publishes
+ * the seed to the stream BEFORE releasing the lock, so any later seeder's {@link streamHasContent} fence
+ * sees it. */
+const SEED_LOCK_TTL_MS = FILE_DOC_TIMEOUTS.seedRequestMs + 4_000
 /** How long a stream survives with no heartbeat — long enough that an occupied-but-idle doc never
  * loses its shared state (the heartbeat refreshes it while any task holds the room). */
 const STREAM_TTL_SEC = 600
@@ -198,49 +220,106 @@ export class FileDocStore {
   }
 
   /**
-   * Append a locally-applied update to the shared stream so every task converges. Called from the
-   * relay's `doc.on('update')` for local edits only (never for {@link REDIS_ORIGIN} updates — those
-   * already came from the stream). No-op when disabled.
+   * Append a locally-applied update to the shared stream so every task converges, AWAITING the write
+   * and retrying a transient failure ({@link PUBLISH_MAX_RETRIES}) so a Redis blip can't silently drop
+   * an edit from the shared log. Only the `xAdd` is retried; the TTL refresh + compaction check are
+   * post-write best-effort and never re-trigger the append. Throws if the append ultimately fails.
    */
-  publish(name: string, update: Uint8Array): void {
-    if (!this.enabled || !this.write) return
+  private async appendUpdate(name: string, update: Uint8Array): Promise<void> {
+    if (!this.write) return
+    const encoded = Buffer.from(update).toString('base64')
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await this.write.xAdd(streamKey(name), '*', { [UPDATE_FIELD]: encoded })
+        break
+      } catch (error) {
+        if (attempt >= PUBLISH_MAX_RETRIES) {
+          logger.error(`FileDocStore append failed for ${name}`, { error: getErrorMessage(error) })
+          throw error
+        }
+        // Snappy backoff — a stream append is a fast op; a transient blip clears in tens of ms.
+        // `backoffWithJitter` is 1-indexed, so pass the 1-based attempt number.
+        await sleep(backoffWithJitter(attempt + 1, null, { baseMs: 50, maxMs: 500 }))
+      }
+    }
+    await this.write.expire(streamKey(name), STREAM_TTL_SEC).catch(() => {})
     const room = this.rooms.get(name)
-    void this.write
-      .xAdd(streamKey(name), '*', { [UPDATE_FIELD]: Buffer.from(update).toString('base64') })
-      .then(() => this.write?.expire(streamKey(name), STREAM_TTL_SEC))
-      .then(() => {
-        if (room && ++room.publishes % COMPACT_CHECK_EVERY === 0) return this.maybeCompact(name)
-      })
-      .catch((error) =>
-        logger.warn(`FileDocStore publish failed for ${name}`, { error: getErrorMessage(error) })
-      )
+    if (room && ++room.publishes % COMPACT_CHECK_EVERY === 0) void this.maybeCompact(name)
   }
 
   /**
-   * Decide whether THIS task should build and write the file's one-time seed. Returns true only when
-   * the shared stream is genuinely empty AND this task wins the seed lock — so exactly one task across
-   * the cluster ever seeds a file, even if several open it at once (the fix for split-brain seeding).
-   * When disabled, always true (single-replica: seed locally).
+   * Fire-and-forget append for the hot keystroke path (`doc.on('update')`): converges peers without
+   * blocking the relay. Retries internally; never throws. No-op when disabled.
    */
-  async shouldSeed(name: string): Promise<boolean> {
-    if (!this.enabled || !this.write) return true
+  publish(name: string, update: Uint8Array): void {
+    if (!this.enabled || !this.write) return
+    void this.appendUpdate(name, update).catch(() => {}) // already logged inside appendUpdate
+  }
+
+  /**
+   * Awaitable append for callers that must know the update is durably in the stream before proceeding
+   * — the copilot merge, so the cross-task merge lock is not released before the diff is committed
+   * (else the next task would diff a stale base). Throws on ultimate failure. No-op when disabled.
+   */
+  async publishAndWait(name: string, update: Uint8Array): Promise<void> {
+    if (!this.enabled || !this.write) return
+    await this.appendUpdate(name, update)
+  }
+
+  /**
+   * Whether the file's stream already holds content — fences a seed apply against a peer that seeded
+   * while this task held a (possibly stale) lock, so we never write a second seed (split-brain). False
+   * when disabled or on error (the caller then proceeds under its lock, as before).
+   */
+  async streamHasContent(name: string): Promise<boolean> {
+    if (!this.enabled || !this.write) return false
     try {
-      const won = await this.write.set(`${SEED_LOCK_PREFIX}${name}`, '1', {
-        NX: true,
-        PX: SEED_LOCK_TTL_MS,
-      })
-      if (won !== 'OK') return false
-      // The lock could be free yet the stream already seeded (a prior holder seeded then its lock
-      // expired). Re-check under the lock so we never write a SECOND seed on top of an existing one.
-      if ((await this.write.xLen(streamKey(name))) > 0) {
-        await this.releaseSeedLock(name)
-        return false
-      }
-      return true
-    } catch (error) {
-      logger.warn(`FileDocStore shouldSeed failed for ${name}`, { error: getErrorMessage(error) })
+      return (await this.write.xLen(streamKey(name))) > 0
+    } catch {
       return false
     }
+  }
+
+  /**
+   * Acquire a distributed lock with a unique ownership TOKEN (`SET key <token> NX PX`). Returns the
+   * token to release with, or `null` if not won. Fails CLOSED (null) on a Redis error — a lock we can't
+   * prove we hold must not be treated as held. The special sentinel {@link DISABLED_LOCK_TOKEN} lets a
+   * disabled store return a truthy token so callers proceed single-replica without special-casing.
+   */
+  private async acquireLock(key: string, ttlMs: number): Promise<string | null> {
+    if (!this.enabled || !this.write) return DISABLED_LOCK_TOKEN
+    const token = generateId()
+    try {
+      return (await this.write.set(key, token, { NX: true, PX: ttlMs })) === 'OK' ? token : null
+    } catch (error) {
+      logger.warn(`FileDocStore lock ${key} failed`, { error: getErrorMessage(error) })
+      return null
+    }
+  }
+
+  /** Release a lock via compare-and-delete, so it is only dropped if we still hold our token. */
+  private async releaseLock(key: string, token: string): Promise<void> {
+    if (!this.write || token === DISABLED_LOCK_TOKEN) return
+    await this.write.eval(RELEASE_LOCK_SCRIPT, { keys: [key], arguments: [token] }).catch(() => {})
+  }
+
+  /**
+   * Decide whether THIS task should build and write the file's one-time seed. Returns a lock TOKEN only
+   * when the shared stream is genuinely empty AND this task wins the seed lock — so exactly one task
+   * across the cluster ever seeds a file, even if several open it at once (the fix for split-brain
+   * seeding). `null` otherwise. Release the token with {@link releaseSeedLock}. Disabled → always a
+   * token (single-replica: seed locally).
+   */
+  async shouldSeed(name: string): Promise<string | null> {
+    const token = await this.acquireLock(`${SEED_LOCK_PREFIX}${name}`, SEED_LOCK_TTL_MS)
+    if (!token || token === DISABLED_LOCK_TOKEN) return token
+    // The lock could be free yet the stream already seeded (a prior holder seeded then its lock
+    // expired). Re-check under the lock so we never write a SECOND seed on top of an existing one.
+    if (await this.streamHasContent(name)) {
+      await this.releaseSeedLock(name, token)
+      return null
+    }
+    return token
   }
 
   /**
@@ -262,10 +341,9 @@ export class FileDocStore {
     }
   }
 
-  /** Release the seed lock (best-effort) once the seed has been published or a seed attempt failed. */
-  async releaseSeedLock(name: string): Promise<void> {
-    if (!this.enabled || !this.write) return
-    await this.write.del(`${SEED_LOCK_PREFIX}${name}`).catch(() => {})
+  /** Release the seed lock (compare-and-delete) once the seed has been published or a seed attempt failed. */
+  async releaseSeedLock(name: string, token: string): Promise<void> {
+    await this.releaseLock(`${SEED_LOCK_PREFIX}${name}`, token)
   }
 
   /**
@@ -292,22 +370,15 @@ export class FileDocStore {
    * merges per task; this extends that across tasks so two copilot edits to the same file landing on
    * different tasks don't each diff the SAME shared base and publish conflicting full-document rewrites.
    * The loser waits and retries so it diffs against the winner's RESULT (correct sequential merge).
-   * Returns true (proceed) when disabled or once the lock is won. Release with {@link releaseMergeSlot}.
+   * Returns a lock TOKEN (proceed) when disabled or once won; `null` otherwise (fails CLOSED on error, so
+   * a merge never races when exclusivity can't be proven). Release with {@link releaseMergeSlot}.
    */
-  async acquireMergeSlot(name: string, ttlMs: number): Promise<boolean> {
-    if (!this.enabled || !this.write) return true
-    try {
-      return (
-        (await this.write.set(`${MERGE_LOCK_PREFIX}${name}`, '1', { NX: true, PX: ttlMs })) === 'OK'
-      )
-    } catch {
-      return true
-    }
+  async acquireMergeSlot(name: string, ttlMs: number): Promise<string | null> {
+    return this.acquireLock(`${MERGE_LOCK_PREFIX}${name}`, ttlMs)
   }
 
-  async releaseMergeSlot(name: string): Promise<void> {
-    if (!this.enabled || !this.write) return
-    await this.write.del(`${MERGE_LOCK_PREFIX}${name}`).catch(() => {})
+  async releaseMergeSlot(name: string, token: string): Promise<void> {
+    await this.releaseLock(`${MERGE_LOCK_PREFIX}${name}`, token)
   }
 
   private applyEntry(room: StoreRoom, id: string, message: Record<string, string>): void {
@@ -358,11 +429,9 @@ export class FileDocStore {
     if (!room) return
     try {
       if ((await this.write.xLen(streamKey(name))) < COMPACT_THRESHOLD) return
-      const won = await this.write.set(`${COMPACT_LOCK_PREFIX}${name}`, '1', {
-        NX: true,
-        PX: 10_000,
-      })
-      if (won !== 'OK') return
+      const key = `${COMPACT_LOCK_PREFIX}${name}`
+      const token = await this.acquireLock(key, COMPACT_LOCK_TTL_MS)
+      if (!token) return
       try {
         // Capture the snapshot AND the id it covers in one synchronous step (no await between): the
         // snapshot is `room.doc`, which holds exactly what this task's tailer has integrated — every
@@ -377,7 +446,7 @@ export class FileDocStore {
         // `upTo` itself (redundant with the snapshot, harmless); it drops only the folded older deltas.
         await this.write.xTrim(streamKey(name), 'MINID', upTo)
       } finally {
-        await this.write.del(`${COMPACT_LOCK_PREFIX}${name}`).catch(() => {})
+        await this.releaseLock(key, token)
       }
     } catch (error) {
       logger.warn(`FileDocStore compaction failed for ${name}`, { error: getErrorMessage(error) })
