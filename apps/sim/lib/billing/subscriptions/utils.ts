@@ -21,6 +21,22 @@ export const ENTITLED_SUBSCRIPTION_STATUSES = ['active', 'past_due'] as const
 export const USABLE_SUBSCRIPTION_STATUSES = ['active'] as const
 
 /**
+ * Statuses where the subscription is finished and can no longer bill anyone.
+ *
+ * The inverse of this set — `active`, `past_due`, `unpaid`, `trialing`,
+ * `incomplete` — is still attached to a live Stripe subscription that can
+ * convert or retry, even where it grants no entitlement today. Use this, not
+ * {@link ENTITLED_SUBSCRIPTION_STATUSES}, when the question is "would removing
+ * the thing this row points at strand live billing?" — a `trialing`
+ * subscription is unentitled but very much alive.
+ *
+ * Deliberately expressed as the terminal set rather than the live one, so a
+ * status Stripe adds later is treated as live by default. For a destructive
+ * operation that is the safe direction to be wrong in.
+ */
+export const TERMINAL_SUBSCRIPTION_STATUSES = ['canceled', 'incomplete_expired'] as const
+
+/**
  * Returns true when a subscription should still count as a paid plan entitlement.
  */
 export function hasPaidSubscriptionStatus(status: string | null | undefined): boolean {

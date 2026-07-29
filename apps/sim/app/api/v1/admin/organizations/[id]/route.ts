@@ -34,7 +34,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, inArray } from 'drizzle-orm'
+import { and, count, eq, inArray, isNull, not, or } from 'drizzle-orm'
 import {
   adminV1DeleteOrganizationContract,
   adminV1GetOrganizationContract,
@@ -47,7 +47,10 @@ import {
   OrganizationSlugTakenError,
   validateOrganizationSlugOrThrow,
 } from '@/lib/billing/organizations/create-organization'
-import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import {
+  ENTITLED_SUBSCRIPTION_STATUSES,
+  TERMINAL_SUBSCRIPTION_STATUSES,
+} from '@/lib/billing/subscriptions/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { detachOrganizationWorkspaces } from '@/lib/workspaces/organization-workspaces'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
@@ -243,9 +246,12 @@ export const DELETE = withRouteHandler(
        * would strand it, and its Stripe billing, against an id that no longer
        * resolves. Refuse instead of guessing whether to cancel.
        *
-       * Scoped to entitled statuses. A canceled or ended row bills nobody, so
-       * treating it as a blocker would make an organization that once had a
-       * subscription permanently undeletable.
+       * Scoped to non-terminal rows. A canceled row bills nobody, so treating
+       * it as a blocker would make an organization that once had a
+       * subscription permanently undeletable — but entitlement is the wrong
+       * test in the other direction too, since a `trialing` subscription grants
+       * nothing today and is still live in Stripe. A null status is unknown, so
+       * it blocks.
        */
       const [existingSubscription] = await db
         .select({ id: subscription.id, plan: subscription.plan })
@@ -253,7 +259,10 @@ export const DELETE = withRouteHandler(
         .where(
           and(
             eq(subscription.referenceId, organizationId),
-            inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+            or(
+              isNull(subscription.status),
+              not(inArray(subscription.status, TERMINAL_SUBSCRIPTION_STATUSES))
+            )
           )
         )
         .limit(1)
