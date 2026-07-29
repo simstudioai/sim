@@ -51,27 +51,29 @@ function markdownSchema(): Schema {
   return cachedSchema
 }
 
-let domReady = false
-
 /**
- * Ensure a DOM exists for the TipTap editor the markdown engine constructs. In a `jsdom` test
- * environment `document` already exists and this is a no-op; in a plain Node server it installs a
- * single shared jsdom window's globals once. Kept minimal and idempotent — TipTap only needs
- * `document`/`window`/`navigator` to build its (never-mounted) editor for parse/serialize.
+ * Ensure a DOM exists for the TipTap editor the markdown engine constructs. In a `jsdom`/browser
+ * environment `window` + `document` already exist and this is a no-op; in a plain Node server it
+ * installs a single shared jsdom window's globals. Cheap and idempotent — TipTap only needs
+ * `window`/`document`/`navigator` to build its (never-mounted) editor for parse/serialize.
+ *
+ * Gate on `window` (what TipTap's `elementFromString` actually checks), not just `document`, and hold
+ * NO cached "ready" flag: the Next server runtime exposes a partial `document` with NO `window`, and a
+ * `document`-only guard (plus a sticky flag) skipped this setup — leaving TipTap to throw "there is no
+ * window object available". Re-checking the globals every call means a partial stub can never wedge it.
+ * When `window` is missing we install a coherent jsdom window+document pair, overwriting any such stub.
  */
 function ensureDomForTipTap(): void {
-  if (domReady || typeof document !== 'undefined') {
-    domReady = true
-    return
-  }
-  // Lazy require so the client bundle never pulls jsdom in.
+  if (typeof window !== 'undefined' && typeof document !== 'undefined') return
+  // Lazy require so the client bundle never pulls jsdom in. Bind to `jsdomWindow`, NOT `window` — a
+  // local `const window` would shadow the global and put the `typeof window` guard above in its
+  // temporal dead zone ("Cannot access 'window' before initialization").
   const { JSDOM } = require('jsdom') as typeof import('jsdom')
-  const { window } = new JSDOM('<!doctype html><html><body></body></html>')
+  const { window: jsdomWindow } = new JSDOM('<!doctype html><html><body></body></html>')
   const g = globalThis as unknown as Record<string, unknown>
-  g.window ??= window
-  g.document ??= window.document
-  g.navigator ??= window.navigator
-  domReady = true
+  g.window = jsdomWindow
+  g.document = jsdomWindow.document
+  g.navigator ??= jsdomWindow.navigator
 }
 
 /** Convert a file's markdown to a fresh collaborative {@link Y.Doc} (cold-start seed). */

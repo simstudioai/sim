@@ -1,0 +1,161 @@
+import type { JSONContent } from '@tiptap/core'
+import { Image } from '@tiptap/extension-image'
+
+/**
+ * React-free schema half of the image node. Lives apart from {@link ./image} (its React resize node
+ * view) so the shared editor schema — `createMarkdownContentExtensions` in `./extensions` — can be
+ * imported by server code (the collab-doc seed converter) without pulling a client component
+ * (`useEffect`) into a Server Component module. The client editor injects the node-view variant
+ * ({@link ResizableImage}) via `nodeViews`.
+ */
+
+/**
+ * A markdown linked image `[![alt](src "t")](href "t2")` — an image wrapped in a link, the canonical
+ * form of a README badge. `@tiptap/markdown` parses this as a link mark over an image node, but an
+ * image node can't carry inline marks, so the wrapping link is silently dropped. We instead tokenize
+ * the whole construct ourselves and hang the link target on the image node's `href` attribute, so it
+ * round-trips losslessly (and the file stays editable rather than opening read-only).
+ */
+const LINKED_IMAGE_RE =
+  /^\[!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/
+
+/** Escape a value for safe interpolation into a double-quoted HTML attribute. */
+function escapeAttr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+/**
+ * Serialize an image to markdown when it has no explicit size, and to an HTML `<img>` tag when
+ * it does — standard markdown has no width syntax, so a resized image must round-trip as HTML to
+ * preserve its dimensions. Unsized images stay clean `![alt](src)`. An image with an `href` is
+ * wrapped in a markdown link so a linked badge round-trips as `[![alt](src)](href)`.
+ *
+ * A *sized **and** linked* image is the one case markdown can't represent: the linked-image tokenizer
+ * only recognizes `[![alt](src)](href)`, so emitting `[<img …>](href)` would silently drop the link on
+ * reparse (and the round-trip-safety probe wouldn't catch it). We keep the link and fall back to the
+ * unsized `[![alt](src)](href)` form — the link matters more than the exact dimensions for a badge.
+ */
+function imageMarkdown(node: JSONContent): string {
+  const attrs = node.attrs ?? {}
+  const src = typeof attrs.src === 'string' ? attrs.src : ''
+  const alt = typeof attrs.alt === 'string' ? attrs.alt : ''
+  const title = typeof attrs.title === 'string' ? attrs.title : ''
+  const href = typeof attrs.href === 'string' ? attrs.href : ''
+  const hrefTitle = typeof attrs.hrefTitle === 'string' ? attrs.hrefTitle : ''
+  const width = attrs.width
+  const height = attrs.height
+  let image: string
+  if ((width || height) && !href) {
+    const parts = [`src="${escapeAttr(src)}"`]
+    if (alt) parts.push(`alt="${escapeAttr(alt)}"`)
+    if (title) parts.push(`title="${escapeAttr(title)}"`)
+    if (width) parts.push(`width="${escapeAttr(String(width))}"`)
+    if (height) parts.push(`height="${escapeAttr(String(height))}"`)
+    image = `<img ${parts.join(' ')}>`
+  } else {
+    // Escape so an alt with `]`/`[` or a title with `"` can't break out of the `![…](… "…")` syntax
+    // and corrupt the round-trip; a src with spaces/parens goes in angle brackets (CommonMark).
+    const titlePart = title ? ` "${title.replace(/["\\]/g, '\\$&')}"` : ''
+    const safeSrc = /[\s()]/.test(src) ? `<${src}>` : src
+    image = `![${alt.replace(/[\\[\]]/g, '\\$&')}](${safeSrc}${titlePart})`
+  }
+  if (!href) return image
+  // Escape `"`/`\` so an href title can't break out of the `[…](href "title")` syntax (mirrors the
+  // image title escaping above).
+  const hrefTitlePart = hrefTitle ? ` "${hrefTitle.replace(/["\\]/g, '\\$&')}"` : ''
+  return `[${image}](${href}${hrefTitlePart})`
+}
+
+interface MarkdownImageToken {
+  /** Set only by our linked-image tokenizer; absent on the built-in `![](src)` token. */
+  src?: string
+  alt?: string
+  title?: string | null
+  /** Built-in image token holds the source URL here; our linked token holds the link target. */
+  href?: string
+  hrefTitle?: string | null
+  /** Built-in image token holds the alt text here. */
+  text?: string
+}
+
+/** Map both the built-in image token and our linked-image token onto the image node's attributes. */
+function parseImageToken(token: MarkdownImageToken): JSONContent {
+  const isLinked = typeof token.src === 'string'
+  return {
+    type: 'image',
+    attrs: isLinked
+      ? {
+          src: token.src,
+          alt: token.alt ?? '',
+          title: token.title ?? null,
+          href: token.href ?? null,
+          hrefTitle: token.hrefTitle ?? null,
+        }
+      : {
+          src: token.href ?? '',
+          alt: token.text ?? '',
+          title: token.title ?? null,
+          href: null,
+          hrefTitle: null,
+        },
+  }
+}
+
+const widthAttr = {
+  default: null,
+  parseHTML: (element: HTMLElement) => element.getAttribute('width'),
+  renderHTML: (attributes: Record<string, unknown>) =>
+    attributes.width ? { width: String(attributes.width) } : {},
+}
+
+const heightAttr = {
+  default: null,
+  parseHTML: (element: HTMLElement) => element.getAttribute('height'),
+  renderHTML: (attributes: Record<string, unknown>) =>
+    attributes.height ? { height: String(attributes.height) } : {},
+}
+
+/** Link target of a linked image — markdown-only state, never emitted as an HTML `<img>` attribute. */
+const hrefAttr = { default: null, rendered: false }
+const hrefTitleAttr = { default: null, rendered: false }
+
+/**
+ * Image node that carries optional `width`/`height` (serialized as an HTML `<img>` tag) and an
+ * optional `href`/`hrefTitle` (a wrapping markdown link, for badges). Shared by the headless
+ * round-trip path (no node view) and the live {@link ResizableImage}.
+ */
+export const MarkdownImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: widthAttr,
+      height: heightAttr,
+      href: hrefAttr,
+      hrefTitle: hrefTitleAttr,
+    }
+  },
+  markdownTokenizer: {
+    name: 'image',
+    level: 'inline',
+    start: (src: string) => src.indexOf('[!['),
+    tokenize: (src: string): (MarkdownImageToken & { type: string; raw: string }) | undefined => {
+      const match = LINKED_IMAGE_RE.exec(src)
+      if (!match) return undefined
+      return {
+        type: 'image',
+        raw: match[0],
+        alt: match[1] ?? '',
+        src: match[2],
+        title: match[3] ?? null,
+        href: match[4],
+        hrefTitle: match[5] ?? null,
+      }
+    },
+  },
+  parseMarkdown: parseImageToken,
+  renderMarkdown: imageMarkdown,
+})

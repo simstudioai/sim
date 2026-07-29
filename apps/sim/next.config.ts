@@ -135,6 +135,23 @@ const nextConfig: NextConfig = {
     // The collab-doc seed converter lazily `require`s jsdom for a headless TipTap editor. Keep it
     // external so webpack doesn't try to bundle jsdom's dynamic internal requires.
     'jsdom',
+    // The collab-doc converter runs TipTap headlessly server-side. When these are bundled, the
+    // server bundler gives them a `window` that does NOT read `globalThis`, so TipTap's
+    // `elementFromString` throws "there is no window object available" even after the converter
+    // installs a jsdom window on `globalThis`. Loading them external (native Node require) makes their
+    // `window` read the real global we set. Server-only — the client editor bundles its own copies.
+    '@tiptap/core',
+    '@tiptap/pm',
+    '@tiptap/markdown',
+    '@tiptap/y-tiptap',
+    '@tiptap/starter-kit',
+    '@tiptap/extension-code',
+    '@tiptap/extension-code-block',
+    '@tiptap/extension-image',
+    '@tiptap/extension-list',
+    '@tiptap/extension-paragraph',
+    '@tiptap/extension-table',
+    '@tiptap/extension-highlight',
   ],
   outputFileTracingIncludes: {
     '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],
