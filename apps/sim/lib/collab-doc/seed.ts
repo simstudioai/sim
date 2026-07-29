@@ -1,8 +1,13 @@
+import { createLogger } from '@sim/logger'
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
+import { getErrorMessage } from '@sim/utils/errors'
 import * as Y from 'yjs'
 import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+import { hashMarkdown, loadFreshCollabDocState } from './collab-state'
 import { markdownToYDoc } from './converter'
+
+const logger = createLogger('FileDocSeed')
 
 /**
  * The largest file we will build a collaborative seed for. Beyond this the editor uses its
@@ -37,6 +42,25 @@ export async function buildFileDocSeed(
   if (!record) return null
 
   const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_SEED_BYTES })
+
+  // Cold-start fast path: if we hold a cached Yjs binary derived from THIS exact markdown, apply it
+  // directly (the Hocuspocus load-document pattern) instead of re-converting. This preserves the CRDT's
+  // client ids across reopens — no duplicated content, no split-brain — and skips the server-side
+  // headless conversion. A stale/absent cache (markdown edited externally, or first ever open) falls
+  // through to the conversion below, and the next persist refreshes the cache.
+  //
+  // Best-effort read: the cache is an optimization over the durable markdown we already hold, so a
+  // transient DB error (or a not-yet-migrated cache table) must fall through to conversion rather than
+  // block the cold open — symmetric with persist's best-effort cache write.
+  try {
+    const cached = await loadFreshCollabDocState(fileId, hashMarkdown(buffer))
+    if (cached) return { update: cached }
+  } catch (error) {
+    logger.warn(`Failed to read cached collab doc state for file ${fileId}`, {
+      error: getErrorMessage(error),
+    })
+  }
+
   const markdown = buffer.toString('utf-8')
   const { frontmatter, body } = splitFrontmatter(markdown)
 

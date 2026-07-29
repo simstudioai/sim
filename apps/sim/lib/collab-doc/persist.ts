@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import * as Y from 'yjs'
 import { getWorkspaceFile, updateWorkspaceFileContent } from '@/lib/uploads/contexts/workspace'
+import { hashMarkdown, saveCollabDocState } from './collab-state'
 import { yDocToFileMarkdown } from './converter'
 
 const logger = createLogger('FileDocPersist')
@@ -29,12 +31,25 @@ export async function persistFileDoc(
   if (!record) return false
 
   const ydoc = new Y.Doc()
+  let markdownBuffer: Buffer
   try {
     Y.applyUpdate(ydoc, docState)
-    const markdown = yDocToFileMarkdown(ydoc)
-    await updateWorkspaceFileContent(workspaceId, fileId, userId, Buffer.from(markdown, 'utf-8'))
+    markdownBuffer = Buffer.from(yDocToFileMarkdown(ydoc), 'utf-8')
   } finally {
     ydoc.destroy()
+  }
+
+  await updateWorkspaceFileContent(workspaceId, fileId, userId, markdownBuffer)
+
+  // Cache the Yjs binary (tagged with the exact markdown just written) so a later cold room open loads
+  // it directly instead of re-converting markdown → Yjs. Best-effort: the markdown IS the durable file,
+  // so a cache failure only means the next cold open re-converts — never lost data.
+  try {
+    await saveCollabDocState(fileId, docState, hashMarkdown(markdownBuffer))
+  } catch (error) {
+    logger.warn(`Failed to cache collab doc state for file ${fileId}`, {
+      error: getErrorMessage(error),
+    })
   }
 
   logger.info(`Persisted live collaborative document to file ${fileId} (workspace ${workspaceId})`)

@@ -11,13 +11,18 @@ import {
 } from '@tiptap/extension-table'
 import { Markdown } from '@tiptap/markdown'
 import StarterKit from '@tiptap/starter-kit'
-import { MarkdownCodeBlock } from './code-block'
+import { MarkdownCodeBlock } from './code-block-schema'
 import { Highlight } from './highlight'
-import { MarkdownImage } from './image'
+import { MarkdownImage } from './image-schema'
 import { MarkdownLinkInputRule } from './link-input-rule'
 import { MarkdownMention } from './mention/mention-node'
 import { SIM_LINK_SCHEME } from './mention/sim-link'
-import { FootnoteDef, FootnoteRef, RawHtmlBlock, RawInlineHtml } from './raw-markdown-snippet'
+import {
+  FootnoteDef,
+  FootnoteRef,
+  RawHtmlBlock,
+  RawInlineHtml,
+} from './raw-markdown-snippet-schema'
 
 /**
  * The `@`-mention link scheme, registered on the Link mark — without it the schema strips the

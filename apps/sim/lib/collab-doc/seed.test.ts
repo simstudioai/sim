@@ -5,14 +5,22 @@ import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 
-const { mockGetWorkspaceFile, mockFetchBuffer } = vi.hoisted(() => ({
+const { mockGetWorkspaceFile, mockFetchBuffer, mockLoadFresh } = vi.hoisted(() => ({
   mockGetWorkspaceFile: vi.fn(),
   mockFetchBuffer: vi.fn(),
+  mockLoadFresh: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   getWorkspaceFile: mockGetWorkspaceFile,
   fetchWorkspaceFileBuffer: mockFetchBuffer,
+}))
+
+// The DB-backed cold-start cache is exercised in its own suite; here we default it to a MISS so these
+// tests cover the markdown → Yjs conversion path (the cache-hit fast path has its own test below).
+vi.mock('./collab-state', () => ({
+  hashMarkdown: () => 'test-source-hash',
+  loadFreshCollabDocState: mockLoadFresh,
 }))
 
 import { serializeMarkdownBody } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
@@ -28,6 +36,8 @@ describe('buildFileDocSeed', () => {
       key: 'k',
       context: 'workspace',
     })
+    // Default: no cached binary → the conversion path runs (the case these tests cover).
+    mockLoadFresh.mockResolvedValue(null)
   })
 
   it('builds a seed whose applied update reproduces the file body (through the client engine)', async () => {
@@ -39,6 +49,37 @@ describe('buildFileDocSeed', () => {
     const doc = new Y.Doc()
     Y.applyUpdate(doc, seed!.update)
     expect(yDocToMarkdown(doc)).toBe(serializeMarkdownBody('# Title\n\nHello **world**.'))
+  })
+
+  it('cold-start fast path: returns the cached binary directly without re-converting when it is fresh', async () => {
+    // A cached binary derived from the current markdown → seed returns it verbatim (no conversion), the
+    // Hocuspocus load-document path that preserves the CRDT's client ids across reopens.
+    const cachedDoc = new Y.Doc()
+    cachedDoc.getText('marker').insert(0, 'cached')
+    const cached = Y.encodeStateAsUpdate(cachedDoc)
+    mockFetchBuffer.mockResolvedValue(Buffer.from('# Anything', 'utf-8'))
+    mockLoadFresh.mockResolvedValue(cached)
+
+    const seed = await buildFileDocSeed('ws-1', 'file-1')
+
+    expect(seed?.update).toBe(cached)
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, seed!.update)
+    expect(doc.getText('marker').toString()).toBe('cached')
+  })
+
+  it('falls through to conversion when the cache read fails (never blocks a cold open)', async () => {
+    // The cache is a best-effort optimization over the durable markdown we already hold; a transient DB
+    // error or a not-yet-migrated cache table must convert, not abort the seed.
+    mockFetchBuffer.mockResolvedValue(Buffer.from('# Title\n\ntext.', 'utf-8'))
+    mockLoadFresh.mockRejectedValue(new Error('cache table missing'))
+
+    const seed = await buildFileDocSeed('ws-1', 'file-1')
+    expect(seed).not.toBeNull()
+
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, seed!.update)
+    expect(yDocToMarkdown(doc)).toBe(serializeMarkdownBody('# Title\n\ntext.'))
   })
 
   it('strips frontmatter — only the body seeds the collaborative doc', async () => {
