@@ -6,7 +6,7 @@
 
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
-import { getRemainingExecutionMs } from '@/lib/core/execution-limits'
+import { getMaxExecutionTimeout, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 
 const logger = createLogger('PiSandboxLifetime')
 
@@ -20,12 +20,33 @@ function isLifetimeProvider(): boolean {
 }
 
 /**
- * E2B documents a one-hour maximum sandbox lifetime for Hobby accounts (24 hours
- * for Pro) and rejects a create above it. The cap sits strictly below that hour:
- * one hour is the documented boundary, and betting on an exact-boundary create
- * buys nothing.
+ * E2B rejects a create above the session length its plan allows: one hour on
+ * Hobby, 24 hours on Professional, which is the plan Sim is on. Kept only as a
+ * clamp so that raising an execution timeout can never produce a lifetime E2B
+ * refuses — it is far above anything {@link PI_SANDBOX_MAX_LIFETIME_MS} would
+ * otherwise reach, and is not itself a target.
  */
-export const PI_SANDBOX_MAX_LIFETIME_MS = 59 * 60 * 1000
+const PI_SANDBOX_PROVIDER_LIMIT_MS = 24 * 60 * 60 * 1000
+
+/**
+ * The longest a Pi sandbox may live.
+ *
+ * Derived from the platform's longest execution rather than carrying a number of
+ * its own, because the two had drifted: this was pinned just under E2B's *Hobby*
+ * hour while the async execution ceiling is ninety minutes, so a long Babysit run
+ * lost its sandbox with half an hour of budget left and stopped on a limit no
+ * plan actually imposed.
+ *
+ * Tying it to {@link getMaxExecutionTimeout} means the sandbox is never the
+ * binding constraint on a run the platform would let continue, and an operator
+ * who raises the async timeout gets a sandbox that keeps up without editing this
+ * file. `getMaxExecutionTimeout` already resolves its env at module scope, so
+ * reading it here is exactly as static as the constant it replaces.
+ */
+export const PI_SANDBOX_MAX_LIFETIME_MS = Math.min(
+  getMaxExecutionTimeout(),
+  PI_SANDBOX_PROVIDER_LIMIT_MS
+)
 
 /**
  * The shortest lifetime a Pi run can actually complete in, and the floor an
@@ -55,13 +76,14 @@ export const PI_SANDBOX_MIN_LIFETIME_MS = 31 * 60 * 1000
  * For E2B it defaults to {@link PI_SANDBOX_MAX_LIFETIME_MS}: a run that finishes
  * kills its sandbox explicitly, so on the normal path the lifetime is a ceiling
  * rather than a budget. It is not entirely free — if the web process dies
- * mid-run the orphaned sandbox now bills until this ceiling instead of the SDK's
+ * mid-run the orphaned sandbox bills until this ceiling instead of the SDK's
  * five minutes — but five minutes is short enough to kill live runs, which is
- * the bug this replaces.
+ * the bug this replaces. {@link resolvePiRunLifetimeMs} is what keeps that
+ * exposure proportional, by lowering the ceiling to the run's own deadline.
  *
  * `PI_SANDBOX_LIFETIME_MS` may only lower it, and only as far as
- * {@link PI_SANDBOX_MIN_LIFETIME_MS}, so a misconfigured value can neither make
- * every create fail on a Hobby key nor leave a run without time to push.
+ * {@link PI_SANDBOX_MIN_LIFETIME_MS}, so a misconfigured value can neither
+ * outrun the provider's session limit nor leave a run without time to push.
  */
 export function resolvePiSandboxLifetimeMs(): number | undefined {
   if (!isLifetimeProvider()) return undefined

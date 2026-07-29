@@ -70,6 +70,7 @@ vi.mock('@daytona/sdk', () => ({
 }))
 vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
 
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
   executeInSandbox,
   executeShellInSandbox,
@@ -464,17 +465,23 @@ describe('Pi sandbox lifetime', () => {
     mockEnv.PI_SANDBOX_LIFETIME_MS = undefined
   })
 
-  it('asks E2B for a lifetime under the one-hour Hobby ceiling', async () => {
+  it('asks E2B for a lifetime that outlasts the longest execution', async () => {
     useProvider('e2b')
 
     await withPiSandbox({}, async () => undefined)
 
     const [template, options] = mockE2BCreate.mock.calls[0]
     expect(template).toBe('sim-pi')
-    // E2B's default is five minutes, which kills any Pi run that outlives it,
-    // and it rejects a create above one hour on a Hobby account.
+    // E2B's default is five minutes, which kills any Pi run that outlives it.
     expect(options.timeoutMs).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
-    expect(options.timeoutMs).toBeLessThan(3_600_000)
+    // The ceiling has to reach the longest run the platform permits, or the
+    // sandbox becomes the binding constraint and a long Babysit run stops on a
+    // limit no plan imposes. It was previously pinned under E2B's *Hobby* hour
+    // while the async ceiling was ninety minutes, which is exactly that bug.
+    expect(options.timeoutMs).toBeGreaterThanOrEqual(getMaxExecutionTimeout())
+    // And it must stay inside the session length E2B sells us, or every create
+    // fails outright.
+    expect(options.timeoutMs).toBeLessThanOrEqual(24 * 60 * 60 * 1000)
   })
 
   it('clamps a configured lifetime that would exceed the ceiling', async () => {
