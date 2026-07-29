@@ -2,9 +2,11 @@
  * @vitest-environment node
  */
 import type { DataRetentionSettings, PiiRedactionRule } from '@sim/db/schema'
-import { describe, expect, it } from 'vitest'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   DEFAULT_PII_REDACTION,
+  getForeignWorkspaceTargetsReason,
   getPiiRedactionDenialReason,
   resolveEffectivePiiRedaction,
   resolveEffectiveRetentionHours,
@@ -464,5 +466,53 @@ describe('getPiiRedactionDenialReason', () => {
         piiGranularRedactionEnabled: false,
       })
     ).toBeNull()
+  })
+})
+
+describe('getForeignWorkspaceTargetsReason', () => {
+  beforeEach(resetDbChainMock)
+  afterAll(resetDbChainMock)
+
+  it('skips the lookup entirely when nothing targets a workspace', async () => {
+    await expect(
+      getForeignWorkspaceTargetsReason({
+        organizationId: 'org-1',
+        retentionOverrides: [],
+        piiRedaction: { rules: [{ workspaceId: null }] },
+      })
+    ).resolves.toBeNull()
+  })
+
+  it('accepts overrides whose workspaces belong to the organization', async () => {
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }, { id: 'ws-2' }])
+
+    await expect(
+      getForeignWorkspaceTargetsReason({
+        organizationId: 'org-1',
+        retentionOverrides: [{ workspaceId: 'ws-1' }, { workspaceId: 'ws-2' }],
+      })
+    ).resolves.toBeNull()
+  })
+
+  it('rejects an override naming a workspace the organization does not own', async () => {
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
+
+    await expect(
+      getForeignWorkspaceTargetsReason({
+        organizationId: 'org-1',
+        retentionOverrides: [{ workspaceId: 'ws-1' }, { workspaceId: 'ws-foreign' }],
+      })
+    ).resolves.toContain('ws-foreign')
+  })
+
+  it('also checks workspaces named by PII rules, not just overrides', async () => {
+    queueTableRows(schemaMock.workspace, [])
+
+    await expect(
+      getForeignWorkspaceTargetsReason({
+        organizationId: 'org-1',
+        piiRedaction: { rules: [{ workspaceId: 'ws-foreign' }] },
+      })
+    ).resolves.toContain('ws-foreign')
   })
 })

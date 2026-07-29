@@ -1,4 +1,7 @@
+import { db } from '@sim/db'
 import type { CustomPiiPattern, DataRetentionSettings, PiiStagePolicy } from '@sim/db/schema'
+import { workspace } from '@sim/db/schema'
+import { and, eq, inArray } from 'drizzle-orm'
 import {
   coercePiiLanguage,
   DEFAULT_PII_LANGUAGE,
@@ -212,5 +215,44 @@ export function getPiiRedactionDenialReason(params: {
 
   return newlyEnablesGranular
     ? 'Granular PII redaction (workflow input and block outputs) is not enabled for this organization'
+    : null
+}
+
+/**
+ * Rejects retention settings that point at workspaces the organization does not
+ * own. Returns `null` when every referenced workspace belongs to it.
+ *
+ * Both `retentionOverrides` and per-workspace `piiRedaction` rules name a
+ * workspace, and neither is a foreign key — an id that belongs to another
+ * organization would persist silently and then be applied by
+ * `resolveEffectiveRetentionHours` / `resolveEffectivePiiRedaction` to whatever
+ * workspace later matched it. Shared so the settings API and the Admin API
+ * cannot accept different data for the same organization.
+ */
+export async function getForeignWorkspaceTargetsReason(params: {
+  organizationId: string
+  retentionOverrides?: Array<{ workspaceId: string }> | null
+  piiRedaction?: PiiRedactionRulesLike | null
+}): Promise<string | null> {
+  const targeted = new Set<string>()
+  for (const override of params.retentionOverrides ?? []) {
+    if (override?.workspaceId) targeted.add(override.workspaceId)
+  }
+  for (const rule of params.piiRedaction?.rules ?? []) {
+    if (rule.workspaceId) targeted.add(rule.workspaceId)
+  }
+  if (targeted.size === 0) return null
+
+  const ids = [...targeted]
+  const owned = await db
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(and(eq(workspace.organizationId, params.organizationId), inArray(workspace.id, ids)))
+
+  const known = new Set(owned.map((row) => row.id))
+  const unknown = ids.filter((id) => !known.has(id))
+
+  return unknown.length > 0
+    ? `Override targets workspaces outside this organization: ${unknown.join(', ')}`
     : null
 }

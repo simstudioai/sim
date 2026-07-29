@@ -23,13 +23,17 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { adminV1UpdateOrganizationDataRetentionContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
-import { getPiiRedactionDenialReason } from '@/lib/billing/retention'
+import {
+  getForeignWorkspaceTargetsReason,
+  getPiiRedactionDenialReason,
+} from '@/lib/billing/retention'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   adminInvalidJsonResponse,
   adminValidationErrorResponse,
+  badRequestResponse,
   forbiddenResponse,
   internalErrorResponse,
   notFoundResponse,
@@ -103,6 +107,20 @@ export const PATCH = withRouteHandler(
 
       if (body.retentionOverrides !== undefined) {
         merged.retentionOverrides = body.retentionOverrides
+      }
+
+      /**
+       * Same ownership check the settings UI applies. Neither `workspaceId`
+       * field is a foreign key, so without it the Admin API could persist an
+       * override naming another organization's workspace.
+       */
+      const foreignTargetsReason = await getForeignWorkspaceTargetsReason({
+        organizationId,
+        retentionOverrides: body.retentionOverrides,
+        piiRedaction: body.piiRedaction,
+      })
+      if (foreignTargetsReason) {
+        return badRequestResponse(foreignTargetsReason)
       }
 
       await db
