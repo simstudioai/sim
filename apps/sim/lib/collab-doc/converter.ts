@@ -9,7 +9,10 @@ import {
 } from '@tiptap/y-tiptap'
 import type * as Y from 'yjs'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
-import { applyFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+import {
+  applyFrontmatter,
+  postProcessSerializedMarkdown,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import {
   parseMarkdownToDoc,
   serializeDocToMarkdown,
@@ -87,13 +90,18 @@ export function yDocToMarkdown(ydoc: Y.Doc): string {
 
 /**
  * Project a collaborative {@link Y.Doc} back to the file's FULL canonical markdown — the body from the
- * CRDT re-joined with the frontmatter carried in the config map. This is exactly what the editor
- * writes on save (`applyFrontmatter(resolveSaveFrontmatter(), body)`), so a server-side persist of the
- * live doc is byte-identical to a client save — no spurious churn on the round-trip.
+ * CRDT re-joined with the frontmatter carried in the config map. Mirrors the editor's save path EXACTLY
+ * (`applyFrontmatter(resolveSaveFrontmatter(), postProcessSerializedMarkdown(editor.getMarkdown()))`),
+ * INCLUDING the `postProcessSerializedMarkdown` body fidelity pass (empty list markers, callout
+ * un-escaping, trailing whitespace) — so a server-side persist is byte-identical to a client save and
+ * matches the client's dirty-check baseline, with no spurious blob churn on the round-trip.
  */
 export function yDocToFileMarkdown(ydoc: Y.Doc): string {
   const frontmatter = ydoc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.frontmatterKey)
-  return applyFrontmatter(typeof frontmatter === 'string' ? frontmatter : '', yDocToMarkdown(ydoc))
+  return applyFrontmatter(
+    typeof frontmatter === 'string' ? frontmatter : '',
+    postProcessSerializedMarkdown(yDocToMarkdown(ydoc))
+  )
 }
 
 /**
