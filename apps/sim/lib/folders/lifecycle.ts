@@ -445,6 +445,11 @@ export async function restoreFolder(params: RestoreFolderParams): Promise<Restor
   // had not come back yet. In this order a failure leaves the folder archived and the whole
   // restore simply retryable; children already restored no longer match the timestamp and
   // are skipped.
+  //
+  // The cost is a visible intermediate state if the transaction below fails: the children are
+  // active while their folders are still archived. They are not lost — the Knowledge and Tables
+  // lists fall an unresolvable `folderId` back to the workspace root, so the rows stay reachable
+  // — but they sit at the root until the restore is retried.
   const hookChildren = config.restoreChildren
     ? await config.restoreChildren({ workspaceId, folderIds, timestamp: archivedAt })
     : null

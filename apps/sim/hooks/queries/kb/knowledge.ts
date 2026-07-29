@@ -46,7 +46,11 @@ import {
 } from '@/lib/api/contracts/knowledge'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
-import { type KnowledgeQueryScope, knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+import {
+  KNOWLEDGE_BASE_LIST_STALE_TIME,
+  type KnowledgeQueryScope,
+  knowledgeKeys,
+} from '@/hooks/queries/utils/knowledge-keys'
 
 const logger = createLogger('KnowledgeQueries')
 
@@ -59,7 +63,6 @@ export type {
   TagUsageData,
 }
 
-export const KNOWLEDGE_BASE_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_BASE_DETAIL_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_DOCUMENT_DETAIL_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_DOCUMENT_LIST_STALE_TIME = 60 * 1000

@@ -1,6 +1,6 @@
 'use client'
 
-import { type DragEvent, useCallback, useMemo, useRef, useState } from 'react'
+import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { parseFolderedRowId } from '@/app/workspace/[workspaceId]/components/folders/folder-row-id'
 import type { RowDragDropConfig } from '@/app/workspace/[workspaceId]/components/resource/resource'
 
@@ -81,6 +81,20 @@ export function useFolderRowDragDrop({
     onMoveResource,
   }
 
+  /**
+   * The ghost lives on `document.body`, but the only thing that removes it is `dragend`, which
+   * fires on the SOURCE ROW. `Resource.Table` is virtualized, so scrolling the source out of
+   * view mid-drag unmounts that row and the event never arrives — leaving the ghost stuck on
+   * the page and every row frozen at drag opacity. Clean up on unmount as the backstop.
+   */
+  useEffect(
+    () => () => {
+      dragGhostRef.current?.remove()
+      dragGhostRef.current = null
+    },
+    []
+  )
+
   const isInvalidDropTarget = useCallback((targetRowId: string, sourceRowId: string) => {
     const target = parseFolderedRowId(targetRowId)
     if (target.kind !== 'folder') return true
@@ -146,7 +160,12 @@ export function useFolderRowDragDrop({
         e.preventDefault()
         e.stopPropagation()
         e.dataTransfer.dropEffect = 'move'
-        setActiveDropTargetId(rowId)
+        /**
+         * Highlight only when the source is known and was checked. Without it every folder
+         * would light up as a valid target — including the dragged folder itself and its own
+         * descendants — and the drop would then silently do nothing.
+         */
+        if (sourceRowId) setActiveDropTargetId(rowId)
       },
       onDragLeave: (e: DragEvent<HTMLDivElement>, rowId) => {
         const relatedTarget = e.relatedTarget

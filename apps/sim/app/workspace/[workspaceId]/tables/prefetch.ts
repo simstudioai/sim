@@ -2,8 +2,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { FolderApi } from '@/lib/api/contracts/folders'
 import type { TableDefinition } from '@/lib/table'
 import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
-import { FOLDER_LIST_STALE_TIME, mapFolder } from '@/hooks/queries/folders'
-import { folderKeys } from '@/hooks/queries/utils/folder-keys'
+import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
 import { TABLE_LIST_STALE_TIME, tableKeys } from '@/hooks/queries/utils/table-keys'
 
 /**

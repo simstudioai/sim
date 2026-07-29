@@ -294,6 +294,9 @@ export function Tables() {
   }, [folders, currentFolderId, debouncedSearchTerm, activeSort, pinnedFolderIds])
 
   const processedTables = useMemo(() => {
+    // Same source as `visibleFolders` above, so the two blocks can never disagree on order.
+    const sortColumn = activeSort?.column ?? 'updated'
+    const sortDirection = activeSort?.direction ?? 'desc'
     const query = debouncedSearchTerm.trim().toLowerCase()
     /**
      * A `folderId` that no longer names an active folder — restored on its own out
@@ -997,12 +1000,19 @@ export function Tables() {
         name: nextUntitledFolderName(folders, currentFolderId),
         parentId: currentFolderId ?? undefined,
       })
+      /**
+       * A live search term filters the folder list too, so a brand-new "New folder" would not
+       * match it — the row never renders, the rename field never appears, and the create reads
+       * as a no-op even though it succeeded. Clear the search so the thing just created is on
+       * screen to be named.
+       */
+      setSearchTerm('')
       startFolderRename(folder)
     } catch (err) {
       logger.error('Failed to create folder:', err)
       toast.error(getErrorMessage(err, 'Failed to create folder'), { duration: 5000 })
     }
-  }, [workspaceId, folders, currentFolderId, createFolderAsync, startFolderRename])
+  }, [workspaceId, folders, currentFolderId, createFolderAsync, setSearchTerm, startFolderRename])
 
   const headerActions: ResourceAction[] = useMemo(
     () => [

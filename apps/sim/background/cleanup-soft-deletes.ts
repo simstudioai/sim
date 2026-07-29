@@ -398,9 +398,13 @@ async function cleanupExpiredKnowledgeBases(
         )
         .limit(limit),
     /**
-     * Re-asserted on the DELETE because `onBatch` hard-deletes documents first, which leaves
-     * a real window in which a restore can land. Without it, a knowledge base restored in
-     * that window is hard-deleted anyway.
+     * Re-asserted on the DELETE because `onBatch` hard-deletes documents first, which leaves a
+     * real window in which a restore can land.
+     *
+     * This narrows the window rather than closing it: the base row survives, but documents
+     * already hard-deleted by `onBatch` do not come back, so a restore landing mid-batch
+     * returns an emptied knowledge base. Closing it properly means holding a row lock across
+     * select → onBatch → delete.
      */
     deleteFilter: and(
       isNotNull(knowledgeBase.deletedAt),

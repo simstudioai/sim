@@ -12,6 +12,9 @@ import type { KnowledgeScope } from '@/lib/api/contracts/knowledge/base'
  */
 export type KnowledgeQueryScope = KnowledgeScope
 
+/** Shared with the server prefetch so a hydrated list and a client fetch never disagree. */
+export const KNOWLEDGE_BASE_LIST_STALE_TIME = 60 * 1000
+
 export const knowledgeKeys = {
   all: ['knowledge'] as const,
   lists: () => [...knowledgeKeys.all, 'list'] as const,

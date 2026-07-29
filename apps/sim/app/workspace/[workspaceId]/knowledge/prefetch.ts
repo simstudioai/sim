@@ -2,10 +2,8 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { FolderApi } from '@/lib/api/contracts/folders'
 import type { KnowledgeBaseData } from '@/lib/api/contracts/knowledge'
 import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
-import { FOLDER_LIST_STALE_TIME, mapFolder } from '@/hooks/queries/folders'
-import { KNOWLEDGE_BASE_LIST_STALE_TIME } from '@/hooks/queries/kb/knowledge'
-import { folderKeys } from '@/hooks/queries/utils/folder-keys'
-import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
+import { KNOWLEDGE_BASE_LIST_STALE_TIME, knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 /**
  * Prefetches the workspace's knowledge-bases list AND its knowledge-base folder tree under

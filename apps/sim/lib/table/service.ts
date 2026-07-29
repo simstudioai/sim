@@ -663,7 +663,6 @@ export async function moveTableToFolder(
     .returning({
       name: userTableDefinitions.name,
       createdBy: userTableDefinitions.createdBy,
-      workspaceId: userTableDefinitions.workspaceId,
     })
 
   if (result.length === 0) {
@@ -674,7 +673,7 @@ export async function moveTableToFolder(
   const actorId = actingUserId ?? createdBy
   if (actorId) {
     recordAudit({
-      workspaceId: workspaceId ?? null,
+      workspaceId,
       actorId,
       action: AuditAction.TABLE_UPDATED,
       resourceType: AuditResourceType.TABLE,

@@ -1,3 +1,4 @@
+import type { ElementType } from 'react'
 import type {
   BreadcrumbEditing,
   BreadcrumbItem,
@@ -8,7 +9,7 @@ import type { WorkflowFolder } from '@/stores/folders/types'
 export interface FolderBreadcrumbItemsOptions {
   /** Root crumb label — the page's own name ("Knowledge Base", "Tables"). */
   rootLabel: string
-  rootIcon?: React.ElementType
+  rootIcon?: ElementType
   /** Root-first ancestor chain of the open folder, from `useFolderNavigation`. */
   breadcrumbs: WorkflowFolder[]
   /** Called with the folder to open, or `null` for the workspace root. */
@@ -46,10 +47,9 @@ export function folderBreadcrumbItems({
 
   breadcrumbs.forEach((folder, index) => {
     const isCurrent = index === breadcrumbs.length - 1
+    /** The open folder is where you already are, so its crumb is not a navigation target. */
     items.push({
       label: folder.name,
-      // The current folder is where you already are, so its crumb is not a navigation
-      // target — it carries the folder's own actions instead.
       onClick: isCurrent ? undefined : () => onNavigate(folder.id),
       dropdownItems: isCurrent && currentFolderActions?.length ? currentFolderActions : undefined,
       editing: isCurrent ? currentFolderEditing : undefined,

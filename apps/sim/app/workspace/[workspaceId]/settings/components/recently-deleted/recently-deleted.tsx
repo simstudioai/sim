@@ -162,6 +162,19 @@ const FOLDER_TREE_TAB_BY_TYPE = new Map<ResourceType, ResourceType>(
   FOLDERED_RESOURCE_TREES.map((tree) => [tree.type, tree.tab])
 )
 
+/**
+ * Restore brings a workflow back but deliberately does NOT re-enable its schedules, webhooks,
+ * or chats. Archive overwrites their enabled state without recording what it was, so restoring
+ * to a constant would re-enable something the user had switched off — on production roughly
+ * half of live schedules sit at `disabled` and ~12% of live webhooks at `isActive: false`, so
+ * that is the common case, not the edge case.
+ *
+ * Leaving it off is the safe choice; leaving it UNSAID is not. Restoring anything that carries
+ * automations says so at the moment of restore, so re-enabling is a known step rather than a
+ * silent surprise.
+ */
+const PAUSED_AUTOMATION_TYPES = new Set<ResourceType>(['workflow', 'folder'])
+
 function matchesActiveTab(resource: DeletedResource, activeTab: ResourceType): boolean {
   if (activeTab === 'all') return true
   if (activeTab === 'file') return resource.type === 'file' || resource.type === 'workspace_folder'
@@ -288,9 +301,20 @@ export function RecentlyDeleted() {
       })
     }
 
-    const folderTreeData = [knowledgeFoldersQuery.data, tableFoldersQuery.data]
-    FOLDERED_RESOURCE_TREES.forEach((tree, index) => {
-      for (const folder of folderTreeData[index] ?? []) {
+    /**
+     * Keyed by `tree.type`, not by array position: an index-aligned pairing would silently file
+     * knowledge folders under Tables (and vice versa) if the const above were ever reordered,
+     * with no type error and no test to catch it.
+     */
+    const folderTreeData: Record<
+      (typeof FOLDERED_RESOURCE_TREES)[number]['type'],
+      typeof knowledgeFoldersQuery.data
+    > = {
+      knowledge_folder: knowledgeFoldersQuery.data,
+      table_folder: tableFoldersQuery.data,
+    }
+    FOLDERED_RESOURCE_TREES.forEach((tree) => {
+      for (const folder of folderTreeData[tree.type] ?? []) {
         items.push({
           id: folder.id,
           name: folder.name,
@@ -538,7 +562,11 @@ export function RecentlyDeleted() {
                     </Chip>
                   ) : isRestored ? (
                     <div className='flex items-center gap-2'>
-                      <span className='text-[var(--text-muted)] text-small'>Restored</span>
+                      <span className='text-[var(--text-muted)] text-small'>
+                        {PAUSED_AUTOMATION_TYPES.has(resource.type)
+                          ? 'Restored \u00b7 schedules and webhooks stay paused'
+                          : 'Restored'}
+                      </span>
                       <Chip variant='primary' onClick={() => handleView(resource)}>
                         View
                       </Chip>

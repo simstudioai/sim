@@ -196,13 +196,22 @@ export const PATCH = withRouteHandler(
         ) {
           return NextResponse.json({ error: 'Folder not found in this workspace' }, { status: 404 })
         }
-        await moveTableToFolder(
-          tableId,
-          table.workspaceId,
-          validated.folderId,
-          requestId,
-          authResult.userId
-        )
+        try {
+          await moveTableToFolder(
+            tableId,
+            table.workspaceId,
+            validated.folderId,
+            requestId,
+            authResult.userId
+          )
+        } catch (moveError) {
+          // The move re-asserts workspace and active state, so a miss means the table was
+          // archived between `checkAccess` and the write. That is a 404, not a server fault.
+          if (moveError instanceof Error && moveError.message.endsWith('not found')) {
+            return NextResponse.json({ error: 'Table not found' }, { status: 404 })
+          }
+          throw moveError
+        }
       }
 
       // Re-read so the response reflects both a rename and a lock change.

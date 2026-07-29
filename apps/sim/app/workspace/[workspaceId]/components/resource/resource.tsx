@@ -64,6 +64,9 @@ export interface ResourceCell {
    * rows sort to the top of every list, and without an indicator that ordering reads as
    * arbitrary. Pinning itself is an action on the row's context menu, deliberately not a
    * hover button here.
+   *
+   * Honoured only on the plain label cell: a cell rendering custom `content` owns its own
+   * layout, and the rename field replaces the label entirely while it is open.
    */
   pinned?: boolean
 }
@@ -526,7 +529,11 @@ const CellContent = memo(function CellContent({
       {icon && <span className={cellIconNodeClass}>{icon}</span>}
       <FloatingOverflowText label={label} className={cn('block', chipContentLabelClass)} />
       {pinned && (
-        <Pin className='ml-1.5 size-[12px] shrink-0 text-[var(--text-icon)]' aria-label='Pinned' />
+        <Pin
+          className='size-[12px] shrink-0 text-[var(--text-icon)]'
+          role='img'
+          aria-label='Pinned'
+        />
       )}
     </span>
   )

@@ -310,6 +310,20 @@ describe('updateFolder', () => {
     expect(set.parentId).toBe('parent-1')
   })
 
+  it('refuses an archived folder, so a delete cannot unlock its locked subfolders', async () => {
+    /**
+     * `getFolderLockStatus` skips archived rows, so an archived-but-locked folder reports
+     * unlocked. Without the `deletedAt IS NULL` predicate in the UPDATE, deleting a parent
+     * would make every locked subfolder under it freely renameable and reparentable.
+     */
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const result = await updateFolder({ ...baseUpdate, name: 'Renamed' })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'not_found' })
+    expect(dbChainMockFns.set).toHaveBeenCalled()
+  })
+
   it('clears the parent when reparenting to the root', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([folderRow()])
 

@@ -123,18 +123,38 @@ export const POST = withRouteHandler(
           FOLDER_RESOURCE_TYPE
         )
 
-        await tx.insert(folderTable).values({
-          id: newFolderId,
-          resourceType: FOLDER_RESOURCE_TYPE,
-          userId: session.user.id,
-          workspaceId: targetWorkspaceId,
-          name: deduplicatedName,
-          parentId: targetParentId,
-          sortOrder,
-          locked: false,
-          createdAt: now,
-          updatedAt: now,
-        })
+        try {
+          await tx.insert(folderTable).values({
+            id: newFolderId,
+            resourceType: FOLDER_RESOURCE_TYPE,
+            userId: session.user.id,
+            workspaceId: targetWorkspaceId,
+            name: deduplicatedName,
+            parentId: targetParentId,
+            sortOrder,
+            locked: false,
+            createdAt: now,
+            updatedAt: now,
+          })
+        } catch (insertError) {
+          /**
+           * Scoped to THIS insert on purpose. A 23505 here is one of two real conflicts the
+           * caller can act on: `newId` is client-supplied, so replaying a duplicate whose
+           * response was lost hits the primary key; and `deduplicateFolderName` runs before
+           * the write, so a concurrent create can still take the name in between.
+           *
+           * Catching 23505 across the whole handler instead would relabel any unique violation
+           * raised while copying the workflows inside the folder — a different constraint, on a
+           * different table — as a folder-name conflict, which is both wrong and misleading.
+           * Those keep falling through to the generic 500.
+           */
+          if (getPostgresErrorCode(insertError) !== '23505') throw insertError
+          throw new FolderDuplicationError(
+            `Folder duplication conflicted for ${sourceFolderId}`,
+            409,
+            'A folder with this name already exists in this location'
+          )
+        }
 
         const folderMapping = new Map<string, string>([[sourceFolderId, newFolderId]])
         await duplicateFolderStructure(
@@ -199,20 +219,6 @@ export const POST = withRouteHandler(
     } catch (error) {
       if (error instanceof FolderLockedError) {
         return NextResponse.json({ error: error.message }, { status: error.status })
-      }
-
-      /**
-       * `newId` is client-supplied, so replaying a duplicate whose response was lost hits the
-       * primary key rather than the name index. A name collision is equally reachable: dedup
-       * runs before the INSERT, but a concurrent create can take the name in between. Either
-       * way this is a conflict the caller can act on, not a server fault.
-       */
-      if (getPostgresErrorCode(error) === '23505') {
-        logger.warn(`[${requestId}] Folder duplication conflicted`, { sourceFolderId })
-        return NextResponse.json(
-          { error: 'A folder with this name already exists in this location' },
-          { status: 409 }
-        )
       }
 
       if (error instanceof FolderDuplicationError) {

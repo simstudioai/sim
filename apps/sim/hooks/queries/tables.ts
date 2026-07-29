@@ -637,9 +637,6 @@ export function useUpdateTableLocks(workspaceId: string) {
 }
 
 /**
- * Delete a table from a workspace.
- */
-/**
  * Move a table into a folder, or to the workspace root with `folderId: null`.
  *
  * Optimistically repoints `folderId` in the cached active list so the row leaves
@@ -679,6 +676,9 @@ export function useMoveTable(workspaceId: string) {
   })
 }
 
+/**
+ * Delete a table from a workspace.
+ */
 export function useDeleteTable(workspaceId: string) {
   const queryClient = useQueryClient()
 

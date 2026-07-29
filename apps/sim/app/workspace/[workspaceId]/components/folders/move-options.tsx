@@ -42,6 +42,11 @@ export interface BuildMoveOptionsParams {
  *
  * Children are indexed by parent once so the tree walk stays linear in the number of
  * folders rather than re-filtering the whole list at every level.
+ *
+ * `buildSubtree` needs no cycle guard, and that is a property of the walk rather than an
+ * oversight: it descends from the `null` root, and every folder inside a parent cycle has a
+ * parent inside that cycle, so no cycle member is ever reachable from the root. Such folders
+ * are omitted from the menu, which is the right answer — they are not valid destinations.
  */
 export function buildMoveOptions({
   folders,
@@ -131,7 +136,10 @@ export function renderMoveOption(
         {option.label}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent>
-        <DropdownMenuItem onSelect={() => onMove(option.value)}>Move here</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onMove(option.value)}>
+          <Folder />
+          Move here
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         {option.children.map((child) => renderMoveOption(child, onMove))}
       </DropdownMenuSubContent>

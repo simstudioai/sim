@@ -42,9 +42,15 @@ export type RestorableResourceType =
  * into `lib/copilot/generated/**` by `scripts/sync-tool-catalog.ts`. Widening it there makes
  * these reachable with no further change on this side.
  */
-const FOLDER_RESOURCE_TYPE_BY_RESTORABLE: Partial<
-  Record<RestorableResourceType, FolderResourceType>
-> = {
+type RestorableFolderType = 'folder' | 'knowledge_folder' | 'table_folder'
+
+/**
+ * Deliberately a total `Record` over the folder types, not a `Partial` one: adding a tree to
+ * `RestorableFolderType` without a mapping here has to fail the build. With a partial map the
+ * lookup would yield `undefined`, `performRestoreFolder` would fall back to its `'workflow'`
+ * default, and the restore would silently target the wrong tree.
+ */
+const FOLDER_RESOURCE_TYPE_BY_RESTORABLE: Record<RestorableFolderType, FolderResourceType> = {
   folder: 'workflow',
   knowledge_folder: 'knowledge_base',
   table_folder: 'table',

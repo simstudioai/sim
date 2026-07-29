@@ -691,6 +691,13 @@ export function Knowledge() {
         name,
         parentId: parentId ?? undefined,
       })
+      /**
+       * A live search term filters the folder list too, so a brand-new "New folder" would not
+       * match it — the row never renders, the rename field never appears, and the create reads
+       * as a no-op even though it succeeded. Clear the search so the thing just created is on
+       * screen to be named.
+       */
+      setSearchQuery('')
       // Drop straight into rename: the auto-generated name is a placeholder, and the user
       // should not have to hunt for a second action to replace it.
       listRenameRef.current.startRename(folderRowId(folder.id), folder.name)
@@ -834,7 +841,10 @@ export function Knowledge() {
       const kb = activeKnowledgeBaseRef.current
       if (!kb) return
       const folderId = parseMoveOptionValue(optionValue)
-      if ((kb.folderId ?? null) !== folderId) await moveKnowledgeBaseTo(kb.id, folderId)
+      // Re-read placement from the live list: `activeKnowledgeBase` is a snapshot from when
+      // the menu opened, and a refetch since then would make the no-op check wrong.
+      const current = knowledgeBasesRef.current.find((item) => item.id === kb.id) ?? kb
+      if ((current.folderId ?? null) !== folderId) await moveKnowledgeBaseTo(kb.id, folderId)
       closeRowContextMenu()
     },
     [moveKnowledgeBaseTo, closeRowContextMenu]

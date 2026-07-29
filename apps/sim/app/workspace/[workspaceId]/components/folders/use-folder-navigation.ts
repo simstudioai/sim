@@ -52,7 +52,22 @@ export function useFolderNavigation({
     folderNavUrlKeys
   )
 
-  const { data: folders = EMPTY_FOLDERS, isLoading } = useFolders(workspaceId, { resourceType })
+  const {
+    data: folders = EMPTY_FOLDERS,
+    isLoading,
+    isSuccess,
+    isPlaceholderData,
+  } = useFolders(workspaceId, { resourceType })
+
+  /**
+   * The folder list is only trustworthy enough to evict a `folderId` when the query has
+   * actually succeeded for THIS workspace. `isLoading` alone is not that signal: it is false
+   * for a disabled query (no `workspaceId`), false for an errored one, and — because
+   * `useFolders` sets `keepPreviousData` — false while showing the previous workspace's
+   * folders during a workspace switch. In all three the list is empty or stale, and healing
+   * off it would throw away a perfectly good folder.
+   */
+  const foldersAreAuthoritative = isSuccess && !isPlaceholderData
 
   const setCurrentFolderId = useCallback(
     (folderId: string | null) => {
@@ -80,9 +95,15 @@ export function useFolderNavigation({
    * Waits for `isLoading` so an empty index mid-fetch never evicts a perfectly good id.
    */
   useEffect(() => {
-    if (isLoading || !currentFolderId || folderById.has(currentFolderId)) return
-    void setFolderParams({ folderId: null })
-  }, [isLoading, currentFolderId, folderById, setFolderParams])
+    if (!foldersAreAuthoritative || !currentFolderId || folderById.has(currentFolderId)) return
+    /**
+     * `history: 'replace'`, overriding the `push` these params default to. Opening a folder is
+     * a navigation and belongs in the back stack; correcting a URL that never pointed anywhere
+     * is not. Pushing here strands the user: Back returns to the dead `?folderId=`, which heals
+     * and pushes again, so Back never escapes the page.
+     */
+    void setFolderParams({ folderId: null }, { history: 'replace' })
+  }, [foldersAreAuthoritative, currentFolderId, folderById, setFolderParams])
 
   const breadcrumbs = useMemo(() => {
     if (!currentFolderId) return EMPTY_FOLDERS
