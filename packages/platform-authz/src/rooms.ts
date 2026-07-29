@@ -85,6 +85,8 @@ async function resolveTableWorkspace(tableId: string): Promise<RoomWorkspace | n
 const ROOM_WORKSPACE_RESOLVERS: Partial<Record<RoomType, RoomWorkspaceResolver>> = {
   // A workspace-files room is addressed directly by its workspace id.
   [ROOM_TYPES.WORKSPACE_FILES]: resolveWorkspaceRoomWorkspace,
+  // A workspace-tables room is addressed directly by its workspace id.
+  [ROOM_TYPES.WORKSPACE_TABLES]: resolveWorkspaceRoomWorkspace,
   // A file-doc room is addressed by file id; resolve it to its workspace.
   [ROOM_TYPES.WORKSPACE_FILE_DOC]: resolveFileDocWorkspace,
   // A table room is addressed by table id; resolve it to its workspace.

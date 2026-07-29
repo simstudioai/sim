@@ -183,6 +183,26 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       return
     }
 
+    // Fan out a table-list change to everyone viewing a workspace's tables, so their browser
+    // refetches. The list-level counterpart to workspace-files-changed; same lossy-signal contract.
+    if (req.method === 'POST' && req.url === '/api/workspace-tables-changed') {
+      try {
+        const body = await readRequestBody(req)
+        const { workspaceId } = JSON.parse(body)
+        if (!isNonEmptyString(workspaceId)) return sendError(res, 'Invalid workspaceId', 400)
+        roomManager.emitToRoom(
+          { type: ROOM_TYPES.WORKSPACE_TABLES, id: workspaceId },
+          'workspace-tables-changed',
+          { workspaceId, timestamp: Date.now() }
+        )
+        sendSuccess(res)
+      } catch (error) {
+        logger.error('Error handling workspace tables changed notification:', error)
+        sendError(res, 'Failed to process tables change notification')
+      }
+      return
+    }
+
     // Merge a copilot edit into a file's LIVE collaborative document so it streams into open editors
     // (Stage C). Returns `{ applied }`: when false, no seeded live room exists and the caller writes
     // the file directly instead. Any live user edits are preserved — the app builds a minimal CRDT diff.
