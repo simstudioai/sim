@@ -128,13 +128,6 @@ export function SandboxEditor({
   )
 }
 
-const STATUS_TONE: Record<string, string> = {
-  ready: 'bg-[var(--text-success)]',
-  failed: 'bg-[var(--text-error)]',
-  building: 'bg-[var(--caution)]',
-  pending: 'bg-[var(--caution)]',
-}
-
 const STATUS_LABEL: Record<string, string> = {
   ready: 'Ready',
   failed: 'Failed',
@@ -178,8 +171,14 @@ export function SandboxStatus({ sandbox, strategy }: SandboxStatusProps) {
   return (
     <div className='flex flex-col gap-2'>
       <div className='flex items-center gap-2'>
-        <span className={cn('size-[6px] rounded-full', STATUS_TONE[status])} />
-        <span className='text-[var(--text-body)] text-sm'>{STATUS_LABEL[status]}</span>
+        <span
+          className={cn(
+            'text-sm',
+            status === 'failed' ? 'text-[var(--text-error)]' : 'text-[var(--text-body)]'
+          )}
+        >
+          {STATUS_LABEL[status]}
+        </span>
         <span className='text-[var(--text-muted)] text-caption'>
           · {packageCount} {packageCount === 1 ? 'package' : 'packages'}
         </span>

@@ -44,6 +44,27 @@ export function sandboxBuildIdempotencyKey(provider: string, specHash: string): 
 }
 
 /**
+ * How long a failed build is left alone when the caller is an automatic repair
+ * rather than a person. Long enough that a per-minute schedule cannot turn a
+ * permanently broken package list into a per-minute build, short enough that a
+ * transient registry outage recovers within the hour.
+ */
+export const FAILED_BUILD_RETRY_COOLDOWN_MS = 10 * 60 * 1000
+
+export interface EnsureSandboxImageOptions {
+  /**
+   * Ignore a `failed` row younger than this instead of re-claiming it.
+   *
+   * Omitted means retry immediately, which is right for a save: a person editing
+   * a package list is explicitly asking for another attempt. Automatic callers
+   * pass {@link FAILED_BUILD_RETRY_COOLDOWN_MS} — they fire once per execution,
+   * and a build that fails in seconds would otherwise be re-enqueued by every
+   * run of a scheduled workflow forever.
+   */
+  minFailureAgeMs?: number
+}
+
+/**
  * Ensures a build exists for `spec`, enqueueing one only when the registry has
  * no row or the last attempt failed. A `ready` or in-flight row is left alone,
  * which is what makes an unchanged save cost nothing.
@@ -51,7 +72,11 @@ export function sandboxBuildIdempotencyKey(provider: string, specHash: string): 
  * No-ops under a `runtime` provider: it installs per execution and never touches
  * this registry.
  */
-export async function ensureSandboxImage(spec: SandboxSpec, specHash: string): Promise<void> {
+export async function ensureSandboxImage(
+  spec: SandboxSpec,
+  specHash: string,
+  options: EnsureSandboxImageOptions = {}
+): Promise<void> {
   const provider = resolveProvider()
   if (provider.dependencyStrategy !== 'prebuilt' || !provider.images) return
   // Nothing to install means nothing to build — and `pip install` with no
@@ -76,13 +101,19 @@ export async function ensureSandboxImage(spec: SandboxSpec, specHash: string): P
         errorDetail: null,
         updatedAt: new Date(),
       },
-      // A failed build becomes retryable immediately. `pending` and `building`
-      // become re-claimable once stale: an enqueue that threw (provider outage),
-      // a detached run that died with the process, or a worker killed mid-build
-      // would otherwise strand the row forever, and no later save could revive it
-      // because the content address never changes.
+      // A failed build is retryable, immediately for a person and after a cooldown
+      // for an automatic caller. `pending` and `building` become re-claimable once
+      // stale: an enqueue that threw (provider outage), a detached run that died
+      // with the process, or a worker killed mid-build would otherwise strand the
+      // row forever, and no later save could revive it because the content address
+      // never changes.
       setWhere: or(
-        eq(sandboxImage.status, 'failed'),
+        options.minFailureAgeMs
+          ? and(
+              eq(sandboxImage.status, 'failed'),
+              lt(sandboxImage.updatedAt, new Date(Date.now() - options.minFailureAgeMs))
+            )
+          : eq(sandboxImage.status, 'failed'),
         and(
           inArray(sandboxImage.status, ['pending', 'building']),
           lt(sandboxImage.updatedAt, new Date(Date.now() - STALE_BUILD_MS))

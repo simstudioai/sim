@@ -8,15 +8,18 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelect, mockDelete, mockDeleteImage, mockProviderStrategy } = vi.hoisted(() => ({
-  mockSelect: vi.fn(),
-  mockDelete: vi.fn(),
-  mockDeleteImage: vi.fn(),
-  mockProviderStrategy: { current: 'prebuilt' as 'prebuilt' | 'runtime' },
-}))
+const { mockSelect, mockDelete, mockInsert, mockDeleteImage, mockProviderStrategy } = vi.hoisted(
+  () => ({
+    mockSelect: vi.fn(),
+    mockDelete: vi.fn(),
+    mockInsert: vi.fn(),
+    mockDeleteImage: vi.fn(),
+    mockProviderStrategy: { current: 'prebuilt' as 'prebuilt' | 'runtime' },
+  })
+)
 
 vi.mock('@sim/db', () => ({
-  db: { select: mockSelect, delete: mockDelete },
+  db: { select: mockSelect, delete: mockDelete, insert: mockInsert },
 }))
 
 vi.mock('@sim/db/schema', () => ({
@@ -58,7 +61,11 @@ vi.mock('@/lib/execution/remote-sandbox/provider', () => ({
   }),
 }))
 
-import { releaseSandboxImage } from '@/lib/execution/remote-sandbox/image-registry'
+import {
+  ensureSandboxImage,
+  FAILED_BUILD_RETRY_COOLDOWN_MS,
+  releaseSandboxImage,
+} from '@/lib/execution/remote-sandbox/image-registry'
 
 /** Queues the rows each successive `db.select()` chain resolves to. */
 function queueSelects(...results: unknown[][]) {
@@ -154,5 +161,54 @@ describe('releaseSandboxImage', () => {
 
     expect(mockDeleteImage).not.toHaveBeenCalled()
     expect(mockDelete).not.toHaveBeenCalled()
+  })
+})
+
+/** True when any leaf of the mocked predicate tree is a `Date`, i.e. a time bound. */
+function hasTimeBound(predicate: unknown): boolean {
+  if (predicate instanceof Date) return true
+  return Array.isArray(predicate) && predicate.some(hasTimeBound)
+}
+
+/**
+ * The repair path fires once per execution, so re-claiming a failed row on sight
+ * would let a per-minute schedule enqueue a per-minute build of a package list
+ * that will never resolve. A save is a person asking again and must not wait.
+ */
+describe('ensureSandboxImage failed-build cooldown', () => {
+  const SPEC = { language: 'python' as const, dependencies: ['pandas'] }
+
+  /** Captures the conflict predicate; the empty `returning` means "nothing claimed". */
+  function captureSetWhere(): () => unknown {
+    let captured: unknown
+    mockInsert.mockReturnValue({
+      values: () => ({
+        onConflictDoUpdate: (config: { setWhere: unknown }) => {
+          captured = config.setWhere
+          return { returning: () => Promise.resolve([]) }
+        },
+      }),
+    })
+    return () => captured
+  }
+
+  it('bounds the failed branch by time when a cooldown is requested', async () => {
+    const read = captureSetWhere()
+
+    await ensureSandboxImage(SPEC, 'hash-1', {
+      minFailureAgeMs: FAILED_BUILD_RETRY_COOLDOWN_MS,
+    })
+
+    const [failedBranch] = read() as unknown[]
+    expect(hasTimeBound(failedBranch)).toBe(true)
+  })
+
+  it('leaves the failed branch unbounded for a save, so a person retries at once', async () => {
+    const read = captureSetWhere()
+
+    await ensureSandboxImage(SPEC, 'hash-1')
+
+    const [failedBranch] = read() as unknown[]
+    expect(hasTimeBound(failedBranch)).toBe(false)
   })
 })

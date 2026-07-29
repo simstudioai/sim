@@ -270,9 +270,12 @@ async function readImage(providerId: string, specHash: string): Promise<CachedIm
  * way and lets the next one succeed, instead of making the user reconfigure a
  * sandbox whose definition was never wrong.
  *
- * Idempotent by construction: the registry's conflict guard claims only a
- * `failed` row, or a `pending`/`building` row that has already gone stale, so
- * executions arriving during a healthy build enqueue nothing.
+ * Rate-limited, unlike the save path. This fires once per execution, and a bad
+ * package name fails in seconds, so re-claiming a failed row on sight would let a
+ * per-minute schedule enqueue a per-minute build of something that will never
+ * succeed. The cooldown caps that at one attempt per window while a save — an
+ * explicit request from a person — still retries immediately. Executions arriving
+ * during a healthy build enqueue nothing either way.
  *
  * Imported dynamically for the same reason as {@link sandboxDb} — the registry
  * pulls `@sim/db` into the static import graph, which this module keeps out of
@@ -284,8 +287,14 @@ async function scheduleImageRepair(
   specHash: string
 ): Promise<void> {
   try {
-    const { ensureSandboxImage } = await import('@/lib/execution/remote-sandbox/image-registry')
-    await ensureSandboxImage({ language: spec.language, dependencies: spec.dependencies }, specHash)
+    const { ensureSandboxImage, FAILED_BUILD_RETRY_COOLDOWN_MS } = await import(
+      '@/lib/execution/remote-sandbox/image-registry'
+    )
+    await ensureSandboxImage(
+      { language: spec.language, dependencies: spec.dependencies },
+      specHash,
+      { minFailureAgeMs: FAILED_BUILD_RETRY_COOLDOWN_MS }
+    )
   } catch (error) {
     logger.warn('Failed to schedule sandbox image repair', { specHash, error })
   }

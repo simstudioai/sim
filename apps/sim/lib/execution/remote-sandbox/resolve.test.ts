@@ -17,6 +17,7 @@ const { mockSelect, mockUpdate, mockProviderStrategy, mockEnsureSandboxImage } =
 
 vi.mock('@/lib/execution/remote-sandbox/image-registry', () => ({
   ensureSandboxImage: mockEnsureSandboxImage,
+  FAILED_BUILD_RETRY_COOLDOWN_MS: 600_000,
 }))
 
 vi.mock('@sim/db', () => ({
@@ -194,9 +195,12 @@ describe('resolveWorkspaceSandbox', () => {
       })
     ).rejects.toThrow(/queued/)
 
+    // The cooldown is what stops a scheduled workflow re-enqueueing a build that
+    // fails in seconds on every single run.
     expect(mockEnsureSandboxImage).toHaveBeenCalledWith(
       { language: 'python', dependencies: ['pandas'] },
-      'hash-1'
+      'hash-1',
+      { minFailureAgeMs: 600_000 }
     )
   })
 

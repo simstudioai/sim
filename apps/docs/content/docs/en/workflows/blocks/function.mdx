@@ -116,8 +116,8 @@ does not exist, a version that has no match, a resolver conflict — with the
 installer log behind a disclosure.
 
 Running a block before its sandbox is **Ready** stops the run and shows you the
-status. A build that failed is queued again automatically, so wait a moment and
-run again — only edit the package list if it keeps failing.
+status. A failed build is retried periodically on its own; to retry immediately,
+save the sandbox again in Settings.
 
 On a self-hosted deployment using Daytona, dependencies install inside the
 sandbox at the start of every run instead, adding roughly 10–30 seconds per
