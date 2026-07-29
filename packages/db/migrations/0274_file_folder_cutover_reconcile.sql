@@ -23,6 +23,12 @@
 -- after this runs. The block is idempotent and safe to repeat; a journaled migration does not
 -- replay, so the post-drain pass is an operational step, not an automatic one.
 --
+-- One precondition on that re-run: do it BEFORE the soft-delete cleanup job has had a chance to
+-- purge expired `folder` rows. Cleanup hard-deletes from `folder` but never from
+-- `workspace_file_folders`, so re-running afterwards would reinstate every purged file folder as
+-- a soft-deleted phantom in Recently Deleted whose files are already gone. The retention window
+-- is far longer than any drain, so running the re-run promptly after the deploy is sufficient.
+--
 -- Where 0272 has not yet run, it and this file apply back to back and this becomes a no-op
 -- reconcile over the rows 0272 just wrote.
 --

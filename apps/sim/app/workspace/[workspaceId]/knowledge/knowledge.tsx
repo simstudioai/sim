@@ -830,7 +830,11 @@ export function Knowledge() {
       const folder = activeFolderRef.current
       if (!folder) return
       const parentId = parseMoveOptionValue(optionValue)
-      if ((folder.parentId ?? null) !== parentId) await moveFolderTo(folder.id, parentId)
+      // Live placement, not the snapshot taken when the menu opened — a refetch or concurrent
+      // move in between would otherwise skip the write the user just chose. Matches the
+      // knowledge-base move below and both Tables handlers.
+      const current = foldersRef.current.find((item) => item.id === folder.id) ?? folder
+      if ((current.parentId ?? null) !== parentId) await moveFolderTo(folder.id, parentId)
       closeFolderContextMenu()
     },
     [moveFolderTo, closeFolderContextMenu]

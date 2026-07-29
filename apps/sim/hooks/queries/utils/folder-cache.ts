@@ -5,7 +5,7 @@ import type { WorkflowFolder } from '@/stores/folders/types'
 
 const EMPTY_FOLDERS: WorkflowFolder[] = []
 
-export function getFolders(
+function getFolders(
   workspaceId: string,
   resourceType: FolderResourceType = 'workflow'
 ): WorkflowFolder[] {

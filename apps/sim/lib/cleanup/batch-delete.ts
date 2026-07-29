@@ -238,19 +238,28 @@ export async function batchDeleteByWorkspaceAndTimestamp({
   dbClient = db,
   ...rest
 }: BatchDeleteOptions): Promise<TableCleanupResult> {
+  /**
+   * Re-asserted on the DELETE, not just the SELECT. Every row here is soft-deleted and past
+   * retention, so a restore committing between the two statements is exactly the case that must
+   * not be hard-deleted — and for `folder` that would take the placement of the children the
+   * restore had just brought back with it. Rebuilt rather than reused from `selectChunk` because
+   * the id list already scopes the statement; only the eligibility half is re-checked.
+   */
+  const eligibility = [lt(timestampCol, retentionDate)]
+  if (requireTimestampNotNull) eligibility.push(isNotNull(timestampCol))
+  if (additionalPredicate) eligibility.push(additionalPredicate)
+
   return chunkedBatchDelete({
     tableDef,
     workspaceIds,
     tableName,
     dbClient,
+    deleteFilter: and(...eligibility),
     selectChunk: (chunkIds, limit) => {
-      const predicates = [inArray(workspaceIdCol, chunkIds), lt(timestampCol, retentionDate)]
-      if (requireTimestampNotNull) predicates.push(isNotNull(timestampCol))
-      if (additionalPredicate) predicates.push(additionalPredicate)
       return dbClient
         .select({ id: sql<string>`id` })
         .from(tableDef)
-        .where(and(...predicates))
+        .where(and(inArray(workspaceIdCol, chunkIds), ...eligibility))
         .limit(limit)
     },
     ...rest,

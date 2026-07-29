@@ -209,7 +209,7 @@ export const pinnedItem = pgTable(
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
-    resourceType: text('resource_type').notNull(), // 'workflow' | 'file' | 'knowledge_base' | 'table'
+    resourceType: text('resource_type').notNull(), // 'workflow' | 'file' | 'knowledge_base' | 'table' | 'folder'
     resourceId: text('resource_id').notNull(),
     pinnedAt: timestamp('pinned_at').notNull().defaultNow(),
   },

@@ -385,7 +385,7 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
       ({ archivedAt: timestamp, updatedAt: now }) satisfies Partial<typeof workflow.$inferInsert>,
     sortOrderColumn: workflow.sortOrder,
     /**
-     * Restored in bulk rather than through a `restoreChildren` hook. `restoreFolderCascade`
+     * Restored in bulk rather than through a `restoreChildren` hook. `restoreFolderChildren`
      * already matches these on the archive timestamp, so a webhook or chat the user archived
      * independently stays archived — and it does so in a fixed number of statements inside the
      * restore transaction. Routing them through `restoreWorkflow` instead would add a
@@ -438,6 +438,14 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
     archiveChildren: archiveWorkflowChildren,
     guardDelete: guardLastWorkflows,
   },
+  /**
+   * Present to satisfy the total `Record<FolderResourceType, …>`, but UNREACHABLE at runtime:
+   * `servedFolderResourceTypeSchema` does not serve `'file'`, and the Files surface goes through
+   * `workspace-file-folder-manager.ts` instead. Do not treat this entry as a live path — routing
+   * file folders through the generic engine would bypass the `workspace_file_folders:` advisory
+   * lock that makes its check-then-write pairs atomic, and the name rules that keep a folder name
+   * usable as a path segment.
+   */
   file: {
     resourceType: 'file',
     label: 'file',
