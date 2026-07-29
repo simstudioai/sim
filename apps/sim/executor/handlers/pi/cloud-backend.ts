@@ -312,7 +312,6 @@ async function ensureUpdatePullRequest(
     if (currentPullRequest && currentPullRequest.pullNumber !== existingPullRequest.pullNumber) {
       throw new Error(`The open pull request for branch ${branch} changed during authoring`)
     }
-    return updatePullRequest(params, existingPullRequest, secrets, signal)
   }
   if (currentPullRequest) {
     return updatePullRequest(params, currentPullRequest, secrets, signal)

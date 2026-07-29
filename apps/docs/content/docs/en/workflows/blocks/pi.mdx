@@ -61,7 +61,7 @@ Update PR uses the same disposable authoring sandbox and host-controlled PR oper
 - Requires sandbox execution and **your own provider API key (BYOK)**.
 - Needs the same **GitHub token permissions as Create PR**: permission to clone, push, and create or update a pull request.
 - Never creates, rebases, merges, or force-pushes the branch. If another commit reaches the branch while Pi is working, the push fails rather than overwriting it.
-- Finds the exact open same-repository PR whose head is the target branch. One match is updated; no open match—including when an earlier PR was closed—creates a new PR after authoring; multiple open matches fail as ambiguous. A discovered PR that closes, moves, or no longer matches during validation aborts safely.
+- Finds the exact open same-repository PR whose head is the target branch and checks again after authoring. One match is updated; no open match—including when an earlier or preflight PR was closed—creates a new PR; multiple open matches fail as ambiguous.
 - When explicitly set, **Base Branch**, **PR Title**, **PR Body**, and **PR State** update the existing PR. Blank metadata preserves it. A newly created PR uses generated metadata and the repository default base when those fields are blank.
 - A no-change authoring pass still creates or updates the PR. A rejected initial push stops the run before any PR mutation or Babysit continuation.
 - The deliverable is the updated branch and its PR — read `prUrl`, `branch`, `changedFiles`, and `diff`.

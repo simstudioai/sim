@@ -111,6 +111,11 @@ function mockExistingBranchPullRequest(): void {
       output: { items: [{ number: 7 }], count: 1 },
     })
     .mockResolvedValueOnce(existingPullRequestOutput())
+    .mockResolvedValueOnce({
+      success: true,
+      output: { items: [{ number: 7 }], count: 1 },
+    })
+    .mockResolvedValueOnce(existingPullRequestOutput())
 }
 
 describe('runCloudPi', () => {
@@ -801,11 +806,16 @@ describe('runCloudPi', () => {
     })
 
     it('fails when a second PR for the branch appears during authoring', async () => {
-      mockExistingBranchPullRequest()
-      mockExecuteTool.mockResolvedValueOnce({
-        success: true,
-        output: { items: [{ number: 7 }, { number: 8 }], count: 2 },
-      })
+      mockExecuteTool
+        .mockResolvedValueOnce({
+          success: true,
+          output: { items: [{ number: 7 }], count: 1 },
+        })
+        .mockResolvedValueOnce(existingPullRequestOutput())
+        .mockResolvedValueOnce({
+          success: true,
+          output: { items: [{ number: 7 }, { number: 8 }], count: 2 },
+        })
 
       await expect(runCloudBranchPi(branchParams(), { onEvent: vi.fn() })).rejects.toThrow(
         /multiple open pull requests/
@@ -814,6 +824,32 @@ describe('runCloudPi', () => {
         mockExecuteTool.mock.calls.some(([tool]: [string]) => tool === 'github_update_pr')
       ).toBe(false)
       expect(mockRunBabysit).not.toHaveBeenCalled()
+    })
+
+    it('creates a replacement when the preflight PR is no longer open after authoring', async () => {
+      mockExecuteTool
+        .mockResolvedValueOnce({
+          success: true,
+          output: { items: [{ number: 7 }], count: 1 },
+        })
+        .mockResolvedValueOnce(existingPullRequestOutput())
+        .mockResolvedValueOnce({
+          success: true,
+          output: { items: [], count: 0 },
+        })
+
+      const result = await runCloudBranchPi(branchParams(), { onEvent: vi.fn() })
+
+      expect(mockExecuteTool).toHaveBeenCalledWith(
+        'github_create_pr',
+        expect.objectContaining({
+          head: 'feature/existing',
+          base: 'main',
+          draft: true,
+        }),
+        { signal: undefined }
+      )
+      expect(result.prUrl).toBe('https://github.com/octo/demo/pull/1')
     })
 
     it('does not claim a push happened when no-op authoring is followed by a PR error', async () => {
