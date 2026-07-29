@@ -142,3 +142,60 @@ export async function createChildCancellationSignal(params: {
     },
   }
 }
+
+/**
+ * Child-session finalizations still in flight, keyed by the INVOKING run's
+ * execution id.
+ *
+ * A cancelled or timed-out parent engine returns without draining its in-flight
+ * node promises, so the custom-block handler's finalization would otherwise be
+ * abandoned mid-write: the invoking run finishes, the worker tears down, and the
+ * child's log row is left `running` until the stale-execution reaper sweeps it
+ * minutes later. Registering here lets the run's own completion path await the
+ * durable write instead of racing it.
+ *
+ * Only the immediate invoker is tracked. A finalization orphaned *below* another
+ * abandoned child still falls back to the reaper.
+ */
+const pendingChildFinalizations = new Map<string, Set<Promise<unknown>>>()
+
+/** Registers a child-session finalization against its invoking run. */
+export function trackChildFinalization(
+  invokerExecutionId: string | undefined,
+  promise: Promise<unknown>
+): void {
+  if (!invokerExecutionId) return
+
+  let pending = pendingChildFinalizations.get(invokerExecutionId)
+  if (!pending) {
+    pending = new Set()
+    pendingChildFinalizations.set(invokerExecutionId, pending)
+  }
+  pending.add(promise)
+
+  // Self-cleaning so an invoker that never drains cannot leak the entry. The
+  // `catch` also marks the rejection handled — callers use `allSettled`.
+  void promise
+    .catch(() => {})
+    .finally(() => {
+      pending.delete(promise)
+      if (pending.size === 0) pendingChildFinalizations.delete(invokerExecutionId)
+    })
+}
+
+/** Awaits every child-session finalization registered for this run. */
+export async function waitForChildFinalizations(
+  invokerExecutionId: string | undefined
+): Promise<void> {
+  if (!invokerExecutionId) return
+
+  const pending = pendingChildFinalizations.get(invokerExecutionId)
+  if (!pending) return
+
+  // Re-check: a settling finalization can register nothing further, but a
+  // nested child can still be added while we await.
+  while (pending.size > 0) {
+    await Promise.allSettled([...pending])
+  }
+  pendingChildFinalizations.delete(invokerExecutionId)
+}

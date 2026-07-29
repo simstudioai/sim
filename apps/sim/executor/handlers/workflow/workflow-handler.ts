@@ -14,6 +14,7 @@ import {
   admitCustomBlockChildExecution,
   buildCustomBlockCorrelation,
   createChildCancellationSignal,
+  trackChildFinalization,
 } from '@/lib/workflows/custom-blocks/child-execution'
 import { getCustomBlockAuthority } from '@/lib/workflows/custom-blocks/operations'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
@@ -601,7 +602,10 @@ export class WorkflowBlockHandler implements BlockHandler {
       const duration = performance.now() - startTime
 
       if (childSession && childSessionStarted) {
-        await this.finalizeChildSession(childSession, executionResult, duration, childWorkflowInput)
+        await this.trackFinalization(
+          ctx,
+          this.finalizeChildSession(childSession, executionResult, duration, childWorkflowInput)
+        )
         childSessionFinalized = true
       }
 
@@ -652,7 +656,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       // The child's own log row records the real failure in the source workspace,
       // so the publisher sees what the consumer deliberately cannot.
       if (childSession && childSessionStarted && !childSessionFinalized) {
-        await this.failChildSession(childSession, error)
+        await this.trackFinalization(ctx, this.failChildSession(childSession, error))
       }
 
       // A custom block is checked FIRST and unconditionally: errors this invocation
@@ -711,6 +715,22 @@ export class WorkflowBlockHandler implements BlockHandler {
       // one cancellation subscription per iteration.
       childCancellation?.dispose()
     }
+  }
+
+  /**
+   * Awaits a child-session finalization while ALSO registering it against the
+   * invoking run. A cancelled or timed-out parent engine returns without
+   * draining its in-flight node promises, which would abandon this `await`
+   * mid-write; the registration lets the invoking run's completion path finish
+   * the durable write instead of leaving the child's row `running` for the
+   * stale-execution reaper.
+   */
+  private async trackFinalization(
+    ctx: ExecutionContext,
+    finalization: Promise<void>
+  ): Promise<void> {
+    trackChildFinalization(ctx.executionId, finalization)
+    await finalization
   }
 
   /**

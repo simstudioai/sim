@@ -32,6 +32,8 @@ import {
   buildCustomBlockCorrelation,
   CustomBlockAdmissionError,
   createChildCancellationSignal,
+  trackChildFinalization,
+  waitForChildFinalizations,
 } from '@/lib/workflows/custom-blocks/child-execution'
 import { isBoundarySafeError } from '@/executor/errors/boundary'
 
@@ -240,5 +242,50 @@ describe('createChildCancellationSignal durable backstop', () => {
 
     expect(mockIsExecutionCancelled).not.toHaveBeenCalled()
     expect(signal.aborted).toBe(false)
+  })
+})
+
+describe('child finalization tracking', () => {
+  it('lets an invoking run await a finalization the engine abandoned', async () => {
+    let resolveWrite: () => void = () => {}
+    const durableWrite = new Promise<void>((resolve) => {
+      resolveWrite = resolve
+    })
+    let finished = false
+    const finalization = durableWrite.then(() => {
+      finished = true
+    })
+
+    trackChildFinalization('invoker-1', finalization)
+
+    // The engine returned without draining; the write is still in flight.
+    expect(finished).toBe(false)
+
+    const drained = waitForChildFinalizations('invoker-1')
+    resolveWrite()
+    await drained
+
+    expect(finished).toBe(true)
+  })
+
+  it('does not let a rejected finalization break the drain', async () => {
+    trackChildFinalization('invoker-2', Promise.reject(new Error('db down')))
+
+    await expect(waitForChildFinalizations('invoker-2')).resolves.toBeUndefined()
+  })
+
+  it('is a no-op for a run that registered nothing', async () => {
+    await expect(waitForChildFinalizations('invoker-never')).resolves.toBeUndefined()
+    await expect(waitForChildFinalizations(undefined)).resolves.toBeUndefined()
+  })
+
+  it('releases its entry so a run that never drains cannot leak', async () => {
+    const finalization = Promise.resolve()
+    trackChildFinalization('invoker-3', finalization)
+    await finalization
+    await Promise.resolve()
+
+    // Draining after self-cleanup still resolves rather than hanging.
+    await expect(waitForChildFinalizations('invoker-3')).resolves.toBeUndefined()
   })
 })
