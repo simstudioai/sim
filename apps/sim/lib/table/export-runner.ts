@@ -80,7 +80,9 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
 
     let exported = 0
     let firstJsonRow = true
-    let after: { orderKey: string; id: string } | null = null
+    // `order_key` is nullable (rows predating the backfill), and the page query
+    // seeks NULLs explicitly — so the cursor has to carry a null too.
+    let after: { orderKey: string | null; id: string } | null = null
     while (true) {
       // Ownership gate before every page: a canceled job stops within one batch.
       const owns = await updateJobProgress(tableId, exported, jobId)

@@ -4,12 +4,11 @@ import { namedRowMapper } from '@/lib/table/cell-format'
 import {
   buildIdByName,
   filterNamesToIds,
-  predicateNamesToIds,
   rowDataNameToId,
   sortNamesToIds,
   sortSpecNamesToIds,
 } from '@/lib/table/column-keys'
-import { resolveFilterSelectValues, resolvePredicateSelectValues } from '@/lib/table/select-values'
+import { predicateToStorage, resolveFilterSelectValues } from '@/lib/table/select-values'
 
 export interface RowWireTranslators {
   /** Inbound row data: wire keys → storage column ids. */
@@ -58,8 +57,7 @@ export function rowWireTranslators(
     filterIn: (filter) =>
       resolveFilterSelectValues(filterNamesToIds(filter, idByName), schema.columns),
     sortIn: (sort) => sortNamesToIds(sort, idByName),
-    predicateIn: (predicate) =>
-      resolvePredicateSelectValues(predicateNamesToIds(predicate, idByName), schema.columns),
+    predicateIn: (predicate) => predicateToStorage(predicate, schema),
     sortSpecIn: (sort) => sortSpecNamesToIds(sort, idByName),
   }
 }

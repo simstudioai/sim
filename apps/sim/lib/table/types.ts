@@ -63,6 +63,9 @@ export interface ColumnDefinition {
   multiple?: boolean
 }
 
+/** The column `type` discriminator, named so callers don't index into the interface. */
+export type ColumnType = ColumnDefinition['type']
+
 /** One group output → one plain column. */
 export interface WorkflowGroupOutput {
   /** Source block id within the configured workflow. `''` for enrichment groups. */

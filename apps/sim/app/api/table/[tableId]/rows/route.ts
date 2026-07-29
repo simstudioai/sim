@@ -25,11 +25,11 @@ import {
   validateRowData,
   validateRowSize,
 } from '@/lib/table'
-import { buildIdByName, predicateNamesToIds } from '@/lib/table/column-keys'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import { validatePredicate } from '@/lib/table/query-builder/validate'
 import { queryRows } from '@/lib/table/rows/service'
+import { predicateToStorage } from '@/lib/table/select-values'
 import type { TablePredicate } from '@/lib/table/types'
 import { type RowWireTranslators, rowWireTranslators } from '@/app/api/table/row-wire'
 import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
@@ -54,7 +54,7 @@ function resolveBulkFilter(
 ): Filter {
   if (isTablePredicate(raw)) {
     validatePredicate(raw, schema.columns)
-    return predicateToFilter(predicateNamesToIds(raw, buildIdByName(schema)))
+    return predicateToFilter(predicateToStorage(raw, schema))
   }
   return wire.filterIn(raw)
 }

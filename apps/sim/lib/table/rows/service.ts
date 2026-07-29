@@ -87,6 +87,7 @@ import type {
   TableDefinition,
   TableDeleteJobPayload,
   TableRow,
+  TableRowsCursor,
   UpdateRowData,
   UpsertResult,
   UpsertRowData,

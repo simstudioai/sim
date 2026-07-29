@@ -6,13 +6,13 @@ import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { Sort, TablePredicate, TableSchema } from '@/lib/table'
-import { buildIdByName, predicateNamesToIds, sortSpecNamesToIds } from '@/lib/table'
+import { buildIdByName, sortSpecNamesToIds } from '@/lib/table'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
 import { decodeCursor } from '@/lib/table/rows/cursor'
 import { queryRows } from '@/lib/table/rows/service'
-import { resolvePredicateSelectValues } from '@/lib/table/select-values'
+import { predicateToStorage } from '@/lib/table/select-values'
 import { accessError, checkAccess, tablesV2GateError } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -91,10 +91,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Query
     let predicate: TablePredicate | undefined = parsed.data.body.predicate
     if (predicate) {
       validatePredicate(predicate, schema.columns)
-      predicate = resolvePredicateSelectValues(
-        predicateNamesToIds(predicate, idByName),
-        schema.columns
-      )
+      predicate = predicateToStorage(predicate, schema)
     }
     let sortSpec = sort
     if (sortSpec?.length) {

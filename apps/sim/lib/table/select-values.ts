@@ -9,7 +9,7 @@
  * both the legacy `$` grammar and the v2 predicate tree.
  */
 
-import { getColumnId } from '@/lib/table/column-keys'
+import { buildIdByName, getColumnId, predicateNamesToIds } from '@/lib/table/column-keys'
 import type {
   ColumnDefinition,
   ConditionOperators,
@@ -19,6 +19,7 @@ import type {
   Predicate,
   PredicateNode,
   TablePredicate,
+  TableSchema,
 } from '@/lib/table/types'
 import { resolveSelectOptionId } from '@/lib/table/validation'
 
@@ -152,4 +153,21 @@ export function resolvePredicateSelectValues(
   }
 
   return walk(predicate) as TablePredicate
+}
+
+/**
+ * The complete name-keyed → storage-keyed translation for a v2 predicate:
+ * column names become column ids AND select operands become option ids.
+ *
+ * Both halves are required and neither is useful alone, but they lived as two
+ * separate calls that every boundary had to remember to pair — and three of them
+ * did not, so a filter on a select column compared an option NAME against a
+ * stored option ID and returned zero rows while reporting success. Call this
+ * instead of `predicateNamesToIds` so the pair cannot be split again.
+ */
+export function predicateToStorage(predicate: TablePredicate, schema: TableSchema): TablePredicate {
+  return resolvePredicateSelectValues(
+    predicateNamesToIds(predicate, buildIdByName(schema)),
+    schema.columns
+  )
 }

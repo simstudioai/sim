@@ -6,6 +6,7 @@ import type {
   CsvHeaderMapping,
   EnrichmentRunDetail,
   Filter,
+  Predicate,
   PredicateNode,
   RowData,
   Sort,
@@ -429,11 +430,14 @@ function predicateTreeTooLarge(root: unknown): string | null {
  * before it ran. Strict on BOTH branches is required: strict on the group alone
  * would just fall through to the leaf branch, which is the more dangerous reading.
  */
+// double-cast-allowed: `z.unknown()` keeps the runtime permissive (a leaf value
+// is arbitrary JSON), but infers `unknown`, which is wider than
+// `Predicate['value']`. The narrowing is type-level only — nothing is coerced.
 const predicateLeafSchema = z.strictObject({
   field: z.string().min(1, 'field is required').max(128),
   op: z.enum(FILTER_OPS),
   value: z.unknown().optional(),
-})
+}) as unknown as z.ZodType<Predicate>
 
 const predicateNodeSchema: z.ZodType<PredicateNode> = z.lazy(() =>
   z.union([predicateGroupSchema, predicateLeafSchema])

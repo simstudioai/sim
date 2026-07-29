@@ -7,11 +7,12 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { Sort, TableSchema } from '@/lib/table'
-import { buildIdByName, predicateNamesToIds, sortSpecNamesToIds } from '@/lib/table/column-keys'
+import { buildIdByName, sortSpecNamesToIds } from '@/lib/table/column-keys'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
 import { decodeCursor } from '@/lib/table/rows/cursor'
 import { queryRows } from '@/lib/table/rows/service'
+import { predicateToStorage } from '@/lib/table/select-values'
 import { rowWireTranslators } from '@/app/api/table/row-wire'
 import { accessError, checkAccess, tablesV2GateError } from '@/app/api/table/utils'
 
@@ -82,7 +83,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: RowQu
     let predicate = body.predicate
     if (predicate) {
       validatePredicate(predicate, schema.columns)
-      predicate = predicateNamesToIds(predicate, idByName)
+      predicate = predicateToStorage(predicate, schema)
     }
     let sortSpec = body.sort
     if (sortSpec?.length) {

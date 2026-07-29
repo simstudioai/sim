@@ -30,7 +30,6 @@ import { namedRowMapper } from '@/lib/table/cell-format'
 import {
   buildIdByName,
   columnMatchesRef,
-  predicateNamesToIds,
   rowDataNameToId,
   sortSpecNamesToIds,
 } from '@/lib/table/column-keys'
@@ -64,7 +63,7 @@ import {
   updateRow,
   updateRowsByFilter,
 } from '@/lib/table/rows/service'
-import { resolvePredicateSelectValues } from '@/lib/table/select-values'
+import { predicateToStorage } from '@/lib/table/select-values'
 import { createTable, deleteTable, getTableById, renameTable } from '@/lib/table/service'
 import type {
   ColumnDefinition,
@@ -677,10 +676,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           let predicate: TablePredicate | undefined
           if (args.filter) {
             validatePredicate(args.filter, table.schema.columns)
-            predicate = resolvePredicateSelectValues(
-              predicateNamesToIds(args.filter, idByName),
-              table.schema.columns
-            )
+            predicate = predicateToStorage(args.filter, table.schema)
           }
           let orderSpec = args.order as SortSpec | undefined
           if (orderSpec?.length) {
@@ -859,12 +855,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // the bulk engine (same fieldPredicate leaf → identical SQL). Select
           // operands arrive as option NAMES and must resolve to stored ids.
           validatePredicate(args.filter, table.schema.columns)
-          const idFilter = predicateToFilter(
-            resolvePredicateSelectValues(
-              predicateNamesToIds(args.filter, idByName),
-              table.schema.columns
-            )
-          )
+          const idFilter = predicateToFilter(predicateToStorage(args.filter, table.schema))
           const idData = rowDataNameToId(args.data, idByName)
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows in one request; a larger operation
@@ -966,12 +957,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // the bulk engine (same fieldPredicate leaf → identical SQL). Select
           // operands arrive as option NAMES and must resolve to stored ids.
           validatePredicate(args.filter, table.schema.columns)
-          const idFilter = predicateToFilter(
-            resolvePredicateSelectValues(
-              predicateNamesToIds(args.filter, idByName),
-              table.schema.columns
-            )
-          )
+          const idFilter = predicateToFilter(predicateToStorage(args.filter, table.schema))
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows; a larger delete (an explicit limit
           // above the cap, or unbounded "delete everything matching") hands off to the background

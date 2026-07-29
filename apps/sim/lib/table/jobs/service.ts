@@ -242,7 +242,9 @@ export async function selectExportRowPage(
     )
     .orderBy(asc(userTableRows.orderKey), asc(userTableRows.id))
     .limit(limit)
-  return rows
+  // drizzle types a jsonb column as `unknown`; every writer goes through the
+  // row-data validators, so narrowing here is a projection, not an assumption.
+  return rows.map((r) => ({ ...r, data: r.data as RowData }))
 }
 
 /** How long a terminal export stays listable (and re-downloadable from the tray). */
