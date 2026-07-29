@@ -1,5 +1,6 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
+  buildAllDayRange,
   buildGraphEventDateTime,
   CALENDAR_RETRY,
   flattenGraphEvent,
@@ -119,10 +120,18 @@ export const outlookCalendarCreateEventTool: ToolConfig<
       }
     },
     body: (params) => {
-      const event: Record<string, unknown> = {
-        subject: params.subject,
-        start: buildGraphEventDateTime(params.startDateTime, params.timeZone),
-        end: buildGraphEventDateTime(params.endDateTime, params.timeZone),
+      const isAllDay = toBool(params.isAllDay)
+      const event: Record<string, unknown> = { subject: params.subject }
+
+      if (isAllDay) {
+        // All-day events need midnight bounds with an exclusive end day.
+        const range = buildAllDayRange(params.startDateTime, params.endDateTime, params.timeZone)
+        event.isAllDay = true
+        event.start = range.start
+        event.end = range.end
+      } else {
+        event.start = buildGraphEventDateTime(params.startDateTime, params.timeZone)
+        event.end = buildGraphEventDateTime(params.endDateTime, params.timeZone)
       }
 
       if (params.body) {
@@ -136,10 +145,6 @@ export const outlookCalendarCreateEventTool: ToolConfig<
       const attendees = normalizeAttendees(params.attendees)
       if (attendees.length > 0) {
         event.attendees = attendees
-      }
-
-      if (toBool(params.isAllDay)) {
-        event.isAllDay = true
       }
 
       if (toBool(params.isOnlineMeeting)) {

@@ -52,10 +52,33 @@ describe('outlook calendar tools', () => {
     expect(built).toContain('%24top=5')
     expect(built).toContain('%24orderby=start%2FdateTime')
 
-    // A nextLink page token is used verbatim.
+    // A Graph-origin nextLink page token is accepted.
     expect(url({ accessToken: 't', pageToken: 'https://graph.microsoft.com/next' })).toBe(
       'https://graph.microsoft.com/next'
     )
+  })
+
+  it('rejects a non-Graph pageToken so the bearer token cannot be exfiltrated', () => {
+    const url = outlookCalendarListEventsTool.request.url as (p: unknown) => string
+    expect(() => url({ accessToken: 't', pageToken: 'https://evil.example.com/steal' })).toThrow(
+      /Microsoft Graph/
+    )
+  })
+
+  it('builds an all-day create body with midnight bounds and an exclusive end day', () => {
+    const body = outlookCalendarCreateEventTool.request.body as (
+      p: unknown
+    ) => Record<string, unknown>
+    const built = body({
+      accessToken: 't',
+      subject: 'Offsite',
+      startDateTime: '2025-06-03',
+      endDateTime: '2025-06-03',
+      isAllDay: true,
+    })
+    expect(built.isAllDay).toBe(true)
+    expect(built.start).toEqual({ dateTime: '2025-06-03T00:00:00', timeZone: 'UTC' })
+    expect(built.end).toEqual({ dateTime: '2025-06-04T00:00:00', timeZone: 'UTC' })
   })
 
   it('builds a create-event body with Graph datetime shape and attendees', () => {

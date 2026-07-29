@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  buildAllDayRange,
   buildGraphEventDateTime,
   DEFAULT_OUTLOOK_TIME_ZONE,
   flattenGraphEvent,
@@ -45,6 +46,26 @@ describe('buildGraphEventDateTime', () => {
       dateTime: '2025-06-03T18:00:00',
       timeZone: 'UTC',
     })
+  })
+})
+
+describe('buildAllDayRange', () => {
+  it('advances a same-day end to the next day (exclusive end) at midnight', () => {
+    expect(buildAllDayRange('2025-06-03', '2025-06-03', 'America/Los_Angeles')).toEqual({
+      start: { dateTime: '2025-06-03T00:00:00', timeZone: 'America/Los_Angeles' },
+      end: { dateTime: '2025-06-04T00:00:00', timeZone: 'America/Los_Angeles' },
+    })
+  })
+
+  it('preserves an already-multi-day range and strips any time component', () => {
+    expect(buildAllDayRange('2025-06-03T09:30:00', '2025-06-05T14:00:00')).toEqual({
+      start: { dateTime: '2025-06-03T00:00:00', timeZone: DEFAULT_OUTLOOK_TIME_ZONE },
+      end: { dateTime: '2025-06-05T00:00:00', timeZone: DEFAULT_OUTLOOK_TIME_ZONE },
+    })
+  })
+
+  it('advances across a month boundary', () => {
+    expect(buildAllDayRange('2025-06-30', '2025-06-30').end.dateTime).toBe('2025-07-01T00:00:00')
   })
 })
 

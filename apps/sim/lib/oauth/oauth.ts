@@ -397,10 +397,10 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: OutlookIcon,
         baseProviderIcon: MicrosoftIcon,
         /**
-         * Calendars.ReadWrite and MailboxSettings.Read were added to support the Outlook
-         * calendar operations. Microsoft only grants newly-added scopes on a fresh
-         * authorization, so users who connected Outlook before these scopes existed must
-         * reconnect (re-consent) their account before the calendar operations will work.
+         * Calendars.ReadWrite was added to support the Outlook calendar operations.
+         * Microsoft only grants newly-added scopes on a fresh authorization, so users who
+         * connected Outlook before this scope existed must reconnect (re-consent) their
+         * account before the calendar operations will work.
          */
         scopes: [
           'openid',
@@ -411,7 +411,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'Mail.Read',
           'Mail.Send',
           'Calendars.ReadWrite',
-          'MailboxSettings.Read',
           'offline_access',
         ],
       },

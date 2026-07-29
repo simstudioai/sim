@@ -1,5 +1,6 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
+  buildAllDayRange,
   buildGraphEventDateTime,
   CALENDAR_RETRY,
   flattenGraphEvent,
@@ -126,17 +127,25 @@ export const outlookCalendarUpdateEventTool: ToolConfig<
     body: (params) => {
       // PATCH is a partial update: only include fields the caller actually provided.
       const event: Record<string, unknown> = {}
+      const settingAllDay = params.isAllDay !== undefined && toBool(params.isAllDay)
 
       if (params.subject !== undefined) {
         event.subject = params.subject
       }
 
-      if (params.startDateTime) {
-        event.start = buildGraphEventDateTime(params.startDateTime, params.timeZone)
-      }
-
-      if (params.endDateTime) {
-        event.end = buildGraphEventDateTime(params.endDateTime, params.timeZone)
+      if (settingAllDay && params.startDateTime && params.endDateTime) {
+        // Converting to all-day needs midnight bounds with an exclusive end day; send
+        // both together so Graph doesn't reject a zero-length all-day window.
+        const range = buildAllDayRange(params.startDateTime, params.endDateTime, params.timeZone)
+        event.start = range.start
+        event.end = range.end
+      } else {
+        if (params.startDateTime) {
+          event.start = buildGraphEventDateTime(params.startDateTime, params.timeZone)
+        }
+        if (params.endDateTime) {
+          event.end = buildGraphEventDateTime(params.endDateTime, params.timeZone)
+        }
       }
 
       if (params.body !== undefined) {

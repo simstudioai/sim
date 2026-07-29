@@ -76,6 +76,46 @@ export function buildGraphEventDateTime(value: string, timeZone?: string): Graph
   return { dateTime: trimmed, timeZone: timeZone || DEFAULT_OUTLOOK_TIME_ZONE }
 }
 
+/** Extract the `YYYY-MM-DD` date portion from a date or datetime string. */
+function toDateOnly(value: string): string {
+  const trimmed = value.trim()
+  const tIndex = trimmed.indexOf('T')
+  return tIndex === -1 ? trimmed : trimmed.slice(0, tIndex)
+}
+
+/** Add one calendar day to a `YYYY-MM-DD` string. */
+function nextDay(dateOnly: string): string {
+  const d = new Date(`${dateOnly}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * Build the Graph `start`/`end` pair for an all-day event.
+ *
+ * Graph requires all-day events to have midnight `dateTime` values and an **exclusive**
+ * end day strictly after the start day. Callers routinely pass the same date (or timed
+ * placeholders) for both bounds, which Graph rejects with a 400. This normalizes both
+ * bounds to midnight and advances the end to at least the day after the start.
+ */
+export function buildAllDayRange(
+  startInput: string,
+  endInput: string,
+  timeZone?: string
+): { start: GraphDateTimeTimeZone; end: GraphDateTimeTimeZone } {
+  const tz = timeZone || DEFAULT_OUTLOOK_TIME_ZONE
+  const startDate = toDateOnly(startInput)
+  let endDate = toDateOnly(endInput)
+  // `YYYY-MM-DD` strings compare correctly lexicographically.
+  if (endDate <= startDate) {
+    endDate = nextDay(startDate)
+  }
+  return {
+    start: { dateTime: `${startDate}T00:00:00`, timeZone: tz },
+    end: { dateTime: `${endDate}T00:00:00`, timeZone: tz },
+  }
+}
+
 /**
  * Normalize a comma/newline-separated string (or array) of email addresses into the Graph
  * attendee payload shape.
