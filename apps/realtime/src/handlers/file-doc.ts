@@ -106,12 +106,16 @@ interface FileDocRoom {
   /** The last collaborator to edit here, for persist attribution (blob metadata) only. */
   lastEditorUserId: string | null
   /**
-   * True once a genuine USER edit has been applied here. Persistence is gated on it so a doc that was
-   * only seeded (or only received a copilot merge) is NEVER projected back over the file: copilot writes
-   * the file durably itself, and a seed captured from possibly-stale markdown must not clobber a
-   * concurrent external write.
+   * True once a genuine edit (a user edit — local OR a peer's, relayed via the tailer) has been applied
+   * here AFTER seeding. Persistence is gated on it so a doc that was only seeded is NEVER projected back
+   * over the file: the seed is captured from possibly-stale markdown and must not clobber a concurrent
+   * external write, whereas real edits are not otherwise durable and must be persisted by whichever task
+   * is last to leave — even one that only tailed the edits.
    */
   edited: boolean
+  /** Whether this room has observed its doc become seeded — so a post-seed update counts as an edit but
+   * the seed transition itself does not. See the `doc.on('update')` edit-tracking below. */
+  seededObserved: boolean
   /** The pending debounced persist timer, if any. */
   persistTimer: ReturnType<typeof setTimeout> | null
 }
@@ -343,7 +347,13 @@ async function ensureServerSeed(
     if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
     // Fence against a peer that seeded while we held a stale lock (a rare long stall): if the stream
     // already has content it is seeded, so never write a SECOND seed on top — that would split-brain.
-    if (await store.streamHasContent(name)) return
+    if (await store.streamHasContent(name)) {
+      // Clear the guard so a later join can retry. Safe in both cases: a genuine peer-seed arrives via
+      // the tailer (and shouldSeed/this fence then no-op), and a fail-closed Redis `xLen` error must not
+      // strand the room unseeded forever.
+      room.serverSeedStarted = false
+      return
+    }
     // Build the seed (file content + seed flag, or just the flag for an empty/missing file), then
     // PUBLISH it to the shared stream AWAITED *before* seeding the local doc. The doc is marked seeded
     // only once the seed is durably shared — so if the publish fails we leave the doc unseeded and the
@@ -486,6 +496,7 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     workspaceId: null,
     lastEditorUserId: null,
     edited: false,
+    seededObserved: false,
     persistTimer: null,
   }
   // Register synchronously BEFORE the async catch-up so a concurrent join sees this room, not a second.
@@ -502,13 +513,16 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     // in the stream) and SEED_ORIGIN — the seed is published EXPLICITLY and AWAITED under the seed lock
     // (so it lands before the lock releases), which a fire-and-forget publish here couldn't guarantee.
     if (origin !== REDIS_ORIGIN && origin !== SEED_ORIGIN) getFileDocStore().publish(name, update)
-    // Persist ONLY genuine USER edits (socket origin), debounced. A seed or a bare copilot merge must
-    // NOT project back over the file — copilot writes the file durably itself, so persisting a
-    // seeded-but-unedited doc (built from possibly-stale markdown) could clobber that concurrent write.
-    if (originSocketId(origin)) {
-      room.edited = true
-      schedulePersist(name, room)
-    }
+    // Edit tracking for persistence. Mark the doc dirty on any update applied AFTER it was seeded — a
+    // local user edit (socket origin) OR a peer's edit relayed via the tailer (REDIS_ORIGIN) — so
+    // whichever task is last to leave persists real edits, even one that only tailed them. The seed
+    // transition itself is never counted (nor a purely-local copilot merge, already durable via
+    // copilot's direct file write), so a seeded-but-unedited doc is never projected back over the file.
+    const seededBefore = room.seededObserved
+    if (isDocSeeded(room.doc)) room.seededObserved = true
+    if (originSocketId(origin) || (seededBefore && origin === REDIS_ORIGIN)) room.edited = true
+    // Debounce a persist for LOCAL user edits only (peers debounce their own).
+    if (originSocketId(origin)) schedulePersist(name, room)
   })
 
   awareness.on('update', ({ added, updated, removed }: AwarenessChange, origin: unknown) => {
