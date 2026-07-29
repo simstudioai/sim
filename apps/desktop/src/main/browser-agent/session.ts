@@ -25,7 +25,12 @@ import {
   panelWindow,
 } from '@/main/browser-agent/panel'
 import { registerAgentWebContents } from '@/main/browser-agent/registry'
-import { checkAgentUrl, isBlockedRequestUrl } from '@/main/browser-agent/url-guard'
+import {
+  checkAgentUrl,
+  isBlockedRequestUrl,
+  isBlockedSubresourceUrl,
+  subresourceNeedsResolution,
+} from '@/main/browser-agent/url-guard'
 
 const logger = createLogger('BrowserAgentSession')
 
@@ -297,8 +302,18 @@ function configureAgentPartition(ses: Session): void {
   // iframes) get the full DNS-resolving check — the one seam every navigation
   // passes through, including page-initiated ones the driver never sees (server
   // redirects, link clicks, location.href, meta-refresh) — so an internal host
-  // can't slip in that way. Subresources take the cheap synchronous literal-IP
-  // backstop instead of a DNS lookup per asset.
+  // can't slip in that way.
+  //
+  // Subresources that come back readable or that execute get the resolving
+  // check too, cached per host: a literal-IP backstop alone let a public
+  // hostname with a private A record reach internal services, and a WebSocket
+  // to one is a cross-origin read primitive because internal servers commonly
+  // ignore Origin. Only images and fonts keep the cheap synchronous path —
+  // they are the high-volume types and are not readable cross-origin, leaving a
+  // load/error timing oracle as the accepted residual. The list is expressed as
+  // what is exempt rather than what is checked, so a resource type Chromium
+  // labels differently than expected fails safe into the checked path; see
+  // subresourceNeedsResolution.
   ses.webRequest.onBeforeRequest((details, callback) => {
     if (details.resourceType === 'mainFrame' || details.resourceType === 'subFrame') {
       void checkAgentUrl(details.url)
@@ -316,7 +331,16 @@ function configureAgentPartition(ses: Session): void {
         })
       return
     }
-    callback({ cancel: isBlockedRequestUrl(details.url) })
+    if (!subresourceNeedsResolution(details.resourceType)) {
+      callback({ cancel: isBlockedRequestUrl(details.url) })
+      return
+    }
+    void isBlockedSubresourceUrl(details.url)
+      .then((blocked) => callback({ cancel: blocked }))
+      .catch((error) => {
+        logger.error('Agent subresource SSRF check failed; cancelling request', { error })
+        callback({ cancel: true })
+      })
   })
   ses.on('will-download', (_event, item) => {
     const filename = item.getFilename()

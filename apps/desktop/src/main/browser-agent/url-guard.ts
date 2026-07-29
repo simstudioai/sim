@@ -129,6 +129,104 @@ export async function checkAgentUrl(rawUrl: string): Promise<UrlGuardResult> {
  * lookup on every subresource. Hostnames pass here (they are classified at
  * navigation time by {@link checkAgentUrl}).
  */
+/**
+ * Subresource types that keep the cheap synchronous literal-IP check.
+ *
+ * Images and fonts are the high-volume types and are not readable
+ * cross-origin, so the residual for them is a load/error timing oracle — a
+ * documented, accepted trade against a DNS lookup per asset.
+ */
+const LITERAL_ONLY_RESOURCE_TYPES: ReadonlySet<string> = new Set(['image', 'font'])
+
+/**
+ * Whether a subresource needs the DNS-resolving check rather than the literal-IP
+ * backstop.
+ *
+ * Expressed as what is exempt rather than what is checked, so a resource type
+ * Chromium labels differently than expected fails safe into the checked path —
+ * `fetch` surfaces as `xhr` or `other` depending on version, and an allowlist
+ * that missed the label in use would silently reopen the hole.
+ */
+export function subresourceNeedsResolution(resourceType: string): boolean {
+  return !LITERAL_ONLY_RESOURCE_TYPES.has(resourceType)
+}
+
+/**
+ * How long a host's resolved classification is reused. Deliberately short: a
+ * DNS rebind should not stay authorized past roughly the life of a page view.
+ */
+const HOST_VERDICT_TTL_MS = 30_000
+
+/**
+ * Ceiling on the cache. A hostile page can name unlimited hostnames, so this is
+ * bounded rather than left to grow; the oldest entry is evicted first.
+ */
+const MAX_HOST_VERDICTS = 256
+
+const hostVerdicts = new Map<string, { blocked: boolean; expiry: number }>()
+
+function rememberHostVerdict(host: string, blocked: boolean): void {
+  if (hostVerdicts.size >= MAX_HOST_VERDICTS) {
+    const oldest = hostVerdicts.keys().next()
+    if (!oldest.done) hostVerdicts.delete(oldest.value)
+  }
+  hostVerdicts.set(host, { blocked, expiry: Date.now() + HOST_VERDICT_TTL_MS })
+}
+
+/** Drops every cached host classification. */
+export function clearHostVerdictCache(): void {
+  hostVerdicts.clear()
+}
+
+/**
+ * DNS-resolving guard for the agent partition's readable and executable
+ * subresources.
+ *
+ * {@link isBlockedRequestUrl} only sees literal IPs, so a public hostname whose
+ * A record points at an RFC1918 or link-local address reached internal services
+ * from a page the agent was steered to — no rebinding needed, a static record
+ * was enough. The vectors that matter are the ones where the response comes
+ * back or runs: `new WebSocket('ws://internal/…')` reads data frames
+ * cross-origin because internal servers commonly ignore `Origin`, and a script
+ * or xhr response either executes in the page or is readable.
+ *
+ * Fails closed on a resolver error, for the same reason {@link checkAgentUrl}
+ * does: an unresolved host cannot be confirmed public, and Chromium resolves
+ * independently. That verdict is not cached, so a transient failure does not
+ * stick.
+ */
+export async function isBlockedSubresourceUrl(rawUrl: string): Promise<boolean> {
+  let hostname: string
+  try {
+    hostname = new URL(rawUrl).hostname
+  } catch {
+    return false
+  }
+  const host = unwrapIpv6Brackets(hostname)
+  if (!host) return false
+  if (isIpLiteral(host)) return isBlockedAddress(host)
+
+  const cached = hostVerdicts.get(host)
+  if (cached && Date.now() < cached.expiry) return cached.blocked
+
+  let blocked: boolean
+  try {
+    const resolved = await resolveHost(host)
+    blocked = resolved.some(({ address }) => isBlockedAddress(address))
+  } catch (error) {
+    logger.warn('Agent subresource host did not resolve; blocking', {
+      host,
+      error: getErrorMessage(error),
+    })
+    return true
+  }
+  rememberHostVerdict(host, blocked)
+  if (blocked) {
+    logger.warn('Blocked agent subresource resolving to private IP', { host })
+  }
+  return blocked
+}
+
 export function isBlockedRequestUrl(rawUrl: string): boolean {
   try {
     // isPrivateIpHost strips IPv6 brackets itself; unwrap again for the

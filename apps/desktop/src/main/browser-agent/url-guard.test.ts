@@ -6,7 +6,13 @@ vi.mock('node:dns/promises', () => ({
   default: { lookup: mockLookup },
 }))
 
-import { checkAgentUrl, isBlockedRequestUrl } from '@/main/browser-agent/url-guard'
+import {
+  checkAgentUrl,
+  clearHostVerdictCache,
+  isBlockedRequestUrl,
+  isBlockedSubresourceUrl,
+  subresourceNeedsResolution,
+} from '@/main/browser-agent/url-guard'
 
 describe('checkAgentUrl', () => {
   beforeEach(() => {
@@ -118,5 +124,106 @@ describe('isBlockedRequestUrl', () => {
 
   it('does not throw on malformed input', () => {
     expect(isBlockedRequestUrl('::::')).toBe(false)
+  })
+})
+
+describe('isBlockedSubresourceUrl', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearHostVerdictCache()
+    mockLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
+  })
+
+  it('blocks a public hostname whose A record points at a private address', async () => {
+    mockLookup.mockResolvedValue([{ address: '10.0.0.5', family: 4 }])
+
+    await expect(isBlockedSubresourceUrl('https://10-0-0-5.evil.example/probe.json')).resolves.toBe(
+      true
+    )
+  })
+
+  it('catches what the synchronous literal-IP backstop cannot', async () => {
+    mockLookup.mockResolvedValue([{ address: '10.0.0.5', family: 4 }])
+    const url = 'https://10-0-0-5.evil.example/probe.json'
+
+    // The gap this guard exists to close: the sync check only sees literals, so
+    // a hostname with a private A record sailed through it.
+    expect(isBlockedRequestUrl(url)).toBe(false)
+    await expect(isBlockedSubresourceUrl(url)).resolves.toBe(true)
+  })
+
+  it('blocks a websocket to a privately-resolving host', async () => {
+    mockLookup.mockResolvedValue([{ address: '172.16.4.4', family: 4 }])
+
+    await expect(isBlockedSubresourceUrl('ws://internal.evil.example/socket')).resolves.toBe(true)
+  })
+
+  it('allows a hostname that resolves publicly', async () => {
+    await expect(isBlockedSubresourceUrl('https://example.com/app.js')).resolves.toBe(false)
+  })
+
+  it('blocks IPv6-mapped and link-local literals without resolving', async () => {
+    await expect(isBlockedSubresourceUrl('http://169.254.169.254/latest/meta-data')).resolves.toBe(
+      true
+    )
+    await expect(isBlockedSubresourceUrl('http://[::ffff:10.0.0.5]/x')).resolves.toBe(true)
+    expect(mockLookup).not.toHaveBeenCalled()
+  })
+
+  it('keeps the deliberate loopback carve-out', async () => {
+    await expect(isBlockedSubresourceUrl('http://127.0.0.1:3000/x')).resolves.toBe(false)
+    expect(mockLookup).not.toHaveBeenCalled()
+  })
+
+  it('resolves a host once and reuses the verdict', async () => {
+    await isBlockedSubresourceUrl('https://example.com/a.js')
+    await isBlockedSubresourceUrl('https://example.com/b.js')
+    await isBlockedSubresourceUrl('https://example.com/c.js')
+
+    expect(mockLookup).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails closed when the host does not resolve, without caching that', async () => {
+    mockLookup.mockRejectedValueOnce(new Error('ENOTFOUND'))
+    await expect(isBlockedSubresourceUrl('https://flaky.example/a.js')).resolves.toBe(true)
+
+    mockLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
+    await expect(isBlockedSubresourceUrl('https://flaky.example/a.js')).resolves.toBe(false)
+  })
+
+  it('ignores a malformed url rather than blocking every request', async () => {
+    await expect(isBlockedSubresourceUrl('not a url')).resolves.toBe(false)
+  })
+
+  it('bounds the verdict cache', async () => {
+    for (let i = 0; i < 300; i++) {
+      await isBlockedSubresourceUrl(`https://host-${i}.example/a.js`)
+    }
+    mockLookup.mockClear()
+
+    // The earliest hosts were evicted, so they resolve again; the newest do not.
+    await isBlockedSubresourceUrl('https://host-0.example/a.js')
+    await isBlockedSubresourceUrl('https://host-299.example/a.js')
+    expect(mockLookup).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('subresourceNeedsResolution', () => {
+  it('exempts only the high-volume, non-readable types', () => {
+    expect(subresourceNeedsResolution('image')).toBe(false)
+    expect(subresourceNeedsResolution('font')).toBe(false)
+  })
+
+  it('checks every type that is readable or executes', () => {
+    for (const type of ['xhr', 'webSocket', 'media', 'script', 'stylesheet', 'object', 'ping']) {
+      expect(subresourceNeedsResolution(type)).toBe(true)
+    }
+  })
+
+  it('checks an unrecognised label rather than exempting it', () => {
+    // fetch is `xhr` on some Chromium versions and `other` on others; a label
+    // this code has never heard of must not be the one that skips the check.
+    expect(subresourceNeedsResolution('other')).toBe(true)
+    expect(subresourceNeedsResolution('someFutureType')).toBe(true)
   })
 })
