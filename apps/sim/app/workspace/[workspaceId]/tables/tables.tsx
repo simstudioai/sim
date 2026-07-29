@@ -743,7 +743,17 @@ export function Tables() {
     (optionValue: string) => {
       if (!activeTable) return
       const folderId = parseMoveOptionValue(optionValue)
-      if ((activeTable.folderId ?? null) === folderId) return
+      /**
+       * Placement is re-read from the live list rather than trusted from `activeTable`, which
+       * is a snapshot taken when the menu opened. A refetch or a concurrent move since then
+       * would make the no-op check compare against a stale location and skip a write the user
+       * asked for. Matches the knowledge-base move.
+       */
+      const current = tablesRef.current.find((table) => table.id === activeTable.id) ?? activeTable
+      if ((current.folderId ?? null) === folderId) {
+        closeRowContextMenu()
+        return
+      }
       moveTable.mutate({ tableId: activeTable.id, folderId })
       closeRowContextMenu()
     },
@@ -770,11 +780,12 @@ export function Tables() {
     (optionValue: string) => {
       if (!activeFolder) return
       const parentId = parseMoveOptionValue(optionValue)
-      if ((activeFolder.parentId ?? null) === parentId) return
-      moveFolderTo(activeFolder.id, parentId)
+      // Same reasoning as `handleMoveTable`: compare against the live row, not the snapshot.
+      const current = folderById.get(activeFolder.id) ?? activeFolder
+      if ((current.parentId ?? null) !== parentId) moveFolderTo(activeFolder.id, parentId)
       closeRowContextMenu()
     },
-    [activeFolder, moveFolderTo, closeRowContextMenu]
+    [activeFolder, folderById, moveFolderTo, closeRowContextMenu]
   )
 
   const rowDragDropConfig = useFolderRowDragDrop({
