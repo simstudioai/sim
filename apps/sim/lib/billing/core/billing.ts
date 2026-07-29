@@ -7,7 +7,11 @@ import {
   resolveBillingInterval,
 } from '@/lib/billing/core/subscription'
 import { ensureUserStatsExists } from '@/lib/billing/core/usage'
-import { COPILOT_USAGE_SOURCES, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
+import {
+  COPILOT_USAGE_SOURCES,
+  getBillingPeriodUsageCost,
+  getBillingPeriodUsageCostWithSourceSubset,
+} from '@/lib/billing/core/usage-log'
 import {
   computeDailyRefreshConsumed,
   getOrgMemberRefreshBounds,
@@ -429,15 +433,13 @@ export async function getPersonalBillingSummary(userId: string, executor: DbClie
       personalSubscription?.periodStart && personalSubscription.periodEnd
         ? { start: personalSubscription.periodStart, end: personalSubscription.periodEnd }
         : defaultBillingPeriod()
-    const [ledgerUsage, copilotLedgerUsage] = await Promise.all([
-      getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod, undefined, executor),
-      getBillingPeriodUsageCost(
+    const { total: ledgerUsage, subset: copilotLedgerUsage } =
+      await getBillingPeriodUsageCostWithSourceSubset(
         { type: 'user', id: userId },
         billingPeriod,
         COPILOT_USAGE_SOURCES,
         executor
-      ),
-    ])
+      )
 
     const hasPersonalUsageSnapshot =
       Boolean(personalSubscription) && isPro(plan) && stats.proPeriodCostSnapshotAt !== null

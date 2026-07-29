@@ -218,7 +218,7 @@ export function RecentlyDeleted() {
         id: folder.id,
         name: folder.name,
         type: 'folder',
-        deletedAt: folder.archivedAt ? new Date(folder.archivedAt) : new Date(folder.updatedAt),
+        deletedAt: folder.deletedAt ? new Date(folder.deletedAt) : new Date(folder.updatedAt),
         workspaceId: folder.workspaceId,
       })
     }

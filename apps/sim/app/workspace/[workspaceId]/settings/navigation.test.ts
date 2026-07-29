@@ -50,10 +50,12 @@ describe('unified settings navigation', () => {
   })
 
   it('derives every unified item from exactly one registry entry', () => {
-    expect(allNavigationItems).toHaveLength(SETTINGS_SECTION_REGISTRY.length)
+    expect(allNavigationItems).toHaveLength(
+      SETTINGS_SECTION_REGISTRY.filter(({ unified }) => unified).length
+    )
     for (const item of allNavigationItems) {
       expect(
-        SETTINGS_SECTION_REGISTRY.filter(({ unified }) => unified.id === item.id)
+        SETTINGS_SECTION_REGISTRY.filter(({ unified }) => unified?.id === item.id)
       ).toHaveLength(1)
     }
   })

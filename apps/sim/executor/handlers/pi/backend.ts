@@ -11,6 +11,7 @@ import type { TSchema } from 'typebox'
 import type { SSHConnectionConfig } from '@/app/api/tools/ssh/utils'
 import type { Message } from '@/executor/handlers/agent/types'
 import type { PiEvent, PiRunTotals } from '@/executor/handlers/pi/events'
+import type { PiSearchProvider } from '@/executor/handlers/pi/keys'
 import type { PiSupportedProvider } from '@/providers/pi-provider-configs'
 
 /** A conversation message seeded into the Pi run (subset of the Agent block's message). */
@@ -31,6 +32,7 @@ export type PiSshConnection = Pick<
 /** Result of invoking a tool Pi called. */
 export interface PiToolResult {
   text: string
+  /** Reported to Pi by throwing `text` from the converted tool; see `toPiTool` for why. */
   isError: boolean
 }
 
@@ -43,7 +45,25 @@ export interface PiToolSpec {
   name: string
   description: string
   parameters: TSchema
+  /**
+   * Guideline bullets Pi folds into the system prompt while the tool is active. This is the
+   * trusted channel: a `description` travels in the provider request's tool-definition array, so
+   * guidance placed there carries the same trust level as the payload it describes. Dropped in
+   * Review Code, which supplies a sealed `customPrompt` instead.
+   */
+  promptGuidelines?: string[]
   execute: (args: Record<string, unknown>) => Promise<PiToolResult>
+}
+
+/** Optional web search for a Pi run, resolved by the handler before mode dispatch. */
+export interface PiSearchConfig {
+  provider: PiSearchProvider
+  apiKey: string
+  /**
+   * Host-side tool for the two SDK modes. Absent for `cloud`, which has no host in the loop and
+   * registers a sandbox extension instead, so a spec built there could never execute.
+   */
+  tool?: PiToolSpec
 }
 
 interface PiRunBaseParams {
@@ -56,6 +76,7 @@ interface PiRunBaseParams {
   isBYOK: boolean
   task: string
   thinkingLevel?: string
+  search?: PiSearchConfig
 }
 
 interface PiContextualRunParams extends PiRunBaseParams {

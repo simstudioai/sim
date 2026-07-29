@@ -22,7 +22,9 @@ export const sharepointConnectorMeta: ConnectorMeta = {
       id: 'folderPath',
       title: 'Folder Path',
       type: 'short-input',
-      placeholder: 'e.g. Documents/Reports (optional, defaults to root)',
+      placeholder: 'e.g. Reports/2026 (optional, defaults to the whole library)',
+      description:
+        'Path relative to the document library root — omit a leading "Documents" or "Shared Documents". To target a different library, start the path with that library\'s name. You can also paste the folder URL from your browser\'s address bar.',
       required: false,
     },
     {

@@ -135,6 +135,9 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
           link: item.link,
           snippet: item.snippet,
           position: index + 1,
+          // Google reports a date on many organic results, and the output schema has always declared
+          // it optional — dropping it here was silently discarding it for web searches alone.
+          date: item.date,
         })) || []
     }
 

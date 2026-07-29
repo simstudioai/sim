@@ -210,6 +210,44 @@ export function getFileExtension(filename: string): string {
   return lastDot !== -1 ? filename.slice(lastDot + 1).toLowerCase() : ''
 }
 
+/**
+ * Extensions whose stored bytes may be a generation source that renders to a larger
+ * binary. Everything else stores exactly what it serves, so its declared size is
+ * an accurate byte budget.
+ */
+const RENDERABLE_DOCUMENT_EXTENSIONS = new Set(['pdf', 'docx', 'pptx', 'xlsx'])
+
+/**
+ * Content types under which a generated document's *generation source* is stored. A
+ * file carrying one of these renders to something other than its stored bytes, so any
+ * surface that hands out the file itself has to resolve it first. Both PDF generators
+ * are here: the E2B path stores Python, the isolated-vm path stores pdf-lib JS.
+ */
+export const GENERATED_DOCUMENT_SOURCE_TYPES = new Set<string>([
+  'text/x-docxjs',
+  'text/x-pptxgenjs',
+  'text/x-pdflibjs',
+  'text/x-python-pdf',
+  'text/x-python-xlsx',
+])
+
+/** True when the stored bytes for `contentType` are a generation source. */
+export function isGeneratedDocumentSourceType(contentType: string | undefined | null): boolean {
+  return contentType ? GENERATED_DOCUMENT_SOURCE_TYPES.has(contentType) : false
+}
+
+/**
+ * Ceiling on a single rendered generated document. A generator source is text and is
+ * orders of magnitude smaller than the document it produces, so the declared size is no
+ * bound at all and the rendered bytes need a cap of their own.
+ */
+export const MAX_RENDERED_DOCUMENT_BYTES = 50 * 1024 * 1024
+
+/** True when `fileName` may be backed by a generation source rather than final bytes. */
+export function isRenderableDocumentName(fileName: string): boolean {
+  return RENDERABLE_DOCUMENT_EXTENSIONS.has(getFileExtension(fileName))
+}
+
 const ARCHIVE_EXTENSIONS = new Set<string>(SUPPORTED_ARCHIVE_EXTENSIONS)
 
 /**

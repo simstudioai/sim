@@ -21,7 +21,12 @@ function toMothershipMcpTool(tool: {
     description:
       tool.description || `MCP tool ${tool.name} from ${tool.serverName || tool.serverId}`,
     input_schema: tool.inputSchema,
-    defer_loading: true,
+    // Not deferred: deferral keeps the 200+ unrequested integration schemas out
+    // of the tool array, but an MCP server is explicitly enabled by the user and
+    // stays enabled for the chat. Deferring it means every turn after the first
+    // needs a load_custom_tool round-trip the model has no listing to prompt it
+    // for, and a direct call is rejected as unavailable.
+    defer_loading: false,
     executeLocally: false,
     service: `mcp:${tool.serverId}`,
     params: {

@@ -10,6 +10,12 @@
  * It is written into sandbox files via the E2B filesystem API and read back from
  * fixed paths (Pi's prompt on stdin, `git commit -F <file>`), so a collaborator-
  * authored skill cannot inject shell into the Pi step where the model key lives.
+ *
+ * Optional web search adds a second sandbox credential, delivered the same way as
+ * the model key, plus a runtime-written Pi extension that performs the provider
+ * call. Every text this backend surfaces — events, totals, prompt, commit title,
+ * PR body, diff, changed files, thrown errors — is scrubbed against all three
+ * credentials.
  */
 
 import { createLogger } from '@sim/logger'
@@ -18,9 +24,9 @@ import { truncate } from '@sim/utils/string'
 import { withPiSandbox } from '@/lib/execution/remote-sandbox'
 import type { PiBackendRun, PiCloudRunParams } from '@/executor/handlers/pi/backend'
 import {
+  buildPiScript,
   CLONE_TIMEOUT_MS,
   extractMarkerValues,
-  PI_SCRIPT,
   PI_TIMEOUT_MS,
   PROMPT_PATH,
   REPO_DIR,
@@ -35,6 +41,17 @@ import {
   parseJsonLine,
 } from '@/executor/handlers/pi/events'
 import { mapThinkingLevel, providerApiKeyEnvVar } from '@/executor/handlers/pi/keys'
+import {
+  createScrubbedPiError,
+  scrubPiEvent,
+  scrubPiSecrets,
+} from '@/executor/handlers/pi/redaction'
+import {
+  PI_SEARCH_API_KEY_ENV_VAR,
+  PI_SEARCH_EXTENSION_PATH,
+  PI_SEARCH_EXTENSION_SOURCE,
+  PI_SEARCH_PROVIDER_ENV_VAR,
+} from '@/executor/handlers/pi/search/extension-source'
 import { getPiProviderId } from '@/providers/pi-providers'
 import { executeTool } from '@/tools'
 
@@ -108,7 +125,8 @@ async function openPullRequest(
   params: PiCloudRunParams,
   branch: string,
   detectedBase: string | undefined,
-  totals: PiRunTotals
+  totals: PiRunTotals,
+  secrets: readonly string[]
 ): Promise<string | undefined> {
   const base = params.baseBranch?.trim() || detectedBase
   if (!base) {
@@ -116,8 +134,11 @@ async function openPullRequest(
       `Branch ${branch} pushed, but the base branch could not be determined — set "Base Branch" on the block and re-run.`
     )
   }
-  const title = defaultTitle(params)
-  const body = params.prBody?.trim() || buildPrBody(params.task, totals.finalText)
+  const title = scrubPiSecrets(defaultTitle(params), secrets)
+  const body = scrubPiSecrets(
+    params.prBody?.trim() || buildPrBody(params.task, totals.finalText),
+    secrets
+  )
 
   const result = await executeTool('github_create_pr', {
     owner: params.owner,
@@ -153,14 +174,23 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
     )
   }
 
+  // Every credential that reaches this run, scrubbed from agent-visible and GitHub-visible text.
+  // The guarantee covers the paths the key travels by design; it deliberately does not extend to a
+  // key wired into `branchName`, which becomes a git ref and could not be substituted without
+  // failing the checkout outright.
+  const secrets = [params.apiKey, params.githubToken, params.search?.apiKey ?? '']
+
   const branch = params.branchName?.trim() || `pi/${generateShortId(8)}`
-  const commitMessage = defaultTitle(params)
-  const prompt = buildPiPrompt({
-    skills: params.skills,
-    initialMessages: params.initialMessages,
-    task: params.task,
-    guidance: CLOUD_GUIDANCE,
-  })
+  const commitMessage = scrubPiSecrets(defaultTitle(params), secrets)
+  const prompt = scrubPiSecrets(
+    buildPiPrompt({
+      skills: params.skills,
+      initialMessages: params.initialMessages,
+      task: params.task,
+      guidance: CLOUD_GUIDANCE,
+    }),
+    secrets
+  )
   const totals = createPiTotals()
   const thinking = mapThinkingLevel(params.thinkingLevel) ?? 'medium'
 
@@ -195,35 +225,50 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
       // launches the Pi loop.
       await runner.writeFile(PROMPT_PATH, prompt)
 
+      // Outside REPO_DIR: a path inside the cloned tree would be staged by `git add -A` into the
+      // user's pull request, and the agent holds write/edit/bash on that tree for the whole run.
+      if (params.search) {
+        await runner.writeFile(PI_SEARCH_EXTENSION_PATH, PI_SEARCH_EXTENSION_SOURCE)
+      }
+
       let buffer = ''
+      // Scrubbed before `applyPiEvent`, not just before `onEvent`: `totals.finalText` accumulates
+      // from text events and becomes both the block output and the PR body.
+      const handleEvent = (raw: ReturnType<typeof parseJsonLine>) => {
+        const event = scrubPiEvent(raw, secrets)
+        if (!event) return
+        applyPiEvent(totals, event)
+        context.onEvent(event)
+      }
       const handleChunk = (chunk: string) => {
         buffer += chunk
         const lines = buffer.split('\n')
         buffer = lines.pop() ?? ''
         for (const line of lines) {
-          const event = parseJsonLine(line)
-          if (!event) continue
-          applyPiEvent(totals, event)
-          context.onEvent(event)
+          handleEvent(parseJsonLine(line))
         }
       }
       const piRun = await raceAbort(
-        runner.run(PI_SCRIPT, {
+        runner.run(buildPiScript(params.search ? PI_SEARCH_EXTENSION_PATH : undefined), {
           envs: {
             [keyEnvVar]: params.apiKey,
             PI_PROVIDER: getPiProviderId(params.providerId),
             PI_MODEL: params.piModel,
             PI_THINKING: thinking,
+            ...(params.search
+              ? {
+                  [PI_SEARCH_PROVIDER_ENV_VAR]: params.search.provider,
+                  [PI_SEARCH_API_KEY_ENV_VAR]: params.search.apiKey,
+                }
+              : {}),
           },
           timeoutMs: PI_TIMEOUT_MS,
           onStdout: handleChunk,
         }),
         context.signal
       )
-      const remaining = buffer.trim() ? parseJsonLine(buffer) : null
-      if (remaining) {
-        applyPiEvent(totals, remaining)
-        context.onEvent(remaining)
+      if (buffer.trim()) {
+        handleEvent(parseJsonLine(buffer))
       }
       if (piRun.exitCode !== 0) {
         throw new Error(
@@ -247,7 +292,9 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
         }),
         context.signal
       )
-      const changedFiles = extractMarkerValues(prepare.stdout, '__CHANGED__=')
+      const changedFiles = extractMarkerValues(prepare.stdout, '__CHANGED__=').map((file) =>
+        scrubPiSecrets(file, secrets)
+      )
       const noChanges = prepare.stdout.includes('__NO_CHANGES__=1')
       const needsPush = prepare.stdout.includes('__NEEDS_PUSH__=1')
       // PREPARE (`set -e`) emits exactly one of the two markers on success. Neither
@@ -260,7 +307,7 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
 
       let diff: string | undefined
       try {
-        const raw = await runner.readFile(DIFF_PATH)
+        const raw = scrubPiSecrets(await runner.readFile(DIFF_PATH), secrets)
         diff =
           raw.length > MAX_DIFF_BYTES ? `${raw.slice(0, MAX_DIFF_BYTES)}\n[diff truncated]` : raw
       } catch {
@@ -299,7 +346,7 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
         throw new Error(`git push failed: ${truncate(scrubbed, PUSH_ERROR_MAX)}`)
       }
 
-      const prUrl = await openPullRequest(params, branch, detectedBase, totals)
+      const prUrl = await openPullRequest(params, branch, detectedBase, totals, secrets)
       return { totals, changedFiles, diff, prUrl, branch }
     } catch (error) {
       // Aborts propagate as errors so a cancelled/timed-out run is not reported as
@@ -307,7 +354,9 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
       if (context.signal?.aborted) {
         logger.info('Pi cloud run aborted', { owner: params.owner, repo: params.repo })
       }
-      throw error
+      // The Pi step's failure path rethrows the sandbox's stderr verbatim, and a misconfigured
+      // provider key is exactly a non-zero exit with stderr.
+      throw createScrubbedPiError(error, secrets, 'Pi cloud run failed')
     }
   })
 }

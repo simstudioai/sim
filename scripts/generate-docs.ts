@@ -34,20 +34,43 @@ const TRIGGERS_PATH = path.join(rootDir, 'apps/sim/triggers')
 // actions (one block per integration: actions + an optional Trigger).
 const TRIGGER_DOCS_OUTPUT_PATH = DOCS_OUTPUT_PATH
 
-/** Hand-written integration pages in DOCS_OUTPUT_PATH that the generator must never clobber. */
+/**
+ * Hand-written integration pages in DOCS_OUTPUT_PATH that the generator must
+ * never clobber. Every hand-authored `*-service-account` credential guide has
+ * to be listed here — these pages carry no `MANUAL-CONTENT` markers and no
+ * backing block, so the stale-doc cleanup deletes any that go unregistered.
+ */
 const HANDWRITTEN_INTEGRATION_DOCS = new Set([
   'index',
   'a2a',
-  'google-service-account',
+  'airtable-service-account',
+  'asana-service-account',
   'atlassian-service-account',
+  'attio-service-account',
+  'box-service-account',
+  'calcom-service-account',
   'clickup-service-account',
+  'google-service-account',
+  'hubspot-service-account',
   'hubspot-setup',
+  'linear-service-account',
+  'monday-service-account',
+  'notion-service-account',
+  'pipedrive-service-account',
+  'salesforce-service-account',
+  'shopify-service-account',
+  'trello-service-account',
+  'wealthbox-service-account',
+  'webflow-service-account',
+  'zoom-service-account',
 ])
 
 /**
  * Native Sim resource blocks (category 'blocks') that still get a generated
- * integration page. The writer's filter and the stale-doc cleanup must both
- * honor this set, or cleanup deletes what the writer emits (losing manual content).
+ * integration page. The writer's filter, the stale-doc cleanup, and the icon
+ * map must all honor this set: cleanup would otherwise delete what the writer
+ * emits (losing manual content), and an icon map that omits these types leaves
+ * their pages rendering the two-letter text fallback instead of the icon.
  */
 const NATIVE_RESOURCE_BLOCK_TYPES = new Set([
   'memory',
@@ -179,6 +202,23 @@ function isPreviewSource(blockContent: string): boolean {
 }
 
 /**
+ * Blank out `//` and block comments so source-text property probes match real
+ * code only. Without this, prose that quotes a property — e.g. slack.ts's
+ * "At v2 GA this becomes `hideFromToolbar: true`" — reads as the property
+ * itself and silently drops the block from every generated surface.
+ *
+ * Comment bodies are replaced with spaces rather than removed so byte offsets
+ * stay aligned with the original content. Deliberately not applied to
+ * {@link isPreviewSource}: that gate is fail-closed on purpose, and a
+ * false positive there only over-hides an unreleased block.
+ */
+function stripSourceComments(content: string): string {
+  return content
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/(^|[^:])\/\/[^\n]*/g, (m, prefix) => prefix + ' '.repeat(m.length - prefix.length))
+}
+
+/**
  * Find the position after the matching close delimiter for an opening delimiter.
  * Assumes `content[openPos]` is the opening char (e.g. `{` or `[`).
  * Returns the index one past the matching close char, or -1 if unbalanced.
@@ -250,6 +290,12 @@ interface IntegrationEntry {
   landingContent?: Record<string, unknown>
 }
 
+/** A block icon component together with the module it must be imported from. */
+interface IconRef {
+  name: string
+  source: string
+}
+
 /**
  * Copy the icons.tsx file from the main sim app to the docs app
  * This ensures icons are rendered consistently across both apps
@@ -273,17 +319,53 @@ function copyIconsFile(): void {
 }
 
 /**
+ * Some trigger providers have no block of their own (`slack_app`, `twilio`) yet
+ * still get a generated page keyed by the provider id. Seed those provider ids
+ * from the trigger definitions' own `icon` so their pages render the brand mark
+ * instead of the two-letter fallback. Never overwrites a block-derived entry —
+ * the block is the canonical icon source when one exists.
+ */
+async function addTriggerProviderIcons(iconMapping: Record<string, IconRef>): Promise<void> {
+  const triggerFiles = (await glob(`${TRIGGERS_PATH}/**/*.ts`)).filter((f) => !f.includes('.test.'))
+  const previewOnly = await collectPreviewOnlyTriggerIds()
+
+  for (const file of triggerFiles) {
+    const fileContent = fs.readFileSync(file, 'utf-8')
+    const source = stripSourceComments(fileContent)
+
+    // Pair each trigger's `id` with the `provider` that follows it in the same
+    // config, so files holding several trigger configs attribute each provider
+    // (and its icon) to the right trigger.
+    const configRegex =
+      /\bid\s*:\s*['"]([^'"]+)['"][\s\S]{0,600}?\bprovider\s*:\s*['"]([^'"]+)['"]/g
+
+    for (const match of source.matchAll(configRegex)) {
+      const [, triggerId, provider] = match
+      if (iconMapping[provider]) continue
+
+      // Preview-only triggers get no page, so they need no provider icon.
+      if (previewOnly.has(triggerId)) continue
+
+      const iconName = extractIconNameFromContent(source.slice(match.index))
+      if (!iconName) continue
+
+      iconMapping[provider] = { name: iconName, source: resolveIconSource(fileContent, iconName) }
+    }
+  }
+}
+
+/**
  * Generate icon mapping from block definitions.
  * Docs need hidden historical version keys so old BlockInfoCard references and
  * versioned docs links still render icons, while landing only needs visible blocks.
  */
 async function generateIconMapping(options: {
   includeHidden: boolean
-}): Promise<Record<string, string>> {
+}): Promise<Record<string, IconRef>> {
   try {
     console.log('Generating icon mapping from block definitions...')
 
-    const iconMapping: Record<string, string> = {}
+    const iconMapping: Record<string, IconRef> = {}
     const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
 
     for (const blockFile of blockFiles) {
@@ -309,7 +391,9 @@ async function generateIconMapping(options: {
           const blockContent = fileContent.substring(startIndex, endIndex)
 
           // Check hideFromToolbar - skip hidden blocks for docs but NOT for icon mapping
-          const hideFromToolbar = /hideFromToolbar\s*:\s*true/.test(blockContent)
+          const hideFromToolbar = /hideFromToolbar\s*:\s*true/.test(
+            stripSourceComments(blockContent)
+          )
 
           // Unreleased preview blocks never reach any public surface, icon map included.
           if (isPreviewSource(blockContent)) {
@@ -339,12 +423,16 @@ async function generateIconMapping(options: {
           // Get category for additional filtering
           const category = extractStringPropertyFromContent(blockContent, 'category') || 'misc'
 
-          // Exclude first-party `blocks`-category primitives (except the small
-          // catalog-surfaced allowlist) and core/plumbing types. This mirrors
-          // the catalog/docs `isIntegrationBlock` predicate, with the two
-          // explicit `blocks`-category exceptions folded in here.
+          // Exclude first-party `blocks`-category primitives (except the native
+          // resource blocks that still get a generated docs page) and
+          // core/plumbing types. Keying the exception off
+          // `NATIVE_RESOURCE_BLOCK_TYPES` — the same set the docs writer uses —
+          // keeps the icon map from drifting behind the pages that consume it.
+          const baseType = stripVersionSuffix(blockType)
           if (
-            (category === 'blocks' && !ICON_MAP_BLOCK_CATEGORY_ALLOWLIST.has(blockType)) ||
+            (category === 'blocks' &&
+              !NATIVE_RESOURCE_BLOCK_TYPES.has(baseType) &&
+              !HANDWRITTEN_INTEGRATION_DOCS.has(baseType)) ||
             ICON_MAP_EXCLUDED_TYPES.has(blockType)
           ) {
             continue
@@ -352,11 +440,16 @@ async function generateIconMapping(options: {
 
           const isVersionedBlockType = isVersionedType(blockType)
           if (!hideFromToolbar || (options.includeHidden && isVersionedBlockType)) {
-            iconMapping[blockType] = iconName
+            iconMapping[blockType] = {
+              name: iconName,
+              source: resolveIconSource(fileContent, iconName),
+            }
           }
         }
       }
     }
+
+    await addTriggerProviderIcons(iconMapping)
 
     console.log(`✓ Generated icon mapping for ${Object.keys(iconMapping).length} blocks`)
     return iconMapping
@@ -385,30 +478,26 @@ function biomeSortCompare(a: string, b: string): number {
   return a.length - b.length
 }
 
-function writeIconMapping(iconMapping: Record<string, string>): void {
+function writeIconMapping(iconMapping: Record<string, IconRef>): void {
   try {
     const iconMappingPath = path.join(rootDir, 'apps/docs/components/ui/icon-mapping.ts')
 
     // Add bare-name aliases for versioned block types so trigger provider names resolve correctly.
     // e.g. github_v2 → github, fireflies_v2 → fireflies, gmail_v2 → gmail
-    const withAliases: Record<string, string> = { ...iconMapping }
-    for (const [blockType, iconName] of Object.entries(iconMapping)) {
+    const withAliases: Record<string, IconRef> = { ...iconMapping }
+    for (const [blockType, iconRef] of Object.entries(iconMapping)) {
       const baseType = stripVersionSuffix(blockType)
       if (baseType !== blockType && !withAliases[baseType]) {
-        withAliases[baseType] = iconName
+        withAliases[baseType] = iconRef
       }
     }
 
-    // Get unique icon names, sorted to match Biome's organizeImports
-    const iconNames = [...new Set(Object.values(withAliases))].sort(biomeSortCompare)
-
-    // Generate imports
-    const imports = iconNames.map((icon) => `  ${icon},`).join('\n')
+    const imports = renderIconImports(Object.values(withAliases))
 
     // Generate mapping with direct references (no dynamic access for tree shaking)
     const mappingEntries = Object.entries(withAliases)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([blockType, iconName]) => `  ${blockType}: ${iconName},`)
+      .map(([blockType, iconRef]) => `  ${formatIconMapKey(blockType)}: ${iconRef.name},`)
       .join('\n')
 
     const content = `// Auto-generated file - do not edit manually
@@ -416,9 +505,7 @@ function writeIconMapping(iconMapping: Record<string, string>): void {
 // Maps block types to their icon component references
 
 import type { ComponentType, SVGProps } from 'react'
-import {
 ${imports}
-} from '@/components/icons'
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
 
@@ -763,18 +850,17 @@ async function buildTriggerRegistry(): Promise<Map<string, TriggerInfo>> {
  * applied because consumers always look up by the canonical (possibly
  * versioned) `integration.type` emitted into `integrations.json`.
  */
-function writeIntegrationsIconMapping(iconMapping: Record<string, string>): void {
+function writeIntegrationsIconMapping(iconMapping: Record<string, IconRef>): void {
   try {
     if (!fs.existsSync(INTEGRATIONS_DATA_PATH)) {
       fs.mkdirSync(INTEGRATIONS_DATA_PATH, { recursive: true })
     }
     const iconMappingPath = path.join(INTEGRATIONS_DATA_PATH, 'icon-mapping.ts')
 
-    const iconNames = [...new Set(Object.values(iconMapping))].sort(biomeSortCompare)
-    const imports = iconNames.map((icon) => `  ${icon},`).join('\n')
+    const imports = renderIconImports(Object.values(iconMapping))
     const mappingEntries = Object.entries(iconMapping)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([blockType, iconName]) => `  ${blockType}: ${iconName},`)
+      .map(([blockType, iconRef]) => `  ${formatIconMapKey(blockType)}: ${iconRef.name},`)
       .join('\n')
 
     const content = `// Auto-generated file - do not edit manually
@@ -782,9 +868,7 @@ function writeIntegrationsIconMapping(iconMapping: Record<string, string>): void
 // Maps block types to their icon component references for the integrations page
 
 import type { ComponentType, SVGProps } from 'react'
-import {
 ${imports}
-} from '@/components/icons'
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
 
@@ -804,7 +888,7 @@ ${mappingEntries}
  * to the shared integrations data directory (`apps/sim/lib/integrations`).
  * Applies the same visibility filters as the docs generation pipeline.
  */
-async function writeIntegrationsJson(iconMapping: Record<string, string>): Promise<void> {
+async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Promise<void> {
   try {
     if (!fs.existsSync(INTEGRATIONS_DATA_PATH)) {
       fs.mkdirSync(INTEGRATIONS_DATA_PATH, { recursive: true })
@@ -863,7 +947,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
         if (seenBaseTypes.has(baseType)) continue
         seenBaseTypes.add(baseType)
 
-        const iconName = (config as any).iconName || iconMapping[blockType] || ''
+        const iconName = (config as any).iconName || iconMapping[blockType]?.name || ''
         const rawOps: { label: string; id: string }[] = (config as any).operations || []
 
         // Enrich each operation with a description from the tool registry.
@@ -1015,7 +1099,7 @@ function extractAllBlockConfigs(fileContent: string): BlockConfig[] {
       const blockContent = fileContent.substring(startIndex, endIndex)
 
       // Check if this block has hideFromToolbar: true
-      const hideFromToolbar = /hideFromToolbar\s*:\s*true/.test(blockContent)
+      const hideFromToolbar = /hideFromToolbar\s*:\s*true/.test(stripSourceComments(blockContent))
       if (hideFromToolbar) {
         console.log(`Skipping ${blockName}Block - hideFromToolbar is true`)
         continue
@@ -1194,16 +1278,6 @@ function isIntegrationBlock(config: {
 }
 
 /**
- * First-party `category: 'blocks'` primitives that are nonetheless surfaced on
- * the integrations page (and therefore need an icon-mapping entry) even though
- * they are not third-party integrations. Everything else in the `'blocks'`
- * category — including first-party AI capabilities like the image/video
- * generators, vision, and STT/TTS — is excluded from the integrations icon
- * map, matching {@link isIntegrationBlock}.
- */
-const ICON_MAP_BLOCK_CATEGORY_ALLOWLIST = new Set(['memory', 'knowledge', 'enrichment'])
-
-/**
  * Block types that never belong in the integrations icon map regardless of
  * category — core primitives, triggers, and webhook/feed plumbing.
  */
@@ -1330,9 +1404,85 @@ function extractTagsFromBlockMeta(fileContent: string, blockName: string): strin
   return extractArrayPropertyFromContent(metaBody, 'tags')
 }
 
+/**
+ * Extract the component identifier assigned to a block's `icon` property.
+ * Most block icons are named `<Service>Icon`, but some reference a generic emcn
+ * icon (e.g. `icon: Library`) or use a lowercase identifier (`icon: xIcon`), so
+ * this matches any identifier rather than requiring the `Icon` suffix. Bare JS
+ * literals are excluded so `icon: undefined` never resolves to a component.
+ */
 function extractIconNameFromContent(content: string): string | null {
-  const iconMatch = content.match(/icon\s*:\s*(\w+Icon)/)
+  const iconMatch = content.match(
+    /(?:^|[\s{,])icon\s*:\s*(?!(?:undefined|null|true|false)\b)([A-Za-z_$][\w$]*)/
+  )
   return iconMatch ? iconMatch[1] : null
+}
+
+/** Module an icon component is imported from, when the block file declares it. */
+const DEFAULT_ICON_SOURCE = '@/components/icons'
+
+/**
+ * Resolve the module a block's icon identifier is imported from by scanning the
+ * block file's import statements. Falls back to `@/components/icons`, which is
+ * where the overwhelming majority of block icons live and which both the sim
+ * app and the docs app (via the copied `icons.tsx`) resolve.
+ */
+function resolveIconSource(fileContent: string, iconName: string): string {
+  const importRegex = /import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g
+  let match: RegExpExecArray | null
+  while ((match = importRegex.exec(fileContent)) !== null) {
+    const named = match[1].split(',').map((entry) =>
+      entry
+        .trim()
+        .split(/\s+as\s+/)[0]
+        .trim()
+    )
+    if (named.includes(iconName)) return match[2]
+  }
+  return DEFAULT_ICON_SOURCE
+}
+
+/** Biome's configured `formatter.lineWidth` for this repo. */
+const BIOME_LINE_WIDTH = 100
+
+/**
+ * Quote an icon-map key that is not a bare JS identifier. Trigger providers use
+ * hyphenated ids (`google-drive`, `microsoft-teams`) that would otherwise emit
+ * as a subtraction expression and break the generated module.
+ */
+function formatIconMapKey(key: string): string {
+  return /^[A-Za-z_$][\w$]*$/.test(key) ? key : `'${key}'`
+}
+
+/**
+ * Render grouped `import { ... } from '...'` statements for every icon
+ * referenced by a mapping, so icons sourced outside `@/components/icons`
+ * (e.g. `@sim/emcn/icons`) resolve in the generated file. Output is emitted
+ * pre-formatted — package specifiers before `@/` aliases, specifiers sorted,
+ * and collapsed to one line when it fits — because these files are written
+ * verbatim and never passed through Biome.
+ */
+function renderIconImports(iconRefs: IconRef[]): string {
+  const bySource = new Map<string, Set<string>>()
+  for (const ref of iconRefs) {
+    let names = bySource.get(ref.source)
+    if (!names) {
+      names = new Set()
+      bySource.set(ref.source, names)
+    }
+    names.add(ref.name)
+  }
+  const isAlias = (source: string) => source.startsWith('@/') || source.startsWith('.')
+  return [...bySource.entries()]
+    .sort(([a], [b]) => Number(isAlias(a)) - Number(isAlias(b)) || biomeSortCompare(a, b))
+    .map(([source, names]) => {
+      const sorted = [...names].sort(biomeSortCompare)
+      const singleLine = `import { ${sorted.join(', ')} } from '${source}'`
+      if (singleLine.length <= BIOME_LINE_WIDTH) return singleLine
+      const specifiers = sorted.map((name) => `  ${name},`).join('\n')
+      return `import {\n${specifiers}\n} from '${source}'`
+    })
+    .join('\n')
 }
 
 function extractOutputsFromContent(content: string): Record<string, any> {
@@ -3074,6 +3224,7 @@ function cleanupStaleToolDocs(validToolDocs: Set<string>): void {
     .filter((file: string) => file.endsWith('.mdx'))
 
   let removedCount = 0
+  let keptForManualContent = 0
 
   for (const docFile of existingDocs) {
     const blockType = path.basename(docFile, '.mdx')
@@ -3081,9 +3232,30 @@ function cleanupStaleToolDocs(validToolDocs: Set<string>): void {
     if (validToolDocs.has(blockType)) continue
 
     const docPath = path.join(DOCS_OUTPUT_PATH, docFile)
+
+    // Deleting a page that a later writer re-emits destroys its hand-written
+    // MANUAL-CONTENT blocks: the writer merges against the file on disk, and a
+    // deleted file reads as "no manual content". Whenever the two filters
+    // disagree, keep the prose and let the mismatch be fixed deliberately.
+    // Gate on what `extractManualContent` can actually recover — a stray or
+    // unterminated start marker preserves nothing, so it must not pin the page.
+    const manualSections = extractManualContent(fs.readFileSync(docPath, 'utf-8'))
+    if (Object.values(manualSections).some((section) => section.length > 0)) {
+      console.warn(
+        `⚠ Keeping ${blockType}.mdx: considered stale but holds MANUAL-CONTENT. ` +
+          `Add it to a doc-emitting set or delete it by hand once the content is migrated.`
+      )
+      keptForManualContent++
+      continue
+    }
+
     fs.unlinkSync(docPath)
     console.log(`✓ Removed stale tool doc: ${blockType}.mdx`)
     removedCount++
+  }
+
+  if (keptForManualContent > 0) {
+    console.log(`⚠ Kept ${keptForManualContent} stale-looking doc(s) holding manual content`)
   }
 
   if (removedCount > 0) {
@@ -3267,10 +3439,58 @@ function resolveTriggerBuilderFunction(
 }
 
 /**
+ * Read every sibling module of a trigger file so identifiers it references —
+ * builder functions and shared `outputs`/config constants alike — can be
+ * resolved from source text. Triggers keep these in `utils.ts` or `shared.ts`
+ * depending on the provider, so the whole directory is scanned rather than one
+ * hard-coded filename.
+ */
+function readTriggerSiblingModules(triggerFile: string): string {
+  const dir = path.dirname(triggerFile)
+  if (!fs.existsSync(dir)) return ''
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith('.ts') && !f.includes('.test.') && path.join(dir, f) !== triggerFile)
+    .map((f) => {
+      try {
+        return fs.readFileSync(path.join(dir, f), 'utf-8')
+      } catch {
+        return ''
+      }
+    })
+    .join('\n')
+}
+
+/**
+ * Resolve `outputs: SOME_CONSTANT` by locating the constant's object literal in
+ * the trigger file or one of its siblings. Without this the generated page
+ * silently loses the trigger's entire Output table the moment a provider
+ * factors its outputs out into a shared constant.
+ */
+function resolveTriggerOutputsConstant(
+  constName: string,
+  primaryContent: string,
+  siblingContent: string
+): Record<string, any> {
+  const declRegex = new RegExp(`(?:export\\s+)?const\\s+${constName}\\s*(?::[^=]+)?=\\s*\\{`)
+  for (const content of [primaryContent, siblingContent]) {
+    const declMatch = declRegex.exec(content)
+    if (!declMatch) continue
+    const openPos = content.indexOf('{', declMatch.index)
+    if (openPos === -1) continue
+    const closePos = findMatchingClose(content, openPos)
+    if (closePos === -1) continue
+    return parseToolOutputsField(content.substring(openPos + 1, closePos - 1).trim())
+  }
+  return {}
+}
+
+/**
  * Extract the outputs object from a TriggerConfig segment.
- * Handles both inline `outputs: { ... }` and function-call patterns
- * like `outputs: buildIssueOutputs()`, resolving builder functions
- * from the trigger file itself and its sibling `utils.ts`.
+ * Handles inline `outputs: { ... }`, function-call patterns like
+ * `outputs: buildIssueOutputs()`, and bare constant references like
+ * `outputs: SLACK_TRIGGER_OUTPUTS`, resolving each from the trigger file
+ * itself and its sibling modules.
  */
 function extractTriggerOutputs(
   segment: string,
@@ -3294,6 +3514,12 @@ function extractTriggerOutputs(
   const funcCallMatch = /\boutputs\s*:\s*(\w+)\s*\(\s*\)/.exec(segment)
   if (funcCallMatch) {
     return resolveTriggerBuilderFunction(funcCallMatch[1], fileContent, utilsContent)
+  }
+
+  // 3. Constant reference: outputs: SLACK_TRIGGER_OUTPUTS
+  const constRefMatch = /\boutputs\s*:\s*([A-Za-z_$][\w$]*)\s*[,\n}]/.exec(segment)
+  if (constRefMatch) {
+    return resolveTriggerOutputsConstant(constRefMatch[1], fileContent, utilsContent)
   }
 
   return {}
@@ -3335,12 +3561,26 @@ function resolveConstStringValue(constName: string, content: string): string | n
  * Returns null for blocks that should be skipped (UI-only IDs, text type, readOnly).
  * Accepts optional `resolverContent` to resolve const-reference field IDs.
  */
+/**
+ * Read a quoted string property, matching the opening quote to its own closing
+ * quote. A single `['"]…[^'"]+…['"]` character class ends the match at the
+ * first quote of *either* kind, so an apostrophe inside a double-quoted string
+ * ("Doesn't fire…") truncates the value mid-word.
+ */
+function matchQuotedProperty(content: string, propName: string): string | undefined {
+  const match = new RegExp(`\\b${propName}\\s*:\\s*(?:'([^']*)'|"([^"]*)"|\`([^\`]*)\`)`).exec(
+    content
+  )
+  if (!match) return undefined
+  return match[1] ?? match[2] ?? match[3]
+}
+
 function parseSubBlockObject(
   obj: string,
   uiOnlyIds: Set<string>,
   resolverContent?: string
 ): TriggerConfigField | null {
-  let id: string | undefined = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(obj)?.[1]
+  let id: string | undefined = matchQuotedProperty(obj, 'id')
 
   // Handle const-reference ids: `id: SCREAMING_CASE_IDENTIFIER`
   if (!id) {
@@ -3352,25 +3592,24 @@ function parseSubBlockObject(
 
   if (!id || uiOnlyIds.has(id)) return null
 
-  const typeMatch = /\btype\s*:\s*['"]([^'"]+)['"]/.exec(obj)
-  if (typeMatch?.[1] === 'text') return null
+  const type = matchQuotedProperty(obj, 'type')
+  if (type === 'text') return null
   if (/\breadOnly\s*:\s*true/.test(obj)) return null
 
-  const titleMatch = /\btitle\s*:\s*['"]([^'"]+)['"]/.exec(obj)
+  const title = matchQuotedProperty(obj, 'title')
   const requiredMatch = /\brequired\s*:\s*(true)/.exec(obj)
-  const placeholderMatch = /\bplaceholder\s*:\s*['"]([^'"]+)['"]/.exec(obj)
-  const descMatch = /\bdescription\s*:\s*['"]([^'"]+)['"]/.exec(obj)
+  const placeholder = matchQuotedProperty(obj, 'placeholder')
 
   // Use title as description fallback so oauth-input and other fields without
   // an explicit description still show something meaningful in the docs table.
-  const description = descMatch?.[1] ?? (titleMatch ? `${titleMatch[1]}` : undefined)
+  const description = matchQuotedProperty(obj, 'description') ?? title
 
   return {
     id,
-    title: titleMatch?.[1] ?? id,
-    type: typeMatch?.[1] ?? 'short-input',
+    title: title ?? id,
+    type: type ?? 'short-input',
     required: Boolean(requiredMatch),
-    placeholder: placeholderMatch?.[1],
+    placeholder,
     description,
   }
 }
@@ -3585,9 +3824,9 @@ async function buildFullTriggerRegistry(): Promise<Map<string, TriggerFullInfo>>
     try {
       const content = fs.readFileSync(file, 'utf-8')
 
-      // Load sibling utils.ts for resolving builder function outputs
-      const utilsPath = path.join(path.dirname(file), 'utils.ts')
-      const utilsContent = fs.existsSync(utilsPath) ? fs.readFileSync(utilsPath, 'utf-8') : ''
+      // Load sibling modules (utils.ts, shared.ts, …) so builder functions and
+      // shared output/config constants referenced by name still resolve.
+      const utilsContent = readTriggerSiblingModules(file)
 
       const exportRegex = /export\s+const\s+\w+\s*:\s*TriggerConfig\s*=\s*\{/g
       let exportMatch: RegExpExecArray | null
@@ -3812,6 +4051,43 @@ async function buildProviderColorMap(): Promise<Map<string, string>> {
  * Generate one MDX file per trigger provider and update the sidebar meta.json.
  * Hand-written docs (HANDWRITTEN_TRIGGER_DOCS) are never touched.
  */
+/**
+ * Trigger ids that every hosting block gates behind `preview: true`.
+ *
+ * Blocks declare the triggers they expose via `triggers.available`. A trigger
+ * listed only by preview blocks inherits their gate — `slack_oauth` is reachable
+ * solely through the preview-gated `slack_v2` block, so documenting it would
+ * publish an unreleased surface under its own `slack_app` page. Triggers no
+ * block claims are left alone: standalone webhook providers are legitimately
+ * unlisted and must keep their pages.
+ */
+async function collectPreviewOnlyTriggerIds(): Promise<Set<string>> {
+  const listedByReleased = new Set<string>()
+  const listedByPreview = new Set<string>()
+
+  const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
+  for (const blockFile of blockFiles) {
+    const fileContent = fs.readFileSync(blockFile, 'utf-8')
+    const exportRegex = /export\s+const\s+(\w+)Block\s*:\s*BlockConfig[^=]*=\s*\{/g
+    let match: RegExpExecArray | null
+
+    while ((match = exportRegex.exec(fileContent)) !== null) {
+      const startIndex = match.index + match[0].length - 1
+      const endIndex = findMatchingClose(fileContent, startIndex)
+      if (endIndex === -1) continue
+
+      const blockContent = fileContent.substring(startIndex, endIndex)
+      const available = extractArrayPropertyFromContent(blockContent, 'available')
+      if (!available?.length) continue
+
+      const target = isPreviewSource(blockContent) ? listedByPreview : listedByReleased
+      for (const triggerId of available) target.add(triggerId)
+    }
+  }
+
+  return new Set([...listedByPreview].filter((id) => !listedByReleased.has(id)))
+}
+
 async function generateAllTriggerDocs(): Promise<void> {
   try {
     console.log('Generating trigger documentation...')
@@ -3821,6 +4097,17 @@ async function generateAllTriggerDocs(): Promise<void> {
     }
 
     const fullRegistry = await buildFullTriggerRegistry()
+
+    // A trigger reachable only through a preview-gated block is as unreleased
+    // as that block — documenting it publishes an unshipped surface (and, when
+    // its provider has no released block, mints a whole page for it).
+    const previewOnly = await collectPreviewOnlyTriggerIds()
+    for (const triggerId of previewOnly) {
+      if (fullRegistry.delete(triggerId)) {
+        console.log(`Skipping trigger ${triggerId} — only hosted by a preview-gated block`)
+      }
+    }
+
     const grouped = groupTriggersByProvider(fullRegistry)
     const colorMap = await buildProviderColorMap()
 
