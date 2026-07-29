@@ -9,6 +9,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { folderResourceConfig } from '@/lib/folders/config'
 import { deleteFolder, updateFolder } from '@/lib/folders/lifecycle'
 import { toFolderApi } from '@/lib/folders/queries'
 import { folderMutationStatus } from '@/lib/folders/status'
@@ -68,15 +69,27 @@ export const PUT = withRouteHandler(
         )
       }
 
-      if (locked !== undefined && workspacePermission !== 'admin') {
+      // Locking is workflow-only. Reject the field outright for the other types rather than
+      // dropping it silently, and keep the admin gate and the lock checks behind the same
+      // capability so a non-workflow folder can neither be 403'd by a field that has no
+      // meaning for it nor persist a `locked` value nothing will ever read.
+      const supportsLocking = Boolean(folderResourceConfig(resourceType).supportsLocking)
+
+      if (locked !== undefined && !supportsLocking) {
         return NextResponse.json(
-          { error: 'Admin access required to lock folders' },
-          { status: 403 }
+          { error: 'Folder locking is only supported for workflow folders' },
+          { status: 400 }
         )
       }
 
-      // Folder locking is a workflow-only feature; other resource types leave `locked` false.
-      if (resourceType === 'workflow') {
+      if (supportsLocking) {
+        if (locked !== undefined && workspacePermission !== 'admin') {
+          return NextResponse.json(
+            { error: 'Admin access required to lock folders' },
+            { status: 403 }
+          )
+        }
+
         const hasNonLockUpdate = Object.keys(parsed.data.body).some((key) => key !== 'locked')
         if (hasNonLockUpdate) {
           await assertFolderMutable(id)

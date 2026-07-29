@@ -8,8 +8,8 @@ import { and, eq, isNull, min } from 'drizzle-orm'
 import type { FolderCascadeCountsApi, FolderResourceType } from '@/lib/api/contracts/folders'
 import {
   archiveFolderCascade,
-  collectActiveSubtreeIds,
   collectArchivedSubtreeIds,
+  collectCascadeSubtreeIds,
   restoreFolderChildren,
   restoreFolderRows,
   toCascadeCounts,
@@ -235,6 +235,8 @@ export async function createFolder(params: CreateFolderParams): Promise<FolderMu
 }
 
 export async function updateFolder(params: UpdateFolderParams): Promise<FolderMutationResult> {
+  const config = folderResourceConfig(params.resourceType)
+
   try {
     if (params.parentId && params.parentId === params.folderId) {
       return { success: false, error: 'Folder cannot be its own parent', errorCode: 'validation' }
@@ -266,7 +268,9 @@ export async function updateFolder(params: UpdateFolderParams): Promise<FolderMu
     // let `color`/`isExpanded` survive an earlier cutover after the create path dropped them.
     const updates: Partial<typeof folderTable.$inferInsert> = { updatedAt: new Date() }
     if (params.name !== undefined) updates.name = params.name.trim()
-    if (params.locked !== undefined) updates.locked = params.locked
+    // Backstop for the route's rejection: the engine is also reachable from the copilot
+    // tools, and a `locked` value on a type that has no lock semantics must never persist.
+    if (params.locked !== undefined && config.supportsLocking) updates.locked = params.locked
     if (params.parentId !== undefined) updates.parentId = params.parentId || null
     if (params.sortOrder !== undefined) updates.sortOrder = params.sortOrder
 
@@ -332,20 +336,24 @@ export async function deleteFolder(params: DeleteFolderParams): Promise<DeleteFo
     return { success: false, error: 'Folder not found', errorCode: 'not_found' }
   }
 
-  const folderIds = await collectActiveSubtreeIds(db, workspaceId, resourceType, folderId)
+  // Resolve the timestamp before the subtree, because the subtree walk needs it: on a retry
+  // it is what distinguishes folders this cascade already stamped from folders archived
+  // independently.
+  const timestamp = existing.deletedAt ?? new Date()
+  const folderIds = await collectCascadeSubtreeIds(
+    db,
+    workspaceId,
+    resourceType,
+    folderId,
+    timestamp
+  )
 
   const rejection = await config.guardDelete?.({ workspaceId, folderIds })
   if (rejection) {
     return { success: false, error: rejection.error, errorCode: rejection.errorCode }
   }
 
-  const counts = await archiveFolderCascade(
-    db,
-    config,
-    workspaceId,
-    folderIds,
-    existing.deletedAt ?? new Date()
-  )
+  const counts = await archiveFolderCascade(db, config, workspaceId, folderIds, timestamp)
 
   logger.info('Deleted folder and all contents', { folderId, resourceType, counts })
 

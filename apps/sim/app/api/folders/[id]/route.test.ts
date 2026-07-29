@@ -244,6 +244,26 @@ describe('Individual Folder API Route', () => {
       expect(data).toHaveProperty('folder')
     })
 
+    it('rejects a locked write on a resource type that has no lock semantics', async () => {
+      mockAuthenticatedUser()
+      queueFolderLookup()
+
+      const req = createMockRequest(
+        'PUT',
+        { locked: true },
+        {},
+        'http://localhost:3000/api/folders/folder-1?resourceType=knowledge_base'
+      )
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const response = await PUT(req, { params })
+
+      expect(response.status).toBe(400)
+      const data = await response.json()
+      expect(data.error).toBe('Folder locking is only supported for workflow folders')
+      expect(mockUpdateFolder).not.toHaveBeenCalled()
+    })
+
     it('should return 400 when trying to set folder as its own parent', async () => {
       mockAuthenticatedUser()
 

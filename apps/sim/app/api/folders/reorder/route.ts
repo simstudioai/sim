@@ -10,6 +10,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { folderResourceConfig } from '@/lib/folders/config'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FolderReorderAPI')
@@ -116,7 +117,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
     }
 
     // Folder locking is a workflow-only feature; other resource types leave `locked` false.
-    if (resourceType === 'workflow') {
+    if (folderResourceConfig(resourceType).supportsLocking) {
       for (const update of validUpdates) {
         await assertFolderMutable(update.id)
         if (update.parentId !== undefined) {

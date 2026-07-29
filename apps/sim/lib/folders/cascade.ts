@@ -1,6 +1,6 @@
 import type { db } from '@sim/db'
 import { folder as folderTable } from '@sim/db/schema'
-import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, type SQL } from 'drizzle-orm'
 import type { FolderCascadeCountsApi, FolderResourceType } from '@/lib/api/contracts/folders'
 import type { FolderResourceConfig } from '@/lib/folders/config'
 import { collectDescendantFolderIds } from '@/lib/folders/subtree'
@@ -16,28 +16,36 @@ export interface FolderCascadeCounts {
 }
 
 /**
- * Resolves the folder plus every *active* descendant, in one query. Used by delete: an
- * archived descendant was archived independently and keeps its own timestamp, so it must
- * not be swept into this cascade.
+ * Resolves the folder plus every descendant that belongs to this delete cascade, in one
+ * query: folders still active, OR already stamped with this cascade's own `timestamp`.
+ *
+ * Both halves are load-bearing. Excluding other archived folders is what keeps a descendant
+ * archived independently — with its own timestamp — from being swept into this snapshot.
+ * Including folders stamped with *this* timestamp is what makes a retry work: the cascade
+ * stamps folders before children, so a failure partway through the child pass leaves nested
+ * subfolders already archived. An active-only walk would drop those intermediate folders and
+ * never reach the still-active resources beneath them, leaving them outside every future
+ * timestamp-matched restore.
  */
-export async function collectActiveSubtreeIds(
+export async function collectCascadeSubtreeIds(
   tx: DbOrTx,
   workspaceId: string,
   resourceType: FolderResourceType,
-  folderId: string
+  folderId: string,
+  timestamp: Date
 ): Promise<string[]> {
-  const activeFolders = await tx
+  const cascadeFolders = await tx
     .select({ id: folderTable.id, parentId: folderTable.parentId })
     .from(folderTable)
     .where(
       and(
         eq(folderTable.workspaceId, workspaceId),
         eq(folderTable.resourceType, resourceType),
-        isNull(folderTable.deletedAt)
+        or(isNull(folderTable.deletedAt), eq(folderTable.deletedAt, timestamp))
       )
     )
 
-  return [folderId, ...collectDescendantFolderIds(activeFolders, folderId)]
+  return [folderId, ...collectDescendantFolderIds(cascadeFolders, folderId)]
 }
 
 /**

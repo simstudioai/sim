@@ -89,6 +89,16 @@ export interface FolderResourceConfig {
    * hand the cascade a `Record<string, unknown>` literal.
    */
   buildSoftDeleteSet: (timestamp: Date | null, now: Date) => Record<string, unknown>
+  /**
+   * Whether folders of this type participate in the folder-locking feature.
+   *
+   * Only workflow folders do. `folder.locked` exists because workflow-folder locking shipped
+   * before the generic table; it is deliberately not extended to the other resource types.
+   * Declared here rather than checked as `resourceType === 'workflow'` at each call site, so
+   * every surface that touches locking asks the same question and a future lockable resource
+   * is one flag rather than a hunt through routes.
+   */
+  supportsLocking?: boolean
   /** Narrows which rows of `table` participate in folder membership at all. */
   scope?: SQL
   /**
@@ -404,6 +414,7 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
           >,
       },
     ],
+    supportsLocking: true,
     archiveChildren: archiveWorkflowChildren,
     guardDelete: guardLastWorkflows,
   },

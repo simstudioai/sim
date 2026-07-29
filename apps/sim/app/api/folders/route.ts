@@ -5,6 +5,7 @@ import { createFolderContract, listFoldersContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { folderResourceConfig } from '@/lib/folders/config'
 import { createFolder } from '@/lib/folders/lifecycle'
 import { listFoldersForWorkspace, toFolderApi } from '@/lib/folders/queries'
 import { folderMutationStatus } from '@/lib/folders/status'
@@ -78,7 +79,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     // Folder locking is a workflow-only feature; other resource types leave `locked` false.
-    if (resourceType === 'workflow') {
+    if (folderResourceConfig(resourceType).supportsLocking) {
       await assertFolderMutable(parentId ?? null)
     }
 

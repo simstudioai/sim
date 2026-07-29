@@ -4,8 +4,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   archiveFolderCascade,
-  collectActiveSubtreeIds,
   collectArchivedSubtreeIds,
+  collectCascadeSubtreeIds,
   type DbOrTx,
   restoreFolderCascade,
   restoreFolderRows,
@@ -101,8 +101,8 @@ function hasCondition(
 const TIMESTAMP = new Date('2026-01-01T00:00:00.000Z')
 const NOW = new Date('2026-02-02T00:00:00.000Z')
 
-describe('collectActiveSubtreeIds', () => {
-  it('returns the folder plus every active descendant', async () => {
+describe('collectCascadeSubtreeIds', () => {
+  it('returns the folder plus every descendant in the cascade', async () => {
     const { tx, selectCalls } = makeTx({
       selects: [
         [
@@ -114,17 +114,41 @@ describe('collectActiveSubtreeIds', () => {
       ],
     })
 
-    const ids = await collectActiveSubtreeIds(tx, 'ws-1', 'table', 'root')
+    const ids = await collectCascadeSubtreeIds(tx, 'ws-1', 'table', 'root', TIMESTAMP)
 
     expect(ids).toEqual(['root', 'child', 'grandchild'])
     expect(selectCalls).toHaveLength(1)
-    expect(hasCondition(selectCalls[0].where, (node) => node.type === 'isNull')).toBe(true)
+  })
+
+  it('admits folders already stamped by this cascade so a retry reaches nested stragglers', async () => {
+    // The cascade stamps folders before children, so a failure during the child pass leaves
+    // intermediate folders archived. An active-only walk would drop `child` here and never
+    // reach the resources still live under it.
+    const { tx, selectCalls } = makeTx({
+      selects: [
+        [
+          { id: 'root', parentId: null },
+          { id: 'child', parentId: 'root' },
+          { id: 'grandchild', parentId: 'child' },
+        ],
+      ],
+    })
+
+    const ids = await collectCascadeSubtreeIds(tx, 'ws-1', 'table', 'root', TIMESTAMP)
+
+    expect(ids).toEqual(['root', 'child', 'grandchild'])
+    // Either still active, or carrying this cascade's own stamp — never another snapshot's.
+    const clause = flattenConditions(selectCalls[0].where).find((node) => node.type === 'or')
+    expect(clause).toBeDefined()
+    const branches = (clause?.conditions ?? []) as Array<Record<string, unknown>>
+    expect(branches.some((node) => node.type === 'isNull')).toBe(true)
+    expect(branches.some((node) => node.right === TIMESTAMP)).toBe(true)
   })
 
   it('scopes the walk to the workspace and resourceType', async () => {
     const { tx, selectCalls } = makeTx({ selects: [[]] })
 
-    await collectActiveSubtreeIds(tx, 'ws-1', 'knowledge_base', 'root')
+    await collectCascadeSubtreeIds(tx, 'ws-1', 'knowledge_base', 'root', TIMESTAMP)
 
     expect(hasCondition(selectCalls[0].where, (node) => node.right === 'knowledge_base')).toBe(true)
     expect(hasCondition(selectCalls[0].where, (node) => node.right === 'ws-1')).toBe(true)
@@ -393,6 +417,15 @@ describe('FOLDER_RESOURCES', () => {
       const hasRestorePath = Boolean(config.restoreChildren) || Boolean(config.restoreDependents)
       expect(hasRestorePath).toBe(true)
     }
+  })
+
+  it('grants lock semantics to workflows only', () => {
+    // `folder.locked` predates the generic table and is deliberately not extended. Anything
+    // that flips a second resource to lockable has to add the UI and authz to match.
+    const lockable = Object.values(FOLDER_RESOURCES)
+      .filter((config) => config.supportsLocking)
+      .map((config) => config.resourceType)
+    expect(lockable).toEqual(['workflow'])
   })
 
   it('guards the delete of resources that gate their own deletion', () => {
