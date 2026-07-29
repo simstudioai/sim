@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { Duplicate, Pencil, SquareArrowUpRight, TagIcon, Trash } from '@sim/emcn/icons'
+import { Duplicate, Pencil, Pin, SquareArrowUpRight, TagIcon, Trash } from '@sim/emcn/icons'
 
 interface KnowledgeBaseContextMenuProps {
   isOpen: boolean
@@ -17,6 +17,9 @@ interface KnowledgeBaseContextMenuProps {
   onOpenInNewTab?: () => void
   onViewTags?: () => void
   onCopyId?: () => void
+  onTogglePin?: () => void
+  /** Pin state of the right-clicked base, driving the Pin/Unpin label. */
+  pinned?: boolean
   onEdit?: () => void
   onDelete?: () => void
   showOpenInNewTab?: boolean
@@ -38,6 +41,8 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
   onOpenInNewTab,
   onViewTags,
   onCopyId,
+  onTogglePin,
+  pinned = false,
   onEdit,
   onDelete,
   showOpenInNewTab = true,
@@ -48,7 +53,7 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
   disableDelete = false,
 }: KnowledgeBaseContextMenuProps) {
   const hasNavigationSection = showOpenInNewTab && !!onOpenInNewTab
-  const hasInfoSection = (showViewTags && !!onViewTags) || !!onCopyId
+  const hasInfoSection = (showViewTags && !!onViewTags) || !!onCopyId || !!onTogglePin
   const hasEditSection = showEdit && !!onEdit
   const hasDestructiveSection = showDelete && !!onDelete
 
@@ -94,6 +99,12 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
           <DropdownMenuItem onSelect={onCopyId}>
             <Duplicate />
             Copy ID
+          </DropdownMenuItem>
+        )}
+        {onTogglePin && (
+          <DropdownMenuItem onSelect={onTogglePin}>
+            <Pin />
+            {pinned ? 'Unpin' : 'Pin'}
           </DropdownMenuItem>
         )}
         {hasInfoSection && (hasEditSection || hasDestructiveSection) && <DropdownMenuSeparator />}

@@ -8,13 +8,16 @@ import {
   DropdownMenuTrigger,
   Upload,
 } from '@sim/emcn'
-import { Database, Download, Duplicate, Pencil, Trash } from '@sim/emcn/icons'
+import { Database, Download, Duplicate, Pencil, Pin, Trash } from '@sim/emcn/icons'
 
 interface TableContextMenuProps {
   isOpen: boolean
   position: { x: number; y: number }
   onClose: () => void
   onCopyId?: () => void
+  onTogglePin?: () => void
+  /** Pin state of the right-clicked table, driving the Pin/Unpin label. */
+  pinned?: boolean
   onDelete?: () => void
   onViewSchema?: () => void
   onRename?: () => void
@@ -32,6 +35,8 @@ export function TableContextMenu({
   position,
   onClose,
   onCopyId,
+  onTogglePin,
+  pinned = false,
   onDelete,
   onViewSchema,
   onRename,
@@ -88,8 +93,13 @@ export function TableContextMenu({
             Export CSV
           </DropdownMenuItem>
         )}
-        {(onViewSchema || onRename || onImportCsv || onExportCsv) && (onCopyId || onDelete) && (
-          <DropdownMenuSeparator />
+        {(onViewSchema || onRename || onImportCsv || onExportCsv) &&
+          (onCopyId || onTogglePin || onDelete) && <DropdownMenuSeparator />}
+        {onTogglePin && (
+          <DropdownMenuItem onSelect={onTogglePin}>
+            <Pin />
+            {pinned ? 'Unpin' : 'Pin'}
+          </DropdownMenuItem>
         )}
         {onCopyId && (
           <DropdownMenuItem onSelect={onCopyId}>
@@ -97,7 +107,7 @@ export function TableContextMenu({
             Copy ID
           </DropdownMenuItem>
         )}
-        {onCopyId && onDelete && <DropdownMenuSeparator />}
+        {(onCopyId || onTogglePin) && onDelete && <DropdownMenuSeparator />}
         {onDelete && (
           <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
             <Trash />
