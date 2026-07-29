@@ -222,7 +222,11 @@ jobs:
   build:
     name: Build App
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
-    timeout-minutes: 15
+    # Build durations crossed 15 minutes as the app grew (10m02 on Jul 29 AM,
+    # 14m44 after the folders/desktop/library merges, then two straight
+    # timeouts) — GitHub reports a job timeout as "cancelled". 25 keeps
+    # headroom without masking a genuine hang.
+    timeout-minutes: 25
 
     steps:
       - name: Checkout code
