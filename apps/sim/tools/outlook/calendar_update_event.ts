@@ -132,13 +132,16 @@ export const outlookCalendarUpdateEventTool: ToolConfig<
       // PATCH is a partial update: only include fields the caller actually provided.
       const event: Record<string, unknown> = {}
 
-      // Date-only bounds carry no time, so they can only mean an all-day event — promote
-      // them even when the caller didn't set the flag (see calendar_create_event).
       const providedBounds = [params.startDateTime, params.endDateTime].filter(Boolean)
-      const allProvidedBoundsDateOnly =
-        providedBounds.length > 0 && providedBounds.every((bound) => isDateOnly(bound))
-      const settingAllDay =
-        (params.isAllDay !== undefined && toBool(params.isAllDay)) || allProvidedBoundsDateOnly
+      const explicitAllDay = params.isAllDay !== undefined && toBool(params.isAllDay)
+      // Promote implicitly only when BOTH bounds are date-only (matching
+      // calendar_create_event). A *single* date-only bound is ambiguous — it could mean
+      // "convert to all-day" or "just move the start" — and a PATCH cannot read the
+      // event's existing bounds to tell. Deriving the missing side would silently collapse
+      // a timed or multi-day event into a one-day all-day event, so a lone date-only bound
+      // stays on the timed path and leaves the other side untouched.
+      const bothBoundsDateOnly = isDateOnly(params.startDateTime) && isDateOnly(params.endDateTime)
+      const settingAllDay = explicitAllDay || bothBoundsDateOnly
 
       if (params.subject !== undefined) {
         event.subject = params.subject
@@ -153,8 +156,9 @@ export const outlookCalendarUpdateEventTool: ToolConfig<
             'Converting an event to all-day requires startDateTime (and preferably endDateTime): Microsoft Graph requires all-day events to have midnight start and end bounds, which cannot be derived from a partial update.'
           )
         }
-        // Normalize both bounds together — falling back to the supplied one when only a
-        // single bound was given, which `buildAllDayRange` then advances to the next day.
+        // Normalize both bounds together. The single-bound fallback only applies when the
+        // caller set isAllDay explicitly — implicit promotion requires both bounds — so
+        // deriving the missing side follows stated intent rather than guessing at it.
         const start = params.startDateTime || params.endDateTime!
         const end = params.endDateTime || params.startDateTime!
         const range = buildAllDayRange(start, end, params.timeZone)

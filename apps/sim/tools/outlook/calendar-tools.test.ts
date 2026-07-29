@@ -116,6 +116,71 @@ describe('outlook calendar tools', () => {
       endDateTime: '2025-06-03T11:00:00Z',
     })
     expect(timed.isAllDay).toBeUndefined()
+
+    // Mixed date-only + timed is a timed event starting at midnight, not all-day.
+    const mixed = createBody({
+      accessToken: 't',
+      subject: 'Sync',
+      startDateTime: '2025-06-03',
+      endDateTime: '2025-06-03T11:00:00Z',
+    })
+    expect(mixed.isAllDay).toBeUndefined()
+  })
+
+  it('promotes date-only bounds even when isAllDay is explicitly false', () => {
+    // The block always sends isAllDay for create, so an untouched All Day switch arrives
+    // as `false`. Date-only bounds have no time, so honoring that false would emit a
+    // zero-length midnight window — the shape wins over the flag, by design.
+    const createBody = outlookCalendarCreateEventTool.request.body as (
+      p: unknown
+    ) => Record<string, unknown>
+    const created = createBody({
+      accessToken: 't',
+      subject: 'Company holiday',
+      startDateTime: '2025-06-03',
+      endDateTime: '2025-06-03',
+      isAllDay: false,
+    })
+    expect(created.isAllDay).toBe(true)
+    expect(created.end).toEqual({ dateTime: '2025-06-04T00:00:00', timeZone: 'UTC' })
+
+    const updateBody = outlookCalendarUpdateEventTool.request.body as (
+      p: unknown
+    ) => Record<string, unknown>
+    const updated = updateBody({
+      accessToken: 't',
+      eventId: 'e1',
+      startDateTime: '2025-06-03',
+      endDateTime: '2025-06-04',
+      isAllDay: false,
+    })
+    expect(updated.isAllDay).toBe(true)
+  })
+
+  it('does not promote a lone date-only bound on update', () => {
+    const body = outlookCalendarUpdateEventTool.request.body as (
+      p: unknown
+    ) => Record<string, unknown>
+    // Moving only the start of an existing timed/multi-day event must not collapse it into
+    // a one-day all-day event: the other bound is left untouched for Graph to preserve.
+    const movedStart = body({ accessToken: 't', eventId: 'e1', startDateTime: '2025-06-10' })
+    expect(movedStart.isAllDay).toBeUndefined()
+    expect(movedStart.start).toEqual({ dateTime: '2025-06-10T00:00:00', timeZone: 'UTC' })
+    expect('end' in movedStart).toBe(false)
+
+    const movedEnd = body({ accessToken: 't', eventId: 'e1', endDateTime: '2025-06-12' })
+    expect(movedEnd.isAllDay).toBeUndefined()
+    expect('start' in movedEnd).toBe(false)
+
+    // An explicit isAllDay:true is stated intent, so deriving the missing bound is allowed.
+    const explicit = body({
+      accessToken: 't',
+      eventId: 'e1',
+      isAllDay: true,
+      startDateTime: '2025-06-10',
+    })
+    expect(explicit.isAllDay).toBe(true)
+    expect(explicit.end).toEqual({ dateTime: '2025-06-11T00:00:00', timeZone: 'UTC' })
   })
 
   it('rejects an all-day conversion that supplies no bounds', () => {
