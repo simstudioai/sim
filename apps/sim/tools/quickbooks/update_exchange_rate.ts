@@ -6,6 +6,7 @@ import {
   buildQuickBooksExchangeRateBody,
   buildQuickBooksExchangeRateUpdateUrl,
   buildQuickBooksHeaders,
+  extractQuickBooksRecord,
   parseQuickBooksJson,
 } from '@/tools/quickbooks/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -63,7 +64,7 @@ export const quickBooksUpdateExchangeRateTool: ToolConfig<
     return {
       success: true,
       output: {
-        record: data.ExchangeRate ?? null,
+        record: extractQuickBooksRecord(data, 'ExchangeRate'),
         entity: 'ExchangeRate',
         time: typeof data.time === 'string' ? data.time : null,
       },
@@ -73,7 +74,6 @@ export const quickBooksUpdateExchangeRateTool: ToolConfig<
     record: {
       type: 'json',
       description: 'Updated QuickBooks exchange rate',
-      optional: true,
     },
     entity: { type: 'string', description: 'QuickBooks entity name' },
     time: {

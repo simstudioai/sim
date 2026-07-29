@@ -20,6 +20,7 @@ import {
   buildQuickBooksCdcUrl,
   buildQuickBooksDocumentUrl,
   buildQuickBooksExchangeRateUrl,
+  buildQuickBooksHeaders,
   buildQuickBooksListRecordsQuery,
   buildQuickBooksPreferencesUrl,
   buildQuickBooksRecordUrl,
@@ -79,6 +80,16 @@ describe('QuickBooks generic operations', () => {
         operation: 'delete',
       })
     ).toThrow('QuickBooks entity "Vendor" cannot be deleted')
+  })
+
+  it('rejects invalid access tokens before constructing QuickBooks headers', () => {
+    expect(() => buildQuickBooksHeaders('')).toThrow('QuickBooks access token is required')
+    expect(() => buildQuickBooksHeaders(`token\r\nX-Injected: true`)).toThrow(
+      'QuickBooks access token contains invalid characters'
+    )
+    expect(() => buildQuickBooksHeaders('x'.repeat(4097))).toThrow(
+      'QuickBooks access token must be 4096 characters or less'
+    )
   })
 
   it('normalizes create, update, and delete request payloads', () => {
@@ -426,6 +437,65 @@ describe('QuickBooks generic operations', () => {
       entity: 'PurchaseOrder',
       time: '2026-01-20T10:00:00-08:00',
     })
+  })
+
+  it('rejects successful record responses that omit the entity record', async () => {
+    const emptyResponse = () =>
+      new Response(JSON.stringify({ time: '2026-01-20T10:00:00-08:00' }), { status: 200 })
+
+    await expect(
+      quickBooksCreateRecordTool.transformResponse?.(emptyResponse(), {
+        accessToken: 'token',
+        realmId: '123145',
+        entity: 'Vendor',
+        payload: { DisplayName: 'Acme Supplies' },
+      })
+    ).rejects.toThrow('QuickBooks API response did not include Vendor')
+
+    await expect(
+      quickBooksGetRecordTool.transformResponse?.(emptyResponse(), {
+        accessToken: 'token',
+        realmId: '123145',
+        entity: 'PurchaseOrder',
+        recordId: '42',
+      })
+    ).rejects.toThrow('QuickBooks API response did not include PurchaseOrder')
+
+    await expect(
+      quickBooksUpdateRecordTool.transformResponse?.(emptyResponse(), {
+        accessToken: 'token',
+        realmId: '123145',
+        entity: 'Vendor',
+        recordId: '7',
+        syncToken: '1',
+        payload: { DisplayName: 'Acme Industrial' },
+      })
+    ).rejects.toThrow('QuickBooks API response did not include Vendor')
+
+    await expect(
+      quickBooksDeleteRecordTool.transformResponse?.(emptyResponse(), {
+        accessToken: 'token',
+        realmId: '123145',
+        entity: 'Bill',
+        recordId: '17',
+        syncToken: '2',
+      })
+    ).rejects.toThrow('QuickBooks API response did not include Bill')
+
+    await expect(
+      quickBooksGetPreferencesTool.transformResponse?.(emptyResponse(), {
+        accessToken: 'token',
+        realmId: '123145',
+      })
+    ).rejects.toThrow('QuickBooks API response did not include Preferences')
+
+    await expect(
+      quickBooksGetExchangeRateTool.transformResponse?.(emptyResponse(), {
+        accessToken: 'token',
+        realmId: '123145',
+        sourceCurrencyCode: 'EUR',
+      })
+    ).rejects.toThrow('QuickBooks API response did not include ExchangeRate')
   })
 
   it('transforms QuickBooks report sections', async () => {

@@ -5,6 +5,7 @@ import type {
 import {
   buildQuickBooksHeaders,
   buildQuickBooksPreferencesUrl,
+  extractQuickBooksRecord,
   parseQuickBooksJson,
 } from '@/tools/quickbooks/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -54,7 +55,7 @@ export const quickBooksGetPreferencesTool: ToolConfig<
     return {
       success: true,
       output: {
-        record: data.Preferences ?? null,
+        record: extractQuickBooksRecord(data, 'Preferences'),
         entity: 'Preferences',
         time: typeof data.time === 'string' ? data.time : null,
       },
@@ -64,7 +65,6 @@ export const quickBooksGetPreferencesTool: ToolConfig<
     record: {
       type: 'json',
       description: 'QuickBooks company preferences',
-      optional: true,
     },
     entity: { type: 'string', description: 'QuickBooks entity name' },
     time: {

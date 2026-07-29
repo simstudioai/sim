@@ -86,7 +86,6 @@ export const quickBooksGetRecordTool: ToolConfig<
     record: {
       type: 'json',
       description: 'Entity-specific QuickBooks record',
-      optional: true,
     },
     entity: { type: 'string', description: 'QuickBooks entity name' },
     time: {

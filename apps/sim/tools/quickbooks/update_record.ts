@@ -109,7 +109,6 @@ export const quickBooksUpdateRecordTool: ToolConfig<
     record: {
       type: 'json',
       description: 'Updated entity-specific QuickBooks record',
-      optional: true,
     },
     entity: { type: 'string', description: 'QuickBooks entity name' },
     time: {

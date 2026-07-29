@@ -104,7 +104,6 @@ export const quickBooksDeleteRecordTool: ToolConfig<
     record: {
       type: 'json',
       description: 'Deleted entity-specific QuickBooks record',
-      optional: true,
     },
     entity: { type: 'string', description: 'QuickBooks entity name' },
     time: {

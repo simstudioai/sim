@@ -91,7 +91,6 @@ export const quickBooksCreateRecordTool: ToolConfig<
     record: {
       type: 'json',
       description: 'Created entity-specific QuickBooks record',
-      optional: true,
     },
     entity: { type: 'string', description: 'QuickBooks entity name' },
     time: {

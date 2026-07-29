@@ -74,8 +74,20 @@ const QUICKBOOKS_RESOURCE_NAMES: Record<QuickBooksEntityName, string> = {
 }
 
 export function buildQuickBooksHeaders(accessToken: string): Record<string, string> {
+  if (/[\r\n]/.test(accessToken)) {
+    throw new Error('QuickBooks access token contains invalid characters')
+  }
+  if (accessToken.length > 4096) {
+    throw new Error('QuickBooks access token must be 4096 characters or less')
+  }
+
+  const normalizedAccessToken = accessToken.trim()
+  if (!normalizedAccessToken) {
+    throw new Error('QuickBooks access token is required')
+  }
+
   return {
-    Authorization: `Bearer ${accessToken}`,
+    Authorization: `Bearer ${normalizedAccessToken}`,
     Accept: 'application/json',
     'Content-Type': 'application/json',
   }
@@ -532,10 +544,13 @@ export function getQuickBooksQueryMetadata(data: QuickBooksApiEnvelope): {
 
 export function extractQuickBooksRecord(
   data: QuickBooksApiEnvelope,
-  entity: QuickBooksEntityName
-): QuickBooksRecord | null {
+  entity: string
+): QuickBooksRecord {
   const record = data[entity]
-  return isQuickBooksRecord(record) ? record : null
+  if (!isQuickBooksRecord(record)) {
+    throw new Error(`QuickBooks API response did not include ${entity}`)
+  }
+  return record
 }
 
 export function extractQuickBooksCdcChanges(data: QuickBooksApiEnvelope): QuickBooksRecord[] {

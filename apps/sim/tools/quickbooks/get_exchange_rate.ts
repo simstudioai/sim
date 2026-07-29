@@ -5,6 +5,7 @@ import type {
 import {
   buildQuickBooksExchangeRateUrl,
   buildQuickBooksHeaders,
+  extractQuickBooksRecord,
   parseQuickBooksJson,
 } from '@/tools/quickbooks/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -66,7 +67,7 @@ export const quickBooksGetExchangeRateTool: ToolConfig<
     return {
       success: true,
       output: {
-        record: data.ExchangeRate ?? null,
+        record: extractQuickBooksRecord(data, 'ExchangeRate'),
         entity: 'ExchangeRate',
         time: typeof data.time === 'string' ? data.time : null,
       },
@@ -76,7 +77,6 @@ export const quickBooksGetExchangeRateTool: ToolConfig<
     record: {
       type: 'json',
       description: 'QuickBooks exchange rate',
-      optional: true,
     },
     entity: { type: 'string', description: 'QuickBooks entity name' },
     time: {

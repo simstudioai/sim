@@ -324,7 +324,7 @@ export interface QuickBooksQueryResponse extends ToolResponse {
 }
 
 export interface QuickBooksRecordOutput {
-  record: QuickBooksRecord | null
+  record: QuickBooksRecord
   entity: string
   time: string | null
 }
