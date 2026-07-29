@@ -35,6 +35,14 @@ export const ROOM_TYPES = {
    * table id.
    */
   TABLE: 'table',
+  /**
+   * The workspace tables browser (one room per workspace). The list-level
+   * counterpart to {@link ROOM_TYPES.TABLE}: it carries NO presence, only a
+   * lossy `workspace-tables-changed` invalidation signal so every viewer's
+   * tables list refetches when a table is created/renamed/moved/deleted. Its id
+   * space is the workspace id, mirroring {@link ROOM_TYPES.WORKSPACE_FILES}.
+   */
+  WORKSPACE_TABLES: 'workspace-tables',
 } as const
 
 export type RoomType = (typeof ROOM_TYPES)[keyof typeof ROOM_TYPES]

@@ -48,6 +48,7 @@ import {
   TablesListContextMenu,
 } from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
+import { useWorkspaceTablesRoom } from '@/app/workspace/[workspaceId]/tables/hooks/use-workspace-tables-room'
 import {
   tablesParsers,
   tablesSortParams,
@@ -111,6 +112,10 @@ export function Tables() {
 
   const userPermissions = useUserPermissionsContext()
   const canEdit = userPermissions.canEdit === true
+
+  // Joined for the live tables list: a `workspace-tables-changed` broadcast (fanned out by the table
+  // mutation service) invalidates the list so this view refetches without waiting for staleness.
+  useWorkspaceTablesRoom(workspaceId)
 
   const { data: tables = EMPTY_TABLES, error } = useTablesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)

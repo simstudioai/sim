@@ -51,6 +51,39 @@ export async function notifyWorkspaceFilesChanged(workspaceId: string): Promise<
 }
 
 /**
+ * Best-effort fan-out to the realtime server that a workspace's table list changed (a table was
+ * created, renamed, moved, deleted, or restored), so every browser currently viewing that
+ * workspace's tables refetches. The list-level counterpart to {@link notifyWorkspaceFilesChanged};
+ * table mutations happen server-side (HTTP routes AND copilot), so this fires from the shared table
+ * service, not a socket. Lossy — a dropped notification only degrades to stale-until-refetch.
+ *
+ * Never throws. Callers `await` it so the fetch is guaranteed to dispatch before the mutation
+ * returns; hard-bounded to {@link NOTIFY_TIMEOUT_MS}, so it adds that latency only when the socket
+ * pod is unreachable.
+ */
+export async function notifyWorkspaceTablesChanged(workspaceId: string): Promise<void> {
+  try {
+    const response = await fetch(`${getSocketServerUrl()}/api/workspace-tables-changed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
+      body: JSON.stringify({ workspaceId }),
+      signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
+    })
+    if (!response.ok) {
+      logger.warn('workspace-tables-changed notify failed', {
+        workspaceId,
+        status: response.status,
+      })
+    }
+  } catch (error) {
+    logger.warn('workspace-tables-changed notify error', {
+      workspaceId,
+      error: getErrorMessage(error),
+    })
+  }
+}
+
+/**
  * Best-effort: ask the realtime relay to merge a copilot edit into a file's LIVE collaborative
  * document, so open editors see it stream in as a CRDT merge (Stage C) rather than the file changing
  * underneath them. No-op when no doc is (or was recently) live (the relay reports `applied: false`).

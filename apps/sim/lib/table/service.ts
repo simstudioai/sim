@@ -17,6 +17,7 @@ import { and, count, eq, isNull, sql } from 'drizzle-orm'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
 import { resolveRestoredFolderId } from '@/lib/folders/queries'
+import { notifyWorkspaceTablesChanged } from '@/lib/realtime/notify'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
@@ -424,6 +425,9 @@ export async function createTable(
 
   logger.info(`[${requestId}] Created table ${tableId} in workspace ${data.workspaceId}`)
 
+  // Live tables list: tell everyone viewing this workspace's tables to refetch.
+  await notifyWorkspaceTablesChanged(data.workspaceId)
+
   return {
     id: newTable.id,
     name: newTable.name,
@@ -612,6 +616,10 @@ export async function renameTable(
     }
 
     logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
+
+    // Live tables list: a rename changes the list result, so everyone viewing refetches.
+    if (workspaceId) await notifyWorkspaceTablesChanged(workspaceId)
+
     return { id: tableId, name: newName }
   } catch (error: unknown) {
     if (getPostgresErrorCode(error) === '23505') {
@@ -687,6 +695,9 @@ export async function moveTableToFolder(
   }
 
   logger.info(`[${requestId}] Moved table ${tableId} to folder ${folderId ?? 'root'}`)
+
+  // Live tables list: a move changes each table's folder placement in the list result.
+  await notifyWorkspaceTablesChanged(workspaceId)
 }
 
 /**
@@ -889,6 +900,9 @@ export async function deleteTable(
   }
 
   logger.info(`[${requestId}] Archived table ${tableId}`)
+
+  // Live tables list: only on a genuine archive (a no-op/already-archived delete changes nothing).
+  if (deleted?.workspaceId) await notifyWorkspaceTablesChanged(deleted.workspaceId)
 }
 
 /**
@@ -988,4 +1002,7 @@ export async function restoreTable(
   }
 
   logger.info(`[${requestId}] Restored table ${tableId} as "${attemptedRestoreName}"`)
+
+  // Live tables list: a restore re-adds the table to the active list.
+  if (table.workspaceId) await notifyWorkspaceTablesChanged(table.workspaceId)
 }
