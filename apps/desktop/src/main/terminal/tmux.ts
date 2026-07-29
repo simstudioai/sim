@@ -337,7 +337,13 @@ export async function startRun(
   // PIPESTATUS keeps the command's own exit code rather than tee's, which is
   // always 0. bash rather than the user's shell because PIPESTATUS is not
   // portable and this wrapper is ours, not something they have to read.
-  const script = `${command}\nprintf %s "\${PIPESTATUS[0]}" > ${JSON.stringify(statusPath)}`
+  // The status write is silenced because its directory may be gone by the time
+  // it runs: closing the terminal tab reclaims the run's temp dir while the
+  // command keeps going in tmux. `tee` is unaffected — POSIX lets it keep
+  // writing to the unlinked inode — but an unredirected `printf` would fail
+  // into the pipeline and print `No such file or directory` into the user's own
+  // tmux window, minutes after they closed the tab.
+  const script = `${command}\nprintf %s "\${PIPESTATUS[0]}" > ${JSON.stringify(statusPath)} 2>/dev/null`
   const wrapper = `bash -lc ${JSON.stringify(`{ ${script}; } 2>&1 | tee ${JSON.stringify(outPath)}`)}`
 
   const args = ['new-window', '-d', '-P', '-F', '#{window_id}', '-t', session, '-n', 'sim-run']

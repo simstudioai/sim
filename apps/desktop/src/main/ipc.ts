@@ -17,7 +17,7 @@ import {
 } from '@sim/terminal-protocol'
 import { isRecordLike } from '@sim/utils/object'
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
-import { ipcMain } from 'electron'
+import { clipboard, ipcMain } from 'electron'
 import {
   clearBrowsingData,
   executeTool,
@@ -920,6 +920,24 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       passSender: true,
       handler: (sender, focused) =>
         deps.terminal.setPanelFocused(focused === true, sender as WebContents),
+    },
+    'terminal:paste': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      denied: false,
+      // The bytes come from the clipboard here, not from the caller, so this
+      // does not need the write gate: a compromised renderer can only replay
+      // what the user already copied. It still needs a real gesture, because
+      // the legitimate caller is a Paste click or ⌘V.
+      needsUserActivation: true,
+      handler: (terminalId) => {
+        if (typeof terminalId !== 'string') return false
+        const text = clipboard.readText()
+        if (!text) return false
+        deps.terminal.write(terminalId, text)
+        return true
+      },
     },
     'terminal:scrollback': {
       kind: 'invoke',

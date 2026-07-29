@@ -59,7 +59,7 @@ vi.mock('@/main/browser-agent/registry', () => ({
 }))
 
 import type { WebContents } from 'electron'
-import { ipcMain, shell } from 'electron'
+import { clipboard, ipcMain, shell } from 'electron'
 import {
   copyCredential,
   credentialsAvailable,
@@ -831,6 +831,29 @@ describe('registerIpcHandlers', () => {
       expect(write).toHaveBeenCalledWith('t1', reply)
     }
     expect(write).toHaveBeenCalledTimes(replies.length)
+  })
+
+  it('pastes the clipboard from main rather than taking bytes from the caller', async () => {
+    const { invoke } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+    vi.mocked(clipboard.readText).mockReturnValue('echo hi')
+
+    await expect(invoke.get('terminal:paste')?.(activeAppEvent, 't1')).resolves.toBe(true)
+
+    expect(write).toHaveBeenCalledWith('t1', 'echo hi')
+  })
+
+  it('refuses a paste with no gesture behind it, and reports an empty clipboard', async () => {
+    const { invoke } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+    vi.mocked(clipboard.readText).mockReturnValue('echo hi')
+
+    expect(await invoke.get('terminal:paste')?.(inactiveAppEvent, 't1')).toBe(false)
+    expect(write).not.toHaveBeenCalled()
+
+    vi.mocked(clipboard.readText).mockReturnValue('')
+    expect(await invoke.get('terminal:paste')?.(activeAppEvent, 't1')).toBe(false)
+    expect(write).not.toHaveBeenCalled()
   })
 
   it('gates a command smuggled inside a fake OSC or DCS reply', () => {

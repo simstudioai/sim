@@ -53,6 +53,7 @@ export const safeStorage = {
 
 export const clipboard = {
   writeText: vi.fn(),
+  readText: vi.fn(() => ''),
 }
 
 export const nativeTheme = {
