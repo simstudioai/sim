@@ -21,11 +21,14 @@ import { adminV1UpdateOrganizationSessionPolicyContract } from '@/lib/api/contra
 import { parseRequest } from '@/lib/api/server'
 import { invalidateSecurityPolicyVersionCache } from '@/lib/auth/security-policy'
 import { eagerClampOrgSessions, invalidateSessionPolicyCache } from '@/lib/auth/session-policy'
+import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
+import { isBillingEnabled, isSessionPoliciesEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   adminInvalidJsonResponse,
   adminValidationErrorResponse,
+  forbiddenResponse,
   internalErrorResponse,
   notFoundResponse,
   singleResponse,
@@ -62,6 +65,21 @@ export const PATCH = withRouteHandler(
 
       if (!existing) {
         return notFoundResponse('Organization')
+      }
+
+      /**
+       * Same entitlement gate the settings UI applies. Without it the stored
+       * policy is inert theater: `getSessionPolicy` resolves to no-op when the
+       * feature is off, so limits would sit in the database and the one eager
+       * clamp here would be undone by the next session refresh.
+       */
+      const entitled = await isOrganizationFeatureEntitled(organizationId, isSessionPoliciesEnabled)
+      if (!entitled) {
+        return forbiddenResponse(
+          isBillingEnabled
+            ? 'Session policies are available on Enterprise plans only'
+            : 'Session policies are disabled. Set ENTERPRISE_ENABLED or SESSION_POLICIES_ENABLED to enable them.'
+        )
       }
 
       const merged = {

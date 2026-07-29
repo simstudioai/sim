@@ -52,7 +52,7 @@ import {
   TERMINAL_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { detachOrganizationWorkspaces } from '@/lib/workspaces/organization-workspaces'
+import { detachOrganizationWorkspacesTx } from '@/lib/workspaces/organization-workspaces'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   adminInvalidJsonResponse,
@@ -287,10 +287,16 @@ export const DELETE = withRouteHandler(
        * ledger without returning those bytes to the workspace's new payer.
        * This helper does the payer transfer, resets the mode, and re-grants
        * admin permissions.
+       *
+       * Both run in one transaction: a detach that committed on its own would
+       * leave workspaces re-billed to their owners while the organization,
+       * its members, and its settings survived a failed delete.
        */
-      const { detachedWorkspaceIds } = await detachOrganizationWorkspaces(organizationId)
-
-      await db.delete(organization).where(eq(organization.id, organizationId))
+      const { detachedWorkspaceIds } = await db.transaction(async (tx) => {
+        const detached = await detachOrganizationWorkspacesTx(tx, organizationId)
+        await tx.delete(organization).where(eq(organization.id, organizationId))
+        return detached
+      })
 
       logger.info(`Admin API: Deleted organization ${organizationId}`, {
         slug: existing.slug,

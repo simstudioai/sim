@@ -336,6 +336,22 @@ export async function attachOwnedWorkspacesToOrganizationTx(
 export async function detachOrganizationWorkspaces(
   organizationId: string
 ): Promise<DetachOrganizationWorkspacesResult> {
+  return db.transaction((tx) => detachOrganizationWorkspacesTx(tx, organizationId))
+}
+
+/**
+ * Transaction-enlisted detach, for callers that must commit the detach together
+ * with something else — deleting the organization, for instance, where a
+ * detach that committed on its own would leave workspaces re-billed while the
+ * organization it was meant to empty still exists.
+ *
+ * Audit rows are emitted by the caller after commit; `recordAuditBatch` is
+ * fire-and-forget and must not describe a transaction that may still roll back.
+ */
+export async function detachOrganizationWorkspacesTx(
+  tx: DbOrTx,
+  organizationId: string
+): Promise<DetachOrganizationWorkspacesResult> {
   const organizationOwnerId = await getOrganizationOwnerId(organizationId)
   if (!organizationOwnerId) {
     logger.warn(
@@ -344,7 +360,7 @@ export async function detachOrganizationWorkspaces(
     )
   }
 
-  const organizationWorkspaces = await db
+  const organizationWorkspaces = await tx
     .select({
       id: workspace.id,
       ownerId: workspace.ownerId,
@@ -358,7 +374,7 @@ export async function detachOrganizationWorkspaces(
       )
     )
 
-  const detachedWorkspaceIds = await db.transaction(async (tx) => {
+  const detachedWorkspaceIds = await (async () => {
     const now = new Date()
     const workspaceIds = organizationWorkspaces
       .map((organizationWorkspace) => organizationWorkspace.id)
@@ -409,7 +425,7 @@ export async function detachOrganizationWorkspaces(
       })
 
     return [...workspaceIds].sort()
-  })
+  })()
 
   const workspacesById = new Map(
     organizationWorkspaces.map((organizationWorkspace) => [

@@ -290,7 +290,19 @@ async function forEachCleanupChunk(
     }
   }
 
-  if (housekeepingPlan && housekeepingPlan !== 'enterprise' && !housekeepingAssigned) {
+  /**
+   * Global housekeeping is keyed to a plan's default retention window, so it
+   * only makes sense where those plans exist. Emitting it with billing off
+   * would reach for the hosted free-tier window — the same 30 days the
+   * per-workspace pass deliberately refuses to apply — and act on it, which is
+   * exactly the rule `resolvePlanTypesByWorkspaceId` exists to enforce.
+   */
+  if (
+    isBillingEnabled &&
+    housekeepingPlan &&
+    housekeepingPlan !== 'enterprise' &&
+    !housekeepingAssigned
+  ) {
     const retentionHours = config.defaults[housekeepingPlan]
     if (retentionHours != null) {
       await emitChunk({

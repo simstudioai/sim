@@ -4,16 +4,16 @@
 import { createMockRequest, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDetachOrganizationWorkspaces, mockDelete, mockAuthenticateAdminRequest } = vi.hoisted(
+const { mockDetachOrganizationWorkspacesTx, mockDelete, mockAuthenticateAdminRequest } = vi.hoisted(
   () => ({
-    mockDetachOrganizationWorkspaces: vi.fn(),
+    mockDetachOrganizationWorkspacesTx: vi.fn(),
     mockDelete: vi.fn(),
     mockAuthenticateAdminRequest: vi.fn(),
   })
 )
 
 vi.mock('@/lib/workspaces/organization-workspaces', () => ({
-  detachOrganizationWorkspaces: mockDetachOrganizationWorkspaces,
+  detachOrganizationWorkspacesTx: mockDetachOrganizationWorkspacesTx,
 }))
 
 vi.mock('@/app/api/v1/admin/auth', () => ({
@@ -54,7 +54,7 @@ describe('admin organization DELETE', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockAuthenticateAdminRequest.mockReturnValue({ authenticated: true })
-    mockDetachOrganizationWorkspaces.mockResolvedValue({
+    mockDetachOrganizationWorkspacesTx.mockResolvedValue({
       detachedWorkspaceIds: ['ws-1', 'ws-2'],
       billedAccountUserId: 'user-1',
     })
@@ -69,7 +69,7 @@ describe('admin organization DELETE', () => {
     const response = await DELETE(deleteRequest('acme-inc'), routeContext)
 
     expect(response.status).toBe(404)
-    expect(mockDetachOrganizationWorkspaces).not.toHaveBeenCalled()
+    expect(mockDetachOrganizationWorkspacesTx).not.toHaveBeenCalled()
   })
 
   it('refuses when confirmSlug does not match the organization slug', async () => {
@@ -78,7 +78,7 @@ describe('admin organization DELETE', () => {
     const response = await DELETE(deleteRequest('wrong-slug'), routeContext)
 
     expect(response.status).toBe(400)
-    expect(mockDetachOrganizationWorkspaces).not.toHaveBeenCalled()
+    expect(mockDetachOrganizationWorkspacesTx).not.toHaveBeenCalled()
   })
 
   it('refuses with 409 while a subscription still references the organization', async () => {
@@ -92,7 +92,7 @@ describe('admin organization DELETE', () => {
      * strand the row and its Stripe billing against a dangling id.
      */
     expect(response.status).toBe(409)
-    expect(mockDetachOrganizationWorkspaces).not.toHaveBeenCalled()
+    expect(mockDetachOrganizationWorkspacesTx).not.toHaveBeenCalled()
   })
 
   it('is not blocked by a canceled subscription', async () => {
@@ -109,7 +109,7 @@ describe('admin organization DELETE', () => {
     const response = await DELETE(deleteRequest('acme-inc'), routeContext)
 
     expect(response.status).toBe(200)
-    expect(mockDetachOrganizationWorkspaces).toHaveBeenCalledWith(ORG_ID)
+    expect(mockDetachOrganizationWorkspacesTx).toHaveBeenCalledWith(expect.anything(), ORG_ID)
   })
 
   it('detaches workspaces before deleting the organization', async () => {
@@ -123,9 +123,10 @@ describe('admin organization DELETE', () => {
     /**
      * The `ON DELETE SET NULL` foreign key alone would leave workspaces in
      * `organization` mode with a null org id and drop the organization's
-     * storage ledger without crediting the new payer.
+     * storage ledger without crediting the new payer. The transaction is passed
+     * through so the detach and the delete commit together.
      */
-    expect(mockDetachOrganizationWorkspaces).toHaveBeenCalledWith(ORG_ID)
+    expect(mockDetachOrganizationWorkspacesTx).toHaveBeenCalledWith(expect.anything(), ORG_ID)
 
     const body = await response.json()
     expect(body.data).toMatchObject({

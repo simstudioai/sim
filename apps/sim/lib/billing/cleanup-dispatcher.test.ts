@@ -97,5 +97,11 @@ describe('dispatchCleanupJobs retention gate', () => {
 
     expect(result.workspaceCount).toBe(0)
     expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
+    /**
+     * No chunks at all, including the plan-wide housekeeping one. That chunk is
+     * keyed to the hosted free-tier 30-day window, so emitting it off-hosted
+     * would act on the very default the per-workspace pass refuses to apply.
+     */
+    expect(result.chunkCount).toBe(0)
   })
 })
