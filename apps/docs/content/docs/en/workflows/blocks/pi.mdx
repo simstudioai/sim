@@ -88,22 +88,12 @@ Your key for the chosen provider. On hosted Sim it is optional for Local Dev and
 
 ### Internet Search
 
-Off by default. Pick a provider — **Exa**, **Serper**, **Parallel AI**, or **Firecrawl** — and the agent gains a single `web_search` tool that returns a handful of results, each with a title, URL, snippet, and (where the provider reports one) a publication date. It works in all three modes, and it is the agent's only network access in Review Code. The tool accepts at most 20 calls per run, which bounds accidental tool loops and the quota one run can consume.
-
-Search always uses **your own key** for the selected provider, never a Sim-hosted one, because Create PR places the key inside the coding sandbox. Enter it in **Search API Key** or store it in **Settings → BYOK**; the run fails with a setup error before any sandbox is created when neither is present. Switching providers clears the key field in the editor, so re-enter the key that belongs to the provider you picked.
-
-Results are third-party data. The agent is instructed to treat them as quoted evidence and never to follow instructions found inside them — the same posture Pi takes toward repository contents.
-
-Traffic goes both ways: the agent writes its own queries after reading the repository. Leave search on **None** for sensitive work unless external lookup is necessary; repository or review text could otherwise influence a query sent to the provider. During Create PR's Babysit continuation, both the search key and model key are present in the editing sandbox.
-
-### Internet Search
-
 Off by default. Pick a provider — **Exa**, **Serper**, **Parallel AI**, or **Firecrawl** — and the agent gains a single `web_search` tool that returns a handful of results, each with a title, URL, snippet, and (where the provider reports one) a publication date. It works the same way in all three modes, and it is the agent's only network access in Review Code. The tool accepts at most 20 calls **per block execution**, which bounds accidental tool loops. A Pi block inside a Loop or Parallel gets that allowance again on every iteration, so bound the iteration count too if you care about what a single workflow run can spend.
 
 Search always uses **your own key** for the selected provider, entered in the block's **Search API Key** field. That field is the only source: there is no workspace BYOK fallback and Sim never supplies a hosted search key, so unlike the model key this field appears on every deployment. Leave it empty and the run fails with a setup error before any sandbox is created. Changing the provider in the editor clears the field, so re-enter the key that belongs to the provider you picked — a workflow you import, fork, or update through the API keeps whatever key was saved, so check it there.
 
 <Callout type="warn">
-  **Create PR exposes both keys to the agent.** Create PR runs the model client and the search client *inside* the sandbox, so the model key and the search key reach it as environment variables — and Pi copies its own environment into every shell command it runs. Your prompt, or instructions injected through the contents of the cloned repository, can therefore read either key and write it anywhere the agent can reach, including into the pull request itself. Sim strips verbatim key text out of run output, but that does not stop an agent that encodes the value first.
+  **Create PR exposes both keys to the agent.** Create PR runs the model client and the search client *inside* the sandbox, so the model key and the search key reach it as environment variables — and Pi copies its own environment into every shell command it runs. Your prompt, or instructions injected through the contents of the cloned repository, can therefore read either key and write it anywhere the agent can reach, including into the pull request itself. Sim strips verbatim key text out of run output, but that does not stop an agent that encodes the value first. Babysit Mode's continuation sandbox carries both keys the same way.
 
   This is why the search key has no **Settings → BYOK** fallback. Workspace BYOK keys belong to the workspace rather than to you — Sim only ever displays them masked, and only workspace admins can add or remove them — so resolving one here would let anyone who can run a Pi block read a credential they cannot otherwise see. Requiring the key on the block keeps the exposure to a key its author already holds. Scope it to something you are willing to rotate.
 </Callout>
