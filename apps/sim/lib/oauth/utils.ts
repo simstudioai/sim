@@ -237,6 +237,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'Mail.ReadBasic': 'Read Microsoft emails',
   'Mail.Read': 'Read Microsoft emails',
   'Mail.Send': 'Send emails',
+  'Calendars.ReadWrite': 'Read and manage Outlook calendar events',
+  'MailboxSettings.Read': 'Read mailbox settings (timezone, working hours)',
   'Files.Read': 'Read OneDrive files',
   'Files.ReadWrite': 'Read and write OneDrive files',
   'Tasks.ReadWrite': 'Read and manage Planner tasks',

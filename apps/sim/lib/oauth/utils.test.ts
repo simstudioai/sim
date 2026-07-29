@@ -335,6 +335,7 @@ describe('getCanonicalScopesForProvider', () => {
 
     expect(outlookScopes.length).toBeGreaterThan(0)
     expect(outlookScopes).toContain('Mail.ReadWrite')
+    expect(outlookScopes).toContain('Calendars.ReadWrite')
 
     const excelScopes = getCanonicalScopesForProvider('microsoft-excel')
 
@@ -618,6 +619,7 @@ describe('getScopesForService', () => {
 
     expect(scopes.length).toBeGreaterThan(0)
     expect(scopes).toContain('Mail.ReadWrite')
+    expect(scopes).toContain('Calendars.ReadWrite')
   })
 
   it.concurrent('should return empty array for empty string', () => {
