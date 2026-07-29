@@ -471,3 +471,49 @@ describe('FOLDER_RESOURCES', () => {
     }
   })
 })
+
+/**
+ * Knowledge bases and tables are the resource trees this cascade newly serves. The generic
+ * describes above already exercise both code paths; these pin the per-resource wiring the
+ * folder engine depends on, which is exactly what silently drifts.
+ */
+describe('knowledge_base and table folder resources', () => {
+  const knowledgeConfig = FOLDER_RESOURCES.knowledge_base
+  const tableConfig = FOLDER_RESOURCES.table
+
+  it('routes both trees through their canonical archive and restore, not a bare row update', () => {
+    // A knowledge base owns documents, embeddings, and storage accounting; a table owns its
+    // own data partitions. Neither can be archived by stamping one column, so both must keep
+    // a hook rather than falling back to the generic UPDATE.
+    for (const config of [knowledgeConfig, tableConfig]) {
+      expect(config.archiveChildren).toBeTypeOf('function')
+      expect(config.restoreChildren).toBeTypeOf('function')
+    }
+  })
+
+  it('drives each tree off its own soft-delete column', () => {
+    expect(knowledgeConfig.deletedKey).toBe('deletedAt')
+    expect(knowledgeConfig.buildSoftDeleteSet(TIMESTAMP, NOW)).toEqual({
+      deletedAt: TIMESTAMP,
+      updatedAt: NOW,
+    })
+    expect(tableConfig.deletedKey).toBe('archivedAt')
+    expect(tableConfig.buildSoftDeleteSet(TIMESTAMP, NOW)).toEqual({
+      archivedAt: TIMESTAMP,
+      updatedAt: NOW,
+    })
+  })
+
+  it('guards a table folder delete on table locks and leaves knowledge folders unguarded', () => {
+    // Table locks are a governance feature that must survive a folder delete; knowledge
+    // bases have no equivalent, so a guard there would be dead weight.
+    expect(tableConfig.guardDelete).toBeTypeOf('function')
+    expect(knowledgeConfig.guardDelete).toBeUndefined()
+  })
+
+  it('keeps manual folder sort ordering workflow-only', () => {
+    // Only the workflow tree interleaves folders and rows in one user-ordered list.
+    expect(knowledgeConfig.sortOrderColumn).toBeUndefined()
+    expect(tableConfig.sortOrderColumn).toBeUndefined()
+  })
+})

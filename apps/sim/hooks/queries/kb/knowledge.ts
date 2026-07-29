@@ -607,6 +607,8 @@ interface CreateKnowledgeBaseParams {
   name: string
   description?: string
   workspaceId: string
+  /** Folder to create the knowledge base in; `null`/omitted creates it at the workspace root. */
+  folderId?: string | null
   chunkingConfig: {
     maxSize: number
     minSize: number
@@ -643,6 +645,8 @@ interface UpdateKnowledgeBaseParams {
     name?: string
     description?: string
     workspaceId?: string | null
+    /** Moves the knowledge base between folders; `null` moves it to the workspace root. */
+    folderId?: string | null
   }
 }
 
@@ -663,7 +667,29 @@ export function useUpdateKnowledgeBase(workspaceId?: string) {
 
   return useMutation({
     mutationFn: updateKnowledgeBase,
-    onError: (error) => {
+    /**
+     * A folder move re-parents a row the user is looking at, so the list is patched up
+     * front — otherwise the base lingers in the folder it just left until the refetch
+     * lands. Only the folder is applied optimistically; name/description edits already
+     * happen behind a modal that closes on success.
+     */
+    onMutate: async ({ knowledgeBaseId, updates }) => {
+      if (updates.folderId === undefined) return
+      await queryClient.cancelQueries({ queryKey: knowledgeKeys.lists() })
+      const previous = queryClient.getQueriesData<KnowledgeBaseData[]>({
+        queryKey: knowledgeKeys.lists(),
+      })
+      queryClient.setQueriesData<KnowledgeBaseData[]>({ queryKey: knowledgeKeys.lists() }, (old) =>
+        old?.map((kb) =>
+          kb.id === knowledgeBaseId ? { ...kb, folderId: updates.folderId ?? null } : kb
+        )
+      )
+      return { previous }
+    },
+    onError: (error, _variables, context) => {
+      for (const [key, data] of context?.previous ?? []) {
+        queryClient.setQueryData(key, data)
+      }
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, { knowledgeBaseId }) => {

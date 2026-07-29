@@ -6,13 +6,13 @@ export const folderResourceTypeSchema = z.enum(['workflow', 'file', 'knowledge_b
 export type FolderResourceType = z.output<typeof folderResourceTypeSchema>
 
 /**
- * The resource types the generic folder engine actually serves. `file` is excluded on
- * purpose: file folders still write the legacy `workspace_file_folders` table, so accepting
- * the value here would answer "you have no folders" against a surface that plainly does.
- * It gains an entry when the file cutover lands.
+ * The resource types the generic folder engine serves. Identical to
+ * {@link folderResourceTypeSchema} now that every type is backed by the `folder` table;
+ * kept as a separate schema so a future resource type can be added to the enum (and the
+ * DB) ahead of the routes that serve it.
  */
 export const servedFolderResourceTypeSchema = z
-  .enum(['workflow', 'knowledge_base', 'table'])
+  .enum(['workflow', 'file', 'knowledge_base', 'table'])
   .default('workflow')
 
 export type ServedFolderResourceType = z.output<typeof servedFolderResourceTypeSchema>

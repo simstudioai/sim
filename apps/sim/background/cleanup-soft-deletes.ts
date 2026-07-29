@@ -417,12 +417,18 @@ const CLEANUP_TARGETS = [
     softDeleteCol: folderTable.deletedAt,
     wsCol: folderTable.workspaceId,
     /**
-     * `folder` is shared by all four resource types, but file folders are still written to
-     * `workspace_file_folders` and this pass must not hard-delete rows it does not own. One
-     * widened predicate rather than a target per type: same table, same soft-delete column,
-     * same workspace scoping — splitting it would only multiply the batched scans.
+     * `folder` is shared by all four resource types, every one of which now writes here.
+     * The predicate is kept (rather than dropped) so a resource type added to the enum
+     * before its cutover lands is not silently hard-deleted by this pass. One widened
+     * predicate rather than a target per type: same table, same soft-delete column, same
+     * workspace scoping — splitting it would only multiply the batched scans.
      */
-    additionalPredicate: inArray(folderTable.resourceType, ['workflow', 'knowledge_base', 'table']),
+    additionalPredicate: inArray(folderTable.resourceType, [
+      'workflow',
+      'file',
+      'knowledge_base',
+      'table',
+    ]),
     name: 'folder',
   },
   {

@@ -480,7 +480,16 @@ export async function restoreFolder(params: RestoreFolderParams): Promise<Restor
           from: folder.name,
           to: restoredName,
         })
-        await tx.update(folderTable).set({ name: restoredName }).where(eq(folderTable.id, folderId))
+        await tx
+          .update(folderTable)
+          .set({ name: restoredName })
+          .where(
+            and(
+              eq(folderTable.id, folderId),
+              eq(folderTable.workspaceId, workspaceId),
+              eq(folderTable.resourceType, resourceType)
+            )
+          )
       }
 
       const folders = await restoreFolderRows(tx, config, workspaceId, folderIds, archivedAt, now)

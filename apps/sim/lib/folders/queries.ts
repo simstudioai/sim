@@ -49,6 +49,40 @@ export async function wouldCreateFolderCycle(
   return false
 }
 
+/**
+ * Loads an active folder, scoped to both its workspace and its `resourceType`.
+ *
+ * Every foldered resource needs this before writing its `folderId` column. The FK only
+ * proves the folder row exists — not that it belongs to this workspace or to this
+ * resource's tree — so without the check a caller could file a knowledge base under
+ * another tenant's folder, or under a table folder that the Knowledge page will never
+ * render, stranding the row invisibly. The DB trigger `folder_parent_resource_type_match`
+ * does not help here: it only guards folder parents.
+ *
+ * Returns `null` when the folder is missing, archived, in another workspace, or belongs to
+ * another resource's tree — a single "not a valid destination" answer.
+ */
+export async function findActiveFolder(
+  folderId: string,
+  workspaceId: string,
+  resourceType: FolderResourceType
+): Promise<typeof folder.$inferSelect | null> {
+  const [row] = await db
+    .select()
+    .from(folder)
+    .where(
+      and(
+        eq(folder.id, folderId),
+        eq(folder.workspaceId, workspaceId),
+        eq(folder.resourceType, resourceType),
+        isNull(folder.deletedAt)
+      )
+    )
+    .limit(1)
+
+  return row ?? null
+}
+
 /** Shared by `GET /api/folders` and the sidebar prefetch so the query never drifts between them. */
 export async function listFoldersForWorkspace(
   workspaceId: string,

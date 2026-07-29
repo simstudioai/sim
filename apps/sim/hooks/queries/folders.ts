@@ -13,6 +13,7 @@ import {
   type ServedFolderResourceType,
   updateFolderContract,
 } from '@/lib/api/contracts'
+import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { type FolderQueryScope, folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
@@ -20,6 +21,7 @@ import {
   createOptimisticMutationHandlers,
   generateTempId,
 } from '@/hooks/queries/utils/optimistic-mutation'
+import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import type { WorkflowFolder } from '@/stores/folders/types'
@@ -127,6 +129,36 @@ interface DuplicateFolderVariables {
   name: string
   parentId?: string | null
   newId?: string
+}
+
+/**
+ * Refreshes the lists that a folder delete/restore cascade rewrote.
+ *
+ * The cascade archives or restores the resources inside the folder subtree, so
+ * the folder tree alone going stale is not enough — the resource list that
+ * renders those rows has to refetch too. Each resource type owns a different
+ * cache, hence the switch; a type with no list surface yet is a no-op.
+ */
+function invalidateCascadedResourceLists(
+  queryClient: ReturnType<typeof useQueryClient>,
+  resourceType: ServedFolderResourceType,
+  workspaceId: string
+): Promise<void> | void {
+  switch (resourceType) {
+    case 'workflow':
+      return invalidateWorkflowLists(queryClient, workspaceId, ['active', 'archived'])
+    case 'table':
+      return queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    case 'knowledge_base':
+      return queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+    /**
+     * `file` has no case: the Files page reads and writes its folders through
+     * `/api/workspaces/[id]/files/folders/**`, which owns its own invalidation, so a
+     * cascade never reaches this hook for that tree.
+     */
+    default:
+      return
+  }
 }
 
 /**
@@ -270,8 +302,7 @@ export function useDeleteFolderMutation() {
     onSettled: (_data, _error, variables) => {
       const resourceType = variables.resourceType ?? 'workflow'
       queryClient.invalidateQueries({ queryKey: folderKeys.resource(resourceType) })
-      if (resourceType !== 'workflow') return
-      return invalidateWorkflowLists(queryClient, variables.workspaceId, ['active', 'archived'])
+      return invalidateCascadedResourceLists(queryClient, resourceType, variables.workspaceId)
     },
   })
 }
@@ -299,8 +330,7 @@ export function useRestoreFolder() {
     onSettled: (_data, _error, variables) => {
       const resourceType = variables.resourceType ?? 'workflow'
       queryClient.invalidateQueries({ queryKey: folderKeys.resource(resourceType) })
-      if (resourceType !== 'workflow') return
-      return invalidateWorkflowLists(queryClient, variables.workspaceId, ['active', 'archived'])
+      return invalidateCascadedResourceLists(queryClient, resourceType, variables.workspaceId)
     },
   })
 }

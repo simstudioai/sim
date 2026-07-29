@@ -21,6 +21,7 @@ import {
   type StorageBillingContext,
 } from '@/lib/billing/storage'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { findActiveFolder } from '@/lib/folders/queries'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -39,6 +40,29 @@ export class KnowledgeBaseConflictError extends Error {
 
 export class KnowledgeBasePermissionError extends Error {
   readonly code = 'KNOWLEDGE_BASE_FORBIDDEN' as const
+}
+
+/** Raised when a caller files a knowledge base under a folder it may not use. */
+export class KnowledgeBaseFolderError extends Error {
+  readonly code = 'KNOWLEDGE_BASE_FOLDER_INVALID' as const
+  constructor() {
+    super('Folder not found in this workspace')
+  }
+}
+
+/**
+ * Verifies `folderId` is an active `knowledge_base` folder in `workspaceId`. A `null` target
+ * (the workspace root) needs no check.
+ */
+async function assertKnowledgeBaseFolder(
+  folderId: string | null | undefined,
+  workspaceId: string | null
+): Promise<void> {
+  if (!folderId) return
+  if (!workspaceId) throw new KnowledgeBaseFolderError()
+  if (!(await findActiveFolder(folderId, workspaceId, 'knowledge_base'))) {
+    throw new KnowledgeBaseFolderError()
+  }
 }
 
 export type KnowledgeBaseScope = 'active' | 'archived' | 'all'
@@ -94,6 +118,7 @@ export async function getKnowledgeBases(
       updatedAt: knowledgeBase.updatedAt,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
+      folderId: knowledgeBase.folderId,
       docCount: count(document.id),
     })
     .from(knowledgeBase)
@@ -195,11 +220,16 @@ export async function createKnowledgeBase(
     )
   }
 
+  await assertKnowledgeBaseFolder(data.folderId, data.workspaceId)
+
+  const folderId = data.folderId ?? null
+
   const newKnowledgeBase = {
     id: kbId,
     name: data.name,
     description: data.description ?? null,
     workspaceId: data.workspaceId,
+    folderId,
     userId: data.userId,
     tokenCount: 0,
     embeddingModel: data.embeddingModel,
@@ -250,6 +280,7 @@ export async function createKnowledgeBase(
     updatedAt: now,
     deletedAt: null,
     workspaceId: data.workspaceId,
+    folderId,
     docCount: 0,
     connectorTypes: [],
   }
@@ -264,6 +295,7 @@ export async function updateKnowledgeBase(
     name?: string
     description?: string
     workspaceId?: string | null
+    folderId?: string | null
     chunkingConfig?: {
       maxSize: number
       minSize: number
@@ -274,25 +306,14 @@ export async function updateKnowledgeBase(
   options?: { actorUserId?: string }
 ): Promise<KnowledgeBaseWithCounts> {
   const now = new Date()
-  const updateData: {
-    updatedAt: Date
-    name?: string
-    description?: string | null
-    workspaceId?: string | null
-    chunkingConfig?: {
-      maxSize: number
-      minSize: number
-      overlap: number
-    }
-    embeddingModel?: string
-    embeddingDimension?: number
-  } = {
+  const updateData: Partial<typeof knowledgeBase.$inferInsert> = {
     updatedAt: now,
   }
 
   if (updates.name !== undefined) updateData.name = updates.name
   if (updates.description !== undefined) updateData.description = updates.description
   if (updates.workspaceId !== undefined) updateData.workspaceId = updates.workspaceId
+  if (updates.folderId !== undefined) updateData.folderId = updates.folderId
   if (updates.chunkingConfig !== undefined) {
     updateData.chunkingConfig = updates.chunkingConfig
   }
@@ -304,6 +325,30 @@ export async function updateKnowledgeBase(
   }
 
   /**
+   * Folder admission is resolved against the workspace the knowledge base will end up in,
+   * before the transaction opens — same posture as the permission and storage lookups below,
+   * which deliberately keep external reads off a pooled transaction connection.
+   *
+   * A workspace change without an explicit folder needs no lookup here: the storage block
+   * below already reads the current row, and re-roots from there.
+   */
+  if (updates.folderId !== undefined) {
+    let effectiveWorkspaceId = updates.workspaceId
+    if (effectiveWorkspaceId === undefined) {
+      const [snapshot] = await db
+        .select({ workspaceId: knowledgeBase.workspaceId })
+        .from(knowledgeBase)
+        .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+        .limit(1)
+      if (!snapshot) {
+        throw new Error(`Knowledge base ${knowledgeBaseId} not found`)
+      }
+      effectiveWorkspaceId = snapshot.workspaceId
+    }
+    await assertKnowledgeBaseFolder(updates.folderId, effectiveWorkspaceId)
+  }
+
+  /**
    * Resolve transfer admission before opening the transaction. The locked KB
    * row below revalidates this source snapshot; a concurrent move is an error
    * instead of silently falling back to newly observed payer data.
@@ -311,7 +356,11 @@ export async function updateKnowledgeBase(
   let storageMove: KnowledgeBaseStorageMove | undefined
   if (updates.workspaceId !== undefined) {
     const [kbSnapshot] = await db
-      .select({ workspaceId: knowledgeBase.workspaceId, userId: knowledgeBase.userId })
+      .select({
+        workspaceId: knowledgeBase.workspaceId,
+        userId: knowledgeBase.userId,
+        folderId: knowledgeBase.folderId,
+      })
       .from(knowledgeBase)
       .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
       .limit(1)
@@ -320,6 +369,20 @@ export async function updateKnowledgeBase(
     }
     const sourceWorkspaceId = kbSnapshot.workspaceId ?? null
     const destinationWorkspaceId = updates.workspaceId ?? null
+
+    /**
+     * Folders never cross workspaces, so a workspace move would leave the row pointing at a
+     * folder the destination cannot render — an active knowledge base nobody can reach.
+     * Land it at the destination root unless the caller named a folder itself.
+     */
+    if (
+      updates.folderId === undefined &&
+      kbSnapshot.folderId &&
+      destinationWorkspaceId !== sourceWorkspaceId
+    ) {
+      updateData.folderId = null
+    }
+
     if (
       sourceWorkspaceId &&
       destinationWorkspaceId &&
@@ -585,6 +648,7 @@ export async function updateKnowledgeBase(
       updatedAt: knowledgeBase.updatedAt,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
+      folderId: knowledgeBase.folderId,
       docCount: count(document.id),
     })
     .from(knowledgeBase)
@@ -635,6 +699,7 @@ export async function getKnowledgeBaseById(
       updatedAt: knowledgeBase.updatedAt,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
+      folderId: knowledgeBase.folderId,
       docCount: count(document.id),
     })
     .from(knowledgeBase)
@@ -736,6 +801,7 @@ export async function restoreKnowledgeBase(
       name: knowledgeBase.name,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
+      folderId: knowledgeBase.folderId,
     })
     .from(knowledgeBase)
     .where(eq(knowledgeBase.id, knowledgeBaseId))
@@ -756,6 +822,18 @@ export async function restoreKnowledgeBase(
       throw new Error('Cannot restore knowledge base into an archived workspace')
     }
   }
+
+  /**
+   * Restoring a knowledge base whose folder is still archived would file it under a folder
+   * the Knowledge page never renders, leaving an active row nobody can reach. Re-root it
+   * instead — the same treatment `restoreFolder` gives a folder with an archived parent.
+   */
+  const restoredFolderId =
+    kb.folderId && kb.workspaceId
+      ? (await findActiveFolder(kb.folderId, kb.workspaceId, 'knowledge_base'))
+        ? kb.folderId
+        : null
+      : null
 
   /**
    * A concurrent create/rename can commit the same active name after `generateRestoreName`'s check
@@ -791,7 +869,12 @@ export async function restoreKnowledgeBase(
 
         await tx
           .update(knowledgeBase)
-          .set({ deletedAt: null, updatedAt: now, name: attemptedRestoreName })
+          .set({
+            deletedAt: null,
+            updatedAt: now,
+            name: attemptedRestoreName,
+            folderId: restoredFolderId,
+          })
           .where(eq(knowledgeBase.id, knowledgeBaseId))
 
         await tx

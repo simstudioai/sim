@@ -61,6 +61,7 @@ import {
   Resource,
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
+import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
 import { FilesActionBar } from '@/app/workspace/[workspaceId]/files/components/action-bar'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
 import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
@@ -74,7 +75,6 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
-import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import {
   filesFilterParsers,
   filesFilterUrlKeys,

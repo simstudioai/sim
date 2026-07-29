@@ -160,6 +160,7 @@ export async function getTableById(
       metadata: userTableDefinitions.metadata,
       maxRows: userTableDefinitions.maxRows,
       workspaceId: userTableDefinitions.workspaceId,
+      folderId: userTableDefinitions.folderId,
       createdBy: userTableDefinitions.createdBy,
       archivedAt: userTableDefinitions.archivedAt,
       createdAt: userTableDefinitions.createdAt,
@@ -189,6 +190,7 @@ export async function getTableById(
     rowCount: Math.max(0, table.rowCount - pendingDeleteRemaining),
     maxRows: table.maxRows,
     workspaceId: table.workspaceId,
+    folderId: table.folderId,
     createdBy: table.createdBy,
     locks: readLocks(table),
     archivedAt: table.archivedAt,
@@ -218,6 +220,7 @@ export async function listTables(
       metadata: userTableDefinitions.metadata,
       maxRows: userTableDefinitions.maxRows,
       workspaceId: userTableDefinitions.workspaceId,
+      folderId: userTableDefinitions.folderId,
       createdBy: userTableDefinitions.createdBy,
       archivedAt: userTableDefinitions.archivedAt,
       createdAt: userTableDefinitions.createdAt,
@@ -255,6 +258,7 @@ export async function listTables(
       rowCount: Math.max(0, t.rowCount - pendingDeleteRemaining),
       maxRows: t.maxRows,
       workspaceId: t.workspaceId,
+      folderId: t.folderId,
       createdBy: t.createdBy,
       locks: readLocks(t),
       archivedAt: t.archivedAt,
@@ -306,6 +310,7 @@ export async function createTable(
     description: data.description ?? null,
     schema,
     workspaceId: data.workspaceId,
+    folderId: data.folderId ?? null,
     createdBy: data.userId,
     maxRows,
     archivedAt: null,
@@ -427,6 +432,7 @@ export async function createTable(
     rowCount: data.initialRowCount ?? 0,
     maxRows: newTable.maxRows,
     workspaceId: newTable.workspaceId,
+    folderId: newTable.folderId,
     createdBy: newTable.createdBy,
     locks: UNLOCKED_TABLE_LOCKS,
     archivedAt: newTable.archivedAt,
@@ -612,6 +618,62 @@ export async function renameTable(
     }
     throw error
   }
+}
+
+/**
+ * Moves a table into `folderId`, or to the workspace root when it is `null`.
+ *
+ * The caller is responsible for verifying that the folder exists, belongs to the same
+ * workspace, is active, and carries `resourceType: 'table'` — see `findActiveFolder` in
+ * `@/lib/folders/queries`. Table names are unique workspace-wide rather than per folder, so
+ * a move can never collide on name.
+ *
+ * Deliberately asserts no mutation lock: the four `user_table_definitions` lock flags govern
+ * schema and row writes, and folder placement is neither.
+ */
+export async function moveTableToFolder(
+  tableId: string,
+  folderId: string | null,
+  requestId: string,
+  actingUserId?: string
+): Promise<void> {
+  const updates: Partial<typeof userTableDefinitions.$inferInsert> = {
+    folderId,
+    updatedAt: new Date(),
+  }
+
+  const result = await db
+    .update(userTableDefinitions)
+    .set(updates)
+    .where(eq(userTableDefinitions.id, tableId))
+    .returning({
+      name: userTableDefinitions.name,
+      createdBy: userTableDefinitions.createdBy,
+      workspaceId: userTableDefinitions.workspaceId,
+    })
+
+  if (result.length === 0) {
+    throw new Error(`Table ${tableId} not found`)
+  }
+
+  const { name, createdBy, workspaceId } = result[0]
+  const actorId = actingUserId ?? createdBy
+  if (actorId) {
+    recordAudit({
+      workspaceId: workspaceId ?? null,
+      actorId,
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: tableId,
+      resourceName: name,
+      description: folderId
+        ? `Moved table "${name}" into a folder`
+        : `Moved table "${name}" to the workspace root`,
+      metadata: { op: 'move', folderId },
+    })
+  }
+
+  logger.info(`[${requestId}] Moved table ${tableId} to folder ${folderId ?? 'root'}`)
 }
 
 /**
