@@ -445,6 +445,12 @@ export function TableGrid({
   const [pinnedColumns, setPinnedColumns] = useState<string[]>([])
   const pinnedColumnsRef = useRef(pinnedColumns)
   pinnedColumnsRef.current = pinnedColumns
+  /** Current layout owner (view id, or null for All) for capture-at-dispatch
+   *  guards: a mutation callback persisting layout must compare the owner it was
+   *  dispatched under against this, or a mid-flight view switch writes the
+   *  origin's layout into the destination — same rule as undo's entryOwnsLayout. */
+  const viewLayoutKeyRef = useRef(viewLayoutKey)
+  viewLayoutKeyRef.current = viewLayoutKey
   const metadataSeededRef = useRef(false)
   /** Which layout source the grid last seeded from, so a view switch re-seeds. */
   const seededLayoutKeyRef = useRef<string | null>(null)
@@ -3239,18 +3245,20 @@ export function TableGrid({
       const index = schemaColumnsRef.current.findIndex((c) => getColumnId(c) === columnId)
       if (index === -1) return
       const name = generateColumnName()
+      const owner = viewLayoutKeyRef.current
       addColumnMutation.mutate(
         { name, type: 'string', position: index },
         {
           onSuccess: (result) => {
             const newId = result.data.columns.find((c) => c.name === name)?.id ?? name
-            pushUndoRef.current({
-              type: 'create-column',
-              columnName: name,
-              columnId: newId,
-              position: index,
-            })
-            insertColumnInOrder(columnId, newId, 'left')
+            pushUndoRef.current(
+              { type: 'create-column', columnName: name, columnId: newId, position: index },
+              owner
+            )
+            // Skipped after a mid-flight view switch: the destination re-seeded
+            // its own order, and the append effect places the new column there
+            // when the schema refetch lands.
+            if (owner === viewLayoutKeyRef.current) insertColumnInOrder(columnId, newId, 'left')
           },
         }
       )
@@ -3264,18 +3272,17 @@ export function TableGrid({
       if (index === -1) return
       const name = generateColumnName()
       const position = index + 1
+      const owner = viewLayoutKeyRef.current
       addColumnMutation.mutate(
         { name, type: 'string', position },
         {
           onSuccess: (result) => {
             const newId = result.data.columns.find((c) => c.name === name)?.id ?? name
-            pushUndoRef.current({
-              type: 'create-column',
-              columnName: name,
-              columnId: newId,
-              position,
-            })
-            insertColumnInOrder(columnId, newId, 'right')
+            pushUndoRef.current(
+              { type: 'create-column', columnName: name, columnId: newId, position },
+              owner
+            )
+            if (owner === viewLayoutKeyRef.current) insertColumnInOrder(columnId, newId, 'right')
           },
         }
       )
@@ -3421,6 +3428,9 @@ export function TableGrid({
       originalPositions.set(name, { position: def ? cols.indexOf(def) : cols.length, def })
     }
     const deletedOriginalPositions: number[] = []
+    // Layout owner when the chain was dispatched — every onDeleted below fires
+    // from a mutation callback, so it must not trust the sink current by then.
+    const owner = viewLayoutKeyRef.current
 
     const deleteNext = (index: number) => {
       if (index >= columnsToDelete.length) return
@@ -3438,24 +3448,36 @@ export function TableGrid({
 
       const onDeleted = () => {
         deletedOriginalPositions.push(entry.position)
-        pushUndoRef.current({
-          type: 'delete-column',
-          // `columnToDelete` is the stable id; record the display name for re-create.
-          columnName: entry.def?.name ?? columnToDelete,
-          columnId: columnToDelete,
-          columnType: entry.def?.type ?? 'string',
-          columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
-          columnUnique: entry.def?.unique ?? false,
-          columnRequired: entry.def?.required ?? false,
-          // Without these a deleted select column can't be re-created — it is
-          // invalid with no options, and the saved cell data is option ids.
-          ...(entry.def?.options ? { columnOptions: entry.def.options } : {}),
-          ...(entry.def?.multiple ? { columnMultiple: true } : {}),
-          cellData,
-          previousOrder: orderSnapshot,
-          previousWidth,
-          previousPinnedColumns: pinnedSnapshot,
-        })
+        pushUndoRef.current(
+          {
+            type: 'delete-column',
+            // `columnToDelete` is the stable id; record the display name for re-create.
+            columnName: entry.def?.name ?? columnToDelete,
+            columnId: columnToDelete,
+            columnType: entry.def?.type ?? 'string',
+            columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
+            columnUnique: entry.def?.unique ?? false,
+            columnRequired: entry.def?.required ?? false,
+            // Without these a deleted select column can't be re-created — it is
+            // invalid with no options, and the saved cell data is option ids.
+            ...(entry.def?.options ? { columnOptions: entry.def.options } : {}),
+            ...(entry.def?.multiple ? { columnMultiple: true } : {}),
+            cellData,
+            previousOrder: orderSnapshot,
+            previousWidth,
+            previousPinnedColumns: pinnedSnapshot,
+          },
+          owner
+        )
+
+        // The cleanup below edits the ORIGIN view's layout. After a mid-flight
+        // switch the grid has re-seeded to the destination; dangling keys for
+        // the deleted column there are pruned on read, so skip rather than push
+        // origin snapshots into the destination's state or its stored config.
+        if (owner !== viewLayoutKeyRef.current) {
+          deleteNext(index + 1)
+          return
+        }
 
         const { [columnToDelete]: _removedWidth, ...cleanedWidths } = columnWidthsRef.current
         setColumnWidths(cleanedWidths)

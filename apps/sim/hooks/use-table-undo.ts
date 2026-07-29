@@ -182,8 +182,13 @@ export function useTableUndo({
   }, [pruneLayoutActions, tableId, activeViewId])
 
   const pushUndo = useCallback(
-    (action: TableUndoAction) => {
-      push(tableId, action, activeViewIdRef.current)
+    /**
+     * `owner` overrides the recorded view for actions pushed from a mutation
+     * callback — by then the active view may have changed, and stamping the
+     * destination would let a later undo apply the origin's layout to it.
+     */
+    (action: TableUndoAction, owner?: string | null) => {
+      push(tableId, action, owner === undefined ? activeViewIdRef.current : owner)
     },
     [push, tableId]
   )
