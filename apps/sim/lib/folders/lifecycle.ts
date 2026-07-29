@@ -129,11 +129,9 @@ export async function nextFolderSortOrder(
     : isNull(folderTable.parentId)
 
   /**
-   * Soft-deleted rows are excluded from both minima. This function returns `min - 1` to put a
-   * new folder at the top, so counting archived rows lets every delete ratchet the floor further
-   * negative and never recover — an archived folder at -400 forces the next new folder to -401
-   * forever. Only rows a user can actually see should influence the ordering. The Files path
-   * (`workspace-file-folder-manager`) has always filtered this way.
+   * Both minima exclude soft-deleted rows. This returns `min - 1` to put a new folder at the
+   * top, so counting archived rows lets every delete ratchet the floor further negative and
+   * never recover — an archived folder at -400 pins the next new folder at -401 forever.
    */
   const folderMinPromise = tx
     .select({ minSortOrder: min(folderTable.sortOrder) })

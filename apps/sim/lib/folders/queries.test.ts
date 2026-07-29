@@ -43,12 +43,9 @@ describe('folder queries', () => {
   })
 
   /**
-   * These are the id-keyed lookups. Every other query in the feature is already scoped by
-   * workspace + resourceType through a list filter, but these accept a caller-supplied id — so
-   * they are the one place a missing `resource_type` clause silently crosses resource trees,
-   * filing a knowledge base under a table folder where no page will ever render it. Nothing
-   * asserted this before: every caller mocks this module out, so deleting the clause left the
-   * whole suite green.
+   * The only lookup keyed on a caller-supplied folder id, so the `resourceType` clause is the
+   * sole guard against crossing resource trees (rationale in `findActiveFolder`). Every caller
+   * mocks this module out, so deleting that clause used to leave the whole suite green.
    */
   describe('findActiveFolder', () => {
     it('scopes by id, workspace, resourceType, and active state', async () => {
@@ -63,7 +60,13 @@ describe('folder queries', () => {
         true
       )
       // Archived folders are not valid destinations — a row filed under one is unreachable.
-      expect(hasMockCondition(where, (n) => n.type === 'isNull')).toBe(true)
+      // Pinned to the column so the check cannot be satisfied by some other nullable filter.
+      expect(
+        hasMockCondition(
+          where,
+          (n) => n.type === 'isNull' && n.column === schemaMock.folder.deletedAt
+        )
+      ).toBe(true)
     })
 
     it('returns null when no row matches', async () => {
@@ -100,7 +103,8 @@ describe('folder queries', () => {
     })
 
     it('terminates on a pre-existing cycle above the folder', async () => {
-      // `visited` is what stops this looping forever; optimistic client reparents can write one.
+      // `visited` is what stops this looping forever; concurrent reparents can each pass the
+      // check and land a cycle.
       queueTableRows(schemaMock.folder, [{ parentId: 'b' }])
       queueTableRows(schemaMock.folder, [{ parentId: 'a' }])
 
@@ -115,9 +119,9 @@ describe('folder queries', () => {
   })
 
   /**
-   * The `restoringFolderIds` short-circuit is load-bearing for cascade ordering: `restoreFolder`
-   * runs its `restoreChildren` hook BEFORE un-archiving the folder rows, so a plain "is my folder
-   * active?" check sees them still archived and dumps the entire subtree at the workspace root.
+   * The `restoringFolderIds` short-circuit is load-bearing for cascade ordering: the
+   * `config.restoreChildren` hook path runs before the un-archive transaction, so without the
+   * set a plain "is my folder active?" check dumps the subtree at the workspace root.
    */
   describe('resolveRestoredFolderId', () => {
     it('keeps the folder without querying when it is in the restoring set', async () => {
@@ -155,7 +159,12 @@ describe('folder queries', () => {
       const where = whereAt(0)
       expect(hasMockCondition(where, (n) => n.type === 'eq' && n.right === 'ws-1')).toBe(true)
       expect(hasMockCondition(where, (n) => n.type === 'eq' && n.right === 'table')).toBe(true)
-      expect(hasMockCondition(where, (n) => n.type === 'isNull')).toBe(true)
+      expect(
+        hasMockCondition(
+          where,
+          (n) => n.type === 'isNull' && n.column === schemaMock.folder.deletedAt
+        )
+      ).toBe(true)
       expect(hasMockCondition(where, (n) => n.type === 'isNotNull')).toBe(false)
     })
 
@@ -165,16 +174,16 @@ describe('folder queries', () => {
       await listFoldersForWorkspace('ws-1', 'archived', 'workflow')
 
       const where = whereAt(0)
-      expect(hasMockCondition(where, (n) => n.type === 'isNotNull')).toBe(true)
+      expect(
+        hasMockCondition(
+          where,
+          (n) => n.type === 'isNotNull' && n.column === schemaMock.folder.deletedAt
+        )
+      ).toBe(true)
       expect(hasMockCondition(where, (n) => n.type === 'isNull')).toBe(false)
     })
   })
 
-  /**
-   * `requestJson` validates responses against the contract, so a route returning a raw row fails
-   * client-side parse AFTER its write has already committed. This normalizer is the single point
-   * that keeps every folder route emitting the same wire shape.
-   */
   describe('toFolderApi', () => {
     it('serializes timestamps to ISO strings and preserves a null deletedAt', () => {
       expect(toFolderApi(ROW)).toMatchObject({

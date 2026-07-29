@@ -39,11 +39,6 @@ describe('admin workspace folders GET', () => {
     resetDbChainMock()
   })
 
-  /**
-   * Both the count and the page must exclude soft-deleted folders. Without the filter an operator
-   * inspecting a workspace sees folders that live in Recently Deleted and an inflated total, and
-   * this endpoint disagrees with every user-facing folder list — all of which filter `deletedAt`.
-   */
   it('excludes soft-deleted folders from both the count and the page', async () => {
     queueTableRows(schemaMock.workspace, [{ id: WORKSPACE_ID }])
     queueTableRows(schemaMock.folder, [{ total: 0 }])
@@ -55,8 +50,8 @@ describe('admin workspace folders GET', () => {
     const folderWheres = dbChainMockFns.where.mock.calls.slice(1).map(([where]) => where)
     expect(folderWheres.length).toBeGreaterThanOrEqual(2)
     for (const where of folderWheres) {
-      // Asserted on the COLUMN: `resourceType`/`workspaceId` are eq nodes, so a bare
-      // "some isNull exists" check could pass on an unrelated clause.
+      // Pinned to the column so the assertion stays meaningful if another nullable filter
+      // (e.g. a parent scope) is ever added to this condition.
       expect(
         flattenMockConditions(where).some(
           (node) => node.type === 'isNull' && node.column === schemaMock.folder.deletedAt
