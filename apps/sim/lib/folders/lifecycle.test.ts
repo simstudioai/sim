@@ -231,13 +231,9 @@ describe('createFolder', () => {
     expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: -3 }))
   })
 
+  // Asserted on the WHERE clauses, not the resulting sortOrder: the mock returns whatever was
+  // queued regardless of the filter, so a sortOrder assertion passes without either clause.
   it('ignores soft-deleted folders and resources when picking the new sortOrder', async () => {
-    /**
-     * `min - 1` means archived rows would ratchet the floor further negative on every delete and
-     * never recover. Both minima must therefore see only rows a user can still see. Asserted on
-     * the WHERE clauses because the mock returns whatever is queued regardless of the filter, so
-     * an assertion on the resulting sortOrder alone would pass without either clause.
-     */
     setConfig({
       resourceType: 'workflow',
       countKey: 'workflows',
@@ -254,8 +250,8 @@ describe('createFolder', () => {
       .map(([where]) => where)
 
     // Assert on the specific COLUMN, not merely that some isNull exists: for a root folder the
-    // parent condition is itself `isNull(parentId)`, so a presence-only check passes with the
-    // soft-delete filter deleted. That made the first version of this test vacuous.
+    // parent condition is itself `isNull(parentId)`, so a presence-only check stays green with
+    // the soft-delete filter deleted.
     expect(
       flattenMockConditions(folderWhere).some(
         (node) => node.type === 'isNull' && node.column === schemaMock.folder.deletedAt
