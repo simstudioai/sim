@@ -13,7 +13,7 @@ import {
   openExternalSafe,
 } from '@/main/navigation'
 
-const APP = 'https://sim.ai'
+const APP = 'https://www.sim.ai'
 
 describe('classifyNavigation', () => {
   it('keeps same-origin navigation in-app', () => {
@@ -65,11 +65,23 @@ describe('classifyNavigation', () => {
     ).toBe('idp-system-connect')
   })
 
-  it('keeps verified-lenient IdPs in-window from the login surface', () => {
+  it('routes every sign-in to the system browser, including IdPs that tolerate embedding', () => {
+    // GitHub used to be kept in-window. Embedded, it is a one-way door (no
+    // browser chrome to back out of) and it splits better-auth's OAuth state
+    // cookie across two user agents, which comes back `state_mismatch`.
     expect(
       classifyNavigation('https://github.com/login/oauth/authorize?client_id=x', {
         appOrigin: APP,
         currentUrl: `${APP}/login`,
+      })
+    ).toBe('idp-system-login')
+  })
+
+  it('keeps the same IdP in-window when it is an integration connect', () => {
+    expect(
+      classifyNavigation('https://github.com/login/oauth/authorize?client_id=x', {
+        appOrigin: APP,
+        currentUrl: `${APP}/workspace/ws1/integrations/github`,
       })
     ).toBe('idp-in-window')
   })

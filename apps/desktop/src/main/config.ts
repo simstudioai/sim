@@ -15,6 +15,13 @@ const logger = createLogger('DesktopConfig')
  * define replaces the env read at bundle time, so a packaged app never
  * consults the runtime environment for this. http is accepted only for
  * loopback origins (the localhost dev-server channel).
+ *
+ * This must be the origin the server actually *serves*, not a hostname that
+ * redirects to it. Every environment canonicalizes the apex to `www` (the load
+ * balancer 301s `sim.ai` → `www.sim.ai`), and the navigation guards compare
+ * origins for exact equality — so an apex origin here silently leaves every
+ * page off-origin, which reclassifies social login as an integration connect
+ * and strands the sign-in in the browser with no way back.
  */
 function isValidBakedOrigin(origin: string | undefined): origin is string {
   if (!origin) return false
@@ -29,7 +36,7 @@ function isValidBakedOrigin(origin: string | undefined): origin is string {
 
 export const DEFAULT_ORIGIN = isValidBakedOrigin(process.env.SIM_DESKTOP_DEFAULT_ORIGIN)
   ? process.env.SIM_DESKTOP_DEFAULT_ORIGIN
-  : 'https://sim.ai'
+  : 'https://www.sim.ai'
 
 /**
  * The environment a build is keyed to, derived from its baked default origin.
