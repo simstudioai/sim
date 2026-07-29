@@ -218,6 +218,25 @@ const SETTINGS_SELF_HOSTED_OVERRIDES = {
   whitelabeling: isWhitelabelingEnabled,
 } as const
 
+/**
+ * Whether this deployment can run remote sandboxes at all.
+ *
+ * Entitlement decides whether a workspace may *author* sandboxes; this decides
+ * whether anything could ever *run* one. Without a provider the tab is a dead
+ * end — you can define a dependency set that nothing will build and no Function
+ * block can select, because the picker is gated on this same pair of vars.
+ *
+ * It reads those browser twins rather than the server's `isRemoteSandboxEnabled`
+ * precisely so the two agree: that flag reads non-public vars, and this module
+ * renders on both sides. `NEXT_PUBLIC_E2B_ENABLED` is the pre-Daytona fallback,
+ * matching the picker's `showWhenEnvSet` order.
+ */
+function isSandboxExecutionAvailable(): boolean {
+  return (
+    isTruthy(getEnv('NEXT_PUBLIC_SANDBOX_ENABLED')) || isTruthy(getEnv('NEXT_PUBLIC_E2B_ENABLED'))
+  )
+}
+
 export const SETTINGS_NAVIGATION_BILLING_ENABLED = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 type SettingsHrefSearchParams = Pick<URLSearchParams, 'toString'>
@@ -779,6 +798,10 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
 export function buildUnifiedSettingsNavigation(): UnifiedSettingsNavigationItem[] {
   return SETTINGS_SECTION_REGISTRY.flatMap(({ label, icon, docsLink, unified }) => {
     if (!unified) return []
+    // Dropped here rather than in each consumer's filter: the sidebar's
+    // `selfHostedOverride` short-circuit would otherwise reveal the tab on a
+    // deployment that has the entitlement but no provider to run what it builds.
+    if (unified.id === 'sandboxes' && !isSandboxExecutionAvailable()) return []
     const { group, ...item } = unified
     return [
       {
@@ -984,6 +1007,8 @@ export function resolveWorkspaceNavigation({
     if (item.id === 'forks' && (permission !== 'admin' || !entitlements.forks)) return []
     if (item.id === 'byok' && !entitlements.byok) return []
     if (item.id === 'custom-blocks' && !entitlements.customBlocks) return []
+    // Removed, not locked: a missing provider is not something an upgrade fixes.
+    if (item.id === 'sandboxes' && !isSandboxExecutionAvailable()) return []
 
     const lockedBy = LOCKABLE_WORKSPACE_SECTIONS[item.id]
     const locked = lockedBy !== undefined && !entitlements[lockedBy]
