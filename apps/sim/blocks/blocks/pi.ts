@@ -3,10 +3,12 @@ import { getEnv, isTruthy } from '@/lib/core/config/env'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
+  getApiKeyCondition,
   getPiModelOptions,
   getProviderCredentialSubBlocks,
   PROVIDER_CREDENTIAL_INPUTS,
 } from '@/blocks/utils'
+import { isPiByokOnlyMode } from '@/providers/pi-providers'
 import type { ToolResponse } from '@/tools/types'
 
 interface PiResponse extends ToolResponse {
@@ -79,6 +81,20 @@ function getSearchApiKeyCondition() {
   }
 }
 
+const hostedModelApiKeyCondition = getApiKeyCondition()
+
+/**
+ * API Key visibility for the Pi block.
+ *
+ * Create PR hands the model key to the sandbox as an environment variable, so
+ * Sim never supplies a hosted key there — the field is shown for every model,
+ * including ones that are hosted elsewhere in Sim. Review Code and Local Dev
+ * keep the model client inside Sim, so they follow the standard hosted-model
+ * rule and hide the field when Sim covers the key.
+ */
+const piApiKeyCondition = (values?: Record<string, unknown>) =>
+  isPiByokOnlyMode(values?.mode) ? CLOUD : hostedModelApiKeyCondition(values)
+
 export const PiBlock: BlockConfig<PiResponse> = {
   type: 'pi',
   name: 'Pi Coding Agent',
@@ -90,7 +106,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
   - Use Create PR for hands-off changes against a GitHub repo where a reviewable PR is the deliverable.
   - Use Review Code to analyze an existing PR and leave summary + inline review comments.
   - Use Local Dev to edit a repo on your own machine; expose the machine on a public hostname/tunnel so Sim can reach it over SSH.
-  - Create PR requires your own provider API key because the model runs in the sandbox. Review Code keeps the model key in Sim and can use either BYOK or a hosted key.
+  - Create PR requires your own provider API key for every model, including ones Sim hosts, because the model runs in the sandbox. Review Code and Local Dev keep the model key in Sim and can use either BYOK or a hosted key.
   - Internet Search is off by default and always needs your own key for the selected provider, entered on the block. There is no workspace BYOK fallback and no hosted key. Leave it on None unless the task genuinely needs external information.
   `,
   category: 'blocks',
@@ -146,8 +162,15 @@ export const PiBlock: BlockConfig<PiResponse> = {
       options: getPiModelOptions,
       commandSearchable: true,
     },
-
-    ...getProviderCredentialSubBlocks(),
+    ...getProviderCredentialSubBlocks().map((subBlock) =>
+      subBlock.id === 'apiKey'
+        ? {
+            ...subBlock,
+            placeholder: 'Enter your API key for the selected model',
+            condition: piApiKeyCondition,
+          }
+        : subBlock
+    ),
 
     {
       id: 'searchProvider',
