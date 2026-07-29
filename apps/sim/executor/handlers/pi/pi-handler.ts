@@ -74,9 +74,6 @@ function isReviewEvent(value: string): value is PiCloudReviewRunParams['reviewEv
 }
 
 function parsePiMode(value: unknown): PiRunParams['mode'] {
-  if (value === 'babysit') {
-    throw new Error('Standalone Babysit mode was removed. Use Create PR with Babysit Mode enabled.')
-  }
   if (value === 'cloud' || value === 'cloud_review' || value === 'local') {
     return value
   }
@@ -106,6 +103,16 @@ export function parsePiReviewMentions(value: unknown): string[] {
   if (tooLong) {
     throw new Error(
       `Each reviewMentions entry must be at most ${MAX_REVIEW_MENTION_LENGTH} characters.`
+    )
+  }
+  // Every entry becomes its own issue comment, re-posted after each pushed round, so a
+  // stray comma in prose ("@cursor review this, focusing on auth") would otherwise leave
+  // "focusing on auth" on the pull request once per round. Requiring a mention shape
+  // turns that into a setup error before anything is posted.
+  const notAMention = mentions.find((mention) => !mention.startsWith('@'))
+  if (notAMention) {
+    throw new Error(
+      `Each reviewMentions entry must start with "@" — got "${notAMention}". Separate reviewers with commas, and avoid commas inside a single mention.`
     )
   }
   return mentions
@@ -234,7 +241,12 @@ export class PiBlockHandler implements BlockHandler {
     if (!owner || !repo || !githubToken) {
       throw new Error('Create PR requires repository owner, name, and a GitHub token')
     }
-    const babysitMode = inputs.babysitMode === true
+    // A `switch` subblock reaches a handler as the string 'true' when its value came
+    // through a variable reference, an API trigger payload, or a legacy serialized
+    // workflow (see the same coercion in `wait-handler`). A strict boolean compare
+    // silently opened a draft PR and skipped Babysit entirely while the editor showed
+    // the toggle on and Reviewer Mentions as required.
+    const babysitMode = inputs.babysitMode === true || inputs.babysitMode === 'true'
     const reviewMentions = babysitMode ? parsePiReviewMentions(inputs.reviewMentions) : []
     if (babysitMode && reviewMentions.length === 0) {
       throw new Error('Create PR Babysit Mode requires at least one reviewer mention')

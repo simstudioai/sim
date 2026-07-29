@@ -86,12 +86,16 @@ export const GIT_CONFIG_DIGEST_LINE = `cat .git/config .git/config.worktree 2>/d
  * can execute filters, fsmonitor, external diffs, or textconv during these git
  * operations. Commit tolerates an empty tree; the marker checks whether HEAD
  * advanced before the separately authenticated push.
+ *
+ * The name-listing diff sets `core.quotePath=false` so a path with a non-ASCII
+ * byte reaches the `changedFiles` output as itself rather than as git's
+ * `"\303\251"`-escaped rendering.
  */
 export const PREPARE_SCRIPT = `set -e
 cd ${REPO_DIR}
 git -c core.hooksPath=/dev/null add -A
 git -c core.hooksPath=/dev/null -c user.email="pi@sim.ai" -c user.name="Sim Pi Agent" commit -F ${COMMIT_MSG_PATH} >/dev/null 2>&1 || true
-git diff --name-only "$BASE_SHA" HEAD | sed "s/^/__CHANGED__=/"
+git -c core.quotePath=false diff --name-only "$BASE_SHA" HEAD | sed "s/^/__CHANGED__=/"
 git diff "$BASE_SHA" HEAD > ${DIFF_PATH} 2>/dev/null || true
 if git diff --quiet "$BASE_SHA" HEAD; then echo "__NO_CHANGES__=1"; else echo "__NEEDS_PUSH__=1"; fi`
 

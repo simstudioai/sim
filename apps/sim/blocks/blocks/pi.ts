@@ -75,10 +75,6 @@ const AUTHORING_MODES: { field: 'mode'; value: Array<'cloud' | 'local'> } = {
   field: 'mode',
   value: ['cloud', 'local'],
 }
-const MEMORY_MODES: { field: 'mode'; value: Array<'cloud' | 'local'> } = {
-  field: 'mode',
-  value: ['cloud', 'local'],
-}
 const MEMORY_TYPES = ['conversation', 'sliding_window', 'sliding_window_tokens']
 
 const SEARCH_PROVIDER_OPTIONS = [
@@ -467,7 +463,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
         { label: 'Sliding window (tokens)', id: 'sliding_window_tokens' },
       ],
       mode: 'advanced',
-      condition: MEMORY_MODES,
+      condition: AUTHORING_MODES,
     },
     {
       id: 'conversationId',

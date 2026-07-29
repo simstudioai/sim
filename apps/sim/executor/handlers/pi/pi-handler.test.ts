@@ -175,10 +175,10 @@ describe('PiBlockHandler', () => {
     ).rejects.toThrow(/Invalid Pi mode/)
   })
 
-  it('rejects the removed standalone Babysit mode with migration guidance', async () => {
+  it('rejects a mode outside the three the block offers', async () => {
     await expect(
       handler.execute(ctx(), block, { mode: 'babysit', task: 'x', model: 'claude' })
-    ).rejects.toThrow(/Use Create PR with Babysit Mode enabled/)
+    ).rejects.toThrow(/Invalid Pi mode: babysit/)
     expect(mockResolveKey).not.toHaveBeenCalled()
   })
 
@@ -354,10 +354,18 @@ describe('PiBlockHandler', () => {
   })
 
   it('parses review mentions as a bounded, trimmed list', () => {
-    expect(parsePiReviewMentions(' one, , two ')).toEqual(['one', 'two'])
+    expect(parsePiReviewMentions(' @one, , @two ')).toEqual(['@one', '@two'])
     expect(parsePiReviewMentions('')).toEqual([])
-    expect(() => parsePiReviewMentions(Array.from({ length: 11 }, () => 'x').join(','))).toThrow(
+    expect(() => parsePiReviewMentions(Array.from({ length: 11 }, () => '@x').join(','))).toThrow(
       /at most 10/
+    )
+  })
+
+  // Each entry becomes its own issue comment, re-posted after every pushed round, so a
+  // comma inside a single mention would leave the tail on the PR once per round.
+  it('rejects a mention that is really prose split on an interior comma', () => {
+    expect(() => parsePiReviewMentions('@cursor review this, focusing on auth')).toThrow(
+      /must start with "@" — got "focusing on auth"/
     )
   })
 

@@ -38,6 +38,7 @@ export interface PullRequestSnapshot {
   headRepoFullName: string | null
   baseSha: string
   baseRef: string
+  baseRepoFullName: string | null
   title: string
   body: string
   htmlUrl: string
@@ -68,6 +69,7 @@ export function parsePullRequestSnapshot(value: unknown): PullRequestSnapshot {
     headRepoFullName: nullableString(head, 'repo_full_name', headContext),
     baseSha: requiredSha(base, 'sha', baseContext),
     baseRef: requiredTrimmedString(base, 'ref', baseContext),
+    baseRepoFullName: nullableString(base, 'repo_full_name', baseContext),
     title: requiredTrimmedString(value, 'title', PULL_REQUEST_RESPONSE_CONTEXT),
     body: nullableString(value, 'body', PULL_REQUEST_RESPONSE_CONTEXT) ?? '',
     htmlUrl: requiredTrimmedString(value, 'html_url', PULL_REQUEST_RESPONSE_CONTEXT),

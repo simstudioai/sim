@@ -626,6 +626,32 @@ describe('runBabysitPiWithOptions', () => {
     expect(runCalls.some(({ command }) => command.includes('CURRENT_DIGEST='))).toBe(false)
   })
 
+  // The prepare script pins `core.quotePath=false`, so a non-ASCII path arrives verbatim
+  // rather than as git's default `".github/workflows/\303\251vil.yml"` rendering — which
+  // begins with a quote character and so matched neither `.github` nor `.github/`.
+  it('refuses a .github path that git would otherwise C-quote', async () => {
+    mockFetchSnapshot.mockResolvedValue(snapshot)
+    mockFetchThreads.mockResolvedValue({
+      actionable: [trustedThread],
+      skipped: [],
+      totalUnresolved: 1,
+      latestReview: null,
+    })
+    mockFetchChecks.mockResolvedValue(greenChecks)
+    const unicodePath = '.github/workflows/évil.yml'
+    const { runner, runCalls } = makeRunner({
+      prepareStdout: `__CUMULATIVE_CHANGED__=${unicodePath}\n__CUMULATIVE_DIFF_BYTES__=20\n__CHANGED__=${unicodePath}\n__NEW_SHA__=${NEW_SHA}\n__NEEDS_PUSH__=1\n`,
+    })
+    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+
+    const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() })
+
+    expect(result).toMatchObject({ stopReason: 'refused_content', commitsPushed: 0 })
+    expect(runCalls.some(({ command }) => command.includes('CURRENT_DIGEST='))).toBe(false)
+    const prepare = runCalls.find(({ command }) => command.includes('__CUMULATIVE_CHANGED__'))
+    expect(prepare?.command).toContain('core.quotePath=false')
+  })
+
   it('reports a hardened push rejection without losing partial counters', async () => {
     mockFetchSnapshot.mockResolvedValue(snapshot)
     mockFetchThreads.mockResolvedValue({

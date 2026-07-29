@@ -27,14 +27,19 @@ import type {
 const MAX_PAGES = 10
 const MAX_COMMENTS_PER_THREAD = 50
 const MAX_CHECK_DIAGNOSTIC_BYTES = 20_000
+const CHECK_DIAGNOSTIC_CONCURRENCY = 5
 const TRUSTED_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR'])
-const NON_FAILING_CHECK_CONCLUSIONS = new Set([
-  'SUCCESS',
-  'NEUTRAL',
-  'SKIPPED',
-  'CANCELLED',
-  'STALE',
-])
+/**
+ * Conclusions branch protection accepts, so a required check reporting one of
+ * these does not hold the pull request.
+ *
+ * `CANCELLED` and `STALE` are deliberately absent. GitHub does not count either
+ * as a successful required check — a cancelled workflow leaves the PR unmergeable
+ * — so treating them as passing produced a `checksGreen: true` / `clean` result
+ * for a PR nobody could merge. They fall through to `failing`, which is the
+ * fail-closed direction every other unknown conclusion already takes.
+ */
+const NON_FAILING_CHECK_CONCLUSIONS = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED'])
 const KNOWN_ROLLUP_STATES = new Set(['EXPECTED', 'ERROR', 'FAILURE', 'PENDING', 'SUCCESS'])
 const REF_FORBIDDEN = /[\u0000-\u0020\u007f~^:?*[\\]/
 
@@ -159,7 +164,18 @@ export async function fetchBabysitSnapshot(
       'The pull request head branch is not a valid Git ref'
     )
   }
-  if (snapshot.headRepoFullName?.toLowerCase() !== `${params.owner}/${params.repo}`.toLowerCase()) {
+  // Head against base, not against the block's typed owner/repo. GitHub answers a
+  // renamed repository through a 301 and reports the *canonical* name in the body, so
+  // comparing to the stale coordinates the block still holds reported a fork on a PR
+  // Create PR had just opened successfully. Head equal to base is the actual
+  // definition of a same-repository pull request.
+  if (!snapshot.headRepoFullName || !snapshot.baseRepoFullName) {
+    throw new BabysitGitHubError(
+      'fork_pr',
+      'The pull request head or base repository is no longer available'
+    )
+  }
+  if (snapshot.headRepoFullName.toLowerCase() !== snapshot.baseRepoFullName.toLowerCase()) {
     throw new BabysitGitHubError('fork_pr', 'Babysit does not support fork pull requests')
   }
   return { ...snapshot, mergeConflicted: snapshot.mergeable === false }
@@ -487,7 +503,52 @@ export async function fetchBabysitCheckState(
   }
 }
 
-/** Fetches bounded, agent-visible diagnostics for failing required and optional checks. */
+async function fetchCheckDiagnostic(
+  params: PullRequestCoordinates,
+  check: BabysitCheck,
+  secrets: readonly string[],
+  signal?: AbortSignal
+): Promise<{ key: string; text: string }> {
+  let text = [check.title, check.summary, check.detailsUrl].filter(Boolean).join('\n')
+  if (check.type === 'check_run' && check.databaseId && check.detailsUrl?.includes('/actions/')) {
+    const result = await executeTool(
+      'github_job_logs',
+      {
+        owner: params.owner,
+        repo: params.repo,
+        job_id: check.databaseId,
+        maxCharacters: MAX_CHECK_DIAGNOSTIC_BYTES,
+        apiKey: params.githubToken,
+      },
+      { signal }
+    )
+    if (result.success && isRecord(result.output) && typeof result.output.logs === 'string') {
+      text = result.output.logs
+    } else {
+      // GitHub Actions reports null `title` and `summary` on every check run it
+      // creates, so when the log read fails there is nothing but a URL the agent has
+      // no tool to follow. Say so plainly rather than handing over a bare link.
+      text = `${text}\n[Actions log unavailable: ${result.error ?? 'unknown error'}. No further diagnostic is available for this check.]`
+    }
+  }
+  return {
+    key: check.key,
+    text: scrubPiSecrets(
+      truncate(text || 'No diagnostic text was reported.', MAX_CHECK_DIAGNOSTIC_BYTES),
+      secrets
+    ),
+  }
+}
+
+/**
+ * Fetches bounded, agent-visible diagnostics for failing required and optional checks.
+ *
+ * Fanned out in small batches rather than one at a time: each Actions log is a separate
+ * HTTP read of a body that can approach the executor's response cap, and a round may
+ * carry up to {@link MAX_FAILING_CHECKS_IN_PROMPT} of them. Serialized, that put minutes
+ * of avoidable wall clock inside a budget the round loop is carefully rationing. The
+ * batch size stays small so a wide matrix cannot burst GitHub's rate limiter.
+ */
 export async function fetchBabysitCheckDiagnostics(
   params: PullRequestCoordinates,
   failing: readonly BabysitCheck[],
@@ -495,33 +556,14 @@ export async function fetchBabysitCheckDiagnostics(
   signal?: AbortSignal
 ): Promise<Map<string, string>> {
   const diagnostics = new Map<string, string>()
-  for (const check of failing) {
-    let text = [check.title, check.summary, check.detailsUrl].filter(Boolean).join('\n')
-    if (check.type === 'check_run' && check.databaseId && check.detailsUrl?.includes('/actions/')) {
-      const result = await executeTool(
-        'github_job_logs',
-        {
-          owner: params.owner,
-          repo: params.repo,
-          job_id: check.databaseId,
-          maxCharacters: MAX_CHECK_DIAGNOSTIC_BYTES,
-          apiKey: params.githubToken,
-        },
-        { signal }
-      )
-      if (result.success && isRecord(result.output) && typeof result.output.logs === 'string') {
-        text = result.output.logs
-      } else {
-        text = `${text}\n[Actions log unavailable: ${result.error ?? 'unknown error'}]`
-      }
-    }
-    diagnostics.set(
-      check.key,
-      scrubPiSecrets(
-        truncate(text || 'No diagnostic text was reported.', MAX_CHECK_DIAGNOSTIC_BYTES),
-        secrets
-      )
+  for (let start = 0; start < failing.length; start += CHECK_DIAGNOSTIC_CONCURRENCY) {
+    const batch = failing.slice(start, start + CHECK_DIAGNOSTIC_CONCURRENCY)
+    const settled = await Promise.all(
+      batch.map((check) => fetchCheckDiagnostic(params, check, secrets, signal))
     )
+    for (const { key, text } of settled) {
+      diagnostics.set(key, text)
+    }
   }
   return diagnostics
 }
@@ -678,30 +720,26 @@ export async function requestBabysitReview(
   return { requestedAt, commentIds, posted: commentIds.size, failures }
 }
 
-/** Detects later bot activity, excluding the continuation's own review-request comments. */
+/**
+ * Detects later bot activity, excluding the continuation's own review-request comments.
+ *
+ * `latestReview` comes from the caller's most recent {@link fetchBabysitThreads} rather
+ * than from a second listing of the same pull request: the thread fetch already parses
+ * and returns it, so re-requesting it cost one GraphQL round-trip per poll iteration —
+ * about a dozen over a full-lifetime run — for data already in hand.
+ */
 export async function babysitReviewLandedSince(
   params: PullRequestCoordinates,
   requestedAt: string,
   ownCommentIds: ReadonlySet<number>,
+  latestReview: SubmittedReviewSummary | null,
   signal?: AbortSignal
 ): Promise<boolean> {
-  const threadResult = await executeTool(
-    'github_list_review_threads',
-    {
-      owner: params.owner,
-      repo: params.repo,
-      pullNumber: params.pullNumber,
-      threadsPerPage: 1,
-      commentsPerThread: 1,
-      apiKey: params.githubToken,
-    },
-    { signal }
-  )
-  if (threadResult.success && isRecord(threadResult.output)) {
-    const latest = parseLatestReview(threadResult.output.latestReview)
-    if (latest?.authorType === 'Bot' && Date.parse(latest.submittedAt) > Date.parse(requestedAt)) {
-      return true
-    }
+  if (
+    latestReview?.authorType === 'Bot' &&
+    Date.parse(latestReview.submittedAt) > Date.parse(requestedAt)
+  ) {
+    return true
   }
 
   for (let page = 1; page <= MAX_PAGES; page += 1) {

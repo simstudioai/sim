@@ -32,7 +32,7 @@ function snapshot(overrides: Record<string, unknown> = {}) {
     merged: false,
     mergeable: true,
     head: { sha: HEAD_SHA, ref: 'feature', repo_full_name: 'octo/demo' },
-    base: { sha: BASE_SHA, ref: 'staging' },
+    base: { sha: BASE_SHA, ref: 'staging', repo_full_name: 'octo/demo' },
     ...overrides,
   }
 }
