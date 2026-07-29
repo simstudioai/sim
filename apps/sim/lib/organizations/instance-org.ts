@@ -26,6 +26,7 @@ import {
 } from '@/lib/billing/organizations/create-organization'
 import { env } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('InstanceOrganization')
 
@@ -101,13 +102,48 @@ export async function getInstanceOrganizationId(): Promise<string | null> {
   const config = getInstanceOrganizationConfig()
   if (!config) return null
 
-  const [row] = await db
+  const resolved = await resolveInstanceOrganizationBySlug(db, config.slug)
+  return resolved.status === 'found' ? resolved.organizationId : null
+}
+
+/**
+ * Resolves the single organization holding this slug.
+ *
+ * Matching on slug is deliberate — it is what lets the mode adopt an
+ * organization that already exists, such as one the consolidate script created
+ * before `INSTANCE_ORG_NAME` was set. But `organization.slug` carries no unique
+ * constraint, so duplicates are possible, and taking the first of several would
+ * be worse than wrong: the choice is unordered, so two replicas could resolve
+ * different organizations and split new signups between them.
+ *
+ * Refuses instead. Instance-organization mode stays off until the operator
+ * renames the duplicate or pins `INSTANCE_ORG_SLUG` at the one they mean, which
+ * is recoverable — silently sorting users into two organizations is not.
+ */
+type SlugResolution =
+  | { status: 'found'; organizationId: string }
+  | { status: 'none' }
+  | { status: 'ambiguous' }
+
+async function resolveInstanceOrganizationBySlug(
+  executor: DbOrTx,
+  slug: string
+): Promise<SlugResolution> {
+  const rows = await executor
     .select({ id: organization.id })
     .from(organization)
-    .where(eq(organization.slug, config.slug))
-    .limit(1)
+    .where(eq(organization.slug, slug))
+    .limit(2)
 
-  return row?.id ?? null
+  if (rows.length > 1) {
+    logger.error(
+      'Refusing to resolve the instance organization: more than one organization uses this slug. Rename the duplicate or set INSTANCE_ORG_SLUG to the intended one.',
+      { slug }
+    )
+    return { status: 'ambiguous' }
+  }
+
+  return rows[0] ? { status: 'found', organizationId: rows[0].id } : { status: 'none' }
 }
 
 /**
@@ -178,12 +214,13 @@ export async function ensureInstanceOrganization(
         sql`select pg_advisory_xact_lock(hashtextextended(${`instance-organization:${config.slug}`}, 0))`
       )
 
-      const [row] = await tx
-        .select({ id: organization.id })
-        .from(organization)
-        .where(eq(organization.slug, config.slug))
-        .limit(1)
-      if (row) return row.id
+      const resolved = await resolveInstanceOrganizationBySlug(tx, config.slug)
+      if (resolved.status === 'found') return resolved.organizationId
+      /**
+       * Never create while the slug is ambiguous — that would add a third row
+       * to a set the operator already has to untangle.
+       */
+      if (resolved.status === 'ambiguous') return null
 
       /**
        * The owner must not already belong to another organization — a user can

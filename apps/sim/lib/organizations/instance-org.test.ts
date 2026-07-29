@@ -141,6 +141,22 @@ describe('instance organization', () => {
       expect(mockCreateOrganizationWithOwnerTx).not.toHaveBeenCalled()
     })
 
+    it('refuses when more than one organization shares the slug', async () => {
+      /**
+       * `organization.slug` has no unique constraint. Picking one of several
+       * is unordered, so replicas could disagree and split signups across two
+       * organizations — worse than declining until the operator disambiguates.
+       */
+      queueRows([{ id: 'org_a' }, { id: 'org_b' }]) // pre-transaction lookup
+      queueRows([{ id: 'org_a' }, { id: 'org_b' }]) // re-check under the lock
+
+      const result = await ensureInstanceOrganization('user-1')
+
+      expect(result).toBeNull()
+      /** Must not add a third row to a set the operator already has to untangle. */
+      expect(mockCreateOrganizationWithOwnerTx).not.toHaveBeenCalled()
+    })
+
     it('takes the advisory lock before creating', async () => {
       queueRows([])
       queueRows([])
