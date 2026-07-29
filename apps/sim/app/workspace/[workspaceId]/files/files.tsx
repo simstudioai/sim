@@ -505,6 +505,7 @@ export function Files() {
         name: {
           icon: <Folder className='size-[14px]' />,
           label: folder.name,
+          pinned: pinnedFolderIds.has(folder.id),
         },
         size: {
           label:
@@ -530,6 +531,7 @@ export function Files() {
           name: {
             icon: <Icon className='size-[14px]' />,
             label: file.name,
+            pinned: pinnedFileIds.has(file.id),
           },
           size: {
             label: formatFileSize(file.size, { includeBytes: true }),
@@ -547,7 +549,7 @@ export function Files() {
     })
 
     return [...folderRows, ...fileRows]
-  }, [visibleFolders, filteredFiles, membersById, folderSizeMap])
+  }, [visibleFolders, filteredFiles, membersById, folderSizeMap, pinnedFolderIds, pinnedFileIds])
 
   const rows: ResourceRow[] = useMemo(() => {
     if (!listRename.editingId) return baseRows
