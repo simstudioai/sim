@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query'
 import { extractEnvVarName, isEnvVarReference, isReference } from '@/executor/constants'
 import { usePersonalEnvironment } from '@/hooks/queries/environment'
 import { getSelectorDefinition, mergeOption } from '@/hooks/selectors/registry'
@@ -55,8 +55,8 @@ const MAX_AUTO_DRAIN_PAGES = 50
 export const DEFAULT_SELECTOR_STALE_TIME = 30_000
 
 /**
- * Single-option resolutions are keyed by an exact id, so they change far less
- * often than a list and can stay fresh longer.
+ * Fallback for a single-option resolution when the definition declares no
+ * `staleTime`: keyed by an exact id, so it changes far less often than a list.
  */
 export const DEFAULT_SELECTOR_DETAIL_STALE_TIME = 300_000
 
@@ -192,9 +192,8 @@ export function useSelectorOptionDetail(
    * Callers that pass nothing keep the list predicate as their default.
    */
   const enabled =
-    args.enabled !== undefined
-      ? args.enabled && canResolveDetail
-      : canResolveDetail && (definition.enabled ? definition.enabled(queryArgs) : true)
+    (args.enabled ?? (definition.enabled ? definition.enabled(queryArgs) : true)) &&
+    canResolveDetail
 
   const query = useQuery<SelectorOption | null>({
     queryKey: [...definition.getQueryKey(queryArgs), 'detail', resolvedDetailId ?? 'none'],
@@ -204,6 +203,53 @@ export function useSelectorOptionDetail(
   })
 
   return query
+}
+
+/**
+ * Resolves several ids at once, so a multi-select field can label every selected
+ * value — including values restored from saved config, which no in-session search
+ * would have resolved. Query keys match {@link useSelectorOptionDetail} exactly, so
+ * the two share a cache and an id already resolved by search costs no extra request.
+ */
+export function useSelectorOptionDetails(
+  key: SelectorKey,
+  args: Omit<SelectorHookArgs, 'detailId'> & { detailIds: string[] }
+): SelectorOption[] {
+  const { data: envVariables = {} } = usePersonalEnvironment()
+  const definition = getSelectorDefinition(key)
+
+  const resolvedIds = useMemo(() => {
+    const out: string[] = []
+    for (const id of args.detailIds) {
+      if (!id || isReference(id)) continue
+      if (isEnvVarReference(id)) {
+        const value = envVariables[extractEnvVarName(id)]?.value
+        if (value) out.push(value)
+        continue
+      }
+      out.push(id)
+    }
+    return Array.from(new Set(out))
+  }, [args.detailIds, envVariables])
+
+  const results = useQueries({
+    queries: resolvedIds.map((detailId) => {
+      const queryArgs: SelectorQueryArgs = { key, context: args.context, detailId }
+      const canResolveDetail = definition.fetchById !== undefined
+      return {
+        queryKey: [...definition.getQueryKey(queryArgs), 'detail', detailId],
+        queryFn: ({ signal }: { signal: AbortSignal }) =>
+          definition.fetchById!({ ...queryArgs, signal }),
+        enabled:
+          args.enabled !== undefined
+            ? args.enabled && canResolveDetail
+            : canResolveDetail && (definition.enabled ? definition.enabled(queryArgs) : true),
+        staleTime: definition.staleTime ?? DEFAULT_SELECTOR_DETAIL_STALE_TIME,
+      }
+    }),
+  })
+
+  return useMemo(() => results.flatMap((result) => (result.data ? [result.data] : [])), [results])
 }
 
 export function useSelectorOptionMap(options: SelectorOption[], extra?: SelectorOption | null) {

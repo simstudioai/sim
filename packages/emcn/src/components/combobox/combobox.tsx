@@ -119,9 +119,10 @@ export interface ComboboxProps
   /** Enable search input in dropdown (useful for multiselect) */
   searchable?: boolean
   /**
-   * Notified when the dropdown's search box changes, and with `''` whenever the
-   * query is reset (select, close, blur, Escape, ArrowLeft) — including when
-   * `searchable` is false, since those resets are unconditional.
+   * Notified when the dropdown's search box changes value, including the `''` a
+   * select, close, Escape, or ArrowLeft resets it to. Deduped, so an already-empty
+   * query resetting again is silent and a consumer sees nothing while `searchable`
+   * is false.
    *
    * This is the `searchable` search box only. In `editable` mode the typed text
    * arrives via `onChange`, not here.
@@ -197,25 +198,27 @@ const Combobox = memo(
       const listboxId = useId()
       const [open, setOpen] = useState(false)
       const [highlightedIndex, setHighlightedIndex] = useState(-1)
-      const [searchQuery, setSearchQuery] = useState('')
+      const [searchQuery, setSearchQueryState] = useState('')
       /**
        * Read through a ref so `updateSearchQuery` keeps a stable identity —
        * `handleSelect`, `handleBlur`, and `handleKeyDown` all capture it without
        * listing it as a dependency.
        */
       const onSearchChangeRef = useRef(onSearchChange)
-      onSearchChangeRef.current = onSearchChange
+      useEffect(() => {
+        onSearchChangeRef.current = onSearchChange
+      }, [onSearchChange])
       /**
        * Single write path for the search box so `onSearchChange` cannot be missed on a
        * reset. Deduped because several paths reset redundantly — Escape both handles the
        * key and lets the popover dismiss, and an editable select blurs after selecting —
-       * which `setSearchQuery` absorbed silently but a consumer callback would not.
+       * which the raw setState absorbed silently but a consumer callback would not.
        */
       const searchQueryRef = useRef('')
       const updateSearchQuery = useCallback((next: string) => {
         if (searchQueryRef.current === next) return
         searchQueryRef.current = next
-        setSearchQuery(next)
+        setSearchQueryState(next)
         onSearchChangeRef.current?.(next)
       }, [])
       const searchInputRef = useRef<HTMLInputElement>(null)

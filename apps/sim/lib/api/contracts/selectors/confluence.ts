@@ -371,7 +371,11 @@ export const confluenceSpacesSelectorBodySchema = credentialWorkflowDomainBodySc
    * `/spaces` supports a `keys` filter, so a known key resolves in one request
    * instead of depending on how far the background page drain has progressed.
    */
-  spaceKey: z.string().min(1).max(255).optional(),
+  spaceKey: z
+    .string()
+    .min(1, 'spaceKey cannot be empty')
+    .max(255, 'spaceKey must be 255 characters or fewer')
+    .optional(),
 })
 
 export const confluenceSpacesSelectorContract = definePostSelector(

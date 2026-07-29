@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ChipCombobox, type ComboboxOption, Loader } from '@sim/emcn'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
@@ -10,8 +10,13 @@ import type {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { getDependsOnFields } from '@/blocks/utils'
 import type { ConnectorConfigField } from '@/connectors/types'
-import type { SelectorContext, SelectorKey, SelectorOption } from '@/hooks/selectors/types'
-import { useSelectorOptionDetail, useSelectorOptions } from '@/hooks/selectors/use-selector-query'
+import { getSelectorDefinition } from '@/hooks/selectors/registry'
+import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
+import {
+  useSelectorOptionDetail,
+  useSelectorOptionDetails,
+  useSelectorOptions,
+} from '@/hooks/selectors/use-selector-query'
 import { useDebounce } from '@/hooks/use-debounce'
 
 interface ConnectorSelectorFieldProps {
@@ -78,83 +83,55 @@ export function ConnectorSelectorField({
   })
 
   /**
-   * The option list fills by draining pages in the background and the combobox
-   * filters it client-side, so an option is only findable once its page has
-   * arrived. Resolving the typed value directly makes an exact id/key selectable
-   * immediately, independent of drain progress. Debounced so typing does not
-   * issue a request per keystroke; selectors without a `fetchById` resolve nothing.
+   * Label every selected value, including values restored from saved config that no
+   * in-session search would have resolved. Queries are keyed on `context`, so a label
+   * can never outlive the context that produced it, and they share keys with the
+   * speculative lookup below so an already-resolved id costs no extra request.
    */
-  const debouncedSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
-  const { data: searchedOption, error: searchError } = useSelectorOptionDetail(field.selectorKey, {
+  const singleValue = Array.isArray(value) ? value[0] : value
+  const selectedIds = useMemo(
+    () => (Array.isArray(value) ? value : value ? [value] : []).filter(Boolean),
+    [value]
+  )
+  const selectedOptions = useSelectorOptionDetails(field.selectorKey, {
     context,
-    detailId: isEnabled && debouncedSearch.length > 0 ? debouncedSearch : undefined,
+    detailIds: isEnabled ? selectedIds : [],
   })
 
   /**
-   * Resolve the *selected* value too, not just the typed one, so the trigger does
-   * not fall back to a raw id for something just picked. Single-select only:
-   * resolving N ids would need N hooks, so multi-select relies on the remembered
-   * options below.
+   * The option list fills by draining pages in the background and the combobox filters
+   * it client-side, so an option is only findable once its page has arrived. Where the
+   * selector's `fetchById` tolerates an unknown id, whatever the user typed is resolved
+   * directly so an exact key is selectable immediately. Gated on that flag because most
+   * implementations resolve a record by id, where a partial keystroke is a guaranteed
+   * failed upstream request rather than an empty result.
    */
-  const singleValue = Array.isArray(value) ? value[0] : value
-  const { data: selectedOption } = useSelectorOptionDetail(field.selectorKey, {
+  const resolvesUnknownIds = Boolean(getSelectorDefinition(field.selectorKey).resolvesUnknownIds)
+  const debouncedSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
+  const { data: searchedOption } = useSelectorOptionDetail(field.selectorKey, {
     context,
-    detailId: !isMulti && isEnabled && singleValue ? singleValue : undefined,
+    detailId:
+      resolvesUnknownIds && isEnabled && debouncedSearch.length > 0 ? debouncedSearch : undefined,
   })
 
   const emptyMessage = getEmptyMessage(field.title.toLowerCase(), {
     error,
-    lookupFailed: Boolean(searchError),
     hasMore,
     isFetchingMore,
     truncated,
   })
 
-  /**
-   * Resolved options are remembered for the lifetime of the field. Both lookups are
-   * keyed on values that change — the search box clears on select and close, and a
-   * multi-select field resolves no id at all (that would need one hook per id) — so
-   * reading them directly would drop a label moments after it appeared, leaving the
-   * trigger showing a raw id for something the user just picked.
-   */
-  const [resolvedOptions, setResolvedOptions] = useState<Record<string, string>>({})
-  /**
-   * Ids are only meaningful within one selector context, so switching credential,
-   * domain, or a dependency must drop what was resolved under the old one — the
-   * queries re-key, but remembered labels would otherwise linger and mislabel.
-   * Keyed on the serialized context rather than its identity: the memo also depends
-   * on `sourceConfig`, so its identity changes on unrelated field edits.
-   */
-  const contextKey = useMemo(() => JSON.stringify(context), [context])
-  useEffect(() => {
-    setResolvedOptions((prev) => (Object.keys(prev).length > 0 ? {} : prev))
-  }, [contextKey])
-
-  useEffect(() => {
-    const found = [searchedOption, selectedOption].filter(Boolean) as SelectorOption[]
-    if (found.length === 0) return
-    setResolvedOptions((prev) => {
-      let next = prev
-      for (const option of found) {
-        if (next[option.id] === option.label) continue
-        if (next === prev) next = { ...prev }
-        next[option.id] = option.label
-      }
-      return next
-    })
-  }, [searchedOption, selectedOption])
-
   const comboboxOptions = useMemo<ComboboxOption[]>(() => {
     const base = options.map((opt) => ({ label: opt.label, value: opt.id }))
     const seen = new Set(base.map((opt) => opt.value))
     const extras: ComboboxOption[] = []
-    for (const [id, label] of Object.entries(resolvedOptions)) {
-      if (seen.has(id)) continue
-      seen.add(id)
-      extras.push({ label, value: id })
+    for (const option of searchedOption ? [...selectedOptions, searchedOption] : selectedOptions) {
+      if (seen.has(option.id)) continue
+      seen.add(option.id)
+      extras.push({ label: option.label, value: option.id })
     }
     return extras.length > 0 ? [...extras, ...base] : base
-  }, [options, resolvedOptions])
+  }, [options, selectedOptions, searchedOption])
 
   if (isLoading && isEnabled) {
     return (
@@ -172,7 +149,7 @@ export function ConnectorSelectorField({
         multiSelect
         options={comboboxOptions}
         multiSelectValues={multiValues}
-        onMultiSelectChange={(values) => onChange(values)}
+        onMultiSelectChange={onChange}
         searchable
         onSearchChange={setSearchTerm}
         searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
@@ -193,7 +170,7 @@ export function ConnectorSelectorField({
     <ChipCombobox
       options={comboboxOptions}
       value={singleValue || undefined}
-      onChange={(next) => onChange(next)}
+      onChange={onChange}
       searchable
       onSearchChange={setSearchTerm}
       searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
@@ -222,19 +199,16 @@ function getEmptyMessage(
   noun: string,
   state: {
     error: Error | null
-    lookupFailed: boolean
     hasMore: boolean
     isFetchingMore: boolean
     truncated: boolean
   }
 ): string {
-  // `field.title` is singular on some connectors ("Base") and plural on others
-  // ("Spaces"), so only the settled message puts the noun behind a quantifier.
   if (state.error) return 'No match — the list failed to load. Try reopening'
-  // Distinct from the list failing: the list is fine, resolving the typed value is not.
-  if (state.lookupFailed) return 'No match — could not check that exact value'
   if (state.hasMore || state.isFetchingMore) return 'No match yet — still loading…'
   if (state.truncated) return 'No match — too many to list. Try a more exact term'
+  // `noun` is singular on some connectors ("Base") and plural on others ("Spaces"),
+  // so only this settled message puts it behind a quantifier.
   return `No ${noun} found`
 }
 

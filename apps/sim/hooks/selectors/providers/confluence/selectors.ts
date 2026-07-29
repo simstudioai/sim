@@ -49,11 +49,12 @@ export const confluenceSelectors = {
         nextCursor: data.nextCursor,
       }
     },
+    /** The server filters by key and returns nothing for a key that does not exist. */
+    resolvesUnknownIds: true,
     /**
-     * Resolves a single space by key in one request via the server's exact-key
-     * lookup. Previously this fetched the first page and scanned it, so a space
-     * that sorts beyond page 1 never resolved — on a large site that is most of
-     * them. Keyed resolution is independent of how far the page drain has run.
+     * Resolves a single space by key via the server's exact-key lookup, independent
+     * of how far the page drain has run — a space sorting beyond page 1 would
+     * otherwise never resolve, which on a large site is most of them.
      */
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null
