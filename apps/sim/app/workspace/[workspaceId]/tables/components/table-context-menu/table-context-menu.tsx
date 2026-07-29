@@ -5,10 +5,15 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Upload,
 } from '@sim/emcn'
-import { Database, Download, Duplicate, Pencil, Pin, Trash } from '@sim/emcn/icons'
+import { Database, Download, Duplicate, FolderInput, Pencil, Pin, Trash } from '@sim/emcn/icons'
+import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
+import { renderMoveOptions } from '@/app/workspace/[workspaceId]/components/folders'
 
 interface TableContextMenuProps {
   isOpen: boolean
@@ -23,6 +28,9 @@ interface TableContextMenuProps {
   onRename?: () => void
   onImportCsv?: () => void
   onExportCsv?: () => void
+  /** Files the table under another folder; the value is a folder id or the root sentinel. */
+  onMove?: (optionValue: string) => void
+  moveOptions?: MoveOptionNode[]
   disableDelete?: boolean
   disableRename?: boolean
   disableImport?: boolean
@@ -42,6 +50,8 @@ export function TableContextMenu({
   onRename,
   onImportCsv,
   onExportCsv,
+  onMove,
+  moveOptions,
   disableDelete = false,
   disableRename = false,
   disableImport = false,
@@ -93,7 +103,18 @@ export function TableContextMenu({
             Export CSV
           </DropdownMenuItem>
         )}
-        {(onViewSchema || onRename || onImportCsv || onExportCsv) &&
+        {onMove && moveOptions && moveOptions.length > 0 && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <FolderInput />
+              Move to
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {renderMoveOptions(moveOptions, onMove)}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )}
+        {(onViewSchema || onRename || onImportCsv || onExportCsv || onMove) &&
           (onCopyId || onTogglePin || onDelete) && <DropdownMenuSeparator />}
         {onTogglePin && (
           <DropdownMenuItem onSelect={onTogglePin}>

@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMock, dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -259,5 +259,76 @@ describe('cleanup soft deletes', () => {
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
     expect(mockDeleteFiles).not.toHaveBeenCalled()
     expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
+  })
+})
+
+interface BatchDeleteOptions {
+  tableDef: unknown
+  workspaceIdCol: unknown
+  timestampCol: unknown
+  tableName: string
+  requireTimestampNotNull?: boolean
+  additionalPredicate?: { type: string; column: unknown; values: unknown[] }
+}
+
+/**
+ * The `folder` table is shared by all four foldered resource types and is the one cleanup
+ * target carrying an `additionalPredicate`. That predicate is the only thing standing
+ * between this sweep and hard-deleting rows of a resource type whose cutover has not landed.
+ */
+describe('folder cleanup target', () => {
+  async function runAndFindFolderTarget(): Promise<BatchDeleteOptions | undefined> {
+    await runCleanupSoftDeletes(basePayload)
+    const calls = mockBatchDeleteByWorkspaceAndTimestamp.mock.calls as unknown as Array<
+      [BatchDeleteOptions]
+    >
+    return calls.find(([options]) => options.tableName === 'free/1/folder')?.[0]
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockSelectRowsByIdChunks.mockReset().mockResolvedValue([])
+    mockChunkedBatchDelete.mockReset().mockResolvedValue({ deleted: 0, failed: 0 })
+  })
+
+  it('sweeps expired folder rows off the folder table, keyed on its soft-delete column', async () => {
+    const target = await runAndFindFolderTarget()
+
+    expect(target).toBeDefined()
+    expect(target?.tableDef).toBe(schemaMock.folder)
+    expect(target?.timestampCol).toBe(schemaMock.folder.deletedAt)
+    expect(target?.workspaceIdCol).toBe(schemaMock.folder.workspaceId)
+    // Without this, a folder whose deletedAt is null would be swept by the retention cutoff.
+    expect(target?.requireTimestampNotNull).toBe(true)
+  })
+
+  it('narrows the folder sweep to the resource types whose cutover has landed', async () => {
+    // Regression guard for "simplifying" the predicate away: `folder` is one table shared by
+    // every resource type, so an unfiltered sweep would hard-delete rows belonging to a type
+    // added to the enum before its own delete/restore path exists.
+    const target = await runAndFindFolderTarget()
+
+    expect(target?.additionalPredicate).toBeDefined()
+    expect(target?.additionalPredicate?.type).toBe('inArray')
+    expect(target?.additionalPredicate?.column).toBe(schemaMock.folder.resourceType)
+    expect(target?.additionalPredicate?.values).toEqual([
+      'workflow',
+      'file',
+      'knowledge_base',
+      'table',
+    ])
+  })
+
+  it('leaves every other cleanup target unfiltered so only folder pays for the predicate', async () => {
+    await runCleanupSoftDeletes(basePayload)
+    const calls = mockBatchDeleteByWorkspaceAndTimestamp.mock.calls as unknown as Array<
+      [BatchDeleteOptions]
+    >
+
+    const filtered = calls
+      .filter(([options]) => options.additionalPredicate !== undefined)
+      .map(([options]) => options.tableName)
+    expect(filtered).toEqual(['free/1/folder'])
   })
 })

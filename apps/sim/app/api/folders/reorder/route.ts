@@ -3,7 +3,7 @@ import { folder as folderTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
 import { getPostgresErrorCode } from '@sim/utils/errors'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { reorderFoldersContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
@@ -38,10 +38,24 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
     }
 
     const folderIds = updates.map((u) => u.id)
+    /**
+     * Archived folders are excluded here for the same reason `PUT /api/folders/[id]` excludes
+     * them: `getFolderLockStatus` skips archived rows, so `assertFolderMutable` below is a
+     * guaranteed no-op on one — meaning a locked folder becomes freely reparentable the moment
+     * its parent is deleted. Reordering an archived folder is also a correctness problem in its
+     * own right: `collectArchivedSubtreeIds` walks the cascade by parent, so moving a branch out
+     * of an archived subtree silently drops it from that folder's restore.
+     */
     const existingFolders = await db
       .select({ id: folderTable.id, workspaceId: folderTable.workspaceId })
       .from(folderTable)
-      .where(and(inArray(folderTable.id, folderIds), eq(folderTable.resourceType, resourceType)))
+      .where(
+        and(
+          inArray(folderTable.id, folderIds),
+          eq(folderTable.resourceType, resourceType),
+          isNull(folderTable.deletedAt)
+        )
+      )
 
     const validIds = new Set(
       existingFolders.filter((f) => f.workspaceId === workspaceId).map((f) => f.id)
@@ -138,7 +152,13 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
         await tx
           .update(folderTable)
           .set(updateData)
-          .where(and(eq(folderTable.id, update.id), eq(folderTable.resourceType, resourceType)))
+          .where(
+            and(
+              eq(folderTable.id, update.id),
+              eq(folderTable.resourceType, resourceType),
+              isNull(folderTable.deletedAt)
+            )
+          )
       }
     })
 

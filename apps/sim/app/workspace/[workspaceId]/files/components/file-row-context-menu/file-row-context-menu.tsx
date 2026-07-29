@@ -16,8 +16,8 @@ import {
   Pencil,
 } from '@sim/emcn'
 import { Download, Link, Pin, Trash } from '@sim/emcn/icons'
-import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
-import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-options'
+import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
+import { renderMoveOption } from '@/app/workspace/[workspaceId]/components/folders'
 
 interface FileRowContextMenuProps {
   isOpen: boolean

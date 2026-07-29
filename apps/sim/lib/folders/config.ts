@@ -283,9 +283,12 @@ async function archiveKnowledgeBaseChildren(context: CascadeChildrenContext): Pr
 async function restoreKnowledgeBaseChildren(context: CascadeChildrenContext): Promise<number> {
   const { restoreKnowledgeBase } = await import('@/lib/knowledge/service')
   const ids = await selectChildIds(FOLDER_RESOURCES.knowledge_base, context, 'archived')
+  const restoringFolderIds = new Set(context.folderIds)
 
   for (const id of ids) {
-    await restoreKnowledgeBase(id, `folder-cascade-${context.folderIds[0]}`)
+    await restoreKnowledgeBase(id, `folder-cascade-${context.folderIds[0]}`, {
+      restoringFolderIds,
+    })
   }
 
   return ids.length
@@ -317,9 +320,10 @@ async function archiveTableChildren(context: CascadeChildrenContext): Promise<nu
 async function restoreTableChildren(context: CascadeChildrenContext): Promise<number> {
   const { restoreTable } = await import('@/lib/table/service')
   const ids = await selectChildIds(FOLDER_RESOURCES.table, context, 'archived')
+  const restoringFolderIds = new Set(context.folderIds)
 
   for (const id of ids) {
-    await restoreTable(id, `folder-cascade-${context.folderIds[0]}`)
+    await restoreTable(id, `folder-cascade-${context.folderIds[0]}`, { restoringFolderIds })
   }
 
   return ids.length
@@ -380,6 +384,22 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
     buildSoftDeleteSet: (timestamp, now) =>
       ({ archivedAt: timestamp, updatedAt: now }) satisfies Partial<typeof workflow.$inferInsert>,
     sortOrderColumn: workflow.sortOrder,
+    /**
+     * Restored in bulk rather than through a `restoreChildren` hook. `restoreFolderChildren`
+     * already matches these on the archive timestamp, so a webhook or chat the user archived
+     * independently stays archived — and it does so in a fixed number of statements inside the
+     * restore transaction. Routing them through `restoreWorkflow` instead would add a
+     * per-workflow read/transaction/read outside that transaction: ~1600 round trips for a
+     * folder of 200 workflows, and a window where the workflows are active but the folder is
+     * not. It would also buy nothing, since `restoreWorkflow` clears exactly these columns.
+     *
+     * What none of these can undo is the state `archiveWorkflow` overwrites — schedules go to
+     * `status: 'disabled'` with `nextRunAt` cleared, webhooks and chats to `isActive: false`.
+     * Archive does not record what those were, so restoring them to a constant would re-enable
+     * a schedule the user had disabled and re-run a completed one. Re-enabling stays explicit
+     * (redeploy re-activates a schedule), matching deployment state, which restore also leaves
+     * off on purpose.
+     */
     restoreDependents: [
       {
         table: workflowSchedule,
@@ -418,6 +438,14 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
     archiveChildren: archiveWorkflowChildren,
     guardDelete: guardLastWorkflows,
   },
+  /**
+   * Present to satisfy the total `Record<FolderResourceType, …>`, but UNREACHABLE at runtime:
+   * `servedFolderResourceTypeSchema` does not serve `'file'`, and the Files surface goes through
+   * `workspace-file-folder-manager.ts` instead. Do not treat this entry as a live path — routing
+   * file folders through the generic engine would bypass the `workspace_file_folders:` advisory
+   * lock that makes its check-then-write pairs atomic, and the name rules that keep a folder name
+   * usable as a path segment.
+   */
   file: {
     resourceType: 'file',
     label: 'file',

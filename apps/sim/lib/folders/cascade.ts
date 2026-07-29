@@ -53,7 +53,7 @@ export async function collectCascadeSubtreeIds(
  *
  * Matching on the exact `timestamp` is what stops a restore from also reviving folders
  * that were archived independently before or after — and is why this cannot reuse
- * {@link collectActiveSubtreeIds}, which by definition cannot see an archived subtree.
+ * {@link collectCascadeSubtreeIds}, which by definition cannot see an archived subtree.
  */
 export async function collectArchivedSubtreeIds(
   tx: DbOrTx,

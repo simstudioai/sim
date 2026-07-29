@@ -13,8 +13,8 @@ import {
 } from '@sim/emcn'
 import { Download } from '@sim/emcn/icons'
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
-import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
-import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-options'
+import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
+import { renderMoveOption } from '@/app/workspace/[workspaceId]/components/folders'
 
 interface FilesActionBarProps {
   selectedCount: number
