@@ -23,18 +23,19 @@
 -- after this runs. The block is idempotent and safe to repeat; a journaled migration does not
 -- replay, so the post-drain pass is an operational step, not an automatic one.
 --
--- On an environment where 0272 has not yet run — production at time of writing — 0272 and this
--- file apply back to back and this is a no-op reconcile over the rows 0272 just wrote.
+-- Where 0272 has not yet run, it and this file apply back to back and this becomes a no-op
+-- reconcile over the rows 0272 just wrote.
 --
--- Dry-run against production (read-only), materialising the full post-0272 `folder` table from
--- both source tables and checking every constraint the table declares: 34,991 rows, and 0 of
--- each of — NULL names, NULL required columns, primary-key collisions between the two source
--- tables, `folder_workspace_resource_parent_name_active_unique` violations, resource-type or
--- workspace violations of `folder_parent_resource_type_match`, and parent/user/workspace FK
--- violations. Longest generated name 55 chars. 0272's dedup renames 47 workflow folders and 0
--- file folders (the legacy table's own active-unique index guarantees the latter, which is why
--- pass 2 below can write raw names). All 5,475 foldered files and 4,593 foldered workflows keep
--- a resolvable folder id.
+-- Validated with a read-only dry run that materialises the full post-0272 `folder` table from
+-- both source tables and asserts every constraint the table declares: no NULL names or NULL
+-- required columns, no primary-key collisions between the two source tables, no
+-- `folder_workspace_resource_parent_name_active_unique` violations, no resource-type or
+-- workspace violations of `folder_parent_resource_type_match`, and no parent/user/workspace FK
+-- violations, with every foldered file and workflow keeping a resolvable folder id.
+--
+-- 0272's dedup renames only workflow folders, never file folders: `workspace_file_folders`
+-- enforces the same active-unique key this table does, so no file folder can arrive duplicated.
+-- That is what lets pass 2 below write raw names.
 
 -- Wrapped in a DO block so the two passes are ONE statement and therefore atomic on their own.
 -- 0272 ends with an embedded COMMIT (its trailing CONCURRENTLY index builds cannot run inside a

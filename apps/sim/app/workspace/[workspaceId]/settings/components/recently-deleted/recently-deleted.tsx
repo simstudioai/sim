@@ -165,9 +165,9 @@ const FOLDER_TREE_TAB_BY_TYPE = new Map<ResourceType, ResourceType>(
 /**
  * Restore brings a workflow back but deliberately does NOT re-enable its schedules, webhooks,
  * or chats. Archive overwrites their enabled state without recording what it was, so restoring
- * to a constant would re-enable something the user had switched off — on production roughly
- * half of live schedules sit at `disabled` and ~12% of live webhooks at `isActive: false`, so
- * that is the common case, not the edge case.
+ * to a constant would re-enable something the user had deliberately switched off — and a
+ * deliberately-disabled schedule or webhook is a common state, not an edge case, so that would
+ * be wrong more often than right.
  *
  * Leaving it off is the safe choice; leaving it UNSAID is not. Restoring anything that carries
  * automations says so at the moment of restore, so re-enabling is a known step rather than a
