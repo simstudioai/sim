@@ -397,10 +397,21 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: OutlookIcon,
         baseProviderIcon: MicrosoftIcon,
         /**
-         * Calendars.ReadWrite was added to support the Outlook calendar operations.
+         * Calendar scopes back the Outlook calendar operations. Both are required, and
+         * neither subsumes the other:
+         * - `Calendars.ReadWrite` is the only permission Graph accepts for creating and
+         *   updating events and for accept / tentativelyAccept / decline, which document
+         *   it as least-privileged with "Higher: Not available".
+         * - `Calendars.ReadWrite.Shared` additionally covers calendars other users have
+         *   shared with (or delegated to) the account. The calendar picker lists
+         *   `/me/calendars`, which can include those, so without it selecting a shared
+         *   team calendar would 403 on read and write.
+         *
          * Microsoft only grants newly-added scopes on a fresh authorization, so users who
-         * connected Outlook before this scope existed must reconnect (re-consent) their
+         * connected Outlook before these scopes existed must reconnect (re-consent) their
          * account before the calendar operations will work.
+         *
+         * @see https://learn.microsoft.com/en-us/graph/permissions-reference
          */
         scopes: [
           'openid',
@@ -411,6 +422,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'Mail.Read',
           'Mail.Send',
           'Calendars.ReadWrite',
+          'Calendars.ReadWrite.Shared',
           'offline_access',
         ],
       },
