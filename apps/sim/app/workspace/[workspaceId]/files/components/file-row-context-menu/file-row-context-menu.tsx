@@ -15,7 +15,7 @@ import {
   FolderInput,
   Pencil,
 } from '@sim/emcn'
-import { Download, Link, Trash } from '@sim/emcn/icons'
+import { Download, Link, Pin, Trash } from '@sim/emcn/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-options'
 
@@ -29,6 +29,9 @@ interface FileRowContextMenuProps {
   onDelete: () => void
   onMove?: (optionValue: string) => void
   onShare?: () => void
+  onTogglePin: () => void
+  /** Pin state of the right-clicked row, driving the Pin/Unpin label. */
+  pinned: boolean
   moveOptions?: MoveOptionNode[]
   canEdit: boolean
   selectedCount: number
@@ -44,6 +47,8 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
   onDelete,
   onMove,
   onShare,
+  onTogglePin,
+  pinned,
   moveOptions,
   canEdit,
   selectedCount,
@@ -76,6 +81,12 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
           <DropdownMenuItem onSelect={onDownload}>
             <Download />
             {isMultiSelect ? `Download ${selectedCount} items` : 'Download'}
+          </DropdownMenuItem>
+        )}
+        {!isMultiSelect && (
+          <DropdownMenuItem onSelect={onTogglePin}>
+            <Pin />
+            {pinned ? 'Unpin' : 'Pin'}
           </DropdownMenuItem>
         )}
         {canEdit && (
