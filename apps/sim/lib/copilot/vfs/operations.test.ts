@@ -67,6 +67,30 @@ describe('grep', () => {
     expect(matches[1]).toMatchObject({ path: 'a.txt', line: 3, content: 'hello' })
   })
 
+  it('truncates oversized matched lines so a minified single-line file cannot return whole', () => {
+    const giantLine = `{"status":"error"}${'x'.repeat(50_000)}`
+    const files = vfsFromEntries([['internal/tool-results/run.json', giantLine]])
+    const matches = grep(files, 'status', undefined, { outputMode: 'content' }) as Array<{
+      content: string
+    }>
+    expect(matches).toHaveLength(1)
+    expect(matches[0].content.length).toBeLessThan(2_200)
+    expect(matches[0].content).toContain('[line truncated: 50018 chars total]')
+  })
+
+  it('truncates oversized context lines around a match', () => {
+    const files = vfsFromEntries([['a.txt', `before${'y'.repeat(10_000)}\nneedle\nafter`]])
+    const matches = grep(files, 'needle', undefined, {
+      outputMode: 'content',
+      context: 1,
+    }) as Array<{
+      content: string
+    }>
+    expect(matches).toHaveLength(3)
+    expect(matches[0].content.length).toBeLessThan(2_200)
+    expect(matches[1].content).toBe('needle')
+  })
+
   it('strips CR before end-of-line matching on CRLF content', () => {
     const files = vfsFromEntries([['x.txt', 'foo\r\n']])
     const matches = grep(files, 'foo$', undefined, { outputMode: 'content' })
