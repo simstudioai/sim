@@ -359,15 +359,17 @@ export function Table({
     ((previousName: string, newName: string) => void) | null
   >(null)
 
-  const {
-    data: views = NO_VIEWS,
-    isSuccess: viewsLoaded,
-    isError: viewsFailed,
-  } = useTableViews({
+  const { data: viewsData, isError: viewsErrored } = useTableViews({
     workspaceId,
     tableId,
     enabled: viewsEnabled,
   })
+  const views = viewsData ?? NO_VIEWS
+  /** A views list exists — fresh or cached. A failed background refetch flips
+   *  `isError` while the cached list stays perfectly usable (and every view
+   *  mutation invalidates this query), so success/error is the wrong axis:
+   *  what matters is whether there is a list to resolve against. */
+  const viewsAvailable = viewsData !== undefined
 
   // Single source of truth for `useTable` — drives both the grid render and
   // the wrapper's slideouts/modals. The grid receives the bundle as props.
@@ -399,7 +401,7 @@ export function Table({
    *  yet and layout writes must go nowhere. An ERROR counts as settled: the table
    *  falls back to All and writes resume against shared metadata, rather than
    *  staying silently suppressed for the rest of the session. */
-  const viewOwnerUnknown = viewsEnabled && !viewsLoaded && !viewsFailed
+  const viewOwnerUnknown = viewsEnabled && !viewsAvailable && !viewsErrored
 
   const [viewModal, setViewModal] = useState<ViewModalState>(null)
   /** Which view id the local filter/sort/hidden state was last seeded from.
@@ -493,16 +495,18 @@ export function Table({
    */
   useEffect(() => {
     if (!viewsEnabled) return
-    // A failed fetch settles to All: stamp the owner so the layout router stops
-    // buffering and writes shared metadata, then flush what was touched during
-    // the load — no other branch of this effect ever runs on the error path,
-    // and skipping it would silently drop the resize on refresh.
-    if (viewsFailed) {
+    // Terminal only when the fetch failed WITHOUT ever producing a list — then
+    // the table settles to All: stamp the owner so the layout router stops
+    // buffering, and flush what was touched during the load. An error with a
+    // cached list falls through — the list is still resolvable, and treating a
+    // failed background refetch as terminal would wedge view switching until
+    // the next successful refetch.
+    if (viewsErrored && !viewsAvailable) {
       seededViewIdRef.current = null
       resolvePendingLayout(false)
       return
     }
-    if (!viewsLoaded) return
+    if (!viewsAvailable) return
 
     if (seededViewIdRef.current === undefined) {
       // Embedded tables bind these parsers to the HOST page's URL, which the
@@ -583,8 +587,8 @@ export function Table({
     applyViewConfig(activeView?.config ?? null)
   }, [
     viewsEnabled,
-    viewsLoaded,
-    viewsFailed,
+    viewsAvailable,
+    viewsErrored,
     views,
     activeView,
     activeViewId,
