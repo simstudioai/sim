@@ -40,7 +40,7 @@ When enabled, Create PR forces the new PR to be ready for review, posts every re
 3. Let Pi edit the checkout and write a strict per-thread decision file.
 4. Refuse detached/mismatched refs, multiple commits, cumulative bounds violations, or `.github/` changes; then push one non-forced commit to the exact pinned head ref.
 5. Post successful replies first, revalidate the PR, and resolve only threads whose reply succeeded.
-6. Post each configured reviewer comment again, then wait for later bot review activity and rerun CI.
+6. Post each configured reviewer comment again, then wait for later bot review activity and for the checks that commit re-triggered. Babysit never re-runs CI itself — the push is what starts a new run.
 
 Wait-only check/review polling does not consume **Maximum Rounds**. The sandbox stays alive—and is billed—during those waits.
 
@@ -205,7 +205,15 @@ When **Babysit Mode** is enabled, use an asynchronous schedule, webhook, or back
 - *Fine-grained:* add **Issues: Read and write**, **Actions: Read**, and **Commit statuses: Read** (plus check-suite read access if your organization exposes it separately).
 - *Classic:* the **`repo`** scope, SSO-authorized for organization repositories. A classic token or GitHub App installation may be required where a fine-grained token cannot access every check endpoint.
 
-`awaiting_checks` is an expected partial-success outcome after a push: GitHub may not finish CI within the remaining execution budget. Other common stop reasons include `awaiting_review`, `no_pr_created`, `skipped_threads`, `stuck_threads`, `stuck_checks`, `startup_failure`, `head_moved`, `push_rejected`, `pushed_awaiting_confirmation`, `refused_content`, `bounds_exceeded`, `agent_failure`, and budget/round exhaustion. Once the PR exists, these outcomes preserve `prUrl` and `branch`; always inspect the explicit booleans and counters rather than treating a returned report as proof that the PR is clean.
+`clean` is the only stop reason that means the PR reached the goal state: no actionable or skipped unresolved threads, no failing, pending, or missing required checks, and a later bot review signal after the most recent review request. Every other value is a partial success or a stop, so compare against `clean` rather than assuming a returned report means the PR is done.
+
+`awaiting_checks` is an expected partial-success outcome after a push: GitHub may not finish CI within the remaining execution budget. Other stop reasons are `awaiting_review`, `no_pr_created`, `closed_or_merged`, `fork_pr`, `skipped_threads`, `stuck_threads`, `stuck_checks`, `check_read_failed`, `startup_failure`, `head_moved`, `push_rejected`, `pushed_awaiting_confirmation`, `refused_content`, `bounds_exceeded`, `agent_failure`, and budget/round exhaustion. Once the PR exists, these outcomes preserve `prUrl` and `branch`; always inspect the explicit booleans and counters rather than treating a returned report as proof that the PR is clean.
+
+Babysit enforces fixed bounds that are not configurable, and they behave differently depending on which one you hit:
+
+- **Rejected before the run starts.** **Reviewer Mentions** accepts at most 10 entries, each at most 200 characters, and at most 2000 characters of input in total. Each entry must begin with `@`. Exceeding any of these fails the block with a validation error rather than a `stopReason`.
+- **Trimmed silently.** At most 30 review threads are shown to Pi per round. Extra actionable threads are carried to a later round, so `threadsClean` stays `false` until they are handled.
+- **Stops the run with `bounds_exceeded`.** More than 20 failing required checks in a round, or a cumulative change across the run exceeding 50 files or 200,000 diff bytes.
 
 ### Review Code [#setup-cloud-code-review]
 
