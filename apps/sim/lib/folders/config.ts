@@ -37,19 +37,22 @@ export interface FolderDependentTable {
   buildRestoreSet: (now: Date) => Record<string, unknown>
 }
 
-/** Everything the cascade needs to archive the resources inside a folder. */
-export interface ArchiveChildrenContext {
+/** Everything the cascade needs to archive or restore the resources inside a folder. */
+export interface CascadeChildrenContext {
   workspaceId: string
-  /** The folder plus every active descendant folder, already resolved. */
+  /** The folder plus every descendant folder in the cascade, already resolved. */
   folderIds: string[]
   /** Shared across the whole cascade; restore matches on it exactly. */
   timestamp: Date
 }
 
-/** Reason a delete must be refused, in the orchestration error vocabulary. */
+/**
+ * Reason a delete must be refused. `locked` maps to 423, matching what the table domain
+ * returns when a mutation lock blocks the equivalent single-resource delete.
+ */
 export interface FolderDeleteRejection {
   error: string
-  errorCode: 'validation' | 'conflict'
+  errorCode: 'validation' | 'conflict' | 'locked'
 }
 
 /**
@@ -98,13 +101,28 @@ export interface FolderResourceConfig {
   restoreDependents?: FolderDependentTable[]
   /**
    * Replaces the cascade's default "one UPDATE over the child table" when archiving a
-   * resource has side effects the row update cannot express. Returns the number of
-   * resources archived.
+   * resource has side effects the row update cannot express — dependent graphs, lock
+   * checks, deployment teardown. Returns the number of resources archived.
+   *
+   * Where a canonical single-resource delete already exists, delegate to it rather than
+   * reimplementing its writes here: that is what keeps the folder cascade from drifting
+   * away from the resource's own delete path.
    */
-  archiveChildren?: (context: ArchiveChildrenContext) => Promise<number>
+  archiveChildren?: (context: CascadeChildrenContext) => Promise<number>
+  /**
+   * Mirror of {@link archiveChildren} for restore. Required whenever `archiveChildren` is
+   * set and the archive touched more than the child row, otherwise a restore would revive
+   * the resource while leaving its dependents archived.
+   *
+   * Restoring a resource can also collide with its OWN active-name unique index (knowledge
+   * bases and tables both have one), which the canonical restore resolves by renaming —
+   * another reason to delegate rather than clear the tombstone directly.
+   */
+  restoreChildren?: (context: CascadeChildrenContext) => Promise<number>
   /**
    * Runs before any write on delete. Returns a rejection to refuse the delete, or `null`
-   * to proceed.
+   * to proceed. Use for invariants that must hold across the whole subtree, so the cascade
+   * either runs completely or not at all rather than failing partway through.
    */
   guardDelete?: (context: {
     workspaceId: string
@@ -124,7 +142,7 @@ async function archiveWorkflowChildren({
   workspaceId,
   folderIds,
   timestamp,
-}: ArchiveChildrenContext): Promise<number> {
+}: CascadeChildrenContext): Promise<number> {
   const [{ db }, { and, eq: eqOp, inArray, isNull }, { archiveWorkflowsByIdsInWorkspace }] =
     await Promise.all([
       import('@sim/db'),
@@ -145,13 +163,13 @@ async function archiveWorkflowChildren({
 
   if (workflowsInFolders.length === 0) return 0
 
-  await archiveWorkflowsByIdsInWorkspace(
+  // Report what the lifecycle actually archived, not what this select saw — a workflow
+  // archived concurrently between the two would otherwise be double-counted.
+  return archiveWorkflowsByIdsInWorkspace(
     workspaceId,
     workflowsInFolders.map((entry) => entry.id),
     { requestId: `folder-cascade-${folderIds[0]}`, archivedAt: timestamp }
   )
-
-  return workflowsInFolders.length
 }
 
 /**
@@ -196,6 +214,146 @@ async function guardLastWorkflows({
   }
 
   return null
+}
+
+/**
+ * Selects the ids of resources inside a folder subtree whose soft-delete column is in the
+ * requested state — active (`null`) when archiving, or stamped with the cascade timestamp
+ * when restoring.
+ */
+async function selectChildIds(
+  config: FolderResourceConfig,
+  { workspaceId, folderIds, timestamp }: CascadeChildrenContext,
+  state: 'active' | 'archived'
+): Promise<string[]> {
+  const [{ db }, { and, eq: eqOp, inArray, isNull }] = await Promise.all([
+    import('@sim/db'),
+    import('drizzle-orm'),
+  ])
+
+  const rows = await db
+    .select({ id: config.idColumn })
+    .from(config.table)
+    .where(
+      and(
+        inArray(config.folderIdColumn, folderIds),
+        eqOp(config.workspaceColumn, workspaceId),
+        state === 'active' ? isNull(config.deletedColumn) : eqOp(config.deletedColumn, timestamp),
+        config.scope
+      )
+    )
+
+  return rows.map((row) => String(row.id))
+}
+
+/**
+ * Archives the knowledge bases in a folder subtree through the canonical KB delete, which
+ * also archives their documents and pauses their connectors. A bare `knowledge_base` row
+ * update would leave that graph live — connectors would keep syncing into a KB the UI shows
+ * as deleted.
+ */
+async function archiveKnowledgeBaseChildren(context: CascadeChildrenContext): Promise<number> {
+  const { deleteKnowledgeBase } = await import('@/lib/knowledge/service')
+  const ids = await selectChildIds(FOLDER_RESOURCES.knowledge_base, context, 'active')
+
+  for (const id of ids) {
+    await deleteKnowledgeBase(id, `folder-cascade-${context.folderIds[0]}`, {
+      archivedAt: context.timestamp,
+    })
+  }
+
+  return ids.length
+}
+
+/**
+ * Restores the knowledge bases this cascade archived, through the canonical KB restore so
+ * documents and connectors come back with them and the KB is renamed if its name was taken
+ * while it was gone.
+ */
+async function restoreKnowledgeBaseChildren(context: CascadeChildrenContext): Promise<number> {
+  const { restoreKnowledgeBase } = await import('@/lib/knowledge/service')
+  const ids = await selectChildIds(FOLDER_RESOURCES.knowledge_base, context, 'archived')
+
+  for (const id of ids) {
+    await restoreKnowledgeBase(id, `folder-cascade-${context.folderIds[0]}`)
+  }
+
+  return ids.length
+}
+
+/**
+ * Archives the tables in a folder subtree through the canonical table delete, so the
+ * `deleteLocked` guard in its WHERE clause still applies. {@link guardLockedTables} has
+ * already refused the whole folder if any table is locked, so this should not encounter one.
+ */
+async function archiveTableChildren(context: CascadeChildrenContext): Promise<number> {
+  const { deleteTable } = await import('@/lib/table/service')
+  const ids = await selectChildIds(FOLDER_RESOURCES.table, context, 'active')
+
+  for (const id of ids) {
+    await deleteTable(id, `folder-cascade-${context.folderIds[0]}`, undefined, {
+      archivedAt: context.timestamp,
+    })
+  }
+
+  return ids.length
+}
+
+/**
+ * Restores the tables this cascade archived, through the canonical table restore so a table
+ * whose name was taken while it was gone is renamed instead of tripping the active-name
+ * unique index.
+ */
+async function restoreTableChildren(context: CascadeChildrenContext): Promise<number> {
+  const { restoreTable } = await import('@/lib/table/service')
+  const ids = await selectChildIds(FOLDER_RESOURCES.table, context, 'archived')
+
+  for (const id of ids) {
+    await restoreTable(id, `folder-cascade-${context.folderIds[0]}`)
+  }
+
+  return ids.length
+}
+
+/**
+ * Refuses to delete a folder containing a delete-locked table.
+ *
+ * `deleteTable` gates archiving on `deleteLocked` because archiving destroys access to every
+ * row. Deleting the folder around it must not become a way to bypass that control. Checked
+ * across the whole subtree up front so the cascade never archives half the tables and then
+ * stops at a locked one.
+ */
+async function guardLockedTables({
+  workspaceId,
+  folderIds,
+}: {
+  workspaceId: string
+  folderIds: string[]
+}): Promise<FolderDeleteRejection | null> {
+  const [{ db }, { and, eq: eqOp, inArray, isNull }] = await Promise.all([
+    import('@sim/db'),
+    import('drizzle-orm'),
+  ])
+
+  const locked = await db
+    .select({ name: userTableDefinitions.name })
+    .from(userTableDefinitions)
+    .where(
+      and(
+        inArray(userTableDefinitions.folderId, folderIds),
+        eqOp(userTableDefinitions.workspaceId, workspaceId),
+        isNull(userTableDefinitions.archivedAt),
+        eqOp(userTableDefinitions.deleteLocked, true)
+      )
+    )
+
+  if (locked.length === 0) return null
+
+  const names = locked.map((row) => row.name).join(', ')
+  return {
+    error: `Cannot delete folder: ${locked.length === 1 ? 'table' : 'tables'} ${names} ${locked.length === 1 ? 'is' : 'are'} delete-locked`,
+    errorCode: 'locked',
+  }
 }
 
 export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> = {
@@ -281,6 +439,8 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
       ({ deletedAt: timestamp, updatedAt: now }) satisfies Partial<
         typeof knowledgeBase.$inferInsert
       >,
+    archiveChildren: archiveKnowledgeBaseChildren,
+    restoreChildren: restoreKnowledgeBaseChildren,
   },
   table: {
     resourceType: 'table',
@@ -296,6 +456,9 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
       ({ archivedAt: timestamp, updatedAt: now }) satisfies Partial<
         typeof userTableDefinitions.$inferInsert
       >,
+    archiveChildren: archiveTableChildren,
+    restoreChildren: restoreTableChildren,
+    guardDelete: guardLockedTables,
   },
 }
 

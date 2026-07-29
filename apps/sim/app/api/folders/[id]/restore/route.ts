@@ -6,8 +6,8 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { restoreFolder } from '@/lib/folders/lifecycle'
+import { folderMutationStatus } from '@/lib/folders/status'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('RestoreFolderAPI')
@@ -41,7 +41,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
     if (!result.success) {
       return NextResponse.json(
         { error: result.error },
-        { status: statusForOrchestrationError(result.errorCode) }
+        { status: folderMutationStatus(result.errorCode) }
       )
     }
 

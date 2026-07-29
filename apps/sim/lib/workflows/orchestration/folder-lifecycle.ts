@@ -1,5 +1,6 @@
 import type { folder as folderTable } from '@sim/db/schema'
 import { createFolder, deleteFolder, restoreFolder, updateFolder } from '@/lib/folders/lifecycle'
+import type { FolderMutationErrorCode } from '@/lib/folders/status'
 import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
 
 /**
@@ -51,7 +52,7 @@ export interface PerformDeleteFolderParams {
 export interface PerformDeleteFolderResult {
   success: boolean
   error?: string
-  errorCode?: OrchestrationErrorCode
+  errorCode?: FolderMutationErrorCode
   deletedItems?: { folders: number; workflows?: number }
 }
 

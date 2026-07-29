@@ -665,12 +665,18 @@ export async function getKnowledgeBaseById(
 
 /**
  * Delete a knowledge base (soft delete)
+ *
+ * `options.archivedAt` lets a bulk caller stamp every row it archives with one shared
+ * timestamp, which is how the folder cascade later identifies exactly what it archived and
+ * restores that set and nothing else. Mirrors `archiveWorkflow`'s option of the same name.
+ * Defaults to now, so single-KB callers are unaffected.
  */
 export async function deleteKnowledgeBase(
   knowledgeBaseId: string,
-  requestId: string
+  requestId: string,
+  options?: { archivedAt?: Date }
 ): Promise<void> {
-  const now = new Date()
+  const now = options?.archivedAt ?? new Date()
 
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)

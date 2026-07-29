@@ -53,7 +53,7 @@ export async function wouldCreateFolderCycle(
 export async function listFoldersForWorkspace(
   workspaceId: string,
   scope: FolderQueryScope,
-  resourceType: FolderResourceType = 'workflow'
+  resourceType: FolderResourceType
 ): Promise<FolderApi[]> {
   const scopeFilter = scope === 'archived' ? isNotNull(folder.deletedAt) : isNull(folder.deletedAt)
 

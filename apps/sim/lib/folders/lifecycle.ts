@@ -10,12 +10,14 @@ import {
   archiveFolderCascade,
   collectActiveSubtreeIds,
   collectArchivedSubtreeIds,
-  restoreFolderCascade,
+  restoreFolderChildren,
+  restoreFolderRows,
   toCascadeCounts,
 } from '@/lib/folders/cascade'
 import { folderResourceConfig } from '@/lib/folders/config'
 import { deduplicateFolderName } from '@/lib/folders/naming'
 import { wouldCreateFolderCycle } from '@/lib/folders/queries'
+import type { FolderMutationErrorCode } from '@/lib/folders/status'
 import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
 
 const logger = createLogger('FolderLifecycle')
@@ -61,7 +63,7 @@ export interface DeleteFolderParams {
 export interface DeleteFolderResult {
   success: boolean
   error?: string
-  errorCode?: OrchestrationErrorCode
+  errorCode?: FolderMutationErrorCode
   deletedItems?: FolderCascadeCountsApi
 }
 
@@ -304,10 +306,31 @@ export async function updateFolder(params: UpdateFolderParams): Promise<FolderMu
  * Soft-deletes a folder and everything under it. The subtree is resolved once, handed to
  * the resource's optional delete guard, then archived under one shared timestamp so
  * {@link restoreFolder} can bring back exactly this set and nothing else.
+ *
+ * Deleting an already-archived folder reuses that folder's existing `deletedAt` rather than
+ * stamping a fresh one. A new timestamp here would be unrecoverable: the folder row keeps
+ * its original stamp (the cascade only archives active folders), so anything archived under
+ * the new stamp would never match on restore and would be stranded permanently.
  */
 export async function deleteFolder(params: DeleteFolderParams): Promise<DeleteFolderResult> {
   const { resourceType, folderId, workspaceId, userId, folderName } = params
   const config = folderResourceConfig(resourceType)
+
+  const [existing] = await db
+    .select({ deletedAt: folderTable.deletedAt })
+    .from(folderTable)
+    .where(
+      and(
+        eq(folderTable.id, folderId),
+        eq(folderTable.workspaceId, workspaceId),
+        eq(folderTable.resourceType, resourceType)
+      )
+    )
+    .limit(1)
+
+  if (!existing) {
+    return { success: false, error: 'Folder not found', errorCode: 'not_found' }
+  }
 
   const folderIds = await collectActiveSubtreeIds(db, workspaceId, resourceType, folderId)
 
@@ -316,7 +339,13 @@ export async function deleteFolder(params: DeleteFolderParams): Promise<DeleteFo
     return { success: false, error: rejection.error, errorCode: rejection.errorCode }
   }
 
-  const counts = await archiveFolderCascade(db, config, workspaceId, folderIds, new Date())
+  const counts = await archiveFolderCascade(
+    db,
+    config,
+    workspaceId,
+    folderIds,
+    existing.deletedAt ?? new Date()
+  )
 
   logger.info('Deleted folder and all contents', { folderId, resourceType, counts })
 
@@ -382,9 +411,9 @@ export async function restoreFolder(params: RestoreFolderParams): Promise<Restor
     }
   }
 
-  let counts: { folders: number; children: number }
+  let restored: { folderIds: string[]; counts: { folders: number; children: number } }
   try {
-    counts = await db.transaction(async (tx) => {
+    restored = await db.transaction(async (tx) => {
       const now = new Date()
 
       let resolvedParentId = folder.parentId
@@ -434,7 +463,17 @@ export async function restoreFolder(params: RestoreFolderParams): Promise<Restor
         archivedAt
       )
 
-      return restoreFolderCascade(tx, config, workspaceId, folderIds, archivedAt, now)
+      const folders = await restoreFolderRows(tx, config, workspaceId, folderIds, archivedAt, now)
+
+      // A resource with a `restoreChildren` hook restores through its own canonical path,
+      // which opens its own transactions — running that nested inside this one would hold a
+      // folder-row transaction open across unrelated connections. Those run after the commit
+      // below instead; the default row-update path stays inside the transaction.
+      const children = config.restoreChildren
+        ? 0
+        : await restoreFolderChildren(tx, config, workspaceId, folderIds, archivedAt, now)
+
+      return { folderIds, counts: { folders, children } }
     })
   } catch (error) {
     // Clearing `deletedAt` brings the row back under the partial unique index on active
@@ -445,6 +484,17 @@ export async function restoreFolder(params: RestoreFolderParams): Promise<Restor
     }
     throw error
   }
+
+  const counts = config.restoreChildren
+    ? {
+        folders: restored.counts.folders,
+        children: await config.restoreChildren({
+          workspaceId,
+          folderIds: restored.folderIds,
+          timestamp: archivedAt,
+        }),
+      }
+    : restored.counts
 
   logger.info('Restored folder and all contents', { folderId, resourceType, counts })
 

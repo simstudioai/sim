@@ -7,17 +7,11 @@ import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createFolder } from '@/lib/folders/lifecycle'
 import { listFoldersForWorkspace, toFolderApi } from '@/lib/folders/queries'
+import { folderMutationStatus } from '@/lib/folders/status'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FoldersAPI')
-
-function folderMutationStatus(errorCode: string | undefined): number {
-  if (errorCode === 'validation') return 400
-  if (errorCode === 'conflict') return 409
-  if (errorCode === 'not_found') return 404
-  return 500
-}
 
 // GET - Fetch folders for a workspace
 export const GET = withRouteHandler(async (request: NextRequest) => {

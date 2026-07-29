@@ -24,7 +24,7 @@ export async function deduplicateFolderName(
   workspaceId: string,
   parentId: string | null,
   requestedName: string,
-  resourceType: FolderResourceType = 'workflow'
+  resourceType: FolderResourceType
 ): Promise<string> {
   const siblingRows = await tx
     .select({ name: folderTable.name })

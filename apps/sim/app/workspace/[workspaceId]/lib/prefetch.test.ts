@@ -126,7 +126,7 @@ describe('workspace list prefetches', () => {
       await prefetchHomeLists(client, WORKSPACE_ID)
 
       expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
-        `/api/folders?workspaceId=${WORKSPACE_ID}&scope=active`
+        `/api/folders?workspaceId=${WORKSPACE_ID}&scope=active&resourceType=workflow`
       )
       const cachedFolders = client.getQueryData(folderKeys.list(WORKSPACE_ID, 'active')) as Array<{
         id: string

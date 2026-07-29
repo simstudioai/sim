@@ -121,21 +121,19 @@ export async function archiveFolderCascade(
 }
 
 /**
- * Restores `folderIds` — the subtree resolved by {@link collectArchivedSubtreeIds} — plus
- * every resource archived at the same `timestamp`, then reactivates the dependent rows
- * (schedules, webhooks, chats) hanging off those resources.
+ * Un-archives the folder rows of a restore cascade — the subtree resolved by
+ * {@link collectArchivedSubtreeIds}, matched on the exact `timestamp`.
  *
- * Fixed query count regardless of subtree depth: one UPDATE for the folders, one for the
- * resources, and one per declared dependent table.
+ * One statement regardless of subtree depth. Returns how many folders came back.
  */
-export async function restoreFolderCascade(
+export async function restoreFolderRows(
   tx: DbOrTx,
   config: FolderResourceConfig,
   workspaceId: string,
   folderIds: string[],
   timestamp: Date,
   now: Date
-): Promise<FolderCascadeCounts> {
+): Promise<number> {
   const restoredFolders = await tx
     .update(folderTable)
     .set({ deletedAt: null, updatedAt: now })
@@ -149,13 +147,33 @@ export async function restoreFolderCascade(
     )
     .returning({ id: folderTable.id })
 
+  return restoredFolders.length
+}
+
+/**
+ * Un-archives the resources a restore cascade covers, plus the dependent rows (schedules,
+ * webhooks, chats) hanging off them — the default path, for resources whose restore is a
+ * plain row update.
+ *
+ * Fixed statement count regardless of subtree depth: one UPDATE for the resources and one
+ * per declared dependent table. Resources whose restore needs more than this declare
+ * {@link FolderResourceConfig.restoreChildren} instead and never reach here.
+ */
+export async function restoreFolderChildren(
+  tx: DbOrTx,
+  config: FolderResourceConfig,
+  workspaceId: string,
+  folderIds: string[],
+  timestamp: Date,
+  now: Date
+): Promise<number> {
   const restoredChildren = await tx
     .update(config.table)
     .set(config.buildSoftDeleteSet(null, now))
     .where(and(childFilter(config, workspaceId, folderIds), eq(config.deletedColumn, timestamp)))
     .returning({ id: config.idColumn })
 
-  const childIds = restoredChildren.map((row) => row.id as string)
+  const childIds = restoredChildren.map((row) => String(row.id))
 
   if (childIds.length > 0) {
     for (const dependent of config.restoreDependents ?? []) {
@@ -168,7 +186,28 @@ export async function restoreFolderCascade(
     }
   }
 
-  return { folders: restoredFolders.length, children: childIds.length }
+  return childIds.length
+}
+
+/**
+ * Restores a folder subtree and the resources inside it, via the default row-update path.
+ *
+ * Only valid for resources without a {@link FolderResourceConfig.restoreChildren} hook —
+ * those hooks call canonical single-resource restores that open their own transactions and
+ * therefore must not run nested inside this one. `restoreFolder` sequences that case itself.
+ */
+export async function restoreFolderCascade(
+  tx: DbOrTx,
+  config: FolderResourceConfig,
+  workspaceId: string,
+  folderIds: string[],
+  timestamp: Date,
+  now: Date
+): Promise<FolderCascadeCounts> {
+  const folders = await restoreFolderRows(tx, config, workspaceId, folderIds, timestamp, now)
+  const children = await restoreFolderChildren(tx, config, workspaceId, folderIds, timestamp, now)
+
+  return { folders, children }
 }
 
 /**

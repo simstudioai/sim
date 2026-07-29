@@ -10,16 +10,9 @@ import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteFolder, updateFolder } from '@/lib/folders/lifecycle'
 import { toFolderApi } from '@/lib/folders/queries'
+import { folderMutationStatus } from '@/lib/folders/status'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-
-/** Maps an orchestration errorCode to its HTTP status; mirrors the POST /api/folders route. */
-function folderMutationStatus(errorCode: string | undefined): number {
-  if (errorCode === 'validation') return 400
-  if (errorCode === 'conflict') return 409
-  if (errorCode === 'not_found') return 404
-  return 500
-}
 
 const logger = createLogger('FoldersIDAPI')
 
@@ -172,9 +165,10 @@ export const DELETE = withRouteHandler(
       })
 
       if (!result.success) {
-        const status =
-          result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
-        return NextResponse.json({ error: result.error }, { status })
+        return NextResponse.json(
+          { error: result.error },
+          { status: folderMutationStatus(result.errorCode) }
+        )
       }
 
       captureServerEvent(

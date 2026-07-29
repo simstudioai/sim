@@ -407,6 +407,25 @@ describe('Individual Folder API Route', () => {
       })
     })
 
+    it('surfaces a delete-locked resource as 423, not a generic 500', async () => {
+      mockAuthenticatedUser()
+      queueFolderLookup()
+      mockDeleteFolder.mockResolvedValueOnce({
+        success: false,
+        error: 'Cannot delete folder: table Ledger is delete-locked',
+        errorCode: 'locked',
+      })
+
+      const req = createMockRequest('DELETE')
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const response = await DELETE(req, { params })
+
+      expect(response.status).toBe(423)
+      const data = await response.json()
+      expect(data.error).toBe('Cannot delete folder: table Ledger is delete-locked')
+    })
+
     it('should return 401 for unauthenticated delete requests', async () => {
       mockUnauthenticated()
 

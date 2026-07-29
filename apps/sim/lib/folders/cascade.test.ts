@@ -8,9 +8,11 @@ import {
   collectArchivedSubtreeIds,
   type DbOrTx,
   restoreFolderCascade,
+  restoreFolderRows,
   toCascadeCounts,
 } from '@/lib/folders/cascade'
 import { FOLDER_RESOURCES, type FolderResourceConfig } from '@/lib/folders/config'
+import { folderMutationStatus } from '@/lib/folders/status'
 
 interface SelectCall {
   where: unknown
@@ -190,6 +192,18 @@ describe('archiveFolderCascade', () => {
     }
   })
 
+  it('stamps children with the timestamp it is given, not one of its own', async () => {
+    const { tx, updateCalls } = makeTx({ updates: [[{ id: 'child-1' }], []] })
+
+    await archiveFolderCascade(tx, makeConfig(), 'ws-1', ['root'], TIMESTAMP)
+
+    // Regression guard: deleting an already-archived folder reuses that folder's existing
+    // deletedAt. A fresh stamp here would strand the children — the folder row keeps its
+    // original stamp, so restore would never match them.
+    expect(updateCalls[0].set).toEqual({ archivedAt: TIMESTAMP, updatedAt: TIMESTAMP })
+    expect(updateCalls[1].set).toMatchObject({ deletedAt: TIMESTAMP })
+  })
+
   it('delegates to archiveChildren when a resource archives through its own lifecycle', async () => {
     const archiveChildren = vi.fn().mockResolvedValue(7)
     const { tx, updateCalls } = makeTx({ updates: [[{ id: 'root' }]] })
@@ -302,6 +316,39 @@ describe('restoreFolderCascade', () => {
   })
 })
 
+describe('restoreFolderRows', () => {
+  it('restores only folders carrying the cascade timestamp', async () => {
+    const { tx, updateCalls } = makeTx({ updates: [[{ id: 'root' }, { id: 'sub' }]] })
+
+    const folders = await restoreFolderRows(
+      tx,
+      makeConfig(),
+      'ws-1',
+      ['root', 'sub'],
+      TIMESTAMP,
+      NOW
+    )
+
+    expect(folders).toBe(2)
+    expect(updateCalls).toHaveLength(1)
+    expect(hasCondition(updateCalls[0].where, (node) => node.right === TIMESTAMP)).toBe(true)
+  })
+})
+
+describe('folderMutationStatus', () => {
+  it('maps a locked resource to 423, matching the single-resource delete', () => {
+    expect(folderMutationStatus('locked')).toBe(423)
+  })
+
+  it('maps the shared orchestration codes', () => {
+    expect(folderMutationStatus('validation')).toBe(400)
+    expect(folderMutationStatus('not_found')).toBe(404)
+    expect(folderMutationStatus('conflict')).toBe(409)
+    expect(folderMutationStatus('internal')).toBe(500)
+    expect(folderMutationStatus(undefined)).toBe(500)
+  })
+})
+
 describe('toCascadeCounts', () => {
   it('reports the child count under the resource’s own key', () => {
     expect(toCascadeCounts(makeConfig(), { folders: 2, children: 3 })).toEqual({
@@ -317,6 +364,23 @@ describe('toCascadeCounts', () => {
 describe('FOLDER_RESOURCES', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('pairs every archiveChildren hook with a restoreChildren hook', () => {
+    // An archive hook exists because archiving touches more than the child row. Without the
+    // matching restore hook, a folder restore would revive the resource and strand whatever
+    // the archive hook took down with it.
+    for (const config of Object.values(FOLDER_RESOURCES)) {
+      if (!config.archiveChildren) continue
+      const hasRestorePath = Boolean(config.restoreChildren) || Boolean(config.restoreDependents)
+      expect(hasRestorePath).toBe(true)
+    }
+  })
+
+  it('guards the delete of resources that gate their own deletion', () => {
+    // Tables refuse deletion while delete-locked; deleting the folder around one must not
+    // become a way around that control.
+    expect(FOLDER_RESOURCES.table.guardDelete).toBeDefined()
   })
 
   it('declares one entry per folder resource type', () => {
