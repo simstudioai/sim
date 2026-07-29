@@ -30,7 +30,7 @@
  * Response: AdminSingleResponse<{ success, organizationId, slug, membersRemoved, workspacesDetached }>
  */
 
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { AuditAction, AuditResourceType, recordAudit, recordAuditBatch } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -292,11 +292,13 @@ export const DELETE = withRouteHandler(
        * leave workspaces re-billed to their owners while the organization,
        * its members, and its settings survived a failed delete.
        */
-      const { detachedWorkspaceIds } = await db.transaction(async (tx) => {
+      const { detachedWorkspaceIds, auditEntries } = await db.transaction(async (tx) => {
         const detached = await detachOrganizationWorkspacesTx(tx, organizationId)
         await tx.delete(organization).where(eq(organization.id, organizationId))
         return detached
       })
+
+      recordAuditBatch(auditEntries)
 
       logger.info(`Admin API: Deleted organization ${organizationId}`, {
         slug: existing.slug,

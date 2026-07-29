@@ -22,6 +22,7 @@ vi.mock('@/app/api/v1/admin/auth', () => ({
 
 vi.mock('@sim/audit', () => ({
   recordAudit: vi.fn(),
+  recordAuditBatch: vi.fn(),
   AuditAction: {
     ORGANIZATION_UPDATED: 'organization.updated',
     ORGANIZATION_DELETED: 'organization.deleted',
@@ -57,6 +58,8 @@ describe('admin organization DELETE', () => {
     mockDetachOrganizationWorkspacesTx.mockResolvedValue({
       detachedWorkspaceIds: ['ws-1', 'ws-2'],
       billedAccountUserId: 'user-1',
+      /** Returned rather than written, so the caller can emit them post-commit. */
+      auditEntries: [],
     })
     mockDelete.mockClear()
   })

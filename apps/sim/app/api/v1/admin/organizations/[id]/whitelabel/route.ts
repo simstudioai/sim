@@ -18,12 +18,15 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { adminV1UpdateOrganizationWhitelabelContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
+import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
 import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
+import { isBillingEnabled, isWhitelabelingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   adminInvalidJsonResponse,
   adminValidationErrorResponse,
+  forbiddenResponse,
   internalErrorResponse,
   notFoundResponse,
   singleResponse,
@@ -60,6 +63,20 @@ export const PATCH = withRouteHandler(
 
       if (!existing) {
         return notFoundResponse('Organization')
+      }
+
+      /**
+       * Same entitlement gate the settings UI applies. An admin key
+       * authenticates an operator, not an entitlement, so without this it would
+       * be a way to set branding the product has not granted this organization.
+       */
+      const entitled = await isOrganizationFeatureEntitled(organizationId, isWhitelabelingEnabled)
+      if (!entitled) {
+        return forbiddenResponse(
+          isBillingEnabled
+            ? 'Whitelabeling is available on Enterprise plans only'
+            : 'Whitelabeling is disabled. Set ENTERPRISE_ENABLED or WHITELABELING_ENABLED to enable it.'
+        )
       }
 
       const merged: OrganizationWhitelabelSettings = { ...(existing.whitelabelSettings ?? {}) }
