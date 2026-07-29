@@ -117,6 +117,10 @@ export async function notifyScheduleAutoDisabled(params: {
 /**
  * Creator first, then workspace admins. Deduped on lowercased email so someone
  * who is both only receives one message.
+ *
+ * The two lookups are independent and each failure is contained: losing one
+ * must not zero out the other, or a blip in either turns an auto-disable back
+ * into the silent event this notification exists to prevent.
  */
 async function resolveRecipients(
   ownerUserId: string | null,
@@ -134,19 +138,27 @@ async function resolveRecipients(
   }
 
   if (ownerUserId) {
-    const ownerRows = await db
-      .select({ email: user.email, name: user.name })
-      .from(user)
-      .where(eq(user.id, ownerUserId))
-      .limit(1)
-    add(ownerRows[0]?.email ?? null, ownerRows[0]?.name ?? null)
+    try {
+      const ownerRows = await db
+        .select({ email: user.email, name: user.name })
+        .from(user)
+        .where(eq(user.id, ownerUserId))
+        .limit(1)
+      add(ownerRows[0]?.email ?? null, ownerRows[0]?.name ?? null)
+    } catch (error) {
+      logger.error('Failed to resolve schedule creator for disable email', error, { ownerUserId })
+    }
   }
 
   if (workspaceId) {
-    const members = await getUsersWithPermissions(workspaceId)
-    for (const member of members) {
-      if (member.permissionType !== 'admin') continue
-      add(member.email, member.name)
+    try {
+      const members = await getUsersWithPermissions(workspaceId)
+      for (const member of members) {
+        if (member.permissionType !== 'admin') continue
+        add(member.email, member.name)
+      }
+    } catch (error) {
+      logger.error('Failed to resolve workspace admins for disable email', error, { workspaceId })
     }
   }
 

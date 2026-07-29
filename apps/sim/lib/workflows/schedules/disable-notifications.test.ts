@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import {
+  dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
   resetUrlsMock,
@@ -194,7 +195,7 @@ describe('notifyScheduleAutoDisabled', () => {
     expect(sendEmailSpy).toHaveBeenCalledTimes(2)
   })
 
-  it('never throws when recipient resolution fails', async () => {
+  it('still emails the creator when the admin lookup fails', async () => {
     queueTableRows(schemaMock.workflowSchedule, [WORKFLOW_SCHEDULE_ROW])
     queueTableRows(schemaMock.user, [CREATOR])
     getUsersWithPermissionsMock.mockRejectedValue(new Error('db down'))
@@ -202,6 +203,25 @@ describe('notifyScheduleAutoDisabled', () => {
     await expect(
       notifyScheduleAutoDisabled({ scheduleId: 's-1', reason: 'consecutive_failures' })
     ).resolves.toBeUndefined()
-    expect(sendEmailSpy).not.toHaveBeenCalled()
+
+    expect(sendEmailSpy).toHaveBeenCalledTimes(1)
+    expect(sendEmailSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'creator@example.com' })
+    )
+  })
+
+  it('still emails the admins when the creator lookup fails', async () => {
+    // First .limit() is the schedule row, second is the creator lookup.
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([WORKFLOW_SCHEDULE_ROW])
+      .mockRejectedValueOnce(new Error('db down'))
+    getUsersWithPermissionsMock.mockResolvedValue([admin('admin-a@example.com')])
+
+    await notifyScheduleAutoDisabled({ scheduleId: 's-1', reason: 'consecutive_failures' })
+
+    expect(sendEmailSpy).toHaveBeenCalledTimes(1)
+    expect(sendEmailSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'admin-a@example.com' })
+    )
   })
 })
