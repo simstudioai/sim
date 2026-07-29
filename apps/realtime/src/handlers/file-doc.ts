@@ -105,6 +105,13 @@ interface FileDocRoom {
   workspaceId: string | null
   /** The last collaborator to edit here, for persist attribution (blob metadata) only. */
   lastEditorUserId: string | null
+  /**
+   * True once a genuine USER edit has been applied here. Persistence is gated on it so a doc that was
+   * only seeded (or only received a copilot merge) is NEVER projected back over the file: copilot writes
+   * the file durably itself, and a seed captured from possibly-stale markdown must not clobber a
+   * concurrent external write.
+   */
+  edited: boolean
   /** The pending debounced persist timer, if any. */
   persistTimer: ReturnType<typeof setTimeout> | null
 }
@@ -200,7 +207,8 @@ function schedulePersist(name: string, room: FileDocRoom): void {
  * caller destroys `room.doc` never encodes a destroyed doc, and the disabled path stays authoritative.
  */
 async function flushPersist(name: string, room: FileDocRoom, final: boolean): Promise<void> {
-  if (!room.workspaceId || !room.lastEditorUserId) return
+  // Never project a doc no user actually edited back over the file (see {@link FileDocRoom.edited}).
+  if (!room.edited || !room.workspaceId || !room.lastEditorUserId) return
   const store = getFileDocStore()
   // Synchronous fallback capture — before any await, since the caller may destroy `room.doc` the moment
   // this yields. Only meaningful once seeded; used only when the authoritative stream state is absent.
@@ -456,6 +464,7 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     serverSeedStarted: false,
     workspaceId: null,
     lastEditorUserId: null,
+    edited: false,
     persistTimer: null,
   }
   // Register synchronously BEFORE the async catch-up so a concurrent join sees this room, not a second.
@@ -472,9 +481,13 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     // in the stream) and SEED_ORIGIN — the seed is published EXPLICITLY and AWAITED under the seed lock
     // (so it lands before the lock releases), which a fire-and-forget publish here couldn't guarantee.
     if (origin !== REDIS_ORIGIN && origin !== SEED_ORIGIN) getFileDocStore().publish(name, update)
-    // Persist real edits (user edits + copilot merges) back to markdown, debounced. Skip the seed (it
-    // is the file's current content) and stream-relayed updates (their originating task persists them).
-    if (origin !== REDIS_ORIGIN && origin !== SEED_ORIGIN) schedulePersist(name, room)
+    // Persist ONLY genuine USER edits (socket origin), debounced. A seed or a bare copilot merge must
+    // NOT project back over the file — copilot writes the file durably itself, so persisting a
+    // seeded-but-unedited doc (built from possibly-stale markdown) could clobber that concurrent write.
+    if (originSocketId(origin)) {
+      room.edited = true
+      schedulePersist(name, room)
+    }
   })
 
   awareness.on('update', ({ added, updated, removed }: AwarenessChange, origin: unknown) => {

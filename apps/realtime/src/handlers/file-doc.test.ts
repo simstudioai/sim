@@ -260,6 +260,42 @@ describe('setupWorkspaceFileDocHandlers', () => {
     )
   })
 
+  it('does NOT persist a seeded-but-unedited doc on last disconnect (no clobber of a concurrent write)', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(encodedSeedUpdate('# From server'))
+    const { io } = createIo()
+    const { handlers } = setup('socket-1', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks() // let the seed apply
+
+    // Last collaborator leaves without ever editing — projecting this seed back over the file could
+    // clobber a concurrent copilot write, so the final flush must NOT persist.
+    cleanupFileDocForSocket('socket-1', io, true)
+    await flushMicrotasks()
+    expect(mockFetchFileDocPersist).not.toHaveBeenCalled()
+  })
+
+  it('persists on last disconnect once a genuine user edit has landed', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(encodedSeedUpdate('# From server'))
+    const { io } = createIo()
+    const { handlers } = setup('socket-1', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks()
+
+    // A real user edit (socket-origin sync update) marks the doc dirty.
+    const edit = new Y.Doc()
+    edit.getText(FILE_DOC_FIELD).insert(0, 'user typed this')
+    handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
+        syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
+      )
+    )
+    await flushMicrotasks()
+
+    cleanupFileDocForSocket('socket-1', io, true)
+    await flushMicrotasks()
+    expect(mockFetchFileDocPersist).toHaveBeenCalled()
+  })
+
   it('joins the room, sends sync step 1, and seeds the document from the server', async () => {
     mockFetchFileDocSeed.mockResolvedValue(encodedSeedUpdate('# From server'))
     const { io } = createIo()
