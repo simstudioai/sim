@@ -122,7 +122,7 @@ export async function fetchOpenPrSnapshot(
 ): Promise<PullRequestSnapshot> {
   const snapshot = await fetchPrSnapshot(params, signal)
   if (snapshot.state !== 'open') {
-    throw new Error(`PR #${params.pullNumber} is ${snapshot.state}; only open PRs can be reviewed`)
+    throw new Error(`PR #${params.pullNumber} is ${snapshot.state}; only open PRs are supported`)
   }
   return snapshot
 }

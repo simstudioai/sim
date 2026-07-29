@@ -99,7 +99,7 @@ describe('fetchOpenPrSnapshot', () => {
     mockExecuteTool.mockResolvedValue({ success: true, output: snapshot({ state: 'closed' }) })
 
     await expect(fetchOpenPrSnapshot(COORDINATES)).rejects.toThrow(
-      'PR #7 is closed; only open PRs can be reviewed'
+      'PR #7 is closed; only open PRs are supported'
     )
   })
 })
