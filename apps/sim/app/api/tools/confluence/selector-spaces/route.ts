@@ -45,7 +45,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const parsed = await parseRequest(confluenceSpacesSelectorContract, request, {})
     if (!parsed.success) return parsed.response
 
-    const { credential, workflowId, domain, cursor } = parsed.data.body
+    const { credential, workflowId, domain, cursor, spaceKey } = parsed.data.body
 
     if (!credential) {
       logger.error('Missing credential in request')
@@ -101,8 +101,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const baseUrl = `https://api.atlassian.com/ex/confluence/${cloudIdValidation.sanitized}/wiki/api/v2/spaces`
     const { status, inner } = parseCursor(cursor)
 
-    const params = new URLSearchParams({ limit: String(PAGE_LIMIT), status })
-    if (inner) params.set('cursor', inner)
+    /**
+     * Exact-key lookup: one request, no pagination. The dropdown drains pages in
+     * the background and filters client-side, so a space only becomes findable
+     * once its page has arrived — on a large site that is tens of seconds away.
+     * Resolving a known key directly makes it available immediately. `status` is
+     * left unset so the key matches whether the space is current or archived.
+     */
+    const params = spaceKey
+      ? new URLSearchParams({ keys: spaceKey, limit: String(PAGE_LIMIT) })
+      : new URLSearchParams({ limit: String(PAGE_LIMIT), status })
+    if (inner && !spaceKey) params.set('cursor', inner)
     const url = `${baseUrl}?${params.toString()}`
 
     const response = await fetch(url, {
@@ -118,12 +127,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const data = await response.json()
-    const spaces = (data.results || []).map((space: { id: string; name: string; key: string }) => ({
-      id: space.id,
-      name: space.name,
-      key: space.key,
-      status,
-    }))
+    const spaces = (data.results || []).map(
+      (space: { id: string; name: string; key: string; status?: SpaceStatus }) => ({
+        id: space.id,
+        name: space.name,
+        key: space.key,
+        // An exact-key lookup is not scoped to one status, so trust the row's own.
+        status: space.status ?? status,
+      })
+    )
 
     let nextInner: string | undefined
     const nextLink = data._links?.next as string | undefined
@@ -135,8 +147,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
+    // An exact-key lookup is a single resolution, never a page in a drained stream.
     let nextCursor: string | undefined
-    if (nextInner) {
+    if (spaceKey) {
+      nextCursor = undefined
+    } else if (nextInner) {
       nextCursor = `${status}:${nextInner}`
     } else if (status === 'current') {
       nextCursor = 'archived:'

@@ -50,10 +50,10 @@ export const confluenceSelectors = {
       }
     },
     /**
-     * Resolves a single space label. Hits only the first page — the dropdown's
-     * `fetchPage` stream populates the options cache for spaces beyond page 1,
-     * and `useSelectorOptionMap` merges them in. Walking all pages here would
-     * double API load since the stream is already running in parallel.
+     * Resolves a single space by key in one request via the server's exact-key
+     * lookup. Previously this fetched the first page and scanned it, so a space
+     * that sorts beyond page 1 never resolved — on a large site that is most of
+     * them. Keyed resolution is independent of how far the page drain has run.
      */
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null
@@ -64,6 +64,7 @@ export const confluenceSelectors = {
           credential: credentialId,
           workflowId: context.workflowId,
           domain,
+          spaceKey: detailId,
         },
         signal,
       })

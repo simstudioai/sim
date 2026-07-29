@@ -118,6 +118,18 @@ export interface ComboboxProps
   onArrowLeft?: () => void
   /** Enable search input in dropdown (useful for multiselect) */
   searchable?: boolean
+  /**
+   * Notified when the dropdown's search box changes, and with `''` whenever the
+   * query is reset (select, close, blur, Escape, ArrowLeft) — including when
+   * `searchable` is false, since those resets are unconditional.
+   *
+   * This is the `searchable` search box only. In `editable` mode the typed text
+   * arrives via `onChange`, not here.
+   *
+   * Client-side filtering of `options` is unaffected — this is an additional
+   * signal for consumers that also resolve matches server-side.
+   */
+  onSearchChange?: (query: string) => void
   /** Placeholder for search input */
   searchPlaceholder?: string
   /** Size variant */
@@ -169,6 +181,7 @@ const Combobox = memo(
         onOpenChange,
         onArrowLeft,
         searchable = false,
+        onSearchChange,
         searchPlaceholder = 'Search...',
         align = 'start',
         dropdownWidth = 'trigger',
@@ -185,6 +198,18 @@ const Combobox = memo(
       const [open, setOpen] = useState(false)
       const [highlightedIndex, setHighlightedIndex] = useState(-1)
       const [searchQuery, setSearchQuery] = useState('')
+      /**
+       * Read through a ref so `updateSearchQuery` keeps a stable identity —
+       * `handleSelect`, `handleBlur`, and `handleKeyDown` all capture it without
+       * listing it as a dependency.
+       */
+      const onSearchChangeRef = useRef(onSearchChange)
+      onSearchChangeRef.current = onSearchChange
+      /** Single write path for the search box so `onSearchChange` cannot be missed on a reset. */
+      const updateSearchQuery = useCallback((next: string) => {
+        setSearchQuery(next)
+        onSearchChangeRef.current?.(next)
+      }, [])
       const searchInputRef = useRef<HTMLInputElement>(null)
       const containerRef = useRef<HTMLDivElement>(null)
       const dropdownRef = useRef<HTMLDivElement>(null)
@@ -299,7 +324,7 @@ const Combobox = memo(
           if (customOnSelect) {
             customOnSelect()
             // Always reset search/highlight so stale queries don't filter new options
-            setSearchQuery('')
+            updateSearchQuery('')
             setHighlightedIndex(-1)
             if (!keepOpen) {
               setOpen(false)
@@ -318,7 +343,7 @@ const Combobox = memo(
             if (!keepOpen) {
               setOpen(false)
               setHighlightedIndex(-1)
-              setSearchQuery('')
+              updateSearchQuery('')
               if (editable && inputRef.current) {
                 inputRef.current.blur()
               }
@@ -365,7 +390,7 @@ const Combobox = memo(
           if (!activeElement || (!isInContainer && !isInDropdown && !isSearchInput)) {
             setOpen(false)
             setHighlightedIndex(-1)
-            setSearchQuery('')
+            updateSearchQuery('')
           }
         }, 150)
       }, [])
@@ -380,7 +405,7 @@ const Combobox = memo(
           if (e.key === 'Escape') {
             setOpen(false)
             setHighlightedIndex(-1)
-            setSearchQuery('')
+            updateSearchQuery('')
             if (editable && inputRef.current) {
               inputRef.current.blur()
             }
@@ -442,7 +467,7 @@ const Combobox = memo(
             if (open && onArrowLeft) {
               e.preventDefault()
               onArrowLeft()
-              setSearchQuery('')
+              updateSearchQuery('')
               setHighlightedIndex(-1)
             }
           }
@@ -525,7 +550,7 @@ const Combobox = memo(
           open={open}
           onOpenChange={(next) => {
             setOpen(next)
-            if (!next) setSearchQuery('')
+            if (!next) updateSearchQuery('')
             onOpenChange?.(next)
           }}
         >
@@ -664,7 +689,7 @@ const Combobox = memo(
                     className='w-full bg-transparent text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-none'
                     placeholder={searchPlaceholder}
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => updateSearchQuery(e.target.value)}
                     onKeyDown={(e) => {
                       // Forward navigation keys to main handler
                       // Only forward ArrowLeft/ArrowRight when cursor is at the boundary

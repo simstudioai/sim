@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { ChipCombobox, type ComboboxOption, Loader } from '@sim/emcn'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import type {
   ConfigFieldMap,
@@ -10,7 +11,8 @@ import type {
 import { getDependsOnFields } from '@/blocks/utils'
 import type { ConnectorConfigField } from '@/connectors/types'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
-import { useSelectorOptions } from '@/hooks/selectors/use-selector-query'
+import { useSelectorOptionDetail, useSelectorOptions } from '@/hooks/selectors/use-selector-query'
+import { useDebounce } from '@/hooks/use-debounce'
 
 interface ConnectorSelectorFieldProps {
   field: ConnectorConfigField & { selectorKey: SelectorKey }
@@ -34,6 +36,7 @@ export function ConnectorSelectorField({
   disabled,
 }: ConnectorSelectorFieldProps) {
   const isMulti = Boolean(field.multi)
+  const [searchTerm, setSearchTerm] = useState('')
 
   const context = useMemo<SelectorContext>(() => {
     const ctx: SelectorContext = {}
@@ -74,33 +77,54 @@ export function ConnectorSelectorField({
     enabled: isEnabled,
   })
 
-  /**
-   * Shown when the combobox has nothing to display. `isLoading` renders a spinner
-   * instead until the first page lands, so by the time this is visible the list has
-   * loaded at least once and is empty because the user's search matched none of the
-   * options loaded *so far* — the wording is phrased for that case.
-   *
-   * Paginated selectors drain in the background and filter client-side, so an
-   * option that has not drained yet is genuinely absent. A flat "none found" reads
-   * as "it does not exist" and sends users off to enter the value by hand, which is
-   * exactly what happened with a Confluence space on a site whose drain runs for
-   * ~38s. Each branch instead explains why the list may still be incomplete.
-   *
-   * `error` is checked first: the drain halts on a failed page but leaves `hasMore`
-   * set, so a failure would otherwise claim to be loading forever.
-   */
-  const emptyMessage = useMemo(() => {
-    const noun = field.title.toLowerCase()
-    if (error) return `No match — could not load all ${noun}. Enter the value directly`
-    if (hasMore || isFetchingMore) return `No match yet — still loading ${noun}…`
-    if (truncated) return `No match in the ${noun} loaded — enter the value directly`
-    return `No ${noun} found`
-  }, [field.title, error, hasMore, isFetchingMore, truncated])
+  const emptyMessage = getEmptyMessage(field.title.toLowerCase(), {
+    error,
+    hasMore,
+    isFetchingMore,
+    truncated,
+  })
 
-  const comboboxOptions = useMemo<ComboboxOption[]>(
-    () => options.map((opt) => ({ label: opt.label, value: opt.id })),
-    [options]
-  )
+  /**
+   * The option list fills by draining pages in the background and the combobox
+   * filters it client-side, so an option is only findable once its page has
+   * arrived. Resolving the typed value directly makes an exact id/key selectable
+   * immediately, independent of drain progress. Debounced so typing does not
+   * issue a request per keystroke; selectors without a `fetchById` simply
+   * resolve nothing.
+   */
+  const debouncedSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
+  const { data: searchedOption } = useSelectorOptionDetail(field.selectorKey, {
+    context,
+    detailId: isEnabled && debouncedSearch.length > 0 ? debouncedSearch : undefined,
+  })
+
+  /**
+   * Resolve the *selected* value too, not just the typed one. Selecting resets the
+   * search box, which drops `searchedOption` a debounce later, and the drain may
+   * not reach that option's page for tens of seconds — never, when truncated — so
+   * the trigger would fall back to the placeholder for a value just picked.
+   * Mirrors `SelectorCombobox` in the workflow editor. Multi-select is not covered:
+   * resolving N ids needs N hooks, so a multi value beyond the drain still renders
+   * as its raw id.
+   */
+  const singleValue = Array.isArray(value) ? value[0] : value
+  const { data: selectedOption } = useSelectorOptionDetail(field.selectorKey, {
+    context,
+    detailId: !isMulti && isEnabled && singleValue ? singleValue : undefined,
+  })
+
+  const comboboxOptions = useMemo<ComboboxOption[]>(() => {
+    const base = options.map((opt) => ({ label: opt.label, value: opt.id }))
+    const seen = new Set(base.map((opt) => opt.value))
+    const extras: ComboboxOption[] = []
+    for (const extra of [searchedOption, selectedOption]) {
+      if (extra && !seen.has(extra.id)) {
+        seen.add(extra.id)
+        extras.push({ label: extra.label, value: extra.id })
+      }
+    }
+    return extras.length > 0 ? [...extras, ...base] : base
+  }, [options, searchedOption, selectedOption])
 
   if (isLoading && isEnabled) {
     return (
@@ -120,6 +144,7 @@ export function ConnectorSelectorField({
         multiSelectValues={multiValues}
         onMultiSelectChange={(values) => onChange(values)}
         searchable
+        onSearchChange={setSearchTerm}
         searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
         placeholder={
           !credentialId
@@ -134,13 +159,13 @@ export function ConnectorSelectorField({
     )
   }
 
-  const singleValue = Array.isArray(value) ? value[0] : value
   return (
     <ChipCombobox
       options={comboboxOptions}
       value={singleValue || undefined}
       onChange={(next) => onChange(next)}
       searchable
+      onSearchChange={setSearchTerm}
       searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
       placeholder={
         !credentialId
@@ -153,6 +178,26 @@ export function ConnectorSelectorField({
       emptyMessage={emptyMessage}
     />
   )
+}
+
+/**
+ * Only visible once the first page has landed (`isLoading` renders a spinner
+ * before that), so "no match" here means no match among the options drained
+ * *so far* — a flat "none found" would wrongly read as "does not exist".
+ *
+ * `error` is checked before `hasMore`: a failed page halts the drain but leaves
+ * `hasMore` set, which would otherwise claim to be loading forever.
+ */
+function getEmptyMessage(
+  noun: string,
+  state: { error: Error | null; hasMore: boolean; isFetchingMore: boolean; truncated: boolean }
+): string {
+  // `field.title` is singular on some connectors ("Base") and plural on others
+  // ("Spaces"), so only the settled message puts the noun behind a quantifier.
+  if (state.error) return 'No match — the list is incomplete. Enter the value directly'
+  if (state.hasMore || state.isFetchingMore) return 'No match yet — still loading…'
+  if (state.truncated) return 'No match in what loaded — enter the value directly'
+  return `No ${noun} found`
 }
 
 function resolveDepValue(

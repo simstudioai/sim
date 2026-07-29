@@ -51,6 +51,15 @@ const EMPTY_PAGE: SelectorPage = { items: [], nextCursor: undefined }
  */
 const MAX_AUTO_DRAIN_PAGES = 50
 
+/** Fallback freshness for selectors that do not declare their own `staleTime`. */
+export const DEFAULT_SELECTOR_STALE_TIME = 30_000
+
+/**
+ * Single-option resolutions are keyed by an exact id, so they change far less
+ * often than a list and can stay fresh longer.
+ */
+export const DEFAULT_SELECTOR_DETAIL_STALE_TIME = 300_000
+
 export function useSelectorOptions(
   key: SelectorKey,
   args: SelectorHookArgs
@@ -69,7 +78,7 @@ export function useSelectorOptions(
     queryFn: ({ signal }) =>
       definition.fetchList?.({ ...queryArgs, signal }) ?? Promise.resolve([]),
     enabled: !supportsPagination && isEnabled,
-    staleTime: definition.staleTime ?? 30_000,
+    staleTime: definition.staleTime ?? DEFAULT_SELECTOR_STALE_TIME,
   })
 
   const pagedQuery = useInfiniteQuery<SelectorPage>({
@@ -85,7 +94,7 @@ export function useSelectorOptions(
     getNextPageParam: (last) => last.nextCursor,
     initialPageParam: undefined as string | undefined,
     enabled: supportsPagination && isEnabled,
-    staleTime: definition.staleTime ?? 30_000,
+    staleTime: definition.staleTime ?? DEFAULT_SELECTOR_STALE_TIME,
   })
 
   const { hasNextPage, isFetchingNextPage, fetchNextPage, isError } = pagedQuery
@@ -175,13 +184,18 @@ export function useSelectorOptionDetail(
         ? definition.enabled(queryArgs)
         : true
       : false
-  const enabled = args.enabled ?? baseEnabled
+  /**
+   * A caller's `enabled` narrows `baseEnabled` rather than replacing it: `queryFn`
+   * asserts `fetchById` is defined, so dropping that guard would throw for every
+   * selector that declares no `fetchById`.
+   */
+  const enabled = (args.enabled ?? true) && baseEnabled
 
   const query = useQuery<SelectorOption | null>({
     queryKey: [...definition.getQueryKey(queryArgs), 'detail', resolvedDetailId ?? 'none'],
     queryFn: ({ signal }) => definition.fetchById!({ ...queryArgs, signal }),
     enabled,
-    staleTime: definition.staleTime ?? 300_000,
+    staleTime: definition.staleTime ?? DEFAULT_SELECTOR_DETAIL_STALE_TIME,
   })
 
   return query
