@@ -99,7 +99,7 @@ function existingPullRequestOutput() {
         ref: 'feature/existing',
         repo_full_name: 'octo/demo',
       },
-      base: { sha: 'b'.repeat(40), ref: 'staging' },
+      base: { sha: 'b'.repeat(40), ref: 'staging', repo_full_name: 'octo/demo' },
     },
   }
 }
@@ -769,6 +769,98 @@ describe('runCloudPi', () => {
         expect.objectContaining({ head: 'feature/existing', draft: true }),
         { signal: undefined }
       )
+    })
+
+    it('updates a PR created while the branch is being authored instead of creating a duplicate', async () => {
+      let listCalls = 0
+      mockExecuteTool.mockImplementation((tool: string) => {
+        if (tool === 'github_list_prs_v2') {
+          listCalls += 1
+          return Promise.resolve({
+            success: true,
+            output:
+              listCalls === 1 ? { items: [], count: 0 } : { items: [{ number: 7 }], count: 1 },
+          })
+        }
+        if (tool === 'github_pr_v2') {
+          return Promise.resolve(existingPullRequestOutput())
+        }
+        if (tool === 'github_create_pr') {
+          throw new Error('must not create a duplicate PR')
+        }
+        return Promise.resolve({ success: true, output: {} })
+      })
+
+      const result = await runCloudBranchPi(branchParams(), { onEvent: vi.fn() })
+
+      expect(listCalls).toBe(2)
+      expect(
+        mockExecuteTool.mock.calls.some(([tool]: [string]) => tool === 'github_create_pr')
+      ).toBe(false)
+      expect(result.prUrl).toBe('https://github.com/octo/demo/pull/7')
+    })
+
+    it('does not claim a push happened when no-op authoring is followed by a PR error', async () => {
+      mockRun.mockImplementation((command: string) => {
+        if (command.includes('git clone')) {
+          return Promise.resolve({ stdout: '__BASE_SHA__=abc', stderr: '', exitCode: 0 })
+        }
+        if (command.includes('pi -p')) {
+          return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
+        }
+        return Promise.resolve({ stdout: '__NO_CHANGES__=1', stderr: '', exitCode: 0 })
+      })
+      mockExecuteTool.mockImplementation((tool: string) => {
+        if (tool === 'github_list_prs_v2') {
+          return Promise.resolve({ success: true, output: { items: [], count: 0 } })
+        }
+        if (tool === 'github_repo_info_v2') {
+          return Promise.resolve({ success: true, output: { default_branch: 'main' } })
+        }
+        return Promise.resolve({ success: false, error: 'permission denied' })
+      })
+
+      const error = (await runCloudBranchPi(branchParams(), {
+        onEvent: vi.fn(),
+      }).catch((caught) => caught)) as Error
+
+      expect(error.message).toContain(
+        'PR creation failed for branch feature/existing: permission denied'
+      )
+      expect(error.message).not.toContain('pushed')
+      expect(mockRun.mock.calls.some(([command]: [string]) => command.includes('push'))).toBe(false)
+    })
+
+    it('uses neutral wording when a no-op run cannot update its existing PR', async () => {
+      mockExistingBranchPullRequest()
+      mockRun.mockImplementation((command: string) => {
+        if (command.includes('git clone')) {
+          return Promise.resolve({ stdout: '__BASE_SHA__=abc', stderr: '', exitCode: 0 })
+        }
+        if (command.includes('pi -p')) {
+          return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
+        }
+        return Promise.resolve({ stdout: '__NO_CHANGES__=1', stderr: '', exitCode: 0 })
+      })
+      mockExecuteTool.mockImplementation((tool: string) => {
+        if (tool === 'github_pr_v2') {
+          return Promise.resolve(existingPullRequestOutput())
+        }
+        if (tool === 'github_update_pr') {
+          return Promise.resolve({ success: false, error: 'permission denied' })
+        }
+        return Promise.resolve({ success: true, output: {} })
+      })
+
+      const error = (await runCloudBranchPi(branchParams({ prTitle: 'New title' }), {
+        onEvent: vi.fn(),
+      }).catch((caught) => caught)) as Error
+
+      expect(error.message).toContain(
+        'PR update failed for branch feature/existing: permission denied'
+      )
+      expect(error.message).not.toContain('pushed')
+      expect(mockRun.mock.calls.some(([command]: [string]) => command.includes('push'))).toBe(false)
     })
 
     it('updates explicit metadata and draft state on the exact existing PR', async () => {

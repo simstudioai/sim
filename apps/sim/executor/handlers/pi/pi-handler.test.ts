@@ -729,7 +729,6 @@ describe('PiBlockHandler', () => {
       expect(mockRunCloudBranch.mock.calls[0][0].search).toEqual({
         provider: 'exa',
         apiKey: 'search-key',
-        keySource: 'byok',
       })
     })
 

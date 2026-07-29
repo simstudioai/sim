@@ -189,13 +189,11 @@ async function openPullRequest(
   )
 
   if (!result.success) {
-    throw new Error(
-      `Branch ${branch} pushed but PR creation failed: ${result.error ?? 'unknown error'}`
-    )
+    throw new Error(`PR creation failed for branch ${branch}: ${result.error ?? 'unknown error'}`)
   }
 
   if (!isRecord(result.output)) {
-    throw new Error(`Branch ${branch} pushed but PR creation returned an invalid response`)
+    throw new Error(`PR creation returned an invalid response for branch ${branch}`)
   }
   const metadata = requiredRecord(result.output, 'metadata', 'GitHub create pull request response')
   const rawNumber = metadata.number
@@ -272,7 +270,7 @@ async function updatePullRequest(
     )
     if (!result.success) {
       throw new Error(
-        `Branch ${params.targetBranch} pushed but PR update failed: ${result.error ?? 'unknown error'}`
+        `PR update failed for branch ${params.targetBranch}: ${result.error ?? 'unknown error'}`
       )
     }
   }
@@ -303,6 +301,18 @@ async function ensureUpdatePullRequest(
 ): Promise<OpenedPullRequest> {
   if (existingPullRequest) {
     return updatePullRequest(params, existingPullRequest, secrets, signal)
+  }
+  const newlyCreatedPullRequest = await findOpenPrForBranch(
+    {
+      owner: params.owner,
+      repo: params.repo,
+      branch,
+      githubToken: params.githubToken,
+    },
+    signal
+  )
+  if (newlyCreatedPullRequest) {
+    return updatePullRequest(params, newlyCreatedPullRequest, secrets, signal)
   }
   const base = params.baseBranch?.trim() || (await repositoryDefaultBranch(params, signal))
   const draft = params.babysit ? false : params.prState !== 'ready'
