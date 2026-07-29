@@ -2,6 +2,7 @@ import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import * as Y from 'yjs'
 import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+import { hashMarkdown, loadFreshCollabDocState } from './collab-state'
 import { markdownToYDoc } from './converter'
 
 /**
@@ -37,6 +38,15 @@ export async function buildFileDocSeed(
   if (!record) return null
 
   const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_SEED_BYTES })
+
+  // Cold-start fast path: if we hold a cached Yjs binary derived from THIS exact markdown, apply it
+  // directly (the Hocuspocus load-document pattern) instead of re-converting. This preserves the CRDT's
+  // client ids across reopens — no duplicated content, no split-brain — and skips the server-side
+  // headless conversion. A stale/absent cache (markdown edited externally, or first ever open) falls
+  // through to the conversion below, and the next persist refreshes the cache.
+  const cached = await loadFreshCollabDocState(fileId, hashMarkdown(buffer))
+  if (cached) return { update: cached }
+
   const markdown = buffer.toString('utf-8')
   const { frontmatter, body } = splitFrontmatter(markdown)
 

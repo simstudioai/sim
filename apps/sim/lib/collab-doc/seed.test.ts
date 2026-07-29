@@ -5,14 +5,22 @@ import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 
-const { mockGetWorkspaceFile, mockFetchBuffer } = vi.hoisted(() => ({
+const { mockGetWorkspaceFile, mockFetchBuffer, mockLoadFresh } = vi.hoisted(() => ({
   mockGetWorkspaceFile: vi.fn(),
   mockFetchBuffer: vi.fn(),
+  mockLoadFresh: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   getWorkspaceFile: mockGetWorkspaceFile,
   fetchWorkspaceFileBuffer: mockFetchBuffer,
+}))
+
+// The DB-backed cold-start cache is exercised in its own suite; here we default it to a MISS so these
+// tests cover the markdown → Yjs conversion path (the cache-hit fast path has its own test below).
+vi.mock('./collab-state', () => ({
+  hashMarkdown: () => 'test-source-hash',
+  loadFreshCollabDocState: mockLoadFresh,
 }))
 
 import { serializeMarkdownBody } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
@@ -28,6 +36,8 @@ describe('buildFileDocSeed', () => {
       key: 'k',
       context: 'workspace',
     })
+    // Default: no cached binary → the conversion path runs (the case these tests cover).
+    mockLoadFresh.mockResolvedValue(null)
   })
 
   it('builds a seed whose applied update reproduces the file body (through the client engine)', async () => {
@@ -39,6 +49,23 @@ describe('buildFileDocSeed', () => {
     const doc = new Y.Doc()
     Y.applyUpdate(doc, seed!.update)
     expect(yDocToMarkdown(doc)).toBe(serializeMarkdownBody('# Title\n\nHello **world**.'))
+  })
+
+  it('cold-start fast path: returns the cached binary directly without re-converting when it is fresh', async () => {
+    // A cached binary derived from the current markdown → seed returns it verbatim (no conversion), the
+    // Hocuspocus load-document path that preserves the CRDT's client ids across reopens.
+    const cachedDoc = new Y.Doc()
+    cachedDoc.getText('marker').insert(0, 'cached')
+    const cached = Y.encodeStateAsUpdate(cachedDoc)
+    mockFetchBuffer.mockResolvedValue(Buffer.from('# Anything', 'utf-8'))
+    mockLoadFresh.mockResolvedValue(cached)
+
+    const seed = await buildFileDocSeed('ws-1', 'file-1')
+
+    expect(seed?.update).toBe(cached)
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, seed!.update)
+    expect(doc.getText('marker').toString()).toBe('cached')
   })
 
   it('strips frontmatter — only the body seeds the collaborative doc', async () => {

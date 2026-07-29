@@ -135,11 +135,16 @@ const nextConfig: NextConfig = {
     // The collab-doc seed converter lazily `require`s jsdom for a headless TipTap editor. Keep it
     // external so webpack doesn't try to bundle jsdom's dynamic internal requires.
     'jsdom',
-    // The collab-doc converter runs TipTap headlessly server-side. When these are bundled, the
-    // server bundler gives them a `window` that does NOT read `globalThis`, so TipTap's
-    // `elementFromString` throws "there is no window object available" even after the converter
-    // installs a jsdom window on `globalThis`. Loading them external (native Node require) makes their
-    // `window` read the real global we set. Server-only — the client editor bundles its own copies.
+    // The collab-doc converter runs TipTap + Yjs headlessly server-side. Two reasons these must be
+    // external (native Node require), not bundled: (1) the server bundler gives bundled TipTap a
+    // `window` that does NOT read `globalThis`, so `elementFromString` throws "no window object" even
+    // after the converter installs a jsdom window; (2) bundling would load a SECOND copy of `yjs`, so
+    // `@tiptap/y-tiptap`'s `item instanceof Y.XmlElement` checks — against the external `yjs` — would
+    // fail on nodes the app created with the bundled `yjs` ("Unexpected case"). One external copy fixes
+    // both. Server-only — the client editor bundles its own copies for the browser.
+    'yjs',
+    'y-protocols',
+    'lib0',
     '@tiptap/core',
     '@tiptap/pm',
     '@tiptap/markdown',
