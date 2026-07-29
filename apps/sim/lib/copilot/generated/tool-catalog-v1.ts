@@ -3337,7 +3337,7 @@ export const OpenResource: ToolCatalogEntry = {
             type: {
               type: 'string',
               description: 'The resource type.',
-              enum: ['workflow', 'table', 'knowledgebase', 'file', 'log', 'scheduledtask'],
+              enum: ['workflow', 'table', 'view', 'knowledgebase', 'file', 'log', 'scheduledtask'],
             },
           },
           required: ['type'],
@@ -4646,7 +4646,7 @@ export const UserTable: ToolCatalogEntry = {
           filter: {
             type: 'object',
             description:
-              'MongoDB-style filter for query_rows, update_rows_by_filter, delete_rows_by_filter',
+              'MongoDB-style filter for query_rows, update_rows_by_filter, delete_rows_by_filter, and create_view',
           },
           groupId: {
             type: 'string',
@@ -4725,7 +4725,7 @@ export const UserTable: ToolCatalogEntry = {
           name: {
             type: 'string',
             description:
-              "Table name (required for 'create'). Also the optional display name for add_enrichment — defaults to the enrichment's registry name when omitted.",
+              "Table name (required for 'create'), optional View name for 'create_view' (generated from the Table name when omitted), or optional display name for add_enrichment.",
           },
           newName: {
             type: 'string',
@@ -4735,7 +4735,7 @@ export const UserTable: ToolCatalogEntry = {
           newType: {
             type: 'string',
             description:
-              "New column type (optional for update_column). Types: string, number, boolean, date, json, select. Converting a column to select also requires options; the conversion fails if any existing cell value doesn't match one of them.",
+              'New column type (optional for update_column). Types: string, number, boolean, date, json, select. Converting a column to select also requires options; the conversion fails if any existing cell value doesn\'t match one of them. Converting to a multiple: true select also accepts a comma-separated cell ("Open, Urgent"), which is the form a multi column converts to text as — so multiselect → text → multiselect round-trips.',
           },
           offset: {
             type: 'number',
@@ -4744,7 +4744,7 @@ export const UserTable: ToolCatalogEntry = {
           options: {
             type: 'array',
             description:
-              'Choices for a select (enum) column, as a list of display names, e.g. ["Open", "Closed"]. Required when creating or converting to a select column. On update_column this REPLACES the option list: options kept by name keep their cells, and cells holding a removed option are cleared. Max 100.',
+              'Choices for a select (enum) column, as a list of display names, e.g. ["Open", "Closed"]. Required when creating or converting to a select column. On update_column this REPLACES the option list and is matched against the current one BY NAME: a name still present keeps its cells, a name no longer present is removed and cleared from every cell that held it. Send the full list including the options you are keeping — omitting one deletes it. There is no in-place rename, so re-sending an option under a new name clears the cells that held the old one. Max 100.',
             items: { type: 'string' },
           },
           outputColumnNames: {
@@ -4834,7 +4834,7 @@ export const UserTable: ToolCatalogEntry = {
           sort: {
             type: 'object',
             description:
-              "Sort specification as { field: 'asc' | 'desc' } (optional for query_rows)",
+              "Sort specification as { field: 'asc' | 'desc' } (optional for query_rows and create_view)",
           },
           tableId: {
             type: 'string',
@@ -4869,7 +4869,8 @@ export const UserTable: ToolCatalogEntry = {
       },
       operation: {
         type: 'string',
-        description: 'The operation to perform',
+        description:
+          'The operation to perform. Use create_view only when the user explicitly asks to show or open a filtered/sorted Table; use query_rows for ordinary analysis without creating a durable View.',
         enum: [
           'create',
           'create_from_file',
@@ -4901,6 +4902,7 @@ export const UserTable: ToolCatalogEntry = {
           'list_workflow_outputs',
           'list_enrichments',
           'add_enrichment',
+          'create_view',
         ],
       },
     },
@@ -5354,6 +5356,7 @@ export const UserTableOperation = {
   listWorkflowOutputs: 'list_workflow_outputs',
   listEnrichments: 'list_enrichments',
   addEnrichment: 'add_enrichment',
+  createView: 'create_view',
 } as const
 
 export type UserTableOperation = (typeof UserTableOperation)[keyof typeof UserTableOperation]
@@ -5389,6 +5392,7 @@ export const UserTableOperationValues = [
   UserTableOperation.listWorkflowOutputs,
   UserTableOperation.listEnrichments,
   UserTableOperation.addEnrichment,
+  UserTableOperation.createView,
 ] as const
 
 export const WorkspaceFileOperation = {

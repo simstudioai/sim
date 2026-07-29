@@ -2,11 +2,17 @@ import { db } from '@sim/db'
 import { workflowSchedule } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
+import {
+  type MothershipResource,
+  MothershipResourceType,
+  parseTableViewResourceId,
+  tableViewResourceId,
+} from '@/lib/copilot/resources/types'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import { getLogById } from '@/lib/logs/service'
 import { getTableById } from '@/lib/table/service'
+import { getTableView } from '@/lib/table/views/service'
 import {
   getWorkspaceFile,
   resolveWorkspaceFileReference,
@@ -60,6 +66,21 @@ async function resolveResource(
       return { error: `Table not found in the current workspace.` }
     resourceId = tbl.id
     title = tbl.name
+  }
+  if (resourceType === 'view') {
+    if (!item.id) return { error: 'view resources require `id`.' }
+    const parsedId = parseTableViewResourceId(item.id)
+    const view = await getTableView(parsedId?.viewId ?? item.id)
+    if (!view) return { error: `No View with id "${item.id}".` }
+    if (parsedId && parsedId.tableId !== view.tableId) {
+      return { error: 'View does not belong to the specified Table.' }
+    }
+    const table = await getTableById(view.tableId)
+    if (!table || (context.workspaceId && table.workspaceId !== context.workspaceId)) {
+      return { error: 'View not found in the current workspace.' }
+    }
+    resourceId = tableViewResourceId(table.id, view.id)
+    title = view.name
   }
   if (resourceType === 'knowledgebase') {
     if (!item.id) return { error: 'knowledgebase resources require `id`.' }

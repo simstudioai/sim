@@ -5,6 +5,44 @@ import { describe, expect, it } from 'vitest'
 import { extractDeletedResourcesFromToolResult, extractResourcesFromToolResult } from './extraction'
 
 describe('extractResourcesFromToolResult', () => {
+  it('auto-opens the created View instead of its source Table', () => {
+    const resources = extractResourcesFromToolResult(
+      'user_table',
+      {
+        operation: 'create_view',
+        args: { tableId: 'tbl_123' },
+      },
+      {
+        success: true,
+        message: 'Created View "Qualified leads"',
+        data: {
+          view: {
+            id: 'view_456',
+            tableId: 'tbl_123',
+            name: 'Qualified leads',
+          },
+        },
+        // Server tools are wrapped in ToolExecutionResult.output, so this
+        // nested descriptor is not available as result.resources.
+        resources: [
+          {
+            type: 'view',
+            id: 'tbl_123:view_456',
+            title: 'Qualified leads',
+          },
+        ],
+      }
+    )
+
+    expect(resources).toEqual([
+      {
+        type: 'view',
+        id: 'tbl_123:view_456',
+        title: 'Qualified leads',
+      },
+    ])
+  })
+
   it('extracts file resources from create_file results', () => {
     const resources = extractResourcesFromToolResult(
       'create_file',

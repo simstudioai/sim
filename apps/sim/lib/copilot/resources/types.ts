@@ -1,5 +1,6 @@
 export const MothershipResourceType = {
   table: 'table',
+  view: 'view',
   file: 'file',
   workflow: 'workflow',
   knowledgebase: 'knowledgebase',
@@ -48,6 +49,7 @@ interface ResourcePolicy {
  */
 const RESOURCE_POLICY: Record<MothershipResourceType, ResourcePolicy> = {
   table: { persisted: true },
+  view: { persisted: true },
   file: { persisted: true },
   workflow: { persisted: true },
   knowledgebase: { persisted: true },
@@ -108,6 +110,7 @@ export const TERMINAL_SESSION_RESOURCE_ID = 'terminal-session'
 /** Placeholder resource titles that a more specific title may overwrite during dedup. */
 export const GENERIC_RESOURCE_TITLES = new Set<string>([
   'Table',
+  'View',
   'File',
   'Workflow',
   'Knowledge Base',
@@ -115,6 +118,23 @@ export const GENERIC_RESOURCE_TITLES = new Set<string>([
   'Scheduled Task',
   'Log',
 ])
+
+/** Encodes a View and its source Table into the opaque id persisted with a chat. */
+export function tableViewResourceId(tableId: string, viewId: string): string {
+  return `${tableId}:${viewId}`
+}
+
+/** Decodes a persisted View resource without expanding the chat resource wire format. */
+export function parseTableViewResourceId(
+  resourceId: string
+): { tableId: string; viewId: string } | null {
+  const separator = resourceId.indexOf(':')
+  if (separator <= 0 || separator === resourceId.length - 1) return null
+  return {
+    tableId: resourceId.slice(0, separator),
+    viewId: resourceId.slice(separator + 1),
+  }
+}
 
 export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {
   tables: 'table',

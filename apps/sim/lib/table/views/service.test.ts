@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { ColumnDefinition, TableViewConfig } from '@/lib/table/types'
-import { pruneViewConfig } from '@/lib/table/views/service'
+import { pruneViewConfig, validateTableViewConfig } from '@/lib/table/views/service'
 
 const columns: ColumnDefinition[] = [
   { id: 'col_a', name: 'Name', type: 'text' },
@@ -32,11 +32,17 @@ describe('pruneViewConfig', () => {
     expect(pruneViewConfig({ sort: { col_a: 'desc' } }, columns).sort).toEqual({ col_a: 'desc' })
   })
 
-  it('leaves the filter untouched even when it references a deleted column', () => {
-    // Pruning a predicate would silently widen the view's row set — surfacing a
-    // stale condition the user can see and remove is the safer failure.
-    const filter = { col_gone: { $eq: 'x' } }
-    expect(pruneViewConfig({ filter }, columns).filter).toEqual(filter)
+  it('prunes deleted columns from nested filters without breaking the View', () => {
+    const filter = {
+      $or: [
+        { col_gone: { $eq: 'x' } },
+        { $and: [{ col_a: { $contains: 'A' } }, { col_gone: { $eq: 'y' } }] },
+      ],
+    }
+    expect(pruneViewConfig({ filter }, columns).filter).toEqual({
+      $or: [{ $and: [{ col_a: { $contains: 'A' } }] }],
+    })
+    expect(pruneViewConfig({ filter: { col_gone: 'x' } }, columns).filter).toBeNull()
   })
 
   it('leaves absent keys absent rather than materializing empty ones', () => {
@@ -48,5 +54,22 @@ describe('pruneViewConfig', () => {
     expect(pruneViewConfig({ hiddenColumns: ['Legacy', 'nope'] }, legacy).hiddenColumns).toEqual([
       'Legacy',
     ])
+  })
+})
+
+describe('validateTableViewConfig', () => {
+  it('accepts stable column ids and rejects display names or unknown ids', () => {
+    expect(() =>
+      validateTableViewConfig(
+        { filter: { col_a: { $contains: 'A' } }, sort: { col_b: 'asc' } },
+        columns
+      )
+    ).not.toThrow()
+    expect(() => validateTableViewConfig({ filter: { Name: 'A' } }, columns)).toThrow(
+      'Unknown View filter column: Name'
+    )
+    expect(() => validateTableViewConfig({ sort: { col_gone: 'desc' } }, columns)).toThrow(
+      'Unknown View sort column: col_gone'
+    )
   })
 })

@@ -23,6 +23,10 @@ import type {
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
+  pruneFilterForColumns,
+  pruneViewFilterForColumns,
+} from '@/lib/table/query-builder/converters'
+import {
   type BreadcrumbItem,
   type ColumnOption,
   Resource,
@@ -95,6 +99,8 @@ interface TableProps {
   /** Identifiers — only set in embedded mode. Page mode reads from `useParams()`. */
   workspaceId?: string
   tableId?: string
+  /** View selected when the table is opened as a persisted chat resource. */
+  viewId?: string
   /**
    * Whether an admin may CHANGE locks, resolved server-side by the page (the
    * flag's gating lives in AppConfig and has no client counterpart). Defaults
@@ -208,6 +214,7 @@ export function Table({
   embedded,
   workspaceId: propWorkspaceId,
   tableId: propTableId,
+  viewId: propViewId,
   tableLocksEnabled = false,
   viewsEnabled = false,
 }: TableProps = {}) {
@@ -261,8 +268,35 @@ export function Table({
    *  panel's Columns section edits it and the active view persists it. */
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([])
 
-  const [{ sort: sortColumn, dir: sortDirection, view: activeViewId }, setTableParams] =
+  const [{ sort: sortColumn, dir: sortDirection, view: urlActiveViewId }, setTableParams] =
     useQueryStates(tableDetailParsers, tableDetailUrlKeys)
+
+  /**
+   * An embedded View must own the first render synchronously. Seeding only the
+   * host URL in an effect races the view resolver: it can adopt Default view
+   * before the URL write lands and clear the requested chat resource.
+   *
+   * Keep a local selection only for View-resource embeds; page Tables and plain
+   * Table resources continue to use the URL as their sole source of truth.
+   */
+  const [embeddedActiveViewId, setEmbeddedActiveViewId] = useState<string | null>(
+    () => propViewId ?? null
+  )
+  const activeViewId = propViewId ? embeddedActiveViewId : urlActiveViewId
+  const syncedPropViewRef = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    if (!propViewId || syncedPropViewRef.current === propViewId) return
+    syncedPropViewRef.current = propViewId
+    setEmbeddedActiveViewId(propViewId)
+    void setTableParams({ view: propViewId })
+  }, [propViewId, setTableParams])
+  const setActiveViewId = useCallback(
+    (viewId: string) => {
+      if (propViewId) setEmbeddedActiveViewId(viewId)
+      void setTableParams({ view: viewId })
+    },
+    [propViewId, setTableParams]
+  )
 
   // Read-only mirrors for the resolve effect: it must know whether the user has
   // already applied a filter / hidden columns without re-running when they change.
@@ -528,6 +562,7 @@ export function Table({
       // switching resources away and back, not leakage.
       const inheritedParams =
         embedded &&
+        !propViewId &&
         activeViewId !== null &&
         activeViewId !== ALL_VIEW_PARAM &&
         !views.some((view) => view.id === activeViewId)
@@ -540,7 +575,7 @@ export function Table({
         const keep = inheritedParams ? { ...localWork(), sort: false } : localWork()
         if (defaultView) {
           seededViewIdRef.current = defaultView.id
-          setTableParams({ view: defaultView.id })
+          setActiveViewId(defaultView.id)
           applyViewConfig(defaultView.config, keep)
           resolvePendingLayout(true)
           return
@@ -549,7 +584,10 @@ export function Table({
         // would clear a deep-linked `?sort=` on mount. Inherited params are the
         // exception: nothing about them refers to this table, so they're cleared.
         seededViewIdRef.current = null
-        if (inheritedParams) setTableParams({ view: ALL_VIEW_PARAM, sort: null, dir: null })
+        if (inheritedParams) {
+          setActiveViewId(ALL_VIEW_PARAM)
+          setTableParams({ sort: null, dir: null })
+        }
         resolvePendingLayout(false)
         return
       }
@@ -559,8 +597,9 @@ export function Table({
         return
       }
       // A `?view=` that resolves to nothing (deleted view, stale bookmark) falls
-      // back to "All" without touching state, for the same reason. An explicit
-      // `?sort=` alongside `?view=` also wins over the view's stored sort.
+      // back to "All". An explicit `?sort=` alongside a page `?view=` still wins,
+      // but an embedded View resource must clear the host page's inherited state:
+      // none of it belongs to the missing View the resource requested.
       seededViewIdRef.current = activeView?.id ?? null
       resolvePendingLayout(activeView !== null)
       if (activeView) {
@@ -569,7 +608,8 @@ export function Table({
         // Nothing to apply, but the URL still names a view that no longer exists.
         // Rewrite it so a stale bookmark can't be copied on, and so the param
         // matches the All the UI is already showing.
-        setTableParams({ view: ALL_VIEW_PARAM })
+        setActiveViewId(ALL_VIEW_PARAM)
+        if (propViewId) applyViewConfig(null)
       }
       return
     }
@@ -587,7 +627,7 @@ export function Table({
     if (activeViewId !== null && activeViewId !== ALL_VIEW_PARAM && !activeView) {
       if (pendingCreatedViewIdRef.current === activeViewId) return
       seededViewIdRef.current = null
-      setTableParams({ view: ALL_VIEW_PARAM })
+      setActiveViewId(ALL_VIEW_PARAM)
       applyViewConfig(null)
       return
     }
@@ -609,9 +649,10 @@ export function Table({
     activeView,
     activeViewId,
     embedded,
+    propViewId,
     sortColumn,
     applyViewConfig,
-    setTableParams,
+    setActiveViewId,
     resolvePendingLayout,
   ])
 
@@ -670,6 +711,7 @@ export function Table({
     if (columns.length === 0) return stored
     return {
       ...stored,
+      filter: pruneViewFilterForColumns(stored.filter ?? null, columns),
       hiddenColumns: (stored.hiddenColumns ?? []).filter((id) => liveColumnIds.has(id)),
       sort:
         stored.sort && Object.keys(stored.sort).every((id) => liveColumnIds.has(id))
@@ -679,9 +721,10 @@ export function Table({
   }, [activeView, columns.length, liveColumnIds])
 
   /**
-   * Whether the live state diverges from what the active view stores (or, on
-   * "All", whether anything is applied at all). Drives the Save button — it is
-   * the only affordance that persists, so ad-hoc exploration stays throwaway.
+   * Whether live state diverges from the active View (or, on Default view,
+   * whether anything is applied). Filter/sort auto-save while a View is active;
+   * this still drives Save for Default-view creation, hidden-column edits, and
+   * the short interval before an auto-save response updates the cache.
    */
   const isViewDirty = storedViewConfig
     ? !isSameViewConfig(currentViewConfig, storedViewConfig)
@@ -694,9 +737,9 @@ export function Table({
 
   const handleSelectView = useCallback(
     (viewId: string | null) => {
-      setTableParams({ view: viewId ?? ALL_VIEW_PARAM })
+      setActiveViewId(viewId ?? ALL_VIEW_PARAM)
     },
-    [setTableParams]
+    [setActiveViewId]
   )
 
   const handleRenameView = useCallback((viewId: string) => {
@@ -803,7 +846,7 @@ export function Table({
           // seeded — it can't tell a just-created view from a dead id otherwise.
           seededViewIdRef.current = view.id
           pendingCreatedViewIdRef.current = view.id
-          setTableParams({ view: view.id })
+          setActiveViewId(view.id)
           // Which means the blank config must be applied here; nuqs batches this
           // sort write with the `view` write above into one URL update.
           if (blank) applyViewConfig(view.config)
@@ -817,12 +860,12 @@ export function Table({
     (viewId: string) => {
       deleteViewMutation.mutate(viewId, {
         onSuccess: () => {
-          if (viewId === activeViewId) setTableParams({ view: ALL_VIEW_PARAM })
+          if (viewId === activeViewId) setActiveViewId(ALL_VIEW_PARAM)
         },
         onError: (error) => toast.error(getErrorMessage(error, 'Failed to delete view')),
       })
     },
-    [activeViewId, setTableParams]
+    [activeViewId, setActiveViewId]
   )
 
   const runColumnMutation = useRunColumn({ workspaceId, tableId })
@@ -1051,18 +1094,49 @@ export function Table({
     () => ({
       options: columnOptions,
       active: sortColumn ? { column: sortColumn, direction: sortDirection } : null,
-      onSort: (column, direction) => setTableParams({ sort: column, dir: direction }),
+      onSort: (column, direction) => {
+        setTableParams({ sort: column, dir: direction })
+        if (activeView && userPermissions.canEdit) {
+          updateViewMutation.mutate(
+            { viewId: activeView.id, configPatch: { sort: { [column]: direction } } },
+            { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save View sort')) }
+          )
+        }
+      },
       /**
        * Clearing writes the default direction (stripped by clearOnDefault) and
        * drops the column, leaving a clean URL with no active sort.
        */
-      onClear: () => setTableParams({ sort: null, dir: DEFAULT_TABLE_DETAIL_SORT_DIRECTION }),
+      onClear: () => {
+        setTableParams({ sort: null, dir: DEFAULT_TABLE_DETAIL_SORT_DIRECTION })
+        if (activeView && userPermissions.canEdit) {
+          updateViewMutation.mutate(
+            { viewId: activeView.id, configPatch: { sort: null } },
+            { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save View sort')) }
+          )
+        }
+      },
     }),
-    [columnOptions, sortColumn, sortDirection, setTableParams]
+    [
+      columnOptions,
+      sortColumn,
+      sortDirection,
+      setTableParams,
+      activeView,
+      userPermissions.canEdit,
+      updateViewMutation,
+    ]
   )
 
   const handleFilterApply = (next: Filter | null) => {
-    setFilter(next)
+    const canonical = pruneViewFilterForColumns(pruneFilterForColumns(next, columns), columns)
+    setFilter(canonical)
+    if (activeView && userPermissions.canEdit) {
+      updateViewMutation.mutate(
+        { viewId: activeView.id, configPatch: { filter: canonical } },
+        { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save View filter')) }
+      )
+    }
   }
 
   const breadcrumbs = useMemo(

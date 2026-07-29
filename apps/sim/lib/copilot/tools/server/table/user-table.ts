@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
+import { type MothershipResource, tableViewResourceId } from '@/lib/copilot/resources/types'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -48,6 +49,7 @@ import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowUpdate, patchColumnIds } from '@/lib/table/mutation-locks'
+import { pruneViewFilterForColumns } from '@/lib/table/query-builder/converters'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -79,6 +81,8 @@ import type {
   WorkflowGroupOutput,
 } from '@/lib/table/types'
 import { markTableUpdateFailed, runTableUpdate } from '@/lib/table/update-runner'
+import { resolveSelectOptionId } from '@/lib/table/validation'
+import { createTableView, listTableViews } from '@/lib/table/views/service'
 import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
 import {
   addWorkflowGroup,
@@ -108,9 +112,58 @@ type UserTableResult = {
   success: boolean
   message: string
   data?: any
+  resources?: MothershipResource[]
 }
 
 const MAX_BATCH_SIZE = CSV_MAX_BATCH_SIZE
+
+function canonicalViewFilter(filter: Filter, columns: ColumnDefinition[]): Filter {
+  const normalized: Filter = {}
+  for (const [field, condition] of Object.entries(filter)) {
+    if ((field === '$and' || field === '$or') && Array.isArray(condition)) {
+      normalized[field] = condition.map((group) => canonicalViewFilter(group as Filter, columns))
+      continue
+    }
+    const column = columns.find((candidate) => columnMatchesRef(candidate, field))
+    if (!column) throw new Error(`Unknown View filter column: ${field}`)
+    if (column.type === 'select') {
+      const operands: unknown[] = []
+      if (condition !== null && typeof condition === 'object' && !Array.isArray(condition)) {
+        for (const [operator, operand] of Object.entries(condition)) {
+          if (operator === '$empty') continue
+          operands.push(...(Array.isArray(operand) ? operand : [operand]))
+        }
+      } else {
+        operands.push(...(Array.isArray(condition) ? condition : [condition]))
+      }
+      const unknown = operands.find(
+        (operand) =>
+          resolveSelectOptionId(
+            operand as Parameters<typeof resolveSelectOptionId>[0],
+            column.options ?? []
+          ) === null
+      )
+      if (unknown !== undefined) {
+        throw new Error(`Unknown option "${String(unknown)}" for View column "${column.name}"`)
+      }
+    }
+    normalized[column.id ?? column.name] = condition
+  }
+  return resolveFilterSelectValues(normalized, columns)
+}
+
+function canonicalViewSort(
+  sort: Record<string, 'asc' | 'desc'>,
+  columns: ColumnDefinition[]
+): Record<string, 'asc' | 'desc'> {
+  const normalized: Record<string, 'asc' | 'desc'> = {}
+  for (const [field, direction] of Object.entries(sort)) {
+    const column = columns.find((candidate) => columnMatchesRef(candidate, field))
+    if (!column) throw new Error(`Unknown View sort column: ${field}`)
+    normalized[column.id ?? column.name] = direction
+  }
+  return normalized
+}
 
 async function resolveWorkspaceFileRecordOrThrow(fileReference: string, workspaceId: string) {
   const record = await resolveWorkspaceFileReference(workspaceId, fileReference)
@@ -709,6 +762,71 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 data: toNamedRow(r.data),
               })),
             },
+          }
+        }
+
+        case 'create_view': {
+          if (!args.tableId) {
+            return { success: false, message: 'Table ID is required' }
+          }
+          if (!workspaceId) {
+            return { success: false, message: 'Workspace ID is required' }
+          }
+
+          const table = await getTableById(args.tableId)
+          if (!table || table.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+
+          const filter = args.filter
+            ? pruneViewFilterForColumns(
+                canonicalViewFilter(args.filter as Filter, table.schema.columns),
+                table.schema.columns
+              )
+            : null
+          const sort = args.sort
+            ? canonicalViewSort(args.sort as Record<string, 'asc' | 'desc'>, table.schema.columns)
+            : null
+
+          let viewName =
+            typeof args.name === 'string' && args.name.trim()
+              ? args.name.trim()
+              : `${table.name} View`
+          if (!(typeof args.name === 'string' && args.name.trim())) {
+            const existingNames = new Set(
+              (await listTableViews(table.id, table.schema.columns)).map((view) =>
+                view.name.toLowerCase()
+              )
+            )
+            const baseName = viewName
+            let sequence = 2
+            while (existingNames.has(viewName.toLowerCase())) {
+              viewName = `${baseName} ${sequence}`
+              sequence += 1
+            }
+          }
+
+          assertNotAborted()
+          const view = await createTableView({
+            tableId: table.id,
+            workspaceId,
+            name: viewName,
+            config: { filter, sort },
+            userId: context.userId,
+            columns: table.schema.columns,
+          })
+
+          return {
+            success: true,
+            message: `Created View "${view.name}" from Table "${table.name}"`,
+            data: { view },
+            resources: [
+              {
+                type: 'view',
+                id: tableViewResourceId(table.id, view.id),
+                title: view.name,
+              },
+            ],
           }
         }
 

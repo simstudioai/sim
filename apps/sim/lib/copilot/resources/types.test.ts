@@ -7,7 +7,9 @@ import {
   type MothershipResource,
   MothershipResourceType,
   PERSISTED_RESOURCE_TYPES,
+  parseTableViewResourceId,
   TERMINAL_SESSION_RESOURCE_ID,
+  tableViewResourceId,
 } from './types'
 
 function resource(overrides: Partial<MothershipResource> = {}): MothershipResource {
@@ -35,6 +37,23 @@ describe('isEphemeralResource', () => {
 
   it('treats an unrecognized type as ephemeral rather than trying a doomed write', () => {
     expect(isEphemeralResource(resource({ type: 'nonsense' as MothershipResourceType }))).toBe(true)
+  })
+})
+
+describe('View resource ids', () => {
+  it('round-trips the source Table and View ids', () => {
+    const resourceId = tableViewResourceId('tbl_1', 'view_1')
+    expect(resourceId).toBe('tbl_1:view_1')
+    expect(parseTableViewResourceId(resourceId)).toEqual({
+      tableId: 'tbl_1',
+      viewId: 'view_1',
+    })
+  })
+
+  it('rejects malformed persisted View resource ids', () => {
+    expect(parseTableViewResourceId('view_1')).toBeNull()
+    expect(parseTableViewResourceId(':view_1')).toBeNull()
+    expect(parseTableViewResourceId('tbl_1:')).toBeNull()
   })
 })
 

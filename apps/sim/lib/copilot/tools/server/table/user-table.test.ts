@@ -25,6 +25,8 @@ const {
   mockRunTableImport,
   mockRunTableDelete,
   mockRunTableUpdate,
+  mockCreateTableView,
+  mockListTableViews,
   fakeEnrichment,
 } = vi.hoisted(() => ({
   mockUpdateColumnType: vi.fn(),
@@ -46,6 +48,8 @@ const {
   mockRunTableImport: vi.fn(),
   mockRunTableDelete: vi.fn(),
   mockRunTableUpdate: vi.fn(),
+  mockCreateTableView: vi.fn(),
+  mockListTableViews: vi.fn(),
   fakeEnrichment: {
     id: 'work-email',
     name: 'Work Email',
@@ -135,6 +139,11 @@ vi.mock('@/lib/table/update-runner', () => ({
 
 vi.mock('@/lib/table/billing', () => ({
   getWorkspaceTableLimits: mockGetWorkspaceTableLimits,
+}))
+
+vi.mock('@/lib/table/views/service', () => ({
+  createTableView: mockCreateTableView,
+  listTableViews: mockListTableViews,
 }))
 
 import {
@@ -805,6 +814,137 @@ describe('userTableServerTool.query_rows', () => {
     expect(options.withExecutions).toBe(false)
     expect(options.offset).toBe(10)
     expect(result.data?.nextCursor).toBeUndefined()
+  })
+})
+
+describe('userTableServerTool.create_view', () => {
+  const view = {
+    id: 'view_1',
+    tableId: 'tbl_1',
+    name: 'Open people',
+    config: { filter: { col_status: 'opt_open' }, sort: { col_name: 'desc' } },
+    isDefault: false,
+    createdBy: 'user-1',
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01'),
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetTableById.mockResolvedValue(
+      buildTable({
+        schema: {
+          columns: [
+            { id: 'col_name', name: 'Name', type: 'string' },
+            {
+              id: 'col_status',
+              name: 'Status',
+              type: 'select',
+              options: [
+                { id: 'opt_open', name: 'Open' },
+                { id: 'opt_closed', name: 'Closed' },
+              ],
+            },
+          ],
+        },
+      })
+    )
+    mockListTableViews.mockResolvedValue([])
+    mockCreateTableView.mockResolvedValue(view)
+  })
+
+  it('converts column and select names to stable ids and opens the created View', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'create_view',
+        args: {
+          tableId: 'tbl_1',
+          name: 'Open people',
+          filter: { Status: 'Open' },
+          sort: { Name: 'desc' },
+        },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockCreateTableView).toHaveBeenCalledWith({
+      tableId: 'tbl_1',
+      workspaceId: 'workspace-1',
+      name: 'Open people',
+      config: {
+        filter: { col_status: 'opt_open' },
+        sort: { col_name: 'desc' },
+      },
+      userId: 'user-1',
+      columns: expect.any(Array),
+    })
+    expect(result.resources).toEqual([{ type: 'view', id: 'tbl_1:view_1', title: 'Open people' }])
+  })
+
+  it('generates a collision-free View name when one is not supplied', async () => {
+    mockListTableViews.mockResolvedValue([
+      { ...view, id: 'view_existing', name: 'People View' },
+      { ...view, id: 'view_existing_2', name: 'People View 2' },
+    ])
+    mockCreateTableView.mockImplementation(async (input) => ({ ...view, name: input.name }))
+
+    const result = await userTableServerTool.execute(
+      { operation: 'create_view', args: { tableId: 'tbl_1' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockCreateTableView).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'People View 3' })
+    )
+  })
+
+  it('normalizes an empty model-authored filter to no filter', async () => {
+    await userTableServerTool.execute(
+      { operation: 'create_view', args: { tableId: 'tbl_1', filter: {} } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(mockCreateTableView).toHaveBeenCalledWith(
+      expect.objectContaining({ config: { filter: null, sort: null } })
+    )
+  })
+
+  it('rejects a Table from another workspace without creating a View', async () => {
+    mockGetTableById.mockResolvedValue(buildTable({ workspaceId: 'other-workspace' }))
+
+    const result = await userTableServerTool.execute(
+      { operation: 'create_view', args: { tableId: 'tbl_1', name: 'Unsafe View' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('Table not found')
+    expect(mockCreateTableView).not.toHaveBeenCalled()
+  })
+
+  it('rejects unknown columns and select values before creating a View', async () => {
+    const unknownColumn = await userTableServerTool.execute(
+      {
+        operation: 'create_view',
+        args: { tableId: 'tbl_1', filter: { missing_column: 'x' } },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    const unknownOption = await userTableServerTool.execute(
+      {
+        operation: 'create_view',
+        args: { tableId: 'tbl_1', filter: { Status: 'Missing' } },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(unknownColumn.success).toBe(false)
+    expect(unknownColumn.message).toContain('Unknown View filter column')
+    expect(unknownOption.success).toBe(false)
+    expect(unknownOption.message).toContain('Unknown option')
+    expect(mockCreateTableView).not.toHaveBeenCalled()
   })
 })
 

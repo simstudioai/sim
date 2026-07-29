@@ -15,7 +15,7 @@ import {
   UserTable,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
-import type { MothershipResource, MothershipResourceType } from './types'
+import { type MothershipResource, type MothershipResourceType, tableViewResourceId } from './types'
 
 type ChatResource = MothershipResource
 type ResourceType = MothershipResourceType
@@ -79,6 +79,22 @@ export function extractResourcesFromToolResult(
     case UserTable.id: {
       if (READ_ONLY_TABLE_OPS.has(getOperation(params) ?? '')) return []
 
+      const args = asRecord(params?.args)
+      if (getOperation(params) === 'create_view') {
+        const view = asRecord(data.view)
+        const tableId = (view.tableId as string | undefined) ?? (args.tableId as string | undefined)
+        if (tableId && view.id) {
+          return [
+            {
+              type: 'view',
+              id: tableViewResourceId(tableId, view.id as string),
+              title: (view.name as string) || 'View',
+            },
+          ]
+        }
+        return []
+      }
+
       if (result.tableId) {
         return [
           {
@@ -101,7 +117,6 @@ export function extractResourcesFromToolResult(
       if (table.id) {
         return [{ type: 'table', id: table.id as string, title: (table.name as string) || 'Table' }]
       }
-      const args = asRecord(params?.args)
       const tableId =
         (data.tableId as string) ?? (args.tableId as string) ?? (params?.tableId as string)
       if (tableId) {

@@ -7,6 +7,7 @@ import {
   Connections,
   Cursor,
   Database,
+  Eye,
   File as FileIcon,
   Folder as FolderIcon,
   Library,
@@ -17,6 +18,7 @@ import {
 } from '@sim/emcn/icons'
 import type { QueryClient } from '@tanstack/react-query'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { parseTableViewResourceId } from '@/lib/copilot/resources/types'
 import type {
   MothershipResource,
   MothershipResourceType,
@@ -140,6 +142,15 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={TableIcon} />,
   },
+  view: {
+    type: 'view',
+    label: 'Views',
+    icon: Eye,
+    renderTabIcon: (_resource, className) => (
+      <Eye className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Eye} />,
+  },
   file: {
     type: 'file',
     label: 'Files',
@@ -248,6 +259,12 @@ const RESOURCE_INVALIDATORS: Record<
   table: (qc, _wId, id) => {
     qc.invalidateQueries({ queryKey: tableKeys.lists() })
     qc.invalidateQueries({ queryKey: tableKeys.detail(id) })
+  },
+  view: (qc, _wId, id) => {
+    const parsed = parseTableViewResourceId(id)
+    if (!parsed) return
+    qc.invalidateQueries({ queryKey: tableKeys.detail(parsed.tableId) })
+    qc.invalidateQueries({ queryKey: tableKeys.views(parsed.tableId) })
   },
   file: (qc, wId, id) => {
     qc.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })

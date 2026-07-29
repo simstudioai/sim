@@ -35,6 +35,7 @@ import {
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
+import { EmbeddedViewTable } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/embedded-view-table'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
 import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
 import {
@@ -237,6 +238,16 @@ export const ResourceContent = memo(function ResourceContent({
         />
       )
 
+    case 'view':
+      return (
+        <EmbeddedViewTable
+          key={resource.id}
+          workspaceId={workspaceId}
+          resourceId={resource.id}
+          viewsEnabled={tableViewsEnabled}
+        />
+      )
+
     case 'file':
       return (
         <EmbeddedFile
@@ -337,6 +348,8 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
           tableName={resource.title}
         />
       )
+    case 'view':
+      return null
     case 'log':
       return <EmbeddedLogActions workspaceId={workspaceId} logId={resource.id} />
     case 'scheduledtask':
