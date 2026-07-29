@@ -503,7 +503,7 @@ const TOOL_TITLES: Record<string, string> = {
   restore_resource: 'Restoring resource',
   run_block: 'Running block',
   scheduled_task: 'Managing scheduled task',
-  search_docs: 'Searching docs',
+  search_docs: 'Searching Sim docs',
   search_patterns: 'Searching patterns',
   set_block_enabled: 'Toggling block',
   set_environment_variables: 'Setting environment variables',
