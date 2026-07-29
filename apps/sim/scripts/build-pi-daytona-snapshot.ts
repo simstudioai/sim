@@ -31,18 +31,29 @@ import {
   PI_NODE_MAJOR,
   PI_NODE_VERSION_ASSERT,
   PI_NPM,
+  PI_SANDBOX_CPU_COUNT,
+  PI_SANDBOX_MEMORY_GB,
 } from '@/scripts/pi-sandbox-packages'
 
 /** Matches E2B's base: Debian 13 (trixie) with Python 3.13 installed to /usr/local. */
 const BASE_IMAGE = 'python:3.13-slim-trixie'
 
 /**
- * `daytona-large` sizing. 10 GB is a HARD per-sandbox disk cap — the API rejects
- * anything larger ("Disk request 20GB exceeds maximum allowed per sandbox
- * (10GB)"), regardless of plan tier, and raising it requires contacting Daytona.
- * That is the binding constraint on how large a repo Pi can clone here.
+ * CPU and memory come from the shared module so the two providers cannot drift
+ * apart on sizing the way they already had — see {@link PI_SANDBOX_CPU_COUNT}.
+ *
+ * Disk stays local because it is not shareable: 10 GB is a HARD per-sandbox cap
+ * here — the API rejects anything larger ("Disk request 20GB exceeds maximum
+ * allowed per sandbox (10GB)"), regardless of plan tier, and raising it requires
+ * contacting Daytona. E2B allows 20 GB, so this is the binding constraint on how
+ * large a repo Pi can clone on the failover provider, and the one dimension where
+ * the two images legitimately differ.
  */
-const RESOURCES = { cpu: 4, memory: 8, disk: 10 } as const
+const RESOURCES = {
+  cpu: PI_SANDBOX_CPU_COUNT,
+  memory: PI_SANDBOX_MEMORY_GB,
+  disk: 10,
+} as const
 
 const APT_PREFIX = 'DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends'
 
