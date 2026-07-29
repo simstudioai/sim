@@ -597,8 +597,9 @@ export function Table({
         return
       }
       // A `?view=` that resolves to nothing (deleted view, stale bookmark) falls
-      // back to "All" without touching state, for the same reason. An explicit
-      // `?sort=` alongside `?view=` also wins over the view's stored sort.
+      // back to "All". An explicit `?sort=` alongside a page `?view=` still wins,
+      // but an embedded View resource must clear the host page's inherited state:
+      // none of it belongs to the missing View the resource requested.
       seededViewIdRef.current = activeView?.id ?? null
       resolvePendingLayout(activeView !== null)
       if (activeView) {
@@ -608,6 +609,7 @@ export function Table({
         // Rewrite it so a stale bookmark can't be copied on, and so the param
         // matches the All the UI is already showing.
         setActiveViewId(ALL_VIEW_PARAM)
+        if (propViewId) applyViewConfig(null)
       }
       return
     }
@@ -647,6 +649,7 @@ export function Table({
     activeView,
     activeViewId,
     embedded,
+    propViewId,
     sortColumn,
     applyViewConfig,
     setActiveViewId,
