@@ -25,12 +25,28 @@ export function createMockSql() {
     }),
   })
 
-  // Binds a value as a single parameter — drizzle's escape hatch for passing an
-  // array to Postgres as an array rather than expanding it into a value list.
-  sqlFn.param = (value: any) => ({
-    value,
-    toSQL: () => ({ sql: '?', params: [value] }),
-  })
+  // Binds a value as a single parameter. Rejecting arrays here is the only place
+  // the unit suite can see this bug class: the app pools set `fetch_types: false`
+  // (packages/db/db.ts), which leaves postgres-js with no array serializer, so an
+  // array bound as ONE parameter fails at execution with `22P02`. Rendered SQL
+  // looks perfect (`ANY($1::text[])`), so no assertion on query text can catch it.
+  sqlFn.param = (value: any, encoder?: any) => {
+    if (encoder === undefined && Array.isArray(value)) {
+      throw new Error(
+        'sql.param(array) binds an array as one parameter, which fails under ' +
+          'fetch_types: false (packages/db/db.ts). Use `IN ${arr}` or ' +
+          'ARRAY[${sql.join(arr.map((v) => sql`${v}`), sql`, `)}]::text[].'
+      )
+    }
+    if (encoder === undefined && value instanceof Date) {
+      throw new Error(
+        'sql.param(date) without an encoder reaches postgres-js as a Date object, ' +
+          'which its unsafe path cannot serialize (ERR_INVALID_ARG_TYPE). Bind ' +
+          'through the matching column: sql.param(date, table.timestampColumn).'
+      )
+    }
+    return { value, toSQL: () => ({ sql: '?', params: [value] }) }
+  }
 
   return sqlFn
 }

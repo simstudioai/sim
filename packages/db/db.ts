@@ -43,18 +43,33 @@ if (!connectionString) {
 }
 
 /**
- * `fetch_types: false` skips postgres.js's `pg_catalog.pg_type` roundtrip, which
- * it otherwise runs on every new connection before that connection's first query.
- * It builds array parsers only — scalar types (including `jsonb` and pgvector)
- * are unaffected — and Drizzle already parses this schema's `text[]` columns
- * itself, so the fetch is pure connection-setup latency.
+ * `fetch_types: false` skips postgres.js's `pg_catalog.pg_type` roundtrip, which it
+ * otherwise runs on every new connection before that connection's first query.
  *
- * The one behavior this changes: a raw `db.execute` that projects an array-typed
- * column yields the wire form `'{a,b}'` rather than `['a','b']`, since nothing maps
- * the result. Verified by differential test that Drizzle-typed selects and
- * `.returning()` are unaffected — `PgArray.mapFromDriverValue` parses the wire form
- * itself, and writes never reach the array serializer because Drizzle serializes
- * arrays before binding.
+ * That roundtrip populates the array type map, which postgres.js uses in BOTH
+ * directions, for every array type — not just `text[]`. Disabling it has two
+ * consequences on every client built from these options (the primary, the replica,
+ * and every `dbFor()` sub-pool):
+ *
+ * 1. Reads: a raw `db.execute` projecting an array column yields the wire form
+ *    `'{a,b}'`, not `['a','b']`. Drizzle-typed selects and `.returning()` are
+ *    unaffected — `PgArray.mapFromDriverValue` parses the wire form itself.
+ * 2. Writes: a JS array bound as a SINGLE parameter fails at execution with
+ *    `22P02 Array value must start with "{"` — there is no serializer to build the
+ *    literal, and neither `prepare: false` nor `sql.array()` avoids it. Drizzle-typed
+ *    column writes ARE safe (`PgArray.mapToDriverValue` stringifies first), as are
+ *    `inArray`/`${jsArray}` in a drizzle `sql` template (both expand to scalar binds).
+ *    Raw binds are NOT: never write `sql.param(someArray)`. Pass an expanded list
+ *    (`IN ${ids}`) or an explicit `ARRAY[${sql.join(...)}]::text[]` of scalars.
+ *
+ * Scalar types — including `jsonb`, pgvector, enums and ranges — are unaffected.
+ *
+ * Note postgres.js's OWN `sql` tag has the opposite semantics: it binds `${array}`
+ * as one array parameter. `packages/db/scripts/migrate.ts` deliberately omits
+ * `fetch_types` for that reason; see the note there before sharing these options.
+ *
+ * Pinned by apps/sim/lib/execution/payloads/prune-metadata-sql.test.ts, which renders
+ * the real statements and asserts no bind parameter is an array.
  */
 const poolOptions = {
   prepare: false,

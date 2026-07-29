@@ -37,4 +37,13 @@ describe('unreferencedLargeValuePredicate SQL', () => {
     // `status = IN (...)` is a syntax error Postgres only reports at execution time.
     expect(text).not.toMatch(/=\s*IN\s*\(/)
   })
+
+  it('never binds an array as a parameter', () => {
+    // The invariant that matters: the app pools set `fetch_types: false`, so an
+    // array bound as one parameter fails at execution even though the rendered
+    // SQL (`ANY($1::text[])`) is valid. Only the params can reveal it.
+    for (const param of params) {
+      expect(Array.isArray(param)).toBe(false)
+    }
+  })
 })
