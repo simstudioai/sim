@@ -89,13 +89,29 @@ describe('sanitizeChatDisplayContent', () => {
   it('stays linear on a message that repeats the tag name without ever closing it', () => {
     // A lazy scan allowed to cross an opener restarts from every opener, which
     // is quadratic — 154ms for this input before the bound, on the main thread,
-    // for every streamed chunk. Generous ceiling so the test pins the complexity
-    // rather than the machine.
-    const content = 'The <workspace_resource> tag is used here. '.repeat(4000)
+    // for every streamed chunk.
+    //
+    // Asserted as a RATIO across a 4x input rather than a wall-clock ceiling. A
+    // fixed millisecond bound measures the machine as much as the algorithm: it
+    // fails on a loaded CI box, and set generously enough not to, it lets a
+    // genuine quadratic through at the single size it happens to sample.
+    // Quadratic costs ~16x for 4x the input; linear costs ~4x.
+    const build = (times: number) => 'The <workspace_resource> tag is used here. '.repeat(times)
+    const fastest = (content: string) => {
+      let best = Number.POSITIVE_INFINITY
+      for (let run = 0; run < 5; run++) {
+        const startedAt = performance.now()
+        sanitizeChatDisplayContent(content)
+        best = Math.min(best, performance.now() - startedAt)
+      }
+      return best
+    }
 
-    const startedAt = performance.now()
-    sanitizeChatDisplayContent(content)
-    expect(performance.now() - startedAt).toBeLessThan(50)
+    fastest(build(2_000))
+    const small = fastest(build(2_000))
+    const large = fastest(build(8_000))
+
+    expect(large / small).toBeLessThan(8)
   })
 
   it('still unwraps a real tag that carries a stray backtick on one side only', () => {

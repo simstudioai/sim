@@ -534,6 +534,15 @@ const JSON_BODY_TAG_NAMES: ReadonlySet<(typeof SPECIAL_TAG_NAMES)[number]> = new
 const MAX_UNCLOSED_BODY_SCAN = 4096
 
 /**
+ * Length of the longest marker the scans can match.
+ *
+ * Derived from {@link SPECIAL_TAG_NAMES} rather than hand-counted, so adding a
+ * longer tag name cannot silently shrink the rewind in {@link resumeForClass}.
+ * Closing markers are the longer of the two forms, so they set the bound.
+ */
+const LONGEST_TAG_MARKER = Math.max(...SPECIAL_TAG_NAMES.map((name) => `</${name}>`.length))
+
+/**
  * Strip the contents of JSON string literals from `body`, replacing them with
  * spaces so every other index is preserved.
  *
@@ -913,10 +922,17 @@ function resumeForClass(cls: BodyClass, bodyStart: number, pastClose: number): n
       // Rescan the whole body: nothing was blanked, so no marker is hidden.
       return bodyStart
     case 'unexamined':
-      // Resume at the first character NOT read. Everything read is emitted as
-      // text by the caller, and this advances a full window per step, so a long
-      // body costs a bounded number of re-entries.
-      return bodyStart + MAX_UNCLOSED_BODY_SCAN
+      // Resume just short of the first character NOT read. Everything read is
+      // emitted as text by the caller, and this advances nearly a full window per
+      // step, so a long body still costs a bounded number of re-entries.
+      //
+      // The rewind is load-bearing: the window edge is an arbitrary cut, so an
+      // opener can straddle it. Resuming exactly at the edge leaves that opener's
+      // `<` behind the cursor, and the opener scan only looks FORWARD — so the tag
+      // is never found and renders as raw payload text, on a completed message.
+      // Backing off by the longest marker guarantees any straddling opener is
+      // re-scanned from its `<`.
+      return bodyStart + MAX_UNCLOSED_BODY_SCAN - (LONGEST_TAG_MARKER - 1)
   }
 }
 

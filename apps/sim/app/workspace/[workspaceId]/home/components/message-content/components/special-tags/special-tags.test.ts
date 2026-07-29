@@ -427,6 +427,30 @@ describe('parseSpecialTags with <question>', () => {
     }
   })
 
+  it('still finds a valid tag whose opener STRADDLES the scan-window edge', () => {
+    // The window edge is an arbitrary cut, so an opener can begin just before it
+    // and finish just after. The test above steps in 11-character units and so
+    // lands on only a few offsets; the straddle needs every offset in the band.
+    //
+    // Resuming exactly at the edge left the opener's `<` behind the cursor, and
+    // the opener scan only looks FORWARD — so the tag was never found and its
+    // payload rendered as raw JSON text, on a COMPLETED message. Every offset
+    // across the band must still produce the card.
+    const inner =
+      '<workspace_resource>{"type":"file","path":"files/b.md","title":"b.md"}</workspace_resource>'
+
+    for (let filler = 4_060; filler <= 4_110; filler++) {
+      const raw = `See <workspace_resource>${'z'.repeat(filler)}${inner} end`
+      const { segments } = parseSpecialTags(raw, false)
+      expect(
+        segments.filter((segment) => segment.type === 'workspace_resource'),
+        `filler ${filler}`
+      ).toHaveLength(1)
+      // Nothing is duplicated or dropped by the rewind either.
+      expect(renderedText(segments), `filler ${filler}`).toContain(' end')
+    }
+  })
+
   it('still renders a matched pair whose body IS valid', () => {
     const raw =
       'see <workspace_resource>{"type":"file","path":"files/a.md","title":"a.md"}</workspace_resource> ok'
@@ -541,11 +565,26 @@ describe('parseSpecialTags with <question>', () => {
     // Viability rejects on the first non-whitespace character when it is not `{`
     // or `[` — the common case. Testing that before blanking avoids copying a
     // full window per opener per chunk: 43ms to 2ms on this input.
-    const content = 'The <workspace_resource> tag is used here. '.repeat(2000)
+    //
+    // Asserted as a RATIO across a 4x input rather than a wall-clock ceiling, so
+    // the test pins the complexity instead of the speed of the machine running
+    // it. Quadratic costs ~16x for 4x the input; linear costs ~4x.
+    const build = (times: number) => 'The <workspace_resource> tag is used here. '.repeat(times)
+    const fastest = (content: string) => {
+      let best = Number.POSITIVE_INFINITY
+      for (let run = 0; run < 5; run++) {
+        const startedAt = performance.now()
+        parseSpecialTags(content, true)
+        best = Math.min(best, performance.now() - startedAt)
+      }
+      return best
+    }
 
-    const startedAt = performance.now()
-    parseSpecialTags(content, true)
-    expect(performance.now() - startedAt).toBeLessThan(20)
+    fastest(build(2_000))
+    const small = fastest(build(2_000))
+    const large = fastest(build(8_000))
+
+    expect(large / small).toBeLessThan(8)
   })
 
   it('does not let a late thinking close swallow content already on screen', () => {
