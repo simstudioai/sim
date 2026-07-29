@@ -196,7 +196,12 @@ const RUNTIME_SPECIAL_TAG_NAMES = [
   'question',
 ] as const
 
-const SPECIAL_TAG_NAMES = [
+/**
+ * Every tag the parser resolves. Exported so tests can assert their fixtures
+ * cover all of them rather than hand-picking a subset that silently drifts —
+ * the same treatment the sibling `*_TYPES` unions above already get.
+ */
+export const SPECIAL_TAG_NAMES = [
   'thinking',
   'options',
   'usage_upgrade',

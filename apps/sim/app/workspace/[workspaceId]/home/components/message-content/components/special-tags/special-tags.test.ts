@@ -23,6 +23,7 @@ import {
   memoizedIndexOf,
   parseQuestionTagBody,
   parseSpecialTags,
+  SPECIAL_TAG_NAMES,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
 
 /**
@@ -797,7 +798,10 @@ describe('memoizedIndexOf', () => {
   const CONTENT =
     'Use <workspace_resource> for files. Use <question> for cards. ' +
     '<options>[{"title":"Ship","description":"go"}]</options> and <question> again.'
-  const NEEDLES = ['<workspace_resource>', '<question>', '<options>', '<thinking>']
+  // Every opener the parser actually searches for, not a hand-picked few: the
+  // cache is keyed per needle, so a needle absent from CONTENT exercises the
+  // cached -1 path and a repeated one exercises reuse as the cursor advances.
+  const NEEDLES = SPECIAL_TAG_NAMES.map((name) => `<${name}>`)
 
   it('matches plain indexOf as the cursor advances', () => {
     const cache: IndexOfCache = new Map()
@@ -861,11 +865,38 @@ describe('parser properties', () => {
     }
   }
 
-  const VALID_TAGS = [
-    '<workspace_resource>{"type":"file","path":"files/a.md","title":"a.md"}</workspace_resource>',
-    '<options>[{"title":"Ship it","description":"Open the PR"}]</options>',
-    `<question>${JSON.stringify(SINGLE_SELECT)}</question>`,
-  ]
+  /**
+   * One valid payload per card-rendering tag, keyed by tag name so
+   * {@link SPECIAL_TAG_NAMES} can be checked for full coverage below. Hand-picking
+   * a subset is how three of these went unexercised by every invariant without
+   * anything failing to say so.
+   */
+  const VALID_TAG_BY_NAME: Record<string, string> = {
+    workspace_resource:
+      '<workspace_resource>{"type":"file","path":"files/a.md","title":"a.md"}</workspace_resource>',
+    options: '<options>[{"title":"Ship it","description":"Open the PR"}]</options>',
+    question: `<question>${JSON.stringify(SINGLE_SELECT)}</question>`,
+    credential:
+      '<credential>{"type":"link","provider":"slack","value":"https://x.example/p"}</credential>',
+    usage_upgrade:
+      '<usage_upgrade>{"reason":"monthly cap","action":"upgrade_plan","message":"You hit your limit."}</usage_upgrade>',
+    'mothership-error':
+      '<mothership-error>{"message":"The tool call failed.","code":"E_TOOL"}</mothership-error>',
+  }
+
+  /** Renders nothing rather than a card, so it cannot carry a card invariant. */
+  const TAGS_WITHOUT_CARDS = ['thinking']
+
+  const VALID_TAGS = Object.values(VALID_TAG_BY_NAME)
+
+  it('covers every tag the parser knows', () => {
+    // The invariants below are only as good as this list. Deriving the check from
+    // SPECIAL_TAG_NAMES makes adding a tag without a fixture fail loudly here,
+    // instead of quietly leaving it outside every property in this file.
+    expect(new Set([...Object.keys(VALID_TAG_BY_NAME), ...TAGS_WITHOUT_CARDS])).toEqual(
+      new Set(SPECIAL_TAG_NAMES)
+    )
+  })
 
   /**
    * Fragments that must survive verbatim. Every one is a shape the parser has to
