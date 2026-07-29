@@ -248,6 +248,12 @@ interface TableGridProps {
    */
   columnRenameSinkRef: React.MutableRefObject<((oldName: string, newName: string) => void) | null>
   /**
+   * Ref the grid populates with a reader for its CURRENT column layout. The grid
+   * owns this state, so the wrapper asks for it when creating a view rather than
+   * mirroring every patch — a mirror goes stale the moment a write bypasses it.
+   */
+  layoutSnapshotSinkRef?: React.MutableRefObject<(() => TableMetadata) | null>
+  /**
    * Ref the grid populates with its post-row-delete cleanup (push undo,
    * clear selection). The wrapper invokes after the row-delete modal's
    * mutation succeeds.
@@ -383,6 +389,7 @@ export function TableGrid({
   viewLayoutKey = null,
   onPersistLayout,
   columnRenameSinkRef,
+  layoutSnapshotSinkRef,
   afterDeleteRowsSinkRef,
   afterDeleteAllSinkRef,
   confirmDeleteColumnsSinkRef,
@@ -665,6 +672,14 @@ export function TableGrid({
   // Populate the wrapper's sink so its sidebars can fire renames back into
   // the grid. Reads through refs, so identity stability isn't required.
   columnRenameSinkRef.current = handleColumnRename
+
+  if (layoutSnapshotSinkRef) {
+    layoutSnapshotSinkRef.current = () => ({
+      columnWidths: columnWidthsRef.current,
+      ...(columnOrderRef.current ? { columnOrder: columnOrderRef.current } : {}),
+      pinnedColumns: pinnedColumnsRef.current,
+    })
+  }
 
   function getColumnWidths() {
     return columnWidthsRef.current

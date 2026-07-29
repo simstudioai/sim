@@ -439,6 +439,42 @@ export function Table({
     [setTableParams]
   )
 
+  /** Reader for the grid's CURRENT column layout, populated by the grid itself.
+   *  The grid owns widths/order/pinning, so the wrapper asks at the moment it
+   *  needs them instead of mirroring every patch — a mirror only stays right
+   *  while every write flows through it, and layout writes bypass it whenever
+   *  All is active. */
+  const layoutSnapshotRef = useRef<(() => TableMetadata) | null>(null)
+  const readLayout = useCallback((): TableMetadata => layoutSnapshotRef.current?.() ?? {}, [])
+
+  /** Whether the user changed layout before the views query settled, when there
+   *  was no owner to write to. What changed isn't recorded — the grid still holds
+   *  it — only that something did, so a settle to All knows to persist it. */
+  const layoutTouchedWhileUnownedRef = useRef(false)
+
+  /**
+   * Resolves that pending layout once the resolve effect has picked an owner.
+   *
+   * Settling on All re-seeds nothing — `viewLayoutKey` never changed — so the
+   * user's resize is still on screen and has to be persisted or it silently
+   * disappears on refresh. Adopting a view instead re-seeds the grid from that
+   * view's config, which already replaced the gesture on screen, so it is dropped.
+   *
+   * Called from the resolve effect rather than keyed on `activeView`: adoption
+   * writes the view id through the URL, so for one render the query has settled
+   * while `activeView` is still null, and an effect would flush to All in exactly
+   * the case that must drop.
+   */
+  const resolvePendingLayout = useCallback(
+    (adoptedView: boolean) => {
+      if (!layoutTouchedWhileUnownedRef.current) return
+      layoutTouchedWhileUnownedRef.current = false
+      if (adoptedView || !userPermissions.canEdit) return
+      updateMetadataMutation.mutate(readLayout())
+    },
+    [userPermissions.canEdit, readLayout]
+  )
+
   /** What the user has already set by hand, for the first-resolve `keep`. */
   const localWork = () => ({
     sort: sortColumn !== null,
@@ -481,6 +517,7 @@ export function Table({
           seededViewIdRef.current = defaultView.id
           setTableParams({ view: defaultView.id })
           applyViewConfig(defaultView.config, keep)
+          resolvePendingLayout(true)
           return
         }
         // No view to adopt. Deliberately does NOT apply an empty config — that
@@ -488,16 +525,19 @@ export function Table({
         // exception: nothing about them refers to this table, so they're cleared.
         seededViewIdRef.current = null
         if (inheritedParams) setTableParams({ view: ALL_VIEW_PARAM, sort: null, dir: null })
+        resolvePendingLayout(false)
         return
       }
       if (activeViewId === ALL_VIEW_PARAM) {
         seededViewIdRef.current = null
+        resolvePendingLayout(false)
         return
       }
       // A `?view=` that resolves to nothing (deleted view, stale bookmark) falls
       // back to "All" without touching state, for the same reason. An explicit
       // `?sort=` alongside `?view=` also wins over the view's stored sort.
       seededViewIdRef.current = activeView?.id ?? null
+      resolvePendingLayout(activeView !== null)
       if (activeView) {
         applyViewConfig(activeView.config, localWork())
       } else {
@@ -541,6 +581,7 @@ export function Table({
     sortColumn,
     applyViewConfig,
     setTableParams,
+    resolvePendingLayout,
   ])
 
   /**
@@ -576,48 +617,9 @@ export function Table({
    *  order / pins the grid is rendering (they live in the table's shared metadata
    *  until a view owns them) instead of creating a layout-less view that then
    *  resets the grid. Updates never send this — they send a merge patch. */
-  /** Last layout the grid reported, patch by patch. View layout writes have no
-   *  optimistic cache update, so `activeView.config` lags an in-flight resize —
-   *  this is what a new view copies so the grid can't snap back.
-   *
-   *  Declared above the consumers that read it during render, and reset on every
-   *  view change: it holds patches for ONE view, so carrying them across a switch
-   *  would let a new view inherit the previous view's widths/order/pins. */
-  const liveLayoutRef = useRef<TableMetadata>({})
-
-  useEffect(() => {
-    liveLayoutRef.current = {}
-  }, [activeView?.id])
-
-  /** Layout captured before the views query settled, when no owner was known. */
-  const pendingLayoutRef = useRef<TableMetadata>({})
-
-  /**
-   * Resolves that buffer once the owner is known.
-   *
-   * Settling on All re-seeds nothing — `viewLayoutKey` never changed — so the
-   * user's resize is still on screen and has to be persisted or it silently
-   * disappears on refresh. Adopting a view instead re-seeds the grid from that
-   * view's config, which already replaced the gesture on screen, so the buffer is
-   * dropped to match what the user is looking at.
-   */
-  useEffect(() => {
-    if (viewOwnerUnknown) return
-    const pending = pendingLayoutRef.current
-    pendingLayoutRef.current = {}
-    if (activeView || !userPermissions.canEdit) return
-    if (Object.keys(pending).length === 0) return
-    updateMetadataMutation.mutate(pending)
-    // `.mutate` is stable in TanStack Query v5, so it stays out of the deps.
-  }, [viewOwnerUnknown, activeView, userPermissions.canEdit])
-
   const currentViewConfig = useMemo<TableViewConfig>(
     () => ({
-      // `liveLayoutRef` after the cached config for the same reason the blank-view
-      // payload does it: a resize/reorder/pin still in flight would otherwise be
-      // captured at its pre-drag value and snap back when the view is selected.
       ...(activeView?.config ?? tableData?.metadata),
-      ...liveLayoutRef.current,
       filter: effectiveFilter,
       sort: sortQuery,
       hiddenColumns: effectiveHiddenColumns,
@@ -683,14 +685,15 @@ export function Table({
    *  suppressed, because the owner isn't known yet. */
   const handlePersistLayout = useCallback(
     (patch: TableMetadata) => {
-      liveLayoutRef.current = { ...liveLayoutRef.current, ...patch }
       // The resize grip and drag handles stay live for read-only members, so
       // without this a resize fires a write-gated PATCH and an error toast. Local
       // layout still updates — only the persist is suppressed.
       if (!userPermissions.canEdit) return
-      // Owner not known yet — hold the patch until the views query settles.
+      // Owner not known yet. The grid keeps the layout either way, so only the
+      // fact of the change is recorded; `resolvePendingLayout` reads the live
+      // value once an owner exists.
       if (viewOwnerUnknown) {
-        pendingLayoutRef.current = { ...pendingLayoutRef.current, ...patch }
+        layoutTouchedWhileUnownedRef.current = true
         return
       }
       if (!activeView) return
@@ -741,18 +744,13 @@ export function Table({
     const blank = viewModal?.blank === true
     const config: TableViewConfig = blank
       ? {
-          // `liveLayoutRef` last, so a resize/reorder/pin still in flight wins over
-          // the cached copy — otherwise the new view stores the pre-drag layout and
-          // the grid snaps back to it on selection. (With no active view the grid
-          // writes table metadata directly, which `useUpdateTableMetadata` updates
-          // optimistically, so that branch is already current.)
           ...(activeView?.config ?? tableData?.metadata),
-          ...liveLayoutRef.current,
+          ...readLayout(),
           filter: null,
           sort: null,
           hiddenColumns: [],
         }
-      : currentViewConfig
+      : { ...currentViewConfig, ...readLayout() }
     createViewMutation.mutate(
       { name, config },
       {
@@ -1385,12 +1383,13 @@ export function Table({
         onPersistLayout={
           // While the views query is in flight the layout owner is unknown, so
           // the sink is bound anyway: `handlePersistLayout` buffers into
-          // `liveLayoutRef` and suppresses the write. Leaving it unset would fall
+          // records the change and suppresses the write. Leaving it unset would fall
           // through to the table's shared metadata and corrupt All's layout for a
           // table that is about to adopt a view.
           viewOwnerUnknown || activeView ? handlePersistLayout : undefined
         }
         columnRenameSinkRef={columnRenameSinkRef}
+        layoutSnapshotSinkRef={layoutSnapshotRef}
         afterDeleteRowsSinkRef={afterDeleteRowsSinkRef}
         afterDeleteAllSinkRef={afterDeleteAllSinkRef}
         confirmDeleteColumnsSinkRef={confirmDeleteColumnsSinkRef}
