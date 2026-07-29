@@ -1912,6 +1912,13 @@
       "when": 1785281897201,
       "tag": "0273_copilot_tool_permission_decision",
       "breakpoints": true
+    },
+    {
+      "idx": 274,
+      "version": "7",
+      "when": 1785281897202,
+      "tag": "0274_file_folder_cutover_reconcile",
+      "breakpoints": true
     }
   ]
 }

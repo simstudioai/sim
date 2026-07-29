@@ -3,7 +3,8 @@
 import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { AllTagSlot } from '@/lib/knowledge/constants'
-import { knowledgeKeys, useTagDefinitionsQuery } from '@/hooks/queries/kb/knowledge'
+import { useTagDefinitionsQuery } from '@/hooks/queries/kb/knowledge'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 export interface TagDefinition {
   id: string

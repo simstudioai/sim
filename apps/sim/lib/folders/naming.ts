@@ -16,7 +16,7 @@ type DbOrTx = Pick<typeof db, 'select'>
  * instead where they do (create, rename).
  *
  * The `" (N)"` shape deliberately matches both the client-side dedup in
- * `useFolderCreateWithDedup` and the backfill in migration 0272, so a deduped name reads the
+ * `nextUntitledFolderName` and the backfill in migration 0272, so a deduped name reads the
  * same however it was produced.
  */
 export async function deduplicateFolderName(

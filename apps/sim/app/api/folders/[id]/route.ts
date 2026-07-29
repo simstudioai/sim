@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { folder as folderTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { deleteFolderContract, updateFolderContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
@@ -45,10 +45,22 @@ export const PUT = withRouteHandler(
       const { resourceType } = parsed.data.query
       const { name, locked, parentId, sortOrder } = parsed.data.body
 
+      /**
+       * `isNull(deletedAt)` is load-bearing, not tidiness: `getFolderLockStatus` skips
+       * archived rows, so an archived-but-locked folder reports unlocked. Without this
+       * filter, deleting a folder makes every locked subfolder under it freely renameable
+       * and reparentable by any write-level member.
+       */
       const existingFolder = await db
         .select()
         .from(folderTable)
-        .where(and(eq(folderTable.id, id), eq(folderTable.resourceType, resourceType)))
+        .where(
+          and(
+            eq(folderTable.id, id),
+            eq(folderTable.resourceType, resourceType),
+            isNull(folderTable.deletedAt)
+          )
+        )
         .then((rows) => rows[0])
 
       if (!existingFolder) {
@@ -143,6 +155,12 @@ export const DELETE = withRouteHandler(
       const { id } = parsed.data.params
       const { resourceType } = parsed.data.query
 
+      /**
+       * Deliberately NOT filtered on `deletedAt`, unlike PUT above: `deleteFolder` reuses an
+       * already-archived folder's own `deletedAt` so a cascade that failed partway can be
+       * retried onto the same snapshot. 404ing here would strand those stragglers. Delete is
+       * also idempotent, so re-reaching an archived folder grants nothing new.
+       */
       const existingFolder = await db
         .select()
         .from(folderTable)

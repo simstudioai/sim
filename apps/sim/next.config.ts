@@ -367,7 +367,7 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/team',
-        destination: 'https://cal.com/emirkarabeg/sim-team',
+        destination: 'https://cal.com/team/sim/demo',
         permanent: false,
       }
     )

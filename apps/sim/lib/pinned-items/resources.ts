@@ -1,9 +1,9 @@
 import {
   db,
+  folder as folderTable,
   knowledgeBase,
   userTableDefinitions,
   workflow,
-  workspaceFileFolder,
   workspaceFiles,
 } from '@sim/db'
 import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm'
@@ -55,21 +55,16 @@ const PINNED_RESOURCES: Record<PinnedResourceType, PinnedResourceConfig> = {
     deletedColumn: userTableDefinitions.archivedAt,
   },
   /**
-   * File folders are the only pinnable folders today, and they are still read and
-   * written against `workspace_file_folders` — the generic `folder` table currently
-   * backs workflow folders only, and its `resource_type = 'file'` rows are a one-time
-   * backfill that new file folders never reach. Resolving pins against `folder` would
-   * therefore drop every folder created after migration 0272.
-   *
-   * That backfill preserved folder ids, so when the file-folder cutover lands this
-   * entry repoints at `folder` (scoped to `resourceType = 'file'`) without invalidating
-   * a single existing pin.
+   * One entry covers every folder tree. Deliberately unscoped by `resourceType`: file,
+   * knowledge-base, and table folders are all pinnable and all live in `folder`, and a
+   * folder id addresses exactly one row regardless of which tree it belongs to. The
+   * workspace filter below still scopes the check.
    */
   folder: {
-    table: workspaceFileFolder,
-    idColumn: workspaceFileFolder.id,
-    workspaceColumn: workspaceFileFolder.workspaceId,
-    deletedColumn: workspaceFileFolder.deletedAt,
+    table: folderTable,
+    idColumn: folderTable.id,
+    workspaceColumn: folderTable.workspaceId,
+    deletedColumn: folderTable.deletedAt,
   },
 }
 

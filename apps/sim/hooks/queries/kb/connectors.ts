@@ -15,7 +15,7 @@ import {
   triggerKnowledgeConnectorSyncContract,
   updateKnowledgeConnectorContract,
 } from '@/lib/api/contracts/knowledge'
-import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 const logger = createLogger('KnowledgeConnectorQueries')
 

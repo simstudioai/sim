@@ -4,7 +4,12 @@ import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createPinnedItemContract, listPinnedItemsContract } from '@/lib/api/contracts'
+import {
+  createPinnedItemContract,
+  listPinnedItemsContract,
+  type PinnedItemApi,
+  pinnedResourceTypeSchema,
+} from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -13,8 +18,22 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('PinnedItemsAPI')
 
-function toPinnedItemApi(row: typeof pinnedItem.$inferSelect) {
-  return { ...row, pinnedAt: row.pinnedAt.toISOString() }
+/**
+ * Narrows a stored row to the wire shape, dropping any row whose `resourceType` this build does
+ * not recognise.
+ *
+ * `pinned_item.resource_type` is plain `text` — deliberately, so the set of pinnable kinds can
+ * grow — while the contract is a closed enum. During a rolling deploy an older pod can therefore
+ * read a pin a newer one wrote. Returning it would fail response validation and take the WHOLE
+ * list down rather than the single row, so the unknown kind is skipped instead.
+ *
+ * `filterToActiveResources` already drops these as a side effect of not having a table to look
+ * them up in; this makes the guarantee explicit and compiler-checked at the wire boundary.
+ */
+function toPinnedItemApi(row: typeof pinnedItem.$inferSelect): PinnedItemApi | null {
+  const resourceType = pinnedResourceTypeSchema.safeParse(row.resourceType)
+  if (!resourceType.success) return null
+  return { ...row, resourceType: resourceType.data, pinnedAt: row.pinnedAt.toISOString() }
 }
 
 /** Lists the session user's pinned items in a workspace, optionally filtered to one `resourceType`. */
@@ -46,7 +65,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   const activeRows = await filterToActiveResources(rows, workspaceId)
 
-  return NextResponse.json({ pinnedItems: activeRows.map(toPinnedItemApi) })
+  const pinnedItems = activeRows
+    .map(toPinnedItemApi)
+    .filter((item): item is PinnedItemApi => item !== null)
+
+  return NextResponse.json({ pinnedItems })
 })
 
 /** Pins a resource for the session user. Idempotent from the client's perspective: re-pinning returns 409. */
@@ -81,7 +104,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
       .returning()
 
-    return NextResponse.json({ pinnedItem: toPinnedItemApi(created) }, { status: 201 })
+    /**
+     * Built from the validated `resourceType` rather than round-tripping the raw row through
+     * `toPinnedItemApi`: the value came from the contract enum, so narrowing here could never
+     * fail, and threading a `| null` through a path that cannot produce one would only obscure
+     * that.
+     */
+    const pinned: PinnedItemApi = {
+      ...created,
+      resourceType,
+      pinnedAt: created.pinnedAt.toISOString(),
+    }
+    return NextResponse.json({ pinnedItem: pinned }, { status: 201 })
   } catch (error) {
     if (getPostgresErrorCode(error) === '23505') {
       return NextResponse.json({ error: 'This item is already pinned' }, { status: 409 })

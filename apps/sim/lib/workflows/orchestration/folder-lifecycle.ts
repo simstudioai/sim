@@ -1,4 +1,5 @@
 import type { folder as folderTable } from '@sim/db/schema'
+import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import { createFolder, deleteFolder, restoreFolder, updateFolder } from '@/lib/folders/lifecycle'
 import type { FolderMutationErrorCode } from '@/lib/folders/status'
 import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
@@ -56,7 +57,14 @@ export interface PerformDeleteFolderResult {
   deletedItems?: { folders: number; workflows?: number }
 }
 
-export interface PerformRestoreFolderParams extends PerformDeleteFolderParams {}
+export interface PerformRestoreFolderParams extends PerformDeleteFolderParams {
+  /**
+   * Folder tree to restore into. Defaults to `'workflow'` so every existing caller — and the
+   * copilot tool contract — is unchanged; Recently Deleted and the restore tool pass the
+   * knowledge-base or table tree explicitly.
+   */
+  resourceType?: FolderResourceType
+}
 
 export interface PerformRestoreFolderResult {
   success: boolean
@@ -86,5 +94,5 @@ export function performDeleteFolder(
 export function performRestoreFolder(
   params: PerformRestoreFolderParams
 ): Promise<PerformRestoreFolderResult> {
-  return restoreFolder({ ...params, resourceType: 'workflow' })
+  return restoreFolder({ ...params, resourceType: params.resourceType ?? 'workflow' })
 }

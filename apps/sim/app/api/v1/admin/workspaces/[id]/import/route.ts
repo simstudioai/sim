@@ -26,7 +26,7 @@
 import { db } from '@sim/db'
 import { folder as folderTable, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
@@ -108,16 +108,42 @@ async function ensureImportFolder(
   if (existing) return existing.id
 
   const folderId = generateId()
-  await db.insert(folderTable).values({
-    id: folderId,
-    resourceType: 'workflow',
-    name,
-    userId,
-    workspaceId,
-    parentId,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  })
+  try {
+    await db.insert(folderTable).values({
+      id: folderId,
+      resourceType: 'workflow',
+      name,
+      userId,
+      workspaceId,
+      parentId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+  } catch (error) {
+    /**
+     * The SELECT above is not serialized against this INSERT, so two imports sharing a folder
+     * path race here. The name is server-chosen, not user-chosen, so the right resolution is
+     * to adopt whichever folder won rather than fail the whole import with a 500 — the same
+     * reuse-on-conflict `ensureWorkspaceFileFolderPath` already does.
+     */
+    if (getPostgresErrorCode(error) !== '23505') throw error
+
+    const [concurrent] = await db
+      .select({ id: folderTable.id })
+      .from(folderTable)
+      .where(
+        and(
+          eq(folderTable.workspaceId, workspaceId),
+          eq(folderTable.resourceType, 'workflow'),
+          eq(folderTable.name, name),
+          parentId ? eq(folderTable.parentId, parentId) : isNull(folderTable.parentId),
+          isNull(folderTable.deletedAt)
+        )
+      )
+      .limit(1)
+    if (!concurrent) throw error
+    return concurrent.id
+  }
   return folderId
 }
 

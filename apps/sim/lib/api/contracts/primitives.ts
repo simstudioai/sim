@@ -60,6 +60,17 @@ export const organizationIdSchema = requiredFieldSchema('Organization ID is requ
 export const workflowIdSchema = requiredFieldSchema('Workflow ID is required')
 
 /**
+ * A `folder.id` value. Not `.uuid()`: the column is free-form `text` and the
+ * legacy `workflow_folder` rows migrated onto it keep their original id shape.
+ * Callers that also allow "no folder" chain `.nullable()` themselves so the
+ * two-state and three-state spellings stay explicit at each call site.
+ */
+export const folderIdSchema = requiredFieldSchema('Folder ID is required').max(
+  128,
+  'Folder ID is too long'
+)
+
+/**
  * A `workspace_files.id` value. The column is a free-form `text` primary key, so
  * ids come in two shapes: UUID v4 (legacy rows and the `insertFileMetadata`
  * default) and the current `wf_<shortId>` form minted by the workspace upload

@@ -2,8 +2,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { FolderApi } from '@/lib/api/contracts'
 import type { ListWorkspaceFilesResponse } from '@/lib/api/contracts/workspace-files'
 import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
-import { FOLDER_LIST_STALE_TIME, mapFolder } from '@/hooks/queries/folders'
-import { folderKeys } from '@/hooks/queries/utils/folder-keys'
+import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
 import {
   WORKSPACE_FILES_LIST_STALE_TIME,
   workspaceFilesKeys,
