@@ -45,19 +45,22 @@ export const outlookCalendarListEventsTool: ToolConfig<
       visibility: 'user-only',
       description: 'ID of the calendar to read. Defaults to the mailbox default calendar.',
     },
+    // Not `required`, because a paging call supplies only `pageToken` and the window bounds
+    // are baked into the nextLink. The url builder enforces "pageToken OR both bounds".
+    // Mirrors tools/sharepoint/list_sites.ts.
     startDateTime: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Start of the time window (ISO 8601, e.g. 2025-06-03T00:00:00-08:00). Interpreted as UTC if no offset is given.',
+        'Start of the time window (ISO 8601, e.g. 2025-06-03T00:00:00-08:00). Interpreted as UTC if no offset is given. Required unless paging with pageToken.',
     },
     endDateTime: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'End of the time window (ISO 8601, e.g. 2025-06-10T00:00:00-08:00). Interpreted as UTC if no offset is given.',
+        'End of the time window (ISO 8601, e.g. 2025-06-10T00:00:00-08:00). Interpreted as UTC if no offset is given. Required unless paging with pageToken.',
     },
     maxResults: {
       type: 'number',
@@ -86,6 +89,12 @@ export const outlookCalendarListEventsTool: ToolConfig<
       // Outlook bearer. Mirrors the onedrive / microsoft_ad Graph paging guard.
       if (params.pageToken) {
         return assertGraphNextPageUrl(params.pageToken.trim())
+      }
+
+      if (!params.startDateTime?.trim() || !params.endDateTime?.trim()) {
+        throw new Error(
+          'startDateTime and endDateTime are required to list calendar events (calendarView needs both bounds). Supply pageToken instead to continue a previous page.'
+        )
       }
 
       const requested = Number(params.maxResults)

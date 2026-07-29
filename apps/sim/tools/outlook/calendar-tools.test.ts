@@ -150,7 +150,19 @@ describe('outlook calendar tools', () => {
     )
   })
 
-  it('omits the comment key when empty so sendResponse=false is accepted by Graph', () => {
+  it('requires both window bounds unless paging with a pageToken', () => {
+    const url = outlookCalendarListEventsTool.request.url as (p: unknown) => string
+    // Paging supplies only the token: the window is already baked into the nextLink.
+    expect(url({ accessToken: 't', pageToken: 'https://graph.microsoft.com/next' })).toBe(
+      'https://graph.microsoft.com/next'
+    )
+    expect(() => url({ accessToken: 't', startDateTime: '2025-06-03T00:00:00Z' })).toThrow(
+      /startDateTime and endDateTime are required/
+    )
+    expect(() => url({ accessToken: 't' })).toThrow(/startDateTime and endDateTime are required/)
+  })
+
+  it('omits the comment key when empty but keeps it alongside sendResponse=false', () => {
     const body = outlookCalendarRespondTool.request.body as (p: unknown) => Record<string, unknown>
     // Empty/whitespace comment with sendResponse off: comment must NOT be present.
     const noComment = body({
@@ -164,6 +176,12 @@ describe('outlook calendar tools', () => {
 
     const nullComment = body({ eventId: 'e1', responseType: 'decline', sendResponse: false })
     expect('comment' in nullComment).toBe(false)
+
+    // A real comment with sendResponse=false is valid: Graph's documented 400s for
+    // accept/decline are both about proposedNewTime, which we never send.
+    expect(
+      body({ eventId: 'e1', responseType: 'decline', sendResponse: false, comment: 'Conflict' })
+    ).toEqual({ sendResponse: false, comment: 'Conflict' })
 
     // A real comment is included, and sendResponse defaults to true.
     const withComment = body({ eventId: 'e1', responseType: 'accept', comment: 'See you there' })

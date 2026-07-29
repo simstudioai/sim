@@ -710,8 +710,10 @@ export interface OutlookCalendarListEventsParams {
   accessToken: string
   /** Calendar to read. Omit for the mailbox's default calendar. */
   calendarId?: string
-  startDateTime: string
-  endDateTime: string
+  /** Required unless `pageToken` is supplied, which already encodes the window. */
+  startDateTime?: string
+  /** Required unless `pageToken` is supplied, which already encodes the window. */
+  endDateTime?: string
   maxResults?: number
   orderBy?: string
   /** Full `@odata.nextLink` URL from a previous page. */

@@ -90,9 +90,11 @@ export const outlookCalendarRespondTool: ToolConfig<
       }
     },
     body: (params) => {
-      // Graph rejects sendResponse=false when a `comment` key is present at all
-      // (even ""): "'SendResponse' must be true when 'Comment' is not null." So
-      // only include comment when it's actually non-empty.
+      // Only send `comment` when it has content — an empty string is meaningless to the
+      // organizer. Graph documents exactly two 400 conditions for accept/decline, both on
+      // `proposedNewTime` (which we never send); `comment` carries no such restriction and
+      // is valid alongside sendResponse=false.
+      // https://learn.microsoft.com/en-us/graph/api/event-decline
       const body: Record<string, unknown> = {
         sendResponse: toBool(params.sendResponse, true),
       }
