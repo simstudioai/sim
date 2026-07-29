@@ -28,44 +28,58 @@ function jobLogsPath(owner: string, repo: string, jobId: number): string {
   return `${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/jobs/${jobId}/logs`
 }
 
+/** Byte offsets from a `Content-Range: bytes <start>-<end>/<total>` header. */
+interface ContentRange {
+  start: number
+  total: number | null
+}
+
 /**
- * Total size from a `Content-Range: bytes <start>-<end>/<total>` header.
+ * Parses the served byte window.
  *
- * `null` for an unsatisfied-range form, an unknown total, an unparsable value, or
- * an absent header — all of which mean the full size is simply unknown here.
+ * `null` for an unsatisfied-range form, an unparsable value, or an absent header.
+ * The `start` matters as much as the total: a suffix range asking for more bytes
+ * than the log contains is satisfied with the *whole* representation, still as a
+ * 206, and only `start === 0` distinguishes that from a window that genuinely cut
+ * into the middle of the log.
  */
-function parseContentRangeTotal(header: string | null): number | null {
-  const total = header?.match(/^bytes\s+\d+-\d+\/(\d+)$/)?.[1]
-  if (!total) return null
-  const parsed = Number(total)
-  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null
+function parseContentRange(header: string | null): ContentRange | null {
+  const match = header?.match(/^bytes\s+(\d+)-\d+\/(\d+|\*)$/)
+  if (!match) return null
+  const start = Number(match[1])
+  if (!Number.isSafeInteger(start) || start < 0) return null
+  const total = match[2] === '*' ? null : Number(match[2])
+  return {
+    start,
+    total: total !== null && Number.isSafeInteger(total) && total >= 0 ? total : null,
+  }
 }
 
 /**
  * The tail is what matters: a failing job reports its error at the end.
  *
- * A ranged response already *is* the tail, so it is only trimmed at the first
- * line break — the byte window almost always cuts mid-line, and it can also split
- * a multi-byte character into a replacement char. A full response is sliced
- * locally instead, which is the path taken whenever the storage host ignores the
- * range and answers 200.
+ * A window that starts partway into the log is trimmed at its first line break,
+ * because the byte boundary almost always lands mid-line and can split a
+ * multi-byte character. A window starting at zero is the whole log — the storage
+ * host satisfied a suffix range larger than the content — so it is treated
+ * exactly like an unranged body, which is the common case for a job that failed
+ * fast and logged little.
  */
 function logTail(
   text: string,
   maxCharacters: number,
-  partial: boolean,
-  totalBytes: number | null
+  range: ContentRange | null
 ): { logs: string; truncated: boolean; totalBytes: number | null } {
-  if (!partial) {
+  if (!range || range.start === 0) {
     return {
       logs: text.slice(-maxCharacters),
       truncated: text.length > maxCharacters,
-      totalBytes: totalBytes ?? Buffer.byteLength(text),
+      totalBytes: range?.total ?? Buffer.byteLength(text),
     }
   }
   const firstBreak = text.indexOf('\n')
   const trimmed = firstBreak === -1 ? text : text.slice(firstBreak + 1)
-  return { logs: trimmed.slice(-maxCharacters), truncated: true, totalBytes }
+  return { logs: trimmed.slice(-maxCharacters), truncated: true, totalBytes: range.total }
 }
 
 export const jobLogsTool: ToolConfig<JobLogsParams, JobLogsResponse> = {
@@ -133,13 +147,20 @@ export const jobLogsTool: ToolConfig<JobLogsParams, JobLogsResponse> = {
     stripAuthOnRedirect: true,
   },
 
+  /**
+   * A suffix range against a zero-length log is unsatisfiable, so such a job
+   * surfaces as a 416 tool error rather than as empty `logs`. Not special-cased
+   * here because the executor rejects a non-2xx before `transformResponse` runs,
+   * and an Actions job log is never truly empty — the runner writes its own
+   * setup lines before any step does.
+   */
   transformResponse: async (response, params) => {
     const maxCharacters = resolveMaxCharacters(params?.maxCharacters)
-    const partial = response.status === 206
-    const totalBytes = parseContentRangeTotal(response.headers.get('content-range'))
+    const range =
+      response.status === 206 ? parseContentRange(response.headers.get('content-range')) : null
     return {
       success: true,
-      output: logTail(await response.text(), maxCharacters, partial, totalBytes),
+      output: logTail(await response.text(), maxCharacters, range),
     }
   },
 

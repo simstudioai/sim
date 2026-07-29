@@ -516,12 +516,41 @@ describe('runBabysitPiWithOptions', () => {
     expect(pushCall?.command.indexOf('CURRENT_DIGEST=')).toBeLessThan(
       pushCall?.command.indexOf('/usr/bin/git') ?? 0
     )
-    expect(pushCall?.command).toContain('HEAD:refs/heads/$HEAD_REF')
+    // The refspec names the validated SHA, not HEAD. Asserting only HEAD's shape
+    // left every host-side check describing a commit other than the pushed one,
+    // because `commit --amend` preserves branch, count, and ancestry.
+    expect(pushCall?.command).toContain('"$NEW_SHA:refs/heads/$HEAD_REF"')
+    expect(pushCall?.command).toContain('test "$(/usr/bin/git rev-parse HEAD)" = "$NEW_SHA"')
     expect(pushCall?.envs).toMatchObject({
       GITHUB_TOKEN: 'github-secret',
       ORIGINAL_GIT_CONFIG_DIGEST: 'digest-1',
       PINNED_SHA: OLD_SHA,
+      NEW_SHA,
+      GIT_NO_REPLACE_OBJECTS: '1',
     })
+  })
+
+  // A one-line `.git/info/attributes` saying `* -diff` made a 500 KB change report
+  // ~119 bytes to the cumulative bound and wrote "Binary files differ" into the diff
+  // the user reviews. `.git/` is never committed, so the config digest does not see it.
+  it('measures diffs immune to repository-supplied attributes', async () => {
+    mockFetchSnapshot.mockResolvedValue(snapshot)
+    mockFetchThreads.mockResolvedValue({
+      actionable: [trustedThread],
+      skipped: [],
+      totalUnresolved: 1,
+      latestReview: null,
+    })
+    mockFetchChecks.mockResolvedValue(greenChecks)
+    const { runner, runCalls } = makeRunner({})
+    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+
+    await runBabysitPiWithOptions(params(), { onEvent: vi.fn() })
+
+    const prepare = runCalls.find(({ command }) => command.includes('__CUMULATIVE_CHANGED__'))
+    expect(prepare?.command).toContain('core.attributesFile=/dev/null')
+    expect(prepare?.command).toContain('--text --no-ext-diff --no-textconv')
+    expect(prepare?.envs).toMatchObject({ GIT_NO_REPLACE_OBJECTS: '1' })
   })
 
   it('aggregates pushed rounds while enforcing cumulative markers', async () => {

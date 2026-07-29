@@ -16,7 +16,7 @@ function logResponse(body: string): Response {
   return new Response(body, { headers: { 'Content-Type': 'text/plain' } })
 }
 
-/** A storage host that honoured the suffix range: 206 plus the full size. */
+/** A storage host that honoured the suffix range: 206 plus the served window. */
 function partialLogResponse(body: string, totalBytes: number): Response {
   return new Response(body, {
     status: 206,
@@ -97,6 +97,25 @@ describe('github_job_logs', () => {
       logs: 'FAILED: expected 1 to be 2',
       truncated: true,
       totalBytes: 10_000,
+    })
+  })
+
+  // A suffix range asking for more bytes than the log holds is satisfied with the
+  // WHOLE log, still as a 206 — `Content-Range` starts at 0. Trimming the first line
+  // there would delete a real line, and this is the common case for a job that
+  // failed fast and logged little.
+  it('keeps the first line when a 206 served the whole log', async () => {
+    const log = 'first line\nsecond line\n'
+
+    const result = await jobLogsTool.transformResponse!(
+      partialLogResponse(log, Buffer.byteLength(log)),
+      { ...BASE_PARAMS, maxCharacters: 20_000 }
+    )
+
+    expect(result.output).toEqual({
+      logs: log,
+      truncated: false,
+      totalBytes: Buffer.byteLength(log),
     })
   })
 

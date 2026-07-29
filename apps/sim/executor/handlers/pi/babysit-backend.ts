@@ -123,25 +123,36 @@ const BABYSIT_GUIDANCE =
   'shape: {"threads":[{"threadId":"…","classification":"fixed|false_positive|already_addressed",' +
   '"reply":"…"}],"summary":"optional"}. Include only fetched thread IDs.'
 
+// `remote set-url` runs before the pinned-SHA assertion, not after: `set -e` aborts
+// the script at a failed assertion, and the clone URL carries the token, so the
+// original order left `https://x-access-token:<token>@…` in `.git/config` on disk
+// whenever the head branch moved between Create PR and this clone.
 const BABYSIT_CLONE_SCRIPT = `set -e
 git check-ref-format "refs/heads/$HEAD_REF" >/dev/null
 rm -rf ${REPO_DIR}
 git clone --no-tags --single-branch --branch "$HEAD_REF" "https://x-access-token:$GITHUB_TOKEN@github.com/$REPO_OWNER/$REPO_NAME.git" ${REPO_DIR}
 cd ${REPO_DIR}
-test "$(git rev-parse HEAD)" = "$PINNED_SHA"
 git remote set-url origin "https://github.com/$REPO_OWNER/$REPO_NAME.git"
+test "$(git rev-parse HEAD)" = "$PINNED_SHA"
 ${GIT_CONFIG_DIGEST_LINE}`
 
 /**
  * Stages, commits, and bounds one round's work before the separately
  * authenticated push.
  *
- * The name-listing diffs run with `core.quotePath=false`. Git's default quotes
- * any path containing a non-ASCII or special byte — `.github/workflows/évil.yml`
- * is emitted as `".github/workflows/\303\251vil.yml"`, leading double quote
- * included — which would make the host-side `.github/` refusal in
- * {@link finalizeRound} compare against a quoted string and miss. The byte-count
- * diff is deliberately left alone: it measures content, not names.
+ * Every `git diff` here is neutralized against repository-supplied configuration,
+ * because the agent owns the checkout and `.git/` is not part of the commit:
+ *
+ * - `core.quotePath=false` stops the non-ASCII escaping that made a `.github/`
+ *   path arrive as `".github/workflows/\303\251vil.yml"` and miss the host-side
+ *   prefix test. Paths Git still quotes are refused outright in
+ *   {@link finalizeRound}.
+ * - `--text --no-ext-diff --no-textconv` and an empty `core.attributesFile` stop
+ *   a one-line `.git/info/attributes` saying `* -diff` from reducing a 500 KB
+ *   change to `Binary files differ` — which reported ~119 bytes to the cumulative
+ *   byte bound and wrote the same nothing into the diff the user reviews.
+ * - `GIT_NO_REPLACE_OBJECTS` is set in the env so `rev-list --count` counts real
+ *   commits: a `refs/replace/*` mapping makes a five-commit chain report one.
  */
 const BABYSIT_PREPARE_SCRIPT = `set -e
 cd ${REPO_DIR}
@@ -157,24 +168,39 @@ else
   test "$(git rev-list --count "$ROUND_BASE_SHA"..HEAD)" = "1"
   test "$(git symbolic-ref --short HEAD)" = "$HEAD_REF"
   test "$(git rev-parse "refs/heads/$HEAD_REF")" = "$(git rev-parse HEAD)"
-  git -c core.quotePath=false diff --name-only "$INITIAL_HEAD_SHA" HEAD | sed "s/^/__CUMULATIVE_CHANGED__=/"
-  git diff "$INITIAL_HEAD_SHA" HEAD | wc -c | tr -d ' ' | sed "s/^/__CUMULATIVE_DIFF_BYTES__=/"
-  git -c core.quotePath=false diff --name-only "$ROUND_BASE_SHA" HEAD | sed "s/^/__CHANGED__=/"
-  git diff "$ROUND_BASE_SHA" HEAD > ${DIFF_PATH}
+  git -c core.quotePath=false -c core.attributesFile=/dev/null diff --name-only --no-ext-diff "$INITIAL_HEAD_SHA" HEAD | sed "s/^/__CUMULATIVE_CHANGED__=/"
+  git -c core.attributesFile=/dev/null diff --text --no-ext-diff --no-textconv "$INITIAL_HEAD_SHA" HEAD | wc -c | tr -d ' ' | sed "s/^/__CUMULATIVE_DIFF_BYTES__=/"
+  git -c core.quotePath=false -c core.attributesFile=/dev/null diff --name-only --no-ext-diff "$ROUND_BASE_SHA" HEAD | sed "s/^/__CHANGED__=/"
+  git -c core.attributesFile=/dev/null diff --text --no-ext-diff --no-textconv "$ROUND_BASE_SHA" HEAD > ${DIFF_PATH}
   git rev-parse HEAD | sed "s/^/__NEW_SHA__=/"
   test -z "$(git status --porcelain)"
   echo "__NEEDS_PUSH__=1"
 fi`
 
+/**
+ * The only token-bearing command after the clone.
+ *
+ * `NEW_SHA` pins the push to the exact commit the host validated. Without it the
+ * script asserted only HEAD's *shape* — right branch, one commit past the pin, a
+ * descendant — all of which still hold after a `commit --amend` to a different
+ * tree, so every host-side check (bounds, quoted paths, `.github/`, the reported
+ * diff) described a commit other than the one pushed. The refspec names the SHA
+ * for the same reason.
+ *
+ * The shell utilities are absolute for the reason `git` already was: `$PATH` is
+ * writable by an agent that has had root in this sandbox for previous rounds, and
+ * a shim named `sha256sum` would otherwise be handed the digest it must produce.
+ */
 const BABYSIT_PUSH_SCRIPT = `set -e
 cd ${REPO_DIR}
-CURRENT_DIGEST=$(cat .git/config .git/config.worktree 2>/dev/null | sha256sum | cut -d' ' -f1)
+CURRENT_DIGEST=$(/bin/cat .git/config .git/config.worktree 2>/dev/null | /usr/bin/sha256sum | /usr/bin/cut -d' ' -f1)
 test "$CURRENT_DIGEST" = "$ORIGINAL_GIT_CONFIG_DIGEST"
+test "$(/usr/bin/git rev-parse HEAD)" = "$NEW_SHA"
 test "$(/usr/bin/git symbolic-ref --short HEAD)" = "$HEAD_REF"
-test "$(/usr/bin/git rev-parse "refs/heads/$HEAD_REF")" = "$(/usr/bin/git rev-parse HEAD)"
-test "$(/usr/bin/git rev-list --count "$PINNED_SHA"..HEAD)" = "1"
-/usr/bin/git merge-base --is-ancestor "$PINNED_SHA" HEAD
-/usr/bin/git -c core.hooksPath=/dev/null -c credential.helper= -c core.fsmonitor= push "https://x-access-token:$GITHUB_TOKEN@github.com/$REPO_OWNER/$REPO_NAME.git" "HEAD:refs/heads/$HEAD_REF"
+test "$(/usr/bin/git rev-parse "refs/heads/$HEAD_REF")" = "$NEW_SHA"
+test "$(/usr/bin/git rev-list --count "$PINNED_SHA".."$NEW_SHA")" = "1"
+/usr/bin/git merge-base --is-ancestor "$PINNED_SHA" "$NEW_SHA"
+/usr/bin/git -c core.hooksPath=/dev/null -c credential.helper= -c core.fsmonitor= push "https://x-access-token:$GITHUB_TOKEN@github.com/$REPO_OWNER/$REPO_NAME.git" "$NEW_SHA:refs/heads/$HEAD_REF"
 echo "__PUSHED__=1"`
 
 interface BabysitBackendOptions {
@@ -524,6 +550,7 @@ async function finalizeRound(
         HEAD_REF: snapshot.headRef,
         INITIAL_HEAD_SHA: initialHeadSha,
         ROUND_BASE_SHA: roundBaseSha,
+        GIT_NO_REPLACE_OBJECTS: '1',
       },
       timeoutMs: FINALIZE_TIMEOUT_MS,
     }),
@@ -589,7 +616,9 @@ async function finalizeRound(
         REPO_NAME: params.repo,
         HEAD_REF: snapshot.headRef,
         PINNED_SHA: snapshot.headSha,
+        NEW_SHA: newSha,
         ORIGINAL_GIT_CONFIG_DIGEST: gitConfigDigest,
+        GIT_NO_REPLACE_OBJECTS: '1',
       },
       timeoutMs: FINALIZE_TIMEOUT_MS,
     }),
@@ -994,8 +1023,15 @@ export async function runBabysitPiWithOptions(
           roundBaseSha = finalized.newSha
           progress.commitsPushed += 1
           githubWriteOccurred = true
+          // Scrubbed here rather than in `finalizeRound`, which needs the literal
+          // paths for its `.github/` and quoted-path refusals. File names are
+          // agent-chosen, so a file named after a key would otherwise reach the
+          // block output verbatim — Create PR already scrubs its equivalent.
           progress.changedFiles = [
-            ...new Set([...progress.changedFiles, ...finalized.changedFiles]),
+            ...new Set([
+              ...progress.changedFiles,
+              ...finalized.changedFiles.map((file) => scrubPiSecrets(file, secrets)),
+            ]),
           ]
           progress.diff = capDiff([progress.diff, finalized.diff].filter(Boolean).join('\n'))
           lastKnownChecksGreen = ![...initialRequirements.values()].some((required) => required)
