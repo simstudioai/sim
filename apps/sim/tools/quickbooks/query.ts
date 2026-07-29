@@ -36,6 +36,12 @@ export const quickBooksQueryTool: ToolConfig<QuickBooksQueryParams, QuickBooksQu
       visibility: 'user-or-llm',
       description: 'QuickBooks SQL-like query, e.g. SELECT * FROM Vendor MAXRESULTS 10',
     },
+    apiEnvironment: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'QuickBooks API environment: production or sandbox. Defaults to production.',
+    },
     minorVersion: {
       type: 'string',
       required: false,

@@ -30,6 +30,7 @@ List vendors from QuickBooks Online
 | `activeOnly` | boolean | No | Only return active vendors |
 | `startPosition` | string | No | One-based start position for QuickBooks query pagination |
 | `maxResults` | string | No | Maximum number of vendors to return, up to 1000 |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
 | `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
 
 #### Output
@@ -57,6 +58,7 @@ List purchase orders from QuickBooks Online
 | `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
 | `startPosition` | string | No | One-based start position for QuickBooks query pagination |
 | `maxResults` | string | No | Maximum number of purchase orders to return, up to 1000 |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
 | `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
 
 #### Output
@@ -85,6 +87,7 @@ List bills from QuickBooks Online
 | `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
 | `startPosition` | string | No | One-based start position for QuickBooks query pagination |
 | `maxResults` | string | No | Maximum number of bills to return, up to 1000 |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
 | `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
 
 #### Output
@@ -114,6 +117,7 @@ Run a QuickBooks Online Accounting API query
 | --------- | ---- | -------- | ----------- |
 | `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
 | `query` | string | Yes | QuickBooks SQL-like query, e.g. SELECT * FROM Vendor MAXRESULTS 10 |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
 | `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
 
 #### Output

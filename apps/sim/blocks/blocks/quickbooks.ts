@@ -101,6 +101,17 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       placeholder: '75',
       mode: 'advanced',
     },
+    {
+      id: 'apiEnvironment',
+      title: 'Environment',
+      type: 'dropdown',
+      options: [
+        { label: 'Production', id: 'production' },
+        { label: 'Sandbox', id: 'sandbox' },
+      ],
+      value: () => 'production',
+      mode: 'advanced',
+    },
   ],
   tools: {
     access: [
@@ -118,6 +129,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         startPosition: params.startPosition,
         maxResults: params.maxResults,
         query: params.query,
+        apiEnvironment: params.apiEnvironment,
         minorVersion: params.minorVersion,
       }),
     },
@@ -133,6 +145,10 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     startPosition: { type: 'string', description: 'One-based start position for pagination' },
     maxResults: { type: 'string', description: 'Maximum number of records to return, up to 1000' },
     query: { type: 'string', description: 'QuickBooks SQL-like query to execute' },
+    apiEnvironment: {
+      type: 'string',
+      description: 'QuickBooks API environment: production or sandbox',
+    },
     minorVersion: { type: 'string', description: 'QuickBooks Accounting API minor version' },
   },
   outputs: {

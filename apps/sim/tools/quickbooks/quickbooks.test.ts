@@ -44,6 +44,28 @@ describe('QuickBooks tools', () => {
     expect(requestBody(params)).toBe('SELECT * FROM Vendor MAXRESULTS 10')
   })
 
+  it('targets the QuickBooks sandbox API host when requested', () => {
+    const query = buildQuickBooksListQuery('Bill', { maxResults: '10' })
+    const url = buildQuickBooksQueryUrl({
+      realmId: '123145',
+      query,
+      apiEnvironment: 'sandbox',
+    })
+
+    expect(url).toBe(
+      'https://sandbox-quickbooks.api.intuit.com/v3/company/123145/query?minorversion=75&query=SELECT+*+FROM+Bill+MAXRESULTS+10'
+    )
+  })
+
+  it('rejects unknown QuickBooks API environments', () => {
+    expect(() =>
+      buildQuickBooksQueryEndpoint({
+        realmId: '123145',
+        apiEnvironment: 'development',
+      })
+    ).toThrow('QuickBooks environment must be production or sandbox')
+  })
+
   it('rejects invalid pagination before calling QuickBooks', () => {
     expect(() =>
       buildQuickBooksListQuery('Bill', {

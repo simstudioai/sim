@@ -49,6 +49,12 @@ export const quickBooksListVendorsTool: ToolConfig<QuickBooksListParams, QuickBo
         visibility: 'user-or-llm',
         description: 'Maximum number of vendors to return, up to 1000',
       },
+      apiEnvironment: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'QuickBooks API environment: production or sandbox. Defaults to production.',
+      },
       minorVersion: {
         type: 'string',
         required: false,
@@ -62,6 +68,7 @@ export const quickBooksListVendorsTool: ToolConfig<QuickBooksListParams, QuickBo
         buildQuickBooksQueryUrl({
           realmId: params.realmId,
           query: buildQuickBooksListQuery('Vendor', params),
+          apiEnvironment: params.apiEnvironment,
           minorVersion: params.minorVersion,
         }),
       method: 'GET',

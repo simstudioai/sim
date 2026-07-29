@@ -1,12 +1,16 @@
 import { truncate } from '@sim/utils/string'
 import type {
   QuickBooksEntityName,
+  QuickBooksEnvironment,
   QuickBooksFault,
   QuickBooksQueryEnvelope,
   QuickBooksRecord,
 } from '@/tools/quickbooks/types'
 
-export const QUICKBOOKS_API_BASE = 'https://quickbooks.api.intuit.com'
+export const QUICKBOOKS_API_BASES: Record<QuickBooksEnvironment, string> = {
+  production: 'https://quickbooks.api.intuit.com',
+  sandbox: 'https://sandbox-quickbooks.api.intuit.com',
+}
 export const QUICKBOOKS_MINOR_VERSION = '75'
 
 const QUICKBOOKS_MAX_RESULTS_LIMIT = 1000
@@ -22,6 +26,7 @@ export function buildQuickBooksHeaders(accessToken: string): Record<string, stri
 
 export function buildQuickBooksQueryEndpoint(params: {
   realmId: string
+  apiEnvironment?: QuickBooksEnvironment | string
   minorVersion?: string
 }): string {
   const realmId = params.realmId.trim()
@@ -29,7 +34,9 @@ export function buildQuickBooksQueryEndpoint(params: {
     throw new Error('QuickBooks Company ID is required')
   }
 
-  const url = new URL(`${QUICKBOOKS_API_BASE}/v3/company/${encodeURIComponent(realmId)}/query`)
+  const url = new URL(
+    `${getQuickBooksApiBase(params.apiEnvironment)}/v3/company/${encodeURIComponent(realmId)}/query`
+  )
   url.searchParams.set('minorversion', normalizeMinorVersion(params.minorVersion))
   return url.toString()
 }
@@ -37,11 +44,20 @@ export function buildQuickBooksQueryEndpoint(params: {
 export function buildQuickBooksQueryUrl(params: {
   realmId: string
   query: string
+  apiEnvironment?: QuickBooksEnvironment | string
   minorVersion?: string
 }): string {
   const url = new URL(buildQuickBooksQueryEndpoint(params))
   url.searchParams.set('query', normalizeQuickBooksQuery(params.query))
   return url.toString()
+}
+
+export function getQuickBooksApiBase(environment?: QuickBooksEnvironment | string): string {
+  const normalized = environment?.trim() || 'production'
+  if (normalized === 'production' || normalized === 'sandbox') {
+    return QUICKBOOKS_API_BASES[normalized]
+  }
+  throw new Error('QuickBooks environment must be production or sandbox')
 }
 
 export function normalizeQuickBooksQuery(query: string): string {

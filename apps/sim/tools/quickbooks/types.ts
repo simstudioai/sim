@@ -1,10 +1,12 @@
 import type { ToolResponse } from '@/tools/types'
 
 export type QuickBooksEntityName = 'Vendor' | 'PurchaseOrder' | 'Bill'
+export type QuickBooksEnvironment = 'production' | 'sandbox'
 
 export interface QuickBooksBaseParams {
   accessToken: string
   realmId: string
+  apiEnvironment?: QuickBooksEnvironment | string
   minorVersion?: string
 }
 

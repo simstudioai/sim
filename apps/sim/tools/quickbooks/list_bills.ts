@@ -42,6 +42,12 @@ export const quickBooksListBillsTool: ToolConfig<QuickBooksListParams, QuickBook
       visibility: 'user-or-llm',
       description: 'Maximum number of bills to return, up to 1000',
     },
+    apiEnvironment: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'QuickBooks API environment: production or sandbox. Defaults to production.',
+    },
     minorVersion: {
       type: 'string',
       required: false,
@@ -55,6 +61,7 @@ export const quickBooksListBillsTool: ToolConfig<QuickBooksListParams, QuickBook
       buildQuickBooksQueryUrl({
         realmId: params.realmId,
         query: buildQuickBooksListQuery('Bill', params),
+        apiEnvironment: params.apiEnvironment,
         minorVersion: params.minorVersion,
       }),
     method: 'GET',
