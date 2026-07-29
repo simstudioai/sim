@@ -303,11 +303,16 @@ describe('parseSpecialTags with <question>', () => {
 
   it('drops that same payload even when its JSON quotes tag syntax', () => {
     // The marker scan must blank JSON strings the way the streaming path does.
-    // Scanning the raw body sees `</options>` inside the prompt, calls the span
-    // literal text, and renders the raw payload — the outcome `discard` exists
-    // to prevent.
+    // Scanning the raw body sees `</options>` inside the payload, calls the span
+    // literal text, and renders the raw JSON — the outcome `discard` exists to
+    // prevent.
+    //
+    // The quoted marker deliberately sits in a field OTHER than `prompt`: a
+    // recoverable prompt is surfaced as text before this path is reached, so a
+    // fixture carrying one would assert the recovery rather than the blanking
+    // this test exists for. Matches the prompt-less body used above.
     const { segments } = parseSpecialTags(
-      'A <question>[{"type":"single_select","prompt":"use </options> here?"}]</question> B',
+      'A <question>[{"type":"single_select","title":"use </options> here?"}]</question> B',
       false
     )
     expect(renderedText(segments)).toBe('A  B')
