@@ -353,6 +353,52 @@ describe('parseSpecialTags with <question>', () => {
     expect(renderedText(segments)).toContain('</workflow_resource>')
   })
 
+  it('finds a nested tag an unbalanced quote hid from the blanked scan', () => {
+    // One stray `"` is enough to make blankJsonStringLiterals treat the REST of
+    // the body as a string literal, hiding the real `<options>` marker from the
+    // scan. The verdict then degrades from `foreign-markers` to `never-a-payload`
+    // and resumes past the close, flattening both nested tags into one literal
+    // span — so a card already on screen un-renders when the close arrives.
+    //
+    // Blanking is only meaningful while the body might BE json. Once viability
+    // has proved it never was, the raw text is the honest evidence.
+    const raw =
+      'Saved <workspace_resource>the notes file "notes.md and here is what to do next: ' +
+      '<options>[{"title":"Ship it","description":"Open the PR"}]</options>\n' +
+      'Full path: <workspace_resource>{"type":"file","path":"files/a.md","title":"a.md"}</workspace_resource>'
+
+    const { segments } = parseSpecialTags(raw, false)
+    expect(segments.filter((segment) => segment.type === 'options')).toHaveLength(1)
+    expect(segments.filter((segment) => segment.type === 'workspace_resource')).toHaveLength(1)
+    // Balancing the quote must reach the same two cards — the quote is the only
+    // difference, so this pins that it was never load-bearing for the outcome.
+    const balanced = raw.replace('the notes file "notes.md', 'the notes file notes.md')
+    const control = parseSpecialTags(balanced, false).segments
+    expect(control.filter((segment) => segment.type === 'options')).toHaveLength(1)
+    expect(control.filter((segment) => segment.type === 'workspace_resource')).toHaveLength(1)
+  })
+
+  it('never un-renders that card as the closing tag arrives', () => {
+    // The frame-level face of the case above, and the invariant it broke: the
+    // options card is on screen for many frames before the final `>` lands. A
+    // card that renders must never revert to raw text.
+    const raw =
+      'Saved <workspace_resource>the notes file "notes.md and here is what to do next: ' +
+      '<options>[{"title":"Ship it","description":"Open the PR"}]</options>\n' +
+      'Full path: <workspace_resource>{"type":"file","path":"files/a.md","title":"a.md"}</workspace_resource>'
+
+    let sawCard = false
+    for (let end = 1; end <= raw.length; end++) {
+      const { segments } = parseSpecialTags(raw.slice(0, end), true)
+      const hasCard = segments.some((segment) => segment.type === 'options')
+      if (hasCard) sawCard = true
+      expect(!sawCard || hasCard, `options card retracted at frame ${end}`).toBe(true)
+    }
+    expect(sawCard).toBe(true)
+    // ...and the settled parse still has it.
+    expect(parseSpecialTags(raw, false).segments.some((s) => s.type === 'options')).toBe(true)
+  })
+
   it('does not delete tag syntax quoted inside the body it rescans', () => {
     // The rescan decides on the BLANKED body, so a tag quoted inside a JSON
     // string is invisible to it. Resuming at the opener would re-scan that
@@ -849,6 +895,8 @@ describe('parser properties', () => {
     "<workspace_resource>{'type':'file'}</workspace_resource> single quotes. ",
     '<workspace_resource>the gmail-agent workflow</workspace_resource> prose body. ',
     '<thinking>reasoning <options> with a nested marker</thinking> after. ',
+    '<workspace_resource>the notes file "notes.md unbalanced quote</workspace_resource> after. ',
+    '<workspace_resource>notes "unbalanced then <options> marker</workspace_resource> tail. ',
     '\n\nA paragraph break above. ',
     `${'long filler prose. '.repeat(300)}crossing the scan window. `,
   ]

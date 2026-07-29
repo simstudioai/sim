@@ -887,13 +887,28 @@ function classifyBody(tagName: (typeof SPECIAL_TAG_NAMES)[number], body: string)
     return { kind: 'nested-marker', offsetInBody: verdict.markerOffset }
   }
   if (inspected.truncated) return { kind: 'unexamined' }
-  if (verdict?.reason === 'never-a-payload') return { kind: 'never-json' }
 
   // Dropping text is only defensible for a payload the agent actually FORMED.
   // `{the Q4 report}` is prose in braces and `{type: "file"}` is an ordinary
   // model slip; bracket depth cannot tell either from a real payload, only a
-  // parse can.
-  if (isJsonBodied && !isParseableJson(body)) return { kind: 'never-json' }
+  // parse can. Both routes to that answer are funnelled through one place so the
+  // rescan below cannot be added to one and forgotten on the other.
+  const neverJson =
+    verdict?.reason === 'never-a-payload' || (isJsonBodied && !isParseableJson(body))
+
+  if (neverJson) {
+    // literalTextReason blanked this body's quoted regions on the assumption it
+    // was JSON. It never was, so that assumption is void — and a body with an
+    // odd number of `"` blanks the WRONG regions, which can hide a real marker
+    // and turn what should be `nested-marker` into `never-json`. The difference
+    // is not academic: `never-json` resumes past the close, flattening a genuine
+    // tag inside the span, so a card already on screen un-renders when the close
+    // finally arrives. With the JSON premise gone, the raw text is the honest
+    // evidence, and a marker in it means the close we matched belongs elsewhere.
+    const rawMarker = TAG_SHAPED_MARKER.exec(inspected.text)
+    if (rawMarker) return { kind: 'nested-marker', offsetInBody: rawMarker.index }
+    return { kind: 'never-json' }
+  }
 
   return { kind: 'broken-payload' }
 }
