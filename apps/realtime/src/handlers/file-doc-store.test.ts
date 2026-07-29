@@ -71,9 +71,21 @@ function makeClient(): any {
       b().kv.delete(key)
       return 1
     },
-    // Compare-and-delete Lua (RELEASE_LOCK_SCRIPT): del only if the stored value matches the token.
-    eval: async (_script: string, opts: { keys: string[]; arguments: string[] }) => {
+    eval: async (script: string, opts: { keys: string[]; arguments: string[] }) => {
       const [key] = opts.keys
+      // Atomic seed-if-empty (SEED_IF_EMPTY_SCRIPT): append the entry iff the stream is empty, in one
+      // synchronous step — mirroring Redis's atomic Lua execution, so two concurrent evals can never both
+      // append (the second sees a non-empty stream).
+      if (script.includes('xlen')) {
+        const [field, value] = opts.arguments
+        const arr = b().streams.get(key) ?? []
+        if (arr.length > 0) return 0
+        const id = `${++b().seq}-0`
+        arr.push({ id, message: { [field]: value } })
+        b().streams.set(key, arr)
+        return 1
+      }
+      // Compare-and-delete Lua (RELEASE_LOCK_SCRIPT): del only if the stored value matches the token.
       const [token] = opts.arguments
       if (b().kv.get(key) === token) {
         b().kv.delete(key)
@@ -275,6 +287,108 @@ describe('FileDocStore', () => {
     const doc = new Y.Doc()
     await store.attachRoom(NAME, doc) // no-op, no throw
     expect(doc.getText('body').toString()).toBe('')
+    doc.destroy()
+  })
+
+  it('seedIfEmpty writes the seed once and reports it, then refuses a non-empty stream', async () => {
+    const a = await newStore()
+    expect(await a.seedIfEmpty(NAME, updateFor('first'))).toBe(true)
+    // A second seed attempt (any task) must be refused — the stream already holds content.
+    const b = await newStore()
+    expect(await b.seedIfEmpty(NAME, updateFor('second'))).toBe(false)
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, (await a.getStreamState(NAME))!)
+    expect(doc.getText('body').toString()).toBe('first')
+    doc.destroy()
+  })
+
+  it('atomic seed prevents split-brain even when the seed lock expired mid-seed', async () => {
+    // The exact split-brain precondition from the concurrency audit: the seed lock is only an efficiency
+    // optimization, so if it lapses (TTL) while the stream is still empty, TWO tasks can both hold a
+    // token and both try to seed with DIFFERENT docs (distinct Yjs client ids). The atomic seedIfEmpty
+    // must still let only one land — otherwise the union duplicates content.
+    const a = await newStore()
+    const b = await newStore()
+    const tokenA = await a.shouldSeed(NAME)
+    expect(tokenA).toBeTruthy()
+    // Simulate A's lock expiring mid-seed so B also wins the freed lock over a still-empty stream.
+    state.backing!.kv.delete(`filedoc:seedlock:${NAME}`)
+    const tokenB = await b.shouldSeed(NAME)
+    expect(tokenB).toBeTruthy()
+    // Both tasks now race to seed with distinct client ids.
+    const [seededA, seededB] = await Promise.all([
+      a.seedIfEmpty(NAME, updateFor('SEED-A')),
+      b.seedIfEmpty(NAME, updateFor('SEED-B')),
+    ])
+    expect([seededA, seededB].filter(Boolean)).toHaveLength(1)
+    // Exactly one seed is in the stream — the reconstructed text is a single seed, never a duplicated
+    // union of both (e.g. 'SEED-ASEED-B').
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, (await a.getStreamState(NAME))!)
+    expect(['SEED-A', 'SEED-B']).toContain(doc.getText('body').toString())
+    doc.destroy()
+  })
+
+  it('a peer edit published during attachRoom catch-up is not lost', async () => {
+    // Author two INCREMENTAL edits from one doc so they converge to 'basepeer' (not an independent union).
+    const author = new Y.Doc()
+    const updates: Uint8Array[] = []
+    author.on('update', (u: Uint8Array) => updates.push(u))
+    author.getText('body').insert(0, 'base')
+    author.getText('body').insert(4, 'peer')
+
+    const a = await newStore()
+    a.publish(NAME, updates[0]) // 'base'
+    await vi.waitFor(async () => expect(await a.getStreamState(NAME)).not.toBeNull())
+
+    // Task B attaches; while its synchronous catch-up runs, task A publishes the second edit. The tailer
+    // resumes from the id catch-up stopped at, so the edit converges rather than falling into a gap.
+    const b = await newStore()
+    const bDoc = new Y.Doc()
+    const attach = b.attachRoom(NAME, bDoc)
+    a.publish(NAME, updates[1]) // 'peer' appended
+    await attach
+    await vi.waitFor(() => expect(bDoc.getText('body').toString()).toBe('basepeer'), {
+      timeout: 2000,
+    })
+    bDoc.destroy()
+    author.destroy()
+  })
+
+  it('concurrent compaction on two tasks preserves the full document', async () => {
+    const streamKey = `filedoc:stream:${NAME}`
+    const noop = Buffer.from(Y.encodeStateAsUpdate(new Y.Doc())).toString('base64')
+
+    // Two peer edits neither compacting task has integrated (id > each task's lastId).
+    const peerDoc = new Y.Doc()
+    const peerUpdates: Uint8Array[] = []
+    peerDoc.on('update', (u: Uint8Array) => peerUpdates.push(u))
+    peerDoc.getText('body').insert(0, 'PEER1')
+    peerDoc.getText('body').insert(5, 'PEER2')
+
+    const entries = Array.from({ length: 400 }, (_, i) => ({
+      id: `${i + 1}-0`,
+      message: { u: noop },
+    }))
+    entries.push({ id: '401-0', message: { u: Buffer.from(peerUpdates[0]).toString('base64') } })
+    entries.push({ id: '402-0', message: { u: Buffer.from(peerUpdates[1]).toString('base64') } })
+    state.backing!.streams.set(streamKey, entries)
+    state.backing!.seq = 402
+
+    // Two tasks whose local docs lag at DIFFERENT points (400 and 401): both cross the threshold and
+    // compact concurrently. Each must only trim what its own snapshot subsumes, so the union of both
+    // snapshots plus the un-integrated peer entries still reconstructs the whole doc.
+    const a = await newStore()
+    const b = await newStore()
+    const docA = new Y.Doc()
+    Y.applyUpdate(docA, peerUpdates[0]) // A integrated up to 401
+    ;(a as any).rooms.set(NAME, { doc: docA, lastId: '401-0', publishes: 0 })
+    ;(b as any).rooms.set(NAME, { doc: new Y.Doc(), lastId: '400-0', publishes: 0 })
+    await Promise.all([(a as any).maybeCompact(NAME), (b as any).maybeCompact(NAME)])
+
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, (await a.getStreamState(NAME))!)
+    expect(doc.getText('body').toString()).toBe('PEER1PEER2')
     doc.destroy()
   })
 })

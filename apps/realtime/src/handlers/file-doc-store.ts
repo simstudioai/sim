@@ -22,8 +22,10 @@
  *   opens a file, so a late-joining task (the normal case under autoscaling) loads the current shared
  *   state before its first client syncs. Catch-up + tail are seamless: the tailer resumes from the
  *   exact id catch-up stopped at.
- * - {@link shouldSeed} coordinates the one-time seed with a Redis lock AND an empty-stream check, so
- *   exactly one task ever writes the seed cluster-wide (the fix for split-brain).
+ * - The one-time seed is written via the atomic {@link seedIfEmpty} (append-iff-empty in one Redis
+ *   step), so exactly one task ever writes the seed cluster-wide (the fix for split-brain) — even if two
+ *   tasks race. {@link shouldSeed} is a Redis lock + empty-stream check layered on top ONLY as an
+ *   efficiency gate (so tasks don't all run the seed fetch); correctness does not depend on it.
  *
  * When `REDIS_URL` is unset (single-pod dev) the store is DISABLED and every method degrades to the
  * relay's original single-replica behavior: seed locally, no stream, no tailer.
@@ -47,6 +49,17 @@ const logger = createLogger('FileDocStore')
  */
 const RELEASE_LOCK_SCRIPT =
   "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end"
+
+/**
+ * Atomic seed: append the seed entry ONLY if the stream is still empty, in one Redis-side step. This is
+ * the real split-brain guard — two tasks racing (even both past an expired seed lock) can never both
+ * write a seed (each would mint a distinct Yjs client id → duplicated content), because the emptiness
+ * check and the append happen atomically with no check-then-append window. The seed lock is only an
+ * efficiency optimization (avoid two seed fetches); correctness does not depend on it staying held.
+ * Returns 1 if THIS call wrote the seed, 0 if the stream already had content.
+ */
+const SEED_IF_EMPTY_SCRIPT =
+  "if redis.call('xlen', KEYS[1]) == 0 then redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2]); return 1 else return 0 end"
 
 /**
  * The transaction origin the store stamps on updates it applies from the stream. The relay's
@@ -101,12 +114,12 @@ const COMPACT_LOCK_TTL_MS = 10_000
 /** Retry a failed stream append this many times before giving up, so a transient Redis blip doesn't
  * silently drop an edit from the shared log (which no peer would then ever see). */
 const PUBLISH_MAX_RETRIES = 3
-/** The seed lock spans the app seed fetch (hard-bounded at `seedRequestMs = 8s`) + the apply + the
- * AWAITED seed publish. The margin comfortably exceeds the fetch bound so the lock does not expire
- * mid-seed, while staying at the client readiness deadline (12s) so a dead seeder's lock frees when
- * clients would recover anyway. Double-seed is prevented regardless of the margin: the seeder publishes
- * the seed to the stream BEFORE releasing the lock, so any later seeder's {@link streamHasContent} fence
- * sees it. */
+/** The seed lock spans the app seed fetch (hard-bounded at `seedRequestMs = 8s`) + the atomic seed
+ * append. It is only an EFFICIENCY optimization — it stops two tasks both running the seed fetch — and is
+ * sized to comfortably exceed the fetch bound while staying near the client readiness deadline (12s) so a
+ * dead seeder's lock frees when clients would recover anyway. Double-seed is prevented even if the lock
+ * expires mid-seed, because the seed is written via the atomic {@link SEED_IF_EMPTY_SCRIPT}
+ * (append-iff-empty), NOT the lock — correctness never depends on the lock staying held. */
 const SEED_LOCK_TTL_MS = FILE_DOC_TIMEOUTS.seedRequestMs + 4_000
 /** How long a stream survives with no heartbeat — long enough that an occupied-but-idle doc never
  * loses its shared state (the heartbeat refreshes it while any task holds the room). */
@@ -279,11 +292,43 @@ export class FileDocStore {
   }
 
   /**
-   * Whether the file's stream already holds content — fences a seed apply against a peer that seeded
-   * while this task held a (possibly stale) lock, so we never write a second seed (split-brain). Both
-   * callers treat `true` as "do not seed", so this fails CLOSED: a Redis `xLen` error returns `true`
-   * (cannot confirm the stream is empty → do not risk a double-seed). `false` only when genuinely empty,
-   * or when disabled (single-replica, where seeding locally is always correct).
+   * Atomically seed the stream iff it is still empty (see {@link SEED_IF_EMPTY_SCRIPT}). This is what
+   * actually prevents split-brain double-seeding: the emptiness check and the append happen in one
+   * Redis-side step, so — unlike a separate {@link streamHasContent} fence + {@link publishAndWait} —
+   * there is no check-then-append window, and two tasks racing (even both past an expired seed lock) can
+   * never both write a seed. Returns true if THIS call wrote the seed (apply it locally), false if the
+   * stream was already seeded (the tailer will deliver the peer's seed — do NOT apply a second one).
+   * Retries a transient Redis error like {@link appendUpdate}; throws if it ultimately fails. Disabled →
+   * true (single-replica: seed locally, no stream).
+   */
+  async seedIfEmpty(name: string, update: Uint8Array): Promise<boolean> {
+    if (!this.enabled || !this.write) return true
+    const encoded = Buffer.from(update).toString('base64')
+    for (let attempt = 0; attempt <= PUBLISH_MAX_RETRIES; attempt++) {
+      try {
+        const wrote = await this.write.eval(SEED_IF_EMPTY_SCRIPT, {
+          keys: [streamKey(name)],
+          arguments: [UPDATE_FIELD, encoded],
+        })
+        await this.write.expire(streamKey(name), STREAM_TTL_SEC).catch(() => {})
+        return wrote === 1
+      } catch (error) {
+        if (attempt === PUBLISH_MAX_RETRIES) {
+          logger.error(`FileDocStore seed failed for ${name}`, { error: getErrorMessage(error) })
+          throw error
+        }
+        await sleep(backoffWithJitter(attempt + 1, null, { baseMs: 50, maxMs: 500 }))
+      }
+    }
+    return false
+  }
+
+  /**
+   * Whether the file's stream already holds content — an EFFICIENCY recheck in {@link shouldSeed} that
+   * skips the seed fetch when a prior holder already seeded (the split-brain guard itself is the atomic
+   * {@link SEED_IF_EMPTY_SCRIPT}, not this check). Treats `true` as "already seeded", so it fails CLOSED:
+   * a Redis `xLen` error returns `true` (cannot confirm empty → skip the redundant fetch; the atomic seed
+   * would no-op anyway). `false` only when genuinely empty, or when disabled (single-replica).
    */
   async streamHasContent(name: string): Promise<boolean> {
     if (!this.enabled || !this.write) return false
@@ -321,17 +366,20 @@ export class FileDocStore {
   }
 
   /**
-   * Decide whether THIS task should build and write the file's one-time seed. Returns a lock TOKEN only
-   * when the shared stream is genuinely empty AND this task wins the seed lock — so exactly one task
-   * across the cluster ever seeds a file, even if several open it at once (the fix for split-brain
-   * seeding). `null` otherwise. Release the token with {@link releaseSeedLock}. Disabled → always a
-   * token (single-replica: seed locally).
+   * Decide whether THIS task should run the (expensive) seed fetch + write for a file. Returns a lock
+   * TOKEN when this task wins the seed lock and the stream still looks empty; `null` otherwise. This is an
+   * EFFICIENCY gate — it stops every task that opens the file at once from each fetching the seed. It does
+   * NOT by itself guarantee a single seed: exactly-once is enforced by the atomic {@link seedIfEmpty} the
+   * token-holder then calls (the split-brain guard), so a lock that expires mid-seed cannot cause a
+   * double-seed. Release the token with {@link releaseSeedLock}. Disabled → always a token (single-replica:
+   * seed locally).
    */
   async shouldSeed(name: string): Promise<string | null> {
     const token = await this.acquireLock(`${SEED_LOCK_PREFIX}${name}`, SEED_LOCK_TTL_MS)
     if (!token || token === DISABLED_LOCK_TOKEN) return token
     // The lock could be free yet the stream already seeded (a prior holder seeded then its lock
-    // expired). Re-check under the lock so we never write a SECOND seed on top of an existing one.
+    // expired). Re-check so we skip the redundant seed fetch — the atomic seedIfEmpty would no-op anyway,
+    // but this avoids the wasted app round-trip.
     if (await this.streamHasContent(name)) {
       await this.releaseSeedLock(name, token)
       return null
