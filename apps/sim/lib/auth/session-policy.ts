@@ -5,8 +5,8 @@ import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
 import { getMemberOrganizationId, invalidateMembershipCache } from '@/lib/auth/security-policy'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
+import { isSessionPoliciesEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('SessionPolicy')
 
@@ -60,7 +60,7 @@ export async function getSessionPolicy(
     const settings: SessionPolicySettings = row?.settings ?? {}
     const hasBounds = Boolean(settings.maxSessionHours || settings.idleTimeoutHours)
     const isEntitled =
-      !hasBounds || !isBillingEnabled || (await isOrganizationOnEnterprisePlan(organizationId))
+      !hasBounds || (await isOrganizationFeatureEntitled(organizationId, isSessionPoliciesEnabled))
     const policy: ResolvedSessionPolicy = isEntitled
       ? {
           maxSessionHours: settings.maxSessionHours ?? null,

@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
+import { isLoopbackHostname } from '@sim/security/hostnames'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   keepPreviousData,
@@ -26,7 +27,6 @@ import {
   testMcpServerConnectionContract,
   updateMcpServerContract,
 } from '@/lib/api/contracts/mcp'
-import { isLoopbackHostname } from '@/lib/core/utils/urls'
 import { sanitizeForHttp, sanitizeHeaders } from '@/lib/mcp/shared'
 import type {
   McpAuthType,

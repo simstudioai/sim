@@ -13,6 +13,7 @@ export interface EnvFlagsMockState {
   isHosted: boolean
   isCopilotBillingAttributionV1Enabled: boolean
   isCopilotBillingProtocolRequired: boolean
+  isCopilotToolPermissionsEnabled: boolean
   isBillingEnabled: boolean
   isEmailVerificationEnabled: boolean
   isAuthDisabled: boolean
@@ -23,6 +24,7 @@ export interface EnvFlagsMockState {
   isAppConfigEnabled: boolean
   isSlackExtendedScopesEnabled: boolean
   isTriggerDevEnabled: boolean
+  isEnterpriseEnabled: boolean
   isSsoEnabled: boolean
   isAccessControlEnabled: boolean
   isOrganizationsEnabled: boolean
@@ -31,6 +33,7 @@ export interface EnvFlagsMockState {
   isAuditLogsEnabled: boolean
   isDataRetentionEnabled: boolean
   isDataDrainsEnabled: boolean
+  isSessionPoliciesEnabled: boolean
   isForkingEnabled: boolean
   isRemoteSandboxEnabled: boolean
   isDocSandboxEnabled: boolean
@@ -54,6 +57,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isHosted: false,
   isCopilotBillingAttributionV1Enabled: false,
   isCopilotBillingProtocolRequired: false,
+  isCopilotToolPermissionsEnabled: false,
   isBillingEnabled: false,
   isEmailVerificationEnabled: false,
   isAuthDisabled: false,
@@ -64,11 +68,16 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isAppConfigEnabled: false,
   isSlackExtendedScopesEnabled: false,
   isTriggerDevEnabled: false,
+  isEnterpriseEnabled: false,
   isSsoEnabled: false,
   isAccessControlEnabled: false,
   isOrganizationsEnabled: false,
-  isInboxEnabled: false,
-  isWhitelabelingEnabled: false,
+  // True with billing off and no flags set — these carry a legacy default of
+  // `true` so upgrades do not remove a feature. See
+  // ENTERPRISE_FEATURE_LEGACY_DEFAULTS.
+  isInboxEnabled: true,
+  isWhitelabelingEnabled: true,
+  isSessionPoliciesEnabled: true,
   isAuditLogsEnabled: false,
   isDataRetentionEnabled: false,
   isDataDrainsEnabled: false,

@@ -1,4 +1,7 @@
+import { db } from '@sim/db'
 import type { CustomPiiPattern, DataRetentionSettings, PiiStagePolicy } from '@sim/db/schema'
+import { workspace } from '@sim/db/schema'
+import { and, eq, inArray } from 'drizzle-orm'
 import {
   coercePiiLanguage,
   DEFAULT_PII_LANGUAGE,
@@ -139,4 +142,117 @@ export function resolveEffectiveRetentionHours(params: {
   const overrideValue = override?.[params.key]
   if (overrideValue !== undefined) return overrideValue
   return params.orgSettings?.[params.key] ?? null
+}
+
+/**
+ * The subset of a PII redaction settings object this gate reads. Both the
+ * stored `organization.dataRetentionSettings.piiRedaction` and an incoming
+ * request body satisfy it structurally.
+ */
+interface PiiRedactionRulesLike {
+  rules?: Array<{
+    workspaceId?: string | null
+    stages?: {
+      input?: { enabled?: boolean } | null
+      blockOutputs?: { enabled?: boolean } | null
+    } | null
+  }> | null
+}
+
+/**
+ * Which granular stages (`input`/`blockOutputs`) are already enabled per rule
+ * target (`workspaceId ?? ''` = the org default).
+ */
+function granularStageEnablement(
+  settings: PiiRedactionRulesLike | null | undefined
+): Map<string, { input: boolean; blockOutputs: boolean }> {
+  const map = new Map<string, { input: boolean; blockOutputs: boolean }>()
+  for (const rule of settings?.rules ?? []) {
+    map.set(rule.workspaceId ?? '', {
+      input: rule.stages?.input?.enabled === true,
+      blockOutputs: rule.stages?.blockOutputs?.enabled === true,
+    })
+  }
+  return map
+}
+
+/**
+ * Whether a write to `piiRedaction` is permitted, given the deployment's PII
+ * feature flags. Returns `null` when allowed, otherwise the reason to reject
+ * with.
+ *
+ * The granular check gates *new* enablement only. When
+ * `pii-granular-redaction` is off, an organization that already configured
+ * granular stages must still be able to re-save unrelated retention settings —
+ * the settings UI re-sends the full PII snapshot on every save — so a stage
+ * that is merely preserved never rejects, only one transitioning off to on.
+ *
+ * Pure by design: callers resolve the two flags and pass them in, which keeps
+ * this module free of the feature-flag service and makes the rule testable
+ * without mocking it. Shared so the settings API and the Admin API cannot drift
+ * to different answers for the same write.
+ */
+export function getPiiRedactionDenialReason(params: {
+  current: PiiRedactionRulesLike | null | undefined
+  incoming: PiiRedactionRulesLike | null | undefined
+  piiRedactionEnabled: boolean
+  piiGranularRedactionEnabled: boolean
+}): string | null {
+  if (!params.piiRedactionEnabled) {
+    return 'PII redaction is not enabled for this organization'
+  }
+
+  if (params.piiGranularRedactionEnabled) return null
+
+  const currentGranular = granularStageEnablement(params.current)
+  const newlyEnablesGranular = (params.incoming?.rules ?? []).some((rule) => {
+    const existing = currentGranular.get(rule.workspaceId ?? '')
+    return (
+      (rule.stages?.input?.enabled === true && !existing?.input) ||
+      (rule.stages?.blockOutputs?.enabled === true && !existing?.blockOutputs)
+    )
+  })
+
+  return newlyEnablesGranular
+    ? 'Granular PII redaction (workflow input and block outputs) is not enabled for this organization'
+    : null
+}
+
+/**
+ * Rejects retention settings that point at workspaces the organization does not
+ * own. Returns `null` when every referenced workspace belongs to it.
+ *
+ * Both `retentionOverrides` and per-workspace `piiRedaction` rules name a
+ * workspace, and neither is a foreign key — an id that belongs to another
+ * organization would persist silently and then be applied by
+ * `resolveEffectiveRetentionHours` / `resolveEffectivePiiRedaction` to whatever
+ * workspace later matched it. Shared so the settings API and the Admin API
+ * cannot accept different data for the same organization.
+ */
+export async function getForeignWorkspaceTargetsReason(params: {
+  organizationId: string
+  retentionOverrides?: Array<{ workspaceId: string }> | null
+  piiRedaction?: PiiRedactionRulesLike | null
+}): Promise<string | null> {
+  const targeted = new Set<string>()
+  for (const override of params.retentionOverrides ?? []) {
+    if (override?.workspaceId) targeted.add(override.workspaceId)
+  }
+  for (const rule of params.piiRedaction?.rules ?? []) {
+    if (rule.workspaceId) targeted.add(rule.workspaceId)
+  }
+  if (targeted.size === 0) return null
+
+  const ids = [...targeted]
+  const owned = await db
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(and(eq(workspace.organizationId, params.organizationId), inArray(workspace.id, ids)))
+
+  const known = new Set(owned.map((row) => row.id))
+  const unknown = ids.filter((id) => !known.has(id))
+
+  return unknown.length > 0
+    ? `Override targets workspaces outside this organization: ${unknown.join(', ')}`
+    : null
 }

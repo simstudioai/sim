@@ -7,9 +7,11 @@ import {
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
+  resetEnvFlagsMock,
   resetEnvMock,
   schemaMock,
   setEnv,
+  setEnvFlags,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -96,6 +98,11 @@ describe('POST /api/auth/sso/register', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     setEnv({ SSO_ENABLED: 'true' })
+    /**
+     * The route gates on the resolved `isSsoEnabled` rather than the raw env
+     * var, so the suite switch (`ENTERPRISE_ENABLED`) can register SSO too.
+     */
+    setEnvFlags({ isSsoEnabled: true })
     mockGetSession.mockResolvedValue({ user: { id: 'u1' } })
     mockHasSSOAccess.mockResolvedValue(true)
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '1.2.3.4' })
@@ -116,6 +123,7 @@ describe('POST /api/auth/sso/register', () => {
   afterAll(() => {
     resetDbChainMock()
     resetEnvMock()
+    resetEnvFlagsMock()
   })
 
   it('rejects callers without an Enterprise plan', async () => {

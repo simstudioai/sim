@@ -211,7 +211,7 @@ const ResourceTabItem = memo(function ResourceTabItem({
         onMouseDown={(e) => {
           if (e.button === 1) {
             e.preventDefault()
-            if (chatId) onRemove(e, resource)
+            onRemove(e, resource)
           }
         }}
         onClick={(e) => onTabClick(e, idx)}
@@ -226,7 +226,10 @@ const ResourceTabItem = memo(function ResourceTabItem({
       >
         {config.renderTabIcon(resource, 'mr-1.5 size-[14px]')}
         {displayName}
-        {(isHovered || isActive) && chatId && (
+        {/* Closable without a chat, matching the add control: a resource opened
+            while composing the first prompt has to be removable too, and
+            removal already skips the server delete when nothing is persisted. */}
+        {(isHovered || isActive) && (
           <span
             role='button'
             tabIndex={-1}
@@ -346,8 +349,13 @@ export function ResourceTabs({
 
   const handleAdd = useCallback(
     (resource: MothershipResource) => {
-      if (!chatId) return
-      addResource.mutate({ chatId, resource })
+      // Opening a resource before the first message is sent is allowed: there
+      // is simply no chat to attach it to yet. `onAddResource` queues it and
+      // persists once the chat exists, so only the server call is conditional.
+      // Synthetic result/preview panels are in-memory only either way.
+      if (chatId && !isEphemeralResource(resource)) {
+        addResource.mutate({ chatId, resource })
+      }
       onAddResource(resource)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -407,7 +415,6 @@ export function ResourceTabs({
   const handleRemove = useCallback(
     (e: React.SyntheticEvent, resource: MothershipResource) => {
       e.stopPropagation()
-      if (!chatId) return
       const isMulti = selectedIds.has(resource.id) && selectedIds.size > 1
       const targets = isMulti ? resources.filter((r) => selectedIds.has(r.id)) : [resource]
       // Update parent state immediately for all targets
@@ -424,6 +431,11 @@ export function ResourceTabs({
       if (anchorIdRef.current && removedIds.has(anchorIdRef.current)) {
         anchorIdRef.current = null
       }
+      // Mirrors `handleAdd`: a resource opened while composing the first prompt
+      // has to be closable before there is a chat to attach it to. Only the
+      // server call is conditional — the local removal above also drops the
+      // queued write, so nothing resurrects it once the chat exists.
+      if (!chatId) return
       for (const r of targets) {
         if (isEphemeralResource(r)) continue
         removeResource.mutate({ chatId, resourceType: r.type, resourceId: r.id })
@@ -634,15 +646,16 @@ export function ResourceTabs({
             )
           })}
         </div>
-        {chatId && (
-          <AddResourceDropdown
-            workspaceId={workspaceId}
-            existingKeys={existingKeys}
-            onAdd={handleAdd}
-            onSwitch={selectResource}
-            excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
-          />
-        )}
+        {/* Offered before the chat exists too: a resource opened while composing
+            the first prompt is context for that prompt, and gating on a chat id
+            meant the panel could be opened but not filled. */}
+        <AddResourceDropdown
+          workspaceId={workspaceId}
+          existingKeys={existingKeys}
+          onAdd={handleAdd}
+          onSwitch={selectResource}
+          excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
+        />
       </div>
       {(actions || (previewMode && onCyclePreviewMode)) && (
         <div className={cn('ml-auto flex shrink-0 items-center', RESOURCE_TAB_GAP_CLASS)}>

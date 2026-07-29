@@ -180,6 +180,23 @@ describe('Pinned Items API', () => {
       )
     })
 
+    it('accepts folder as a pinnable resourceType', async () => {
+      mockReturning.mockReturnValueOnce([
+        { ...pinnedWorkflowRow, resourceType: 'folder', resourceId: 'folder-1' },
+      ])
+
+      const response = await POST(
+        createMockRequest('POST', { ...body, resourceType: 'folder', resourceId: 'folder-1' })
+      )
+
+      expect(response.status).toBe(201)
+      const data = await response.json()
+      expect(data.pinnedItem).toMatchObject({ resourceType: 'folder', resourceId: 'folder-1' })
+      expect(mockValues).toHaveBeenCalledWith(
+        expect.objectContaining({ resourceType: 'folder', resourceId: 'folder-1' })
+      )
+    })
+
     it('returns 404 when the resource is not in the workspace', async () => {
       mockLimit.mockReturnValueOnce([])
 

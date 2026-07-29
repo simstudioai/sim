@@ -5,8 +5,9 @@ import { restoreFolderContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { restoreFolder } from '@/lib/folders/lifecycle'
+import { folderMutationStatus } from '@/lib/folders/status'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { performRestoreFolder } from '@/lib/workflows/orchestration/folder-lifecycle'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('RestoreFolderAPI')
@@ -23,29 +24,36 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
     const parsed = await parseRequest(restoreFolderContract, request, context)
     if (!parsed.success) return parsed.response
     const { id: folderId } = parsed.data.params
-    const { workspaceId } = parsed.data.body
+    const { workspaceId, resourceType } = parsed.data.body
 
     const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
     if (permission !== 'admin' && permission !== 'write') {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const result = await performRestoreFolder({
+    const result = await restoreFolder({
+      resourceType,
       folderId,
       workspaceId,
       userId: session.user.id,
     })
 
     if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 400 })
+      return NextResponse.json(
+        { error: result.error },
+        { status: folderMutationStatus(result.errorCode) }
+      )
     }
 
-    logger.info(`Restored folder ${folderId}`, { restoredItems: result.restoredItems })
+    logger.info(`Restored folder ${folderId}`, {
+      resourceType,
+      restoredItems: result.restoredItems,
+    })
 
     captureServerEvent(
       session.user.id,
       'folder_restored',
-      { folder_id: folderId, workspace_id: workspaceId },
+      { folder_id: folderId, workspace_id: workspaceId, resource_type: resourceType },
       { groups: { workspace: workspaceId } }
     )
 

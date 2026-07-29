@@ -2,12 +2,12 @@ import { db, dbFor } from '@sim/db'
 import {
   copilotChats,
   document,
+  folder as folderTable,
   knowledgeBase,
   mcpServers,
   memory,
   userTableDefinitions,
   workflow,
-  workflowFolder,
   workflowMcpServer,
   workspaceFile,
   workspaceFiles,
@@ -413,10 +413,17 @@ async function cleanupExpiredKnowledgeBases(
  */
 const CLEANUP_TARGETS = [
   {
-    table: workflowFolder,
-    softDeleteCol: workflowFolder.archivedAt,
-    wsCol: workflowFolder.workspaceId,
-    name: 'workflowFolder',
+    table: folderTable,
+    softDeleteCol: folderTable.deletedAt,
+    wsCol: folderTable.workspaceId,
+    /**
+     * `folder` is shared by all four resource types, but file folders are still written to
+     * `workspace_file_folders` and this pass must not hard-delete rows it does not own. One
+     * widened predicate rather than a target per type: same table, same soft-delete column,
+     * same workspace scoping — splitting it would only multiply the batched scans.
+     */
+    additionalPredicate: inArray(folderTable.resourceType, ['workflow', 'knowledge_base', 'table']),
+    name: 'folder',
   },
   {
     table: userTableDefinitions,
@@ -675,6 +682,7 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
       retentionDate,
       tableName: `${label}/${target.name}`,
       requireTimestampNotNull: true,
+      additionalPredicate: 'additionalPredicate' in target ? target.additionalPredicate : undefined,
       dbClient: cleanupDb,
     })
     totalDeleted += result.deleted

@@ -7,7 +7,13 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
  * plain `text` on that table rather than a `pgEnum` — the set of pinnable kinds is
  * expected to grow, and this schema is the enforcement point.
  */
-export const pinnedResourceTypeSchema = z.enum(['workflow', 'file', 'knowledge_base', 'table'])
+export const pinnedResourceTypeSchema = z.enum([
+  'workflow',
+  'file',
+  'knowledge_base',
+  'table',
+  'folder',
+])
 export type PinnedResourceType = z.output<typeof pinnedResourceTypeSchema>
 
 export const pinnedItemSchema = z.object({

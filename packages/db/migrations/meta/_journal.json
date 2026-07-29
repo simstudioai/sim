@@ -1905,6 +1905,13 @@
       "when": 1785267616623,
       "tag": "0272_generic_folders_and_pinning",
       "breakpoints": true
+    },
+    {
+      "idx": 273,
+      "version": "7",
+      "when": 1785281897201,
+      "tag": "0273_copilot_tool_permission_decision",
+      "breakpoints": true
     }
   ]
 }

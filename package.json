@@ -37,6 +37,9 @@
     "check:bare-icons": "bun run scripts/check-bare-icons.ts",
     "check:icon-paths": "bun run scripts/check-icon-paths.ts",
     "check:migrations": "bun run scripts/check-migrations-safety.ts",
+    "check:desktop-bridge": "bun run scripts/check-desktop-bridge-contract.ts --check",
+    "check:desktop-ipc": "bun run scripts/check-desktop-ipc-contract.ts",
+    "desktop-bridge-contract:update": "bun run scripts/check-desktop-bridge-contract.ts --update",
     "mship-contracts:generate": "bun run scripts/sync-mothership-stream-contract.ts",
     "mship-contracts:check": "bun run scripts/sync-mothership-stream-contract.ts --check",
     "billing-protocol-contract:generate": "bun run scripts/sync-billing-protocol-contract.ts",
@@ -79,7 +82,8 @@
     "postgres": "^3.4.5",
     "minimatch": "^10.2.5",
     "mermaid": "11.15.0",
-    "zod": "4.3.6"
+    "zod": "4.3.6",
+    "e2b": "^2.36.1"
   },
   "optionalDependencies": {
     "@next/swc-darwin-arm64": "16.2.11",
