@@ -456,7 +456,7 @@ describe('WorkflowBlockHandler', () => {
         workflowId: 'source-workflow-id',
         organizationId: 'org-1',
         ownerUserId: 'owner-9',
-        exposedOutputs: [],
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
         requiredInputIds: [],
       })
       mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
@@ -519,7 +519,7 @@ describe('WorkflowBlockHandler', () => {
         workflowId: 'source-workflow-id',
         organizationId: 'org-1',
         ownerUserId: 'owner-9',
-        exposedOutputs: [],
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
         requiredInputIds: [],
       })
       mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
@@ -620,7 +620,7 @@ describe('WorkflowBlockHandler', () => {
         workflowId: 'source-workflow-id',
         organizationId: 'org-1',
         ownerUserId: 'owner-9',
-        exposedOutputs: [],
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
         requiredInputIds: [],
       })
       mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
@@ -1038,7 +1038,7 @@ describe('WorkflowBlockHandler', () => {
         workflowId: 'source-workflow-id',
         organizationId: 'org-1',
         ownerUserId: 'owner-9',
-        exposedOutputs: [],
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
         requiredInputIds: [],
       })
       mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
@@ -1285,6 +1285,26 @@ describe('WorkflowBlockHandler', () => {
       expect(error.childWorkflowName).toBe('Published Block')
     })
 
+    it('fails loudly on a legacy row with no curated outputs', async () => {
+      // Curation is required at publish; a pre-rule row must not silently fall
+      // back to exposing the child's raw terminal state.
+      mockGetCustomBlockAuthority.mockResolvedValue({
+        workflowId: 'source-workflow-id',
+        organizationId: 'org-1',
+        ownerUserId: 'owner-9',
+        exposedOutputs: [],
+        requiredInputIds: [],
+      })
+
+      const error = await handler
+        .execute(customBlockContext(), customBlock(), {})
+        .catch((e: any) => e)
+
+      expect(error.consumerFacing.errorType).toBe('unavailable')
+      expect(error.message).toContain('re-publish')
+      expect(mockExecutorExecute).not.toHaveBeenCalled()
+    })
+
     it('classifies an unavailable block so consumers can branch on it', async () => {
       mockGetCustomBlockAuthority.mockResolvedValue(null)
 
@@ -1328,7 +1348,7 @@ describe('WorkflowBlockHandler', () => {
         workflowId: 'source-workflow-id',
         organizationId: 'org-1',
         ownerUserId: 'owner-9',
-        exposedOutputs: [],
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
         requiredInputIds: ['field-1'],
       })
       mockFetch.mockImplementation(async (url: unknown) => {
@@ -1429,13 +1449,15 @@ describe('WorkflowBlockHandler', () => {
       expect(result.cost).toBeUndefined()
     })
 
-    it('exposes the whole child result when no outputs are curated', () => {
+    it('never dumps the child result when no outputs are curated', () => {
+      // Curation is required at publish and guarded at invocation, so this path
+      // is unreachable in production — but it must not fall back to exposing the
+      // terminal block's raw state (agent toolCalls/thinking, nested workflow
+      // ids) if it is ever reached.
       const result = (handler as any).projectCustomBlockOutput(childResult, [])
 
-      expect(result).toEqual({
-        success: true,
-        result: { data: 'whole result' },
-      })
+      expect(result).toEqual({ success: true })
+      expect((result as any).result).toBeUndefined()
     })
   })
 })

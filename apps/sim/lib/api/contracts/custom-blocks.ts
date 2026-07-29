@@ -102,8 +102,17 @@ export const publishCustomBlockBodySchema = z.object({
   iconUrl: iconUrlSchema.optional(),
   /** Per-input placeholder hints keyed by Start field id; the field set itself is always derived from the deployment. */
   inputs: z.array(inputPlaceholderSchema).max(50).optional(),
-  /** Curated outputs; omit/empty to expose the child's whole result. */
-  exposedOutputs: z.array(exposedOutputWriteSchema).max(50).optional(),
+  /**
+   * Curated outputs. REQUIRED: every field a consumer receives must be one the
+   * publisher explicitly chose. There is deliberately no "expose everything"
+   * fallback — the terminal block's raw state carries execution metadata
+   * (an agent's `toolCalls`, `providerTiming.thinkingContent`, `cost`; a nested
+   * workflow block's ids) that would cross the invocation boundary unchosen.
+   */
+  exposedOutputs: z
+    .array(exposedOutputWriteSchema)
+    .min(1, 'Select at least one output to expose to consumers')
+    .max(50),
 })
 
 export type PublishCustomBlockBody = z.input<typeof publishCustomBlockBodySchema>
@@ -120,7 +129,12 @@ export const updateCustomBlockBodySchema = z
     /** A URL (https or internal serve path) sets/replaces the icon; `null` clears it (default icon). */
     iconUrl: iconUrlSchema.nullable().optional(),
     inputs: z.array(inputPlaceholderSchema).max(50).optional(),
-    exposedOutputs: z.array(exposedOutputWriteSchema).max(50).optional(),
+    /** Omit to leave the curated outputs unchanged; never settable to empty. */
+    exposedOutputs: z
+      .array(exposedOutputWriteSchema)
+      .min(1, 'Select at least one output to expose to consumers')
+      .max(50)
+      .optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'At least one field is required' })
 

@@ -219,6 +219,22 @@ export class WorkflowBlockHandler implements BlockHandler {
       loadUserId = authority.ownerUserId
       exposedOutputs = authority.exposedOutputs
       requiredInputIds = authority.requiredInputIds
+
+      // Curation is required at publish, so this only trips on a row that
+      // predates that rule. Fail loudly rather than fall back to exposing the
+      // child's raw terminal state, which is what the boundary exists to stop.
+      if (exposedOutputs.length === 0) {
+        throw this.buildBoundaryFailure(
+          new BoundarySafeError({
+            errorType: 'unavailable',
+            message:
+              'This custom block exposes no outputs. Its publisher must re-publish it with at least one output selected.',
+          }),
+          block,
+          instanceId,
+          undefined
+        )
+      }
     }
 
     if (!workflowId) {
@@ -1126,19 +1142,20 @@ export class WorkflowBlockHandler implements BlockHandler {
   }
 
   /**
-   * Shape a custom block's successful output. With curated `exposedOutputs`, each
-   * maps a child block output (blockId + dot-path, read from the child's per-block
-   * logs) to a named top-level field. With none, exposes the child's whole
-   * `result`. Never leaks child workflow id/name/trace spans — nor its cost, which
+   * Shape a custom block's successful output: each curated `exposedOutput` maps a
+   * child block output (blockId + dot-path, read from the child's per-block logs)
+   * to a named top-level field.
+   *
+   * Curation is required at publish, so there is no whole-`result` fallback —
+   * that path would hand the consumer the terminal block's raw state, including
+   * an agent's `toolCalls`/`thinkingContent`/`cost` or a nested workflow block's
+   * identifiers. Never leaks child workflow id/name/trace spans, nor cost, which
    * is billed to the source workspace by the child's own logging session.
    */
   private projectCustomBlockOutput(
     executionResult: ExecutionResult,
     exposedOutputs: CustomBlockOutput[]
   ): BlockOutput {
-    if (exposedOutputs.length === 0) {
-      return { success: true, result: executionResult.output ?? {} }
-    }
     const logs = executionResult.logs ?? []
     const output: Record<string, unknown> = {}
     for (const { blockId, path, name } of exposedOutputs) {

@@ -94,15 +94,18 @@ describe('buildCustomBlockConfig', () => {
     expect(findSub(config, 'docs')?.multiple).toBe(true)
   })
 
-  it('exposes the full result and hides plumbing when no outputs are curated', () => {
+  it('advertises no data fields — and no whole-result fallback — without curation', () => {
     const config = buildCustomBlockConfig(row, fields, { icon })
+    // Curation is required at publish, so an uncurated row exposes only the
+    // system fields. `result` must not come back: it would advertise the child's
+    // raw terminal state (agent toolCalls/thinking, nested workflow ids).
     expect(Object.keys(config.outputs).sort()).toEqual([
       'error',
       'errorRef',
       'errorType',
-      'result',
       'success',
     ])
+    expect(config.outputs.result).toBeUndefined()
     expect(config.outputs.childWorkflowId).toBeUndefined()
     expect(config.outputs.childTraceSpans).toBeUndefined()
   })

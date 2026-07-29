@@ -212,12 +212,12 @@ function buildOutputs(exposed: CustomBlockOutput[] | undefined): BlockConfig['ou
     errorType: { type: 'string', description: 'Machine-readable failure class' },
     errorRef: { type: 'string', description: 'Opaque reference to the failed run' },
   }
-  if (exposed && exposed.length > 0) {
-    for (const out of exposed) {
-      outputs[out.name] = { type: 'json', description: `Output: ${out.path}` }
-    }
-  } else {
-    outputs.result = { type: 'json', description: 'Workflow execution result' }
+  // No whole-`result` fallback: curation is required at publish, so every
+  // consumer-visible field is one the publisher chose. A legacy row with no
+  // curated outputs advertises no data fields and fails loudly at invocation
+  // rather than silently reverting to exposing the child's raw terminal state.
+  for (const out of exposed ?? []) {
+    outputs[out.name] = { type: 'json', description: `Output: ${out.path}` }
   }
   return outputs
 }

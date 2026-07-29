@@ -341,7 +341,11 @@ describe('executeDeployCustomBlock', () => {
     publishCustomBlockMock.mockResolvedValue(publishedBlock)
 
     const result = await executeDeployCustomBlock(
-      { name: 'Enrich Lead', iconUrl: 'files/icon.png' },
+      {
+        name: 'Enrich Lead',
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
+        iconUrl: 'files/icon.png',
+      },
       context
     )
 
@@ -364,7 +368,11 @@ describe('executeDeployCustomBlock', () => {
     publishCustomBlockMock.mockResolvedValue(publishedBlock)
 
     const result = await executeDeployCustomBlock(
-      { name: 'Enrich Lead', iconUrl: 'https://example.com/icon.png' },
+      {
+        name: 'Enrich Lead',
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
+        iconUrl: 'https://example.com/icon.png',
+      },
       context
     )
 
@@ -379,7 +387,11 @@ describe('executeDeployCustomBlock', () => {
     listWorkspaceFilesMock.mockResolvedValue([])
 
     const result = await executeDeployCustomBlock(
-      { name: 'Enrich Lead', iconUrl: 'files/missing.png' },
+      {
+        name: 'Enrich Lead',
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
+        iconUrl: 'files/missing.png',
+      },
       context
     )
 
@@ -390,14 +402,22 @@ describe('executeDeployCustomBlock', () => {
 
   it('rejects non-https icon URL schemes on pass-through', async () => {
     const dataUri = await executeDeployCustomBlock(
-      { name: 'Enrich Lead', iconUrl: 'data:image/svg+xml;base64,PHN2Zy8+' },
+      {
+        name: 'Enrich Lead',
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
+        iconUrl: 'data:image/svg+xml;base64,PHN2Zy8+',
+      },
       context
     )
     expect(dataUri.success).toBe(false)
     expect(dataUri.error).toContain('https')
 
     const plainHttp = await executeDeployCustomBlock(
-      { name: 'Enrich Lead', iconUrl: 'http://example.com/icon.png' },
+      {
+        name: 'Enrich Lead',
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
+        iconUrl: 'http://example.com/icon.png',
+      },
       context
     )
     expect(plainHttp.success).toBe(false)
@@ -405,7 +425,11 @@ describe('executeDeployCustomBlock', () => {
 
     publishCustomBlockMock.mockResolvedValue(publishedBlock)
     const servePath = await executeDeployCustomBlock(
-      { name: 'Enrich Lead', iconUrl: '/api/files/serve/workspace-logos%2Ficon.png' },
+      {
+        name: 'Enrich Lead',
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
+        iconUrl: '/api/files/serve/workspace-logos%2Ficon.png',
+      },
       context
     )
     expect(servePath.success).toBe(true)
@@ -417,7 +441,11 @@ describe('executeDeployCustomBlock', () => {
     ])
 
     const result = await executeDeployCustomBlock(
-      { name: 'Enrich Lead', iconUrl: 'files/notes.pdf' },
+      {
+        name: 'Enrich Lead',
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
+        iconUrl: 'files/notes.pdf',
+      },
       context
     )
 
@@ -433,5 +461,13 @@ describe('executeDeployCustomBlock', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('organization')
+  })
+
+  it('refuses to publish without curated outputs', async () => {
+    const result = await executeDeployCustomBlock({ name: 'Enrich Lead' }, context)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('exposedOutputs is required')
+    expect(publishCustomBlockMock).not.toHaveBeenCalled()
   })
 })
