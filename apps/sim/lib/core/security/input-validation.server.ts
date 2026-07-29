@@ -5,7 +5,7 @@ import http from 'http'
 import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
-import { resolveHostAddresses } from '@sim/security/dns'
+import { preferIpv4, resolveHostAddresses } from '@sim/security/dns'
 import { isLoopbackIp, isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
@@ -66,23 +66,26 @@ export async function validateUrlWithDNS(
   const isLocalhost = cleanHostname === 'localhost' || isLoopbackIp(cleanHostname)
 
   try {
-    // Every address is classified, but only the IPv4-preferred one is returned to
-    // pin: checking a single address let a host publishing both a public and a
-    // private record through whenever the public one sorted first, which is
-    // record order rather than policy.
-    const { addresses, preferred } = await resolveHostAddresses(cleanHostname)
-    const blocked = addresses.filter((address) => isPrivateIp(address))
+    // Every address is judged, not just the pinned one: classifying a single
+    // address let a host publishing both a public and a private record through
+    // whenever the public one sorted first, which is record order rather than
+    // policy.
+    //
+    // Refused records are filtered rather than failing the whole host, matching
+    // createSsrfGuardedLookup below. Pinning to a surviving public address is
+    // just as safe as refusing outright, and rejecting the host would break a
+    // split-horizon resolver that answers with a private record alongside the
+    // public one — with no operator opt-out on this path.
+    const { addresses } = await resolveHostAddresses(cleanHostname)
+    const usable = addresses.filter(
+      (address) => !isPrivateIp(address) || (isLocalhost && !isHosted && isLoopbackIp(address))
+    )
 
-    // The localhost carve-out still applies only when every address is loopback,
-    // so `localhost` with an extra RFC1918 record does not ride it.
-    if (
-      blocked.length > 0 &&
-      !(isLocalhost && !isHosted && blocked.every((address) => isLoopbackIp(address)))
-    ) {
+    if (usable.length === 0) {
       logger.warn('URL resolves to blocked IP address', {
         paramName,
         hostname,
-        resolvedIP: blocked[0],
+        resolvedIP: addresses[0],
       })
       return {
         isValid: false,
@@ -92,7 +95,9 @@ export async function validateUrlWithDNS(
 
     return {
       isValid: true,
-      resolvedIP: preferred,
+      // Re-preferred over the surviving set so the pin is never an address the
+      // filter above just refused.
+      resolvedIP: preferIpv4(usable),
       originalHostname: hostname,
     }
   } catch (error) {
@@ -212,7 +217,6 @@ export async function validateDatabaseHost(
 
   try {
     const { addresses, preferred } = await resolveHostAddresses(cleanHost)
-    const address = preferred
     const blockedAddress = addresses.find((candidate) => isPrivateIp(candidate))
 
     if (blockedAddress !== undefined && !isPrivateDatabaseHostsAllowed) {
@@ -229,7 +233,7 @@ export async function validateDatabaseHost(
 
     return {
       isValid: true,
-      resolvedIP: address,
+      resolvedIP: preferred,
       originalHostname: host,
     }
   } catch (error) {

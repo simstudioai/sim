@@ -7,6 +7,11 @@ const { mockResolve } = vi.hoisted(() => ({ mockResolve: vi.fn() }))
 
 vi.mock('@sim/security/dns', () => ({
   resolveHostAddresses: mockResolve,
+  // Mirrors the real rule so a pin taken over a narrowed set behaves as it does
+  // in production; a stub returning addresses[0] would hide the divergence the
+  // preference exists for.
+  preferIpv4: (addresses: string[]) =>
+    addresses.find((address) => address.includes('.')) ?? addresses[0],
 }))
 
 vi.mock('@/lib/core/config/env-flags', () => ({
@@ -17,9 +22,14 @@ vi.mock('@/lib/core/config/env-flags', () => ({
 
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 
-/** Shapes a resolver answer the way `resolveHostAddresses` does. */
+/**
+ * Shapes a resolver answer the way `resolveHostAddresses` does, including its
+ * IPv4-first preference — so `preferred` can differ from `addresses[0]`, which
+ * is the whole reason the field exists.
+ */
 function resolved(addresses: string[]) {
-  return { addresses, preferred: addresses[0] }
+  const preferred = addresses.find((address) => address.includes('.')) ?? addresses[0]
+  return { addresses, preferred }
 }
 
 describe('validateUrlWithDNS address classification', () => {
@@ -27,21 +37,35 @@ describe('validateUrlWithDNS address classification', () => {
     vi.clearAllMocks()
   })
 
-  it('rejects a host that also publishes a private record', async () => {
-    // The gap this closes: only one address used to be classified, so a host
-    // publishing both got through whenever the public record sorted first.
+  it('drops a private co-record and pins the public one', async () => {
+    // The gap this closes: one address used to be classified, so which record
+    // got judged was a matter of resolver order.
     mockResolve.mockResolvedValue(resolved(['93.184.216.34', '10.0.0.5']))
 
     const result = await validateUrlWithDNS('https://mixed.example/api')
+
+    expect(result.isValid).toBe(true)
+    expect(result.resolvedIP).toBe('93.184.216.34')
+  })
+
+  it('rejects when every record is private', async () => {
+    mockResolve.mockResolvedValue(resolved(['10.0.0.5', '192.168.1.9']))
+
+    const result = await validateUrlWithDNS('https://internal.example/api')
 
     expect(result.isValid).toBe(false)
     expect(result.error).toContain('blocked IP address')
   })
 
-  it('rejects it regardless of which record comes first', async () => {
-    mockResolve.mockResolvedValue(resolved(['10.0.0.5', '93.184.216.34']))
+  it('never pins an address the filter refused', async () => {
+    // The private record sorts first AND is the IPv4 one, so a pin taken from
+    // the unfiltered set would land on 10.0.0.5.
+    mockResolve.mockResolvedValue(resolved(['10.0.0.5', '2606:2800:220:1::248']))
 
-    expect((await validateUrlWithDNS('https://mixed.example/api')).isValid).toBe(false)
+    const result = await validateUrlWithDNS('https://mixed.example/api')
+
+    expect(result.isValid).toBe(true)
+    expect(result.resolvedIP).toBe('2606:2800:220:1::248')
   })
 
   it('accepts a host whose every record is public, pinning the preferred one', async () => {
@@ -59,12 +83,15 @@ describe('validateUrlWithDNS address classification', () => {
     expect((await validateUrlWithDNS('https://localhost/api')).isValid).toBe(true)
   })
 
-  it('denies localhost the carve-out when it also resolves off-loopback', async () => {
-    // `localhost` pointing at the LAN as well is not the case the carve-out was
-    // written for, and riding it there would reach another machine.
+  it('drops an off-loopback record from localhost rather than pinning it', async () => {
+    // The carve-out covers loopback only, so the LAN record is filtered out and
+    // the pin stays on the machine the carve-out was written for.
     mockResolve.mockResolvedValue(resolved(['127.0.0.1', '10.0.0.5']))
 
-    expect((await validateUrlWithDNS('https://localhost/api')).isValid).toBe(false)
+    const result = await validateUrlWithDNS('https://localhost/api')
+
+    expect(result.isValid).toBe(true)
+    expect(result.resolvedIP).toBe('127.0.0.1')
   })
 
   it('reports an unresolvable host rather than treating it as public', async () => {

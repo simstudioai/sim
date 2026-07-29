@@ -333,6 +333,12 @@ function capturePanelSnapshot(onSettled?: () => void): void {
       // picture of the page, so it goes to the window still showing the
       // browser or nowhere at all.
       if (panelWindow() !== win || win.isDestroyed()) return
+      // Downscale and JPEG-encode before crossing IPC. capturePage returns a
+      // device-pixel PNG — on a retina half-window that is millions of pixels,
+      // and toDataURL's PNG encode is synchronous on the main process, so a
+      // full-size encode stalls every window's input for the frame. This is a
+      // placeholder shown under a transient overlay, so a downscaled JPEG is
+      // indistinguishable and an order of magnitude cheaper to encode and send.
       const snapshot: BrowserPanelSnapshot = { dataUrl: encodeSnapshot(image), tabId }
       win.webContents.send('browser-agent:panel-snapshot', snapshot)
     })

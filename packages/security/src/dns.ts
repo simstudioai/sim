@@ -1,4 +1,5 @@
 import dns from 'node:dns/promises'
+import * as ipaddr from 'ipaddr.js'
 
 /**
  * Hard deadline on an SSRF-guard lookup.
@@ -8,6 +9,38 @@ import dns from 'node:dns/promises'
  * bounded rather than left to the OS resolver's own retry schedule.
  */
 export const DEFAULT_DNS_TIMEOUT_MS = 5_000
+
+/**
+ * A resolver deadline rather than a missing host.
+ *
+ * Callers map both to the same user-facing message, but during a resolver
+ * outage every valid hostname would otherwise be reported as nonexistent with
+ * nothing in the logs telling the two apart.
+ */
+export class DnsTimeoutError extends Error {
+  readonly code = 'DNS_TIMEOUT'
+
+  constructor(host: string) {
+    super(`DNS lookup for ${host} timed out`)
+    this.name = 'DnsTimeoutError'
+  }
+}
+
+/**
+ * The address to connect to or pin, out of a set already judged acceptable.
+ *
+ * IPv4 first, for the reason described on {@link ResolvedHost.preferred}. Split
+ * out so a caller that narrows the set — dropping records its policy refuses —
+ * can re-apply the same preference to what is left instead of pinning an
+ * address it just rejected.
+ */
+export function preferIpv4(addresses: readonly string[]): string | undefined {
+  return (
+    addresses.find(
+      (address) => ipaddr.isValid(address) && ipaddr.parse(address).kind() === 'ipv4'
+    ) ?? addresses[0]
+  )
+}
 
 export interface ResolvedHost {
   /**
@@ -52,7 +85,7 @@ export async function resolveHostAddresses(
     const resolved = await Promise.race([
       lookup,
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error('DNS lookup timed out')), timeoutMs)
+        timer = setTimeout(() => reject(new DnsTimeoutError(host)), timeoutMs)
       }),
     ])
     if (resolved.length === 0) {
@@ -61,6 +94,11 @@ export async function resolveHostAddresses(
     return {
       addresses: resolved.map((entry) => entry.address),
       preferred: (resolved.find((entry) => entry.family === 4) ?? resolved[0]).address,
+      // Resolver order is preserved (`verbatim: true`) because `preferred`
+      // applies the IPv4 preference itself, so the order here is informational.
+      // Deliberately unlike `createSsrfGuardedLookup` in apps/sim, which hands
+      // its full ordered list to undici to dial in turn and so wants
+      // `verbatim: false`.
     }
   } finally {
     clearTimeout(timer)

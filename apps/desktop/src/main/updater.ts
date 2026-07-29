@@ -21,29 +21,6 @@ export type UpdateChannel = 'latest' | 'beta' | 'alpha'
  * staging beta, prod stable — so the environment, not the client, is the
  * channel. Returns null for origins that can't host a feed.
  */
-/**
- * Where the feed rewrites every manifest entry to. Downloads are constrained to
- * this prefix rather than to https alone, so a feed that serves an attacker's
- * host cannot get a bundle in front of the user's Download button.
- */
-const RELEASE_ASSET_PREFIX = 'https://github.com/simstudioai/sim/releases/download/'
-
-/** Whether a manifest url is one of our own release assets. */
-export function isReleaseAssetUrl(rawUrl: string): boolean {
-  if (!isSafeExternalUrl(rawUrl)) return false
-  try {
-    const url = new URL(rawUrl)
-    // Compared on the parsed origin, never by prefix on the raw string, so
-    // `https://github.com.evil.example/…` cannot pass.
-    return (
-      url.origin === 'https://github.com' &&
-      url.pathname.startsWith(new URL(RELEASE_ASSET_PREFIX).pathname)
-    )
-  } catch {
-    return false
-  }
-}
-
 export function feedUrlForOrigin(origin: string): string | null {
   try {
     const url = new URL(origin)
@@ -53,6 +30,28 @@ export function feedUrlForOrigin(origin: string): string | null {
     return `${url.origin}/api/desktop/update`
   } catch {
     return null
+  }
+}
+
+/**
+ * Where the feed rewrites every manifest entry to. Downloads are constrained to
+ * this prefix rather than to https alone, so a feed that serves an attacker's
+ * host cannot get a bundle in front of the user's Download button.
+ */
+const RELEASE_ASSET_ORIGIN = 'https://github.com'
+const RELEASE_ASSET_PATH = '/simstudioai/sim/releases/download/'
+
+/** Whether a manifest url is one of our own release assets. */
+function isReleaseAssetUrl(rawUrl: string): boolean {
+  if (!isSafeExternalUrl(rawUrl)) return false
+  try {
+    const url = new URL(rawUrl)
+    // Compared on the parsed origin and the parsed pathname, never by prefix on
+    // the raw string: `https://github.com.evil.example/…` must not pass, and
+    // `URL` has already normalized away any `..` segments by this point.
+    return url.origin === RELEASE_ASSET_ORIGIN && url.pathname.startsWith(RELEASE_ASSET_PATH)
+  } catch {
+    return false
   }
 }
 
@@ -465,7 +464,7 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         // an available update.
         //
         // Constrained to the release host, not merely to https. The feed rewrites
-        // every entry to an absolute `${RELEASE_ASSET_PREFIX}` URL, so nothing
+        // every entry to an absolute release-asset URL, so nothing
         // legitimate is excluded — while scheme-only validation would still admit
         // `https://attacker.example/Sim.dmg`, and the download dialog walks the
         // user through installing whatever it hands to the browser. That is a

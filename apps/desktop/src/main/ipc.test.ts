@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
@@ -170,6 +170,10 @@ describe('registerIpcHandlers', () => {
   let deps: IpcDeps
 
   beforeEach(() => {
+    // Frozen so the input-recency windows cannot lapse mid-test: the gates read
+    // wall-clock, and a loaded machine pausing between this press and an
+    // assertion would flip them closed for reasons unrelated to the test.
+    vi.useFakeTimers()
     activeSender.press()
     activeChooserSender.press()
     vi.mocked(ipcMain.handle).mockClear()
@@ -221,6 +225,10 @@ describe('registerIpcHandlers', () => {
       },
     }
     registerIpcHandlers(deps)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('validates open-external URLs regardless of sender', async () => {
