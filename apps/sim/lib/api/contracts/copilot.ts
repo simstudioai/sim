@@ -12,6 +12,7 @@ import {
   COPILOT_BILLING_PROTOCOL_HEADER,
   COPILOT_BILLING_PROTOCOL_VALUES,
 } from '@/lib/copilot/generated/billing-protocol-v1'
+import { PERSISTED_RESOURCE_TYPES } from '@/lib/copilot/resources/types'
 
 export const copilotApiKeySchema = z.object({
   id: z.string(),
@@ -58,6 +59,30 @@ export const copilotConfirmBodySchema = z.object({
 })
 export type CopilotConfirmBody = z.input<typeof copilotConfirmBodySchema>
 
+export const copilotToolPermissionDecisionSchema = z.enum([
+  'allow',
+  'allow_chat',
+  'always_allow',
+  'skip',
+])
+
+/**
+ * Decisions arrive as a batch so "Allow all" on a turn that gated several
+ * tools at once is a single round trip rather than one request per card.
+ */
+export const copilotToolPermissionBodySchema = z.object({
+  decisions: z
+    .array(
+      z.object({
+        toolCallId: z.string().min(1, 'Tool call ID is required'),
+        decision: copilotToolPermissionDecisionSchema,
+      })
+    )
+    .min(1, 'At least one decision is required')
+    .max(50, 'Too many decisions in one request'),
+})
+export type CopilotToolPermissionBody = z.input<typeof copilotToolPermissionBodySchema>
+
 export const createWorkflowCopilotChatBodySchema = z.object({
   workspaceId: z.string().min(1),
   workflowId: z.string().min(1),
@@ -93,15 +118,7 @@ export const renameCopilotChatBodySchema = z.object({
 })
 export type RenameCopilotChatBody = z.input<typeof renameCopilotChatBodySchema>
 
-const copilotResourceTypeSchema = z.enum([
-  'table',
-  'file',
-  'workflow',
-  'knowledgebase',
-  'folder',
-  'scheduledtask',
-  'log',
-])
+const copilotResourceTypeSchema = z.enum(PERSISTED_RESOURCE_TYPES)
 
 export const addCopilotChatResourceBodySchema = z.object({
   chatId: z.string(),
@@ -258,7 +275,6 @@ const copilotPersistedMessageSchema = z
 export const updateCopilotMessagesBodySchema = z.object({
   chatId: z.string(),
   messages: z.array(copilotPersistedMessageSchema),
-  planArtifact: z.string().nullable().optional(),
   config: z
     .object({
       mode: z.string().optional(),
@@ -411,7 +427,6 @@ const copilotChatGetChatSchema = z
     model: z.string().nullable(),
     messages: z.array(z.unknown()),
     messageCount: z.number(),
-    planArtifact: z.unknown().nullable(),
     config: z.unknown().nullable(),
     activeStreamId: z.string().nullable().optional(),
     resources: z.array(z.unknown()).optional(),
@@ -618,6 +633,27 @@ export const copilotConfirmContract = defineRouteContract({
       message: z.string(),
       toolCallId: z.string(),
       status: z.string(),
+    }),
+  },
+})
+
+export const copilotToolPermissionContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/tool-permission',
+  body: copilotToolPermissionBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      // Echoes the decision that actually stuck per tool call, which can differ
+      // from what was sent when another tab answered the same prompt first.
+      results: z.array(
+        z.object({
+          toolCallId: z.string(),
+          decision: copilotToolPermissionDecisionSchema,
+          applied: z.boolean(),
+        })
+      ),
     }),
   },
 })

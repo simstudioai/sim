@@ -2582,9 +2582,18 @@ export const copilotChats = pgTable(
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),
     conversationId: text('conversation_id'),
     previewYaml: text('preview_yaml'),
+    /**
+     * @deprecated Nothing reads or writes this any more — the plan artifact
+     * moved into the message transcript. Kept only so the column survives the
+     * deploy that removes its last readers; drop it in a follow-up migration
+     * once that deploy has fully rolled out (expand/contract).
+     */
     planArtifact: text('plan_artifact'),
     config: jsonb('config'),
     resources: jsonb('resources').notNull().default('[]'),
+    // Copilot tool ids the user allowed for the rest of this chat only, as
+    // opposed to the account-wide list on `settings.copilotAutoAllowedTools`.
+    autoAllowedTools: jsonb('auto_allowed_tools').notNull().default('[]'),
     lastSeenAt: timestamp('last_seen_at'),
     pinned: boolean('pinned').notNull().default(false),
     deletedAt: timestamp('deleted_at'),
@@ -2745,8 +2754,17 @@ export const copilotAsyncToolStatusEnum = pgEnum('copilot_async_tool_status', [
   'delivered',
 ])
 
+export const copilotToolPermissionDecisionEnum = pgEnum('copilot_tool_permission_decision', [
+  'allow',
+  'allow_chat',
+  'always_allow',
+  'skip',
+])
+
 export type CopilotRunStatus = (typeof copilotRunStatusEnum.enumValues)[number]
 export type CopilotAsyncToolStatus = (typeof copilotAsyncToolStatusEnum.enumValues)[number]
+export type CopilotToolPermissionDecision =
+  (typeof copilotToolPermissionDecisionEnum.enumValues)[number]
 
 export const copilotRuns = pgTable(
   'copilot_runs',
@@ -2838,6 +2856,11 @@ export const copilotAsyncToolCalls = pgTable(
     status: copilotAsyncToolStatusEnum('status').notNull().default('pending'),
     result: jsonb('result'),
     error: text('error'),
+    // Set only for tools declaring requiresApproval in the mothership tool
+    // catalog. A null decision on such a tool means the prompt is still
+    // outstanding, which is what lets it survive a reload.
+    permissionDecision: copilotToolPermissionDecisionEnum('permission_decision'),
+    permissionDecidedAt: timestamp('permission_decided_at'),
     claimedAt: timestamp('claimed_at'),
     claimedBy: text('claimed_by'),
     completedAt: timestamp('completed_at'),

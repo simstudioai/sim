@@ -1909,8 +1909,15 @@
     {
       "idx": 273,
       "version": "7",
-      "when": 1785276590836,
-      "tag": "0273_table_views",
+      "when": 1785281897201,
+      "tag": "0273_copilot_tool_permission_decision",
+      "breakpoints": true
+    },
+    {
+      "idx": 274,
+      "version": "7",
+      "when": 1785293160728,
+      "tag": "0274_table_views",
       "breakpoints": true
     }
   ]

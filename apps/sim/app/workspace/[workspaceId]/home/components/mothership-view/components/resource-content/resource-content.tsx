@@ -34,7 +34,9 @@ import {
   type PreviewMode,
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
+import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
@@ -86,6 +88,13 @@ interface ResourceContentProps {
    *  AppConfig itself, so the flag is threaded down rather than looked up. */
   tableViewsEnabled?: boolean
   onNotFound?: (resourceId: string) => void
+  /**
+   * Whether this resource is the one on screen. Only the persistent panels
+   * (browser, terminal) read it — to stand down document-wide observers while
+   * hidden — so it defaults to visible for every other resource, which is only
+   * ever rendered when active.
+   */
+  visible?: boolean
 }
 
 /**
@@ -149,6 +158,7 @@ export const ResourceContent = memo(function ResourceContent({
   previewContextKey,
   tableViewsEnabled,
   onNotFound,
+  visible = true,
 }: ResourceContentProps) {
   const streamFileName = previewSession?.fileName || 'file.md'
   const syntheticFile = useMemo(() => {
@@ -287,6 +297,12 @@ export const ResourceContent = memo(function ResourceContent({
         <GenericResourceContent key={resource.id} data={genericResourceData ?? { entries: [] }} />
       )
 
+    case 'browser':
+      return <BrowserSession key={resource.id} visible={visible} />
+
+    case 'terminal':
+      return <TerminalSession key={resource.id} visible={visible} />
+
     default:
       return null
   }
@@ -327,6 +343,8 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
       return <EmbeddedScheduledTaskActions workspaceId={workspaceId} />
     case 'folder':
     case 'generic':
+    case 'browser':
+    case 'terminal':
       return null
     default:
       return null

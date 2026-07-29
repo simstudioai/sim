@@ -20,11 +20,40 @@ export function toFolderApi(row: typeof folder.$inferSelect): FolderApi {
   }
 }
 
+/**
+ * Walks up from `parentId` to check whether reparenting `folderId` under it would close a
+ * cycle. Scoped to `resourceType` so the walk cannot escape into another resource's tree
+ * via an id the caller supplied.
+ */
+export async function wouldCreateFolderCycle(
+  folderId: string,
+  parentId: string,
+  resourceType: FolderResourceType
+): Promise<boolean> {
+  let currentParentId: string | null = parentId
+  const visited = new Set<string>()
+
+  while (currentParentId) {
+    if (visited.has(currentParentId) || currentParentId === folderId) return true
+    visited.add(currentParentId)
+
+    const [parent] = await db
+      .select({ parentId: folder.parentId })
+      .from(folder)
+      .where(and(eq(folder.id, currentParentId), eq(folder.resourceType, resourceType)))
+      .limit(1)
+
+    currentParentId = parent?.parentId || null
+  }
+
+  return false
+}
+
 /** Shared by `GET /api/folders` and the sidebar prefetch so the query never drifts between them. */
 export async function listFoldersForWorkspace(
   workspaceId: string,
   scope: FolderQueryScope,
-  resourceType: FolderResourceType = 'workflow'
+  resourceType: FolderResourceType
 ): Promise<FolderApi[]> {
   const scopeFilter = scope === 'archived' ? isNotNull(folder.deletedAt) : isNull(folder.deletedAt)
 

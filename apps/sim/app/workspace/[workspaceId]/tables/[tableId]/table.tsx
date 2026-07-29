@@ -449,10 +449,12 @@ export function Table({
   const layoutSnapshotRef = useRef<(() => TableMetadata) | null>(null)
   const readLayout = useCallback((): TableMetadata => layoutSnapshotRef.current?.() ?? {}, [])
 
-  /** Whether the user changed layout before the views query settled, when there
-   *  was no owner to write to. What changed isn't recorded — the grid still holds
-   *  it — only that something did, so a settle to All knows to persist it. */
-  const layoutTouchedWhileUnownedRef = useRef(false)
+  /** Layout KEYS the user changed before the views query settled, when there was
+   *  no owner to write to. Values aren't recorded — the grid holds them live —
+   *  but the keys are, so a settle to All persists only what was touched. A full
+   *  snapshot would also carry keys the grid hasn't seeded yet (e.g. pins while
+   *  the slower detail query is still in flight) and wipe them in metadata. */
+  const pendingLayoutKeysRef = useRef<Set<keyof TableMetadata> | null>(null)
 
   /**
    * Resolves that pending layout once the resolve effect has picked an owner.
@@ -469,10 +471,18 @@ export function Table({
    */
   const resolvePendingLayout = useCallback(
     (adoptedView: boolean) => {
-      if (!layoutTouchedWhileUnownedRef.current) return
-      layoutTouchedWhileUnownedRef.current = false
+      const keys = pendingLayoutKeysRef.current
+      pendingLayoutKeysRef.current = null
+      if (!keys || keys.size === 0) return
       if (adoptedView || !userPermissions.canEdit) return
-      updateMetadataMutation.mutate(readLayout())
+      const live = readLayout()
+      const patch: TableMetadata = {}
+      if (keys.has('columnWidths') && live.columnWidths) patch.columnWidths = live.columnWidths
+      if (keys.has('columnOrder') && live.columnOrder) patch.columnOrder = live.columnOrder
+      if (keys.has('pinnedColumns') && live.pinnedColumns) {
+        patch.pinnedColumns = live.pinnedColumns
+      }
+      if (Object.keys(patch).length > 0) updateMetadataMutation.mutate(patch)
     },
     [userPermissions.canEdit, readLayout]
   )
@@ -710,12 +720,21 @@ export function Table({
       // the layout either way, so only the fact of the change is recorded;
       // `resolvePendingLayout` reads the live value once an owner exists.
       if (viewOwnerUnknown || seededViewIdRef.current === undefined) {
-        layoutTouchedWhileUnownedRef.current = true
+        pendingLayoutKeysRef.current ??= new Set()
+        for (const key of Object.keys(patch) as (keyof TableMetadata)[]) {
+          pendingLayoutKeysRef.current.add(key)
+        }
         return
       }
-      if (activeView) {
+      // Routed by the OWNER RECORD, not `activeView`: the ref is stamped
+      // synchronously when the resolve effect (or view creation) picks a view,
+      // while `activeView` derives from the URL and lags a render — a write in
+      // that gap would otherwise fall through to shared metadata. This also
+      // covers a just-created view before the list refetch resolves it.
+      const ownerId = seededViewIdRef.current
+      if (ownerId !== null) {
         updateViewMutation.mutate(
-          { viewId: activeView.id, configPatch: patch },
+          { viewId: ownerId, configPatch: patch },
           { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save layout')) }
         )
         return
@@ -723,7 +742,7 @@ export function Table({
       // All: the shared table metadata is the owner.
       updateMetadataMutation.mutate(patch)
     },
-    [activeView, userPermissions.canEdit, viewOwnerUnknown]
+    [userPermissions.canEdit, viewOwnerUnknown]
   )
 
   const handleSaveView = () => {

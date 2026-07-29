@@ -85,6 +85,18 @@ function namedOperationTitle(
   return display ? `${display.verb} ${target || display.resource}` : placeholder
 }
 
+/** Compact form of a URL for titles: host + path, no scheme/query noise. */
+function displayUrl(raw: string): string {
+  if (!raw) return ''
+  try {
+    const url = new URL(raw)
+    const path = url.pathname === '/' ? '' : url.pathname
+    return `${url.host}${path}`.slice(0, 80)
+  } catch {
+    return raw.slice(0, 80)
+  }
+}
+
 function isWorkflowArtifactPath(path: string, filename: string): boolean {
   const trimmed = path.trim()
   return trimmed.startsWith('workflows/') && trimmed.endsWith(`/${filename}`)
@@ -421,15 +433,11 @@ const TOOL_TITLES: Record<string, string> = {
   generate_video: 'Generating video',
   generate_audio: 'Generating audio',
   ffmpeg: 'Processing media',
-  manage_folder: 'Folder action',
   check_deployment_status: 'Checking deployment status',
   complete_scheduled_task: 'Completing scheduled task',
   create_file: 'Creating file',
   create_file_folder: 'Creating folder',
   create_workspace_mcp_server: 'Creating MCP server',
-  delete_file: 'Deleting file',
-  delete_file_folder: 'Deleting folder',
-  delete_workflow: 'Deleting workflow',
   delete_workspace_mcp_server: 'Deleting MCP server',
   deploy_api: 'Deploying API',
   deploy_chat: 'Deploying chat',
@@ -473,6 +481,20 @@ const TOOL_TITLES: Record<string, string> = {
   update_deployment_version: 'Updating deployment',
   update_scheduled_task_history: 'Updating task history',
   update_workspace_mcp_server: 'Updating MCP server',
+  // Browser agent tools without an argument-aware title.
+  browser_go_back: 'Going back',
+  browser_go_forward: 'Going forward',
+  browser_switch_tab: 'Switching tab',
+  browser_close_tab: 'Closing tab',
+  browser_list_tabs: 'Listing tabs',
+  browser_list_sessions: 'Checking signed-in sites',
+  browser_snapshot: 'Scanning page',
+  browser_read_text: 'Reading page',
+  browser_screenshot: 'Taking screenshot',
+  browser_click: 'Clicking element',
+  browser_type: 'Typing text',
+  browser_select_option: 'Selecting option',
+  browser_hover: 'Hovering element',
   // Subagent trigger tools, when surfaced as a tool call.
   workflow: 'Workflow Agent',
   run: 'Run Agent',
@@ -487,6 +509,7 @@ const TOOL_TITLES: Record<string, string> = {
   search: 'Search Agent',
   file: 'File Agent',
   media: 'Media Agent',
+  browser: 'Browser Agent',
   superagent: 'Executing action',
   respond: 'Gathering thoughts',
   context_compaction: CONTEXT_COMPACTION_DISPLAY_TITLE,
@@ -532,6 +555,86 @@ export function humanizeToolName(name: string): string {
   return humanizeDisplayIdentifier(name)
 }
 
+/** One shape, so the live countdown and the settled title never diverge. */
+function formatWaitTitle(seconds: number, reason: string): string {
+  const duration = seconds > 0 ? ` ${seconds}s` : ''
+  return reason ? `Waiting${duration} for ${reason}` : `Waiting${duration}`
+}
+
+function requestedWaitSeconds(args: ToolArgs): number {
+  const raw = args?.seconds
+  return typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? Math.round(raw) : 0
+}
+
+/**
+ * The duration is the whole content of a pause: without it the row is an
+ * unexplained stall, which is what the user is staring at while it runs.
+ */
+function waitTitle(args: ToolArgs): string {
+  return formatWaitTitle(requestedWaitSeconds(args), stringArg(args, 'reason'))
+}
+
+/**
+ * The title of a pause that is still running, counting down what is left.
+ *
+ * A number that never changes next to a spinner looks the same as a hung turn,
+ * and a pause is the one row where the user is doing nothing but watching it.
+ * At zero the number is dropped rather than frozen at "0s", because the pause
+ * itself is over and what remains is the turn picking back up.
+ */
+export function getWaitCountdownTitle(args: ToolArgs, elapsedMs: number): string {
+  const elapsedSeconds = Math.max(0, Math.floor(elapsedMs / 1000))
+  const remaining = Math.max(0, requestedWaitSeconds(args) - elapsedSeconds)
+  return formatWaitTitle(remaining, stringArg(args, 'reason'))
+}
+
+/** Past this a command wraps the row; the terminal panel still shows it in full. */
+const MAX_COMMAND_TITLE_LENGTH = 48
+
+function runningCommandTitle(rawCommand: string): string {
+  const command = rawCommand.replace(/\s+/g, ' ')
+  if (!command) return 'Running command'
+  const shortened =
+    command.length > MAX_COMMAND_TITLE_LENGTH
+      ? `${command.slice(0, MAX_COMMAND_TITLE_LENGTH - 1)}…`
+      : command
+  return `Running ${shortened}`
+}
+
+const TERMINAL_OPERATION_TITLES: Record<string, string> = {
+  read: 'Reading terminal',
+  input: 'Typing into terminal',
+  kill: 'Stopping command',
+  cwd: 'Checking terminal',
+  list: 'Listing terminals',
+  new: 'Opening terminal',
+  switch: 'Switching terminal',
+  close: 'Closing terminal',
+  panes: 'Listing tmux panes',
+}
+
+/**
+ * The terminal tool carries what it does in `operation`, so the row title has
+ * to come from the arguments rather than the tool name — otherwise every shell
+ * action in the transcript reads simply "Terminal".
+ */
+function terminalTitle(args: ToolArgs): string {
+  const operation = stringArg(args, 'operation')
+  const nested = args?.args
+  const inner: ToolArgs =
+    nested && typeof nested === 'object' && !Array.isArray(nested)
+      ? (nested as Record<string, unknown>)
+      : undefined
+  if (operation === 'run') return runningCommandTitle(stringArg(inner, 'command'))
+  if (operation === 'handoff') {
+    // Matches the browser takeover row: the reason is the whole point of the
+    // row, since it is what the user has to act on.
+    const reason = stringArg(inner, 'reason')
+    return reason ? `Waiting for you: ${reason}` : 'Waiting for you in the terminal'
+  }
+  return TERMINAL_OPERATION_TITLES[operation] ?? 'Using terminal'
+}
+
 /**
  * Resolve a tool-call display title from its name and arguments. Argument-aware
  * cases come first, then the static map, then a humanized fallback. This never
@@ -564,6 +667,31 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       return materializeFileTitle(args)
     case 'open_resource':
       return openResourceTitle(args)
+    case 'wait':
+      return waitTitle(args)
+    case 'terminal':
+      return terminalTitle(args)
+    // The surface used to be one tool per operation. Conversations recorded
+    // then still reference those names, so they keep their titles rather than
+    // regressing to a humanized "Terminal Run".
+    case 'terminal_run':
+      return runningCommandTitle(stringArg(args, 'command'))
+    case 'terminal_read':
+      return 'Reading terminal'
+    case 'terminal_input':
+      return 'Typing into terminal'
+    case 'terminal_kill':
+      return 'Stopping command'
+    case 'terminal_cwd':
+      return 'Checking terminal'
+    case 'terminal_list':
+      return 'Listing terminals'
+    case 'terminal_new':
+      return 'Opening terminal'
+    case 'terminal_switch':
+      return 'Switching terminal'
+    case 'terminal_close':
+      return 'Closing terminal'
     case 'restore_resource': {
       const type = stringArg(args, 'type')
       return `Restoring ${type ? resourceTypeLabel(type) : 'resource'}`
@@ -607,14 +735,6 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       return setGlobalWorkflowVariablesTitle(args)
     case 'create_file':
       return createFileTitle(args)
-    case 'delete_file': {
-      const targets = stringArrayArg(args, 'paths').map(pathLeaf)
-      return `Deleting ${summarizeTargets(targets, 'file')}`
-    }
-    case 'delete_file_folder': {
-      const targets = stringArrayArg(args, 'paths').map(pathLeaf)
-      return `Deleting ${summarizeTargets(targets, 'folder')}`
-    }
     case 'share_file': {
       const action = stringArg(args, 'action') || 'share'
       const path = stringArg(args, 'path')
@@ -628,13 +748,6 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'edit_workflow': {
       const target = firstStringArg(args, 'workflowName', 'name', 'title')
       return `Editing ${target || 'workflow'}`
-    }
-    case 'delete_workflow': {
-      const target = summarizeTargets(
-        stringArrayArg(args, 'workflowNames'),
-        countedResourceTarget(args, 'workflowIds', 'workflow', 'workflows')
-      )
-      return `Deleting ${target}`
     }
     case 'create_workspace_mcp_server': {
       const target = firstStringArg(args, 'name', 'serverName', 'title')
@@ -679,6 +792,14 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       const target = firstStringArg(args, 'toolTitle', 'title')
       return target ? `Creating ${target}` : 'Creating folder'
     }
+    case 'rm': {
+      // toolTitle is the model's phrasing; the paths are the fallback because
+      // rm spans categories and there is no one noun to count.
+      const target =
+        firstStringArg(args, 'toolTitle', 'title') ||
+        summarizeTargets(stringArrayArg(args, 'paths').map(pathLeaf), 'resource')
+      return target ? `Deleting ${target}` : 'Deleting'
+    }
     case 'enrichment_run': {
       const subject = nestedStringArg(
         args,
@@ -694,6 +815,38 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'scrape_page': {
       const url = stringArg(args, 'url')
       return url ? `Scraping ${url}` : 'Scraping page'
+    }
+    case 'browser_navigate': {
+      const url = displayUrl(stringArg(args, 'url'))
+      return url ? `Opening ${url}` : 'Opening page'
+    }
+    case 'browser_open_url': {
+      const url = displayUrl(stringArg(args, 'url'))
+      return url ? `Opening ${url}` : 'Opening page'
+    }
+    case 'browser_open_tab': {
+      const url = displayUrl(stringArg(args, 'url'))
+      return url ? `Opening ${url} in a new tab` : 'Opening new tab'
+    }
+    case 'browser_wait_for': {
+      const text = stringArg(args, 'text')
+      return text ? `Waiting for "${text}"` : 'Waiting for page'
+    }
+    case 'browser_press_key': {
+      const key = stringArg(args, 'key')
+      return key ? `Pressing ${key}` : 'Pressing key'
+    }
+    case 'browser_scroll': {
+      const direction = stringArg(args, 'direction')
+      return direction ? `Scrolling ${direction}` : 'Scrolling page'
+    }
+    case 'browser_extract': {
+      const instruction = stringArg(args, 'instruction')
+      return instruction ? `Extracting ${instruction}` : 'Extracting page data'
+    }
+    case 'browser_request_takeover': {
+      const reason = stringArg(args, 'reason')
+      return reason ? `Waiting for you: ${reason}` : 'Waiting for you in the browser'
     }
     case 'crawl_website': {
       const url = stringArg(args, 'url')
@@ -763,32 +916,6 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
         delete: { verb: 'Deleting', resource: 'credential' },
       })
     }
-    case 'manage_folder': {
-      const operation = stringArg(args, 'operation')
-      if (operation === 'rename') {
-        const rawFrom = firstStringArg(args, 'oldPath', 'source', 'path', 'folderName')
-        const rawTo = firstStringArg(args, 'newPath', 'destination', 'newName', 'name', 'title')
-        const from = rawFrom ? pathLeaf(rawFrom) : ''
-        const to = rawTo ? pathLeaf(rawTo) : ''
-        if (from && to) return `Renaming ${from} to ${to}`
-        return to ? `Renaming folder to ${to}` : 'Renaming folder'
-      }
-      const rawTarget = firstStringArg(
-        args,
-        'newPath',
-        'destination',
-        'path',
-        'folderName',
-        'name',
-        'title'
-      )
-      const target = rawTarget ? pathLeaf(rawTarget) : ''
-      return namedOperationTitle(args, target, 'Folder action', {
-        create: { verb: 'Creating', resource: 'folder' },
-        move: { verb: 'Moving', resource: 'folder' },
-        delete: { verb: 'Deleting', resource: 'folder' },
-      })
-    }
     case 'run_workflow':
     case 'run_from_block':
     case 'run_workflow_until_block':
@@ -826,6 +953,8 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Cancelling: 'Cancelled',
   Calling: 'Called',
   Checking: 'Checked',
+  Clicking: 'Clicked',
+  Closing: 'Closed',
   Combining: 'Combined',
   Comparing: 'Compared',
   Completing: 'Completed',
@@ -846,6 +975,8 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Gathering: 'Gathered',
   Generating: 'Generated',
   Getting: 'Got',
+  Going: 'Went',
+  Hovering: 'Hovered',
   Importing: 'Imported',
   Inspecting: 'Inspected',
   Listing: 'Listed',
@@ -856,6 +987,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Opening: 'Opened',
   Overwriting: 'Overwrote',
   Preparing: 'Prepared',
+  Pressing: 'Pressed',
   Processing: 'Processed',
   Promoting: 'Promoted',
   Querying: 'Queried',
@@ -867,19 +999,28 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Restoring: 'Restored',
   Running: 'Ran',
   Saving: 'Saved',
+  Scanning: 'Scanned',
   Scraping: 'Scraped',
+  Scrolling: 'Scrolled',
   Searching: 'Searched',
+  Selecting: 'Selected',
   Setting: 'Set',
   Sharing: 'Shared',
+  Stopping: 'Stopped',
   Summarizing: 'Summarized',
+  Switching: 'Switched',
   Syncing: 'Synced',
+  Taking: 'Took',
   Toggling: 'Toggled',
   Trimming: 'Trimmed',
+  Typing: 'Typed',
   Undeploying: 'Undeployed',
   Unsharing: 'Unshared',
   Updating: 'Updated',
+  Using: 'Used',
   Validating: 'Validated',
   Viewing: 'Viewed',
+  Waiting: 'Waited',
   Writing: 'Wrote',
 }
 
