@@ -412,9 +412,19 @@ function main(): void {
   })
 
   void app.whenReady().then(async () => {
-    // Use the same high-resolution source in packaged and unpackaged apps so
-    // macOS renders every environment marker consistently in the Dock.
-    if (process.platform === 'darwin') {
+    // Unpackaged runs only: `electron .` has no bundle, so macOS shows the
+    // default Electron atom in the Dock unless we set the mark ourselves.
+    //
+    // A PACKAGED app must NOT do this. It already carries the per-channel
+    // build/icon*.icns, which Finder, the dmg, Launchpad, Cmd-Tab and the Dock
+    // all read — and the icns holds every representation up to 1024px, while
+    // these PNGs are a single 512px copy of the same artwork with no @2x. A
+    // lone PNG loads at scale factor 1, so macOS treated 512px as 512 POINTS
+    // and upscaled it 2x on Retina: the running app's Dock icon came out
+    // visibly softer than the identical icon shown for the same app when it
+    // was closed. Overriding a correct multi-resolution icon with a low-res
+    // copy of itself is all this ever did once packaged.
+    if (process.platform === 'darwin' && !app.isPackaged) {
       const channel = channelForOrigin(config.getOrigin())
       app.dock?.setIcon(join(__dirname, '..', 'static', DOCK_ICON_FOR_CHANNEL[channel]))
     }
