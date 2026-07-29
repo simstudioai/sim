@@ -13,22 +13,22 @@ describe('searchVectorTool', () => {
   it.each([
     {
       name: 'neither option',
-      options: {},
+      options: [],
       expected: { includeValues: false, includeMetadata: false },
     },
     {
       name: 'include values only',
-      options: { includeValues: true },
+      options: ['includeValues'],
       expected: { includeValues: true, includeMetadata: false },
     },
     {
       name: 'include metadata only',
-      options: { includeMetadata: true },
+      options: ['includeMetadata'],
       expected: { includeValues: false, includeMetadata: true },
     },
     {
       name: 'both options',
-      options: { includeValues: true, includeMetadata: true },
+      options: ['includeValues', 'includeMetadata'],
       expected: { includeValues: true, includeMetadata: true },
     },
   ])('maps $name to the Pinecone query flags', ({ options, expected }) => {

@@ -179,6 +179,7 @@ export interface PineconeSearchVectorParams extends PineconeBaseParams {
   filter?: Record<string, any> | string
   includeValues?: boolean
   includeMetadata?: boolean
+  options?: string[] | string
 }
 
 export interface PineconeDeleteVectorsParams {

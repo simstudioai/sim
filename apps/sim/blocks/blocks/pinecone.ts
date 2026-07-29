@@ -541,6 +541,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
     vector: { type: 'json', description: 'Query vector' },
     includeValues: { type: 'boolean', description: 'Include vector values' },
     includeMetadata: { type: 'boolean', description: 'Include metadata' },
+    options: { type: 'json', description: 'Selected vector search options' },
     id: { type: 'string', description: 'Vector identifier to update' },
     values: { type: 'json', description: 'New dense vector values' },
     sparseValues: { type: 'json', description: 'New sparse vector values' },

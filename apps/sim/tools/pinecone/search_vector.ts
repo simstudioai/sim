@@ -1,6 +1,26 @@
 import type { PineconeResponse, PineconeSearchVectorParams } from '@/tools/pinecone/types'
 import type { ToolConfig } from '@/tools/types'
 
+function parseBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value !== 0
+  return typeof value === 'string' && ['true', '1'].includes(value.trim().toLowerCase())
+}
+
+function selectedOptions(value: string[] | string | undefined): Set<string> {
+  if (Array.isArray(value)) return new Set(value)
+  if (typeof value !== 'string' || value.trim().length === 0) return new Set()
+
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed)
+      ? new Set(parsed.filter((item): item is string => typeof item === 'string'))
+      : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
 export const searchVectorTool: ToolConfig<PineconeSearchVectorParams, PineconeResponse> = {
   id: 'pinecone_search_vector',
   name: 'Pinecone Search Vector',
@@ -51,6 +71,12 @@ export const searchVectorTool: ToolConfig<PineconeSearchVectorParams, PineconeRe
       visibility: 'user-or-llm',
       description: 'Include metadata in response (true/false)',
     },
+    options: {
+      type: 'array',
+      required: false,
+      visibility: 'user-only',
+      description: 'Selected search result options',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -76,8 +102,12 @@ export const searchVectorTool: ToolConfig<PineconeSearchVectorParams, PineconeRe
           ? JSON.parse(params.filter)
           : params.filter
         : undefined,
-      includeValues: Boolean(params.includeValues),
-      includeMetadata: Boolean(params.includeMetadata)
+      includeValues: params.options
+        ? selectedOptions(params.options).has('includeValues')
+        : parseBoolean(params.includeValues),
+      includeMetadata: params.options
+        ? selectedOptions(params.options).has('includeMetadata')
+        : parseBoolean(params.includeMetadata),
     }),
   },
 
