@@ -67,6 +67,16 @@ import { createFolder, deleteFolder, restoreFolder, updateFolder } from '@/lib/f
 
 const CHILD_TABLE = { name: 'child_table' }
 
+/** Flattens the nested `and(...)` objects the drizzle operator mocks produce. */
+function flattenConditions(condition: unknown): Array<Record<string, unknown>> {
+  if (!condition || typeof condition !== 'object') return []
+  const node = condition as Record<string, unknown>
+  if (node.type === 'and' && Array.isArray(node.conditions)) {
+    return node.conditions.flatMap(flattenConditions)
+  }
+  return [node]
+}
+
 /** Stand-in for the per-resource config; each test declares only the deltas it exercises. */
 function setConfig(overrides: Record<string, unknown> = {}) {
   resourceConfig.current = {
@@ -228,6 +238,43 @@ describe('createFolder', () => {
     await createFolder({ ...baseCreate, resourceType: 'workflow' })
 
     expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: -3 }))
+  })
+
+  it('ignores soft-deleted folders and resources when picking the new sortOrder', async () => {
+    /**
+     * `min - 1` means archived rows would ratchet the floor further negative on every delete and
+     * never recover. Both minima must therefore see only rows a user can still see. Asserted on
+     * the WHERE clauses because the mock returns whatever is queued regardless of the filter, so
+     * an assertion on the resulting sortOrder alone would pass without either clause.
+     */
+    setConfig({
+      resourceType: 'workflow',
+      countKey: 'workflows',
+      sortOrderColumn: 'child.sortOrder',
+    })
+    queueTableRows(schemaMock.folder, [{ minSortOrder: 0 }])
+    queueTableRows(CHILD_TABLE, [{ minSortOrder: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([folderRow({ sortOrder: -1 })])
+
+    await createFolder({ ...baseCreate, resourceType: 'workflow' })
+
+    const [folderWhere, childWhere] = dbChainMockFns.where.mock.calls
+      .slice(0, 2)
+      .map(([where]) => where)
+
+    // Assert on the specific COLUMN, not merely that some isNull exists: for a root folder the
+    // parent condition is itself `isNull(parentId)`, so a presence-only check passes with the
+    // soft-delete filter deleted. That made the first version of this test vacuous.
+    expect(
+      flattenConditions(folderWhere).some(
+        (node) => node.type === 'isNull' && node.column === schemaMock.folder.deletedAt
+      )
+    ).toBe(true)
+    expect(
+      flattenConditions(childWhere).some(
+        (node) => node.type === 'isNull' && node.column === 'child.archivedAt'
+      )
+    ).toBe(true)
   })
 
   it('starts at zero when the folder is the first thing in its location', async () => {
