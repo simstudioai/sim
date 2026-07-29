@@ -492,7 +492,16 @@ export function Table({
    * view even after someone changes which view is default.
    */
   useEffect(() => {
-    if (!viewsEnabled || !viewsLoaded) return
+    if (!viewsEnabled) return
+    // A failed fetch settles to All (`viewOwnerUnknown` cleared, sink unbound),
+    // so layout touched during the load must flush here — no other branch of
+    // this effect ever runs on the error path, and skipping it would silently
+    // drop the resize on refresh.
+    if (viewsFailed) {
+      resolvePendingLayout(false)
+      return
+    }
+    if (!viewsLoaded) return
 
     if (seededViewIdRef.current === undefined) {
       // Embedded tables bind these parsers to the HOST page's URL, which the
@@ -574,6 +583,7 @@ export function Table({
   }, [
     viewsEnabled,
     viewsLoaded,
+    viewsFailed,
     views,
     activeView,
     activeViewId,
