@@ -112,7 +112,7 @@ describe('Pi Create PR Babysit surface', () => {
       condition: {
         field: 'mode',
         value: 'cloud',
-        and: { field: 'babysitMode', value: true },
+        and: { field: 'babysitMode', value: [true, 'true'] },
       },
     })
     expect(mentions).toMatchObject({
@@ -122,12 +122,12 @@ describe('Pi Create PR Babysit surface', () => {
       required: {
         field: 'mode',
         value: 'cloud',
-        and: { field: 'babysitMode', value: true },
+        and: { field: 'babysitMode', value: [true, 'true'] },
       },
       condition: {
         field: 'mode',
         value: 'cloud',
-        and: { field: 'babysitMode', value: true },
+        and: { field: 'babysitMode', value: [true, 'true'] },
       },
     })
     for (const output of [
@@ -142,7 +142,7 @@ describe('Pi Create PR Babysit surface', () => {
         condition: {
           field: 'mode',
           value: 'cloud',
-          and: { field: 'babysitMode', value: true },
+          and: { field: 'babysitMode', value: [true, 'true'] },
         },
       })
     }
@@ -161,6 +161,15 @@ describe('Pi Create PR Babysit surface', () => {
     expect(evaluateSubBlockCondition(draft?.condition, { mode: 'cloud', babysitMode: true })).toBe(
       false
     )
+    expect(
+      evaluateSubBlockCondition(draft?.condition, { mode: 'cloud', babysitMode: 'true' })
+    ).toBe(false)
+    expect(
+      evaluateSubBlockCondition(
+        PiBlock.subBlocks.find((subBlock) => subBlock.id === 'reviewMentions')?.condition,
+        { mode: 'cloud', babysitMode: 'true' }
+      )
+    ).toBe(true)
     expect(evaluateSubBlockCondition(skills?.condition, { mode: 'cloud' })).toBe(true)
     expect(evaluateSubBlockCondition(tools?.condition, { mode: 'cloud' })).toBe(false)
     expect(evaluateSubBlockCondition(memory?.condition, { mode: 'cloud' })).toBe(true)

@@ -52,23 +52,30 @@ const CLOUD_ANY: { field: 'mode'; value: Array<'cloud' | 'cloud_review'> } = {
   field: 'mode',
   value: ['cloud', 'cloud_review'],
 }
+const BABYSIT_ENABLED_VALUES: Array<true | 'true'> = [true, 'true']
 const CLOUD_WITH_BABYSIT: {
   field: 'mode'
   value: 'cloud'
-  and: { field: 'babysitMode'; value: true }
+  and: { field: 'babysitMode'; value: Array<true | 'true'> }
 } = {
   field: 'mode',
   value: 'cloud',
-  and: { field: 'babysitMode', value: true },
+  and: { field: 'babysitMode', value: BABYSIT_ENABLED_VALUES },
 }
-const CLOUD_WITHOUT_BABYSIT: {
+function getCloudWithoutBabysitCondition(values?: Record<string, unknown>): {
   field: 'mode'
   value: 'cloud'
-  and: { field: 'babysitMode'; value: true; not: true }
-} = {
-  field: 'mode',
-  value: 'cloud',
-  and: { field: 'babysitMode', value: true, not: true },
+  and: { field: 'babysitMode'; value: true | 'true'; not: true }
+} {
+  return {
+    field: 'mode',
+    value: 'cloud',
+    and: {
+      field: 'babysitMode',
+      value: values?.babysitMode === 'true' ? 'true' : true,
+      not: true,
+    },
+  }
 }
 const LOCAL: { field: 'mode'; value: 'local' } = { field: 'mode', value: 'local' }
 const AUTHORING_MODES: { field: 'mode'; value: Array<'cloud' | 'local'> } = {
@@ -276,7 +283,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       type: 'switch',
       defaultValue: true,
       mode: 'advanced',
-      condition: CLOUD_WITHOUT_BABYSIT,
+      condition: getCloudWithoutBabysitCondition,
     },
     {
       id: 'prTitle',
