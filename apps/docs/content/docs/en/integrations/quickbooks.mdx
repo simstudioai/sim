@@ -1,0 +1,130 @@
+---
+title: QuickBooks
+description: Query vendors, purchase orders, and bills in QuickBooks Online
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="quickbooks"
+  color="#2CA01C"
+/>
+
+## Usage Instructions
+
+Integrate QuickBooks Online into procurement workflows. List vendors, purchase orders, and bills, or run custom QuickBooks Accounting API queries against a company.
+
+
+
+## Actions
+
+### `quickbooks_list_vendors`
+
+List vendors from QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `activeOnly` | boolean | No | Only return active vendors |
+| `startPosition` | string | No | One-based start position for QuickBooks query pagination |
+| `maxResults` | string | No | Maximum number of vendors to return, up to 1000 |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Vendors returned by QuickBooks |
+|   ↳ `Id` | string | QuickBooks vendor ID |
+|   ↳ `DisplayName` | string | Vendor display name |
+|   ↳ `Active` | boolean | Whether the vendor is active |
+| `entity` | string | QuickBooks entity name |
+| `totalCount` | number | Total count returned by QuickBooks |
+| `startPosition` | number | Start position returned by QuickBooks |
+| `maxResults` | number | Maximum records returned by QuickBooks |
+| `query` | string | Query that was executed |
+
+### `quickbooks_list_purchase_orders`
+
+List purchase orders from QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `startPosition` | string | No | One-based start position for QuickBooks query pagination |
+| `maxResults` | string | No | Maximum number of purchase orders to return, up to 1000 |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Purchase orders returned by QuickBooks |
+|   ↳ `Id` | string | QuickBooks purchase order ID |
+|   ↳ `DocNumber` | string | Purchase order document number |
+|   ↳ `TxnDate` | string | Purchase order transaction date |
+|   ↳ `TotalAmt` | number | Purchase order total amount |
+| `entity` | string | QuickBooks entity name |
+| `totalCount` | number | Total count returned by QuickBooks |
+| `startPosition` | number | Start position returned by QuickBooks |
+| `maxResults` | number | Maximum records returned by QuickBooks |
+| `query` | string | Query that was executed |
+
+### `quickbooks_list_bills`
+
+List bills from QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `startPosition` | string | No | One-based start position for QuickBooks query pagination |
+| `maxResults` | string | No | Maximum number of bills to return, up to 1000 |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Bills returned by QuickBooks |
+|   ↳ `Id` | string | QuickBooks bill ID |
+|   ↳ `DocNumber` | string | Bill document number |
+|   ↳ `TxnDate` | string | Bill transaction date |
+|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `TotalAmt` | number | Bill total amount |
+|   ↳ `Balance` | number | Open bill balance |
+| `entity` | string | QuickBooks entity name |
+| `totalCount` | number | Total count returned by QuickBooks |
+| `startPosition` | number | Start position returned by QuickBooks |
+| `maxResults` | number | Maximum records returned by QuickBooks |
+| `query` | string | Query that was executed |
+
+### `quickbooks_query`
+
+Run a QuickBooks Online Accounting API query
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `query` | string | Yes | QuickBooks SQL-like query, e.g. SELECT * FROM Vendor MAXRESULTS 10 |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Records returned by the QuickBooks query |
+| `entity` | string | QuickBooks entity name returned by the query |
+| `totalCount` | number | Total count returned by QuickBooks for the query |
+| `startPosition` | number | Start position returned by QuickBooks |
+| `maxResults` | number | Maximum records returned by QuickBooks |
+| `query` | string | Query that was executed |
+
+

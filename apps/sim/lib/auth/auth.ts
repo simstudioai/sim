@@ -1907,6 +1907,73 @@ export const auth = betterAuth({
         },
 
         {
+          providerId: 'quickbooks',
+          clientId: env.QUICKBOOKS_CLIENT_ID as string,
+          clientSecret: env.QUICKBOOKS_CLIENT_SECRET as string,
+          authorizationUrl: 'https://appcenter.intuit.com/connect/oauth2',
+          tokenUrl: 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
+          userInfoUrl: 'https://accounts.platform.intuit.com/v1/openid_connect/userinfo',
+          scopes: getCanonicalScopesForProvider('quickbooks'),
+          responseType: 'code',
+          authentication: 'basic',
+          accessType: 'offline',
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/quickbooks`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Fetching QuickBooks user profile')
+
+              const response = await fetch(
+                'https://accounts.platform.intuit.com/v1/openid_connect/userinfo',
+                {
+                  headers: {
+                    Authorization: `Bearer ${tokens.accessToken}`,
+                  },
+                }
+              )
+
+              if (!response.ok) {
+                await response.text().catch(() => {})
+                logger.error('Failed to fetch QuickBooks user info', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                throw new Error('Failed to fetch user info')
+              }
+
+              const profile = (await response.json()) as {
+                sub?: string
+                given_name?: string
+                givenName?: string
+                family_name?: string
+                familyName?: string
+                email?: string
+                email_verified?: boolean
+                emailVerified?: boolean
+              }
+              const subject = profile.sub || 'quickbooks-user'
+              const givenName = profile.given_name ?? profile.givenName ?? ''
+              const familyName = profile.family_name ?? profile.familyName ?? ''
+              const name = `${givenName} ${familyName}`.trim() || profile.email || 'QuickBooks User'
+
+              return {
+                id: `${subject}-${generateId()}`,
+                name,
+                email: profile.email || `${subject}@quickbooks.user`,
+                emailVerified:
+                  profile.email_verified ?? profile.emailVerified ?? Boolean(profile.email),
+                image: undefined,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error in QuickBooks getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+
+        {
           providerId: 'hubspot',
           clientId: env.HUBSPOT_CLIENT_ID as string,
           clientSecret: env.HUBSPOT_CLIENT_SECRET as string,

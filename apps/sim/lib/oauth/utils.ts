@@ -337,6 +337,9 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   api: 'Access Salesforce API',
   refresh_token: 'Maintain long-term access to Salesforce account',
 
+  // QuickBooks scopes
+  'com.intuit.quickbooks.accounting': 'Access QuickBooks Online accounting data',
+
   // Asana scopes
   default: 'Access Asana workspace',
 

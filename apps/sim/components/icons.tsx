@@ -8758,3 +8758,20 @@ export function RocketlaneIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function QuickBooksIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 24 24' fill='none' role='img' xmlns='http://www.w3.org/2000/svg'>
+      <circle cx='12' cy='12' r='10' fill='#2CA01C' />
+      <path
+        d='M9.1 7.2C6.45 7.2 4.3 9.35 4.3 12s2.15 4.8 4.8 4.8h1.7v-2.6H9.1c-1.22 0-2.2-.98-2.2-2.2s.98-2.2 2.2-2.2h1.7V7.2H9.1Z'
+        fill='white'
+      />
+      <path
+        d='M13.2 7.2v2.6h1.7c1.22 0 2.2.98 2.2 2.2s-.98 2.2-2.2 2.2h-1.7v2.6h1.7c2.65 0 4.8-2.15 4.8-4.8s-2.15-4.8-4.8-4.8h-1.7Z'
+        fill='white'
+      />
+      <path d='M10.8 6.3h2.4v11.4h-2.4V6.3Z' fill='white' />
+    </svg>
+  )
+}

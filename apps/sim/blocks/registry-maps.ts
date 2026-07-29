@@ -244,6 +244,7 @@ import { ProspeoBlock, ProspeoBlockMeta } from '@/blocks/blocks/prospeo'
 import { PulseBlock, PulseBlockMeta, PulseV2Block } from '@/blocks/blocks/pulse'
 import { QdrantBlock, QdrantBlockMeta } from '@/blocks/blocks/qdrant'
 import { QuartrBlock, QuartrBlockMeta } from '@/blocks/blocks/quartr'
+import { QuickBooksBlock, QuickBooksBlockMeta } from '@/blocks/blocks/quickbooks'
 import { QuiverBlock, QuiverBlockMeta } from '@/blocks/blocks/quiver'
 import { RailwayBlock, RailwayBlockMeta } from '@/blocks/blocks/railway'
 import { RB2BBlock, RB2BBlockMeta } from '@/blocks/blocks/rb2b'
@@ -557,6 +558,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   pulse_v2: PulseV2Block,
   qdrant: QdrantBlock,
   quartr: QuartrBlock,
+  quickbooks: QuickBooksBlock,
   quiver: QuiverBlock,
   railway: RailwayBlock,
   rb2b: RB2BBlock,
@@ -848,6 +850,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   pulse: PulseBlockMeta,
   qdrant: QdrantBlockMeta,
   quartr: QuartrBlockMeta,
+  quickbooks: QuickBooksBlockMeta,
   quiver: QuiverBlockMeta,
   railway: RailwayBlockMeta,
   rb2b: RB2BBlockMeta,

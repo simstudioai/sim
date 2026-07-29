@@ -2970,6 +2970,12 @@ import {
   quartrListSlideDecksTool,
   quartrListTranscriptsTool,
 } from '@/tools/quartr'
+import {
+  quickBooksListBillsTool,
+  quickBooksListPurchaseOrdersTool,
+  quickBooksListVendorsTool,
+  quickBooksQueryTool,
+} from '@/tools/quickbooks'
 import { quiverImageToSvgTool, quiverListModelsTool, quiverTextToSvgTool } from '@/tools/quiver'
 import {
   railwayCreateEnvironmentTool,
@@ -6005,6 +6011,10 @@ export const tools: Record<string, ToolConfig> = {
   postgresql_delete: postgresDeleteTool,
   postgresql_execute: postgresExecuteTool,
   postgresql_introspect: postgresIntrospectTool,
+  quickbooks_list_bills: quickBooksListBillsTool,
+  quickbooks_list_purchase_orders: quickBooksListPurchaseOrdersTool,
+  quickbooks_list_vendors: quickBooksListVendorsTool,
+  quickbooks_query: quickBooksQueryTool,
   rds_query: rdsQueryTool,
   rds_insert: rdsInsertTool,
   rds_update: rdsUpdateTool,

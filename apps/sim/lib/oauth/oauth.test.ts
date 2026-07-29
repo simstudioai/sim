@@ -39,6 +39,8 @@ beforeAll(() => {
     ASANA_CLIENT_SECRET: 'asana_client_secret',
     PIPEDRIVE_CLIENT_ID: 'pipedrive_client_id',
     PIPEDRIVE_CLIENT_SECRET: 'pipedrive_client_secret',
+    QUICKBOOKS_CLIENT_ID: 'quickbooks_client_id',
+    QUICKBOOKS_CLIENT_SECRET: 'quickbooks_client_secret',
     HUBSPOT_CLIENT_ID: 'hubspot_client_id',
     HUBSPOT_CLIENT_SECRET: 'hubspot_client_secret',
     LINKEDIN_CLIENT_ID: 'linkedin_client_id',
@@ -119,6 +121,11 @@ describe('OAuth Token Refresh', () => {
         name: 'Spotify',
         providerId: 'spotify',
         endpoint: 'https://accounts.spotify.com/api/token',
+      },
+      {
+        name: 'QuickBooks',
+        providerId: 'quickbooks',
+        endpoint: 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
       },
     ]
 

@@ -14481,6 +14481,42 @@
       "tags": ["data-analytics", "enrichment", "document-processing"]
     },
     {
+      "type": "quickbooks",
+      "slug": "quickbooks",
+      "name": "QuickBooks",
+      "description": "Query vendors, purchase orders, and bills in QuickBooks Online",
+      "longDescription": "Integrate QuickBooks Online into procurement workflows. List vendors, purchase orders, and bills, or run custom QuickBooks Accounting API queries against a company.",
+      "bgColor": "#2CA01C",
+      "iconName": "QuickBooksIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/quickbooks",
+      "operations": [
+        {
+          "name": "List Vendors",
+          "description": "List vendors from QuickBooks Online"
+        },
+        {
+          "name": "List Purchase Orders",
+          "description": "List purchase orders from QuickBooks Online"
+        },
+        {
+          "name": "List Bills",
+          "description": "List bills from QuickBooks Online"
+        },
+        {
+          "name": "Run Query",
+          "description": "Run a QuickBooks Online Accounting API query"
+        }
+      ],
+      "operationCount": 4,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "quickbooks",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["payments", "automation"]
+    },
+    {
       "type": "quiver",
       "slug": "quiver",
       "name": "Quiver",
