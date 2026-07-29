@@ -22,7 +22,7 @@ import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
-import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
+import { mergeEditIntoLiveFileDoc, notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
   deleteFile,
@@ -32,6 +32,7 @@ import {
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
+import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
@@ -1024,7 +1025,18 @@ export async function updateWorkspaceFileContent(
   fileId: string,
   userId: string,
   content: Buffer,
-  contentType?: string
+  contentType?: string,
+  options?: {
+    /**
+     * Whether to stream this write into any open collaborative editor as a live CRDT merge. Defaults
+     * to `true`, so EVERY external write path (copilot tools, the file tool, the content route) reaches
+     * an open editor through this one chokepoint — no per-writer wiring to forget. Pass `false` only
+     * for a write that must NOT touch the live doc: the relay's own project-to-markdown persist (which
+     * would otherwise merge the doc back into itself in a loop), and empty-shell creates whose real
+     * content arrives via a subsequent write.
+     */
+    syncLiveDoc?: boolean
+  }
 ): Promise<WorkspaceFileRecord> {
   logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
 
@@ -1141,6 +1153,18 @@ export async function updateWorkspaceFileContent(
     }
     if (finalized.oldKey !== uploadResult.key) {
       await cleanupWorkspaceStorageObject(finalized.oldKey, 'version replacement')
+    }
+
+    // Stream this write into any open collaborative editor as a CRDT merge, so a copilot/tool edit
+    // shows up live instead of the file silently changing underneath the reader. Gated to markdown (the
+    // only format the collaborative editor renders) and best-effort (a no-op when nobody has the file
+    // open; never throws). This is the single chokepoint every external writer shares — the relay's own
+    // persist and empty-shell creates pass `syncLiveDoc: false` to stay out of it.
+    if (
+      options?.syncLiveDoc !== false &&
+      isMarkdownFile({ type: nextContentType, name: finalized.file.originalName })
+    ) {
+      await mergeEditIntoLiveFileDoc(fileId, content.toString('utf-8'))
     }
 
     const pathPrefix = getServePathPrefix()

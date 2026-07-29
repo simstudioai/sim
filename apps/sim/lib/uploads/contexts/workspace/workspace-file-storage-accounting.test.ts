@@ -12,6 +12,8 @@ const {
   mockHeadObject,
   mockIncrementStorageUsageForBillingContextInTx,
   mockMaybeNotifyStorageLimitForBillingContext,
+  mockMergeEditIntoLiveFileDoc,
+  mockNotifyWorkspaceFilesChanged,
   mockResolveStorageBillingContext,
   mockUploadFile,
 } = vi.hoisted(() => ({
@@ -22,8 +24,15 @@ const {
   mockHeadObject: vi.fn(),
   mockIncrementStorageUsageForBillingContextInTx: vi.fn(),
   mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
+  mockMergeEditIntoLiveFileDoc: vi.fn(),
+  mockNotifyWorkspaceFilesChanged: vi.fn(),
   mockResolveStorageBillingContext: vi.fn(),
   mockUploadFile: vi.fn(),
+}))
+
+vi.mock('@/lib/realtime/notify', () => ({
+  mergeEditIntoLiveFileDoc: mockMergeEditIntoLiveFileDoc,
+  notifyWorkspaceFilesChanged: mockNotifyWorkspaceFilesChanged,
 }))
 
 vi.mock('@/lib/billing/storage', () => ({
@@ -105,6 +114,8 @@ describe('workspace file metadata and storage accounting', () => {
     mockDecrementStorageUsageForBillingContextInTx.mockResolvedValue(undefined)
     mockMaybeNotifyStorageLimitForBillingContext.mockResolvedValue(undefined)
     mockDeleteFile.mockResolvedValue(undefined)
+    mockMergeEditIntoLiveFileDoc.mockResolvedValue(undefined)
+    mockNotifyWorkspaceFilesChanged.mockResolvedValue(undefined)
   })
 
   it('cleans up a newly uploaded object when atomic metadata finalization rolls back', async () => {
@@ -327,5 +338,58 @@ describe('workspace file metadata and storage accounting', () => {
 
     expect(mockDeleteFile).toHaveBeenCalledTimes(1)
     expect(mockDeleteFile).toHaveBeenCalledWith({ key: replacementKey, context: 'workspace' })
+  })
+
+  const MD_ROW = { ...FILE_ROW, originalName: 'note.md', contentType: 'text/markdown' }
+
+  it('streams a markdown overwrite into any open collaborative editor (the shared merge chokepoint)', async () => {
+    const updatedFile = { ...MD_ROW, size: 12 }
+    dbChainMockFns.limit.mockResolvedValueOnce([MD_ROW]).mockResolvedValueOnce([MD_ROW])
+    dbChainMockFns.returning.mockResolvedValueOnce([updatedFile])
+    mockUploadFile.mockResolvedValueOnce({ key: MD_ROW.key })
+
+    await updateWorkspaceFileContent(
+      MD_ROW.workspaceId,
+      MD_ROW.id,
+      MD_ROW.userId,
+      Buffer.from('# new content', 'utf-8')
+    )
+
+    expect(mockMergeEditIntoLiveFileDoc).toHaveBeenCalledWith(MD_ROW.id, '# new content')
+  })
+
+  it('does NOT merge when syncLiveDoc is false (the relay persist / empty-shell opt-out)', async () => {
+    const updatedFile = { ...MD_ROW, size: 12 }
+    dbChainMockFns.limit.mockResolvedValueOnce([MD_ROW]).mockResolvedValueOnce([MD_ROW])
+    dbChainMockFns.returning.mockResolvedValueOnce([updatedFile])
+    mockUploadFile.mockResolvedValueOnce({ key: MD_ROW.key })
+
+    await updateWorkspaceFileContent(
+      MD_ROW.workspaceId,
+      MD_ROW.id,
+      MD_ROW.userId,
+      Buffer.from('# new content', 'utf-8'),
+      undefined,
+      { syncLiveDoc: false }
+    )
+
+    expect(mockMergeEditIntoLiveFileDoc).not.toHaveBeenCalled()
+  })
+
+  it('does NOT merge a non-markdown write (the collaborative editor only renders markdown)', async () => {
+    const updatedFile = { ...FILE_ROW, size: 10 }
+    dbChainMockFns.limit.mockResolvedValueOnce([FILE_ROW]).mockResolvedValueOnce([FILE_ROW])
+    dbChainMockFns.returning.mockResolvedValueOnce([updatedFile])
+    mockUploadFile.mockResolvedValueOnce({ key: FILE_ROW.key })
+
+    await updateWorkspaceFileContent(
+      FILE_ROW.workspaceId,
+      FILE_ROW.id,
+      FILE_ROW.userId,
+      Buffer.alloc(10),
+      'application/octet-stream'
+    )
+
+    expect(mockMergeEditIntoLiveFileDoc).not.toHaveBeenCalled()
   })
 })

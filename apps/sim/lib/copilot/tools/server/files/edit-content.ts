@@ -6,9 +6,7 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
-import { mergeEditIntoLiveFileDoc } from '@/lib/realtime/notify'
 import { updateWorkspaceFileContent } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import { getE2BDocFormat } from './doc-compile'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
 import { consumeLatestFileIntent } from './file-intent-store'
@@ -235,6 +233,9 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
 
       const fileBuffer = Buffer.from(finalContent, 'utf-8')
       assertServerToolNotAborted(context)
+      // `updateWorkspaceFileContent` also streams this edit into any open collaborative editor as a live
+      // CRDT merge (gated to markdown, best-effort) — the shared chokepoint every external write path
+      // goes through — so a copilot edit shows up live instead of the file changing under the reader.
       await updateWorkspaceFileContent(
         workspaceId,
         intent.fileId,
@@ -242,16 +243,6 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
         fileBuffer,
         compiled.sourceMime
       )
-
-      // If a collaborator has this markdown file open, merge the edit into their live document so it
-      // streams into the editor as a CRDT merge instead of the file changing under them. Best-effort
-      // and gated to markdown, the only format the collaborative editor renders — so code/text/doc
-      // edits don't pay the realtime round-trip. The durable write above is the source of truth; this
-      // merges the edit into any live collaborative doc so open editors see it stream in (the relay
-      // persists the doc server-side — the collaborative editor's own client autosave is disabled).
-      if (isMarkdownFile(fileRecord)) {
-        await mergeEditIntoLiveFileDoc(intent.fileId, finalContent)
-      }
 
       const verb =
         operation === 'append' ? 'appended to' : operation === 'update' ? 'updated' : 'patched'
