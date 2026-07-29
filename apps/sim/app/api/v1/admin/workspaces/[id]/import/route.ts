@@ -24,11 +24,11 @@
  */
 
 import { db } from '@sim/db'
-import { workflow, workflowFolder } from '@sim/db/schema'
+import { folder as folderTable, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import {
   adminV1ImportWorkspaceContract,
@@ -74,6 +74,51 @@ interface ParsedWorkflow {
   content: string
   name: string
   folderPath: string[]
+}
+
+/**
+ * Returns the id of the active workflow folder named `name` under `parentId`, creating it if
+ * absent — `mkdir -p` semantics.
+ *
+ * The generic `folder` table enforces active sibling-name uniqueness, which
+ * `workflow_folder` did not, so blindly inserting an import path segment that already exists
+ * now fails the whole import on a unique violation. Reusing the existing folder is also the
+ * behaviour an import of a folder *path* should have: importing into "Reports/2026" twice
+ * should land in one tree, not two.
+ */
+async function ensureImportFolder(
+  workspaceId: string,
+  userId: string,
+  name: string,
+  parentId: string | null
+): Promise<string> {
+  const [existing] = await db
+    .select({ id: folderTable.id })
+    .from(folderTable)
+    .where(
+      and(
+        eq(folderTable.workspaceId, workspaceId),
+        eq(folderTable.resourceType, 'workflow'),
+        eq(folderTable.name, name),
+        parentId ? eq(folderTable.parentId, parentId) : isNull(folderTable.parentId),
+        isNull(folderTable.deletedAt)
+      )
+    )
+    .limit(1)
+  if (existing) return existing.id
+
+  const folderId = generateId()
+  await db.insert(folderTable).values({
+    id: folderId,
+    resourceType: 'workflow',
+    name,
+    userId,
+    workspaceId,
+    parentId,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  })
+  return folderId
 }
 
 export const POST = withRouteHandler(
@@ -151,16 +196,12 @@ export const POST = withRouteHandler(
 
       let rootFolderId: string | undefined
       if (rootFolderName && createFolders) {
-        rootFolderId = generateId()
-        await db.insert(workflowFolder).values({
-          id: rootFolderId,
-          name: rootFolderName,
-          userId: workspaceData.ownerId,
+        rootFolderId = await ensureImportFolder(
           workspaceId,
-          parentId: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
+          workspaceData.ownerId,
+          rootFolderName,
+          null
+        )
       }
 
       const folderMap = new Map<string, string>()
@@ -229,16 +270,12 @@ async function importSingleWorkflow(
         const fullPath = rootFolderId ? `root/${pathSegment}` : pathSegment
 
         if (!folderMap.has(fullPath)) {
-          const folderId = generateId()
-          await db.insert(workflowFolder).values({
-            id: folderId,
-            name: wf.folderPath[i],
-            userId: ownerId,
+          const folderId = await ensureImportFolder(
             workspaceId,
-            parentId,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
+            ownerId,
+            wf.folderPath[i],
+            parentId
+          )
           folderMap.set(fullPath, folderId)
           parentId = folderId
         } else {

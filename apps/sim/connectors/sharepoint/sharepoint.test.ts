@@ -264,6 +264,39 @@ describe('resolveFolderTarget', () => {
     )
   })
 
+  it('blames the matched library, not the default one, when its remainder is wrong', async () => {
+    mockGraph({
+      ...defaultDriveRoute,
+      ...sitesDrivesRoute,
+      ...rootChildren(DEFAULT_DRIVE_ID, [folder('d1', 'Archive')]),
+      ...rootChildren(POLICIES_DRIVE_ID, [folder('p1', 'Onboarding')]),
+    })
+
+    const error = await resolve('Policies/HR').catch((e: Error) => e)
+
+    expect(error).toBeInstanceOf(Error)
+    const message = (error as Error).message
+    expect(message).toContain('document library "Policies"')
+    expect(message).toContain('"HR"')
+    expect(message).toContain('"Onboarding"')
+    expect(message).not.toContain('document library "Documents"')
+    expect(message).not.toContain('Shared Documents" should be omitted')
+  })
+
+  it('still offers the prefix hint when the path names the default library itself', async () => {
+    mockGraph({
+      ...defaultDriveRoute,
+      ...sitesDrivesRoute,
+      ...rootChildren(DEFAULT_DRIVE_ID, [folder('d1', 'Archive')]),
+    })
+
+    const error = await resolve('Shared Documents/Reports').catch((e: Error) => e)
+
+    const message = (error as Error).message
+    expect(message).toContain('document library "Documents"')
+    expect(message).toContain('Shared Documents" should be omitted')
+  })
+
   it('surfaces a failure to open the default library rather than reporting not-found', async () => {
     mockGraph({
       [`${GRAPH}/sites/${SITE_ID}/drive?$select=id,name,webUrl`]: { status: 403 },

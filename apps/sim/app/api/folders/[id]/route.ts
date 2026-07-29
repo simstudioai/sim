@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
-import { workflowFolder } from '@sim/db/schema'
+import { folder as folderTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateFolderContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
@@ -12,6 +12,14 @@ import { toFolderApi } from '@/lib/folders/queries'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { performDeleteFolder, performUpdateFolder } from '@/lib/workflows/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+
+/** Maps an orchestration errorCode to its HTTP status; mirrors the POST /api/folders route. */
+function folderMutationStatus(errorCode: string | undefined): number {
+  if (errorCode === 'validation') return 400
+  if (errorCode === 'conflict') return 409
+  if (errorCode === 'not_found') return 404
+  return 500
+}
 
 const logger = createLogger('FoldersIDAPI')
 
@@ -44,8 +52,8 @@ export const PUT = withRouteHandler(
       // Verify the folder exists
       const existingFolder = await db
         .select()
-        .from(workflowFolder)
-        .where(eq(workflowFolder.id, id))
+        .from(folderTable)
+        .where(and(eq(folderTable.id, id), eq(folderTable.resourceType, 'workflow')))
         .then((rows) => rows[0])
 
       if (!existingFolder) {
@@ -92,8 +100,7 @@ export const PUT = withRouteHandler(
       })
 
       if (!result.success || !result.folder) {
-        const status =
-          result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
+        const status = folderMutationStatus(result.errorCode)
         return NextResponse.json({ error: result.error }, { status })
       }
 
@@ -125,8 +132,8 @@ export const DELETE = withRouteHandler(
       // Verify the folder exists
       const existingFolder = await db
         .select()
-        .from(workflowFolder)
-        .where(eq(workflowFolder.id, id))
+        .from(folderTable)
+        .where(and(eq(folderTable.id, id), eq(folderTable.resourceType, 'workflow')))
         .then((rows) => rows[0])
 
       if (!existingFolder) {

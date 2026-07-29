@@ -73,7 +73,7 @@ const mockFolder = {
 
 /** Queues the folder-existence lookup the route runs before authorizing. */
 function queueFolderLookup(folder: Record<string, unknown> = mockFolder) {
-  queueTableRows(schemaMock.workflowFolder, [folder])
+  queueTableRows(schemaMock.folder, [folder])
 }
 
 /** Makes the next folder lookup throw, exercising the route's 500 path. */
