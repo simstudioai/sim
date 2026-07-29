@@ -23,6 +23,10 @@ import type {
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
+  pruneFilterForColumns,
+  pruneViewFilterForColumns,
+} from '@/lib/table/query-builder/converters'
+import {
   type BreadcrumbItem,
   type ColumnOption,
   Resource,
@@ -703,6 +707,7 @@ export function Table({
     if (columns.length === 0) return stored
     return {
       ...stored,
+      filter: pruneViewFilterForColumns(stored.filter ?? null, columns),
       hiddenColumns: (stored.hiddenColumns ?? []).filter((id) => liveColumnIds.has(id)),
       sort:
         stored.sort && Object.keys(stored.sort).every((id) => liveColumnIds.has(id))
@@ -1120,10 +1125,11 @@ export function Table({
   )
 
   const handleFilterApply = (next: Filter | null) => {
-    setFilter(next)
+    const canonical = pruneViewFilterForColumns(pruneFilterForColumns(next, columns), columns)
+    setFilter(canonical)
     if (activeView && userPermissions.canEdit) {
       updateViewMutation.mutate(
-        { viewId: activeView.id, configPatch: { filter: next } },
+        { viewId: activeView.id, configPatch: { filter: canonical } },
         { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save View filter')) }
       )
     }

@@ -240,7 +240,12 @@ export const ResourceContent = memo(function ResourceContent({
 
     case 'view':
       return (
-        <EmbeddedViewTable key={resource.id} workspaceId={workspaceId} resourceId={resource.id} />
+        <EmbeddedViewTable
+          key={resource.id}
+          workspaceId={workspaceId}
+          resourceId={resource.id}
+          viewsEnabled={tableViewsEnabled}
+        />
       )
 
     case 'file':

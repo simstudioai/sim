@@ -37,7 +37,9 @@ describe('EmbeddedViewTable', () => {
 
   it('renders the source Table with the persisted View selected', async () => {
     await act(async () => {
-      root.render(<EmbeddedViewTable workspaceId='workspace_1' resourceId='tbl_1:view_1' />)
+      root.render(
+        <EmbeddedViewTable workspaceId='workspace_1' resourceId='tbl_1:view_1' viewsEnabled />
+      )
     })
 
     expect(container.querySelector('[data-testid="embedded-table"]')).not.toBeNull()
@@ -57,5 +59,19 @@ describe('EmbeddedViewTable', () => {
 
     expect(container.innerHTML).toBe('')
     expect(tableMock).not.toHaveBeenCalled()
+  })
+
+  it('does not bypass a disabled Views feature flag', async () => {
+    await act(async () => {
+      root.render(<EmbeddedViewTable workspaceId='workspace_1' resourceId='tbl_1:view_1' />)
+    })
+
+    expect(tableMock).toHaveBeenCalledWith({
+      workspaceId: 'workspace_1',
+      tableId: 'tbl_1',
+      viewId: 'view_1',
+      embedded: true,
+      viewsEnabled: false,
+    })
   })
 })

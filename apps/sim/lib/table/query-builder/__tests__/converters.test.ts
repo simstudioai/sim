@@ -10,6 +10,7 @@ import {
   filterRulesToFilter,
   filterToRules,
   pruneFilterForColumns,
+  pruneViewFilterForColumns,
 } from '@/lib/table/query-builder/converters'
 import type { ColumnDefinition, FilterRule } from '@/lib/table/types'
 
@@ -208,5 +209,23 @@ describe('pruneFilterForColumns', () => {
 
   it('returns the same object when nothing is pruned', () => {
     expect(pruneFilterForColumns(null, [single])).toBeNull()
+  })
+})
+
+describe('pruneViewFilterForColumns', () => {
+  it('recursively drops deleted stable column ids and empty groups', () => {
+    const columns: ColumnDefinition[] = [{ id: 'col_live', name: 'Live', type: 'text' }]
+    expect(
+      pruneViewFilterForColumns(
+        {
+          $or: [
+            { col_gone: { $eq: 'x' } },
+            { $and: [{ col_live: { $contains: 'A' } }, { col_gone: { $eq: 'y' } }] },
+          ],
+        },
+        columns
+      )
+    ).toEqual({ $or: [{ $and: [{ col_live: { $contains: 'A' } }] }] })
+    expect(pruneViewFilterForColumns({ col_gone: 'x' }, columns)).toBeNull()
   })
 })

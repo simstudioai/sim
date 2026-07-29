@@ -15,6 +15,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, ne, sql } from 'drizzle-orm'
 import { getColumnId } from '@/lib/table/column-keys'
+import { pruneViewFilterForColumns } from '@/lib/table/query-builder/converters'
 import type { ColumnDefinition, TableViewConfig } from '@/lib/table/types'
 
 const logger = createLogger('TableViewsService')
@@ -59,22 +60,7 @@ export function pruneViewConfig(
   const pruned: TableViewConfig = { ...config }
 
   if (config.filter) {
-    const pruneFilter = (filter: NonNullable<TableViewConfig['filter']>) => {
-      const next: NonNullable<TableViewConfig['filter']> = {}
-      for (const [field, condition] of Object.entries(filter)) {
-        if ((field === '$and' || field === '$or') && Array.isArray(condition)) {
-          const groups = condition
-            .map((group) => pruneFilter(group as NonNullable<TableViewConfig['filter']>))
-            .filter((group) => Object.keys(group).length > 0)
-          if (groups.length > 0) next[field] = groups
-          continue
-        }
-        if (live.has(field)) next[field] = condition
-      }
-      return next
-    }
-    const filter = pruneFilter(config.filter)
-    pruned.filter = Object.keys(filter).length > 0 ? filter : null
+    pruned.filter = pruneViewFilterForColumns(config.filter, columns)
   }
 
   if (config.columnOrder) pruned.columnOrder = config.columnOrder.filter((id) => live.has(id))

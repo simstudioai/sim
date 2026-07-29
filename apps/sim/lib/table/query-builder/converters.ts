@@ -4,7 +4,7 @@
 
 import { generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { columnMatchesRef } from '@/lib/table/column-keys'
+import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
 import {
   MULTI_SELECT_FILTER_OPERATORS,
   SINGLE_SELECT_FILTER_OPERATORS,
@@ -110,6 +110,40 @@ export function pruneFilterForColumns(
   // Columns forwarded: the round-trip through rules would otherwise re-coerce a
   // select option id like `"1"` into a number on the way back out.
   return filterRulesToFilter(kept, columns)
+}
+
+/**
+ * Drops View filter fields whose stable column ids no longer exist.
+ *
+ * Unlike {@link pruneFilterForColumns}, this intentionally removes unresolved
+ * fields: View filters are persisted with stable ids, so an unresolved field is
+ * necessarily a deleted column rather than a model-authored display name that
+ * should be rejected by the server.
+ */
+export function pruneViewFilterForColumns(
+  filter: Filter | null,
+  columns: ColumnDefinition[]
+): Filter | null {
+  if (!filter) return null
+  const live = new Set(columns.map(getColumnId))
+
+  const prune = (current: Filter): Filter => {
+    const next: Filter = {}
+    for (const [field, condition] of Object.entries(current)) {
+      if ((field === '$and' || field === '$or') && Array.isArray(condition)) {
+        const groups = condition
+          .map((group) => prune(group as Filter))
+          .filter((group) => Object.keys(group).length > 0)
+        if (groups.length > 0) next[field] = groups
+        continue
+      }
+      if (live.has(field)) next[field] = condition
+    }
+    return next
+  }
+
+  const pruned = prune(filter)
+  return Object.keys(pruned).length > 0 ? pruned : null
 }
 
 /** Converts a single UI sort rule to a Sort object for API queries. */

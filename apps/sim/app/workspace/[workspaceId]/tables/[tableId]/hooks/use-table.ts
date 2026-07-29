@@ -10,7 +10,10 @@ import type {
   WorkflowGroup,
 } from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import { pruneFilterForColumns } from '@/lib/table/query-builder/converters'
+import {
+  pruneFilterForColumns,
+  pruneViewFilterForColumns,
+} from '@/lib/table/query-builder/converters'
 import type { FlattenOutputsBlockInput } from '@/lib/workflows/blocks/flatten-outputs'
 import { getBlock } from '@/blocks'
 import {
@@ -97,10 +100,11 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
   // server rejects outright, which would fail every subsequent rows query. Prune
   // here, above every consumer of the rows query key, so the paged helpers below
   // can't rebuild the key from the unpruned filter and drift.
-  const filter = useMemo(
-    () => pruneFilterForColumns(queryOptions.filter ?? null, tableData?.schema?.columns ?? []),
-    [queryOptions.filter, tableData?.schema?.columns]
-  )
+  const filter = useMemo(() => {
+    const columns = tableData?.schema?.columns ?? []
+    const compatible = pruneFilterForColumns(queryOptions.filter ?? null, columns)
+    return columns.length > 0 ? pruneViewFilterForColumns(compatible, columns) : compatible
+  }, [queryOptions.filter, tableData?.schema?.columns])
 
   const {
     data: rowsData,
