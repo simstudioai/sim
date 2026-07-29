@@ -1042,7 +1042,10 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
       }
     }
 
-    if (nearestStart === -1 || nearestTagName === '') {
+    // Only the name is tested: the two are assigned together above, so an empty
+    // name and a -1 start are the same state — and the name is the one that
+    // needs narrowing before resolveTagAt below.
+    if (nearestTagName === '') {
       let remaining = content.slice(cursor)
 
       if (isStreaming) {

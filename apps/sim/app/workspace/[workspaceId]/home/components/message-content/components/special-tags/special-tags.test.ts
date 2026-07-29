@@ -14,6 +14,7 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: vi.fn(() => ({ data: null, isPending: false })),
 }))
 
+import { scalingRatioOver4x } from '@/app/workspace/[workspaceId]/home/components/message-content/components/scaling-test-helpers'
 import type {
   ContentSegment,
   IndexOfCache,
@@ -612,25 +613,9 @@ describe('parseSpecialTags with <question>', () => {
     // or `[` — the common case. Testing that before blanking avoids copying a
     // full window per opener per chunk: 43ms to 2ms on this input.
     //
-    // Asserted as a RATIO across a 4x input rather than a wall-clock ceiling, so
-    // the test pins the complexity instead of the speed of the machine running
-    // it. Quadratic costs ~16x for 4x the input; linear costs ~4x.
-    const build = (times: number) => 'The <workspace_resource> tag is used here. '.repeat(times)
-    const fastest = (content: string) => {
-      let best = Number.POSITIVE_INFINITY
-      for (let run = 0; run < 5; run++) {
-        const startedAt = performance.now()
-        parseSpecialTags(content, true)
-        best = Math.min(best, performance.now() - startedAt)
-      }
-      return best
-    }
-
-    fastest(build(2_000))
-    const small = fastest(build(2_000))
-    const large = fastest(build(8_000))
-
-    expect(large / small).toBeLessThan(8)
+    // Asserted as a scaling ratio, not a wall-clock ceiling — see
+    // {@link scalingRatioOver4x} for why.
+    expect(scalingRatioOver4x((content) => parseSpecialTags(content, true))).toBeLessThan(8)
   })
 
   it('does not let a late thinking close swallow content already on screen', () => {

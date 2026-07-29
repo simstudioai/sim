@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { scalingRatioOver4x } from '@/app/workspace/[workspaceId]/home/components/message-content/components/scaling-test-helpers'
 import { sanitizeChatDisplayContent } from './chat-sanitize'
 
 describe('sanitizeChatDisplayContent', () => {
@@ -91,27 +92,9 @@ describe('sanitizeChatDisplayContent', () => {
     // is quadratic — 154ms for this input before the bound, on the main thread,
     // for every streamed chunk.
     //
-    // Asserted as a RATIO across a 4x input rather than a wall-clock ceiling. A
-    // fixed millisecond bound measures the machine as much as the algorithm: it
-    // fails on a loaded CI box, and set generously enough not to, it lets a
-    // genuine quadratic through at the single size it happens to sample.
-    // Quadratic costs ~16x for 4x the input; linear costs ~4x.
-    const build = (times: number) => 'The <workspace_resource> tag is used here. '.repeat(times)
-    const fastest = (content: string) => {
-      let best = Number.POSITIVE_INFINITY
-      for (let run = 0; run < 5; run++) {
-        const startedAt = performance.now()
-        sanitizeChatDisplayContent(content)
-        best = Math.min(best, performance.now() - startedAt)
-      }
-      return best
-    }
-
-    fastest(build(2_000))
-    const small = fastest(build(2_000))
-    const large = fastest(build(8_000))
-
-    expect(large / small).toBeLessThan(8)
+    // Asserted as a scaling ratio, not a wall-clock ceiling — see
+    // {@link scalingRatioOver4x} for why.
+    expect(scalingRatioOver4x((content) => sanitizeChatDisplayContent(content))).toBeLessThan(8)
   })
 
   it('still unwraps a real tag that carries a stray backtick on one side only', () => {
