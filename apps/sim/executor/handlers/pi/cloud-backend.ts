@@ -1,9 +1,10 @@
 /**
- * Create PR backend: runs the Pi CLI inside an E2B sandbox against a cloned
- * GitHub repo, then pushes a branch and opens a PR. Secrets are isolated per
- * command (S2/KTD10): the GitHub token is present only for the clone and push
- * commands (and stripped from the cloned remote), while the Pi loop runs with a
- * BYOK model key only. The model key is never a Sim-owned hosted key (S1).
+ * Cloud authoring backend: runs the Pi CLI inside an E2B sandbox against a
+ * cloned GitHub repo, then either opens a PR from a new branch or updates an
+ * existing branch. Secrets are isolated per command (S2/KTD10): the GitHub token
+ * is present only for the clone and push commands (and stripped from the cloned
+ * remote), while the Pi loop runs with a BYOK model key only. The model key is
+ * never a Sim-owned hosted key (S1).
  *
  * Untrusted text (the assembled prompt, which folds in workspace-shared skills
  * and memory, and the commit message) is never placed on a shell command line.
@@ -28,7 +29,13 @@ import {
   resolvePiSandboxLifetimeMs,
 } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import { runBabysitPi } from '@/executor/handlers/pi/babysit-backend'
-import type { PiBackendRun, PiCloudRunParams, PiRunResult } from '@/executor/handlers/pi/backend'
+import type {
+  PiBackendRun,
+  PiCloudBranchRunParams,
+  PiCloudRunParams,
+  PiRunContext,
+  PiRunResult,
+} from '@/executor/handlers/pi/backend'
 import {
   buildPiScript,
   CLONE_TIMEOUT_MS,
@@ -55,6 +62,7 @@ import {
   type PiRunTotals,
   parseJsonLine,
 } from '@/executor/handlers/pi/events'
+import { type BranchPullRequest, findOpenPrForBranch } from '@/executor/handlers/pi/github-pr'
 import { mapThinkingLevel, providerApiKeyEnvVar } from '@/executor/handlers/pi/keys'
 import {
   createScrubbedPiError,
@@ -80,7 +88,7 @@ interface OpenedPullRequest {
   number?: number
 }
 
-interface CreatePrPhaseResult extends PiRunResult {
+interface AuthoringPhaseResult extends PiRunResult {
   pullNumber?: number
 }
 
@@ -88,14 +96,15 @@ interface CreatePrPhaseResult extends PiRunResult {
  * Keeps git authentication out of the agent loop by reserving commit, push, and
  * PR creation for Sim's credential-scoped finalization step.
  */
-const CLOUD_GUIDANCE =
+const CLOUD_GUIDANCE_PREFIX =
   'You are running inside an automated sandbox. Make only the file changes needed to complete the task. ' +
   'Do not run git commands (commit, push, branch, remote), do not configure git credentials or authenticate ' +
-  'with GitHub, and do not open a pull request — after you finish, Sim automatically commits your changes, ' +
-  "pushes the branch, and opens the pull request. The project's package manager and test tooling may not be " +
+  'with GitHub, and do not open a pull request — after you finish, Sim automatically commits your changes and '
+const CLOUD_GUIDANCE_SUFFIX =
+  "The project's package manager and test tooling may not be " +
   'installed, so do not block on running the full build or test suite; focus on correct, minimal edits.'
 
-const CLONE_SCRIPT = `set -e
+const CREATE_PR_CLONE_SCRIPT = `set -e
 rm -rf ${REPO_DIR}
 git clone "https://x-access-token:$GITHUB_TOKEN@github.com/$REPO_OWNER/$REPO_NAME.git" ${REPO_DIR}
 cd ${REPO_DIR}
@@ -107,6 +116,20 @@ git checkout -b "$BRANCH"
 git remote set-url origin "https://github.com/$REPO_OWNER/$REPO_NAME.git"
 ${GIT_CONFIG_DIGEST_LINE}`
 
+const UPDATE_BRANCH_CLONE_SCRIPT = `set -e
+rm -rf ${REPO_DIR}
+git check-ref-format "refs/heads/$BRANCH" >/dev/null
+git clone --no-tags --single-branch --branch "$BRANCH" "https://x-access-token:$GITHUB_TOKEN@github.com/$REPO_OWNER/$REPO_NAME.git" ${REPO_DIR}
+cd ${REPO_DIR}
+CURRENT_BRANCH=$(git symbolic-ref --quiet --short HEAD || true)
+if [ "$CURRENT_BRANCH" != "$BRANCH" ]; then
+  echo "Target $BRANCH is not an existing branch" >&2
+  exit 1
+fi
+git rev-parse HEAD | sed "s/^/__BASE_SHA__=/"
+git remote set-url origin "https://github.com/$REPO_OWNER/$REPO_NAME.git"
+${GIT_CONFIG_DIGEST_LINE}`
+
 function buildPrBody(task: string, finalText: string): string {
   const summary = finalText.trim()
     ? truncate(finalText.trim(), PR_SUMMARY_MAX)
@@ -114,9 +137,22 @@ function buildPrBody(task: string, finalText: string): string {
   return `## Task\n\n${task}\n\n## Summary\n\n${summary}`
 }
 
+type PiCloudAuthoringRunParams = PiCloudRunParams | PiCloudBranchRunParams
+
 /** The commit message and PR title share one default, derived from the PR title or task. */
-function defaultTitle(params: PiCloudRunParams): string {
-  return params.prTitle?.trim() || truncate(`Pi: ${params.task}`, COMMIT_TITLE_MAX)
+function defaultTitle(params: PiCloudAuthoringRunParams): string {
+  return (
+    (params.mode === 'cloud' ? params.prTitle?.trim() : undefined) ||
+    truncate(`Pi: ${params.task}`, COMMIT_TITLE_MAX)
+  )
+}
+
+function guidanceFor(params: PiCloudAuthoringRunParams): string {
+  const finalization =
+    params.mode === 'cloud'
+      ? 'pushes the branch, and opens the pull request. '
+      : 'pushes them back to the configured branch without force-pushing. '
+  return `${CLOUD_GUIDANCE_PREFIX}${finalization}${CLOUD_GUIDANCE_SUFFIX}`
 }
 
 async function openPullRequest(
@@ -184,23 +220,27 @@ function mergePhaseDiffs(createDiff: string | undefined, babysitDiff: string | u
     : merged
 }
 
-function combineCreateAndBabysit(created: CreatePrPhaseResult, babysit: PiRunResult): PiRunResult {
-  const createText = created.totals.finalText
+function combineAuthoringAndBabysit(
+  label: 'Create PR' | 'Update Branch',
+  authored: AuthoringPhaseResult,
+  babysit: PiRunResult
+): PiRunResult {
+  const authoringText = authored.totals.finalText
   return {
     totals: {
-      finalText: `Create PR:\n${createText}\n\nBabysit:\n${babysit.totals.finalText}`,
-      inputTokens: created.totals.inputTokens + babysit.totals.inputTokens,
-      outputTokens: created.totals.outputTokens + babysit.totals.outputTokens,
-      toolCalls: [...created.totals.toolCalls, ...babysit.totals.toolCalls],
-      ...(created.totals.errorMessage || babysit.totals.errorMessage
-        ? { errorMessage: created.totals.errorMessage ?? babysit.totals.errorMessage }
+      finalText: `${label}:\n${authoringText}\n\nBabysit:\n${babysit.totals.finalText}`,
+      inputTokens: authored.totals.inputTokens + babysit.totals.inputTokens,
+      outputTokens: authored.totals.outputTokens + babysit.totals.outputTokens,
+      toolCalls: [...authored.totals.toolCalls, ...babysit.totals.toolCalls],
+      ...(authored.totals.errorMessage || babysit.totals.errorMessage
+        ? { errorMessage: authored.totals.errorMessage ?? babysit.totals.errorMessage }
         : {}),
     },
-    memoryText: createText,
-    changedFiles: mergeChangedFiles(created.changedFiles, babysit.changedFiles),
-    diff: mergePhaseDiffs(created.diff, babysit.diff),
-    ...(created.prUrl ? { prUrl: created.prUrl } : {}),
-    ...(created.branch ? { branch: created.branch } : {}),
+    memoryText: authoringText,
+    changedFiles: mergeChangedFiles(authored.changedFiles, babysit.changedFiles),
+    diff: mergePhaseDiffs(authored.diff, babysit.diff),
+    ...(authored.prUrl ? { prUrl: authored.prUrl } : {}),
+    ...(authored.branch ? { branch: authored.branch } : {}),
     ...(typeof babysit.rounds === 'number' ? { rounds: babysit.rounds } : {}),
     ...(typeof babysit.threadsClean === 'boolean' ? { threadsClean: babysit.threadsClean } : {}),
     ...(typeof babysit.checksGreen === 'boolean' ? { checksGreen: babysit.checksGreen } : {}),
@@ -232,54 +272,77 @@ function skippedBabysitResult(reason: 'no_pr_created' | 'startup_failure'): PiRu
   }
 }
 
-export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context) => {
+async function runCloudAuthoringPi(
+  params: PiCloudAuthoringRunParams,
+  context: PiRunContext
+): Promise<PiRunResult> {
   const startedAt = Date.now()
+  const modeLabel = params.mode === 'cloud' ? 'Create PR' : 'Update Branch'
   if (!params.isBYOK) {
     throw new Error(
-      'Create PR requires your own provider API key (BYOK). Set one in Settings > BYOK.'
+      `${modeLabel} requires your own provider API key (BYOK). Set one in Settings > BYOK.`
     )
   }
   const keyEnvVar = providerApiKeyEnvVar(params.providerId)
   if (!keyEnvVar) {
     throw new Error(
-      `Provider "${params.providerId}" is not supported in Create PR. Use a key-based provider or run in Local Dev.`
+      `Provider "${params.providerId}" is not supported in ${modeLabel}. Use a key-based provider or run in Local Dev.`
     )
   }
 
   // Every credential that reaches this run, scrubbed from agent-visible and GitHub-visible text.
   // The guarantee covers the paths the key travels by design; it deliberately does not extend to a
-  // key wired into `branchName`, which becomes a git ref and could not be substituted without
+  // key wired into a branch input, which becomes a git ref and could not be substituted without
   // failing the checkout outright.
   const secrets = [params.apiKey, params.githubToken, params.search?.apiKey ?? '']
 
-  const branch = params.branchName?.trim() || `pi/${generateShortId(8)}`
+  const branch =
+    params.mode === 'cloud'
+      ? params.branchName?.trim() || `pi/${generateShortId(8)}`
+      : params.targetBranch
   const commitMessage = scrubPiSecrets(defaultTitle(params), secrets)
   const prompt = scrubPiSecrets(
     buildPiPrompt({
       skills: params.skills,
       initialMessages: params.initialMessages,
       task: params.task,
-      guidance: CLOUD_GUIDANCE,
+      guidance: guidanceFor(params),
     }),
     secrets
   )
   const totals = createPiTotals()
   const thinking = mapThinkingLevel(params.thinkingLevel) ?? 'medium'
+  let existingPullRequest: BranchPullRequest | undefined
+  if (params.mode === 'cloud_branch' && params.babysit) {
+    try {
+      existingPullRequest = await findOpenPrForBranch(
+        {
+          owner: params.owner,
+          repo: params.repo,
+          branch,
+          githubToken: params.githubToken,
+        },
+        context.signal
+      )
+    } catch (error) {
+      throw createScrubbedPiError(error, secrets, 'Pi cloud run failed')
+    }
+  }
 
   // Resolved once and shared: the sandbox is created with this lifetime and the
   // agent turn reserves its finalize budget against the same number.
   const lifetimeMs = resolvePiRunLifetimeMs(context.signal)
   const piTimeoutMs = resolvePiTimeoutMs(lifetimeMs)
 
-  const created = await withPiSandbox<CreatePrPhaseResult>({ lifetimeMs }, async (runner) => {
+  const authored = await withPiSandbox<AuthoringPhaseResult>({ lifetimeMs }, async (runner) => {
     try {
       const clone = await raceAbort(
-        runner.run(CLONE_SCRIPT, {
+        runner.run(params.mode === 'cloud' ? CREATE_PR_CLONE_SCRIPT : UPDATE_BRANCH_CLONE_SCRIPT, {
           envs: {
             GITHUB_TOKEN: params.githubToken,
             REPO_OWNER: params.owner,
             REPO_NAME: params.repo,
-            BASE_BRANCH: params.baseBranch?.trim() ?? '',
+            BASE_BRANCH: params.mode === 'cloud' ? (params.baseBranch?.trim() ?? '') : '',
             BRANCH: branch,
           },
           timeoutMs: CLONE_TIMEOUT_MS,
@@ -295,7 +358,10 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
       if (!baseSha) {
         throw new Error('Clone did not report a base commit')
       }
-      const detectedBase = extractMarkerValues(clone.stdout, '__DEFAULT_BRANCH__=')[0]
+      const detectedBase =
+        params.mode === 'cloud'
+          ? extractMarkerValues(clone.stdout, '__DEFAULT_BRANCH__=')[0]
+          : undefined
 
       // Deliver the prompt as a file (read back on Pi's stdin), not a CLI
       // arg/env, so its skill/memory content can't be parsed by the shell that
@@ -396,7 +462,22 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
           owner: params.owner,
           repo: params.repo,
         })
-        return { totals, changedFiles, diff }
+        return {
+          totals,
+          changedFiles,
+          diff,
+          ...(params.mode === 'cloud_branch'
+            ? {
+                branch,
+                ...(existingPullRequest
+                  ? {
+                      pullNumber: existingPullRequest.pullNumber,
+                      prUrl: existingPullRequest.snapshot.htmlUrl,
+                    }
+                  : {}),
+              }
+            : {}),
+        }
       }
 
       // PUSH is the only command that carries the token, hardened against any
@@ -425,6 +506,21 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
         throw new Error(`git push failed: ${truncate(scrubbed, PUSH_ERROR_MAX)}`)
       }
 
+      if (params.mode === 'cloud_branch') {
+        return {
+          totals,
+          changedFiles,
+          diff,
+          branch,
+          ...(existingPullRequest
+            ? {
+                pullNumber: existingPullRequest.pullNumber,
+                prUrl: existingPullRequest.snapshot.htmlUrl,
+              }
+            : {}),
+        }
+      }
+
       const pullRequest = await openPullRequest(params, branch, detectedBase, totals, secrets)
       return {
         totals,
@@ -446,12 +542,12 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
     }
   })
 
-  if (!params.babysit) return created
-  if (!created.branch) {
-    return combineCreateAndBabysit(created, skippedBabysitResult('no_pr_created'))
+  if (!params.babysit) return authored
+  if (!authored.branch) {
+    return combineAuthoringAndBabysit(modeLabel, authored, skippedBabysitResult('no_pr_created'))
   }
-  if (!created.pullNumber) {
-    return combineCreateAndBabysit(created, skippedBabysitResult('startup_failure'))
+  if (!authored.pullNumber) {
+    return combineAuthoringAndBabysit(modeLabel, authored, skippedBabysitResult('startup_failure'))
   }
 
   // The run's own deadline when the platform set one, because Babysit spends this
@@ -479,7 +575,7 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
       owner: params.owner,
       repo: params.repo,
       githubToken: params.githubToken,
-      pullNumber: created.pullNumber,
+      pullNumber: authored.pullNumber,
       maxRounds: params.babysit.maxRounds,
       reviewMentions: params.babysit.reviewMentions,
       ...(params.babysit.executionId ? { executionId: params.babysit.executionId } : {}),
@@ -487,5 +583,11 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
     },
     context
   )
-  return combineCreateAndBabysit(created, babysit)
+  return combineAuthoringAndBabysit(modeLabel, authored, babysit)
 }
+
+export const runCloudPi: PiBackendRun<PiCloudRunParams> = (params, context) =>
+  runCloudAuthoringPi(params, context)
+
+export const runCloudBranchPi: PiBackendRun<PiCloudBranchRunParams> = (params, context) =>
+  runCloudAuthoringPi(params, context)

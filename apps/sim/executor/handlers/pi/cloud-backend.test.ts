@@ -41,8 +41,8 @@ vi.mock('@/executor/handlers/pi/keys', () => ({
 vi.mock('@/executor/handlers/pi/context', () => ({ buildPiPrompt: () => 'PROMPT' }))
 
 import { createTimeoutAbortController } from '@/lib/core/execution-limits'
-import type { PiCloudRunParams } from '@/executor/handlers/pi/backend'
-import { runCloudPi } from '@/executor/handlers/pi/cloud-backend'
+import type { PiCloudBranchRunParams, PiCloudRunParams } from '@/executor/handlers/pi/backend'
+import { runCloudBranchPi, runCloudPi } from '@/executor/handlers/pi/cloud-backend'
 
 function baseParams(overrides: Partial<PiCloudRunParams> = {}): PiCloudRunParams {
   return {
@@ -62,6 +62,50 @@ function baseParams(overrides: Partial<PiCloudRunParams> = {}): PiCloudRunParams
     draft: true,
     ...overrides,
   }
+}
+
+function branchParams(overrides: Partial<PiCloudBranchRunParams> = {}): PiCloudBranchRunParams {
+  return {
+    mode: 'cloud_branch',
+    model: 'claude',
+    piModel: 'claude',
+    providerId: 'anthropic',
+    apiKey: 'sk-byok',
+    isBYOK: true,
+    task: 'continue it',
+    skills: [],
+    initialMessages: [],
+    owner: 'octo',
+    repo: 'demo',
+    githubToken: 'ghp_secret',
+    targetBranch: 'feature/existing',
+    ...overrides,
+  }
+}
+
+function mockExistingBranchPullRequest(): void {
+  mockExecuteTool
+    .mockResolvedValueOnce({
+      success: true,
+      output: { items: [{ number: 7 }], count: 1 },
+    })
+    .mockResolvedValueOnce({
+      success: true,
+      output: {
+        title: 'Feature',
+        body: '',
+        html_url: 'https://github.com/octo/demo/pull/7',
+        state: 'open',
+        merged: false,
+        mergeable: true,
+        head: {
+          sha: 'a'.repeat(40),
+          ref: 'feature/existing',
+          repo_full_name: 'octo/demo',
+        },
+        base: { sha: 'b'.repeat(40), ref: 'staging' },
+      },
+    })
 }
 
 describe('runCloudPi', () => {
@@ -154,6 +198,7 @@ describe('runCloudPi', () => {
     expect(pushCmd).toContain('core.hooksPath=/dev/null')
     expect(pushCmd).toContain('credential.helper=')
     expect(pushCmd).toContain('core.fsmonitor=')
+    expect(pushCmd).toContain('"HEAD:refs/heads/$BRANCH"')
     expect(pushOpts.envs.GITHUB_TOKEN).toBe('ghp_secret')
     expect(pushOpts.envs.ANTHROPIC_API_KEY).toBeUndefined()
     // The `-c` flags do not reach config-driven URL rewriting, which would send
@@ -617,5 +662,295 @@ describe('runCloudPi', () => {
     expect(error.message).toMatch(/Permission to octo\/demo\.git denied/)
     expect(error.message).not.toContain('ghp_secret')
     expect(mockExecuteTool).not.toHaveBeenCalled()
+  })
+
+  describe('Update Branch', () => {
+    it('checks out and non-force pushes the exact existing branch without opening a PR', async () => {
+      const result = await runCloudBranchPi(branchParams(), { onEvent: vi.fn() })
+
+      const [cloneCmd, cloneOpts] = mockRun.mock.calls[0]
+      expect(cloneCmd).toContain('git check-ref-format "refs/heads/$BRANCH"')
+      expect(cloneCmd).toContain('--single-branch --branch "$BRANCH"')
+      expect(cloneCmd).toContain('git symbolic-ref --quiet --short HEAD')
+      expect(cloneCmd).toContain('[ "$CURRENT_BRANCH" != "$BRANCH" ]')
+      expect(cloneCmd).not.toContain('checkout -b')
+      expect(cloneOpts.envs.BRANCH).toBe('feature/existing')
+      expect(cloneOpts.envs.GITHUB_TOKEN).toBe('ghp_secret')
+
+      const [piCmd, piOpts] = mockRun.mock.calls[1]
+      expect(piCmd).toContain('pi -p')
+      expect(piOpts.envs.ANTHROPIC_API_KEY).toBe('sk-byok')
+      expect(piOpts.envs.GITHUB_TOKEN).toBeUndefined()
+
+      const [prepareCmd, prepareOpts] = mockRun.mock.calls[2]
+      expect(prepareCmd).toContain('commit -F /workspace/pi-commit.txt')
+      expect(prepareOpts.envs.GITHUB_TOKEN).toBeUndefined()
+
+      const [pushCmd, pushOpts] = mockRun.mock.calls[3]
+      expect(pushCmd).toContain('"HEAD:refs/heads/$BRANCH"')
+      expect(pushCmd).not.toContain('--force')
+      expect(pushOpts.envs.BRANCH).toBe('feature/existing')
+      expect(pushOpts.envs.GITHUB_TOKEN).toBe('ghp_secret')
+
+      expect(mockWriteFile).toHaveBeenCalledWith('/workspace/pi-commit.txt', 'Pi: continue it')
+      expect(mockExecuteTool).not.toHaveBeenCalled()
+      expect(result).toEqual(
+        expect.objectContaining({
+          branch: 'feature/existing',
+          changedFiles: ['src/x.ts'],
+          diff: 'diff content',
+        })
+      )
+    })
+
+    it('returns the target branch without pushing when there are no changes', async () => {
+      mockRun.mockImplementation((command: string) => {
+        if (command.includes('git clone')) {
+          return Promise.resolve({ stdout: '__BASE_SHA__=abc', stderr: '', exitCode: 0 })
+        }
+        if (command.includes('pi -p')) {
+          return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
+        }
+        return Promise.resolve({ stdout: '__NO_CHANGES__=1', stderr: '', exitCode: 0 })
+      })
+
+      const result = await runCloudBranchPi(branchParams(), { onEvent: vi.fn() })
+
+      expect(result.branch).toBe('feature/existing')
+      expect(mockRun.mock.calls.some(([cmd]: [string]) => cmd.includes('push'))).toBe(false)
+      expect(mockExecuteTool).not.toHaveBeenCalled()
+    })
+
+    it('discovers the exact existing PR, pushes first, and reuses the Babysit continuation', async () => {
+      mockExistingBranchPullRequest()
+
+      const result = await runCloudBranchPi(
+        branchParams({
+          skills: [{ name: 'style', content: 'Be concise.' }],
+          initialMessages: [{ role: 'user', content: 'authoring memory only' }],
+          babysit: {
+            maxRounds: 4,
+            reviewMentions: ['@greptile'],
+            executionId: 'execution-2',
+          },
+        }),
+        { onEvent: vi.fn() }
+      )
+
+      expect(mockExecuteTool).toHaveBeenNthCalledWith(
+        1,
+        'github_list_prs_v2',
+        expect.objectContaining({
+          head: 'octo:feature/existing',
+          state: 'open',
+          per_page: 2,
+        }),
+        { signal: undefined }
+      )
+      expect(mockRunBabysit).toHaveBeenCalledTimes(1)
+      expect(mockRunBabysit.mock.calls[0][0]).toMatchObject({
+        pullNumber: 7,
+        skills: [{ name: 'style', content: 'Be concise.' }],
+        initialMessages: [],
+        maxRounds: 4,
+        reviewMentions: ['@greptile'],
+        executionId: 'execution-2',
+      })
+      const pushCall = mockRun.mock.calls.find(([command]: [string]) => command.includes('push'))
+      expect(pushCall).toBeDefined()
+      expect(mockRun.mock.invocationCallOrder.at(-1)).toBeLessThan(
+        mockRunBabysit.mock.invocationCallOrder[0]
+      )
+      expect(result).toMatchObject({
+        memoryText: 'done',
+        prUrl: 'https://github.com/octo/demo/pull/7',
+        branch: 'feature/existing',
+        changedFiles: ['src/x.ts', 'src/y.ts'],
+        diff: 'diff content\nbabysit diff',
+        rounds: 1,
+        threadsClean: true,
+        checksGreen: true,
+        commitsPushed: 1,
+        stopReason: 'clean',
+      })
+      expect(result.totals.finalText).toBe(
+        'Update Branch:\ndone\n\nBabysit:\nBabysit stopped: clean.'
+      )
+    })
+
+    it('still babysits the existing PR when authoring makes no changes', async () => {
+      mockExistingBranchPullRequest()
+      mockRun.mockImplementation((command: string) => {
+        if (command.includes('git clone')) {
+          return Promise.resolve({ stdout: '__BASE_SHA__=abc', stderr: '', exitCode: 0 })
+        }
+        if (command.includes('pi -p')) {
+          return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
+        }
+        return Promise.resolve({ stdout: '__NO_CHANGES__=1', stderr: '', exitCode: 0 })
+      })
+
+      const result = await runCloudBranchPi(
+        branchParams({ babysit: { maxRounds: 3, reviewMentions: ['@greptile'] } }),
+        { onEvent: vi.fn() }
+      )
+
+      expect(mockRun.mock.calls.some(([command]: [string]) => command.includes('push'))).toBe(false)
+      expect(mockRunBabysit).toHaveBeenCalledWith(
+        expect.objectContaining({ pullNumber: 7 }),
+        expect.anything()
+      )
+      expect(result).toMatchObject({
+        prUrl: 'https://github.com/octo/demo/pull/7',
+        branch: 'feature/existing',
+        stopReason: 'clean',
+      })
+    })
+
+    it('fails before starting a sandbox when no open PR uses the target branch', async () => {
+      mockExecuteTool.mockResolvedValueOnce({
+        success: true,
+        output: { items: [], count: 0 },
+      })
+
+      await expect(
+        runCloudBranchPi(
+          branchParams({ babysit: { maxRounds: 3, reviewMentions: ['@greptile'] } }),
+          { onEvent: vi.fn() }
+        )
+      ).rejects.toThrow(/none was found/)
+      expect(mockWithPiSandbox).not.toHaveBeenCalled()
+      expect(mockRunBabysit).not.toHaveBeenCalled()
+    })
+
+    it('scrubs every sandbox credential from PR discovery errors', async () => {
+      mockExecuteTool.mockResolvedValueOnce({
+        success: false,
+        error: 'denied ghp_secret sk-byok sk-search',
+      })
+
+      const error = (await runCloudBranchPi(
+        branchParams({
+          search: {
+            provider: 'exa',
+            apiKey: 'sk-search',
+            keySource: 'block',
+          },
+          babysit: { maxRounds: 3, reviewMentions: ['@greptile'] },
+        }),
+        { onEvent: vi.fn() }
+      ).catch((caught) => caught)) as Error
+
+      expect(error.message).toContain('Failed to find an open PR')
+      expect(error.message).not.toContain('ghp_secret')
+      expect(error.message).not.toContain('sk-byok')
+      expect(error.message).not.toContain('sk-search')
+      expect(mockWithPiSandbox).not.toHaveBeenCalled()
+      expect(mockRunBabysit).not.toHaveBeenCalled()
+    })
+
+    it('fails before Pi runs when the target branch cannot be cloned', async () => {
+      mockRun.mockResolvedValueOnce({
+        stdout: '',
+        stderr: 'fatal: Remote branch feature/missing not found in upstream origin',
+        exitCode: 128,
+      })
+
+      await expect(
+        runCloudBranchPi(branchParams({ targetBranch: 'feature/missing' }), { onEvent: vi.fn() })
+      ).rejects.toThrow(/Remote branch feature\/missing not found/)
+      expect(mockRun).toHaveBeenCalledTimes(1)
+      expect(mockExecuteTool).not.toHaveBeenCalled()
+    })
+
+    it('rejects a tag-only target instead of creating a branch from it', async () => {
+      mockRun.mockResolvedValueOnce({
+        stdout: '',
+        stderr: 'Target v1.0.0 is not an existing branch',
+        exitCode: 1,
+      })
+
+      await expect(
+        runCloudBranchPi(branchParams({ targetBranch: 'v1.0.0' }), { onEvent: vi.fn() })
+      ).rejects.toThrow(/not an existing branch/)
+      expect(mockRun).toHaveBeenCalledTimes(1)
+      expect(mockRun.mock.calls[0][0]).toContain('git symbolic-ref --quiet --short HEAD')
+      expect(mockExecuteTool).not.toHaveBeenCalled()
+    })
+
+    it('surfaces a non-fast-forward rejection without retrying or force-pushing', async () => {
+      mockRun.mockImplementation((command: string) => {
+        if (command.includes('git clone')) {
+          return Promise.resolve({ stdout: '__BASE_SHA__=abc', stderr: '', exitCode: 0 })
+        }
+        if (command.includes('pi -p')) {
+          return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
+        }
+        if (command.includes('push')) {
+          return Promise.resolve({ stdout: '', stderr: '', exitCode: 1 })
+        }
+        return Promise.resolve({
+          stdout: '__CHANGED__=src/x.ts\n__NEEDS_PUSH__=1',
+          stderr: '',
+          exitCode: 0,
+        })
+      })
+      mockReadFile.mockResolvedValue(
+        '! [rejected] feature/existing -> feature/existing (non-fast-forward)'
+      )
+
+      await expect(runCloudBranchPi(branchParams(), { onEvent: vi.fn() })).rejects.toThrow(
+        /non-fast-forward/
+      )
+      const pushCalls = mockRun.mock.calls.filter(([cmd]: [string]) => cmd.includes('push'))
+      expect(pushCalls).toHaveLength(1)
+      expect(pushCalls[0][0]).not.toContain('--force')
+      expect(mockExecuteTool).not.toHaveBeenCalled()
+    })
+
+    it('does not start Babysit after the initial branch push is rejected', async () => {
+      mockExistingBranchPullRequest()
+      mockRun.mockImplementation((command: string) => {
+        if (command.includes('git clone')) {
+          return Promise.resolve({ stdout: '__BASE_SHA__=abc', stderr: '', exitCode: 0 })
+        }
+        if (command.includes('pi -p')) {
+          return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
+        }
+        if (command.includes('push')) {
+          return Promise.resolve({ stdout: '', stderr: '', exitCode: 1 })
+        }
+        return Promise.resolve({
+          stdout: '__CHANGED__=src/x.ts\n__NEEDS_PUSH__=1',
+          stderr: '',
+          exitCode: 0,
+        })
+      })
+      mockReadFile.mockResolvedValue(
+        '! [rejected] feature/existing -> feature/existing (non-fast-forward)'
+      )
+
+      await expect(
+        runCloudBranchPi(
+          branchParams({ babysit: { maxRounds: 3, reviewMentions: ['@greptile'] } }),
+          { onEvent: vi.fn() }
+        )
+      ).rejects.toThrow(/non-fast-forward/)
+      expect(mockRunBabysit).not.toHaveBeenCalled()
+    })
+
+    it('aborts without reaching the Pi or push steps', async () => {
+      const controller = new AbortController()
+      controller.abort()
+
+      await expect(
+        runCloudBranchPi(branchParams(), {
+          onEvent: vi.fn(),
+          signal: controller.signal,
+        })
+      ).rejects.toThrow(/aborted/)
+      expect(mockRun.mock.calls.some(([cmd]: [string]) => cmd.includes('pi -p'))).toBe(false)
+      expect(mockRun.mock.calls.some(([cmd]: [string]) => cmd.includes('push'))).toBe(false)
+    })
   })
 })

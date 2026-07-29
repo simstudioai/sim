@@ -12,6 +12,7 @@ import {
   nullableBoolean,
   nullableString,
   requiredBoolean,
+  requiredNumber,
   requiredRecord,
   requiredTrimmedString,
 } from '@/tools/github/response-parsers'
@@ -45,6 +46,11 @@ export interface PullRequestSnapshot {
   state: string
   merged: boolean
   mergeable: boolean | null
+}
+
+export interface BranchPullRequest {
+  pullNumber: number
+  snapshot: PullRequestSnapshot
 }
 
 function requiredSha(record: Record<string, unknown>, field: string, context: string): string {
@@ -116,6 +122,84 @@ export async function fetchOpenPrSnapshot(
     throw new Error(`PR #${params.pullNumber} is ${snapshot.state}; only open PRs can be reviewed`)
   }
   return snapshot
+}
+
+/**
+ * Finds the single open, same-repository pull request whose head is exactly the
+ * requested branch. Update Branch uses this before starting a sandbox so
+ * Babysit never guesses which pull request to monitor.
+ */
+export async function findOpenPrForBranch(
+  params: Omit<PullRequestCoordinates, 'pullNumber'> & { branch: string },
+  signal?: AbortSignal
+): Promise<BranchPullRequest> {
+  validateRepositoryCoordinates({ ...params, pullNumber: 1 })
+  const result = await executeTool(
+    'github_list_prs_v2',
+    {
+      owner: params.owner,
+      repo: params.repo,
+      state: 'open',
+      head: `${params.owner}:${params.branch}`,
+      per_page: 2,
+      page: 1,
+      apiKey: params.githubToken,
+    },
+    { signal }
+  )
+  if (!result.success) {
+    throw new Error(
+      `Failed to find an open PR for branch ${params.branch}: ${result.error ?? 'unknown error'}`
+    )
+  }
+
+  const output = result.output
+  if (!isRecord(output)) {
+    throw new Error('GitHub pull request list response.output must be an object')
+  }
+  const items = output.items
+  if (!Array.isArray(items)) {
+    throw new Error('GitHub pull request list response.output.items must be an array')
+  }
+  if (items.length === 0) {
+    throw new Error(
+      `Update Branch Babysit requires one open pull request for branch ${params.branch}, but none was found`
+    )
+  }
+  if (items.length > 1) {
+    throw new Error(
+      `Update Branch Babysit found multiple open pull requests for branch ${params.branch}`
+    )
+  }
+
+  if (!isRecord(items[0])) {
+    throw new Error('GitHub pull request list response item must be an object')
+  }
+  const pullNumber = requiredNumber(items[0], 'number', 'GitHub pull request list response item')
+  if (pullNumber < 1) {
+    throw new Error('GitHub pull request list response item.number must be positive')
+  }
+
+  const snapshot = await fetchOpenPrSnapshot(
+    {
+      owner: params.owner,
+      repo: params.repo,
+      pullNumber,
+      githubToken: params.githubToken,
+    },
+    signal
+  )
+  const expectedRepo = `${params.owner}/${params.repo}`.toLowerCase()
+  if (
+    snapshot.headRef !== params.branch ||
+    snapshot.headRepoFullName?.toLowerCase() !== expectedRepo
+  ) {
+    throw new Error(
+      `PR #${pullNumber} no longer points to ${params.owner}/${params.repo}:${params.branch}`
+    )
+  }
+
+  return { pullNumber, snapshot }
 }
 
 export function validateRepositoryCoordinates(params: PullRequestCoordinates): void {

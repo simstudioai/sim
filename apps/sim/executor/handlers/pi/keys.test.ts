@@ -188,6 +188,20 @@ describe('resolvePiModelKey', () => {
     expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
   })
 
+  it('Update Branch rejects when no user key is available (never a hosted key)', async () => {
+    mockGetBYOKKey.mockResolvedValue(null)
+
+    await expect(
+      resolvePiModelKey({
+        providerId: 'anthropic',
+        model: 'claude',
+        mode: 'cloud_branch',
+        workspaceId: 'ws-1',
+      })
+    ).rejects.toThrow(/Update Branch requires your own provider API key/)
+    expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
+  })
+
   it('cloud_review mode preserves a direct user key as BYOK', async () => {
     const result = await resolvePiModelKey({
       providerId: 'anthropic',

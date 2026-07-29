@@ -10,6 +10,7 @@ vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 import {
   fetchOpenPrSnapshot,
   fetchPrSnapshot,
+  findOpenPrForBranch,
   validateRepositoryCoordinates,
 } from '@/executor/handlers/pi/github-pr'
 
@@ -99,6 +100,85 @@ describe('fetchOpenPrSnapshot', () => {
     await expect(fetchOpenPrSnapshot(COORDINATES)).rejects.toThrow(
       'PR #7 is closed; only open PRs can be reviewed'
     )
+  })
+})
+
+describe('findOpenPrForBranch', () => {
+  const params = {
+    owner: 'octo',
+    repo: 'demo',
+    branch: 'feature/existing',
+    githubToken: 'ghp_secret',
+  }
+
+  beforeEach(() => vi.clearAllMocks())
+
+  function list(items: unknown[]) {
+    return { success: true, output: { items, count: items.length } }
+  }
+
+  it('returns the one exact open same-repository pull request', async () => {
+    mockExecuteTool.mockResolvedValueOnce(list([{ number: 7 }])).mockResolvedValueOnce({
+      success: true,
+      output: snapshot({
+        head: { sha: HEAD_SHA, ref: 'feature/existing', repo_full_name: 'octo/demo' },
+      }),
+    })
+
+    await expect(findOpenPrForBranch(params)).resolves.toMatchObject({
+      pullNumber: 7,
+      snapshot: { htmlUrl: 'https://github.com/octo/demo/pull/7' },
+    })
+    expect(mockExecuteTool).toHaveBeenNthCalledWith(
+      1,
+      'github_list_prs_v2',
+      expect.objectContaining({
+        owner: 'octo',
+        repo: 'demo',
+        state: 'open',
+        head: 'octo:feature/existing',
+        per_page: 2,
+        apiKey: 'ghp_secret',
+      }),
+      { signal: undefined }
+    )
+  })
+
+  it('fails when there is no matching pull request or the match is ambiguous', async () => {
+    mockExecuteTool.mockResolvedValueOnce(list([]))
+    await expect(findOpenPrForBranch(params)).rejects.toThrow(/none was found/)
+
+    mockExecuteTool.mockResolvedValueOnce(list([{ number: 7 }, { number: 8 }]))
+    await expect(findOpenPrForBranch(params)).rejects.toThrow(/multiple open pull requests/)
+  })
+
+  it.each([
+    [
+      'fork',
+      {
+        head: { sha: HEAD_SHA, ref: 'feature/existing', repo_full_name: 'someone/fork' },
+      },
+    ],
+    [
+      'moved head',
+      {
+        head: { sha: HEAD_SHA, ref: 'feature/moved', repo_full_name: 'octo/demo' },
+      },
+    ],
+  ])('fails closed for a %s', async (_label, overrides) => {
+    mockExecuteTool
+      .mockResolvedValueOnce(list([{ number: 7 }]))
+      .mockResolvedValueOnce({ success: true, output: snapshot(overrides) })
+
+    await expect(findOpenPrForBranch(params)).rejects.toThrow(/no longer points to/)
+  })
+
+  it('fails closed when the matching pull request closes during validation', async () => {
+    mockExecuteTool
+      .mockResolvedValueOnce(list([{ number: 7 }]))
+      .mockResolvedValueOnce({ success: true, output: snapshot({ state: 'closed' }) })
+
+    await expect(findOpenPrForBranch(params)).rejects.toThrow(/only open PRs/)
   })
 })
 

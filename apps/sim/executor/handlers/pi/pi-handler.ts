@@ -16,6 +16,7 @@ import {
 import { BlockType } from '@/executor/constants'
 import type {
   PiBackendRun,
+  PiCloudBranchRunParams,
   PiCloudReviewRunParams,
   PiCloudRunParams,
   PiLocalRunParams,
@@ -23,7 +24,7 @@ import type {
   PiRunResult,
   PiSearchConfig,
 } from '@/executor/handlers/pi/backend'
-import { runCloudPi } from '@/executor/handlers/pi/cloud-backend'
+import { runCloudBranchPi, runCloudPi } from '@/executor/handlers/pi/cloud-backend'
 import { runCloudReviewPi } from '@/executor/handlers/pi/cloud-review-backend'
 import {
   appendPiMemory,
@@ -89,7 +90,17 @@ function isSwitchEnabled(value: unknown, defaultValue = false): boolean {
 }
 
 function parsePiMode(value: unknown): PiRunParams['mode'] {
-  if (value === 'cloud' || value === 'cloud_review' || value === 'local') {
+  if (value === 'babysit') {
+    throw new Error(
+      'Standalone Babysit mode was removed. Use Create PR or Update Branch with Babysit Mode enabled.'
+    )
+  }
+  if (
+    value === 'cloud' ||
+    value === 'cloud_branch' ||
+    value === 'cloud_review' ||
+    value === 'local'
+  ) {
     return value
   }
   throw new Error(`Invalid Pi mode: ${String(value)}`)
@@ -254,7 +265,8 @@ export class PiBlockHandler implements BlockHandler {
     const repo = asOptString(inputs.repo)
     const githubToken = asRawString(inputs.githubToken)
     if (!owner || !repo || !githubToken) {
-      throw new Error('Create PR requires repository owner, name, and a GitHub token')
+      const label = mode === 'cloud_branch' ? 'Update Branch' : 'Create PR'
+      throw new Error(`${label} requires repository owner, name, and a GitHub token`)
     }
     // A `switch` subblock reaches a handler as the string 'true' when its value came
     // through a variable reference, an API trigger payload, or a legacy serialized
@@ -264,7 +276,8 @@ export class PiBlockHandler implements BlockHandler {
     const babysitMode = isSwitchEnabled(inputs.babysitMode)
     const reviewMentions = babysitMode ? parsePiReviewMentions(inputs.reviewMentions) : []
     if (babysitMode && reviewMentions.length === 0) {
-      throw new Error('Create PR Babysit Mode requires at least one reviewer mention')
+      const label = mode === 'cloud_branch' ? 'Update Branch' : 'Create PR'
+      throw new Error(`${label} Babysit Mode requires at least one reviewer mention`)
     }
     const maxRounds = babysitMode
       ? (parseOptionalNumberInput(inputs.maxRounds, 'maxRounds', {
@@ -273,6 +286,31 @@ export class PiBlockHandler implements BlockHandler {
           max: 10,
         }) ?? 3)
       : undefined
+
+    if (mode === 'cloud_branch') {
+      const targetBranch = asOptString(inputs.targetBranch)
+      if (!targetBranch) {
+        throw new Error('Update Branch requires a target branch')
+      }
+      const params: PiCloudBranchRunParams = {
+        ...contextualBase,
+        mode: 'cloud_branch',
+        owner,
+        repo,
+        githubToken,
+        targetBranch,
+        ...(babysitMode
+          ? {
+              babysit: {
+                maxRounds: maxRounds ?? 3,
+                reviewMentions,
+                ...(ctx.executionId ? { executionId: ctx.executionId } : {}),
+              },
+            }
+          : {}),
+      }
+      return this.runPi(ctx, block, runCloudBranchPi, params, memoryConfig)
+    }
     const params: PiCloudRunParams = {
       ...contextualBase,
       mode: 'cloud',
@@ -306,8 +344,8 @@ export class PiBlockHandler implements BlockHandler {
    *
    * The host-side tool is built here rather than in a backend because it needs the
    * {@link ExecutionContext}, which backends never receive — they see only `{ onEvent, signal }`.
-   * Create PR gets no tool: it registers a sandbox extension instead, so a spec built here could
-   * never execute.
+   * Cloud authoring gets no host tool: it registers a sandbox extension instead, so a spec built
+   * here could never execute.
    */
   private async resolveSearch(
     ctx: ExecutionContext,
@@ -321,8 +359,9 @@ export class PiBlockHandler implements BlockHandler {
 
     // Authorization before credentials, which is the order `executeTool` itself uses and is
     // observable: reversed, a denied user's stored key is fetched and decrypted and they are told to
-    // add a key instead of being denied. The preflight is also the only denylist check Create PR
-    // gets, because its extension calls the provider directly and never reaches `executeTool`.
+    // add a key instead of being denied. The preflight is also the only denylist check cloud
+    // authoring gets, because its extension calls the provider directly and never reaches
+    // `executeTool`.
     try {
       await assertPermissionsAllowed({
         userId: ctx.userId,
@@ -345,7 +384,7 @@ export class PiBlockHandler implements BlockHandler {
     })
 
     const credentials = { provider, apiKey }
-    return mode === 'cloud'
+    return mode === 'cloud' || mode === 'cloud_branch'
       ? credentials
       : { ...credentials, tool: buildPiSearchToolSpec(ctx, credentials, mode) }
   }

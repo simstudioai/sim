@@ -1,6 +1,6 @@
 ---
 title: Pi Coding Agent
-description: The Pi Coding Agent creates and optionally babysits pull requests, reviews existing PRs, and edits repositories over SSH.
+description: The Pi Coding Agent block runs an autonomous coding agent on a real repository — opening a pull request, updating a branch, reviewing a PR, or editing files over SSH.
 pageType: reference
 ---
 
@@ -8,11 +8,12 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { BlockPreview } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
-The **Pi Coding Agent block** runs the [Pi](https://github.com/earendil-works/pi-mono) coding harness against a real repository. You give it a task and a model; it opens and optionally babysits a pull request, posts a review on an existing PR, or changes your files in place. Create PR and Local Dev can reuse your [skills](/agents/skills) and multi-turn [memory](#memory). Review Code loads neither.
+The **Pi Coding Agent block** runs the [Pi](https://github.com/earendil-works/pi-mono) coding harness against a real repository. You give it a task and a model; it opens a pull request, updates an existing branch, posts a PR review, or changes your files in place. Create PR and Update Branch can optionally babysit the pull request on their branch. Create PR, Update Branch, and Local Dev can reuse your [skills](/agents/skills) and multi-turn [memory](#memory). Review Code deliberately loads neither.
 
-It has three modes that decide *where* it runs and *how* its work lands:
+It has four modes that decide *where* it runs and *how* its work lands:
 
 - **Create PR** — spins up an isolated sandbox, edits the repository, and opens a **pull request**. Its optional **Babysit Mode** requests bot reviews and works through trusted feedback and checks in bounded rounds.
+- **Update Branch** — checks out an existing branch in an isolated sandbox, edits it, and pushes a new commit back to that same branch. Its optional **Babysit Mode** continues the one open same-repository PR attached to that branch.
 - **Review Code** — checks out an existing PR in a sandbox, analyzes it with bounded read-only access across the repository, and posts a **GitHub review** (summary + optional inline comments).
 - **Local Dev** — connects to your own machine over **SSH** and edits files there directly.
 
@@ -26,14 +27,14 @@ Pick the mode with the **Mode** dropdown. The fields below it change to match.
 
 Create PR runs entirely inside a disposable sandbox, so it never touches your machine. It clones the repo, lets the agent work with full read/shell/edit/git, pushes a branch, and opens a PR you review and merge.
 
-- Requires sandbox execution to be enabled (Create PR and Review Code only appear when it is).
+- Requires sandbox execution to be enabled.
 - Requires **your own provider API key (BYOK)** — the model key is handed to the sandbox.
 - Needs a **GitHub token** with permission to clone, push, and open a PR (see [Setup](#setup-cloud-pr)).
 - The deliverable is a **pull request** — nothing is committed to your default branch directly.
 
 #### Babysit Mode
 
-When enabled, Create PR forces the new PR to be ready for review, posts every required **Reviewer Mention** as its own issue comment, and then starts a second, strict sandbox against the newly created same-repository PR. It repeats this bounded host-controlled lifecycle:
+When enabled, Create PR forces the new PR to be ready for review, while Update Branch first finds exactly one open same-repository PR whose head is the target branch. Both modes post every required **Reviewer Mention** as its own issue comment and then start a second, strict sandbox against that PR. They repeat this bounded host-controlled lifecycle:
 
 1. Read every review thread and the complete check rollup for the pinned SHA.
 2. Give Pi trusted block instructions plus clearly delimited, untrusted thread/check data and bounded diagnostics.
@@ -49,9 +50,21 @@ Only complete threads are actionable. Every comment in a thread must come from a
 The continuation gives Pi no GitHub credential, GitHub tool, or Sim integration. GitHub API operations use block-configured coordinates on the host and are not filtered by workspace tool denylists. The model and optional search keys do enter the editing sandbox. The GitHub token enters only the clone and credentialed push commands. This is risk reduction, not credential isolation: the push still executes inside a previously agent-controlled root sandbox.
 
 - Requires at least one **Reviewer Mention**, such as `@greptile` or `@cursor review`.
-- Needs **Contents, Pull requests, Issues, Actions, and commit-status/check read access** as described in [Create PR setup](#setup-cloud-pr).
+- Needs **Contents, Pull requests, Issues, Actions, and commit-status/check read access** as described in [Create PR setup](#setup-cloud-pr) and [Update Branch setup](#setup-cloud-branch).
 - Does not support fork PRs, force-push/history rewriting, merge-conflict resolution, or `.github/` edits. A base conflict is reported but does not prevent review-fix pushes.
 - A round that posts replies but loses the pin before resolving can reply to the same unresolved thread again on a later run. Replies are intentionally safer than resolving stale feedback.
+
+### Update Branch
+
+Update Branch uses the same disposable authoring sandbox as Create PR, but checks out a branch that already exists and pushes changes back to it without opening a new pull request.
+
+- Requires sandbox execution and **your own provider API key (BYOK)**.
+- Needs a **GitHub token** with permission to clone and push.
+- Never creates, rebases, merges, or force-pushes the branch. If another commit reaches the branch while Pi is working, the push fails rather than overwriting it.
+- Pushing to a branch that already has an open PR updates that PR automatically.
+- With Babysit Mode enabled, exactly one open same-repository PR must already use the target branch. No match fails before a sandbox starts; multiple matches fail as ambiguous. Fork, closed, moved, or mismatched PRs fail closed.
+- A no-change authoring pass still babysits the existing PR. A rejected initial push stops the run before Babysit begins.
+- The deliverable is the updated branch — read `branch`, `changedFiles`, and `diff`.
 
 ### Review Code
 
@@ -84,11 +97,11 @@ The model that drives the agent. Defaults to `claude-sonnet-4-6`. The dropdown c
 
 ### API Key
 
-Your key for the chosen provider. On hosted Sim it is optional for Local Dev and Review Code runs (a hosted key is used and metered to your workspace). **Create PR requires your own key** because its model client runs in the sandbox, including during its Babysit continuation. When the provider supports workspace BYOK, you can store the key in **Settings → BYOK** instead of entering it on the block.
+Your key for the chosen provider. On hosted Sim it is optional for Local Dev and Review Code runs (a hosted key is used and metered to your workspace). **Create PR and Update Branch require your own key** because their model client runs in the sandbox, including during a Babysit continuation. When the provider supports workspace BYOK, you can store the key in **Settings → BYOK** instead of entering it on the block.
 
 ### Internet Search
 
-Off by default. Pick a provider — **Exa**, **Serper**, **Parallel AI**, or **Firecrawl** — and the agent gains a single `web_search` tool that returns a handful of results, each with a title, URL, snippet, and (where the provider reports one) a publication date. It works the same way in all three modes, and it is the agent's only network access in Review Code. The tool accepts at most 20 calls **per block execution**, which bounds accidental tool loops. A Pi block inside a Loop or Parallel gets that allowance again on every iteration, so bound the iteration count too if you care about what a single workflow run can spend.
+Off by default. Pick a provider — **Exa**, **Serper**, **Parallel AI**, or **Firecrawl** — and the agent gains a single `web_search` tool that returns a handful of results, each with a title, URL, snippet, and (where the provider reports one) a publication date. It works the same way in all four modes, and it is the agent's only network access in Review Code. The tool accepts at most 20 calls **per block execution**, which bounds accidental tool loops. A Pi block inside a Loop or Parallel gets that allowance again on every iteration, so bound the iteration count too if you care about what a single workflow run can spend.
 
 Search always uses **your own key** for the selected provider, entered in the block's **Search API Key** field. That field is the only source: there is no workspace BYOK fallback and Sim never supplies a hosted search key, so unlike the model key this field appears on every deployment. Leave it empty and the run fails with a setup error before any sandbox is created. Changing the provider in the editor clears the field, so re-enter the key that belongs to the provider you picked — a workflow you import, fork, or update through the API keeps whatever key was saved, so check it there.
 
@@ -102,10 +115,10 @@ Results are third-party data. The agent is instructed to treat them as quoted ev
 
 Traffic goes both ways: the agent writes its own queries after reading the repository, so leave search on **None** in Review Code when the pull request comes from an untrusted fork of a private repo. Injected instructions in a diff could otherwise put repository text into a query sent to the provider.
 
-### Repository (Create PR / Review Code)
+### Repository (Create PR / Update Branch / Review Code)
 
 - **Repository Owner / Repository Name** — the GitHub repo (for example `your-org` / `your-repo`).
-- **GitHub Token** — a personal access token used for GitHub access. Permissions differ by mode and by whether Create PR uses Babysit Mode; see [Create PR setup](#setup-cloud-pr) and [Review Code setup](#setup-cloud-code-review).
+- **GitHub Token** — a personal access token used for GitHub access. Permissions differ by mode; see [Create PR setup](#setup-cloud-pr), [Update Branch setup](#setup-cloud-branch), or [Review Code setup](#setup-cloud-code-review).
 
 ### Create PR fields
 
@@ -116,6 +129,11 @@ Traffic goes both ways: the agent writes its own queries after reading the repos
 - **Branch Name** *(advanced)* — the branch to push. Auto-generated when blank.
 - **Open as Draft PR** *(advanced)* — opens the PR as a draft. On by default and hidden when Babysit Mode is enabled, because those PRs are always ready for review.
 - **PR Title / PR Body** *(advanced)* — generated from the run when blank.
+
+### Update Branch fields
+
+- **Target Branch** — the existing remote branch to update. The run fails if it does not exist, is protected against the token, or changes before Pi pushes.
+- **Babysit Mode / Reviewer Mentions / Maximum Rounds** — the same controls as Create PR. When enabled, the target branch must have exactly one open same-repository PR.
 
 ### Review Code fields
 
@@ -136,15 +154,15 @@ Traffic goes both ways: the agent writes its own queries after reading the repos
 
 Sim tools the agent can call while it works — search a knowledge base, send a Slack message, call any of the [integrations](/integrations). They run through Sim with your connected credentials, exactly like the [Agent block](/workflows/blocks/agent). MCP and custom tools aren't supported here yet (they appear greyed out).
 
-### Skills (Create PR / Local Dev)
+### Skills (Create PR / Update Branch / Local Dev)
 
-[Agent skills](/agents/skills) the agent can use — reusable instruction packages like a coding standard or a review playbook. Create PR passes explicitly selected Sim skills to its Babysit continuation, while repository skills, Pi extensions, prompt templates, and project trust remain disabled there.
+[Agent skills](/agents/skills) the agent can use — reusable instruction packages like a coding standard or a review playbook. They're shared with the Agent block. Create PR and Update Branch pass explicitly selected Sim skills to their Babysit continuation, while repository skills, Pi extensions, prompt templates, and project trust remain disabled there.
 
 ### Thinking Level
 
 For models with extended reasoning, how much the model thinks before acting. Higher is more thorough but slower and costs more tokens. Defaults to `medium`.
 
-### Memory (Create PR / Local Dev)
+### Memory (Create PR / Update Branch / Local Dev)
 
 Multi-turn memory keyed by a conversation ID, shared with the [Agent block](/workflows/blocks/agent):
 
@@ -153,11 +171,11 @@ Multi-turn memory keyed by a conversation ID, shared with the [Agent block](/wor
 - **Sliding window (messages).** The most recent N messages.
 - **Sliding window (tokens).** Recent messages up to a token budget.
 
-Reuse the same **Conversation ID** across runs to continue a thread. Each turn stores your task and the Create PR or Local Dev summary, which is folded into the next run's prompt. Review Code never loads or saves memory. Create PR's Babysit continuation starts with empty memory, and its review-derived report is not saved to memory.
+Reuse the same **Conversation ID** across runs to continue a thread. Each turn stores your task and the initial authoring or Local Dev summary, which is folded into the next run's prompt. Review Code never loads or saves memory. A Babysit continuation starts with empty memory, and its review-derived report is not saved to memory.
 
 ### Context limits
 
-For Create PR and Local Dev, memory is folded into the agent's first prompt, and two layers keep it within the model's context window:
+For Create PR, Update Branch, and Local Dev, memory is folded into the agent's first prompt, and two layers keep it within the model's context window:
 
 - **Sim trims before the run.** The selected memory type bounds what's injected: **Conversation** is automatically capped to a fraction of the model's context window (for models in Sim's catalog), **Sliding window (messages)** keeps the last N messages, and **Sliding window (tokens)** keeps history up to an explicit token budget.
 - **Pi compacts during the run.** As the agent works (reading files, running commands), Pi automatically summarizes older turns to stay under the window — in all modes, on by default. You don't need to configure anything for context growth mid-run.
@@ -171,16 +189,16 @@ The one case neither layer can rescue is a *first* prompt that already exceeds t
 | `<pi.content>` | The agent's final message / run summary |
 | `<pi.changedFiles>` | The files the agent changed |
 | `<pi.diff>` | A unified diff of the changes |
-| `<pi.prUrl>` | URL of the opened pull request *(Create PR)* |
-| `<pi.branch>` | The branch pushed with the changes *(Create PR)* |
+| `<pi.prUrl>` | URL of the opened pull request, or the existing PR when Update Branch Babysit is enabled |
+| `<pi.branch>` | The branch pushed with the changes *(Create PR / Update Branch)* |
 | `<pi.reviewUrl>` | URL of the submitted GitHub review *(Review Code)* |
 | `<pi.commentsPosted>` | Number of inline review comments posted *(Review Code)* |
-| `<pi.rounds>` | Number of fixing rounds that invoked Pi *(Create PR + Babysit Mode)* |
-| `<pi.threadsClean>` | Whether no actionable or skipped unresolved threads remain *(Create PR + Babysit Mode)* |
-| `<pi.checksGreen>` | Whether all required checks are passing with none pending or missing *(Create PR + Babysit Mode)* |
-| `<pi.threadsResolved>` | Number of threads this run resolved *(Create PR + Babysit Mode)* |
-| `<pi.commitsPushed>` | Number of one-commit fixing rounds pushed *(Create PR + Babysit Mode)* |
-| `<pi.stopReason>` | Why the Babysit continuation stopped, including partial-success outcomes *(Create PR + Babysit Mode)* |
+| `<pi.rounds>` | Number of fixing rounds that invoked Pi *(authoring + Babysit Mode)* |
+| `<pi.threadsClean>` | Whether no actionable or skipped unresolved threads remain *(authoring + Babysit Mode)* |
+| `<pi.checksGreen>` | Whether all required checks are passing with none pending or missing *(authoring + Babysit Mode)* |
+| `<pi.threadsResolved>` | Number of threads this run resolved *(authoring + Babysit Mode)* |
+| `<pi.commitsPushed>` | Number of one-commit fixing rounds pushed *(authoring + Babysit Mode)* |
+| `<pi.stopReason>` | Why the Babysit continuation stopped, including partial-success outcomes *(authoring + Babysit Mode)* |
 | `<pi.model>` | The model that ran |
 | `<pi.tokens>` | Token usage, an object `{ input, output, total }` |
 | `<pi.cost>` | Estimated cost of the run |
@@ -192,7 +210,7 @@ The one case neither layer can rescue is a *first* prompt that already exceeds t
 
 Create PR runs in a sandbox image with the Pi CLI and git baked in.
 
-1. **Enable sandbox execution.** On self-hosted Sim, set `E2B_ENABLED=true`, `E2B_API_KEY`, `E2B_PI_TEMPLATE_ID` (the Pi template id), and `NEXT_PUBLIC_E2B_ENABLED=true` (this reveals Create PR and Review Code in the UI). Build the template with `bun run apps/sim/scripts/build-pi-e2b-template.ts`. These modes stay hidden until `NEXT_PUBLIC_E2B_ENABLED` is set.
+1. **Enable sandbox execution.** On self-hosted Sim, set `E2B_ENABLED=true`, `E2B_API_KEY`, `E2B_PI_TEMPLATE_ID` (the Pi template id), and `NEXT_PUBLIC_E2B_ENABLED=true` (this reveals Create PR, Update Branch, and Review Code in the UI). Build the template with `bun run apps/sim/scripts/build-pi-e2b-template.ts`. These modes stay hidden until `NEXT_PUBLIC_E2B_ENABLED` is set.
 
    The template requests **4 vCPU and 8 GB of RAM** (within the per-build maximum on every E2B plan). Sizing is fixed when the template is built — E2B has no per-sandbox override — so changing it means rebuilding the template, not restarting Sim. Sandboxes are billed per second against the resources they are allocated, not the ones they use. Both numbers live in `apps/sim/scripts/pi-sandbox-packages.ts` and are shared with the Daytona snapshot so the failover image cannot drift from the primary.
 
@@ -202,7 +220,7 @@ Create PR runs in a sandbox image with the Pi CLI and git baked in.
    - *Fine-grained:* select the repo, then **Contents: Read and write** + **Pull requests: Read and write**.
    - *Classic:* the **`repo`** scope. For org repos, authorize the token for SSO.
 
-When **Babysit Mode** is enabled, use an asynchronous schedule, webhook, or background execution where possible because the continuation can spend several minutes waiting for CI or review bots. The token must additionally read checks and Actions logs, reply to and resolve review threads, and post issue comments:
+When **Babysit Mode** is enabled in either authoring mode, use an asynchronous schedule, webhook, or background execution where possible because the continuation can spend several minutes waiting for CI or review bots. The token must additionally read checks and Actions logs, reply to and resolve review threads, and post issue comments:
 
 - *Fine-grained:* add **Issues: Read and write**, **Actions: Read**, and **Commit statuses: Read** (plus check-suite read access if your organization exposes it separately).
 - *Classic:* the **`repo`** scope, SSO-authorized for organization repositories. A classic token or GitHub App installation may be required where a fine-grained token cannot access every check endpoint.
@@ -216,6 +234,17 @@ Babysit enforces fixed bounds that are not configurable, and they behave differe
 - **Rejected before the run starts.** **Reviewer Mentions** accepts at most 10 entries, each at most 200 characters, and at most 2000 characters of input in total. Each entry must begin with `@`. Exceeding any of these fails the block with a validation error rather than a `stopReason`.
 - **Trimmed silently.** At most 30 review threads are shown to Pi per round. Extra actionable threads are carried to a later round, so `threadsClean` stays `false` until they are handled.
 - **Stops the run with `bounds_exceeded`.** More than 20 failing required checks in a round, or a cumulative change across the run exceeding 50 files or 200,000 diff bytes.
+
+### Update Branch [#setup-cloud-branch]
+
+Enable sandbox execution and BYOK as for Create PR. The GitHub token needs permission to clone and push:
+
+- *Fine-grained:* select the repo, then grant **Contents: Read and write**.
+- *Classic:* the **`repo`** scope. For org repos, authorize the token for SSO.
+
+The target branch must already exist. GitHub branch protection remains authoritative, and a branch that advances during the run rejects Pi's normal non-force push.
+
+With **Babysit Mode**, the token also needs the Pull requests, Issues, Actions, commit-status, and check permissions listed above. The branch must have exactly one open pull request in this same repository; Update Branch never creates one and does not support fork PRs.
 
 ### Review Code [#setup-cloud-code-review]
 
@@ -233,20 +262,21 @@ Enable sandbox execution as for Create PR. BYOK is optional because the model cr
 ## Best Practices
 
 - **Scope the task.** A specific instruction ("fix the failing `auth` test and add a regression case") produces far better results than a vague one.
-- **Match the mode to the deliverable.** Create PR for unattended changes, Review Code for feedback on an existing PR, and Local Dev for a repo you already have checked out.
+- **Match the mode to the deliverable.** Create PR for a new reviewable change, Update Branch for continuing existing remote work, Review Code for feedback on a PR, and Local Dev for a repo you already have checked out.
 - **Use Babysit Mode for automated review follow-through.** Run it asynchronously and expect partial success; a pushed fix followed by `awaiting_checks` is normal.
 - **Prefer key auth and tear down tunnels.** A public SSH tunnel is a real attack surface — use a private key and stop the tunnel when you're done.
-- **Reuse a Conversation ID for Create PR or Local Dev follow-ups.** It carries the prior task and outcome into the next run so the agent can build on its own work.
+- **Reuse a Conversation ID for Create PR, Update Branch, or Local Dev follow-ups.** It carries the prior task and outcome into the next run so the agent can build on its own work.
 
 <FAQ items={[
-  { question: "What's the difference between the modes?", answer: "Create PR opens a new pull request and can optionally babysit bot reviews and required checks. Review Code posts a read-only review on an existing PR. Local Dev edits your own machine over SSH. Create PR requires BYOK; Review Code and Local Dev can use a hosted model key on hosted Sim." },
+  { question: "What's the difference between the modes?", answer: "Create PR opens a pull request from a new sandbox branch. Update Branch pushes a new commit to an existing branch without force-pushing. Either authoring mode can optionally babysit its PR. Review Code posts a GitHub review. Local Dev edits files over SSH. Create PR and Update Branch require BYOK." },
   { question: "Which models can I use?", answer: "The model dropdown contains models that are both available in Sim and present under the exact provider in the installed Pi catalog. Providers that need richer configuration, OAuth-only authentication, or a user-supplied base URL aren't offered." },
   { question: "Why does Local Dev need a public hostname?", answer: "Sim connects over raw SSH and blocks localhost, LAN, and private/reserved addresses for safety. Expose the machine with a TCP tunnel such as `ngrok tcp 22` and use the tunnel's host and port. Tailscale's private 100.x addresses won't work for the same reason." },
   { question: "What GitHub permissions does Create PR need?", answer: "A token that can clone, push, and open a PR. With a fine-grained token: select the repo and grant Contents: Read and write plus Pull requests: Read and write. With a classic token: the repo scope. For organization repos, the token must be SSO-authorized." },
+  { question: "What GitHub permissions does Update Branch need?", answer: "A token that can clone and push. With a fine-grained token: select the repo and grant Contents: Read and write. With a classic token: the repo scope. Branch protection can still reject the push." },
   { question: "What GitHub permissions does Review Code need?", answer: "A token that can clone the repo and submit a review. With a fine-grained token: Contents: Read plus Pull requests: Read and write. Push permission is not required. With a classic token: the repo scope. For organization repos, the token must be SSO-authorized." },
   { question: "What does a Babysit Mode success or partial success mean?", answer: "Read threadsClean, checksGreen, commitsPushed, threadsResolved, and stopReason together. Clean requires no actionable or skipped unresolved threads, no required failed/pending/missing checks, and a later bot signal after the most recent review request. awaiting_checks after a push is expected when CI outlives the run; the created PR URL is still returned." },
   { question: "Can the agent search the web?", answer: "Only if you pick a provider under Internet Search — Exa, Serper, Parallel AI, or Firecrawl. That adds one web_search tool in every mode, backed by your own key for that provider, entered on the block; there is no BYOK fallback and Sim never supplies a search key. Leave it on None and the agent has no search tool at all." },
   { question: "Can I give it Gmail, Slack, or other integrations?", answer: "Yes, in Local Dev via the Tools field. Selected Sim tools run through Sim with your connected credentials, the same as the Agent block, so the agent can act beyond the repo while it codes. MCP and custom tools aren't supported yet." },
-  { question: "Where do the changes or feedback go?", answer: "Create PR pushes a new branch and opens a PR. With Babysit Mode it then pushes fixes to that same head branch, replies to trusted threads, resolves successful decisions, and re-requests bot reviews. Review Code submits a GitHub review. Local Dev edits files in place." },
-  { question: "What happens when memory or context gets large?", answer: "For Create PR and Local Dev, Sim trims memory before the run and Pi compacts older turns as needed. Review Code uses no memory. Create PR's Babysit continuation starts with empty memory and does not save review-derived content back into it." },
+  { question: "Where do the changes or feedback go?", answer: "Create PR opens a new pull request. Update Branch pushes to the existing target branch and automatically updates any PR already using it. With Babysit Mode, either then pushes fixes to the PR head, replies to trusted threads, resolves successful decisions, and re-requests bot reviews. Review Code submits a review. Local Dev edits files in place." },
+  { question: "What happens when memory or context gets large?", answer: "For Create PR, Update Branch, and Local Dev, Sim trims memory before the run and Pi compacts older turns as needed. Review Code uses no memory. Babysit starts with empty memory and does not save review-derived content back into it." },
 ]} />
