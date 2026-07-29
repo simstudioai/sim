@@ -6286,6 +6286,14 @@ export const tools: Record<string, ToolConfig> = {
   github_list_tags_v2: githubListTagsV2Tool,
   github_create_pr_review: githubCreatePRReviewTool,
   github_create_pr_review_v2: githubCreatePRReviewV2Tool,
+  /**
+   * Internal to the Pi Babysit handler, which calls them through `executeTool`.
+   * Deliberately registry-only: no `_v2` variant and no entry in the GitHub
+   * block's `tools.access`, unlike the user-facing tools added alongside them.
+   * `GitHubV2Block` derives its access list by appending `_v2` to every entry,
+   * so adding one of these there without first adding a v2 would point the block
+   * at an id that does not exist. Nothing in CI encodes that, hence this note.
+   */
   github_list_review_threads: githubListReviewThreadsTool,
   github_reply_review_thread: githubReplyReviewThreadTool,
   github_resolve_review_thread: githubResolveReviewThreadTool,
@@ -6299,6 +6307,7 @@ export const tools: Record<string, ToolConfig> = {
   github_list_workflow_runs_v2: githubListWorkflowRunsV2Tool,
   github_get_workflow_run: githubGetWorkflowRunTool,
   github_get_workflow_run_v2: githubGetWorkflowRunV2Tool,
+  /** Internal to Pi Babysit — see the review-thread tools above. */
   github_job_logs: githubJobLogsTool,
   github_status_check_rollup: githubStatusCheckRollupTool,
   github_cancel_workflow_run: githubCancelWorkflowRunTool,
