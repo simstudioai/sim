@@ -124,8 +124,8 @@ export const folderResourceTypeEnum = pgEnum('folder_resource_type', [
 
 /**
  * Generic folder hierarchy shared by workflows, files, knowledge bases, and tables.
- * Supersedes the resource-specific `workflowFolder`/`workspaceFileFolder` tables (see
- * the deprecation notes on those below).
+ * Supersedes the resource-specific `workflow_folder` and `workspace_file_folders` tables,
+ * dropped in migration 0276 once the cutover was verified against production.
  *
  * `resourceType` is a real `pgEnum` here — unlike `pinnedItem.resourceType` — because the
  * set of folder-bearing resources is small and fixed. A folder may only parent a folder
@@ -138,7 +138,8 @@ export const folderResourceTypeEnum = pgEnum('folder_resource_type', [
  * `false` and no lock cascade reads it for them. Dropping the column would regress
  * shipped workflow-folder locking.
  *
- * `color` and `isExpanded` from `workflowFolder` are intentionally not carried over:
+ * `color` and `isExpanded` from the old `workflow_folder` table are intentionally not
+ * carried over:
  * `color` has no UI consumer, and `isExpanded`'s real state lives client-side in the
  * folders Zustand store and is never read back from the DB.
  */
@@ -176,9 +177,9 @@ export const folder = pgTable(
       .on(table.workspaceId, table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
     /**
-     * Mirrors `workspace_file_folders_workspace_parent_name_active_unique`, which file
-     * folders already enforce today. Workflow folders gain it here — the backfill
-     * deduplicates the existing violations.
+     * Carries over the active-unique key the old `workspace_file_folders` table enforced,
+     * and extends it to workflow folders, which never had one — 0272's backfill deduplicated
+     * the 47 pre-existing violations it surfaced.
      */
     workspaceResourceParentNameActiveUnique: uniqueIndex(
       'folder_workspace_resource_parent_name_active_unique'
@@ -224,43 +225,6 @@ export const pinnedItem = pgTable(
   })
 )
 
-// DEPRECATED: superseded by the generic `folder` table (resourceType='workflow'). Kept
-// (unread, unwritten) until the generic-folders cutover is verified in production; dropped
-// in a follow-up contract migration.
-export const workflowFolder = pgTable(
-  'workflow_folder',
-  {
-    id: text('id').primaryKey(),
-    name: text('name').notNull(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
-    parentId: text('parent_id'), // Self-reference will be handled by foreign key constraint
-    color: text('color').default('#6B7280'),
-    isExpanded: boolean('is_expanded').notNull().default(true),
-    locked: boolean('locked').notNull().default(false),
-    sortOrder: integer('sort_order').notNull().default(0),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-    archivedAt: timestamp('archived_at'),
-  },
-  (table) => ({
-    userIdx: index('workflow_folder_user_idx').on(table.userId),
-    workspaceParentIdx: index('workflow_folder_workspace_parent_idx').on(
-      table.workspaceId,
-      table.parentId
-    ),
-    parentSortIdx: index('workflow_folder_parent_sort_idx').on(table.parentId, table.sortOrder),
-    archivedAtIdx: index('workflow_folder_archived_at_idx').on(table.archivedAt),
-    workspaceArchivedAtPartialIdx: index('workflow_folder_workspace_archived_partial_idx')
-      .on(table.workspaceId, table.archivedAt)
-      .where(sql`${table.archivedAt} IS NOT NULL`),
-  })
-)
-
 export const workflow = pgTable(
   'workflow',
   {
@@ -269,15 +233,7 @@ export const workflow = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
-    /**
-     * contract-pending: re-add `.references(() => folder.id, { onDelete: 'set null' })`
-     * once the generic-folders expand migration is fully deployed and no old-code pod can
-     * still write a workflow_folder-only id here. The expand migration only DROPs the old
-     * (now-wrong) FK target; adding the new one in the same deploy would reject writes from
-     * still-running old app code. The invariant is enforced in the application layer
-     * meanwhile.
-     */
-    folderId: text('folder_id'),
+    folderId: text('folder_id').references(() => folder.id, { onDelete: 'set null' }),
     sortOrder: integer('sort_order').notNull().default(0),
     name: text('name').notNull(),
     description: text('description'),
@@ -1902,62 +1858,6 @@ export const workspaceFile = pgTable(
   })
 )
 
-/**
- * DEPRECATED: superseded by the generic `folder` table (`resource_type = 'file'`).
- *
- * As of the file-folder cutover the application no longer reads or writes this table —
- * every former query site now targets `folder` scoped to `resource_type = 'file'`. It is
- * retained as the rollback copy for that deploy, NOT because it is already unused history:
- * before the cutover it was the live table, and migration 0272's one-shot backfill did not
- * cover folders created after it ran (migration 0274 catches those up).
- *
- * Do NOT drop it in a contract migration until BOTH hold: the cutover has been running in
- * production long enough that a rollback is off the table, and a FULL-ROW comparison against
- * `folder WHERE resource_type = 'file'` confirms nothing was stranded. A row COUNT is not
- * sufficient — the pre-0274 divergence was in row contents (names, parents, `deleted_at`),
- * which a count check passes straight through. Dropping this on the strength of "no code
- * references it" alone destroys the only rollback path.
- */
-export const workspaceFileFolder = pgTable(
-  'workspace_file_folders',
-  {
-    id: text('id').primaryKey(),
-    name: text('name').notNull(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
-    parentId: text('parent_id').references((): AnyPgColumn => workspaceFileFolder.id, {
-      onDelete: 'set null',
-    }),
-    sortOrder: integer('sort_order').notNull().default(0),
-    deletedAt: timestamp('deleted_at'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    workspaceParentIdx: index('workspace_file_folders_workspace_parent_idx').on(
-      table.workspaceId,
-      table.parentId
-    ),
-    parentSortIdx: index('workspace_file_folders_parent_sort_idx').on(
-      table.parentId,
-      table.sortOrder
-    ),
-    deletedAtIdx: index('workspace_file_folders_deleted_at_idx').on(table.deletedAt),
-    workspaceDeletedAtPartialIdx: index('workspace_file_folders_workspace_deleted_partial_idx')
-      .on(table.workspaceId, table.deletedAt)
-      .where(sql`${table.deletedAt} IS NOT NULL`),
-    workspaceParentNameActiveUnique: uniqueIndex(
-      'workspace_file_folders_workspace_parent_name_active_unique'
-    )
-      .on(table.workspaceId, sql`coalesce(${table.parentId}, '')`, table.name)
-      .where(sql`${table.deletedAt} IS NULL`),
-  })
-)
-
 export const workspaceFiles = pgTable(
   'workspace_files',
   {
@@ -1967,15 +1867,7 @@ export const workspaceFiles = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
-    /**
-     * contract-pending: re-add `.references(() => folder.id, { onDelete: 'set null' })`
-     * once the generic-folders expand migration is fully deployed and no old-code pod can
-     * still write a workspace_file_folders-only id here. The expand migration only DROPs the old
-     * (now-wrong) FK target; adding the new one in the same deploy would reject writes from
-     * still-running old app code. The invariant is enforced in the application layer
-     * meanwhile.
-     */
-    folderId: text('folder_id'),
+    folderId: text('folder_id').references(() => folder.id, { onDelete: 'set null' }),
     context: text('context').notNull(), // 'workspace', 'mothership', 'copilot', 'chat', 'knowledge-base', 'profile-pictures', 'general', 'execution'
     chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'cascade' }),
     /**
@@ -3976,6 +3868,54 @@ export const userTableRows = pgTable(
      * O(all rows) per page.
      */
     tableIdIdIdx: index('user_table_rows_table_id_id_idx').on(table.tableId, table.id),
+  })
+)
+
+/**
+ * Saved presets for a user-defined table — a named filter + sort + column layout.
+ * Workspace-shared: anyone who can read the table sees every view, and `write` is
+ * required to create, update, or delete one. The absence of a view is the built-in
+ * "All" state, so a table is always reachable unfiltered without a seeded row.
+ *
+ * A dedicated table rather than a key on `user_table_definitions.metadata`: that
+ * column is written read-modify-write with a shallow merge, so a stale snapshot
+ * from any concurrent column resize would silently drop a view saved in between.
+ * Per-view rows make each save an independent insert.
+ */
+export const tableViews = pgTable(
+  'table_views',
+  {
+    id: text('id').primaryKey(),
+    tableId: text('table_id')
+      .notNull()
+      .references(() => userTableDefinitions.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    /**
+     * @remarks
+     * `TableViewConfig` — `{ filter, sort, hiddenColumns, columnOrder, columnWidths,
+     * pinnedColumns }`. Every column reference is keyed by stable column id, so a
+     * rename never touches a saved view; ids of deleted columns are pruned on read.
+     */
+    config: jsonb('config').notNull().default('{}'),
+    isDefault: boolean('is_default').notNull().default(false),
+    /**
+     * Nullable with `set null` rather than the `cascade` used for table ownership:
+     * a view is workspace-shared, so it must outlive the member who created it.
+     */
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    /** Covers the only read path: list a table's views in creation order. */
+    tableCreatedIdx: index('table_views_table_created_idx').on(table.tableId, table.createdAt),
+    /** At most one default view per table, enforced in the DB. */
+    defaultViewUnique: uniqueIndex('table_views_table_default_unique')
+      .on(table.tableId)
+      .where(sql`is_default = true`),
   })
 )
 

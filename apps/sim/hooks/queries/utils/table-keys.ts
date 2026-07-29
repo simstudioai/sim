@@ -12,6 +12,9 @@ export type TableQueryScope = 'active' | 'archived' | 'all'
 
 export const TABLE_LIST_STALE_TIME = 30 * 1000
 
+/** Views change only on explicit user action, so they can sit stale for a while. */
+export const TABLE_VIEWS_STALE_TIME = 60 * 1000
+
 export const tableKeys = {
   all: ['tables'] as const,
   lists: () => [...tableKeys.all, 'list'] as const,
@@ -27,6 +30,11 @@ export const tableKeys = {
   rowWrites: (tableId: string) => [...tableKeys.rowsRoot(tableId), 'write'] as const,
   find: (tableId: string, paramsKey: string) =>
     [...tableKeys.rowsRoot(tableId), 'find', paramsKey] as const,
+  /** Deliberately NOT under `detail` — the non-exact `invalidateQueries` on that
+   *  key (row writes, schema changes, rename, job events) would otherwise refetch
+   *  the views list on nearly every table mutation, defeating its staleTime. */
+  viewsRoot: () => [...tableKeys.all, 'views'] as const,
+  views: (tableId: string) => [...tableKeys.viewsRoot(), tableId] as const,
   activeDispatches: (tableId: string) =>
     [...tableKeys.detail(tableId), 'active-dispatches'] as const,
   enrichmentDetails: (tableId: string) =>

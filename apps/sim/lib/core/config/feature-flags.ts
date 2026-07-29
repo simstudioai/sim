@@ -123,6 +123,17 @@ const FEATURE_FLAGS = {
       'not that running workflows break. Off-AppConfig falls back to CUSTOM_SANDBOXES.',
     fallback: 'CUSTOM_SANDBOXES',
   },
+  'table-views': {
+    description:
+      'Saved table views (named filter/sort/column-visibility presets) plus the column show/hide ' +
+      'menu, in the table-detail options bar. UI-only gate: resolved in the table page (server) ' +
+      "and passed down, so the table falls back to today's Filter/Sort bar when off. The routes " +
+      'and the table_views table ship ungated — they are inert with no UI to call them, and a view ' +
+      'saved during a rollout must survive the flag being toggled back off. Embedded (mothership) ' +
+      'tables render without views regardless, since no server context resolves the flag there. ' +
+      'Off-AppConfig falls back to TABLE_VIEWS.',
+    fallback: 'TABLE_VIEWS',
+  },
 } satisfies Record<string, FeatureFlagDefinition>
 
 /**

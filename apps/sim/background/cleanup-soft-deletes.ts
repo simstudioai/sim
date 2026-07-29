@@ -29,10 +29,13 @@ import {
   selectRowsByIdChunks,
 } from '@/lib/cleanup/batch-delete'
 import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
+import { deduplicateFolderName } from '@/lib/folders/naming'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
+import { allocateUniqueWorkspaceFileName } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
+import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 
 const logger = createLogger('CleanupSoftDeletes')
 
@@ -424,6 +427,226 @@ async function cleanupExpiredKnowledgeBases(
  * workspace files → S3 storage) are handled explicitly so the SELECT that drives
  * the external cleanup and the SELECT that drives the DB delete see the same rows.
  */
+/** Per-run values an `onBatch` hook needs but `CLEANUP_TARGETS` cannot know at module scope. */
+interface CleanupBatchContext {
+  retentionDate: Date
+  label: string
+}
+
+/**
+ * Applies one re-root, treating the deduplicated name as a HINT rather than a guarantee.
+ *
+ * Both name allocators can hand back a name that is already taken: `fileExistsInWorkspace`
+ * swallows query errors and returns `false`, so `allocateUniqueWorkspaceFileName` fails OPEN,
+ * and `deduplicateWorkflowName`'s lookups can throw outright. Either way the UPDATE raises
+ * 23505, and an uncaught 23505 here aborts the batch — precisely the permanent retention stall
+ * this whole hook exists to prevent. So any failure retries with the row id, which is unique by
+ * construction and cannot collide.
+ *
+ * A failure of that retry is swallowed too: one unfixable row must not stop the other children
+ * from being made safe. It is logged at error level because the folder's DELETE can then still
+ * stall on that row via the FK's SET NULL.
+ */
+async function reRootOne(
+  preferred: () => Promise<unknown>,
+  withUniqueName: () => Promise<unknown>,
+  subject: string,
+  label: string
+): Promise<void> {
+  try {
+    await preferred()
+    return
+  } catch (error) {
+    logger.warn(`[${label}] Re-rooting ${subject} under its deduplicated name failed; retrying`, {
+      error,
+    })
+  }
+
+  try {
+    await withUniqueName()
+  } catch (error) {
+    logger.error(`[${label}] Could not re-root ${subject}; its folder delete may stall`, { error })
+  }
+}
+
+/**
+ * Re-roots any still-active workflow or workspace file filed under a folder that is about to be
+ * hard-deleted, giving it a collision-free name first.
+ *
+ * The `folder_id` FKs are `ON DELETE SET NULL`, so Postgres already re-roots these rows on its
+ * own. The problem is the name: both tables carry a partial unique index keyed on
+ * `coalesce(folder_id, '')`, so an implicit SET NULL can land a row on a name the workspace root
+ * already holds and abort the whole DELETE with a 23505. `chunkedBatchDelete` counts that as a
+ * failed batch and stops, and the same poison row re-fails on every later run — folder retention
+ * would stall permanently for that workspace chunk. Renaming here leaves the SET NULL a no-op.
+ *
+ * An active child inside a soft-deleted folder is already an anomaly — the delete cascade
+ * archives children — so this normally selects nothing, which is why the per-row loop is fine.
+ */
+async function reRootActiveFolderChildren(
+  folderIds: string[],
+  retentionDate: Date,
+  label: string
+): Promise<void> {
+  if (folderIds.length === 0) return
+  /**
+   * The SELECTs below are guarded for the same reason `reRootOne` swallows: this hook rejecting
+   * IS the aborted batch it exists to prevent. A transient read failure should leave the DELETE
+   * to succeed or fail on its own merits, not turn into a guaranteed stall.
+   */
+  try {
+    await reRootActiveFolderChildrenUnguarded(folderIds, retentionDate, label)
+  } catch (error) {
+    logger.error(`[${label}] Re-rooting children of purged folders failed`, { error })
+  }
+}
+
+async function reRootActiveFolderChildrenUnguarded(
+  folderIds: string[],
+  retentionDate: Date,
+  label: string
+): Promise<void> {
+  /**
+   * Re-asserted here, not just on the DELETE. `deleteFilter` already skips a folder restored
+   * between the SELECT and this hook — but without the same check here, this hook would still
+   * strip and rename the children of a folder that then survives, leaving a live folder
+   * emptied out. Every other side effect in this sweep only touches rows that are on their way
+   * out; this one mutates rows that stay, so it is the one place where losing that race is
+   * visible to the user.
+   *
+   * This narrows the window to match the DELETE's own re-assertion rather than closing it.
+   * Closing it properly means holding a row lock across select → onBatch → delete, which
+   * nothing in this sweep does today.
+   */
+  const stillExpired = await cleanupDb
+    .select({ id: folderTable.id })
+    .from(folderTable)
+    .where(
+      and(
+        inArray(folderTable.id, folderIds),
+        isNotNull(folderTable.deletedAt),
+        lt(folderTable.deletedAt, retentionDate)
+      )
+    )
+
+  const expiredIds = stillExpired.map(({ id }) => id)
+  if (expiredIds.length === 0) return
+
+  const workflows = await cleanupDb
+    .select({ id: workflow.id, name: workflow.name, workspaceId: workflow.workspaceId })
+    .from(workflow)
+    .where(and(inArray(workflow.folderId, expiredIds), isNull(workflow.archivedAt)))
+
+  for (const row of workflows) {
+    const workspaceId = row.workspaceId
+    if (!workspaceId) continue
+    await reRootOne(
+      async () => {
+        const name = await deduplicateWorkflowName(row.name, workspaceId, null, cleanupDb)
+        await cleanupDb
+          .update(workflow)
+          .set({ folderId: null, name })
+          .where(eq(workflow.id, row.id))
+      },
+      () =>
+        cleanupDb
+          .update(workflow)
+          .set({ folderId: null, name: `${row.name} (${row.id})` })
+          .where(eq(workflow.id, row.id)),
+      `workflow ${row.id}`,
+      label
+    )
+  }
+
+  const files = await cleanupDb
+    .select({
+      id: workspaceFiles.id,
+      originalName: workspaceFiles.originalName,
+      workspaceId: workspaceFiles.workspaceId,
+    })
+    .from(workspaceFiles)
+    .where(
+      and(
+        inArray(workspaceFiles.folderId, expiredIds),
+        isNull(workspaceFiles.deletedAt),
+        eq(workspaceFiles.context, 'workspace')
+      )
+    )
+
+  for (const row of files) {
+    const workspaceId = row.workspaceId
+    if (!workspaceId) continue
+    await reRootOne(
+      async () => {
+        const originalName = await allocateUniqueWorkspaceFileName(
+          workspaceId,
+          row.originalName,
+          null
+        )
+        await cleanupDb
+          .update(workspaceFiles)
+          .set({ folderId: null, originalName })
+          .where(eq(workspaceFiles.id, row.id))
+      },
+      () =>
+        cleanupDb
+          .update(workspaceFiles)
+          .set({ folderId: null, originalName: `${row.originalName} (${row.id})` })
+          .where(eq(workspaceFiles.id, row.id)),
+      `workspace file ${row.id}`,
+      label
+    )
+  }
+
+  /**
+   * Subfolders are exposed to exactly the same failure. `folder.parentId` is itself
+   * `ON DELETE SET NULL`, and `folder_workspace_resource_parent_name_active_unique` keys on
+   * `coalesce(parent_id, '')`, so purging a parent re-roots a surviving active child into a
+   * namespace where its name may already be taken — the identical 23505 stall. Covering only
+   * workflows and files would leave the class half-closed.
+   */
+  const childFolders = await cleanupDb
+    .select({
+      id: folderTable.id,
+      name: folderTable.name,
+      workspaceId: folderTable.workspaceId,
+      resourceType: folderTable.resourceType,
+    })
+    .from(folderTable)
+    .where(and(inArray(folderTable.parentId, expiredIds), isNull(folderTable.deletedAt)))
+
+  for (const row of childFolders) {
+    await reRootOne(
+      async () => {
+        const name = await deduplicateFolderName(
+          cleanupDb,
+          row.workspaceId,
+          null,
+          row.name,
+          row.resourceType
+        )
+        await cleanupDb
+          .update(folderTable)
+          .set({ parentId: null, name })
+          .where(eq(folderTable.id, row.id))
+      },
+      () =>
+        cleanupDb
+          .update(folderTable)
+          .set({ parentId: null, name: `${row.name} (${row.id})` })
+          .where(eq(folderTable.id, row.id)),
+      `folder ${row.id}`,
+      label
+    )
+  }
+
+  if (workflows.length > 0 || files.length > 0) {
+    logger.warn(
+      `[${label}] Re-rooted ${workflows.length} workflow(s) and ${files.length} file(s) out of folders being purged`
+    )
+  }
+}
+
 const CLEANUP_TARGETS = [
   {
     table: folderTable,
@@ -442,6 +665,12 @@ const CLEANUP_TARGETS = [
       'knowledge_base',
       'table',
     ]),
+    onBatch: (rows: { id: string }[], ctx: CleanupBatchContext) =>
+      reRootActiveFolderChildren(
+        rows.map(({ id }) => id),
+        ctx.retentionDate,
+        ctx.label
+      ),
     name: 'folder',
   },
   {
@@ -702,6 +931,10 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
       tableName: `${label}/${target.name}`,
       requireTimestampNotNull: true,
       additionalPredicate: 'additionalPredicate' in target ? target.additionalPredicate : undefined,
+      onBatch:
+        'onBatch' in target
+          ? (rows: { id: string }[]) => target.onBatch(rows, { retentionDate, label })
+          : undefined,
       dbClient: cleanupDb,
     })
     totalDeleted += result.deleted

@@ -730,7 +730,7 @@ export function DocumentTagsModal({
                         ))
                     }
                   >
-                    {isSavingTag ? 'Creating...' : 'Create Tag'}
+                    {isSavingTag ? 'Applying...' : 'Apply Tag'}
                   </Button>
                 </div>
               </div>
