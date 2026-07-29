@@ -2167,13 +2167,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  get_platform_actions: {
-    parameters: {
-      type: 'object',
-      properties: {},
-    },
-    resultSchema: undefined,
-  },
   get_scheduled_task_logs: {
     parameters: {
       type: 'object',
@@ -3691,23 +3684,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description:
             'Optional docs/ VFS path (a page such as docs/workflows/blocks/agent.mdx, or a section such as docs/workflows) that limits the search scope',
         },
-        query: {
-          type: 'string',
-          description: 'The search query',
-        },
-        topK: {
-          type: 'number',
-          description: 'Number of results (default 5, max 25)',
-        },
-      },
-      required: ['query'],
-    },
-    resultSchema: undefined,
-  },
-  search_documentation: {
-    parameters: {
-      type: 'object',
-      properties: {
         query: {
           type: 'string',
           description: 'The search query',

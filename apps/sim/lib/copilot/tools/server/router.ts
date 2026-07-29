@@ -159,11 +159,6 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [queryLogsServerTool.name]: queryLogsServerTool,
   [getJobLogsServerTool.name]: getJobLogsServerTool,
   [searchDocsServerTool.name]: searchDocsServerTool,
-  // Transitional alias: sim and mothership deploy independently, so during the
-  // rollout of the search_documentation -> search_docs rename one side is still
-  // emitting the old id. The old params are a subset of the new, so routing them
-  // here is safe. Remove once both repos have shipped the rename.
-  search_documentation: searchDocsServerTool,
   [searchOnlineServerTool.name]: searchOnlineServerTool,
   [setEnvironmentVariablesServerTool.name]: setEnvironmentVariablesServerTool,
   [getCredentialsServerTool.name]: getCredentialsServerTool,

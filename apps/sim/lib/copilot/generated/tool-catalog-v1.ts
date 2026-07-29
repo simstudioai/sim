@@ -62,7 +62,6 @@ export interface ToolCatalogEntry {
     | 'get_deployed_workflow_state'
     | 'get_deployment_log'
     | 'get_page_contents'
-    | 'get_platform_actions'
     | 'get_scheduled_task_logs'
     | 'get_workflow_data'
     | 'get_workflow_run_options'
@@ -106,7 +105,6 @@ export interface ToolCatalogEntry {
     | 'scrape_page'
     | 'search'
     | 'search_docs'
-    | 'search_documentation'
     | 'search_integration_tools'
     | 'search_knowledge_base'
     | 'search_library_docs'
@@ -183,7 +181,6 @@ export interface ToolCatalogEntry {
     | 'get_deployed_workflow_state'
     | 'get_deployment_log'
     | 'get_page_contents'
-    | 'get_platform_actions'
     | 'get_scheduled_task_logs'
     | 'get_workflow_data'
     | 'get_workflow_run_options'
@@ -227,7 +224,6 @@ export interface ToolCatalogEntry {
     | 'scrape_page'
     | 'search'
     | 'search_docs'
-    | 'search_documentation'
     | 'search_integration_tools'
     | 'search_knowledge_base'
     | 'search_library_docs'
@@ -2478,15 +2474,6 @@ export const GetPageContents: ToolCatalogEntry = {
   },
 }
 
-export const GetPlatformActions: ToolCatalogEntry = {
-  id: 'get_platform_actions',
-  name: 'get_platform_actions',
-  route: 'sim',
-  mode: 'async',
-  parameters: { type: 'object', properties: {} },
-  hidden: true,
-}
-
 export const GetScheduledTaskLogs: ToolCatalogEntry = {
   id: 'get_scheduled_task_logs',
   name: 'get_scheduled_task_logs',
@@ -4057,22 +4044,6 @@ export const SearchDocs: ToolCatalogEntry = {
   },
 }
 
-export const SearchDocumentation: ToolCatalogEntry = {
-  id: 'search_documentation',
-  name: 'search_documentation',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      query: { type: 'string', description: 'The search query' },
-      topK: { type: 'number', description: 'Number of results (default 5, max 25)' },
-    },
-    required: ['query'],
-  },
-  hidden: true,
-}
-
 export const SearchIntegrationTools: ToolCatalogEntry = {
   id: 'search_integration_tools',
   name: 'search_integration_tools',
@@ -5481,7 +5452,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [GetDeployedWorkflowState.id]: GetDeployedWorkflowState,
   [GetDeploymentLog.id]: GetDeploymentLog,
   [GetPageContents.id]: GetPageContents,
-  [GetPlatformActions.id]: GetPlatformActions,
   [GetScheduledTaskLogs.id]: GetScheduledTaskLogs,
   [GetWorkflowData.id]: GetWorkflowData,
   [GetWorkflowRunOptions.id]: GetWorkflowRunOptions,
@@ -5525,7 +5495,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [ScrapePage.id]: ScrapePage,
   [Search.id]: Search,
   [SearchDocs.id]: SearchDocs,
-  [SearchDocumentation.id]: SearchDocumentation,
   [SearchIntegrationTools.id]: SearchIntegrationTools,
   [SearchKnowledgeBase.id]: SearchKnowledgeBase,
   [SearchLibraryDocs.id]: SearchLibraryDocs,
