@@ -294,7 +294,6 @@ async function updatePullRequest(
 async function ensureUpdatePullRequest(
   params: PiCloudBranchRunParams,
   branch: string,
-  existingPullRequest: BranchPullRequest | undefined,
   totals: PiRunTotals,
   secrets: readonly string[],
   signal?: AbortSignal
@@ -308,11 +307,6 @@ async function ensureUpdatePullRequest(
     },
     signal
   )
-  if (existingPullRequest) {
-    if (currentPullRequest && currentPullRequest.pullNumber !== existingPullRequest.pullNumber) {
-      throw new Error(`The open pull request for branch ${branch} changed during authoring`)
-    }
-  }
   if (currentPullRequest) {
     return updatePullRequest(params, currentPullRequest, secrets, signal)
   }
@@ -431,10 +425,9 @@ async function runCloudAuthoringPi(
   )
   const totals = createPiTotals()
   const thinking = mapThinkingLevel(params.thinkingLevel) ?? 'medium'
-  let existingPullRequest: BranchPullRequest | undefined
   if (params.mode === 'cloud_branch') {
     try {
-      existingPullRequest = await findOpenPrForBranch(
+      await findOpenPrForBranch(
         {
           owner: params.owner,
           repo: params.repo,
@@ -614,14 +607,7 @@ async function runCloudAuthoringPi(
 
       let pullRequest: OpenedPullRequest
       if (params.mode === 'cloud_branch') {
-        pullRequest = await ensureUpdatePullRequest(
-          params,
-          branch,
-          existingPullRequest,
-          totals,
-          secrets,
-          context.signal
-        )
+        pullRequest = await ensureUpdatePullRequest(params, branch, totals, secrets, context.signal)
       } else {
         const base = params.baseBranch?.trim() || detectedBase
         if (!base) {

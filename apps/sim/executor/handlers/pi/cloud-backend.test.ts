@@ -84,13 +84,13 @@ function branchParams(overrides: Partial<PiCloudBranchRunParams> = {}): PiCloudB
   }
 }
 
-function existingPullRequestOutput() {
+function existingPullRequestOutput(pullNumber = 7) {
   return {
     success: true,
     output: {
       title: 'Feature',
       body: '',
-      html_url: 'https://github.com/octo/demo/pull/7',
+      html_url: `https://github.com/octo/demo/pull/${pullNumber}`,
       state: 'open',
       merged: false,
       mergeable: true,
@@ -850,6 +850,28 @@ describe('runCloudPi', () => {
         { signal: undefined }
       )
       expect(result.prUrl).toBe('https://github.com/octo/demo/pull/1')
+    })
+
+    it('updates the one replacement PR found after authoring', async () => {
+      mockExecuteTool
+        .mockResolvedValueOnce({
+          success: true,
+          output: { items: [{ number: 7 }], count: 1 },
+        })
+        .mockResolvedValueOnce(existingPullRequestOutput())
+        .mockResolvedValueOnce({
+          success: true,
+          output: { items: [{ number: 8 }], count: 1 },
+        })
+        .mockResolvedValueOnce(existingPullRequestOutput(8))
+        .mockResolvedValueOnce(existingPullRequestOutput(8))
+
+      const result = await runCloudBranchPi(branchParams(), { onEvent: vi.fn() })
+
+      expect(result.prUrl).toBe('https://github.com/octo/demo/pull/8')
+      expect(
+        mockExecuteTool.mock.calls.some(([tool]: [string]) => tool === 'github_create_pr')
+      ).toBe(false)
     })
 
     it('does not claim a push happened when no-op authoring is followed by a PR error', async () => {
