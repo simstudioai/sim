@@ -79,23 +79,23 @@ describe('getToolDisplayTitle natural-language coverage', () => {
   })
 
   it('includes the query in search_docs titles', () => {
-    expect(getToolDisplayTitle('search_docs')).toBe('Searching docs')
+    expect(getToolDisplayTitle('search_docs')).toBe('Searching Sim docs')
     expect(getToolDisplayTitle('search_docs', { query: 'loop blocks iteration' })).toBe(
-      'Searching docs for "loop blocks iteration"'
+      'Searching Sim docs for "loop blocks iteration"'
     )
     // The completed-state flip must keep the suffix, not drop back to the bare label.
     expect(
       getToolCompletedTitle(
         getToolDisplayTitle('search_docs', { query: 'how to read workflow logs' })
       )
-    ).toBe('Searched docs for "how to read workflow logs"')
+    ).toBe('Searched Sim docs for "how to read workflow logs"')
     // A long agent-written query is truncated rather than blowing out the chip.
     expect(
       getToolDisplayTitle('search_docs', {
         query:
           'reference block outputs connection tags blockname.field pass data between blocks in a workflow',
       })?.length
-    ).toBeLessThanOrEqual('Searching docs for ""'.length + 60 + '...'.length)
+    ).toBeLessThanOrEqual('Searching Sim docs for ""'.length + 60 + '...'.length)
   })
 
   it('falls back to running code for function_execute without a title', () => {
