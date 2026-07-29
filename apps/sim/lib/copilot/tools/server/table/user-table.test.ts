@@ -1219,36 +1219,6 @@ describe('view operations', () => {
     mockIsFeatureEnabled.mockResolvedValue(true)
   })
 
-  it('list_views translates stored ids to column names', async () => {
-    mockListTableViews.mockResolvedValueOnce([
-      {
-        id: 'view_1',
-        name: 'Open items',
-        config: {
-          filter: { col_status: { $eq: 'open' } },
-          sort: { col_owner: 'asc' },
-          hiddenColumns: ['col_owner'],
-        },
-      },
-    ])
-
-    const result = await userTableServerTool.execute(
-      { operation: 'list_views', args: { tableId: 'tbl_1' } },
-      ctx
-    )
-
-    expect(result.success).toBe(true)
-    expect(result.data?.views).toEqual([
-      {
-        id: 'view_1',
-        name: 'Open items',
-        filter: { Status: { $eq: 'open' } },
-        sort: { Owner: 'asc' },
-        hiddenColumns: ['Owner'],
-      },
-    ])
-  })
-
   it('query_rows applies the view filter and sort, explicit args override', async () => {
     mockListTableViews.mockResolvedValue([
       {

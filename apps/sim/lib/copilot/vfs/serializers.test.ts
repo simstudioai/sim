@@ -13,6 +13,7 @@ import {
   serializeIntegrationSchema,
   serializeKBMeta,
   serializeTableMeta,
+  serializeTableViews,
   serializeWorkflowMeta,
 } from './serializers'
 
@@ -357,5 +358,53 @@ describe('serializeCredentials — type distinguishes reconnect flow', () => {
       serializeCredentials([{ providerId: 'OPENAI_API_KEY', scope: 'workspace', createdAt: now }])
     )
     expect(json[0].type).toBeUndefined()
+  })
+})
+
+describe('serializeTableViews', () => {
+  it('translates stored column ids to names for filter, sort, and hiddenColumns', () => {
+    const schema = {
+      columns: [
+        { id: 'col_status', name: 'Status', type: 'string' },
+        { id: 'col_owner', name: 'Owner', type: 'string' },
+      ],
+    } as never
+    const out = JSON.parse(
+      serializeTableViews(
+        [
+          {
+            id: 'view_1',
+            name: 'Open items',
+            config: {
+              filter: { $or: [{ col_status: { $eq: 'open' } }] },
+              sort: { col_owner: 'asc' },
+              hiddenColumns: ['col_owner'],
+            },
+          },
+        ],
+        schema
+      )
+    )
+    expect(out).toEqual([
+      {
+        id: 'view_1',
+        name: 'Open items',
+        filter: { $or: [{ Status: { $eq: 'open' } }] },
+        sort: { Owner: 'asc' },
+        hiddenColumns: ['Owner'],
+      },
+    ])
+  })
+
+  it('passes stale ids through rather than dropping them', () => {
+    const schema = { columns: [{ id: 'col_a', name: 'A', type: 'string' }] } as never
+    const out = JSON.parse(
+      serializeTableViews(
+        [{ id: 'v', name: 'V', config: { filter: { col_gone: { $eq: 1 } } } }],
+        schema
+      )
+    )
+    expect(out[0].filter).toEqual({ col_gone: { $eq: 1 } })
+    expect(out[0].sort).toBeNull()
   })
 })

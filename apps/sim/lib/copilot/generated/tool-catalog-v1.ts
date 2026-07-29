@@ -3515,7 +3515,7 @@ export const QueryUserTable: ToolCatalogEntry = {
       operation: {
         type: 'string',
         description: 'The read operation to perform',
-        enum: ['get', 'get_schema', 'get_row', 'query_rows', 'list_views'],
+        enum: ['get', 'get_schema', 'get_row', 'query_rows'],
       },
     },
     required: ['operation', 'args'],
@@ -4922,7 +4922,6 @@ export const UserTable: ToolCatalogEntry = {
           'list_workflow_outputs',
           'list_enrichments',
           'add_enrichment',
-          'list_views',
           'create_view',
           'update_view',
           'delete_view',
@@ -5291,7 +5290,6 @@ export const QueryUserTableOperation = {
   getSchema: 'get_schema',
   getRow: 'get_row',
   queryRows: 'query_rows',
-  listViews: 'list_views',
 } as const
 
 export type QueryUserTableOperation =
@@ -5302,7 +5300,6 @@ export const QueryUserTableOperationValues = [
   QueryUserTableOperation.getSchema,
   QueryUserTableOperation.getRow,
   QueryUserTableOperation.queryRows,
-  QueryUserTableOperation.listViews,
 ] as const
 
 export const SearchKnowledgeBaseOperation = {
@@ -5381,7 +5378,6 @@ export const UserTableOperation = {
   listWorkflowOutputs: 'list_workflow_outputs',
   listEnrichments: 'list_enrichments',
   addEnrichment: 'add_enrichment',
-  listViews: 'list_views',
   createView: 'create_view',
   updateView: 'update_view',
   deleteView: 'delete_view',
@@ -5420,7 +5416,6 @@ export const UserTableOperationValues = [
   UserTableOperation.listWorkflowOutputs,
   UserTableOperation.listEnrichments,
   UserTableOperation.addEnrichment,
-  UserTableOperation.listViews,
   UserTableOperation.createView,
   UserTableOperation.updateView,
   UserTableOperation.deleteView,

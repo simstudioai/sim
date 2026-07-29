@@ -2150,33 +2150,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
         }
 
-        case 'list_views': {
-          if (!args.tableId) return { success: false, message: 'Table ID is required' }
-          if (!workspaceId) return { success: false, message: 'Workspace ID is required' }
-          const tableForViews = await getTableById(args.tableId)
-          if (!tableForViews || tableForViews.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-          const viewNameById = buildNameById(tableForViews.schema)
-          const views = (
-            await listTableViews(args.tableId, tableForViews.schema.columns ?? [])
-          ).map((view) => ({
-            id: view.id,
-            name: view.name,
-            // Stored config is column-id keyed; the wire speaks column names.
-            filter: view.config.filter ? filterIdsToNames(view.config.filter, viewNameById) : null,
-            sort: view.config.sort ? sortIdsToNames(view.config.sort, viewNameById) : null,
-            hiddenColumns: (view.config.hiddenColumns ?? []).map(
-              (id) => viewNameById.get(id) ?? id
-            ),
-          }))
-          return {
-            success: true,
-            message: `Found ${views.length} view${views.length === 1 ? '' : 's'}`,
-            data: { views },
-          }
-        }
-
         case 'create_view':
         case 'update_view':
         case 'delete_view': {

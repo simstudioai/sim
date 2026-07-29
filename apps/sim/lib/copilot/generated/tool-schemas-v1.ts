@@ -3183,7 +3183,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         operation: {
           type: 'string',
           description: 'The read operation to perform',
-          enum: ['get', 'get_schema', 'get_row', 'query_rows', 'list_views'],
+          enum: ['get', 'get_schema', 'get_row', 'query_rows'],
         },
       },
       required: ['operation', 'args'],
@@ -4587,7 +4587,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'list_workflow_outputs',
             'list_enrichments',
             'add_enrichment',
-            'list_views',
             'create_view',
             'update_view',
             'delete_view',

@@ -319,8 +319,6 @@ function userTableTitle(args: ToolArgs): string {
       return 'Listing enrichments'
     case 'add_enrichment':
       return `Adding ${name || 'enrichment'}`
-    case 'list_views':
-      return 'Listing table views'
     case 'create_view':
       return 'Creating table view'
     case 'update_view':
