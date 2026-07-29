@@ -1,7 +1,12 @@
 /**
  * Environment utility functions for consistent environment detection across the application
  */
-import { env, getEnv, isFalsy, isTruthy } from './env'
+import {
+  ENTERPRISE_FEATURE_LEGACY_DEFAULTS,
+  type EnterpriseFeature,
+  resolveEnterpriseEntitlement,
+} from './enterprise-entitlements'
+import { env, envBoolean, getEnv, isFalsy, isTruthy } from './env'
 
 /**
  * Is the application running in production mode
@@ -172,26 +177,78 @@ export const isSlackExtendedScopesEnabled =
 export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)
 
 /**
- * Is SSO enabled for enterprise authentication
+ * Turns on the whole enterprise suite for a deployment that does not run
+ * billing. Individual feature flags below still win where they are set, so an
+ * operator can enable everything and then switch one feature back off.
+ *
+ * Server code reads `ENTERPRISE_ENABLED`; the browser reads the
+ * `NEXT_PUBLIC_ENTERPRISE_ENABLED` twin (see {@link isBillingEnabled}).
+ * Deployments must set both together.
  */
-export const isSsoEnabled = isTruthy(env.SSO_ENABLED)
+export const isEnterpriseEnabled =
+  typeof window === 'undefined'
+    ? isTruthy(env.ENTERPRISE_ENABLED)
+    : isTruthy(getEnv('NEXT_PUBLIC_ENTERPRISE_ENABLED'))
 
 /**
- * Is access control (permission groups) enabled via env var override.
- * This bypasses plan requirements for self-hosted deployments.
- *
- * Server code reads `ACCESS_CONTROL_ENABLED`; the browser reads the
- * `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` twin (see {@link isBillingEnabled}).
+ * Reads a feature's own flag as a tri-state, picking the server var or its
+ * browser twin for the current runtime. `undefined` means the operator left it
+ * unset, which is what lets the master switch and legacy default apply.
  */
-export const isAccessControlEnabled =
-  typeof window === 'undefined'
-    ? isTruthy(env.ACCESS_CONTROL_ENABLED)
-    : isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
+function explicitEnterpriseFlag(
+  serverValue: boolean | string | undefined,
+  clientKey: string
+): boolean | undefined {
+  return typeof window === 'undefined' ? envBoolean(serverValue) : envBoolean(getEnv(clientKey))
+}
+
+/**
+ * Resolves one enterprise feature for this deployment.
+ *
+ * When billing runs, subscription plans decide entitlement and these flags are
+ * only explicit overrides — so an unset flag stays `false` and never widens
+ * access on Sim Cloud. When billing is off there is no plan to consult, so
+ * resolution falls through the master switch to the feature's legacy default
+ * (see {@link ENTERPRISE_FEATURE_LEGACY_DEFAULTS}).
+ */
+function enterpriseFeatureEnabled(
+  feature: EnterpriseFeature,
+  serverValue: boolean | string | undefined,
+  clientKey: string
+): boolean {
+  const explicit = explicitEnterpriseFlag(serverValue, clientKey)
+  if (isBillingEnabled) return explicit ?? false
+  return resolveEnterpriseEntitlement({
+    explicit,
+    masterEnabled: isEnterpriseEnabled,
+    legacyDefault: ENTERPRISE_FEATURE_LEGACY_DEFAULTS[feature],
+  })
+}
+
+/**
+ * Is SSO enabled for enterprise authentication
+ */
+export const isSsoEnabled = enterpriseFeatureEnabled(
+  'sso',
+  env.SSO_ENABLED,
+  'NEXT_PUBLIC_SSO_ENABLED'
+)
+
+/**
+ * Is access control (permission groups) enabled.
+ * Required for permission-group enforcement to run at all off-hosted.
+ */
+export const isAccessControlEnabled = enterpriseFeatureEnabled(
+  'accessControl',
+  env.ACCESS_CONTROL_ENABLED,
+  'NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'
+)
 
 /**
  * Is organizations enabled.
- * True if billing is enabled (orgs come with billing), OR explicitly enabled via env var,
- * OR if access control is enabled (access control requires organizations).
+ * True if billing is enabled (orgs come with billing), OR resolved on for this
+ * deployment, OR if access control is enabled (access control requires
+ * organizations).
  *
  * Each term resolves through its `NEXT_PUBLIC_*` twin in the browser (see
  * {@link isBillingEnabled}), so client code — e.g. the better-auth
@@ -199,46 +256,82 @@ export const isAccessControlEnabled =
  */
 export const isOrganizationsEnabled =
   isBillingEnabled ||
-  (typeof window === 'undefined'
-    ? isTruthy(env.ORGANIZATIONS_ENABLED)
-    : isTruthy(getEnv('NEXT_PUBLIC_ORGANIZATIONS_ENABLED'))) ||
+  enterpriseFeatureEnabled(
+    'organizations',
+    env.ORGANIZATIONS_ENABLED,
+    'NEXT_PUBLIC_ORGANIZATIONS_ENABLED'
+  ) ||
   isAccessControlEnabled
 
 /**
- * Is inbox (Sim Mailer) enabled via env var override
- * This bypasses hosted requirements for self-hosted deployments
+ * Is inbox (Sim Mailer) enabled
  */
-export const isInboxEnabled = isTruthy(env.INBOX_ENABLED)
+export const isInboxEnabled = enterpriseFeatureEnabled(
+  'inbox',
+  env.INBOX_ENABLED,
+  'NEXT_PUBLIC_INBOX_ENABLED'
+)
 
 /**
- * Is whitelabeling enabled via env var override
- * This bypasses hosted requirements for self-hosted deployments
+ * Is whitelabeling enabled
  */
-export const isWhitelabelingEnabled = isTruthy(env.WHITELABELING_ENABLED)
+export const isWhitelabelingEnabled = enterpriseFeatureEnabled(
+  'whitelabeling',
+  env.WHITELABELING_ENABLED,
+  'NEXT_PUBLIC_WHITELABELING_ENABLED'
+)
 
 /**
- * Is audit logs enabled via env var override
- * This bypasses hosted requirements for self-hosted deployments
+ * Is audit log reading enabled.
+ *
+ * Off-hosted this replaces the enterprise-subscription check that audit access
+ * used to require, which no billing-free deployment could ever satisfy.
  */
-export const isAuditLogsEnabled = isTruthy(env.AUDIT_LOGS_ENABLED)
+export const isAuditLogsEnabled = enterpriseFeatureEnabled(
+  'auditLogs',
+  env.AUDIT_LOGS_ENABLED,
+  'NEXT_PUBLIC_AUDIT_LOGS_ENABLED'
+)
 
 /**
- * Is data retention enabled via env var override
- * This bypasses hosted requirements for self-hosted deployments
+ * Is retention *deletion* enabled.
+ *
+ * Configuring retention has always been possible with billing off; this flag
+ * governs whether the cleanup pass actually expires data. Opt-in on purpose —
+ * see the note on `dataRetention` in {@link ENTERPRISE_FEATURE_LEGACY_DEFAULTS}.
  */
-export const isDataRetentionEnabled = isTruthy(env.DATA_RETENTION_ENABLED)
+export const isDataRetentionEnabled = enterpriseFeatureEnabled(
+  'dataRetention',
+  env.DATA_RETENTION_ENABLED,
+  'NEXT_PUBLIC_DATA_RETENTION_ENABLED'
+)
 
 /**
- * Is data drains enabled via env var override
- * This bypasses hosted requirements for self-hosted deployments
+ * Is data drains enabled
  */
-export const isDataDrainsEnabled = isTruthy(env.DATA_DRAINS_ENABLED)
+export const isDataDrainsEnabled = enterpriseFeatureEnabled(
+  'dataDrains',
+  env.DATA_DRAINS_ENABLED,
+  'NEXT_PUBLIC_DATA_DRAINS_ENABLED'
+)
 
 /**
- * Is workspace forking enabled via env var override
- * This bypasses hosted (Enterprise) requirements for self-hosted deployments
+ * Are organization session policies enabled
  */
-export const isForkingEnabled = isTruthy(env.FORKING_ENABLED)
+export const isSessionPoliciesEnabled = enterpriseFeatureEnabled(
+  'sessionPolicies',
+  env.SESSION_POLICIES_ENABLED,
+  'NEXT_PUBLIC_SESSION_POLICIES_ENABLED'
+)
+
+/**
+ * Is workspace forking enabled
+ */
+export const isForkingEnabled = enterpriseFeatureEnabled(
+  'forking',
+  env.FORKING_ENABLED,
+  'NEXT_PUBLIC_FORKING_ENABLED'
+)
 
 /**
  * The selected remote sandbox provider (`SANDBOX_PROVIDER`), defaulting to E2B.

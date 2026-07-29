@@ -24,7 +24,17 @@ import {
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { McpIcon } from '@/components/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { isHosted } from '@/lib/core/config/env-flags'
+import {
+  isAccessControlEnabled,
+  isAuditLogsEnabled,
+  isDataDrainsEnabled,
+  isDataRetentionEnabled,
+  isHosted,
+  isInboxEnabled,
+  isSessionPoliciesEnabled,
+  isSsoEnabled,
+  isWhitelabelingEnabled,
+} from '@/lib/core/config/env-flags'
 
 export type SettingsPlane = 'account' | 'organization' | 'selfhost' | 'workspace'
 
@@ -166,16 +176,27 @@ export interface SettingsSectionRegistryEntry {
   planes?: SettingsPlaneProjections
 }
 
+/**
+ * Which enterprise sections a self-hosted deployment may show.
+ *
+ * These read the same resolved flags the server gates use, so a section is
+ * visible exactly when its API would accept the request. Reading the raw
+ * `NEXT_PUBLIC_*` vars here instead is what previously let nav and server
+ * disagree — a feature could be reachable but hidden, or listed but rejected.
+ *
+ * `customBlocks` stays on its own var because its server gate runs through the
+ * AppConfig-backed feature-flag service rather than the entitlement resolver.
+ */
 const SETTINGS_SELF_HOSTED_OVERRIDES = {
-  accessControl: isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED')),
-  auditLogs: isTruthy(getEnv('NEXT_PUBLIC_AUDIT_LOGS_ENABLED')),
+  accessControl: isAccessControlEnabled,
+  auditLogs: isAuditLogsEnabled,
   customBlocks: isTruthy(getEnv('NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED')),
-  dataDrains: isTruthy(getEnv('NEXT_PUBLIC_DATA_DRAINS_ENABLED')),
-  dataRetention: isTruthy(getEnv('NEXT_PUBLIC_DATA_RETENTION_ENABLED')),
-  inbox: isTruthy(getEnv('NEXT_PUBLIC_INBOX_ENABLED')),
-  sessionPolicies: isTruthy(getEnv('NEXT_PUBLIC_SESSION_POLICIES_ENABLED')),
-  sso: isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')),
-  whitelabeling: isTruthy(getEnv('NEXT_PUBLIC_WHITELABELING_ENABLED')),
+  dataDrains: isDataDrainsEnabled,
+  dataRetention: isDataRetentionEnabled,
+  inbox: isInboxEnabled,
+  sessionPolicies: isSessionPoliciesEnabled,
+  sso: isSsoEnabled,
+  whitelabeling: isWhitelabelingEnabled,
 } as const
 
 export const SETTINGS_NAVIGATION_BILLING_ENABLED = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
