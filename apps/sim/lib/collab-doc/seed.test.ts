@@ -68,6 +68,20 @@ describe('buildFileDocSeed', () => {
     expect(doc.getText('marker').toString()).toBe('cached')
   })
 
+  it('falls through to conversion when the cache read fails (never blocks a cold open)', async () => {
+    // The cache is a best-effort optimization over the durable markdown we already hold; a transient DB
+    // error or a not-yet-migrated cache table must convert, not abort the seed.
+    mockFetchBuffer.mockResolvedValue(Buffer.from('# Title\n\ntext.', 'utf-8'))
+    mockLoadFresh.mockRejectedValue(new Error('cache table missing'))
+
+    const seed = await buildFileDocSeed('ws-1', 'file-1')
+    expect(seed).not.toBeNull()
+
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, seed!.update)
+    expect(yDocToMarkdown(doc)).toBe(serializeMarkdownBody('# Title\n\ntext.'))
+  })
+
   it('strips frontmatter — only the body seeds the collaborative doc', async () => {
     mockFetchBuffer.mockResolvedValue(Buffer.from('---\ntitle: X\n---\n\n# Body\n\ntext.', 'utf-8'))
 

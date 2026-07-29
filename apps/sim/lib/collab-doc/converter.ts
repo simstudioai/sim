@@ -41,7 +41,7 @@ import {
  * `Collaboration.configure({ document })` with no explicit `field`, so it uses TipTap's default,
  * `'default'`. The server MUST target the same fragment or the client would sync an empty document.
  */
-export const COLLAB_DOC_FIELD = 'default'
+const COLLAB_DOC_FIELD = 'default'
 
 let cachedSchema: Schema | null = null
 
