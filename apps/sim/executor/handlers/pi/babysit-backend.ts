@@ -11,7 +11,10 @@ import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { type PiSandboxRunner, withPiSandbox } from '@/lib/execution/remote-sandbox'
-import { resolvePiSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
+import {
+  resolvePiRunLifetimeMs,
+  resolvePiSandboxLifetimeMs,
+} from '@/lib/execution/remote-sandbox/pi-lifetime'
 import {
   assertBabysitPinned,
   type BabysitCheck,
@@ -50,11 +53,11 @@ import {
   GIT_CONFIG_DIGEST_MARKER,
   MAX_DIFF_BYTES,
   MIN_PI_TIMEOUT_MS,
-  PI_TIMEOUT_MS,
   PROMPT_PATH,
   PUSH_ERROR_MAX,
   REPO_DIR,
   raceAbort,
+  resolvePiTimeoutMs,
   scrubGitSecrets,
 } from '@/executor/handlers/pi/cloud-shared'
 import { buildPiPrompt } from '@/executor/handlers/pi/context'
@@ -814,7 +817,19 @@ export async function runBabysitPiWithOptions(
       landed: false,
     }
 
-    return await withPiSandbox(async (runner) => {
+    // Resolved here rather than at the top of the run: the GitHub reads above
+    // already spent part of the execution's budget, and reading it at the moment
+    // of creation is what keeps the sandbox from outliving the run by that much.
+    //
+    // Deliberately `context.signal`, not the `signal` every other call in this
+    // function uses. The deadline is recorded against the signal the executor
+    // created; `createCancellationSignal` returns a fresh controller that only
+    // forwards aborts, so asking it for a deadline answers "unknown" and would
+    // silently leave the longest-lived Pi mode on the provider ceiling.
+    const lifetimeMs = resolvePiRunLifetimeMs(context.signal)
+    const piTimeoutMs = resolvePiTimeoutMs(lifetimeMs)
+
+    return await withPiSandbox({ lifetimeMs }, async (runner) => {
       const clone = await raceAbort(
         runner.run(BABYSIT_CLONE_SCRIPT, {
           envs: {
@@ -969,7 +984,7 @@ export async function runBabysitPiWithOptions(
         const round = buildRoundPrompt(params, latestThreads!, promptChecks, diagnostics, secrets)
         progress.notes.push(...round.notes)
         const agentTimeoutMs = Math.min(
-          PI_TIMEOUT_MS,
+          piTimeoutMs,
           lifetime - (Date.now() - startedAt) - ROUND_FINALIZATION_RESERVE_MS
         )
         if (agentTimeoutMs < MIN_ROUND_BUDGET_MS) {

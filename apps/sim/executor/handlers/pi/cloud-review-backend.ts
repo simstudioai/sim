@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
 import { withPiSandbox } from '@/lib/execution/remote-sandbox'
+import { resolvePiRunLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import type { PiBackendRun, PiCloudReviewRunParams } from '@/executor/handlers/pi/backend'
 import {
   CLOUD_REVIEW_TOOL_NAMES,
@@ -224,8 +225,10 @@ export const runCloudReviewPi: PiBackendRun<PiCloudReviewRunParams> = async (par
     const snapshot = await fetchOpenPrSnapshot(params, context.signal)
     const isolatedDir = await mkdtemp(join(tmpdir(), 'sim-pi-review-'))
 
+    const lifetimeMs = resolvePiRunLifetimeMs(context.signal)
+
     try {
-      return await withPiSandbox(async (runner) => {
+      return await withPiSandbox({ lifetimeMs }, async (runner) => {
         await runner.writeFile(GIT_ASKPASS_PATH, GIT_ASKPASS_SCRIPT)
         const fetched = await raceAbort(
           runner.run(FETCH_PR_SCRIPT, {

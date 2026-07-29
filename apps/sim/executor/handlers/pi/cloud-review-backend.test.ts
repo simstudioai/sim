@@ -60,7 +60,7 @@ const mockModelRuntime = {
 }
 
 vi.mock('@/lib/execution/remote-sandbox', () => ({
-  withPiSandbox: (fn: (runner: unknown) => unknown) =>
+  withPiSandbox: (_options: unknown, fn: (runner: unknown) => unknown) =>
     fn({ run: mockRun, writeFile: mockWriteFile }),
 }))
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))

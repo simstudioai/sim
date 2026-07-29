@@ -88,3 +88,76 @@ describe('resolvePiSandboxLifetimeMs', () => {
     expect(lifetime).toBe(max)
   })
 })
+
+describe('resolvePiRunLifetimeMs', () => {
+  it('keeps the provider ceiling when the execution is untimed', async () => {
+    const { createTimeoutAbortController } = await import('@/lib/core/execution-limits')
+    const { resolvePiRunLifetimeMs, PI_SANDBOX_MAX_LIFETIME_MS } = await import(
+      '@/lib/execution/remote-sandbox/pi-lifetime'
+    )
+
+    // No timeout means no deadline was recorded, so there is nothing to narrow
+    // to — the ceiling is the only bound available.
+    const untimed = createTimeoutAbortController()
+
+    expect(resolvePiRunLifetimeMs(untimed.signal)).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
+    expect(resolvePiRunLifetimeMs()).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
+  })
+
+  it('narrows to the deadline of a run shorter than the ceiling', async () => {
+    const { createTimeoutAbortController } = await import('@/lib/core/execution-limits')
+    const { resolvePiRunLifetimeMs, PI_SANDBOX_MAX_LIFETIME_MS } = await import(
+      '@/lib/execution/remote-sandbox/pi-lifetime'
+    )
+
+    // A free-plan sync run gets five minutes. Handing its sandbox the sub-hour
+    // ceiling is what left an orphan billing for an hour after a five-minute run.
+    const timeout = createTimeoutAbortController(5 * 60 * 1000)
+    const lifetime = resolvePiRunLifetimeMs(timeout.signal)
+
+    expect(lifetime).toBeLessThanOrEqual(5 * 60 * 1000)
+    expect(lifetime).toBeGreaterThan(4 * 60 * 1000)
+    expect(lifetime).toBeLessThan(PI_SANDBOX_MAX_LIFETIME_MS)
+    timeout.cleanup()
+  })
+
+  it('keeps the ceiling when the run outlives it', async () => {
+    const { createTimeoutAbortController } = await import('@/lib/core/execution-limits')
+    const { resolvePiRunLifetimeMs, PI_SANDBOX_MAX_LIFETIME_MS } = await import(
+      '@/lib/execution/remote-sandbox/pi-lifetime'
+    )
+
+    // The async ceiling is 90 minutes, above what E2B will grant, so the
+    // provider cap still wins.
+    const timeout = createTimeoutAbortController(90 * 60 * 1000)
+
+    expect(resolvePiRunLifetimeMs(timeout.signal)).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
+    timeout.cleanup()
+  })
+
+  it('keeps the ceiling for a signal that carries no deadline', async () => {
+    const { resolvePiRunLifetimeMs, PI_SANDBOX_MAX_LIFETIME_MS } = await import(
+      '@/lib/execution/remote-sandbox/pi-lifetime'
+    )
+
+    // A derived or foreign signal reports `undefined` remaining, which means
+    // "unknown", not "expired" — narrowing to zero there would kill every run.
+    expect(resolvePiRunLifetimeMs(new AbortController().signal)).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
+  })
+
+  it('has no lifetime to narrow on a provider without one', async () => {
+    vi.resetModules()
+    vi.doMock('@/lib/core/config/env', () => ({
+      env: { SANDBOX_PROVIDER: 'daytona' },
+    }))
+    const { createTimeoutAbortController } = await import('@/lib/core/execution-limits')
+    const { resolvePiRunLifetimeMs } = await import('@/lib/execution/remote-sandbox/pi-lifetime')
+
+    // Daytona stops on inactivity, so imposing the run's deadline as an absolute
+    // lifetime would cut a turn to fit a limit that does not apply to it.
+    const timeout = createTimeoutAbortController(5 * 60 * 1000)
+
+    expect(resolvePiRunLifetimeMs(timeout.signal)).toBeUndefined()
+    timeout.cleanup()
+  })
+})

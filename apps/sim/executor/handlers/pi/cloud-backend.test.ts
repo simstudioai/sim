@@ -26,6 +26,9 @@ vi.mock('@/lib/execution/remote-sandbox', () => ({
 }))
 vi.mock('@/lib/execution/remote-sandbox/pi-lifetime', () => ({
   resolvePiSandboxLifetimeMs: () => 40 * 60 * 1000,
+  // Same ceiling: these cases run without an execution deadline, where the run
+  // lifetime is the ceiling because there is nothing shorter to narrow to.
+  resolvePiRunLifetimeMs: () => 40 * 60 * 1000,
 }))
 vi.mock('@/executor/handlers/pi/babysit-backend', () => ({
   runBabysitPi: mockRunBabysit,
@@ -64,7 +67,7 @@ function baseParams(overrides: Partial<PiCloudRunParams> = {}): PiCloudRunParams
 describe('runCloudPi', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockWithPiSandbox.mockImplementation((fn: (runner: unknown) => unknown) =>
+    mockWithPiSandbox.mockImplementation((_options: unknown, fn: (runner: unknown) => unknown) =>
       fn({ run: mockRun, readFile: mockReadFile, writeFile: mockWriteFile })
     )
     mockProviderEnvVar.mockReturnValue('ANTHROPIC_API_KEY')

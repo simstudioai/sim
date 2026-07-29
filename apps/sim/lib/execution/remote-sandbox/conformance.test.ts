@@ -402,7 +402,7 @@ describe('provider selection', () => {
     mockGetSessionCommand.mockResolvedValue({ exitCode: 2 })
 
     const streamedOut: string[] = []
-    const result = await withPiSandbox((runner) =>
+    const result = await withPiSandbox({}, (runner) =>
       runner.run('git clone ...', {
         timeoutMs: 1000,
         onStdout: (c) => streamedOut.push(c),
@@ -422,7 +422,7 @@ describe('provider selection', () => {
     // bounded by the timeout rather than awaited forever.
     mockGetSessionCommandLogs.mockReturnValue(new Promise<void>(() => {}))
 
-    const result = await withPiSandbox((runner) =>
+    const result = await withPiSandbox({}, (runner) =>
       runner.run('hang forever', { timeoutMs: 20, onStdout: () => {} })
     )
 
@@ -438,7 +438,7 @@ describe('provider selection', () => {
     // empty/opaque message.
     mockGetSessionCommandLogs.mockRejectedValue(new Error('session died'))
 
-    const result = await withPiSandbox((runner) =>
+    const result = await withPiSandbox({}, (runner) =>
       runner.run('git clone ...', { timeoutMs: 1000, onStdout: () => {} })
     )
 
@@ -450,7 +450,7 @@ describe('provider selection', () => {
     useProvider('daytona')
     mockExecuteSessionCommand.mockRejectedValue(new Error('start failed'))
 
-    const result = await withPiSandbox((runner) =>
+    const result = await withPiSandbox({}, (runner) =>
       runner.run('git clone ...', { timeoutMs: 1000, onStdout: () => {} })
     )
 
@@ -467,7 +467,7 @@ describe('Pi sandbox lifetime', () => {
   it('asks E2B for a lifetime under the one-hour Hobby ceiling', async () => {
     useProvider('e2b')
 
-    await withPiSandbox(async () => undefined)
+    await withPiSandbox({}, async () => undefined)
 
     const [template, options] = mockE2BCreate.mock.calls[0]
     expect(template).toBe('sim-pi')
@@ -481,7 +481,7 @@ describe('Pi sandbox lifetime', () => {
     useProvider('e2b')
     mockEnv.PI_SANDBOX_LIFETIME_MS = '5400000'
 
-    await withPiSandbox(async () => undefined)
+    await withPiSandbox({}, async () => undefined)
 
     expect(mockE2BCreate.mock.calls[0][1].timeoutMs).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
   })
@@ -490,7 +490,7 @@ describe('Pi sandbox lifetime', () => {
     useProvider('e2b')
     mockEnv.PI_SANDBOX_LIFETIME_MS = '2700000'
 
-    await withPiSandbox(async () => undefined)
+    await withPiSandbox({}, async () => undefined)
 
     expect(mockE2BCreate.mock.calls[0][1].timeoutMs).toBe(2_700_000)
   })
@@ -501,7 +501,7 @@ describe('Pi sandbox lifetime', () => {
     // race a sandbox E2B may already have reaped.
     mockEnv.PI_SANDBOX_LIFETIME_MS = '600000'
 
-    await withPiSandbox(async () => undefined)
+    await withPiSandbox({}, async () => undefined)
 
     expect(mockE2BCreate.mock.calls[0][1].timeoutMs).toBe(PI_SANDBOX_MIN_LIFETIME_MS)
   })
@@ -515,10 +515,34 @@ describe('Pi sandbox lifetime', () => {
     expect(mockE2BCreate.mock.calls[0][1]).not.toHaveProperty('timeoutMs')
   })
 
+  it("honours a caller's lifetime below the ceiling", async () => {
+    useProvider('e2b')
+
+    // This is the run's own execution deadline arriving from the backend. It is
+    // deliberately not subject to PI_SANDBOX_MIN_LIFETIME_MS: that floor guards a
+    // misconfigured env var, whereas a short deadline is a fact about the run,
+    // and rounding it up is what left a five-minute run's sandbox billing for an
+    // hour.
+    await withPiSandbox({ lifetimeMs: 4 * 60 * 1000 }, async () => undefined)
+
+    expect(mockE2BCreate.mock.calls[0][1].timeoutMs).toBe(4 * 60 * 1000)
+  })
+
+  it('does not read an expired lifetime as no lifetime at all', async () => {
+    useProvider('e2b')
+
+    // Zero is what a run past its deadline resolves to. Testing it for
+    // truthiness would drop the key and hand that run E2B's five-minute default
+    // — longer than the ceiling it asked for, on the run least entitled to it.
+    await withPiSandbox({ lifetimeMs: 0 }, async () => undefined)
+
+    expect(mockE2BCreate.mock.calls[0][1]).toHaveProperty('timeoutMs', 0)
+  })
+
   it('leaves Daytona alone: its inactivity interval is a different thing', async () => {
     useProvider('daytona')
 
-    await withPiSandbox(async () => undefined)
+    await withPiSandbox({}, async () => undefined)
 
     expect(mockDaytonaCreate).toHaveBeenCalledWith(
       expect.objectContaining({ snapshot: 'sim-pi:v1' })

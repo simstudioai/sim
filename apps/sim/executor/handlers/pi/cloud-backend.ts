@@ -23,7 +23,10 @@ import { generateShortId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { getMaxExecutionTimeout, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 import { withPiSandbox } from '@/lib/execution/remote-sandbox'
-import { resolvePiSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
+import {
+  resolvePiRunLifetimeMs,
+  resolvePiSandboxLifetimeMs,
+} from '@/lib/execution/remote-sandbox/pi-lifetime'
 import { runBabysitPi } from '@/executor/handlers/pi/babysit-backend'
 import type { PiBackendRun, PiCloudRunParams, PiRunResult } from '@/executor/handlers/pi/backend'
 import {
@@ -35,7 +38,6 @@ import {
   FINALIZE_TIMEOUT_MS,
   GIT_CONFIG_DIGEST_LINE,
   MAX_DIFF_BYTES,
-  PI_TIMEOUT_MS,
   PREPARE_SCRIPT,
   PROMPT_PATH,
   PUSH_ERR_PATH,
@@ -43,6 +45,7 @@ import {
   PUSH_SCRIPT,
   REPO_DIR,
   raceAbort,
+  resolvePiTimeoutMs,
   scrubGitSecrets,
 } from '@/executor/handlers/pi/cloud-shared'
 import { buildPiPrompt } from '@/executor/handlers/pi/context'
@@ -263,7 +266,12 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
   const totals = createPiTotals()
   const thinking = mapThinkingLevel(params.thinkingLevel) ?? 'medium'
 
-  const created = await withPiSandbox<CreatePrPhaseResult>(async (runner) => {
+  // Resolved once and shared: the sandbox is created with this lifetime and the
+  // agent turn reserves its finalize budget against the same number.
+  const lifetimeMs = resolvePiRunLifetimeMs(context.signal)
+  const piTimeoutMs = resolvePiTimeoutMs(lifetimeMs)
+
+  const created = await withPiSandbox<CreatePrPhaseResult>({ lifetimeMs }, async (runner) => {
     try {
       const clone = await raceAbort(
         runner.run(CLONE_SCRIPT, {
@@ -331,7 +339,7 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
                 }
               : {}),
           },
-          timeoutMs: PI_TIMEOUT_MS,
+          timeoutMs: piTimeoutMs,
           onStdout: handleChunk,
         }),
         context.signal

@@ -59,7 +59,7 @@ vi.mock('@/executor/handlers/pi/babysit-github', async (importOriginal) => {
   }
 })
 
-import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { createTimeoutAbortController, getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
   resolveBabysitExecutionBudgetMs,
   runBabysitPiWithOptions,
@@ -283,6 +283,37 @@ describe('runBabysitPiWithOptions', () => {
     expect(mockWithPiSandbox).not.toHaveBeenCalled()
   })
 
+  it("creates its sandbox against the execution's deadline, not the provider ceiling", async () => {
+    mockFetchSnapshot.mockResolvedValue(snapshot)
+    mockFetchThreads.mockResolvedValue({
+      actionable: [],
+      skipped: [],
+      totalUnresolved: 0,
+      latestReview: null,
+    })
+    mockFetchChecks.mockResolvedValue(greenChecks)
+    const { runner } = makeRunner({})
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
+
+    // Babysit wraps `context.signal` in its own cancellation controller, and the
+    // deadline is recorded against the executor's signal alone. Resolving the
+    // lifetime from that wrapper answers "unknown" and silently falls back to the
+    // provider ceiling — the run still succeeds, it just over-reserves the
+    // sandbox. This is the longest-lived Pi mode, so that regression matters most
+    // here and is invisible without an assertion.
+    const timeout = createTimeoutAbortController(6 * 60 * 1000)
+    await runBabysitPiWithOptions(
+      params(),
+      { onEvent: vi.fn(), signal: timeout.signal },
+      { roundWaitMs: 0 }
+    )
+
+    const [{ lifetimeMs }] = mockWithPiSandbox.mock.calls[0]
+    expect(lifetimeMs).toBeLessThanOrEqual(6 * 60 * 1000)
+    expect(lifetimeMs).toBeGreaterThan(5 * 60 * 1000)
+    timeout.cleanup()
+  })
+
   it('requests the initial review and waits without consuming a round when the PR starts clean', async () => {
     mockFetchSnapshot.mockResolvedValue(snapshot)
     mockFetchThreads.mockResolvedValue({
@@ -293,7 +324,7 @@ describe('runBabysitPiWithOptions', () => {
     })
     mockFetchChecks.mockResolvedValue(greenChecks)
     const { runner } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() }, { roundWaitMs: 0 })
 
@@ -325,7 +356,7 @@ describe('runBabysitPiWithOptions', () => {
     const { runner } = makeRunner({
       cloneResult: commandResult('', 'clone failed', 1),
     })
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() })
 
@@ -348,7 +379,7 @@ describe('runBabysitPiWithOptions', () => {
     })
     mockFetchChecks.mockResolvedValue(greenChecks)
     const { runner } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(
       params({ executionBudgetMs: 2 * 60 * 1000 }),
@@ -375,7 +406,7 @@ describe('runBabysitPiWithOptions', () => {
     })
     mockFetchChecks.mockResolvedValue(greenChecks)
     const { runner } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() }, { roundWaitMs: 0 })
 
@@ -409,7 +440,7 @@ describe('runBabysitPiWithOptions', () => {
       contextRequirements: new Map(failures.map((check) => [check.key, true])),
     })
     const { runner, runCalls } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() })
 
@@ -489,7 +520,7 @@ describe('runBabysitPiWithOptions', () => {
         throw new Error(`Unexpected read ${path}`)
       }),
     }
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(
       params(),
@@ -543,7 +574,7 @@ describe('runBabysitPiWithOptions', () => {
     })
     mockFetchChecks.mockResolvedValue(greenChecks)
     const { runner, runCalls } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     await runBabysitPiWithOptions(params(), { onEvent: vi.fn() })
 
@@ -605,7 +636,7 @@ describe('runBabysitPiWithOptions', () => {
       roundFile: JSON.stringify({ threads: [] }),
       diff: ['round-one-diff', 'round-two-diff'],
     })
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(
       params({ reviewMentions: ['@review-bot'] }),
@@ -641,7 +672,7 @@ describe('runBabysitPiWithOptions', () => {
     const { runner, runCalls } = makeRunner({
       prepareStdout: `__CUMULATIVE_CHANGED__=.github/workflows/ci.yml\n__CUMULATIVE_DIFF_BYTES__=20\n__CHANGED__=.github/workflows/ci.yml\n__NEW_SHA__=${NEW_SHA}\n__NEEDS_PUSH__=1\n`,
     })
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() })
 
@@ -671,7 +702,7 @@ describe('runBabysitPiWithOptions', () => {
     const { runner, runCalls } = makeRunner({
       prepareStdout: `__CUMULATIVE_CHANGED__=${unicodePath}\n__CUMULATIVE_DIFF_BYTES__=20\n__CHANGED__=${unicodePath}\n__NEW_SHA__=${NEW_SHA}\n__NEEDS_PUSH__=1\n`,
     })
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() })
 
@@ -701,7 +732,7 @@ describe('runBabysitPiWithOptions', () => {
     const { runner, runCalls } = makeRunner({
       prepareStdout: `__CUMULATIVE_CHANGED__=${quotedPath}\n__CUMULATIVE_DIFF_BYTES__=20\n__CHANGED__=${quotedPath}\n__NEW_SHA__=${NEW_SHA}\n__NEEDS_PUSH__=1\n`,
     })
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() })
 
@@ -721,7 +752,7 @@ describe('runBabysitPiWithOptions', () => {
     const { runner } = makeRunner({
       pushResult: commandResult('', 'rejected by remote', 1),
     })
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() })
 
@@ -747,7 +778,7 @@ describe('runBabysitPiWithOptions', () => {
     const { runner, runCalls } = makeRunner({
       prepareStdout: '__NEEDS_PUSH__=1\n',
     })
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() })
 
@@ -772,7 +803,7 @@ describe('runBabysitPiWithOptions', () => {
     })
     mockFetchChecks.mockResolvedValue(greenChecks)
     const { runner, runCalls } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() })
 
@@ -814,7 +845,7 @@ describe('runBabysitPiWithOptions', () => {
     })
     mockFetchChecks.mockResolvedValueOnce(pendingChecks).mockResolvedValueOnce(greenChecks)
     const { runner, runCalls } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(
       params({ maxRounds: 1 }),
@@ -846,7 +877,7 @@ describe('runBabysitPiWithOptions', () => {
       awaitingConfirmation: true,
     })
     const { runner } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(
       params(),
@@ -878,7 +909,7 @@ describe('runBabysitPiWithOptions', () => {
     })
     mockFetchChecks.mockResolvedValue(noChecksGreen)
     const { runner } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(
       params({ reviewMentions: ['@review-bot'] }),
@@ -910,7 +941,7 @@ describe('runBabysitPiWithOptions', () => {
     })
     mockFetchChecks.mockResolvedValue(noChecksGreen)
     const { runner } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(
       params(),
@@ -942,7 +973,7 @@ describe('runBabysitPiWithOptions', () => {
     })
     mockFetchChecks.mockResolvedValue(greenChecks)
     const { runner } = makeRunner({ roundFile: 'not json' })
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(
       params(),
@@ -998,7 +1029,7 @@ describe('runBabysitPiWithOptions', () => {
       failures: ['@missing-bot'],
     })
     const { runner } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(
       params({ reviewMentions: ['@review-bot', '@missing-bot'] }),
@@ -1040,7 +1071,7 @@ describe('runBabysitPiWithOptions', () => {
         ],
       }),
     })
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() }, { roundWaitMs: 0 })
 
@@ -1076,7 +1107,7 @@ describe('runBabysitPiWithOptions', () => {
       prepareStdout: '__NO_CHANGES__=1\n',
       roundFile: JSON.stringify({ threads: [] }),
     })
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() }, { roundWaitMs: 0 })
 
@@ -1126,7 +1157,7 @@ describe('runBabysitPiWithOptions', () => {
         ],
       }),
     })
-    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
 
     const result = await runBabysitPiWithOptions(
       params(),

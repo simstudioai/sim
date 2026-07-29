@@ -6,6 +6,7 @@
 
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
+import { getRemainingExecutionMs } from '@/lib/core/execution-limits'
 
 const logger = createLogger('PiSandboxLifetime')
 
@@ -77,4 +78,32 @@ export function resolvePiSandboxLifetimeMs(): number | undefined {
   }
 
   return Math.min(configured, PI_SANDBOX_MAX_LIFETIME_MS)
+}
+
+/**
+ * A sandbox that outlives its own execution is billed for work nobody is waiting
+ * on: the run aborts at its deadline, but the sandbox keeps costing until the
+ * provider ceiling. That gap is the whole reason this exists — it is widest on
+ * the plans with the shortest deadlines, where {@link resolvePiSandboxLifetimeMs}
+ * alone hands a five-minute sync run the same ceiling as a ninety-minute async
+ * one, and `PI_SANDBOX_LIFETIME_MS` cannot close it because that override has its
+ * own floor.
+ *
+ * `undefined` still means the provider has no lifetime concept (Daytona), and an
+ * untimed execution still falls back to the ceiling — {@link getRemainingExecutionMs}
+ * returning `undefined` is "unknown", never "unlimited".
+ *
+ * Callers pass the result to both `withPiSandbox` and
+ * `resolvePiTimeoutMs` rather than calling this twice, so the lifetime the
+ * sandbox is created with and the lifetime the agent turn reserves against are
+ * the same number and cannot drift by the milliseconds between two calls.
+ */
+export function resolvePiRunLifetimeMs(signal?: AbortSignal): number | undefined {
+  const ceiling = resolvePiSandboxLifetimeMs()
+  if (ceiling === undefined) return undefined
+
+  const remaining = getRemainingExecutionMs(signal)
+  if (remaining === undefined) return ceiling
+
+  return Math.min(ceiling, remaining)
 }

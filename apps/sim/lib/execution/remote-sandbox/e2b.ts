@@ -124,9 +124,15 @@ export const e2bProvider: SandboxProvider = {
     // E2B reaps a sandbox after `timeoutMs` (default five minutes). Omitted
     // unless a caller asked for a lifetime, so the short-lived code/doc/shell
     // kinds keep the SDK default.
+    //
+    // Tested against `undefined` rather than truthiness: a caller that derives
+    // the lifetime from an execution deadline can legitimately arrive at zero,
+    // and treating that as "unset" would hand an expired run the five-minute
+    // default — longer than the lifetime it asked for, which is the opposite of
+    // what it requested.
     const createOptions = {
       apiKey,
-      ...(options?.lifetimeMs ? { timeoutMs: options.lifetimeMs } : {}),
+      ...(options?.lifetimeMs !== undefined ? { timeoutMs: options.lifetimeMs } : {}),
     }
 
     const { Sandbox } = await import('@e2b/code-interpreter')

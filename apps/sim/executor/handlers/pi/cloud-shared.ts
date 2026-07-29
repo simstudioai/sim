@@ -20,16 +20,17 @@ export const MAX_DIFF_BYTES = 200_000
 export const PUSH_ERROR_MAX = 1000
 
 /**
- * Floor for {@link PI_TIMEOUT_MS}. Only reachable by configuring a sandbox
- * lifetime too short to reserve every surrounding command's worst-case ceiling.
- * Such a run can still finish, since those ceilings are pessimistic, so the floor
- * leaves a short turn rather than refusing one.
+ * Floor for {@link resolvePiTimeoutMs}. Reachable whenever the sandbox lifetime
+ * is too short to reserve every surrounding command's worst-case ceiling —
+ * either a configured lifetime, or a run whose own execution deadline is shorter
+ * than those reserves. Such a run can still finish, since those ceilings are
+ * pessimistic, so the floor leaves a short turn rather than refusing one.
  */
 export const MIN_PI_TIMEOUT_MS = 60 * 1000
 
 /**
- * How long one Pi CLI invocation may run. The platform's max execution timeout
- * outlives the sandbox, so without this a hung CLI would sit there until E2B
+ * How long one Pi CLI invocation may run, given the lifetime its sandbox was
+ * created with. Without a cap a hung CLI would sit there until the provider
  * reaped the sandbox and surface as an opaque SDK error.
  *
  * The reserve matters as much as the cap. The sandbox clock starts at create,
@@ -37,6 +38,12 @@ export const MIN_PI_TIMEOUT_MS = 60 * 1000
  * commit and the push after it, the last two sharing
  * {@link FINALIZE_TIMEOUT_MS}. Capping at the bare lifetime would mean the
  * sandbox always died first, taking the agent's finished work with it unpushed.
+ *
+ * Takes the lifetime as an argument rather than reading the provider ceiling
+ * itself, because that ceiling is no longer the only lifetime a run can get: a
+ * caller that narrowed it to the execution deadline has to reserve against the
+ * lifetime it actually asked for, or it re-opens exactly the bug above on every
+ * plan whose deadline is shorter than the ceiling.
  *
  * What is reserved is each command's timeout ceiling, not its measured elapsed
  * time — a clone takes seconds in practice — so this is a budget that adds up,
@@ -46,18 +53,13 @@ export const MIN_PI_TIMEOUT_MS = 60 * 1000
  * is E2B alone. Daytona stops on inactivity, so subtracting E2B's ceiling there
  * would cut the agent turn to fit a limit Daytona does not have.
  */
-const piSandboxLifetimeMs = resolvePiSandboxLifetimeMs()
-
-export const PI_TIMEOUT_MS =
-  piSandboxLifetimeMs === undefined
-    ? getMaxExecutionTimeout()
-    : Math.min(
-        getMaxExecutionTimeout(),
-        Math.max(
-          piSandboxLifetimeMs - CLONE_TIMEOUT_MS - 2 * FINALIZE_TIMEOUT_MS,
-          MIN_PI_TIMEOUT_MS
-        )
-      )
+export function resolvePiTimeoutMs(lifetimeMs = resolvePiSandboxLifetimeMs()): number {
+  if (lifetimeMs === undefined) return getMaxExecutionTimeout()
+  return Math.min(
+    getMaxExecutionTimeout(),
+    Math.max(lifetimeMs - CLONE_TIMEOUT_MS - 2 * FINALIZE_TIMEOUT_MS, MIN_PI_TIMEOUT_MS)
+  )
+}
 
 /**
  * Marker carrying a digest of the cloned repository's git config. A clone script
