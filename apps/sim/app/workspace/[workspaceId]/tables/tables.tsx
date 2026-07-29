@@ -8,7 +8,6 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import { PinButton } from '@/components/pin-button'
 import type { TableDefinition } from '@/lib/table'
 import { CSV_ASYNC_IMPORT_THRESHOLD_BYTES, generateUniqueTableName } from '@/lib/table/constants'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -34,7 +33,7 @@ import {
   tablesUrlKeys,
 } from '@/app/workspace/[workspaceId]/tables/search-params'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { usePinnedIds } from '@/hooks/queries/pinned-items'
+import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import {
   cancelTableJob,
   downloadTableExport,
@@ -81,6 +80,8 @@ export function Tables() {
   const { data: tables = [], error } = useTablesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const pinnedTableIds = usePinnedIds(workspaceId, 'table')
+  const pinItem = usePinItem()
+  const unpinItem = useUnpinItem()
 
   if (error) {
     logger.error('Failed to load tables:', error)
@@ -214,15 +215,6 @@ export function Tables() {
           name: {
             icon: <TableIcon className='size-[14px]' />,
             label: table.name,
-            endAdornment: (
-              <PinButton
-                workspaceId={workspaceId}
-                resourceType='table'
-                resourceId={table.id}
-                pinned={pinnedTableIds.has(table.id)}
-                className='ml-2'
-              />
-            ),
             editing:
               tableRename.editingId === table.id
                 ? {
@@ -249,8 +241,6 @@ export function Tables() {
     [
       processedTables,
       members,
-      workspaceId,
-      pinnedTableIds,
       tableRename.editingId,
       tableRename.editValue,
       tableRename.setEditValue,
@@ -445,6 +435,13 @@ export function Tables() {
     },
     [tables, handleRowCtxMenu]
   )
+
+  const handleTogglePin = useCallback(() => {
+    if (!activeTable) return
+    const mutation = pinnedTableIds.has(activeTable.id) ? unpinItem : pinItem
+    mutation.mutate({ workspaceId, resourceType: 'table', resourceId: activeTable.id })
+    closeRowContextMenu()
+  }, [workspaceId, activeTable, pinnedTableIds, closeRowContextMenu])
 
   const handleDelete = async () => {
     if (!activeTable) return
@@ -671,6 +668,8 @@ export function Tables() {
         onCopyId={() => {
           if (activeTable) navigator.clipboard.writeText(activeTable.id)
         }}
+        onTogglePin={handleTogglePin}
+        pinned={activeTable ? pinnedTableIds.has(activeTable.id) : false}
         onDelete={() => setIsDeleteDialogOpen(true)}
         onRename={() => {
           if (activeTable) tableRename.startRename(activeTable.id, activeTable.name)

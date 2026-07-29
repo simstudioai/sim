@@ -93,15 +93,30 @@ describe('pinned-items resources', () => {
     })
 
     it('drops pins with an unrecognized resourceType rather than surfacing them', async () => {
-      // Forward-compat: a pin written by a newer deploy (e.g. 'folder') must fail
-      // closed here rather than render against a table this build cannot resolve.
+      // Forward-compat: a pin written by a newer deploy must fail closed here rather
+      // than render against a table this build cannot resolve.
       const result = await filterToActiveResources(
-        [{ resourceType: 'folder', resourceId: 'folder-1' }],
+        [{ resourceType: 'not_a_pinnable_type', resourceId: 'x-1' }],
         'ws-1'
       )
 
       expect(result).toEqual([])
       expect(mockDb.select).not.toHaveBeenCalled()
+    })
+
+    it('resolves folder pins instead of failing them closed', async () => {
+      // Regression guard for the contract/lookup-map pair: adding 'folder' to
+      // `pinnedResourceTypeSchema` without a `PINNED_RESOURCES` entry would silently
+      // drop every folder pin here.
+      mockWhere.mockReturnValueOnce([{ id: 'folder-1' }])
+
+      const result = await filterToActiveResources(
+        [{ resourceType: 'folder', resourceId: 'folder-1' }],
+        'ws-1'
+      )
+
+      expect(result).toEqual([{ resourceType: 'folder', resourceId: 'folder-1' }])
+      expect(mockDb.select).toHaveBeenCalledTimes(1)
     })
   })
 })
