@@ -330,14 +330,32 @@ function senderHasUserGesture(event: IpcMainEvent | IpcMainInvokeEvent): boolean
 }
 
 /**
- * Whether a terminal-write payload would submit what is in the line buffer.
+ * Replies the PTY solicits and the terminal must answer unprompted.
  *
- * `\r` is what a shell treats as "run this"; `\n` is accepted too so a
- * multi-line or bracketed-paste payload cannot slip a submission through on the
- * other newline form.
+ * DSR cursor position and device attributes (`CSI … R` / `CSI … c`), focus
+ * reports (`CSI I` / `CSI O`, mode 1004 — set by tmux and vim), X10 and SGR
+ * mouse reports, and DCS/OSC responses. All machine-generated and
+ * self-delimiting, which is what makes them safe to enumerate.
  */
-function submitsCommandLine(args: unknown[]): boolean {
-  return args.some((arg) => typeof arg === 'string' && (arg.includes('\r') || arg.includes('\n')))
+const PTY_REPLY =
+  /^(?:\u001b\[[0-9;?]*[Rc]|\u001b\[[IO]|\u001b\[M[\s\S]{3}|\u001b\[<[0-9;]*[mM]|\u001bP[\s\S]*?\u001b\\|\u001b\][\s\S]*?\u0007)+$/
+
+/**
+ * Whether a terminal-write payload needs a person behind it.
+ *
+ * The reply set is enumerated and everything else is gated, rather than the
+ * other way round. "What submits" is not a closed set: besides carriage return
+ * and newline, EOT (`0x04`) hands a partial line straight to a reader in
+ * canonical mode, and `0x0f` is `operate-and-get-next` in bash and
+ * `accept-line-and-down-history` in zsh — both of which execute the current
+ * line. A user's own `inputrc` or `zle` bindings can add more. Enumerating that
+ * set would leave whichever binding was forgotten ungated, so the allowlist runs
+ * the other way and fails closed.
+ */
+function needsDeliberateInputForWrite(args: unknown[]): boolean {
+  const data = args[1]
+  if (typeof data !== 'string' || data.length === 0) return false
+  return !PTY_REPLY.test(data)
 }
 
 interface DesktopToolAuthorization {
@@ -1087,7 +1105,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         if (!senderAllowed(event, spec.gate) || !featureAllowed(spec.requires)) return
         if (
           spec.submitNeedsDeliberateInput &&
-          submitsCommandLine(args) &&
+          needsDeliberateInputForWrite(args) &&
           !hasRecentDeliberateInput(event.sender)
         ) {
           return

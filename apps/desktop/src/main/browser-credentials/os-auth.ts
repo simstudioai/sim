@@ -29,10 +29,24 @@ const AUTH_GRACE_MS = 30_000
  * which Universal Clipboard syncs to the user's other devices. Ordering them
  * either way lets one consent authorize an exposure the prompt never described.
  */
-export type SecretOperation = 'reveal' | 'copy'
+export const SECRET_OPERATIONS = ['reveal', 'copy'] as const
 
-/** Credential id to its standing proof of presence. */
-const provenUntil = new Map<string, { expiry: number; operation: SecretOperation }>()
+type SecretOperation = (typeof SECRET_OPERATIONS)[number]
+
+/**
+ * Proof of presence per credential AND operation.
+ *
+ * Keyed on both rather than holding one scalar per credential: a single slot
+ * would be overwritten on each grant, so reveal → copy → reveal prompts three
+ * times inside one window even though each was already proven. Re-prompting for
+ * something the user just authorized is what teaches people to approve without
+ * reading.
+ */
+const provenUntil = new Map<string, number>()
+
+function grantKey(credentialId: string, operation: SecretOperation): string {
+  return `${credentialId}\u0000${operation}`
+}
 
 export interface SecretAuthRequest {
   /**
@@ -56,13 +70,14 @@ export interface SecretAuthRequest {
 }
 
 function hasFreshProof(credentialId: string, operation: SecretOperation): boolean {
-  const proof = provenUntil.get(credentialId)
-  if (proof === undefined) return false
-  if (Date.now() >= proof.expiry) {
-    provenUntil.delete(credentialId)
+  const key = grantKey(credentialId, operation)
+  const expiry = provenUntil.get(key)
+  if (expiry === undefined) return false
+  if (Date.now() >= expiry) {
+    provenUntil.delete(key)
     return false
   }
-  return proof.operation === operation
+  return true
 }
 
 /**
@@ -72,8 +87,14 @@ function hasFreshProof(credentialId: string, operation: SecretOperation): boolea
  * Called with no id, it revokes everything.
  */
 export function revokeSecretAuthorization(credentialId?: string): void {
-  if (credentialId === undefined) provenUntil.clear()
-  else provenUntil.delete(credentialId)
+  if (credentialId === undefined) {
+    provenUntil.clear()
+    return
+  }
+  // Every operation's grant for this credential, since the key carries both.
+  for (const operation of SECRET_OPERATIONS) {
+    provenUntil.delete(grantKey(credentialId, operation))
+  }
 }
 
 /**
@@ -103,7 +124,7 @@ export async function authorizeForSecret({
 }: SecretAuthRequest): Promise<boolean> {
   if (hasFreshProof(credentialId, operation)) return true
   if (!(await promptForSecret(reason, action))) return false
-  provenUntil.set(credentialId, { expiry: Date.now() + AUTH_GRACE_MS, operation })
+  provenUntil.set(grantKey(credentialId, operation), Date.now() + AUTH_GRACE_MS)
   return true
 }
 

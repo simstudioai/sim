@@ -146,6 +146,26 @@ describe('authorizeForSecret', () => {
     expect(promptTouchID).toHaveBeenCalledTimes(2)
   })
 
+  it('does not re-prompt for an operation already proven in the window', async () => {
+    // reveal -> copy -> reveal: each is proven independently, so the third call
+    // rides the first grant instead of asking a third time.
+    await authorizeForSecret(request('c1'))
+    await authorizeForSecret(copyRequest('c1'))
+    await authorizeForSecret(request('c1'))
+
+    expect(promptTouchID).toHaveBeenCalledTimes(2)
+  })
+
+  it('revokes every operation for a credential, not just the last proven', async () => {
+    await authorizeForSecret(request('c1'))
+    await authorizeForSecret(copyRequest('c1'))
+    revokeSecretAuthorization('c1')
+
+    await authorizeForSecret(request('c1'))
+    await authorizeForSecret(copyRequest('c1'))
+    expect(promptTouchID).toHaveBeenCalledTimes(4)
+  })
+
   it('keeps a copy grant usable for further copies', async () => {
     await authorizeForSecret(copyRequest('c1'))
     await authorizeForSecret(copyRequest('c1'))

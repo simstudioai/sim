@@ -460,7 +460,12 @@ export function readActiveElementState(): unknown {
       active = shadow.activeElement as HTMLElement
       continue
     }
-    if (active.tagName === 'IFRAME' || active.tagName === 'FRAME') {
+    // Upper-cased for the same reason as in activeElementSecrecy: tagName is
+    // lower-case for HTML elements in an XHTML document.
+    if (
+      String(active.tagName || '').toUpperCase() === 'IFRAME' ||
+      String(active.tagName || '').toUpperCase() === 'FRAME'
+    ) {
       try {
         const inner = (active as HTMLIFrameElement).contentDocument
         if (inner?.activeElement && inner.activeElement !== inner.body) {
@@ -506,7 +511,8 @@ export function readActiveElementState(): unknown {
   }
   let value = ''
   let selectedChars = 0
-  if (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') {
+  const activeTag = String(active.tagName || '').toUpperCase()
+  if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') {
     const field = active as HTMLInputElement | HTMLTextAreaElement
     value = field.value
     selectedChars = Math.abs((field.selectionEnd ?? 0) - (field.selectionStart ?? 0))
@@ -607,7 +613,7 @@ export function activeElementSecrecy(): string {
       tag === 'IFRAME' ||
       tag === 'FRAME'
     if (!shadow && !focusableItself) return 'opaque'
-    if (active.tagName === 'IFRAME' || active.tagName === 'FRAME') {
+    if (tag === 'IFRAME' || tag === 'FRAME') {
       let inner: Document | null = null
       try {
         inner = (active as HTMLIFrameElement).contentDocument

