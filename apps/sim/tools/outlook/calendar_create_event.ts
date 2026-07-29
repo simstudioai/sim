@@ -1,6 +1,7 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
   buildAllDayRange,
+  buildCalendarScopedUrl,
   buildGraphEventDateTime,
   CALENDAR_RETRY,
   flattenGraphEvent,
@@ -39,6 +40,12 @@ export const outlookCalendarCreateEventTool: ToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'OAuth access token for Outlook',
+    },
+    calendarId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'ID of the calendar to create the event in. Defaults to the default calendar.',
     },
     subject: {
       type: 'string',
@@ -107,7 +114,7 @@ export const outlookCalendarCreateEventTool: ToolConfig<
   },
 
   request: {
-    url: 'https://graph.microsoft.com/v1.0/me/events',
+    url: (params) => buildCalendarScopedUrl('events', params.calendarId),
     method: 'POST',
     retry: CALENDAR_RETRY,
     headers: (params) => {

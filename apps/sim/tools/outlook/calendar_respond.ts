@@ -1,5 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { CALENDAR_RETRY } from '@/tools/outlook/calendar-utils'
+import { buildEventUrl, CALENDAR_RETRY } from '@/tools/outlook/calendar-utils'
 import type {
   OutlookCalendarRespondParams,
   OutlookCalendarRespondResponse,
@@ -76,7 +76,7 @@ export const outlookCalendarRespondTool: ToolConfig<
           `Invalid responseType "${params.responseType}". Expected one of: ${VALID_RESPONSE_TYPES.join(', ')}`
         )
       }
-      return `https://graph.microsoft.com/v1.0/me/events/${encodeURIComponent(params.eventId.trim())}/${responseType}`
+      return buildEventUrl(params.eventId, responseType)
     },
     method: 'POST',
     retry: CALENDAR_RETRY,

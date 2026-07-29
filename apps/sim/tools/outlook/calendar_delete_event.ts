@@ -1,5 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { CALENDAR_RETRY } from '@/tools/outlook/calendar-utils'
+import { buildEventUrl, CALENDAR_RETRY } from '@/tools/outlook/calendar-utils'
 import type {
   OutlookCalendarDeleteEventParams,
   OutlookCalendarDeleteEventResponse,
@@ -38,8 +38,7 @@ export const outlookCalendarDeleteEventTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://graph.microsoft.com/v1.0/me/events/${encodeURIComponent(params.eventId.trim())}`,
+    url: (params) => buildEventUrl(params.eventId),
     method: 'DELETE',
     retry: CALENDAR_RETRY,
     headers: (params) => {

@@ -58,6 +58,44 @@ describe('outlook calendar tools', () => {
     )
   })
 
+  it('scopes list and create to a selected calendar, defaulting to the default calendar', () => {
+    const listUrl = outlookCalendarListEventsTool.request.url as (p: unknown) => string
+    const createUrl = outlookCalendarCreateEventTool.request.url as (p: unknown) => string
+    const window = {
+      accessToken: 't',
+      startDateTime: '2025-06-03T00:00:00Z',
+      endDateTime: '2025-06-10T00:00:00Z',
+    }
+
+    expect(listUrl(window)).toContain('/v1.0/me/calendarView?')
+    expect(listUrl({ ...window, calendarId: 'AAMk=' })).toContain(
+      '/v1.0/me/calendars/AAMk%3D/calendarView?'
+    )
+    // A blank pick means "default calendar", not a malformed /me/calendars// URL.
+    expect(listUrl({ ...window, calendarId: '  ' })).toContain('/v1.0/me/calendarView?')
+
+    expect(createUrl({ accessToken: 't' })).toBe('https://graph.microsoft.com/v1.0/me/events')
+    expect(createUrl({ accessToken: 't', calendarId: 'AAMk=' })).toBe(
+      'https://graph.microsoft.com/v1.0/me/calendars/AAMk%3D/events'
+    )
+  })
+
+  it('normalizes an all-day update when only one bound is supplied', () => {
+    const body = outlookCalendarUpdateEventTool.request.body as (
+      p: unknown
+    ) => Record<string, unknown>
+    const built = body({
+      accessToken: 't',
+      eventId: 'e1',
+      isAllDay: true,
+      startDateTime: '2025-06-03T09:30:00Z',
+    })
+    // Both bounds must be midnight with an exclusive end day, or Graph 400s the PATCH.
+    expect(built.start).toEqual({ dateTime: '2025-06-03T00:00:00', timeZone: 'UTC' })
+    expect(built.end).toEqual({ dateTime: '2025-06-04T00:00:00', timeZone: 'UTC' })
+    expect(built.isAllDay).toBe(true)
+  })
+
   it('rejects a non-Graph pageToken so the bearer token cannot be exfiltrated', () => {
     const url = outlookCalendarListEventsTool.request.url as (p: unknown) => string
     expect(() => url({ accessToken: 't', pageToken: 'https://evil.example.com/steal' })).toThrow(

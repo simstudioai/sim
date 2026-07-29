@@ -1,6 +1,7 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
   buildAllDayRange,
+  buildEventUrl,
   buildGraphEventDateTime,
   CALENDAR_RETRY,
   flattenGraphEvent,
@@ -111,8 +112,7 @@ export const outlookCalendarUpdateEventTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://graph.microsoft.com/v1.0/me/events/${encodeURIComponent(params.eventId.trim())}`,
+    url: (params) => buildEventUrl(params.eventId),
     method: 'PATCH',
     retry: CALENDAR_RETRY,
     headers: (params) => {
@@ -133,10 +133,14 @@ export const outlookCalendarUpdateEventTool: ToolConfig<
         event.subject = params.subject
       }
 
-      if (settingAllDay && params.startDateTime && params.endDateTime) {
-        // Converting to all-day needs midnight bounds with an exclusive end day; send
-        // both together so Graph doesn't reject a zero-length all-day window.
-        const range = buildAllDayRange(params.startDateTime, params.endDateTime, params.timeZone)
+      if (settingAllDay && (params.startDateTime || params.endDateTime)) {
+        // Converting to all-day needs midnight bounds with an exclusive end day. Graph
+        // rejects the whole PATCH if either bound is timed or the window is zero-length,
+        // so normalize both together — falling back to the supplied bound when the caller
+        // only gave one, which `buildAllDayRange` then advances to the next day.
+        const start = params.startDateTime || params.endDateTime!
+        const end = params.endDateTime || params.startDateTime!
+        const range = buildAllDayRange(start, end, params.timeZone)
         event.start = range.start
         event.end = range.end
       } else {

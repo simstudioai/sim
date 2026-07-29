@@ -25,6 +25,35 @@ export const CALENDAR_RETRY: ToolRetryConfig = {
   retryIdempotentOnly: false,
 }
 
+const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0'
+
+/**
+ * Build the Graph URL for a calendar-scoped collection.
+ *
+ * Graph exposes the mailbox's default calendar at `/me/{collection}` and any other calendar
+ * at `/me/calendars/{id}/{collection}`. An empty/blank `calendarId` means "default calendar".
+ *
+ * @see https://learn.microsoft.com/en-us/graph/api/calendar-list-calendarview
+ * @see https://learn.microsoft.com/en-us/graph/api/user-post-events
+ */
+export function buildCalendarScopedUrl(collection: 'events' | 'calendarView', calendarId?: string) {
+  const id = calendarId?.trim()
+  return id
+    ? `${GRAPH_BASE_URL}/me/calendars/${encodeURIComponent(id)}/${collection}`
+    : `${GRAPH_BASE_URL}/me/${collection}`
+}
+
+/**
+ * Build the Graph URL for a single event.
+ *
+ * Event IDs are unique within the mailbox, so `/me/events/{id}` addresses an event in any of
+ * the user's calendars — no calendar scoping is needed for get / update / delete / respond.
+ */
+export function buildEventUrl(eventId: string, suffix?: string) {
+  const base = `${GRAPH_BASE_URL}/me/events/${encodeURIComponent(eventId.trim())}`
+  return suffix ? `${base}/${suffix}` : base
+}
+
 /** Matches a trailing UTC offset (`Z`, `+02:00`, `-0800`) on an ISO datetime string. */
 const TZ_OFFSET_PATTERN = /([+-]\d{2}:?\d{2}|Z)$/
 

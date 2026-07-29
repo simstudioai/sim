@@ -394,6 +394,38 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       mode: 'advanced',
       required: false,
     },
+    // Calendar - Calendar picker (basic). Only list/create are calendar-scoped: event IDs are
+    // unique per mailbox, so get/update/delete/respond address /me/events/{id} directly.
+    {
+      id: 'calendarSelector',
+      title: 'Calendar',
+      type: 'file-selector',
+      canonicalParamId: 'calendarId',
+      serviceId: 'outlook',
+      selectorKey: 'outlook.calendars',
+      requiredScopes: getScopesForService('outlook'),
+      placeholder: 'Select calendar (defaults to your default calendar)',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: {
+        field: 'operation',
+        value: ['list_events_calendar', 'create_event_calendar'],
+      },
+    },
+    // Calendar - Manual calendar ID (advanced)
+    {
+      id: 'manualCalendarId',
+      title: 'Calendar',
+      type: 'short-input',
+      canonicalParamId: 'calendarId',
+      placeholder: 'Enter calendar ID (leave blank for the default calendar)',
+      dependsOn: ['credential'],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['list_events_calendar', 'create_event_calendar'],
+      },
+    },
     // Calendar - Event ID (get / update / delete / respond)
     {
       id: 'calEventId',
@@ -419,6 +451,19 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       placeholder: '2025-06-03T00:00:00-08:00',
       condition: { field: 'operation', value: 'list_events_calendar' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp with timezone offset for the START of a calendar time window, based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS+HH:MM or YYYY-MM-DDTHH:MM:SS-HH:MM
+Examples:
+- "this week" -> Monday of the current week at 00:00:00 with local timezone offset
+- "today" -> today's date at 00:00:00 with local timezone offset
+- "the next 30 days" -> the current date and time with local timezone offset
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the window start (e.g., "this week", "today")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'calWindowEnd',
@@ -427,6 +472,19 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       placeholder: '2025-06-10T00:00:00-08:00',
       condition: { field: 'operation', value: 'list_events_calendar' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp with timezone offset for the END of a calendar time window, based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS+HH:MM or YYYY-MM-DDTHH:MM:SS-HH:MM
+Examples:
+- "this week" -> the Monday after the current week at 00:00:00 with local timezone offset
+- "today" -> tomorrow's date at 00:00:00 with local timezone offset
+- "the next 30 days" -> the current date plus 30 days with local timezone offset
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the window end (e.g., "end of this week", "in 30 days")...',
+        generationType: 'timestamp',
+      },
     },
     // Calendar - List events options
     {
@@ -468,6 +526,19 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       placeholder: '2025-06-03T10:00:00-08:00',
       condition: { field: 'operation', value: 'create_event_calendar' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp with timezone offset based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS+HH:MM or YYYY-MM-DDTHH:MM:SS-HH:MM
+Examples:
+- "tomorrow at 2pm" -> Calculate tomorrow's date at 14:00:00 with local timezone offset
+- "next Monday at 9am" -> Calculate next Monday at 09:00:00 with local timezone offset
+- "in 2 hours" -> Calculate current time + 2 hours with local timezone offset
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start time (e.g., "tomorrow at 2pm")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'calEndDateTime',
@@ -476,6 +547,18 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       placeholder: '2025-06-03T11:00:00-08:00',
       condition: { field: 'operation', value: 'create_event_calendar' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp with timezone offset based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS+HH:MM or YYYY-MM-DDTHH:MM:SS-HH:MM
+Examples:
+- "tomorrow at 3pm" -> Calculate tomorrow's date at 15:00:00 with local timezone offset
+- "an hour after the start" -> Calculate the start time + 1 hour with local timezone offset
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "an hour later")...',
+        generationType: 'timestamp',
+      },
     },
     // Calendar - Update event (optional start/end/subject)
     {
@@ -493,6 +576,18 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       placeholder: '2025-06-03T10:00:00-08:00',
       condition: { field: 'operation', value: 'update_event_calendar' },
       required: false,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp with timezone offset based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS+HH:MM or YYYY-MM-DDTHH:MM:SS-HH:MM
+Examples:
+- "tomorrow at 2pm" -> Calculate tomorrow's date at 14:00:00 with local timezone offset
+- "push it back an hour" -> Calculate the existing start + 1 hour with local timezone offset
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the new start time...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'calEndDateTime',
@@ -501,6 +596,18 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       placeholder: '2025-06-03T11:00:00-08:00',
       condition: { field: 'operation', value: 'update_event_calendar' },
       required: false,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp with timezone offset based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS+HH:MM or YYYY-MM-DDTHH:MM:SS-HH:MM
+Examples:
+- "tomorrow at 3pm" -> Calculate tomorrow's date at 15:00:00 with local timezone offset
+- "extend it by 30 minutes" -> Calculate the existing end + 30 minutes with local timezone offset
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the new end time...',
+        generationType: 'timestamp',
+      },
     },
     // Calendar - Shared create/update fields
     {
@@ -552,6 +659,15 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         value: ['create_event_calendar', 'update_event_calendar'],
       },
       required: false,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of attendee email addresses based on the user's description.
+Use only valid email addresses, separated by ", " with no trailing comma.
+Example: john@example.com, jane@example.com
+
+Return ONLY the comma-separated email list - no explanations, no extra text.`,
+        placeholder: 'Describe who should attend...',
+      },
     },
     {
       id: 'calTimeZone',
@@ -607,12 +723,20 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: 'respond_calendar' },
       required: false,
     },
+    // A switch would render OFF while Graph's default is to notify, so this is a dropdown
+    // whose visible default matches the behavior.
     {
       id: 'calSendResponse',
       title: 'Send Response to Organizer',
-      type: 'switch',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
       condition: { field: 'operation', value: 'respond_calendar' },
+      value: () => 'true',
       mode: 'advanced',
+      required: false,
     },
     ...getTrigger('outlook_poller').subBlocks,
   ],
@@ -711,6 +835,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
           includeHiddenFolders,
           categories,
           maxResults,
+          calendarId,
           calEventId,
           calWindowStart,
           calWindowEnd,
@@ -821,6 +946,15 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         const isSet = (value: unknown): boolean =>
           value !== undefined && value !== null && value !== ''
 
+        // calendarId is already the canonical param. Blank means the default calendar, so
+        // only forward it when the user actually picked one.
+        if (['list_events_calendar', 'create_event_calendar'].includes(rest.operation)) {
+          const effectiveCalendarId = calendarId ? String(calendarId).trim() : ''
+          if (effectiveCalendarId) {
+            rest.calendarId = effectiveCalendarId
+          }
+        }
+
         if (rest.operation === 'list_events_calendar') {
           if (calWindowStart) rest.startDateTime = String(calWindowStart).trim()
           if (calWindowEnd) rest.endDateTime = String(calWindowEnd).trim()
@@ -869,7 +1003,8 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         if (rest.operation === 'respond_calendar') {
           if (calResponseType) rest.responseType = calResponseType
           if (isSet(calComment)) rest.comment = calComment
-          if (isSet(calSendResponse)) rest.sendResponse = toBool(calSendResponse)
+          // Notifying the organizer is the default; an unset dropdown must not read as "no".
+          rest.sendResponse = isSet(calSendResponse) ? toBool(calSendResponse) : true
         }
 
         return {
@@ -918,6 +1053,10 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     flagStatus: { type: 'string', description: 'Follow-up flag status' },
     importance: { type: 'string', description: 'Message importance level' },
     // Calendar operation inputs
+    calendarId: {
+      type: 'string',
+      description: 'Calendar to read from or write to (canonical param); blank = default calendar',
+    },
     calEventId: { type: 'string', description: 'Calendar event ID' },
     calWindowStart: { type: 'string', description: 'Start of the calendar time window (ISO 8601)' },
     calWindowEnd: { type: 'string', description: 'End of the calendar time window (ISO 8601)' },
@@ -945,12 +1084,19 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       description: 'Invite response (accept, tentativelyAccept, or decline)',
     },
     calComment: { type: 'string', description: 'Comment to send with an invite response' },
-    calSendResponse: { type: 'boolean', description: 'Whether to notify the organizer' },
+    calSendResponse: {
+      type: 'string',
+      description: 'Whether to notify the organizer ("true" or "false"; defaults to "true")',
+    },
   },
   outputs: {
     // Common outputs
     message: { type: 'string', description: 'Response message' },
-    results: { type: 'json', description: 'Operation results' },
+    results: {
+      type: 'json',
+      description:
+        'Operation results. Calendar operations return the event(s): {id, subject, start, end, isAllDay, location, organizer, attendees, onlineMeeting, webLink, bodyPreview}',
+    },
     // Send operation specific outputs
     status: { type: 'string', description: 'Email send status (sent)' },
     timestamp: { type: 'string', description: 'Operation timestamp' },
@@ -1073,6 +1219,34 @@ export const OutlookBlockMeta = {
       category: 'operations',
       tags: ['legal', 'analysis', 'automation'],
     },
+    {
+      icon: OutlookIcon,
+      title: 'Outlook meeting scheduler',
+      prompt:
+        'Build a workflow that reads emails requesting a meeting, checks my Outlook calendar for the requested window, creates an Outlook calendar event with the sender as an attendee and a Teams link, and replies from Outlook confirming the time.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'communication', 'automation'],
+    },
+    {
+      icon: OutlookIcon,
+      title: 'Outlook daily agenda digest',
+      prompt:
+        'Create a scheduled workflow that lists my Outlook calendar events for the day each morning, summarizes each meeting with its attendees and join link, and posts the agenda to a Slack DM before my first meeting.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'reporting', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: OutlookIcon,
+      title: 'Outlook invite auto-responder',
+      prompt:
+        'Build a workflow that reviews new Outlook meeting invitations, checks my calendar for conflicts in that time window, and accepts, tentatively accepts, or declines each invite with a short note to the organizer explaining the decision.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'communication', 'automation'],
+    },
   ],
   skills: [
     {
@@ -1098,6 +1272,30 @@ export const OutlookBlockMeta = {
       description: 'Move an Outlook email to the appropriate folder to keep the inbox clean.',
       content:
         '# File Email to Folder\n\nOrganize the inbox by moving a message into the right folder.\n\n## Steps\n1. Identify the email and the destination folder.\n2. Run Move Email to relocate the message.\n3. Optionally run Mark as Read so it does not linger as unread.\n\n## Output\nConfirm the email moved, naming the source and destination folders.',
+    },
+    {
+      name: 'schedule-meeting',
+      description: 'Create an Outlook calendar event and invite the right attendees.',
+      content:
+        '# Schedule Meeting\n\nPut a meeting on the calendar with the right people and context.\n\n## Steps\n1. Gather the title, start and end times, attendees, and any agenda notes.\n2. Run List Calendar Events over the proposed window to confirm the slot is free; pick another time if it is not.\n3. Run Create Event with the subject, start, end, and attendee emails. Turn on Add Online Meeting when the attendees are remote (Teams; work or school accounts only).\n\n## Output\nConfirm the event was created, naming the title, time, attendees, and the join link if one was added.',
+    },
+    {
+      name: 'summarize-agenda',
+      description: 'List Outlook calendar events for a time window and summarize the day.',
+      content:
+        '# Summarize Agenda\n\nTurn a calendar window into a short, readable agenda.\n\n## Steps\n1. Determine the window (today, this week) as ISO 8601 start and end timestamps.\n2. Run List Calendar Events for that window. Follow the returned nextLink if more pages are needed.\n3. For each event, note the time, subject, organizer, attendees, and join link.\n\n## Output\nA chronological agenda for the window, one line per meeting, calling out back-to-back blocks and any event with no agenda in its body.',
+    },
+    {
+      name: 'respond-to-invite',
+      description: 'Accept, tentatively accept, or decline an Outlook meeting invitation.',
+      content:
+        '# Respond to Invite\n\nDecide on a meeting invitation and reply to the organizer.\n\n## Steps\n1. Run Get Calendar Event on the invite to read its time, organizer, and attendees.\n2. Run List Calendar Events over the same window to check for conflicts.\n3. Run Respond to Invite with accept, tentativelyAccept, or decline, adding a short comment when declining or proposing another time.\n\n## Output\nState the response that was sent, the reason, and any conflicting meeting that drove the decision.',
+    },
+    {
+      name: 'reschedule-event',
+      description: 'Move an existing Outlook calendar event to a new time.',
+      content:
+        '# Reschedule Event\n\nShift a meeting and keep the attendees informed.\n\n## Steps\n1. Run Get Calendar Event to read the current time, attendees, and body.\n2. Run List Calendar Events over the proposed new window to confirm it is free.\n3. Run Update Event with the new start and end. Send both bounds together so the window stays valid.\n4. Optionally send the attendees a note explaining the change.\n\n## Output\nConfirm the event moved, stating the old time, the new time, and who was notified.',
     },
   ],
 } as const satisfies BlockMeta

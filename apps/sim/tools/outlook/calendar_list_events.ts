@@ -1,5 +1,9 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { CALENDAR_RETRY, flattenGraphEvent } from '@/tools/outlook/calendar-utils'
+import {
+  buildCalendarScopedUrl,
+  CALENDAR_RETRY,
+  flattenGraphEvent,
+} from '@/tools/outlook/calendar-utils'
 import type {
   GraphEventsResponse,
   OutlookCalendarListEventsParams,
@@ -9,7 +13,8 @@ import { OUTLOOK_EVENT_OUTPUT_PROPERTIES } from '@/tools/outlook/types'
 import { assertGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
-const GRAPH_CALENDAR_VIEW_URL = 'https://graph.microsoft.com/v1.0/me/calendarView'
+/** Graph caps `$top` on calendarView at 1000; we cap lower to bound the response payload. */
+const MAX_EVENTS_PER_PAGE = 100
 
 export const outlookCalendarListEventsTool: ToolConfig<
   OutlookCalendarListEventsParams,
@@ -33,6 +38,12 @@ export const outlookCalendarListEventsTool: ToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'OAuth access token for Outlook',
+    },
+    calendarId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'ID of the calendar to read. Defaults to the mailbox default calendar.',
     },
     startDateTime: {
       type: 'string',
@@ -77,17 +88,18 @@ export const outlookCalendarListEventsTool: ToolConfig<
         return assertGraphNextPageUrl(params.pageToken.trim())
       }
 
-      const maxResults = params.maxResults
-        ? Math.max(1, Math.min(Math.abs(Number(params.maxResults)), 100))
+      const requested = Number(params.maxResults)
+      const maxResults = Number.isFinite(requested)
+        ? Math.max(1, Math.min(Math.abs(requested), MAX_EVENTS_PER_PAGE))
         : 10
 
       const queryParams = new URLSearchParams()
-      queryParams.append('startDateTime', params.startDateTime)
-      queryParams.append('endDateTime', params.endDateTime)
+      queryParams.append('startDateTime', params.startDateTime.trim())
+      queryParams.append('endDateTime', params.endDateTime.trim())
       queryParams.append('$top', String(maxResults))
       queryParams.append('$orderby', params.orderBy || 'start/dateTime')
 
-      return `${GRAPH_CALENDAR_VIEW_URL}?${queryParams.toString()}`
+      return `${buildCalendarScopedUrl('calendarView', params.calendarId)}?${queryParams.toString()}`
     },
     method: 'GET',
     retry: CALENDAR_RETRY,

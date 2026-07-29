@@ -1,5 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { CALENDAR_RETRY, flattenGraphEvent } from '@/tools/outlook/calendar-utils'
+import { buildEventUrl, CALENDAR_RETRY, flattenGraphEvent } from '@/tools/outlook/calendar-utils'
 import type {
   GraphEvent,
   OutlookCalendarGetEventParams,
@@ -40,8 +40,7 @@ export const outlookCalendarGetEventTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://graph.microsoft.com/v1.0/me/events/${encodeURIComponent(params.eventId.trim())}`,
+    url: (params) => buildEventUrl(params.eventId),
     method: 'GET',
     retry: CALENDAR_RETRY,
     headers: (params) => {

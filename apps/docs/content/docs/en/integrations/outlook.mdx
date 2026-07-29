@@ -1,6 +1,6 @@
 ---
 title: Outlook
-description: Send, read, search, reply, organize, and manage Outlook email
+description: Send, read, search, reply, organize, and manage Outlook email and calendar
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -37,7 +37,7 @@ By connecting Sim with Microsoft Outlook, you enable intelligent agents to autom
 
 ## Usage Instructions
 
-Integrate Outlook into the workflow. Can send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can be used in trigger mode to trigger a workflow when a new email is received.
+Integrate Outlook into the workflow. Can send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can also list, create, update, delete, and respond to calendar events. Can be used in trigger mode to trigger a workflow when a new email is received.
 
 
 
@@ -472,6 +472,232 @@ Get a single attachment on an Outlook message, including its file contents
 |   ↳ `attachmentType` | string | Microsoft Graph attachment type \(e.g. #microsoft.graph.fileAttachment\) |
 |   ↳ `lastModifiedDateTime` | string | When the attachment was last modified \(ISO 8601\) |
 | `attachments` | file[] | The downloaded file attachment \(empty for non-file attachment types\) |
+
+### `outlook_calendar_list_events`
+
+List Outlook calendar events within a start/end time window
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | ID of the calendar to read. Defaults to the mailbox default calendar. |
+| `startDateTime` | string | Yes | Start of the time window \(ISO 8601, e.g. 2025-06-03T00:00:00-08:00\). Interpreted as UTC if no offset is given. |
+| `endDateTime` | string | Yes | End of the time window \(ISO 8601, e.g. 2025-06-10T00:00:00-08:00\). Interpreted as UTC if no offset is given. |
+| `maxResults` | number | No | Maximum number of events to return per page \(default: 10, max: 100\) |
+| `orderBy` | string | No | Order of events \(default: start/dateTime\) |
+| `pageToken` | string | No | Full @odata.nextLink URL from a previous page to continue paging |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or status message |
+| `results` | array | Array of calendar event objects |
+|   ↳ `id` | string | Unique event identifier |
+|   ↳ `subject` | string | Event subject/title |
+|   ↳ `bodyPreview` | string | Preview of the event body |
+|   ↳ `start` | object | Event start |
+|     ↳ `dateTime` | string | Local date and time \(ISO 8601, no offset\) |
+|     ↳ `timeZone` | string | IANA or Windows time zone name |
+|   ↳ `end` | object | Event end |
+|     ↳ `dateTime` | string | Local date and time \(ISO 8601, no offset\) |
+|     ↳ `timeZone` | string | IANA or Windows time zone name |
+|   ↳ `isAllDay` | boolean | Whether the event lasts the entire day |
+|   ↳ `location` | string | Event location display name |
+|   ↳ `organizer` | object | Event organizer |
+|     ↳ `name` | string | Display name of the person or entity |
+|     ↳ `address` | string | Email address |
+|   ↳ `attendees` | array | Event attendees |
+|     ↳ `name` | string | Attendee display name |
+|     ↳ `address` | string | Attendee email address |
+|     ↳ `type` | string | Attendee type \(required, optional, or resource\) |
+|     ↳ `response` | string | Attendee response status \(none, accepted, declined, tentativelyAccepted, ...\) |
+|   ↳ `onlineMeeting` | object | Online-meeting join details, if any |
+|     ↳ `joinUrl` | string | URL to join the online meeting |
+|   ↳ `webLink` | string | URL that opens the event in Outlook on the web |
+| `nextLink` | string | URL for the next page of results, if any |
+
+### `outlook_calendar_get_event`
+
+Get a single Outlook calendar event by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventId` | string | Yes | The ID of the calendar event to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or status message |
+| `results` | object | The calendar event object |
+|   ↳ `id` | string | Unique event identifier |
+|   ↳ `subject` | string | Event subject/title |
+|   ↳ `bodyPreview` | string | Preview of the event body |
+|   ↳ `start` | object | Event start |
+|     ↳ `dateTime` | string | Local date and time \(ISO 8601, no offset\) |
+|     ↳ `timeZone` | string | IANA or Windows time zone name |
+|   ↳ `end` | object | Event end |
+|     ↳ `dateTime` | string | Local date and time \(ISO 8601, no offset\) |
+|     ↳ `timeZone` | string | IANA or Windows time zone name |
+|   ↳ `isAllDay` | boolean | Whether the event lasts the entire day |
+|   ↳ `location` | string | Event location display name |
+|   ↳ `organizer` | object | Event organizer |
+|     ↳ `name` | string | Display name of the person or entity |
+|     ↳ `address` | string | Email address |
+|   ↳ `attendees` | array | Event attendees |
+|     ↳ `name` | string | Attendee display name |
+|     ↳ `address` | string | Attendee email address |
+|     ↳ `type` | string | Attendee type \(required, optional, or resource\) |
+|     ↳ `response` | string | Attendee response status \(none, accepted, declined, tentativelyAccepted, ...\) |
+|   ↳ `onlineMeeting` | object | Online-meeting join details, if any |
+|     ↳ `joinUrl` | string | URL to join the online meeting |
+|   ↳ `webLink` | string | URL that opens the event in Outlook on the web |
+
+### `outlook_calendar_create_event`
+
+Create a new Outlook calendar event
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | ID of the calendar to create the event in. Defaults to the default calendar. |
+| `subject` | string | Yes | Event subject/title |
+| `startDateTime` | string | Yes | Start time \(ISO 8601, e.g. 2025-06-03T10:00:00-08:00\) or a date \(2025-06-03\) for an all-day event |
+| `endDateTime` | string | Yes | End time \(ISO 8601, e.g. 2025-06-03T11:00:00-08:00\) or a date \(2025-06-04\) for an all-day event |
+| `timeZone` | string | No | IANA or Windows time zone name \(e.g. America/Los_Angeles\). Used for datetimes without a UTC offset. Defaults to UTC. |
+| `body` | string | No | Event body content |
+| `contentType` | string | No | Content type for the event body \(text or html\) |
+| `location` | string | No | Event location display name |
+| `attendees` | string | No | Attendee email addresses \(comma-separated\) |
+| `isAllDay` | boolean | No | Whether the event lasts the entire day |
+| `isOnlineMeeting` | boolean | No | Attach an online meeting to the event. Uses the mailbox default provider \(Teams on work/school accounts\); personal accounts have no supported online-meeting provider. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or status message |
+| `results` | object | The created calendar event object |
+|   ↳ `id` | string | Unique event identifier |
+|   ↳ `subject` | string | Event subject/title |
+|   ↳ `bodyPreview` | string | Preview of the event body |
+|   ↳ `start` | object | Event start |
+|     ↳ `dateTime` | string | Local date and time \(ISO 8601, no offset\) |
+|     ↳ `timeZone` | string | IANA or Windows time zone name |
+|   ↳ `end` | object | Event end |
+|     ↳ `dateTime` | string | Local date and time \(ISO 8601, no offset\) |
+|     ↳ `timeZone` | string | IANA or Windows time zone name |
+|   ↳ `isAllDay` | boolean | Whether the event lasts the entire day |
+|   ↳ `location` | string | Event location display name |
+|   ↳ `organizer` | object | Event organizer |
+|     ↳ `name` | string | Display name of the person or entity |
+|     ↳ `address` | string | Email address |
+|   ↳ `attendees` | array | Event attendees |
+|     ↳ `name` | string | Attendee display name |
+|     ↳ `address` | string | Attendee email address |
+|     ↳ `type` | string | Attendee type \(required, optional, or resource\) |
+|     ↳ `response` | string | Attendee response status \(none, accepted, declined, tentativelyAccepted, ...\) |
+|   ↳ `onlineMeeting` | object | Online-meeting join details, if any |
+|     ↳ `joinUrl` | string | URL to join the online meeting |
+|   ↳ `webLink` | string | URL that opens the event in Outlook on the web |
+
+### `outlook_calendar_update_event`
+
+Update an existing Outlook calendar event
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventId` | string | Yes | The ID of the calendar event to update |
+| `subject` | string | No | New event subject/title |
+| `startDateTime` | string | No | New start time \(ISO 8601\) or a date \(2025-06-03\) for an all-day event |
+| `endDateTime` | string | No | New end time \(ISO 8601\) or a date \(2025-06-04\) for an all-day event |
+| `timeZone` | string | No | IANA or Windows time zone name applied to updated datetimes without a UTC offset. Defaults to UTC. |
+| `body` | string | No | New event body content |
+| `contentType` | string | No | Content type for the event body \(text or html\) |
+| `location` | string | No | New event location display name |
+| `attendees` | string | No | Replacement attendee email addresses \(comma-separated\) |
+| `isAllDay` | boolean | No | Whether the event lasts the entire day |
+| `isOnlineMeeting` | boolean | No | Attach an online meeting to the event. Uses the mailbox default provider \(Teams on work/school accounts\); personal accounts have no supported online-meeting provider. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or status message |
+| `results` | object | The updated calendar event object |
+|   ↳ `id` | string | Unique event identifier |
+|   ↳ `subject` | string | Event subject/title |
+|   ↳ `bodyPreview` | string | Preview of the event body |
+|   ↳ `start` | object | Event start |
+|     ↳ `dateTime` | string | Local date and time \(ISO 8601, no offset\) |
+|     ↳ `timeZone` | string | IANA or Windows time zone name |
+|   ↳ `end` | object | Event end |
+|     ↳ `dateTime` | string | Local date and time \(ISO 8601, no offset\) |
+|     ↳ `timeZone` | string | IANA or Windows time zone name |
+|   ↳ `isAllDay` | boolean | Whether the event lasts the entire day |
+|   ↳ `location` | string | Event location display name |
+|   ↳ `organizer` | object | Event organizer |
+|     ↳ `name` | string | Display name of the person or entity |
+|     ↳ `address` | string | Email address |
+|   ↳ `attendees` | array | Event attendees |
+|     ↳ `name` | string | Attendee display name |
+|     ↳ `address` | string | Attendee email address |
+|     ↳ `type` | string | Attendee type \(required, optional, or resource\) |
+|     ↳ `response` | string | Attendee response status \(none, accepted, declined, tentativelyAccepted, ...\) |
+|   ↳ `onlineMeeting` | object | Online-meeting join details, if any |
+|     ↳ `joinUrl` | string | URL to join the online meeting |
+|   ↳ `webLink` | string | URL that opens the event in Outlook on the web |
+
+### `outlook_calendar_delete_event`
+
+Delete an Outlook calendar event by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventId` | string | Yes | The ID of the calendar event to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or status message |
+| `results` | object | Delete result details |
+|   ↳ `eventId` | string | ID of the deleted event |
+|   ↳ `status` | string | Deletion status |
+
+### `outlook_calendar_respond`
+
+Accept, tentatively accept, or decline an Outlook calendar event invitation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventId` | string | Yes | The ID of the calendar event to respond to |
+| `responseType` | string | Yes | The response: accept, tentativelyAccept, or decline |
+| `comment` | string | No | Optional comment to include with the response |
+| `sendResponse` | boolean | No | Whether to send a response to the organizer \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or status message |
+| `results` | object | Response result details |
+|   ↳ `eventId` | string | ID of the event responded to |
+|   ↳ `responseType` | string | The response that was sent |
+|   ↳ `status` | string | Response status |
+|   ↳ `httpStatus` | number | HTTP status code returned by the API |
+|   ↳ `requestId` | string | Microsoft Graph request-id header for tracing |
 
 
 

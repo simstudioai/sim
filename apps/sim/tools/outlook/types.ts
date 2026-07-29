@@ -708,6 +708,8 @@ export interface GraphEventsResponse {
 
 export interface OutlookCalendarListEventsParams {
   accessToken: string
+  /** Calendar to read. Omit for the mailbox's default calendar. */
+  calendarId?: string
   startDateTime: string
   endDateTime: string
   maxResults?: number
@@ -738,6 +740,8 @@ export interface OutlookCalendarGetEventResponse extends ToolResponse {
 
 export interface OutlookCalendarCreateEventParams {
   accessToken: string
+  /** Calendar to create the event in. Omit for the mailbox's default calendar. */
+  calendarId?: string
   subject: string
   startDateTime: string
   endDateTime: string
