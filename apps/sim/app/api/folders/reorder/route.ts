@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
-import { workflowFolder } from '@sim/db/schema'
+import { folder as folderTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
-import { eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { reorderFoldersContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
@@ -37,9 +37,9 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
 
     const folderIds = updates.map((u) => u.id)
     const existingFolders = await db
-      .select({ id: workflowFolder.id, workspaceId: workflowFolder.workspaceId })
-      .from(workflowFolder)
-      .where(inArray(workflowFolder.id, folderIds))
+      .select({ id: folderTable.id, workspaceId: folderTable.workspaceId })
+      .from(folderTable)
+      .where(and(inArray(folderTable.id, folderIds), eq(folderTable.resourceType, 'workflow')))
 
     const validIds = new Set(
       existingFolders.filter((f) => f.workspaceId === workspaceId).map((f) => f.id)
@@ -58,12 +58,14 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
     if (targetParentIds.length > 0) {
       const parentFolders = await db
         .select({
-          id: workflowFolder.id,
-          workspaceId: workflowFolder.workspaceId,
-          archivedAt: workflowFolder.archivedAt,
+          id: folderTable.id,
+          workspaceId: folderTable.workspaceId,
+          archivedAt: folderTable.deletedAt,
         })
-        .from(workflowFolder)
-        .where(inArray(workflowFolder.id, targetParentIds))
+        .from(folderTable)
+        .where(
+          and(inArray(folderTable.id, targetParentIds), eq(folderTable.resourceType, 'workflow'))
+        )
 
       const validParentIds = new Set(
         parentFolders.filter((f) => f.workspaceId === workspaceId && !f.archivedAt).map((f) => f.id)
@@ -81,9 +83,11 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
     }
 
     const workspaceFolders = await db
-      .select({ id: workflowFolder.id, parentId: workflowFolder.parentId })
-      .from(workflowFolder)
-      .where(eq(workflowFolder.workspaceId, workspaceId))
+      .select({ id: folderTable.id, parentId: folderTable.parentId })
+      .from(folderTable)
+      .where(
+        and(eq(folderTable.workspaceId, workspaceId), eq(folderTable.resourceType, 'workflow'))
+      )
 
     const parentById = new Map<string, string | null>()
     for (const folder of workspaceFolders) {
@@ -126,7 +130,10 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
         if (update.parentId !== undefined) {
           updateData.parentId = update.parentId || null
         }
-        await tx.update(workflowFolder).set(updateData).where(eq(workflowFolder.id, update.id))
+        await tx
+          .update(folderTable)
+          .set(updateData)
+          .where(and(eq(folderTable.id, update.id), eq(folderTable.resourceType, 'workflow')))
       }
     })
 

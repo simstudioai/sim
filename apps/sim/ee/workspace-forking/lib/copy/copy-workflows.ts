@@ -1,4 +1,4 @@
-import { workflow, workflowBlocks, workflowFolder } from '@sim/db/schema'
+import { folder as folderTable, workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
@@ -73,9 +73,13 @@ export async function resolveForkFolderMapping({
 
   const sourceFolders = await tx
     .select()
-    .from(workflowFolder)
+    .from(folderTable)
     .where(
-      and(eq(workflowFolder.workspaceId, sourceWorkspaceId), isNull(workflowFolder.archivedAt))
+      and(
+        eq(folderTable.workspaceId, sourceWorkspaceId),
+        eq(folderTable.resourceType, 'workflow'),
+        isNull(folderTable.deletedAt)
+      )
     )
 
   if (sourceFolders.length === 0) return map
@@ -96,9 +100,13 @@ export async function resolveForkFolderMapping({
 
   const targetFolders = await tx
     .select()
-    .from(workflowFolder)
+    .from(folderTable)
     .where(
-      and(eq(workflowFolder.workspaceId, targetWorkspaceId), isNull(workflowFolder.archivedAt))
+      and(
+        eq(folderTable.workspaceId, targetWorkspaceId),
+        eq(folderTable.resourceType, 'workflow'),
+        isNull(folderTable.deletedAt)
+      )
     )
 
   const targetByKey = new Map<string, string>()
@@ -149,7 +157,7 @@ export async function resolveForkFolderMapping({
   }
 
   if (newFolders.length > 0) {
-    await tx.insert(workflowFolder).values(newFolders)
+    await tx.insert(folderTable).values(newFolders)
   }
 
   return map
