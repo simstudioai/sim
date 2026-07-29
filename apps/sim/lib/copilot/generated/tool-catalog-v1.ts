@@ -3651,7 +3651,7 @@ export const Search: ToolCatalogEntry = {
     properties: {
       task: {
         description:
-          "One short scoping sentence — the search agent has full conversation context. Example: 'find current Stripe metered-billing API limits' or 'count how many rows in the leads table have invalid emails'.",
+          "A fully self-contained task — the search agent sees none of this conversation, so include the question plus every name, id, constraint, and prior finding it needs. Example: 'find current Stripe metered-billing API limits' or 'count how many rows in the leads table have invalid emails'.",
         type: 'string',
       },
     },
