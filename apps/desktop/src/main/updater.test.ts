@@ -326,6 +326,51 @@ describe('initUpdater manual mode (no Developer ID signature)', () => {
     expect(shell.openExternal).toHaveBeenCalledTimes(2)
   })
 
+  it('refuses a manifest whose download urls are not http(s)', async () => {
+    const hostile = [
+      'version: 9.9.9',
+      'files:',
+      '  - url: smb://attacker.example/share/Sim-9.9.9-universal.dmg',
+      '    sha512: abc',
+      '  - url: file:///Applications/Calculator.app',
+      '    sha512: def',
+      "releaseDate: '2026-07-23T00:00:00.000Z'",
+    ].join('\n')
+    const { handle } = await createManualUpdater(async () => hostile)
+
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+
+    // Never advertised, so the user is never offered a Download button for it.
+    expect(handle.getState()).toEqual({ status: 'idle', manual: true })
+
+    handle.check()
+    handle.install()
+    expect(shell.openExternal).not.toHaveBeenCalled()
+  })
+
+  it('skips an unusable url but still offers a safe one from the same manifest', async () => {
+    const mixed = [
+      'version: 9.9.9',
+      'files:',
+      '  - url: javascript:alert(1)//Sim-9.9.9-universal.dmg',
+      '    sha512: abc',
+      '  - url: https://github.com/simstudioai/sim/releases/download/v9.9.9/Sim-9.9.9-universal.dmg',
+      '    sha512: def',
+      "releaseDate: '2026-07-23T00:00:00.000Z'",
+    ].join('\n')
+    const { handle } = await createManualUpdater(async () => mixed)
+
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(handle.getState()).toEqual({ status: 'available', version: '9.9.9', manual: true })
+
+    handle.check()
+    expect(shell.openExternal).toHaveBeenCalledWith(
+      'https://github.com/simstudioai/sim/releases/download/v9.9.9/Sim-9.9.9-universal.dmg'
+    )
+  })
+
   it('stays idle when the feed version is not newer', async () => {
     const { handle } = await createManualUpdater(async () => manifest(app.getVersion()))
     handle.check()

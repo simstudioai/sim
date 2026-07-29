@@ -3,7 +3,8 @@ import type { DesktopUpdateState } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { BrowserWindow } from 'electron'
-import { app, dialog, net, shell } from 'electron'
+import { app, dialog, net } from 'electron'
+import { isSafeExternalUrl, openExternalSafe } from '@/main/navigation'
 import type { EventRecorder } from '@/main/observability'
 
 const logger = createLogger('DesktopUpdater')
@@ -434,12 +435,26 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         }
         // The feed rewrites manifest urls to absolute GitHub asset URLs;
         // prefer the dmg for a human download.
-        const urls = Array.from(manifest.matchAll(/^\s*(?:-\s*)?url:\s*(\S+)\s*$/gm), (m) => m[1])
+        //
+        // Filtered before selection, not just before opening: the manifest is
+        // whatever the configured origin served, so `smb://…/x.dmg` or a bare
+        // `file:///…` would otherwise pass the suffix test and be advertised as
+        // an available update. Loopback http is kept because feedUrlForOrigin
+        // accepts an http origin, so a self-host on localhost is legitimate.
+        const urls = Array.from(
+          manifest.matchAll(/^\s*(?:-\s*)?url:\s*(\S+)\s*$/gm),
+          (m) => m[1]
+        ).filter((url) => isSafeExternalUrl(url, true))
         downloadUrl =
           urls.find((url) => url.endsWith('.dmg')) ??
           urls.find((url) => url.endsWith('.zip')) ??
           urls[0] ??
           null
+        if (!downloadUrl) {
+          logger.warn('Update manifest had no usable download url')
+          setState({ status: 'idle', manual: true })
+          return
+        }
         deps.events.record('update_check', { available: version, manual: true })
         setState({ status: 'available', version, manual: true })
       } catch (error) {
@@ -451,7 +466,10 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     const openDownload = () => {
       if (downloadUrl) {
         deps.events.record('update_manual_download', { url: downloadUrl })
-        void shell.openExternal(downloadUrl)
+        // Through openExternalSafe like every other external open in the app,
+        // so the scheme allowlist is enforced at the sink and not only where
+        // the url was chosen.
+        void openExternalSafe(downloadUrl, true)
       }
     }
 
