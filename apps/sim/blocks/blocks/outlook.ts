@@ -9,10 +9,10 @@ import { getTrigger } from '@/triggers'
 export const OutlookBlock: BlockConfig<OutlookResponse> = {
   type: 'outlook',
   name: 'Outlook',
-  description: 'Send, read, search, reply, organize, and manage Outlook email',
+  description: 'Send, read, search, reply, organize, and manage Outlook email and calendar',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Outlook into the workflow. Can send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can be used in trigger mode to trigger a workflow when a new email is received.',
+    'Integrate Outlook into the workflow. Can send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can also list, create, update, delete, and respond to calendar events and suggest meeting times. Can be used in trigger mode to trigger a workflow when a new email is received.',
   docsLink: 'https://docs.sim.ai/integrations/outlook',
   category: 'tools',
   integrationType: IntegrationType.Email,
@@ -42,6 +42,12 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         { label: 'Create Folder', id: 'create_folder_outlook' },
         { label: 'List Attachments', id: 'list_attachments_outlook' },
         { label: 'Get Attachment', id: 'get_attachment_outlook' },
+        { label: 'List Calendar Events', id: 'list_events_calendar' },
+        { label: 'Get Calendar Event', id: 'get_event_calendar' },
+        { label: 'Create Event', id: 'create_event_calendar' },
+        { label: 'Update Event', id: 'update_event_calendar' },
+        { label: 'Delete Event', id: 'delete_event_calendar' },
+        { label: 'Respond to Invite', id: 'respond_calendar' },
       ],
       value: () => 'send_outlook',
     },
@@ -388,6 +394,226 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       mode: 'advanced',
       required: false,
     },
+    // Calendar - Event ID (get / update / delete / respond)
+    {
+      id: 'calEventId',
+      title: 'Event ID',
+      type: 'short-input',
+      placeholder: 'ID of the calendar event',
+      condition: {
+        field: 'operation',
+        value: [
+          'get_event_calendar',
+          'update_event_calendar',
+          'delete_event_calendar',
+          'respond_calendar',
+        ],
+      },
+      required: true,
+    },
+    // Calendar - Window start/end (list events). Required: calendarView needs both bounds.
+    {
+      id: 'calWindowStart',
+      title: 'Start of Window',
+      type: 'short-input',
+      placeholder: '2025-06-03T00:00:00-08:00',
+      condition: { field: 'operation', value: 'list_events_calendar' },
+      required: true,
+    },
+    {
+      id: 'calWindowEnd',
+      title: 'End of Window',
+      type: 'short-input',
+      placeholder: '2025-06-10T00:00:00-08:00',
+      condition: { field: 'operation', value: 'list_events_calendar' },
+      required: true,
+    },
+    // Calendar - List events options
+    {
+      id: 'calMaxResults',
+      title: 'Number of Results',
+      type: 'short-input',
+      placeholder: 'Number of events to retrieve (default: 10, max: 100)',
+      condition: { field: 'operation', value: 'list_events_calendar' },
+    },
+    {
+      id: 'calOrderBy',
+      title: 'Order By',
+      type: 'short-input',
+      placeholder: 'start/dateTime',
+      condition: { field: 'operation', value: 'list_events_calendar' },
+      mode: 'advanced',
+    },
+    {
+      id: 'calPageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'nextLink URL from a previous response',
+      condition: { field: 'operation', value: 'list_events_calendar' },
+      mode: 'advanced',
+    },
+    // Calendar - Create event (required start/end)
+    {
+      id: 'calSubject',
+      title: 'Subject',
+      type: 'short-input',
+      placeholder: 'Event title',
+      condition: { field: 'operation', value: 'create_event_calendar' },
+      required: true,
+    },
+    {
+      id: 'calStartDateTime',
+      title: 'Start Date & Time',
+      type: 'short-input',
+      placeholder: '2025-06-03T10:00:00-08:00',
+      condition: { field: 'operation', value: 'create_event_calendar' },
+      required: true,
+    },
+    {
+      id: 'calEndDateTime',
+      title: 'End Date & Time',
+      type: 'short-input',
+      placeholder: '2025-06-03T11:00:00-08:00',
+      condition: { field: 'operation', value: 'create_event_calendar' },
+      required: true,
+    },
+    // Calendar - Update event (optional start/end/subject)
+    {
+      id: 'calSubject',
+      title: 'New Subject',
+      type: 'short-input',
+      placeholder: 'Updated event title',
+      condition: { field: 'operation', value: 'update_event_calendar' },
+      required: false,
+    },
+    {
+      id: 'calStartDateTime',
+      title: 'New Start Date & Time',
+      type: 'short-input',
+      placeholder: '2025-06-03T10:00:00-08:00',
+      condition: { field: 'operation', value: 'update_event_calendar' },
+      required: false,
+    },
+    {
+      id: 'calEndDateTime',
+      title: 'New End Date & Time',
+      type: 'short-input',
+      placeholder: '2025-06-03T11:00:00-08:00',
+      condition: { field: 'operation', value: 'update_event_calendar' },
+      required: false,
+    },
+    // Calendar - Shared create/update fields
+    {
+      id: 'calBody',
+      title: 'Body',
+      type: 'long-input',
+      placeholder: 'Event description',
+      condition: {
+        field: 'operation',
+        value: ['create_event_calendar', 'update_event_calendar'],
+      },
+      required: false,
+    },
+    {
+      id: 'calContentType',
+      title: 'Body Content Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Plain Text', id: 'text' },
+        { label: 'HTML', id: 'html' },
+      ],
+      condition: {
+        field: 'operation',
+        value: ['create_event_calendar', 'update_event_calendar'],
+      },
+      value: () => 'text',
+      mode: 'advanced',
+      required: false,
+    },
+    {
+      id: 'calLocation',
+      title: 'Location',
+      type: 'short-input',
+      placeholder: 'Event location',
+      condition: {
+        field: 'operation',
+        value: ['create_event_calendar', 'update_event_calendar'],
+      },
+      required: false,
+    },
+    // Calendar - Attendees (create / update)
+    {
+      id: 'calAttendees',
+      title: 'Attendees',
+      type: 'short-input',
+      placeholder: 'Attendee emails (comma-separated)',
+      condition: {
+        field: 'operation',
+        value: ['create_event_calendar', 'update_event_calendar'],
+      },
+      required: false,
+    },
+    {
+      id: 'calTimeZone',
+      title: 'Time Zone',
+      type: 'short-input',
+      placeholder: 'America/Los_Angeles',
+      condition: {
+        field: 'operation',
+        value: ['create_event_calendar', 'update_event_calendar'],
+      },
+      mode: 'advanced',
+      required: false,
+    },
+    {
+      id: 'calIsAllDay',
+      title: 'All Day',
+      type: 'switch',
+      condition: {
+        field: 'operation',
+        value: ['create_event_calendar', 'update_event_calendar'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'calIsOnlineMeeting',
+      title: 'Add Online Meeting',
+      type: 'switch',
+      condition: {
+        field: 'operation',
+        value: ['create_event_calendar', 'update_event_calendar'],
+      },
+      mode: 'advanced',
+    },
+    // Calendar - Respond to invite
+    {
+      id: 'calResponseType',
+      title: 'Response',
+      type: 'dropdown',
+      options: [
+        { label: 'Accept', id: 'accept' },
+        { label: 'Tentative', id: 'tentativelyAccept' },
+        { label: 'Decline', id: 'decline' },
+      ],
+      condition: { field: 'operation', value: 'respond_calendar' },
+      value: () => 'accept',
+      required: true,
+    },
+    {
+      id: 'calComment',
+      title: 'Comment',
+      type: 'long-input',
+      placeholder: 'Optional message to the organizer',
+      condition: { field: 'operation', value: 'respond_calendar' },
+      required: false,
+    },
+    {
+      id: 'calSendResponse',
+      title: 'Send Response to Organizer',
+      type: 'switch',
+      condition: { field: 'operation', value: 'respond_calendar' },
+      mode: 'advanced',
+    },
     ...getTrigger('outlook_poller').subBlocks,
   ],
   tools: {
@@ -409,6 +635,12 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       'outlook_create_folder',
       'outlook_list_attachments',
       'outlook_get_attachment',
+      'outlook_calendar_list_events',
+      'outlook_calendar_get_event',
+      'outlook_calendar_create_event',
+      'outlook_calendar_update_event',
+      'outlook_calendar_delete_event',
+      'outlook_calendar_respond',
     ],
     config: {
       tool: (params) => {
@@ -447,6 +679,18 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
             return 'outlook_list_attachments'
           case 'get_attachment_outlook':
             return 'outlook_get_attachment'
+          case 'list_events_calendar':
+            return 'outlook_calendar_list_events'
+          case 'get_event_calendar':
+            return 'outlook_calendar_get_event'
+          case 'create_event_calendar':
+            return 'outlook_calendar_create_event'
+          case 'update_event_calendar':
+            return 'outlook_calendar_update_event'
+          case 'delete_event_calendar':
+            return 'outlook_calendar_delete_event'
+          case 'respond_calendar':
+            return 'outlook_calendar_respond'
           default:
             throw new Error(`Invalid Outlook operation: ${params.operation}`)
         }
@@ -467,6 +711,25 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
           includeHiddenFolders,
           categories,
           maxResults,
+          calEventId,
+          calWindowStart,
+          calWindowEnd,
+          calMaxResults,
+          calOrderBy,
+          calPageToken,
+          calSubject,
+          calStartDateTime,
+          calEndDateTime,
+          calBody,
+          calContentType,
+          calLocation,
+          calAttendees,
+          calTimeZone,
+          calIsAllDay,
+          calIsOnlineMeeting,
+          calResponseType,
+          calComment,
+          calSendResponse,
           ...rest
         } = params
 
@@ -555,6 +818,60 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
           }
         }
 
+        const isSet = (value: unknown): boolean =>
+          value !== undefined && value !== null && value !== ''
+
+        if (rest.operation === 'list_events_calendar') {
+          if (calWindowStart) rest.startDateTime = String(calWindowStart).trim()
+          if (calWindowEnd) rest.endDateTime = String(calWindowEnd).trim()
+          if (isSet(calMaxResults)) rest.maxResults = Number(calMaxResults)
+          if (calOrderBy) rest.orderBy = String(calOrderBy).trim()
+          if (calPageToken) rest.pageToken = String(calPageToken).trim()
+        }
+
+        if (
+          [
+            'get_event_calendar',
+            'update_event_calendar',
+            'delete_event_calendar',
+            'respond_calendar',
+          ].includes(rest.operation)
+        ) {
+          if (calEventId) rest.eventId = String(calEventId).trim()
+        }
+
+        if (rest.operation === 'create_event_calendar') {
+          if (calSubject) rest.subject = calSubject
+          if (calStartDateTime) rest.startDateTime = String(calStartDateTime).trim()
+          if (calEndDateTime) rest.endDateTime = String(calEndDateTime).trim()
+          if (isSet(calBody)) rest.body = calBody
+          if (calContentType) rest.contentType = calContentType
+          if (isSet(calLocation)) rest.location = calLocation
+          if (isSet(calAttendees)) rest.attendees = calAttendees
+          if (calTimeZone) rest.timeZone = String(calTimeZone).trim()
+          rest.isAllDay = toBool(calIsAllDay)
+          rest.isOnlineMeeting = toBool(calIsOnlineMeeting)
+        }
+
+        if (rest.operation === 'update_event_calendar') {
+          if (isSet(calSubject)) rest.subject = calSubject
+          if (calStartDateTime) rest.startDateTime = String(calStartDateTime).trim()
+          if (calEndDateTime) rest.endDateTime = String(calEndDateTime).trim()
+          if (isSet(calBody)) rest.body = calBody
+          if (calContentType) rest.contentType = calContentType
+          if (isSet(calLocation)) rest.location = calLocation
+          if (isSet(calAttendees)) rest.attendees = calAttendees
+          if (calTimeZone) rest.timeZone = String(calTimeZone).trim()
+          if (isSet(calIsAllDay)) rest.isAllDay = toBool(calIsAllDay)
+          if (isSet(calIsOnlineMeeting)) rest.isOnlineMeeting = toBool(calIsOnlineMeeting)
+        }
+
+        if (rest.operation === 'respond_calendar') {
+          if (calResponseType) rest.responseType = calResponseType
+          if (isSet(calComment)) rest.comment = calComment
+          if (isSet(calSendResponse)) rest.sendResponse = toBool(calSendResponse)
+        }
+
         return {
           ...rest,
           oauthCredential,
@@ -600,6 +917,35 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     categories: { type: 'string', description: 'Comma-separated category names' },
     flagStatus: { type: 'string', description: 'Follow-up flag status' },
     importance: { type: 'string', description: 'Message importance level' },
+    // Calendar operation inputs
+    calEventId: { type: 'string', description: 'Calendar event ID' },
+    calWindowStart: { type: 'string', description: 'Start of the calendar time window (ISO 8601)' },
+    calWindowEnd: { type: 'string', description: 'End of the calendar time window (ISO 8601)' },
+    calMaxResults: { type: 'number', description: 'Maximum number of calendar events to return' },
+    calOrderBy: { type: 'string', description: 'Order of calendar events' },
+    calPageToken: { type: 'string', description: 'nextLink URL for paging calendar events' },
+    calSubject: { type: 'string', description: 'Calendar event subject/title' },
+    calStartDateTime: { type: 'string', description: 'Calendar event start (ISO 8601)' },
+    calEndDateTime: { type: 'string', description: 'Calendar event end (ISO 8601)' },
+    calBody: { type: 'string', description: 'Calendar event body content' },
+    calContentType: {
+      type: 'string',
+      description: 'Calendar event body content type (text or html)',
+    },
+    calLocation: { type: 'string', description: 'Calendar event location' },
+    calAttendees: { type: 'string', description: 'Attendee emails (comma-separated)' },
+    calTimeZone: { type: 'string', description: 'IANA/Windows time zone name' },
+    calIsAllDay: { type: 'boolean', description: 'Whether the event lasts the entire day' },
+    calIsOnlineMeeting: {
+      type: 'boolean',
+      description: 'Attach an online meeting (Teams; work/school accounts only)',
+    },
+    calResponseType: {
+      type: 'string',
+      description: 'Invite response (accept, tentativelyAccept, or decline)',
+    },
+    calComment: { type: 'string', description: 'Comment to send with an invite response' },
+    calSendResponse: { type: 'boolean', description: 'Whether to notify the organizer' },
   },
   outputs: {
     // Common outputs
@@ -635,6 +981,8 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     // Update message operation outputs
     categories: { type: 'json', description: 'Categories assigned to the message' },
     flagStatus: { type: 'string', description: 'Follow-up flag status of the message' },
+    // Calendar operation outputs
+    nextLink: { type: 'string', description: 'URL for the next page of calendar events, if any' },
     // Trigger outputs
     email: { type: 'json', description: 'Email data from trigger' },
     rawEmail: { type: 'json', description: 'Complete raw email data from Microsoft Graph API' },
