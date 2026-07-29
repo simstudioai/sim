@@ -1,4 +1,5 @@
-import { type db, folder as folderTable } from '@sim/db'
+import type { db } from '@sim/db'
+import { folder as folderTable } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 
@@ -15,7 +16,7 @@ type DbOrTx = Pick<typeof db, 'select'>
  * instead where they do (create, rename).
  *
  * The `" (N)"` shape deliberately matches both the client-side dedup in
- * `useFolderCreateWithDedup` and the backfill in migration 0272, so a deduped name reads the
+ * `nextUntitledFolderName` and the backfill in migration 0272, so a deduped name reads the
  * same however it was produced.
  */
 export async function deduplicateFolderName(
@@ -23,7 +24,7 @@ export async function deduplicateFolderName(
   workspaceId: string,
   parentId: string | null,
   requestedName: string,
-  resourceType: FolderResourceType = 'workflow'
+  resourceType: FolderResourceType
 ): Promise<string> {
   const siblingRows = await tx
     .select({ name: folderTable.name })

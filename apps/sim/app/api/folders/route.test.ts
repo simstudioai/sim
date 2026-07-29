@@ -545,8 +545,9 @@ describe('Folders API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('error', 'Internal server error')
-      expect(mockLogger.error).toHaveBeenCalledWith('Failed to create workflow folder', {
+      expect(mockLogger.error).toHaveBeenCalledWith('Failed to create folder', {
         error: expect.any(Error),
+        resourceType: 'workflow',
       })
     })
 

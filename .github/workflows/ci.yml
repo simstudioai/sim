@@ -710,8 +710,19 @@ jobs:
           # and are always superseded by the next stable. The run-attempt
           # suffix keeps re-runs of the same workflow from colliding on the
           # tag while preserving semver ordering.
-          LATEST="$(gh release list --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName' || true)"
-          LATEST="${LATEST:-v0.0.0}"
+          # Fail loudly if the query itself fails: silently falling back to
+          # v0.0.0 would publish a channel build that sorts below the shipped
+          # stable, and installed shells would never see it as an update.
+          if ! LATEST="$(gh release list --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName')"; then
+            echo "::error::Could not query the latest stable release."
+            exit 1
+          fi
+          # An empty release list makes jq print "null", which ${VAR:-default}
+          # does not treat as empty. Anything that is not a bare vX.Y.Z means
+          # "no stable release to build on top of" — start the channel at 0.0.1.
+          if [[ ! "$LATEST" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            LATEST="v0.0.0"
+          fi
           IFS='.' read -r MAJOR MINOR PATCH <<< "${LATEST#v}"
           TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))-${CHANNEL}.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
           NOTES="Automated ${CHANNEL}-channel desktop build from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}."
