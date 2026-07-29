@@ -6289,10 +6289,20 @@ export const tools: Record<string, ToolConfig> = {
   /**
    * Internal to the Pi Babysit handler, which calls them through `executeTool`.
    * Deliberately registry-only: no `_v2` variant and no entry in the GitHub
-   * block's `tools.access`, unlike the user-facing tools added alongside them.
+   * block's `tools.access`, unlike every user-facing GitHub tool above.
+   *
+   * Two consequences, neither encoded in CI:
+   *
    * `GitHubV2Block` derives its access list by appending `_v2` to every entry,
-   * so adding one of these there without first adding a v2 would point the block
-   * at an id that does not exist. Nothing in CI encodes that, hence this note.
+   * so adding one of these to `tools.access` without first adding a v2 would
+   * point the block at an id that does not exist. `check-block-registry.ts`
+   * skips ids it cannot resolve rather than failing, so that ships silently.
+   *
+   * The permission-group deny list is also built from `tools.access`, so an
+   * enterprise admin cannot deny these five from the UI. Enforcement itself is
+   * id-based and would apply if they were denied; only discoverability is
+   * missing. Denying the GitHub integration does not stop them either, because
+   * that gate keys on block type and Babysit calls them with a tool id alone.
    */
   github_list_review_threads: githubListReviewThreadsTool,
   github_reply_review_thread: githubReplyReviewThreadTool,
