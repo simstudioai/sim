@@ -945,6 +945,7 @@ export class AgentBlockHandler implements BlockHandler {
       workflowId: ctx.workflowId,
       workspaceId: ctx.workspaceId,
       userId: ctx.userId,
+      executionId: ctx.executionId,
       stream: streaming,
       messages: messages?.map(({ executionId, ...msg }) => msg),
       environmentVariables: normalizeStringRecord(ctx.environmentVariables),

@@ -207,6 +207,13 @@ export interface ProviderRequest {
   isDeployedContext?: boolean
   callChain?: string[]
   /**
+   * The invoking run's execution id. Propagated into the `_context` of every
+   * tool the LLM invokes so a tool that starts its own child execution (a
+   * custom block) can correlate that child back to a REAL invoking run rather
+   * than a freshly-minted id, and can honour its cancellation.
+   */
+  executionId?: string
+  /**
    * Immutable actor/payer decision captured before execution. Propagated into
    * the `_context` of every tool the LLM invokes so internal routes that
    * require the billing attribution header (e.g. knowledge search) receive it.

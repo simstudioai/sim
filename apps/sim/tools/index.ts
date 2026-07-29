@@ -1281,14 +1281,17 @@ export async function executeTool(
       // Forward the INVOKING run's identifiers so the child's log correlation
       // names a real execution instead of a freshly-minted phantom id. Taken
       // from the server-resolved scope, never from model-supplied params.
-      const result = await runCustomBlockTool({
-        ...contextParams,
-        _context: {
-          ...(contextParams._context as Record<string, unknown> | undefined),
-          ...(scope.executionId ? { executionId: scope.executionId } : {}),
-          requestId,
+      const result = await runCustomBlockTool(
+        {
+          ...contextParams,
+          _context: {
+            ...(contextParams._context as Record<string, unknown> | undefined),
+            ...(scope.executionId ? { executionId: scope.executionId } : {}),
+            requestId,
+          },
         },
-      })
+        { abortSignal: effectiveSignal }
+      )
       const endTime = new Date()
       return {
         ...result,

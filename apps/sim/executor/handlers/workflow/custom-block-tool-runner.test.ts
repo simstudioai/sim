@@ -129,3 +129,19 @@ describe('buildCustomBlockExecutionContext invoker identity', () => {
     expect(ctx.executionId).not.toBe(ctx.metadata.requestId)
   })
 })
+
+describe('buildCustomBlockExecutionContext cancellation', () => {
+  it("adopts the agent tool loop's abort signal so the bridge has something to watch", () => {
+    const controller = new AbortController()
+    const ctx = buildCustomBlockExecutionContext(
+      { workspaceId: 'ws-1' },
+      { abortSignal: controller.signal }
+    )
+
+    expect(ctx.abortSignal).toBe(controller.signal)
+  })
+
+  it('leaves the signal undefined when the caller has none', () => {
+    expect(buildCustomBlockExecutionContext({ workspaceId: 'ws-1' }).abortSignal).toBeUndefined()
+  })
+})

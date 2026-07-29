@@ -48,7 +48,8 @@ interface CustomBlockToolParams {
  * scaffolding. Keep in sync with `WorkflowBlockHandler.executeCore`'s custom branch.
  */
 export function buildCustomBlockExecutionContext(
-  context: CustomBlockExecutorContext
+  context: CustomBlockExecutorContext,
+  options: { abortSignal?: AbortSignal } = {}
 ): ExecutionContext {
   // Prefer the invoking agent run's ids so correlation and cancellation both
   // point at a real execution; fall back only when a caller could not supply them.
@@ -62,6 +63,9 @@ export function buildCustomBlockExecutionContext(
     // Inherit the accumulated chain so the handler appends + validates depth;
     // resetting to [] would let a self-referential custom block recurse unbounded.
     callChain: context.callChain ?? [],
+    // Without this the child's cancellation bridge has nothing to abort on:
+    // the agent tool loop owns the only signal reaching this path.
+    abortSignal: options.abortSignal,
     environmentVariables: {},
     blockStates: new Map(),
     executedBlocks: new Set(),
@@ -96,12 +100,17 @@ export function buildCustomBlockExecutionContext(
  * Lives in a server-only module (dynamic-imported by `executeTool`) so the
  * client-bundled tool registry never pulls in the executor/db dependency graph.
  */
-export async function runCustomBlockTool(params: CustomBlockToolParams): Promise<ToolResponse> {
+export async function runCustomBlockTool(
+  params: CustomBlockToolParams,
+  options: { abortSignal?: AbortSignal } = {}
+): Promise<ToolResponse> {
   if (!params.blockType) {
     return { success: false, output: {}, error: 'Missing custom block type' }
   }
 
-  const ctx = buildCustomBlockExecutionContext(params._context ?? {})
+  const ctx = buildCustomBlockExecutionContext(params._context ?? {}, {
+    abortSignal: options.abortSignal,
+  })
   const block: SerializedBlock = {
     id: generateId(),
     position: { x: 0, y: 0 },
