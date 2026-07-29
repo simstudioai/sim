@@ -421,3 +421,33 @@ export const drizzleOrmMock = {
   getTableColumns: vi.fn((table: Record<string, unknown>) => ({ ...table })),
   ...createMockSqlOperators(),
 }
+
+/**
+ * Condition nodes produced by `createMockSqlOperators` — `{ type: 'eq', left, right }`,
+ * `{ type: 'isNull', column }`, and so on.
+ */
+export type MockCondition = Record<string, unknown>
+
+/**
+ * Flattens the nested `and(...)` trees `createMockSqlOperators` builds into a flat node list.
+ *
+ * Tests assert on WHERE clauses to pin filters the row-queue mocks cannot enforce — a mock
+ * returns whatever was queued regardless of the predicate, so "the query filters on X" is only
+ * testable by inspecting the condition tree. `and()` nests arbitrarily, hence the flatten.
+ */
+export function flattenMockConditions(condition: unknown): MockCondition[] {
+  if (!condition || typeof condition !== 'object') return []
+  const node = condition as MockCondition
+  if (node.type === 'and' && Array.isArray(node.conditions)) {
+    return node.conditions.flatMap(flattenMockConditions)
+  }
+  return [node]
+}
+
+/** True when any node in `condition` satisfies `predicate`. */
+export function hasMockCondition(
+  condition: unknown,
+  predicate: (node: MockCondition) => boolean
+): boolean {
+  return flattenMockConditions(condition).some(predicate)
+}

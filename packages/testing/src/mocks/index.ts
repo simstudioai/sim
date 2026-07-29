@@ -45,6 +45,9 @@ export {
   dbChainMock,
   dbChainMockFns,
   drizzleOrmMock,
+  flattenMockConditions,
+  hasMockCondition,
+  type MockCondition,
   queueTableRows,
   resetDbChainMock,
 } from './database.mock'
