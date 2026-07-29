@@ -11,7 +11,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Button } from '@sim/emcn'
+import { Button, cn } from '@sim/emcn'
 import { PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
@@ -20,11 +20,6 @@ import { usePostHog } from 'posthog-js/react'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
-import {
-  buildWorkflowAliasWorkflowEntries,
-  resolveWorkflowAliasPath,
-  resolveWorkspacePlanAliasPath,
-} from '@/lib/copilot/vfs/workflow-aliases'
 import {
   LandingPromptStorage,
   type LandingWorkflowSeed,
@@ -76,9 +71,11 @@ interface HomeProps {
   chatId?: string
   userName?: string
   userId?: string
+  /** Resolved server-side by the page — the embedded table can't reach AppConfig. */
+  tableViewsEnabled?: boolean
 }
 
-export function Home({ chatId, userName, userId }: HomeProps) {
+export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps) {
   useOAuthReturnRouter()
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
@@ -379,43 +376,18 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     removeResource(resolved.type, resolved.id)
   }
 
-  const workflowAliasEntries = useMemo(
-    () =>
-      buildWorkflowAliasWorkflowEntries(
-        workflows.map((workflow) => ({
-          id: workflow.id,
-          name: workflow.name,
-          folderId: workflow.folderId ?? null,
-        })),
-        folders.map((folder) => ({
-          folderId: folder.id,
-          folderName: folder.name,
-          parentId: folder.parentId ?? null,
-        }))
-      ),
-    [folders, workflows]
-  )
-
   const resolveFileResource = useCallback(
     (resource: MothershipResource): MothershipResource => {
       if (resource.type !== 'file') return resource
 
       const reference = (resource.path || resource.id).trim()
-      const workspacePlanAlias = resolveWorkspacePlanAliasPath(reference)
-      const workflowAlias = workspacePlanAlias
-        ? null
-        : resolveWorkflowAliasPath(reference, workflowAliasEntries)
-      const alias = workspacePlanAlias || workflowAlias
-      const targetPath = alias && alias.kind !== 'plans_dir' ? alias.backingPath : reference
 
       const file = workspaceFiles.find((candidate) => {
         const candidatePath = canonicalWorkspaceFilePath({
           folderPath: candidate.folderPath,
           name: candidate.name,
         })
-        return (
-          candidate.id === reference || candidatePath === reference || candidatePath === targetPath
-        )
+        return candidate.id === reference || candidatePath === reference
       })
 
       if (!file) return resource
@@ -423,10 +395,9 @@ export function Home({ chatId, userName, userId }: HomeProps) {
         ...resource,
         id: file.id,
         title: resource.title || file.name,
-        path: alias ? reference : resource.path,
       }
     },
-    [workflowAliasEntries, workspaceFiles]
+    [workspaceFiles]
   )
 
   function handleWorkspaceResourceSelect(resource: MothershipResource) {
@@ -442,70 +413,85 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   const showChatSkeleton = Boolean(chatId) && !hasMessages && isChatHistoryPending
   const draftScopeKey = `${workspaceId}:${chatId ?? 'new'}`
 
-  if (!hasMessages && !showChatSkeleton) {
-    return (
-      <div className='relative h-full overflow-y-auto bg-[var(--bg)] [scrollbar-gutter:stable_both-edges]'>
-        <div className='absolute top-[8.5px] right-[16px] z-10'>
-          <CreditsChip />
-        </div>
-        {/* Asymmetric padding biases the group up so the full cluster (heading + input + suggestions) sits at the optical center */}
-        <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
-          <h1 className='mb-7 max-w-[48rem] text-balance font-season text-[30px] text-[var(--text-primary)]'>
-            What should we get done{firstName ? `, ${firstName}` : ''}?
-          </h1>
-          <div ref={initialViewInputRef} className='relative w-full max-w-[48rem]'>
-            <ChatSurfaceProvider
-              userId={userId}
-              onContextAdd={handleContextAdd}
-              onContextRemove={handleInitialContextRemove}
-            >
-              <UserInput
-                ref={initialViewUserInputRef}
-                defaultValue={initialPrompt}
-                draftScopeKey={draftScopeKey}
-                onSubmit={handleSubmit}
-                isSending={isSending}
-                onStopGeneration={handleStopGeneration}
-              />
-            </ChatSurfaceProvider>
-            {/* Anchored out of flow so expanding/collapsing never shifts the centered input */}
-            <div className='absolute inset-x-0 top-full'>
-              <SuggestedActions
-                onSelectPrompt={(prompt) => initialViewUserInputRef.current?.populatePrompt(prompt)}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // The empty state is the chat pane's content, not a layout of its own. It
+  // used to return early, which meant the resource panel and its toggle did
+  // not exist until the first message — so there was no way to open a resource
+  // while composing the very prompt that needed one.
+  const showEmptyState = !hasMessages && !showChatSkeleton
 
   return (
     <div className='relative flex h-full bg-[var(--bg)]'>
-      <div className='flex h-full min-w-[320px] flex-1 flex-col'>
-        <MothershipChat
-          messages={messages}
-          isSending={isSending}
-          isReconnecting={isReconnecting}
-          isLoading={showChatSkeleton}
-          onSubmit={handleSubmit}
-          onStopGeneration={handleStopGeneration}
-          messageQueue={messageQueue}
-          editingQueuedId={editingQueuedId}
-          dispatchingHeadId={dispatchingHeadId}
-          onRemoveQueuedMessage={removeFromQueue}
-          onSendQueuedMessage={sendNow}
-          onEditQueuedMessage={editQueuedMessage}
-          onCancelQueueEdit={cancelQueueEdit}
-          userId={userId}
-          chatId={resolvedChatId}
-          onContextAdd={handleContextAdd}
-          onWorkspaceResourceSelect={handleWorkspaceResourceSelect}
-          draftScopeKey={draftScopeKey}
-          animateInput={isInputEntering}
-          onInputAnimationEnd={isInputEntering ? () => setIsInputEntering(false) : undefined}
-          initialScrollBlocked={resources.length > 0 && isResourceCollapsed}
-        />
+      <div className='relative flex h-full min-w-[320px] flex-1 flex-col'>
+        {/* Clears the expand button when the panel is closed and that button is
+            occupying the same corner. */}
+        {showEmptyState && (
+          <div
+            className={cn(
+              'absolute top-[8.5px] z-10',
+              isResourceCollapsed ? 'right-[54px]' : 'right-[16px]'
+            )}
+          >
+            <CreditsChip />
+          </div>
+        )}
+        {showEmptyState ? (
+          <div className='h-full overflow-y-auto [scrollbar-gutter:stable_both-edges]'>
+            {/* Asymmetric padding biases the group up so the full cluster (heading + input + suggestions) sits at the optical center */}
+            <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
+              <h1 className='mb-7 max-w-[48rem] text-balance font-season text-[30px] text-[var(--text-primary)]'>
+                What should we get done{firstName ? `, ${firstName}` : ''}?
+              </h1>
+              <div ref={initialViewInputRef} className='relative w-full max-w-[48rem]'>
+                <ChatSurfaceProvider
+                  userId={userId}
+                  onContextAdd={handleContextAdd}
+                  onContextRemove={handleInitialContextRemove}
+                >
+                  <UserInput
+                    ref={initialViewUserInputRef}
+                    defaultValue={initialPrompt}
+                    draftScopeKey={draftScopeKey}
+                    onSubmit={handleSubmit}
+                    isSending={isSending}
+                    onStopGeneration={handleStopGeneration}
+                  />
+                </ChatSurfaceProvider>
+                {/* Anchored out of flow so expanding/collapsing never shifts the centered input */}
+                <div className='absolute inset-x-0 top-full'>
+                  <SuggestedActions
+                    onSelectPrompt={(prompt) =>
+                      initialViewUserInputRef.current?.populatePrompt(prompt)
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <MothershipChat
+            messages={messages}
+            isSending={isSending}
+            isReconnecting={isReconnecting}
+            isLoading={showChatSkeleton}
+            onSubmit={handleSubmit}
+            onStopGeneration={handleStopGeneration}
+            messageQueue={messageQueue}
+            editingQueuedId={editingQueuedId}
+            dispatchingHeadId={dispatchingHeadId}
+            onRemoveQueuedMessage={removeFromQueue}
+            onSendQueuedMessage={sendNow}
+            onEditQueuedMessage={editQueuedMessage}
+            onCancelQueueEdit={cancelQueueEdit}
+            userId={userId}
+            chatId={resolvedChatId}
+            onContextAdd={handleContextAdd}
+            onWorkspaceResourceSelect={handleWorkspaceResourceSelect}
+            draftScopeKey={draftScopeKey}
+            animateInput={isInputEntering}
+            onInputAnimationEnd={isInputEntering ? () => setIsInputEntering(false) : undefined}
+            initialScrollBlocked={resources.length > 0 && isResourceCollapsed}
+          />
+        )}
       </div>
 
       {/* Resize handle — zero-width flex child whose absolute child straddles the border */}
@@ -539,6 +525,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
             previewSession={previewSession}
             isAgentResponding={isSending}
             genericResourceData={genericResourceData ?? undefined}
+            tableViewsEnabled={tableViewsEnabled}
             className={skipResourceTransition ? '!transition-none' : undefined}
           />
         </Suspense>

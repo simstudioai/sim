@@ -2,31 +2,36 @@
  * Public agent stream protocol: header negotiation and the wire frame
  * vocabulary for the public chat / simple SSE surface.
  *
- * Two independent things are negotiated here:
+ * Two orthogonal things are decided here:
  *
- * 1. Client capability — {@link AGENT_STREAM_PROTOCOL_HEADER} means the client
+ * 1. Answer-text cadence — {@link AGENT_STREAM_PROTOCOL_HEADER} means the client
  *    understands v1 framing, so answer text may stream live and be retracted
- *    with `chunk_reset`. No deployment policy is involved.
- * 2. Event exposure — thinking frames need `deployment.includeThinking`, tool
- *    frames need `deployment.includeToolCalls`, and both additionally need the
- *    client capability above.
+ *    with `chunk_reset`. Without it the client keeps settled final-turn text.
+ *    This is a capability question: a client that cannot honor `chunk_reset`
+ *    would render duplicated text, so it must not be opted in on its behalf.
+ * 2. Event exposure — thinking frames need `includeThinking`, tool frames need
+ *    `includeToolCalls`, and both additionally need the negotiated protocol
+ *    above. Declaring the version is what lets these frames evolve without
+ *    breaking clients that never opted in.
  *
- * Keeping these separate is what lets a chat with both policies off still
- * stream its answer token by token, exactly as it did before agent events.
+ * The header alone exposes nothing, so a chat with both policies off still
+ * streams token by token. Where the *caller* requests frames — the workflow
+ * API — asking without negotiating is rejected rather than silently downgraded.
  *
  * Canvas draft runs (execution-events) forward the same sink as live-only
- * `stream:thinking` / `stream:tool` events without the deployment policy gates;
- * the executor still disables the sink when block-output PII redaction is on.
- *
- * Legacy clients omitting the header stay on settled final-turn text and never
- * see thinking or tools. The deployed chat UI always sends the header.
+ * `stream:thinking` / `stream:tool` events without the policy gates; the
+ * executor still disables the sink when block-output PII redaction is on.
  *
  * See docs: workflows/deployment/agent-events.
  */
 
 import { isToolCallEndStatus, type ToolCallEndStatus } from '@/providers/stream-events'
 
+/** Lookup key. Lowercase because HTTP/2 lowercases on the wire; `Headers.get` is case-insensitive either way. */
 export const AGENT_STREAM_PROTOCOL_HEADER = 'x-sim-stream-protocol' as const
+
+/** Canonical casing, for docs and generated code samples. */
+export const AGENT_STREAM_PROTOCOL_HEADER_LABEL = 'X-Sim-Stream-Protocol' as const
 
 export const AGENT_STREAM_PROTOCOL_V1 = 'agent-events-v1' as const
 
@@ -197,21 +202,34 @@ export function clientAcceptsAgentStreamProtocol(
   return tokens.includes(AGENT_STREAM_PROTOCOL_V1)
 }
 
+/** True when either agent-event policy is on, before protocol negotiation. */
+export function hasAgentStreamPolicy(options: {
+  includeThinking: boolean | null | undefined
+  includeToolCalls: boolean | null | undefined
+}): boolean {
+  return options.includeThinking === true || options.includeToolCalls === true
+}
+
 /**
  * Returns true when a negotiated client may receive thinking or tool frames —
- * at least one deployment policy is on and the client accepts the protocol.
+ * at least one policy is on and the client declared the protocol version.
  *
  * Drives the run-level `agentEvents` flag, which asks providers for reasoning
  * summaries. Answer-text cadence does *not* depend on this: a negotiated client
  * streams live text even with both policies off. Frame emitters still apply
  * each independent policy before exposing its corresponding frames.
+ *
+ * Surfaces that let the *caller* request frames should reject an un-negotiated
+ * request outright rather than degrade to this returning false — see
+ * {@link hasAgentStreamPolicy}. A silent downgrade is the failure mode this
+ * protocol is meant to avoid.
  */
 export function shouldEmitAgentStreamEvents(options: {
   includeThinking: boolean | null | undefined
   includeToolCalls: boolean | null | undefined
   requestHeaders: Headers | { get(name: string): string | null }
 }): boolean {
-  if (options.includeThinking !== true && options.includeToolCalls !== true) {
+  if (!hasAgentStreamPolicy(options)) {
     return false
   }
 

@@ -10,6 +10,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { isMultipartError, readMultipart } from '@/lib/core/utils/multipart'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { findActiveFolder } from '@/lib/folders/queries'
 import {
   batchInsertRows,
   CSV_MAX_BATCH_SIZE,
@@ -88,6 +89,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
+    let folderId: string | null = null
+    if (fields.folderId) {
+      const folderIdResult = csvImportFormSchema.shape.folderId.safeParse(fields.folderId)
+      if (!folderIdResult.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(folderIdResult.error) },
+          { status: 400 }
+        )
+      }
+      // Scoped to `resourceType: 'table'` so a folder from another resource's tree
+      // can't file the imported table where Tables never lists it.
+      if (!(await findActiveFolder(folderIdResult.data as string, workspaceId, 'table'))) {
+        return NextResponse.json({ error: 'Folder not found in this workspace' }, { status: 404 })
+      }
+      folderId = folderIdResult.data as string
+    }
+
     let timezone = (await getUserSettings(userId)).timezone ?? 'UTC'
     if (fields.timezone) {
       const timezoneResult = ianaTimezoneSchema.safeParse(fields.timezone)
@@ -161,6 +179,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           description: `Imported from ${file.filename}`,
           schema,
           workspaceId,
+          folderId,
           userId,
           maxTables: planLimits.maxTables,
         },

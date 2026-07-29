@@ -1,4 +1,4 @@
-import { workflow, workflowBlocks, workflowFolder } from '@sim/db/schema'
+import { folder as folderTable, workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
@@ -45,8 +45,9 @@ interface ResolveForkFolderMappingParams {
    * Source folder ids that will directly hold copied content (workflows); null entries
    * (root-placed content) are ignored. A source folder is copied into the target only when
    * its subtree contains at least one of these, so a fork/sync never creates folders that
-   * would end up empty. Copied workspace FILES never influence this set: they live in the
-   * separate `workspace_file_folders` entity and are flattened to root by the copy.
+   * would end up empty. Copied workspace FILES never influence this set: their folders are a
+   * separate tree (`folder` rows with `resourceType = 'file'`, which this copy only ever reads
+   * as `'workflow'`) and are flattened to root by the copy.
    */
   contentFolderIds: ReadonlyArray<string | null>
 }
@@ -73,9 +74,13 @@ export async function resolveForkFolderMapping({
 
   const sourceFolders = await tx
     .select()
-    .from(workflowFolder)
+    .from(folderTable)
     .where(
-      and(eq(workflowFolder.workspaceId, sourceWorkspaceId), isNull(workflowFolder.archivedAt))
+      and(
+        eq(folderTable.workspaceId, sourceWorkspaceId),
+        eq(folderTable.resourceType, 'workflow'),
+        isNull(folderTable.deletedAt)
+      )
     )
 
   if (sourceFolders.length === 0) return map
@@ -96,9 +101,13 @@ export async function resolveForkFolderMapping({
 
   const targetFolders = await tx
     .select()
-    .from(workflowFolder)
+    .from(folderTable)
     .where(
-      and(eq(workflowFolder.workspaceId, targetWorkspaceId), isNull(workflowFolder.archivedAt))
+      and(
+        eq(folderTable.workspaceId, targetWorkspaceId),
+        eq(folderTable.resourceType, 'workflow'),
+        isNull(folderTable.deletedAt)
+      )
     )
 
   const targetByKey = new Map<string, string>()
@@ -149,7 +158,7 @@ export async function resolveForkFolderMapping({
   }
 
   if (newFolders.length > 0) {
-    await tx.insert(workflowFolder).values(newFolders)
+    await tx.insert(folderTable).values(newFolders)
   }
 
   return map

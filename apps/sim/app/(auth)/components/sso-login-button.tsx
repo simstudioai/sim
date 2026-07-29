@@ -1,7 +1,7 @@
 'use client'
 import { Chip, cn } from '@sim/emcn'
 import { useRouter } from 'next/navigation'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 
 interface SSOLoginButtonProps {
@@ -17,7 +17,7 @@ export function SSOLoginButton({
 }: SSOLoginButtonProps) {
   const router = useRouter()
 
-  if (!isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))) {
+  if (!isSsoEnabled) {
     return null
   }
 

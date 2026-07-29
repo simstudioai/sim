@@ -44,7 +44,11 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
   const router = useRouter()
   const skillsHref = `/workspace/${workspaceId}/skills`
 
-  const { data: skills = [], isPending: skillsLoading } = useSkills(workspaceId)
+  const { data: skills = [], isPending, isPlaceholderData } = useSkills(workspaceId)
+  // `keepPreviousData` carries the old cache entry across a workspace-id change,
+  // so another workspace's list can read as success with no match — treat that as
+  // loading so the detail never flashes "Skill not found."
+  const skillsLoading = isPending || isPlaceholderData
   const updateSkill = useUpdateSkill()
   const deleteSkill = useDeleteSkill()
   const skill = skills.find((s) => s.id === skillId) ?? null
@@ -112,6 +116,7 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
         },
       })
       setErrors({})
+      toast.success(`Saved "${nameDraft}"`)
     } catch (error) {
       if (isSkillNameConflictError(error)) {
         setErrors({ name: getErrorMessage(error, 'This skill name is already taken.') })
@@ -127,10 +132,17 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
   const handleConfirmDelete = async () => {
     if (!skill) return
     setShowDeleteConfirm(false)
+    // Optimistic: the skill leaves the list cache before the request resolves, so
+    // this surface goes clean mid-flight — release up front, rearm if it fails.
+    guard.release()
     try {
       await deleteSkill.mutateAsync({ workspaceId, skillId: skill.id })
-      router.push(skillsHref)
+      router.replace(skillsHref)
     } catch (error) {
+      guard.rearm()
+      toast.error("Couldn't delete skill", {
+        description: getErrorMessage(error, 'Please try again in a moment.'),
+      })
       logger.error('Failed to delete skill', error)
     }
   }
@@ -172,7 +184,10 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
       </>
     ) : null
 
-  if (skillsLoading && !skill) {
+  // A delete is optimistic and settles before `router.replace` commits, so the row
+  // is gone for a few frames while this surface is still mounted — hold the loading
+  // frame through both phases instead of flashing "Skill not found." on the way out.
+  if ((skillsLoading || deleteSkill.isPending || deleteSkill.isSuccess) && !skill) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
         <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Loading…</p>

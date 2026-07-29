@@ -7,13 +7,20 @@ import { userTableRows } from '@sim/db/schema'
 import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getColumnId } from '@/lib/table/column-keys'
-import { COLUMN_TYPES, getMaxRowSizeBytes, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import {
+  COLUMN_TYPES,
+  getMaxRowSizeBytes,
+  MAX_SELECT_OPTIONS,
+  NAME_PATTERN,
+  TABLE_LIMITS,
+} from '@/lib/table/constants'
 import { normalizeDateCellValue } from '@/lib/table/dates'
 import { withSeqscanOff } from '@/lib/table/planner'
 import type {
   ColumnDefinition,
   JsonValue,
   RowData,
+  SelectOption,
   TableSchema,
   ValidationResult,
 } from '@/lib/table/types'
@@ -256,10 +263,64 @@ export function validateRowAgainstSchema(data: RowData, schema: TableSchema): Va
           errors.push(`${column.name} must be valid JSON`)
         }
         break
+      case 'select': {
+        const ids = optionIds(column)
+        if (column.multiple) {
+          if (!Array.isArray(value)) {
+            errors.push(`${column.name} must be a list of options`)
+          } else if (!value.every((v) => typeof v === 'string' && ids.has(v))) {
+            errors.push(`${column.name} must only contain defined options`)
+          } else if (column.required && value.length === 0) {
+            errors.push(`Missing required field: ${column.name}`)
+          }
+        } else if (typeof value !== 'string' || !ids.has(value)) {
+          errors.push(`${column.name} must be one of the defined options`)
+        }
+        break
+      }
     }
   }
 
   return { valid: errors.length === 0, errors }
+}
+
+/** Set of valid option ids for a `select`/`multiselect` column. */
+function optionIds(column: ColumnDefinition): Set<string> {
+  return new Set((column.options ?? []).map((o) => o.id))
+}
+
+/**
+ * Resolves a raw cell value to a declared option id, accepting either the
+ * stable id or (tolerant for tool/import writes) the option's display name.
+ * Returns null when no option matches. Exported so the column-type-conversion
+ * path can gate a `select`/`multiselect` change on whether existing values
+ * actually fit the target option set.
+ */
+export function resolveSelectOptionId(value: JsonValue, options: SelectOption[]): string | null {
+  if (typeof value !== 'string') return null
+  const byId = options.find((o) => o.id === value)
+  if (byId) return byId.id
+  const byName =
+    options.find((o) => o.name === value) ??
+    options.find((o) => o.name.toLowerCase() === value.toLowerCase())
+  return byName ? byName.id : null
+}
+
+/**
+ * Splits a raw value into the parts a multi-select cell should resolve. A cell
+ * may arrive as an array (canonical) or as a single comma-delimited string —
+ * the shape a multi cell exports, copies, and converts to text as — so both the
+ * write-path coercion and the column-conversion compatibility check read it
+ * through here rather than each deciding for itself. Option names that
+ * themselves contain commas are an accepted ambiguity.
+ */
+export function splitMultiSelectInput(value: JsonValue): JsonValue[] {
+  if (Array.isArray(value)) return value
+  if (typeof value !== 'string') return [value]
+  return value
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part !== '')
 }
 
 /**
@@ -270,9 +331,9 @@ export function validateRowAgainstSchema(data: RowData, schema: TableSchema): Va
  */
 function coerceValueToColumnType(
   value: JsonValue,
-  type: ColumnDefinition['type']
+  column: ColumnDefinition
 ): { ok: true; value: JsonValue } | { ok: false } {
-  switch (type) {
+  switch (column.type) {
     case 'string':
       if (typeof value === 'string') return { ok: true, value }
       if (typeof value === 'number' || typeof value === 'boolean') {
@@ -310,6 +371,23 @@ function coerceValueToColumnType(
       if (date && !Number.isNaN(date.getTime())) return { ok: true, value: date.toISOString() }
       return { ok: false }
     }
+    case 'select': {
+      const options = column.options ?? []
+      if (column.multiple) {
+        const raw = splitMultiSelectInput(value)
+        const ids: string[] = []
+        for (const entry of raw) {
+          const id = resolveSelectOptionId(entry, options)
+          if (id !== null && !ids.includes(id)) ids.push(id)
+        }
+        return { ok: true, value: ids }
+      }
+      // Single: tolerate an array (e.g. right after a multiple→single toggle) by
+      // resolving its first element so the value isn't dropped wholesale.
+      const single = Array.isArray(value) ? value[0] : value
+      const id = single === undefined ? null : resolveSelectOptionId(single, options)
+      return id !== null ? { ok: true, value: id } : { ok: false }
+    }
     default:
       return { ok: true, value }
   }
@@ -331,7 +409,7 @@ export function coerceRowValues(data: RowData, schema: TableSchema): void {
     const value = data[key]
     if (value === null || value === undefined) continue
 
-    const coerced = coerceValueToColumnType(value, column.type)
+    const coerced = coerceValueToColumnType(value, column)
     if (coerced.ok) {
       data[key] = coerced.value
     } else if (!column.required) {
@@ -689,5 +767,61 @@ export function validateColumnDefinition(column: ColumnDefinition): ValidationRe
     )
   }
 
+  if (column.type === 'select') {
+    errors.push(...validateSelectOptions(column))
+    // Uniqueness on a select compares the stored option id, so it caps each
+    // option at one row for the whole table — and the UI hides the toggle, so a
+    // constraint set through the API or an agent could never be cleared.
+    if (column.unique) {
+      errors.push(`Column "${column.name}" of type "select" cannot be unique`)
+    }
+  } else {
+    if (column.options !== undefined) {
+      errors.push(`Column "${column.name}" cannot define options for type "${column.type}"`)
+    }
+    // A stored `multiple` on a non-select column is inert until the column is
+    // converted, at which point `updateColumnType` inherits it — silently
+    // turning an intended single-select into a multiselect and rewriting every
+    // cell as an array.
+    if (column.multiple) {
+      errors.push(`Column "${column.name}" cannot be multiple for type "${column.type}"`)
+    }
+  }
+
   return { valid: errors.length === 0, errors }
+}
+
+/** Validates the option set declared on a `select` column. */
+function validateSelectOptions(column: ColumnDefinition): string[] {
+  const errors: string[] = []
+  const options = column.options
+  if (!Array.isArray(options) || options.length === 0) {
+    errors.push(`Column "${column.name}" of type "${column.type}" must define at least one option`)
+    return errors
+  }
+  if (options.length > MAX_SELECT_OPTIONS) {
+    errors.push(`Column "${column.name}" cannot have more than ${MAX_SELECT_OPTIONS} options`)
+  }
+  const ids = new Set<string>()
+  const names = new Set<string>()
+  for (const opt of options) {
+    if (!opt.id || typeof opt.id !== 'string') {
+      errors.push(`Column "${column.name}" has an option missing an id`)
+    } else if (ids.has(opt.id)) {
+      errors.push(`Column "${column.name}" has duplicate option id "${opt.id}"`)
+    } else {
+      ids.add(opt.id)
+    }
+    if (!opt.name || typeof opt.name !== 'string') {
+      errors.push(`Column "${column.name}" has an option missing a name`)
+    } else {
+      const key = opt.name.toLowerCase()
+      if (names.has(key)) {
+        errors.push(`Column "${column.name}" has duplicate option name "${opt.name}"`)
+      } else {
+        names.add(key)
+      }
+    }
+  }
+  return errors
 }

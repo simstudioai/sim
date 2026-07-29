@@ -36,6 +36,289 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  browser: {
+    parameters: {
+      properties: {
+        task: {
+          description:
+            'The web task to complete, in plain language (include the target site/URL if known).',
+          type: 'string',
+        },
+      },
+      required: ['task'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
+  browser_click: {
+    parameters: {
+      type: 'object',
+      properties: {
+        elementId: {
+          type: 'number',
+          description: 'The element id to act on (from the most recent browser_snapshot).',
+        },
+      },
+      required: ['elementId'],
+    },
+    resultSchema: undefined,
+  },
+  browser_close_tab: {
+    parameters: {
+      type: 'object',
+      properties: {
+        tabId: {
+          type: 'string',
+          description: 'The id of the tab to close (from browser_list_tabs).',
+        },
+      },
+      required: ['tabId'],
+    },
+    resultSchema: undefined,
+  },
+  browser_extract: {
+    parameters: {
+      type: 'object',
+      properties: {
+        instruction: {
+          type: 'string',
+          description:
+            'What you intend to extract, in plain language. Echoed back unchanged; it does not filter or shape the returned text.',
+        },
+      },
+      required: ['instruction'],
+    },
+    resultSchema: undefined,
+  },
+  browser_go_back: {
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    resultSchema: undefined,
+  },
+  browser_go_forward: {
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    resultSchema: undefined,
+  },
+  browser_hover: {
+    parameters: {
+      type: 'object',
+      properties: {
+        elementId: {
+          type: 'number',
+          description: 'The element id to act on (from the most recent browser_snapshot).',
+        },
+      },
+      required: ['elementId'],
+    },
+    resultSchema: undefined,
+  },
+  browser_list_sessions: {
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    resultSchema: undefined,
+  },
+  browser_list_tabs: {
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    resultSchema: undefined,
+  },
+  browser_navigate: {
+    parameters: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description:
+            'The absolute URL to navigate to, including scheme (https:// or http://). Must resolve to a public address — localhost and private/internal hosts are rejected.',
+        },
+      },
+      required: ['url'],
+    },
+    resultSchema: undefined,
+  },
+  browser_open_tab: {
+    parameters: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: 'Optional URL to open the new tab at.',
+        },
+      },
+    },
+    resultSchema: undefined,
+  },
+  browser_open_url: {
+    parameters: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description:
+            'The absolute URL to open, including scheme (https:// or http:// — localhost/local dev URLs are supported).',
+        },
+      },
+      required: ['url'],
+    },
+    resultSchema: undefined,
+  },
+  browser_press_key: {
+    parameters: {
+      type: 'object',
+      properties: {
+        key: {
+          type: 'string',
+          description:
+            "Key or combination. Named keys (case-insensitive): Enter, Escape (Esc), Tab, Backspace, Delete, Space, ArrowUp/ArrowDown/ArrowLeft/ArrowRight (or Up/Down/Left/Right), Home, End, PageUp, PageDown. Any single character also works ('a', '5', '/'). Anything else — 'F5', 'Return', 'Insert' — is rejected. Join modifiers with '+': Control (Ctrl), Cmd (Command, Meta), Shift, Alt (Option), e.g. 'Cmd+A' or 'Control+Shift+K'. On macOS, Control maps to Cmd for the editing shortcuts A, C, X, V, and Z only, so 'Control+A' selects all on every platform.",
+        },
+      },
+      required: ['key'],
+    },
+    resultSchema: undefined,
+  },
+  browser_read_text: {
+    parameters: {
+      type: 'object',
+      properties: {
+        elementId: {
+          type: 'number',
+          description:
+            'Optional element id (from browser_snapshot) to read text from. Omit to read the whole page.',
+        },
+      },
+    },
+    resultSchema: undefined,
+  },
+  browser_request_takeover: {
+    parameters: {
+      type: 'object',
+      properties: {
+        purpose: {
+          type: 'string',
+          description:
+            'Why takeover is needed. Set sign_in for a login/password flow so the desktop can remember a privacy-preserving session hint after the user finishes.',
+          enum: ['sign_in', 'captcha', 'payment', 'sensitive_confirmation', 'other'],
+        },
+        reason: {
+          type: 'string',
+          description:
+            "Short explanation shown to the user of what they need to do (e.g. 'Sign in to Notion').",
+        },
+      },
+      required: ['reason'],
+    },
+    resultSchema: undefined,
+  },
+  browser_screenshot: {
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    resultSchema: undefined,
+  },
+  browser_scroll: {
+    parameters: {
+      type: 'object',
+      properties: {
+        amount: {
+          type: 'number',
+          description:
+            'Optional distance to scroll in pixels (default: 85% of the viewport height, so a little context carries over).',
+        },
+        direction: {
+          type: 'string',
+          description: 'Scroll direction.',
+          enum: ['up', 'down'],
+        },
+      },
+      required: ['direction'],
+    },
+    resultSchema: undefined,
+  },
+  browser_select_option: {
+    parameters: {
+      type: 'object',
+      properties: {
+        elementId: {
+          type: 'number',
+          description: 'The element id to act on (from the most recent browser_snapshot).',
+        },
+        value: {
+          type: 'string',
+          description: "The option's visible label or its value.",
+        },
+      },
+      required: ['elementId', 'value'],
+    },
+    resultSchema: undefined,
+  },
+  browser_snapshot: {
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    resultSchema: undefined,
+  },
+  browser_switch_tab: {
+    parameters: {
+      type: 'object',
+      properties: {
+        tabId: {
+          type: 'string',
+          description: 'The id of the tab to activate (from browser_list_tabs).',
+        },
+      },
+      required: ['tabId'],
+    },
+    resultSchema: undefined,
+  },
+  browser_type: {
+    parameters: {
+      type: 'object',
+      properties: {
+        elementId: {
+          type: 'number',
+          description: 'The element id to act on (from the most recent browser_snapshot).',
+        },
+        submit: {
+          type: 'boolean',
+          description: 'Press Enter after typing. Default false.',
+        },
+        text: {
+          type: 'string',
+          description:
+            "The text to type. Replaces the element's current content. Must be non-empty — an empty string is rejected as a missing parameter; to clear a field, press Cmd+A then Backspace with browser_press_key.",
+        },
+      },
+      required: ['elementId', 'text'],
+    },
+    resultSchema: undefined,
+  },
+  browser_wait_for: {
+    parameters: {
+      type: 'object',
+      properties: {
+        text: {
+          type: 'string',
+          description: 'Optional visible text to wait for.',
+        },
+        timeoutMs: {
+          type: 'number',
+          description: 'Maximum time to wait, in milliseconds (default 10000, capped at 120000).',
+        },
+      },
+    },
+    resultSchema: undefined,
+  },
   call_integration_tool: {
     parameters: {
       properties: {
@@ -269,68 +552,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['name'],
-    },
-    resultSchema: undefined,
-  },
-  delete_file: {
-    parameters: {
-      type: 'object',
-      properties: {
-        paths: {
-          type: 'array',
-          description:
-            'Canonical workspace file VFS paths to delete, e.g. ["files/Reports/draft.md"].',
-          items: {
-            type: 'string',
-          },
-        },
-      },
-      required: ['paths'],
-    },
-    resultSchema: {
-      type: 'object',
-      properties: {
-        message: {
-          type: 'string',
-          description: 'Human-readable outcome.',
-        },
-        success: {
-          type: 'boolean',
-          description: 'Whether the delete succeeded.',
-        },
-      },
-      required: ['success', 'message'],
-    },
-  },
-  delete_file_folder: {
-    parameters: {
-      type: 'object',
-      properties: {
-        paths: {
-          type: 'array',
-          description: 'Canonical folder VFS paths to delete, e.g. ["files/Archive"].',
-          items: {
-            type: 'string',
-          },
-        },
-      },
-      required: ['paths'],
-    },
-    resultSchema: undefined,
-  },
-  delete_workflow: {
-    parameters: {
-      type: 'object',
-      properties: {
-        workflowIds: {
-          type: 'array',
-          description: 'The workflow IDs to delete.',
-          items: {
-            type: 'string',
-          },
-        },
-      },
-      required: ['workflowIds'],
     },
     resultSchema: undefined,
   },
@@ -669,14 +890,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         name: {
           type: 'string',
           description:
-            'Display name for the block, max 60 characters. When republishing an existing block, pass the current name to keep it or a new name to rename.',
+            'Display name for the block, max 60 characters. REQUIRED the first time a workflow is published. When republishing an existing block, omit it to keep the current name or pass a new one to rename. Ignored for undeploy.',
         },
         workflowId: {
           type: 'string',
           description: 'Workflow ID (defaults to active workflow)',
         },
       },
-      required: ['name'],
     },
     resultSchema: {
       type: 'object',
@@ -736,6 +956,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
+        action: {
+          type: 'string',
+          description:
+            '"deploy" (default) adds/updates the workflow as an MCP tool on the server; "undeploy" removes the workflow\'s tool from the server.',
+          enum: ['deploy', 'undeploy'],
+        },
         parameterDescriptions: {
           type: 'array',
           description: 'Array of parameter descriptions for the tool',
@@ -1024,7 +1250,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description: 'True when a provider returned a non-empty result.',
         },
         provider: {
-          type: 'string',
+          type: ['string', 'null'],
           description:
             'Internal label of the provider that produced the result (billing/diagnostics only — do NOT surface it to the user), or null on no match.',
         },
@@ -1363,7 +1589,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         timeout: {
           type: 'number',
           description:
-            'Maximum execution time in seconds. The sandbox stops execution and returns a timeout error after this duration. Defaults to 10 seconds; the platform execution limit still applies.',
+            'Maximum execution time in SECONDS (Sim converts to milliseconds). The sandbox stops execution and returns a timeout error after this duration. Defaults to 10 seconds and is capped at 300 seconds regardless of plan.',
           default: 10,
         },
         title: {
@@ -2017,7 +2243,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         toolTitle: {
           type: 'string',
           description:
-            'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "workflow configs" or "knowledge bases", not a full sentence like "Finding workflow configs".',
+            'Required target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "workflow configs" or "knowledge bases", not a full sentence like "Finding workflow configs".',
         },
       },
       required: ['pattern', 'toolTitle'],
@@ -2031,7 +2257,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         context: {
           type: 'number',
           description:
-            "Number of lines to show before and after each match. Only applies to output_mode 'content'.",
+            "Number of lines to show before and after each match (default 0). Only applies to output_mode 'content'.",
         },
         ignoreCase: {
           type: 'boolean',
@@ -2060,12 +2286,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         pattern: {
           type: 'string',
           description:
-            "Regex pattern to search for. Searches VFS map entries (workflow JSON, metadata, plans, memories) by default; searches a single file's extracted text when path is one files/ or uploads/ file leaf.",
+            "Regex pattern to search for. Searches VFS map entries (workflow JSON, metadata, memories) by default; searches a single file's extracted text when path is one files/ or uploads/ file leaf.",
         },
         toolTitle: {
           type: 'string',
           description:
-            'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "Slack integrations" or "deployed workflows", not a full sentence like "Searching for Slack integrations".',
+            'Required target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "Slack integrations" or "deployed workflows", not a full sentence like "Searching for Slack integrations".',
         },
       },
       required: ['pattern', 'toolTitle'],
@@ -2242,7 +2468,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'query',
             'add_file',
             'update',
-            'delete',
             'delete_document',
             'update_document',
             'list_tags',
@@ -2263,8 +2488,9 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       type: 'object',
       properties: {
         data: {
-          type: 'object',
-          description: 'Operation-specific result payload.',
+          type: ['object', 'array'],
+          description:
+            'Operation-specific result payload. An object for most operations; list_tags and get_tag_usage return an array of tag definitions.',
         },
         message: {
           type: 'string',
@@ -2345,6 +2571,20 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       },
       required: ['tool_ids'],
       type: 'object',
+    },
+    resultSchema: undefined,
+  },
+  load_skill: {
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description:
+            "Skill name exactly as it appears in the Loadable Skills index (e.g. 'pptx-writing').",
+        },
+      },
+      required: ['name'],
     },
     resultSchema: undefined,
   },
@@ -2457,30 +2697,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  manage_folder: {
-    parameters: {
-      type: 'object',
-      properties: {
-        folderId: {
-          type: 'string',
-          description:
-            'Target folder ID, used as a fallback when path is not given. Readable from a contained workflow\'s meta.json "folderId".',
-        },
-        operation: {
-          type: 'string',
-          description: 'The operation to perform.',
-          enum: ['delete'],
-        },
-        path: {
-          type: 'string',
-          description:
-            'Target folder\'s VFS path (e.g. "workflows/Marketing/Q3 Campaigns"), per-segment percent-encoded like every VFS path.',
-        },
-      },
-      required: ['operation'],
-    },
-    resultSchema: undefined,
-  },
   manage_mcp_tool: {
     parameters: {
       type: 'object',
@@ -2545,7 +2761,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             cron: {
               type: 'string',
               description:
-                "Cron expression for a recurring scheduled task (e.g. '0 9 * * *'). Set exactly one of cron or time: recurring -> cron; one-time -> time.",
+                "Cron expression for a recurring scheduled task (e.g. '0 9 * * *'). Provide cron, time, or both — with both, time anchors the recurring task's first fire.",
             },
             jobId: {
               type: 'string',
@@ -3141,6 +3357,28 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  rm: {
+    parameters: {
+      type: 'object',
+      properties: {
+        paths: {
+          type: 'array',
+          description:
+            'Canonical VFS paths to delete, e.g. ["files/Reports/draft.md"]. Copy paths verbatim from glob/grep/read output. Paths from different categories may be mixed in one call.',
+          items: {
+            type: 'string',
+          },
+        },
+        toolTitle: {
+          type: 'string',
+          description:
+            'Target-only UI phrase for the action row, e.g. "draft.md" or "3 files", not a full sentence like "Deleting draft.md".',
+        },
+      },
+      required: ['paths', 'toolTitle'],
+    },
+    resultSchema: undefined,
+  },
   run: {
     parameters: {
       properties: {
@@ -3542,8 +3780,9 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       type: 'object',
       properties: {
         data: {
-          type: 'object',
-          description: 'Operation-specific result payload.',
+          type: ['object', 'array'],
+          description:
+            'Operation-specific result payload. An object for search results; list_tags returns an array of tag definitions.',
         },
         message: {
           type: 'string',
@@ -3571,7 +3810,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         version: {
           type: 'string',
-          description: "Specific version (optional, e.g., '14', 'v2')",
+          description:
+            "Specific version, numeric only and WITHOUT a leading 'v' (e.g. '14', '2', '2.1') — the 'v' is added for you, so 'v2' resolves to nothing.",
         },
       },
       required: ['library_name', 'query'],
@@ -3624,7 +3864,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         limit: {
           type: 'integer',
-          description: 'Maximum number of unique pattern examples to return (defaults to 3).',
+          description: 'Maximum number of pattern examples to return per query (defaults to 3).',
         },
         queries: {
           type: 'array',
@@ -3716,12 +3956,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               },
               type: {
                 type: 'string',
-                description: 'Variable type. Required for add/edit; ignored for delete.',
+                description:
+                  'Variable type for add/edit. Defaults to the variable\'s existing type, or "plain" for a new one. Ignored for delete.',
                 enum: ['plain', 'number', 'boolean', 'array', 'object'],
               },
               value: {
                 type: 'string',
-                description: 'Variable value. Required for add/edit; ignored for delete.',
+                description:
+                  'Variable value for add/edit, coerced to the declared type. Omitting it leaves the variable with no value. Ignored for delete.',
               },
             },
             required: ['operation', 'name'],
@@ -3803,6 +4045,120 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       },
       required: ['request'],
       type: 'object',
+    },
+    resultSchema: undefined,
+  },
+  terminal: {
+    parameters: {
+      type: 'object',
+      properties: {
+        args: {
+          type: 'object',
+          description: 'Inputs for the operation. Pass only the fields that operation uses.',
+          properties: {
+            command: {
+              type: 'string',
+              description:
+                'For run: the command line, exactly as it would be typed at the prompt. Shell syntax (pipes, &&, quoting, redirection) works because a real shell interprets it.',
+            },
+            cwd: {
+              type: 'string',
+              description:
+                "For new: absolute path to open in. Defaults to the active terminal's directory.",
+            },
+            key: {
+              type: 'string',
+              description:
+                'For input: a single key to press instead of text. Use "enter" to submit something already typed.',
+              enum: [
+                'ctrl-c',
+                'ctrl-d',
+                'ctrl-z',
+                'enter',
+                'up',
+                'down',
+                'left',
+                'right',
+                'escape',
+                'tab',
+              ],
+            },
+            keys: {
+              type: 'array',
+              description:
+                'For input: several keys pressed in order, e.g. ["down","down","enter"] to walk down a menu and choose. Each is a real keypress with a pause between, so the program redraws as it would under a person\'s hands. Only batch when you already know where the highlight is — read the screen first, and press one key at a time when you do not. Max 20.',
+              items: {
+                type: 'string',
+                enum: [
+                  'ctrl-c',
+                  'ctrl-d',
+                  'ctrl-z',
+                  'enter',
+                  'up',
+                  'down',
+                  'left',
+                  'right',
+                  'escape',
+                  'tab',
+                ],
+              },
+            },
+            lines: {
+              type: 'number',
+              description: 'For read: how many trailing lines to return. Defaults to 200.',
+            },
+            pane: {
+              type: 'string',
+              description:
+                "Which tmux pane to act on, as a target from the panes operation (session:window.pane). Defaults to that session's active pane. Ignored when the terminal is a plain shell.",
+            },
+            reason: {
+              type: 'string',
+              description:
+                'For handoff: what the user needs to do, shown on the button they click (e.g. "Enter your sudo password"). Say what is being asked, not that you are waiting.',
+            },
+            signal: {
+              type: 'string',
+              description:
+                'For kill: which signal. Defaults to SIGINT, the equivalent of the user pressing Ctrl-C.',
+              enum: ['SIGINT', 'SIGTERM', 'SIGKILL'],
+            },
+            terminalId: {
+              type: 'string',
+              description:
+                'Which terminal to act on, from the list operation. Defaults to the active one, which is what the user is looking at. Required by switch and close.',
+            },
+            text: {
+              type: 'string',
+              description:
+                'For input: literal text to type. A trailing newline submits it. Check the returned screen to confirm it submitted rather than sitting unsent in an input box.',
+            },
+            waitSeconds: {
+              type: 'number',
+              description:
+                'For run: how long to wait before handing back a still-running command. Defaults to 30, capped at 120. Raising it does not make a command finish sooner, it only delays your first look at it.',
+            },
+          },
+        },
+        operation: {
+          type: 'string',
+          description: 'What to do.',
+          enum: [
+            'run',
+            'read',
+            'input',
+            'kill',
+            'cwd',
+            'list',
+            'new',
+            'switch',
+            'close',
+            'panes',
+            'handoff',
+          ],
+        },
+      },
+      required: ['operation'],
     },
     resultSchema: undefined,
   },
@@ -3898,7 +4254,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             column: {
               type: 'object',
-              description: 'Column definition for add_column: { name, type, unique?, position? }',
+              description:
+                'Column definition for add_column: { name, type, unique?, position? }. For a select (enum) column also pass { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select.',
             },
             columnName: {
               type: 'string',
@@ -3928,6 +4285,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   },
                 },
               },
+            },
+            deploymentMode: {
+              type: 'string',
+              description:
+                "Which version of the backing workflow this group's per-row runs execute, for add_workflow_group and update_workflow_group. 'live' (default) runs the editable draft, so later edits take effect immediately. 'deployed' runs the workflow's latest active deployment, pinning rows to a published version — if that workflow has never been deployed the cell fails rather than falling back to the draft. Only meaningful for workflow groups; enrichment groups have no backing workflow.",
+              enum: ['live', 'deployed'],
             },
             description: {
               type: 'string',
@@ -4025,6 +4388,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 "Import mode for import_file. 'append' (default) adds rows; 'replace' truncates existing rows in a transaction before inserting the new rows.",
               enum: ['append', 'replace'],
             },
+            multiple: {
+              type: 'boolean',
+              description:
+                'Whether a select (enum) cell may hold several options (default false). Switching an existing column from true to false fails if any row has more than one option selected.',
+            },
             name: {
               type: 'string',
               description:
@@ -4038,11 +4406,19 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             newType: {
               type: 'string',
               description:
-                'New column type (optional for update_column). Types: string, number, boolean, date, json',
+                'New column type (optional for update_column). Types: string, number, boolean, date, json, select. Converting a column to select also requires options; the conversion fails if any existing cell value doesn\'t match one of them. Converting to a multiple: true select also accepts a comma-separated cell ("Open, Urgent"), which is the form a multi column converts to text as — so multiselect → text → multiselect round-trips.',
             },
             offset: {
               type: 'number',
               description: 'Number of rows to skip (optional for query_rows, default 0)',
+            },
+            options: {
+              type: 'array',
+              description:
+                'Choices for a select (enum) column, as a list of display names, e.g. ["Open", "Closed"]. Required when creating or converting to a select column. On update_column this REPLACES the option list and is matched against the current one BY NAME: a name still present keeps its cells, a name no longer present is removed and cleared from every cell that held it. Send the full list including the options you are keeping — omitting one deletes it. There is no in-place rename, so re-sending an option under a new name clears the cells that held the old one. Max 100.',
+              items: {
+                type: 'string',
+              },
             },
             outputColumnNames: {
               type: 'object',
@@ -4056,13 +4432,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             outputFormat: {
               type: 'string',
               description:
-                'Explicit format override for outputPath. Usually unnecessary — the file extension determines the format automatically. Only use this to force a different format than what the extension implies.',
+                'Explicit format override for outputPath. Only "csv" changes the file\'s CONTENT (rows serialized as a CSV table); "json", "txt", "md" and "html" all write the same pretty-printed JSON and change only the stored MIME type. Usually unnecessary — the extension already selects the format.',
               enum: ['json', 'csv', 'txt', 'md', 'html'],
             },
             outputPath: {
               type: 'string',
               description:
-                'Pipe query_rows results directly to a NEW workspace file. The format is auto-inferred from the file extension: .csv → CSV, .json → JSON, .md → Markdown, etc. Use a root output path like "files/export.csv" — nested output paths are not supported.',
+                'Write this call\'s result to a NEW workspace file instead of returning it. Applies to EVERY user_table operation, not just query_rows: on success the tool result is REPLACED by a file receipt (fileId, vfsPath, size), so the operation\'s own payload is no longer visible to you — set it only when the file IS the goal. Only ".csv" changes serialization (query_rows rows become a CSV table); ".json", ".txt", ".md" and ".html" all write pretty-printed JSON of the full { success, message, data } envelope and differ only in stored MIME type. Nested paths like "files/Reports/export.csv" work — missing parent folders are created automatically, and an existing path fails.',
             },
             outputs: {
               type: 'array',
@@ -4102,14 +4478,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               description:
                 'Zero-based index at which to insert the row (optional, insert_row only). Rows at and below that index shift down. Omit to append at the end.',
             },
-            positions: {
-              type: 'array',
-              description:
-                'Per-row insertion indices for batch_insert_rows (optional). Must be the same length as rows and contain no duplicates. Values are final positions in the resulting table — lower-index shifts are applied automatically. Omit to append all rows at the end.',
-              items: {
-                type: 'integer',
-              },
-            },
             rowId: {
               type: 'string',
               description:
@@ -4136,7 +4504,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             schema: {
               type: 'object',
               description:
-                "Table schema with columns array (required for 'create'). Each column: { name, type, unique? }",
+                'Table schema with columns array (required for \'create\'). Each column: { name, type, unique? }. A select (enum) column also takes { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select.',
             },
             scope: {
               type: 'string',
@@ -4191,7 +4559,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'import_file',
             'get',
             'get_schema',
-            'delete',
             'rename',
             'insert_row',
             'batch_insert_rows',
@@ -4240,6 +4607,24 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       },
       required: ['success', 'message'],
     },
+  },
+  wait: {
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description:
+            'What you are waiting for, in a few words (e.g. "the test suite to finish"). Shown to the user so the pause is not unexplained.',
+        },
+        seconds: {
+          type: 'number',
+          description: 'How long to pause, in seconds. Capped at 120.',
+        },
+      },
+      required: ['seconds'],
+    },
+    resultSchema: undefined,
   },
   workflow: {
     parameters: {

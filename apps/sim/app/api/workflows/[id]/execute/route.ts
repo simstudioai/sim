@@ -89,10 +89,20 @@ import {
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import {
+  AGENT_STREAM_PROTOCOL_HEADER_LABEL,
+  AGENT_STREAM_PROTOCOL_V1,
+  clientAcceptsAgentStreamProtocol,
+  hasAgentStreamPolicy,
+  shouldEmitAgentStreamEvents,
+} from '@/lib/workflows/streaming/agent-stream-protocol'
+import {
   forwardAgentStreamToExecutionEvents,
   shouldForwardAnswerTextFromSink,
 } from '@/lib/workflows/streaming/forward-agent-stream-events'
-import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
+import {
+  agentStreamProtocolResponseHeaders,
+  createStreamingResponse,
+} from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
@@ -668,6 +678,8 @@ async function handleExecutePost(
       selectedOutputs,
       triggerType = defaultTriggerType,
       stream: streamParam,
+      includeThinking: requestedIncludeThinking,
+      includeToolCalls: requestedIncludeToolCalls,
       useDraftState,
       input: validatedInput,
       isClientSession = false,
@@ -1436,6 +1448,32 @@ async function handleExecutePost(
         isDeployed: workflow.isDeployed,
         variables: streamVariables,
       }
+      /**
+       * The caller asked for frames whose shape is defined by a protocol
+       * version they never declared. Rejecting beats silently downgrading:
+       * the flags would otherwise be a no-op with no way to notice.
+       */
+      if (
+        hasAgentStreamPolicy({
+          includeThinking: requestedIncludeThinking,
+          includeToolCalls: requestedIncludeToolCalls,
+        }) &&
+        !clientAcceptsAgentStreamProtocol(req.headers)
+      ) {
+        return NextResponse.json(
+          {
+            error: `includeThinking and includeToolCalls require the ${AGENT_STREAM_PROTOCOL_HEADER_LABEL}: ${AGENT_STREAM_PROTOCOL_V1} request header, which declares that the client understands agent-event frames.`,
+          },
+          { status: 400 }
+        )
+      }
+
+      const agentEvents = shouldEmitAgentStreamEvents({
+        includeThinking: requestedIncludeThinking,
+        includeToolCalls: requestedIncludeToolCalls,
+        requestHeaders: req.headers,
+      })
+
       const stream = await createStreamingResponse({
         requestId,
         streamConfig: {
@@ -1445,9 +1483,8 @@ async function handleExecutePost(
           includeFileBase64,
           base64MaxBytes,
           timeoutMs: preprocessResult.executionTimeout?.sync,
-          /** Workflow API has no deployed-chat event policies, so agent-event frames stay off. */
-          includeThinking: false,
-          includeToolCalls: false,
+          includeThinking: requestedIncludeThinking,
+          includeToolCalls: requestedIncludeToolCalls,
         },
         executionId,
         largeValueExecutionIds,
@@ -1482,6 +1519,9 @@ async function handleExecutePost(
               fileKeys,
               stopAfterBlockId,
               runFromBlock: resolvedRunFromBlock,
+              includeThinking: requestedIncludeThinking,
+              includeToolCalls: requestedIncludeToolCalls,
+              agentEvents,
             },
             executionId
           ),
@@ -1490,7 +1530,11 @@ async function handleExecutePost(
       executionIdClaimCommitted = true
       return new NextResponse(stream, {
         status: 200,
-        headers: SSE_HEADERS,
+        headers: {
+          ...SSE_HEADERS,
+          // Echo the negotiated stream protocol (same as the chat and resume routes).
+          ...agentStreamProtocolResponseHeaders({ requestHeaders: req.headers }),
+        },
       })
     }
 

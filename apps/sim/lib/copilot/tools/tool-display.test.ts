@@ -17,6 +17,7 @@ import {
   getToolCompletedTitle,
   getToolDisplayTitle,
   getToolStatusDisplayTitle,
+  getWaitCountdownTitle,
   humanizeToolName,
   mvDisplayVerb,
 } from '@/lib/copilot/tools/tool-display'
@@ -55,7 +56,7 @@ function toolPropertyEnum(entry: ToolCatalogEntry, property: string): unknown[] 
 
 describe('humanizeToolName', () => {
   it('title-cases snake_case names', () => {
-    expect(humanizeToolName('manage_folder')).toBe('Manage Folder')
+    expect(humanizeToolName('manage_scheduled_task')).toBe('Manage Scheduled Task')
   })
 
   it('title-cases kebab-case names', () => {
@@ -251,17 +252,25 @@ describe('getToolDisplayTitle for the vfs verbs', () => {
     expect(getToolDisplayTitle('create_file')).toBe('Creating file')
   })
 
-  it('shows deleted file and folder names', () => {
+  it('titles rm from toolTitle, falling back to the paths', () => {
+    expect(getToolDisplayTitle('rm', { toolTitle: 'Old Report.pdf' })).toBe(
+      'Deleting Old Report.pdf'
+    )
+    // rm spans categories, so with no toolTitle the paths are the only signal.
     expect(
-      getToolDisplayTitle('delete_file', {
-        paths: ['files/Reports/Old%20Report.pdf'],
-      })
-    ).toBe('Deleting Old Report.pdf')
-    expect(
-      getToolDisplayTitle('delete_file_folder', {
+      getToolDisplayTitle('rm', {
         paths: ['files/Old%20Reports', 'files/Drafts'],
       })
     ).toBe('Deleting Old Reports and Drafts')
+    expect(
+      getToolDisplayTitle('rm', {
+        paths: ['workflows/Lead%20Router'],
+      })
+    ).toBe('Deleting Lead Router')
+    // rm has no TOOL_TITLES entry (its case always returns), so a bare call
+    // must not fall through to the humanizer and render as "Rm".
+    expect(getToolDisplayTitle('rm', {})).toBe('Deleting resource')
+    expect(getToolDisplayTitle('rm')).toBe('Deleting resource')
   })
 
   it('uses the derived verb for mv titles', () => {
@@ -300,8 +309,8 @@ describe('getToolDisplayTitle for workflow resources', () => {
       'Editing Lead Router'
     )
     expect(
-      getToolDisplayTitle('delete_workflow', {
-        workflowNames: ['Lead Router', 'Lead Enricher'],
+      getToolDisplayTitle('rm', {
+        paths: ['workflows/Lead%20Router', 'workflows/Lead%20Enricher'],
       })
     ).toBe('Deleting Lead Router and Lead Enricher')
   })
@@ -333,16 +342,7 @@ describe('getToolDisplayTitle for managed resources', () => {
       },
       'Renaming Stripe to Production Stripe',
     ],
-    [
-      'manage_folder',
-      { operation: 'rename', path: 'workflows/Old%20Name', name: 'New Name' },
-      'Renaming Old Name to New Name',
-    ],
-    [
-      'manage_folder',
-      { operation: 'delete', path: 'workflows/Marketing/Q3%20Campaigns' },
-      'Deleting Q3 Campaigns',
-    ],
+    ['rm', { paths: ['workflows/Marketing/Q3%20Campaigns'] }, 'Deleting Q3 Campaigns'],
     ['manage_custom_tool', { operation: 'list' }, 'Viewing custom tools'],
     ['manage_mcp_tool', { operation: 'list' }, 'Viewing MCP servers'],
     ['manage_skill', { operation: 'list' }, 'Viewing skills'],
@@ -490,5 +490,136 @@ describe('getToolDisplayTitle for context management', () => {
   it('describes compaction in user-facing language', () => {
     expect(getToolDisplayTitle('context_compaction')).toBe('Summarizing context')
     expect(getToolStatusDisplayTitle('Summarizing context', 'success')).toBe('Summarized context')
+  })
+})
+
+describe('wait titles', () => {
+  // The row is on screen for the whole pause, so a bare "Wait" reads as a
+  // stall. The duration is the entire content of this tool.
+  it('names the duration it is pausing for', () => {
+    expect(getToolDisplayTitle('wait', { seconds: 30 })).toBe('Waiting 30s')
+  })
+
+  it('includes the reason when the model gives one', () => {
+    expect(getToolDisplayTitle('wait', { seconds: 15, reason: 'the test suite to finish' })).toBe(
+      'Waiting 15s for the test suite to finish'
+    )
+  })
+
+  it('degrades to a bare verb rather than printing a bogus duration', () => {
+    expect(getToolDisplayTitle('wait', {})).toBe('Waiting')
+    expect(getToolDisplayTitle('wait', { seconds: 0 })).toBe('Waiting')
+    expect(getToolDisplayTitle('wait', { seconds: 'soon' })).toBe('Waiting')
+  })
+
+  it('rounds a fractional duration instead of showing decimals', () => {
+    expect(getToolDisplayTitle('wait', { seconds: 2.4 })).toBe('Waiting 2s')
+  })
+
+  it('reads as past tense once the pause is over', () => {
+    expect(getToolCompletedTitle('Waiting 30s')).toBe('Waited 30s')
+    expect(getToolCompletedTitle('Waiting 15s for the test suite to finish')).toBe(
+      'Waited 15s for the test suite to finish'
+    )
+  })
+})
+
+describe('terminal titles', () => {
+  const call = (operation: string, args?: Record<string, unknown>) =>
+    getToolDisplayTitle('terminal', { operation, ...(args ? { args } : {}) })
+
+  it('names the command being run', () => {
+    expect(call('run', { command: 'bun test' })).toBe('Running bun test')
+  })
+
+  it('titles each operation rather than reading as a bare "Terminal"', () => {
+    expect(call('read')).toBe('Reading terminal')
+    expect(call('input')).toBe('Typing into terminal')
+    expect(call('kill')).toBe('Stopping command')
+    expect(call('list')).toBe('Listing terminals')
+    expect(call('new')).toBe('Opening terminal')
+    expect(call('panes')).toBe('Listing tmux panes')
+  })
+
+  it('collapses newlines so a multi-line command stays one row', () => {
+    expect(call('run', { command: 'cd apps/sim\n  bun test' })).toBe('Running cd apps/sim bun test')
+  })
+
+  it('truncates a long command rather than wrapping the row', () => {
+    const title = call('run', { command: 'echo '.repeat(40) })
+    expect(title.length).toBeLessThanOrEqual('Running '.length + 48)
+    expect(title.endsWith('…')).toBe(true)
+  })
+
+  it('falls back to a generic label before the arguments have streamed in', () => {
+    expect(call('run')).toBe('Running command')
+    expect(getToolDisplayTitle('terminal', {})).toBe('Using terminal')
+  })
+
+  it('names what the user has to do when the terminal is handed over', () => {
+    expect(call('handoff', { reason: 'Enter your sudo password' })).toBe(
+      'Waiting for you: Enter your sudo password'
+    )
+    expect(call('handoff')).toBe('Waiting for you in the terminal')
+  })
+
+  it('still titles rows from before the tools were consolidated', () => {
+    // Persisted transcripts reference the old one-tool-per-operation names.
+    expect(getToolDisplayTitle('terminal_run', { command: 'bun test' })).toBe('Running bun test')
+    expect(getToolDisplayTitle('terminal_read')).toBe('Reading terminal')
+  })
+
+  it('reads as past tense once each terminal action settles', () => {
+    expect(getToolCompletedTitle('Running bun test')).toBe('Ran bun test')
+    expect(getToolCompletedTitle('Stopping command')).toBe('Stopped command')
+    expect(getToolCompletedTitle('Reading terminal')).toBe('Read terminal')
+    expect(getToolCompletedTitle('Using terminal')).toBe('Used terminal')
+  })
+})
+
+describe('wait countdown', () => {
+  const args = { seconds: 30, reason: 'Claude Code to finish the summary' }
+
+  it('starts at the full duration', () => {
+    expect(getWaitCountdownTitle(args, 0)).toBe('Waiting 30s for Claude Code to finish the summary')
+  })
+
+  it('counts down as the pause runs', () => {
+    expect(getWaitCountdownTitle(args, 5_000)).toBe(
+      'Waiting 25s for Claude Code to finish the summary'
+    )
+    expect(getWaitCountdownTitle(args, 29_000)).toBe(
+      'Waiting 1s for Claude Code to finish the summary'
+    )
+  })
+
+  it('holds a whole second rather than ticking on partial ones', () => {
+    expect(getWaitCountdownTitle(args, 999)).toBe(getWaitCountdownTitle(args, 0))
+    expect(getWaitCountdownTitle(args, 1_001)).toBe(getWaitCountdownTitle(args, 1_999))
+  })
+
+  it('drops the number at zero instead of freezing on "0s"', () => {
+    // The row can outlive its own countdown while the turn picks back up, and
+    // a stuck "0s" reads as broken.
+    expect(getWaitCountdownTitle(args, 30_000)).toBe(
+      'Waiting for Claude Code to finish the summary'
+    )
+    expect(getWaitCountdownTitle(args, 90_000)).toBe(
+      'Waiting for Claude Code to finish the summary'
+    )
+  })
+
+  it('never counts up from a clock that jumped backwards', () => {
+    expect(getWaitCountdownTitle(args, -5_000)).toBe(
+      'Waiting 30s for Claude Code to finish the summary'
+    )
+  })
+
+  it('stays a bare verb when there is no duration to count', () => {
+    expect(getWaitCountdownTitle({}, 3_000)).toBe('Waiting')
+  })
+
+  it('matches the static title at zero elapsed', () => {
+    expect(getWaitCountdownTitle(args, 0)).toBe(getToolDisplayTitle('wait', args))
   })
 })

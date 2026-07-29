@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { snapSelectionToChips } from '@/app/workspace/[workspaceId]/home/components/user-input/chip-selection'
 import {
   chipDisplayToken,
@@ -281,21 +280,6 @@ export function usePromptEditor({
     }
     seedRef.current = skills.length > 0 || mcpServers.length > 0 ? null : converted
   }, [skills.length, mcpServers.length, applyAutoMentions])
-
-  const existingResourceKeys = useMemo(() => {
-    const keys = new Set<string>()
-    for (const ctx of contextManagement.selectedContexts) {
-      if (ctx.kind === 'workflow' && ctx.workflowId) keys.add(`workflow:${ctx.workflowId}`)
-      if (ctx.kind === 'knowledge' && ctx.knowledgeId) keys.add(`knowledgebase:${ctx.knowledgeId}`)
-      if (ctx.kind === 'table' && ctx.tableId) keys.add(`table:${ctx.tableId}`)
-      if (ctx.kind === 'file' && ctx.fileId) keys.add(`file:${ctx.fileId}`)
-      if (ctx.kind === 'folder' && ctx.folderId) keys.add(`folder:${ctx.folderId}`)
-      if (ctx.kind === 'past_chat' && ctx.chatId) keys.add(`task:${ctx.chatId}`)
-    }
-    return keys
-  }, [contextManagement.selectedContexts])
-
-  const availableResources = useAvailableResources(workspaceId, existingResourceKeys)
 
   /**
    * Programmatically replaces the editor text. Chipifies by default so any
@@ -689,9 +673,13 @@ export function usePromptEditor({
           return
         }
         if ((e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey) {
-          // Confirm the highlighted match if there is one. If no items match, fall
-          // through so Enter still submits and Tab still does its default thing.
-          if (plusMenuRef.current?.selectActive()) {
+          // Confirm the highlighted match if there is one. If the lists are still
+          // loading, swallow the key — "no match" isn't knowable yet, and falling
+          // through would submit the message with the mention left as raw text.
+          // Only once they are loaded does an empty result mean a genuine no-match,
+          // where Enter should submit and Tab should do its default thing.
+          const result = plusMenuRef.current?.selectActive()
+          if (result === 'selected' || result === 'hydrating') {
             e.preventDefault()
             return
           }
@@ -1041,11 +1029,11 @@ export function usePromptEditor({
     textareaRef,
 
     /** @internal Wiring consumed by the {@link PromptEditor} view. */
+    workspaceId,
+    /** @internal */
     skills,
     /** @internal */
     mcpServers,
-    /** @internal */
-    availableResources,
     /** @internal */
     mentionQuery,
     /** @internal */

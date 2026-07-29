@@ -7,13 +7,13 @@
 
 import type {
   auditLog,
+  folder as folderTable,
   member,
   organization,
   subscription,
   user,
   userStats,
   workflow,
-  workflowFolder,
   workspace,
 } from '@sim/db/schema'
 import type { InferSelectModel } from 'drizzle-orm'
@@ -27,7 +27,7 @@ import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/typ
 export type DbUser = InferSelectModel<typeof user>
 export type DbWorkspace = InferSelectModel<typeof workspace>
 export type DbWorkflow = InferSelectModel<typeof workflow>
-export type DbWorkflowFolder = InferSelectModel<typeof workflowFolder>
+export type DbWorkflowFolder = InferSelectModel<typeof folderTable>
 export type DbOrganization = InferSelectModel<typeof organization>
 export type DbSubscription = InferSelectModel<typeof subscription>
 export type DbMember = InferSelectModel<typeof member>
@@ -156,6 +156,11 @@ export interface AdminFolder {
   id: string
   name: string
   parentId: string | null
+  /**
+   * Always `null` since folders moved to the generic `folder` table, which has no `color`
+   * column (it had no consumer). Retained so the v1 admin response shape stays stable for
+   * existing API clients rather than silently dropping a documented field.
+   */
   color: string | null
   sortOrder: number
   createdAt: string
@@ -167,7 +172,7 @@ export function toAdminFolder(dbFolder: DbWorkflowFolder): AdminFolder {
     id: dbFolder.id,
     name: dbFolder.name,
     parentId: dbFolder.parentId,
-    color: dbFolder.color,
+    color: null,
     sortOrder: dbFolder.sortOrder,
     createdAt: dbFolder.createdAt.toISOString(),
     updatedAt: dbFolder.updatedAt.toISOString(),
@@ -326,53 +331,6 @@ export interface WorkspaceImportResponse {
 // =============================================================================
 // Utility Functions
 // =============================================================================
-
-/**
- * Parse workflow variables from database JSON format to Record format.
- * Handles both legacy Array and current Record<string, Variable> formats.
- */
-export function parseWorkflowVariables(
-  dbVariables: DbWorkflow['variables']
-): Record<string, WorkflowVariable> | undefined {
-  if (!dbVariables) return undefined
-
-  try {
-    const varsObj = typeof dbVariables === 'string' ? JSON.parse(dbVariables) : dbVariables
-
-    // Handle legacy Array format by converting to Record
-    if (Array.isArray(varsObj)) {
-      const result: Record<string, WorkflowVariable> = {}
-      for (const v of varsObj) {
-        result[v.id] = {
-          id: v.id,
-          name: v.name,
-          type: v.type,
-          value: v.value,
-        }
-      }
-      return result
-    }
-
-    // Already Record format - normalize and return
-    if (typeof varsObj === 'object' && varsObj !== null) {
-      const result: Record<string, WorkflowVariable> = {}
-      for (const [key, v] of Object.entries(varsObj)) {
-        const variable = v as { id: string; name: string; type: VariableType; value: unknown }
-        result[key] = {
-          id: variable.id,
-          name: variable.name,
-          type: variable.type,
-          value: variable.value,
-        }
-      }
-      return result
-    }
-  } catch {
-    // pass
-  }
-
-  return undefined
-}
 
 /**
  * Extract workflow metadata from various export formats.

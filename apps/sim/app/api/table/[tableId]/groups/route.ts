@@ -15,7 +15,12 @@ import {
   deleteWorkflowGroup,
   updateWorkflowGroup,
 } from '@/lib/table/workflow-groups/service'
-import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
+import {
+  accessError,
+  checkAccess,
+  normalizeColumn,
+  tableLockErrorResponse,
+} from '@/app/api/table/utils'
 
 const logger = createLogger('TableWorkflowGroupsAPI')
 
@@ -47,6 +52,8 @@ async function validateWorkflowInWorkspace(
  * share this mapper instead of repeating the if-chain three times.
  */
 function mapWorkflowGroupError(error: unknown, fallbackMessage: string): NextResponse {
+  const lockError = tableLockErrorResponse(error)
+  if (lockError) return lockError
   if (error instanceof Error) {
     const msg = error.message
     if (msg === 'Table not found' || msg.includes('not found')) {

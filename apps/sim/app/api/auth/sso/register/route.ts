@@ -8,7 +8,7 @@ import { ssoRegistrationContract } from '@/lib/api/contracts/auth'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth'
 import { hasSSOAccess } from '@/lib/billing'
-import { env } from '@/lib/core/config/env'
+import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -68,7 +68,7 @@ async function fetchOIDCDiscoveryDocument(discoveryUrl: string): Promise<Discove
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    if (!env.SSO_ENABLED) {
+    if (!isSsoEnabled) {
       return NextResponse.json({ error: 'SSO is not enabled' }, { status: 400 })
     }
 
@@ -148,7 +148,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const domainNotVerifiedResponse = () =>
       NextResponse.json(
         {
-          error: `Verify ownership of ${domain} under Settings → Verified domains before configuring SSO for it.`,
+          error: `Verify ownership of ${domain} under Verified domains above before configuring SSO for it.`,
           code: 'SSO_DOMAIN_NOT_VERIFIED',
         },
         { status: 403 }

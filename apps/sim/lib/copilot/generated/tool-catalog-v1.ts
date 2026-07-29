@@ -9,6 +9,28 @@ export interface ToolCatalogEntry {
   id:
     | 'agent'
     | 'auth'
+    | 'browser'
+    | 'browser_click'
+    | 'browser_close_tab'
+    | 'browser_extract'
+    | 'browser_go_back'
+    | 'browser_go_forward'
+    | 'browser_hover'
+    | 'browser_list_sessions'
+    | 'browser_list_tabs'
+    | 'browser_navigate'
+    | 'browser_open_tab'
+    | 'browser_open_url'
+    | 'browser_press_key'
+    | 'browser_read_text'
+    | 'browser_request_takeover'
+    | 'browser_screenshot'
+    | 'browser_scroll'
+    | 'browser_select_option'
+    | 'browser_snapshot'
+    | 'browser_switch_tab'
+    | 'browser_type'
+    | 'browser_wait_for'
     | 'call_integration_tool'
     | 'check_deployment_status'
     | 'complete_scheduled_task'
@@ -17,9 +39,6 @@ export interface ToolCatalogEntry {
     | 'create_file'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
-    | 'delete_file'
-    | 'delete_file_folder'
-    | 'delete_workflow'
     | 'delete_workspace_mcp_server'
     | 'deploy'
     | 'deploy_api'
@@ -56,9 +75,9 @@ export interface ToolCatalogEntry {
     | 'list_workspace_mcp_servers'
     | 'load_deployment'
     | 'load_integration_tool'
+    | 'load_skill'
     | 'manage_credential'
     | 'manage_custom_tool'
-    | 'manage_folder'
     | 'manage_mcp_tool'
     | 'manage_scheduled_task'
     | 'manage_skill'
@@ -76,6 +95,7 @@ export interface ToolCatalogEntry {
     | 'redeploy'
     | 'respond'
     | 'restore_resource'
+    | 'rm'
     | 'run'
     | 'run_block'
     | 'run_code'
@@ -97,10 +117,12 @@ export interface ToolCatalogEntry {
     | 'set_global_workflow_variables'
     | 'share_file'
     | 'table'
+    | 'terminal'
     | 'update_deployment_version'
     | 'update_scheduled_task_history'
     | 'update_workspace_mcp_server'
     | 'user_table'
+    | 'wait'
     | 'workflow'
     | 'workspace_file'
   internal?: boolean
@@ -108,6 +130,28 @@ export interface ToolCatalogEntry {
   name:
     | 'agent'
     | 'auth'
+    | 'browser'
+    | 'browser_click'
+    | 'browser_close_tab'
+    | 'browser_extract'
+    | 'browser_go_back'
+    | 'browser_go_forward'
+    | 'browser_hover'
+    | 'browser_list_sessions'
+    | 'browser_list_tabs'
+    | 'browser_navigate'
+    | 'browser_open_tab'
+    | 'browser_open_url'
+    | 'browser_press_key'
+    | 'browser_read_text'
+    | 'browser_request_takeover'
+    | 'browser_screenshot'
+    | 'browser_scroll'
+    | 'browser_select_option'
+    | 'browser_snapshot'
+    | 'browser_switch_tab'
+    | 'browser_type'
+    | 'browser_wait_for'
     | 'call_integration_tool'
     | 'check_deployment_status'
     | 'complete_scheduled_task'
@@ -116,9 +160,6 @@ export interface ToolCatalogEntry {
     | 'create_file'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
-    | 'delete_file'
-    | 'delete_file_folder'
-    | 'delete_workflow'
     | 'delete_workspace_mcp_server'
     | 'deploy'
     | 'deploy_api'
@@ -155,9 +196,9 @@ export interface ToolCatalogEntry {
     | 'list_workspace_mcp_servers'
     | 'load_deployment'
     | 'load_integration_tool'
+    | 'load_skill'
     | 'manage_credential'
     | 'manage_custom_tool'
-    | 'manage_folder'
     | 'manage_mcp_tool'
     | 'manage_scheduled_task'
     | 'manage_skill'
@@ -175,6 +216,7 @@ export interface ToolCatalogEntry {
     | 'redeploy'
     | 'respond'
     | 'restore_resource'
+    | 'rm'
     | 'run'
     | 'run_block'
     | 'run_code'
@@ -196,19 +238,23 @@ export interface ToolCatalogEntry {
     | 'set_global_workflow_variables'
     | 'share_file'
     | 'table'
+    | 'terminal'
     | 'update_deployment_version'
     | 'update_scheduled_task_history'
     | 'update_workspace_mcp_server'
     | 'user_table'
+    | 'wait'
     | 'workflow'
     | 'workspace_file'
   parameters: unknown
   requiredPermission?: 'admin' | 'write'
+  requiresApproval?: boolean
   resultSchema?: unknown
   route: 'client' | 'go' | 'sim' | 'subagent'
   subagentId?:
     | 'agent'
     | 'auth'
+    | 'browser'
     | 'deploy'
     | 'file'
     | 'knowledge'
@@ -253,6 +299,364 @@ export const Auth: ToolCatalogEntry = {
   internal: true,
 }
 
+export const Browser: ToolCatalogEntry = {
+  id: 'browser',
+  name: 'browser',
+  route: 'subagent',
+  mode: 'async',
+  parameters: {
+    properties: {
+      task: {
+        description:
+          'The web task to complete, in plain language (include the target site/URL if known).',
+        type: 'string',
+      },
+    },
+    required: ['task'],
+    type: 'object',
+  },
+  subagentId: 'browser',
+  internal: true,
+}
+
+export const BrowserClick: ToolCatalogEntry = {
+  id: 'browser_click',
+  name: 'browser_click',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      elementId: {
+        type: 'number',
+        description: 'The element id to act on (from the most recent browser_snapshot).',
+      },
+    },
+    required: ['elementId'],
+  },
+  clientExecutable: true,
+}
+
+export const BrowserCloseTab: ToolCatalogEntry = {
+  id: 'browser_close_tab',
+  name: 'browser_close_tab',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      tabId: {
+        type: 'string',
+        description: 'The id of the tab to close (from browser_list_tabs).',
+      },
+    },
+    required: ['tabId'],
+  },
+  clientExecutable: true,
+}
+
+export const BrowserExtract: ToolCatalogEntry = {
+  id: 'browser_extract',
+  name: 'browser_extract',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      instruction: {
+        type: 'string',
+        description:
+          'What you intend to extract, in plain language. Echoed back unchanged; it does not filter or shape the returned text.',
+      },
+    },
+    required: ['instruction'],
+  },
+  clientExecutable: true,
+}
+
+export const BrowserGoBack: ToolCatalogEntry = {
+  id: 'browser_go_back',
+  name: 'browser_go_back',
+  route: 'client',
+  mode: 'async',
+  parameters: { type: 'object', properties: {} },
+  clientExecutable: true,
+}
+
+export const BrowserGoForward: ToolCatalogEntry = {
+  id: 'browser_go_forward',
+  name: 'browser_go_forward',
+  route: 'client',
+  mode: 'async',
+  parameters: { type: 'object', properties: {} },
+  clientExecutable: true,
+}
+
+export const BrowserHover: ToolCatalogEntry = {
+  id: 'browser_hover',
+  name: 'browser_hover',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      elementId: {
+        type: 'number',
+        description: 'The element id to act on (from the most recent browser_snapshot).',
+      },
+    },
+    required: ['elementId'],
+  },
+  clientExecutable: true,
+}
+
+export const BrowserListSessions: ToolCatalogEntry = {
+  id: 'browser_list_sessions',
+  name: 'browser_list_sessions',
+  route: 'client',
+  mode: 'async',
+  parameters: { type: 'object', properties: {} },
+  clientExecutable: true,
+}
+
+export const BrowserListTabs: ToolCatalogEntry = {
+  id: 'browser_list_tabs',
+  name: 'browser_list_tabs',
+  route: 'client',
+  mode: 'async',
+  parameters: { type: 'object', properties: {} },
+  clientExecutable: true,
+}
+
+export const BrowserNavigate: ToolCatalogEntry = {
+  id: 'browser_navigate',
+  name: 'browser_navigate',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      url: {
+        type: 'string',
+        description:
+          'The absolute URL to navigate to, including scheme (https:// or http://). Must resolve to a public address — localhost and private/internal hosts are rejected.',
+      },
+    },
+    required: ['url'],
+  },
+  clientExecutable: true,
+}
+
+export const BrowserOpenTab: ToolCatalogEntry = {
+  id: 'browser_open_tab',
+  name: 'browser_open_tab',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: { url: { type: 'string', description: 'Optional URL to open the new tab at.' } },
+  },
+  clientExecutable: true,
+}
+
+export const BrowserOpenUrl: ToolCatalogEntry = {
+  id: 'browser_open_url',
+  name: 'browser_open_url',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      url: {
+        type: 'string',
+        description:
+          'The absolute URL to open, including scheme (https:// or http:// — localhost/local dev URLs are supported).',
+      },
+    },
+    required: ['url'],
+  },
+  clientExecutable: true,
+}
+
+export const BrowserPressKey: ToolCatalogEntry = {
+  id: 'browser_press_key',
+  name: 'browser_press_key',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      key: {
+        type: 'string',
+        description:
+          "Key or combination. Named keys (case-insensitive): Enter, Escape (Esc), Tab, Backspace, Delete, Space, ArrowUp/ArrowDown/ArrowLeft/ArrowRight (or Up/Down/Left/Right), Home, End, PageUp, PageDown. Any single character also works ('a', '5', '/'). Anything else — 'F5', 'Return', 'Insert' — is rejected. Join modifiers with '+': Control (Ctrl), Cmd (Command, Meta), Shift, Alt (Option), e.g. 'Cmd+A' or 'Control+Shift+K'. On macOS, Control maps to Cmd for the editing shortcuts A, C, X, V, and Z only, so 'Control+A' selects all on every platform.",
+      },
+    },
+    required: ['key'],
+  },
+  clientExecutable: true,
+}
+
+export const BrowserReadText: ToolCatalogEntry = {
+  id: 'browser_read_text',
+  name: 'browser_read_text',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      elementId: {
+        type: 'number',
+        description:
+          'Optional element id (from browser_snapshot) to read text from. Omit to read the whole page.',
+      },
+    },
+  },
+  clientExecutable: true,
+}
+
+export const BrowserRequestTakeover: ToolCatalogEntry = {
+  id: 'browser_request_takeover',
+  name: 'browser_request_takeover',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      purpose: {
+        type: 'string',
+        description:
+          'Why takeover is needed. Set sign_in for a login/password flow so the desktop can remember a privacy-preserving session hint after the user finishes.',
+        enum: ['sign_in', 'captcha', 'payment', 'sensitive_confirmation', 'other'],
+      },
+      reason: {
+        type: 'string',
+        description:
+          "Short explanation shown to the user of what they need to do (e.g. 'Sign in to Notion').",
+      },
+    },
+    required: ['reason'],
+  },
+  clientExecutable: true,
+}
+
+export const BrowserScreenshot: ToolCatalogEntry = {
+  id: 'browser_screenshot',
+  name: 'browser_screenshot',
+  route: 'client',
+  mode: 'async',
+  parameters: { type: 'object', properties: {} },
+  clientExecutable: true,
+}
+
+export const BrowserScroll: ToolCatalogEntry = {
+  id: 'browser_scroll',
+  name: 'browser_scroll',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      amount: {
+        type: 'number',
+        description:
+          'Optional distance to scroll in pixels (default: 85% of the viewport height, so a little context carries over).',
+      },
+      direction: { type: 'string', description: 'Scroll direction.', enum: ['up', 'down'] },
+    },
+    required: ['direction'],
+  },
+  clientExecutable: true,
+}
+
+export const BrowserSelectOption: ToolCatalogEntry = {
+  id: 'browser_select_option',
+  name: 'browser_select_option',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      elementId: {
+        type: 'number',
+        description: 'The element id to act on (from the most recent browser_snapshot).',
+      },
+      value: { type: 'string', description: "The option's visible label or its value." },
+    },
+    required: ['elementId', 'value'],
+  },
+  clientExecutable: true,
+}
+
+export const BrowserSnapshot: ToolCatalogEntry = {
+  id: 'browser_snapshot',
+  name: 'browser_snapshot',
+  route: 'client',
+  mode: 'async',
+  parameters: { type: 'object', properties: {} },
+  clientExecutable: true,
+}
+
+export const BrowserSwitchTab: ToolCatalogEntry = {
+  id: 'browser_switch_tab',
+  name: 'browser_switch_tab',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      tabId: {
+        type: 'string',
+        description: 'The id of the tab to activate (from browser_list_tabs).',
+      },
+    },
+    required: ['tabId'],
+  },
+  clientExecutable: true,
+}
+
+export const BrowserType: ToolCatalogEntry = {
+  id: 'browser_type',
+  name: 'browser_type',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      elementId: {
+        type: 'number',
+        description: 'The element id to act on (from the most recent browser_snapshot).',
+      },
+      submit: { type: 'boolean', description: 'Press Enter after typing. Default false.' },
+      text: {
+        type: 'string',
+        description:
+          "The text to type. Replaces the element's current content. Must be non-empty — an empty string is rejected as a missing parameter; to clear a field, press Cmd+A then Backspace with browser_press_key.",
+      },
+    },
+    required: ['elementId', 'text'],
+  },
+  clientExecutable: true,
+}
+
+export const BrowserWaitFor: ToolCatalogEntry = {
+  id: 'browser_wait_for',
+  name: 'browser_wait_for',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      text: { type: 'string', description: 'Optional visible text to wait for.' },
+      timeoutMs: {
+        type: 'number',
+        description: 'Maximum time to wait, in milliseconds (default 10000, capped at 120000).',
+      },
+    },
+  },
+  clientExecutable: true,
+}
+
 export const CallIntegrationTool: ToolCatalogEntry = {
   id: 'call_integration_tool',
   name: 'call_integration_tool',
@@ -280,6 +684,7 @@ export const CallIntegrationTool: ToolCatalogEntry = {
     required: ['toolId', 'description', 'arguments'],
     type: 'object',
   },
+  requiresApproval: true,
 }
 
 export const CheckDeploymentStatus: ToolCatalogEntry = {
@@ -486,72 +891,6 @@ export const CreateWorkspaceMcpServer: ToolCatalogEntry = {
   requiredPermission: 'admin',
 }
 
-export const DeleteFile: ToolCatalogEntry = {
-  id: 'delete_file',
-  name: 'delete_file',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      paths: {
-        type: 'array',
-        description:
-          'Canonical workspace file VFS paths to delete, e.g. ["files/Reports/draft.md"].',
-        items: { type: 'string' },
-      },
-    },
-    required: ['paths'],
-  },
-  resultSchema: {
-    type: 'object',
-    properties: {
-      message: { type: 'string', description: 'Human-readable outcome.' },
-      success: { type: 'boolean', description: 'Whether the delete succeeded.' },
-    },
-    required: ['success', 'message'],
-  },
-  requiredPermission: 'write',
-}
-
-export const DeleteFileFolder: ToolCatalogEntry = {
-  id: 'delete_file_folder',
-  name: 'delete_file_folder',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      paths: {
-        type: 'array',
-        description: 'Canonical folder VFS paths to delete, e.g. ["files/Archive"].',
-        items: { type: 'string' },
-      },
-    },
-    required: ['paths'],
-  },
-  requiredPermission: 'write',
-}
-
-export const DeleteWorkflow: ToolCatalogEntry = {
-  id: 'delete_workflow',
-  name: 'delete_workflow',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      workflowIds: {
-        type: 'array',
-        description: 'The workflow IDs to delete.',
-        items: { type: 'string' },
-      },
-    },
-    required: ['workflowIds'],
-  },
-  requiredPermission: 'write',
-}
-
 export const DeleteWorkspaceMcpServer: ToolCatalogEntry = {
   id: 'delete_workspace_mcp_server',
   name: 'delete_workspace_mcp_server',
@@ -565,6 +904,7 @@ export const DeleteWorkspaceMcpServer: ToolCatalogEntry = {
     required: ['serverId'],
   },
   requiredPermission: 'admin',
+  requiresApproval: true,
 }
 
 export const Deploy: ToolCatalogEntry = {
@@ -665,6 +1005,7 @@ export const DeployApi: ToolCatalogEntry = {
     ],
   },
   requiredPermission: 'admin',
+  requiresApproval: true,
 }
 
 export const DeployChat: ToolCatalogEntry = {
@@ -810,6 +1151,7 @@ export const DeployChat: ToolCatalogEntry = {
     ],
   },
   requiredPermission: 'admin',
+  requiresApproval: true,
 }
 
 export const DeployCustomBlock: ToolCatalogEntry = {
@@ -872,11 +1214,10 @@ export const DeployCustomBlock: ToolCatalogEntry = {
       name: {
         type: 'string',
         description:
-          'Display name for the block, max 60 characters. When republishing an existing block, pass the current name to keep it or a new name to rename.',
+          'Display name for the block, max 60 characters. REQUIRED the first time a workflow is published. When republishing an existing block, omit it to keep the current name or pass a new one to rename. Ignored for undeploy.',
       },
       workflowId: { type: 'string', description: 'Workflow ID (defaults to active workflow)' },
     },
-    required: ['name'],
   },
   resultSchema: {
     type: 'object',
@@ -933,6 +1274,12 @@ export const DeployMcp: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
+      action: {
+        type: 'string',
+        description:
+          '"deploy" (default) adds/updates the workflow as an MCP tool on the server; "undeploy" removes the workflow\'s tool from the server.',
+        enum: ['deploy', 'undeploy'],
+      },
       parameterDescriptions: {
         type: 'array',
         description: 'Array of parameter descriptions for the tool',
@@ -1015,6 +1362,7 @@ export const DeployMcp: ToolCatalogEntry = {
     required: ['deploymentType', 'deploymentStatus'],
   },
   requiredPermission: 'admin',
+  requiresApproval: true,
 }
 
 export const DiffWorkflows: ToolCatalogEntry = {
@@ -1211,7 +1559,7 @@ export const EnrichmentRun: ToolCatalogEntry = {
         description: 'True when a provider returned a non-empty result.',
       },
       provider: {
-        type: 'string',
+        type: ['string', 'null'],
         description:
           'Internal label of the provider that produced the result (billing/diagnostics only — do NOT surface it to the user), or null on no match.',
       },
@@ -1541,7 +1889,7 @@ export const FunctionExecute: ToolCatalogEntry = {
       timeout: {
         type: 'number',
         description:
-          'Maximum execution time in seconds. The sandbox stops execution and returns a timeout error after this duration. Defaults to 10 seconds; the platform execution limit still applies.',
+          'Maximum execution time in SECONDS (Sim converts to milliseconds). The sandbox stops execution and returns a timeout error after this duration. Defaults to 10 seconds and is capped at 300 seconds regardless of plan.',
         default: 10,
       },
       title: {
@@ -1553,6 +1901,7 @@ export const FunctionExecute: ToolCatalogEntry = {
     required: ['code'],
   },
   requiredPermission: 'write',
+  requiresApproval: true,
   capabilities: ['file_input', 'directory_input', 'file_output', 'table_input', 'table_output'],
 }
 
@@ -2212,7 +2561,7 @@ export const Glob: ToolCatalogEntry = {
       toolTitle: {
         type: 'string',
         description:
-          'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "workflow configs" or "knowledge bases", not a full sentence like "Finding workflow configs".',
+          'Required target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "workflow configs" or "knowledge bases", not a full sentence like "Finding workflow configs".',
       },
     },
     required: ['pattern', 'toolTitle'],
@@ -2230,7 +2579,7 @@ export const Grep: ToolCatalogEntry = {
       context: {
         type: 'number',
         description:
-          "Number of lines to show before and after each match. Only applies to output_mode 'content'.",
+          "Number of lines to show before and after each match (default 0). Only applies to output_mode 'content'.",
       },
       ignoreCase: { type: 'boolean', description: 'Case insensitive search (default false).' },
       lineNumbers: {
@@ -2256,12 +2605,12 @@ export const Grep: ToolCatalogEntry = {
       pattern: {
         type: 'string',
         description:
-          "Regex pattern to search for. Searches VFS map entries (workflow JSON, metadata, plans, memories) by default; searches a single file's extracted text when path is one files/ or uploads/ file leaf.",
+          "Regex pattern to search for. Searches VFS map entries (workflow JSON, metadata, memories) by default; searches a single file's extracted text when path is one files/ or uploads/ file leaf.",
       },
       toolTitle: {
         type: 'string',
         description:
-          'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "Slack integrations" or "deployed workflows", not a full sentence like "Searching for Slack integrations".',
+          'Required target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "Slack integrations" or "deployed workflows", not a full sentence like "Searching for Slack integrations".',
       },
     },
     required: ['pattern', 'toolTitle'],
@@ -2433,7 +2782,6 @@ export const KnowledgeBase: ToolCatalogEntry = {
           'query',
           'add_file',
           'update',
-          'delete',
           'delete_document',
           'update_document',
           'list_tags',
@@ -2453,7 +2801,11 @@ export const KnowledgeBase: ToolCatalogEntry = {
   resultSchema: {
     type: 'object',
     properties: {
-      data: { type: 'object', description: 'Operation-specific result payload.' },
+      data: {
+        type: ['object', 'array'],
+        description:
+          'Operation-specific result payload. An object for most operations; list_tags and get_tag_usage return an array of tag definitions.',
+      },
       message: { type: 'string', description: 'Human-readable outcome summary.' },
       success: { type: 'boolean', description: 'Whether the operation succeeded.' },
     },
@@ -2464,8 +2816,8 @@ export const KnowledgeBase: ToolCatalogEntry = {
 export const ListIntegrationTools: ToolCatalogEntry = {
   id: 'list_integration_tools',
   name: 'list_integration_tools',
-  route: 'sim',
-  mode: 'async',
+  route: 'go',
+  mode: 'sync',
   parameters: {
     properties: {
       integration: {
@@ -2530,8 +2882,8 @@ export const LoadDeployment: ToolCatalogEntry = {
 export const LoadIntegrationTool: ToolCatalogEntry = {
   id: 'load_integration_tool',
   name: 'load_integration_tool',
-  route: 'sim',
-  mode: 'async',
+  route: 'go',
+  mode: 'sync',
   parameters: {
     properties: {
       tool_ids: {
@@ -2543,6 +2895,24 @@ export const LoadIntegrationTool: ToolCatalogEntry = {
     },
     required: ['tool_ids'],
     type: 'object',
+  },
+}
+
+export const LoadSkill: ToolCatalogEntry = {
+  id: 'load_skill',
+  name: 'load_skill',
+  route: 'go',
+  mode: 'sync',
+  parameters: {
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        description:
+          "Skill name exactly as it appears in the Loadable Skills index (e.g. 'pptx-writing').",
+      },
+    },
+    required: ['name'],
   },
 }
 
@@ -2641,31 +3011,6 @@ export const ManageCustomTool: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
-export const ManageFolder: ToolCatalogEntry = {
-  id: 'manage_folder',
-  name: 'manage_folder',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      folderId: {
-        type: 'string',
-        description:
-          'Target folder ID, used as a fallback when path is not given. Readable from a contained workflow\'s meta.json "folderId".',
-      },
-      operation: { type: 'string', description: 'The operation to perform.', enum: ['delete'] },
-      path: {
-        type: 'string',
-        description:
-          'Target folder\'s VFS path (e.g. "workflows/Marketing/Q3 Campaigns"), per-segment percent-encoded like every VFS path.',
-      },
-    },
-    required: ['operation'],
-  },
-  requiredPermission: 'write',
-}
-
 export const ManageMcpTool: ToolCatalogEntry = {
   id: 'manage_mcp_tool',
   name: 'manage_mcp_tool',
@@ -2733,7 +3078,7 @@ export const ManageScheduledTask: ToolCatalogEntry = {
           cron: {
             type: 'string',
             description:
-              "Cron expression for a recurring scheduled task (e.g. '0 9 * * *'). Set exactly one of cron or time: recurring -> cron; one-time -> time.",
+              "Cron expression for a recurring scheduled task (e.g. '0 9 * * *'). Provide cron, time, or both — with both, time anchors the recurring task's first fire.",
           },
           jobId: { type: 'string', description: 'Scheduled task ID (required for get, update)' },
           jobIds: {
@@ -3027,6 +3372,7 @@ export const PromoteToLive: ToolCatalogEntry = {
     required: ['version'],
   },
   requiredPermission: 'admin',
+  requiresApproval: true,
 }
 
 export const QueryLogs: ToolCatalogEntry = {
@@ -3281,6 +3627,7 @@ export const Redeploy: ToolCatalogEntry = {
     ],
   },
   requiredPermission: 'admin',
+  requiresApproval: true,
 }
 
 export const Respond: ToolCatalogEntry = {
@@ -3330,6 +3677,31 @@ export const RestoreResource: ToolCatalogEntry = {
     required: ['type', 'id'],
   },
   requiredPermission: 'admin',
+}
+
+export const Rm: ToolCatalogEntry = {
+  id: 'rm',
+  name: 'rm',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      paths: {
+        type: 'array',
+        description:
+          'Canonical VFS paths to delete, e.g. ["files/Reports/draft.md"]. Copy paths verbatim from glob/grep/read output. Paths from different categories may be mixed in one call.',
+        items: { type: 'string' },
+      },
+      toolTitle: {
+        type: 'string',
+        description:
+          'Target-only UI phrase for the action row, e.g. "draft.md" or "3 files", not a full sentence like "Deleting draft.md".',
+      },
+    },
+    required: ['paths', 'toolTitle'],
+  },
+  requiredPermission: 'write',
 }
 
 export const Run: ToolCatalogEntry = {
@@ -3476,6 +3848,7 @@ export const RunCode: ToolCatalogEntry = {
     required: ['code'],
   },
   requiredPermission: 'write',
+  requiresApproval: true,
   capabilities: ['file_input', 'directory_input', 'table_input'],
 }
 
@@ -3554,6 +3927,7 @@ export const RunWorkflow: ToolCatalogEntry = {
     },
   },
   clientExecutable: true,
+  requiresApproval: true,
 }
 
 export const RunWorkflowUntilBlock: ToolCatalogEntry = {
@@ -3602,6 +3976,7 @@ export const RunWorkflowUntilBlock: ToolCatalogEntry = {
     required: ['stopAfterBlockId'],
   },
   clientExecutable: true,
+  requiresApproval: true,
 }
 
 export const ScheduledTask: ToolCatalogEntry = {
@@ -3761,7 +4136,11 @@ export const SearchKnowledgeBase: ToolCatalogEntry = {
   resultSchema: {
     type: 'object',
     properties: {
-      data: { type: 'object', description: 'Operation-specific result payload.' },
+      data: {
+        type: ['object', 'array'],
+        description:
+          'Operation-specific result payload. An object for search results; list_tags returns an array of tag definitions.',
+      },
       message: { type: 'string', description: 'Human-readable outcome summary.' },
       success: { type: 'boolean', description: 'Whether the operation succeeded.' },
     },
@@ -3785,7 +4164,11 @@ export const SearchLibraryDocs: ToolCatalogEntry = {
         type: 'string',
         description: 'The question or topic to find documentation for - be specific',
       },
-      version: { type: 'string', description: "Specific version (optional, e.g., '14', 'v2')" },
+      version: {
+        type: 'string',
+        description:
+          "Specific version, numeric only and WITHOUT a leading 'v' (e.g. '14', '2', '2.1') — the 'v' is added for you, so 'v2' resolves to nothing.",
+      },
     },
     required: ['library_name', 'query'],
   },
@@ -3836,7 +4219,7 @@ export const SearchPatterns: ToolCatalogEntry = {
     properties: {
       limit: {
         type: 'integer',
-        description: 'Maximum number of unique pattern examples to return (defaults to 3).',
+        description: 'Maximum number of pattern examples to return per query (defaults to 3).',
       },
       queries: {
         type: 'array',
@@ -3930,12 +4313,14 @@ export const SetGlobalWorkflowVariables: ToolCatalogEntry = {
             operation: { type: 'string', enum: ['add', 'delete', 'edit'] },
             type: {
               type: 'string',
-              description: 'Variable type. Required for add/edit; ignored for delete.',
+              description:
+                'Variable type for add/edit. Defaults to the variable\'s existing type, or "plain" for a new one. Ignored for delete.',
               enum: ['plain', 'number', 'boolean', 'array', 'object'],
             },
             value: {
               type: 'string',
-              description: 'Variable value. Required for add/edit; ignored for delete.',
+              description:
+                'Variable value for add/edit, coerced to the declared type. Omitting it leaves the variable with no value. Ignored for delete.',
             },
           },
           required: ['operation', 'name'],
@@ -4017,6 +4402,126 @@ export const Table: ToolCatalogEntry = {
   },
   subagentId: 'table',
   internal: true,
+}
+
+export const Terminal: ToolCatalogEntry = {
+  id: 'terminal',
+  name: 'terminal',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      args: {
+        type: 'object',
+        description: 'Inputs for the operation. Pass only the fields that operation uses.',
+        properties: {
+          command: {
+            type: 'string',
+            description:
+              'For run: the command line, exactly as it would be typed at the prompt. Shell syntax (pipes, &&, quoting, redirection) works because a real shell interprets it.',
+          },
+          cwd: {
+            type: 'string',
+            description:
+              "For new: absolute path to open in. Defaults to the active terminal's directory.",
+          },
+          key: {
+            type: 'string',
+            description:
+              'For input: a single key to press instead of text. Use "enter" to submit something already typed.',
+            enum: [
+              'ctrl-c',
+              'ctrl-d',
+              'ctrl-z',
+              'enter',
+              'up',
+              'down',
+              'left',
+              'right',
+              'escape',
+              'tab',
+            ],
+          },
+          keys: {
+            type: 'array',
+            description:
+              'For input: several keys pressed in order, e.g. ["down","down","enter"] to walk down a menu and choose. Each is a real keypress with a pause between, so the program redraws as it would under a person\'s hands. Only batch when you already know where the highlight is — read the screen first, and press one key at a time when you do not. Max 20.',
+            items: {
+              type: 'string',
+              enum: [
+                'ctrl-c',
+                'ctrl-d',
+                'ctrl-z',
+                'enter',
+                'up',
+                'down',
+                'left',
+                'right',
+                'escape',
+                'tab',
+              ],
+            },
+          },
+          lines: {
+            type: 'number',
+            description: 'For read: how many trailing lines to return. Defaults to 200.',
+          },
+          pane: {
+            type: 'string',
+            description:
+              "Which tmux pane to act on, as a target from the panes operation (session:window.pane). Defaults to that session's active pane. Ignored when the terminal is a plain shell.",
+          },
+          reason: {
+            type: 'string',
+            description:
+              'For handoff: what the user needs to do, shown on the button they click (e.g. "Enter your sudo password"). Say what is being asked, not that you are waiting.',
+          },
+          signal: {
+            type: 'string',
+            description:
+              'For kill: which signal. Defaults to SIGINT, the equivalent of the user pressing Ctrl-C.',
+            enum: ['SIGINT', 'SIGTERM', 'SIGKILL'],
+          },
+          terminalId: {
+            type: 'string',
+            description:
+              'Which terminal to act on, from the list operation. Defaults to the active one, which is what the user is looking at. Required by switch and close.',
+          },
+          text: {
+            type: 'string',
+            description:
+              'For input: literal text to type. A trailing newline submits it. Check the returned screen to confirm it submitted rather than sitting unsent in an input box.',
+          },
+          waitSeconds: {
+            type: 'number',
+            description:
+              'For run: how long to wait before handing back a still-running command. Defaults to 30, capped at 120. Raising it does not make a command finish sooner, it only delays your first look at it.',
+          },
+        },
+      },
+      operation: {
+        type: 'string',
+        description: 'What to do.',
+        enum: [
+          'run',
+          'read',
+          'input',
+          'kill',
+          'cwd',
+          'list',
+          'new',
+          'switch',
+          'close',
+          'panes',
+          'handoff',
+        ],
+      },
+    },
+    required: ['operation'],
+  },
+  clientExecutable: true,
+  requiresApproval: true,
 }
 
 export const UpdateDeploymentVersion: ToolCatalogEntry = {
@@ -4110,7 +4615,8 @@ export const UserTable: ToolCatalogEntry = {
           },
           column: {
             type: 'object',
-            description: 'Column definition for add_column: { name, type, unique?, position? }',
+            description:
+              'Column definition for add_column: { name, type, unique?, position? }. For a select (enum) column also pass { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select.',
           },
           columnName: {
             type: 'string',
@@ -4138,6 +4644,12 @@ export const UserTable: ToolCatalogEntry = {
                 items: { type: 'string' },
               },
             },
+          },
+          deploymentMode: {
+            type: 'string',
+            description:
+              "Which version of the backing workflow this group's per-row runs execute, for add_workflow_group and update_workflow_group. 'live' (default) runs the editable draft, so later edits take effect immediately. 'deployed' runs the workflow's latest active deployment, pinning rows to a published version — if that workflow has never been deployed the cell fails rather than falling back to the draft. Only meaningful for workflow groups; enrichment groups have no backing workflow.",
+            enum: ['live', 'deployed'],
           },
           description: { type: 'string', description: "Table description (optional for 'create')" },
           enrichmentId: {
@@ -4224,6 +4736,11 @@ export const UserTable: ToolCatalogEntry = {
               "Import mode for import_file. 'append' (default) adds rows; 'replace' truncates existing rows in a transaction before inserting the new rows.",
             enum: ['append', 'replace'],
           },
+          multiple: {
+            type: 'boolean',
+            description:
+              'Whether a select (enum) cell may hold several options (default false). Switching an existing column from true to false fails if any row has more than one option selected.',
+          },
           name: {
             type: 'string',
             description:
@@ -4237,11 +4754,17 @@ export const UserTable: ToolCatalogEntry = {
           newType: {
             type: 'string',
             description:
-              'New column type (optional for update_column). Types: string, number, boolean, date, json',
+              'New column type (optional for update_column). Types: string, number, boolean, date, json, select. Converting a column to select also requires options; the conversion fails if any existing cell value doesn\'t match one of them. Converting to a multiple: true select also accepts a comma-separated cell ("Open, Urgent"), which is the form a multi column converts to text as — so multiselect → text → multiselect round-trips.',
           },
           offset: {
             type: 'number',
             description: 'Number of rows to skip (optional for query_rows, default 0)',
+          },
+          options: {
+            type: 'array',
+            description:
+              'Choices for a select (enum) column, as a list of display names, e.g. ["Open", "Closed"]. Required when creating or converting to a select column. On update_column this REPLACES the option list and is matched against the current one BY NAME: a name still present keeps its cells, a name no longer present is removed and cleared from every cell that held it. Send the full list including the options you are keeping — omitting one deletes it. There is no in-place rename, so re-sending an option under a new name clears the cells that held the old one. Max 100.',
+            items: { type: 'string' },
           },
           outputColumnNames: {
             type: 'object',
@@ -4255,13 +4778,13 @@ export const UserTable: ToolCatalogEntry = {
           outputFormat: {
             type: 'string',
             description:
-              'Explicit format override for outputPath. Usually unnecessary — the file extension determines the format automatically. Only use this to force a different format than what the extension implies.',
+              'Explicit format override for outputPath. Only "csv" changes the file\'s CONTENT (rows serialized as a CSV table); "json", "txt", "md" and "html" all write the same pretty-printed JSON and change only the stored MIME type. Usually unnecessary — the extension already selects the format.',
             enum: ['json', 'csv', 'txt', 'md', 'html'],
           },
           outputPath: {
             type: 'string',
             description:
-              'Pipe query_rows results directly to a NEW workspace file. The format is auto-inferred from the file extension: .csv → CSV, .json → JSON, .md → Markdown, etc. Use a root output path like "files/export.csv" — nested output paths are not supported.',
+              'Write this call\'s result to a NEW workspace file instead of returning it. Applies to EVERY user_table operation, not just query_rows: on success the tool result is REPLACED by a file receipt (fileId, vfsPath, size), so the operation\'s own payload is no longer visible to you — set it only when the file IS the goal. Only ".csv" changes serialization (query_rows rows become a CSV table); ".json", ".txt", ".md" and ".html" all write pretty-printed JSON of the full { success, message, data } envelope and differ only in stored MIME type. Nested paths like "files/Reports/export.csv" work — missing parent folders are created automatically, and an existing path fails.',
           },
           outputs: {
             type: 'array',
@@ -4295,12 +4818,6 @@ export const UserTable: ToolCatalogEntry = {
             description:
               'Zero-based index at which to insert the row (optional, insert_row only). Rows at and below that index shift down. Omit to append at the end.',
           },
-          positions: {
-            type: 'array',
-            description:
-              'Per-row insertion indices for batch_insert_rows (optional). Must be the same length as rows and contain no duplicates. Values are final positions in the resulting table — lower-index shifts are applied automatically. Omit to append all rows at the end.',
-            items: { type: 'integer' },
-          },
           rowId: {
             type: 'string',
             description:
@@ -4325,7 +4842,7 @@ export const UserTable: ToolCatalogEntry = {
           schema: {
             type: 'object',
             description:
-              "Table schema with columns array (required for 'create'). Each column: { name, type, unique? }",
+              'Table schema with columns array (required for \'create\'). Each column: { name, type, unique? }. A select (enum) column also takes { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select.',
           },
           scope: {
             type: 'string',
@@ -4378,7 +4895,6 @@ export const UserTable: ToolCatalogEntry = {
           'import_file',
           'get',
           'get_schema',
-          'delete',
           'rename',
           'insert_row',
           'batch_insert_rows',
@@ -4417,6 +4933,25 @@ export const UserTable: ToolCatalogEntry = {
       success: { type: 'boolean', description: 'Whether the operation succeeded.' },
     },
     required: ['success', 'message'],
+  },
+}
+
+export const Wait: ToolCatalogEntry = {
+  id: 'wait',
+  name: 'wait',
+  route: 'go',
+  mode: 'sync',
+  parameters: {
+    type: 'object',
+    properties: {
+      reason: {
+        type: 'string',
+        description:
+          'What you are waiting for, in a few words (e.g. "the test suite to finish"). Shown to the user so the pause is not unexplained.',
+      },
+      seconds: { type: 'number', description: 'How long to pause, in seconds. Capped at 120.' },
+    },
+    required: ['seconds'],
   },
 }
 
@@ -4613,7 +5148,6 @@ export const KnowledgeBaseOperation = {
   query: 'query',
   addFile: 'add_file',
   update: 'update',
-  delete: 'delete',
   deleteDocument: 'delete_document',
   updateDocument: 'update_document',
   listTags: 'list_tags',
@@ -4636,7 +5170,6 @@ export const KnowledgeBaseOperationValues = [
   KnowledgeBaseOperation.query,
   KnowledgeBaseOperation.addFile,
   KnowledgeBaseOperation.update,
-  KnowledgeBaseOperation.delete,
   KnowledgeBaseOperation.deleteDocument,
   KnowledgeBaseOperation.updateDocument,
   KnowledgeBaseOperation.listTags,
@@ -4679,15 +5212,6 @@ export const ManageCustomToolOperationValues = [
   ManageCustomToolOperation.delete,
   ManageCustomToolOperation.list,
 ] as const
-
-export const ManageFolderOperation = {
-  delete: 'delete',
-} as const
-
-export type ManageFolderOperation =
-  (typeof ManageFolderOperation)[keyof typeof ManageFolderOperation]
-
-export const ManageFolderOperationValues = [ManageFolderOperation.delete] as const
 
 export const ManageMcpToolOperation = {
   add: 'add',
@@ -4788,13 +5312,42 @@ export const SearchKnowledgeBaseOperationValues = [
   SearchKnowledgeBaseOperation.listTags,
 ] as const
 
+export const TerminalOperation = {
+  run: 'run',
+  read: 'read',
+  input: 'input',
+  kill: 'kill',
+  cwd: 'cwd',
+  list: 'list',
+  new: 'new',
+  switch: 'switch',
+  close: 'close',
+  panes: 'panes',
+  handoff: 'handoff',
+} as const
+
+export type TerminalOperation = (typeof TerminalOperation)[keyof typeof TerminalOperation]
+
+export const TerminalOperationValues = [
+  TerminalOperation.run,
+  TerminalOperation.read,
+  TerminalOperation.input,
+  TerminalOperation.kill,
+  TerminalOperation.cwd,
+  TerminalOperation.list,
+  TerminalOperation.new,
+  TerminalOperation.switch,
+  TerminalOperation.close,
+  TerminalOperation.panes,
+  TerminalOperation.handoff,
+] as const
+
 export const UserTableOperation = {
   create: 'create',
   createFromFile: 'create_from_file',
   importFile: 'import_file',
   get: 'get',
   getSchema: 'get_schema',
-  delete: 'delete',
   rename: 'rename',
   insertRow: 'insert_row',
   batchInsertRows: 'batch_insert_rows',
@@ -4830,7 +5383,6 @@ export const UserTableOperationValues = [
   UserTableOperation.importFile,
   UserTableOperation.get,
   UserTableOperation.getSchema,
-  UserTableOperation.delete,
   UserTableOperation.rename,
   UserTableOperation.insertRow,
   UserTableOperation.batchInsertRows,
@@ -4876,6 +5428,28 @@ export const WorkspaceFileOperationValues = [
 export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Agent.id]: Agent,
   [Auth.id]: Auth,
+  [Browser.id]: Browser,
+  [BrowserClick.id]: BrowserClick,
+  [BrowserCloseTab.id]: BrowserCloseTab,
+  [BrowserExtract.id]: BrowserExtract,
+  [BrowserGoBack.id]: BrowserGoBack,
+  [BrowserGoForward.id]: BrowserGoForward,
+  [BrowserHover.id]: BrowserHover,
+  [BrowserListSessions.id]: BrowserListSessions,
+  [BrowserListTabs.id]: BrowserListTabs,
+  [BrowserNavigate.id]: BrowserNavigate,
+  [BrowserOpenTab.id]: BrowserOpenTab,
+  [BrowserOpenUrl.id]: BrowserOpenUrl,
+  [BrowserPressKey.id]: BrowserPressKey,
+  [BrowserReadText.id]: BrowserReadText,
+  [BrowserRequestTakeover.id]: BrowserRequestTakeover,
+  [BrowserScreenshot.id]: BrowserScreenshot,
+  [BrowserScroll.id]: BrowserScroll,
+  [BrowserSelectOption.id]: BrowserSelectOption,
+  [BrowserSnapshot.id]: BrowserSnapshot,
+  [BrowserSwitchTab.id]: BrowserSwitchTab,
+  [BrowserType.id]: BrowserType,
+  [BrowserWaitFor.id]: BrowserWaitFor,
   [CallIntegrationTool.id]: CallIntegrationTool,
   [CheckDeploymentStatus.id]: CheckDeploymentStatus,
   [CompleteScheduledTask.id]: CompleteScheduledTask,
@@ -4884,9 +5458,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [CreateFile.id]: CreateFile,
   [CreateWorkflow.id]: CreateWorkflow,
   [CreateWorkspaceMcpServer.id]: CreateWorkspaceMcpServer,
-  [DeleteFile.id]: DeleteFile,
-  [DeleteFileFolder.id]: DeleteFileFolder,
-  [DeleteWorkflow.id]: DeleteWorkflow,
   [DeleteWorkspaceMcpServer.id]: DeleteWorkspaceMcpServer,
   [Deploy.id]: Deploy,
   [DeployApi.id]: DeployApi,
@@ -4923,9 +5494,9 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [ListWorkspaceMcpServers.id]: ListWorkspaceMcpServers,
   [LoadDeployment.id]: LoadDeployment,
   [LoadIntegrationTool.id]: LoadIntegrationTool,
+  [LoadSkill.id]: LoadSkill,
   [ManageCredential.id]: ManageCredential,
   [ManageCustomTool.id]: ManageCustomTool,
-  [ManageFolder.id]: ManageFolder,
   [ManageMcpTool.id]: ManageMcpTool,
   [ManageScheduledTask.id]: ManageScheduledTask,
   [ManageSkill.id]: ManageSkill,
@@ -4943,6 +5514,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Redeploy.id]: Redeploy,
   [Respond.id]: Respond,
   [RestoreResource.id]: RestoreResource,
+  [Rm.id]: Rm,
   [Run.id]: Run,
   [RunBlock.id]: RunBlock,
   [RunCode.id]: RunCode,
@@ -4964,10 +5536,12 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [SetGlobalWorkflowVariables.id]: SetGlobalWorkflowVariables,
   [ShareFile.id]: ShareFile,
   [Table.id]: Table,
+  [Terminal.id]: Terminal,
   [UpdateDeploymentVersion.id]: UpdateDeploymentVersion,
   [UpdateScheduledTaskHistory.id]: UpdateScheduledTaskHistory,
   [UpdateWorkspaceMcpServer.id]: UpdateWorkspaceMcpServer,
   [UserTable.id]: UserTable,
+  [Wait.id]: Wait,
   [Workflow.id]: Workflow,
   [WorkspaceFile.id]: WorkspaceFile,
 }

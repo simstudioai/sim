@@ -6,7 +6,6 @@ import {
   type DocumentTagFilter,
   type KnowledgeChunksResponse,
   type KnowledgeDocumentsResponse,
-  knowledgeKeys,
   serializeChunkParams,
   serializeDocumentParams,
   useDocumentQuery,
@@ -15,6 +14,7 @@ import {
   useKnowledgeChunksQuery,
   useKnowledgeDocumentsQuery,
 } from '@/hooks/queries/kb/knowledge'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 const DEFAULT_PAGE_SIZE = 50
 

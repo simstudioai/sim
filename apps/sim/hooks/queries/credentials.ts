@@ -92,6 +92,10 @@ export function useWorkspaceCredential(credentialId?: string, enabled = true) {
     },
     enabled: Boolean(credentialId) && enabled,
     staleTime: WORKSPACE_CREDENTIAL_DETAIL_STALE_TIME,
+    // The credential-detail form seeds editable name/description fields from
+    // this data, so a background focus refetch during an edit could clobber
+    // an unsaved draft. Off the desktop focus-refetch default; no-op on web.
+    refetchOnWindowFocus: false,
   })
 }
 

@@ -244,6 +244,26 @@ describe('handleUnifiedChatPost', () => {
     )
   })
 
+  it('forwards the desktop local filesystem capability into payload construction', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Inspect my local project',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          desktopCapabilities: { localFilesystem: true },
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ desktopLocalFilesystem: true }),
+      { selectedModel: '' }
+    )
+  })
+
   it('accepts tagged skill contexts and forwards them to context resolution', async () => {
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {
@@ -285,6 +305,81 @@ describe('handleUnifiedChatPost', () => {
     expect(response.status).toBe(200)
     expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
       expect.objectContaining({ mcpServerIds: ['mcp-server-1'] }),
+      { selectedModel: '' }
+    )
+  })
+
+  it('keeps MCP servers tagged on earlier turns enabled for the rest of the chat', async () => {
+    resolveOrCreateChat.mockResolvedValue({
+      chatId: 'chat-1',
+      chat: { id: 'chat-1' },
+      conversationHistory: [
+        {
+          id: 'msg-1',
+          role: 'user',
+          content: '/Docs search auth',
+          contexts: [{ kind: 'mcp', serverId: 'mcp-server-1', label: 'Docs' }],
+        },
+        { id: 'msg-2', role: 'assistant', content: 'here you go' },
+      ],
+      isNew: false,
+    })
+
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'now search billing',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ mcpServerIds: ['mcp-server-1'] }),
+      { selectedModel: '' }
+    )
+    // The tools ride the tool array every turn, so re-expanding the listing for
+    // an inherited server would only duplicate what the model already sees.
+    const expandedContexts = processContextsServer.mock.calls[0]?.[0] ?? []
+    expect(expandedContexts).not.toContainEqual(expect.objectContaining({ kind: 'mcp' }))
+  })
+
+  it('unions MCP servers across turns without duplicating a re-tagged server', async () => {
+    resolveOrCreateChat.mockResolvedValue({
+      chatId: 'chat-1',
+      chat: { id: 'chat-1' },
+      conversationHistory: [
+        {
+          id: 'msg-1',
+          role: 'user',
+          content: '/Docs search auth',
+          contexts: [{ kind: 'mcp', serverId: 'mcp-server-1', label: 'Docs' }],
+        },
+      ],
+      isNew: false,
+    })
+
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: '/Docs /Issues cross-reference',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          contexts: [
+            { kind: 'mcp', serverId: 'mcp-server-1', label: 'Docs' },
+            { kind: 'mcp', serverId: 'mcp-server-2', label: 'Issues' },
+          ],
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ mcpServerIds: ['mcp-server-1', 'mcp-server-2'] }),
       { selectedModel: '' }
     )
   })

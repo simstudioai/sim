@@ -1,7 +1,11 @@
-// load_agent_skill is retained for historical persisted messages; it is no
-// longer emitted now that internal skills autoload.
+// load_agent_skill and load_custom_tool are retained for historical persisted
+// messages; neither is emitted any more. load_custom_tool was renamed
+// load_mcp_tool once it became clear that MCP was the only catalog kind it
+// could ever match.
 // search_integration_tools is gateway plumbing: the discovery step is not a
 // user-meaningful action, only the resolved call_integration_tool row is.
+// load_skill is the same shape — the agent pulling in a reference guide before
+// doing the work is a step toward the action, not the action.
 // search_documentation is the deprecated pre-rename id of search_docs, kept
 // resolvable for one release so a mixed-version deploy works. A call only ever
 // arrives from an older Mothership build and renders as the search_docs it maps
@@ -12,7 +16,9 @@
 const HIDDEN_TOOL_NAMES = new Set([
   'load_agent_skill',
   'load_custom_tool',
+  'load_mcp_tool',
   'load_integration_tool',
+  'load_skill',
   'search_integration_tools',
   'search_documentation',
   'get_platform_actions',

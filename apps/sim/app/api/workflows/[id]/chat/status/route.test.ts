@@ -91,6 +91,7 @@ describe('Workflow Chat Status Route', () => {
     expect(data.deployment.hasPassword).toBe(true)
     expect(data.deployment.outputConfigs).toEqual([{ blockId: 'agent-1', path: 'content' }])
     expect(data.deployment.includeThinking).toBe(true)
-    expect(data.deployment.includeToolCalls).toBe(true)
+    // Independent of thinking: a row without a tool policy reads as off.
+    expect(data.deployment.includeToolCalls).toBe(false)
   })
 })

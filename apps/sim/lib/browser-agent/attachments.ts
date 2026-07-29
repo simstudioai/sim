@@ -1,0 +1,73 @@
+/**
+ * Maps the chat's open resources to request attachments.
+ *
+ * This is deliberately the ONLY place shared chat code reads the
+ * browser-session store: the live browser panel's page state is client-held
+ * (the desktop app's embedded browser), so its attachment is enriched here
+ * with the current URL and title for the server to inject as
+ * `@active_tab`/`@open_tab` context. A browser panel with no page loaded has
+ * nothing to say and is dropped.
+ */
+import type { MothershipResource } from '@/lib/copilot/resources/types'
+import { useBrowserSessionStore } from '@/stores/browser-session/store'
+
+export interface ResourceAttachment {
+  type: MothershipResource['type']
+  id: string
+  title: string
+  active: boolean
+  /** Live page URL, only on `browser` attachments. */
+  url?: string
+}
+
+export function buildResourceAttachments(
+  resources: readonly MothershipResource[],
+  activeResourceId: string | null
+): ResourceAttachment[] | undefined {
+  const { pageState, tabs, tabsSupported } = useBrowserSessionStore.getState()
+  const attachments = resources.flatMap<ResourceAttachment>((resource) => {
+    // The terminal panel is not addressable context: unlike a browser tab it
+    // carries no URL to reference, and the shell's state reaches the model
+    // through the terminal tools instead.
+    if (resource.type === 'terminal') return []
+
+    if (resource.type !== 'browser') {
+      return [
+        {
+          type: resource.type,
+          id: resource.id,
+          title: resource.title,
+          active: resource.id === activeResourceId,
+        },
+      ]
+    }
+
+    if (tabsSupported) {
+      return tabs
+        .filter((tab) => Boolean(tab.url))
+        .map((tab) => ({
+          type: resource.type,
+          id: `${resource.id}:${tab.tabId}`,
+          title: tab.title.trim() || resource.title,
+          active: resource.id === activeResourceId && tab.active,
+          url: tab.url,
+        }))
+    }
+
+    if (!pageState?.url) return []
+    return [
+      {
+        type: resource.type,
+        id: resource.id,
+        title: pageState.title.trim() || resource.title,
+        active: resource.id === activeResourceId,
+        url: pageState.url,
+      },
+    ]
+  })
+
+  if (attachments.length === 0) {
+    return undefined
+  }
+  return attachments
+}

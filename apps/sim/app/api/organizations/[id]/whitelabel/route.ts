@@ -7,8 +7,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { updateOrganizationWhitelabelContract } from '@/lib/api/contracts/organization'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
+import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
 import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
+import { isBillingEnabled, isWhitelabelingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('WhitelabelAPI')
@@ -107,11 +108,15 @@ export const PUT = withRouteHandler(
         )
       }
 
-      const hasEnterprisePlan = await isOrganizationOnEnterprisePlan(organizationId)
+      const entitled = await isOrganizationFeatureEntitled(organizationId, isWhitelabelingEnabled)
 
-      if (!hasEnterprisePlan) {
+      if (!entitled) {
         return NextResponse.json(
-          { error: 'Whitelabeling is available on Enterprise plans only' },
+          {
+            error: isBillingEnabled
+              ? 'Whitelabeling is available on Enterprise plans only'
+              : 'Whitelabeling is disabled. Set ENTERPRISE_ENABLED or WHITELABELING_ENABLED to enable it.',
+          },
           { status: 403 }
         )
       }

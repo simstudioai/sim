@@ -10,7 +10,7 @@ import { createDefaultInputFormatField } from '@/lib/workflows/input-format'
 import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getBlock } from '@/blocks'
-import { normalizeName } from '@/executor/constants'
+import { escapeRegExp, normalizeName } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
@@ -218,7 +218,22 @@ function updateValueReferences(value: unknown, nameMap: Map<string, string>): un
   if (typeof value === 'string') {
     let updatedValue = value
     nameMap.forEach((newName, oldName) => {
-      const regex = new RegExp(`<${oldName}\\.`, 'g')
+      /**
+       * A rename to itself is a no-op, so skip the scan entirely. This is the
+       * whole map on the import path (`regenerateWorkflowIds` seeds it with
+       * `name -> name`), which turns an O(names x values) rescan of every
+       * sub-block string into nothing.
+       */
+      if (oldName === newName) return
+
+      /**
+       * `oldName` is a block name, which reaches this function straight from
+       * imported workflow JSON — `normalizeWorkflowBlockName` only lowercases
+       * and strips whitespace/dots, so regex metacharacters survive. Without
+       * escaping, a name like `a*a*a*a*b` compiles to a catastrophically
+       * backtracking pattern that pins the event loop on a sub-kilobyte input.
+       */
+      const regex = new RegExp(`<${escapeRegExp(oldName)}\\.`, 'g')
       updatedValue = updatedValue.replace(regex, `<${newName}.`)
     })
     return updatedValue

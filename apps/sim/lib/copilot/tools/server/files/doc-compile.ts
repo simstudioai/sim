@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
   executeInSandbox,
@@ -89,10 +88,11 @@ export async function getE2BDocFormat(fileName: string): Promise<E2BDocFormat | 
       contentType: PDF_MIME,
       sourceMime: PYTHON_PDF_SOURCE_MIME,
     }
-  // xlsx is gated behind the mothership-beta feature flag (like plans/changelog): the
-  // skill + prompt are gated on the Go side, and this is the single Sim chokepoint
-  // that keeps the compile/serve/check/recalc paths off for xlsx when beta is off.
-  if (l.endsWith('.xlsx') && (await isFeatureEnabled('mothership-beta')))
+  // xlsx availability is owned entirely by mothership's xlsx-writing flag, which
+  // gates the skill and the prompt. If the model was never told xlsx exists it
+  // never asks, so a second chokepoint here only created a way for the two
+  // halves to disagree across an AppConfig-application boundary.
+  if (l.endsWith('.xlsx'))
     return {
       ext: 'xlsx',
       engine: 'python',

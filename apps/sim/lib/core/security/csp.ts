@@ -16,6 +16,23 @@ function toWebSocketUrl(httpUrl: string): string {
   return httpUrl.replace('http://', 'ws://').replace('https://', 'wss://')
 }
 
+/**
+ * Kept in sync with LOCALHOST_HOSTNAMES in ../utils/urls by hand: this module is
+ * loaded by next.config.ts before `@/` aliases resolve, so it cannot import from
+ * there (see the note above).
+ */
+const LOCALHOST_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]', '::1'])
+
+/** Mirrors getSocketUrl's localhost check — those origins fall back to DEFAULT_SOCKET_URL. */
+function isLocalhostUrl(url: string): boolean {
+  if (!url) return false
+  try {
+    return LOCALHOST_HOSTNAMES.has(new URL(url).hostname)
+  } catch {
+    return false
+  }
+}
+
 function getHostnameFromUrl(url: string | undefined): string[] {
   if (!url) return []
   try {
@@ -208,7 +225,15 @@ export function buildCSPString(directives: CSPDirectives): string {
 export function generateRuntimeCSP(): string {
   const appUrl = getEnv('NEXT_PUBLIC_APP_URL') || ''
 
-  const socketUrl = getEnv('NEXT_PUBLIC_SOCKET_URL') || (isDev ? DEFAULT_SOCKET_URL : '')
+  // Must permit whatever getSocketUrl() actually connects to, or the browser
+  // blocks the handshake and Socket.IO retries forever. That helper falls back
+  // to DEFAULT_SOCKET_URL whenever the page is served from localhost — which
+  // includes a production build (docker compose sets NODE_ENV=production), so
+  // keying this on isDev alone left the bundled stack with a CSP that forbade
+  // its own realtime port. A non-localhost origin still resolves to the page
+  // origin, which appUrl already covers, so nothing is loosened there.
+  const socketUrl =
+    getEnv('NEXT_PUBLIC_SOCKET_URL') || (isDev || isLocalhostUrl(appUrl) ? DEFAULT_SOCKET_URL : '')
   const socketWsUrl = socketUrl ? toWebSocketUrl(socketUrl) : ''
   const ollamaUrl = getEnv('OLLAMA_URL') || (isDev ? DEFAULT_OLLAMA_URL : '')
 

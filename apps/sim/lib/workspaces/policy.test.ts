@@ -203,7 +203,32 @@ describe('getWorkspaceCreationPolicy', () => {
     expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
   })
 
-  it('blocks non-admin org members from creating organization workspaces', async () => {
+  it('allows plain org members to create organization workspaces when billing is disabled', async () => {
+    setEnvFlags({ isBillingEnabled: false })
+    mockGetUserOrganization.mockResolvedValueOnce({
+      organizationId: 'org-1',
+      role: 'member',
+      memberId: 'member-1',
+    })
+    queueTableRows(member, [{ userId: 'owner-1' }])
+
+    const result = await getWorkspaceCreationPolicy({
+      userId: 'user-1',
+      activeOrganizationId: 'org-1',
+    })
+
+    /**
+     * Auto-joined users — instance-organization mode, or SSO organization
+     * provisioning — land here as plain members. Refusing them would leave them
+     * with no workspace at all, not merely a personal one.
+     */
+    expect(result.canCreate).toBe(true)
+    expect(result.workspaceMode).toBe(WORKSPACE_MODE.ORGANIZATION)
+    expect(result.organizationId).toBe('org-1')
+    expect(result.billedAccountUserId).toBe('owner-1')
+  })
+
+  it('still blocks non-admin org members when billing is enabled', async () => {
     mockGetUserOrganization.mockResolvedValueOnce({
       organizationId: 'org-1',
       role: 'member',

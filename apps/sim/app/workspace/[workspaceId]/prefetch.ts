@@ -6,13 +6,12 @@ import { listWorkflowsForUser } from '@/lib/workflows/queries'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import { getWorkspacePermissionsForAuthorizedViewer } from '@/lib/workspaces/permissions/utils'
-import { FOLDER_LIST_STALE_TIME, mapFolder } from '@/hooks/queries/folders'
 import {
   MOTHERSHIP_CHAT_LIST_STALE_TIME,
   mapChat,
   mothershipChatKeys,
 } from '@/hooks/queries/mothership-chats'
-import { folderKeys } from '@/hooks/queries/utils/folder-keys'
+import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { mapWorkflow, WORKFLOW_LIST_STALE_TIME } from '@/hooks/queries/utils/workflow-list-query'
 import {
@@ -83,9 +82,9 @@ export async function prefetchWorkspaceSidebar(
       staleTime: MOTHERSHIP_CHAT_LIST_STALE_TIME,
     }),
     queryClient.prefetchQuery({
-      queryKey: folderKeys.list(workspaceId, 'active'),
+      queryKey: folderKeys.list(workspaceId, 'active', 'workflow'),
       queryFn: async () => {
-        const rows = await listFoldersForWorkspace(workspaceId, 'active')
+        const rows = await listFoldersForWorkspace(workspaceId, 'active', 'workflow')
         return rows.map(mapFolder)
       },
       staleTime: FOLDER_LIST_STALE_TIME,

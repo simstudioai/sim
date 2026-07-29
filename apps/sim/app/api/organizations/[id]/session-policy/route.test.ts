@@ -28,8 +28,14 @@ vi.mock('@/lib/auth/security-policy', () => ({
   invalidateSecurityPolicyVersionCache: vi.fn(),
 }))
 
+/**
+ * These tests run with billing enabled, where `isOrganizationFeatureEntitled`
+ * delegates straight to the plan check — so both names resolve to the same
+ * mock and `mockIsEnterprise` keeps steering the gate.
+ */
 vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: mockIsEnterprise,
+  isOrganizationFeatureEntitled: mockIsEnterprise,
 }))
 
 vi.mock('@sim/audit', () => ({

@@ -93,9 +93,9 @@ export async function processContextsServer(
           type: 'mcp',
           tag: ctx.label ? `/${ctx.label}` : '/',
           content: [
-            `The user explicitly enabled the MCP server "${ctx.label || ctx.serverId}" for this turn.`,
-            'Its request-scoped tools are listed below. Load a tool with load_custom_tool({ type: "mcp", name: "<exact name>" }) before calling it.',
-            'Do not narrate discovery, loading, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
+            `The user explicitly enabled the MCP server "${ctx.label || ctx.serverId}". It stays enabled for the rest of this chat, and its tools remain callable on every later turn.`,
+            'Its tools are listed below and are callable directly by the exact name shown — there is no loading step.',
+            'Do not narrate discovery, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
             ...toolLines,
           ].join('\n'),
         }
@@ -141,6 +141,24 @@ export async function processContextsServer(
           ctx.label ? `@${ctx.label}` : '@',
           currentWorkspaceId
         )
+      }
+      // Tabs resolve to a pointer, not their contents. The agent has tools
+      // that read a live tab, and by the time it acts the page may have
+      // navigated or the shell scrolled on — so naming the tab it should look
+      // at beats pasting a snapshot that was true when the message was sent.
+      if (ctx.kind === 'browser_tab' && ctx.tabId) {
+        return {
+          type: 'browser_tab',
+          tag: ctx.label ? `@${ctx.label}` : '@',
+          content: `The user pointed at an open browser tab: "${ctx.label}" (tabId ${ctx.tabId}). Act on THIS tab — switch to it with browser_switch_tab and read it with browser_snapshot rather than assuming which tab they meant.`,
+        }
+      }
+      if (ctx.kind === 'terminal_tab' && ctx.terminalId) {
+        return {
+          type: 'terminal_tab',
+          tag: ctx.label ? `@${ctx.label}` : '@',
+          content: `The user pointed at an open terminal: "${ctx.label}" (terminalId ${ctx.terminalId}). Act on THIS terminal — pass that terminalId to the terminal tool, and read its screen before assuming what is in it.`,
+        }
       }
       if (ctx.kind === 'workflow_block' && ctx.workflowId && ctx.blockId) {
         return await processWorkflowBlockFromDb(

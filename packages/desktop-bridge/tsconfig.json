@@ -1,0 +1,8 @@
+{
+  "extends": "@sim/tsconfig/library.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

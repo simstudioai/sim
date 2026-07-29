@@ -70,6 +70,19 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | `ALLOWED_LOGIN_EMAILS` | Restrict signups to specific emails (comma-separated) |
 | `DISABLE_REGISTRATION` | Set to `true` to disable new user signups |
 
+## Enterprise Features
+
+Enterprise features are unlocked by configuration rather than billing on self-hosted deployments. One switch turns on the full set; per-feature flags below it override the switch either way.
+
+| Variable | Description |
+|----------|-------------|
+| `ENTERPRISE_ENABLED`, `NEXT_PUBLIC_ENTERPRISE_ENABLED` | Enable the whole enterprise feature set |
+| `INSTANCE_ORG_NAME` | Name of the organization every user joins automatically at signup |
+| `INSTANCE_ORG_SLUG` | Slug for that organization (derived from the name when omitted) |
+| `INSTANCE_ORG_OWNER_EMAIL` | Owner of that organization (defaults to the first user to sign up) |
+
+Most enterprise features read their settings from the organization that owns a workspace, so enabling the flags alone is not enough — the deployment also needs an organization model. See the [self-hosted enterprise guide](/platform/enterprise/self-hosted) for the per-feature flags, both organization patterns, and the Admin API.
+
 ## File Storage
 
 By default Sim writes uploads to local disk. For production, point it at AWS S3, Azure Blob, or Google Cloud Storage. See [Object Storage](/platform/self-hosting/object-storage) for the full setup, bucket layout, and IAM policy.

@@ -23,9 +23,6 @@ const AuditLogs = dynamic(() =>
   import('@/ee/audit-logs/components/audit-logs').then((module) => module.AuditLogs)
 )
 const SSO = dynamic(() => import('@/ee/sso/components/sso-settings').then((module) => module.SSO))
-const DomainSettings = dynamic(() =>
-  import('@/ee/sso/components/domain-settings').then((module) => module.DomainSettings)
-)
 const SessionPolicySettings = dynamic(() =>
   import('@/ee/session-policy/components/session-policy-settings').then(
     (module) => module.SessionPolicySettings
@@ -71,9 +68,6 @@ export function OrganizationSettingsRenderer({
   }
   if (section === 'audit-logs') return <AuditLogs organizationId={organizationId} />
   if (section === 'sso') return <SSO organizationId={organizationId} />
-  if (section === 'domains') {
-    return <DomainSettings key={organizationId} organizationId={organizationId} />
-  }
   if (section === 'sessions') {
     return <SessionPolicySettings key={organizationId} organizationId={organizationId} />
   }

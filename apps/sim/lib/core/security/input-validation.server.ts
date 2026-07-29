@@ -5,6 +5,7 @@ import http from 'http'
 import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
+import { isLoopbackIp, isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import { HttpProxyAgent } from 'http-proxy-agent'
@@ -18,6 +19,7 @@ import {
 } from 'undici'
 import { isHosted, isPrivateDatabaseHostsAllowed } from '@/lib/core/config/env-flags'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
+import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const logger = createLogger('InputValidation')
@@ -28,49 +30,6 @@ const logger = createLogger('InputValidation')
 export interface AsyncValidationResult extends ValidationResult {
   resolvedIP?: string
   originalHostname?: string
-}
-
-/**
- * Checks if an IP address is private or reserved (not routable on the public internet)
- * Uses ipaddr.js for robust handling of all IP formats including:
- * - Octal notation (0177.0.0.1)
- * - Hex notation (0x7f000001)
- * - IPv4-mapped IPv6 (::ffff:127.0.0.1)
- * - IPv4-compatible IPv6 (::a.b.c.d / ::xxxx:xxxx, RFC 4291 §2.5.5.1, deprecated)
- * - Various edge cases that regex patterns miss
- */
-export function isPrivateOrReservedIP(ip: string): boolean {
-  try {
-    if (!ipaddr.isValid(ip)) {
-      return true
-    }
-
-    const addr = ipaddr.process(ip)
-    const range = addr.range()
-
-    if (range !== 'unicast') {
-      return true
-    }
-
-    if (addr.kind() === 'ipv6') {
-      const v6 = addr as ipaddr.IPv6
-      const parts = v6.parts
-      const firstSixZero = parts.slice(0, 6).every((p) => p === 0)
-      if (firstSixZero) {
-        const embedded = ipaddr.fromByteArray([
-          (parts[6] >> 8) & 0xff,
-          parts[6] & 0xff,
-          (parts[7] >> 8) & 0xff,
-          parts[7] & 0xff,
-        ])
-        return embedded.range() !== 'unicast'
-      }
-    }
-
-    return false
-  } catch {
-    return true
-  }
 }
 
 /**
@@ -100,18 +59,10 @@ export async function validateUrlWithDNS(
   const hostname = parsedUrl.hostname
 
   const hostnameLower = hostname.toLowerCase()
-  const cleanHostname =
-    hostnameLower.startsWith('[') && hostnameLower.endsWith(']')
-      ? hostnameLower.slice(1, -1)
-      : hostnameLower
+  const cleanHostname = unwrapIpv6Brackets(hostnameLower)
 
-  let isLocalhost = cleanHostname === 'localhost'
-  if (ipaddr.isValid(cleanHostname)) {
-    const processedIP = ipaddr.process(cleanHostname).toString()
-    if (processedIP === '127.0.0.1' || processedIP === '::1') {
-      isLocalhost = true
-    }
-  }
+  // Whole loopback range — see the matching note in input-validation.ts.
+  const isLocalhost = cleanHostname === 'localhost' || isLoopbackIp(cleanHostname)
 
   try {
     // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
@@ -120,14 +71,9 @@ export async function validateUrlWithDNS(
     const resolved = await dns.lookup(cleanHostname, { all: true, verbatim: true })
     const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
 
-    const resolvedIsLoopback =
-      ipaddr.isValid(address) &&
-      (() => {
-        const ip = ipaddr.process(address).toString()
-        return ip === '127.0.0.1' || ip === '::1'
-      })()
+    const resolvedIsLoopback = isLoopbackIp(address)
 
-    if (isPrivateOrReservedIP(address) && !(isLocalhost && resolvedIsLoopback && !isHosted)) {
+    if (isPrivateIp(address) && !(isLocalhost && resolvedIsLoopback && !isHosted)) {
       logger.warn('URL resolves to blocked IP address', {
         paramName,
         hostname,
@@ -212,7 +158,7 @@ export async function validateAndPinProxyUrl(
 
   // validateUrlWithDNS permits loopback for self-hosted dev targets; a proxy governs
   // egress, so loopback/private proxy hosts stay blocked unconditionally.
-  if (isPrivateOrReservedIP(resolvedIP)) {
+  if (isPrivateIp(resolvedIP)) {
     return { isValid: false, error: 'proxyUrl resolves to a blocked IP address' }
   }
 
@@ -249,19 +195,13 @@ export async function validateDatabaseHost(
     return { isValid: false, error: `${paramName} is required` }
   }
 
-  const lowerHost = host.toLowerCase()
-  const cleanHost =
-    lowerHost.startsWith('[') && lowerHost.endsWith(']') ? lowerHost.slice(1, -1) : lowerHost
+  const cleanHost = unwrapIpv6Brackets(host.toLowerCase())
 
   if (cleanHost === 'localhost' && !isPrivateDatabaseHostsAllowed) {
     return { isValid: false, error: `${paramName} cannot be localhost` }
   }
 
-  if (
-    ipaddr.isValid(cleanHost) &&
-    isPrivateOrReservedIP(cleanHost) &&
-    !isPrivateDatabaseHostsAllowed
-  ) {
+  if (isPrivateIpHost(cleanHost) && !isPrivateDatabaseHostsAllowed) {
     return { isValid: false, error: `${paramName} cannot be a private IP address` }
   }
 
@@ -271,7 +211,7 @@ export async function validateDatabaseHost(
     const resolved = await dns.lookup(cleanHost, { all: true, verbatim: true })
     const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
 
-    if (isPrivateOrReservedIP(address) && !isPrivateDatabaseHostsAllowed) {
+    if (isPrivateIp(address) && !isPrivateDatabaseHostsAllowed) {
       logger.warn('Database host resolves to blocked IP address', {
         paramName,
         hostname: host,
@@ -518,7 +458,7 @@ export function createSsrfGuardedLookup(): LookupFunction {
     dns
       .lookup(hostname, { all: true, verbatim: false })
       .then((addresses) => {
-        const usable = addresses.filter((entry) => !isPrivateOrReservedIP(entry.address))
+        const usable = addresses.filter((entry) => !isPrivateIp(entry.address))
         if (usable.length === 0) {
           callback(
             new Error(`Blocked by SSRF policy: ${hostname} has no publicly routable address`),
@@ -551,7 +491,7 @@ function assertGuardedRedirectTarget(url: URL, allowedPinnedIp?: string): void {
     url.hostname.startsWith('[') && url.hostname.endsWith(']')
       ? url.hostname.slice(1, -1)
       : url.hostname
-  if (ipaddr.isValid(host) && isPrivateOrReservedIP(host)) {
+  if (ipaddr.isValid(host) && isPrivateIp(host)) {
     // The pinned-private carve-out permits exactly its own validated IP as a target (a
     // self-hosted MCP on a private IP, or a same-host redirect that stays on it) — but nothing
     // else private (a redirect to e.g. the cloud metadata IP is still blocked).
@@ -715,67 +655,6 @@ function contentEncodingDecoder(
     default:
       return null
   }
-}
-
-/**
- * Bridges an undici `request()` Node `Readable` into a WHATWG `ReadableStream` for a
- * `Response` body. Node's built-in `Readable.toWeb` is NOT used: its adapter throws an
- * unhandled `ERR_INVALID_STATE` ("Controller is already closed") when the web stream is
- * cancelled while the Node stream is still flowing — which `followRedirectsGuarded` does
- * on every redirect hop (`response.body.cancel()`). This bridge instead swallows a late
- * enqueue after close and destroys the source on cancel, so cancelling a live body frees
- * its socket cleanly. `maxResponseSize` overruns surface as the source's `error` event and
- * reject the read, preserving the DoS backstop.
- */
-function nodeReadableToWebStream(nodeStream: Readable): ReadableStream<Uint8Array> {
-  let settled = false
-  return new ReadableStream<Uint8Array>({
-    start(controller) {
-      nodeStream.on('data', (chunk: Buffer) => {
-        try {
-          // Copy, not a view: undici may recycle the pooled buffer backing `chunk` after
-          // this handler returns, which would corrupt a chunk still queued for a slow
-          // consumer. `new Uint8Array(chunk)` allocates a fresh backing buffer.
-          controller.enqueue(new Uint8Array(chunk))
-        } catch {
-          // Controller already closed (consumer cancelled) — stop the source, drop the chunk.
-          nodeStream.destroy()
-          return
-        }
-        if ((controller.desiredSize ?? 1) <= 0) nodeStream.pause()
-      })
-      nodeStream.once('end', () => {
-        settled = true
-        try {
-          controller.close()
-        } catch {}
-      })
-      nodeStream.once('error', (err) => {
-        settled = true
-        try {
-          controller.error(err)
-        } catch {}
-      })
-      // An abort (signal) or upstream reset can `destroy()` the source with no `error`
-      // event; without this the reader would hang forever. `close` fires after every
-      // terminal path, so only act when `end`/`error` didn't already settle the stream.
-      nodeStream.once('close', () => {
-        if (settled) return
-        settled = true
-        try {
-          controller.error(new Error('MCP transport stream closed before completing'))
-        } catch {}
-      })
-      // Start paused so nothing buffers before the consumer pulls (backpressure).
-      nodeStream.pause()
-    },
-    pull() {
-      nodeStream.resume()
-    },
-    cancel(reason) {
-      nodeStream.destroy(reason instanceof Error ? reason : undefined)
-    },
-  })
 }
 
 /**

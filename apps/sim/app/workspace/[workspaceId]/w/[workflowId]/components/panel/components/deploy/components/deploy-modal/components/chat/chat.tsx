@@ -22,7 +22,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
 import { AlertTriangle, Check } from 'lucide-react'
 import { GeneratedPasswordInput } from '@/components/ui'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
@@ -198,7 +198,7 @@ export function ChatDeploy({
             )
           : [],
         includeThinking: existingChat.includeThinking ?? false,
-        includeToolCalls: existingChat.includeToolCalls ?? existingChat.includeThinking ?? false,
+        includeToolCalls: existingChat.includeToolCalls ?? false,
       })
 
       if (existingChat.customizations?.imageUrl) {
@@ -713,9 +713,7 @@ function AuthSelector({
   const allowedAuthTypes = permissionConfig.allowedChatDeployAuthTypes
 
   const ssoAvailable =
-    isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')) ||
-    savedAuthType === 'sso' ||
-    (allowedAuthTypes?.includes('sso') ?? false)
+    isSsoEnabled || savedAuthType === 'sso' || (allowedAuthTypes?.includes('sso') ?? false)
   const baseAuthOptions: AuthType[] = ssoAvailable
     ? ['public', 'password', 'email', 'sso']
     : ['public', 'password', 'email']

@@ -1,3 +1,4 @@
+import type { BrowserKnownSession } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
@@ -34,7 +35,10 @@ interface BuildPayloadParams {
   model: string
   provider?: string
   contexts?: Array<{ type: string; content: string; tag?: string; path?: string }>
-  /** MCP servers explicitly tagged on this turn. Untagged servers stay unavailable. */
+  /**
+   * MCP servers enabled for this chat — every server tagged on this or any
+   * earlier turn. Servers never tagged in the chat stay unavailable.
+   */
   mcpServerIds?: string[]
   fileAttachments?: Array<{ id: string; key: string; size: number; [key: string]: unknown }>
   commands?: string[]
@@ -52,6 +56,17 @@ interface BuildPayloadParams {
     email?: string
     timezone?: string
   }
+  desktopLocalFilesystem?: boolean
+  browserCapable?: boolean
+  terminalCapable?: boolean
+  terminals?: Array<{
+    id: string
+    cwd?: string
+    running?: string
+    interactive?: boolean
+    active?: boolean
+  }>
+  browserSessions?: BrowserKnownSession[]
 }
 
 export interface ToolSchema {
@@ -432,6 +447,24 @@ export async function buildCopilotRequestPayload(
     // Tell the copilot file subagent which document toolchain to write. Emitted
     // only in Python mode so the JS path sends no new field (Go defaults to js).
     ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
+    ...(params.desktopLocalFilesystem || params.browserCapable || params.terminalCapable
+      ? {
+          desktopCapabilities: {
+            ...(params.desktopLocalFilesystem ? { localFilesystem: true } : {}),
+            ...(params.browserCapable ? { browser: true } : {}),
+            ...(params.terminalCapable ? { terminal: true } : {}),
+            ...(params.terminalCapable && params.terminals?.length
+              ? { terminals: params.terminals }
+              : {}),
+            ...(params.browserCapable && params.browserSessions?.length
+              ? { browserSessions: params.browserSessions }
+              : {}),
+          },
+        }
+      : {}),
+    // Compatibility with mothership deployments that predate the unified
+    // desktop capability object.
+    ...(params.browserCapable ? { browserCapable: true } : {}),
     isHosted,
   }
 }

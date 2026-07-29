@@ -62,7 +62,7 @@ const {
 }))
 
 vi.mock('@e2b/code-interpreter', () => ({ Sandbox: { create: mockE2BCreate } }))
-vi.mock('@daytonaio/sdk', () => ({
+vi.mock('@daytona/sdk', () => ({
   Daytona: class {
     create = mockDaytonaCreate
   },
