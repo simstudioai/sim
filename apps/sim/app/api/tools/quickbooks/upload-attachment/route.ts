@@ -12,8 +12,10 @@ import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import {
+  assertQuickBooksAttachmentUploadResponse,
   buildQuickBooksHeaders,
   buildQuickBooksUploadUrl,
+  normalizeQuickBooksAttachmentEntity,
   parseQuickBooksJson,
 } from '@/tools/quickbooks/utils'
 
@@ -65,11 +67,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const contentType = downloaded.contentType || userFile.type || 'application/octet-stream'
+    const entity = normalizeQuickBooksAttachmentEntity(params.entity)
     const metadata = {
       AttachableRef: [
         {
           EntityRef: {
-            type: params.entity,
+            type: entity,
             value: params.entityId,
           },
           IncludeOnSend: params.includeOnSend ?? false,
@@ -105,7 +108,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         body: formData,
       }
     )
-    const data = await parseQuickBooksJson(response)
+    const data = assertQuickBooksAttachmentUploadResponse(await parseQuickBooksJson(response))
     return NextResponse.json({ success: true, output: { result: data } })
   } catch (error) {
     const notReady = docNotReadyResponse(error)

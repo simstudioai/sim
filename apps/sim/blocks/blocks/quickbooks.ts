@@ -264,8 +264,9 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     {
       id: 'attachmentEntity',
       title: 'Linked Entity Type',
-      type: 'short-input',
-      placeholder: 'PurchaseOrder',
+      type: 'dropdown',
+      options: buildEntityOptions(QUICKBOOKS_READABLE_ENTITIES),
+      value: () => 'PurchaseOrder',
       condition: { field: 'operation', value: 'upload_attachment' },
       required: { field: 'operation', value: 'upload_attachment' },
     },

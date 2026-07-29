@@ -477,6 +477,20 @@ export async function parseQuickBooksJson(response: Response): Promise<QuickBook
   return data
 }
 
+export function assertQuickBooksAttachmentUploadResponse(
+  data: QuickBooksApiEnvelope
+): QuickBooksApiEnvelope {
+  const uploaded = data.AttachableResponse?.some((item) => isQuickBooksRecord(item.Attachable))
+  if (!uploaded) {
+    throw new Error('QuickBooks attachment upload returned no attachment')
+  }
+  return data
+}
+
+export function normalizeQuickBooksAttachmentEntity(value: string): QuickBooksEntityName {
+  return normalizeQuickBooksEntity(value, QUICKBOOKS_READABLE_ENTITIES, 'linked to an attachment')
+}
+
 export function extractQuickBooksRecords(
   data: QuickBooksApiEnvelope,
   preferredEntity?: QuickBooksEntityName
@@ -730,6 +744,7 @@ function extractQuickBooksError(data: QuickBooksApiEnvelope): string | null {
   const errors = [
     ...extractFaultErrors(data.Fault),
     ...extractFaultErrors(data.QueryResponse?.Fault),
+    ...(data.AttachableResponse ?? []).flatMap((item) => extractFaultErrors(item.Fault)),
   ]
   const message = errors
     .map((error) => error.Detail || error.Message || error.code)

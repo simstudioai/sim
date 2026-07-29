@@ -135,6 +135,64 @@ describe('POST /api/tools/quickbooks/upload-attachment', () => {
     )
   })
 
+  it('normalizes linked entity names before building attachment metadata', async () => {
+    const response = await POST(
+      createMockRequest('POST', {
+        ...baseBody,
+        entity: 'purchaseorder',
+      })
+    )
+    expect(response.status).toBe(200)
+
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit]
+    const metadata = (init.body as FormData).get('file_metadata_01')
+    expect(metadata).toBeInstanceOf(Blob)
+    await expect((metadata as Blob).text()).resolves.toContain(
+      '"EntityRef":{"type":"PurchaseOrder","value":"17"}'
+    )
+  })
+
+  it('rejects nested QuickBooks upload faults returned with HTTP 200', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          AttachableResponse: [
+            {
+              Fault: {
+                Error: [{ Message: 'ValidationFault', Detail: 'Unsupported entity reference' }],
+              },
+            },
+          ],
+          time: '2026-07-29T23:00:00Z',
+        }),
+        { headers: { 'content-type': 'application/json' }, status: 200 }
+      )
+    )
+
+    const response = await POST(createMockRequest('POST', baseBody))
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'QuickBooks API error (200): Unsupported entity reference',
+    })
+  })
+
+  it('rejects timestamp-only QuickBooks upload responses', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ time: '2026-07-29T23:00:00Z' }), {
+        headers: { 'content-type': 'application/json' },
+        status: 200,
+      })
+    )
+
+    const response = await POST(createMockRequest('POST', baseBody))
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'QuickBooks attachment upload returned no attachment',
+    })
+  })
+
   it('rejects files over the QuickBooks 100 MB attachment limit', async () => {
     mockProcessFilesToUserFiles.mockReturnValueOnce([
       { ...baseBody.file, size: 100 * 1024 * 1024 + 1 },

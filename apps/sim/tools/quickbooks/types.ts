@@ -290,6 +290,10 @@ export interface QuickBooksFault {
 }
 
 export interface QuickBooksApiEnvelope extends QuickBooksRecord {
+  AttachableResponse?: Array<{
+    Attachable?: QuickBooksRecord
+    Fault?: QuickBooksFault
+  }>
   QueryResponse?: Record<string, unknown> & {
     Fault?: QuickBooksFault
   }
