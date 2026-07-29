@@ -11,7 +11,9 @@ const {
   mockCreatePendingInvitation,
   mockSendInvitationEmail,
   mockCancelPendingInvitation,
-  mockFindPendingGrantForWorkspaceEmail,
+  mockRevertPendingInvitationGrants,
+  mockFindPendingGrantWorkspaceIds,
+  mockGetInvitePlanCategoryForUser,
   mockWorkspaceMemberInvited,
   mockCaptureServerEvent,
 } = vi.hoisted(() => ({
@@ -21,7 +23,9 @@ const {
   mockCreatePendingInvitation: vi.fn(),
   mockSendInvitationEmail: vi.fn(),
   mockCancelPendingInvitation: vi.fn(),
-  mockFindPendingGrantForWorkspaceEmail: vi.fn(),
+  mockRevertPendingInvitationGrants: vi.fn(),
+  mockFindPendingGrantWorkspaceIds: vi.fn(),
+  mockGetInvitePlanCategoryForUser: vi.fn(),
   mockWorkspaceMemberInvited: vi.fn(),
   mockCaptureServerEvent: vi.fn(),
 }))
@@ -48,7 +52,8 @@ vi.mock('@/lib/invitations/send', () => ({
   createPendingInvitation: mockCreatePendingInvitation,
   sendInvitationEmail: mockSendInvitationEmail,
   cancelPendingInvitation: mockCancelPendingInvitation,
-  findPendingGrantForWorkspaceEmail: mockFindPendingGrantForWorkspaceEmail,
+  revertPendingInvitationGrants: mockRevertPendingInvitationGrants,
+  findPendingGrantWorkspaceIds: mockFindPendingGrantWorkspaceIds,
 }))
 
 vi.mock('@/lib/posthog/server', () => ({
@@ -61,6 +66,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 
 vi.mock('@/lib/workspaces/policy', () => ({
   getWorkspaceInvitePolicy: vi.fn(),
+  getInvitePlanCategoryForUser: mockGetInvitePlanCategoryForUser,
 }))
 
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
@@ -81,26 +87,33 @@ function queueWhereResponses(responses: unknown[][]) {
   })
 }
 
-function makeContext() {
+function makeTarget(workspaceId: string, organizationId: string | null = 'org-1') {
   return {
-    workspaceId: 'ws-1',
-    inviterId: 'user-1',
-    inviterName: 'Owner',
-    inviterEmail: 'owner@example.com',
+    workspaceId,
     workspaceDetails: {
-      id: 'ws-1',
-      name: 'Workspace 1',
+      id: workspaceId,
+      name: `Workspace ${workspaceId}`,
       ownerId: 'user-1',
-      organizationId: 'org-1',
+      organizationId,
       billedAccountUserId: 'user-1',
     },
     invitePolicy: {
       allowed: true,
       reason: null,
       requiresSeat: false,
-      organizationId: 'org-1',
+      organizationId,
       upgradeRequired: false,
     },
+  }
+}
+
+function makeContext(workspaceIds = ['ws-1'], organizationId: string | null = 'org-1') {
+  return {
+    inviterId: 'user-1',
+    inviterName: 'Owner',
+    inviterEmail: 'owner@example.com',
+    organizationId,
+    targets: workspaceIds.map((id) => makeTarget(id, organizationId)),
     // The function only reads the fields above at runtime.
   } as Parameters<typeof createWorkspaceInvitation>[0]['context']
 }
@@ -117,9 +130,17 @@ describe('createWorkspaceInvitation', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockGrantWorkspaceAccessDirectly.mockResolvedValue({ outcome: 'added', permission: 'write' })
-    mockCreatePendingInvitation.mockResolvedValue({ invitationId: 'inv-1', token: 'tok-1' })
+    mockCreatePendingInvitation.mockResolvedValue({
+      invitationId: 'inv-1',
+      token: 'tok-1',
+      expiresAt: new Date(),
+      created: true,
+      addedWorkspaceIds: ['ws-1'],
+      grants: [{ workspaceId: 'ws-1', permission: 'write' }],
+    })
     mockSendInvitationEmail.mockResolvedValue({ success: true })
-    mockFindPendingGrantForWorkspaceEmail.mockResolvedValue(null)
+    mockFindPendingGrantWorkspaceIds.mockResolvedValue(new Set())
+    mockGetInvitePlanCategoryForUser.mockResolvedValue('free')
   })
 
   it('directly grants access to an existing member of the workspace organization', async () => {
@@ -150,7 +171,7 @@ describe('createWorkspaceInvitation', () => {
   it('rejects an existing workspace member without upgrading their permission', async () => {
     queueWhereResponses([
       [{ id: 'user-2', email: 'member@example.com' }],
-      [{ id: 'perm-1', permissionType: 'read' }],
+      [{ workspaceId: 'ws-1' }],
     ])
     mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-1', role: 'member' })
 
@@ -200,7 +221,7 @@ describe('createWorkspaceInvitation', () => {
     expect(result.instantAdd).toBeFalsy()
     expect(mockGrantWorkspaceAccessDirectly).not.toHaveBeenCalled()
     expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'workspace', membershipIntent: 'internal' })
+      expect.objectContaining({ kind: 'workspace', membershipIntent: 'internal', role: 'member' })
     )
   })
 
@@ -220,5 +241,184 @@ describe('createWorkspaceInvitation', () => {
     expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'workspace', membershipIntent: 'internal' })
     )
+  })
+
+  it('stamps an admin organization role when the inviter picks Admin membership', async () => {
+    queueWhereResponses([[]])
+
+    await createWorkspaceInvitation({
+      context: makeContext(),
+      email: 'new@example.com',
+      permission: 'write',
+      membership: 'admin',
+      request,
+    })
+
+    expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({ membershipIntent: 'internal', role: 'admin' })
+    )
+  })
+
+  it('rejects an explicit external invite for an invitee with no paid plan', async () => {
+    queueWhereResponses([[{ id: 'user-5', email: 'free@example.com' }], []])
+    mockGetUserOrganization.mockResolvedValueOnce(null)
+    mockGetInvitePlanCategoryForUser.mockResolvedValueOnce('free')
+
+    await expect(
+      createWorkspaceInvitation({
+        context: makeContext(),
+        email: 'free@example.com',
+        permission: 'write',
+        membership: 'external',
+        request,
+      })
+    ).rejects.toThrow('not on a paid Sim plan')
+
+    expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
+  })
+
+  it('rejects an explicit external invite for an email with no Sim account', async () => {
+    queueWhereResponses([[]])
+
+    await expect(
+      createWorkspaceInvitation({
+        context: makeContext(),
+        email: 'stranger@example.com',
+        permission: 'write',
+        membership: 'external',
+        request,
+      })
+    ).rejects.toThrow('not on a paid Sim plan')
+
+    expect(mockGetInvitePlanCategoryForUser).not.toHaveBeenCalled()
+    expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
+  })
+
+  it('allows an explicit external invite for an invitee on their own paid plan', async () => {
+    queueWhereResponses([[{ id: 'user-6', email: 'pro@example.com' }], []])
+    mockGetUserOrganization.mockResolvedValueOnce(null)
+    mockGetInvitePlanCategoryForUser.mockResolvedValueOnce('pro')
+
+    const result = await createWorkspaceInvitation({
+      context: makeContext(),
+      email: 'pro@example.com',
+      permission: 'write',
+      membership: 'external',
+      request,
+    })
+
+    expect(result.membershipIntent).toBe('external')
+    expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({ membershipIntent: 'external' })
+    )
+  })
+
+  it('rejects an external invite on a personal workspace', async () => {
+    queueWhereResponses([[{ id: 'user-7', email: 'pro@example.com' }], []])
+
+    await expect(
+      createWorkspaceInvitation({
+        context: makeContext(['ws-personal'], null),
+        email: 'pro@example.com',
+        permission: 'write',
+        membership: 'external',
+        request,
+      })
+    ).rejects.toThrow('only available on organization workspaces')
+  })
+
+  it('sends one invitation covering every selected workspace', async () => {
+    queueWhereResponses([[]])
+    mockCreatePendingInvitation.mockResolvedValueOnce({
+      invitationId: 'inv-2',
+      token: 'tok-2',
+      expiresAt: new Date(),
+      created: true,
+      addedWorkspaceIds: ['ws-1', 'ws-2'],
+      grants: [
+        { workspaceId: 'ws-1', permission: 'write' },
+        { workspaceId: 'ws-2', permission: 'write' },
+      ],
+    })
+
+    const result = await createWorkspaceInvitation({
+      context: makeContext(['ws-1', 'ws-2']),
+      email: 'new@example.com',
+      permission: 'write',
+      request,
+    })
+
+    expect(result.workspaceIds).toEqual(['ws-1', 'ws-2'])
+    expect(mockCreatePendingInvitation).toHaveBeenCalledTimes(1)
+    expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        grants: [
+          { workspaceId: 'ws-1', permission: 'write' },
+          { workspaceId: 'ws-2', permission: 'write' },
+        ],
+      })
+    )
+    expect(mockSendInvitationEmail).toHaveBeenCalledTimes(1)
+  })
+
+  it('drops workspaces already covered by a pending invitation instead of failing', async () => {
+    queueWhereResponses([[]])
+    mockFindPendingGrantWorkspaceIds.mockResolvedValueOnce(new Set(['ws-1']))
+
+    await createWorkspaceInvitation({
+      context: makeContext(['ws-1', 'ws-2']),
+      email: 'new@example.com',
+      permission: 'write',
+      request,
+    })
+
+    expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({ grants: [{ workspaceId: 'ws-2', permission: 'write' }] })
+    )
+  })
+
+  it('rejects when every selected workspace is already invited', async () => {
+    queueWhereResponses([[]])
+    mockFindPendingGrantWorkspaceIds.mockResolvedValueOnce(new Set(['ws-1', 'ws-2']))
+
+    await expect(
+      createWorkspaceInvitation({
+        context: makeContext(['ws-1', 'ws-2']),
+        email: 'new@example.com',
+        permission: 'write',
+        request,
+      })
+    ).rejects.toThrow('has already been invited')
+  })
+
+  it('reverts only the added grants when a merged invitation fails to send', async () => {
+    queueWhereResponses([[]])
+    mockCreatePendingInvitation.mockResolvedValueOnce({
+      invitationId: 'inv-existing',
+      token: 'tok-existing',
+      expiresAt: new Date(),
+      created: false,
+      addedWorkspaceIds: ['ws-2'],
+      grants: [
+        { workspaceId: 'ws-1', permission: 'write' },
+        { workspaceId: 'ws-2', permission: 'write' },
+      ],
+    })
+    mockSendInvitationEmail.mockResolvedValueOnce({ success: false, error: 'smtp down' })
+
+    await expect(
+      createWorkspaceInvitation({
+        context: makeContext(['ws-2']),
+        email: 'new@example.com',
+        permission: 'write',
+        request,
+      })
+    ).rejects.toThrow('smtp down')
+
+    expect(mockCancelPendingInvitation).not.toHaveBeenCalled()
+    expect(mockRevertPendingInvitationGrants).toHaveBeenCalledWith({
+      invitationId: 'inv-existing',
+      workspaceIds: ['ws-2'],
+    })
   })
 })

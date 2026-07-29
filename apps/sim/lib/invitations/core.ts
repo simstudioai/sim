@@ -17,7 +17,7 @@ import { createLogger } from '@sim/logger'
 import { isOrgAdminRole, PERMISSION_RANK, type PermissionType } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
-import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm'
+import { and, asc, count, eq, inArray, lte, sql } from 'drizzle-orm'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
@@ -46,6 +46,7 @@ import {
   ownedAttachableWorkspacesWhere,
 } from '@/lib/workspaces/organization-workspaces'
 import { getWorkspaceWithOwner, type WorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
+import { getInvitePlanCategoryForUser } from '@/lib/workspaces/policy'
 
 const logger = createLogger('InvitationCore')
 
@@ -88,15 +89,6 @@ export async function getInvitationById(
   return hydrateInvitation(row, executor)
 }
 
-export async function getInvitationByToken(
-  token: string,
-  executor: DbOrTx = db
-): Promise<InvitationWithGrants | null> {
-  const [row] = await executor.select().from(invitation).where(eq(invitation.token, token)).limit(1)
-  if (!row) return null
-  return hydrateInvitation(row, executor)
-}
-
 async function hydrateInvitation(
   row: typeof invitation.$inferSelect,
   executor: DbOrTx = db
@@ -111,6 +103,12 @@ async function hydrateInvitation(
     .from(invitationWorkspaceGrant)
     .leftJoin(workspace, eq(workspace.id, invitationWorkspaceGrant.workspaceId))
     .where(eq(invitationWorkspaceGrant.invitationId, row.id))
+    /**
+     * Oldest grant first, so `grants[0]` — the primary grant that decides the
+     * join target and the billed account — stays the workspace the invitation
+     * was originally sent for even after later invites merge grants into it.
+     */
+    .orderBy(asc(invitationWorkspaceGrant.createdAt), asc(invitationWorkspaceGrant.id))
 
   let organizationName: string | null = null
   if (row.organizationId) {
@@ -360,46 +358,6 @@ export async function expireStalePendingInvitationsForOrganization(
   }
 }
 
-/**
- * Flip any still-pending invitations with grants on the given workspaces
- * whose `expiresAt` has already passed to `expired`.
- */
-export async function expireStalePendingInvitationsForWorkspaces(
-  workspaceIds: string[]
-): Promise<void> {
-  if (workspaceIds.length === 0) return
-  try {
-    const staleIds = await db
-      .select({ id: invitation.id })
-      .from(invitation)
-      .innerJoin(invitationWorkspaceGrant, eq(invitationWorkspaceGrant.invitationId, invitation.id))
-      .where(
-        and(
-          inArray(invitationWorkspaceGrant.workspaceId, workspaceIds),
-          eq(invitation.status, 'pending'),
-          lte(invitation.expiresAt, new Date())
-        )
-      )
-
-    if (staleIds.length === 0) return
-
-    await db
-      .update(invitation)
-      .set({ status: 'expired', updatedAt: new Date() })
-      .where(
-        inArray(
-          invitation.id,
-          staleIds.map((row) => row.id)
-        )
-      )
-  } catch (error) {
-    logger.error('Failed to expire stale pending invitations for workspaces', {
-      workspaceCount: workspaceIds.length,
-      error,
-    })
-  }
-}
-
 export type AcceptInvitationFailure =
   | { kind: 'not-found' }
   | { kind: 'workspace-not-found' }
@@ -411,6 +369,7 @@ export type AcceptInvitationFailure =
   | { kind: 'already-in-organization' }
   | { kind: 'no-seats-available' }
   | { kind: 'upgrade-required' }
+  | { kind: 'external-requires-paid-plan' }
   | { kind: 'server-error'; message?: string }
 
 export type AcceptInvitationSuccess = {
@@ -732,6 +691,32 @@ async function acceptLockedInvitation(
     }
     acceptedMembershipIntent = 'external'
     shouldJoinOrganization = false
+  }
+
+  /**
+   * External collaborators hold access inside a paid organization without
+   * taking one of its seats, so the invitee has to be paying Sim elsewhere.
+   * The invite-time gate can go stale across the invitation's 7-day life (a
+   * cancelled Pro), so the same predicate runs again here.
+   *
+   * Mirrors exactly when the invite-time gate applies, which is narrower than
+   * "the invitation is external". Externality is imposed, not chosen, whenever
+   * the invitee already belongs to another organization — an account can only
+   * be in one, so the inviter's Member/Admin choice is overridden and
+   * `inviteeCanBeExternal` never runs. The same holds for the downgrades above,
+   * where a workspace moved organizations after the invite went out. Those
+   * fallbacks preserve access the invitee was already legitimately granted;
+   * charging them a plan requirement nobody warned the inviter about would
+   * strand them over someone else's action. Scoped to organization-owned
+   * workspaces because sharing a personal workspace has no seat economics.
+   */
+  if (
+    inv.membershipIntent === 'external' &&
+    !inviteeAlreadyInDifferentOrg &&
+    workspaceOrganizationId &&
+    (await getInvitePlanCategoryForUser(input.userId, tx)) === 'free'
+  ) {
+    return { success: false, kind: 'external-requires-paid-plan' }
   }
 
   /**
@@ -1268,24 +1253,62 @@ export async function cancelInvitation(invitationId: string): Promise<boolean> {
   return result.length > 0
 }
 
-export async function listPendingInvitationsForOrganization(organizationId: string) {
-  return db
-    .select({
-      id: invitation.id,
-      kind: invitation.kind,
-      email: invitation.email,
-      role: invitation.role,
-      membershipIntent: invitation.membershipIntent,
-      status: invitation.status,
-      expiresAt: invitation.expiresAt,
-      createdAt: invitation.createdAt,
-      inviterName: user.name,
-      inviterEmail: user.email,
-    })
-    .from(invitation)
-    .leftJoin(user, eq(invitation.inviterId, user.id))
-    .where(eq(invitation.organizationId, organizationId))
-    .orderBy(invitation.createdAt)
+/**
+ * Revokes one workspace's grant from a pending invitation, cancelling the whole
+ * invitation only when that was its last grant.
+ *
+ * One invitation can span several workspaces, so revoking from a single
+ * workspace's member list must not destroy the grants to its siblings — an
+ * admin of one workspace has no authority over the others. Removing the final
+ * grant would otherwise strand a pending invitation that grants nothing, so
+ * that case cancels it instead.
+ */
+export async function revokeInvitationWorkspaceGrant({
+  invitationId,
+  workspaceId,
+}: {
+  invitationId: string
+  workspaceId: string
+}): Promise<{ revoked: boolean; invitationCancelled: boolean }> {
+  return db.transaction(async (tx) => {
+    const [pending] = await tx
+      .select({ id: invitation.id })
+      .from(invitation)
+      .where(and(eq(invitation.id, invitationId), eq(invitation.status, 'pending')))
+      .for('update')
+      .limit(1)
+    if (!pending) return { revoked: false, invitationCancelled: false }
+
+    const removed = await tx
+      .delete(invitationWorkspaceGrant)
+      .where(
+        and(
+          eq(invitationWorkspaceGrant.invitationId, invitationId),
+          eq(invitationWorkspaceGrant.workspaceId, workspaceId)
+        )
+      )
+      .returning({ id: invitationWorkspaceGrant.id })
+    if (removed.length === 0) return { revoked: false, invitationCancelled: false }
+
+    const [remaining] = await tx
+      .select({ value: count() })
+      .from(invitationWorkspaceGrant)
+      .where(eq(invitationWorkspaceGrant.invitationId, invitationId))
+
+    if ((remaining?.value ?? 0) > 0) {
+      await tx
+        .update(invitation)
+        .set({ updatedAt: new Date() })
+        .where(eq(invitation.id, invitationId))
+      return { revoked: true, invitationCancelled: false }
+    }
+
+    await tx
+      .update(invitation)
+      .set({ status: 'cancelled', updatedAt: new Date() })
+      .where(eq(invitation.id, invitationId))
+    return { revoked: true, invitationCancelled: true }
+  })
 }
 
 export async function listInvitationsForWorkspaces(workspaceIds: string[]) {

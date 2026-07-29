@@ -40,7 +40,6 @@ import {
   getEffectiveSeats,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
-import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
@@ -599,52 +598,6 @@ interface MembershipValidationResult {
   }
 }
 
-export async function ensureUserInOrganization(
-  params: AddMemberParams
-): Promise<EnsureMemberResult> {
-  const existingMembership = await getUserOrganization(params.userId)
-
-  if (existingMembership?.organizationId === params.organizationId) {
-    return {
-      success: true,
-      memberId: existingMembership.memberId,
-      alreadyMember: true,
-      billingActions: {
-        proUsageSnapshotted: false,
-        proCancelledAtPeriodEnd: false,
-      },
-    }
-  }
-
-  if (existingMembership) {
-    return {
-      success: false,
-      alreadyMember: false,
-      existingOrgId: existingMembership.organizationId,
-      failureCode: 'already-in-other-organization',
-      error:
-        'User is already a member of another organization. Users can only belong to one organization at a time.',
-      billingActions: {
-        proUsageSnapshotted: false,
-        proCancelledAtPeriodEnd: false,
-      },
-    }
-  }
-
-  const result = await addUserToOrganization(params)
-
-  if (result.success) {
-    // Invalidates the membership cache and clamps pre-join sessions to the
-    // org policy — same treatment as invite acceptance. Best-effort.
-    await applySessionPolicyToNewMember(params.userId, params.organizationId)
-  }
-
-  return {
-    ...result,
-    alreadyMember: false,
-  }
-}
-
 /**
  * Transaction-enlisted invitation acceptance path. Membership, personal-Pro
  * handling, invitation status, and workspace permissions all commit or roll
@@ -808,88 +761,6 @@ export async function ensureUserInOrganizationTx(
   }
 }
 
-/**
- * Validate if a user can be added to an organization.
- * Checks single-org constraint and seat availability.
- */
-async function validateMembershipAddition(
-  userId: string,
-  organizationId: string,
-  options: { acceptingInvitationId?: string } = {}
-): Promise<MembershipValidationResult> {
-  const [userData] = await db.select({ id: user.id }).from(user).where(eq(user.id, userId)).limit(1)
-
-  if (!userData) {
-    return { canAdd: false, reason: 'User not found', failureCode: 'user-not-found' }
-  }
-
-  const [orgData] = await db
-    .select({ id: organization.id })
-    .from(organization)
-    .where(eq(organization.id, organizationId))
-    .limit(1)
-
-  if (!orgData) {
-    return {
-      canAdd: false,
-      reason: 'Organization not found',
-      failureCode: 'organization-not-found',
-    }
-  }
-
-  const existingMemberships = await db
-    .select({ organizationId: member.organizationId })
-    .from(member)
-    .where(eq(member.userId, userId))
-
-  if (existingMemberships.length > 0) {
-    const isAlreadyMemberOfThisOrg = existingMemberships.some(
-      (m) => m.organizationId === organizationId
-    )
-
-    if (isAlreadyMemberOfThisOrg) {
-      return {
-        canAdd: false,
-        reason: 'User is already a member of this organization',
-        failureCode: 'already-member',
-      }
-    }
-
-    return {
-      canAdd: false,
-      reason:
-        'User is already a member of another organization. Users can only belong to one organization at a time.',
-      failureCode: 'already-in-other-organization',
-      existingOrgId: existingMemberships[0].organizationId,
-    }
-  }
-
-  const seatValidation = await validateSeatAvailability(organizationId, 1, {
-    excludePendingInvitationId: options.acceptingInvitationId,
-  })
-  if (!seatValidation.canInvite) {
-    return {
-      canAdd: false,
-      reason: seatValidation.reason || 'No seats available',
-      failureCode: 'no-seats-available',
-      seatValidation: {
-        currentSeats: seatValidation.currentSeats,
-        maxSeats: seatValidation.maxSeats,
-        availableSeats: seatValidation.availableSeats,
-      },
-    }
-  }
-
-  return {
-    canAdd: true,
-    seatValidation: {
-      currentSeats: seatValidation.currentSeats,
-      maxSeats: seatValidation.maxSeats,
-      availableSeats: seatValidation.availableSeats,
-    },
-  }
-}
-
 interface PaidOrgJoinBillingActions {
   proUsageSnapshotted: boolean
   proCancelledAtPeriodEnd: boolean
@@ -1045,113 +916,6 @@ export async function reapplyPaidOrgJoinBillingForExistingMemberTx(
   }
 
   return applyPaidOrgJoinBillingTx(tx, userId, organizationId)
-}
-
-/**
- * Add a user to an organization with full billing logic.
- *
- * Handles:
- * - Single organization constraint validation
- * - Seat availability validation
- * - Member record creation
- * - Pro usage snapshot when joining paid team
- * - Pro subscription cancellation at period end
- * - Usage limit sync
- */
-export async function addUserToOrganization(params: AddMemberParams): Promise<AddMemberResult> {
-  const {
-    userId,
-    organizationId,
-    role,
-    skipBillingLogic = false,
-    skipSeatValidation = false,
-    acceptingInvitationId,
-  } = params
-
-  const billingActions: AddMemberResult['billingActions'] = {
-    proUsageSnapshotted: false,
-    proCancelledAtPeriodEnd: false,
-  }
-
-  try {
-    if (!skipSeatValidation) {
-      const validation = await validateMembershipAddition(userId, organizationId, {
-        acceptingInvitationId,
-      })
-      if (!validation.canAdd) {
-        return {
-          success: false,
-          error: validation.reason,
-          failureCode: validation.failureCode,
-          billingActions,
-        }
-      }
-    } else {
-      const existingMemberships = await db
-        .select({ organizationId: member.organizationId })
-        .from(member)
-        .where(eq(member.userId, userId))
-
-      if (existingMemberships.length > 0) {
-        const isAlreadyMemberOfThisOrg = existingMemberships.some(
-          (m) => m.organizationId === organizationId
-        )
-
-        if (isAlreadyMemberOfThisOrg) {
-          return {
-            success: false,
-            error: 'User is already a member of this organization',
-            failureCode: 'already-member',
-            billingActions,
-          }
-        }
-
-        return {
-          success: false,
-          error:
-            'User is already a member of another organization. Users can only belong to one organization at a time.',
-          failureCode: 'already-in-other-organization',
-          billingActions,
-        }
-      }
-    }
-
-    const added = await db.transaction((tx) =>
-      ensureUserInOrganizationTx(tx, {
-        userId,
-        organizationId,
-        role,
-        skipBillingLogic,
-        skipSeatValidation,
-        acceptingInvitationId,
-      })
-    )
-    if (!added.success || !added.memberId || added.alreadyMember) {
-      return {
-        success: false,
-        error: added.alreadyMember ? 'User is already a member of this organization' : added.error,
-        failureCode: added.alreadyMember ? 'already-member' : added.failureCode,
-        billingActions: added.billingActions,
-      }
-    }
-
-    const memberId = added.memberId
-    billingActions.proUsageSnapshotted = added.billingActions.proUsageSnapshotted
-    billingActions.proCancelledAtPeriodEnd = added.billingActions.proCancelledAtPeriodEnd
-
-    logger.info('Added user to organization', {
-      userId,
-      organizationId,
-      role,
-      memberId,
-      billingActions,
-    })
-
-    return { success: true, memberId, billingActions }
-  } catch (error) {
-    logger.error('Failed to add user to organization', { userId, organizationId, error })
-    return { success: false, error: 'Failed to add user to organization', billingActions }
-  }
 }
 
 type InvitationRemovalScope = 'all' | 'external'

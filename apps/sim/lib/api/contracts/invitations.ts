@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
 
@@ -8,6 +9,10 @@ import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
  * preview the accept endpoint rejects as over-long.
  */
 export const DISCLOSED_WORKSPACE_ID_LIMIT = 500
+
+/** One invitation authorizes and stamps each workspace, so the fan-out is bounded. */
+export const MAX_INVITE_WORKSPACES = 50
+export const MAX_INVITE_EMAILS = 100
 
 export const invitationParamsSchema = z.object({
   id: z.string({ error: 'Invitation ID is required' }).min(1, 'Invitation ID is required'),
@@ -44,32 +49,46 @@ export const pendingWorkspaceInvitationSchema = z
   })
   .passthrough()
 
+/**
+ * What the invitee becomes in the workspaces' organization. `member` and
+ * `admin` are organization roles that consume a seat; `external` grants the
+ * workspaces only and is restricted to invitees already on a paid plan.
+ */
+export const invitationMembershipSchema = z.enum(['member', 'admin', 'external'])
+
 export const batchWorkspaceInvitationBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  invitations: z
-    .array(
-      z.object({
-        email: z.string().trim().min(1, 'Invitation email is required'),
-        permission: workspacePermissionSchema.optional(),
-      })
-    )
-    .min(1, 'At least one invitation is required'),
-  /**
-   * Only valid on organization workspaces. `external` invites workspace-only
-   * collaborators: no org membership, no seat.
-   */
-  membershipIntent: z.enum(['internal', 'external']).optional(),
+  workspaceIds: z
+    .array(workspaceIdSchema)
+    .min(1, 'Select at least one workspace')
+    .max(MAX_INVITE_WORKSPACES, `Select at most ${MAX_INVITE_WORKSPACES} workspaces`),
+  emails: z
+    .array(z.string().trim().min(1, 'Invitation email is required'))
+    .min(1, 'At least one invitation is required')
+    .max(MAX_INVITE_EMAILS, `Invite at most ${MAX_INVITE_EMAILS} people at a time`),
+  /** Workspace access level applied to every selected workspace. */
+  permission: workspacePermissionSchema.optional(),
+  membership: invitationMembershipSchema.optional(),
 })
 
-export const batchInvitationResultSchema = z
-  .object({
-    success: z.boolean(),
-    successful: z.array(z.string()),
-    added: z.array(z.string()).optional(),
-    failed: z.array(z.object({ email: z.string(), error: z.string() })),
-    invitations: z.array(z.record(z.string(), z.unknown())),
-  })
-  .passthrough()
+export const batchInvitationResultSchema = z.object({
+  success: z.boolean(),
+  /** Emails that received a pending invitation. */
+  successful: z.array(z.string()),
+  /** Emails that were existing organization members and got access immediately. */
+  added: z.array(z.string()),
+  failed: z.array(z.object({ email: z.string(), error: z.string() })),
+  invitations: z.array(
+    z.object({
+      id: z.string(),
+      email: z.string(),
+      workspaceIds: z.array(z.string()),
+      permission: workspacePermissionSchema,
+      membershipIntent: z.enum(['internal', 'external']),
+      instantAdd: z.boolean().optional(),
+      outcome: z.enum(['added', 'unchanged']).optional(),
+    })
+  ),
+})
 
 export const removeWorkspaceMemberBodySchema = z.object({
   workspaceId: z.string().uuid(),
@@ -220,13 +239,29 @@ export const rejectInvitationContract = defineRouteContract({
   },
 })
 
+/**
+ * `workspaceId` scopes the revocation to one granted workspace, which is all a
+ * workspace-level member list can authorize. Omitting it revokes the entire
+ * invitation and requires authority over all of it — see the route.
+ */
+export const cancelInvitationQuerySchema = z.object({
+  workspaceId: workspaceIdSchema.optional(),
+})
+
 export const cancelInvitationContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/invitations/[id]',
   params: invitationParamsSchema,
+  query: cancelInvitationQuerySchema,
   response: {
     mode: 'json',
-    schema: successResponseSchema,
+    schema: successResponseSchema.extend({
+      /**
+       * False when only one workspace's grant was removed and the invitation is
+       * still pending for its remaining workspaces.
+       */
+      invitationCancelled: z.boolean(),
+    }),
   },
 })
 

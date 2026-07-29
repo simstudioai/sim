@@ -11,10 +11,11 @@
  *
  * POST /api/v1/admin/organizations/[id]/members
  *
- * Add a user to an organization with full billing logic.
- * Validates seat availability before adding (uses same logic as invitation flow):
- *   - Team plans: checks seats column
- *   - Enterprise plans: checks metadata.seats
+ * Add a user to an organization with full billing logic, matching invitation
+ * acceptance:
+ *   - Enterprise: the fixed `metadata.seats` cap is enforced before adding.
+ *   - Team: seats are elastic, so no cap is checked and the subscription is
+ *     grown to the new member count afterwards.
  * Handles Pro usage snapshot and subscription cancellation like the invitation flow.
  * If user is already a member, updates their role if different.
  *
@@ -38,9 +39,12 @@ import {
   adminV1ListOrganizationMembersContract,
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
+import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getOrgMemberLedgerByUser } from '@/lib/billing/core/organization'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { ensureUserInOrganizationTx } from '@/lib/billing/organizations/membership'
+import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
+import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
@@ -279,6 +283,11 @@ export const POST = withRouteHandler(
        * Lock order mirrors invitation acceptance: workspace advisory locks
        * first, then the organization lock inside ensureUserInOrganizationTx.
        */
+      const organizationSubscription = isBillingEnabled
+        ? await getOrganizationSubscription(organizationId)
+        : null
+      const organizationHasFixedSeats = isEnterprise(organizationSubscription?.plan)
+
       const result = await db.transaction(async (tx) => {
         const ownedWorkspaceIds = (
           await tx
@@ -293,11 +302,20 @@ export const POST = withRouteHandler(
           })
         }
 
+        /**
+         * Only Enterprise has a seat cap to enforce. Team seats are elastic —
+         * `reconcileOrganizationSeats` sets `subscription.seats` to exactly the
+         * member count, so validating against it would compare N members to N
+         * seats and reject every add. Invitation acceptance skips the check for
+         * the same reason; this path must agree or the two disagree on whether a
+         * Team org has room.
+         */
         const membership = await ensureUserInOrganizationTx(tx, {
           userId,
           organizationId,
           role,
           skipBillingLogic: !isBillingEnabled,
+          skipSeatValidation: isBillingEnabled && !organizationHasFixedSeats,
         })
         if (!membership.success || !membership.memberId || membership.alreadyMember) {
           return { membership, attachedWorkspaceIds: [], usageLimitUserIds: [] }
@@ -344,6 +362,27 @@ export const POST = withRouteHandler(
       }
       if (result.membership.alreadyMember) {
         return badRequestResponse('User is already a member of this organization')
+      }
+
+      /**
+       * Team seats are billed per member, so a committed add has to grow the
+       * subscription — acceptance does this post-commit and best-effort, and the
+       * drift sweep is the backstop if it fails. Enterprise has a fixed
+       * allotment and is skipped inside the reconcile.
+       */
+      if (isBillingEnabled && !organizationHasFixedSeats) {
+        try {
+          await reconcileOrganizationSeats({
+            organizationId,
+            reason: 'admin-member-added',
+          })
+        } catch (seatError) {
+          logger.error('Failed to reconcile seats after admin member add', {
+            userId,
+            organizationId,
+            error: seatError,
+          })
+        }
       }
 
       if (result.attachedWorkspaceIds.length > 0) {

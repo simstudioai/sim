@@ -417,7 +417,7 @@ describe('getWorkspaceInvitePolicy', () => {
 
     expect(result.allowed).toBe(true)
     expect(result.upgradeRequired).toBe(false)
-    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledWith('owner-1')
+    expect(mockGetHighestPrioritySubscription.mock.calls[0]?.[0]).toBe('owner-1')
   })
 
   it('allows grandfathered workspaces when the billed user has a pro plan', async () => {

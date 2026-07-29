@@ -23,13 +23,13 @@ import { createLogger } from '@sim/logger'
 import { MoreHorizontal, Search } from 'lucide-react'
 import { useActiveOrganization } from '@/lib/auth/auth-client'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
   CreateWorkspaceModal,
   type CreateWorkspaceTarget,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
-import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import type { Workspace, WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -843,6 +843,7 @@ function WorkspaceHeaderImpl({
       <InviteModal
         open={isInviteModalOpen}
         onOpenChange={setIsInviteModalOpen}
+        workspaceId={workspaceId}
         workspaceName={activeWorkspace?.name || 'Workspace'}
         inviteDisabledReason={inviteDisabledReason}
         organizationId={activeWorkspaceFull?.organizationId ?? null}

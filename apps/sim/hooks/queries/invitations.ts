@@ -112,59 +112,53 @@ export function usePendingInvitations(workspaceId: string | undefined) {
   })
 }
 
-type BatchSendInvitationsParams = ContractBodyInput<typeof batchWorkspaceInvitationsContract> & {
+type SendInvitationsParams = ContractBodyInput<typeof batchWorkspaceInvitationsContract> & {
   organizationId?: string | null
 }
 
-type BatchInvitationResult = Pick<BatchInvitationResultContract, 'successful' | 'failed'> & {
-  added: string[]
-}
+type SendInvitationsResult = Pick<BatchInvitationResultContract, 'successful' | 'added' | 'failed'>
 
 /**
- * Sends workspace invitations through the server-side batch endpoint.
- * Returns results for each invitation indicating success or failure. Existing
- * organization members are added directly (no acceptance) and reported in
- * `added`; everyone else receives a pending invitation in `successful`.
+ * Sends invitations for one or more workspaces. Existing organization members
+ * are added directly (no acceptance) and reported in `added`; everyone else
+ * receives a single pending invitation covering every selected workspace and
+ * is reported in `successful`.
  */
-export function useBatchSendWorkspaceInvitations() {
+export function useSendWorkspaceInvitations() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async ({
-      workspaceId,
-      invitations,
-      membershipIntent,
-    }: BatchSendInvitationsParams): Promise<BatchInvitationResult> => {
+      workspaceIds,
+      emails,
+      permission,
+      membership,
+    }: SendInvitationsParams): Promise<SendInvitationsResult> => {
       const result = await requestJson(batchWorkspaceInvitationsContract, {
-        body: {
-          workspaceId,
-          invitations,
-          membershipIntent,
-        },
+        body: { workspaceIds, emails, permission, membership },
       })
 
       return {
-        successful: result.successful ?? [],
-        added: result.added ?? [],
-        failed: result.failed ?? [],
+        successful: result.successful,
+        added: result.added,
+        failed: result.failed,
       }
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: invitationKeys.list(variables.workspaceId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: workspaceKeys.permissions(variables.workspaceId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: workspaceKeys.members(variables.workspaceId),
-      })
+      for (const workspaceId of variables.workspaceIds) {
+        queryClient.invalidateQueries({ queryKey: invitationKeys.list(workspaceId) })
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.permissions(workspaceId) })
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.members(workspaceId) })
+      }
       if (variables.organizationId) {
         queryClient.invalidateQueries({
           queryKey: organizationKeys.roster(variables.organizationId),
         })
         queryClient.invalidateQueries({
           queryKey: organizationKeys.billing(variables.organizationId),
+        })
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.detail(variables.organizationId),
         })
       }
     },
@@ -178,16 +172,21 @@ interface CancelInvitationParams {
 }
 
 /**
- * Cancels a pending workspace invitation.
- * Invalidates the invitation list cache on success.
+ * Withdraws one workspace's grant from a pending invitation.
+ *
+ * Scoped to `workspaceId` because an invitation can span several workspaces and
+ * a workspace's member list only has authority over its own access. The
+ * invitation is cancelled outright only when this was its last grant — see
+ * `useCancelInvitation` in `organization.ts` for revoking an entire invitation.
  */
 export function useCancelWorkspaceInvitation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ invitationId }: CancelInvitationParams) => {
+    mutationFn: async ({ invitationId, workspaceId }: CancelInvitationParams) => {
       return requestJson(cancelInvitationContract, {
         params: { id: invitationId },
+        query: { workspaceId },
       })
     },
     onSettled: (_data, _error, variables) => {

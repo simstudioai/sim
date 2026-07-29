@@ -19,7 +19,6 @@ import {
   getMemberRemovalImpactContract,
   getOrganizationMemberUsageLimitContract,
   getOrganizationRosterContract,
-  inviteOrganizationMembersContract,
   listOrganizationMembersContract,
   type OrganizationMembersResponse,
   type OrganizationMemberUsageLimitData,
@@ -456,56 +455,6 @@ export function useUpdateOrganizationUsageLimit() {
 }
 
 /**
- * Invite member mutation
- */
-type InviteMemberParams = Pick<
-  ContractBodyInput<typeof inviteOrganizationMembersContract>,
-  'emails' | 'workspaceInvitations'
-> & {
-  orgId: string
-}
-
-export function useInviteMember() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ emails, workspaceInvitations, orgId }: InviteMemberParams) => {
-      /**
-       * Partial batches return HTTP 207 with `success: false` and a `data`
-       * payload (some invited/added, some failed). `requestJson` only throws on
-       * >= 400 (e.g. the total-failure 502 / validation 400 paths), so partials
-       * resolve here and the caller reports successes + per-email failures from
-       * `data` instead of surfacing a single generic error.
-       */
-      return requestJson(inviteOrganizationMembersContract, {
-        params: { id: orgId },
-        query: { batch: true },
-        body: {
-          emails,
-          workspaceInvitations,
-        },
-      })
-    },
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.memberUsage(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
-      // Existing members may have been added directly to selected workspaces.
-      for (const grant of variables.workspaceInvitations ?? []) {
-        queryClient.invalidateQueries({
-          queryKey: workspaceKeys.permissions(grant.workspaceId),
-        })
-        queryClient.invalidateQueries({
-          queryKey: workspaceKeys.members(grant.workspaceId),
-        })
-      }
-    },
-  })
-}
-
-/**
  * Remove member mutation
  */
 interface RemoveMemberParams {
@@ -659,7 +608,11 @@ export function useUpdateInvitation() {
 }
 
 /**
- * Cancel invitation mutation
+ * Revokes an entire pending invitation, including every workspace it grants.
+ *
+ * Sends no workspace scope, so the route requires authority over all of it —
+ * organization admin, or admin of every granted workspace. To withdraw a single
+ * workspace's access instead, use `useCancelWorkspaceInvitation`.
  */
 interface CancelInvitationParams {
   invitationId: string
@@ -673,6 +626,7 @@ export function useCancelInvitation() {
     mutationFn: async ({ invitationId }: CancelInvitationParams) => {
       return requestJson(cancelInvitationContract, {
         params: { id: invitationId },
+        query: {},
       })
     },
     onSettled: (_data, _error, variables) => {

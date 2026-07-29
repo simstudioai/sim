@@ -22,7 +22,9 @@ const {
   mockCreatePendingInvitation,
   mockSendInvitationEmail,
   mockCancelPendingInvitation,
-  mockFindPendingGrantForWorkspaceEmail,
+  mockRevertPendingInvitationGrants,
+  mockFindPendingGrantWorkspaceIds,
+  mockGetInvitePlanCategoryForUser,
 } = vi.hoisted(() => ({
   mockGetWorkspaceInvitePolicy: vi.fn(),
   mockValidateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
@@ -31,13 +33,16 @@ const {
   mockCreatePendingInvitation: vi.fn(),
   mockSendInvitationEmail: vi.fn(),
   mockCancelPendingInvitation: vi.fn(),
-  mockFindPendingGrantForWorkspaceEmail: vi.fn(),
+  mockRevertPendingInvitationGrants: vi.fn(),
+  mockFindPendingGrantWorkspaceIds: vi.fn(),
+  mockGetInvitePlanCategoryForUser: vi.fn(),
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/workspaces/policy', () => ({
   getWorkspaceInvitePolicy: mockGetWorkspaceInvitePolicy,
+  getInvitePlanCategoryForUser: mockGetInvitePlanCategoryForUser,
   isOrganizationWorkspace: (ws: {
     workspaceMode?: string | null
     organizationId?: string | null
@@ -56,7 +61,8 @@ vi.mock('@/lib/invitations/send', () => ({
   createPendingInvitation: mockCreatePendingInvitation,
   sendInvitationEmail: mockSendInvitationEmail,
   cancelPendingInvitation: mockCancelPendingInvitation,
-  findPendingGrantForWorkspaceEmail: mockFindPendingGrantForWorkspaceEmail,
+  revertPendingInvitationGrants: mockRevertPendingInvitationGrants,
+  findPendingGrantWorkspaceIds: mockFindPendingGrantWorkspaceIds,
 }))
 
 vi.mock('@/lib/invitations/core', () => ({
@@ -116,13 +122,19 @@ describe('POST /api/workspaces/invitations/batch', () => {
       availableSeats: 4,
     })
     mockGetUserOrganization.mockResolvedValue(null)
-    mockCreatePendingInvitation.mockResolvedValue({
-      invitationId: 'inv-1',
-      token: 'tok-1',
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    })
+    mockCreatePendingInvitation.mockImplementation(
+      async (input: { grants: Array<{ workspaceId: string; permission: string }> }) => ({
+        invitationId: 'inv-1',
+        token: 'tok-1',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        created: true,
+        addedWorkspaceIds: input.grants.map((grant) => grant.workspaceId),
+        grants: input.grants,
+      })
+    )
     mockSendInvitationEmail.mockResolvedValue({ success: true })
-    mockFindPendingGrantForWorkspaceEmail.mockResolvedValue(null)
+    mockFindPendingGrantWorkspaceIds.mockResolvedValue(new Set())
+    mockGetInvitePlanCategoryForUser.mockResolvedValue('free')
   })
 
   afterAll(() => {
@@ -147,8 +159,9 @@ describe('POST /api/workspaces/invitations/batch', () => {
     })
 
     const request = createMockRequest('POST', {
-      workspaceId: 'workspace-1',
-      invitations: [{ email: 'new@example.com', permission: 'read' }],
+      workspaceIds: ['workspace-1'],
+      emails: ['new@example.com'],
+      permission: 'read',
     })
 
     const response = await POST(request)
@@ -177,8 +190,9 @@ describe('POST /api/workspaces/invitations/batch', () => {
     })
 
     const request = createMockRequest('POST', {
-      workspaceId: 'workspace-1',
-      invitations: [{ email: 'new@example.com', permission: 'read' }],
+      workspaceIds: ['workspace-1'],
+      emails: ['new@example.com'],
+      permission: 'read',
     })
 
     const response = await POST(request)
@@ -214,8 +228,9 @@ describe('POST /api/workspaces/invitations/batch', () => {
     })
 
     const request = createMockRequest('POST', {
-      workspaceId: 'workspace-1',
-      invitations: [{ email: 'new@example.com', permission: 'read' }],
+      workspaceIds: ['workspace-1'],
+      emails: ['new@example.com'],
+      permission: 'read',
     })
 
     const response = await POST(request)
@@ -257,8 +272,9 @@ describe('POST /api/workspaces/invitations/batch', () => {
     queueTableRows(schemaMock.user, [{ id: 'existing-user', email: 'new@example.com' }])
 
     const request = createMockRequest('POST', {
-      workspaceId: 'workspace-1',
-      invitations: [{ email: 'new@example.com', permission: 'read' }],
+      workspaceIds: ['workspace-1'],
+      emails: ['new@example.com'],
+      permission: 'read',
     })
 
     const response = await POST(request)
@@ -290,8 +306,9 @@ describe('POST /api/workspaces/invitations/batch', () => {
     })
 
     const request = createMockRequest('POST', {
-      workspaceId: 'workspace-1',
-      invitations: [{ email: 'new@example.com', permission: 'write' }],
+      workspaceIds: ['workspace-1'],
+      emails: ['new@example.com'],
+      permission: 'write',
     })
 
     const response = await POST(request)
@@ -312,24 +329,10 @@ describe('POST /api/workspaces/invitations/batch', () => {
   })
 
   it('creates multiple workspace invitations in one batch request', async () => {
-    mockCreatePendingInvitation
-      .mockResolvedValueOnce({
-        invitationId: 'inv-1',
-        token: 'tok-1',
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      })
-      .mockResolvedValueOnce({
-        invitationId: 'inv-2',
-        token: 'tok-2',
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      })
-
     const request = createMockRequest('POST', {
-      workspaceId: 'workspace-1',
-      invitations: [
-        { email: 'first@example.com', permission: 'read' },
-        { email: 'second@example.com', permission: 'write' },
-      ],
+      workspaceIds: ['workspace-1'],
+      emails: ['first@example.com', 'second@example.com'],
+      permission: 'read',
     })
 
     const response = await POST(request)
@@ -342,6 +345,84 @@ describe('POST /api/workspaces/invitations/batch', () => {
     expect(data.invitations).toHaveLength(2)
     expect(mockCreatePendingInvitation).toHaveBeenCalledTimes(2)
     expect(mockSendInvitationEmail).toHaveBeenCalledTimes(2)
+  })
+
+  it('coalesces several workspaces into one invitation and one email', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Org Workspace',
+      ownerId: 'user-1',
+      organizationId: 'org-1',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'owner-1',
+    })
+    mockGetWorkspaceInvitePolicy.mockResolvedValue({
+      allowed: true,
+      reason: null,
+      requiresSeat: false,
+      organizationId: 'org-1',
+      upgradeRequired: false,
+    })
+
+    const request = createMockRequest('POST', {
+      workspaceIds: ['workspace-1', 'workspace-2'],
+      emails: ['new@example.com'],
+      permission: 'write',
+    })
+
+    const response = await POST(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(mockCreatePendingInvitation).toHaveBeenCalledTimes(1)
+    expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        grants: [
+          { workspaceId: 'workspace-1', permission: 'write' },
+          { workspaceId: 'workspace-2', permission: 'write' },
+        ],
+      })
+    )
+    expect(mockSendInvitationEmail).toHaveBeenCalledTimes(1)
+    expect(data.invitations[0].workspaceIds).toEqual(['workspace-1', 'workspace-2'])
+  })
+
+  it('reports a per-email failure when an external invite targets a free account', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValueOnce({
+      id: 'workspace-1',
+      name: 'Org Workspace',
+      ownerId: 'user-1',
+      organizationId: 'org-1',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'owner-1',
+    })
+    mockGetWorkspaceInvitePolicy.mockResolvedValueOnce({
+      allowed: true,
+      reason: null,
+      requiresSeat: false,
+      organizationId: 'org-1',
+      upgradeRequired: false,
+    })
+    queueTableRows(schemaMock.user, [{ id: 'free-user', email: 'free@example.com' }])
+    mockGetUserOrganization.mockResolvedValueOnce(null)
+    mockGetInvitePlanCategoryForUser.mockResolvedValueOnce('free')
+
+    const request = createMockRequest('POST', {
+      workspaceIds: ['workspace-1'],
+      emails: ['free@example.com'],
+      permission: 'write',
+      membership: 'external',
+    })
+
+    const response = await POST(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.failed[0].email).toBe('free@example.com')
+    expect(data.failed[0].error).toContain('not on a paid Sim plan')
+    expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
   })
 
   it('rolls back the unified invitation when email delivery fails', async () => {
@@ -359,8 +440,9 @@ describe('POST /api/workspaces/invitations/batch', () => {
     })
 
     const request = createMockRequest('POST', {
-      workspaceId: 'workspace-1',
-      invitations: [{ email: 'new@example.com', permission: 'read' }],
+      workspaceIds: ['workspace-1'],
+      emails: ['new@example.com'],
+      permission: 'read',
     })
 
     const response = await POST(request)

@@ -37,7 +37,7 @@ Inherited roles are **automatic and locked**. In member lists they show greyed o
 Sim has two kinds of workspaces:
 
 - **Personal workspaces** live under your individual account. The number you can create depends on your plan.
-- **Shared (organization) workspaces** live under an organization and are available on Team and Enterprise plans. Any organization Owner or Admin can create them. When you invite someone to a shared workspace you choose their membership: **Member** invites them into the organization (they count toward your seat total, and their own workspaces move in with them — see [Joining an organization](#joining-an-organization)), while **External** gives them access to that workspace only. Invitees who already belong to another organization always become external members — Sim accounts belong to at most one organization.
+- **Shared (organization) workspaces** live under an organization and are available on Team and Enterprise plans. Any organization Owner or Admin can create them. When you invite someone to a shared workspace you choose their **Membership**: **Member** or **Admin** makes them an internal member of the organization — they use a seat, and their own workspaces move in with them (see [Joining an organization](#joining-an-organization)) — while **External** gives them access to the selected workspaces only. Invitees who already belong to another organization always become external, because a Sim account belongs to at most one organization.
 
 ### Workspace Limits by Plan
 
@@ -60,6 +60,12 @@ On Team and Enterprise plans, every workspace you create belongs to the organiza
   <Video src="invitations.mp4" width={700} height={450} />
 </div>
 
+One invite covers everything you give a person at once: enter their emails, select **one or more workspaces**, set the workspace access level, and choose their **Membership**. The same dialog opens from the workspace header and from organization settings.
+
+Invites to the same person add up rather than stacking. If you invite someone to another workspace while their first invite is still pending, the new workspace is added to that invitation — they get one link that grants everything, and accept once.
+
+Because one pending invite can span several workspaces, revoking is scoped to where you do it. Revoking from a workspace's **Teammates** list withdraws that workspace's access only and leaves the rest of the invitation pending; the invitation is cancelled outright when you remove its last workspace. To cancel the whole thing at once, revoke it from organization settings — that needs organization admin, or admin on every workspace the invite covers.
+
 ## Workspace Permission Levels
 
 When inviting someone to a workspace, you can assign one of three permission levels:
@@ -77,7 +83,13 @@ Workspace permissions are separate from organization membership:
 - **Internal organization members** belong to your organization, appear in the organization roster, and count toward your seat total. Invite new teammates this way when they should be part of your company or team in Sim.
 - **External workspace members** have access only to the workspaces they are invited to. They are not part of your organization: they do not count toward your seats, their own workspaces stay theirs, and they appear in your roster with an **External** label so admins can always see and revoke their access. Use external access for clients, partners, and contractors.
 
-You choose between the two with the **Membership** option when sending a workspace invite. Two rules apply automatically: invitees who already belong to another organization always become external members (an account belongs to at most one organization), and inviting someone as a Member to the organization itself always includes access to at least one workspace, so every new member has somewhere to land.
+You pick between the two with the **Membership** option when sending an invite. Three rules apply:
+
+- **External is only available for people already on a paid Sim plan** — their own Pro or Max subscription, or membership in another organization that seats them. External collaborators do not use one of your seats, so they have to be paying for Sim somewhere else. Inviting someone on the free plan as External is rejected with a message telling you to invite them as a Member or Admin instead, which adds a seat.
+- **Invitees who already belong to another organization are always external**, whatever you pick, because an account belongs to at most one organization.
+- **Inviting someone as a Member to the organization itself always includes access to at least one workspace**, so every new member has somewhere to land.
+
+Invitees see what they are agreeing to before they accept. The accept screen names every workspace they are being given, says whether they are joining as a member, an admin, or an external collaborator, says whether that uses one of your seats, and names any of their own workspaces that will move into the organization.
 
 External workspace members still receive a workspace permission level — Read, Write, or Admin — and that permission controls what they can do inside the workspace.
 
@@ -160,7 +172,7 @@ Any Admin — whether invited directly or an admin by way of their organization 
 2. **Workspace level**: Give them **Admin** permission so they can manage the team and see everything
 
 ### Adding a Stakeholder or Client
-1. **Organization level**: If they should not join your organization, add them as an **External workspace member**
+1. **Membership**: If they should not join your organization, set Membership to **External** — this needs them to already be on a paid Sim plan, since external collaborators do not use one of your seats
 2. **Workspace level**: Give them **Read** permission so they can see progress but not make changes
 
 ---
@@ -242,5 +254,5 @@ import { FAQ } from '@/components/ui/faq'
   { question: "Can an Admin remove the workspace owner?", answer: "On a shared (organization) workspace, yes — any Admin can remove the workspace Owner, and ownership passes to the organization's owner so the workspace always has one. The organization's owner is the single account that can't be removed this way, since they're the final fallback. On your personal workspace you are the Owner and can't remove yourself. The Owner is not a higher permission tier than Admin: every Admin — including those who inherit the role from their organization — can manage members and settings and delete the workspace." },
   { question: "Who can manage a workspace's credentials and secrets?", answer: "Workspace Admins are automatically Credential Admins of the workspace's shared credentials — OAuth connections, service accounts, and workspace environment variables — so they can use, edit, delete, and share them, and run workflows that rely on them. Organization Owners and Admins get this too because they are workspace Admins everywhere. Read and Write members get use-only access to shared credentials unless they are explicitly made a Credential Admin. Personal environment variables are never shared; they stay private to their owner." },
   { question: "What are permission groups and how do they work?", answer: "Permission groups are an Enterprise access control feature that lets organization owners and admins define granular restrictions beyond the standard Read/Write/Admin roles. The organization's default group is org-wide; every other group targets specific workspaces and, by default, governs all members of those workspaces (including external members) — add members to restrict it to specific people. A user is governed by one group per workspace: a group they're an explicit member of takes precedence over an all-members group (one with no members) on that workspace, which takes precedence over the organization's default group. A permission group can hide UI sections (like trace spans, knowledge base, API keys, or deployment options), disable features (MCP tools, custom tools, skills, invitations), and restrict which integrations and model providers its members can access. Only one group per organization can be the default; it ignores members and governs everyone not covered by a workspace group, including external members. Restrictions are enforced based on the organization that owns the workflow's workspace, not on which workspace you're currently viewing." },
-  { question: "How should I set up permissions for a new team member?", answer: "Start with the lowest permission level they need. Invite teammates to the organization as Members, then add them to the relevant workspace with Read permission if they only need visibility, Write if they need to create and run workflows, or Admin if they need to manage the workspace and its users. For clients, partners, and contractors, choose External in the invite's Membership option so they can collaborate without joining your organization, consuming a seat, or moving their own workspaces in." },
+  { question: "How should I set up permissions for a new team member?", answer: "Start with the lowest permission level they need. Invite them with Read workspace access if they only need visibility, Write if they need to create and run workflows, or Admin if they need to manage the workspace and its users, and leave Membership on Member. For clients, partners, and contractors, choose External so they collaborate without joining your organization or using a seat — this requires them to already be on a paid Sim plan, either their own Pro or Max subscription or another organization that seats them." },
 ]} />

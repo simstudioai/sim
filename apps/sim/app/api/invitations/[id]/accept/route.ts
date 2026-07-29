@@ -43,6 +43,7 @@ export const POST = withRouteHandler(
         'already-in-organization': 409,
         'no-seats-available': 400,
         'upgrade-required': 402,
+        'external-requires-paid-plan': 402,
         'server-error': 500,
       }
       const status = statusMap[result.kind] ?? 500

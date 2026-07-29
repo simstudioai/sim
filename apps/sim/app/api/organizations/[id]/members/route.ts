@@ -1,38 +1,18 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import {
-  invitation,
-  member,
-  subscription as subscriptionTable,
-  user,
-  userStats,
-} from '@sim/db/schema'
+import { member, subscription as subscriptionTable, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
-import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
-  inviteOrganizationMemberContract,
   organizationMemberQuerySchema,
   organizationParamsSchema,
 } from '@/lib/api/contracts/organization'
-import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getOrgMemberLedgerByUser } from '@/lib/billing/core/organization'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
-import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  cancelPendingInvitation,
-  createPendingInvitation,
-  sendInvitationEmail,
-} from '@/lib/invitations/send'
-import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import {
-  InvitationsNotAllowedError,
-  validateInvitationsAllowed,
-} from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('OrganizationMembersAPI')
 
@@ -182,212 +162,6 @@ export const GET = withRouteHandler(
     } catch (error) {
       logger.error('Failed to get organization members', {
         organizationId: (await params).id,
-        error,
-      })
-
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-    }
-  }
-)
-
-/**
- * POST /api/organizations/[id]/members
- * Invite new member to organization
- */
-export const POST = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    try {
-      const session = await getSession()
-
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const parsed = await parseRequest(inviteOrganizationMemberContract, request, context)
-      if (!parsed.success) return parsed.response
-
-      const { id: organizationId } = parsed.data.params
-
-      await validateInvitationsAllowed(session.user.id, { organizationId })
-
-      const { email, role } = parsed.data.body
-
-      // Validate and normalize email
-      const normalizedEmail = normalizeEmail(email)
-      const validation = quickValidateEmail(normalizedEmail)
-      if (!validation.isValid) {
-        return NextResponse.json(
-          { error: validation.reason || 'Invalid email format' },
-          { status: 400 }
-        )
-      }
-
-      // Verify user has admin access
-      const memberEntry = await db
-        .select()
-        .from(member)
-        .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
-        .limit(1)
-
-      if (memberEntry.length === 0) {
-        return NextResponse.json(
-          { error: 'Forbidden - Not a member of this organization' },
-          { status: 403 }
-        )
-      }
-
-      if (!isOrgAdminRole(memberEntry[0].role)) {
-        return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
-      }
-
-      /**
-       * Member-role invites must carry workspace access so the invitee has a
-       * workspace to land in after accepting — a member with no workspace
-       * grants (and no admin-derived access) would hit a workspace-less dead
-       * end. Admin invites are exempt: admins derive access to every
-       * organization workspace.
-       */
-      if (!isOrgAdminRole(role)) {
-        return NextResponse.json(
-          {
-            error:
-              'Member invitations must include at least one workspace. Use the invitations endpoint with workspaceInvitations so the invitee has a workspace to land in.',
-          },
-          { status: 400 }
-        )
-      }
-
-      // Check seat availability
-      const seatValidation = await validateSeatAvailability(organizationId, 1)
-      if (!seatValidation.canInvite) {
-        return NextResponse.json(
-          {
-            error: `Cannot invite teammate. Using ${seatValidation.currentSeats} of ${seatValidation.maxSeats} seats.`,
-            details: seatValidation,
-          },
-          { status: 400 }
-        )
-      }
-
-      // Check if user is already a member
-      const existingUser = await db
-        .select({ id: user.id })
-        .from(user)
-        .where(eq(user.email, normalizedEmail))
-        .limit(1)
-
-      if (existingUser.length > 0) {
-        const existingMember = await db
-          .select()
-          .from(member)
-          .where(
-            and(eq(member.organizationId, organizationId), eq(member.userId, existingUser[0].id))
-          )
-          .limit(1)
-
-        if (existingMember.length > 0) {
-          return NextResponse.json(
-            { error: 'User is already a member of this organization' },
-            { status: 400 }
-          )
-        }
-      }
-
-      // Check for existing pending invitation
-      const existingInvitation = await db
-        .select()
-        .from(invitation)
-        .where(
-          and(
-            eq(invitation.organizationId, organizationId),
-            eq(invitation.email, normalizedEmail),
-            eq(invitation.status, 'pending')
-          )
-        )
-        .limit(1)
-
-      if (existingInvitation.length > 0) {
-        return NextResponse.json(
-          { error: 'Pending invitation already exists for this email' },
-          { status: 400 }
-        )
-      }
-
-      const { invitationId, token } = await createPendingInvitation({
-        kind: 'organization',
-        email: normalizedEmail,
-        inviterId: session.user.id,
-        organizationId,
-        role,
-        grants: [],
-      })
-
-      const [inviterRow] = await db
-        .select({ name: user.name, email: user.email })
-        .from(user)
-        .where(eq(user.id, session.user.id))
-        .limit(1)
-      const inviterName = inviterRow?.name || inviterRow?.email || 'A user'
-
-      const emailResult = await sendInvitationEmail({
-        invitationId,
-        token,
-        kind: 'organization',
-        email: normalizedEmail,
-        inviterName,
-        organizationId,
-        organizationRole: role,
-        grants: [],
-      })
-
-      if (!emailResult.success) {
-        logger.error('Failed to send organization invitation email', {
-          email: normalizedEmail,
-          invitationId,
-          error: emailResult.error,
-        })
-        await cancelPendingInvitation(invitationId)
-        return NextResponse.json(
-          { error: emailResult.error || 'Failed to send invitation email' },
-          { status: 502 }
-        )
-      }
-
-      logger.info('Member invitation sent', {
-        email: normalizedEmail,
-        organizationId,
-        invitationId,
-        role,
-      })
-
-      recordAudit({
-        workspaceId: null,
-        actorId: session.user.id,
-        action: AuditAction.ORG_INVITATION_CREATED,
-        resourceType: AuditResourceType.ORGANIZATION,
-        resourceId: organizationId,
-        actorName: session.user.name ?? undefined,
-        actorEmail: session.user.email ?? undefined,
-        description: `Invited ${normalizedEmail} to organization as ${role}`,
-        metadata: { invitationId, targetEmail: normalizedEmail, targetRole: role },
-        request,
-      })
-
-      return NextResponse.json({
-        success: true,
-        message: `Invitation sent to ${normalizedEmail}`,
-        data: {
-          invitationId,
-          email: normalizedEmail,
-          role,
-        },
-      })
-    } catch (error) {
-      if (error instanceof InvitationsNotAllowedError) {
-        return NextResponse.json({ error: error.message }, { status: 403 })
-      }
-      logger.error('Failed to invite organization member', {
-        organizationId: (await context.params).id,
         error,
       })
 

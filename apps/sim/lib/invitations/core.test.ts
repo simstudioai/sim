@@ -24,6 +24,7 @@ const {
   mockSyncWorkspaceEnvCredentials,
   mockIsWorkspaceOnEnterprisePlan,
   mockAttachOwnedWorkspacesToOrganizationTx,
+  mockGetInvitePlanCategoryForUser,
 } = vi.hoisted(() => ({
   mockEnsureUserInOrganization: vi.fn(),
   mockGetUserOrganization: vi.fn(),
@@ -37,6 +38,8 @@ const {
   mockSyncWorkspaceEnvCredentials: vi.fn(),
   mockIsWorkspaceOnEnterprisePlan: vi.fn(async () => true),
   mockAttachOwnedWorkspacesToOrganizationTx: vi.fn(),
+  /** Externals must be on a paid plan; invite-time enforces it, accept re-checks. */
+  mockGetInvitePlanCategoryForUser: vi.fn(async () => 'pro'),
 }))
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
@@ -77,6 +80,10 @@ vi.mock('@/lib/credentials/environment', () => ({
 vi.mock('@/lib/workspaces/organization-workspaces', () => ({
   attachOwnedWorkspacesToOrganizationTx: mockAttachOwnedWorkspacesToOrganizationTx,
   ownedAttachableWorkspacesWhere: vi.fn(),
+}))
+
+vi.mock('@/lib/workspaces/policy', () => ({
+  getInvitePlanCategoryForUser: mockGetInvitePlanCategoryForUser,
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -138,6 +145,115 @@ describe('acceptInvitation', () => {
       skippedMembers: [],
       usageLimitUserIds: [],
     })
+  })
+
+  it('accepts a forced-external invitation from a free invitee already in another org', async () => {
+    /**
+     * Cross-org invitees are stamped external regardless of the inviter's
+     * choice, so invite time never applies the paid-plan gate to them. Accept
+     * must not apply it either, or a Member invite would send cleanly and then
+     * be unacceptable.
+     */
+    mockGetUserOrganization.mockResolvedValueOnce({
+      organizationId: 'org-2',
+      role: 'member',
+      memberId: 'member-2',
+    })
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'workspace',
+          email: 'external@example.com',
+          organizationId: 'org-1',
+          membershipIntent: 'external',
+          inviterId: 'inviter-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [{ name: 'Acme' }],
+      [{ name: 'Inviter', email: 'inviter@example.com' }],
+      [],
+      [],
+      [{ variables: {} }],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'external-user',
+      userEmail: 'external@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+      actorName: 'External User',
+      request: new Request('http://localhost/api/invitations/inv-1/accept'),
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
+    /** The plan requirement must not even be evaluated for imposed externality. */
+    expect(mockGetInvitePlanCategoryForUser).not.toHaveBeenCalled()
+  })
+
+  it('rejects an external invitation when the invitee is no longer on a paid plan', async () => {
+    mockGetInvitePlanCategoryForUser.mockResolvedValueOnce('free')
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'workspace',
+          email: 'external@example.com',
+          organizationId: 'org-1',
+          membershipIntent: 'external',
+          inviterId: 'inviter-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [{ name: 'Acme' }],
+      [{ name: 'Inviter', email: 'inviter@example.com' }],
+      [],
+      [],
+      [{ variables: {} }],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'external-user',
+      userEmail: 'external@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+      actorName: 'External User',
+      request: new Request('http://localhost/api/invitations/inv-1/accept'),
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.kind).toBe('external-requires-paid-plan')
+    }
+    expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
   })
 
   it('accepts external workspace invitations without joining the organization', async () => {

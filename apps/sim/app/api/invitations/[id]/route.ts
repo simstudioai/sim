@@ -7,6 +7,7 @@ import { normalizeEmail } from '@sim/utils/string'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
+  cancelInvitationQuerySchema,
   getInvitationContract,
   invitationParamsSchema,
   updateInvitationContract,
@@ -20,6 +21,7 @@ import {
   getInvitationById,
   getInvitationJoinPreview,
   isInvitationExpired,
+  revokeInvitationWorkspaceGrant,
 } from '@/lib/invitations/core'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -251,6 +253,16 @@ export const DELETE = withRouteHandler(
       )
     }
     const { id } = parsedParams.data
+    const parsedQuery = cancelInvitationQuerySchema.safeParse(
+      Object.fromEntries(request.nextUrl.searchParams.entries())
+    )
+    if (!parsedQuery.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(parsedQuery.error, 'Invalid query parameters') },
+        { status: 400 }
+      )
+    }
+    const scopedWorkspaceId = parsedQuery.data.workspaceId
     const session = await getSession()
 
     if (!session?.user?.id) {
@@ -263,26 +275,89 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
       }
 
-      let canCancel = false
-      if (inv.organizationId) {
-        canCancel = await isOrganizationOwnerOrAdmin(session.user.id, inv.organizationId)
+      if (inv.status !== 'pending') {
+        return NextResponse.json({ error: 'Can only cancel pending invitations' }, { status: 400 })
       }
+
+      const isOrganizationAdmin = inv.organizationId
+        ? await isOrganizationOwnerOrAdmin(session.user.id, inv.organizationId)
+        : false
+
+      /**
+       * Scoped revocation: an admin of this one workspace may withdraw its own
+       * grant. Authority over the invitation's other workspaces is not implied,
+       * so only that grant is removed.
+       */
+      if (scopedWorkspaceId) {
+        if (!inv.grants.some((grant) => grant.workspaceId === scopedWorkspaceId)) {
+          return NextResponse.json(
+            { error: 'Invitation does not grant access to that workspace' },
+            { status: 400 }
+          )
+        }
+        if (
+          !isOrganizationAdmin &&
+          !(await hasWorkspaceAdminAccess(session.user.id, scopedWorkspaceId))
+        ) {
+          return NextResponse.json(
+            { error: 'You need admin permissions on that workspace to revoke its invitation' },
+            { status: 403 }
+          )
+        }
+
+        const { revoked, invitationCancelled } = await revokeInvitationWorkspaceGrant({
+          invitationId: id,
+          workspaceId: scopedWorkspaceId,
+        })
+        if (!revoked) {
+          return NextResponse.json({ error: 'Invitation not cancellable' }, { status: 400 })
+        }
+
+        recordAudit({
+          workspaceId: scopedWorkspaceId,
+          actorId: session.user.id,
+          actorName: session.user.name ?? undefined,
+          actorEmail: session.user.email ?? undefined,
+          action: AuditAction.INVITATION_REVOKED,
+          resourceType: AuditResourceType.WORKSPACE,
+          resourceId: scopedWorkspaceId,
+          description: `Revoked ${inv.email}'s pending invitation to this workspace`,
+          metadata: {
+            invitationId: id,
+            targetEmail: inv.email,
+            workspaceId: scopedWorkspaceId,
+            invitationCancelled,
+          },
+          request,
+        })
+
+        return NextResponse.json({ success: true, invitationCancelled })
+      }
+
+      /**
+       * Whole-invitation revocation needs authority over everything it grants:
+       * organization admins have it implicitly, otherwise the actor must
+       * administer every granted workspace. Admin of just one is not enough —
+       * that would let them destroy grants to workspaces they cannot see.
+       */
+      let canCancel = isOrganizationAdmin
       if (!canCancel && inv.grants.length > 0) {
         const adminChecks = await Promise.all(
           inv.grants.map((grant) => hasWorkspaceAdminAccess(session.user.id, grant.workspaceId))
         )
-        canCancel = adminChecks.some(Boolean)
+        canCancel = adminChecks.every(Boolean)
       }
 
       if (!canCancel) {
         return NextResponse.json(
-          { error: 'Only an organization or workspace admin can cancel this invitation' },
+          {
+            error:
+              inv.grants.length > 1
+                ? 'This invitation spans several workspaces. Revoke it from a workspace you administer, or ask an organization admin.'
+                : 'Only an organization or workspace admin can cancel this invitation',
+          },
           { status: 403 }
         )
-      }
-
-      if (inv.status !== 'pending') {
-        return NextResponse.json({ error: 'Can only cancel pending invitations' }, { status: 400 })
       }
 
       const cancelled = await cancelInvitation(id)
@@ -312,7 +387,7 @@ export const DELETE = withRouteHandler(
         request,
       })
 
-      return NextResponse.json({ success: true })
+      return NextResponse.json({ success: true, invitationCancelled: true })
     } catch (error) {
       logger.error('Failed to cancel invitation', { invitationId: id, error })
       return NextResponse.json({ error: 'Failed to cancel invitation' }, { status: 500 })

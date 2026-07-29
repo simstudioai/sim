@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatQuotedNameList } from '@sim/utils/string'
 import { useQueryClient } from '@tanstack/react-query'
@@ -46,6 +47,7 @@ type InviteErrorCode =
   | 'already-in-organization'
   | 'no-seats-available'
   | 'upgrade-required'
+  | 'external-requires-paid-plan'
   | 'invalid-invitation'
   | 'missing-invitation-id'
   | 'server-error'
@@ -121,6 +123,12 @@ function getInviteError(code: string): InviteError {
         'The workspace owner needs an active paid plan with billing set up before you can join. Ask them to update their plan, then try again.',
       canRetry: true,
     },
+    'external-requires-paid-plan': {
+      code: 'external-requires-paid-plan',
+      message:
+        'External collaborators need their own paid Sim plan. Upgrade your plan, or ask the organization to re-invite you as a member — that uses one of their seats instead.',
+      canRetry: true,
+    },
     'invalid-invitation': {
       code: 'invalid-invitation',
       message: 'This invitation is invalid or no longer exists.',
@@ -184,6 +192,31 @@ function buildWorkspaceMigrationNotice(
   const single = names.length === 1
 
   return ` Accepting also moves your ${single ? 'workspace' : 'workspaces'} ${nameList} into ${organizationLabel}: its admins get full access, and ${single ? 'it stays' : 'they stay'} with the organization if you leave.`
+}
+
+/**
+ * States what the invitee becomes, so the seat consequence is disclosed to the
+ * person it applies to rather than only to the inviter. Said unconditionally
+ * for membership invites — the migration notice is empty for an invitee who
+ * owns no workspaces, and joining is the larger consequence either way.
+ */
+function buildMembershipNotice(
+  membershipIntent: 'internal' | 'external' | undefined,
+  organizationRole: string | undefined,
+  organizationLabel: string,
+  isOrganizationScoped: boolean
+): string {
+  if (!isOrganizationScoped || !membershipIntent) return ''
+
+  if (membershipIntent === 'external') {
+    return ` You'll join as an external collaborator: you get access to the ${
+      organizationLabel === 'the organization' ? 'invited' : `${organizationLabel}`
+    } workspaces only, you don't take one of their seats, and everything you own stays yours.`
+  }
+
+  return ` You'll join ${organizationLabel} as ${
+    organizationRole && isOrgAdminRole(organizationRole) ? 'an admin' : 'a member'
+  }, which uses one of their seats.`
 }
 
 function codeFromStatus(status: number): InviteErrorCode {
@@ -472,9 +505,19 @@ export default function Invite() {
     )
   }
 
+  /**
+   * Names every granted workspace, not just the primary one — an invitation can
+   * span several, and the email already lists them all.
+   */
+  const grantedWorkspaceNames =
+    invitation?.grants
+      .map((grant) => grant.workspaceName)
+      .filter((name): name is string => Boolean(name)) ?? []
   const displayName =
     invitation?.kind === 'workspace'
-      ? invitation.grants[0]?.workspaceName || 'a workspace'
+      ? grantedWorkspaceNames.length > 0
+        ? formatQuotedNameList(grantedWorkspaceNames, MAX_LISTED_WORKSPACE_NAMES)
+        : 'a workspace'
       : invitation?.organizationName || 'an organization'
 
   if (accepted) {
@@ -508,13 +551,23 @@ export default function Invite() {
     joinPreviewUnavailable && invitation?.membershipIntent !== 'external'
       ? ` If you own personal workspaces, accepting membership moves them into ${organizationLabel}: its admins get full access, and they stay with the organization if you leave.`
       : buildWorkspaceMigrationNotice(joinPreview, organizationLabel)
+  /**
+   * Only disclosed when the invitation actually carries organization standing —
+   * a personal-workspace invite has no seat or membership to explain.
+   */
+  const membershipNotice = buildMembershipNotice(
+    invitation?.membershipIntent,
+    invitation?.role,
+    organizationLabel,
+    Boolean(invitation?.organizationId || joinPreview?.organizationName)
+  )
 
   return (
     <InviteLayout>
       <InviteStatusCard
         type='invitation'
         title={isOrg ? 'Organization Invitation' : 'Workspace Invitation'}
-        description={`You've been invited to join ${displayName}. Click accept below to join.${migrationNotice}`}
+        description={`You've been invited to join ${displayName}.${membershipNotice}${migrationNotice}`}
         icon={isOrg ? 'users' : 'mail'}
         actions={[
           {

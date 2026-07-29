@@ -10,6 +10,7 @@ import type { PlanCategory } from '@/lib/billing/plan-helpers'
 import { getPlanType, isEnterprise, isMax, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import type { DbOrTx } from '@/lib/db/types'
 import {
   CONTACT_OWNER_TO_UPGRADE_REASON,
   UPGRADE_TO_INVITE_REASON,
@@ -248,9 +249,12 @@ export async function getInvitePlanCategoryForOrganization(
  * user. Exposed so bulk callers can batch by unique user id. Returns
  * `'free'` when there is no usable paid subscription.
  */
-export async function getInvitePlanCategoryForUser(userId: string): Promise<PlanCategory> {
+export async function getInvitePlanCategoryForUser(
+  userId: string,
+  executor: DbOrTx = db
+): Promise<PlanCategory> {
   try {
-    const sub = await getHighestPrioritySubscription(userId)
+    const sub = await getHighestPrioritySubscription(userId, { executor })
     if (!sub || !hasUsableSubscriptionStatus(sub.status)) return 'free'
     return getPlanType(sub.plan)
   } catch (error) {
