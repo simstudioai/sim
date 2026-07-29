@@ -18,7 +18,7 @@ const {
   mockGetCustomBlockAuthority,
   mockGetUserEmailById,
   mockAdmitCustomBlockChildExecution,
-  mockTrackChildFinalization,
+  mockTrackChildRun,
   mockBuildTraceSpans,
   mockSafeStart,
   mockSafeComplete,
@@ -34,7 +34,7 @@ const {
   mockGetCustomBlockAuthority: vi.fn(),
   mockGetUserEmailById: vi.fn(),
   mockAdmitCustomBlockChildExecution: vi.fn(),
-  mockTrackChildFinalization: vi.fn(),
+  mockTrackChildRun: vi.fn(),
   mockBuildTraceSpans: vi.fn(),
   mockSafeStart: vi.fn(),
   mockSafeComplete: vi.fn(),
@@ -65,7 +65,7 @@ vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
 
 vi.mock('@/lib/workflows/custom-blocks/child-execution', () => ({
   admitCustomBlockChildExecution: mockAdmitCustomBlockChildExecution,
-  trackChildFinalization: mockTrackChildFinalization,
+  trackChildRun: mockTrackChildRun,
   buildCustomBlockCorrelation: (params: Record<string, any>) =>
     params.invokerExecutionId
       ? { source: 'custom_block', executionId: params.invokerExecutionId }
@@ -1250,22 +1250,32 @@ describe('WorkflowBlockHandler', () => {
       expect(error.cause).toBeUndefined()
     })
 
-    it('registers the finalization so a cancelled parent can still drain it', async () => {
+    it('registers the child run BEFORE executing it, and settles it when done', async () => {
+      // Ordering is the whole point: a cancelled parent drains while the child is
+      // still inside `execute`, so registering after it would find nothing.
+      let registeredBeforeExecute = false
+      mockExecutorExecute.mockImplementation(async () => {
+        registeredBeforeExecute = mockTrackChildRun.mock.calls.length === 1
+        return { success: true, output: { data: 'ok' } }
+      })
+
       await handler.execute(customBlockContext(), customBlock(), {})
 
-      expect(mockTrackChildFinalization).toHaveBeenCalledTimes(1)
-      const [invokerId, promise] = mockTrackChildFinalization.mock.calls[0]
+      expect(registeredBeforeExecute).toBe(true)
+      const [invokerId, childRun] = mockTrackChildRun.mock.calls[0]
       expect(invokerId).toBe('parent-execution-id')
-      expect(promise).toBeInstanceOf(Promise)
+      // Settled in `finally`, so the invoking run's drain can complete.
+      await expect(childRun).resolves.toBeUndefined()
     })
 
-    it('registers the finalization on the failure path too', async () => {
+    it('settles the registered child run on the failure path too', async () => {
       mockExecutorExecute.mockRejectedValue(new Error('boom'))
 
       await handler.execute(customBlockContext(), customBlock(), {}).catch(() => {})
 
-      expect(mockTrackChildFinalization).toHaveBeenCalledTimes(1)
-      expect(mockTrackChildFinalization.mock.calls[0][0]).toBe('parent-execution-id')
+      expect(mockTrackChildRun).toHaveBeenCalledTimes(1)
+      expect(mockTrackChildRun.mock.calls[0][0]).toBe('parent-execution-id')
+      await expect(mockTrackChildRun.mock.calls[0][1]).resolves.toBeUndefined()
     })
 
     it('never leaks the source workflow name when the child returns success: false', async () => {

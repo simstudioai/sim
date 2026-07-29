@@ -32,8 +32,8 @@ import {
   buildCustomBlockCorrelation,
   CustomBlockAdmissionError,
   createChildCancellationSignal,
-  trackChildFinalization,
-  waitForChildFinalizations,
+  trackChildRun,
+  waitForChildRuns,
 } from '@/lib/workflows/custom-blocks/child-execution'
 import { isBoundarySafeError } from '@/executor/errors/boundary'
 
@@ -245,47 +245,60 @@ describe('createChildCancellationSignal durable backstop', () => {
   })
 })
 
-describe('child finalization tracking', () => {
-  it('lets an invoking run await a finalization the engine abandoned', async () => {
-    let resolveWrite: () => void = () => {}
-    const durableWrite = new Promise<void>((resolve) => {
-      resolveWrite = resolve
-    })
+describe('child run tracking', () => {
+  it('waits for a child the engine abandoned mid-execution', async () => {
+    // The scenario this exists for: the parent cancelled, so at drain time the
+    // child has NOT finished. Registration must already have happened.
+    let settle: () => void = () => {}
     let finished = false
-    const finalization = durableWrite.then(() => {
+    const childRun = new Promise<void>((resolve) => {
+      settle = resolve
+    }).then(() => {
       finished = true
     })
 
-    trackChildFinalization('invoker-1', finalization)
+    trackChildRun('invoker-1', childRun)
 
-    // The engine returned without draining; the write is still in flight.
+    const drained = waitForChildRuns('invoker-1')
     expect(finished).toBe(false)
-
-    const drained = waitForChildFinalizations('invoker-1')
-    resolveWrite()
+    settle()
     await drained
 
     expect(finished).toBe(true)
   })
 
-  it('does not let a rejected finalization break the drain', async () => {
-    trackChildFinalization('invoker-2', Promise.reject(new Error('db down')))
+  it('gives up on a hung child rather than wedging the invoking run', async () => {
+    vi.useFakeTimers()
+    try {
+      // Never settles — an unbounded drain would hang the parent forever.
+      trackChildRun('invoker-hung', new Promise<void>(() => {}))
 
-    await expect(waitForChildFinalizations('invoker-2')).resolves.toBeUndefined()
+      const drained = waitForChildRuns('invoker-hung')
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      await expect(drained).resolves.toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not let a rejected child break the drain', async () => {
+    trackChildRun('invoker-2', Promise.reject(new Error('db down')))
+
+    await expect(waitForChildRuns('invoker-2')).resolves.toBeUndefined()
   })
 
   it('is a no-op for a run that registered nothing', async () => {
-    await expect(waitForChildFinalizations('invoker-never')).resolves.toBeUndefined()
-    await expect(waitForChildFinalizations(undefined)).resolves.toBeUndefined()
+    await expect(waitForChildRuns('invoker-never')).resolves.toBeUndefined()
+    await expect(waitForChildRuns(undefined)).resolves.toBeUndefined()
   })
 
   it('releases its entry so a run that never drains cannot leak', async () => {
-    const finalization = Promise.resolve()
-    trackChildFinalization('invoker-3', finalization)
-    await finalization
+    const childRun = Promise.resolve()
+    trackChildRun('invoker-3', childRun)
+    await childRun
     await Promise.resolve()
 
-    // Draining after self-cleanup still resolves rather than hanging.
-    await expect(waitForChildFinalizations('invoker-3')).resolves.toBeUndefined()
+    await expect(waitForChildRuns('invoker-3')).resolves.toBeUndefined()
   })
 })

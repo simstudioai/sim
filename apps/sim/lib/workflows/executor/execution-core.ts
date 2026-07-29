@@ -22,7 +22,7 @@ import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-valu
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { getUserEmailById } from '@/lib/users/queries'
-import { waitForChildFinalizations } from '@/lib/workflows/custom-blocks/child-execution'
+import { waitForChildRuns } from '@/lib/workflows/custom-blocks/child-execution'
 import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import {
   loadDeployedWorkflowState,
@@ -376,10 +376,11 @@ async function executeWorkflowCoreImpl(
     while (pendingLifecycleCallbacks.size > 0) {
       await Promise.allSettled([...pendingLifecycleCallbacks])
     }
-    // A custom block's child owns a separate log row whose terminal write the
-    // engine does not drain on cancel/timeout — await it here so the row is not
-    // left `running` for the reaper when this run finishes or the worker exits.
-    await waitForChildFinalizations(executionId)
+    // A custom block's child is a separate execution with its own log row, and
+    // the engine does not drain in-flight nodes on cancel/timeout — await it here
+    // (bounded) so the row is not left `running` when this run finishes or the
+    // worker exits.
+    await waitForChildRuns(executionId)
   }
 
   try {

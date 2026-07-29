@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import {
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
@@ -9,6 +10,8 @@ import {
   isRedisCancellationEnabled,
 } from '@/lib/execution/cancellation'
 import { BoundarySafeError } from '@/executor/errors/boundary'
+
+const logger = createLogger('CustomBlockChildExecution')
 
 /**
  * The payer has no headroom for this custom-block child run.
@@ -144,58 +147,91 @@ export async function createChildCancellationSignal(params: {
 }
 
 /**
- * Child-session finalizations still in flight, keyed by the INVOKING run's
- * execution id.
+ * Custom-block child runs still in flight, keyed by the INVOKING run's execution id.
  *
  * A cancelled or timed-out parent engine returns without draining its in-flight
- * node promises, so the custom-block handler's finalization would otherwise be
- * abandoned mid-write: the invoking run finishes, the worker tears down, and the
- * child's log row is left `running` until the stale-execution reaper sweeps it
- * minutes later. Registering here lets the run's own completion path await the
- * durable write instead of racing it.
+ * node promises, so the child's execution AND its terminal log write are both
+ * abandoned mid-flight: the invoking run finishes, the worker tears down, and the
+ * child's row is left `running` until the stale-execution reaper sweeps it.
  *
- * Only the immediate invoker is tracked. A finalization orphaned *below* another
- * abandoned child still falls back to the reaper.
+ * The tracked promise therefore covers the WHOLE child lifecycle and is registered
+ * BEFORE the child starts. Registering only the finalization step would be useless
+ * on exactly the path this exists for: at drain time the child is still inside
+ * `execute`, so nothing would be registered yet and the drain would no-op.
+ *
+ * Only the immediate invoker is tracked. A child orphaned *below* another abandoned
+ * child still falls back to the reaper.
  */
-const pendingChildFinalizations = new Map<string, Set<Promise<unknown>>>()
+const pendingChildRuns = new Map<string, Set<Promise<unknown>>>()
 
-/** Registers a child-session finalization against its invoking run. */
-export function trackChildFinalization(
+/** How long a run will wait on abandoned children before leaving them to the reaper. */
+const CHILD_RUN_DRAIN_TIMEOUT_MS = 10_000
+
+/**
+ * Registers a child run against its invoking run. The promise must settle when the
+ * child is fully done — execution finished AND its session written.
+ */
+export function trackChildRun(
   invokerExecutionId: string | undefined,
-  promise: Promise<unknown>
+  childRun: Promise<unknown>
 ): void {
   if (!invokerExecutionId) return
 
-  let pending = pendingChildFinalizations.get(invokerExecutionId)
+  let pending = pendingChildRuns.get(invokerExecutionId)
   if (!pending) {
     pending = new Set()
-    pendingChildFinalizations.set(invokerExecutionId, pending)
+    pendingChildRuns.set(invokerExecutionId, pending)
   }
-  pending.add(promise)
+  pending.add(childRun)
 
   // Self-cleaning so an invoker that never drains cannot leak the entry. The
-  // `catch` also marks the rejection handled — callers use `allSettled`.
-  void promise
+  // `catch` also marks the rejection handled — the drain uses `allSettled`.
+  void childRun
     .catch(() => {})
     .finally(() => {
-      pending.delete(promise)
-      if (pending.size === 0) pendingChildFinalizations.delete(invokerExecutionId)
+      pending.delete(childRun)
+      if (pending.size === 0) pendingChildRuns.delete(invokerExecutionId)
     })
 }
 
-/** Awaits every child-session finalization registered for this run. */
-export async function waitForChildFinalizations(
-  invokerExecutionId: string | undefined
-): Promise<void> {
+/**
+ * Awaits every child run registered for this invoking run, bounded.
+ *
+ * The bound matters: on the normal path the handler already awaited its child, so
+ * this returns immediately. It only blocks when a child was abandoned, where the
+ * bridged abort should end it in milliseconds. Waiting unbounded would trade a
+ * stale `running` row — which the reaper fixes — for a wedged parent run, which
+ * nothing fixes.
+ */
+export async function waitForChildRuns(invokerExecutionId: string | undefined): Promise<void> {
   if (!invokerExecutionId) return
 
-  const pending = pendingChildFinalizations.get(invokerExecutionId)
-  if (!pending) return
+  const pending = pendingChildRuns.get(invokerExecutionId)
+  if (!pending || pending.size === 0) return
 
-  // Re-check: a settling finalization can register nothing further, but a
-  // nested child can still be added while we await.
-  while (pending.size > 0) {
-    await Promise.allSettled([...pending])
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timedOut = new Promise<'timeout'>((resolve) => {
+    timer = setTimeout(() => resolve('timeout'), CHILD_RUN_DRAIN_TIMEOUT_MS)
+  })
+
+  const drained = (async () => {
+    // Re-check: a nested child can still register while we await.
+    while (pending.size > 0) {
+      await Promise.allSettled([...pending])
+    }
+    return 'drained' as const
+  })()
+
+  try {
+    if ((await Promise.race([drained, timedOut])) === 'timeout') {
+      logger.warn('Abandoned custom block child did not finish; leaving it to the reaper', {
+        invokerExecutionId,
+        outstanding: pending.size,
+      })
+      return
+    }
+    pendingChildRuns.delete(invokerExecutionId)
+  } finally {
+    if (timer) clearTimeout(timer)
   }
-  pendingChildFinalizations.delete(invokerExecutionId)
 }

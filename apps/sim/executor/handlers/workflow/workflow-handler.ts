@@ -14,7 +14,7 @@ import {
   admitCustomBlockChildExecution,
   buildCustomBlockCorrelation,
   createChildCancellationSignal,
-  trackChildFinalization,
+  trackChildRun,
 } from '@/lib/workflows/custom-blocks/child-execution'
 import { getCustomBlockAuthority } from '@/lib/workflows/custom-blocks/operations'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
@@ -275,6 +275,8 @@ export class WorkflowBlockHandler implements BlockHandler {
     /** Large-value id list shared with the child (and any nested custom blocks). */
     let sharedLargeValueIds: string[] | undefined
     let childCancellation: { signal: AbortSignal; dispose: () => void } | undefined
+    /** Settled in `finally` once the child is fully done — see `trackChildRun`. */
+    let settleChildRun: (() => void) | undefined
     try {
       // A custom block runs the source's latest deployment; if the source has been
       // undeployed there's nothing to run. `BoundarySafeError` marks the message as
@@ -485,6 +487,17 @@ export class WorkflowBlockHandler implements BlockHandler {
           parentSignal: ctx.abortSignal,
           parentExecutionId: ctx.executionId,
         })
+        // Registered BEFORE the child starts and settled in `finally`, so the
+        // tracked promise spans execution AND the terminal log write. A cancelled
+        // parent drains at a moment when the child is still inside `execute`, so
+        // registering only the finalization step would find nothing to await.
+        trackChildRun(
+          ctx.executionId,
+          new Promise<void>((resolve) => {
+            settleChildRun = resolve
+          })
+        )
+
         // Large values are scoped by execution id, so the parent must be able to
         // read a large exposed output the child produced. ONE array is shared down
         // the whole chain rather than copied per hop: a nested custom block pushes
@@ -618,10 +631,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       const duration = performance.now() - startTime
 
       if (childSession && childSessionStarted) {
-        await this.trackFinalization(
-          ctx,
-          this.finalizeChildSession(childSession, executionResult, duration, childWorkflowInput)
-        )
+        await this.finalizeChildSession(childSession, executionResult, duration, childWorkflowInput)
         childSessionFinalized = true
       }
 
@@ -672,7 +682,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       // The child's own log row records the real failure in the source workspace,
       // so the publisher sees what the consumer deliberately cannot.
       if (childSession && childSessionStarted && !childSessionFinalized) {
-        await this.trackFinalization(ctx, this.failChildSession(childSession, error))
+        await this.failChildSession(childSession, error)
       }
 
       // A custom block is checked FIRST and unconditionally: errors this invocation
@@ -730,23 +740,10 @@ export class WorkflowBlockHandler implements BlockHandler {
       // A custom block inside a loop would otherwise leak one abort listener and
       // one cancellation subscription per iteration.
       childCancellation?.dispose()
+      // Releases the invoking run's drain: reached on every exit path, including
+      // when this handler's promise was abandoned by a cancelled parent engine.
+      settleChildRun?.()
     }
-  }
-
-  /**
-   * Awaits a child-session finalization while ALSO registering it against the
-   * invoking run. A cancelled or timed-out parent engine returns without
-   * draining its in-flight node promises, which would abandon this `await`
-   * mid-write; the registration lets the invoking run's completion path finish
-   * the durable write instead of leaving the child's row `running` for the
-   * stale-execution reaper.
-   */
-  private async trackFinalization(
-    ctx: ExecutionContext,
-    finalization: Promise<void>
-  ): Promise<void> {
-    trackChildFinalization(ctx.executionId, finalization)
-    await finalization
   }
 
   /**
