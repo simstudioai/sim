@@ -35,6 +35,7 @@ vi.mock('@/handlers/file-doc-app', () => ({
 import {
   applyMarkdownToLiveFileDoc,
   cleanupFileDocForSocket,
+  flushAllFileDocRooms,
   setupWorkspaceFileDocHandlers,
 } from '@/handlers/file-doc'
 
@@ -293,6 +294,32 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
     cleanupFileDocForSocket('socket-1', io, true)
     await flushMicrotasks()
+    expect(mockFetchFileDocPersist).toHaveBeenCalled()
+  })
+
+  it('flushAllFileDocRooms persists open EDITED rooms (graceful shutdown), skips unedited', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(encodedSeedUpdate('# From server'))
+    const { io } = createIo()
+    const { handlers } = setup('socket-1', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks()
+
+    // Seed-only room: a graceful-shutdown flush must NOT persist it.
+    mockFetchFileDocPersist.mockClear()
+    await flushAllFileDocRooms()
+    expect(mockFetchFileDocPersist).not.toHaveBeenCalled()
+
+    // After a real user edit, the same flush persists (edits would otherwise be lost on deploy).
+    const edit = new Y.Doc()
+    edit.getText(FILE_DOC_FIELD).insert(0, 'typed')
+    handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
+        syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
+      )
+    )
+    await flushMicrotasks()
+    mockFetchFileDocPersist.mockClear()
+    await flushAllFileDocRooms()
     expect(mockFetchFileDocPersist).toHaveBeenCalled()
   })
 

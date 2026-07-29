@@ -6,6 +6,7 @@ import { createSocketIOServer, shutdownSocketIOAdapter } from '@/config/socket'
 import { assertSchemaCompatibility } from '@/database/preflight'
 import { env } from '@/env'
 import { setupAllHandlers } from '@/handlers'
+import { flushAllFileDocRooms } from '@/handlers/file-doc'
 import { getFileDocStore, initFileDocStore } from '@/handlers/file-doc-store'
 import { type AuthenticatedSocket, authenticateSocket } from '@/middleware/auth'
 import { type IRoomManager, MemoryRoomManager, RedisRoomManager } from '@/rooms'
@@ -115,6 +116,15 @@ async function main() {
     logger.info('Shutting down Socket.IO server...')
 
     accessRevalidation.stop()
+
+    // Flush open collaborative docs to durable markdown BEFORE tearing down Redis/the store — the
+    // per-socket disconnect flush is fire-and-forget and would race process exit.
+    try {
+      await flushAllFileDocRooms()
+      logger.info('Flushed open collaborative documents')
+    } catch (error) {
+      logger.error('Error flushing collaborative documents on shutdown:', error)
+    }
 
     try {
       await roomManager.shutdown()

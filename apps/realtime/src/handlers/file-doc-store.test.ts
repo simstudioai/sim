@@ -220,6 +220,11 @@ describe('FileDocStore', () => {
     Y.applyUpdate(doc, (await a.getStreamState(NAME))!)
     expect(doc.getText('body').toString()).toBe('PEER1PEER2')
     doc.destroy()
+
+    // The appended snapshot entry must carry the snapshot marker, so a fresh catch-up task treats it as
+    // edited content (not a bare seed) and persists on last-disconnect.
+    const stream = state.backing!.streams.get(streamKey)!
+    expect(stream[stream.length - 1].message.s).toBe('1')
   })
 
   it('retries a transient append failure so the edit is not lost from the shared log', async () => {

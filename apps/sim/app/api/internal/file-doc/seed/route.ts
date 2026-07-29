@@ -14,7 +14,7 @@ const logger = createLogger('FileDocSeedAPI')
  * POST /api/internal/file-doc/seed — build a server-authoritative collaborative-document seed
  * (markdown → Yjs) for the realtime relay to apply on room creation. Internal only: gated on the
  * shared `x-api-key: INTERNAL_API_SECRET` secret, matching the header the realtime relay sends
- * (`apps/realtime/src/handlers/file-doc-seed.ts`) and the realtime server's own inbound validator.
+ * (`apps/realtime/src/handlers/file-doc-app.ts`) and the realtime server's own inbound validator.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = checkInternalApiKey(request)

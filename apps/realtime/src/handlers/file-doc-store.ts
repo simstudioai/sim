@@ -56,14 +56,26 @@ const RELEASE_LOCK_SCRIPT =
  */
 export const REDIS_ORIGIN = Symbol('file-doc-redis')
 
+/**
+ * Origin for a COMPACTED SNAPSHOT applied from the stream. A snapshot folds the seed + all prior edits
+ * into one entry, so a fresh task catching up from it would otherwise never see a separate post-seed
+ * edit frame and would treat the doc as unedited. The relay's edit-tracker uses this origin to mark the
+ * doc edited (a snapshot only exists after the stream crossed the compaction threshold, i.e. real edits
+ * happened). Behaves like {@link REDIS_ORIGIN} otherwise (already in the stream — never re-published).
+ */
+export const REDIS_SNAPSHOT_ORIGIN = Symbol('file-doc-redis-snapshot')
+
 const STREAM_PREFIX = 'filedoc:stream:'
 const SEED_LOCK_PREFIX = 'filedoc:seedlock:'
 const COMPACT_LOCK_PREFIX = 'filedoc:compactlock:'
 const PERSIST_LOCK_PREFIX = 'filedoc:persistlock:'
 const MERGE_LOCK_PREFIX = 'filedoc:mergelock:'
 
-/** The single field each stream entry carries — a base64 Yjs update. */
+/** The field each stream entry carries — a base64 Yjs update. */
 const UPDATE_FIELD = 'u'
+/** Marks a stream entry as a compaction SNAPSHOT (folds seed + edits), so the tailer applies it with
+ * {@link REDIS_SNAPSHOT_ORIGIN}. Present only on snapshot entries. */
+const SNAPSHOT_FIELD = 's'
 
 /** Sentinel token a DISABLED store returns from a lock acquire, so single-replica callers proceed
  * without special-casing; {@link FileDocStore.releaseLock} treats it as a no-op. Not a real UUID, so it
@@ -228,12 +240,12 @@ export class FileDocStore {
   private async appendUpdate(name: string, update: Uint8Array): Promise<void> {
     if (!this.write) return
     const encoded = Buffer.from(update).toString('base64')
-    for (let attempt = 0; ; attempt++) {
+    for (let attempt = 0; attempt <= PUBLISH_MAX_RETRIES; attempt++) {
       try {
         await this.write.xAdd(streamKey(name), '*', { [UPDATE_FIELD]: encoded })
         break
       } catch (error) {
-        if (attempt >= PUBLISH_MAX_RETRIES) {
+        if (attempt === PUBLISH_MAX_RETRIES) {
           logger.error(`FileDocStore append failed for ${name}`, { error: getErrorMessage(error) })
           throw error
         }
@@ -352,12 +364,14 @@ export class FileDocStore {
   }
 
   /**
-   * Try to claim the right to persist this file for the current debounce window, so concurrent tasks
-   * editing the same file don't each write a redundant blob version. Returns true (proceed) when
-   * disabled, or when this task wins a short lock. The final last-collaborator flush does NOT gate on
-   * this — it must always write.
+   * A best-effort TTL dedup WINDOW (NOT a lock): claim the right to run a debounced persist for the next
+   * `ttlMs`, so concurrent tasks editing the same file don't each write a redundant blob version. It is
+   * never released — it simply expires after `ttlMs`, gating the debounced persist to ~once per window
+   * cluster-wide. Fails OPEN (returns true on a Redis error): a redundant persist is a harmless
+   * idempotent write, so it must never block a real one. The final last-collaborator flush does NOT gate
+   * on this — it must always write.
    */
-  async acquirePersistSlot(name: string, ttlMs: number): Promise<boolean> {
+  async tryClaimPersistWindow(name: string, ttlMs: number): Promise<boolean> {
     if (!this.enabled || !this.write) return true
     try {
       const won = await this.write.set(`${PERSIST_LOCK_PREFIX}${name}`, '1', {
@@ -388,7 +402,10 @@ export class FileDocStore {
 
   private applyEntry(room: StoreRoom, id: string, message: Record<string, string>): void {
     room.lastId = id
-    applyEntryToDoc(room.doc, id, message, REDIS_ORIGIN)
+    // A compaction snapshot folds seed + edits into one frame; stamp it so the relay's edit-tracker
+    // treats a fresh catch-up from it as edited (a snapshot only exists once real edits accumulated).
+    const origin = message[SNAPSHOT_FIELD] ? REDIS_SNAPSHOT_ORIGIN : REDIS_ORIGIN
+    applyEntryToDoc(room.doc, id, message, origin)
   }
 
   /**
@@ -397,21 +414,24 @@ export class FileDocStore {
    */
   private async runReader(): Promise<void> {
     while (this.running && this.read) {
-      const snapshot = [...this.rooms.entries()]
-      if (snapshot.length === 0) {
+      const snapshot = new Map(this.rooms)
+      if (snapshot.size === 0) {
         await sleep(IDLE_POLL_MS)
         continue
       }
       try {
         const res = await this.read.xRead(
-          snapshot.map(([name, room]) => ({ key: streamKey(name), id: room.lastId })),
+          [...snapshot].map(([name, room]) => ({ key: streamKey(name), id: room.lastId })),
           { BLOCK: READ_BLOCK_MS, COUNT: READ_COUNT }
         )
         if (!res) continue
         for (const stream of res) {
           const name = stream.name.slice(STREAM_PREFIX.length)
           const room = this.rooms.get(name)
-          if (!room) continue // detached mid-read; its doc is being destroyed
+          // Skip if detached mid-read, OR replaced by a close→reopen (a DIFFERENT StoreRoom): applying
+          // entries read against the OLD room's lastId to the new one could regress its lastId (harmless
+          // but wasteful re-delivery). The new room caught itself up via xRange already.
+          if (!room || room !== snapshot.get(name)) continue
           for (const entry of stream.messages) this.applyEntry(room, entry.id, entry.message)
         }
       } catch (error) {
@@ -446,7 +466,11 @@ export class FileDocStore {
         // appended snapshot id instead would silently drop those un-integrated peer entries.
         const upTo = room.lastId
         const snapshot = Buffer.from(Y.encodeStateAsUpdate(room.doc)).toString('base64')
-        await this.write.xAdd(streamKey(name), '*', { [UPDATE_FIELD]: snapshot })
+        // Mark it a snapshot so a fresh catch-up task treats it as edited content, not a bare seed.
+        await this.write.xAdd(streamKey(name), '*', {
+          [UPDATE_FIELD]: snapshot,
+          [SNAPSHOT_FIELD]: '1',
+        })
         // MINID keeps entries with id >= upTo: the snapshot, any un-integrated peer entries, and
         // `upTo` itself (redundant with the snapshot, harmless); it drops only the folded older deltas.
         await this.write.xTrim(streamKey(name), 'MINID', upTo)
@@ -485,9 +509,4 @@ export async function initFileDocStore(redisUrl: string | undefined): Promise<Fi
 export function getFileDocStore(): FileDocStore {
   if (!store) store = new FileDocStore(undefined)
   return store
-}
-
-/** Test-only: reset the singleton so a test can install its own instance. */
-export function __setFileDocStoreForTest(next: FileDocStore | null): void {
-  store = next
 }
