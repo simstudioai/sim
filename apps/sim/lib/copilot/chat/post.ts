@@ -143,6 +143,8 @@ const ChatContextSchema = z.object({
     'logs',
     'workflow_block',
     'knowledge',
+    // Inert today: processContextsServer drops docs contexts. Kept in the
+    // schema so a future @Docs mention can resolve through search_docs.
     'docs',
     'table',
     'file',

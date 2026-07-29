@@ -28,6 +28,11 @@ export type ChatContext =
   | { kind: 'folder'; folderId: string; label: string }
   | { kind: 'filefolder'; fileFolderId: string; label: string }
   | { kind: 'scheduledtask'; scheduleId: string; label: string }
+  /**
+   * Inert today: the server drops it in processContextsServer. Kept so a
+   * future @Docs mention can be revived on the search_docs backend instead of
+   * reintroducing the kind across the wire schema and this union.
+   */
   | { kind: 'docs'; label: string }
   /**
    * A tab in the desktop browser or terminal panel, dragged into the input to

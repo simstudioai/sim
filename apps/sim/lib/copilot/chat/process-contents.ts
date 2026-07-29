@@ -219,9 +219,11 @@ export async function processContextsServer(
           path: result.path,
         }
       }
-      // `docs` contexts are intentionally inert: @docs tagging is disabled while
-      // the docs corpus moves to the `docs/` VFS tree. A tagged context resolves
-      // to nothing and is filtered out below.
+      // `docs` contexts are intentionally inert: @docs tagging is disabled now
+      // that the docs corpus lives in the `docs/` VFS tree. If @Docs returns,
+      // resolve it here through searchDocs (the search_docs backend) rather
+      // than reviving the retired whole-message pre-search. A tagged context
+      // resolves to nothing and is filtered out below.
       return null
     } catch (error) {
       logger.error('Failed processing context (server)', { ctx, error })
