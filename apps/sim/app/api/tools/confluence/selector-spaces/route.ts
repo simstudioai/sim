@@ -167,14 +167,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           new URLSearchParams({ keys: spaceKey, limit: String(PAGE_LIMIT), status: 'archived' })
         ),
       ])
-      if (!current.ok) return current.response
-      if (!archived.ok) return archived.response
+      // Only a total failure is fatal: one leg erroring must not discard a match
+      // the other leg found.
+      if (!current.ok && !archived.ok) return current.response
 
       // A single resolution, never a page in a drained stream, so no cursor.
       return NextResponse.json({
         spaces: [
-          ...toSpaces(current.data.results, 'current'),
-          ...toSpaces(archived.data.results, 'archived'),
+          ...(current.ok ? toSpaces(current.data.results, 'current') : []),
+          ...(archived.ok ? toSpaces(archived.data.results, 'archived') : []),
         ],
         nextCursor: undefined,
       })
