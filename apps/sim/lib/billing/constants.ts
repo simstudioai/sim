@@ -43,12 +43,23 @@ export const BILLING_LOCK_TIMEOUT_MS = 5_000
  * Available credit tiers. Each tier maps a credit amount to the underlying dollar cost.
  * 1 credit = $0.005, so credits = dollars * 200.
  */
-export const CREDIT_TIERS = [
-  { credits: 6000, dollars: 25, name: 'Pro' },
-  { credits: 25000, dollars: 100, name: 'Max' },
-] as const
+const PRO_CREDIT_TIER = { credits: 6000, dollars: 25, name: 'Pro' } as const
+const MAX_CREDIT_TIER = { credits: 25000, dollars: 100, name: 'Max' } as const
+
+export const CREDIT_TIERS = [PRO_CREDIT_TIER, MAX_CREDIT_TIER] as const
 
 export type CreditTier = (typeof CREDIT_TIERS)[number]
+
+/**
+ * Credit allocation at which a paid plan enters the Max tier.
+ *
+ * Derived from the tier table above so the threshold can never drift from it.
+ * Do not re-spell this number: every "is this Max?" decision goes through
+ * `isMaxTier` in `@/lib/billing/plan-helpers`, which reads this constant. The
+ * server feature gates and the client `hasUsableMaxAccess` derivation share that
+ * predicate precisely so the UI can never offer a feature the API refuses.
+ */
+export const MAX_TIER_CREDITS = MAX_CREDIT_TIER.credits
 
 /**
  * Credits granted per dollar of plan spend. A credit is $0.005, so a dollar

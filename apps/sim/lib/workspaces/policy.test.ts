@@ -91,6 +91,76 @@ describe('getWorkspaceCreationPolicy', () => {
     expect(result.currentWorkspaceCount).toBe(5)
   })
 
+  // The Max cap previously read `isMax`, which required `isPro` and so excluded
+  // both `team_25000` and `enterprise`. Those tiers fell to the `isPro ? 3 : 1`
+  // branch and got ONE personal workspace — fewer than a plain Pro's three.
+  it('gives the team plan at the Max credit tier the same ten personal workspaces as Max', async () => {
+    mockGetUserOrganization.mockResolvedValue({
+      organizationId: 'org-1',
+      role: 'owner',
+      memberId: 'member-1',
+    })
+    // A past_due org subscription is not `hasUsableSubscriptionStatus`, so the
+    // organization branch does not apply and the personal cap decides.
+    mockGetOrganizationSubscription.mockResolvedValue({
+      id: 'sub-1',
+      plan: 'team_25000',
+      status: 'past_due',
+    })
+    mockGetHighestPrioritySubscription.mockResolvedValueOnce({
+      id: 'sub-1',
+      plan: 'team_25000',
+      status: 'past_due',
+    })
+    queueTableRows(workspace, [{ value: 5 }])
+
+    const result = await getWorkspaceCreationPolicy({ userId: 'user-1' })
+
+    expect(result.canCreate).toBe(true)
+    expect(result.workspaceMode).toBe(WORKSPACE_MODE.PERSONAL)
+    expect(result.maxWorkspaces).toBe(10)
+  })
+
+  it('gives an enterprise payer ten personal workspaces despite carrying no credit suffix', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValueOnce({
+      id: 'sub-1',
+      plan: 'enterprise',
+      status: 'active',
+    })
+    queueTableRows(workspace, [{ value: 5 }])
+
+    const result = await getWorkspaceCreationPolicy({ userId: 'user-1' })
+
+    expect(result.canCreate).toBe(true)
+    expect(result.workspaceMode).toBe(WORKSPACE_MODE.PERSONAL)
+    expect(result.maxWorkspaces).toBe(10)
+  })
+
+  // The personal cap is only a fallback: an enterprise org admin is routed to
+  // organization mode and is uncapped, which is why the bug above stayed hidden.
+  it('leaves enterprise organization workspaces uncapped for org admins', async () => {
+    mockGetUserOrganization.mockResolvedValueOnce({
+      organizationId: 'org-1',
+      role: 'owner',
+      memberId: 'member-1',
+    })
+    mockGetOrganizationSubscription.mockResolvedValueOnce({
+      id: 'sub-1',
+      plan: 'enterprise',
+      status: 'active',
+    })
+    queueTableRows(member, [{ userId: 'owner-1' }])
+
+    const result = await getWorkspaceCreationPolicy({
+      userId: 'user-1',
+      activeOrganizationId: 'org-1',
+    })
+
+    expect(result.canCreate).toBe(true)
+    expect(result.workspaceMode).toBe(WORKSPACE_MODE.ORGANIZATION)
+    expect(result.maxWorkspaces).toBeNull()
+  })
+
   it('blocks max users once they already own ten personal workspaces', async () => {
     mockGetHighestPrioritySubscription.mockResolvedValueOnce({
       id: 'sub-1',

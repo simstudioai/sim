@@ -9,7 +9,7 @@ import {
   getHighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
 import {
-  getPlanTierCredits,
+  isMaxTier,
   isOrgPlan,
   isEnterprise as isPlanEnterprise,
   isPro as isPlanPro,
@@ -500,60 +500,60 @@ export async function hasSSOAccess(userId: string): Promise<boolean> {
 }
 
 /**
- * Check whether a workspace is entitled to the Access Control (Permission Groups)
- * feature. Entitlement follows the workspace's `billedAccountUserId`:
+ * Check whether a workspace is entitled to workspace-scoped enterprise features
+ * — today, copilot BYOK. Entitlement follows the workspace's billing entity:
  * - self-hosted override honored via ACCESS_CONTROL_ENABLED, OR
  * - billing disabled, OR
  * - the workspace belongs to an enterprise-plan organization (org-mode), OR
  * - the billed user has an individual enterprise subscription (personal workspace).
+ *
+ * Org-scoped Access Control (Permission Groups) gates on
+ * {@link isOrganizationOnEnterprisePlan} instead — it has no workspace to resolve.
  */
 export async function isWorkspaceOnEnterprisePlan(workspaceId: string): Promise<boolean> {
   try {
     if (!isBillingEnabled) return true
     if (isAccessControlEnabled && !isHosted) return true
 
-    const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
-    const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
-    if (!ws) return false
-
-    if (ws.organizationId) {
-      return isOrganizationOnEnterprisePlan(ws.organizationId)
-    }
-
-    const billedSub = await getHighestPriorityPersonalSubscription(ws.billedAccountUserId)
-    return !!billedSub && checkEnterprisePlan(billedSub)
+    return await hasWorkspaceTierAccess(workspaceId, isPlanEnterprise)
   } catch (error) {
     logger.error('Error checking workspace enterprise plan status', { error, workspaceId })
     return false
   }
 }
 
-const MAX_PLAN_CREDITS = 25000
-
 /**
- * Whether a plan tier is Max or above: a Max tier (credits >= 25000, covering
- * `pro_25000` and `team_25000`) or any enterprise plan. Subscription status
- * (usable vs entitled) is gated by callers before this runs — the predicate is
- * tier-only.
+ * How a workspace tier gate treats subscription status and billing-blocked state.
  *
- * Shared by the inbox (Sim Mailer) and custom sandboxes, which sit on the same
- * entitlement tier.
+ * - `'active-use'` — the payer must hold an `active` subscription and must not be
+ *   billing-blocked. Correct for gating use of a feature.
+ * - `'retention'` — `active` and `past_due` both count, and block state is
+ *   ignored, so a transient payment failure never triggers destructive teardown of
+ *   already-provisioned infrastructure. Only reconciliation guards want this.
  */
-function isMaxTierPlan(plan: string): boolean {
-  return getPlanTierCredits(plan) >= MAX_PLAN_CREDITS || isPlanEnterprise(plan)
+type WorkspaceTierIntent = 'active-use' | 'retention'
+
+interface WorkspaceTierAccessOptions {
+  intent?: WorkspaceTierIntent
+  /**
+   * Result when the workspace row no longer exists. Teardown guards pass `true`
+   * so a missing workspace never reads as "safe to destroy".
+   */
+  onMissingWorkspace?: boolean
 }
 
 /**
- * Whether the workspace's payer is on a usable Max-or-Enterprise subscription.
+ * Whether the workspace's payer is on a plan satisfying `isTierEntitled`.
  *
  * Entitlement follows the workspace's billing entity — not the acting user — so
  * any workspace admin (including an external member) qualifies when the
  * workspace's organization, or its billed account for personal workspaces, is on
- * a Max or enterprise plan.
+ * a qualifying plan.
  *
- * This is the whole tier check. Callers add only their own feature's env
- * override on top; keeping the resolution here is what stops the Max-gated
- * features from drifting apart as billing edge cases are handled.
+ * This is the single payer resolution behind every workspace-scoped tier gate.
+ * Callers supply only the tier predicate and their own feature's env override;
+ * keeping the org/personal fork here is what stops the gates from drifting apart
+ * as billing edge cases are handled.
  *
  * The personal branch reads `getEffectiveBillingStatus`, NOT `userStats.billingBlocked`
  * directly. Both express the same shipped policy — `blockOrgMembers` fans a
@@ -564,10 +564,27 @@ function isMaxTierPlan(plan: string): boolean {
  * delinquent org still covers them. Re-deriving from membership is what makes
  * the read agree with the policy in those cases.
  */
-async function hasMaxTierWorkspaceAccess(workspaceId: string): Promise<boolean> {
+async function hasWorkspaceTierAccess(
+  workspaceId: string,
+  isTierEntitled: (plan: string) => boolean,
+  options: WorkspaceTierAccessOptions = {}
+): Promise<boolean> {
+  const { intent = 'active-use', onMissingWorkspace = false } = options
+
   const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
   const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
-  if (!ws) return false
+  if (!ws) return onMissingWorkspace
+
+  if (intent === 'retention') {
+    if (ws.organizationId) {
+      const { getOrganizationSubscription } = await import('@/lib/billing/core/billing')
+      const orgSub = await getOrganizationSubscription(ws.organizationId)
+      return !!orgSub && isTierEntitled(orgSub.plan)
+    }
+
+    const billedSub = await getHighestPriorityPersonalSubscription(ws.billedAccountUserId)
+    return !!billedSub && isTierEntitled(billedSub.plan)
+  }
 
   if (ws.organizationId) {
     const [billingBlocked, orgSub] = await Promise.all([
@@ -576,7 +593,7 @@ async function hasMaxTierWorkspaceAccess(workspaceId: string): Promise<boolean> 
     ])
     if (!orgSub) return false
     if (!hasUsableSubscriptionAccess(orgSub.status, billingBlocked)) return false
-    return isMaxTierPlan(orgSub.plan)
+    return isTierEntitled(orgSub.plan)
   }
 
   const [billedSub, billingStatus] = await Promise.all([
@@ -585,7 +602,16 @@ async function hasMaxTierWorkspaceAccess(workspaceId: string): Promise<boolean> 
   ])
   if (!billedSub) return false
   if (!hasUsableSubscriptionAccess(billedSub.status, billingStatus.billingBlocked)) return false
-  return isMaxTierPlan(billedSub.plan)
+  return isTierEntitled(billedSub.plan)
+}
+
+/**
+ * Whether the workspace's payer is on a usable Max-or-Enterprise subscription.
+ * Shared by the inbox (Sim Mailer), live sync, and custom sandboxes, which all
+ * sit on the same entitlement tier.
+ */
+async function hasMaxTierWorkspaceAccess(workspaceId: string): Promise<boolean> {
+  return hasWorkspaceTierAccess(workspaceId, isMaxTier)
 }
 
 /**
@@ -629,18 +655,10 @@ export async function hasWorkspaceInboxGraceAccess(workspaceId: string): Promise
     if (isInboxEnabled) return true
     if (!isBillingEnabled) return true
 
-    const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
-    const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
-    if (!ws) return true
-
-    if (ws.organizationId) {
-      const { getOrganizationSubscription } = await import('@/lib/billing/core/billing')
-      const orgSub = await getOrganizationSubscription(ws.organizationId)
-      return !!orgSub && isMaxTierPlan(orgSub.plan)
-    }
-
-    const billedSub = await getHighestPriorityPersonalSubscription(ws.billedAccountUserId)
-    return !!billedSub && isMaxTierPlan(billedSub.plan)
+    return await hasWorkspaceTierAccess(workspaceId, isMaxTier, {
+      intent: 'retention',
+      onMissingWorkspace: true,
+    })
   } catch (error) {
     logger.error('Error checking workspace inbox grace access', { error, workspaceId })
     return true

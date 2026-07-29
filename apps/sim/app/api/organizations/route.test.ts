@@ -41,12 +41,13 @@ vi.mock('@/lib/billing/organizations/create-organization', () => ({
   OrganizationSlugTakenError: class OrganizationSlugTakenError extends Error {},
 }))
 
+/** Mirrors the real predicate, which also admits the `team_*` credit tiers. */
 vi.mock('@/lib/billing/plan-helpers', () => ({
-  isOrgPlan: (plan: string) => plan === 'team' || plan === 'enterprise',
+  isOrgPlan: (plan: string) => plan === 'team' || plan.startsWith('team_') || plan === 'enterprise',
 }))
 
 vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'trialing'],
+  ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'past_due'],
 }))
 
 vi.mock('@/lib/workspaces/organization-workspaces', () => ({

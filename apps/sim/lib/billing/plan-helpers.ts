@@ -16,6 +16,7 @@ import {
   CREDIT_TIERS,
   DEFAULT_PRO_TIER_COST_LIMIT,
   DEFAULT_TEAM_TIER_COST_LIMIT,
+  MAX_TIER_CREDITS,
 } from '@/lib/billing/constants'
 
 export type PlanCategory = 'free' | 'pro' | 'team' | 'enterprise'
@@ -25,8 +26,19 @@ export function isPro(plan: string | null | undefined): boolean {
   return plan === 'pro' || plan.startsWith('pro_')
 }
 
-export function isMax(plan: string | null | undefined): boolean {
-  return isPro(plan) && getPlanTierCredits(plan) >= 25000
+/**
+ * Whether a plan is Max tier or above: any paid plan at or above the Max credit
+ * allocation (covering both `pro_25000` and `team_25000`), or any enterprise plan.
+ *
+ * Tier-only — subscription status and billing-blocked state are the caller's
+ * responsibility. This is the single definition of "Max" in the codebase: the
+ * server feature gates (inbox, live sync, sandboxes), the client
+ * `hasUsableMaxAccess` derivation, and the personal-workspace cap all route
+ * through it, so a Max-gated surface can never render unlocked against a server
+ * that will refuse it.
+ */
+export function isMaxTier(plan: string | null | undefined): boolean {
+  return getPlanTierCredits(plan) >= MAX_TIER_CREDITS || isEnterprise(plan)
 }
 
 export function isTeam(plan: string | null | undefined): boolean {
@@ -107,7 +119,7 @@ export function getPlanType(plan: string | null | undefined): PlanCategory {
 export function getPlanTypeForLimits(plan: string | null | undefined): PlanCategory {
   if (plan === 'pro' || plan === 'team') return getPlanType(plan)
   if (isPro(plan) || isTeam(plan)) {
-    return getPlanTierCredits(plan) >= 25000 ? 'team' : 'pro'
+    return getPlanTierCredits(plan) >= MAX_TIER_CREDITS ? 'team' : 'pro'
   }
   return getPlanType(plan)
 }
@@ -136,13 +148,17 @@ export function getValidPlanNames(type: 'pro' | 'team'): string[] {
 /**
  * SQL-level plan filters for Drizzle queries.
  * These are the SQL equivalents of the JS helpers above.
+ *
+ * The `_` in the plan-name separator is escaped because it is a single-character
+ * wildcard in SQL `LIKE`. Unescaped, `'pro_%'` would also match `proX…`, making
+ * these filters admit a wider set than their JS counterparts.
  */
 export function sqlIsPro(column: AnyColumn): SQL | undefined {
-  return or(eq(column, 'pro'), like(column, 'pro_%'))
+  return or(eq(column, 'pro'), like(column, 'pro\\_%'))
 }
 
 export function sqlIsTeam(column: AnyColumn): SQL | undefined {
-  return or(eq(column, 'team'), like(column, 'team_%'))
+  return or(eq(column, 'team'), like(column, 'team\\_%'))
 }
 
 export function sqlIsPaid(column: AnyColumn): SQL | undefined {

@@ -17,7 +17,6 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { ExternalLink, RotateCcw } from 'lucide-react'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
 import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
@@ -194,7 +193,7 @@ export function EditConnectorModal({
   const { ownerBilling } = useWorkspaceHostContext()
   const { mutate: updateConnector, isPending: isSaving } = useUpdateConnector()
 
-  const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling, isBillingEnabled)
+  const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
 
   const persistedCanonicalModes = useMemo(
     () => readPersistedCanonicalModes(connector.sourceConfig),

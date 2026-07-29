@@ -7,7 +7,7 @@ import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getUserOrganization } from '@/lib/billing/organizations/membership'
 import type { PlanCategory } from '@/lib/billing/plan-helpers'
-import { getPlanType, isEnterprise, isMax, isPro, isTeam } from '@/lib/billing/plan-helpers'
+import { getPlanType, isEnterprise, isMaxTier, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import {
@@ -367,7 +367,17 @@ export async function getWorkspaceCreationPolicy({
 
   const highestPrioritySubscription = await getHighestPrioritySubscription(userId)
   const plan = highestPrioritySubscription?.plan
-  const maxWorkspaces = isMax(plan) ? 10 : isPro(plan) ? 3 : 1
+  /**
+   * Personal (non-organization) workspace cap. Organization workspaces are
+   * uncapped and returned above, so this is only reached when the org branch does
+   * not apply — including when a Team/Enterprise org's subscription is `past_due`
+   * and therefore not `hasUsableSubscriptionStatus`.
+   *
+   * Deliberately tier-only: `getHighestPrioritySubscription` already admits
+   * `past_due`, and delinquency is enforced by the billing-blocked gates rather
+   * than by shrinking the cap, which would only obstruct recovery.
+   */
+  const maxWorkspaces = isMaxTier(plan) ? 10 : isPro(plan) ? 3 : 1
   const currentWorkspaceCount = await countNonOrganizationOwnedWorkspaces(userId)
 
   if (currentWorkspaceCount >= maxWorkspaces) {

@@ -34,7 +34,9 @@ vi.mock('@/lib/billing/core/plan', () => ({
 
 vi.mock('@/lib/billing/plan-helpers', () => ({
   getPlanTierCredits: mockGetPlanTierCredits,
-  isEnterprise: vi.fn().mockReturnValue(false),
+  isEnterprise: (plan: string | null | undefined) => plan === 'enterprise',
+  isMaxTier: (plan: string | null | undefined) =>
+    mockGetPlanTierCredits(plan) >= 25000 || plan === 'enterprise',
   isOrgPlan: (plan: string | null | undefined) =>
     plan === 'enterprise' || plan === 'team' || Boolean(plan?.startsWith('team_')),
   isPro: vi.fn(),
@@ -42,13 +44,14 @@ vi.mock('@/lib/billing/plan-helpers', () => ({
   sqlIsPaid: vi.fn(() => ({ type: 'sqlIsPaid' })),
 }))
 
+/** Mirrors the production sets exactly — a mock that widens them would let a gate regress unnoticed. */
 vi.mock('@/lib/billing/subscriptions/utils', () => ({
   checkEnterprisePlan: mockCheckEnterprisePlan,
   checkProPlan: vi.fn(),
   checkTeamPlan: vi.fn(),
-  ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'trialing'],
+  ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'past_due'],
   hasUsableSubscriptionAccess: mockHasUsableSubscriptionAccess,
-  USABLE_SUBSCRIPTION_STATUSES: ['active', 'trialing'],
+  USABLE_SUBSCRIPTION_STATUSES: ['active'],
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
@@ -203,22 +206,61 @@ describe('isWorkspaceOnEnterprisePlan', () => {
       billedAccountUserId: 'owner-1',
       organizationId: null,
     })
+    mockHasUsableSubscriptionAccess.mockImplementation(
+      (status: string | null, billingBlocked: boolean) => status === 'active' && !billingBlocked
+    )
+    mockGetEffectiveBillingStatus.mockResolvedValue({
+      billingBlocked: false,
+      billingBlockedReason: null,
+      blockedByOrgOwner: false,
+    })
   })
 
   it('uses only the exact personal subscription for a personal workspace payer', async () => {
     mockGetHighestPriorityPersonalSubscription.mockResolvedValue({
       referenceId: 'owner-1',
       plan: 'enterprise',
+      status: 'active',
     })
     mockGetHighestPrioritySubscription.mockResolvedValue({
       referenceId: 'unrelated-org',
       plan: 'enterprise',
+      status: 'active',
     })
-    mockCheckEnterprisePlan.mockReturnValue(true)
 
     await expect(isWorkspaceOnEnterprisePlan('ws-1')).resolves.toBe(true)
     expect(mockGetHighestPriorityPersonalSubscription).toHaveBeenCalledWith('owner-1')
     expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
+  })
+
+  // The organization branch has always required an `active`, unblocked payer via
+  // `isOrganizationOnEnterprisePlan`. The personal branch used to skip both checks,
+  // so a delinquent personal enterprise payer kept the feature while an org in the
+  // identical state lost it. These two pin the branches to the same policy.
+  it('denies a personal enterprise payer whose subscription is only past_due', async () => {
+    mockGetHighestPriorityPersonalSubscription.mockResolvedValue({
+      referenceId: 'owner-1',
+      plan: 'enterprise',
+      status: 'past_due',
+    })
+
+    await expect(isWorkspaceOnEnterprisePlan('ws-1')).resolves.toBe(false)
+  })
+
+  it('denies a personal enterprise payer who is billing-blocked through their org owner', async () => {
+    mockGetHighestPriorityPersonalSubscription.mockResolvedValue({
+      referenceId: 'owner-1',
+      plan: 'enterprise',
+      status: 'active',
+    })
+    mockGetEffectiveBillingStatus.mockResolvedValue({
+      billingBlocked: true,
+      billingBlockedReason: 'payment_failed',
+      blockedByOrgOwner: true,
+    })
+
+    await expect(isWorkspaceOnEnterprisePlan('ws-1')).resolves.toBe(false)
+    expect(mockGetEffectiveBillingStatus).toHaveBeenCalledWith('owner-1')
   })
 })
 

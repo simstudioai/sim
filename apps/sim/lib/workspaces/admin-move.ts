@@ -16,7 +16,12 @@ import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, asc, count, eq, ilike, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
+import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
+import {
+  ENTITLED_SUBSCRIPTION_STATUSES,
+  hasPaidSubscriptionStatus,
+} from '@/lib/billing/subscriptions/utils'
 import { enqueueOutboxEvent, type OutboxHandler } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 import { getInvitationById } from '@/lib/invitations/core'
@@ -31,7 +36,6 @@ import {
 import { WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
 const logger = createLogger('AdminWorkspaceMove')
-const ENTITLED_STATUSES = ['active', 'past_due'] as const
 
 export class WorkspaceMoveError extends Error {
   constructor(
@@ -200,7 +204,7 @@ export async function getWorkspaceMovePreflight(
       .where(
         and(
           eq(subscription.referenceId, destinationOrganizationId),
-          inArray(subscription.status, [...ENTITLED_STATUSES])
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
         )
       )
       .limit(1),
@@ -539,7 +543,7 @@ function getEnterpriseSeatCapacity(row?: {
   status: string | null
   metadata: unknown
 }): number | null {
-  if (!row || row.plan !== 'enterprise' || !ENTITLED_STATUSES.includes(row.status as 'active')) {
+  if (!row || !isEnterprise(row.plan) || !hasPaidSubscriptionStatus(row.status)) {
     return null
   }
   if (!row.metadata || typeof row.metadata !== 'object') return null

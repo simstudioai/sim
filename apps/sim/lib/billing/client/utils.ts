@@ -4,7 +4,7 @@
  */
 
 import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
-import { getPlanTierCredits, isEnterprise, isFree, isPro } from '@/lib/billing/plan-helpers'
+import { isFree, isMaxTier, isPro } from '@/lib/billing/plan-helpers'
 import { hasUsableSubscriptionAccess } from '@/lib/billing/subscriptions/utils'
 import { USAGE_PILL_COLORS } from './consts'
 import type { BillingStatus, SubscriptionData, UsageData } from './types'
@@ -54,8 +54,9 @@ export function getSubscriptionAccessState(
   const hasUsableTeamAccess =
     hasUsablePaidAccess && (status.isOrgScoped || status.isTeam || status.isEnterprise)
   const hasUsableEnterpriseAccess = hasUsablePaidAccess && status.isEnterprise
-  const hasUsableMaxAccess =
-    hasUsablePaidAccess && (getPlanTierCredits(status.plan) >= 25000 || isEnterprise(status.plan))
+  // isMaxTier is the same predicate the server gates use, so a Max-gated surface
+  // can never render unlocked against an API that will refuse it.
+  const hasUsableMaxAccess = hasUsablePaidAccess && isMaxTier(status.plan)
 
   return {
     ...status,

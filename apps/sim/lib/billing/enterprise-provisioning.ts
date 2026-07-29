@@ -21,10 +21,11 @@ import {
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { TERMINAL_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { withEnterpriseReconciliationLease } from '@/lib/billing/webhooks/enterprise-reconciliation-lease'
 import { enqueueOutboxEvent, type OutboxHandler } from '@/lib/core/outbox/service'
 
-const TERMINAL_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'])
+const TERMINAL_STATUSES = new Set<string>(TERMINAL_SUBSCRIPTION_STATUSES)
 
 function metadataRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -33,7 +34,7 @@ function metadataRecord(value: unknown): Record<string, unknown> {
 }
 
 function isNonterminalSubscriptionStatus(status: string | null | undefined): boolean {
-  return !status || !TERMINAL_SUBSCRIPTION_STATUSES.has(status)
+  return !status || !TERMINAL_STATUSES.has(status)
 }
 
 function subscriptionOrganizationId(metadata: unknown): string | null {
