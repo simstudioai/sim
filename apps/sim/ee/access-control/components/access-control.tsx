@@ -18,10 +18,16 @@ import { ArrowRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isAccessControlEnabled } from '@/lib/core/config/env-flags'
 import {
   groupIdParam,
   groupIdUrlKeys,
+  groupSearchParam,
+  groupSearchUrlKeys,
+  groupStatusParam,
+  groupStatusUrlKeys,
+  groupTabParam,
+  groupTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -67,9 +73,14 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
   const { data: organizationWorkspaces = [], isPending: workspacesLoading } =
     useOrganizationWorkspaces(organizationId, !!organizationId && currentUserIsOrgAdmin)
 
-  const accessControlEnabledLocally = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
+  /**
+   * Must be the resolved flag, not the raw `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED`
+   * read. The settings nav decides visibility from the same resolver, so
+   * reading the bare var here let a deployment with only `ENTERPRISE_ENABLED`
+   * set show the section and then refuse to manage it.
+   */
   const isEntitled =
-    accessControlEnabledLocally ||
+    isAccessControlEnabled ||
     !!userPermissionConfig?.entitled ||
     isEnterprise(organizationBillingData?.data?.subscriptionPlan)
   const canManage = isEntitled && currentUserIsOrgAdmin && !!organizationId
@@ -85,6 +96,45 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
     ...groupIdParam.parser,
     ...groupIdUrlKeys,
   })
+
+  // Params scoped to the detail sub-view are cleared alongside the group id, so
+  // a tab/search/filter can't linger on the list URL after going back. nuqs
+  // batches these same-tick writes into a single URL update.
+  const [, setGroupTab] = useQueryState(groupTabParam.key, {
+    ...groupTabParam.parser,
+    ...groupTabUrlKeys,
+  })
+  const [, setGroupSearch] = useQueryState(groupSearchParam.key, {
+    ...groupSearchParam.parser,
+    ...groupSearchUrlKeys,
+  })
+  const [, setGroupStatus] = useQueryState(groupStatusParam.key, {
+    ...groupStatusParam.parser,
+    ...groupStatusUrlKeys,
+  })
+
+  /**
+   * The detail view's tab/search/status params are scoped to one group, so both
+   * transitions reset them — otherwise a stale `group-id` that never resolves
+   * leaves them in the URL and the next group opens on the previous group's tab
+   * and filters. nuqs batches these same-tick writes into one URL update.
+   */
+  const openGroupDetail = useCallback(
+    (groupId: string) => {
+      void setSelectedGroupId(groupId)
+      void setGroupTab(null)
+      void setGroupSearch(null)
+      void setGroupStatus(null)
+    },
+    [setSelectedGroupId, setGroupTab, setGroupSearch, setGroupStatus]
+  )
+
+  const closeGroupDetail = useCallback(() => {
+    void setSelectedGroupId(null, { history: 'replace' })
+    void setGroupTab(null)
+    void setGroupSearch(null)
+    void setGroupStatus(null)
+  }, [setSelectedGroupId, setGroupTab, setGroupSearch, setGroupStatus])
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupDescription, setNewGroupDescription] = useState('')
@@ -169,8 +219,8 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
         workspaceOptions={workspaceOptions}
         organizationWorkspaces={organizationWorkspaces}
         workspacesLoading={workspacesLoading}
-        onBack={() => void setSelectedGroupId(null, { history: 'replace' })}
-        onDeleted={() => void setSelectedGroupId(null, { history: 'replace' })}
+        onBack={closeGroupDetail}
+        onDeleted={closeGroupDetail}
       />
     )
   }
@@ -207,7 +257,7 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
                 <button
                   key={group.id}
                   type='button'
-                  onClick={() => void setSelectedGroupId(group.id)}
+                  onClick={() => openGroupDetail(group.id)}
                   className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                 >
                   <div className='flex min-w-0 flex-1 flex-col'>

@@ -366,6 +366,16 @@ const defineConfluenceGetContract = <TQuery extends z.ZodType>(path: string, que
 
 export const confluenceSpacesSelectorBodySchema = credentialWorkflowDomainBodySchema.extend({
   cursor: optionalString,
+  /**
+   * Exact space key to resolve server-side, bypassing pagination. Confluence v2
+   * `/spaces` supports a `keys` filter, so a known key resolves in one request
+   * instead of depending on how far the background page drain has progressed.
+   */
+  spaceKey: z
+    .string()
+    .min(1, 'spaceKey cannot be empty')
+    .max(255, 'spaceKey must be 255 characters or fewer')
+    .optional(),
 })
 
 export const confluenceSpacesSelectorContract = definePostSelector(

@@ -26,6 +26,15 @@ export interface ColumnOption {
   label: string
 }
 
+/**
+ * One choice in a `select`/`multiselect` column. `id` is stable — cell data
+ * references it, so renaming an option never rewrites rows.
+ */
+export interface SelectOption {
+  id: string
+  name: string
+}
+
 export interface ColumnDefinition {
   /**
    * Stable storage key for this column. Row data, metadata, workflow-group
@@ -45,6 +54,13 @@ export interface ColumnDefinition {
    * `row.data[getColumnId(col)]` is populated by the group's per-cell run.
    */
   workflowGroupId?: string
+  /**
+   * Declared options for a `select` column. Cells store option ids — a single
+   * id when `multiple` is falsy, an array of ids when `multiple` is true.
+   */
+  options?: SelectOption[]
+  /** When true, a `select` column accepts several options per cell (string[]). */
+  multiple?: boolean
 }
 
 /** One group output → one plain column. */
@@ -239,8 +255,8 @@ export interface TableSchema {
 
 /**
  * Table-level metadata stored alongside the table definition. UI state only
- * (column widths, column order, pinned columns) — workflow-group concurrency
- * is enforced at the trigger.dev queue layer, not via metadata.
+ * (column widths, column order, pinned columns, hidden columns) — workflow-group
+ * concurrency is enforced at the trigger.dev queue layer, not via metadata.
  */
 export interface TableMetadata {
   /** Pixel widths keyed by **column id** (`getColumnId`). */
@@ -249,6 +265,26 @@ export interface TableMetadata {
   columnOrder?: string[]
   /** **Column ids** pinned to the left while scrolling horizontally. */
   pinnedColumns?: string[]
+  /**
+   * **Column ids** hidden from the grid. A deny-list, so a column added later is
+   * visible by default instead of needing to be re-enabled everywhere. Hiding is
+   * render-only — rows still arrive as whole JSONB blobs, so a hidden column's
+   * data is retained and reappears intact when it is unhidden.
+   */
+  hiddenColumns?: string[]
+}
+
+/**
+ * The saved shape of a table view: everything `TableMetadata` covers plus the
+ * row predicate and sort. Stored in `table_views.config`.
+ *
+ * `filter`/`sort` are what the view builder persists explicitly; the layout keys
+ * are inherited from `TableMetadata` and auto-save into the active view as the
+ * user resizes, reorders, pins, or hides columns.
+ */
+export interface TableViewConfig extends TableMetadata {
+  filter?: Filter | null
+  sort?: Sort | null
 }
 
 /** Async background-job lifecycle state for a table. NULL/undefined = idle (no job). */
@@ -332,6 +368,43 @@ export interface TableBackfillJobPayload {
   overwrite: boolean
 }
 
+/**
+ * The four independent mutation verbs a table lock can guard. `schema` covers
+ * column/workflow-group structure; `insert`/`update`/`delete` cover row data.
+ * Shared by the DB columns, the wire contract, the {@link TableLockedError},
+ * and the settings UI so all four agree on one source of truth.
+ */
+export const TABLE_LOCK_KINDS = ['schema', 'insert', 'update', 'delete'] as const
+export type TableLockKind = (typeof TABLE_LOCK_KINDS)[number]
+
+/**
+ * Per-table mutation locks. Each flag independently forbids one verb. Enforced
+ * at the `lib/table` service layer (see `lib/table/mutation-locks.ts`).
+ * Append-only = `{ update: true, delete: true }`; read-only = all four true.
+ */
+export interface TableLocks {
+  schemaLocked: boolean
+  insertLocked: boolean
+  updateLocked: boolean
+  deleteLocked: boolean
+}
+
+/** Maps each verb to the {@link TableLocks} flag that guards it. */
+export const TABLE_LOCK_FLAGS: Record<TableLockKind, keyof TableLocks> = {
+  schema: 'schemaLocked',
+  insert: 'insertLocked',
+  update: 'updateLocked',
+  delete: 'deleteLocked',
+}
+
+/** A fully-unlocked lock set — the state every new table is created in. */
+export const UNLOCKED_TABLE_LOCKS: TableLocks = {
+  schemaLocked: false,
+  insertLocked: false,
+  updateLocked: false,
+  deleteLocked: false,
+}
+
 export interface TableDefinition {
   id: string
   name: string
@@ -341,7 +414,11 @@ export interface TableDefinition {
   rowCount: number
   maxRows: number
   workspaceId: string
+  /** Folder the table lives in, or `null` at the workspace root. */
+  folderId?: string | null
   createdBy: string
+  /** Per-table mutation locks; absent-as-all-false is normalized on read. */
+  locks: TableLocks
   archivedAt?: Date | string | null
   createdAt: Date | string
   updatedAt: Date | string
@@ -493,6 +570,8 @@ export interface CreateTableData {
   schema: TableSchema
   workspaceId: string
   userId: string
+  /** Folder to create the table in. Omitted or `null` creates it at the workspace root. */
+  folderId?: string | null
   /** Optional stored row cap. Vestigial under plan-based enforcement (the column is no longer
    *  consulted on insert), but retained so callers that still set it type-check. */
   maxRows?: number
@@ -644,6 +723,32 @@ export interface UpdateColumnTypeData {
   tableId: string
   columnName: string
   newType: (typeof COLUMN_TYPES)[number]
+  /** Options to set when changing to a `select` type. */
+  options?: SelectOption[]
+  /** Whether the `select` column accepts multiple options per cell. */
+  multiple?: boolean
+  /**
+   * The `required` value the same request is about to set, when it changes type
+   * and constraints together. Those are separate transactions, so the
+   * conversion has to validate against the constraint the column will END UP
+   * with — otherwise it commits and the constraint write then fails.
+   */
+  required?: boolean
+}
+
+export interface UpdateColumnOptionsData {
+  tableId: string
+  columnName: string
+  options: SelectOption[]
+  /** Toggle single/multi selection alongside the options update. */
+  multiple?: boolean
+  /**
+   * The `required` value the same request is about to set. The constraint write
+   * is a separate transaction, so the options update has to validate against
+   * the constraint the column will END UP with — otherwise it clears cells and
+   * the constraint write then fails, leaving the removal committed.
+   */
+  required?: boolean
 }
 
 export interface UpdateColumnConstraintsData {

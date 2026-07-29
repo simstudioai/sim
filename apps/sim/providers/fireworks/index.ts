@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
@@ -11,7 +12,10 @@ import {
   supportsNativeStructuredOutputs,
 } from '@/providers/fireworks/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
+import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
+import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
@@ -263,10 +267,25 @@ export const fireworksProvider: ProviderConfig = {
           const toolName = toolCall.function.name
 
           try {
-            const toolArgs = JSON.parse(toolCall.function.arguments)
+            const toolArgs = parseToolArguments(toolCall.function.arguments, toolName)
             const tool = request.tools?.find((t) => t.id === toolName)
 
-            if (!tool) return null
+            if (!tool) {
+              const toolCallEndTime = Date.now()
+              return {
+                toolCall,
+                toolName,
+                toolParams: {},
+                result: {
+                  success: false,
+                  output: undefined,
+                  error: `Tool "${toolName}" is not available`,
+                },
+                startTime: toolCallStartTime,
+                endTime: toolCallEndTime,
+                duration: toolCallEndTime - toolCallStartTime,
+              }
+            }
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
             const result = await executeTool(toolName, executionParams, {
@@ -284,6 +303,9 @@ export const fireworksProvider: ProviderConfig = {
               duration: toolCallEndTime - toolCallStartTime,
             }
           } catch (error) {
+            if (isAbortError(error) || request.abortSignal?.aborted) {
+              throw error
+            }
             const toolCallEndTime = Date.now()
             logger.error('Error processing tool call (Fireworks):', {
               error: toError(error).message,
@@ -306,26 +328,21 @@ export const fireworksProvider: ProviderConfig = {
           }
         })
 
-        const executionResults = await Promise.allSettled(toolExecutionPromises)
+        const executionResults = await Promise.all(toolExecutionPromises)
+        const assistantMessage = currentResponse.choices[0]?.message
+        if (assistantMessage) {
+          currentMessages.push(
+            createOpenAICompatAssistantHistory({
+              message: assistantMessage,
+              toolCalls: toolCallsInResponse,
+              reasoningFields: ['reasoning_content'],
+            })
+          )
+        }
 
-        currentMessages.push({
-          role: 'assistant',
-          content: null,
-          tool_calls: toolCallsInResponse.map((tc) => ({
-            id: tc.id,
-            type: 'function',
-            function: {
-              name: tc.function.name,
-              arguments: tc.function.arguments,
-            },
-          })),
-        })
-
-        for (const settledResult of executionResults) {
-          if (settledResult.status === 'rejected' || !settledResult.value) continue
-
+        for (const executionResult of executionResults) {
           const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
-            settledResult.value
+            executionResult
 
           timeSegments.push({
             type: 'tool',
@@ -336,10 +353,12 @@ export const fireworksProvider: ProviderConfig = {
             toolCallId: toolCall.id,
           })
 
-          let resultContent: any
+          let resultContent: unknown
           if (result.success) {
-            toolResults.push(result.output!)
-            resultContent = result.output
+            if (isRecordLike(result.output)) {
+              toolResults.push(result.output)
+            }
+            resultContent = result.output ?? null
           } else {
             resultContent = {
               error: true,
@@ -417,85 +436,61 @@ export const fireworksProvider: ProviderConfig = {
       }
 
       if (iterationCount === MAX_TOOL_ITERATIONS) {
-        enrichLastModelSegmentFromChatCompletions(
-          timeSegments,
-          currentResponse,
-          currentResponse.choices[0]?.message?.tool_calls,
-          { model: request.model, provider: 'fireworks' }
-        )
-      }
-
-      if (request.stream) {
-        const accumulatedCost = calculateCost(requestedModel, tokens.input, tokens.output)
-
-        const streamingParams: ChatCompletionCreateParamsStreaming = {
-          ...payload,
-          messages: [...currentMessages],
-          tool_choice: 'none',
-          stream: true,
-          stream_options: { include_usage: true },
-        }
-
-        if (request.responseFormat) {
-          ;(streamingParams as any).messages = await applyResponseFormat(
-            streamingParams as any,
-            streamingParams.messages,
-            request.responseFormat,
-            requestedModel
-          )
-        }
-
-        const streamResponse = await client.chat.completions.create(
-          streamingParams,
-          request.abortSignal ? { signal: request.abortSignal } : undefined
-        )
-
-        const streamingResult = createStreamingExecution({
-          model: requestedModel,
-          providerStartTime,
-          providerStartTimeISO,
-          timing: {
-            kind: 'accumulated',
-            modelTime,
-            toolsTime,
-            firstResponseTime,
-            iterations: iterationCount + 1,
-            timeSegments,
-          },
-          initialTokens: { input: tokens.input, output: tokens.output, total: tokens.total },
-          initialCost: {
-            input: accumulatedCost.input,
-            output: accumulatedCost.output,
-            total: accumulatedCost.total,
-          },
-          toolCalls:
-            toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
-          streamFormat: 'agent-events-v1',
-          createStream: ({ output }) =>
-            createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
-              output.content = content
-              output.tokens = {
-                input: tokens.input + usage.prompt_tokens,
-                output: tokens.output + usage.completion_tokens,
-                total: tokens.total + usage.total_tokens,
-              }
-
-              const streamCost = calculateCost(
-                requestedModel,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              const tc = sumToolCosts(toolResults)
-              output.cost = {
-                input: accumulatedCost.input + streamCost.input,
-                output: accumulatedCost.output + streamCost.output,
-                toolCost: tc || undefined,
-                total: accumulatedCost.total + streamCost.total + tc,
-              }
-            }),
+        const pendingToolCalls = currentResponse.choices[0]?.message?.tool_calls
+        enrichLastModelSegmentFromChatCompletions(timeSegments, currentResponse, pendingToolCalls, {
+          model: request.model,
+          provider: 'fireworks',
         })
 
-        return streamingResult
+        if (pendingToolCalls?.length && !(request.responseFormat && hasActiveTools)) {
+          const finalPayload: any = {
+            ...payload,
+            messages: [...currentMessages],
+            tool_choice: 'none',
+          }
+
+          if (request.responseFormat) {
+            finalPayload.messages = await applyResponseFormat(
+              finalPayload,
+              finalPayload.messages,
+              request.responseFormat,
+              requestedModel
+            )
+          }
+
+          const finalStartTime = Date.now()
+          const finalResponse = await client.chat.completions.create(
+            finalPayload,
+            request.abortSignal ? { signal: request.abortSignal } : undefined
+          )
+          const finalEndTime = Date.now()
+          const finalDuration = finalEndTime - finalStartTime
+
+          timeSegments.push({
+            type: 'model',
+            name: 'Final answer after tool iteration limit',
+            startTime: finalStartTime,
+            endTime: finalEndTime,
+            duration: finalDuration,
+          })
+          modelTime += finalDuration
+
+          if (finalResponse.choices[0]?.message?.content) {
+            content = finalResponse.choices[0].message.content
+          }
+          if (finalResponse.usage) {
+            tokens.input += finalResponse.usage.prompt_tokens || 0
+            tokens.output += finalResponse.usage.completion_tokens || 0
+            tokens.total += finalResponse.usage.total_tokens || 0
+          }
+
+          enrichLastModelSegmentFromChatCompletions(
+            timeSegments,
+            finalResponse,
+            finalResponse.choices[0]?.message?.tool_calls,
+            { model: request.model, provider: 'fireworks' }
+          )
+        }
       }
 
       if (request.responseFormat && hasActiveTools) {
@@ -551,6 +546,45 @@ export const fireworksProvider: ProviderConfig = {
         )
       }
 
+      if (request.stream) {
+        const accumulatedCost = calculateCost(requestedModel, tokens.input, tokens.output)
+        const toolCost = sumToolCosts(toolResults)
+        const finalCost = {
+          input: accumulatedCost.input,
+          output: accumulatedCost.output,
+          toolCost: toolCost || undefined,
+          total: accumulatedCost.total + toolCost,
+        }
+
+        const streamingResult = createStreamingExecution({
+          model: requestedModel,
+          providerStartTime,
+          providerStartTimeISO,
+          timing: {
+            kind: 'accumulated',
+            modelTime,
+            toolsTime,
+            firstResponseTime,
+            iterations: timeSegments.filter((segment) => segment.type === 'model').length,
+            timeSegments,
+          },
+          initialTokens: { input: tokens.input, output: tokens.output, total: tokens.total },
+          initialCost: finalCost,
+          toolCalls:
+            toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
+          streamFormat: 'agent-events-v1',
+          createStream: ({ output, finalizeTiming }) => {
+            output.content = content
+            output.tokens = { input: tokens.input, output: tokens.output, total: tokens.total }
+            output.cost = finalCost
+            finalizeTiming()
+            return createSettledAgentEventStream(content)
+          },
+        })
+
+        return streamingResult
+      }
+
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
@@ -568,7 +602,7 @@ export const fireworksProvider: ProviderConfig = {
           modelTime: modelTime,
           toolsTime: toolsTime,
           firstResponseTime: firstResponseTime,
-          iterations: iterationCount + 1,
+          iterations: timeSegments.filter((segment) => segment.type === 'model').length,
           timeSegments: timeSegments,
         },
       }
@@ -591,6 +625,10 @@ export const fireworksProvider: ProviderConfig = {
       }
 
       logger.error('Error in Fireworks request:', errorDetails)
+      if (isAbortError(error) || request.abortSignal?.aborted) {
+        throw error
+      }
+
       throw new ProviderError(toError(error).message, {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,

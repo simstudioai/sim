@@ -1311,6 +1311,28 @@ export async function revokeInvitationWorkspaceGrant({
   })
 }
 
+/**
+ * Pending, unexpired invitations addressed to an email — the invitee-facing
+ * list (workspace-switcher Invitations section). Session-bound callers accept
+ * without a token, so the rows returned here must never need one.
+ */
+export async function listPendingInvitationsForEmail(
+  email: string
+): Promise<InvitationWithGrants[]> {
+  const rows = await db
+    .select()
+    .from(invitation)
+    .where(
+      and(
+        sql`lower(${invitation.email}) = ${normalizeEmail(email)}`,
+        eq(invitation.status, 'pending'),
+        sql`${invitation.expiresAt} > now()`
+      )
+    )
+    .orderBy(invitation.createdAt)
+  return Promise.all(rows.map((row) => hydrateInvitation(row)))
+}
+
 export async function listInvitationsForWorkspaces(workspaceIds: string[]) {
   if (workspaceIds.length === 0) return []
   return db

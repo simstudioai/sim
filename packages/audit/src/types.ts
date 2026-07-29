@@ -131,8 +131,12 @@ export const AuditAction = {
   // Organizations
   ORGANIZATION_CREATED: 'organization.created',
   ORGANIZATION_UPDATED: 'organization.updated',
+  ORGANIZATION_DELETED: 'organization.deleted',
   ORGANIZATION_SESSION_POLICY_UPDATED: 'organization.session_policy.updated',
   ORGANIZATION_SESSIONS_REVOKED: 'organization.sessions.revoked',
+  ORGANIZATION_DOMAIN_ADDED: 'organization.domain.added',
+  ORGANIZATION_DOMAIN_VERIFIED: 'organization.domain.verified',
+  ORGANIZATION_DOMAIN_REMOVED: 'organization.domain.removed',
   ORG_MEMBER_ADDED: 'org_member.added',
   ORG_MEMBER_REMOVED: 'org_member.removed',
   ORG_MEMBER_ROLE_CHANGED: 'org_member.role_changed',

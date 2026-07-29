@@ -305,20 +305,19 @@ export async function getWorkspaceCreationPolicy({
     if (organizationId && orgRole) {
       const billedAccountUserId = await requireOrganizationOwnerId(organizationId)
 
-      if (!isOrgAdminRole(orgRole)) {
-        return {
-          canCreate: false,
-          workspaceMode: WORKSPACE_MODE.ORGANIZATION,
-          organizationId,
-          billedAccountUserId,
-          maxWorkspaces: null,
-          currentWorkspaceCount: 0,
-          reason: 'Only organization owners and admins can create organization workspaces.',
-          status: 403,
-          observedOrganizationId: membership?.organizationId ?? null,
-        }
-      }
-
+      /**
+       * Members may create organization workspaces once billing is off.
+       *
+       * The admin-only rule exists because an organization workspace draws on
+       * the organization's paid seats and usage. Without billing there is
+       * nothing to draw on, and the rule instead produces a dead end: a user
+       * auto-joined as a plain member — by instance-organization mode, or by
+       * SSO organization provisioning — resolves to an organization context and
+       * is then refused any workspace at all, including the personal one they
+       * would have received before joining. Members could always create
+       * personal workspaces here, so this changes where a new workspace lands,
+       * not whether they may make one.
+       */
       return {
         canCreate: true,
         workspaceMode: WORKSPACE_MODE.ORGANIZATION,

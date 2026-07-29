@@ -7,13 +7,25 @@ minimumReleaseAge = 604800
 # dev builds, so every version is structurally younger than any age gate.
 # The exactly pinned Pi 0.80.10 packages were vetted for the cloud-review SDK
 # migration; they age out of the gate on 2026-07-24 — drop these four entries then.
-# next@16.2.11 and @next/env@16.2.11 are the official Vercel security patch for the
-# July 2026 advisories (SSRF, cache confusion, DoS, middleware bypass — GHSA-89xv-2m56-2m9x
-# et al.); published 2026-07-21, they age out of the gate on 2026-07-28 — drop these two
-# entries then.
+# next@16.2.11, @next/env@16.2.11 and the @next/swc-* binaries are the official Vercel
+# security patch for the July 2026 advisories (SSRF, cache confusion, DoS, middleware
+# bypass — GHSA-89xv-2m56-2m9x et al.); published 2026-07-21, they age out of the gate on
+# 2026-07-28 — drop these entries then. The swc binaries ship in lockstep with next and
+# MUST be excluded alongside it: they are next's platform-gated optionalDependencies, so
+# gating them out leaves them absent from bun.lock entirely, and `bun install
+# --frozen-lockfile` then installs no compiler at all — next falls back to downloading one
+# at build time, which fails in CI.
 # @anthropic-ai/sdk is exactly pinned to 0.114.0, vetted for the agent-events
 # streaming work (adaptive thinking display types + transform-json-schema);
 # published 2026-07-23, it ages out of the gate on 2026-07-30 — drop this entry then.
+# @e2b/code-interpreter (2.7.0, published 2026-07-23) and its `e2b` dependency
+# (2.36.1, published 2026-07-27) carry the fix for Pi's Create PR runs dying mid-stream
+# with "protocol error: received unsupported compressed output": e2b 2.36.0 moved envd's
+# Connect transport off the 2.0.0-rc.3 connect-web and onto undici 8 for Node >= 22.19.0,
+# which is this app's engine floor. Only these two are excluded — the rest of the chain
+# (@connectrpc/connect{,-web} 2.1.2, @bufbuild/protobuf 2.13.0, undici 8.8.0) already
+# clears the gate, and `tar` resolves to 7.5.21, which satisfies e2b's ^7.5.19 without
+# an exception. They age out on 2026-07-30 and 2026-08-03 — drop both entries then.
 minimumReleaseAgeExcludes = [
   "@typescript/native-preview",
   "@earendil-works/pi-agent-core",
@@ -22,7 +34,13 @@ minimumReleaseAgeExcludes = [
   "@earendil-works/pi-tui",
   "next",
   "@next/env",
+  "@next/swc-darwin-arm64",
+  "@next/swc-darwin-x64",
+  "@next/swc-linux-arm64-gnu",
+  "@next/swc-linux-x64-gnu",
   "@anthropic-ai/sdk",
+  "@e2b/code-interpreter",
+  "e2b",
 ]
 
 [run]

@@ -16,6 +16,7 @@ import {
   TeamSeatsOverview,
   TransferOwnershipDialog,
 } from '@/app/workspace/[workspaceId]/settings/components/team-management/components'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
   useCreateOrganization,
   useMemberRemovalImpact,
@@ -41,6 +42,7 @@ export function TeamManagement({
 }: TeamManagementProps) {
   const { data: session } = useSession()
   const { isInvitationsDisabled } = usePermissionConfig()
+  const [memberQuery, setMemberQuery] = useSettingsSearch()
 
   const { data: userSubscriptionData } = useSubscriptionData()
   const subscriptionAccess = getSubscriptionAccessState(userSubscriptionData?.data)
@@ -295,6 +297,11 @@ export function TeamManagement({
   return (
     <>
       <SettingsPanel
+        search={{
+          value: memberQuery,
+          onChange: setMemberQuery,
+          placeholder: 'Search members...',
+        }}
         actions={
           adminOrOwner
             ? [
@@ -327,6 +334,7 @@ export function TeamManagement({
           roster={roster ?? null}
           isLoadingRoster={isLoadingRoster}
           currentUserId={session?.user?.id ?? ''}
+          query={memberQuery}
           onRemoveMember={handleRemoveMember}
           onTransferOwnership={handleOpenTransferDialog}
         />

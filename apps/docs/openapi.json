@@ -985,6 +985,17 @@
         "responses": {
           "200": {
             "description": "A paginated list of workflows.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1035,6 +1046,171 @@
         }
       }
     },
+    "/api/v1/workflows/import": {
+      "post": {
+        "operationId": "importWorkflow",
+        "summary": "Import Workflow",
+        "description": "Create a new workflow in a workspace from an export payload produced by GET /api/v1/workflows/{id}/export. Block, edge, loop and parallel identifiers are regenerated, so the same payload can be imported repeatedly and alongside its source workflow. The workflow name is de-duplicated against the target folder. Requires write permission on the target workspace.",
+        "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v1/workflows/import\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"workspaceId\": \"a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64\", \"workflow\": {\"version\": \"1.0\", \"state\": {\"blocks\": {}, \"edges\": []}}}'"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The target workspace and the workflow payload to import.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "workflow"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The workspace to import the workflow into. Requires write permission.",
+                    "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+                  },
+                  "folderId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Optional folder to place the imported workflow in. Defaults to the workspace root.",
+                    "example": "8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "description": "Optional override for the imported workflow's name. Defaults to the name carried in the payload, then to \"Imported Workflow\".",
+                    "example": "Customer Support Agent (copy)"
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "description": "Optional override for the imported workflow's description. Defaults to the description carried in the payload.",
+                    "example": "Imported from the staging workspace"
+                  },
+                  "workflow": {
+                    "description": "The workflow to import. Accepts the export envelope returned by GET /api/v1/workflows/{id}/export, a bare workflow state object (`{ blocks, edges, ... }`), or a JSON string of either.",
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/WorkflowExport"
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "minProperties": 1,
+                        "description": "A bare workflow state object."
+                      },
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "A JSON string of either accepted object form."
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The workflow was imported.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "The newly created workflow.",
+                      "$ref": "#/components/schemas/ImportedWorkflow"
+                    },
+                    "limits": {
+                      "$ref": "#/components/schemas/Limits",
+                      "description": "Rate limit and usage information for the current API key."
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "id": "7d2e9f14-3a6b-4c8d-b1e5-9f0a2c7d4e83",
+                    "name": "Customer Support Agent (1)",
+                    "description": "Routes incoming support tickets",
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "folderId": null,
+                    "createdAt": "2026-06-20T14:15:22Z",
+                    "updatedAt": "2026-06-20T14:15:22Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "description": "The request body exceeds the 10 MB import limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Request body exceeds the maximum allowed size"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "423": {
+            "description": "The target folder is locked and cannot accept new workflows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Folder is locked"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
     "/api/v1/workflows/{id}": {
       "get": {
         "operationId": "getWorkflow",
@@ -1064,6 +1240,17 @@
         "responses": {
           "200": {
             "description": "Workflow details including input field definitions.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1091,6 +1278,103 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/workflows/{id}/export": {
+      "get": {
+        "operationId": "exportWorkflow",
+        "summary": "Export Workflow",
+        "description": "Export a workflow as a portable JSON envelope that POST /api/v1/workflows/import accepts verbatim. Credential and password field values stored on blocks are redacted from the payload, while `{{ENV_VAR}}` references and block positions are preserved. Workflow variables are returned as stored \u2014 they are plaintext configuration readable by anyone with workspace read, and secrets belong in environment variables, which travel as unresolved references. Requires read permission on the workflow's workspace. Returns 404 when the workflow does not exist or you do not have access to it. Workspace-scoped bindings (knowledge bases, workspace files, channels, projects, folders, MCP servers) are cleared, since those ids do not resolve in another workspace \u2014 an imported copy needs them re-selected.",
+        "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/workflows/{id}/export\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workflow export envelope.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "The workflow export envelope.",
+                      "$ref": "#/components/schemas/WorkflowExport"
+                    },
+                    "limits": {
+                      "$ref": "#/components/schemas/Limits",
+                      "description": "Rate limit and usage information for the current API key."
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "version": "1.0",
+                    "exportedAt": "2026-06-20T14:15:22Z",
+                    "workflow": {
+                      "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                      "name": "Customer Support Agent",
+                      "description": "Routes incoming support tickets",
+                      "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                      "folderId": null
+                    },
+                    "state": {
+                      "blocks": {},
+                      "edges": [],
+                      "loops": {},
+                      "parallels": {},
+                      "metadata": {
+                        "name": "Customer Support Agent",
+                        "description": "Routes incoming support tickets",
+                        "exportedAt": "2026-06-20T14:15:22Z"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1160,6 +1444,17 @@
         "responses": {
           "200": {
             "description": "Workflow deployed successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1245,6 +1540,17 @@
         "responses": {
           "200": {
             "description": "Workflow undeployed successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1351,6 +1657,17 @@
         "responses": {
           "200": {
             "description": "Workflow rolled back successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1637,6 +1954,17 @@
         "responses": {
           "200": {
             "description": "A paginated list of execution logs matching the filter criteria.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1715,6 +2043,17 @@
         "responses": {
           "200": {
             "description": "Detailed log entry with full execution data and cost breakdown.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1786,6 +2125,17 @@
         "responses": {
           "200": {
             "description": "Full execution state snapshot with workflow state and metadata.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1976,6 +2326,17 @@
         "responses": {
           "200": {
             "description": "A paginated list of audit log entries.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2059,6 +2420,17 @@
         "responses": {
           "200": {
             "description": "The audit log entry.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2183,6 +2555,17 @@
         "responses": {
           "200": {
             "description": "List of tables in the workspace.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2336,6 +2719,17 @@
         "responses": {
           "200": {
             "description": "Table created successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2430,6 +2824,17 @@
         "responses": {
           "200": {
             "description": "Table details.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2519,6 +2924,17 @@
         "responses": {
           "200": {
             "description": "Table deleted successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2641,6 +3057,17 @@
         "responses": {
           "200": {
             "description": "Column added successfully",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2769,6 +3196,17 @@
         "responses": {
           "200": {
             "description": "Column updated successfully",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2870,6 +3308,17 @@
         "responses": {
           "200": {
             "description": "Column deleted successfully",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2988,6 +3437,17 @@
         "responses": {
           "200": {
             "description": "Rows matching the query.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3161,6 +3621,17 @@
         "responses": {
           "200": {
             "description": "Row(s) inserted successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3395,6 +3866,17 @@
         "responses": {
           "200": {
             "description": "Rows deleted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3592,6 +4074,17 @@
         "responses": {
           "200": {
             "description": "Row data.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3700,6 +4193,17 @@
         "responses": {
           "200": {
             "description": "Row updated.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3785,6 +4289,17 @@
         "responses": {
           "200": {
             "description": "Row deleted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3913,6 +4428,17 @@
         "responses": {
           "200": {
             "description": "Row upserted successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4002,6 +4528,17 @@
         "responses": {
           "200": {
             "description": "List of workspace files.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4102,6 +4639,17 @@
         "responses": {
           "200": {
             "description": "File uploaded successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4249,6 +4797,15 @@
                   "type": "string",
                   "format": "date-time"
                 }
+              },
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
               }
             },
             "content": {
@@ -4308,6 +4865,17 @@
         "responses": {
           "200": {
             "description": "File deleted successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4378,6 +4946,17 @@
         "responses": {
           "200": {
             "description": "List of knowledge bases in the workspace.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4493,6 +5072,17 @@
         "responses": {
           "200": {
             "description": "Knowledge base created successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4584,6 +5174,17 @@
         "responses": {
           "200": {
             "description": "Knowledge base details.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4703,6 +5304,17 @@
         "responses": {
           "200": {
             "description": "Knowledge base updated successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4794,6 +5406,17 @@
         "responses": {
           "200": {
             "description": "Knowledge base deleted successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4937,6 +5560,17 @@
         "responses": {
           "200": {
             "description": "List of documents.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5077,6 +5711,17 @@
         "responses": {
           "200": {
             "description": "Document uploaded successfully. Processing will begin shortly.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5229,6 +5874,17 @@
         "responses": {
           "200": {
             "description": "Document details.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5324,6 +5980,17 @@
         "responses": {
           "200": {
             "description": "Document deleted successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5443,6 +6110,17 @@
         "responses": {
           "200": {
             "description": "Search results.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -7299,6 +7977,154 @@
             }
           }
         }
+      },
+      "WorkflowExportState": {
+        "type": "object",
+        "description": "The workflow graph. Block, edge, loop and parallel identifiers are regenerated on import, so a payload can be imported repeatedly without colliding with its source workflow.",
+        "properties": {
+          "blocks": {
+            "type": "object",
+            "description": "Map of block id to block definition, including canvas position and sub-block values.",
+            "additionalProperties": true,
+            "example": {}
+          },
+          "edges": {
+            "type": "array",
+            "description": "Connections between blocks.",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "example": []
+          },
+          "loops": {
+            "type": "object",
+            "description": "Loop container definitions, keyed by loop id.",
+            "additionalProperties": true,
+            "example": {}
+          },
+          "parallels": {
+            "type": "object",
+            "description": "Parallel container definitions, keyed by parallel id.",
+            "additionalProperties": true,
+            "example": {}
+          },
+          "metadata": {
+            "type": "object",
+            "description": "The source workflow's name, description and export timestamp.",
+            "properties": {
+              "name": {
+                "type": "string",
+                "example": "Customer Support Agent"
+              },
+              "description": {
+                "type": "string",
+                "example": "Routes incoming support tickets"
+              },
+              "exportedAt": {
+                "type": "string",
+                "format": "date-time",
+                "example": "2026-06-20T14:15:22Z"
+              }
+            }
+          },
+          "variables": {
+            "type": "object",
+            "description": "Workflow-level variables, keyed by variable id. Emitted as stored \u2014 treat as plaintext configuration, not a secret store.",
+            "additionalProperties": true,
+            "example": {}
+          }
+        }
+      },
+      "WorkflowExport": {
+        "type": "object",
+        "description": "A portable workflow export envelope. Pass this object straight back to POST /api/v1/workflows/import to recreate the workflow. Credential and password field values stored on blocks are redacted; `{{ENV_VAR}}` references and workflow variables are preserved as stored.",
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "Export format version.",
+            "enum": ["1.0"],
+            "example": "1.0"
+          },
+          "exportedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp of when the export was generated.",
+            "example": "2026-06-20T14:15:22Z"
+          },
+          "workflow": {
+            "type": "object",
+            "description": "Identity of the exported workflow at the time of export.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
+              },
+              "name": {
+                "type": "string",
+                "example": "Customer Support Agent"
+              },
+              "description": {
+                "type": "string",
+                "nullable": true,
+                "example": "Routes incoming support tickets"
+              },
+              "workspaceId": {
+                "type": "string",
+                "nullable": true,
+                "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+              },
+              "folderId": {
+                "type": "string",
+                "nullable": true,
+                "example": null
+              }
+            }
+          },
+          "state": {
+            "$ref": "#/components/schemas/WorkflowExportState"
+          }
+        }
+      },
+      "ImportedWorkflow": {
+        "type": "object",
+        "description": "The workflow created by an import.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier of the newly created workflow.",
+            "example": "7d2e9f14-3a6b-4c8d-b1e5-9f0a2c7d4e83"
+          },
+          "name": {
+            "type": "string",
+            "description": "The workflow name after de-duplication against the target folder.",
+            "example": "Customer Support Agent (1)"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "example": "Routes incoming support tickets"
+          },
+          "workspaceId": {
+            "type": "string",
+            "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+          },
+          "folderId": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-06-20T14:15:22Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-06-20T14:15:22Z"
+          }
+        }
       }
     },
     "responses": {
@@ -7374,13 +8200,22 @@
         }
       },
       "RateLimited": {
-        "description": "Rate limit exceeded. Wait for the duration specified in the Retry-After header before retrying.",
+        "description": "Rate limit exceeded. Wait for the duration specified in the Retry-After header before retrying. The X-RateLimit-* headers accompany every response from an authenticated v1 request \u2014 success and error alike \u2014 and are omitted only when the request fails authentication, since no rate-limit bucket is consulted in that case.",
         "headers": {
           "Retry-After": {
             "description": "Number of seconds to wait before retrying the request.",
             "schema": {
               "type": "integer"
             }
+          },
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/RateLimitLimit"
+          },
+          "X-RateLimit-Remaining": {
+            "$ref": "#/components/headers/RateLimitRemaining"
+          },
+          "X-RateLimit-Reset": {
+            "$ref": "#/components/headers/RateLimitReset"
           }
         },
         "content": {
@@ -7443,6 +8278,30 @@
               }
             }
           }
+        }
+      }
+    },
+    "headers": {
+      "RateLimitLimit": {
+        "description": "Maximum number of requests the bucket holds \u2014 its burst capacity, which is the per-minute allowance for your plan multiplied by a burst factor. `X-RateLimit-Remaining` counts down from this value, so `X-RateLimit-Limit - X-RateLimit-Remaining` is the number of requests currently consumed.",
+        "schema": {
+          "type": "integer",
+          "example": 400
+        }
+      },
+      "RateLimitRemaining": {
+        "description": "Requests still available in the current bucket. Never exceeds `X-RateLimit-Limit`.",
+        "schema": {
+          "type": "integer",
+          "example": 399
+        }
+      },
+      "RateLimitReset": {
+        "description": "ISO 8601 timestamp at which the bucket refills.",
+        "schema": {
+          "type": "string",
+          "format": "date-time",
+          "example": "2026-07-28T18:28:48.354Z"
         }
       }
     }

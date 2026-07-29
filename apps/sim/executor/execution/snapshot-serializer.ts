@@ -252,9 +252,14 @@ export function serializePauseSnapshot(
     startTime: metadataFromContext?.startTime ?? new Date().toISOString(),
     isClientSession: metadataFromContext?.isClientSession,
     executionMode: metadataFromContext?.executionMode,
-    // Preserve deployed-chat thinking gate across HITL pause/resume.
+    /** Preserve deployed-chat thinking gate across HITL pause/resume. */
     includeThinking: metadataFromContext?.includeThinking === true ? true : undefined,
-    // Preserve the run-level agent-events opt-in across HITL pause/resume.
+    /** Preserve false as distinct from a legacy snapshot with no independent tool policy. */
+    includeToolCalls:
+      typeof metadataFromContext?.includeToolCalls === 'boolean'
+        ? metadataFromContext.includeToolCalls
+        : undefined,
+    /** Preserve the run-level agent-events opt-in across HITL pause/resume. */
     agentEvents: metadataFromContext?.agentEvents === true ? true : undefined,
   }
 

@@ -1,7 +1,16 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { Badge, Button, ChipInput, ChipModalTabs, ChipSelect, Label, Skeleton } from '@sim/emcn'
+import {
+  Badge,
+  Button,
+  ChipCopyInput,
+  ChipInput,
+  ChipModalTabs,
+  ChipSelect,
+  Label,
+  Skeleton,
+} from '@sim/emcn'
 import { formatDateTime } from '@sim/utils/formatting'
 import { useQueryStates } from 'nuqs'
 import { AnthropicIcon, OpenAIIcon } from '@/components/icons'
@@ -377,7 +386,7 @@ function OverviewTab({
 }
 
 function LicensesTab({ environment }: { environment: MothershipEnv }) {
-  const { data, isLoading, refetch } = useMothershipLicenses(environment)
+  const { data, isLoading } = useMothershipLicenses(environment)
   const generateLicense = useGenerateLicense(environment)
   const [newName, setNewName] = useState('')
   const [newExpiry, setNewExpiry] = useState('')
@@ -395,11 +404,10 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
           setGeneratedKey(result.license_key)
           setNewName('')
           setNewExpiry('')
-          refetch()
         },
       }
     )
-  }, [newName, newExpiry, generateLicense, refetch])
+  }, [newName, newExpiry, generateLicense.mutate])
 
   return (
     <div className='flex flex-col gap-5'>
@@ -437,13 +445,11 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
       </div>
 
       {generatedKey && (
-        <div className='rounded-md border border-[var(--border)] bg-[var(--surface-hover)] p-3'>
-          <p className='mb-1 text-[var(--text-secondary)] text-caption'>
+        <div className='flex flex-col gap-1.5'>
+          <p className='text-[var(--text-secondary)] text-caption'>
             License key (only shown once):
           </p>
-          <code className='block break-all font-mono text-[var(--text-primary)] text-caption'>
-            {generatedKey}
-          </code>
+          <ChipCopyInput value={generatedKey} copyLabel='Copy license key' />
         </div>
       )}
 

@@ -6,10 +6,12 @@ import { createLogger } from '@sim/logger'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { client, useSession } from '@/lib/auth/auth-client'
-import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
+import { getEnv, isFalsy } from '@/lib/core/config/env'
+import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { captureClientEvent, captureEvent } from '@/lib/posthog/client'
+import { buildAuthCrossLink, POST_AUTH_REDIRECT_STORAGE_KEY } from '@/app/(auth)/auth-redirect'
 import {
   AuthDivider,
   AuthField,
@@ -343,9 +345,12 @@ function SignupFormContent({
 
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('verificationEmail', emailValue)
-        if (isInviteFlow && redirectUrl) {
-          sessionStorage.setItem('inviteRedirectUrl', redirectUrl)
-          sessionStorage.setItem('isInviteFlow', 'true')
+        if (redirectUrl) {
+          sessionStorage.setItem(POST_AUTH_REDIRECT_STORAGE_KEY, redirectUrl)
+        } else {
+          // Clear any leftover from an earlier signup in this tab — otherwise a
+          // signup with no callbackUrl inherits the previous CLI/invite destination.
+          sessionStorage.removeItem(POST_AUTH_REDIRECT_STORAGE_KEY)
         }
       }
 
@@ -356,7 +361,7 @@ function SignupFormContent({
     }
   }
 
-  const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
+  const ssoEnabled = isSsoEnabled
   const emailEnabled =
     !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && emailSignupEnabled
   const hasSocial = githubAvailable || googleAvailable || microsoftAvailable
@@ -468,7 +473,7 @@ function SignupFormContent({
 
       <AuthNavPrompt
         prompt='Already have an account?'
-        href={isInviteFlow ? `/login?invite_flow=true&callbackUrl=${redirectUrl}` : '/login'}
+        href={buildAuthCrossLink('/login', { callbackUrl: redirectUrl || null, isInviteFlow })}
         linkLabel='Sign in'
       />
 

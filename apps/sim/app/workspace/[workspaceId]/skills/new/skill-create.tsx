@@ -50,11 +50,7 @@ export function SkillCreate({ workspaceId }: SkillCreateProps) {
   const [contentSeed, setContentSeed] = useState(0)
   const [errors, setErrors] = useState<SkillFieldErrors>({})
 
-  // Drops on success so the guard pops its history sentinel before we navigate —
-  // otherwise Back from the new skill lands on a stale, empty create form.
-  const isDirty =
-    !createSkill.isSuccess &&
-    (!!nameDraft.trim() || !!descriptionDraft.trim() || !!contentDraft.trim())
+  const isDirty = !!nameDraft.trim() || !!descriptionDraft.trim() || !!contentDraft.trim()
 
   const guard = useUnsavedChangesGuard({ isDirty, backHref: skillsHref })
 
@@ -72,16 +68,16 @@ export function SkillCreate({ workspaceId }: SkillCreateProps) {
     }
 
     try {
-      const created = await createSkill.mutateAsync({
+      const { created } = await createSkill.mutateAsync({
         workspaceId,
         skill: { name: nameDraft, description: descriptionDraft, content: contentDraft },
       })
       setErrors({})
-      // The upsert responds with the caller's whole skill list (built-ins
-      // included), not just the new row — match by name, which is unique per
-      // workspace, rather than trusting the first element.
-      const createdId = created.find((skill) => skill.name === nameDraft)?.id
-      router.push(createdId ? `${skillsHref}/${createdId}` : skillsHref)
+      toast.success(`Created "${nameDraft}"`)
+      // Detach the guard so its Back trap can't fire mid-navigation; `replace` then
+      // consumes the seeded entry rather than stacking another.
+      guard.release()
+      router.replace(created ? `${skillsHref}/${created.id}` : skillsHref)
     } catch (error) {
       if (isSkillNameConflictError(error)) {
         setErrors({ name: getErrorMessage(error, 'This skill name is already taken.') })

@@ -49,6 +49,7 @@ function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
     maxRows: 100,
     workspaceId: 'workspace-1',
     createdBy: 'user-1',
+    locks: { schemaLocked: false, insertLocked: false, updateLocked: false, deleteLocked: false },
     archivedAt: null,
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),

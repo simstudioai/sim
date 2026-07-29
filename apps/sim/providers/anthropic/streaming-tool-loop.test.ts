@@ -10,6 +10,7 @@ import {
   anthropicThinkingTextToolStreamEvents,
 } from '@/providers/__fixtures__/anthropic'
 import { createAnthropicStreamingToolLoopStream } from '@/providers/anthropic/streaming-tool-loop'
+import type { AnthropicUsageLike } from '@/providers/anthropic/usage'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { TimeSegment } from '@/providers/types'
 
@@ -44,7 +45,7 @@ async function collectEvents(
 
 function makeFinalMessage(overrides: {
   content: unknown[]
-  usage?: { input_tokens: number; output_tokens: number }
+  usage?: AnthropicUsageLike
   stop_reason?: string | null
 }) {
   return {
@@ -107,7 +108,12 @@ describe('createAnthropicStreamingToolLoopStream', () => {
           input: { city: 'San Francisco' },
         },
       ],
-      usage: { input_tokens: 42, output_tokens: 30 },
+      usage: {
+        input_tokens: 42,
+        cache_read_input_tokens: 8,
+        cache_creation_input_tokens: 10,
+        output_tokens: 30,
+      },
       stop_reason: 'tool_use',
     })
 
@@ -138,7 +144,15 @@ describe('createAnthropicStreamingToolLoopStream', () => {
     ]
     const finalTurnMessage = makeFinalMessage({
       content: [{ type: 'text', text: 'It is 68°F in San Francisco.' }],
-      usage: { input_tokens: 100, output_tokens: 12 },
+      usage: {
+        input_tokens: 100,
+        cache_creation_input_tokens: 5,
+        cache_creation: {
+          ephemeral_5m_input_tokens: 2,
+          ephemeral_1h_input_tokens: 3,
+        },
+        output_tokens: 12,
+      },
       stop_reason: 'end_turn',
     })
 
@@ -178,6 +192,7 @@ describe('createAnthropicStreamingToolLoopStream', () => {
         tools: [{ id: 'get_weather', name: 'get_weather', params: {}, parameters: {} }],
       } as any,
       messages: [{ role: 'user', content: 'Weather?' }],
+      providerId: 'anthropic',
       logger,
       timeSegments,
       onComplete,
@@ -225,7 +240,9 @@ describe('createAnthropicStreamingToolLoopStream', () => {
     expect(onComplete.mock.calls[0][0].tokens).toEqual({
       input: 142,
       output: 42,
-      total: 184,
+      total: 207,
+      cacheRead: 8,
+      cacheWrite: 15,
     })
     expect(onComplete.mock.calls[0][0].content).toContain('68°F')
     expect(mockExecuteTool).toHaveBeenCalled()
@@ -309,6 +326,7 @@ describe('createAnthropicStreamingToolLoopStream', () => {
         abortSignal: abortController.signal,
       } as any,
       messages: [{ role: 'user', content: 'x' }],
+      providerId: 'anthropic',
       logger,
       timeSegments: [],
       onComplete: vi.fn(),
@@ -337,5 +355,234 @@ describe('createAnthropicStreamingToolLoopStream', () => {
       name: 'get_weather',
       status: 'cancelled',
     })
+  })
+
+  it('fails an unexpected tool AbortError and reports completed usage', async () => {
+    mockExecuteTool.mockRejectedValueOnce(
+      new DOMException('tool aborted unexpectedly', 'AbortError')
+    )
+    const anthropic = {
+      messages: {
+        stream: vi.fn(() =>
+          makeMessageStream(
+            [
+              {
+                type: 'message_start',
+                message: { usage: { input_tokens: 5, output_tokens: 0 } },
+              },
+              {
+                type: 'content_block_start',
+                index: 0,
+                content_block: {
+                  type: 'tool_use',
+                  id: 'toolu_abort',
+                  name: 'get_weather',
+                  input: {},
+                },
+              },
+              {
+                type: 'content_block_delta',
+                index: 0,
+                delta: { type: 'input_json_delta', partial_json: '{}' },
+              },
+              { type: 'content_block_stop', index: 0 },
+              {
+                type: 'message_delta',
+                delta: { stop_reason: 'tool_use' },
+                usage: { output_tokens: 3 },
+              },
+              { type: 'message_stop' },
+            ],
+            makeFinalMessage({
+              content: [
+                {
+                  type: 'tool_use',
+                  id: 'toolu_abort',
+                  name: 'get_weather',
+                  input: {},
+                },
+              ],
+              stop_reason: 'tool_use',
+              usage: { input_tokens: 5, output_tokens: 3 },
+            })
+          )
+        ),
+      },
+    } as any
+    const onComplete = vi.fn()
+    const stream = createAnthropicStreamingToolLoopStream({
+      anthropic,
+      payload: {
+        model: 'claude-sonnet-4-5',
+        max_tokens: 1024,
+        messages: [{ role: 'user', content: 'x' }],
+        tools: [
+          {
+            name: 'get_weather',
+            description: 'd',
+            input_schema: { type: 'object', properties: {} },
+          },
+        ],
+      } as any,
+      request: {
+        model: 'claude-sonnet-4-5',
+        apiKey: 'test',
+        tools: [{ id: 'get_weather', name: 'get_weather', params: {}, parameters: {} }],
+      } as any,
+      messages: [{ role: 'user', content: 'x' }],
+      providerId: 'anthropic',
+      logger,
+      timeSegments: [],
+      onComplete,
+    })
+
+    await expect(collectEvents(stream)).rejects.toMatchObject({ name: 'AbortError' })
+    expect(onComplete).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        tokens: expect.objectContaining({ input: 5, output: 3, total: 8 }),
+      })
+    )
+  })
+
+  it('finalizes truncated text when max_tokens is reached without a tool call', async () => {
+    const anthropic = {
+      messages: {
+        stream: vi.fn(() =>
+          makeMessageStream(
+            [
+              {
+                type: 'content_block_delta',
+                index: 0,
+                delta: { type: 'text_delta', text: 'Partial answer' },
+              },
+            ],
+            makeFinalMessage({
+              content: [{ type: 'text', text: 'Partial answer' }],
+              stop_reason: 'max_tokens',
+            })
+          )
+        ),
+      },
+    } as any
+    const onComplete = vi.fn()
+    const timeSegments: TimeSegment[] = []
+
+    const stream = createAnthropicStreamingToolLoopStream({
+      anthropic,
+      payload: {
+        model: 'claude-sonnet-4-5',
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'x' }],
+      },
+      request: { model: 'claude-sonnet-4-5' } as any,
+      messages: [{ role: 'user', content: 'x' }],
+      providerId: 'anthropic',
+      logger,
+      timeSegments,
+      onComplete,
+    })
+
+    await expect(collectEvents(stream)).resolves.toEqual([
+      { type: 'text_delta', text: 'Partial answer', turn: 'pending' },
+      { type: 'turn_end', turn: 'final' },
+    ])
+    expect(onComplete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'Partial answer',
+        tokens: expect.objectContaining({ input: 10, output: 20, total: 30 }),
+        iterations: 1,
+      })
+    )
+    expect(timeSegments).toHaveLength(1)
+    expect(timeSegments[0]).toMatchObject({
+      type: 'model',
+      finishReason: 'max_tokens',
+      assistantContent: 'Partial answer',
+    })
+  })
+
+  it('rejects a max_tokens turn containing a partial tool call', async () => {
+    const anthropic = {
+      messages: {
+        stream: vi.fn(() =>
+          makeMessageStream(
+            [
+              {
+                type: 'content_block_start',
+                index: 0,
+                content_block: {
+                  type: 'tool_use',
+                  id: 'toolu_partial',
+                  name: 'get_weather',
+                  input: {},
+                },
+              },
+              {
+                type: 'content_block_delta',
+                index: 0,
+                delta: { type: 'input_json_delta', partial_json: '{"city":' },
+              },
+            ],
+            makeFinalMessage({
+              content: [],
+              stop_reason: 'max_tokens',
+            })
+          )
+        ),
+      },
+    } as any
+    const stream = createAnthropicStreamingToolLoopStream({
+      anthropic,
+      payload: {
+        model: 'claude-sonnet-4-5',
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'x' }],
+        tools: [
+          {
+            name: 'get_weather',
+            description: 'd',
+            input_schema: { type: 'object', properties: {} },
+          },
+        ],
+      } as any,
+      request: {
+        model: 'claude-sonnet-4-5',
+        tools: [{ id: 'get_weather', name: 'get_weather', params: {}, parameters: {} }],
+      } as any,
+      messages: [{ role: 'user', content: 'x' }],
+      providerId: 'anthropic',
+      logger,
+      timeSegments: [],
+      onComplete: vi.fn(),
+    })
+    const captured: AgentStreamEvent[] = []
+    const reader = stream.getReader()
+    let streamError: unknown
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        captured.push(value)
+      }
+    } catch (error) {
+      streamError = error
+    }
+
+    expect(streamError).toMatchObject({
+      message: 'Anthropic stream ended with stop_reason max_tokens',
+    })
+    expect(captured).toContainEqual({
+      type: 'tool_call_start',
+      id: 'toolu_partial',
+      name: 'get_weather',
+    })
+    expect(captured).toContainEqual({
+      type: 'tool_call_end',
+      id: 'toolu_partial',
+      name: 'get_weather',
+      status: 'error',
+    })
+    expect(mockExecuteTool).not.toHaveBeenCalled()
   })
 })

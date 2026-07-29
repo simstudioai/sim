@@ -24,6 +24,8 @@ package-lock.json
 /apps/**/out/
 /apps/**/.next/
 /apps/**/build
+# apps/desktop/build holds electron-builder INPUTS (icon, entitlements), not outputs
+!/apps/desktop/build
 
 # production
 /build

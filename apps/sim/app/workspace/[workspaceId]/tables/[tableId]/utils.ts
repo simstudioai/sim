@@ -71,7 +71,49 @@ export function cleanCellValue(
     if (value === '' || value === null || value === undefined) return null
     return displayToStorage(String(value), timeZone)
   }
+  if (column.type === 'select') {
+    return cleanSelectValue(value, column)
+  }
   return value || null
+}
+
+/**
+ * Client-side mirror of the server's `select` coercion: a cell stores option
+ * ids, but pasted or imported text carries names. Resolving here — not only on
+ * the server — is what keeps the optimistic cache holding ids, so the pasted
+ * cell renders its pill immediately instead of blanking until the refetch.
+ */
+function cleanSelectValue(value: unknown, column: ColumnDefinition): unknown {
+  const options = column.options ?? []
+  const resolve = (raw: unknown): string | null => {
+    if (typeof raw !== 'string') return null
+    const match =
+      options.find((o) => o.id === raw) ??
+      options.find((o) => o.name === raw) ??
+      options.find((o) => o.name.toLowerCase() === raw.toLowerCase())
+    return match ? match.id : null
+  }
+
+  if (column.multiple) {
+    // Comma-delimited is the multi cell's own clipboard/CSV format, so a paste
+    // of one round-trips. Option names containing commas are a known ambiguity.
+    const raw = Array.isArray(value)
+      ? value
+      : typeof value === 'string'
+        ? value
+            .split(',')
+            .map((part) => part.trim())
+            .filter((part) => part !== '')
+        : []
+    const ids: string[] = []
+    for (const entry of raw) {
+      const id = resolve(entry)
+      if (id !== null && !ids.includes(id)) ids.push(id)
+    }
+    return ids
+  }
+
+  return resolve(Array.isArray(value) ? value[0] : value)
 }
 
 /**

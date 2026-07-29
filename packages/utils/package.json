@@ -49,6 +49,10 @@
     "./retry": {
       "types": "./src/retry.ts",
       "default": "./src/retry.ts"
+    },
+    "./sso-domain": {
+      "types": "./src/sso-domain.ts",
+      "default": "./src/sso-domain.ts"
     }
   },
   "scripts": {

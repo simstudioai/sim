@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
+import { generateId, generateShortId } from '@sim/utils/id'
 import { UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -26,11 +26,11 @@ import {
   TABLE_LIMITS,
   validateMapping,
 } from '@/lib/table'
+import { namedRowMapper } from '@/lib/table/cell-format'
 import {
   buildIdByName,
-  buildNameById,
+  columnMatchesRef,
   filterNamesToIds,
-  rowDataIdToName,
   rowDataNameToId,
   sortNamesToIds,
 } from '@/lib/table/column-keys'
@@ -41,11 +41,13 @@ import {
   deleteColumns,
   renameColumn,
   updateColumnConstraints,
+  updateColumnOptions,
   updateColumnType,
 } from '@/lib/table/columns/service'
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
+import { assertRowDelete, assertRowUpdate, patchColumnIds } from '@/lib/table/mutation-locks'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -59,13 +61,16 @@ import {
   updateRow,
   updateRowsByFilter,
 } from '@/lib/table/rows/service'
+import { resolveFilterSelectValues } from '@/lib/table/select-values'
 import { createTable, deleteTable, getTableById, renameTable } from '@/lib/table/service'
 import type {
   ColumnDefinition,
   Filter,
   RowData,
+  SelectOption,
   TableDefinition,
   TableDeleteJobPayload,
+  TableSchema,
   TableUpdateJobPayload,
   WorkflowGroup,
   WorkflowGroupDependencies,
@@ -110,6 +115,14 @@ const MAX_BATCH_SIZE = CSV_MAX_BATCH_SIZE
 async function resolveWorkspaceFileRecordOrThrow(fileReference: string, workspaceId: string) {
   const record = await resolveWorkspaceFileReference(workspaceId, fileReference)
   if (!record) {
+    // Only workspace files resolve here. A chat upload is a real, correctly-copied
+    // path, so pointing it at glob("files/**") would send the agent looking for a
+    // file that is not in that tree until materialize_file moves it there.
+    if (fileReference.replace(/^\/+/, '').startsWith('uploads/')) {
+      throw new Error(
+        `Cannot import "${fileReference}": chat uploads are not workspace files. Use materialize_file to save it to a files/... path first, then pass that canonical path.`
+      )
+    }
     throw new Error(
       `File not found: "${fileReference}". Use glob("files/**") and read the canonical file path metadata to find workspace files.`
     )
@@ -305,6 +318,50 @@ function limitError(limit: unknown): string | null {
   return null
 }
 
+/**
+ * Normalizes agent-authored `select` options into the stored `{ id, name }`
+ * shape. The copilot agent supplies option **names** (a bare string, or an
+ * object with a `name`); the stable option id is generated here so the model
+ * never authors the cell key. An entry that already carries a non-empty `id`
+ * (e.g. re-sending an existing option on an options edit) keeps it, so existing
+ * cell data survives the update. Non-array input returns `undefined`, letting
+ * downstream validation reject a malformed / missing option set.
+ */
+export function normalizeSelectOptionsInput(
+  raw: unknown,
+  existing: SelectOption[] = []
+): SelectOption[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  // Cells reference the option id, so an edit that re-sends the same option by
+  // name must reuse its id — minting a fresh one would orphan every cell
+  // holding it, silently clearing the column.
+  const idByName = new Map<string, string>()
+  for (const option of existing) {
+    const key = option.name.toLowerCase()
+    if (!idByName.has(key)) idByName.set(key, option.id)
+  }
+  const resolveId = (name: string): string => idByName.get(name.toLowerCase()) ?? generateShortId()
+
+  return raw.map((entry) => {
+    if (typeof entry === 'string') return { id: resolveId(entry), name: entry }
+    const e = (entry ?? {}) as { id?: unknown; name?: unknown }
+    const name = typeof e.name === 'string' ? e.name : String(e.name ?? '')
+    const id = typeof e.id === 'string' && e.id.length > 0 ? e.id : resolveId(name)
+    return { id, name }
+  })
+}
+
+/** Rewrites every `select` column's options in an agent-authored create schema. */
+function normalizeSchemaSelectColumns(schema: TableSchema): TableSchema {
+  if (!schema || !Array.isArray(schema.columns)) return schema
+  return {
+    ...schema,
+    columns: schema.columns.map((col) =>
+      col.type === 'select' ? { ...col, options: normalizeSelectOptionsInput(col.options) } : col
+    ),
+  }
+}
+
 async function batchInsertAll(
   tableId: string,
   rows: RowData[],
@@ -367,7 +424,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             {
               name: args.name,
               description: args.description,
-              schema: args.schema,
+              // Agent authors select options by name; generate their stable ids here.
+              schema: normalizeSchemaSelectColumns(args.schema as TableSchema),
               workspaceId,
               userId: context.userId,
               maxTables: planLimits.maxTables,
@@ -495,7 +553,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           assertNotAborted()
           // The LLM authors row data by column name; storage keys by id.
           const idByName = buildIdByName(table.schema)
-          const nameById = buildNameById(table.schema)
+          const toNamedRow = namedRowMapper(table.schema.columns)
           const row = await insertRow(
             {
               tableId: args.tableId,
@@ -511,7 +569,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           return {
             success: true,
             message: `Inserted row ${row.id}`,
-            data: { row: { ...row, data: rowDataIdToName(row.data, nameById) } },
+            data: {
+              row: {
+                ...row,
+                data: toNamedRow(row.data),
+              },
+            },
           }
         }
 
@@ -534,7 +597,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const idByName = buildIdByName(table.schema)
-          const nameById = buildNameById(table.schema)
+          const toNamedRow = namedRowMapper(table.schema.columns)
           const rows = await batchInsertRows(
             {
               tableId: args.tableId,
@@ -550,7 +613,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             success: true,
             message: `Inserted ${rows.length} rows`,
             data: {
-              rows: rows.map((r) => ({ ...r, data: rowDataIdToName(r.data, nameById) })),
+              rows: rows.map((r) => ({
+                ...r,
+                data: toNamedRow(r.data),
+              })),
               insertedCount: rows.length,
             },
           }
@@ -576,12 +642,15 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: `Row not found: ${args.rowId}` }
           }
 
-          const nameById = buildNameById(rowTable.schema)
+          const toNamedRow = namedRowMapper(rowTable.schema.columns)
           return {
             success: true,
             message: `Row ${row.id}`,
             data: {
-              row: { ...row, data: rowDataIdToName(row.data, nameById) },
+              row: {
+                ...row,
+                data: toNamedRow(row.data),
+              },
             },
           }
         }
@@ -606,14 +675,19 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          const nameById = buildNameById(table.schema)
+          const toNamedRow = namedRowMapper(table.schema.columns)
           // The model may request any number; we serve at most MAX_QUERY_LIMIT per page so a single
           // tool result can't drain a whole table. `totalCount` in the response signals truncation,
           // and the model pages with `offset`.
           const result = await queryRows(
             table,
             {
-              filter: args.filter ? filterNamesToIds(args.filter, idByName) : undefined,
+              filter: args.filter
+                ? resolveFilterSelectValues(
+                    filterNamesToIds(args.filter, idByName),
+                    table.schema.columns
+                  )
+                : undefined,
               sort: args.sort ? sortNamesToIds(args.sort, idByName) : undefined,
               limit:
                 args.limit !== undefined
@@ -630,7 +704,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             message: `Returned ${result.rows.length} of ${result.totalCount} rows`,
             data: {
               ...result,
-              rows: result.rows.map((r) => ({ ...r, data: rowDataIdToName(r.data, nameById) })),
+              rows: result.rows.map((r) => ({
+                ...r,
+                data: toNamedRow(r.data),
+              })),
             },
           }
         }
@@ -657,7 +734,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const idByName = buildIdByName(table.schema)
-          const nameById = buildNameById(table.schema)
+          const toNamedRow = namedRowMapper(table.schema.columns)
           const updatedRow = await updateRow(
             {
               tableId: args.tableId,
@@ -683,7 +760,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           return {
             success: true,
             message: `Updated row ${updatedRow.id}`,
-            data: { row: { ...updatedRow, data: rowDataIdToName(updatedRow.data, nameById) } },
+            data: {
+              row: {
+                ...updatedRow,
+                data: toNamedRow(updatedRow.data),
+              },
+            },
           }
         }
 
@@ -700,7 +782,14 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          await deleteRow(args.tableId, args.rowId, workspaceId, requestId)
+          const deleteRowTable = await getTableById(args.tableId)
+          // The old signature passed `workspaceId` into `deleteRow`, which scoped
+          // the query; taking a TableDefinition instead means the ownership check
+          // has to happen here, as every other operation in this tool does.
+          if (!deleteRowTable || deleteRowTable.workspaceId !== workspaceId) {
+            return { success: false, message: `Table ${args.tableId} not found` }
+          }
+          await deleteRow(deleteRowTable, args.rowId, requestId)
 
           return {
             success: true,
@@ -733,7 +822,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          const idFilter = filterNamesToIds(args.filter, idByName)
+          const idFilter = resolveFilterSelectValues(
+            filterNamesToIds(args.filter, idByName),
+            table.schema.columns
+          )
           const idData = rowDataNameToId(args.data, idByName)
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows in one request; a larger operation
@@ -765,6 +857,9 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 affectedCount: target,
                 maxRows: args.limit,
               }
+              // Gate the update lock at enqueue — the background worker is a
+              // trusted continuation and does not re-check.
+              assertRowUpdate(table, patchColumnIds(idData))
               assertNotAborted()
               const claimed = await markTableJobRunning(table.id, jobId, 'update', payload)
               if (!claimed) {
@@ -828,7 +923,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          const idFilter = filterNamesToIds(args.filter, idByName)
+          const idFilter = resolveFilterSelectValues(
+            filterNamesToIds(args.filter, idByName),
+            table.schema.columns
+          )
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows; a larger delete (an explicit limit
           // above the cap, or unbounded "delete everything matching") hands off to the background
@@ -855,6 +953,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               const payload: TableDeleteJobPayload = bounded
                 ? { filter: idFilter, cutoff: cutoff.toISOString(), maxRows: args.limit }
                 : { filter: idFilter, cutoff: cutoff.toISOString(), doomedCount }
+              // Gate the delete lock at enqueue — the worker is a trusted continuation.
+              assertRowDelete(table)
               assertNotAborted()
               const claimed = await markTableJobRunning(table.id, jobId, 'delete', payload)
               if (!claimed) {
@@ -1011,7 +1111,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
+          const batchDeleteTable = await getTableById(args.tableId)
+          if (!batchDeleteTable || batchDeleteTable.workspaceId !== workspaceId) {
+            return { success: false, message: `Table ${args.tableId} not found` }
+          }
           const result = await deleteRowsByIds(
+            batchDeleteTable,
             { tableId: args.tableId, rowIds, workspaceId },
             requestId
           )
@@ -1392,6 +1497,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 type: string
                 unique?: boolean
                 position?: number
+                options?: unknown
+                multiple?: boolean
               }
             | undefined
           if (!col?.name || !col?.type) {
@@ -1406,7 +1513,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const updated = await addTableColumn(args.tableId, col, requestId)
+          // Agent authors select options by name; generate their stable ids here.
+          const columnToAdd =
+            col.type === 'select'
+              ? { ...col, options: normalizeSelectOptionsInput(col.options) }
+              : { ...col, options: undefined }
+          const updated = await addTableColumn(args.tableId, columnToAdd, requestId)
           return {
             success: true,
             message: `Added column "${col.name}" (${col.type}) to table`,
@@ -1498,10 +1610,17 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const newType = (args as Record<string, unknown>).newType as string | undefined
           const uniqFlag = (args as Record<string, unknown>).unique as boolean | undefined
-          if (newType === undefined && uniqFlag === undefined) {
+          const rawOptions = (args as Record<string, unknown>).options
+          const multiple = (args as Record<string, unknown>).multiple as boolean | undefined
+          if (
+            newType === undefined &&
+            uniqFlag === undefined &&
+            rawOptions === undefined &&
+            multiple === undefined
+          ) {
             return {
               success: false,
-              message: 'At least one of newType or unique must be provided',
+              message: 'At least one of newType, unique, options, or multiple must be provided',
             }
           }
           const tableForUpdate = await getTableById(args.tableId)
@@ -1509,21 +1628,63 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: `Table not found: ${args.tableId}` }
           }
           const requestId = generateId().slice(0, 8)
+          // The agent authors options by name; mint ids here, reusing the id of
+          // any option whose name already exists so its cells survive the edit.
+          const currentColumn = tableForUpdate.schema.columns.find((c) =>
+            columnMatchesRef(c, colName)
+          )
+          const existingOptions = currentColumn?.options ?? []
+          const options = normalizeSelectOptionsInput(rawOptions, existingOptions)
+          // An agent restating the current type alongside new options must not
+          // go through `updateColumnType` — it early-returns on an unchanged
+          // type and would drop them. Mirrors the HTTP columns route.
+          const typeChanging = newType !== undefined && newType !== currentColumn?.type
           let result: TableDefinition | undefined
-          if (newType !== undefined) {
-            if (!(COLUMN_TYPES as readonly string[]).includes(newType)) {
-              return {
-                success: false,
-                message: `Invalid column type "${newType}". Must be one of: ${COLUMN_TYPES.join(', ')}`,
-              }
+          if (newType !== undefined && !(COLUMN_TYPES as readonly string[]).includes(newType)) {
+            return {
+              success: false,
+              message: `Invalid column type "${newType}". Must be one of: ${COLUMN_TYPES.join(', ')}`,
             }
+          }
+          // Each write below is its own locked transaction, so pairing any of
+          // them with a constraint write that is going to fail commits and then
+          // errors. Gate on the type the column ENDS UP with — an options-only
+          // update on an existing select column carries the same hazard as a
+          // conversion. Same guard the HTTP column routes apply.
+          const resultingType = newType ?? currentColumn?.type
+          if (uniqFlag === true && resultingType === 'select') {
+            return {
+              success: false,
+              message: `Cannot set column "${colName}" as unique: select columns cannot be unique.`,
+            }
+          }
+          if (typeChanging) {
             assertNotAborted()
             result = await updateColumnType(
               {
                 tableId: args.tableId,
                 columnName: colName,
                 newType: newType as (typeof COLUMN_TYPES)[number],
+                options,
+                multiple,
               },
+              requestId
+            )
+          } else if (options !== undefined || multiple !== undefined) {
+            // Editing an existing select column's option set / mode without a
+            // type change. `multiple` alone is a valid update — the catalog
+            // documents it as independent — so fall back to the column's current
+            // options rather than demanding the caller resend the whole list.
+            const nextOptions = options ?? existingOptions
+            if (nextOptions.length === 0) {
+              return {
+                success: false,
+                message: `Column "${colName}" is not a select column. Pass newType: "select" with options to convert it.`,
+              }
+            }
+            assertNotAborted()
+            result = await updateColumnOptions(
+              { tableId: args.tableId, columnName: colName, options: nextOptions, multiple },
               requestId
             )
           }
@@ -1537,7 +1698,9 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           return {
             success: true,
             message: `Updated column "${colName}"`,
-            data: { schema: result?.schema },
+            // A payload that only restates the current type is a no-op; still
+            // report the live schema rather than an undefined one.
+            data: { schema: (result ?? tableForUpdate).schema },
           }
         }
 

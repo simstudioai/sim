@@ -73,6 +73,7 @@ import {
   onedriveFilesSelectorContract,
   onedriveFolderSelectorContract,
   onedriveFoldersSelectorContract,
+  outlookCalendarsSelectorContract,
   outlookFoldersSelectorContract,
 } from '@/lib/api/contracts/selectors/microsoft'
 import {
@@ -172,6 +173,7 @@ export const selectorContractsByPath = {
   '/api/tools/hubspot/pipelines': hubspotPipelinesSelectorContract,
   '/api/tools/hubspot/owners': hubspotOwnersSelectorContract,
   '/api/tools/outlook/folders': outlookFoldersSelectorContract,
+  '/api/tools/outlook/calendars': outlookCalendarsSelectorContract,
   '/api/tools/google_calendar/calendars': googleCalendarSelectorContract,
   '/api/tools/microsoft-teams/teams': microsoftTeamsSelectorContract,
   '/api/tools/microsoft-teams/chats': microsoftChatsSelectorContract,

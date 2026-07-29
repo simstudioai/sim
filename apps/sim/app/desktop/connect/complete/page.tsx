@@ -1,0 +1,48 @@
+import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
+import { isValidHandoffState, parseLoopbackPort } from '@/app/desktop/auth/validation'
+import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'
+import { buildConnectLoopbackUrl, sanitizeOAuthErrorSlug } from '@/app/desktop/connect/validation'
+
+export const metadata: Metadata = {
+  title: 'Returning to Sim',
+  robots: { index: false },
+}
+
+export const dynamic = 'force-dynamic'
+
+interface ConnectCompletePageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}
+
+function InvalidRequest() {
+  return (
+    <DesktopHandoffShell
+      title='Nothing to return to'
+      description='This page finishes an account connection started from the Sim desktop app.'
+    />
+  )
+}
+
+/**
+ * Post-OAuth bounce for the desktop connect handoff. better-auth redirects
+ * the browser here after the provider callback (as the flow's callbackURL, or
+ * errorCallbackURL with an `error` code). The page forwards state — and any
+ * error — straight to the desktop app's 127.0.0.1 loopback, which refocuses
+ * the app; the loopback responds with the "return to Sim" page. No token is
+ * minted here: the credential already landed server-side during the callback.
+ */
+export default async function ConnectCompletePage({ searchParams }: ConnectCompletePageProps) {
+  const params = await searchParams
+  const state = typeof params.state === 'string' ? params.state : ''
+  const port = parseLoopbackPort(typeof params.port === 'string' ? params.port : '')
+  if (!isValidHandoffState(state) || port === null) {
+    return <InvalidRequest />
+  }
+
+  // Defensive: if `error` somehow arrives as a repeated query key (array), a
+  // failure must never read as success — take the first code.
+  const rawError = Array.isArray(params.error) ? params.error[0] : params.error
+  const error = sanitizeOAuthErrorSlug(rawError)
+  redirect(buildConnectLoopbackUrl(state, port, error ?? undefined))
+}

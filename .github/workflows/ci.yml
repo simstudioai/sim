@@ -69,6 +69,48 @@ jobs:
             echo "ℹ️ Not a release commit"
           fi
 
+  # Detect shell-code changes on dev/staging pushes. Web-only changes never
+  # need a desktop build (installed shells load the web app live); changes to
+  # the Electron app or the bridge packages trigger a per-env prerelease build
+  # (dev → alpha channel, staging → beta) that the env's update feed
+  # (/api/desktop/update) starts offering automatically.
+  detect-desktop-changes:
+    name: Detect Desktop Changes
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/staging')
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 50
+
+      - name: Diff desktop paths
+        id: diff
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # Force pushes (dev resets) can reference a BEFORE we don't have;
+          # fall back to the previous commit, and to no build when even that
+          # is unavailable.
+          if [ -z "$BEFORE" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
+            BEFORE="$(git rev-parse HEAD^ 2>/dev/null || echo '')"
+          fi
+          if [ -z "$BEFORE" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️ No comparable base commit; skipping desktop prerelease"
+            exit 0
+          fi
+          if git diff --name-only "$BEFORE" HEAD | grep -qE '^(apps/desktop/|packages/desktop-bridge/|packages/browser-protocol/)'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Desktop shell code changed"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️ No desktop shell changes"
+          fi
+
   # Run database migrations before images are promoted: the ECR latest/staging
   # tag push triggers CodePipeline, so migrating first guarantees the schema is
   # in place before the new app version deploys (replaces the removed ECS
@@ -104,7 +146,7 @@ jobs:
     name: Build Dev ECR
     needs: [detect-version, migrate-dev]
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || matrix.gh_runner }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.bs_runner || matrix.gh_runner }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -115,18 +157,25 @@ jobs:
         include:
           # Only the app image needs the paid 8-core/32 GB runner: next build
           # exhausts the free 16 GB one (exit 137). The others build in <5 min.
+          # bs_runner mirrors that per-image sizing on Blacksmith — a single
+          # pinned tier put every image on 8 vCPU, where the non-app builds idle
+          # at 12-15% CPU and under 10% memory.
           - dockerfile: ./docker/app.Dockerfile
             ecr_repo_secret: ECR_APP
             gh_runner: linux-x64-8-core
+            bs_runner: blacksmith-8vcpu-ubuntu-2404
           - dockerfile: ./docker/db.Dockerfile
             ecr_repo_secret: ECR_MIGRATIONS
             gh_runner: ubuntu-latest
+            bs_runner: blacksmith-2vcpu-ubuntu-2404
           - dockerfile: ./docker/realtime.Dockerfile
             ecr_repo_secret: ECR_REALTIME
             gh_runner: ubuntu-latest
+            bs_runner: blacksmith-4vcpu-ubuntu-2404
           - dockerfile: ./docker/pii.Dockerfile
             ecr_repo_secret: ECR_PII
             gh_runner: ubuntu-latest
+            bs_runner: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -191,7 +240,7 @@ jobs:
             ${{ runner.os }}-bun-
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Deploy to Trigger.dev
         working-directory: ./apps/sim
@@ -215,7 +264,7 @@ jobs:
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || matrix.gh_runner }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.bs_runner || matrix.gh_runner }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -229,18 +278,22 @@ jobs:
             ghcr_image: ghcr.io/simstudioai/simstudio
             ecr_repo_secret: ECR_APP
             gh_runner: linux-x64-8-core
+            bs_runner: blacksmith-8vcpu-ubuntu-2404
           - dockerfile: ./docker/db.Dockerfile
             ghcr_image: ghcr.io/simstudioai/migrations
             ecr_repo_secret: ECR_MIGRATIONS
             gh_runner: ubuntu-latest
+            bs_runner: blacksmith-2vcpu-ubuntu-2404
           - dockerfile: ./docker/realtime.Dockerfile
             ghcr_image: ghcr.io/simstudioai/realtime
             ecr_repo_secret: ECR_REALTIME
             gh_runner: ubuntu-latest
+            bs_runner: blacksmith-4vcpu-ubuntu-2404
           - dockerfile: ./docker/pii.Dockerfile
             ghcr_image: ghcr.io/simstudioai/pii
             ecr_repo_secret: ECR_PII
             gh_runner: ubuntu-latest
+            bs_runner: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -387,7 +440,7 @@ jobs:
   # never moves a documented tag.
   build-ghcr-arm64:
     name: Build ARM64 (GHCR Only)
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404-arm' || matrix.gh_runner }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.bs_runner || matrix.gh_runner }}
     timeout-minutes: 30
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
@@ -396,19 +449,27 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Non-app images sit at 4 vCPU rather than the finer x64 split: the ARM
+        # sizing data is job-level (8 -> 4 for the whole matrix), not per-image,
+        # and this job only runs on push to main — an unprovisioned label would
+        # hang a release in `queued` rather than fail a PR.
         include:
           - dockerfile: ./docker/app.Dockerfile
             image: ghcr.io/simstudioai/simstudio
             gh_runner: linux-arm64-8-core
+            bs_runner: blacksmith-8vcpu-ubuntu-2404-arm
           - dockerfile: ./docker/db.Dockerfile
             image: ghcr.io/simstudioai/migrations
             gh_runner: ubuntu-24.04-arm
+            bs_runner: blacksmith-4vcpu-ubuntu-2404-arm
           - dockerfile: ./docker/realtime.Dockerfile
             image: ghcr.io/simstudioai/realtime
             gh_runner: ubuntu-24.04-arm
+            bs_runner: blacksmith-4vcpu-ubuntu-2404-arm
           - dockerfile: ./docker/pii.Dockerfile
             image: ghcr.io/simstudioai/pii
             gh_runner: ubuntu-24.04-arm
+            bs_runner: blacksmith-4vcpu-ubuntu-2404-arm
 
     steps:
       - name: Checkout code
@@ -565,9 +626,189 @@ jobs:
           bun-version: 1.3.13
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Create release
         env:
           GH_PAT: ${{ secrets.GITHUB_TOKEN }}
         run: bun run scripts/create-single-release.ts ${{ needs.detect-version.outputs.version }}
+
+  # Desktop release: builds, signs, notarizes, and attaches the macOS app to
+  # the GitHub release created above. Gated on the Apple signing secrets so a
+  # release pipeline run skips cleanly (instead of failing) until the Apple
+  # Developer account is provisioned — the moment the six secrets exist, the
+  # next vX.Y.Z release ships desktop artifacts with no further changes.
+  # Job-level `if:` cannot read the secrets context, hence the probe job.
+  check-desktop-signing:
+    name: Check Desktop Signing Secrets
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 2
+    needs: [detect-version, detect-desktop-changes]
+    # !cancelled(): detect-desktop-changes is skipped on main (and
+    # detect-version tags only on main); either path may need the probe.
+    if: ${{ !cancelled() && (needs.detect-version.outputs.is_release == 'true' || needs.detect-desktop-changes.outputs.changed == 'true') }}
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - name: Probe Apple signing secrets
+        id: check
+        env:
+          CONFIGURED: ${{ secrets.CSC_LINK != '' && secrets.CSC_KEY_PASSWORD != '' && secrets.APPLE_API_KEY_P8 != '' && secrets.APPLE_API_KEY_ID != '' && secrets.APPLE_API_ISSUER != '' && secrets.APPLE_TEAM_ID != '' }}
+        run: |
+          echo "configured=${CONFIGURED}" >> "$GITHUB_OUTPUT"
+          if [ "$CONFIGURED" != "true" ]; then
+            echo "::warning::Desktop release skipped: Apple signing secrets are not configured (CSC_LINK, CSC_KEY_PASSWORD, APPLE_API_KEY_P8, APPLE_API_KEY_ID, APPLE_API_ISSUER, APPLE_TEAM_ID)."
+          fi
+
+  desktop-release:
+    name: Desktop Release
+    needs: [create-release, check-desktop-signing, detect-version]
+    if: needs.check-desktop-signing.outputs.configured == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/desktop-release.yml
+    with:
+      version: ${{ needs.detect-version.outputs.version }}
+      publish: true
+    secrets: inherit
+
+  # Per-env desktop prereleases: a dev/staging push that touches shell code
+  # publishes a channel-tagged GitHub prerelease (vX.Y.Z-alpha.N from dev,
+  # vX.Y.Z-beta.N from staging). Each environment's /api/desktop/update feed
+  # offers only its channel, so dev-pointed shells pick up alpha builds,
+  # staging-pointed shells beta builds, and prod-pointed shells stable
+  # releases — independently. Unlike stable releases, prereleases build even
+  # before the Apple signing secrets exist — unsigned, so the update pipeline
+  # is testable end to end; installed shells detect the missing Developer ID
+  # and offer a manual download instead of a Squirrel install.
+  create-desktop-prerelease:
+    name: Create Desktop Prerelease
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
+    needs: [detect-desktop-changes, check-desktop-signing]
+    # Requires the signing probe to have actually succeeded (not just "not
+    # cancelled") so a probe failure can't produce a release with no build.
+    if: ${{ !cancelled() && needs.detect-desktop-changes.outputs.changed == 'true' && needs.check-desktop-signing.result == 'success' }}
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Compute prerelease version and create draft release
+        id: version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          SIGNED: ${{ needs.check-desktop-signing.outputs.configured }}
+        run: |
+          if [ "$GITHUB_REF" = "refs/heads/dev" ]; then CHANNEL=alpha; APP_NAME="Sim Dev"; else CHANNEL=beta; APP_NAME="Sim Staging"; fi
+          # Prerelease core = next patch after the latest stable release, so
+          # channel builds always outrank the stable they are built on top of
+          # and are always superseded by the next stable. The run-attempt
+          # suffix keeps re-runs of the same workflow from colliding on the
+          # tag while preserving semver ordering.
+          # Fail loudly if the query itself fails: silently falling back to
+          # v0.0.0 would publish a channel build that sorts below the shipped
+          # stable, and installed shells would never see it as an update.
+          if ! LATEST="$(gh release list --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName')"; then
+            echo "::error::Could not query the latest stable release."
+            exit 1
+          fi
+          # An empty release list makes jq print "null", which ${VAR:-default}
+          # does not treat as empty. Anything that is not a bare vX.Y.Z means
+          # "no stable release to build on top of" — start the channel at 0.0.1.
+          if [[ ! "$LATEST" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            LATEST="v0.0.0"
+          fi
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${LATEST#v}"
+          TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))-${CHANNEL}.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+          NOTES="Automated ${CHANNEL}-channel desktop build from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}."
+          if [ "$SIGNED" != "true" ]; then
+            NOTES="$NOTES
+
+          ⚠️ Unsigned test build (Apple signing secrets not configured). Gatekeeper will quarantine a downloaded copy: right-click → Open, or clear the flag with \`xattr -dr com.apple.quarantine \"/Applications/${APP_NAME}.app\"\`."
+          fi
+          # Draft until the build uploads its artifacts: drafts are invisible
+          # to the update feed, so a failed or in-flight build can never take
+          # the channel down with an assetless release. Publishing later also
+          # defers tag creation, so failed builds strand no tags.
+          gh release create "$TAG" \
+            --draft \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --notes "$NOTES"
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          echo "✅ Created draft prerelease $TAG"
+
+  desktop-prerelease:
+    name: Desktop Prerelease Build
+    needs: [create-desktop-prerelease, check-desktop-signing]
+    permissions:
+      contents: write
+    uses: ./.github/workflows/desktop-release.yml
+    with:
+      version: ${{ needs.create-desktop-prerelease.outputs.version }}
+      publish: true
+      sign: ${{ needs.check-desktop-signing.outputs.configured == 'true' }}
+    secrets: inherit
+
+  # The draft only becomes visible to the update feed once its artifacts are
+  # attached — this is what makes a dev/staging push atomic from the shell's
+  # point of view.
+  publish-desktop-prerelease:
+    name: Publish Desktop Prerelease
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
+    needs: [create-desktop-prerelease, desktop-prerelease]
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.create-desktop-prerelease.outputs.version }}
+    steps:
+      - name: Publish the draft release
+        run: gh release edit "$TAG" --draft=false
+
+  # Keep the release list tidy: per channel, retain the newest 5 prereleases
+  # and delete the rest (with their tags, so dev force-resets don't strand
+  # commits behind stale tags). Leftover drafts (failed or superseded builds)
+  # are always garbage by this point — the current run's release is published.
+  prune-desktop-prereleases:
+    name: Prune Desktop Prereleases
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
+    needs: [publish-desktop-prerelease]
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Delete stale prereleases
+        run: |
+          if [ "$GITHUB_REF" = "refs/heads/dev" ]; then CHANNEL=alpha; else CHANNEL=beta; fi
+          gh release list --limit 100 --json tagName,isPrerelease,isDraft,createdAt \
+            --jq "[.[] | select(.isPrerelease and (.isDraft | not) and (.tagName | test(\"-${CHANNEL}\\\\.\")))] | sort_by(.createdAt) | reverse | .[5:] | .[].tagName" |
+          while read -r TAG; do
+            [ -n "$TAG" ] || continue
+            echo "Deleting stale prerelease $TAG"
+            gh release delete "$TAG" --cleanup-tag --yes
+          done
+
+      - name: Delete leftover draft prereleases
+        run: |
+          if [ "$GITHUB_REF" = "refs/heads/dev" ]; then CHANNEL=alpha; else CHANNEL=beta; fi
+          # Drafts have no tag ref, so delete by release id via the API
+          # (gh release delete resolves by tag, which is ambiguous for drafts).
+          gh api "repos/${GH_REPO}/releases?per_page=100" \
+            --jq ".[] | select(.draft and (.tag_name | test(\"-${CHANNEL}\\\\.\"))) | .id" |
+          while read -r ID; do
+            [ -n "$ID" ] || continue
+            echo "Deleting leftover draft release $ID"
+            gh api -X DELETE "repos/${GH_REPO}/releases/${ID}"
+          done

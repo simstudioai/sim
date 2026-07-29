@@ -22,7 +22,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
 import { AlertTriangle, Check } from 'lucide-react'
 import { GeneratedPasswordInput } from '@/components/ui'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
@@ -86,6 +86,7 @@ const initialFormData: ChatFormData = {
   welcomeMessage: 'Hi there! How can I help you today?',
   selectedOutputBlocks: [],
   includeThinking: false,
+  includeToolCalls: false,
 }
 
 export function ChatDeploy({
@@ -197,6 +198,7 @@ export function ChatDeploy({
             )
           : [],
         includeThinking: existingChat.includeThinking ?? false,
+        includeToolCalls: existingChat.includeToolCalls ?? false,
       })
 
       if (existingChat.customizations?.imageUrl) {
@@ -377,15 +379,26 @@ export function ChatDeploy({
               <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
                 Include thinking
               </Label>
-              <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
-                Allow this chat to stream model thinking when the client opts in. Off by default.
-              </p>
             </div>
             <Switch
               checked={formData.includeThinking}
               disabled={chatSubmitting}
               onCheckedChange={(checked) => updateField('includeThinking', checked)}
               aria-label='Include thinking'
+            />
+          </div>
+
+          <div className='flex items-center justify-between gap-3'>
+            <div className='min-w-0'>
+              <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+                Include tool calls
+              </Label>
+            </div>
+            <Switch
+              checked={formData.includeToolCalls}
+              disabled={chatSubmitting}
+              onCheckedChange={(checked) => updateField('includeToolCalls', checked)}
+              aria-label='Include tool calls'
             />
           </div>
 
@@ -700,9 +713,7 @@ function AuthSelector({
   const allowedAuthTypes = permissionConfig.allowedChatDeployAuthTypes
 
   const ssoAvailable =
-    isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')) ||
-    savedAuthType === 'sso' ||
-    (allowedAuthTypes?.includes('sso') ?? false)
+    isSsoEnabled || savedAuthType === 'sso' || (allowedAuthTypes?.includes('sso') ?? false)
   const baseAuthOptions: AuthType[] = ssoAvailable
     ? ['public', 'password', 'email', 'sso']
     : ['public', 'password', 'email']

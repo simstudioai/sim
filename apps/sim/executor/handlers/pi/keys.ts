@@ -6,18 +6,20 @@
  * block's API Key field, or a stored workspace BYOK key) because that mode runs
  * the model client in an untrusted sandbox. Cost uses the billing multiplier and
  * is zeroed for BYOK / non-billable models.
+ *
+ * Optional web search is keyed separately and more strictly: the block field or a
+ * stored workspace key, never a Sim-hosted one, in every mode.
  */
 
 import type { CreateAgentSessionOptions } from '@earendil-works/pi-coding-agent'
 import { getApiKeyWithBYOK, getBYOKKey } from '@/lib/api-key/byok'
-import { getCostMultiplier } from '@/lib/core/config/env-flags'
+import { calculateBillableModelCost } from '@/providers/cost-policy'
 import type { PiSupportedProvider } from '@/providers/pi-provider-configs'
 import {
   getPiProviderApiKeyEnvVar,
   getPiWorkspaceBYOKProviderId,
   isPiSupportedProvider,
 } from '@/providers/pi-providers'
-import { calculateCost, shouldBillModelUsage } from '@/providers/utils'
 
 /** Resolved provider key and BYOK flag for a Pi run. */
 interface PiKeyResolution {
@@ -67,6 +69,71 @@ export async function resolvePiModelKey(params: ResolvePiModelKeyParams): Promis
   return { apiKey, isBYOK }
 }
 
+interface PiSearchProviderConfig {
+  /** User-facing name, used in setup errors and the review prompt. */
+  label: string
+  /** Sim tool the host-side adapter executes; also the id checked against workspace tool denylists. */
+  toolId: string
+}
+
+/** The search providers the Pi block offers, keyed by the `searchProvider` field value. */
+export const PI_SEARCH_PROVIDERS = {
+  exa: { label: 'Exa', toolId: 'exa_search' },
+  serper: { label: 'Serper', toolId: 'serper_search' },
+  parallel: { label: 'Parallel AI', toolId: 'parallel_search' },
+  firecrawl: { label: 'Firecrawl', toolId: 'firecrawl_search' },
+} as const satisfies Record<string, PiSearchProviderConfig>
+
+export type PiSearchProvider = keyof typeof PI_SEARCH_PROVIDERS
+
+/**
+ * Resolves the `searchProvider` field, distinguishing absent from invalid.
+ *
+ * Absent must mean `'none'`: the serializer never injects a subBlock `defaultValue`, so every Pi
+ * block saved before this field existed arrives without it, and treating that as "search on" would
+ * fail those runs. An unrecognized non-empty value throws instead of silently disabling search, so
+ * a renamed or mis-cased provider id is not a run where the agent quietly never searches.
+ */
+export function parsePiSearchProvider(value: unknown): PiSearchProvider | 'none' {
+  if (value === undefined || value === null) return 'none'
+  const raw = typeof value === 'string' ? value.trim() : String(value)
+  if (!raw || raw === 'none') return 'none'
+  if (Object.hasOwn(PI_SEARCH_PROVIDERS, raw)) return raw as PiSearchProvider
+  throw new Error(
+    `Invalid Pi search provider: ${raw}. Use one of none, ${Object.keys(PI_SEARCH_PROVIDERS).join(', ')}.`
+  )
+}
+
+/**
+ * Resolves the search key from the block's Search API Key field, which is the only source.
+ *
+ * Deliberately no workspace BYOK fallback, and never a Sim-hosted key. Unlike the model key, the
+ * Search API Key field is shown on every deployment — its visibility depends only on whether a
+ * provider is selected — so there is no configuration where the field is unavailable and a fallback
+ * would be needed. Reading a stored workspace key here would instead mean a member who cannot
+ * otherwise see that credential (the BYOK API only ever returns it masked, and only admins may
+ * manage it) could route it into the Create PR sandbox, where the agent holds bash and can read the
+ * environment. Requiring the key on the block keeps that exposure something the block's author
+ * opted into with a key they already hold.
+ *
+ * Trimmed, with a blank treated as absent: `executeTool` only skips hosted-key injection for a key
+ * with `trim().length > 0`, so a whitespace-only value would otherwise fall through to a rotating
+ * Sim-owned key on hosted deployments.
+ */
+export function resolvePiSearchKey(params: {
+  provider: PiSearchProvider
+  apiKey?: string
+}): string {
+  const { label } = PI_SEARCH_PROVIDERS[params.provider]
+
+  const fieldKey = params.apiKey?.trim()
+  if (fieldKey) return fieldKey
+
+  throw new Error(
+    `${label} search requires your own ${label} API key. Enter it in the block's Search API Key field.`
+  )
+}
+
 /** Run cost, zeroed for BYOK keys and models Sim does not bill. */
 export function computePiCost(
   model: string,
@@ -74,11 +141,7 @@ export function computePiCost(
   outputTokens: number,
   isBYOK: boolean
 ) {
-  if (isBYOK || !shouldBillModelUsage(model)) {
-    return { input: 0, output: 0, total: 0 }
-  }
-  const multiplier = getCostMultiplier()
-  return calculateCost(model, inputTokens, outputTokens, false, multiplier, multiplier)
+  return calculateBillableModelCost(model, inputTokens, outputTokens, { isBYOK })
 }
 
 /**

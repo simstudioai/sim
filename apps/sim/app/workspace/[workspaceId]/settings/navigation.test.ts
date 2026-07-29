@@ -15,6 +15,7 @@ describe('unified settings navigation', () => {
       { key: 'tools', title: 'Tools' },
       { key: 'subscription', title: 'Subscription' },
       { key: 'system', title: 'System' },
+      { key: 'desktop', title: 'Desktop' },
       { key: 'enterprise', title: 'Enterprise' },
       { key: 'superuser', title: 'Superuser' },
     ])
@@ -23,6 +24,9 @@ describe('unified settings navigation', () => {
   it('keeps account, workspace, organization, and platform settings in one catalog', () => {
     expect(allNavigationItems.map(({ id, label, section }) => ({ id, label, section }))).toEqual([
       { id: 'general', label: 'General', section: 'account' },
+      { id: 'desktop', label: 'Desktop', section: 'desktop' },
+      { id: 'browser', label: 'Browser', section: 'desktop' },
+      { id: 'terminal', label: 'Terminal', section: 'desktop' },
       { id: 'access-control', label: 'Access control', section: 'enterprise' },
       { id: 'audit-logs', label: 'Audit logs', section: 'enterprise' },
       { id: 'forks', label: 'Workspace Forks', section: 'enterprise' },
@@ -35,7 +39,6 @@ describe('unified settings navigation', () => {
       { id: 'apikeys', label: 'Sim API keys', section: 'system' },
       { id: 'workflow-mcp-servers', label: 'MCP servers', section: 'system' },
       { id: 'byok', label: 'BYOK', section: 'system' },
-      { id: 'copilot', label: 'Chat keys', section: 'system' },
       { id: 'inbox', label: 'Sim mailer', section: 'system' },
       { id: 'recently-deleted', label: 'Recently deleted', section: 'system' },
       { id: 'sso', label: 'Single sign-on', section: 'enterprise' },
@@ -50,10 +53,12 @@ describe('unified settings navigation', () => {
   })
 
   it('derives every unified item from exactly one registry entry', () => {
-    expect(allNavigationItems).toHaveLength(SETTINGS_SECTION_REGISTRY.length)
+    expect(allNavigationItems).toHaveLength(
+      SETTINGS_SECTION_REGISTRY.filter(({ unified }) => unified).length
+    )
     for (const item of allNavigationItems) {
       expect(
-        SETTINGS_SECTION_REGISTRY.filter(({ unified }) => unified.id === item.id)
+        SETTINGS_SECTION_REGISTRY.filter(({ unified }) => unified?.id === item.id)
       ).toHaveLength(1)
     }
   })

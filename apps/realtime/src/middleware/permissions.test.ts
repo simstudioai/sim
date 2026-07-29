@@ -23,7 +23,24 @@ vi.mock('@sim/platform-authz/workflow', () => ({
   authorizeWorkflowByWorkspacePermission: mockAuthorize,
 }))
 
-import { checkRolePermission, checkWorkflowOperationPermission } from '@/middleware/permissions'
+vi.mock('@sim/db', () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => [{ workspaceId: 'ws-1', name: 'Test Workflow' }]),
+        })),
+      })),
+    })),
+  },
+}))
+
+import {
+  checkRolePermission,
+  checkWorkflowOperationPermission,
+  resolveCurrentWorkflowRole,
+  verifyWorkflowAccess,
+} from '@/middleware/permissions'
 
 describe('checkRolePermission', () => {
   describe('admin role', () => {
@@ -412,5 +429,122 @@ describe('checkWorkflowOperationPermission', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('resolveCurrentWorkflowRole single-flight', () => {
+  const userId = 'sf-user-1'
+  let workflowCounter = 0
+  let workflowId: string
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // Unique workflowId per test so the module-level role cache never leaks across tests
+    workflowCounter += 1
+    workflowId = `sf-wf-${workflowCounter}`
+  })
+
+  it('coalesces concurrent resolutions into a single authorization query', async () => {
+    let resolveAuthorize!: (value: { allowed: boolean; workspacePermission: string | null }) => void
+    mockAuthorize.mockReturnValue(
+      new Promise((resolve) => {
+        resolveAuthorize = resolve
+      })
+    )
+
+    // Both callers race the same expired/cold cache entry; they must share one
+    // in-flight query so a slower duplicate can never overwrite a newer
+    // decision (e.g. a revocation recorded by the eviction sweep).
+    const first = resolveCurrentWorkflowRole(userId, workflowId, 'read')
+    const second = resolveCurrentWorkflowRole(userId, workflowId, 'read')
+
+    resolveAuthorize({ allowed: true, workspacePermission: 'write' })
+
+    expect(await first).toBe('write')
+    expect(await second).toBe('write')
+    expect(mockAuthorize).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not coalesce resolutions for different workflows', async () => {
+    mockAuthorize.mockResolvedValue({ allowed: true, workspacePermission: 'read' })
+
+    const [first, second] = await Promise.all([
+      resolveCurrentWorkflowRole(userId, workflowId, 'read'),
+      resolveCurrentWorkflowRole(userId, `${workflowId}-other`, 'read'),
+    ])
+
+    expect(first).toBe('read')
+    expect(second).toBe('read')
+    expect(mockAuthorize).toHaveBeenCalledTimes(2)
+  })
+
+  it('starts a fresh query after an in-flight resolution settles and its cache entry expires', async () => {
+    vi.useFakeTimers()
+    try {
+      mockAuthorize.mockResolvedValue({ allowed: true, workspacePermission: 'write' })
+      expect(await resolveCurrentWorkflowRole(userId, workflowId, 'read')).toBe('write')
+
+      vi.advanceTimersByTime(31_000)
+      mockAuthorize.mockResolvedValue({ allowed: false, workspacePermission: null })
+
+      expect(await resolveCurrentWorkflowRole(userId, workflowId, 'read')).toBeNull()
+      expect(mockAuthorize).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('verifyWorkflowAccess role-cache refresh', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('records the fresh decision so a stale cached revocation does not block a re-granted join', async () => {
+    const userId = 'vw-user-1'
+    const workflowId = 'vw-wf-1'
+
+    // A sweep-style resolution records the revocation.
+    mockAuthorize.mockResolvedValue({ allowed: false, workspacePermission: null })
+    expect(await resolveCurrentWorkflowRole(userId, workflowId, 'read')).toBeNull()
+
+    // Access is restored and a fresh join-time verify succeeds.
+    mockAuthorize.mockResolvedValue({ allowed: true, workspacePermission: 'write' })
+    const access = await verifyWorkflowAccess(userId, workflowId)
+    expect(access.hasAccess).toBe(true)
+
+    // The pre-join gate's warm read now sees the fresh role, not the stale
+    // cached null recorded before the re-grant.
+    mockAuthorize.mockRejectedValue(new Error('must not re-query'))
+    expect(await resolveCurrentWorkflowRole(userId, workflowId, 'read')).toBe('write')
+  })
+
+  it('does not let a stale in-flight resolution overwrite a fresher verify decision', async () => {
+    const userId = 'vw-user-2'
+    const workflowId = 'vw-wf-2'
+
+    // A sweep-style resolution starts against pre-re-grant state and stalls.
+    let resolveStaleQuery!: (value: {
+      allowed: boolean
+      workspacePermission: string | null
+    }) => void
+    mockAuthorize.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveStaleQuery = resolve
+      })
+    )
+    const staleResolution = resolveCurrentWorkflowRole(userId, workflowId, 'read')
+
+    // Access is re-granted and a fresh join-time verify records it mid-flight.
+    mockAuthorize.mockResolvedValueOnce({ allowed: true, workspacePermission: 'write' })
+    await verifyWorkflowAccess(userId, workflowId)
+
+    // The stale query now completes with the pre-re-grant revocation — it must
+    // yield to the fresher recorded decision, not overwrite it.
+    resolveStaleQuery({ allowed: false, workspacePermission: null })
+    expect(await staleResolution).toBe('write')
+
+    mockAuthorize.mockRejectedValue(new Error('must not re-query'))
+    expect(await resolveCurrentWorkflowRole(userId, workflowId, 'read')).toBe('write')
   })
 })

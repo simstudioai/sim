@@ -47,7 +47,7 @@ export function RemoveMemberDialog({
       ? 'Remove External Member'
       : 'Remove Team Member'
 
-  const errorMessage = error ? getErrorMessage(error) || null : null
+  const errorMessage = error ? getErrorMessage(error) || 'Failed to remove member' : null
 
   const credentialWarning = credentialImpactFailed
     ? `Couldn't check which credentials ${isSelfRemoval ? 'you own' : 'they own'} will be affected — connected accounts backed by ${isSelfRemoval ? 'your' : 'their'} identity may stop working after removal.`

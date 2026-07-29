@@ -13,10 +13,12 @@ import {
   getBlockMetrics,
   getBlocksByParent,
   hasFinitePosition,
+  isContainerType,
   prepareContainerDimensions,
   resolveNoteOverlaps,
   shouldSkipAutoLayout,
   snapPositionToGrid,
+  sortContainersDeepestFirst,
 } from '@/lib/workflows/autolayout/utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -66,6 +68,8 @@ export function applyTargetedLayout(
   const shiftSourceSet = new Set(shiftSourceBlockIds)
   const blocksCopy: Record<string, BlockState> = structuredClone(blocks)
 
+  const containerSizesBeforeLayout = measureContainers(blocksCopy)
+
   prepareContainerDimensions(
     blocksCopy,
     edges,
@@ -78,6 +82,43 @@ export function applyTargetedLayout(
   const groups = getBlocksByParent(blocksCopy)
 
   const subflowDepths = calculateSubflowDepths(blocksCopy, edges, assignLayers)
+
+  // Lay out contained groups before the groups that contain them. `prepareContainerDimensions`
+  // sizes a container from a hypothetical layout of its children, but targeted layout keeps
+  // frozen children where they are — so that size only becomes real once the container's own
+  // group has run. Finishing inner groups first means every container carries the size it will
+  // actually render at before anything is positioned beside it.
+  for (const containerId of sortContainersDeepestFirst(
+    Array.from(groups.children.keys()),
+    blocksCopy
+  )) {
+    layoutGroup(
+      containerId,
+      groups.children.get(containerId) ?? [],
+      blocksCopy,
+      edges,
+      changedSet,
+      resizedSet,
+      shiftSourceSet,
+      verticalSpacing,
+      horizontalSpacing,
+      subflowDepths,
+      gridSize
+    )
+
+    // A container resized by an edit to its *children* is invisible to the caller's change
+    // set. Mark it resized now that its final size is known, so the enclosing group shifts
+    // neighbours out of its way. Deepest-first ordering means a nested container is already
+    // marked before the group that contains it runs.
+    const sizeBefore = containerSizesBeforeLayout.get(containerId)
+    const container = blocksCopy[containerId]
+    if (!sizeBefore || !container) continue
+
+    const sizeAfter = getBlockMetrics(container)
+    if (sizeAfter.width !== sizeBefore.width || sizeAfter.height !== sizeBefore.height) {
+      resizedSet.add(containerId)
+    }
+  }
 
   layoutGroup(
     null,
@@ -93,27 +134,28 @@ export function applyTargetedLayout(
     gridSize
   )
 
-  for (const [parentId, childIds] of groups.children.entries()) {
-    layoutGroup(
-      parentId,
-      childIds,
-      blocksCopy,
-      edges,
-      changedSet,
-      resizedSet,
-      shiftSourceSet,
-      verticalSpacing,
-      horizontalSpacing,
-      subflowDepths,
-      gridSize
-    )
-  }
-
   // Relocate notes only where this pass introduced an overlap, comparing against
   // the original positions so pre-existing note arrangements are preserved.
   resolveNoteOverlaps(blocksCopy, verticalSpacing, { previousBlocks: blocks })
 
   return blocksCopy
+}
+
+/**
+ * Captures the current on-canvas size of every container block.
+ */
+function measureContainers(
+  blocks: Record<string, BlockState>
+): Map<string, { width: number; height: number }> {
+  const sizes = new Map<string, { width: number; height: number }>()
+
+  for (const [id, block] of Object.entries(blocks)) {
+    if (!isContainerType(block.type)) continue
+    const { width, height } = getBlockMetrics(block)
+    sizes.set(id, { width, height })
+  }
+
+  return sizes
 }
 
 /**

@@ -22,7 +22,13 @@ vi.mock('@/providers/utils', () => ({
   shouldBillModelUsage: mockShouldBill,
 }))
 
-import { computePiCost, providerApiKeyEnvVar, resolvePiModelKey } from '@/executor/handlers/pi/keys'
+import {
+  computePiCost,
+  parsePiSearchProvider,
+  providerApiKeyEnvVar,
+  resolvePiModelKey,
+  resolvePiSearchKey,
+} from '@/executor/handlers/pi/keys'
 
 beforeAll(() => {
   envFlagsMockFns.getCostMultiplier.mockReturnValue(2)
@@ -51,13 +57,21 @@ describe('computePiCost', () => {
   })
 
   it('returns zero cost for BYOK keys without billing', () => {
-    expect(computePiCost('claude', 100, 200, true)).toEqual({ input: 0, output: 0, total: 0 })
+    expect(computePiCost('claude', 100, 200, true)).toMatchObject({
+      input: 0,
+      output: 0,
+      total: 0,
+    })
     expect(mockCalculateCost).not.toHaveBeenCalled()
   })
 
   it('returns zero cost for non-billable models', () => {
     mockShouldBill.mockReturnValue(false)
-    expect(computePiCost('local-model', 100, 200, false)).toEqual({ input: 0, output: 0, total: 0 })
+    expect(computePiCost('local-model', 100, 200, false)).toMatchObject({
+      input: 0,
+      output: 0,
+      total: 0,
+    })
     expect(mockCalculateCost).not.toHaveBeenCalled()
   })
 
@@ -199,5 +213,69 @@ describe('resolvePiModelKey', () => {
       })
     ).resolves.toEqual({ apiKey: 'sk-hosted', isBYOK: false })
     expect(mockGetApiKeyWithBYOK).toHaveBeenCalledWith('anthropic', 'claude', 'ws-1', undefined)
+  })
+})
+
+describe('parsePiSearchProvider', () => {
+  it('treats an absent value as none so blocks saved before the field keep running', () => {
+    expect(parsePiSearchProvider(undefined)).toBe('none')
+    expect(parsePiSearchProvider(null)).toBe('none')
+    expect(parsePiSearchProvider('')).toBe('none')
+    expect(parsePiSearchProvider('   ')).toBe('none')
+    expect(parsePiSearchProvider('none')).toBe('none')
+  })
+
+  it('accepts every offered provider', () => {
+    expect(parsePiSearchProvider('exa')).toBe('exa')
+    expect(parsePiSearchProvider('serper')).toBe('serper')
+    expect(parsePiSearchProvider('parallel')).toBe('parallel')
+    expect(parsePiSearchProvider('firecrawl')).toBe('firecrawl')
+    expect(parsePiSearchProvider(' exa ')).toBe('exa')
+  })
+
+  it('rejects an unrecognized value instead of silently disabling search', () => {
+    expect(() => parsePiSearchProvider('Exa')).toThrow(/Invalid Pi search provider/)
+    expect(() => parsePiSearchProvider('google')).toThrow(/Invalid Pi search provider/)
+    expect(() => parsePiSearchProvider('toString')).toThrow(/Invalid Pi search provider/)
+  })
+})
+
+describe('resolvePiSearchKey', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns the trimmed block field, the only source', () => {
+    expect(resolvePiSearchKey({ provider: 'exa', apiKey: '  exa-field  ' })).toBe('exa-field')
+  })
+
+  // The field is shown on every deployment, so there is no configuration where a fallback would be
+  // needed — and reading one would pull a workspace credential the runner cannot otherwise see into
+  // the Create PR sandbox.
+  it('never reads a stored workspace BYOK key', () => {
+    expect(() => resolvePiSearchKey({ provider: 'serper' })).toThrow(
+      /Serper search requires your own Serper API key/
+    )
+    expect(mockGetBYOKKey).not.toHaveBeenCalled()
+  })
+
+  it('treats a whitespace-only key as absent, so no hosted key can be injected later', () => {
+    expect(() => resolvePiSearchKey({ provider: 'firecrawl', apiKey: '   ' })).toThrow(
+      /Firecrawl search requires your own Firecrawl API key/
+    )
+    expect(mockGetBYOKKey).not.toHaveBeenCalled()
+  })
+
+  it('never falls back to a Sim-hosted key', () => {
+    expect(() => resolvePiSearchKey({ provider: 'exa' })).toThrow(
+      /Exa search requires your own Exa API key/
+    )
+    expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
+  })
+
+  it('names the selected provider in the setup error, matching the dropdown label', () => {
+    expect(() => resolvePiSearchKey({ provider: 'parallel' })).toThrow(
+      /Parallel AI search requires your own Parallel AI API key/
+    )
   })
 })

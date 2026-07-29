@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { omit } from '@sim/utils/object'
+import { isRecordLike, omit } from '@sim/utils/object'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import {
   extractBlockIdFromOutputId,
@@ -35,7 +35,7 @@ import {
   type ChatStreamStreamErrorFrame,
   type ChatStreamThinkingFrame,
   type ChatStreamToolFrame,
-  shouldEmitAgentStreamEvents,
+  clientAcceptsAgentStreamProtocol,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
@@ -60,10 +60,11 @@ const SELECTED_OUTPUT_TOO_LARGE_MESSAGE =
  * Simple SSE stream contract — frame shapes are the `ChatStreamFrame` union in
  * `agent-stream-protocol.ts`, consumed by both these emitters and the chat client:
  * - Answer text: `{ blockId, chunk }` only (`chunk` is forever answer text).
- *   Legacy clients get settled final-turn text; dual-gated clients get answer
- *   text live from the agent-events sink, reconciled by
+ *   Legacy clients get settled final-turn text; protocol-negotiated clients get
+ *   answer text live from the agent-events sink, reconciled by
  *   `{ blockId, event: 'chunk_reset' }` when a turn resolves to tool calls.
  * - Thinking (opt-in): `{ blockId, event: 'thinking', data }` — never uses `chunk`.
+ * - Tool lifecycle (opt-in): `{ blockId, event: 'tool', ... }` — name/status only.
  * - Success terminal: `{ event: 'final', data }` then `[DONE]`.
  * - Failure terminal: exactly one `{ event: 'error', ... }` then `[DONE]`. No `final` after failure.
  * - Mid-block read issues may emit non-terminal `{ event: 'stream_error', blockId, error }`.
@@ -78,11 +79,10 @@ interface StreamingConfig {
   includeFileBase64?: boolean
   base64MaxBytes?: number
   timeoutMs?: number
-  /**
-   * Deployment policy for thinking/tool SSE. Still requires the client to send
-   * {@link AGENT_STREAM_PROTOCOL_HEADER}: {@link AGENT_STREAM_PROTOCOL_V1}.
-   */
+  /** Thinking SSE policy; still requires the negotiated agent-events protocol. */
   includeThinking?: boolean
+  /** Tool lifecycle SSE policy; still requires the negotiated agent-events protocol. */
+  includeToolCalls?: boolean
 }
 
 export type StreamingExecutorFn = (callbacks: {
@@ -104,26 +104,23 @@ export interface StreamingResponseOptions {
   userId?: string
   /** Incoming fetch/request abort — combined with the stream timeout. */
   requestSignal?: AbortSignal
-  /** Used with {@link StreamingConfig.includeThinking} for dual-gate thinking SSE. */
+  /** Used with the independent event policies to negotiate agent-events SSE. */
   requestHeaders?: Headers | { get(name: string): string | null }
   executeFn: StreamingExecutorFn
 }
 
 /**
- * Extra response headers when the dual-gate agent stream protocol is active.
- * Callers should merge these into the SSE response alongside {@link SSE_HEADERS}.
+ * Echoes the stream protocol back when the client negotiated it, so the client
+ * knows v1 framing is in effect and that `chunk_reset` may arrive. Driven by
+ * client capability alone — a negotiated client streams live answer text even
+ * when both event policies are off. Merge into the SSE response alongside
+ * {@link SSE_HEADERS}.
  */
 export function agentStreamProtocolResponseHeaders(options: {
-  includeThinking?: boolean | null
   requestHeaders?: Headers | { get(name: string): string | null }
 }): Record<string, string> {
   if (!options.requestHeaders) return {}
-  if (
-    !shouldEmitAgentStreamEvents({
-      includeThinking: options.includeThinking,
-      requestHeaders: options.requestHeaders,
-    })
-  ) {
+  if (!clientAcceptsAgentStreamProtocol(options.requestHeaders)) {
     return {}
   }
   return { [AGENT_STREAM_PROTOCOL_HEADER]: AGENT_STREAM_PROTOCOL_V1 }
@@ -252,45 +249,69 @@ function assertSelectedOutputBytes(value: unknown): number {
   return bytes
 }
 
+/** Tool-call payload keys that must never ride a public `final` envelope. */
+const TOOL_PAYLOAD_KEYS = ['arguments', 'input', 'result', 'output'] as const
+
+function redactToolCallPayloads(toolCall: unknown): unknown {
+  if (!toolCall || typeof toolCall !== 'object') return toolCall
+  return omit(toolCall as Record<string, unknown>, [...TOOL_PAYLOAD_KEYS])
+}
+
 /**
- * Strips model internals from `providerTiming.timeSegments` before an output
- * rides a simple-SSE `final` envelope: `thinkingContent`, intermediate
- * `assistantContent`, and tool-call arguments would otherwise reach public
- * chat clients wholesale, bypassing the dual-gated thinking/tool frames.
- * Timing numbers and tool names stay — they carry no model internals.
+ * Strips model internals from an output before it rides a simple-SSE `final`
+ * envelope.
+ *
+ * `thinkingContent`, intermediate `assistantContent`, and tool-call arguments
+ * inside `providerTiming.timeSegments` would otherwise reach clients wholesale,
+ * bypassing the independently gated thinking/tool frames. Timing numbers and
+ * tool names stay — they carry no model internals.
+ *
+ * With `redactToolPayloads` (public chat, where the caller is an anonymous end
+ * user rather than the workflow owner), the block's own top-level `toolCalls`
+ * are reduced the same way. Without it, the authenticated workflow API keeps
+ * returning tool results, which callers legitimately consume.
  */
-function sanitizeProviderTimingForEnvelope(
-  output: Record<string, unknown>
+function sanitizeOutputForEnvelope(
+  output: Record<string, unknown>,
+  options: { redactToolPayloads: boolean }
 ): Record<string, unknown> {
+  let sanitized = output
+
   const providerTiming = output.providerTiming as { timeSegments?: unknown } | undefined
-  if (!providerTiming || !Array.isArray(providerTiming.timeSegments)) {
-    return output
+  if (providerTiming && Array.isArray(providerTiming.timeSegments)) {
+    sanitized = {
+      ...sanitized,
+      providerTiming: {
+        ...providerTiming,
+        timeSegments: providerTiming.timeSegments.map((segment) => {
+          if (!segment || typeof segment !== 'object') return segment
+          const { toolCalls, ...rest } = omit(segment as Record<string, unknown>, [
+            'thinkingContent',
+            'assistantContent',
+          ]) as Record<string, unknown> & { toolCalls?: unknown }
+          return {
+            ...rest,
+            ...(Array.isArray(toolCalls)
+              ? { toolCalls: toolCalls.map(redactToolCallPayloads) }
+              : {}),
+          }
+        }),
+      },
+    }
   }
-  return {
-    ...output,
-    providerTiming: {
-      ...providerTiming,
-      timeSegments: providerTiming.timeSegments.map((segment) => {
-        if (!segment || typeof segment !== 'object') return segment
-        const { toolCalls, ...rest } = omit(segment as Record<string, unknown>, [
-          'thinkingContent',
-          'assistantContent',
-        ]) as Record<string, unknown> & { toolCalls?: unknown }
-        return {
-          ...rest,
-          ...(Array.isArray(toolCalls)
-            ? {
-                toolCalls: toolCalls.map((toolCall) =>
-                  toolCall && typeof toolCall === 'object'
-                    ? omit(toolCall as Record<string, unknown>, ['arguments'])
-                    : toolCall
-                ),
-              }
-            : {}),
-        }
-      }),
-    },
+
+  const blockToolCalls = sanitized.toolCalls as { list?: unknown } | undefined
+  if (options.redactToolPayloads && blockToolCalls && Array.isArray(blockToolCalls.list)) {
+    sanitized = {
+      ...sanitized,
+      toolCalls: {
+        ...blockToolCalls,
+        list: blockToolCalls.list.map(redactToolCallPayloads),
+      },
+    }
   }
+
+  return sanitized
 }
 
 async function buildMinimalResult(
@@ -303,8 +324,12 @@ async function buildMinimalResult(
   includeFileBase64: boolean,
   base64MaxBytes: number | undefined,
   executionId?: string,
-  context: Omit<OutputExtractionContext, 'executionId'> = { requestId }
+  context: Omit<OutputExtractionContext, 'executionId'> & {
+    /** Public chat: reduce the block's own tool calls to name + lifecycle. */
+    redactToolPayloads?: boolean
+  } = { requestId }
 ): Promise<{ success: boolean; error?: string; output: Record<string, unknown> }> {
+  const envelopeOptions = { redactToolPayloads: context.redactToolPayloads === true }
   const durableContext = {
     workspaceId: context.workspaceId,
     workflowId: context.workflowId,
@@ -320,7 +345,7 @@ async function buildMinimalResult(
   }
 
   if (result.status === 'paused') {
-    minimalResult.output = sanitizeProviderTimingForEnvelope(result.output || {})
+    minimalResult.output = sanitizeOutputForEnvelope(result.output || {}, envelopeOptions)
     return compactExecutionPayload(minimalResult, {
       ...durableContext,
       preserveUserFileBase64: includeFileBase64,
@@ -329,7 +354,7 @@ async function buildMinimalResult(
   }
 
   if (!selectedOutputs?.length) {
-    minimalResult.output = sanitizeProviderTimingForEnvelope(result.output || {})
+    minimalResult.output = sanitizeOutputForEnvelope(result.output || {}, envelopeOptions)
     return compactExecutionPayload(minimalResult, {
       ...durableContext,
       preserveUserFileBase64: includeFileBase64,
@@ -339,6 +364,23 @@ async function buildMinimalResult(
 
   if (!result.output || !result.logs) {
     return minimalResult
+  }
+
+  /**
+   * Selected outputs are extracted from the sanitized block output, not the raw
+   * log. A deployment can select `toolCalls` or `providerTiming` directly, so
+   * sanitizing per selected path would leave the leak open for whichever path
+   * was missed; sanitizing the source closes it for every path at once. Cached
+   * per block because several descriptors can target the same one.
+   */
+  const sanitizedBlockOutputs = new Map<string, Record<string, unknown>>()
+  const sanitizedOutputFor = (blockId: string, output: Record<string, unknown>) => {
+    const cached = sanitizedBlockOutputs.get(blockId)
+    if (cached) return cached
+
+    const sanitized = sanitizeOutputForEnvelope(output, envelopeOptions)
+    sanitizedBlockOutputs.set(blockId, sanitized)
+    return sanitized
   }
 
   let selectedOutputBytes = assertSelectedOutputBytes(minimalResult.output)
@@ -381,7 +423,11 @@ async function buildMinimalResult(
         getBase64DecodedByteBudget(remainingBytes)
       ),
     }
-    const value = await extractOutputValue(blockLog.output, path, extractionContext)
+    const value = await extractOutputValue(
+      sanitizedOutputFor(blockId, blockLog.output),
+      path,
+      extractionContext
+    )
     if (value === undefined) {
       continue
     }
@@ -452,12 +498,20 @@ export async function createStreamingResponse(
 ): Promise<ReadableStream> {
   const { requestId, streamConfig, executionId, executeFn } = options
   const timeoutController = createTimeoutAbortController(streamConfig.timeoutMs)
-  const emitAgentEvents =
-    Boolean(options.requestHeaders) &&
-    shouldEmitAgentStreamEvents({
-      includeThinking: streamConfig.includeThinking,
-      requestHeaders: options.requestHeaders!,
-    })
+  /**
+   * Answer-text cadence only. A negotiated client renders live text and honors
+   * `chunk_reset`; one that did not negotiate keeps settled final-turn text,
+   * because retracting text it already rendered would corrupt the answer.
+   */
+  const clientAcceptsProtocol =
+    Boolean(options.requestHeaders) && clientAcceptsAgentStreamProtocol(options.requestHeaders!)
+  /**
+   * Frames additionally require the negotiated protocol: a client that never
+   * declared a version has no contract for their shape, so it keeps the text
+   * stream it already understands.
+   */
+  const emitThinking = clientAcceptsProtocol && streamConfig.includeThinking === true
+  const emitToolCalls = clientAcceptsProtocol && streamConfig.includeToolCalls === true
   const maxThinkingChars = DEFAULT_MAX_THINKING_CHARS
 
   let requestAborted = false
@@ -554,14 +608,19 @@ export async function createStreamingResponse(
         }
 
         /**
-         * Dual-gated clients get answer text live from the sink (pending deltas
+         * Negotiated clients get answer text live from the sink (pending deltas
          * stream as the model generates; `chunk_reset` clears an intermediate
          * turn). The byte stream then only feeds `streamedChunks` for logs.
+         *
+         * Legacy clients stay on the byte stream, which a streaming tool loop
+         * only writes once the turn is classified — correct for a consumer that
+         * cannot retract, at the cost of arriving in one piece.
+         *
          * Response-format projections rewrite the bytes, so those blocks keep
-         * the byte stream as the frame source.
+         * the byte stream as the frame source either way.
          */
         const sinkAnswerText =
-          emitAgentEvents &&
+          clientAcceptsProtocol &&
           Boolean(streamingExec.subscribe) &&
           streamingExec.clientStreamTransformed !== true
 
@@ -581,15 +640,15 @@ export async function createStreamingResponse(
         }
 
         let unsubscribe: (() => void) | undefined
-        if (emitAgentEvents && streamingExec.subscribe) {
+        if (clientAcceptsProtocol && streamingExec.subscribe) {
           unsubscribe = streamingExec.subscribe({
             onEvent: async (event) => {
               if (event.type === 'thinking_delta') {
-                sendThinking(blockId, event.text)
+                if (emitThinking) sendThinking(blockId, event.text)
               } else if (event.type === 'tool_call_start') {
-                sendTool(blockId, 'start', event.id, event.name)
+                if (emitToolCalls) sendTool(blockId, 'start', event.id, event.name)
               } else if (event.type === 'tool_call_end') {
-                sendTool(blockId, 'end', event.id, event.name, event.status)
+                if (emitToolCalls) sendTool(blockId, 'end', event.id, event.name, event.status)
               } else if (sinkAnswerText && event.type === 'text_delta') {
                 if (event.turn !== 'intermediate') {
                   emitAnswerChunk(event.text)
@@ -659,6 +718,18 @@ export async function createStreamingResponse(
           (descriptor) => descriptor.blockId === blockId
         )
 
+        /**
+         * A selected output is streamed here and then skipped in the `final`
+         * envelope, so this is the reachable path for a deployment that selects
+         * `toolCalls` or `providerTiming` — sanitizing only the envelope would
+         * leave the payload flowing through the chunk frame instead.
+         */
+        const sanitizedOutput = isRecordLike(output)
+          ? sanitizeOutputForEnvelope(output, {
+              redactToolPayloads: streamConfig.isSecureMode === true,
+            })
+          : output
+
         for (const descriptor of matchingOutputs) {
           if (state.selectedOutputError) {
             break
@@ -681,7 +752,11 @@ export async function createStreamingResponse(
               ),
             }
             const materializationContext = buildMaterializationContext(extractionContext)
-            const outputValue = await extractOutputValue(output, descriptor.path, extractionContext)
+            const outputValue = await extractOutputValue(
+              sanitizedOutput,
+              descriptor.path,
+              extractionContext
+            )
 
             if (outputValue !== undefined) {
               const materializedOutput = await materializeInlineExecutionValue(
@@ -802,6 +877,7 @@ export async function createStreamingResponse(
                 fileKeys: result.metadata?.fileKeys ?? options.fileKeys,
                 allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
                 userId: options.userId,
+                redactToolPayloads: streamConfig.isSecureMode === true,
               }
             )
 

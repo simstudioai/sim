@@ -12,6 +12,7 @@ import {
 } from 'react'
 import { createLogger } from '@sim/logger'
 import type {
+  AccessRevokedBroadcast,
   CursorUpdateBroadcast,
   OperationConfirmedBroadcast,
   OperationFailedBroadcast,
@@ -26,6 +27,7 @@ import type {
 } from '@sim/realtime-protocol/events'
 import { generateId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
+import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import type { Socket } from 'socket.io-client'
 import { getSocketUrl } from '@/lib/core/utils/urls'
@@ -37,6 +39,7 @@ import {
   isSocketWorkflowVisible,
   resolveSocketWorkflowTarget,
 } from '@/app/workspace/providers/socket-join-target'
+import { refreshSessionQuery } from '@/hooks/queries/session'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import type {
   SubblockUpdateEmit,
@@ -104,6 +107,7 @@ interface SocketContextType {
   onCursorUpdate: (handler: (data: CursorUpdateBroadcast) => void) => void
   onSelectionUpdate: (handler: (data: SelectionUpdateBroadcast) => void) => void
   onWorkflowDeleted: (handler: (data: WorkflowDeletedBroadcast) => void) => void
+  onAccessRevoked: (handler: (data: AccessRevokedBroadcast) => void) => void
   onWorkflowReverted: (handler: (data: WorkflowRevertedBroadcast) => void) => void
   onWorkflowUpdated: (handler: (data: WorkflowUpdatedBroadcast) => void) => void
   onWorkflowDeployed: (handler: (data: WorkflowDeployedBroadcast) => void) => void
@@ -135,6 +139,7 @@ const SocketContext = createContext<SocketContextType>({
   onCursorUpdate: () => {},
   onSelectionUpdate: () => {},
   onWorkflowDeleted: () => {},
+  onAccessRevoked: () => {},
   onWorkflowReverted: () => {},
   onWorkflowUpdated: () => {},
   onWorkflowDeployed: () => {},
@@ -168,6 +173,8 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const joinRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const authRetryAttemptsRef = useRef(0)
   const authRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sessionRejectedRef = useRef(false)
+  const queryClient = useQueryClient()
 
   const params = useParams()
   const urlWorkflowId = params?.workflowId as string | undefined
@@ -182,6 +189,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     cursorUpdate?: (data: CursorUpdateBroadcast) => void
     selectionUpdate?: (data: SelectionUpdateBroadcast) => void
     workflowDeleted?: (data: WorkflowDeletedBroadcast) => void
+    accessRevoked?: (data: AccessRevokedBroadcast) => void
     workflowReverted?: (data: WorkflowRevertedBroadcast) => void
     workflowUpdated?: (data: WorkflowUpdatedBroadcast) => void
     workflowDeployed?: (data: WorkflowDeployedBroadcast) => void
@@ -382,6 +390,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           reconnectionDelayMax: 30000,
           timeout: 10000,
           auth: async (cb) => {
+            // Reset per attempt so the flag describes THIS handshake only —
+            // otherwise one early 401 would still be set when a later, unrelated
+            // denial exhausts the retry budget.
+            sessionRejectedRef.current = false
             try {
               const freshToken = await generateSocketToken()
               cb({ token: freshToken })
@@ -389,6 +401,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
               logger.error('Failed to generate fresh token for connection:', error)
               if (error instanceof Error && error.message === 'Authentication required') {
                 // True auth failure - pass null token, server will reject with "Authentication required"
+                sessionRejectedRef.current = true
                 cb({ token: null })
               }
               // For server errors, don't call cb - connection will timeout and Socket.IO will retry
@@ -463,12 +476,28 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
               socketInstance.connect()
             }, delayMs)
           } else {
-            logger.error(
-              'Socket connection denied after max retries - stopping. User may need to refresh/re-login.',
-              { message: error.message }
-            )
+            logger.error('Socket connection denied after max retries - stopping.', {
+              message: error.message,
+            })
             setAuthFailed(true)
             setIsReconnecting(false)
+
+            // The handshake that exhausted the budget was refused because the
+            // token mint reported no session, yet the app is still rendering as
+            // signed in — the classic symptom of Better Auth's session cookie
+            // cache vouching for a row that no longer exists. The mint reads the
+            // database directly, so it is the one caller that sees the divergence.
+            // Settle the canonical session query from server truth (that read
+            // bypasses the cookie cache too): a genuinely dead session resolves
+            // to null and hands off to SessionExpired, while a transient
+            // failure just refreshes the cache and leaves the user alone.
+            if (sessionRejectedRef.current) {
+              void refreshSessionQuery(queryClient).catch((refreshError) => {
+                logger.error('Failed to re-read the session after socket auth failure', {
+                  error: refreshError,
+                })
+              })
+            }
           }
         })
 
@@ -593,6 +622,20 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           }
           executeJoinCommands(result.commands)
           eventHandlers.current.workflowDeleted?.(data)
+        })
+
+        socketInstance.on('access-revoked', (data: AccessRevokedBroadcast) => {
+          logger.warn(`Access to workflow ${data.workflowId} has been revoked`)
+          const result = joinControllerRef.current.handleAccessRevoked(data.workflowId)
+          if (result.shouldClearCurrent) {
+            clearJoinedWorkflowState(true)
+            // Surface the same blocked-join UX as a denied join: persistent
+            // toast plus read-only enforcement while the user is still on the
+            // revoked workflow.
+            setBlockedJoinWorkflowId(data.workflowId)
+          }
+          executeJoinCommands(result.commands)
+          eventHandlers.current.accessRevoked?.(data)
         })
 
         socketInstance.on('workflow-reverted', (data: WorkflowRevertedBroadcast) => {
@@ -1154,6 +1197,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     eventHandlers.current.workflowDeleted = handler
   }, [])
 
+  const onAccessRevoked = useCallback((handler: (data: AccessRevokedBroadcast) => void) => {
+    eventHandlers.current.accessRevoked = handler
+  }, [])
+
   const onWorkflowReverted = useCallback((handler: (data: WorkflowRevertedBroadcast) => void) => {
     eventHandlers.current.workflowReverted = handler
   }, [])
@@ -1202,6 +1249,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       onCursorUpdate,
       onSelectionUpdate,
       onWorkflowDeleted,
+      onAccessRevoked,
       onWorkflowReverted,
       onWorkflowUpdated,
       onWorkflowDeployed,
@@ -1232,6 +1280,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       onCursorUpdate,
       onSelectionUpdate,
       onWorkflowDeleted,
+      onAccessRevoked,
       onWorkflowReverted,
       onWorkflowUpdated,
       onWorkflowDeployed,

@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 import {
   ClipboardList,
   Clock,
+  Cursor,
   Database,
   HexSimple,
   Key,
@@ -9,6 +10,7 @@ import {
   Lock,
   LogIn,
   Palette,
+  PanelLeft,
   Send,
   Server,
   Settings,
@@ -24,17 +26,27 @@ import {
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { McpIcon } from '@/components/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { isHosted } from '@/lib/core/config/env-flags'
+import {
+  isAccessControlEnabled,
+  isAuditLogsEnabled,
+  isDataDrainsEnabled,
+  isDataRetentionEnabled,
+  isHosted,
+  isInboxEnabled,
+  isSessionPoliciesEnabled,
+  isSsoEnabled,
+  isWhitelabelingEnabled,
+} from '@/lib/core/config/env-flags'
 
-export type SettingsPlane = 'account' | 'organization' | 'workspace'
+export type SettingsPlane = 'account' | 'organization' | 'selfhost' | 'workspace'
 
-export type AccountSettingsSection =
-  | 'general'
-  | 'billing'
-  | 'api-keys'
-  | 'copilot'
-  | 'admin'
-  | 'mothership'
+export type AccountSettingsSection = 'general' | 'billing' | 'api-keys' | 'admin' | 'mothership'
+
+/**
+ * Settings a self-hoster needs from the managed service: their profile, what
+ * they pay for, and the Chat keys their own deployment authenticates with.
+ */
+export type SelfHostSettingsSection = 'general' | 'billing' | 'chat-keys'
 
 export type OrganizationSettingsSection =
   | 'members'
@@ -63,6 +75,7 @@ export type WorkspaceSettingsSection =
 export type SettingsSection =
   | AccountSettingsSection
   | OrganizationSettingsSection
+  | SelfHostSettingsSection
   | WorkspaceSettingsSection
 
 export type OrganizationSettingsRouteSection = OrganizationSettingsSection | 'unavailable'
@@ -78,6 +91,9 @@ export interface SettingsNavigationItem<Section extends string = string> {
 
 export type UnifiedSettingsSection =
   | 'general'
+  | 'desktop'
+  | 'browser'
+  | 'terminal'
   | 'secrets'
   | 'access-control'
   | 'custom-blocks'
@@ -89,7 +105,6 @@ export type UnifiedSettingsSection =
   | 'organization'
   | 'sso'
   | 'whitelabeling'
-  | 'copilot'
   | 'forks'
   | 'mcp'
   | 'custom-tools'
@@ -107,8 +122,16 @@ export type UnifiedNavigationSection =
   | 'subscription'
   | 'tools'
   | 'system'
+  | 'desktop'
   | 'enterprise'
   | 'superuser'
+
+/**
+ * A bridge surface the desktop shell must expose for a section to be worth
+ * showing. Gated on the surface, never on the user's device toggle — the
+ * Browser and Terminal pages are where that toggle is flipped back on.
+ */
+export type DesktopSettingsSurface = 'settings' | 'browser' | 'terminal'
 
 export interface UnifiedSettingsNavigationItem {
   id: UnifiedSettingsSection
@@ -124,6 +147,7 @@ export interface UnifiedSettingsNavigationItem {
   selfHostedOverride?: boolean
   requiresSuperUser?: boolean
   requiresAdminRole?: boolean
+  requiresDesktopSurface?: DesktopSettingsSurface
   allowNonOrgAdmin?: boolean
   showWhenLocked?: boolean
   hideForEnterprise?: boolean
@@ -139,6 +163,7 @@ interface UnifiedSettingsProjection
 interface SettingsPlaneSectionMap {
   account: AccountSettingsSection
   organization: OrganizationSettingsSection
+  selfhost: SelfHostSettingsSection
   workspace: WorkspaceSettingsSection
 }
 
@@ -160,20 +185,32 @@ export interface SettingsSectionRegistryEntry {
   label: string
   icon: ComponentType<{ className?: string }>
   docsLink?: string
-  unified: UnifiedSettingsProjection
+  /** Omit for sections that exist only on a standalone plane. */
+  unified?: UnifiedSettingsProjection
   planes?: SettingsPlaneProjections
 }
 
+/**
+ * Which enterprise sections a self-hosted deployment may show.
+ *
+ * These read the same resolved flags the server gates use, so a section is
+ * visible exactly when its API would accept the request. Reading the raw
+ * `NEXT_PUBLIC_*` vars here instead is what previously let nav and server
+ * disagree — a feature could be reachable but hidden, or listed but rejected.
+ *
+ * `customBlocks` stays on its own var because its server gate runs through the
+ * AppConfig-backed feature-flag service rather than the entitlement resolver.
+ */
 const SETTINGS_SELF_HOSTED_OVERRIDES = {
-  accessControl: isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED')),
-  auditLogs: isTruthy(getEnv('NEXT_PUBLIC_AUDIT_LOGS_ENABLED')),
+  accessControl: isAccessControlEnabled,
+  auditLogs: isAuditLogsEnabled,
   customBlocks: isTruthy(getEnv('NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED')),
-  dataDrains: isTruthy(getEnv('NEXT_PUBLIC_DATA_DRAINS_ENABLED')),
-  dataRetention: isTruthy(getEnv('NEXT_PUBLIC_DATA_RETENTION_ENABLED')),
-  inbox: isTruthy(getEnv('NEXT_PUBLIC_INBOX_ENABLED')),
-  sessionPolicies: isTruthy(getEnv('NEXT_PUBLIC_SESSION_POLICIES_ENABLED')),
-  sso: isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')),
-  whitelabeling: isTruthy(getEnv('NEXT_PUBLIC_WHITELABELING_ENABLED')),
+  dataDrains: isDataDrainsEnabled,
+  dataRetention: isDataRetentionEnabled,
+  inbox: isInboxEnabled,
+  sessionPolicies: isSessionPoliciesEnabled,
+  sso: isSsoEnabled,
+  whitelabeling: isWhitelabelingEnabled,
 } as const
 
 export const SETTINGS_NAVIGATION_BILLING_ENABLED = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
@@ -193,6 +230,13 @@ export function getAccountSettingsHref(
   searchParams?: SettingsHrefSearchParams
 ): string {
   return withSettingsSearchParams(`/account/settings/${section}`, searchParams)
+}
+
+export function getSelfHostSettingsHref(
+  section: SelfHostSettingsSection,
+  searchParams?: SettingsHrefSearchParams
+): string {
+  return withSettingsSearchParams(`/selfhost/settings/${section}`, searchParams)
 }
 
 export function getOrganizationSettingsHref(
@@ -220,6 +264,8 @@ export const ACCOUNT_SETTINGS_PATH_ALIASES = {
 
 export const ORGANIZATION_SETTINGS_PATH_ALIASES = {
   organization: 'members',
+  // Verified domains moved into the SSO page; keep old links working.
+  domains: 'sso',
 } as const satisfies Readonly<Record<string, OrganizationSettingsSection>>
 
 export const WORKSPACE_SETTINGS_PATH_ALIASES = {
@@ -272,6 +318,28 @@ export const ACCOUNT_SETTINGS_GROUPS = [
   { key: 'platform', title: 'Platform' },
 ] as const
 
+/** Planes with their own standalone shell; the workspace plane renders inside the editor. */
+export type StandaloneSettingsPlane = Exclude<SettingsPlane, 'workspace'>
+
+/**
+ * Per-plane sidebar chrome. Self-host is reached from outside the app (the CLI
+ * wizard, the README), so it leads with the brand mark rather than a Back link
+ * into a workspace the visitor may not even be using.
+ */
+export const SETTINGS_PLANE_CHROME: Record<
+  StandaloneSettingsPlane,
+  { label: string; showWordmark: boolean }
+> = {
+  account: { label: 'Account', showWordmark: false },
+  organization: { label: 'Organization', showWordmark: false },
+  selfhost: { label: 'Self-host', showWordmark: true },
+}
+
+export const SELFHOST_SETTINGS_GROUPS = [
+  { key: 'account', title: 'Account' },
+  { key: 'developer', title: 'Developer' },
+] as const
+
 export const ORGANIZATION_SETTINGS_GROUPS = [
   { key: 'organization', title: 'Organization' },
   { key: 'security', title: 'Security' },
@@ -296,6 +364,37 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
     planes: {
       account: { id: 'general', group: 'account', order: 0 },
+      selfhost: { id: 'general', group: 'account', order: 0 },
+    },
+  },
+  {
+    label: 'Desktop',
+    icon: PanelLeft,
+    unified: {
+      id: 'desktop',
+      description: 'Manage notifications, startup, local folders, and updates.',
+      group: 'desktop',
+      requiresDesktopSurface: 'settings',
+    },
+  },
+  {
+    label: 'Browser',
+    icon: Cursor,
+    unified: {
+      id: 'browser',
+      description: 'Control the browser Chat drives and the data it keeps.',
+      group: 'desktop',
+      requiresDesktopSurface: 'browser',
+    },
+  },
+  {
+    label: 'Terminal',
+    icon: TerminalWindow,
+    unified: {
+      id: 'terminal',
+      description: 'Control the shells Chat runs commands in.',
+      group: 'desktop',
+      requiresDesktopSurface: 'terminal',
     },
   },
   {
@@ -354,6 +453,12 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
     planes: {
       account: {
+        id: 'billing',
+        description: 'Manage your personal plan, usage, and invoices.',
+        group: 'account',
+        order: 1,
+      },
+      selfhost: {
         id: 'billing',
         description: 'Manage your personal plan, usage, and invoices.',
         group: 'account',
@@ -487,14 +592,13 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
   {
     label: 'Chat keys',
     icon: HexSimple,
-    unified: {
-      id: 'copilot',
-      description: 'Manage the model-provider keys that power Chat.',
-      group: 'system',
-      requiresHosted: true,
-    },
     planes: {
-      account: { id: 'copilot', group: 'developer', order: 3 },
+      selfhost: {
+        id: 'chat-keys',
+        description: 'Manage the model-provider keys that power Chat.',
+        group: 'developer',
+        order: 2,
+      },
     },
   },
   {
@@ -652,15 +756,18 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
 ]
 
 export function buildUnifiedSettingsNavigation(): UnifiedSettingsNavigationItem[] {
-  return SETTINGS_SECTION_REGISTRY.map(({ label, icon, docsLink, unified }) => {
+  return SETTINGS_SECTION_REGISTRY.flatMap(({ label, icon, docsLink, unified }) => {
+    if (!unified) return []
     const { group, ...item } = unified
-    return {
-      ...item,
-      label,
-      icon,
-      section: group,
-      ...(docsLink ? { docsLink } : {}),
-    }
+    return [
+      {
+        ...item,
+        label,
+        icon,
+        section: group,
+        ...(docsLink ? { docsLink } : {}),
+      },
+    ]
   })
 }
 
@@ -672,14 +779,22 @@ function buildPlaneSettingsItems<Plane extends SettingsPlane>(
     return projection ? [{ entry, projection }] : []
   })
     .sort((left, right) => left.projection.order - right.projection.order)
-    .map(({ entry, projection }) => ({
-      id: projection.id,
-      label: projection.label ?? entry.label,
-      description: projection.description ?? entry.unified.description,
-      icon: entry.icon,
-      group: projection.group,
-      ...(entry.docsLink ? { docsLink: entry.docsLink } : {}),
-    }))
+    .map(({ entry, projection }) => {
+      // A plane-only section carries no unified projection to inherit from, so
+      // its own description is the only source — missing one is a registry bug.
+      const description = projection.description ?? entry.unified?.description
+      if (!description) {
+        throw new Error(`Settings section "${projection.id}" is missing a description`)
+      }
+      return {
+        id: projection.id,
+        label: projection.label ?? entry.label,
+        description,
+        icon: entry.icon,
+        group: projection.group,
+        ...(entry.docsLink ? { docsLink: entry.docsLink } : {}),
+      }
+    })
 }
 
 export const ACCOUNT_SETTINGS_ITEMS: SettingsNavigationItem<AccountSettingsSection>[] =
@@ -687,6 +802,9 @@ export const ACCOUNT_SETTINGS_ITEMS: SettingsNavigationItem<AccountSettingsSecti
 
 export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSettingsSection>[] =
   buildPlaneSettingsItems('organization')
+
+export const SELFHOST_SETTINGS_ITEMS: SettingsNavigationItem<SelfHostSettingsSection>[] =
+  buildPlaneSettingsItems('selfhost')
 
 export const WORKSPACE_SETTINGS_ITEMS: SettingsNavigationItem<WorkspaceSettingsSection>[] =
   buildPlaneSettingsItems('workspace')
@@ -699,7 +817,7 @@ export const WORKSPACE_SETTINGS_ITEMS: SettingsNavigationItem<WorkspaceSettingsS
  */
 export const ORGANIZATION_PLANE_UNIFIED_SECTIONS: ReadonlySet<UnifiedSettingsSection> = new Set(
   SETTINGS_SECTION_REGISTRY.flatMap((entry) =>
-    entry.planes?.organization ? [entry.unified.id] : []
+    entry.planes?.organization && entry.unified ? [entry.unified.id] : []
   )
 )
 
@@ -852,7 +970,9 @@ export function getSettingsSectionMeta(
       ? ACCOUNT_SETTINGS_ITEMS
       : plane === 'organization'
         ? ORGANIZATION_SETTINGS_ITEMS
-        : WORKSPACE_SETTINGS_ITEMS
+        : plane === 'selfhost'
+          ? SELFHOST_SETTINGS_ITEMS
+          : WORKSPACE_SETTINGS_ITEMS
   const item = catalog.find((candidate) => candidate.id === section)
   return item ? { label: item.label, description: item.description, docsLink: item.docsLink } : null
 }

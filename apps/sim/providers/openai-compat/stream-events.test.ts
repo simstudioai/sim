@@ -153,4 +153,18 @@ describe('createOpenAICompatibleAgentEventStream', () => {
     ).toBe('Hello world')
     expect(onComplete.mock.calls[0][0].content).toBe('Hello world')
   })
+
+  it('surfaces documented in-band provider errors', async () => {
+    const stream = createOpenAICompatibleAgentEventStream(
+      (async function* () {
+        yield {
+          error: { message: 'Upstream provider failed' },
+          choices: [],
+        } as any
+      })(),
+      { providerName: 'OpenRouter' }
+    )
+
+    await expect(collectEvents(stream)).rejects.toThrow('Upstream provider failed')
+  })
 })

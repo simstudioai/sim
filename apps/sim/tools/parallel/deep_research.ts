@@ -6,6 +6,42 @@ import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 const logger = createLogger('ParallelDeepResearchTool')
 
+/**
+ * Dollar cost of one Parallel Task run per processor tier.
+ *
+ * Fast variants are priced identically to their standard counterparts, so both
+ * spellings are listed — the block exposes `pro-fast` and `ultra-fast`, and an
+ * unlisted tier would silently fall back to the cheapest rate.
+ *
+ * Source: https://docs.parallel.ai/getting-started/pricing
+ */
+const PROCESSOR_COST_USD: Record<string, number> = {
+  lite: 0.005,
+  'lite-fast': 0.005,
+  base: 0.01,
+  'base-fast': 0.01,
+  core: 0.025,
+  'core-fast': 0.025,
+  core2x: 0.05,
+  'core2x-fast': 0.05,
+  pro: 0.1,
+  'pro-fast': 0.1,
+  ultra: 0.3,
+  'ultra-fast': 0.3,
+  ultra2x: 0.6,
+  'ultra2x-fast': 0.6,
+  ultra4x: 1.2,
+  'ultra4x-fast': 1.2,
+  ultra8x: 2.4,
+  'ultra8x-fast': 2.4,
+}
+
+/**
+ * Tier used when the caller does not pick one. Shared by the request body and
+ * the cost calculation so the tier Sim asks for is always the tier it charges.
+ */
+const DEFAULT_PROCESSOR = 'pro'
+
 export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolResponse> = {
   id: 'parallel_deep_research',
   name: 'Parallel AI Deep Research',
@@ -20,34 +56,21 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
     pricing: {
       type: 'custom',
       getCost: (params, _output) => {
-        // Parallel Task API: cost varies by processor
-        // https://docs.parallel.ai/resources/pricing
-        const processorCosts: Record<string, number> = {
-          lite: 0.005,
-          base: 0.01,
-          core: 0.025,
-          core2x: 0.05,
-          pro: 0.1,
-          ultra: 0.3,
-          ultra2x: 0.6,
-          ultra4x: 1.2,
-          ultra8x: 2.4,
-        }
-        const processor = (params.processor as string) || 'base'
-        const DEFAULT_PROCESSOR_COST = processorCosts.base
-        const knownCost = processorCosts[processor]
+        const processor = (params.processor as string) || DEFAULT_PROCESSOR
+        const fallbackCost = PROCESSOR_COST_USD[DEFAULT_PROCESSOR]
+        const knownCost = PROCESSOR_COST_USD[processor]
         if (knownCost == null) {
           logger.warn(
-            `Unknown Parallel processor "${processor}", using default processor cost $${DEFAULT_PROCESSOR_COST}`
+            `Unknown Parallel processor "${processor}", using default processor cost $${fallbackCost}`
           )
           PlatformEvents.hostedKeyUnknownModelCost({
             toolId: 'parallel_deep_research',
             modelName: processor,
-            defaultCost: DEFAULT_PROCESSOR_COST,
+            defaultCost: fallbackCost,
           })
         }
-        const cost = knownCost ?? DEFAULT_PROCESSOR_COST
-        return { cost, metadata: { processor, defaultProcessorCost: DEFAULT_PROCESSOR_COST } }
+        const cost = knownCost ?? fallbackCost
+        return { cost, metadata: { processor, defaultProcessorCost: fallbackCost } }
       },
     },
     rateLimit: {
@@ -67,7 +90,7 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Processing tier: pro, ultra, pro-fast, ultra-fast (default: pro)',
+      description: `Processing tier: pro, ultra, pro-fast, ultra-fast (default: ${DEFAULT_PROCESSOR})`,
     },
     include_domains: {
       type: 'string',
@@ -99,7 +122,7 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
     body: (params) => {
       const body: Record<string, unknown> = {
         input: params.input,
-        processor: params.processor || 'pro',
+        processor: params.processor || DEFAULT_PROCESSOR,
         task_spec: {
           output_schema: 'auto',
         },

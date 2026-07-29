@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import type { ProviderTiming, TraceSpan } from '@/lib/logs/types'
 import {
   isConditionBlockType,
@@ -16,6 +17,12 @@ const logger = createLogger('SpanFactory')
 
 /** A BlockLog that has already passed the id/type validity check. */
 type ValidBlockLog = BlockLog & { blockType: string }
+
+/** Converts arbitrary tool results to the object shape expected by trace spans. */
+function normalizeTraceOutput(value: unknown): Record<string, unknown> | undefined {
+  if (value === undefined) return undefined
+  return isRecordLike(value) ? value : { value }
+}
 
 /**
  * Creates a TraceSpan from a BlockLog. Returns null for invalid logs.
@@ -190,6 +197,7 @@ function buildChildrenFromTimeSegments(
       const currentIndex = toolCallIndices.get(normalizedName) ?? 0
       const match = callsForName[currentIndex]
       toolCallIndices.set(normalizedName, currentIndex + 1)
+      const output = normalizeTraceOutput(match?.result ?? match?.output)
 
       const toolChild: TraceSpan = {
         id: `${span.id}-segment-${index}`,
@@ -200,9 +208,7 @@ function buildChildrenFromTimeSegments(
         endTime: segmentEndTime,
         status: match?.error || segment.errorMessage ? 'error' : 'success',
         input: match?.arguments ?? match?.input,
-        output: match?.error
-          ? { error: match.error, ...(match.result ?? match.output ?? {}) }
-          : (match?.result ?? match?.output),
+        output: match?.error ? { error: match.error, ...output } : output,
       }
       if (segment.toolCallId) toolChild.toolCallId = segment.toolCallId
       if (segment.errorType) toolChild.errorType = segment.errorType
@@ -269,6 +275,7 @@ function buildChildrenFromToolCalls(span: TraceSpan, log: ValidBlockLog): TraceS
   return toolCalls.map((tc, index) => {
     const startTime = tc.startTime ?? log.startedAt
     const endTime = tc.endTime ?? log.endedAt
+    const output = normalizeTraceOutput(tc.result ?? tc.output)
     return {
       id: `${span.id}-tool-${index}`,
       name: stripCustomToolPrefix(tc.name ?? 'unnamed-tool'),
@@ -278,9 +285,7 @@ function buildChildrenFromToolCalls(span: TraceSpan, log: ValidBlockLog): TraceS
       endTime,
       status: tc.error ? 'error' : 'success',
       input: tc.arguments ?? tc.input,
-      output: tc.error
-        ? { error: tc.error, ...(tc.result ?? tc.output ?? {}) }
-        : (tc.result ?? tc.output),
+      output: tc.error ? { error: tc.error, ...output } : output,
     }
   })
 }

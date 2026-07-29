@@ -20,7 +20,7 @@ app:
   # Image configuration
   image:
     repository: simstudioai/simstudio
-    # tag defaults to Chart.AppVersion. Override with a release tag (e.g. "0.6.73") or pin via image.digest.
+    # tag defaults to Chart.AppVersion. Override with a release tag (e.g. "v0.7.44") or pin via image.digest.
     tag: ""
     # Optional image digest pin: "sha256:..." — when set, overrides tag.
     digest: ""
@@ -199,7 +199,18 @@ app:
     # Admin API Configuration
     ADMIN_API_KEY: ""                                    # Admin API key for organization/user management (generate with: openssl rand -hex 32)
 
-    # Organizations & Permission Groups (defaults to "false" via envDefaults — set "true" here to enable)
+    # Enterprise feature set (defaults to "false" via envDefaults — set "true" here to enable)
+    # ENTERPRISE_ENABLED turns on every enterprise feature; the per-feature flags
+    # below override it either way. See docs: /platform/enterprise/self-hosted
+    ENTERPRISE_ENABLED: ""                               # Enable all enterprise features ("true" to enable)
+    NEXT_PUBLIC_ENTERPRISE_ENABLED: ""                   # Show all enterprise UI ("true" to enable)
+
+    # Instance-tier organization — every user auto-joins this one org at signup
+    INSTANCE_ORG_NAME: ""                                # Organization name; setting it turns instance-org mode on
+    INSTANCE_ORG_SLUG: ""                                # Optional slug (derived from the name when empty)
+    INSTANCE_ORG_OWNER_EMAIL: ""                         # Optional owner email (defaults to the first user to sign up)
+
+    # Organizations & Permission Groups (per-feature overrides)
     ACCESS_CONTROL_ENABLED: ""                           # Enable permission groups feature ("true" to enable)
     ORGANIZATIONS_ENABLED: ""                            # Enable organizations feature ("true" to enable)
     NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: ""               # Show permission groups UI ("true" to enable)
@@ -326,11 +337,15 @@ app:
     NEXT_PUBLIC_BRAND_NAME: "Sim"
     NEXT_PUBLIC_SUPPORT_EMAIL: "help@sim.ai"
 
-    # Feature flags (default off — set "true" in app.env or app.envDefaults to enable)
-    ACCESS_CONTROL_ENABLED: "false"
-    ORGANIZATIONS_ENABLED: "false"
-    NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: "false"
-    NEXT_PUBLIC_ORGANIZATIONS_ENABLED: "false"
+    # Feature flags — left EMPTY, not "false", on purpose.
+    # A per-feature flag set to "false" is an explicit override that wins over
+    # ENTERPRISE_ENABLED, so hardcoding "false" here would silently prevent the
+    # master switch from ever enabling these. Empty means "unset", which lets
+    # ENTERPRISE_ENABLED decide. Set "true"/"false" in app.env to override.
+    ACCESS_CONTROL_ENABLED: ""
+    ORGANIZATIONS_ENABLED: ""
+    NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: ""
+    NEXT_PUBLIC_ORGANIZATIONS_ENABLED: ""
 
     # Admission Gate
     ADMISSION_GATE_MAX_INFLIGHT: "500"                    # Max concurrent in-flight execution requests per pod
@@ -1729,9 +1744,10 @@ externalSecrets:
   enabled: false
 
   # ESO API version. Default "v1beta1" — supported by every ESO release from
-  # v0.7+ (mid-2023) through current. Set to "v1" only when targeting ESO
-  # v0.17+ clusters where the v1 API has graduated.
-  apiVersion: "v1beta1"
+  # Current ESO releases serve only external-secrets.io/v1 (the v1beta1
+  # compatibility path was removed in 2026). Set to "v1beta1" only for
+  # clusters still running ESO < 0.17.
+  apiVersion: "v1"
 
   # How often to sync secrets from the external store
   refreshInterval: "1h"

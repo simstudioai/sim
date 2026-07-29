@@ -9,6 +9,8 @@ import {
 } from '@/lib/api/contracts/auth'
 import { organizationKeys } from '@/hooks/queries/organization'
 
+export const SSO_PROVIDERS_STALE_TIME = 5 * 60 * 1000
+
 /**
  * Query key factories for SSO-related queries
  */
@@ -41,7 +43,7 @@ export function useSSOProviders({ enabled = true, organizationId }: UseSSOProvid
   return useQuery({
     queryKey: ssoKeys.providerList(organizationId),
     queryFn: ({ signal }) => fetchSSOProviders(signal, organizationId),
-    staleTime: 5 * 60 * 1000,
+    staleTime: SSO_PROVIDERS_STALE_TIME,
     enabled,
   })
 }

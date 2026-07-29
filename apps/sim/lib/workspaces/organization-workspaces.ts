@@ -32,6 +32,8 @@ export interface AttachOwnedWorkspacesToOrganizationTxResult
 export interface DetachOrganizationWorkspacesResult {
   detachedWorkspaceIds: string[]
   billedAccountUserId: string | null
+  /** Emit with `recordAuditBatch` once the surrounding transaction has committed. */
+  auditEntries: Parameters<typeof recordAuditBatch>[0]
 }
 
 export class WorkspaceOrganizationMembershipConflictError extends Error {
@@ -395,6 +397,26 @@ export async function attachOwnedWorkspacesToOrganizationTx(
 export async function detachOrganizationWorkspaces(
   organizationId: string
 ): Promise<DetachOrganizationWorkspacesResult> {
+  const result = await db.transaction((tx) => detachOrganizationWorkspacesTx(tx, organizationId))
+  recordAuditBatch(result.auditEntries)
+  return result
+}
+
+/**
+ * Transaction-enlisted detach, for callers that must commit the detach together
+ * with something else — deleting the organization, for instance, where a
+ * detach that committed on its own would leave workspaces re-billed while the
+ * organization it was meant to empty still exists.
+ *
+ * Returns its audit rows in `auditEntries` rather than writing them. Callers
+ * pass them to `recordAuditBatch` only after their transaction commits: the
+ * write is fire-and-forget, so emitting it here would leave audit history
+ * describing detachments that a later rollback undid.
+ */
+export async function detachOrganizationWorkspacesTx(
+  tx: DbOrTx,
+  organizationId: string
+): Promise<DetachOrganizationWorkspacesResult> {
   const organizationOwnerId = await getOrganizationOwnerId(organizationId)
   if (!organizationOwnerId) {
     logger.warn(
@@ -403,7 +425,7 @@ export async function detachOrganizationWorkspaces(
     )
   }
 
-  const organizationWorkspaces = await db
+  const organizationWorkspaces = await tx
     .select({
       id: workspace.id,
       ownerId: workspace.ownerId,
@@ -417,7 +439,7 @@ export async function detachOrganizationWorkspaces(
       )
     )
 
-  const detachedWorkspaceIds = await db.transaction(async (tx) => {
+  const detachedWorkspaceIds = await (async () => {
     const now = new Date()
     const workspaceIds = organizationWorkspaces
       .map((organizationWorkspace) => organizationWorkspace.id)
@@ -468,6 +490,12 @@ export async function detachOrganizationWorkspaces(
       })
 
     return [...workspaceIds].sort()
+  })()
+
+  logger.info('Detached organization workspaces', {
+    organizationId,
+    detachedWorkspaceCount: detachedWorkspaceIds.length,
+    billedAccountUserId: organizationOwnerId,
   })
 
   const workspacesById = new Map(
@@ -476,8 +504,11 @@ export async function detachOrganizationWorkspaces(
       organizationWorkspace,
     ])
   )
-  recordAuditBatch(
-    detachedWorkspaceIds.map((detachedWorkspaceId) => {
+
+  return {
+    detachedWorkspaceIds,
+    billedAccountUserId: organizationOwnerId,
+    auditEntries: detachedWorkspaceIds.map((detachedWorkspaceId) => {
       const detachedWorkspace = workspacesById.get(detachedWorkspaceId)
       return {
         workspaceId: detachedWorkspaceId,
@@ -493,17 +524,6 @@ export async function detachOrganizationWorkspaces(
           newBilledAccountUserId: organizationOwnerId ?? detachedWorkspace?.ownerId ?? null,
         },
       }
-    })
-  )
-
-  logger.info('Detached organization workspaces', {
-    organizationId,
-    detachedWorkspaceCount: detachedWorkspaceIds.length,
-    billedAccountUserId: organizationOwnerId,
-  })
-
-  return {
-    detachedWorkspaceIds,
-    billedAccountUserId: organizationOwnerId,
+    }),
   }
 }

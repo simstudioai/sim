@@ -1,4 +1,4 @@
-import { isLoopbackHostname } from '@/lib/core/utils/urls'
+import { isLoopbackHostname } from '@sim/security/hostnames'
 
 export class McpOauthInsecureUrlError extends Error {
   constructor(url: string) {

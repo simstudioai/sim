@@ -163,6 +163,34 @@ describe('EvaluatorBlockHandler', () => {
     })
   })
 
+  it('bills the cost the provider proxy decided rather than recomputing it', async () => {
+    // The proxy already resolved key provenance and the margin; recomputing
+    // here would re-charge a BYOK caller the proxy correctly zeroed.
+    mockFetch.mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: JSON.stringify({ score1: 5, score2: 8 }),
+            model: 'mock-model',
+            tokens: { input: 50, output: 10, total: 60 },
+            cost: { input: 0.001, output: 0.0005, total: 0.0015 },
+            timing: { total: 200 },
+          }),
+      })
+    )
+
+    const result = await handler.execute(mockContext, mockBlock, {
+      content: 'This is the content to evaluate.',
+    })
+
+    expect((result as { cost: unknown }).cost).toEqual({
+      input: 0.001,
+      output: 0.0005,
+      total: 0.0015,
+    })
+  })
+
   it('should process JSON string content correctly', async () => {
     const contentObj = { text: 'Evaluate this JSON.', value: 42 }
     const inputs = {

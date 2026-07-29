@@ -54,6 +54,18 @@ export interface ModelCapabilities {
   verbosity?: {
     values: string[]
   }
+  /**
+   * Model accepts caller-placed prompt-cache breakpoints, so caching is a real
+   * opt-in with a cost tradeoff (writes carry a premium over base input).
+   *
+   * Absent for providers whose caching is automatic and free — OpenAI and
+   * Gemini implicit caching need no switch, and exposing one would imply a
+   * control that does not exist.
+   */
+  promptCaching?: {
+    /** Prefixes shorter than this are silently not cached by the vendor. */
+    minimumCacheableTokens: number
+  }
   thinking?: {
     levels: string[]
     default?: string
@@ -754,6 +766,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     color: '#D97757',
     capabilities: {
       toolUsageControl: true,
+      // Every Claude model accepts cache_control breakpoints; Haiku raises the
+      // minimum prefix and overrides this per-model.
+      promptCaching: { minimumCacheableTokens: 1024 },
     },
     models: [
       {
@@ -798,6 +813,27 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         recommended: true,
       },
       {
+        id: 'claude-opus-5',
+        pricing: {
+          input: 5.0,
+          cachedInput: 0.5,
+          output: 25.0,
+          updatedAt: '2026-07-24',
+        },
+        capabilities: {
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          thinking: {
+            levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+            default: 'high',
+            streamed: 'summary',
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-07-24',
+        recommended: true,
+      },
+      {
         id: 'claude-opus-4-8',
         pricing: {
           input: 5.0,
@@ -816,7 +852,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-05-28',
-        recommended: true,
       },
       {
         id: 'claude-opus-4-7',
@@ -853,7 +888,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           thinking: {
             levels: ['low', 'medium', 'high', 'max'],
             default: 'high',
-            streamed: 'full',
+            streamed: 'summary',
           },
         },
         contextWindow: 1000000,
@@ -874,7 +909,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           thinking: {
             levels: ['low', 'medium', 'high', 'max'],
             default: 'high',
-            streamed: 'full',
+            streamed: 'summary',
           },
         },
         contextWindow: 1000000,
@@ -895,7 +930,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
-            streamed: 'full',
+            streamed: 'summary',
           },
         },
         contextWindow: 200000,
@@ -915,7 +950,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
-            streamed: 'full',
+            streamed: 'summary',
           },
         },
         contextWindow: 200000,
@@ -936,7 +971,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
-            streamed: 'full',
+            streamed: 'summary',
           },
         },
         contextWindow: 200000,
@@ -958,7 +993,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
-            streamed: 'full',
+            streamed: 'summary',
           },
         },
         contextWindow: 200000,
@@ -978,7 +1013,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
-            streamed: 'full',
+            streamed: 'summary',
           },
         },
         contextWindow: 200000,
@@ -997,10 +1032,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: 64000,
+          promptCaching: { minimumCacheableTokens: 2048 },
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
-            streamed: 'full',
+            streamed: 'summary',
           },
         },
         contextWindow: 200000,
@@ -1351,6 +1387,8 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     isReseller: true,
     capabilities: {
       toolUsageControl: true,
+      // Microsoft Foundry supports the same cache_control breakpoints.
+      promptCaching: { minimumCacheableTokens: 1024 },
     },
     models: [
       {
@@ -1368,7 +1406,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           thinking: {
             levels: ['low', 'medium', 'high', 'max'],
             default: 'high',
-            streamed: 'full',
+            streamed: 'summary',
           },
         },
         contextWindow: 1000000,
@@ -1389,7 +1427,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
-            streamed: 'full',
+            streamed: 'summary',
           },
         },
         contextWindow: 200000,
@@ -1410,7 +1448,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
-            streamed: 'full',
+            streamed: 'summary',
           },
         },
         contextWindow: 200000,
@@ -1430,7 +1468,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
-            streamed: 'full',
+            streamed: 'summary',
           },
         },
         contextWindow: 200000,
@@ -1449,10 +1487,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: 64000,
+          promptCaching: { minimumCacheableTokens: 2048 },
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
-            streamed: 'full',
+            streamed: 'summary',
           },
         },
         contextWindow: 200000,
@@ -1915,7 +1954,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'deepseek',
     name: 'DeepSeek',
     description: "DeepSeek's chat models",
-    defaultModel: 'deepseek-chat',
+    defaultModel: 'deepseek-v4-flash',
     modelPatterns: [],
     icon: DeepseekIcon,
     color: '#4D6BFE',
@@ -1932,10 +1971,14 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2026-06-16',
         },
         capabilities: {
+          reasoningEffort: {
+            values: ['high', 'max'],
+          },
           thinking: {
-            levels: ['enabled'],
+            levels: ['none', 'enabled'],
             default: 'enabled',
           },
+          maxOutputTokens: 384000,
         },
         contextWindow: 1000000,
         releaseDate: '2026-04-24',
@@ -1950,10 +1993,14 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          reasoningEffort: {
+            values: ['high', 'max'],
+          },
           thinking: {
-            levels: ['enabled'],
+            levels: ['none', 'enabled'],
             default: 'enabled',
           },
+          maxOutputTokens: 384000,
         },
         contextWindow: 1000000,
         releaseDate: '2026-04-24',
@@ -1968,10 +2015,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
-          thinking: {
-            levels: ['enabled'],
-            default: 'enabled',
-          },
+          maxOutputTokens: 384000,
         },
         contextWindow: 1000000,
         releaseDate: '2024-12-26',
@@ -2018,10 +2062,14 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2026-06-11',
         },
         capabilities: {
+          reasoningEffort: {
+            values: ['high', 'max'],
+          },
           thinking: {
             levels: ['enabled'],
             default: 'enabled',
           },
+          maxOutputTokens: 384000,
         },
         contextWindow: 1000000,
         releaseDate: '2025-01-20',
@@ -4382,6 +4430,33 @@ export function getThinkingCapability(
 }
 
 /**
+ * Get all models that accept caller-placed prompt-cache breakpoints.
+ *
+ * Reads merged provider+model capabilities because prompt caching is declared
+ * once per provider (every Claude model supports it) with per-model overrides
+ * only for the minimum prefix length.
+ */
+export function getModelsWithPromptCaching(): string[] {
+  const models: string[] = []
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    for (const model of provider.models) {
+      if (model.capabilities.promptCaching ?? provider.capabilities?.promptCaching) {
+        models.push(model.id)
+      }
+    }
+  }
+  return models
+}
+
+/**
+ * Minimum prefix length the model will cache, or `null` when the model does
+ * not support caller-placed breakpoints.
+ */
+export function getPromptCachingMinimumTokens(modelId: string): number | null {
+  return getModelCapabilities(modelId)?.promptCaching?.minimumCacheableTokens ?? null
+}
+
+/**
  * Get all models that support thinking capability
  */
 export function getModelsWithThinking(): string[] {
@@ -4408,8 +4483,9 @@ export function getThinkingLevelsForModel(modelId: string): string[] | null {
 /**
  * Per-provider defaults for thinking stream visibility, used when a model does
  * not declare `capabilities.thinking.streamed` explicitly. Gemini and OpenAI
- * stream summaries only; Bedrock never requests reasoning; OpenAI-compat
- * vendors that expose reasoning stream the raw chain of thought.
+ * stream summaries only; Bedrock and Meta do not expose reasoning text;
+ * OpenAI-compatible vendors that expose reasoning stream the raw chain of
+ * thought.
  */
 const PROVIDER_THINKING_STREAM_DEFAULTS: Record<string, ThinkingStreamVisibility> = {
   google: 'summary',
@@ -4417,6 +4493,7 @@ const PROVIDER_THINKING_STREAM_DEFAULTS: Record<string, ThinkingStreamVisibility
   openai: 'summary',
   'azure-openai': 'summary',
   bedrock: 'none',
+  meta: 'none',
 }
 
 /**

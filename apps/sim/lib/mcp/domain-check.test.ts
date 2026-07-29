@@ -1,32 +1,12 @@
 /**
  * @vitest-environment node
  */
-import {
-  envFlagsMockFns,
-  inputValidationMock,
-  inputValidationMockFns,
-  resetEnvFlagsMock,
-  setEnvFlags,
-} from '@sim/testing'
+import { envFlagsMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDnsLookup } = vi.hoisted(() => ({
   mockDnsLookup: vi.fn(),
 }))
-
-vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
-
-inputValidationMockFns.mockIsPrivateOrReservedIP.mockImplementation((ip: string) => {
-  if (ip.startsWith('10.') || ip.startsWith('192.168.')) return true
-  if (ip.startsWith('172.')) {
-    const second = Number.parseInt(ip.split('.')[1], 10)
-    if (second >= 16 && second <= 31) return true
-  }
-  if (ip.startsWith('169.254.')) return true
-  if (ip.startsWith('127.') || ip === '::1') return true
-  if (ip === '0.0.0.0') return true
-  return false
-})
 
 vi.mock('dns/promises', () => ({
   default: { lookup: mockDnsLookup },

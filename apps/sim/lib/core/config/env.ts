@@ -55,6 +55,8 @@ export const env = createEnv({
     COPILOT_BILLING_ATTRIBUTION_V1_ENABLED: z.boolean().optional(),
     /** Rejects markerless old-Go billing traffic only when explicitly enabled. */
     COPILOT_BILLING_PROTOCOL_REQUIRED:     z.boolean().optional(),
+    /** Gates risky copilot tools behind an Allow / Skip prompt. Off by default. */
+    COPILOT_TOOL_PERMISSIONS_ENABLED:      z.boolean().optional(),
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
     COPILOT_SOURCE_ENV:                    z.enum(['dev', 'staging', 'prod']).optional(), // Source Sim environment sent to mothership for callbacks
     COPILOT_DEV_URL:                       z.string().url().optional(),            // Sim agent API URL for the dev mothership environment
@@ -421,6 +423,7 @@ export const env = createEnv({
     SLACK_CLIENT_ID:                       z.string().optional(),                  // Slack OAuth client ID
     SLACK_CLIENT_SECRET:                   z.string().optional(),                  // Slack OAuth client secret
     SLACK_SIGNING_SECRET:                  z.string().optional(),                  // Official Sim Slack app signing secret (verifies inbound events for the native OAuth trigger)
+    SLACK_EXTENDED_SCOPES:                 z.boolean().optional(),                 // Request app_mentions:read, assistant:write, im:history — only where the Slack app is approved for them
     REDDIT_CLIENT_ID:                      z.string().optional(),                  // Reddit OAuth client ID
     REDDIT_CLIENT_SECRET:                  z.string().optional(),                  // Reddit OAuth client secret
     WEBFLOW_CLIENT_ID:                     z.string().optional(),                  // Webflow OAuth client ID
@@ -466,21 +469,31 @@ export const env = createEnv({
     // Access Control (Permission Groups) - for self-hosted deployments
     ACCESS_CONTROL_ENABLED:                z.boolean().optional(),                 // Enable access control on self-hosted (bypasses plan requirements)
 
+    // Enterprise master switch - for self-hosted deployments
+    ENTERPRISE_ENABLED:                    z.boolean().optional(),                 // Enable the whole enterprise suite on self-hosted; individual flags below override it per feature
+
     // Enterprise Feature Overrides - for self-hosted deployments
     WHITELABELING_ENABLED:                 z.boolean().optional(),                 // Enable whitelabeling on self-hosted (bypasses hosted requirements)
     AUDIT_LOGS_ENABLED:                    z.boolean().optional(),                 // Enable audit logs on self-hosted (bypasses hosted requirements)
-    DATA_RETENTION_ENABLED:               z.boolean().optional(),                 // Enable data retention settings on self-hosted (bypasses hosted requirements)
+    DATA_RETENTION_ENABLED:               z.boolean().optional(),                 // Enable data retention settings and retention deletion on self-hosted (bypasses hosted requirements)
     DATA_DRAINS_ENABLED:                  z.boolean().optional(),                 // Enable data drains on self-hosted (bypasses hosted requirements)
+    SESSION_POLICIES_ENABLED:             z.boolean().optional(),                 // Enable org session policies on self-hosted (bypasses hosted requirements)
     FORKING_ENABLED:                      z.boolean().optional(),                 // Enable workspace forking on self-hosted (bypasses hosted requirements)
     DEPLOY_AS_BLOCK:                      z.boolean().optional(),                 // Enable deploy-as-block (publish a workflow as a reusable org-wide custom block)
+    TABLE_LOCKS:                          z.boolean().optional(),                 // Enable per-table mutation locks (schema/insert/update/delete toggles)
+    TABLE_VIEWS:                          z.boolean().optional(),                 // Enable saved table views (named filter/sort/column-visibility presets) and the column show/hide menu
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)
 
+    // Instance-tier organization - every user auto-joins this one org
+    INSTANCE_ORG_NAME:                     z.string().min(1).optional(),           // Display name of the instance organization; setting it turns instance-org mode on
+    INSTANCE_ORG_SLUG:                     z.string().min(1).optional(),           // Slug for the instance organization (derived from the name when omitted)
+    INSTANCE_ORG_OWNER_EMAIL:              z.string().min(1).optional(),           // Email of the user who owns the instance organization (defaults to the first user who triggers provisioning)
+
     // Invitations - for self-hosted deployments
     DISABLE_INVITATIONS:                   z.boolean().optional(),                 // Disable workspace invitations globally (for self-hosted deployments)
     DISABLE_PUBLIC_API:                    z.boolean().optional(),                 // Disable public API access globally (for self-hosted deployments)
-    MOTHERSHIP_BETA_FEATURES:              z.boolean().optional(),                 // Enable beta Mothership planning/changelog artifact surfaces
 
     // Development Tools
     REACT_GRAB_ENABLED:                    z.boolean().optional(),                 // Enable React Grab for UI element debugging in Cursor/AI agents (dev only)
@@ -568,8 +581,10 @@ export const env = createEnv({
     NEXT_PUBLIC_BRAND_BACKGROUND_COLOR:    z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),     // Brand background color (hex format)
 
     // Feature Flags
+    NEXT_PUBLIC_ENTERPRISE_ENABLED:        z.boolean().optional(),                   // Client twin of ENTERPRISE_ENABLED — set both together
     NEXT_PUBLIC_SSO_ENABLED:               z.boolean().optional(),                   // Enable SSO login UI components
     NEXT_PUBLIC_ACCESS_CONTROL_ENABLED:    z.boolean().optional(),                   // Enable access control (permission groups) on self-hosted
+    NEXT_PUBLIC_SLACK_EXTENDED_SCOPES:     z.boolean().optional(),                   // Client twin of SLACK_EXTENDED_SCOPES — set both together
     NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED:     z.boolean().optional(),                   // Enable custom blocks (deploy-as-block) settings on self-hosted
     NEXT_PUBLIC_WHITELABELING_ENABLED:     z.boolean().optional(),                   // Enable whitelabeling on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED:        z.boolean().optional(),                   // Enable audit logs on self-hosted (bypasses hosted requirements)
@@ -611,6 +626,7 @@ export const env = createEnv({
     NEXT_PUBLIC_BRAND_BACKGROUND_COLOR: process.env.NEXT_PUBLIC_BRAND_BACKGROUND_COLOR,
     NEXT_PUBLIC_SSO_ENABLED: process.env.NEXT_PUBLIC_SSO_ENABLED,
     NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: process.env.NEXT_PUBLIC_ACCESS_CONTROL_ENABLED,
+    NEXT_PUBLIC_SLACK_EXTENDED_SCOPES: process.env.NEXT_PUBLIC_SLACK_EXTENDED_SCOPES,
     NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED: process.env.NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED,
     NEXT_PUBLIC_WHITELABELING_ENABLED: process.env.NEXT_PUBLIC_WHITELABELING_ENABLED,
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED: process.env.NEXT_PUBLIC_AUDIT_LOGS_ENABLED,
@@ -619,6 +635,7 @@ export const env = createEnv({
     NEXT_PUBLIC_SESSION_POLICIES_ENABLED: process.env.NEXT_PUBLIC_SESSION_POLICIES_ENABLED,
     NEXT_PUBLIC_FORKING_ENABLED: process.env.NEXT_PUBLIC_FORKING_ENABLED,
     NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED: process.env.NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED,
+    NEXT_PUBLIC_ENTERPRISE_ENABLED: process.env.NEXT_PUBLIC_ENTERPRISE_ENABLED,
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED: process.env.NEXT_PUBLIC_ORGANIZATIONS_ENABLED,
     NEXT_PUBLIC_DISABLE_INVITATIONS: process.env.NEXT_PUBLIC_DISABLE_INVITATIONS,
     NEXT_PUBLIC_DISABLE_PUBLIC_API: process.env.NEXT_PUBLIC_DISABLE_PUBLIC_API,

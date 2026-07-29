@@ -81,19 +81,17 @@ Clone a workspace into a linked child, then push or pull **deployed** workflow c
 
 ## Self-hosted setup
 
-Self-hosted deployments enable enterprise features via environment variables instead of billing.
+Self-hosted deployments unlock enterprise features through environment configuration instead of billing. One switch turns on the whole set:
 
-| Variable | Description |
-|----------|-------------|
-| `ORGANIZATIONS_ENABLED`, `NEXT_PUBLIC_ORGANIZATIONS_ENABLED` | Team and organization management |
-| `ACCESS_CONTROL_ENABLED`, `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` | Permission groups |
-| `SSO_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED` | SAML and OIDC sign-in |
-| `WHITELABELING_ENABLED`, `NEXT_PUBLIC_WHITELABELING_ENABLED` | Custom branding |
-| `AUDIT_LOGS_ENABLED`, `NEXT_PUBLIC_AUDIT_LOGS_ENABLED` | Audit logging |
-| `NEXT_PUBLIC_DATA_RETENTION_ENABLED` | Data retention configuration |
-| `DATA_DRAINS_ENABLED`, `NEXT_PUBLIC_DATA_DRAINS_ENABLED` | Data drains |
-| `FORKING_ENABLED`, `NEXT_PUBLIC_FORKING_ENABLED` | Workspace forking |
-| `INBOX_ENABLED`, `NEXT_PUBLIC_INBOX_ENABLED` | Sim Mailer inbox |
-| `DISABLE_INVITATIONS`, `NEXT_PUBLIC_DISABLE_INVITATIONS` | Disable invitations; manage membership via Admin API |
+```bash
+ENTERPRISE_ENABLED=true
+NEXT_PUBLIC_ENTERPRISE_ENABLED=true
+```
 
-Once enabled, each feature is configured through the same Settings UI as Sim Cloud. When invitations are disabled, use the Admin API (`x-admin-key` header) to manage organization membership and workspace access. Internal members join the organization; external workspace members only receive access to a specific workspace.
+Each feature also keeps its own flag, so you can enable them one at a time or switch a single feature back off.
+
+Most of these features read their settings from the organization that owns a workspace, so a deployment also needs an organization model — either one instance-wide organization that every user joins automatically, or organizations you provision yourself through the Admin API.
+
+See the [self-hosted enterprise guide](/platform/enterprise/self-hosted) for the full variable list, both organization patterns, the Admin API reference, and troubleshooting.
+
+Once enabled, each feature is configured through the same Settings UI as Sim Cloud. When invitations are disabled (`DISABLE_INVITATIONS`, `NEXT_PUBLIC_DISABLE_INVITATIONS`), use the Admin API (`x-admin-key` header) to manage organization membership and workspace access. Internal members join the organization; external workspace members only receive access to a specific workspace.

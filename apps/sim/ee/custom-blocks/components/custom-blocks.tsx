@@ -143,7 +143,7 @@ export function CustomBlocks() {
                     title={cb.name}
                     description={cb.description || undefined}
                     trailing={
-                      <div className='flex flex-shrink-0 items-center gap-2'>
+                      <div className='flex items-center gap-2'>
                         {!cb.enabled && <ChipTag variant='gray'>Disabled</ChipTag>}
                         {canAdmin && <ArrowRight className='size-4 text-[var(--text-icon)]' />}
                       </div>

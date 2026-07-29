@@ -62,6 +62,7 @@ export const GET = withRouteHandler(
 
       const result = {
         ...safeData,
+        includeToolCalls: safeData.includeToolCalls ?? false,
         chatUrl,
         hasPassword: !!password,
       }
@@ -118,6 +119,7 @@ export const PATCH = withRouteHandler(
         allowedEmails,
         outputConfigs,
         includeThinking,
+        includeToolCalls,
       } = validatedData
 
       if (workflowId && workflowId !== existingChat[0].workflowId) {
@@ -255,6 +257,9 @@ export const PATCH = withRouteHandler(
         updateData.includeThinking = includeThinking
       }
 
+      // Partial updates keep the stored value; a row predating the column reads false.
+      updateData.includeToolCalls = includeToolCalls ?? existingChatRecord.includeToolCalls ?? false
+
       const emailCount = Array.isArray(updateData.allowedEmails)
         ? updateData.allowedEmails.length
         : undefined
@@ -269,6 +274,7 @@ export const PATCH = withRouteHandler(
         emailCount,
         outputConfigsCount,
         includeThinking: updateData.includeThinking,
+        includeToolCalls: updateData.includeToolCalls,
       })
 
       await db.update(chat).set(updateData).where(eq(chat.id, chatId))

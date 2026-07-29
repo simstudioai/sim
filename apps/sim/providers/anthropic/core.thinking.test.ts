@@ -14,6 +14,7 @@ describe('buildThinkingConfig', () => {
     for (const model of [
       'claude-fable-5',
       'claude-sonnet-5',
+      'claude-opus-5',
       'claude-opus-4-8',
       'claude-opus-4-7',
     ]) {
@@ -27,6 +28,7 @@ describe('buildThinkingConfig', () => {
     for (const model of [
       'claude-fable-5',
       'claude-sonnet-5',
+      'claude-opus-5',
       'claude-opus-4-8',
       'claude-opus-4-7',
     ]) {
@@ -35,10 +37,10 @@ describe('buildThinkingConfig', () => {
     }
   })
 
-  it('never adds display for adaptive models that already stream full thinking', () => {
+  it('requests summarized display for adaptive models marked as summary-streamed', () => {
     for (const model of ['claude-opus-4-6', 'claude-sonnet-4-6']) {
       const config = buildThinkingConfig(model, 'high', true)
-      expect(config?.thinking).toEqual({ type: 'adaptive' })
+      expect(config?.thinking).toEqual({ type: 'adaptive', display: 'summarized' })
     }
   })
 

@@ -2,17 +2,23 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
+  acceptInvitationContract,
   type BatchInvitationResult as BatchInvitationResultContract,
   batchWorkspaceInvitationsContract,
   cancelInvitationContract,
   getInvitationContract,
+  type InvitationDetails,
+  listMyInvitationsContract,
   listWorkspaceInvitationsContract,
   type PendingInvitationRow,
+  rejectInvitationContract,
   removeWorkspaceMemberContract,
   resendInvitationContract,
 } from '@/lib/api/contracts/invitations'
 import { updateWorkspacePermissionsContract } from '@/lib/api/contracts/workspaces'
 import { organizationKeys } from '@/hooks/queries/organization'
+import { refreshSessionQuery } from '@/hooks/queries/session'
+import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
@@ -30,6 +36,7 @@ export const invitationKeys = {
    */
   detail: (invitationId: string, token: string | null, viewerId: string | null) =>
     [...invitationKeys.details(), invitationId, token ?? '', viewerId ?? ''] as const,
+  mine: () => [...invitationKeys.all, 'mine'] as const,
 }
 
 export const WORKSPACE_INVITATION_LIST_STALE_TIME = 30 * 1000
@@ -109,6 +116,75 @@ export function usePendingInvitations(workspaceId: string | undefined) {
     enabled: Boolean(workspaceId),
     staleTime: WORKSPACE_INVITATION_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
+  })
+}
+
+export const MY_INVITATIONS_STALE_TIME = 30 * 1000
+
+async function fetchMyPendingInvitations(signal?: AbortSignal): Promise<InvitationDetails[]> {
+  const data = await requestJson(listMyInvitationsContract, { signal })
+  return data.invitations
+}
+
+/**
+ * Pending invitations addressed to the signed-in account, for the workspace
+ * switcher's Invitations section. The switcher menu-item mounts this on
+ * dropdown open (so it fetches then); the modal passes `enabled: open` so it
+ * does not fetch on every app load for the majority of users who have none.
+ */
+export function useMyPendingInvitations(enabled = true) {
+  return useQuery({
+    queryKey: invitationKeys.mine(),
+    queryFn: ({ signal }) => fetchMyPendingInvitations(signal),
+    enabled,
+    staleTime: MY_INVITATIONS_STALE_TIME,
+  })
+}
+
+/**
+ * Accepts one of the session user's pending invitations in-app. No token —
+ * acceptance is bound to the session email, which is exactly what makes this
+ * path immune to the wrong-browser-account problem of the email link.
+ *
+ * Invalidations mirror the email-link accept path (`use-oauth-return` /
+ * `invite.tsx`): accepting an org invite can convert the plan, reconcile
+ * seats, sync usage, and set the active organization server-side, so the
+ * workspace list, org, credentials, subscription/usage, AND the session must
+ * all refresh — otherwise billing widgets and the create-workspace target
+ * (which reads the active org) stay stale until a reload.
+ */
+export function useAcceptMyInvitation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ invitationId }: { invitationId: string }) =>
+      requestJson(acceptInvitationContract, { params: { id: invitationId }, body: {} }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.all })
+      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.all })
+      queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+      void refreshSessionQuery(queryClient)
+    },
+    // Refresh the list on failure too, so a row that failed terminally
+    // (expired / already-processed since the list loaded) drops instead of
+    // lingering as a re-clickable dead row.
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: invitationKeys.mine() })
+    },
+  })
+}
+
+/** Declines one of the session user's pending invitations in-app. */
+export function useDeclineMyInvitation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ invitationId }: { invitationId: string }) =>
+      requestJson(rejectInvitationContract, { params: { id: invitationId }, body: {} }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: invitationKeys.mine() })
+    },
   })
 }
 

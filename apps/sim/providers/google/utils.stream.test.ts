@@ -74,4 +74,21 @@ describe('createReadableStreamFromGeminiStream', () => {
         .join('')
     ).toContain('Just text')
   })
+
+  it('surfaces blocked prompts instead of completing an empty stream', async () => {
+    const stream = createReadableStreamFromGeminiStream(
+      (async function* () {
+        yield {
+          promptFeedback: {
+            blockReason: 'SAFETY',
+            blockReasonMessage: 'Prompt violated safety policy',
+          },
+        } as any
+      })()
+    )
+
+    await expect(collectEvents(stream)).rejects.toThrow(
+      'Gemini prompt blocked: SAFETY (Prompt violated safety policy)'
+    )
+  })
 })

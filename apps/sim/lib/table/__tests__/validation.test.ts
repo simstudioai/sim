@@ -87,6 +87,27 @@ describe('Validation', () => {
       }
     })
 
+    it('rejects select-only fields on a non-select column', () => {
+      // Both are inert on a string column, but `updateColumnType` inherits them
+      // on a later convert-to-select — options would be silently replaced and
+      // `multiple` would turn an intended single-select into a multiselect.
+      const withOptions = validateColumnDefinition({
+        name: 'status',
+        type: 'string',
+        options: [{ id: 'opt_a', name: 'Open' }],
+      })
+      expect(withOptions.valid).toBe(false)
+      expect(withOptions.errors[0]).toContain('cannot define options')
+
+      const withMultiple = validateColumnDefinition({
+        name: 'status',
+        type: 'string',
+        multiple: true,
+      })
+      expect(withMultiple.valid).toBe(false)
+      expect(withMultiple.errors[0]).toContain('cannot be multiple')
+    })
+
     it('should reject empty column name', () => {
       const result = validateColumnDefinition({ name: '', type: 'string' })
       expect(result.valid).toBe(false)
@@ -404,6 +425,50 @@ describe('Validation', () => {
       const patch: { founded: unknown } = { founded: 'nope' }
       coerceRowValues(patch as never, schema)
       expect(patch.founded).toBe('nope')
+    })
+
+    describe('select coercion', () => {
+      const selectSchema: TableSchema = {
+        columns: [
+          {
+            id: 'status',
+            name: 'status',
+            type: 'select',
+            options: [
+              { id: 'opt_open', name: 'Open' },
+              { id: 'opt_closed', name: 'Closed' },
+            ],
+          },
+          {
+            id: 'tags',
+            name: 'tags',
+            type: 'select',
+            multiple: true,
+            options: [
+              { id: 'opt_a', name: 'Alpha' },
+              { id: 'opt_b', name: 'Beta' },
+            ],
+          },
+        ],
+      }
+
+      it('resolves a single-select name to its id', () => {
+        const patch: Record<string, unknown> = { status: 'Open' }
+        coerceRowValues(patch as never, selectSchema)
+        expect(patch.status).toBe('opt_open')
+      })
+
+      it('splits a comma-delimited multiselect string into resolved ids', () => {
+        const patch: Record<string, unknown> = { tags: 'Alpha, Beta' }
+        coerceRowValues(patch as never, selectSchema)
+        expect(patch.tags).toEqual(['opt_a', 'opt_b'])
+      })
+
+      it('resolves a multiselect array of names to ids and dedupes', () => {
+        const patch: Record<string, unknown> = { tags: ['Alpha', 'opt_a', 'Beta'] }
+        coerceRowValues(patch as never, selectSchema)
+        expect(patch.tags).toEqual(['opt_a', 'opt_b'])
+      })
     })
   })
 

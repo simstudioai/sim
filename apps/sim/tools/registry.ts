@@ -2716,6 +2716,12 @@ import {
 } from '@/tools/onepassword'
 import { openAIEmbeddingsTool, openAIImageTool } from '@/tools/openai'
 import {
+  outlookCalendarCreateEventTool,
+  outlookCalendarDeleteEventTool,
+  outlookCalendarGetEventTool,
+  outlookCalendarListEventsTool,
+  outlookCalendarRespondTool,
+  outlookCalendarUpdateEventTool,
   outlookCopyTool,
   outlookCreateFolderTool,
   outlookDeleteTool,
@@ -4530,12 +4536,14 @@ import {
   webflowUpdateItemTool,
 } from '@/tools/webflow'
 import {
+  whatsappGetMediaTool,
   whatsappMarkReadTool,
   whatsappSendInteractiveTool,
   whatsappSendMediaTool,
   whatsappSendMessageTool,
   whatsappSendReactionTool,
   whatsappSendTemplateTool,
+  whatsappUploadMediaTool,
 } from '@/tools/whatsapp'
 import {
   wikipediaPageContentTool,
@@ -5928,6 +5936,8 @@ export const tools: Record<string, ToolConfig> = {
   whatsapp_send_interactive: whatsappSendInteractiveTool,
   whatsapp_send_reaction: whatsappSendReactionTool,
   whatsapp_mark_read: whatsappMarkReadTool,
+  whatsapp_upload_media: whatsappUploadMediaTool,
+  whatsapp_get_media: whatsappGetMediaTool,
   x_write: xWriteTool,
   x_read: xReadTool,
   x_search: xSearchTool,
@@ -7939,6 +7949,12 @@ export const tools: Record<string, ToolConfig> = {
   outlook_get_attachment: outlookGetAttachmentTool,
   outlook_search: outlookSearchTool,
   outlook_update_message: outlookUpdateMessageTool,
+  outlook_calendar_list_events: outlookCalendarListEventsTool,
+  outlook_calendar_get_event: outlookCalendarGetEventTool,
+  outlook_calendar_create_event: outlookCalendarCreateEventTool,
+  outlook_calendar_update_event: outlookCalendarUpdateEventTool,
+  outlook_calendar_delete_event: outlookCalendarDeleteEventTool,
+  outlook_calendar_respond: outlookCalendarRespondTool,
   pagerduty_list_incidents: pagerdutyListIncidentsTool,
   pagerduty_get_incident: pagerdutyGetIncidentTool,
   pagerduty_create_incident: pagerdutyCreateIncidentTool,

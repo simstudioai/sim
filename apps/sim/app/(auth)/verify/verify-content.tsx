@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { cn, InputOTP, InputOTPGroup, InputOTPSlot } from '@sim/emcn'
+import { POST_AUTH_REDIRECT_STORAGE_KEY } from '@/app/(auth)/auth-redirect'
 import {
   AuthFormMessage,
   AuthHeader,
@@ -140,8 +141,7 @@ function VerificationForm({
             onNavigate={() => {
               if (typeof window !== 'undefined') {
                 sessionStorage.removeItem('verificationEmail')
-                sessionStorage.removeItem('inviteRedirectUrl')
-                sessionStorage.removeItem('isInviteFlow')
+                sessionStorage.removeItem(POST_AUTH_REDIRECT_STORAGE_KEY)
               }
             }}
           />
