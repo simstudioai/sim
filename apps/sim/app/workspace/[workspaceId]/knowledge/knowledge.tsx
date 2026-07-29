@@ -61,7 +61,7 @@ import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { useCreateFolder, useDeleteFolderMutation, useUpdateFolder } from '@/hooks/queries/folders'
 import { useDeleteKnowledgeBase, useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
-import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
+import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
@@ -167,6 +167,15 @@ export function Knowledge() {
   const { knowledgeBases, error } = useKnowledgeBasesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   /**
+   * Indexed once: `ownerCell` resolves a member per row, so passing the raw array makes the
+   * owner column O(rows x members) on every rebuild. Tables already does this.
+   */
+  const membersById = useMemo(() => {
+    const byId = new Map<string, WorkspaceMember>()
+    for (const member of members ?? []) byId.set(member.userId, member)
+    return byId
+  }, [members])
+  /**
    * Two pin lookups: a folder pins under `resourceType: 'folder'`, which is a different pin
    * namespace from the knowledge bases it contains, so one set cannot answer for both.
    */
@@ -175,15 +184,23 @@ export function Knowledge() {
   const pinItem = usePinItem()
   const unpinItem = useUnpinItem()
 
-  if (error) {
-    logger.error('Failed to load knowledge bases:', error)
-  }
+  useEffect(() => {
+    if (error) logger.error('Failed to load knowledge bases:', error)
+  }, [error])
+
   const userPermissions = useUserPermissionsContext()
 
   const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
   const { mutateAsync: deleteKnowledgeBaseMutation } = useDeleteKnowledgeBase(workspaceId)
 
-  const { currentFolderId, setCurrentFolderId, breadcrumbs, folders } = useFolderNavigation({
+  const {
+    currentFolderId,
+    setCurrentFolderId,
+    breadcrumbs,
+    folders,
+    folderById,
+    isLoading: foldersLoading,
+  } = useFolderNavigation({
     resourceType: FOLDER_RESOURCE_TYPE,
     workspaceId,
   })
@@ -411,9 +428,19 @@ export function Knowledge() {
   }, [folders, currentFolderId, debouncedSearchQuery, activeSort, pinnedFolderIds])
 
   const processedKBs = useMemo(() => {
-    let result = filterKnowledgeBases(knowledgeBases, debouncedSearchQuery).filter(
-      (kb) => (kb.folderId ?? null) === currentFolderId
-    )
+    /**
+     * A `folderId` that no longer names an active folder — a base restored on its own out of
+     * Recently Deleted while its folder stayed archived, or a cascade that failed partway —
+     * would otherwise match no level at all and leave the base unreachable from every view.
+     * Fall it back to the root instead. Skipped while the folder list is still loading, when
+     * an empty index would transiently drag every base to the root.
+     */
+    let result = filterKnowledgeBases(knowledgeBases, debouncedSearchQuery).filter((kb) => {
+      const folderId = kb.folderId ?? null
+      const effectiveFolderId =
+        foldersLoading || !folderId || folderById.has(folderId) ? folderId : null
+      return effectiveFolderId === currentFolderId
+    })
 
     if (connectorFilter.length > 0) {
       result = result.filter((kb) => {
@@ -469,8 +496,8 @@ export function Knowledge() {
           cmp = (a.connectorTypes?.length ?? 0) - (b.connectorTypes?.length ?? 0)
           break
         case 'owner':
-          cmp = (members?.find((m) => m.userId === a.userId)?.name ?? '').localeCompare(
-            members?.find((m) => m.userId === b.userId)?.name ?? ''
+          cmp = (membersById.get(a.userId)?.name ?? '').localeCompare(
+            membersById.get(b.userId)?.name ?? ''
           )
           break
       }
@@ -479,12 +506,14 @@ export function Knowledge() {
   }, [
     knowledgeBases,
     currentFolderId,
+    folderById,
+    foldersLoading,
     debouncedSearchQuery,
     connectorFilter,
     contentFilter,
     ownerFilter,
     activeSort,
-    members,
+    membersById,
     pinnedBaseIds,
   ])
 
@@ -497,7 +526,7 @@ export function Knowledge() {
           tokens: { label: EMPTY_CELL_PLACEHOLDER },
           connectors: { label: EMPTY_CELL_PLACEHOLDER },
           created: timeCell(folder.createdAt),
-          owner: ownerCell(folder.userId, members),
+          owner: ownerCell(folder.userId, membersById),
           updated: timeCell(folder.updatedAt),
         },
       })
@@ -521,14 +550,14 @@ export function Knowledge() {
           },
           connectors: connectorCell(kb.connectorTypes),
           created: timeCell(kb.createdAt),
-          owner: ownerCell(kb.userId, members),
+          owner: ownerCell(kb.userId, membersById),
           updated: timeCell(kb.updatedAt),
         },
       }
     })
 
     return [...folderRows, ...knowledgeBaseRows]
-  }, [visibleFolders, processedKBs, members, pinnedFolderIds, pinnedBaseIds])
+  }, [visibleFolders, processedKBs, membersById, pinnedFolderIds, pinnedBaseIds])
 
   /**
    * Rename is layered over the built rows rather than folded into the builder above, so a
@@ -783,6 +812,7 @@ export function Knowledge() {
         await updateKnowledgeBaseMutation({ knowledgeBaseId, updates: { folderId } })
       } catch (moveError) {
         logger.error('Failed to move knowledge base', moveError)
+        toast.error(getErrorMessage(moveError, 'Failed to move knowledge base'))
       }
     },
     [updateKnowledgeBaseMutation]

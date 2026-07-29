@@ -62,6 +62,10 @@ import {
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
+import {
+  parseMoveOptionValue,
+  ROOT_MOVE_OPTION_VALUE,
+} from '@/app/workspace/[workspaceId]/components/folders'
 import { FilesActionBar } from '@/app/workspace/[workspaceId]/files/components/action-bar'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
 import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
@@ -378,12 +382,34 @@ export function Files() {
         directSize.set(file.folderId, (directSize.get(file.folderId) ?? 0) + file.size)
       }
     }
+    /**
+     * Children indexed once rather than re-scanning `folders` per node — the roll-up visits
+     * every folder, so the filter made this quadratic.
+     */
+    const childrenByParent = new Map<string, WorkspaceFileFolderApi[]>()
+    for (const folder of folders) {
+      if (!folder.parentId) continue
+      const siblings = childrenByParent.get(folder.parentId)
+      if (siblings) siblings.push(folder)
+      else childrenByParent.set(folder.parentId, [folder])
+    }
+
     const totalSize = new Map<string, number>()
+    /**
+     * `visiting` terminates a parent/child cycle. The optimistic folder-move write can produce
+     * one in cache, and without the guard this recurses until the stack blows and takes the
+     * whole page down — the same guard the shared folder helpers carry.
+     */
+    const visiting = new Set<string>()
     const getTotal = (folderId: string): number => {
-      if (totalSize.has(folderId)) return totalSize.get(folderId)!
-      const children = folders.filter((f) => f.parentId === folderId)
+      const cached = totalSize.get(folderId)
+      if (cached !== undefined) return cached
+      if (visiting.has(folderId)) return 0
+      visiting.add(folderId)
       const size =
-        (directSize.get(folderId) ?? 0) + children.reduce((s, c) => s + getTotal(c.id), 0)
+        (directSize.get(folderId) ?? 0) +
+        (childrenByParent.get(folderId) ?? []).reduce((sum, child) => sum + getTotal(child.id), 0)
+      visiting.delete(folderId)
       totalSize.set(folderId, size)
       return size
     }
@@ -1380,7 +1406,7 @@ export function Files() {
 
   const handleContextMenuMove = useCallback(
     async (optionValue: string) => {
-      const targetFolderId = optionValue === '__root__' ? null : optionValue
+      const targetFolderId = parseMoveOptionValue(optionValue)
       try {
         await moveItems.mutateAsync({
           workspaceId,
@@ -1767,7 +1793,7 @@ export function Files() {
         .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
         .map((f) => ({ value: f.id, label: f.name, children: buildSubtree(f.id) }))
 
-    return [{ value: '__root__', label: 'Files', children: [] }, ...buildSubtree(null)]
+    return [{ value: ROOT_MOVE_OPTION_VALUE, label: 'Files', children: [] }, ...buildSubtree(null)]
   }, [folders, selectedFolderIds, descendantFolderIdsByFolderId])
 
   const sortConfig: SortConfig = useMemo(

@@ -634,6 +634,7 @@ export async function renameTable(
  */
 export async function moveTableToFolder(
   tableId: string,
+  workspaceId: string,
   folderId: string | null,
   requestId: string,
   actingUserId?: string
@@ -643,10 +644,22 @@ export async function moveTableToFolder(
     updatedAt: new Date(),
   }
 
+  /**
+   * Scoped on workspace and active state, not just id: this is exported from `@/lib/table`,
+   * so the caller's own authorization is not something the write can assume. An archived
+   * table must not be quietly reparented either — it would come back out of Recently Deleted
+   * somewhere the user never put it.
+   */
   const result = await db
     .update(userTableDefinitions)
     .set(updates)
-    .where(eq(userTableDefinitions.id, tableId))
+    .where(
+      and(
+        eq(userTableDefinitions.id, tableId),
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        isNull(userTableDefinitions.archivedAt)
+      )
+    )
     .returning({
       name: userTableDefinitions.name,
       createdBy: userTableDefinitions.createdBy,
@@ -657,7 +670,7 @@ export async function moveTableToFolder(
     throw new Error(`Table ${tableId} not found`)
   }
 
-  const { name, createdBy, workspaceId } = result[0]
+  const { name, createdBy } = result[0]
   const actorId = actingUserId ?? createdBy
   if (actorId) {
     recordAudit({

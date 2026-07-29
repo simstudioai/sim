@@ -35,6 +35,12 @@ export type RestorableResourceType =
  * Folder trees the generic engine restores, keyed by the restorable type that names them.
  * `'folder'` stays the workflow tree so the existing tool contract does not shift meaning;
  * the other trees get their own names, mirroring how `file_folder` already sits beside it.
+ *
+ * `knowledge_folder` and `table_folder` are accepted here and by the tool handler, but the
+ * model cannot emit them yet: the `restore_resource` parameter enum lives in the copilot
+ * service's `contracts/tool-catalog-v1.json`, which is a different repository and is mirrored
+ * into `lib/copilot/generated/**` by `scripts/sync-tool-catalog.ts`. Widening it there makes
+ * these reachable with no further change on this side.
  */
 const FOLDER_RESOURCE_TYPE_BY_RESTORABLE: Partial<
   Record<RestorableResourceType, FolderResourceType>

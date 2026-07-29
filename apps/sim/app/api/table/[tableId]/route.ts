@@ -196,7 +196,13 @@ export const PATCH = withRouteHandler(
         ) {
           return NextResponse.json({ error: 'Folder not found in this workspace' }, { status: 404 })
         }
-        await moveTableToFolder(tableId, validated.folderId, requestId, authResult.userId)
+        await moveTableToFolder(
+          tableId,
+          table.workspaceId,
+          validated.folderId,
+          requestId,
+          authResult.userId
+        )
       }
 
       // Re-read so the response reflects both a rename and a lock change.

@@ -97,6 +97,7 @@ describe('PATCH /api/table/[tableId] folder moves', () => {
     expect(mockFindActiveFolder).toHaveBeenCalledWith('folder-1', 'workspace-1', 'table')
     expect(mockMoveTableToFolder).toHaveBeenCalledWith(
       'tbl_1',
+      'workspace-1',
       'folder-1',
       expect.any(String),
       'user-1'
@@ -113,7 +114,13 @@ describe('PATCH /api/table/[tableId] folder moves', () => {
 
     expect(response.status).toBe(200)
     expect(mockFindActiveFolder).not.toHaveBeenCalled()
-    expect(mockMoveTableToFolder).toHaveBeenCalledWith('tbl_1', null, expect.any(String), 'user-1')
+    expect(mockMoveTableToFolder).toHaveBeenCalledWith(
+      'tbl_1',
+      'workspace-1',
+      null,
+      expect.any(String),
+      'user-1'
+    )
   })
 
   it('leaves placement untouched when folderId is omitted', async () => {

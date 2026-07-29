@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useQueryStates } from 'nuqs'
 import type { ServedFolderResourceType } from '@/lib/api/contracts/folders'
 import {
@@ -66,6 +66,23 @@ export function useFolderNavigation({
     for (const folder of folders) byId.set(folder.id, folder)
     return byId
   }, [folders])
+
+  /**
+   * Heals a `?folderId=` that no longer resolves — a bookmark to a folder since deleted, or a
+   * link from someone whose workspace it was not.
+   *
+   * Without this the page is a dead end rather than a mistake: the header falls back to the
+   * root title while the list still filters on the dead id, so the user sees a page that looks
+   * like the root but is empty and hides everything actually at the root. Worse, the create
+   * and upload actions keep targeting that id, so a new resource is filed somewhere nothing
+   * can reach.
+   *
+   * Waits for `isLoading` so an empty index mid-fetch never evicts a perfectly good id.
+   */
+  useEffect(() => {
+    if (isLoading || !currentFolderId || folderById.has(currentFolderId)) return
+    void setFolderParams({ folderId: null })
+  }, [isLoading, currentFolderId, folderById, setFolderParams])
 
   const breadcrumbs = useMemo(() => {
     if (!currentFolderId) return EMPTY_FOLDERS

@@ -196,12 +196,6 @@ export async function archiveWorkflow(
 
 interface RestoreWorkflowOptions {
   requestId: string
-  /**
-   * Folder ids being restored alongside this workflow. A folder cascade restores its
-   * children BEFORE it un-archives the folder rows, so without this the re-root check below
-   * sees the folder still archived and dumps every workflow at the workspace root.
-   */
-  restoringFolderIds?: ReadonlySet<string>
 }
 
 export async function restoreWorkflow(
@@ -227,7 +221,7 @@ export async function restoreWorkflow(
   }
 
   let clearFolderId = false
-  if (existingWorkflow.folderId && !options.restoringFolderIds?.has(existingWorkflow.folderId)) {
+  if (existingWorkflow.folderId) {
     const [folder] = await db
       .select({ archivedAt: folderTable.deletedAt })
       .from(folderTable)
@@ -242,6 +236,18 @@ export async function restoreWorkflow(
 
   const now = new Date()
 
+  /**
+   * `archiveWorkflow` stamps the workflow and its dependents with ONE timestamp, and only
+   * touches dependents that were still active. So the workflow's own `archivedAt` identifies
+   * exactly the rows this archive took down.
+   *
+   * Restoring by `workflowId` alone instead resurrects a webhook or chat the user had archived
+   * independently, days earlier — it was never part of this archive and the user never asked
+   * for it back. Matching the stamp is the same rule the folder cascade uses, and it is what
+   * the restore semantics documented for this feature actually promise.
+   */
+  const archivedAt = existingWorkflow.archivedAt
+
   await db.transaction(async (tx) => {
     await tx
       .update(workflow)
@@ -255,22 +261,29 @@ export async function restoreWorkflow(
     await tx
       .update(workflowSchedule)
       .set({ archivedAt: null, updatedAt: now })
-      .where(eq(workflowSchedule.workflowId, workflowId))
+      .where(
+        and(
+          eq(workflowSchedule.workflowId, workflowId),
+          eq(workflowSchedule.archivedAt, archivedAt)
+        )
+      )
 
     await tx
       .update(webhook)
       .set({ archivedAt: null, updatedAt: now })
-      .where(eq(webhook.workflowId, workflowId))
+      .where(and(eq(webhook.workflowId, workflowId), eq(webhook.archivedAt, archivedAt)))
 
     await tx
       .update(chat)
       .set({ archivedAt: null, updatedAt: now })
-      .where(eq(chat.workflowId, workflowId))
+      .where(and(eq(chat.workflowId, workflowId), eq(chat.archivedAt, archivedAt)))
 
     await tx
       .update(workflowMcpTool)
       .set({ archivedAt: null, updatedAt: now })
-      .where(eq(workflowMcpTool.workflowId, workflowId))
+      .where(
+        and(eq(workflowMcpTool.workflowId, workflowId), eq(workflowMcpTool.archivedAt, archivedAt))
+      )
   })
 
   logger.info(`[${options.requestId}] Restored workflow ${workflowId}`)

@@ -128,7 +128,21 @@ export function useFolderRowDragDrop({
       },
       onDragOver: (e: DragEvent<HTMLDivElement>, rowId) => {
         const sourceRowId = draggedRowIdRef.current
-        if (!sourceRowId || isInvalidDropTarget(rowId, sourceRowId)) return
+        if (sourceRowId) {
+          if (isInvalidDropTarget(rowId, sourceRowId)) return
+        } else if (!e.dataTransfer.types.includes(DRAG_ROW_MIME)) {
+          /**
+           * No local source and no payload of ours — an external or foreign drag. Returning
+           * without `preventDefault` leaves the browser's default handling in place, which is
+           * what stops a dropped OS file from navigating the tab away from the app.
+           */
+          return
+        }
+        /**
+         * `dataTransfer.getData` is empty during dragover by design (the drag data store is
+         * protected until drop), so a drag that began in another mount of this page can only be
+         * recognised by its MIME type here. `onDrop` re-checks validity with the real payload.
+         */
         e.preventDefault()
         e.stopPropagation()
         e.dataTransfer.dropEffect = 'move'

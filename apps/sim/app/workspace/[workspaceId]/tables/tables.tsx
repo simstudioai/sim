@@ -133,9 +133,14 @@ export function Tables() {
     workspaceId,
   })
 
-  if (error) {
-    logger.error('Failed to load tables:', error)
-  }
+  /**
+   * Logged from an effect, not the render body: a render-phase log fires again on every
+   * re-render while the error persists, and on each of React's double renders in dev.
+   */
+  useEffect(() => {
+    if (error) logger.error('Failed to load tables:', error)
+  }, [error])
+
   const deleteTable = useDeleteTable(workspaceId)
   const renameTable = useRenameTable(workspaceId)
   const createTable = useCreateTable(workspaceId)
@@ -268,19 +273,25 @@ export function Tables() {
       const bPinned = pinnedFolderIds.has(b.id)
       if (aPinned !== bPinned) return aPinned ? -1 : 1
 
-      // Folders carry none of the table-specific columns, so `columns`/`rows`/
-      // `owner` fall back to name rather than producing an arbitrary order.
+      /**
+       * Read from `activeSort`, not the raw params: `tablesSortParams` is defaulted, so
+       * `sortColumn` is never null and folders would sort newest-first on a clean URL while
+       * Files and Knowledge sort them A→Z. Folders also carry none of the table-specific
+       * columns, so `columns`/`rows`/`owner` fall back to name rather than an arbitrary order.
+       */
+      const col = activeSort?.column ?? 'name'
+      const dir = activeSort?.direction ?? 'asc'
       let cmp = 0
-      if (sortColumn === 'created') {
+      if (col === 'created') {
         cmp = a.createdAt.getTime() - b.createdAt.getTime()
-      } else if (sortColumn === 'updated') {
+      } else if (col === 'updated') {
         cmp = a.updatedAt.getTime() - b.updatedAt.getTime()
       } else {
         cmp = a.name.localeCompare(b.name)
       }
-      return sortDirection === 'asc' ? cmp : -cmp
+      return dir === 'asc' ? cmp : -cmp
     })
-  }, [folders, currentFolderId, debouncedSearchTerm, sortColumn, sortDirection, pinnedFolderIds])
+  }, [folders, currentFolderId, debouncedSearchTerm, activeSort, pinnedFolderIds])
 
   const processedTables = useMemo(() => {
     const query = debouncedSearchTerm.trim().toLowerCase()
@@ -451,6 +462,18 @@ export function Tables() {
         label: 'Rename',
         disabled: !canEdit,
         onClick: () => breadcrumbRename.startRename(folder.id, folder.name),
+      },
+      {
+        label: 'Delete',
+        disabled: !canEdit,
+        /**
+         * The only way to delete the folder you are inside — its own row is not in the list.
+         * This is what makes the step-out in `handleDeleteFolder` reachable.
+         */
+        onClick: () => {
+          setActiveFolder(folder)
+          setIsDeleteFolderDialogOpen(true)
+        },
       },
     ]
   }, [currentFolderId, folderById, canEdit, breadcrumbRename.startRename])

@@ -21,7 +21,7 @@ export type FolderResourceType = z.output<typeof folderResourceTypeSchema>
  * never sends the field, working against a new pod. A value that is present but not in the
  * enum is REJECTED with a 400, never silently coerced to `'workflow'`: coercing would file a
  * knowledge-base folder into the workflow tree, where the Knowledge page can never see it
- * again. This is the deploy-ordering contract — see the note in the PR description.
+ * again. This is the deploy-ordering contract, pinned by `folders.test.ts`.
  */
 export const servedFolderResourceTypeSchema = z
   .enum(['workflow', 'knowledge_base', 'table'], {
