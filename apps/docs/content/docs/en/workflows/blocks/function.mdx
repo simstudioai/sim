@@ -81,9 +81,11 @@ list of pip or npm packages. Select one on a Function block and its code can
 import everything on that list. Leave it empty and the block runs on the default
 image, exactly as before.
 
-Create and edit sandboxes in **Settings → Sandboxes**. Sandboxes require an
-active Max or Enterprise plan, and only workspace admins can create or edit
-them.
+Create and edit sandboxes in **Settings → Sandboxes**. Only workspace admins can
+create or edit them. On sim.ai they need an active Max or Enterprise plan;
+self-hosted deployments turn them on with `SANDBOXES_ENABLED` (see
+[self-hosted enterprise](/platform/enterprise/self-hosted)). The section is
+hidden when a deployment has no sandbox provider configured.
 
 1. **Name** the sandbox — `bigquery-etl`, `scraping`, whatever the job is.
 2. Pick the **language**. A sandbox is language-scoped, so a Python block only
@@ -101,7 +103,8 @@ Then open the block's advanced options and choose the sandbox under **Sandbox**.
 <Callout type="info">
 Two sandboxes with the same language and the same package list share one build,
 so duplicating a set costs nothing. Editing a package list starts a new build;
-runs already in flight keep using the old one.
+runs already in flight keep using the old one. Deleting a sandbox frees its build
+once nothing else uses it.
 </Callout>
 
 ### Build status
@@ -112,8 +115,9 @@ install cost. The status row in Settings shows **Queued**, **Building**,
 does not exist, a version that has no match, a resolver conflict — with the
 installer log behind a disclosure.
 
-Selecting a sandbox whose build is not **Ready** fails the run with that reason
-rather than a confusing `ModuleNotFoundError`.
+Running a block before its sandbox is **Ready** stops the run and shows you the
+status. A build that failed is queued again automatically, so wait a moment and
+run again — only edit the package list if it keeps failing.
 
 On a self-hosted deployment using Daytona, dependencies install inside the
 sandbox at the start of every run instead, adding roughly 10–30 seconds per
