@@ -26,6 +26,7 @@ vi.mock('drizzle-orm', () => {
     and: op('and'),
     or: op('or'),
     eq: op('eq'),
+    ne: op('ne'),
     like: op('like'),
     notLike: op('notLike'),
     sql: (strings: TemplateStringsArray) => ({ op: 'sql', text: strings.join('?') }),
@@ -75,6 +76,12 @@ describe('searchDocs path scoping', () => {
   it('treats a bare docs prefix as unscoped', async () => {
     await searchDocs('cron', { path: 'docs/' })
     expect(whereText()).toContain('academy/%')
+  })
+
+  it('excludes the root homepage when unscoped — its chunks have no live docs/ path', async () => {
+    await searchDocs('cron')
+    expect(whereText()).toContain('"op":"ne"')
+    expect(whereText()).toContain('index.mdx')
   })
 
   it('scopes a page to both on-disk layouts', async () => {
@@ -169,6 +176,17 @@ describe('searchDocs results', () => {
       },
     ]
     expect((await searchDocs('cron')).results).toEqual([])
+  })
+
+  it('returns the zero-candidate outcome without querying when the embedding is empty', async () => {
+    mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [] })
+    const outcome = await searchDocs('cron')
+    expect(outcome).toEqual({
+      results: [],
+      candidatesConsidered: 0,
+      droppedBelowThreshold: 0,
+      droppedStale: 0,
+    })
   })
 
   it('drops chunks below the similarity threshold', async () => {

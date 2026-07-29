@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { docsEmbeddings } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, like, notLike, or, sql } from 'drizzle-orm'
+import { and, eq, like, ne, notLike, or, sql } from 'drizzle-orm'
 import { docsPathForSourceDocument, isDocsDir, isDocsPage } from '@/lib/copilot/docs/docs-corpus'
 import { docsSourceCandidates, UNMOUNTED_DOCS_SECTIONS } from '@/lib/copilot/docs/docs-path'
 import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
@@ -60,12 +60,16 @@ export class DocsSearchScopeError extends Error {
  *
  * An unscoped search excludes every {@link UNMOUNTED_DOCS_SECTIONS} section:
  * they are indexed but not mounted in the VFS, so a hit there would be a chunk
- * the agent cannot then read.
+ * the agent cannot then read. The root homepage (`index.mdx`) is excluded for
+ * the same reason — the manifest generator drops it (its URL is `/`, which
+ * redirects), so its chunks would only ever be counted against topK and then
+ * discarded as stale.
  */
 function scopeCondition(path?: string) {
   const normalized = (path ?? '').trim().replace(/^\/+/, '').replace(/\/+$/, '')
   if (normalized === '' || normalized === 'docs') {
     return and(
+      ne(docsEmbeddings.sourceDocument, 'index.mdx'),
       ...UNMOUNTED_DOCS_SECTIONS.map((section) =>
         notLike(docsEmbeddings.sourceDocument, `${section}/%`)
       )

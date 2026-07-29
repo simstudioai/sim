@@ -58,6 +58,11 @@ describe('globDocs', () => {
     expect(globDocs('docs/workflows.mdx')).toEqual(['docs/workflows.mdx'])
     expect(globDocs('docs/workflows/index.mdx')).toEqual([])
   })
+
+  it('treats a trailing-slash pattern like the bare directory instead of matching nothing', () => {
+    expect(globDocs('docs/')).toEqual(['docs'])
+    expect(globDocs('docs/integrations/')).toEqual(['docs/integrations'])
+  })
 })
 
 describe('readDocsPage', () => {

@@ -38,7 +38,10 @@ const docsKeyView: Map<string, string> = new Map(
 )
 
 function normalize(path: string): string {
-  return path.trim().replace(/^\/+/, '')
+  // Trailing slashes are stripped so `docs/` addresses the corpus the same way
+  // `docs` does — otherwise a trailing-slash glob pattern matches no key and
+  // silently returns an empty result instead of the corpus listing.
+  return path.trim().replace(/^\/+/, '').replace(/\/+$/, '')
 }
 
 /**

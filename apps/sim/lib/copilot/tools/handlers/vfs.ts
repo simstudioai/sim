@@ -90,12 +90,14 @@ function hasModelAttachment(result: unknown): boolean {
 /**
  * Trim an oversized docs page to the largest whole-line prefix that fits the
  * inline budget, preserving the true `totalLines` so the model can page through
- * the rest with offset/limit.
+ * the rest with offset/limit. Returns null when not even one line fits — a
+ * single line longer than the cap — so the caller can fail instead of returning
+ * an over-cap payload as success.
  */
 function truncateDocsPageToInlineCap(page: { content: string; totalLines: number }): {
   output: { content: string; totalLines: number }
   returnedLines: number
-} {
+} | null {
   const lines = page.content.split('\n')
   // Route to ONE more fetch, not two. Telling the model to grep and then read
   // costs two more uncached fetches of a page it already partly has; grep and
@@ -105,17 +107,16 @@ function truncateDocsPageToInlineCap(page: { content: string; totalLines: number
     `\n\n[Page truncated: returned lines 1-${shown} of ${page.totalLines}. To continue, read this path with offset: ${shown}. To jump straight to a section, grep this path INSTEAD of reading it — grep is the same single fetch and returns only matching lines with their numbers.]`
 
   let kept = lines.length
-  let content = page.content
   while (kept > 0) {
-    content = `${lines.slice(0, kept).join('\n')}${notice(kept)}`
+    const content = `${lines.slice(0, kept).join('\n')}${notice(kept)}`
     if (
       serializedResultSize({ content, totalLines: page.totalLines }) <= TOOL_RESULT_MAX_INLINE_CHARS
     ) {
-      break
+      return { output: { content, totalLines: page.totalLines }, returnedLines: kept }
     }
     kept = Math.floor(kept / 2)
   }
-  return { output: { content, totalLines: page.totalLines }, returnedLines: kept }
+  return null
 }
 
 export async function executeVfsGrep(
@@ -317,6 +318,12 @@ export async function executeVfsRead(
           }
         }
         const truncated = truncateDocsPageToInlineCap(page)
+        if (!truncated) {
+          return {
+            success: false,
+            error: `${path} is too large to return inline even truncated. Grep this page for the section you need.`,
+          }
+        }
         logger.debug('vfs_read truncated oversized docs page', {
           path,
           totalLines: page.totalLines,

@@ -78,6 +78,23 @@ describe('processContextsServer - skill contexts', () => {
   })
 })
 
+describe('processContextsServer - docs contexts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('resolves a tagged docs context to nothing while @docs tagging is disabled', async () => {
+    const result = await processContextsServer(
+      [{ kind: 'docs', label: 'Docs' } as ChatContext],
+      'user-1',
+      'how do loops work @Docs',
+      'ws-1'
+    )
+
+    expect(result).toEqual([])
+  })
+})
+
 describe('processContextsServer - MCP contexts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
