@@ -166,7 +166,7 @@ export const DELETE = withRouteHandler(
         )
       }
 
-      if (resourceType === 'workflow') {
+      if (folderResourceConfig(resourceType).supportsLocking) {
         await assertFolderMutable(id)
       }
 
