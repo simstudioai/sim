@@ -114,13 +114,19 @@ export interface PiCloudBabysitOptions {
   executionId?: string
 }
 
-/** Parameters for a cloud (E2B) Pi run that updates an existing branch. */
+export type PiPullRequestState = 'preserve' | 'draft' | 'ready'
+
+/** Parameters for a cloud (E2B) Pi run that updates an existing branch and its pull request. */
 export interface PiCloudBranchRunParams extends PiContextualRunParams {
   mode: 'cloud_branch'
   owner: string
   repo: string
   githubToken: string
   targetBranch: string
+  baseBranch?: string
+  prTitle?: string
+  prBody?: string
+  prState: PiPullRequestState
   babysit?: PiCloudBabysitOptions
 }
 

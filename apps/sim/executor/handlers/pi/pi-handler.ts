@@ -20,6 +20,7 @@ import type {
   PiCloudReviewRunParams,
   PiCloudRunParams,
   PiLocalRunParams,
+  PiPullRequestState,
   PiRunParams,
   PiRunResult,
   PiSearchConfig,
@@ -89,10 +90,14 @@ function isSwitchEnabled(value: unknown, defaultValue = false): boolean {
   return defaultValue
 }
 
+function isPullRequestState(value: string): value is PiPullRequestState {
+  return value === 'preserve' || value === 'draft' || value === 'ready'
+}
+
 function parsePiMode(value: unknown): PiRunParams['mode'] {
   if (value === 'babysit') {
     throw new Error(
-      'Standalone Babysit mode was removed. Use Create PR or Update Branch with Babysit Mode enabled.'
+      'Standalone Babysit mode was removed. Use Create PR or Update PR with Babysit Mode enabled.'
     )
   }
   if (
@@ -265,7 +270,7 @@ export class PiBlockHandler implements BlockHandler {
     const repo = asOptString(inputs.repo)
     const githubToken = asRawString(inputs.githubToken)
     if (!owner || !repo || !githubToken) {
-      const label = mode === 'cloud_branch' ? 'Update Branch' : 'Create PR'
+      const label = mode === 'cloud_branch' ? 'Update PR' : 'Create PR'
       throw new Error(`${label} requires repository owner, name, and a GitHub token`)
     }
     // A `switch` subblock reaches a handler as the string 'true' when its value came
@@ -276,7 +281,7 @@ export class PiBlockHandler implements BlockHandler {
     const babysitMode = isSwitchEnabled(inputs.babysitMode)
     const reviewMentions = babysitMode ? parsePiReviewMentions(inputs.reviewMentions) : []
     if (babysitMode && reviewMentions.length === 0) {
-      const label = mode === 'cloud_branch' ? 'Update Branch' : 'Create PR'
+      const label = mode === 'cloud_branch' ? 'Update PR' : 'Create PR'
       throw new Error(`${label} Babysit Mode requires at least one reviewer mention`)
     }
     const maxRounds = babysitMode
@@ -290,7 +295,11 @@ export class PiBlockHandler implements BlockHandler {
     if (mode === 'cloud_branch') {
       const targetBranch = asOptString(inputs.targetBranch)
       if (!targetBranch) {
-        throw new Error('Update Branch requires a target branch')
+        throw new Error('Update PR requires a target branch')
+      }
+      const prState = asOptString(inputs.prState) ?? 'preserve'
+      if (!isPullRequestState(prState)) {
+        throw new Error('Invalid PR state. Use preserve, draft, or ready.')
       }
       const params: PiCloudBranchRunParams = {
         ...contextualBase,
@@ -299,6 +308,10 @@ export class PiBlockHandler implements BlockHandler {
         repo,
         githubToken,
         targetBranch,
+        baseBranch: asOptString(inputs.baseBranch),
+        prTitle: asOptString(inputs.prTitle),
+        prBody: asOptString(inputs.prBody),
+        prState,
         ...(babysitMode
           ? {
               babysit: {

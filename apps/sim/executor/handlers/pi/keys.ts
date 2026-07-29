@@ -2,7 +2,7 @@
  * Model, provider-key, and cost resolution shared by Pi backends. Local Dev
  * mirrors the Agent block — keys resolve through `getApiKeyWithBYOK`, so a
  * Sim-hosted key may be used and billed. Review Code has the same host-side key
- * boundary. Create PR and Update Branch require the user's own key (the
+ * boundary. Create PR and Update PR require the user's own key (the
  * block's API Key field, or a stored workspace BYOK key) because those modes run
  * the model client in an untrusted sandbox. Cost uses the billing multiplier and
  * is zeroed for BYOK / non-billable models.
@@ -47,7 +47,7 @@ export async function resolvePiModelKey(params: ResolvePiModelKeyParams): Promis
   }
 
   if (isPiByokOnlyMode(params.mode)) {
-    const modeLabel = params.mode === 'cloud' ? 'Create PR' : 'Update Branch'
+    const modeLabel = params.mode === 'cloud' ? 'Create PR' : 'Update PR'
     const workspaceBYOKProviderId = getPiWorkspaceBYOKProviderId(providerId)
     if (params.workspaceId && workspaceBYOKProviderId) {
       const byok = await getBYOKKey(params.workspaceId, workspaceBYOKProviderId)

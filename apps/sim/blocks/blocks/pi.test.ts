@@ -86,7 +86,7 @@ describe('Pi block search fields', () => {
 })
 
 describe('Pi cloud authoring surface', () => {
-  it('offers Create PR, Update Branch, Review Code, and Local Dev as top-level modes', () => {
+  it('offers Create PR, Update PR, Review Code, and Local Dev as top-level modes', () => {
     const mode = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'mode')
     const options =
       typeof mode?.options === 'function'
@@ -182,7 +182,7 @@ describe('Pi cloud authoring surface', () => {
     expect(evaluateSubBlockCondition(pullNumber?.condition, { mode: 'cloud_review' })).toBe(true)
   })
 
-  it('requires the target branch only in Update Branch mode', () => {
+  it('requires the target branch only in Update PR mode', () => {
     expect(targetBranchField?.type).toBe('short-input')
     expect(targetBranchField?.required).toBe(true)
     expect(evaluateSubBlockCondition(targetBranchField?.condition, { mode: 'cloud_branch' })).toBe(
@@ -226,10 +226,22 @@ describe('Pi cloud authoring surface', () => {
     }
   })
 
-  it('hides Create PR and Review Code-specific fields', () => {
-    for (const id of ['baseBranch', 'branchName', 'draft', 'prTitle', 'prBody', 'pullNumber']) {
+  it('shows PR metadata controls and hides Create PR and Review Code-only fields', () => {
+    for (const id of ['baseBranch', 'prTitle', 'prBody', 'prState']) {
+      const field = PiBlock.subBlocks.find((subBlock) => subBlock.id === id)
+      expect(evaluateSubBlockCondition(field?.condition, { mode: 'cloud_branch' })).toBe(true)
+    }
+    for (const id of ['branchName', 'draft', 'pullNumber']) {
       const field = PiBlock.subBlocks.find((subBlock) => subBlock.id === id)
       expect(evaluateSubBlockCondition(field?.condition, { mode: 'cloud_branch' })).toBe(false)
     }
+    const prState = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'prState')
+    expect(
+      evaluateSubBlockCondition(prState?.condition, {
+        mode: 'cloud_branch',
+        babysitMode: true,
+      })
+    ).toBe(false)
+    expect(PiBlock.inputs.prState).toBeDefined()
   })
 })

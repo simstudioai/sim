@@ -11,6 +11,7 @@ import {
   fetchOpenPrSnapshot,
   fetchPrSnapshot,
   findOpenPrForBranch,
+  setPullRequestDraftState,
   validateRepositoryCoordinates,
 } from '@/executor/handlers/pi/github-pr'
 
@@ -144,9 +145,9 @@ describe('findOpenPrForBranch', () => {
     )
   })
 
-  it('fails when there is no matching pull request or the match is ambiguous', async () => {
+  it('returns no match so Update PR can create it, but fails when ambiguous', async () => {
     mockExecuteTool.mockResolvedValueOnce(list([]))
-    await expect(findOpenPrForBranch(params)).rejects.toThrow(/none was found/)
+    await expect(findOpenPrForBranch(params)).resolves.toBeUndefined()
 
     mockExecuteTool.mockResolvedValueOnce(list([{ number: 7 }, { number: 8 }]))
     await expect(findOpenPrForBranch(params)).rejects.toThrow(/multiple open pull requests/)
@@ -179,6 +180,55 @@ describe('findOpenPrForBranch', () => {
       .mockResolvedValueOnce({ success: true, output: snapshot({ state: 'closed' }) })
 
     await expect(findOpenPrForBranch(params)).rejects.toThrow(/only open PRs/)
+  })
+})
+
+describe('setPullRequestDraftState', () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function graphQlResponse(data: Record<string, unknown>): Response {
+    return new Response(JSON.stringify({ data }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  it('does nothing when the pull request already has the requested state', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      graphQlResponse({
+        repository: { pullRequest: { id: 'PR_kwDOExample', isDraft: false } },
+      })
+    )
+    vi.stubGlobal('fetch', mockFetch)
+
+    await setPullRequestDraftState({ ...COORDINATES, state: 'ready' })
+
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['draft', false, 'convertPullRequestToDraft'],
+    ['ready', true, 'markPullRequestReadyForReview'],
+  ] as const)('changes a pull request to %s', async (state, isDraft, mutation) => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        graphQlResponse({
+          repository: { pullRequest: { id: 'PR_kwDOExample', isDraft } },
+        })
+      )
+      .mockResolvedValueOnce(graphQlResponse({ [mutation]: { pullRequest: {} } }))
+    vi.stubGlobal('fetch', mockFetch)
+
+    await setPullRequestDraftState({ ...COORDINATES, state })
+
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    const mutationRequest = mockFetch.mock.calls[1][1] as RequestInit
+    expect(mutationRequest.headers).toMatchObject({ Authorization: 'Bearer ghp_secret' })
+    expect(mutationRequest.body).toContain(mutation)
+    expect(mutationRequest.body).toContain('PR_kwDOExample')
   })
 })
 

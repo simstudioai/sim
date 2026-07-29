@@ -189,7 +189,7 @@ describe('PiBlockHandler', () => {
   it('rejects a mode outside the three the block offers', async () => {
     await expect(
       handler.execute(ctx(), block, { mode: 'babysit', task: 'x', model: 'claude' })
-    ).rejects.toThrow(/Use Create PR or Update Branch with Babysit Mode enabled/)
+    ).rejects.toThrow(/Use Create PR or Update PR with Babysit Mode enabled/)
     expect(mockResolveKey).not.toHaveBeenCalled()
   })
 
@@ -231,7 +231,7 @@ describe('PiBlockHandler', () => {
     expect(output.branch).toBe('pi/abc')
   })
 
-  it('routes Update Branch to the cloud branch backend and surfaces branch output', async () => {
+  it('routes Update PR metadata to the cloud branch backend and surfaces branch output', async () => {
     const output = (await handler.execute(ctx(), block, {
       mode: 'cloud_branch',
       task: 'continue it',
@@ -240,6 +240,10 @@ describe('PiBlockHandler', () => {
       repo: 'r',
       githubToken: 'ghp',
       targetBranch: 'feature/existing',
+      baseBranch: 'staging',
+      prTitle: 'Updated title',
+      prBody: 'Updated body',
+      prState: 'ready',
       skills: [{ skillId: 'skill-1' }],
       memoryType: 'conversation',
       conversationId: 'thread-1',
@@ -255,6 +259,10 @@ describe('PiBlockHandler', () => {
         repo: 'r',
         githubToken: 'ghp',
         targetBranch: 'feature/existing',
+        baseBranch: 'staging',
+        prTitle: 'Updated title',
+        prBody: 'Updated body',
+        prState: 'ready',
         skills: [],
         initialMessages: [],
       })
@@ -361,10 +369,10 @@ describe('PiBlockHandler', () => {
     })
   })
 
-  it('passes the same Babysit configuration through Update Branch', async () => {
+  it('passes the same Babysit configuration through Update PR', async () => {
     mockRunCloudBranch.mockResolvedValue({
       totals: {
-        finalText: 'Update Branch:\nupdated\n\nBabysit:\nclean',
+        finalText: 'Update PR:\nupdated\n\nBabysit:\nclean',
         inputTokens: 1,
         outputTokens: 2,
         toolCalls: [],
@@ -530,7 +538,7 @@ describe('PiBlockHandler', () => {
     ).rejects.toThrow(/Create PR requires/)
   })
 
-  it('requires a target branch in Update Branch', async () => {
+  it('requires a target branch in Update PR', async () => {
     await expect(
       handler.execute(ctx(), block, {
         mode: 'cloud_branch',
@@ -540,7 +548,23 @@ describe('PiBlockHandler', () => {
         repo: 'r',
         githubToken: 'ghp',
       })
-    ).rejects.toThrow(/Update Branch requires a target branch/)
+    ).rejects.toThrow(/Update PR requires a target branch/)
+    expect(mockRunCloudBranch).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid Update PR state before starting the backend', async () => {
+    await expect(
+      handler.execute(ctx(), block, {
+        mode: 'cloud_branch',
+        task: 'x',
+        model: 'claude',
+        owner: 'o',
+        repo: 'r',
+        githubToken: 'ghp',
+        targetBranch: 'feature/existing',
+        prState: 'closed',
+      })
+    ).rejects.toThrow(/Invalid PR state/)
     expect(mockRunCloudBranch).not.toHaveBeenCalled()
   })
 
@@ -687,7 +711,7 @@ describe('PiBlockHandler', () => {
       })
     })
 
-    it('passes Update Branch the key without a host tool', async () => {
+    it('passes Update PR the key without a host tool', async () => {
       mockParseSearchProvider.mockReturnValue('exa')
 
       await handler.execute(ctx(), block, {

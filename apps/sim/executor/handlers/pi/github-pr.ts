@@ -7,6 +7,7 @@
  */
 
 import { executeTool } from '@/tools'
+import { GITHUB_GRAPHQL_URL, githubGraphQlHeaders, readGraphQlData } from '@/tools/github/graphql'
 import {
   isRecord,
   nullableBoolean,
@@ -52,6 +53,8 @@ export interface BranchPullRequest {
   pullNumber: number
   snapshot: PullRequestSnapshot
 }
+
+export type PullRequestDraftState = 'draft' | 'ready'
 
 function requiredSha(record: Record<string, unknown>, field: string, context: string): string {
   const value = requiredTrimmedString(record, field, context)
@@ -125,14 +128,35 @@ export async function fetchOpenPrSnapshot(
 }
 
 /**
+ * Verifies that an open pull request still belongs to the requested branch in
+ * the requested repository.
+ */
+export async function fetchOpenPrForBranch(
+  params: PullRequestCoordinates & { branch: string },
+  signal?: AbortSignal
+): Promise<BranchPullRequest> {
+  const snapshot = await fetchOpenPrSnapshot(params, signal)
+  const expectedRepo = `${params.owner}/${params.repo}`.toLowerCase()
+  if (
+    snapshot.headRef !== params.branch ||
+    snapshot.headRepoFullName?.toLowerCase() !== expectedRepo
+  ) {
+    throw new Error(
+      `PR #${params.pullNumber} no longer points to ${params.owner}/${params.repo}:${params.branch}`
+    )
+  }
+  return { pullNumber: params.pullNumber, snapshot }
+}
+
+/**
  * Finds the single open, same-repository pull request whose head is exactly the
- * requested branch. Update Branch uses this before starting a sandbox so
- * Babysit never guesses which pull request to monitor.
+ * requested branch. No match is valid because Update PR can create the missing
+ * pull request after it has safely pushed the branch.
  */
 export async function findOpenPrForBranch(
   params: Omit<PullRequestCoordinates, 'pullNumber'> & { branch: string },
   signal?: AbortSignal
-): Promise<BranchPullRequest> {
+): Promise<BranchPullRequest | undefined> {
   validateRepositoryCoordinates({ ...params, pullNumber: 1 })
   const result = await executeTool(
     'github_list_prs_v2',
@@ -162,14 +186,10 @@ export async function findOpenPrForBranch(
     throw new Error('GitHub pull request list response.output.items must be an array')
   }
   if (items.length === 0) {
-    throw new Error(
-      `Update Branch Babysit requires one open pull request for branch ${params.branch}, but none was found`
-    )
+    return undefined
   }
   if (items.length > 1) {
-    throw new Error(
-      `Update Branch Babysit found multiple open pull requests for branch ${params.branch}`
-    )
+    throw new Error(`Update PR found multiple open pull requests for branch ${params.branch}`)
   }
 
   if (!isRecord(items[0])) {
@@ -180,26 +200,91 @@ export async function findOpenPrForBranch(
     throw new Error('GitHub pull request list response item.number must be positive')
   }
 
-  const snapshot = await fetchOpenPrSnapshot(
+  return fetchOpenPrForBranch(
     {
       owner: params.owner,
       repo: params.repo,
       pullNumber,
       githubToken: params.githubToken,
+      branch: params.branch,
     },
     signal
   )
-  const expectedRepo = `${params.owner}/${params.repo}`.toLowerCase()
-  if (
-    snapshot.headRef !== params.branch ||
-    snapshot.headRepoFullName?.toLowerCase() !== expectedRepo
-  ) {
-    throw new Error(
-      `PR #${pullNumber} no longer points to ${params.owner}/${params.repo}:${params.branch}`
-    )
-  }
+}
 
-  return { pullNumber, snapshot }
+/**
+ * Changes only the draft/ready state. GitHub's REST pull-request update API
+ * cannot perform this transition, so the host uses the corresponding GraphQL
+ * mutation while keeping the token out of Pi's environment.
+ */
+export async function setPullRequestDraftState(
+  params: PullRequestCoordinates & { state: PullRequestDraftState },
+  signal?: AbortSignal
+): Promise<void> {
+  validateRepositoryCoordinates(params)
+  const variables = {
+    owner: params.owner,
+    repo: params.repo,
+    pullNumber: params.pullNumber,
+  }
+  const queryResponse = await fetch(GITHUB_GRAPHQL_URL, {
+    method: 'POST',
+    headers: githubGraphQlHeaders(params.githubToken),
+    body: JSON.stringify({
+      query: `query PiPullRequestDraftState($owner: String!, $repo: String!, $pullNumber: Int!) {
+        repository(owner: $owner, name: $repo) {
+          pullRequest(number: $pullNumber) {
+            id
+            isDraft
+          }
+        }
+      }`,
+      variables,
+    }),
+    signal,
+  })
+  const queryData = await readGraphQlData(queryResponse, 'GitHub pull request draft-state query')
+  const repository = requiredRecord(
+    queryData,
+    'repository',
+    'GitHub pull request draft-state query.data'
+  )
+  const pullRequest = requiredRecord(
+    repository,
+    'pullRequest',
+    'GitHub pull request draft-state query.data.repository'
+  )
+  const pullRequestId = requiredTrimmedString(
+    pullRequest,
+    'id',
+    'GitHub pull request draft-state query.data.repository.pullRequest'
+  )
+  const isDraft = requiredBoolean(
+    pullRequest,
+    'isDraft',
+    'GitHub pull request draft-state query.data.repository.pullRequest'
+  )
+  const shouldBeDraft = params.state === 'draft'
+  if (isDraft === shouldBeDraft) return
+
+  const mutationName = shouldBeDraft ? 'convertPullRequestToDraft' : 'markPullRequestReadyForReview'
+  const mutationResponse = await fetch(GITHUB_GRAPHQL_URL, {
+    method: 'POST',
+    headers: githubGraphQlHeaders(params.githubToken),
+    body: JSON.stringify({
+      query: `mutation PiSetPullRequestDraftState($pullRequestId: ID!) {
+        ${mutationName}(input: { pullRequestId: $pullRequestId }) {
+          pullRequest {
+            id
+            isDraft
+          }
+        }
+      }`,
+      variables: { pullRequestId },
+    }),
+    signal,
+  })
+  await readGraphQlData(mutationResponse, 'GitHub pull request draft-state mutation')
 }
 
 export function validateRepositoryCoordinates(params: PullRequestCoordinates): void {

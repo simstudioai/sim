@@ -62,7 +62,12 @@ import {
   type PiRunTotals,
   parseJsonLine,
 } from '@/executor/handlers/pi/events'
-import { type BranchPullRequest, findOpenPrForBranch } from '@/executor/handlers/pi/github-pr'
+import {
+  type BranchPullRequest,
+  fetchOpenPrForBranch,
+  findOpenPrForBranch,
+  setPullRequestDraftState,
+} from '@/executor/handlers/pi/github-pr'
 import { mapThinkingLevel, providerApiKeyEnvVar } from '@/executor/handlers/pi/keys'
 import {
   createScrubbedPiError,
@@ -77,6 +82,7 @@ import {
 } from '@/executor/handlers/pi/search/extension-source'
 import { getPiProviderId } from '@/providers/pi-providers'
 import { executeTool } from '@/tools'
+import { isRecord, requiredRecord, requiredTrimmedString } from '@/tools/github/response-parsers'
 
 const logger = createLogger('PiCloudBackend')
 
@@ -141,49 +147,46 @@ type PiCloudAuthoringRunParams = PiCloudRunParams | PiCloudBranchRunParams
 
 /** The commit message and PR title share one default, derived from the PR title or task. */
 function defaultTitle(params: PiCloudAuthoringRunParams): string {
-  return (
-    (params.mode === 'cloud' ? params.prTitle?.trim() : undefined) ||
-    truncate(`Pi: ${params.task}`, COMMIT_TITLE_MAX)
-  )
+  return params.prTitle?.trim() || truncate(`Pi: ${params.task}`, COMMIT_TITLE_MAX)
 }
 
 function guidanceFor(params: PiCloudAuthoringRunParams): string {
   const finalization =
     params.mode === 'cloud'
       ? 'pushes the branch, and opens the pull request. '
-      : 'pushes them back to the configured branch without force-pushing. '
+      : 'pushes them back to the configured branch without force-pushing, then creates or updates its pull request. '
   return `${CLOUD_GUIDANCE_PREFIX}${finalization}${CLOUD_GUIDANCE_SUFFIX}`
 }
 
 async function openPullRequest(
-  params: PiCloudRunParams,
+  params: PiCloudAuthoringRunParams,
   branch: string,
-  detectedBase: string | undefined,
+  base: string,
+  draft: boolean,
   totals: PiRunTotals,
-  secrets: readonly string[]
+  secrets: readonly string[],
+  signal?: AbortSignal
 ): Promise<OpenedPullRequest> {
-  const base = params.baseBranch?.trim() || detectedBase
-  if (!base) {
-    throw new Error(
-      `Branch ${branch} pushed, but the base branch could not be determined — set "Base Branch" on the block and re-run.`
-    )
-  }
   const title = scrubPiSecrets(defaultTitle(params), secrets)
   const body = scrubPiSecrets(
     params.prBody?.trim() || buildPrBody(params.task, totals.finalText),
     secrets
   )
 
-  const result = await executeTool('github_create_pr', {
-    owner: params.owner,
-    repo: params.repo,
-    title,
-    head: branch,
-    base,
-    body,
-    draft: params.babysit ? false : params.draft,
-    apiKey: params.githubToken,
-  })
+  const result = await executeTool(
+    'github_create_pr',
+    {
+      owner: params.owner,
+      repo: params.repo,
+      title,
+      head: branch,
+      base,
+      body,
+      draft,
+      apiKey: params.githubToken,
+    },
+    { signal }
+  )
 
   if (!result.success) {
     throw new Error(
@@ -191,15 +194,119 @@ async function openPullRequest(
     )
   }
 
-  const output = result.output as { metadata?: { html_url?: string; number?: number } } | undefined
-  return {
-    ...(typeof output?.metadata?.html_url === 'string' ? { url: output.metadata.html_url } : {}),
-    ...(typeof output?.metadata?.number === 'number' &&
-    Number.isSafeInteger(output.metadata.number) &&
-    output.metadata.number > 0
-      ? { number: output.metadata.number }
-      : {}),
+  if (!isRecord(result.output)) {
+    throw new Error(`Branch ${branch} pushed but PR creation returned an invalid response`)
   }
+  const metadata = requiredRecord(result.output, 'metadata', 'GitHub create pull request response')
+  const rawNumber = metadata.number
+  const number =
+    typeof rawNumber === 'number' && Number.isSafeInteger(rawNumber) && rawNumber > 0
+      ? rawNumber
+      : undefined
+  return {
+    url: requiredTrimmedString(
+      metadata,
+      'html_url',
+      'GitHub create pull request response.metadata'
+    ),
+    ...(number ? { number } : {}),
+  }
+}
+
+async function repositoryDefaultBranch(
+  params: PiCloudAuthoringRunParams,
+  signal?: AbortSignal
+): Promise<string> {
+  const result = await executeTool(
+    'github_repo_info_v2',
+    {
+      owner: params.owner,
+      repo: params.repo,
+      apiKey: params.githubToken,
+    },
+    { signal }
+  )
+  if (!result.success) {
+    throw new Error(
+      `Failed to determine the repository default branch: ${result.error ?? 'unknown error'}`
+    )
+  }
+  if (!isRecord(result.output)) {
+    throw new Error('GitHub repository response must be an object')
+  }
+  return requiredTrimmedString(result.output, 'default_branch', 'GitHub repository response')
+}
+
+async function updatePullRequest(
+  params: PiCloudBranchRunParams,
+  pullRequest: BranchPullRequest,
+  secrets: readonly string[],
+  signal?: AbortSignal
+): Promise<OpenedPullRequest> {
+  const verified = await fetchOpenPrForBranch(
+    {
+      owner: params.owner,
+      repo: params.repo,
+      pullNumber: pullRequest.pullNumber,
+      branch: params.targetBranch,
+      githubToken: params.githubToken,
+    },
+    signal
+  )
+  const title = params.prTitle?.trim() ? scrubPiSecrets(params.prTitle.trim(), secrets) : undefined
+  const body = params.prBody?.trim() ? scrubPiSecrets(params.prBody.trim(), secrets) : undefined
+  const base = params.baseBranch?.trim()
+  if (title || body || base) {
+    const result = await executeTool(
+      'github_update_pr',
+      {
+        owner: params.owner,
+        repo: params.repo,
+        pullNumber: pullRequest.pullNumber,
+        ...(title ? { title } : {}),
+        ...(body ? { body } : {}),
+        ...(base ? { base } : {}),
+        apiKey: params.githubToken,
+      },
+      { signal }
+    )
+    if (!result.success) {
+      throw new Error(
+        `Branch ${params.targetBranch} pushed but PR update failed: ${result.error ?? 'unknown error'}`
+      )
+    }
+  }
+
+  const requestedState = params.babysit ? 'ready' : params.prState
+  if (requestedState !== 'preserve') {
+    await setPullRequestDraftState(
+      {
+        owner: params.owner,
+        repo: params.repo,
+        pullNumber: pullRequest.pullNumber,
+        githubToken: params.githubToken,
+        state: requestedState,
+      },
+      signal
+    )
+  }
+  return { number: pullRequest.pullNumber, url: verified.snapshot.htmlUrl }
+}
+
+async function ensureUpdatePullRequest(
+  params: PiCloudBranchRunParams,
+  branch: string,
+  existingPullRequest: BranchPullRequest | undefined,
+  totals: PiRunTotals,
+  secrets: readonly string[],
+  signal?: AbortSignal
+): Promise<OpenedPullRequest> {
+  if (existingPullRequest) {
+    return updatePullRequest(params, existingPullRequest, secrets, signal)
+  }
+  const base = params.baseBranch?.trim() || (await repositoryDefaultBranch(params, signal))
+  const draft = params.babysit ? false : params.prState !== 'ready'
+  return openPullRequest(params, branch, base, draft, totals, secrets, signal)
 }
 
 function mergeChangedFiles(
@@ -221,7 +328,7 @@ function mergePhaseDiffs(createDiff: string | undefined, babysitDiff: string | u
 }
 
 function combineAuthoringAndBabysit(
-  label: 'Create PR' | 'Update Branch',
+  label: 'Create PR' | 'Update PR',
   authored: AuthoringPhaseResult,
   babysit: PiRunResult
 ): PiRunResult {
@@ -277,7 +384,7 @@ async function runCloudAuthoringPi(
   context: PiRunContext
 ): Promise<PiRunResult> {
   const startedAt = Date.now()
-  const modeLabel = params.mode === 'cloud' ? 'Create PR' : 'Update Branch'
+  const modeLabel = params.mode === 'cloud' ? 'Create PR' : 'Update PR'
   if (!params.isBYOK) {
     throw new Error(
       `${modeLabel} requires your own provider API key (BYOK). Set one in Settings > BYOK.`
@@ -313,7 +420,7 @@ async function runCloudAuthoringPi(
   const totals = createPiTotals()
   const thinking = mapThinkingLevel(params.thinkingLevel) ?? 'medium'
   let existingPullRequest: BranchPullRequest | undefined
-  if (params.mode === 'cloud_branch' && params.babysit) {
+  if (params.mode === 'cloud_branch') {
     try {
       existingPullRequest = await findOpenPrForBranch(
         {
@@ -462,66 +569,64 @@ async function runCloudAuthoringPi(
           owner: params.owner,
           repo: params.repo,
         })
-        return {
-          totals,
-          changedFiles,
-          diff,
-          ...(params.mode === 'cloud_branch'
-            ? {
-                branch,
-                ...(existingPullRequest
-                  ? {
-                      pullNumber: existingPullRequest.pullNumber,
-                      prUrl: existingPullRequest.snapshot.htmlUrl,
-                    }
-                  : {}),
-              }
-            : {}),
+        if (params.mode === 'cloud') {
+          return { totals, changedFiles, diff }
+        }
+      } else {
+        // PUSH is the only command that carries the token, hardened against any
+        // git-config program execution the agent may have planted.
+        const push = await raceAbort(
+          runner.run(PUSH_SCRIPT, {
+            envs: {
+              GITHUB_TOKEN: params.githubToken,
+              GIT_CONFIG_NOSYSTEM: '1',
+              GIT_CONFIG_GLOBAL: '/dev/null',
+              REPO_OWNER: params.owner,
+              REPO_NAME: params.repo,
+              BRANCH: branch,
+            },
+            timeoutMs: FINALIZE_TIMEOUT_MS,
+          }),
+          context.signal
+        )
+        if (!push.stdout.includes('__PUSHED__=1')) {
+          let reason = push.stderr?.trim()
+          try {
+            const pushErr = (await runner.readFile(PUSH_ERR_PATH)).trim()
+            if (pushErr) reason = pushErr
+          } catch {}
+          const scrubbed = scrubGitSecrets(reason || 'unknown error', params.githubToken)
+          throw new Error(`git push failed: ${truncate(scrubbed, PUSH_ERROR_MAX)}`)
         }
       }
 
-      // PUSH is the only command that carries the token, hardened against any
-      // git-config program execution the agent may have planted.
-      const push = await raceAbort(
-        runner.run(PUSH_SCRIPT, {
-          envs: {
-            GITHUB_TOKEN: params.githubToken,
-            GIT_CONFIG_NOSYSTEM: '1',
-            GIT_CONFIG_GLOBAL: '/dev/null',
-            REPO_OWNER: params.owner,
-            REPO_NAME: params.repo,
-            BRANCH: branch,
-          },
-          timeoutMs: FINALIZE_TIMEOUT_MS,
-        }),
-        context.signal
-      )
-      if (!push.stdout.includes('__PUSHED__=1')) {
-        let reason = push.stderr?.trim()
-        try {
-          const pushErr = (await runner.readFile(PUSH_ERR_PATH)).trim()
-          if (pushErr) reason = pushErr
-        } catch {}
-        const scrubbed = scrubGitSecrets(reason || 'unknown error', params.githubToken)
-        throw new Error(`git push failed: ${truncate(scrubbed, PUSH_ERROR_MAX)}`)
-      }
-
+      let pullRequest: OpenedPullRequest
       if (params.mode === 'cloud_branch') {
-        return {
-          totals,
-          changedFiles,
-          diff,
+        pullRequest = await ensureUpdatePullRequest(
+          params,
           branch,
-          ...(existingPullRequest
-            ? {
-                pullNumber: existingPullRequest.pullNumber,
-                prUrl: existingPullRequest.snapshot.htmlUrl,
-              }
-            : {}),
+          existingPullRequest,
+          totals,
+          secrets,
+          context.signal
+        )
+      } else {
+        const base = params.baseBranch?.trim() || detectedBase
+        if (!base) {
+          throw new Error(
+            `Branch ${branch} pushed, but the base branch could not be determined — set "Base Branch" on the block and re-run.`
+          )
         }
+        pullRequest = await openPullRequest(
+          params,
+          branch,
+          base,
+          params.babysit ? false : params.draft,
+          totals,
+          secrets,
+          context.signal
+        )
       }
-
-      const pullRequest = await openPullRequest(params, branch, detectedBase, totals, secrets)
       return {
         totals,
         changedFiles,

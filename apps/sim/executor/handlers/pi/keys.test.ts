@@ -188,7 +188,7 @@ describe('resolvePiModelKey', () => {
     expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
   })
 
-  it('Update Branch rejects when no user key is available (never a hosted key)', async () => {
+  it('Update PR rejects when no user key is available (never a hosted key)', async () => {
     mockGetBYOKKey.mockResolvedValue(null)
 
     await expect(
@@ -198,7 +198,7 @@ describe('resolvePiModelKey', () => {
         mode: 'cloud_branch',
         workspaceId: 'ws-1',
       })
-    ).rejects.toThrow(/Update Branch requires your own provider API key/)
+    ).rejects.toThrow(/Update PR requires your own provider API key/)
     expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
   })
 

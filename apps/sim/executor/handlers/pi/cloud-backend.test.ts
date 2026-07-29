@@ -79,7 +79,28 @@ function branchParams(overrides: Partial<PiCloudBranchRunParams> = {}): PiCloudB
     repo: 'demo',
     githubToken: 'ghp_secret',
     targetBranch: 'feature/existing',
+    prState: 'preserve',
     ...overrides,
+  }
+}
+
+function existingPullRequestOutput() {
+  return {
+    success: true,
+    output: {
+      title: 'Feature',
+      body: '',
+      html_url: 'https://github.com/octo/demo/pull/7',
+      state: 'open',
+      merged: false,
+      mergeable: true,
+      head: {
+        sha: 'a'.repeat(40),
+        ref: 'feature/existing',
+        repo_full_name: 'octo/demo',
+      },
+      base: { sha: 'b'.repeat(40), ref: 'staging' },
+    },
   }
 }
 
@@ -89,23 +110,7 @@ function mockExistingBranchPullRequest(): void {
       success: true,
       output: { items: [{ number: 7 }], count: 1 },
     })
-    .mockResolvedValueOnce({
-      success: true,
-      output: {
-        title: 'Feature',
-        body: '',
-        html_url: 'https://github.com/octo/demo/pull/7',
-        state: 'open',
-        merged: false,
-        mergeable: true,
-        head: {
-          sha: 'a'.repeat(40),
-          ref: 'feature/existing',
-          repo_full_name: 'octo/demo',
-        },
-        base: { sha: 'b'.repeat(40), ref: 'staging' },
-      },
-    })
+    .mockResolvedValueOnce(existingPullRequestOutput())
 }
 
 describe('runCloudPi', () => {
@@ -116,10 +121,39 @@ describe('runCloudPi', () => {
     )
     mockProviderEnvVar.mockReturnValue('ANTHROPIC_API_KEY')
     mockReadFile.mockResolvedValue('diff content')
-    mockExecuteTool.mockResolvedValue({
-      success: true,
-      output: { metadata: { html_url: 'https://github.com/octo/demo/pull/1', number: 1 } },
+    mockExecuteTool.mockImplementation((tool: string) => {
+      if (tool === 'github_list_prs_v2') {
+        return Promise.resolve({ success: true, output: { items: [], count: 0 } })
+      }
+      if (tool === 'github_repo_info_v2') {
+        return Promise.resolve({ success: true, output: { default_branch: 'main' } })
+      }
+      if (tool === 'github_pr_v2') {
+        return Promise.resolve(existingPullRequestOutput())
+      }
+      if (tool === 'github_update_pr') {
+        return Promise.resolve({ success: true, output: {} })
+      }
+      return Promise.resolve({
+        success: true,
+        output: { metadata: { html_url: 'https://github.com/octo/demo/pull/1', number: 1 } },
+      })
     })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            data: {
+              repository: {
+                pullRequest: { id: 'PR_kwDOExample', isDraft: false },
+              },
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+    )
     mockRunBabysit.mockResolvedValue({
       totals: {
         finalText: 'Babysit stopped: clean.',
@@ -272,7 +306,8 @@ describe('runCloudPi', () => {
         base: 'main',
         draft: true,
         apiKey: 'ghp_secret',
-      })
+      }),
+      { signal: undefined }
     )
     expect(result.prUrl).toBe('https://github.com/octo/demo/pull/1')
     expect(result.branch).toBe('feature-x')
@@ -299,7 +334,8 @@ describe('runCloudPi', () => {
     expect(mockRunBabysit).toHaveBeenCalledTimes(1)
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'github_create_pr',
-      expect.objectContaining({ draft: false })
+      expect.objectContaining({ draft: false }),
+      { signal: undefined }
     )
     expect(mockWithPiSandbox.mock.invocationCallOrder[0]).toBeLessThan(
       mockRunBabysit.mock.invocationCallOrder[0]
@@ -664,8 +700,8 @@ describe('runCloudPi', () => {
     expect(mockExecuteTool).not.toHaveBeenCalled()
   })
 
-  describe('Update Branch', () => {
-    it('checks out and non-force pushes the exact existing branch without opening a PR', async () => {
+  describe('Update PR', () => {
+    it('checks out and non-force pushes the exact existing branch, then creates its PR', async () => {
       const result = await runCloudBranchPi(branchParams(), { onEvent: vi.fn() })
 
       const [cloneCmd, cloneOpts] = mockRun.mock.calls[0]
@@ -693,9 +729,18 @@ describe('runCloudPi', () => {
       expect(pushOpts.envs.GITHUB_TOKEN).toBe('ghp_secret')
 
       expect(mockWriteFile).toHaveBeenCalledWith('/workspace/pi-commit.txt', 'Pi: continue it')
-      expect(mockExecuteTool).not.toHaveBeenCalled()
+      expect(mockExecuteTool).toHaveBeenCalledWith(
+        'github_create_pr',
+        expect.objectContaining({
+          head: 'feature/existing',
+          base: 'main',
+          draft: true,
+        }),
+        { signal: undefined }
+      )
       expect(result).toEqual(
         expect.objectContaining({
+          prUrl: 'https://github.com/octo/demo/pull/1',
           branch: 'feature/existing',
           changedFiles: ['src/x.ts'],
           diff: 'diff content',
@@ -703,7 +748,7 @@ describe('runCloudPi', () => {
       )
     })
 
-    it('returns the target branch without pushing when there are no changes', async () => {
+    it('creates the missing PR without pushing when there are no code changes', async () => {
       mockRun.mockImplementation((command: string) => {
         if (command.includes('git clone')) {
           return Promise.resolve({ stdout: '__BASE_SHA__=abc', stderr: '', exitCode: 0 })
@@ -717,8 +762,85 @@ describe('runCloudPi', () => {
       const result = await runCloudBranchPi(branchParams(), { onEvent: vi.fn() })
 
       expect(result.branch).toBe('feature/existing')
+      expect(result.prUrl).toBe('https://github.com/octo/demo/pull/1')
       expect(mockRun.mock.calls.some(([cmd]: [string]) => cmd.includes('push'))).toBe(false)
-      expect(mockExecuteTool).not.toHaveBeenCalled()
+      expect(mockExecuteTool).toHaveBeenCalledWith(
+        'github_create_pr',
+        expect.objectContaining({ head: 'feature/existing', draft: true }),
+        { signal: undefined }
+      )
+    })
+
+    it('updates explicit metadata and draft state on the exact existing PR', async () => {
+      mockExistingBranchPullRequest()
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              data: {
+                repository: {
+                  pullRequest: { id: 'PR_kwDOExample', isDraft: false },
+                },
+              },
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              data: {
+                convertPullRequestToDraft: {
+                  pullRequest: { id: 'PR_kwDOExample', isDraft: true },
+                },
+              },
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      vi.stubGlobal('fetch', mockFetch)
+
+      const result = await runCloudBranchPi(
+        branchParams({
+          baseBranch: 'release',
+          prTitle: 'New title',
+          prBody: 'New body',
+          prState: 'draft',
+        }),
+        { onEvent: vi.fn() }
+      )
+
+      expect(mockExecuteTool).toHaveBeenCalledWith(
+        'github_update_pr',
+        {
+          owner: 'octo',
+          repo: 'demo',
+          pullNumber: 7,
+          title: 'New title',
+          body: 'New body',
+          base: 'release',
+          apiKey: 'ghp_secret',
+        },
+        { signal: undefined }
+      )
+      expect(mockFetch).toHaveBeenCalledTimes(2)
+      expect((mockFetch.mock.calls[1][1] as RequestInit).body).toContain(
+        'convertPullRequestToDraft'
+      )
+      expect(result.prUrl).toBe('https://github.com/octo/demo/pull/7')
+    })
+
+    it('preserves unspecified metadata and state on an existing PR', async () => {
+      mockExistingBranchPullRequest()
+
+      const result = await runCloudBranchPi(branchParams(), { onEvent: vi.fn() })
+
+      expect(
+        mockExecuteTool.mock.calls.some(([tool]: [string]) => tool === 'github_update_pr')
+      ).toBe(false)
+      expect(vi.mocked(fetch)).not.toHaveBeenCalled()
+      expect(result.prUrl).toBe('https://github.com/octo/demo/pull/7')
     })
 
     it('discovers the exact existing PR, pushes first, and reuses the Babysit continuation', async () => {
@@ -773,9 +895,7 @@ describe('runCloudPi', () => {
         commitsPushed: 1,
         stopReason: 'clean',
       })
-      expect(result.totals.finalText).toBe(
-        'Update Branch:\ndone\n\nBabysit:\nBabysit stopped: clean.'
-      )
+      expect(result.totals.finalText).toBe('Update PR:\ndone\n\nBabysit:\nBabysit stopped: clean.')
     })
 
     it('still babysits the existing PR when authoring makes no changes', async () => {
@@ -807,20 +927,30 @@ describe('runCloudPi', () => {
       })
     })
 
-    it('fails before starting a sandbox when no open PR uses the target branch', async () => {
+    it('creates a ready PR and then starts Babysit when the branch has no PR', async () => {
       mockExecuteTool.mockResolvedValueOnce({
         success: true,
         output: { items: [], count: 0 },
       })
 
-      await expect(
-        runCloudBranchPi(
-          branchParams({ babysit: { maxRounds: 3, reviewMentions: ['@greptile'] } }),
-          { onEvent: vi.fn() }
-        )
-      ).rejects.toThrow(/none was found/)
-      expect(mockWithPiSandbox).not.toHaveBeenCalled()
-      expect(mockRunBabysit).not.toHaveBeenCalled()
+      const result = await runCloudBranchPi(
+        branchParams({ babysit: { maxRounds: 3, reviewMentions: ['@greptile'] } }),
+        { onEvent: vi.fn() }
+      )
+
+      expect(mockExecuteTool).toHaveBeenCalledWith(
+        'github_create_pr',
+        expect.objectContaining({ head: 'feature/existing', draft: false }),
+        { signal: undefined }
+      )
+      expect(mockRunBabysit).toHaveBeenCalledWith(
+        expect.objectContaining({ pullNumber: 1 }),
+        expect.anything()
+      )
+      expect(result).toMatchObject({
+        prUrl: 'https://github.com/octo/demo/pull/1',
+        stopReason: 'clean',
+      })
     })
 
     it('scrubs every sandbox credential from PR discovery errors', async () => {
@@ -860,7 +990,7 @@ describe('runCloudPi', () => {
         runCloudBranchPi(branchParams({ targetBranch: 'feature/missing' }), { onEvent: vi.fn() })
       ).rejects.toThrow(/Remote branch feature\/missing not found/)
       expect(mockRun).toHaveBeenCalledTimes(1)
-      expect(mockExecuteTool).not.toHaveBeenCalled()
+      expect(mockExecuteTool).toHaveBeenCalledTimes(1)
     })
 
     it('rejects a tag-only target instead of creating a branch from it', async () => {
@@ -875,7 +1005,7 @@ describe('runCloudPi', () => {
       ).rejects.toThrow(/not an existing branch/)
       expect(mockRun).toHaveBeenCalledTimes(1)
       expect(mockRun.mock.calls[0][0]).toContain('git symbolic-ref --quiet --short HEAD')
-      expect(mockExecuteTool).not.toHaveBeenCalled()
+      expect(mockExecuteTool).toHaveBeenCalledTimes(1)
     })
 
     it('surfaces a non-fast-forward rejection without retrying or force-pushing', async () => {
@@ -905,7 +1035,7 @@ describe('runCloudPi', () => {
       const pushCalls = mockRun.mock.calls.filter(([cmd]: [string]) => cmd.includes('push'))
       expect(pushCalls).toHaveLength(1)
       expect(pushCalls[0][0]).not.toContain('--force')
-      expect(mockExecuteTool).not.toHaveBeenCalled()
+      expect(mockExecuteTool).toHaveBeenCalledTimes(1)
     })
 
     it('does not start Babysit after the initial branch push is rejected', async () => {
