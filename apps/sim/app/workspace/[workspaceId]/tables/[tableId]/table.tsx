@@ -493,11 +493,12 @@ export function Table({
    */
   useEffect(() => {
     if (!viewsEnabled) return
-    // A failed fetch settles to All (`viewOwnerUnknown` cleared, sink unbound),
-    // so layout touched during the load must flush here — no other branch of
-    // this effect ever runs on the error path, and skipping it would silently
-    // drop the resize on refresh.
+    // A failed fetch settles to All: stamp the owner so the layout router stops
+    // buffering and writes shared metadata, then flush what was touched during
+    // the load — no other branch of this effect ever runs on the error path,
+    // and skipping it would silently drop the resize on refresh.
     if (viewsFailed) {
+      seededViewIdRef.current = null
       resolvePendingLayout(false)
       return
     }
@@ -699,18 +700,24 @@ export function Table({
       // without this a resize fires a write-gated PATCH and an error toast. Local
       // layout still updates — only the persist is suppressed.
       if (!userPermissions.canEdit) return
-      // Owner not known yet. The grid keeps the layout either way, so only the
-      // fact of the change is recorded; `resolvePendingLayout` reads the live
-      // value once an owner exists.
-      if (viewOwnerUnknown) {
+      // Owner not decided yet — either the query is in flight, or it settled
+      // this frame and the resolve effect hasn't picked a view (adoption writes
+      // the id through the URL, so `activeView` lags a render). The grid keeps
+      // the layout either way, so only the fact of the change is recorded;
+      // `resolvePendingLayout` reads the live value once an owner exists.
+      if (viewOwnerUnknown || seededViewIdRef.current === undefined) {
         layoutTouchedWhileUnownedRef.current = true
         return
       }
-      if (!activeView) return
-      updateViewMutation.mutate(
-        { viewId: activeView.id, configPatch: patch },
-        { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save layout')) }
-      )
+      if (activeView) {
+        updateViewMutation.mutate(
+          { viewId: activeView.id, configPatch: patch },
+          { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save layout')) }
+        )
+        return
+      }
+      // All: the shared table metadata is the owner.
+      updateMetadataMutation.mutate(patch)
     },
     [activeView, userPermissions.canEdit, viewOwnerUnknown]
   )
@@ -1390,14 +1397,10 @@ export function Table({
         hiddenColumns={effectiveHiddenColumns}
         viewLayout={activeView?.config ?? null}
         viewLayoutKey={activeView?.id ?? null}
-        onPersistLayout={
-          // While the views query is in flight the layout owner is unknown, so
-          // the sink is bound anyway: `handlePersistLayout` buffers into
-          // records the change and suppresses the write. Leaving it unset would fall
-          // through to the table's shared metadata and corrupt All's layout for a
-          // table that is about to adopt a view.
-          viewOwnerUnknown || activeView ? handlePersistLayout : undefined
-        }
+        // Always bound while views are enabled: the router reads the owner at
+        // call time (buffer / view / All-metadata), so no binding gap can send a
+        // write to the wrong place between settle and adoption.
+        onPersistLayout={viewsEnabled ? handlePersistLayout : undefined}
         columnRenameSinkRef={columnRenameSinkRef}
         layoutSnapshotSinkRef={layoutSnapshotRef}
         afterDeleteRowsSinkRef={afterDeleteRowsSinkRef}

@@ -1898,7 +1898,23 @@ export function TableGrid({
       metadataSeededRef.current = true
       seededLayoutKeyRef.current = viewLayoutKey
       setColumnWidths(source?.columnWidths ?? {})
-      setColumnOrder(source?.columnOrder ?? null)
+      // Reconcile the incoming order against the schema before seeding it. The
+      // append effect only fires when `columns` changes, so a column that arrived
+      // while another source owned the layout (or none did, during load) would
+      // otherwise render via the `displayColumns` fallback but never be written
+      // into this owner's stored order until the next drag happened to heal it.
+      const seededOrder = source?.columnOrder ?? null
+      if (seededOrder) {
+        const known = new Set(seededOrder)
+        const missing = schemaColumnsRef.current.map(getColumnId).filter((id) => !known.has(id))
+        const reconciled = missing.length > 0 ? [...seededOrder, ...missing] : seededOrder
+        setColumnOrder(reconciled)
+        if (missing.length > 0 && canEditRef.current) {
+          updateMetadataRef.current({ columnOrder: reconciled })
+        }
+      } else {
+        setColumnOrder(null)
+      }
       setPinnedColumns(source?.pinnedColumns ?? [])
       return
     }
