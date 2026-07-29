@@ -135,8 +135,8 @@ describe('outlook calendar tools', () => {
     expect(built.start).toEqual({ dateTime: '2025-06-03T18:00:00', timeZone: 'UTC' })
     expect(built.attendees).toHaveLength(2)
     expect(built.isOnlineMeeting).toBe(true)
-    // We intentionally do NOT set onlineMeetingProvider so Graph uses the mailbox
-    // default (Teams on work/school accounts) instead of hardcoding a work-only value.
+    // onlineMeetingProvider is optional and pinning it would break mailboxes that
+    // disallow that provider; isOnlineMeeting alone initializes the online meeting.
     expect('onlineMeetingProvider' in built).toBe(false)
   })
 

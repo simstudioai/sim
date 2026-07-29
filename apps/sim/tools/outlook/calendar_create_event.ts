@@ -155,10 +155,11 @@ export const outlookCalendarCreateEventTool: ToolConfig<
       }
 
       if (toBool(params.isOnlineMeeting)) {
-        // Let Graph use the mailbox's default online-meeting provider (Teams on
-        // work/school accounts) rather than hardcoding teamsForBusiness. Personal
-        // accounts have no supported provider (Skype consumer was retired in 2025),
-        // so joinUrl stays null there regardless.
+        // Setting isOnlineMeeting alone is enough: Graph initializes `onlineMeeting` from
+        // it, and `onlineMeetingProvider` is optional. We deliberately do not pin
+        // teamsForBusiness, since that value is invalid on mailboxes that don't allow it
+        // (see calendar.allowedOnlineMeetingProviders).
+        // https://learn.microsoft.com/en-us/graph/api/resources/event
         event.isOnlineMeeting = true
       }
 
