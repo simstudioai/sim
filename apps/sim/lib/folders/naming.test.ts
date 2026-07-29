@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { flattenMockConditions, hasMockCondition } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import { deduplicateFolderName } from '@/lib/folders/naming'
 
@@ -25,23 +26,6 @@ function makeTx(siblingNames: string[]) {
     }),
   }
   return { tx: tx as never, selectCalls }
-}
-
-/** Flattens the nested `and(...)` objects the drizzle operator mocks produce. */
-function flattenConditions(condition: unknown): Array<Record<string, unknown>> {
-  if (!condition || typeof condition !== 'object') return []
-  const node = condition as Record<string, unknown>
-  if (node.type === 'and' && Array.isArray(node.conditions)) {
-    return node.conditions.flatMap(flattenConditions)
-  }
-  return [node]
-}
-
-function hasCondition(
-  condition: unknown,
-  predicate: (node: Record<string, unknown>) => boolean
-): boolean {
-  return flattenConditions(condition).some(predicate)
 }
 
 /**
@@ -101,11 +85,13 @@ describe('deduplicateFolderName', () => {
 
       expect(selectCalls).toHaveLength(1)
       const { where } = selectCalls[0]
-      expect(hasCondition(where, (n) => n.type === 'eq' && n.right === 'ws-1')).toBe(true)
+      expect(hasMockCondition(where, (n) => n.type === 'eq' && n.right === 'ws-1')).toBe(true)
       // Without this a knowledge-base folder would count table folders as siblings.
-      expect(hasCondition(where, (n) => n.type === 'eq' && n.right === 'knowledge_base')).toBe(true)
+      expect(hasMockCondition(where, (n) => n.type === 'eq' && n.right === 'knowledge_base')).toBe(
+        true
+      )
       // Root scope must be IS NULL, not eq(null), which matches nothing in SQL.
-      expect(hasCondition(where, (n) => n.type === 'isNull')).toBe(true)
+      expect(hasMockCondition(where, (n) => n.type === 'isNull')).toBe(true)
     })
 
     it('scopes to the given parent when nested', async () => {
@@ -114,7 +100,7 @@ describe('deduplicateFolderName', () => {
       await deduplicateFolderName(tx, 'ws-1', 'parent-1', 'Reports', 'workflow')
 
       expect(
-        hasCondition(selectCalls[0].where, (n) => n.type === 'eq' && n.right === 'parent-1')
+        hasMockCondition(selectCalls[0].where, (n) => n.type === 'eq' && n.right === 'parent-1')
       ).toBe(true)
     })
 
@@ -126,7 +112,7 @@ describe('deduplicateFolderName', () => {
       await deduplicateFolderName(tx, 'ws-1', null, 'Reports', 'workflow')
 
       expect(
-        flattenConditions(selectCalls[0].where).filter((n) => n.type === 'isNull')
+        flattenMockConditions(selectCalls[0].where).filter((n) => n.type === 'isNull')
       ).toHaveLength(2)
     })
   })

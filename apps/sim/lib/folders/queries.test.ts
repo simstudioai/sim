@@ -1,7 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  hasMockCondition,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   findActiveFolder,
@@ -10,23 +16,6 @@ import {
   toFolderApi,
   wouldCreateFolderCycle,
 } from '@/lib/folders/queries'
-
-/** Flattens the nested `and(...)` objects the drizzle operator mocks produce. */
-function flattenConditions(condition: unknown): Array<Record<string, unknown>> {
-  if (!condition || typeof condition !== 'object') return []
-  const node = condition as Record<string, unknown>
-  if (node.type === 'and' && Array.isArray(node.conditions)) {
-    return node.conditions.flatMap(flattenConditions)
-  }
-  return [node]
-}
-
-function hasCondition(
-  condition: unknown,
-  predicate: (node: Record<string, unknown>) => boolean
-): boolean {
-  return flattenConditions(condition).some(predicate)
-}
 
 /** The condition passed to the Nth `.where()` of this test. */
 function whereAt(index: number): unknown {
@@ -68,11 +57,13 @@ describe('folder queries', () => {
       await findActiveFolder('f-1', 'ws-1', 'knowledge_base')
 
       const where = whereAt(0)
-      expect(hasCondition(where, (n) => n.type === 'eq' && n.right === 'f-1')).toBe(true)
-      expect(hasCondition(where, (n) => n.type === 'eq' && n.right === 'ws-1')).toBe(true)
-      expect(hasCondition(where, (n) => n.type === 'eq' && n.right === 'knowledge_base')).toBe(true)
+      expect(hasMockCondition(where, (n) => n.type === 'eq' && n.right === 'f-1')).toBe(true)
+      expect(hasMockCondition(where, (n) => n.type === 'eq' && n.right === 'ws-1')).toBe(true)
+      expect(hasMockCondition(where, (n) => n.type === 'eq' && n.right === 'knowledge_base')).toBe(
+        true
+      )
       // Archived folders are not valid destinations — a row filed under one is unreachable.
-      expect(hasCondition(where, (n) => n.type === 'isNull')).toBe(true)
+      expect(hasMockCondition(where, (n) => n.type === 'isNull')).toBe(true)
     })
 
     it('returns null when no row matches', async () => {
@@ -98,7 +89,7 @@ describe('folder queries', () => {
 
       expect(dbChainMockFns.where.mock.calls.length).toBeGreaterThanOrEqual(2)
       for (const [where] of dbChainMockFns.where.mock.calls) {
-        expect(hasCondition(where, (n) => n.type === 'eq' && n.right === 'table')).toBe(true)
+        expect(hasMockCondition(where, (n) => n.type === 'eq' && n.right === 'table')).toBe(true)
       }
     })
 
@@ -162,10 +153,10 @@ describe('folder queries', () => {
       await listFoldersForWorkspace('ws-1', 'active', 'table')
 
       const where = whereAt(0)
-      expect(hasCondition(where, (n) => n.type === 'eq' && n.right === 'ws-1')).toBe(true)
-      expect(hasCondition(where, (n) => n.type === 'eq' && n.right === 'table')).toBe(true)
-      expect(hasCondition(where, (n) => n.type === 'isNull')).toBe(true)
-      expect(hasCondition(where, (n) => n.type === 'isNotNull')).toBe(false)
+      expect(hasMockCondition(where, (n) => n.type === 'eq' && n.right === 'ws-1')).toBe(true)
+      expect(hasMockCondition(where, (n) => n.type === 'eq' && n.right === 'table')).toBe(true)
+      expect(hasMockCondition(where, (n) => n.type === 'isNull')).toBe(true)
+      expect(hasMockCondition(where, (n) => n.type === 'isNotNull')).toBe(false)
     })
 
     it('inverts the soft-delete filter for the archived scope', async () => {
@@ -174,8 +165,8 @@ describe('folder queries', () => {
       await listFoldersForWorkspace('ws-1', 'archived', 'workflow')
 
       const where = whereAt(0)
-      expect(hasCondition(where, (n) => n.type === 'isNotNull')).toBe(true)
-      expect(hasCondition(where, (n) => n.type === 'isNull')).toBe(false)
+      expect(hasMockCondition(where, (n) => n.type === 'isNotNull')).toBe(true)
+      expect(hasMockCondition(where, (n) => n.type === 'isNull')).toBe(false)
     })
   })
 

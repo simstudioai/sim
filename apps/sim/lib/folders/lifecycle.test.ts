@@ -5,6 +5,7 @@ import {
   auditMock,
   dbChainMock,
   dbChainMockFns,
+  flattenMockConditions,
   queueTableRows,
   resetDbChainMock,
   schemaMock,
@@ -66,16 +67,6 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 import { createFolder, deleteFolder, restoreFolder, updateFolder } from '@/lib/folders/lifecycle'
 
 const CHILD_TABLE = { name: 'child_table' }
-
-/** Flattens the nested `and(...)` objects the drizzle operator mocks produce. */
-function flattenConditions(condition: unknown): Array<Record<string, unknown>> {
-  if (!condition || typeof condition !== 'object') return []
-  const node = condition as Record<string, unknown>
-  if (node.type === 'and' && Array.isArray(node.conditions)) {
-    return node.conditions.flatMap(flattenConditions)
-  }
-  return [node]
-}
 
 /** Stand-in for the per-resource config; each test declares only the deltas it exercises. */
 function setConfig(overrides: Record<string, unknown> = {}) {
@@ -266,12 +257,12 @@ describe('createFolder', () => {
     // parent condition is itself `isNull(parentId)`, so a presence-only check passes with the
     // soft-delete filter deleted. That made the first version of this test vacuous.
     expect(
-      flattenConditions(folderWhere).some(
+      flattenMockConditions(folderWhere).some(
         (node) => node.type === 'isNull' && node.column === schemaMock.folder.deletedAt
       )
     ).toBe(true)
     expect(
-      flattenConditions(childWhere).some(
+      flattenMockConditions(childWhere).some(
         (node) => node.type === 'isNull' && node.column === 'child.archivedAt'
       )
     ).toBe(true)

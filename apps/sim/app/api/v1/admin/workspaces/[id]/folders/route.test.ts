@@ -4,6 +4,7 @@
 import {
   createMockRequest,
   dbChainMockFns,
+  flattenMockConditions,
   queueTableRows,
   resetDbChainMock,
   schemaMock,
@@ -32,16 +33,6 @@ function listRequest() {
   )
 }
 
-/** Flattens the nested `and(...)` objects the drizzle operator mocks produce. */
-function flattenConditions(condition: unknown): Array<Record<string, unknown>> {
-  if (!condition || typeof condition !== 'object') return []
-  const node = condition as Record<string, unknown>
-  if (node.type === 'and' && Array.isArray(node.conditions)) {
-    return node.conditions.flatMap(flattenConditions)
-  }
-  return [node]
-}
-
 describe('admin workspace folders GET', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -67,7 +58,7 @@ describe('admin workspace folders GET', () => {
       // Asserted on the COLUMN: `resourceType`/`workspaceId` are eq nodes, so a bare
       // "some isNull exists" check could pass on an unrelated clause.
       expect(
-        flattenConditions(where).some(
+        flattenMockConditions(where).some(
           (node) => node.type === 'isNull' && node.column === schemaMock.folder.deletedAt
         )
       ).toBe(true)
@@ -82,7 +73,7 @@ describe('admin workspace folders GET', () => {
     await GET(listRequest(), routeContext)
 
     const where = dbChainMockFns.where.mock.calls[1]?.[0]
-    const nodes = flattenConditions(where)
+    const nodes = flattenMockConditions(where)
     expect(nodes.some((n) => n.type === 'eq' && n.right === WORKSPACE_ID)).toBe(true)
     expect(nodes.some((n) => n.type === 'eq' && n.right === 'workflow')).toBe(true)
   })
