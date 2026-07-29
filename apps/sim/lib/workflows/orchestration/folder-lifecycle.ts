@@ -543,6 +543,9 @@ export async function performRestoreFolder(
   let restoredStats: { folders: number; workflows: number }
   try {
     restoredStats = await db.transaction(async (tx) => {
+      // A folder whose parent is still archived is re-rooted, so the name it has to be
+      // unique against is its *resolved* parent's sibling set, not its original one.
+      let resolvedParentId = folder.parentId
       if (folder.parentId) {
         const [parentFolder] = await tx
           .select({ archivedAt: folderTable.deletedAt })
@@ -550,6 +553,7 @@ export async function performRestoreFolder(
           .where(and(eq(folderTable.id, folder.parentId), eq(folderTable.resourceType, 'workflow')))
 
         if (!parentFolder || parentFolder.archivedAt) {
+          resolvedParentId = null
           await tx
             .update(folderTable)
             .set({ parentId: null })
@@ -566,7 +570,7 @@ export async function performRestoreFolder(
       const restoredName = await deduplicateFolderName(
         tx,
         workspaceId,
-        folder.parentId,
+        resolvedParentId,
         folder.name
       )
       if (restoredName !== folder.name) {

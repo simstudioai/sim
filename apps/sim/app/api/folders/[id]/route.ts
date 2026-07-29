@@ -13,6 +13,14 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { performDeleteFolder, performUpdateFolder } from '@/lib/workflows/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
+/** Maps an orchestration errorCode to its HTTP status; mirrors the POST /api/folders route. */
+function folderMutationStatus(errorCode: string | undefined): number {
+  if (errorCode === 'validation') return 400
+  if (errorCode === 'conflict') return 409
+  if (errorCode === 'not_found') return 404
+  return 500
+}
+
 const logger = createLogger('FoldersIDAPI')
 
 // PUT - Update a folder
@@ -92,8 +100,7 @@ export const PUT = withRouteHandler(
       })
 
       if (!result.success || !result.folder) {
-        const status =
-          result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
+        const status = folderMutationStatus(result.errorCode)
         return NextResponse.json({ error: result.error }, { status })
       }
 
