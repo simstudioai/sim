@@ -900,6 +900,17 @@ describe('userTableServerTool.create_view', () => {
     )
   })
 
+  it('normalizes an empty model-authored filter to no filter', async () => {
+    await userTableServerTool.execute(
+      { operation: 'create_view', args: { tableId: 'tbl_1', filter: {} } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(mockCreateTableView).toHaveBeenCalledWith(
+      expect.objectContaining({ config: { filter: null, sort: null } })
+    )
+  })
+
   it('rejects a Table from another workspace without creating a View', async () => {
     mockGetTableById.mockResolvedValue(buildTable({ workspaceId: 'other-workspace' }))
 

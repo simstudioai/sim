@@ -16,7 +16,7 @@ export function EmbeddedViewTable({
   viewsEnabled = false,
 }: EmbeddedViewTableProps) {
   const parsed = parseTableViewResourceId(resourceId)
-  if (!parsed) return null
+  if (!parsed || !viewsEnabled) return null
   return (
     <Table
       workspaceId={workspaceId}

@@ -66,12 +66,7 @@ describe('EmbeddedViewTable', () => {
       root.render(<EmbeddedViewTable workspaceId='workspace_1' resourceId='tbl_1:view_1' />)
     })
 
-    expect(tableMock).toHaveBeenCalledWith({
-      workspaceId: 'workspace_1',
-      tableId: 'tbl_1',
-      viewId: 'view_1',
-      embedded: true,
-      viewsEnabled: false,
-    })
+    expect(container.innerHTML).toBe('')
+    expect(tableMock).not.toHaveBeenCalled()
   })
 })

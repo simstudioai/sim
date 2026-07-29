@@ -562,6 +562,7 @@ export function Table({
       // switching resources away and back, not leakage.
       const inheritedParams =
         embedded &&
+        !propViewId &&
         activeViewId !== null &&
         activeViewId !== ALL_VIEW_PARAM &&
         !views.some((view) => view.id === activeViewId)

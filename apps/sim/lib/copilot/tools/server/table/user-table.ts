@@ -49,6 +49,7 @@ import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowUpdate, patchColumnIds } from '@/lib/table/mutation-locks'
+import { pruneViewFilterForColumns } from '@/lib/table/query-builder/converters'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -778,7 +779,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const filter = args.filter
-            ? canonicalViewFilter(args.filter as Filter, table.schema.columns)
+            ? pruneViewFilterForColumns(
+                canonicalViewFilter(args.filter as Filter, table.schema.columns),
+                table.schema.columns
+              )
             : null
           const sort = args.sort
             ? canonicalViewSort(args.sort as Record<string, 'asc' | 'desc'>, table.schema.columns)
