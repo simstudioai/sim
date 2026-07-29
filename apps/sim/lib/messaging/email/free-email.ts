@@ -15,6 +15,11 @@ const FREE_EMAIL_DOMAINS = new Set<string>(freeEmailDomains)
  * downloads a CDN CSV and overwrites its own `domains.json` — so the lockfile hash covers
  * the tarball but not the installed data. Refresh from
  * https://github.com/Kikobeats/free-email-domains (MIT) and review the diff.
+ *
+ * The vendored list deviates from upstream in one place: upstream fuses two pairs of
+ * domains into single entries (`mail2moldova.com`/`mail2molly.com` and
+ * `smileyface.com`/`smithemail.net`), a CSV line-join artifact that made all four read as
+ * work addresses. They are split here, so re-apply that split after any refresh.
  */
 export function isFreeEmailDomain(email: string): boolean {
   const domain = email.split('@')[1]?.toLowerCase()
