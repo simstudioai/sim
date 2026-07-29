@@ -12,11 +12,26 @@ const logger = createLogger('BrowserCredentialAuth')
  * their way to is typically still on screen — asking a second time to put that
  * same string on the clipboard is friction that buys nothing, and teaches
  * people to approve prompts without reading them.
+ *
+ * That reasoning only runs one way, which is why grants carry the operation
+ * they were proven for: nothing about a copy implies the user agreed to hand
+ * the plaintext to the renderer.
  */
 const AUTH_GRACE_MS = 30_000
 
-/** Credential id to the moment its proof of presence lapses. */
-const provenUntil = new Map<string, number>()
+/**
+ * What a grant was proven for.
+ *
+ * The two are not equivalent, and the ordering matters: `copy` puts the
+ * plaintext on the clipboard from inside the main process and returns only a
+ * boolean, while `reveal` hands the string itself to the Sim renderer. So
+ * `reveal` is the stronger claim and a proof of it covers a later `copy` — but
+ * not the other way round.
+ */
+export type SecretOperation = 'reveal' | 'copy'
+
+/** Credential id to its standing proof of presence. */
+const provenUntil = new Map<string, { expiry: number; operation: SecretOperation }>()
 
 export interface SecretAuthRequest {
   /**
@@ -25,20 +40,33 @@ export interface SecretAuthRequest {
    * granted for.
    */
   credentialId: string
+  /**
+   * What the caller is about to do. Required, because a grant that did not
+   * record it let the weaker consent stand in for the stronger one: approving
+   * a "Copy password?" prompt silently authorized a plaintext reveal to the
+   * renderer for the rest of the window, with no second prompt and a label
+   * that described something else.
+   */
+  operation: SecretOperation
   /** Completes "Sim is about to ..." in the prompt. */
   reason: string
   /** Confirm-button label and title for the non-biometric fallback. */
   action: string
 }
 
-function hasFreshProof(credentialId: string): boolean {
-  const expiry = provenUntil.get(credentialId)
-  if (expiry === undefined) return false
-  if (Date.now() >= expiry) {
+/** Whether a proof of `granted` is enough to perform `requested`. */
+function grantCovers(granted: SecretOperation, requested: SecretOperation): boolean {
+  return granted === 'reveal' || granted === requested
+}
+
+function hasFreshProof(credentialId: string, operation: SecretOperation): boolean {
+  const proof = provenUntil.get(credentialId)
+  if (proof === undefined) return false
+  if (Date.now() >= proof.expiry) {
     provenUntil.delete(credentialId)
     return false
   }
-  return true
+  return grantCovers(proof.operation, operation)
 }
 
 /**
@@ -73,12 +101,13 @@ export function revokeSecretAuthorization(credentialId?: string): void {
  */
 export async function authorizeForSecret({
   credentialId,
+  operation,
   reason,
   action,
 }: SecretAuthRequest): Promise<boolean> {
-  if (hasFreshProof(credentialId)) return true
+  if (hasFreshProof(credentialId, operation)) return true
   if (!(await promptForSecret(reason, action))) return false
-  provenUntil.set(credentialId, Date.now() + AUTH_GRACE_MS)
+  provenUntil.set(credentialId, { expiry: Date.now() + AUTH_GRACE_MS, operation })
   return true
 }
 

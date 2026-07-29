@@ -43,7 +43,22 @@ function setPlatform(platform: NodeJS.Platform): void {
 }
 
 function request(credentialId: string) {
-  return { credentialId, reason: 'show a saved password', action: 'Show password' }
+  return {
+    credentialId,
+    operation: 'reveal' as const,
+    reason: 'show a saved password',
+    action: 'Show password',
+  }
+}
+
+/** The weaker of the two operations: plaintext never leaves the main process. */
+function copyRequest(credentialId: string) {
+  return {
+    credentialId,
+    operation: 'copy' as const,
+    reason: 'copy a saved password',
+    action: 'Copy password',
+  }
 }
 
 describe('authorizeForSecret', () => {
@@ -110,6 +125,39 @@ describe('authorizeForSecret', () => {
     expect(promptTouchID).toHaveBeenCalledTimes(2)
   })
 
+  it('never lets a copy consent stand in for a plaintext reveal', async () => {
+    await expect(authorizeForSecret(copyRequest('c1'))).resolves.toBe(true)
+    expect(promptTouchID).toHaveBeenCalledTimes(1)
+
+    // The user approved "Copy password?"; revealing hands the string to the
+    // renderer, so it has to ask again rather than ride the copy grant.
+    await expect(authorizeForSecret(request('c1'))).resolves.toBe(true)
+    expect(promptTouchID).toHaveBeenCalledTimes(2)
+  })
+
+  it('lets a reveal consent cover a later copy of the same credential', async () => {
+    await expect(authorizeForSecret(request('c1'))).resolves.toBe(true)
+
+    // The plaintext is already on screen, so putting that same string on the
+    // clipboard buys nothing by prompting twice.
+    await expect(authorizeForSecret(copyRequest('c1'))).resolves.toBe(true)
+    expect(promptTouchID).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a copy grant usable for further copies', async () => {
+    await authorizeForSecret(copyRequest('c1'))
+    await authorizeForSecret(copyRequest('c1'))
+
+    expect(promptTouchID).toHaveBeenCalledTimes(1)
+  })
+
+  it('never widens a grant to another credential', async () => {
+    await authorizeForSecret(request('c1'))
+    await authorizeForSecret(request('c2'))
+
+    expect(promptTouchID).toHaveBeenCalledTimes(2)
+  })
+
   it('asks again after the credential is explicitly revoked', async () => {
     await authorizeForSecret(request('c1'))
     revokeSecretAuthorization('c1')
@@ -130,11 +178,7 @@ describe('authorizeForSecret', () => {
 
   it('labels the fallback dialog with the action it is authorizing', async () => {
     canPromptTouchID.mockReturnValue(false)
-    await authorizeForSecret({
-      credentialId: 'c1',
-      reason: 'copy a saved password',
-      action: 'Copy password',
-    })
+    await authorizeForSecret(copyRequest('c1'))
 
     expect(showMessageBox).toHaveBeenCalledWith(
       expect.objectContaining({
