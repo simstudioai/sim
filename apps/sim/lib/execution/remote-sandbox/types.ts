@@ -121,6 +121,14 @@ export interface SandboxHandle {
 export interface CreateSandboxOptions {
   /** Bound at creation — see {@link SandboxHandle.runCode}. */
   language?: CodeLanguage
+  /**
+   * How long the provider may keep the sandbox alive before reaping it. Only
+   * E2B honours this: its default is five minutes, so anything longer-running
+   * (the Pi modes) dies mid-run without it. Daytona's equivalent is an
+   * inactivity interval with different semantics and a 15-minute default that
+   * already outlasts these runs, so it is deliberately left alone.
+   */
+  lifetimeMs?: number
 }
 
 export interface SandboxProvider {

@@ -2,7 +2,8 @@
  * The seam between the Pi handler and its execution environments. The handler
  * resolves shared credentials and mode-specific context, then hands a
  * {@link PiRunParams} to one backend ({@link PiBackendRun}) selected by `mode`.
- * Authoring modes receive skills and memory; review mode deliberately does not.
+ * Authoring modes receive skills. Create PR may then compose the internal Babysit
+ * continuation without exposing pull-request content to conversation memory.
  * Backends own environment-specific execution and report progress through
  * {@link PiRunContext.onEvent}.
  */
@@ -103,6 +104,14 @@ export interface PiCloudRunParams extends PiContextualRunParams {
   draft: boolean
   prTitle?: string
   prBody?: string
+  babysit?: PiCloudBabysitOptions
+}
+
+/** Optional post-creation Babysit configuration for Create PR. */
+export interface PiCloudBabysitOptions {
+  maxRounds: number
+  reviewMentions: string[]
+  executionId?: string
 }
 
 /** Parameters for a cloud (E2B) Pi run that reviews an existing PR. */
@@ -113,6 +122,18 @@ export interface PiCloudReviewRunParams extends PiRunBaseParams {
   githubToken: string
   pullNumber: number
   reviewEvent: 'COMMENT' | 'REQUEST_CHANGES'
+}
+
+/** Internal parameters for babysitting the pull request just opened by Create PR. */
+export interface PiBabysitContinuationParams extends PiContextualRunParams {
+  owner: string
+  repo: string
+  githubToken: string
+  pullNumber: number
+  maxRounds: number
+  reviewMentions: string[]
+  executionId?: string
+  executionBudgetMs?: number
 }
 
 export type PiRunParams = PiLocalRunParams | PiCloudRunParams | PiCloudReviewRunParams
@@ -126,12 +147,20 @@ export interface PiRunContext {
 /** Final result of a Pi run. */
 export interface PiRunResult {
   totals: PiRunTotals
+  /** Text eligible for conversation memory; defaults to `totals.finalText`. */
+  memoryText?: string
   changedFiles?: string[]
   diff?: string
   prUrl?: string
   branch?: string
   reviewUrl?: string
   commentsPosted?: number
+  rounds?: number
+  threadsClean?: boolean
+  checksGreen?: boolean
+  threadsResolved?: number
+  commitsPushed?: number
+  stopReason?: string
 }
 
 /** A Pi execution backend. Implemented by the local (SSH) and cloud (E2B) runners. */

@@ -29,6 +29,7 @@ import {
   getTerminalScrollback,
   onTerminalData,
   openTerminal,
+  pasteIntoTerminal,
   reportTerminalFocused,
   resizeTerminal,
   startTerminalSession,
@@ -508,20 +509,27 @@ const TerminalView = memo(function TerminalView({
   }, [])
 
   const pasteClipboard = useCallback(() => {
-    void navigator.clipboard
-      .readText()
-      .then((text) => {
+    void (async () => {
+      // Main-side first: it reads the clipboard synchronously, so the paste
+      // cannot be refused for want of a recent gesture the way an awaited
+      // renderer read can.
+      if (await pasteIntoTerminal(terminalId)) {
+        terminalRef.current?.focus()
+        return
+      }
+      try {
+        const text = await navigator.clipboard.readText()
         if (!text) return
         // Straight to the PTY: the shell echoes it, exactly like a real paste.
         writeToTerminal(terminalId, text)
         terminalRef.current?.focus()
-      })
-      .catch(() => {
+      } catch {
         // Reading the clipboard needs a permission the shell grants to its own
         // origin; an older shell that predates that grant denies it. Keyboard
         // paste is a native paste event and keeps working either way.
         toast.error('Could not read the clipboard. Press ⌘V to paste.')
-      })
+      }
+    })()
   }, [terminalId])
 
   const clearScreen = useCallback(() => {
