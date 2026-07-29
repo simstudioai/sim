@@ -18,30 +18,8 @@ import type {
   PullRequestResponse,
   PullRequestV2Response,
 } from '@/tools/github/types'
-import {
-  BRANCH_REF_OUTPUT_PROPERTIES,
-  PR_FILE_OUTPUT_PROPERTIES,
-  USER_OUTPUT,
-} from '@/tools/github/types'
-import type { OutputProperty, ToolConfig } from '@/tools/types'
-
-/**
- * The PR reader's own branch-reference output. `repo_full_name` is declared here
- * rather than on the shared `BRANCH_REF_OUTPUT_PROPERTIES` because `list_prs`
- * reuses those with a pass-through transform that never derives the field.
- */
-const PR_BRANCH_REF_OUTPUT = {
-  type: 'object',
-  description: 'Branch reference info',
-  properties: {
-    ...BRANCH_REF_OUTPUT_PROPERTIES,
-    repo_full_name: {
-      type: 'string',
-      description: "Full name (owner/repo) of the branch's repository",
-      nullable: true,
-    },
-  },
-} as const satisfies OutputProperty
+import { PR_BRANCH_REF_OUTPUT, PR_FILE_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
+import type { ToolConfig } from '@/tools/types'
 
 type GitHubPullRequest = Omit<GitHubPullRequestV2Output, 'files'>
 

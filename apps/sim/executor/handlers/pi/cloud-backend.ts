@@ -21,7 +21,7 @@
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
-import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { getMaxExecutionTimeout, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 import { withPiSandbox } from '@/lib/execution/remote-sandbox'
 import { resolvePiSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import { runBabysitPi } from '@/executor/handlers/pi/babysit-backend'
@@ -439,7 +439,15 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
     return combineCreateAndBabysit(created, skippedBabysitResult('startup_failure'))
   }
 
-  const remainingExecutionMs = Math.max(0, getMaxExecutionTimeout() - (Date.now() - startedAt))
+  // The run's own deadline when the platform set one, because Babysit spends this
+  // budget sitting in waits: planning against `getMaxExecutionTimeout()` — the
+  // longest-lived plan's async ceiling — meant a sync run was killed mid-loop with
+  // the PR already opened, its review comments already posted, and none of the
+  // `rounds`/`stopReason` outputs produced. The ceiling stays as the fallback for an
+  // untimed execution, where it is the only bound available.
+  const remainingExecutionMs =
+    getRemainingExecutionMs(context.signal) ??
+    Math.max(0, getMaxExecutionTimeout() - (Date.now() - startedAt))
   const sandboxBudgetMs = resolvePiSandboxLifetimeMs() ?? getMaxExecutionTimeout()
   const babysit = await runBabysitPi(
     {

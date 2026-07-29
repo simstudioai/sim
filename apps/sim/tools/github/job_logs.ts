@@ -29,22 +29,43 @@ function jobLogsPath(owner: string, repo: string, jobId: number): string {
 }
 
 /**
+ * Total size from a `Content-Range: bytes <start>-<end>/<total>` header.
+ *
+ * `null` for an unsatisfied-range form, an unknown total, an unparsable value, or
+ * an absent header — all of which mean the full size is simply unknown here.
+ */
+function parseContentRangeTotal(header: string | null): number | null {
+  const total = header?.match(/^bytes\s+\d+-\d+\/(\d+)$/)?.[1]
+  if (!total) return null
+  const parsed = Number(total)
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null
+}
+
+/**
  * The tail is what matters: a failing job reports its error at the end.
  *
- * Reading the whole body first is safe because the tool executor already caps a
- * response at 10 MB and hands `transformResponse` a buffer, so a log larger than
- * that fails with the executor's size-limit error before reaching here — which
- * is the honest outcome, since a truncated head would read as a passing job.
+ * A ranged response already *is* the tail, so it is only trimmed at the first
+ * line break — the byte window almost always cuts mid-line, and it can also split
+ * a multi-byte character into a replacement char. A full response is sliced
+ * locally instead, which is the path taken whenever the storage host ignores the
+ * range and answers 200.
  */
 function logTail(
   text: string,
-  maxCharacters: number
-): { logs: string; totalCharacters: number; truncated: boolean } {
-  return {
-    logs: text.slice(-maxCharacters),
-    totalCharacters: text.length,
-    truncated: text.length > maxCharacters,
+  maxCharacters: number,
+  partial: boolean,
+  totalBytes: number | null
+): { logs: string; truncated: boolean; totalBytes: number | null } {
+  if (!partial) {
+    return {
+      logs: text.slice(-maxCharacters),
+      truncated: text.length > maxCharacters,
+      totalBytes: totalBytes ?? Buffer.byteLength(text),
+    }
   }
+  const firstBreak = text.indexOf('\n')
+  const trimmed = firstBreak === -1 ? text : text.slice(firstBreak + 1)
+  return { logs: trimmed.slice(-maxCharacters), truncated: true, totalBytes }
 }
 
 export const jobLogsTool: ToolConfig<JobLogsParams, JobLogsResponse> = {
@@ -98,6 +119,13 @@ export const jobLogsTool: ToolConfig<JobLogsParams, JobLogsResponse> = {
       Accept: 'application/vnd.github+json',
       Authorization: `Bearer ${params.apiKey}`,
       'X-GitHub-Api-Version': '2022-11-28',
+      // Ask the storage host for only the tail we intend to keep. A CI job with a
+      // verbose build routinely exceeds the executor's 10 MB response cap, and that
+      // cap throws rather than truncating — so without this a large log yielded no
+      // diagnostic at all, on exactly the runs that most need one. A suffix range is
+      // a request, not a guarantee: a host that ignores it answers 200 with the full
+      // body and the local slice below still applies.
+      Range: `bytes=-${resolveMaxCharacters(params.maxCharacters)}`,
     }),
     // The redirect target is third-party blob storage. Sim's tool fetch follows
     // redirects itself rather than through the fetch spec, so without this the
@@ -107,15 +135,24 @@ export const jobLogsTool: ToolConfig<JobLogsParams, JobLogsResponse> = {
 
   transformResponse: async (response, params) => {
     const maxCharacters = resolveMaxCharacters(params?.maxCharacters)
-    return { success: true, output: logTail(await response.text(), maxCharacters) }
+    const partial = response.status === 206
+    const totalBytes = parseContentRangeTotal(response.headers.get('content-range'))
+    return {
+      success: true,
+      output: logTail(await response.text(), maxCharacters, partial, totalBytes),
+    }
   },
 
   outputs: {
     logs: { type: 'string', description: 'Trailing portion of the job log' },
-    totalCharacters: { type: 'number', description: 'Full length of the log before truncation' },
     truncated: {
       type: 'boolean',
       description: 'Whether earlier output was dropped to fit maxCharacters',
+    },
+    totalBytes: {
+      type: 'number',
+      description: 'Full size of the log in bytes, null when the server did not report it',
+      nullable: true,
     },
   },
 }

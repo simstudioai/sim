@@ -37,6 +37,7 @@ vi.mock('@/executor/handlers/pi/keys', () => ({
 }))
 vi.mock('@/executor/handlers/pi/context', () => ({ buildPiPrompt: () => 'PROMPT' }))
 
+import { createTimeoutAbortController } from '@/lib/core/execution-limits'
 import type { PiCloudRunParams } from '@/executor/handlers/pi/backend'
 import { runCloudPi } from '@/executor/handlers/pi/cloud-backend'
 
@@ -286,6 +287,25 @@ describe('runCloudPi', () => {
       outputTokens: 3,
       toolCalls: [{ name: 'read', isError: false }],
     })
+  })
+
+  // Babysit spends this budget sitting in waits, so it has to reflect the deadline the
+  // platform will actually enforce. Planning against the enterprise-async ceiling meant a
+  // sync run was killed mid-loop with the PR opened and its review comments posted.
+  it('budgets Babysit against the run signal deadline, not the platform maximum', async () => {
+    const controller = createTimeoutAbortController(4 * 60 * 1000)
+
+    await runCloudPi(
+      baseParams({
+        babysit: { maxRounds: 4, reviewMentions: ['@greptile'] },
+      }),
+      { onEvent: vi.fn(), signal: controller.signal }
+    )
+
+    const budget = mockRunBabysit.mock.calls[0][0].executionBudgetMs
+    expect(budget).toBeGreaterThan(0)
+    expect(budget).toBeLessThanOrEqual(4 * 60 * 1000)
+    controller.cleanup()
   })
 
   it('skips the PR when nothing was pushed', async () => {

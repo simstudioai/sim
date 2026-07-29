@@ -322,6 +322,32 @@ export const BRANCH_REF_OUTPUT = {
 } as const satisfies OutputProperty
 
 /**
+ * Branch reference for the PR reader, which additionally derives the branch's
+ * repository. Separate from {@link BRANCH_REF_OUTPUT_PROPERTIES} because
+ * `list_prs` reuses those through a pass-through transform that never derives
+ * the field, so declaring it there would document an output that tool never emits.
+ *
+ * The spread sits at the top level of its own const rather than inline under
+ * `properties`, which is what lets `scripts/generate-docs.ts` resolve it — that
+ * script only expands spreads at depth 0 of a const, and silently emits nothing
+ * for the surrounding object otherwise.
+ */
+export const PR_BRANCH_REF_OUTPUT_PROPERTIES = {
+  ...BRANCH_REF_OUTPUT_PROPERTIES,
+  repo_full_name: {
+    type: 'string',
+    description: "Full name (owner/repo) of the branch's repository",
+    nullable: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export const PR_BRANCH_REF_OUTPUT = {
+  type: 'object',
+  description: 'Branch reference info',
+  properties: PR_BRANCH_REF_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
  * Output definition for commit reference in branches (sha and url)
  */
 export const COMMIT_REF_OUTPUT_PROPERTIES = {
@@ -2202,7 +2228,12 @@ export interface JobLogsParams extends BaseGitHubParams {
 export interface JobLogsResponse extends ToolResponse {
   output: {
     logs: string
-    totalCharacters: number
     truncated: boolean
+    /**
+     * Full size of the log in bytes, or `null` when the server did not report it.
+     * Bytes rather than characters because the only authoritative source is the
+     * `Content-Range` total of a ranged read, which counts bytes.
+     */
+    totalBytes: number | null
   }
 }
