@@ -1029,6 +1029,10 @@ export class AgentBlockHandler implements BlockHandler {
         isDeployedContext: ctx.isDeployedContext,
         callChain: ctx.callChain,
         billingAttribution: ctx.metadata.billingAttribution,
+        // Reaches tool `_context` via `prepareToolExecution`, so a tool that starts
+        // its own child execution (a custom block) correlates and cancels against
+        // this real run instead of minting a phantom id.
+        executionId: ctx.executionId,
         reasoningEffort: providerRequest.reasoningEffort,
         verbosity: providerRequest.verbosity,
         thinkingLevel: providerRequest.thinkingLevel,
