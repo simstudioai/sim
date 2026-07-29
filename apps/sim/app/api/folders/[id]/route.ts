@@ -4,22 +4,17 @@ import { createLogger } from '@sim/logger'
 import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateFolderContract } from '@/lib/api/contracts'
+import { deleteFolderContract, updateFolderContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { HttpError } from '@/lib/core/utils/http-error'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { folderResourceConfig } from '@/lib/folders/config'
+import { deleteFolder, updateFolder } from '@/lib/folders/lifecycle'
 import { toFolderApi } from '@/lib/folders/queries'
+import { folderMutationStatus } from '@/lib/folders/status'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { performDeleteFolder, performUpdateFolder } from '@/lib/workflows/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-
-/** Maps an orchestration errorCode to its HTTP status; mirrors the POST /api/folders route. */
-function folderMutationStatus(errorCode: string | undefined): number {
-  if (errorCode === 'validation') return 400
-  if (errorCode === 'conflict') return 409
-  if (errorCode === 'not_found') return 404
-  return 500
-}
 
 const logger = createLogger('FoldersIDAPI')
 
@@ -47,13 +42,13 @@ export const PUT = withRouteHandler(
       if (!parsed.success) return parsed.response
 
       const { id } = parsed.data.params
+      const { resourceType } = parsed.data.query
       const { name, locked, parentId, sortOrder } = parsed.data.body
 
-      // Verify the folder exists
       const existingFolder = await db
         .select()
         .from(folderTable)
-        .where(and(eq(folderTable.id, id), eq(folderTable.resourceType, 'workflow')))
+        .where(and(eq(folderTable.id, id), eq(folderTable.resourceType, resourceType)))
         .then((rows) => rows[0])
 
       if (!existingFolder) {
@@ -74,22 +69,38 @@ export const PUT = withRouteHandler(
         )
       }
 
-      if (locked !== undefined && workspacePermission !== 'admin') {
+      // Locking is workflow-only. Reject the field outright for the other types rather than
+      // dropping it silently, and keep the admin gate and the lock checks behind the same
+      // capability so a non-workflow folder can neither be 403'd by a field that has no
+      // meaning for it nor persist a `locked` value nothing will ever read.
+      const supportsLocking = Boolean(folderResourceConfig(resourceType).supportsLocking)
+
+      if (locked !== undefined && !supportsLocking) {
         return NextResponse.json(
-          { error: 'Admin access required to lock folders' },
-          { status: 403 }
+          { error: 'Folder locking is only supported for workflow folders' },
+          { status: 400 }
         )
       }
 
-      const hasNonLockUpdate = Object.keys(parsed.data.body).some((key) => key !== 'locked')
-      if (hasNonLockUpdate) {
-        await assertFolderMutable(id)
-      }
-      if (parentId !== undefined) {
-        await assertFolderMutable(parentId)
+      if (supportsLocking) {
+        if (locked !== undefined && workspacePermission !== 'admin') {
+          return NextResponse.json(
+            { error: 'Admin access required to lock folders' },
+            { status: 403 }
+          )
+        }
+
+        const hasNonLockUpdate = Object.keys(parsed.data.body).some((key) => key !== 'locked')
+        if (hasNonLockUpdate) {
+          await assertFolderMutable(id)
+        }
+        if (parentId !== undefined) {
+          await assertFolderMutable(parentId)
+        }
       }
 
-      const result = await performUpdateFolder({
+      const result = await updateFolder({
+        resourceType,
         folderId: id,
         workspaceId: existingFolder.workspaceId,
         userId: session.user.id,
@@ -120,20 +131,22 @@ export const PUT = withRouteHandler(
 
 // DELETE - Delete a folder and all its contents
 export const DELETE = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
       const session = await getSession()
       if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { id } = await params
+      const parsed = await parseRequest(deleteFolderContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id } = parsed.data.params
+      const { resourceType } = parsed.data.query
 
-      // Verify the folder exists
       const existingFolder = await db
         .select()
         .from(folderTable)
-        .where(and(eq(folderTable.id, id), eq(folderTable.resourceType, 'workflow')))
+        .where(and(eq(folderTable.id, id), eq(folderTable.resourceType, resourceType)))
         .then((rows) => rows[0])
 
       if (!existingFolder) {
@@ -153,9 +166,12 @@ export const DELETE = withRouteHandler(
         )
       }
 
-      await assertFolderMutable(id)
+      if (folderResourceConfig(resourceType).supportsLocking) {
+        await assertFolderMutable(id)
+      }
 
-      const result = await performDeleteFolder({
+      const result = await deleteFolder({
+        resourceType,
         folderId: id,
         workspaceId: existingFolder.workspaceId,
         userId: session.user.id,
@@ -163,15 +179,16 @@ export const DELETE = withRouteHandler(
       })
 
       if (!result.success) {
-        const status =
-          result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
-        return NextResponse.json({ error: result.error }, { status })
+        return NextResponse.json(
+          { error: result.error },
+          { status: folderMutationStatus(result.errorCode) }
+        )
       }
 
       captureServerEvent(
         session.user.id,
         'folder_deleted',
-        { workspace_id: existingFolder.workspaceId },
+        { workspace_id: existingFolder.workspaceId, resource_type: resourceType },
         { groups: { workspace: existingFolder.workspaceId } }
       )
 
@@ -183,6 +200,11 @@ export const DELETE = withRouteHandler(
       if (error instanceof FolderLockedError) {
         return NextResponse.json({ error: error.message }, { status: error.status })
       }
+
+      // A typed domain error carries its own status — `deleteTable` can still raise a 423
+      // `TableLockedError` if a lock is set between the subtree guard and the archive.
+      // Rethrow so `withRouteHandler` maps it instead of flattening it to a 500.
+      if (error instanceof HttpError) throw error
 
       logger.error('Error deleting folder:', { error })
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

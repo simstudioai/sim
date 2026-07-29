@@ -747,13 +747,18 @@ export async function updateTableMetadata(
  *
  * @param tableId - Table ID to delete
  * @param requestId - Request ID for logging
+ * @param actingUserId - User performing the delete, for audit
+ * @param options.archivedAt - Shared timestamp for a bulk archive (folder cascade), so the
+ * matching restore can identify exactly the set it archived. Defaults to now, leaving
+ * single-table callers unaffected. Mirrors `archiveWorkflow`'s option of the same name.
  */
 export async function deleteTable(
   tableId: string,
   requestId: string,
-  actingUserId?: string
+  actingUserId?: string,
+  options?: { archivedAt?: Date }
 ): Promise<void> {
-  const now = new Date()
+  const now = options?.archivedAt ?? new Date()
   // Archiving destroys access to every row, so it is gated on the delete lock.
   // The guard is inline in the WHERE (atomic — no separate read, no TOCTOU);
   // a zero-row result is then disambiguated below (locked vs already-archived).

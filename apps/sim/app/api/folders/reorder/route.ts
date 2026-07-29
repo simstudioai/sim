@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { folder as folderTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { reorderFoldersContract } from '@/lib/api/contracts'
@@ -9,6 +10,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { folderResourceConfig } from '@/lib/folders/config'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FolderReorderAPI')
@@ -25,7 +27,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
   try {
     const parsed = await parseRequest(reorderFoldersContract, req, {})
     if (!parsed.success) return parsed.response
-    const { workspaceId, updates } = parsed.data.body
+    const { workspaceId, resourceType, updates } = parsed.data.body
 
     const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
     if (!permission || permission === 'read') {
@@ -39,7 +41,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
     const existingFolders = await db
       .select({ id: folderTable.id, workspaceId: folderTable.workspaceId })
       .from(folderTable)
-      .where(and(inArray(folderTable.id, folderIds), eq(folderTable.resourceType, 'workflow')))
+      .where(and(inArray(folderTable.id, folderIds), eq(folderTable.resourceType, resourceType)))
 
     const validIds = new Set(
       existingFolders.filter((f) => f.workspaceId === workspaceId).map((f) => f.id)
@@ -64,7 +66,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
         })
         .from(folderTable)
         .where(
-          and(inArray(folderTable.id, targetParentIds), eq(folderTable.resourceType, 'workflow'))
+          and(inArray(folderTable.id, targetParentIds), eq(folderTable.resourceType, resourceType))
         )
 
       const validParentIds = new Set(
@@ -86,7 +88,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
       .select({ id: folderTable.id, parentId: folderTable.parentId })
       .from(folderTable)
       .where(
-        and(eq(folderTable.workspaceId, workspaceId), eq(folderTable.resourceType, 'workflow'))
+        and(eq(folderTable.workspaceId, workspaceId), eq(folderTable.resourceType, resourceType))
       )
 
     const parentById = new Map<string, string | null>()
@@ -114,16 +116,19 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
       }
     }
 
-    for (const update of validUpdates) {
-      await assertFolderMutable(update.id)
-      if (update.parentId !== undefined) {
-        await assertFolderMutable(update.parentId)
+    // Folder locking is a workflow-only feature; other resource types leave `locked` false.
+    if (folderResourceConfig(resourceType).supportsLocking) {
+      for (const update of validUpdates) {
+        await assertFolderMutable(update.id)
+        if (update.parentId !== undefined) {
+          await assertFolderMutable(update.parentId)
+        }
       }
     }
 
     await db.transaction(async (tx) => {
       for (const update of validUpdates) {
-        const updateData: Record<string, unknown> = {
+        const updateData: Partial<typeof folderTable.$inferInsert> = {
           sortOrder: update.sortOrder,
           updatedAt: new Date(),
         }
@@ -133,18 +138,29 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
         await tx
           .update(folderTable)
           .set(updateData)
-          .where(and(eq(folderTable.id, update.id), eq(folderTable.resourceType, 'workflow')))
+          .where(and(eq(folderTable.id, update.id), eq(folderTable.resourceType, resourceType)))
       }
     })
 
     logger.info(
-      `[${requestId}] Reordered ${validUpdates.length} folders in workspace ${workspaceId}`
+      `[${requestId}] Reordered ${validUpdates.length} ${resourceType} folders in workspace ${workspaceId}`
     )
 
     return NextResponse.json({ success: true, updated: validUpdates.length })
   } catch (error) {
     if (error instanceof FolderLockedError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+
+    // Reorder can reparent, which moves a folder into a new sibling set and brings it under
+    // the partial unique index on active (workspaceId, resourceType, parent, name). The user
+    // picked both the name and the destination here, so this is a conflict to surface, not a
+    // name to silently deduplicate.
+    if (getPostgresErrorCode(error) === '23505') {
+      return NextResponse.json(
+        { error: 'A folder with this name already exists in this location' },
+        { status: 409 }
+      )
     }
 
     logger.error(`[${requestId}] Error reordering folders`, error)

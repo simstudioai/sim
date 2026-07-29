@@ -112,7 +112,8 @@ export const POST = withRouteHandler(
           tx,
           targetWorkspaceId,
           targetParentId,
-          name
+          name,
+          'workflow'
         )
 
         await tx.insert(folderTable).values({
