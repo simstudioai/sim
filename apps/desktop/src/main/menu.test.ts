@@ -74,6 +74,7 @@ describe('buildMenuTemplate', () => {
     expect(submenu(template, 'View').map((item) => item.label ?? item.role ?? item.type)).toEqual([
       'Toggle Sidebar',
       'separator',
+      'Back',
       'Reload',
       'separator',
       'Actual Size',

@@ -40,9 +40,11 @@ const CHANNEL_FLAGS: Record<string, ChannelIdentity> = {
     appId: 'ai.sim.desktop.staging',
     origin: 'https://www.staging.sim.ai',
   },
-  // Bare sim.ai, matching official prod builds (config.ts) — www.sim.ai
-  // would land in a different cookie partition than a real install.
-  '--prod': { name: 'Sim', appId: 'ai.sim.desktop', origin: 'https://sim.ai' },
+  // Origin left unset, exactly as official prod builds do, so this install
+  // resolves the same DEFAULT_ORIGIN (config.ts) and therefore the same cookie
+  // partition as a real one. Naming an origin here re-creates the drift that
+  // pinned prod to the apex while the server serves www.
+  '--prod': { name: 'Sim', appId: 'ai.sim.desktop' },
 }
 
 const DEFAULT_IDENTITY: ChannelIdentity = { name: 'Sim', appId: 'ai.sim.desktop' }
