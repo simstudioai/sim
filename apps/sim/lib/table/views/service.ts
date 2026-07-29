@@ -106,6 +106,29 @@ export async function listTableViews(
   return rows.map((row) => toTableView(row, columns))
 }
 
+/**
+ * Every view in a workspace in one query, grouped by table — for surfaces that
+ * materialize all tables at once (the copilot VFS). Configs are NOT pruned here:
+ * callers hold the schemas and prune per table via {@link pruneViewConfig}.
+ */
+export async function listWorkspaceTableViews(
+  workspaceId: string
+): Promise<Map<string, (typeof tableViews.$inferSelect)[]>> {
+  const rows = await db
+    .select()
+    .from(tableViews)
+    .where(eq(tableViews.workspaceId, workspaceId))
+    .orderBy(asc(tableViews.createdAt), asc(tableViews.id))
+
+  const byTable = new Map<string, (typeof tableViews.$inferSelect)[]>()
+  for (const row of rows) {
+    const existing = byTable.get(row.tableId)
+    if (existing) existing.push(row)
+    else byTable.set(row.tableId, [row])
+  }
+  return byTable
+}
+
 function normalizeName(name: string): string {
   const trimmed = name.trim()
   if (!trimmed) throw new TableViewValidationError('View name cannot be empty')

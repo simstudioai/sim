@@ -78,6 +78,7 @@ import {
   serializeRecentExecutions,
   serializeSkill,
   serializeTableMeta,
+  serializeTableViews,
   serializeTaskChat,
   serializeTaskSession,
   serializeTriggerOverview,
@@ -98,6 +99,8 @@ import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
 import { listTables } from '@/lib/table/service'
+import type { TableViewConfig } from '@/lib/table/types'
+import { listWorkspaceTableViews, pruneViewConfig } from '@/lib/table/views/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
@@ -449,6 +452,7 @@ function getStaticComponentFiles(): Map<string, string> {
  *   knowledgebases/{name}/documents.json
  *   knowledgebases/{name}/connectors.json
  *   tables/{name}/meta.json
+ *   tables/{name}/views.json             (saved views; only when the table has any)
  *   files/{name}                         (workspace file leaf; dynamic content on read)
  *   files/{path}/{name}/style            (dynamic — style extraction for .docx/.pptx/.pdf)
  *   files/{path}/{name}/compiled-check   (dynamic — compile generated source / validate diagrams, returns {ok,error?})
@@ -1605,7 +1609,10 @@ export class WorkspaceVFS {
    */
   private async materializeTables(workspaceId: string): Promise<WorkspaceMdData['tables']> {
     try {
-      const tables = await listTables(workspaceId)
+      const [tables, viewsByTable] = await Promise.all([
+        listTables(workspaceId),
+        listWorkspaceTableViews(workspaceId),
+      ])
 
       for (const table of tables) {
         const safeName = sanitizeName(table.name)
@@ -1622,6 +1629,25 @@ export class WorkspaceVFS {
             updatedAt: table.updatedAt,
           })
         )
+        // Only when non-empty, so workspaces without views see no extra files.
+        // Configs are pruned against the live schema exactly as the API does.
+        const views = viewsByTable.get(table.id)
+        if (views && views.length > 0) {
+          this.files.set(
+            `tables/${safeName}/views.json`,
+            serializeTableViews(
+              views.map((row) => ({
+                id: row.id,
+                name: row.name,
+                config: pruneViewConfig(
+                  (row.config ?? {}) as TableViewConfig,
+                  table.schema.columns ?? []
+                ),
+              })),
+              table.schema
+            )
+          )
+        }
       }
 
       return tables.map((t) => ({

@@ -13,7 +13,7 @@ type QueryUserTableResult = {
   data?: any
 }
 
-const READ_OPERATIONS = new Set(['get', 'get_schema', 'get_row', 'query_rows'])
+const READ_OPERATIONS = new Set(['get', 'get_schema', 'get_row', 'query_rows', 'list_views'])
 
 /**
  * Read-only variant of user_table for info-gathering agents. Copilot access
@@ -29,7 +29,7 @@ export const queryUserTableServerTool: BaseServerTool<QueryUserTableArgs, QueryU
     if (!READ_OPERATIONS.has(operation)) {
       return {
         success: false,
-        message: `query_user_table is read-only: operation '${operation}' is not available (allowed: get, get_row, get_schema, query_rows); mutations go through the table agent's user_table tool`,
+        message: `query_user_table is read-only: operation '${operation}' is not available (allowed: get, get_row, get_schema, query_rows, list_views); mutations go through the table agent's user_table tool`,
       }
     }
     if (params?.args && 'outputPath' in params.args) {

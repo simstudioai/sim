@@ -9,6 +9,7 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
@@ -19,19 +20,28 @@ import {
   type CsvHeaderMapping,
   CsvImportValidationError,
   coerceRowsForTable,
+  createTableView,
+  deleteTableView,
   getWorkspaceTableLimits,
   inferSchemaFromCsv,
+  listTableViews,
   parseFileRows,
   sanitizeName,
   TABLE_LIMITS,
+  type TableView,
+  TableViewValidationError,
+  updateTableView,
   validateMapping,
 } from '@/lib/table'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import {
   buildIdByName,
+  buildNameById,
   columnMatchesRef,
+  filterIdsToNames,
   filterNamesToIds,
   rowDataNameToId,
+  sortIdsToNames,
   sortNamesToIds,
 } from '@/lib/table/column-keys'
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
@@ -68,10 +78,12 @@ import type {
   Filter,
   RowData,
   SelectOption,
+  Sort,
   TableDefinition,
   TableDeleteJobPayload,
   TableSchema,
   TableUpdateJobPayload,
+  TableViewConfig,
   WorkflowGroup,
   WorkflowGroupDependencies,
   WorkflowGroupDeploymentMode,
@@ -96,6 +108,7 @@ import {
   flattenWorkflowOutputs,
 } from '@/lib/workflows/blocks/flatten-outputs'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 
 const logger = createLogger('UserTableServerTool')
 
@@ -676,6 +689,24 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
           const toNamedRow = namedRowMapper(table.schema.columns)
+
+          // A saved view supplies the filter/sort when the model passes `viewId`.
+          // Its stored config is already column-id keyed (select values included),
+          // so it skips the name→id and select-label translation the wire args go
+          // through. An explicit filter or sort wins over the view's, so the model
+          // can narrow a view without redefining it.
+          let viewFilter: Filter | undefined
+          let viewSort: Sort | undefined
+          if (args.viewId) {
+            const views = await listTableViews(args.tableId, table.schema.columns ?? [])
+            const view = views.find((v) => v.id === args.viewId)
+            if (!view) {
+              return { success: false, message: `View not found: ${args.viewId}` }
+            }
+            viewFilter = view.config.filter ?? undefined
+            viewSort = view.config.sort ?? undefined
+          }
+
           // The model may request any number; we serve at most MAX_QUERY_LIMIT per page so a single
           // tool result can't drain a whole table. `totalCount` in the response signals truncation,
           // and the model pages with `offset`.
@@ -687,8 +718,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                     filterNamesToIds(args.filter, idByName),
                     table.schema.columns
                   )
-                : undefined,
-              sort: args.sort ? sortNamesToIds(args.sort, idByName) : undefined,
+                : viewFilter,
+              sort: args.sort ? sortNamesToIds(args.sort, idByName) : viewSort,
               limit:
                 args.limit !== undefined
                   ? Math.min(args.limit, TABLE_LIMITS.MAX_QUERY_LIMIT)
@@ -2116,6 +2147,162 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             success: true,
             message: `${enrichments.length} enrichment(s) available`,
             data: { enrichments },
+          }
+        }
+
+        case 'list_views': {
+          if (!args.tableId) return { success: false, message: 'Table ID is required' }
+          if (!workspaceId) return { success: false, message: 'Workspace ID is required' }
+          const tableForViews = await getTableById(args.tableId)
+          if (!tableForViews || tableForViews.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+          const viewNameById = buildNameById(tableForViews.schema)
+          const views = (
+            await listTableViews(args.tableId, tableForViews.schema.columns ?? [])
+          ).map((view) => ({
+            id: view.id,
+            name: view.name,
+            // Stored config is column-id keyed; the wire speaks column names.
+            filter: view.config.filter ? filterIdsToNames(view.config.filter, viewNameById) : null,
+            sort: view.config.sort ? sortIdsToNames(view.config.sort, viewNameById) : null,
+            hiddenColumns: (view.config.hiddenColumns ?? []).map(
+              (id) => viewNameById.get(id) ?? id
+            ),
+          }))
+          return {
+            success: true,
+            message: `Found ${views.length} view${views.length === 1 ? '' : 's'}`,
+            data: { views },
+          }
+        }
+
+        case 'create_view':
+        case 'update_view':
+        case 'delete_view': {
+          if (!args.tableId) return { success: false, message: 'Table ID is required' }
+          if (!workspaceId) return { success: false, message: 'Workspace ID is required' }
+          if (!context?.userId) return { success: false, message: 'User ID is required' }
+          const viewTable = await getTableById(args.tableId)
+          if (!viewTable || viewTable.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+          // Mutations are gated like the UI (keyed on the workspace's HOST org,
+          // matching the table page) — an agent must not create views the user
+          // can't see or delete. Reads stay ungated, like the routes.
+          const host = await getWorkspaceHostContextForViewer(workspaceId, context.userId)
+          const viewsUiEnabled = await isFeatureEnabled('table-views', {
+            userId: context.userId,
+            orgId: host?.hostOrganizationId ?? undefined,
+          })
+          if (!viewsUiEnabled) {
+            return {
+              success: false,
+              message: 'Table views are not enabled for this workspace',
+            }
+          }
+
+          const viewColumns = viewTable.schema.columns ?? []
+          const viewIdByName = buildIdByName(viewTable.schema)
+          const viewNameById = buildNameById(viewTable.schema)
+          /** Wire args are column-name keyed; stored configs are id-keyed with
+           *  select values as option ids — the same shape the UI writes. */
+          const configFromArgs = (): TableViewConfig => {
+            const config: TableViewConfig = {}
+            if ('filter' in args) {
+              config.filter = args.filter
+                ? resolveFilterSelectValues(
+                    filterNamesToIds(args.filter, viewIdByName),
+                    viewColumns
+                  )
+                : null
+            }
+            if ('sort' in args) {
+              config.sort = args.sort ? sortNamesToIds(args.sort, viewIdByName) : null
+            }
+            if ('hiddenColumns' in args && Array.isArray(args.hiddenColumns)) {
+              const unknown = (args.hiddenColumns as string[]).filter(
+                (name) => !viewIdByName.has(name)
+              )
+              if (unknown.length > 0) {
+                throw new TableViewValidationError(`Unknown column(s): ${unknown.join(', ')}`)
+              }
+              config.hiddenColumns = (args.hiddenColumns as string[]).map(
+                (name) => viewIdByName.get(name) as string
+              )
+            }
+            return config
+          }
+          const toWireView = (view: TableView) => ({
+            id: view.id,
+            name: view.name,
+            filter: view.config.filter ? filterIdsToNames(view.config.filter, viewNameById) : null,
+            sort: view.config.sort ? sortIdsToNames(view.config.sort, viewNameById) : null,
+            hiddenColumns: (view.config.hiddenColumns ?? []).map(
+              (id) => viewNameById.get(id) ?? id
+            ),
+          })
+
+          try {
+            if (operation === 'create_view') {
+              const viewName = args.viewName as string | undefined
+              if (!viewName) {
+                return { success: false, message: 'viewName is required for create_view' }
+              }
+              const view = await createTableView({
+                tableId: args.tableId,
+                workspaceId,
+                name: viewName,
+                config: configFromArgs(),
+                userId: context.userId,
+                columns: viewColumns,
+              })
+              return {
+                success: true,
+                message: `Created view "${view.name}"`,
+                data: { view: toWireView(view) },
+              }
+            }
+
+            if (!args.viewId) {
+              return { success: false, message: `viewId is required for ${operation}` }
+            }
+
+            if (operation === 'delete_view') {
+              const deleted = await deleteTableView(args.viewId, args.tableId)
+              if (!deleted) return { success: false, message: `View not found: ${args.viewId}` }
+              return { success: true, message: 'View deleted' }
+            }
+
+            const configPatch = configFromArgs()
+            const viewName = args.viewName as string | undefined
+            if (!viewName && Object.keys(configPatch).length === 0) {
+              return {
+                success: false,
+                message:
+                  'update_view needs at least one of viewName, filter, sort, hiddenColumns (pass null to clear filter or sort)',
+              }
+            }
+            const updated = await updateTableView({
+              viewId: args.viewId,
+              tableId: args.tableId,
+              ...(viewName ? { name: viewName } : {}),
+              // Merge, not replace: only the provided slices change, so this
+              // can't stomp a layout write landing from an open table UI.
+              ...(Object.keys(configPatch).length > 0 ? { configPatch } : {}),
+              columns: viewColumns,
+            })
+            if (!updated) return { success: false, message: `View not found: ${args.viewId}` }
+            return {
+              success: true,
+              message: `Updated view "${updated.name}"`,
+              data: { view: toWireView(updated) },
+            }
+          } catch (error) {
+            if (error instanceof TableViewValidationError) {
+              return { success: false, message: error.message }
+            }
+            throw error
           }
         }
 

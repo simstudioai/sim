@@ -7,6 +7,8 @@ import {
 } from '@/lib/credentials/service-account-provider-ids'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
+import { buildNameById, filterIdsToNames, sortIdsToNames } from '@/lib/table/column-keys'
+import type { TableSchema, TableViewConfig } from '@/lib/table/types'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
@@ -470,6 +472,29 @@ export function serializeTableMeta(table: {
       createdAt: table.createdAt instanceof Date ? table.createdAt.toISOString() : table.createdAt,
       updatedAt: table.updatedAt instanceof Date ? table.updatedAt.toISOString() : table.updatedAt,
     },
+    null,
+    2
+  )
+}
+
+/**
+ * Saved views for one table, column-name keyed for the wire (stored configs are
+ * id-keyed). Same shape the `user_table` list_views operation returns, so the
+ * agent sees one representation whether it reads the VFS or calls the tool.
+ */
+export function serializeTableViews(
+  views: Array<{ id: string; name: string; config: TableViewConfig }>,
+  schema: TableSchema
+): string {
+  const nameById = buildNameById(schema)
+  return JSON.stringify(
+    views.map((view) => ({
+      id: view.id,
+      name: view.name,
+      filter: view.config.filter ? filterIdsToNames(view.config.filter, nameById) : null,
+      sort: view.config.sort ? sortIdsToNames(view.config.sort, nameById) : null,
+      hiddenColumns: (view.config.hiddenColumns ?? []).map((id) => nameById.get(id) ?? id),
+    })),
     null,
     2
   )

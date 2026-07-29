@@ -3173,12 +3173,17 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'string',
               description: 'Table ID (required for all operations)',
             },
+            viewId: {
+              type: 'string',
+              description:
+                "Saved view to query through (optional for query_rows). Applies the view's stored filter and sort; an explicit filter or sort overrides that part.",
+            },
           },
         },
         operation: {
           type: 'string',
           description: 'The read operation to perform',
-          enum: ['get', 'get_schema', 'get_row', 'query_rows'],
+          enum: ['get', 'get_schema', 'get_row', 'query_rows', 'list_views'],
         },
       },
       required: ['operation', 'args'],
@@ -4304,6 +4309,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 type: 'string',
               },
             },
+            hiddenColumns: {
+              type: 'array',
+              description:
+                'Column NAMES the view hides (for create_view / update_view). Pass [] to unhide all.',
+              items: {
+                type: 'string',
+              },
+            },
             inputMappings: {
               type: 'array',
               description:
@@ -4386,7 +4399,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             newType: {
               type: 'string',
               description:
-                "New column type (optional for update_column). Types: string, number, boolean, date, json, select. Converting a column to select also requires options; the conversion fails if any existing cell value doesn't match one of them.",
+                'New column type (optional for update_column). Types: string, number, boolean, date, json, select. Converting a column to select also requires options; the conversion fails if any existing cell value doesn\'t match one of them. Converting to a multiple: true select also accepts a comma-separated cell ("Open, Urgent"), which is the form a multi column converts to text as — so multiselect → text → multiselect round-trips.',
             },
             offset: {
               type: 'number',
@@ -4395,7 +4408,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             options: {
               type: 'array',
               description:
-                'Choices for a select (enum) column, as a list of display names, e.g. ["Open", "Closed"]. Required when creating or converting to a select column. On update_column this REPLACES the option list: options kept by name keep their cells, and cells holding a removed option are cleared. Max 100.',
+                'Choices for a select (enum) column, as a list of display names, e.g. ["Open", "Closed"]. Required when creating or converting to a select column. On update_column this REPLACES the option list and is matched against the current one BY NAME: a name still present keeps its cells, a name no longer present is removed and cleared from every cell that held it. Send the full list including the options you are keeping — omitting one deletes it. There is no in-place rename, so re-sending an option under a new name clears the cells that held the old one. Max 100.',
               items: {
                 type: 'string',
               },
@@ -4523,6 +4536,16 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               description:
                 'Map of rowId to value for single-column batch update: { "rowId1": val1, "rowId2": val2 } (for batch_update_rows with columnName)',
             },
+            viewId: {
+              type: 'string',
+              description:
+                'Saved view id. For query_rows: query through the view (its stored filter and sort apply; an explicit filter or sort overrides that part). Required for update_view and delete_view.',
+            },
+            viewName: {
+              type: 'string',
+              description:
+                'View display name (required for create_view; optional rename for update_view)',
+            },
             workflowId: {
               type: 'string',
               description:
@@ -4564,6 +4587,10 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'list_workflow_outputs',
             'list_enrichments',
             'add_enrichment',
+            'list_views',
+            'create_view',
+            'update_view',
+            'delete_view',
           ],
         },
       },

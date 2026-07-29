@@ -176,3 +176,28 @@ export function sortNamesToIds(sort: Sort, idByName: ReadonlyMap<string, string>
 // key half separately callable is what let boundaries translate the keys and
 // forget the values. Use `namedRowMapper` from `@/lib/table/cell-format`, which
 // does both in one pass.
+
+/**
+ * Reverse of {@link filterNamesToIds}, for stored predicates on their way out to
+ * a name-keyed wire (a saved view's config is id-keyed). Ids with no current
+ * column pass through rather than being dropped — a stale reference the caller
+ * can see beats one that silently widens the predicate.
+ */
+export function filterIdsToNames(filter: Filter, nameById: ReadonlyMap<string, string>): Filter {
+  const out: Filter = {}
+  for (const [key, value] of Object.entries(filter)) {
+    if ((key === '$or' || key === '$and') && Array.isArray(value)) {
+      out[key] = (value as Filter[]).map((f) => filterIdsToNames(f, nameById))
+    } else {
+      out[nameById.get(key) ?? key] = value
+    }
+  }
+  return out
+}
+
+/** Reverse of {@link sortNamesToIds}. Unknown ids pass through. */
+export function sortIdsToNames(sort: Sort, nameById: ReadonlyMap<string, string>): Sort {
+  const out: Sort = {}
+  for (const [field, dir] of Object.entries(sort)) out[nameById.get(field) ?? field] = dir
+  return out
+}

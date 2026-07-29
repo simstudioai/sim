@@ -60,6 +60,36 @@ const {
   },
 }))
 
+const {
+  mockListTableViews,
+  mockCreateTableView,
+  mockUpdateTableView,
+  mockDeleteTableView,
+  mockIsFeatureEnabled,
+} = vi.hoisted(() => ({
+  mockListTableViews: vi.fn(),
+  mockCreateTableView: vi.fn(),
+  mockUpdateTableView: vi.fn(),
+  mockDeleteTableView: vi.fn(),
+  mockIsFeatureEnabled: vi.fn(),
+}))
+
+vi.mock('@/lib/table/views/service', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  listTableViews: mockListTableViews,
+  createTableView: mockCreateTableView,
+  updateTableView: mockUpdateTableView,
+  deleteTableView: mockDeleteTableView,
+}))
+
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  isFeatureEnabled: mockIsFeatureEnabled,
+}))
+
+vi.mock('@/lib/workspaces/host-context', () => ({
+  getWorkspaceHostContextForViewer: vi.fn().mockResolvedValue(null),
+}))
+
 vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn().mockReturnValue('deadbeefcafef00d'),
   generateShortId: vi.fn().mockReturnValue('short-id'),
@@ -1167,5 +1197,193 @@ describe('userTableServerTool.update_column — select routing', () => {
     const arg = mockUpdateColumnOptions.mock.calls[0][0]
     expect(arg.multiple).toBe(true)
     expect(arg.options).toEqual([{ id: 'opt_open', name: 'Open' }])
+  })
+})
+
+describe('view operations', () => {
+  /** Columns carry explicit ids so the name<->id translation is observable. */
+  const viewTable = () =>
+    buildTable({
+      schema: {
+        columns: [
+          { id: 'col_status', name: 'Status', type: 'string' },
+          { id: 'col_owner', name: 'Owner', type: 'string' },
+        ],
+      } as never,
+    })
+  const ctx = { userId: 'user-1', workspaceId: 'workspace-1' }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetTableById.mockResolvedValue(viewTable())
+    mockIsFeatureEnabled.mockResolvedValue(true)
+  })
+
+  it('list_views translates stored ids to column names', async () => {
+    mockListTableViews.mockResolvedValueOnce([
+      {
+        id: 'view_1',
+        name: 'Open items',
+        config: {
+          filter: { col_status: { $eq: 'open' } },
+          sort: { col_owner: 'asc' },
+          hiddenColumns: ['col_owner'],
+        },
+      },
+    ])
+
+    const result = await userTableServerTool.execute(
+      { operation: 'list_views', args: { tableId: 'tbl_1' } },
+      ctx
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.data?.views).toEqual([
+      {
+        id: 'view_1',
+        name: 'Open items',
+        filter: { Status: { $eq: 'open' } },
+        sort: { Owner: 'asc' },
+        hiddenColumns: ['Owner'],
+      },
+    ])
+  })
+
+  it('query_rows applies the view filter and sort, explicit args override', async () => {
+    mockListTableViews.mockResolvedValue([
+      {
+        id: 'view_1',
+        name: 'Open items',
+        config: { filter: { col_status: { $eq: 'open' } }, sort: { col_owner: 'asc' } },
+      },
+    ])
+    mockQueryRows.mockResolvedValue({ rows: [], totalCount: 0 })
+
+    await userTableServerTool.execute(
+      { operation: 'query_rows', args: { tableId: 'tbl_1', viewId: 'view_1' } },
+      ctx
+    )
+    expect(mockQueryRows.mock.calls[0][1]).toMatchObject({
+      filter: { col_status: { $eq: 'open' } },
+      sort: { col_owner: 'asc' },
+    })
+
+    await userTableServerTool.execute(
+      {
+        operation: 'query_rows',
+        args: { tableId: 'tbl_1', viewId: 'view_1', sort: { Owner: 'desc' } },
+      },
+      ctx
+    )
+    // Explicit sort wins; the view still supplies the filter.
+    expect(mockQueryRows.mock.calls[1][1]).toMatchObject({
+      filter: { col_status: { $eq: 'open' } },
+      sort: { col_owner: 'desc' },
+    })
+  })
+
+  it('query_rows with an unknown viewId fails instead of silently querying all', async () => {
+    mockListTableViews.mockResolvedValueOnce([])
+    const result = await userTableServerTool.execute(
+      { operation: 'query_rows', args: { tableId: 'tbl_1', viewId: 'nope' } },
+      ctx
+    )
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('View not found')
+  })
+
+  it('create_view translates column names to ids and echoes names back', async () => {
+    mockCreateTableView.mockImplementationOnce(async (data: never) => ({
+      id: 'view_new',
+      name: (data as { name: string }).name,
+      config: (data as { config: object }).config,
+    }))
+
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'create_view',
+        args: {
+          tableId: 'tbl_1',
+          viewName: 'Mine',
+          filter: { Owner: { $eq: 'me' } },
+          hiddenColumns: ['Status'],
+        },
+      },
+      ctx
+    )
+
+    expect(result.success).toBe(true)
+    // Stored id-keyed…
+    expect(mockCreateTableView.mock.calls[0][0].config).toEqual({
+      filter: { col_owner: { $eq: 'me' } },
+      hiddenColumns: ['col_status'],
+    })
+    // …returned name-keyed.
+    expect(result.data?.view).toMatchObject({
+      filter: { Owner: { $eq: 'me' } },
+      hiddenColumns: ['Status'],
+    })
+  })
+
+  it('create_view rejects an unknown hidden column by name', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'create_view',
+        args: { tableId: 'tbl_1', viewName: 'Bad', hiddenColumns: ['Nope'] },
+      },
+      ctx
+    )
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('Unknown column')
+    expect(mockCreateTableView).not.toHaveBeenCalled()
+  })
+
+  it('update_view patches only the provided fields and null clears', async () => {
+    mockUpdateTableView.mockResolvedValueOnce({
+      id: 'view_1',
+      name: 'Open items',
+      config: { sort: { col_owner: 'asc' } },
+    })
+
+    const result = await userTableServerTool.execute(
+      { operation: 'update_view', args: { tableId: 'tbl_1', viewId: 'view_1', filter: null } },
+      ctx
+    )
+
+    expect(result.success).toBe(true)
+    const call = mockUpdateTableView.mock.calls[0][0]
+    // Merge patch with an explicit null — sort/hiddenColumns untouched.
+    expect(call.configPatch).toEqual({ filter: null })
+    expect(call.config).toBeUndefined()
+  })
+
+  it('update_view with nothing to change is a usage error', async () => {
+    const result = await userTableServerTool.execute(
+      { operation: 'update_view', args: { tableId: 'tbl_1', viewId: 'view_1' } },
+      ctx
+    )
+    expect(result.success).toBe(false)
+    expect(mockUpdateTableView).not.toHaveBeenCalled()
+  })
+
+  it('delete_view maps a missing view to failure', async () => {
+    mockDeleteTableView.mockResolvedValueOnce(false)
+    const result = await userTableServerTool.execute(
+      { operation: 'delete_view', args: { tableId: 'tbl_1', viewId: 'gone' } },
+      ctx
+    )
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('View not found')
+  })
+
+  it('refuses mutations when the table-views flag is off', async () => {
+    mockIsFeatureEnabled.mockResolvedValueOnce(false)
+    const result = await userTableServerTool.execute(
+      { operation: 'create_view', args: { tableId: 'tbl_1', viewName: 'X' } },
+      ctx
+    )
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('not enabled')
+    expect(mockCreateTableView).not.toHaveBeenCalled()
   })
 })
