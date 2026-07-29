@@ -334,6 +334,12 @@ export function useTableUndo({
             if (direction === 'undo') {
               deleteColumnMutation.mutate(colKey, {
                 onSuccess: () => {
+                  // Everything below is layout cleanup for the recorded view. In
+                  // any other view the grid shows that view's own layout — the
+                  // schema change has already landed and dangling width/pin keys
+                  // are pruned on read, so touching the screen OR persisting here
+                  // would push the origin view's layout onto the one on display.
+                  if (!entryOwnsLayout()) return
                   const metadata: TableMetadata = {}
                   const currentWidths = getColumnWidthsRef.current?.() ?? {}
                   if (colKey in currentWidths) {
@@ -347,9 +353,7 @@ export function useTableUndo({
                     onPinnedColumnsChangeRef.current?.(newPinned)
                     metadata.pinnedColumns = newPinned
                   }
-                  if (Object.keys(metadata).length > 0) {
-                    if (entryOwnsLayout()) persistLayoutRef.current(metadata)
-                  }
+                  if (Object.keys(metadata).length > 0) persistLayoutRef.current(metadata)
                 },
               })
             } else {
@@ -409,6 +413,11 @@ export function useTableUndo({
                         }
                       })()
                     }
+                    // Cell restore above runs everywhere — it's row data. The
+                    // layout below belongs to the recorded view: elsewhere the
+                    // restored column still reappears via the grid's append
+                    // effect, but at the end, leaving the on-screen layout alone.
+                    if (!entryOwnsLayout()) return
                     const metadata: TableMetadata = {}
                     if (action.previousOrder) {
                       onColumnOrderChangeRef.current?.(action.previousOrder)
@@ -439,15 +448,14 @@ export function useTableUndo({
                         }
                       }
                     }
-                    if (Object.keys(metadata).length > 0) {
-                      if (entryOwnsLayout()) persistLayoutRef.current(metadata)
-                    }
+                    if (Object.keys(metadata).length > 0) persistLayoutRef.current(metadata)
                   },
                 }
               )
             } else {
               deleteColumnMutation.mutate(colKey, {
                 onSuccess: () => {
+                  if (!entryOwnsLayout()) return
                   const metadata: TableMetadata = {}
                   if (action.previousOrder) {
                     const newOrder = action.previousOrder.filter((n) => n !== colKey)
@@ -468,9 +476,7 @@ export function useTableUndo({
                       metadata.pinnedColumns = newPinned
                     }
                   }
-                  if (Object.keys(metadata).length > 0) {
-                    if (entryOwnsLayout()) persistLayoutRef.current(metadata)
-                  }
+                  if (Object.keys(metadata).length > 0) persistLayoutRef.current(metadata)
                 },
               })
             }
