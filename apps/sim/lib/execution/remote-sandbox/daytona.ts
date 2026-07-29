@@ -253,7 +253,7 @@ export const daytonaProvider: SandboxProvider = {
     const language = options?.language ?? CodeLanguage.Python
     logger.info('Creating Daytona sandbox', { kind, snapshot })
 
-    const { Daytona } = await import('@daytonaio/sdk')
+    const { Daytona } = await import('@daytona/sdk')
     const daytona = new Daytona({ apiKey })
     const sandbox = await daytona.create({ snapshot, language: toDaytonaLanguage(language) } as any)
 
