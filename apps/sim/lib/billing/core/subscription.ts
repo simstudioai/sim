@@ -29,6 +29,7 @@ import {
   isBillingEnabled,
   isHosted,
   isInboxEnabled,
+  isSandboxesEnabled,
   isSsoEnabled,
 } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -681,9 +682,11 @@ export async function hasWorkspaceLiveSyncAccess(workspaceId: string): Promise<b
 /**
  * Checks whether the exact workspace payer can create and edit custom sandboxes.
  *
- * Same entitlement as the inbox (Sim Mailer): Max or Enterprise on a usable
- * subscription. Builds cost provider compute and storage, so this deliberately
- * sits above the plain paid tier.
+ * Same entitlement as the inbox (Sim Mailer), and the same shape: the
+ * `SANDBOXES_ENABLED` self-hosted override wins first, then a deployment
+ * without billing is unrestricted, and otherwise the workspace payer must hold
+ * a usable Max or Enterprise subscription. Builds cost provider compute and
+ * storage, so this deliberately sits above the plain paid tier.
  *
  * This gates creating and editing only. Execution deliberately does not consult
  * it (see `resolveWorkspaceSandbox`), so a workspace that downgrades keeps
@@ -691,6 +694,7 @@ export async function hasWorkspaceLiveSyncAccess(workspaceId: string): Promise<b
  */
 export async function hasWorkspaceSandboxAccess(workspaceId: string): Promise<boolean> {
   try {
+    if (isSandboxesEnabled) return true
     if (!isBillingEnabled) return true
     return await hasMaxTierWorkspaceAccess(workspaceId)
   } catch (error) {

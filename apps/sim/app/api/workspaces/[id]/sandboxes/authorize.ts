@@ -2,7 +2,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { enforceWorkspaceRateLimit } from '@/lib/core/rate-limiter/route-helpers'
 import type { SandboxLanguage } from '@/lib/execution/remote-sandbox/sandbox-spec'
 import {
@@ -10,7 +9,6 @@ import {
   MAX_PLAN_REQUIRED,
   SANDBOX_ADMIN_REQUIRED,
   SANDBOX_MUTATION_LIMIT,
-  SANDBOXES_UNAVAILABLE,
   SandboxDependencyError,
   type SandboxSpecUpdate,
   WORKSPACE_SANDBOX_NAME_INDEX,
@@ -88,14 +86,6 @@ export async function authorizeSandboxMutation(
     return {
       ok: false,
       response: NextResponse.json({ error: SANDBOX_ADMIN_REQUIRED }, { status: 403 }),
-    }
-  }
-  // The kill switch runs before the plan gate so an operator who disables the
-  // feature mid-incident gets "unavailable", not a misleading upsell.
-  if (!(await isFeatureEnabled('custom-sandboxes', { userId: session.user.id }))) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: SANDBOXES_UNAVAILABLE }, { status: 403 }),
     }
   }
   if (!(await hasWorkspaceSandboxAccess(workspaceId))) {

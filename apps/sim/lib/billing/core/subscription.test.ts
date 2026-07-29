@@ -63,6 +63,7 @@ import {
   getOrganizationIdForSubscriptionReference,
   hasPaidSubscription,
   hasWorkspaceLiveSyncAccess,
+  hasWorkspaceSandboxAccess,
   isWorkspaceOnEnterprisePlan,
   syncSubscriptionPlan,
 } from '@/lib/billing/core/subscription'
@@ -332,5 +333,64 @@ describe('hasWorkspaceLiveSyncAccess', () => {
 
     await expect(hasWorkspaceLiveSyncAccess('workspace-host')).resolves.toBe(false)
     expect(mockGetEffectiveBillingStatus).toHaveBeenCalledWith('workspace-owner')
+  })
+})
+
+/**
+ * Sandboxes are an enterprise feature, so `SANDBOXES_ENABLED` must win over the
+ * plan gate the way `INBOX_ENABLED` does. Both cases run with billing enabled —
+ * the `!isBillingEnabled` bail would otherwise answer every one of them, hiding
+ * whether the override is wired at all.
+ */
+describe('hasWorkspaceSandboxAccess', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setEnvFlags({ isBillingEnabled: true, isHosted: true, isSandboxesEnabled: false })
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-host',
+      billedAccountUserId: 'workspace-owner',
+      organizationId: null,
+    })
+    mockHasUsableSubscriptionAccess.mockImplementation(
+      (status: string | null, billingBlocked: boolean) => status === 'active' && !billingBlocked
+    )
+    mockGetEffectiveBillingStatus.mockResolvedValue({
+      billingBlocked: false,
+      billingBlockedReason: null,
+      blockedByOrgOwner: false,
+    })
+  })
+
+  afterAll(() => setEnvFlags({ isSandboxesEnabled: true }))
+
+  it('grants access from the self-hosted override without resolving a payer', async () => {
+    setEnvFlags({ isSandboxesEnabled: true })
+
+    await expect(hasWorkspaceSandboxAccess('workspace-host')).resolves.toBe(true)
+    expect(mockGetWorkspaceWithOwner).not.toHaveBeenCalled()
+    expect(mockGetHighestPriorityPersonalSubscription).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the Max plan gate when the override is unset', async () => {
+    mockGetHighestPriorityPersonalSubscription.mockResolvedValue({
+      referenceId: 'workspace-owner',
+      plan: 'pro_25000',
+      status: 'active',
+    })
+    mockGetPlanTierCredits.mockReturnValue(25000)
+
+    await expect(hasWorkspaceSandboxAccess('workspace-host')).resolves.toBe(true)
+    expect(mockGetHighestPriorityPersonalSubscription).toHaveBeenCalledWith('workspace-owner')
+  })
+
+  it('denies a sub-Max payer when the override is unset', async () => {
+    mockGetHighestPriorityPersonalSubscription.mockResolvedValue({
+      referenceId: 'workspace-owner',
+      plan: 'pro_6000',
+      status: 'active',
+    })
+    mockGetPlanTierCredits.mockReturnValue(6000)
+
+    await expect(hasWorkspaceSandboxAccess('workspace-host')).resolves.toBe(false)
   })
 })

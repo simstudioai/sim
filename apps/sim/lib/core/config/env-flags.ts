@@ -285,6 +285,20 @@ export const isInboxEnabled = enterpriseFeatureEnabled(
 )
 
 /**
+ * Are custom sandboxes (workspace dependency sets for Function blocks) enabled.
+ *
+ * Same shape as {@link isInboxEnabled}: on Sim Cloud the Max/Enterprise plan
+ * decides, and this is only an explicit override; self-hosted resolves through
+ * the master switch. Builds run on the deployment's own E2B/Daytona
+ * credentials, so an operator who sets this owns the cost.
+ */
+export const isSandboxesEnabled = enterpriseFeatureEnabled(
+  'sandboxes',
+  env.SANDBOXES_ENABLED,
+  'NEXT_PUBLIC_SANDBOXES_ENABLED'
+)
+
+/**
  * Is whitelabeling enabled
  */
 export const isWhitelabelingEnabled = enterpriseFeatureEnabled(

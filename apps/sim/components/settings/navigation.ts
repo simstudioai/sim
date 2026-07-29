@@ -34,6 +34,7 @@ import {
   isDataRetentionEnabled,
   isHosted,
   isInboxEnabled,
+  isSandboxesEnabled,
   isSessionPoliciesEnabled,
   isSsoEnabled,
   isWhitelabelingEnabled,
@@ -211,6 +212,7 @@ const SETTINGS_SELF_HOSTED_OVERRIDES = {
   dataDrains: isDataDrainsEnabled,
   dataRetention: isDataRetentionEnabled,
   inbox: isInboxEnabled,
+  sandboxes: isSandboxesEnabled,
   sessionPolicies: isSessionPoliciesEnabled,
   sso: isSsoEnabled,
   whitelabeling: isWhitelabelingEnabled,
@@ -601,6 +603,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       description: 'Install Python or npm packages for Function blocks to import.',
       group: 'system',
       requiresMax: true,
+      selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.sandboxes,
       showWhenLocked: true,
     },
     planes: {

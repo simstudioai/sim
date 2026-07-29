@@ -16,9 +16,6 @@ import type { SandboxDependencyStrategy } from '@/lib/execution/remote-sandbox/t
 /** 403 copy for a workspace whose plan does not include sandbox authoring. */
 export const MAX_PLAN_REQUIRED = 'Sandboxes require an active Max or Enterprise plan.'
 
-/** 403 copy when the `custom-sandboxes` kill switch is off for this deployment. */
-export const SANDBOXES_UNAVAILABLE = 'Sandboxes are not available on this deployment.'
-
 export const SANDBOX_ADMIN_REQUIRED = 'Only workspace admins can manage sandboxes'
 
 /**

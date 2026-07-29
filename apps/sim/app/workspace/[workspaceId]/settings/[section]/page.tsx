@@ -14,7 +14,6 @@ import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import { hasWorkspaceInboxAccess, hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
@@ -109,16 +108,14 @@ export default async function WorkspaceSettingsSectionPage({
 
   const workspaceSection = WORKSPACE_SECTION_MAP[parsed]
   if (workspaceSection) {
-    const [permissionGroup, forksAvailable, inboxAvailable, sandboxesEntitled, sandboxesEnabled] =
-      await Promise.all([
-        hostContext.hostOrganizationId && hostContext.ownerBilling.isEnterprise
-          ? resolveWorkspaceGroup(session.user.id, hostContext.hostOrganizationId, workspaceId)
-          : null,
-        isForkingAvailableForWorkspace(hostContext.hostOrganizationId, session.user.id),
-        hasWorkspaceInboxAccess(workspaceId),
-        hasWorkspaceSandboxAccess(workspaceId),
-        isFeatureEnabled('custom-sandboxes', { userId: session.user.id }),
-      ])
+    const [permissionGroup, forksAvailable, inboxAvailable, sandboxes] = await Promise.all([
+      hostContext.hostOrganizationId && hostContext.ownerBilling.isEnterprise
+        ? resolveWorkspaceGroup(session.user.id, hostContext.hostOrganizationId, workspaceId)
+        : null,
+      isForkingAvailableForWorkspace(hostContext.hostOrganizationId, session.user.id),
+      hasWorkspaceInboxAccess(workspaceId),
+      hasWorkspaceSandboxAccess(workspaceId),
+    ])
     const customBlocksAvailable = isHosted
       ? hostContext.ownerBilling.isEnterprise
       : isTruthy(getEnv('NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED'))
@@ -130,7 +127,7 @@ export default async function WorkspaceSettingsSectionPage({
         inbox: inboxAvailable,
         customBlocks: customBlocksAvailable,
         forks: forksAvailable,
-        sandboxes: sandboxesEntitled && sandboxesEnabled,
+        sandboxes,
       },
     })
     if (!navigation.some((item) => item.id === workspaceSection)) notFound()
