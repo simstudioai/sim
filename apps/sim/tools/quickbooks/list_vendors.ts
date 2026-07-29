@@ -28,7 +28,7 @@ export const quickBooksListVendorsTool: ToolConfig<QuickBooksListParams, QuickBo
       realmId: {
         type: 'string',
         required: true,
-        visibility: 'user-or-llm',
+        visibility: 'user-only',
         description: 'QuickBooks company ID returned by Intuit as realmId during OAuth',
       },
       activeOnly: {

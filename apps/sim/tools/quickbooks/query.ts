@@ -27,7 +27,7 @@ export const quickBooksQueryTool: ToolConfig<QuickBooksQueryParams, QuickBooksQu
     realmId: {
       type: 'string',
       required: true,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'QuickBooks company ID returned by Intuit as realmId during OAuth',
     },
     query: {

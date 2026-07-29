@@ -1,7 +1,7 @@
-import type { QuickBooksListParams, QuickBooksQueryResponse } from '@/tools/quickbooks/types'
+import type { QuickBooksListRecordsParams, QuickBooksQueryResponse } from '@/tools/quickbooks/types'
 import {
   buildQuickBooksHeaders,
-  buildQuickBooksListQuery,
+  buildQuickBooksListRecordsQuery,
   buildQuickBooksQueryUrl,
   extractQuickBooksRecords,
   getQuickBooksQueryMetadata,
@@ -9,10 +9,13 @@ import {
 } from '@/tools/quickbooks/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const quickBooksListBillsTool: ToolConfig<QuickBooksListParams, QuickBooksQueryResponse> = {
-  id: 'quickbooks_list_bills',
-  name: 'QuickBooks List Bills',
-  description: 'List bills from QuickBooks Online',
+export const quickBooksListRecordsTool: ToolConfig<
+  QuickBooksListRecordsParams,
+  QuickBooksQueryResponse
+> = {
+  id: 'quickbooks_list_records',
+  name: 'QuickBooks List Records',
+  description: 'List or filter records for a supported QuickBooks Online accounting entity',
   version: '1.0.0',
 
   oauth: { required: true, provider: 'quickbooks' },
@@ -30,6 +33,24 @@ export const quickBooksListBillsTool: ToolConfig<QuickBooksListParams, QuickBook
       visibility: 'user-only',
       description: 'QuickBooks company ID returned by Intuit as realmId during OAuth',
     },
+    entity: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Queryable QuickBooks entity name',
+    },
+    whereClause: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'QuickBooks query WHERE clause without the WHERE keyword',
+    },
+    orderBy: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'QuickBooks query ORDERBY clause without the ORDERBY keyword',
+    },
     startPosition: {
       type: 'string',
       required: false,
@@ -40,7 +61,7 @@ export const quickBooksListBillsTool: ToolConfig<QuickBooksListParams, QuickBook
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of bills to return, up to 1000',
+      description: 'Maximum number of records to return, up to 1000',
     },
     apiEnvironment: {
       type: 'string',
@@ -57,20 +78,24 @@ export const quickBooksListBillsTool: ToolConfig<QuickBooksListParams, QuickBook
   },
 
   request: {
-    url: (params) =>
-      buildQuickBooksQueryUrl({
+    url: (params) => {
+      const { query } = buildQuickBooksListRecordsQuery(params)
+      return buildQuickBooksQueryUrl({
         realmId: params.realmId,
-        query: buildQuickBooksListQuery('Bill', params),
+        query,
         apiEnvironment: params.apiEnvironment,
         minorVersion: params.minorVersion,
-      }),
+      })
+    },
     method: 'GET',
     headers: (params) => buildQuickBooksHeaders(params.accessToken),
   },
 
   transformResponse: async (response, params) => {
+    if (!params) throw new Error('QuickBooks list parameters are required')
+    const { entity, query } = buildQuickBooksListRecordsQuery(params)
     const data = await parseQuickBooksJson(response)
-    const { entity, items } = extractQuickBooksRecords(data, 'Bill')
+    const { items } = extractQuickBooksRecords(data, entity)
     const metadata = getQuickBooksQueryMetadata(data)
 
     return {
@@ -81,7 +106,7 @@ export const quickBooksListBillsTool: ToolConfig<QuickBooksListParams, QuickBook
         totalCount: metadata.totalCount,
         startPosition: metadata.startPosition,
         maxResults: metadata.maxResults,
-        query: buildQuickBooksListQuery('Bill', params ?? { accessToken: '', realmId: '' }),
+        query,
       },
     }
   },
@@ -89,17 +114,10 @@ export const quickBooksListBillsTool: ToolConfig<QuickBooksListParams, QuickBook
   outputs: {
     items: {
       type: 'array',
-      description: 'Bills returned by QuickBooks',
+      description: 'QuickBooks records for the selected entity',
       items: {
         type: 'json',
-        properties: {
-          Id: { type: 'string', description: 'QuickBooks bill ID', optional: true },
-          DocNumber: { type: 'string', description: 'Bill document number', optional: true },
-          TxnDate: { type: 'string', description: 'Bill transaction date', optional: true },
-          DueDate: { type: 'string', description: 'Bill due date', optional: true },
-          TotalAmt: { type: 'number', description: 'Bill total amount', optional: true },
-          Balance: { type: 'number', description: 'Open bill balance', optional: true },
-        },
+        description: 'Entity-specific QuickBooks record',
       },
     },
     entity: { type: 'string', description: 'QuickBooks entity name' },

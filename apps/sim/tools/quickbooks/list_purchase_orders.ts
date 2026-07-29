@@ -30,7 +30,7 @@ export const quickBooksListPurchaseOrdersTool: ToolConfig<
     realmId: {
       type: 'string',
       required: true,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'QuickBooks company ID returned by Intuit as realmId during OAuth',
     },
     startPosition: {

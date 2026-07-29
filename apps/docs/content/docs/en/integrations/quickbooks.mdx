@@ -1,35 +1,33 @@
 ---
 title: QuickBooks
-description: Query vendors, purchase orders, and bills in QuickBooks Online
+description: Manage and report on QuickBooks Online accounting data
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="quickbooks"
   color="#2CA01C"
 />
 
 ## Usage Instructions
 
-Integrate QuickBooks Online into procurement workflows. List vendors, purchase orders, and bills, or run custom QuickBooks Accounting API queries against a company.
+Integrate QuickBooks Online into procurement and accounting workflows. Manage supported records, inventory adjustments, preferences, currencies, reports, attachments, PDFs, change-data-capture syncs, batches, and custom queries.
 
 
 
 ## Actions
 
-### `quickbooks_list_vendors`
+### `quickbooks_batch`
 
-List vendors from QuickBooks Online
+Run up to 10 QuickBooks Online entity or query operations in one batch
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
-| `activeOnly` | boolean | No | Only return active vendors |
-| `startPosition` | string | No | One-based start position for QuickBooks query pagination |
-| `maxResults` | string | No | Maximum number of vendors to return, up to 1000 |
+| `batch` | json | Yes | QuickBooks batch payload containing a BatchItemRequest array |
 | `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
 | `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
 
@@ -37,10 +35,216 @@ List vendors from QuickBooks Online
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `items` | array | Vendors returned by QuickBooks |
-|   ↳ `Id` | string | QuickBooks vendor ID |
-|   ↳ `DisplayName` | string | Vendor display name |
-|   ↳ `Active` | boolean | Whether the vendor is active |
+| `batchItems` | array | QuickBooks batch item responses in request order |
+| `time` | string | QuickBooks response timestamp |
+
+### `quickbooks_create_record`
+
+Create a supported QuickBooks Online accounting record
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `entity` | string | Yes | Creatable QuickBooks entity name |
+| `payload` | json | Yes | Entity payload using the fields documented by the QuickBooks API |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Created entity-specific QuickBooks record |
+| `entity` | string | QuickBooks entity name |
+| `time` | string | QuickBooks response timestamp |
+
+### `quickbooks_delete_record`
+
+Delete a supported QuickBooks Online transaction or attachment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `entity` | string | Yes | QuickBooks entity that supports hard delete |
+| `recordId` | string | Yes | QuickBooks record ID |
+| `syncToken` | string | Yes | Latest QuickBooks SyncToken for the transaction |
+| `payload` | json | No | Full entity payload when the selected transaction does not support simplified delete |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Deleted entity-specific QuickBooks record |
+| `entity` | string | QuickBooks entity name |
+| `time` | string | QuickBooks response timestamp |
+
+### `quickbooks_download_document`
+
+Download a supported QuickBooks transaction as a PDF
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `entity` | string | Yes | QuickBooks transaction type that supports PDF download |
+| `recordId` | string | Yes | QuickBooks transaction ID |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | QuickBooks transaction PDF |
+| `entity` | string | QuickBooks transaction type |
+| `recordId` | string | QuickBooks transaction ID |
+
+### `quickbooks_get_attachment_url`
+
+Get a temporary download URL for a QuickBooks attachment or thumbnail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `attachmentId` | string | Yes | QuickBooks Attachable ID |
+| `thumbnail` | boolean | No | Return a thumbnail URL instead of the original attachment URL |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `url` | string | Temporary QuickBooks attachment URL |
+| `attachmentId` | string | QuickBooks Attachable ID |
+| `thumbnail` | boolean | Whether the URL points to a thumbnail |
+
+### `quickbooks_get_changes`
+
+Get QuickBooks Online records changed during the last 30 days using CDC
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `entities` | string | Yes | Comma-separated QuickBooks entity names to track |
+| `changedSince` | string | Yes | ISO date or date-time within the last 30 days |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `changes` | array | Changed QuickBooks records grouped by entity |
+|   ↳ `entity` | string | QuickBooks entity name |
+|   ↳ `records` | array | Changed or deleted entity records |
+|   ↳ `startPosition` | number | Start position returned by QuickBooks |
+|   ↳ `maxResults` | number | Maximum results returned by QuickBooks |
+|   ↳ `totalCount` | number | Total changes returned for the entity |
+| `changedSince` | string | Requested change look-back date |
+| `mayBeTruncated` | boolean | Whether the 1,000-object CDC response limit may have been reached |
+| `time` | string | QuickBooks response timestamp |
+
+### `quickbooks_get_exchange_rate`
+
+Get a QuickBooks exchange rate for an ISO currency code and optional date
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `sourceCurrencyCode` | string | Yes | Three-letter ISO 4217 source currency code |
+| `asOfDate` | string | No | Exchange rate effective date in YYYY-MM-DD format; defaults to today |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | QuickBooks exchange rate |
+| `entity` | string | QuickBooks entity name |
+| `time` | string | QuickBooks response timestamp |
+
+### `quickbooks_get_preferences`
+
+Get company accounting, sales, purchasing, tax, and currency preferences
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | QuickBooks company preferences |
+| `entity` | string | QuickBooks entity name |
+| `time` | string | QuickBooks response timestamp |
+
+### `quickbooks_get_record`
+
+Get a QuickBooks Online accounting record by entity and ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `entity` | string | Yes | Readable QuickBooks entity name |
+| `recordId` | string | Yes | QuickBooks record ID |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Entity-specific QuickBooks record |
+| `entity` | string | QuickBooks entity name |
+| `time` | string | QuickBooks response timestamp |
+
+### `quickbooks_list_bills`
+
+List bills from QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `startPosition` | string | No | One-based start position for QuickBooks query pagination |
+| `maxResults` | string | No | Maximum number of bills to return, up to 1000 |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Bills returned by QuickBooks |
+|   ↳ `Id` | string | QuickBooks bill ID |
+|   ↳ `DocNumber` | string | Bill document number |
+|   ↳ `TxnDate` | string | Bill transaction date |
+|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `TotalAmt` | number | Bill total amount |
+|   ↳ `Balance` | number | Open bill balance |
 | `entity` | string | QuickBooks entity name |
 | `totalCount` | number | Total count returned by QuickBooks |
 | `startPosition` | number | Start position returned by QuickBooks |
@@ -76,17 +280,20 @@ List purchase orders from QuickBooks Online
 | `maxResults` | number | Maximum records returned by QuickBooks |
 | `query` | string | Query that was executed |
 
-### `quickbooks_list_bills`
+### `quickbooks_list_records`
 
-List bills from QuickBooks Online
+List or filter records for a supported QuickBooks Online accounting entity
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `entity` | string | Yes | Queryable QuickBooks entity name |
+| `whereClause` | string | No | QuickBooks query WHERE clause without the WHERE keyword |
+| `orderBy` | string | No | QuickBooks query ORDERBY clause without the ORDERBY keyword |
 | `startPosition` | string | No | One-based start position for QuickBooks query pagination |
-| `maxResults` | string | No | Maximum number of bills to return, up to 1000 |
+| `maxResults` | string | No | Maximum number of records to return, up to 1000 |
 | `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
 | `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
 
@@ -94,13 +301,36 @@ List bills from QuickBooks Online
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `items` | array | Bills returned by QuickBooks |
-|   ↳ `Id` | string | QuickBooks bill ID |
-|   ↳ `DocNumber` | string | Bill document number |
-|   ↳ `TxnDate` | string | Bill transaction date |
-|   ↳ `DueDate` | string | Bill due date |
-|   ↳ `TotalAmt` | number | Bill total amount |
-|   ↳ `Balance` | number | Open bill balance |
+| `items` | array | QuickBooks records for the selected entity |
+| `entity` | string | QuickBooks entity name |
+| `totalCount` | number | Total count returned by QuickBooks |
+| `startPosition` | number | Start position returned by QuickBooks |
+| `maxResults` | number | Maximum records returned by QuickBooks |
+| `query` | string | Query that was executed |
+
+### `quickbooks_list_vendors`
+
+List vendors from QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `activeOnly` | boolean | No | Only return active vendors |
+| `startPosition` | string | No | One-based start position for QuickBooks query pagination |
+| `maxResults` | string | No | Maximum number of vendors to return, up to 1000 |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Vendors returned by QuickBooks |
+|   ↳ `Id` | string | QuickBooks vendor ID |
+|   ↳ `DisplayName` | string | Vendor display name |
+|   ↳ `Active` | boolean | Whether the vendor is active |
 | `entity` | string | QuickBooks entity name |
 | `totalCount` | number | Total count returned by QuickBooks |
 | `startPosition` | number | Start position returned by QuickBooks |
@@ -131,4 +361,139 @@ Run a QuickBooks Online Accounting API query
 | `maxResults` | number | Maximum records returned by QuickBooks |
 | `query` | string | Query that was executed |
 
+### `quickbooks_run_report`
 
+Run a supported QuickBooks Online financial or accounting report
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `report` | string | Yes | QuickBooks Reports API endpoint name |
+| `reportParams` | json | No | Report query parameters such as start_date, end_date, and accounting_method |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `report` | string | QuickBooks report endpoint name |
+| `header` | json | Report header metadata, including period, basis, and currency when returned |
+| `columns` | json | QuickBooks report column definitions |
+| `rows` | json | QuickBooks report rows, including nested sections and summaries |
+| `time` | string | QuickBooks response timestamp |
+
+### `quickbooks_send_document`
+
+Email a supported QuickBooks transaction and return its rendered PDF
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `entity` | string | Yes | QuickBooks transaction type that supports email delivery |
+| `recordId` | string | Yes | QuickBooks transaction ID |
+| `sendTo` | string | No | Recipient email address; defaults to the address stored on the transaction |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | QuickBooks PDF returned after email delivery |
+| `entity` | string | QuickBooks transaction type |
+| `recordId` | string | QuickBooks transaction ID |
+
+### `quickbooks_update_exchange_rate`
+
+Create or update a dated QuickBooks exchange rate
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `payload` | json | Yes | ExchangeRate payload with SourceCurrencyCode, TargetCurrencyCode, Rate, AsOfDate, and SyncToken |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Updated QuickBooks exchange rate |
+| `entity` | string | QuickBooks entity name |
+| `time` | string | QuickBooks response timestamp |
+
+### `quickbooks_update_preferences`
+
+Update supported QuickBooks company accounting and workflow preferences
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `payload` | json | Yes | QuickBooks Preferences payload containing the supported settings to update |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Updated QuickBooks company preferences |
+| `entity` | string | QuickBooks entity name |
+| `time` | string | QuickBooks response timestamp |
+
+### `quickbooks_update_record`
+
+Update a supported QuickBooks Online accounting record
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `entity` | string | Yes | Updatable QuickBooks entity name |
+| `recordId` | string | Yes | QuickBooks record ID |
+| `syncToken` | string | Yes | Latest QuickBooks SyncToken for the record |
+| `payload` | json | Yes | Fields to update using the selected entity API schema |
+| `sparse` | boolean | No | Use a sparse update so omitted fields are preserved. Defaults to true. |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Updated entity-specific QuickBooks record |
+| `entity` | string | QuickBooks entity name |
+| `time` | string | QuickBooks response timestamp |
+
+### `quickbooks_upload_attachment`
+
+Upload and link a file to a QuickBooks transaction or list entity
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
+| `file` | file | Yes | File to upload and link in QuickBooks |
+| `entity` | string | Yes | QuickBooks entity type to link the attachment to |
+| `entityId` | string | Yes | QuickBooks entity ID to link the attachment to |
+| `note` | string | No | Optional note stored with the attachment |
+| `includeOnSend` | boolean | No | Include the attachment when QuickBooks sends the linked transaction |
+| `apiEnvironment` | string | No | QuickBooks API environment: production or sandbox. Defaults to production. |
+| `minorVersion` | string | No | QuickBooks Accounting API minor version. Defaults to 75. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | json | QuickBooks attachment upload response |

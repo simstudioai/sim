@@ -739,7 +739,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     services: {
       quickbooks: {
         name: 'QuickBooks',
-        description: 'Query vendors, purchase orders, bills, and accounting data.',
+        description: 'Manage QuickBooks Online accounting records, reports, and sync data.',
         providerId: 'quickbooks',
         icon: QuickBooksIcon,
         baseProviderIcon: QuickBooksIcon,

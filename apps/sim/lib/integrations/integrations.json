@@ -14484,12 +14484,80 @@
       "type": "quickbooks",
       "slug": "quickbooks",
       "name": "QuickBooks",
-      "description": "Query vendors, purchase orders, and bills in QuickBooks Online",
-      "longDescription": "Integrate QuickBooks Online into procurement workflows. List vendors, purchase orders, and bills, or run custom QuickBooks Accounting API queries against a company.",
+      "description": "Manage and report on QuickBooks Online accounting data",
+      "longDescription": "Integrate QuickBooks Online into procurement and accounting workflows. Manage supported records, inventory adjustments, preferences, currencies, reports, attachments, PDFs, change-data-capture syncs, batches, and custom queries.",
       "bgColor": "#2CA01C",
       "iconName": "QuickBooksIcon",
       "docsUrl": "https://docs.sim.ai/integrations/quickbooks",
       "operations": [
+        {
+          "name": "List Records",
+          "description": "List or filter records for a supported QuickBooks Online accounting entity"
+        },
+        {
+          "name": "Get Record",
+          "description": "Get a QuickBooks Online accounting record by entity and ID"
+        },
+        {
+          "name": "Create Record",
+          "description": "Create a supported QuickBooks Online accounting record"
+        },
+        {
+          "name": "Update Record",
+          "description": "Update a supported QuickBooks Online accounting record"
+        },
+        {
+          "name": "Delete Record",
+          "description": "Delete a supported QuickBooks Online transaction or attachment"
+        },
+        {
+          "name": "Run Report",
+          "description": "Run a supported QuickBooks Online financial or accounting report"
+        },
+        {
+          "name": "Get Preferences",
+          "description": "Get company accounting, sales, purchasing, tax, and currency preferences"
+        },
+        {
+          "name": "Update Preferences",
+          "description": "Update supported QuickBooks company accounting and workflow preferences"
+        },
+        {
+          "name": "Get Exchange Rate",
+          "description": "Get a QuickBooks exchange rate for an ISO currency code and optional date"
+        },
+        {
+          "name": "Update Exchange Rate",
+          "description": "Create or update a dated QuickBooks exchange rate"
+        },
+        {
+          "name": "Download Document PDF",
+          "description": "Download a supported QuickBooks transaction as a PDF"
+        },
+        {
+          "name": "Send Document",
+          "description": "Email a supported QuickBooks transaction and return its rendered PDF"
+        },
+        {
+          "name": "Upload Attachment",
+          "description": "Upload and link a file to a QuickBooks transaction or list entity"
+        },
+        {
+          "name": "Get Attachment URL",
+          "description": "Get a temporary download URL for a QuickBooks attachment or thumbnail"
+        },
+        {
+          "name": "Get Changes",
+          "description": "Get QuickBooks Online records changed during the last 30 days using CDC"
+        },
+        {
+          "name": "Run Batch",
+          "description": "Run up to 10 QuickBooks Online entity or query operations in one batch"
+        },
+        {
+          "name": "Run Query",
+          "description": "Run a QuickBooks Online Accounting API query"
+        },
         {
           "name": "List Vendors",
           "description": "List vendors from QuickBooks Online"
@@ -14501,13 +14569,9 @@
         {
           "name": "List Bills",
           "description": "List bills from QuickBooks Online"
-        },
-        {
-          "name": "Run Query",
-          "description": "Run a QuickBooks Online Accounting API query"
         }
       ],
-      "operationCount": 4,
+      "operationCount": 20,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
