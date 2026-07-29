@@ -29,24 +29,18 @@ const AUTH_GRACE_MS = 30_000
  * which Universal Clipboard syncs to the user's other devices. Ordering them
  * either way lets one consent authorize an exposure the prompt never described.
  */
-export const SECRET_OPERATIONS = ['reveal', 'copy'] as const
-
-type SecretOperation = (typeof SECRET_OPERATIONS)[number]
+export type SecretOperation = 'reveal' | 'copy'
 
 /**
  * Proof of presence per credential AND operation.
  *
- * Keyed on both rather than holding one scalar per credential: a single slot
- * would be overwritten on each grant, so reveal → copy → reveal prompts three
- * times inside one window even though each was already proven. Re-prompting for
- * something the user just authorized is what teaches people to approve without
- * reading.
+ * Nested rather than one scalar per credential: a single slot would be
+ * overwritten on each grant, so reveal → copy → reveal prompts three times
+ * inside one window even though each was already proven. Nesting also keeps
+ * revoke-by-credential a single delete, so a third operation added later cannot
+ * be left behind by a revoke that forgot to enumerate it.
  */
-const provenUntil = new Map<string, number>()
-
-function grantKey(credentialId: string, operation: SecretOperation): string {
-  return `${credentialId}\u0000${operation}`
-}
+const provenUntil = new Map<string, Map<SecretOperation, number>>()
 
 export interface SecretAuthRequest {
   /**
@@ -70,11 +64,15 @@ export interface SecretAuthRequest {
 }
 
 function hasFreshProof(credentialId: string, operation: SecretOperation): boolean {
-  const key = grantKey(credentialId, operation)
-  const expiry = provenUntil.get(key)
+  const grants = provenUntil.get(credentialId)
+  const expiry = grants?.get(operation)
   if (expiry === undefined) return false
-  if (Date.now() >= expiry) {
-    provenUntil.delete(key)
+  // Also lapsed when the remaining time exceeds the whole window, which is what
+  // a backwards clock step looks like — otherwise a corrected clock would leave
+  // a grant standing far longer than it was granted for.
+  const remaining = expiry - Date.now()
+  if (remaining <= 0 || remaining > AUTH_GRACE_MS) {
+    grants?.delete(operation)
     return false
   }
   return true
@@ -87,14 +85,8 @@ function hasFreshProof(credentialId: string, operation: SecretOperation): boolea
  * Called with no id, it revokes everything.
  */
 export function revokeSecretAuthorization(credentialId?: string): void {
-  if (credentialId === undefined) {
-    provenUntil.clear()
-    return
-  }
-  // Every operation's grant for this credential, since the key carries both.
-  for (const operation of SECRET_OPERATIONS) {
-    provenUntil.delete(grantKey(credentialId, operation))
-  }
+  if (credentialId === undefined) provenUntil.clear()
+  else provenUntil.delete(credentialId)
 }
 
 /**
@@ -124,7 +116,9 @@ export async function authorizeForSecret({
 }: SecretAuthRequest): Promise<boolean> {
   if (hasFreshProof(credentialId, operation)) return true
   if (!(await promptForSecret(reason, action))) return false
-  provenUntil.set(grantKey(credentialId, operation), Date.now() + AUTH_GRACE_MS)
+  const grants = provenUntil.get(credentialId) ?? new Map<SecretOperation, number>()
+  grants.set(operation, Date.now() + AUTH_GRACE_MS)
+  provenUntil.set(credentialId, grants)
   return true
 }
 

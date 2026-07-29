@@ -43,14 +43,24 @@ function isFillable(field: HTMLInputElement): boolean {
  * password field to `type="text"` without making it any less secret, and the
  * autocomplete token is the page's own declaration either way.
  */
+/**
+ * The field's `autocomplete` tokens.
+ *
+ * Token membership, not whole-string equality: the spec allows space-separated
+ * detail tokens and WebAuthn recommends `current-password webauthn`. Equality
+ * here while the agent guards split tokens would leave fill blind to exactly
+ * the fields they protect.
+ */
+function autocompleteTokens(field: HTMLInputElement): string[] {
+  return String(field.getAttribute('autocomplete') || '')
+    .toLowerCase()
+    .split(/\s+/)
+}
+
 function isPasswordField(field: HTMLInputElement): boolean {
   if (String(field.type || '').toLowerCase() === 'password') return true
-  // Token membership, not whole-string equality: the spec allows
-  // space-separated detail tokens and WebAuthn recommends
-  // `current-password webauthn`. Equality here while the agent guards split
-  // tokens would leave fill blind to exactly the fields they protect.
-  const hint = String(field.getAttribute('autocomplete') || '').toLowerCase()
-  return hint.split(/\s+/).some((token) => token === 'current-password' || token === 'new-password')
+  const tokens = autocompleteTokens(field)
+  return tokens.includes('current-password') || tokens.includes('new-password')
 }
 
 function findPasswordField(): HTMLInputElement | null {
@@ -92,10 +102,7 @@ function findUsernameField(password: HTMLInputElement): HTMLInputElement | null 
 function findIdentifierField(): HTMLInputElement | null {
   for (const field of document.querySelectorAll('input')) {
     if (!isFillable(field)) continue
-    // Token membership for the same reason as isPasswordField above:
-    // `autocomplete="section-login username"` is spec-legal.
-    const hint = String(field.getAttribute('autocomplete') || '').toLowerCase()
-    const tokens = hint.split(/\s+/)
+    const tokens = autocompleteTokens(field)
     if (tokens.includes('username') || tokens.includes('email')) return field
     if (String(field.type || '').toLowerCase() === 'email') return field
   }

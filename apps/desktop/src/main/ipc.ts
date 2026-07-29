@@ -316,14 +316,8 @@ function localFilesystemRequestNeedsToolAuthorization(request: unknown): boolean
 }
 
 /**
- * Whether the caller has a real user gesture behind it.
- *
- * Answered from the main process's own record of OS input, never by asking the
- * renderer. The previous implementation ran
- * `navigator.userActivation?.isActive === true` through
- * `frame.executeJavaScript`, which evaluates in the page's main world — the
- * same world as the compromised page this gate exists to stop, which need only
- * redefine `navigator.userActivation` to make the check always pass.
+ * Whether the caller has a real user gesture behind it, answered from the main
+ * process's own record of OS input rather than by asking the renderer.
  */
 function senderHasUserGesture(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
   return hasRecentDiscreteInput(event.sender)
@@ -337,8 +331,17 @@ function senderHasUserGesture(event: IpcMainEvent | IpcMainInvokeEvent): boolean
  * mouse reports, and DCS/OSC responses. All machine-generated and
  * self-delimiting, which is what makes them safe to enumerate.
  */
-const PTY_REPLY =
-  /^(?:\u001b\[[0-9;?]*[Rc]|\u001b\[[IO]|\u001b\[M[\s\S]{3}|\u001b\[<[0-9;]*[mM]|\u001bP[\s\S]*?\u001b\\|\u001b\][\s\S]*?\u0007)+$/
+const PTY_REPLY_PATTERNS = [
+  /\u001b\[[0-9;?]*[Rc]/, // DSR cursor position, device attributes
+  /\u001b\[[IO]/, // focus in/out (mode 1004)
+  /\u001b\[M[\s\S]{3}/, // X10 mouse report
+  /\u001b\[<[0-9;]*[mM]/, // SGR mouse report
+  /\u001bP[\s\S]*?\u001b\\/, // DCS response
+  /\u001b\][\s\S]*?\u0007/, // OSC response
+]
+const PTY_REPLY = new RegExp(
+  `^(?:${PTY_REPLY_PATTERNS.map((pattern) => pattern.source).join('|')})+$`
+)
 
 /**
  * Whether a terminal-write payload needs a person behind it.

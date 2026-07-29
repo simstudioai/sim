@@ -85,7 +85,7 @@ export async function validateUrlWithDNS(
       logger.warn('URL resolves to blocked IP address', {
         paramName,
         hostname,
-        resolvedIP: addresses[0],
+        resolvedIP: addresses.find((address) => isPrivateIp(address)),
       })
       return {
         isValid: false,
@@ -97,7 +97,7 @@ export async function validateUrlWithDNS(
       isValid: true,
       // Re-preferred over the surviving set so the pin is never an address the
       // filter above just refused.
-      resolvedIP: preferIpv4(usable),
+      resolvedIP: preferIpv4(usable as [string, ...string[]]),
       originalHostname: hostname,
     }
   } catch (error) {
@@ -217,9 +217,11 @@ export async function validateDatabaseHost(
 
   try {
     const { addresses, preferred } = await resolveHostAddresses(cleanHost)
-    const blockedAddress = addresses.find((candidate) => isPrivateIp(candidate))
+    const blockedAddress = isPrivateDatabaseHostsAllowed
+      ? undefined
+      : addresses.find((candidate) => isPrivateIp(candidate))
 
-    if (blockedAddress !== undefined && !isPrivateDatabaseHostsAllowed) {
+    if (blockedAddress !== undefined) {
       logger.warn('Database host resolves to blocked IP address', {
         paramName,
         hostname: host,
@@ -495,10 +497,7 @@ function assertGuardedRedirectTarget(url: URL, allowedPinnedIp?: string): void {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new Error(`Blocked by SSRF policy: redirect to unsupported protocol ${url.protocol}`)
   }
-  const host =
-    url.hostname.startsWith('[') && url.hostname.endsWith(']')
-      ? url.hostname.slice(1, -1)
-      : url.hostname
+  const host = unwrapIpv6Brackets(url.hostname)
   if (ipaddr.isValid(host) && isPrivateIp(host)) {
     // The pinned-private carve-out permits exactly its own validated IP as a target (a
     // self-hosted MCP on a private IP, or a same-host redirect that stays on it) — but nothing

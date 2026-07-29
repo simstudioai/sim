@@ -315,11 +315,11 @@ export class TerminalService {
   private reapFinishedRuns(terminalId: string): void {
     const pending = this.pendingRuns.get(terminalId)
     if (!pending) return
-    const stillRunning = pending.filter((handle) => {
-      if (!isRunComplete(handle)) return true
-      handle.dispose()
-      return false
-    })
+    const stillRunning: TmuxRunHandle[] = []
+    for (const handle of pending) {
+      if (isRunComplete(handle)) handle.dispose()
+      else stillRunning.push(handle)
+    }
     if (stillRunning.length === 0) this.pendingRuns.delete(terminalId)
     else this.pendingRuns.set(terminalId, stillRunning)
   }
@@ -501,7 +501,10 @@ export class TerminalService {
     }
     this.sessions.clear()
     this.tmuxCache.clear()
-    for (const terminalId of [...this.pendingRuns.keys()]) this.releasePendingRuns(terminalId)
+    for (const handles of this.pendingRuns.values()) {
+      for (const handle of handles) handle.dispose()
+    }
+    this.pendingRuns.clear()
     this.activeId = null
     // A stale claim here is what let Cmd-W close a shell that no longer exists.
     this.setPanelFocused(false)

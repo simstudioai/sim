@@ -34,12 +34,9 @@ export class DnsTimeoutError extends Error {
  * can re-apply the same preference to what is left instead of pinning an
  * address it just rejected.
  */
-export function preferIpv4(addresses: readonly string[]): string | undefined {
-  return (
-    addresses.find(
-      (address) => ipaddr.isValid(address) && ipaddr.parse(address).kind() === 'ipv4'
-    ) ?? addresses[0]
-  )
+export function preferIpv4(addresses: readonly [string, ...string[]]): string {
+  // IPv4.isValid rather than isValid + parse, which parses the string twice.
+  return addresses.find((address) => ipaddr.IPv4.isValid(address)) ?? addresses[0]
 }
 
 export interface ResolvedHost {
@@ -91,9 +88,12 @@ export async function resolveHostAddresses(
     if (resolved.length === 0) {
       throw new Error(`No addresses for ${host}`)
     }
+    const addresses = resolved.map((entry) => entry.address) as [string, ...string[]]
     return {
-      addresses: resolved.map((entry) => entry.address),
-      preferred: (resolved.find((entry) => entry.family === 4) ?? resolved[0]).address,
+      addresses,
+      // Through preferIpv4 rather than re-derived from `entry.family`, so the
+      // rule has one implementation that callers narrowing the set also use.
+      preferred: preferIpv4(addresses),
       // Resolver order is preserved (`verbatim: true`) because `preferred`
       // applies the IPv4 preference itself, so the order here is informational.
       // Deliberately unlike `createSsrfGuardedLookup` in apps/sim, which hands

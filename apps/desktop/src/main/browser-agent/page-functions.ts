@@ -303,10 +303,7 @@ export function clickElement(id: number): unknown {
   const isSecretField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
-    // Space-separated detail tokens are spec-legal and WebAuthn recommends
-    // `current-password webauthn`, so whole-string equality missed real values
-    // on exactly the type=text credential fields where autocomplete is the
-    // only signal there is.
+    // Token membership, not equality — see the module header.
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint
       .split(/\s+/)
@@ -359,10 +356,7 @@ export function focusElementForTyping(id: number): unknown {
   const isSecretField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
-    // Space-separated detail tokens are spec-legal and WebAuthn recommends
-    // `current-password webauthn`, so whole-string equality missed real values
-    // on exactly the type=text credential fields where autocomplete is the
-    // only signal there is.
+    // Token membership, not equality — see the module header.
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint
       .split(/\s+/)
@@ -416,25 +410,14 @@ export function readActiveElementState(): unknown {
   const isSecretField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
-    // Space-separated detail tokens are spec-legal and WebAuthn recommends
-    // `current-password webauthn`, so whole-string equality missed real values
-    // on exactly the type=text credential fields where autocomplete is the
-    // only signal there is.
+    // Token membership, not equality — see the module header.
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint
       .split(/\s+/)
       .some((token) => token === 'current-password' || token === 'new-password')
   }
 
-  /**
-   * Fields whose value is as sensitive as a password but which the agent must
-   * still be able to FILL: one-time codes and payment details.
-   *
-   * Deliberately separate from isSecretField. That one also gates keystrokes
-   * (activeElementSecrecy feeds the driver's press-key guard), so folding these
-   * tokens into it would stop the agent completing a checkout or an OTP prompt —
-   * work it is legitimately asked to do. Only the value is withheld here.
-   */
+  /** Sensitive-but-fillable fields; see collectSnapshot's copy for why. */
   const isSensitiveValueField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
@@ -548,10 +531,7 @@ export function activeElementSecrecy(): string {
   const isSecretField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
-    // Space-separated detail tokens are spec-legal and WebAuthn recommends
-    // `current-password webauthn`, so whole-string equality missed real values
-    // on exactly the type=text credential fields where autocomplete is the
-    // only signal there is.
+    // Token membership, not equality — see the module header.
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint
       .split(/\s+/)
@@ -594,24 +574,31 @@ export function activeElementSecrecy(): string {
     // detector is `attachShadow` throwing, which is destructive. Narrowing this
     // needs the driver to stop trusting a page-derived signal, not a better
     // guess here.
+    // Declared inside the function: this is injected as source, so it cannot
+    // reference module scope, but a local is fine and keeps the list diffable.
+    // IFRAME/FRAME are here so the frame branch below, not this early return,
+    // classifies them.
+    const FOCUSABLE_TAGS = [
+      'INPUT',
+      'TEXTAREA',
+      'SELECT',
+      'BUTTON',
+      'A',
+      'AREA',
+      'SUMMARY',
+      'DIALOG',
+      'VIDEO',
+      'AUDIO',
+      'EMBED',
+      'OBJECT',
+      'IFRAME',
+      'FRAME',
+    ]
     const focusableItself =
       active === active.ownerDocument.body ||
       active.isContentEditable ||
       active.hasAttribute('tabindex') ||
-      tag === 'INPUT' ||
-      tag === 'TEXTAREA' ||
-      tag === 'SELECT' ||
-      tag === 'BUTTON' ||
-      tag === 'A' ||
-      tag === 'AREA' ||
-      tag === 'SUMMARY' ||
-      tag === 'DIALOG' ||
-      tag === 'VIDEO' ||
-      tag === 'AUDIO' ||
-      tag === 'EMBED' ||
-      tag === 'OBJECT' ||
-      tag === 'IFRAME' ||
-      tag === 'FRAME'
+      FOCUSABLE_TAGS.indexOf(tag) !== -1
     if (!shadow && !focusableItself) return 'opaque'
     if (tag === 'IFRAME' || tag === 'FRAME') {
       let inner: Document | null = null
@@ -636,10 +623,7 @@ export function typeIntoElement(id: number, text: string, submit: boolean): unkn
   const isSecretField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
-    // Space-separated detail tokens are spec-legal and WebAuthn recommends
-    // `current-password webauthn`, so whole-string equality missed real values
-    // on exactly the type=text credential fields where autocomplete is the
-    // only signal there is.
+    // Token membership, not equality — see the module header.
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint
       .split(/\s+/)
@@ -712,10 +696,7 @@ export function pressKeyOnPage(
   const isSecretField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
-    // Space-separated detail tokens are spec-legal and WebAuthn recommends
-    // `current-password webauthn`, so whole-string equality missed real values
-    // on exactly the type=text credential fields where autocomplete is the
-    // only signal there is.
+    // Token membership, not equality — see the module header.
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint
       .split(/\s+/)

@@ -20,6 +20,25 @@ export interface UrlGuardResult {
 const OK: UrlGuardResult = { ok: true }
 
 /**
+ * A URL's host in the one form every guard here compares against.
+ *
+ * IPv6 brackets are unwrapped so the address classifiers see a bare address,
+ * and a trailing dot is dropped — it is a legal absolute name that resolves the
+ * same, so leaving it on would let `intranet.` and `intranet` be judged and
+ * cached as two different hosts. Null when the URL does not parse or carries no
+ * host, which every caller treats as nothing to block.
+ */
+function guardHost(rawUrl: string): string | null {
+  let hostname: string
+  try {
+    hostname = new URL(rawUrl).hostname
+  } catch {
+    return null
+  }
+  return unwrapIpv6Brackets(hostname).replace(/\.$/, '') || null
+}
+
+/**
  * Whether an address is off limits to the embedded browser.
  *
  * Loopback is deliberately allowed: it is the user's own machine, and opening
@@ -66,7 +85,10 @@ export async function checkAgentUrl(rawUrl: string): Promise<UrlGuardResult> {
     return { ok: false, error: 'URL must be absolute and start with http:// or https://' }
   }
 
-  const host = unwrapIpv6Brackets(url.hostname)
+  const host = guardHost(url.href)
+  if (!host) {
+    return { ok: false, error: 'That address has no host to check.' }
+  }
 
   // IP literal: classify directly, no DNS lookup needed.
   if (isIpLiteral(host)) {
@@ -126,7 +148,7 @@ const HOST_VERDICT_TTL_MS = 30_000
 
 /**
  * Ceiling on the cache. A hostile page can name unlimited hostnames, so this is
- * bounded rather than left to grow; the oldest entry is evicted first.
+ * bounded rather than left to grow.
  */
 const MAX_HOST_VERDICTS = 256
 
@@ -187,15 +209,7 @@ export function clearHostVerdictCache(): void {
  * stick.
  */
 export async function isBlockedSubresourceUrl(rawUrl: string): Promise<boolean> {
-  let hostname: string
-  try {
-    hostname = new URL(rawUrl).hostname
-  } catch {
-    return false
-  }
-  // A trailing dot is a legal absolute name that resolves the same, so it is
-  // stripped for the key rather than caching the same host twice.
-  const host = unwrapIpv6Brackets(hostname).replace(/\.$/, '')
+  const host = guardHost(rawUrl)
   if (!host) return false
   if (isIpLiteral(host)) return isBlockedAddress(host)
 
@@ -236,12 +250,7 @@ export async function isBlockedSubresourceUrl(rawUrl: string): Promise<boolean> 
  * requests still relying on this alone.
  */
 export function isBlockedRequestUrl(rawUrl: string): boolean {
-  try {
-    // isPrivateIpHost strips IPv6 brackets itself; unwrap again for the
-    // loopback carve-out, which takes a bare address.
-    const host = new URL(rawUrl).hostname
-    return isPrivateIpHost(host) && !isLoopbackIp(unwrapIpv6Brackets(host))
-  } catch {
-    return false
-  }
+  const host = guardHost(rawUrl)
+  if (!host) return false
+  return isPrivateIpHost(host) && !isLoopbackIp(host)
 }
