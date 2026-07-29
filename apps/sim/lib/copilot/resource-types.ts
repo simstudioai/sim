@@ -1,5 +1,6 @@
 export type MothershipResourceType =
   | 'table'
+  | 'view'
   | 'file'
   | 'workflow'
   | 'knowledgebase'

@@ -35,5 +35,12 @@ describe('mapResourceToContext', () => {
       tableId: 't-1',
       label: 'Leads',
     })
+    expect(
+      mapResourceToContext(resource({ type: 'view', id: 't-1:v-1', title: 'Qualified leads' }))
+    ).toEqual({
+      kind: 'table',
+      tableId: 't-1',
+      label: 'Qualified leads',
+    })
   })
 })

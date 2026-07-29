@@ -17,7 +17,7 @@ import { Check, Pencil, Plus, Trash } from '@sim/emcn/icons'
 import type { TableViewWire } from '@/lib/api/contracts/tables'
 
 /** Label for the built-in unfiltered state. Not a stored row — `null` view id. */
-export const ALL_ROWS_VIEW_LABEL = 'All'
+export const ALL_ROWS_VIEW_LABEL = 'Default view'
 
 /** Matches the breadcrumb location popover's hover-intent grace period. */
 const POPOVER_CLOSE_DELAY_MS = 120
@@ -60,7 +60,7 @@ export const ViewsMenu = memo(function ViewsMenu({
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const activeView = activeViewId ? views.find((view) => view.id === activeViewId) : undefined
-  const label = activeView?.name ?? 'View'
+  const label = activeView?.name ?? ALL_ROWS_VIEW_LABEL
 
   const cancelScheduledClose = () => {
     if (closeTimeoutRef.current) {

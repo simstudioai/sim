@@ -95,6 +95,8 @@ interface TableProps {
   /** Identifiers — only set in embedded mode. Page mode reads from `useParams()`. */
   workspaceId?: string
   tableId?: string
+  /** View selected when the table is opened as a persisted chat resource. */
+  viewId?: string
   /**
    * Whether an admin may CHANGE locks, resolved server-side by the page (the
    * flag's gating lives in AppConfig and has no client counterpart). Defaults
@@ -208,6 +210,7 @@ export function Table({
   embedded,
   workspaceId: propWorkspaceId,
   tableId: propTableId,
+  viewId: propViewId,
   tableLocksEnabled = false,
   viewsEnabled = false,
 }: TableProps = {}) {
@@ -263,6 +266,15 @@ export function Table({
 
   const [{ sort: sortColumn, dir: sortDirection, view: activeViewId }, setTableParams] =
     useQueryStates(tableDetailParsers, tableDetailUrlKeys)
+
+  /** A chat View resource owns its initial selection. After seeding, normal
+   * selector and URL behavior take over so users can switch Views as usual. */
+  const seededPropViewRef = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    if (!propViewId || seededPropViewRef.current === propViewId) return
+    seededPropViewRef.current = propViewId
+    void setTableParams({ view: propViewId })
+  }, [propViewId, setTableParams])
 
   // Read-only mirrors for the resolve effect: it must know whether the user has
   // already applied a filter / hidden columns without re-running when they change.
@@ -679,9 +691,10 @@ export function Table({
   }, [activeView, columns.length, liveColumnIds])
 
   /**
-   * Whether the live state diverges from what the active view stores (or, on
-   * "All", whether anything is applied at all). Drives the Save button — it is
-   * the only affordance that persists, so ad-hoc exploration stays throwaway.
+   * Whether live state diverges from the active View (or, on Default view,
+   * whether anything is applied). Filter/sort auto-save while a View is active;
+   * this still drives Save for Default-view creation, hidden-column edits, and
+   * the short interval before an auto-save response updates the cache.
    */
   const isViewDirty = storedViewConfig
     ? !isSameViewConfig(currentViewConfig, storedViewConfig)
@@ -1051,18 +1064,48 @@ export function Table({
     () => ({
       options: columnOptions,
       active: sortColumn ? { column: sortColumn, direction: sortDirection } : null,
-      onSort: (column, direction) => setTableParams({ sort: column, dir: direction }),
+      onSort: (column, direction) => {
+        setTableParams({ sort: column, dir: direction })
+        if (activeView && userPermissions.canEdit) {
+          updateViewMutation.mutate(
+            { viewId: activeView.id, configPatch: { sort: { [column]: direction } } },
+            { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save View sort')) }
+          )
+        }
+      },
       /**
        * Clearing writes the default direction (stripped by clearOnDefault) and
        * drops the column, leaving a clean URL with no active sort.
        */
-      onClear: () => setTableParams({ sort: null, dir: DEFAULT_TABLE_DETAIL_SORT_DIRECTION }),
+      onClear: () => {
+        setTableParams({ sort: null, dir: DEFAULT_TABLE_DETAIL_SORT_DIRECTION })
+        if (activeView && userPermissions.canEdit) {
+          updateViewMutation.mutate(
+            { viewId: activeView.id, configPatch: { sort: null } },
+            { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save View sort')) }
+          )
+        }
+      },
     }),
-    [columnOptions, sortColumn, sortDirection, setTableParams]
+    [
+      columnOptions,
+      sortColumn,
+      sortDirection,
+      setTableParams,
+      activeView,
+      userPermissions.canEdit,
+      updateViewMutation,
+    ]
   )
 
   const handleFilterApply = (next: Filter | null) => {
     setFilter(next)
+    if (activeView && userPermissions.canEdit) {
+      updateViewMutation.mutate(
+        { viewId: activeView.id, configPatch: { filter: next } },
+        { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save View filter')) }
+      )
+    }
   }
 
   const breadcrumbs = useMemo(

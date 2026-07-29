@@ -47,9 +47,9 @@ export class TableViewValidationError extends Error {
  * every view on every column delete, stale ids are pruned here on read — the
  * stored blob stays as-is and self-heals on the next save.
  *
- * `filter` is deliberately left untouched: pruning a predicate would silently
- * widen the view's row set, which is worse than surfacing a filter the user can
- * see and remove. The filter builder already renders a stale column id as-is.
+ * A deleted filter column is removed recursively. This can widen the result set,
+ * but leaves the View usable and matches the visible filter controls rather than
+ * retaining a predicate the user can no longer edit.
  */
 export function pruneViewConfig(
   config: TableViewConfig,
@@ -57,6 +57,25 @@ export function pruneViewConfig(
 ): TableViewConfig {
   const live = new Set(columns.map(getColumnId))
   const pruned: TableViewConfig = { ...config }
+
+  if (config.filter) {
+    const pruneFilter = (filter: NonNullable<TableViewConfig['filter']>) => {
+      const next: NonNullable<TableViewConfig['filter']> = {}
+      for (const [field, condition] of Object.entries(filter)) {
+        if ((field === '$and' || field === '$or') && Array.isArray(condition)) {
+          const groups = condition
+            .map((group) => pruneFilter(group as NonNullable<TableViewConfig['filter']>))
+            .filter((group) => Object.keys(group).length > 0)
+          if (groups.length > 0) next[field] = groups
+          continue
+        }
+        if (live.has(field)) next[field] = condition
+      }
+      return next
+    }
+    const filter = pruneFilter(config.filter)
+    pruned.filter = Object.keys(filter).length > 0 ? filter : null
+  }
 
   if (config.columnOrder) pruned.columnOrder = config.columnOrder.filter((id) => live.has(id))
   if (config.pinnedColumns) pruned.pinnedColumns = config.pinnedColumns.filter((id) => live.has(id))
@@ -79,6 +98,35 @@ export function pruneViewConfig(
   return pruned
 }
 
+/** Rejects new writes that do not use stable ids from the source Table schema. */
+export function validateTableViewConfig(
+  config: TableViewConfig,
+  columns: ColumnDefinition[]
+): void {
+  const live = new Set(columns.map(getColumnId))
+  const assertFilter = (filter: NonNullable<TableViewConfig['filter']>) => {
+    for (const [field, condition] of Object.entries(filter)) {
+      if ((field === '$and' || field === '$or') && Array.isArray(condition)) {
+        for (const group of condition) {
+          assertFilter(group as NonNullable<TableViewConfig['filter']>)
+        }
+        continue
+      }
+      if (!live.has(field)) {
+        throw new TableViewValidationError(`Unknown View filter column: ${field}`)
+      }
+    }
+  }
+  if (config.filter) assertFilter(config.filter)
+  if (config.sort) {
+    for (const field of Object.keys(config.sort)) {
+      if (!live.has(field)) {
+        throw new TableViewValidationError(`Unknown View sort column: ${field}`)
+      }
+    }
+  }
+}
+
 function toTableView(row: typeof tableViews.$inferSelect, columns: ColumnDefinition[]): TableView {
   return {
     id: row.id,
@@ -92,7 +140,7 @@ function toTableView(row: typeof tableViews.$inferSelect, columns: ColumnDefinit
   }
 }
 
-/** Every view on a table, oldest first, with stale column references pruned. */
+/** Every View on a Table, alphabetically by name, with stale column references pruned. */
 export async function listTableViews(
   tableId: string,
   columns: ColumnDefinition[]
@@ -101,9 +149,25 @@ export async function listTableViews(
     .select()
     .from(tableViews)
     .where(eq(tableViews.tableId, tableId))
-    .orderBy(asc(tableViews.createdAt), asc(tableViews.id))
+    .orderBy(asc(sql`lower(${tableViews.name})`), asc(tableViews.createdAt), asc(tableViews.id))
 
   return rows.map((row) => toTableView(row, columns))
+}
+
+/** Resolves a View by stable id for chat resources and other internal callers. */
+export async function getTableView(viewId: string): Promise<TableView | null> {
+  const [row] = await db.select().from(tableViews).where(eq(tableViews.id, viewId)).limit(1)
+  if (!row) return null
+  return {
+    id: row.id,
+    tableId: row.tableId,
+    name: row.name,
+    config: (row.config ?? {}) as TableViewConfig,
+    isDefault: row.isDefault,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
 }
 
 function normalizeName(name: string): string {
@@ -123,6 +187,7 @@ export interface CreateTableViewData {
 
 export async function createTableView(data: CreateTableViewData): Promise<TableView> {
   const name = normalizeName(data.name)
+  validateTableViewConfig(data.config, data.columns)
 
   const [row] = await db
     .insert(tableViews)
@@ -162,6 +227,8 @@ export interface UpdateTableViewData {
  * can't each replace the whole blob from their own stale snapshot.
  */
 export async function updateTableView(data: UpdateTableViewData): Promise<TableView | null> {
+  if (data.config !== undefined) validateTableViewConfig(data.config, data.columns)
+  if (data.configPatch !== undefined) validateTableViewConfig(data.configPatch, data.columns)
   const patch: Partial<typeof tableViews.$inferInsert> = { updatedAt: new Date() }
   if (data.name !== undefined) patch.name = normalizeName(data.name)
   if (data.config !== undefined) patch.config = data.config

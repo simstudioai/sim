@@ -4,7 +4,14 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getWorkspaceFileMock, resolveWorkspaceFileReferenceMock } = vi.hoisted(() => ({
+const {
+  getTableByIdMock,
+  getTableViewMock,
+  getWorkspaceFileMock,
+  resolveWorkspaceFileReferenceMock,
+} = vi.hoisted(() => ({
+  getTableByIdMock: vi.fn(),
+  getTableViewMock: vi.fn(),
   getWorkspaceFileMock: vi.fn(),
   resolveWorkspaceFileReferenceMock: vi.fn(),
 }))
@@ -19,7 +26,11 @@ vi.mock('@/lib/workflows/utils', () => ({
 }))
 
 vi.mock('@/lib/table/service', () => ({
-  getTableById: vi.fn(),
+  getTableById: getTableByIdMock,
+}))
+
+vi.mock('@/lib/table/views/service', () => ({
+  getTableView: getTableViewMock,
 }))
 
 vi.mock('@/lib/knowledge/service', () => ({
@@ -95,6 +106,54 @@ describe('executeOpenResource', () => {
           path: 'files/Docs/MAC_Brand_Guidelines_May_2021%20(1).docx',
         },
       ],
+    })
+  })
+
+  it('opens a View as a durable resource backed by its source Table', async () => {
+    getTableViewMock.mockResolvedValue({
+      id: 'view_1',
+      tableId: 'tbl_1',
+      name: 'Qualified leads',
+    })
+    getTableByIdMock.mockResolvedValue({
+      id: 'tbl_1',
+      workspaceId: 'workspace-1',
+      name: 'Leads',
+    })
+
+    const result = await executeOpenResource(
+      { resources: [{ type: 'view', id: 'view_1' }] },
+      { userId: 'user-1', workflowId: 'workflow-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      output: { opened: 1, errors: [] },
+      resources: [{ type: 'view', id: 'tbl_1:view_1', title: 'Qualified leads' }],
+    })
+  })
+
+  it('refuses a View whose source Table belongs to another workspace', async () => {
+    getTableViewMock.mockResolvedValue({
+      id: 'view_1',
+      tableId: 'tbl_1',
+      name: 'Unsafe View',
+    })
+    getTableByIdMock.mockResolvedValue({
+      id: 'tbl_1',
+      workspaceId: 'workspace-2',
+      name: 'Private Table',
+    })
+
+    const result = await executeOpenResource(
+      { resources: [{ type: 'view', id: 'view_1' }] },
+      { userId: 'user-1', workflowId: 'workflow-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      output: { opened: 0, errors: ['View not found in the current workspace.'] },
+      resources: [],
     })
   })
 })

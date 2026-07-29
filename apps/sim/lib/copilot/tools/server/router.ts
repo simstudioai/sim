@@ -116,6 +116,7 @@ const WRITE_ACTIONS: Record<string, string[]> = {
     'delete_column',
     'update_column',
     'add_enrichment',
+    'create_view',
   ],
   [ManageCustomTool.id]: ['add', 'edit', 'delete'],
   [ManageMcpTool.id]: ['add', 'edit', 'delete'],
