@@ -243,6 +243,23 @@ function trimUntrustedJson<T>(
 }
 
 /**
+ * Whether Git reported a path in its quoted form rather than literally.
+ *
+ * `core.quotePath=false` stops Git escaping non-ASCII bytes, but it still quotes
+ * any path it could not otherwise fit on one line — one containing a newline,
+ * a double quote, a backslash, or a tab. Such a path arrives with a leading `"`,
+ * so a prefix test like the `.github/` refusal below silently fails to match it.
+ *
+ * Refusing outright rather than unescaping: these characters have no legitimate
+ * place in a source path, and a decoder here would be a second parser of Git's
+ * quoting rules sitting on the security-relevant side of the push. A path Git
+ * declined to state plainly is one this code declines to push.
+ */
+function isQuotedGitPath(path: string): boolean {
+  return path.startsWith('"')
+}
+
+/**
  * Bounds a diff to the same ceiling Create PR applies to its own.
  *
  * Applied to each round's diff and again to the accumulation, because the
@@ -545,6 +562,12 @@ async function finalizeRound(
     throw new BabysitGitHubError(
       'bounds_exceeded',
       'Babysit cumulative change bounds were exceeded'
+    )
+  }
+  if (cumulativeChangedFiles.some(isQuotedGitPath)) {
+    throw new BabysitGitHubError(
+      'refused_content',
+      'Babysit refuses to push a path Git could not report literally'
     )
   }
   if (cumulativeChangedFiles.some((file) => file === '.github' || file.startsWith('.github/'))) {

@@ -652,6 +652,34 @@ describe('runBabysitPiWithOptions', () => {
     expect(prepare?.command).toContain('core.quotePath=false')
   })
 
+  // `core.quotePath=false` stops the non-ASCII escaping but Git still quotes a path
+  // containing a newline, quote, backslash, or tab — which arrives with a leading `"`
+  // and so slips past a `.github/` prefix test. Any quoted path is refused outright.
+  it.each([
+    ['newline', '".github/workflows/new\\nline.yml"'],
+    ['double quote', '".github/quo\\"te.yml"'],
+    ['backslash', '".github/back\\\\slash.yml"'],
+    ['tab', '".github/tab\\tx.yml"'],
+  ])('refuses a %s path that Git could not report literally', async (_label, quotedPath) => {
+    mockFetchSnapshot.mockResolvedValue(snapshot)
+    mockFetchThreads.mockResolvedValue({
+      actionable: [trustedThread],
+      skipped: [],
+      totalUnresolved: 1,
+      latestReview: null,
+    })
+    mockFetchChecks.mockResolvedValue(greenChecks)
+    const { runner, runCalls } = makeRunner({
+      prepareStdout: `__CUMULATIVE_CHANGED__=${quotedPath}\n__CUMULATIVE_DIFF_BYTES__=20\n__CHANGED__=${quotedPath}\n__NEW_SHA__=${NEW_SHA}\n__NEEDS_PUSH__=1\n`,
+    })
+    mockWithPiSandbox.mockImplementation(async (callback) => callback(runner))
+
+    const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() })
+
+    expect(result).toMatchObject({ stopReason: 'refused_content', commitsPushed: 0 })
+    expect(runCalls.some(({ command }) => command.includes('CURRENT_DIGEST='))).toBe(false)
+  })
+
   it('reports a hardened push rejection without losing partial counters', async () => {
     mockFetchSnapshot.mockResolvedValue(snapshot)
     mockFetchThreads.mockResolvedValue({
