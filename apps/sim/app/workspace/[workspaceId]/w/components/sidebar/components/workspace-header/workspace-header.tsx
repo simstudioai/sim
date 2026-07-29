@@ -20,6 +20,7 @@ import {
 } from '@sim/emcn'
 import { ManageWorkspace, PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { useQueryClient } from '@tanstack/react-query'
 import { MoreHorizontal, Search } from 'lucide-react'
 import { useActiveOrganization } from '@/lib/auth/auth-client'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
@@ -30,7 +31,14 @@ import {
   type CreateWorkspaceTarget,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
-import type { Workspace, WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
+import { ViewInvitationsMenuItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-menu-item'
+import { ViewInvitationsModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-modal'
+import { invitationKeys } from '@/hooks/queries/invitations'
+import {
+  type Workspace,
+  type WorkspaceCreationPolicy,
+  workspaceKeys,
+} from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
@@ -136,6 +144,7 @@ function WorkspaceHeaderImpl({
 }: WorkspaceHeaderProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
+  const [isViewInvitationsOpen, setIsViewInvitationsOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false)
@@ -227,6 +236,7 @@ function WorkspaceHeaderImpl({
 
   const { data: viewerActiveOrganization } = useActiveOrganization()
   const { navigateToSettings } = useSettingsNavigation()
+  const queryClient = useQueryClient()
 
   const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
   const isWorkspaceReady = !isWorkspacesLoading && activeWorkspaceFull !== null
@@ -428,6 +438,14 @@ function WorkspaceHeaderImpl({
               (isContextMenuOpen || isContextMenuOpeningRef.current || editingWorkspaceId)
             ) {
               return
+            }
+            if (open) {
+              // Opening the switcher is the "user is looking" moment: refetch
+              // stale server state so a workspace the user was auto-added to,
+              // or a fresh pending invitation, appears without a page refresh
+              // (these are app-wide queries with no focus refetch on the web).
+              void queryClient.refetchQueries({ queryKey: workspaceKeys.lists(), stale: true })
+              void queryClient.refetchQueries({ queryKey: invitationKeys.mine(), stale: true })
             }
             setIsWorkspaceMenuOpen(open)
             if (open && showSearch) {
@@ -739,6 +757,12 @@ function WorkspaceHeaderImpl({
                     Invite teammates
                   </Chip>
                 </DisabledReasonTooltip>
+                <ViewInvitationsMenuItem
+                  onOpen={() => {
+                    setIsWorkspaceMenuOpen(false)
+                    setIsViewInvitationsOpen(true)
+                  }}
+                />
                 <DisabledReasonTooltip reason={inviteDisabledReason}>
                   <Chip
                     leftIcon={ManageWorkspace}
@@ -847,6 +871,7 @@ function WorkspaceHeaderImpl({
         inviteDisabledReason={inviteDisabledReason}
         organizationId={activeWorkspaceFull?.organizationId ?? null}
       />
+      <ViewInvitationsModal open={isViewInvitationsOpen} onOpenChange={setIsViewInvitationsOpen} />
       <DeleteModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}

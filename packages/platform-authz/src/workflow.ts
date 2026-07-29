@@ -1,4 +1,4 @@
-import { db, workflow, workflowFolder, workspace } from '@sim/db'
+import { db, folder as folderTable, workflow, workspace } from '@sim/db'
 import { and, eq, isNull } from 'drizzle-orm'
 import {
   type PermissionType,
@@ -107,12 +107,18 @@ export async function getFolderLockStatus(folderId: string | null): Promise<Lock
     visited.add(currentFolderId)
     const [folder] = await db
       .select({
-        id: workflowFolder.id,
-        parentId: workflowFolder.parentId,
-        locked: workflowFolder.locked,
+        id: folderTable.id,
+        parentId: folderTable.parentId,
+        locked: folderTable.locked,
       })
-      .from(workflowFolder)
-      .where(and(eq(workflowFolder.id, currentFolderId), isNull(workflowFolder.archivedAt)))
+      .from(folderTable)
+      .where(
+        and(
+          eq(folderTable.id, currentFolderId),
+          isNull(folderTable.deletedAt),
+          eq(folderTable.resourceType, 'workflow')
+        )
+      )
       .limit(1)
 
     if (!folder) break
@@ -215,11 +221,11 @@ export async function isFolderInWorkspace(
 
   const [folder] = await db
     .select({
-      workspaceId: workflowFolder.workspaceId,
-      archivedAt: workflowFolder.archivedAt,
+      workspaceId: folderTable.workspaceId,
+      archivedAt: folderTable.deletedAt,
     })
-    .from(workflowFolder)
-    .where(eq(workflowFolder.id, folderId))
+    .from(folderTable)
+    .where(and(eq(folderTable.id, folderId), eq(folderTable.resourceType, 'workflow')))
     .limit(1)
 
   return Boolean(folder && folder.workspaceId === workspaceId && !folder.archivedAt)

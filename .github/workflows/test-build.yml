@@ -123,6 +123,15 @@ jobs:
       - name: API contract boundary audit
         run: bun run check:api-validation:strict
 
+      - name: Desktop bridge contract audit
+        run: bun run check:desktop-bridge
+
+      # Complements the bridge audit above, which compares against a snapshot
+      # this same PR is allowed to regenerate. This one derives every fact from
+      # the source both sides execute, so it has no such blind spot.
+      - name: Desktop IPC contract audit
+        run: bun run check:desktop-ipc
+
       - name: Shared utils enforcement audit
         run: bun run check:utils
 

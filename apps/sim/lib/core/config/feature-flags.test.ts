@@ -75,7 +75,6 @@ describe('getFeatureFlags', () => {
   it('derives flags from fallback secrets when AppConfig is disabled, without fetching', async () => {
     const flags = await getFeatureFlags()
     // All registered flags should be present, disabled (env vars unset in test env)
-    expect(flags['mothership-beta']).toEqual({ enabled: false })
     expect(flags['pii-redaction']).toEqual({ enabled: false })
     expect(flags['pii-granular-redaction']).toEqual({ enabled: false })
     expect(flags['trigger-eu-region']).toEqual({ enabled: false })
@@ -103,7 +102,6 @@ describe('getFeatureFlags', () => {
     setEnvFlags({ isAppConfigEnabled: true })
     mockFetch.mockResolvedValue(null)
     const flags = await getFeatureFlags()
-    expect(flags['mothership-beta']).toEqual({ enabled: false })
     expect(flags['pii-redaction']).toEqual({ enabled: false })
     expect(flags['pii-granular-redaction']).toEqual({ enabled: false })
     expect(flags['trigger-eu-region']).toEqual({ enabled: false })

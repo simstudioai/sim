@@ -2,6 +2,7 @@ import {
   credential,
   customTools,
   document,
+  folder as folderTable,
   knowledgeBase,
   mcpServers,
   skill,
@@ -10,7 +11,6 @@ import {
   workflowDeploymentVersion,
   workflowMcpServer,
   workspaceEnvironment,
-  workspaceFileFolder,
   workspaceFiles,
 } from '@sim/db/schema'
 import { and, count, eq, exists, inArray, isNull, sql } from 'drizzle-orm'
@@ -152,14 +152,15 @@ const fileCandidatesWithFolderQuery = (
       key: workspaceFiles.key,
       label: sql<string>`coalesce(${workspaceFiles.displayName}, ${workspaceFiles.originalName})`,
       folderId: workspaceFiles.folderId,
-      folderName: workspaceFileFolder.name,
+      folderName: folderTable.name,
     })
     .from(workspaceFiles)
     .leftJoin(
-      workspaceFileFolder,
+      folderTable,
       and(
-        eq(workspaceFiles.folderId, workspaceFileFolder.id),
-        isNull(workspaceFileFolder.deletedAt)
+        eq(workspaceFiles.folderId, folderTable.id),
+        eq(folderTable.resourceType, 'file'),
+        isNull(folderTable.deletedAt)
       )
     )
     .where(

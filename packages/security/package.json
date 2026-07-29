@@ -26,6 +26,14 @@
       "types": "./src/hmac.ts",
       "default": "./src/hmac.ts"
     },
+    "./hostnames": {
+      "types": "./src/hostnames.ts",
+      "default": "./src/hostnames.ts"
+    },
+    "./ssrf": {
+      "types": "./src/ssrf.ts",
+      "default": "./src/ssrf.ts"
+    },
     "./tokens": {
       "types": "./src/tokens.ts",
       "default": "./src/tokens.ts"
@@ -40,7 +48,9 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
-  "dependencies": {},
+  "dependencies": {
+    "ipaddr.js": "2.3.0"
+  },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
     "@types/node": "24.2.1",

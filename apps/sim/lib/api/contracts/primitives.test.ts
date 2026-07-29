@@ -4,8 +4,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   customPatternSchema,
+  organizationIdSchema,
   piiStagePolicySchema,
   piiStagesSchema,
+  workflowIdSchema,
+  workspaceFileIdSchema,
+  workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 
 describe('customPatternSchema', () => {
@@ -100,5 +104,48 @@ describe('piiStagesSchema', () => {
     })
     expect(parsed.blockOutputs.entityTypes).toEqual([])
     expect(parsed.blockOutputs.enabled).toBe(true)
+  })
+})
+
+/**
+ * `.min(1)` only fires for a present-but-empty string, so without the
+ * `z.string({ error })` form an omitted field falls back to Zod's default
+ * "expected string, received undefined" — which does not name the field the
+ * caller left out. These are the shared id schemas every contract builds on, so
+ * the wording here is the first thing an API consumer sees on a malformed
+ * request.
+ */
+describe('shared id schemas name the field when it is missing', () => {
+  const cases = [
+    ['workspaceIdSchema', workspaceIdSchema, 'Workspace ID is required'],
+    ['organizationIdSchema', organizationIdSchema, 'Organization ID is required'],
+    ['workflowIdSchema', workflowIdSchema, 'Workflow ID is required'],
+    ['workspaceFileIdSchema', workspaceFileIdSchema, 'File ID is required'],
+  ] as const
+
+  for (const [name, schema, message] of cases) {
+    it(`${name}: omitted value reports "${message}"`, () => {
+      const result = schema.safeParse(undefined)
+
+      expect(result.success).toBe(false)
+      expect(result.error?.issues[0]?.message).toBe(message)
+    })
+
+    it(`${name}: empty string reports "${message}"`, () => {
+      const result = schema.safeParse('')
+
+      expect(result.success).toBe(false)
+      expect(result.error?.issues[0]?.message).toBe(message)
+    })
+
+    it(`${name}: a valid id still passes`, () => {
+      expect(schema.safeParse('abc-123').success).toBe(true)
+    })
+  }
+
+  it('does not leak Zod default wording for a missing field', () => {
+    const result = workspaceIdSchema.safeParse(undefined)
+
+    expect(result.error?.issues[0]?.message).not.toContain('received undefined')
   })
 })

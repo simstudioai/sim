@@ -23,6 +23,10 @@ const SENSITIVE_KEY_PATTERNS: RegExp[] = [
   /^.*password$/i,
   /^.*token$/i,
   /^.*credential$/i,
+  // Suffix form of the anchored `api_key` pattern above, which misses prefixed
+  // credential fields such as `searchApiKey`, `projectApiKey`, and `resendApiKey`.
+  /^.*api[_-]?key$/i,
+  /^passphrase$/i,
   /^authorization$/i,
   /^bearer$/i,
   /^private$/i,

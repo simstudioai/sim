@@ -9,18 +9,24 @@ const { sqlCalls } = vi.hoisted(() => ({
   sqlCalls: [] as Array<{ strings: readonly string[]; values: unknown[] }>,
 }))
 
-vi.mock('drizzle-orm', () => ({
-  sql: (strings: readonly string[], ...values: unknown[]) => {
+vi.mock('drizzle-orm', () => {
+  const sql = (strings: readonly string[], ...values: unknown[]) => {
     const node = { strings, values }
     sqlCalls.push(node)
     return node
-  },
-  and: vi.fn(),
-  eq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
-  isNull: vi.fn(),
-  ne: vi.fn(),
-  or: vi.fn(),
-}))
+  }
+  // Identity, so an interpolated value still shows up verbatim in `values`.
+  sql.param = (value: unknown) => value
+  sql.join = (fragments: unknown[], separator: unknown) => ({ fragments, separator })
+  return {
+    sql,
+    and: vi.fn(),
+    eq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
+    isNull: vi.fn(),
+    ne: vi.fn(),
+    or: vi.fn(),
+  }
+})
 vi.mock('@/app/api/auth/oauth/utils', () => ({
   getOAuthToken: vi.fn(),
   refreshAccessTokenIfNeeded: vi.fn(),
@@ -64,7 +70,7 @@ describe('updateWebhookProviderConfig (atomic jsonb merge)', () => {
 
     expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
     expect(allInterpolatedValues()).toContain(JSON.stringify({ historyId: 'h1', nulled: null }))
-    expect(allInterpolatedValues()).toContainEqual(['cleared'])
+    expect(allInterpolatedValues()).toContain('cleared')
   })
 
   it('uses merge only (no key-removal expression) when nothing is undefined', async () => {

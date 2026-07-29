@@ -2,8 +2,10 @@
 
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { cn } from '@sim/emcn'
+import { PanelLeft } from '@sim/emcn/icons'
 import { usePathname } from 'next/navigation'
-import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import { getDesktopBridge } from '@/lib/desktop'
+import { Sidebar, SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
@@ -57,6 +59,7 @@ export function WorkspaceChrome({
   const storeIsCollapsed = useSidebarStore((s) => s.isCollapsed)
   const hasHydrated = useSidebarStore((s) => s._hasHydrated)
   const syncSidebarWidth = useSidebarStore((s) => s.syncWidth)
+  const toggleSidebar = useSidebarStore((s) => s.toggleCollapsed)
 
   /**
    * Single source of collapse for the whole chrome, driving the rail's structure,
@@ -113,6 +116,39 @@ export function WorkspaceChrome({
     if (hasHydrated) syncSidebarWidth()
   }, [pathname, hasHydrated, syncSidebarWidth])
 
+  useEffect(() => {
+    return getDesktopBridge()?.onCommand?.((command) => {
+      if (command === 'toggle-sidebar') {
+        useSidebarStore.getState().toggleCollapsed()
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    const windowState = getDesktopBridge()?.windowState
+    if (!windowState) return
+
+    let disposed = false
+    const applyWindowState = ({ isFullScreen }: { isFullScreen: boolean }) => {
+      if (!disposed) {
+        document.documentElement.setAttribute(
+          'data-sim-desktop-title-bar',
+          isFullScreen ? 'fullscreen' : 'inset'
+        )
+      }
+    }
+    const unsubscribe = windowState.onStateChange(applyWindowState)
+    void windowState
+      .getState()
+      .then(applyWindowState)
+      .catch(() => {})
+
+    return () => {
+      disposed = true
+      unsubscribe()
+    }
+  }, [])
+
   // Re-clamp the width when the window shrinks below what the persisted width
   // allows, so the sidebar can never grow wider than the viewport permits.
   useEffect(() => {
@@ -132,7 +168,17 @@ export function WorkspaceChrome({
   }, [syncSidebarWidth])
 
   return (
-    <div className='flex min-h-0 flex-1'>
+    <div
+      className='desktop-workspace-window-frame relative flex min-h-0 flex-1'
+      data-sidebar-collapsed={isCollapsed || undefined}
+    >
+      <div
+        aria-hidden
+        className={cn(
+          'desktop-window-drag-region desktop-workspace-window-drag-region',
+          isCollapsed ? 'h-[var(--desktop-title-bar-height)]' : 'h-2'
+        )}
+      />
       <div
         className={cn(
           'sidebar-shell-outer shrink-0 overflow-hidden transition-[width]',
@@ -155,15 +201,34 @@ export function WorkspaceChrome({
       </div>
       <div
         className={cn(
-          'flex min-w-0 flex-1 flex-col p-[8px] transition-[padding]',
+          'workspace-content-shell flex min-w-0 flex-1 flex-col p-[8px] transition-[padding]',
           SLIDE_TRANSITION,
-          !isFullscreen && 'pl-0'
+          !isFullscreen && 'pl-0',
+          isCollapsed && '[[data-sim-desktop-title-bar=inset]_&]:p-0'
         )}
+        data-sidebar-collapsed={isCollapsed || undefined}
       >
         <div className='flex-1 overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)]'>
           {children}
         </div>
       </div>
+      {!isFullscreen && (
+        <SidebarTooltip
+          label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          enabled
+          side='bottom'
+          shortcut='⌘B'
+        >
+          <button
+            type='button'
+            onClick={toggleSidebar}
+            className='absolute top-[var(--desktop-title-bar-control-offset)] left-[var(--desktop-title-bar-inset-x)] z-30 hidden size-[var(--desktop-title-bar-control-size)] items-center justify-center rounded-lg transition-colors [-webkit-app-region:no-drag] hover-hover:bg-[var(--surface-active)] [[data-sim-desktop-title-bar=inset]_&]:flex'
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <PanelLeft className='size-[var(--desktop-title-bar-control-icon-size)] text-[var(--text-icon)]' />
+          </button>
+        </SidebarTooltip>
+      )}
     </div>
   )
 }

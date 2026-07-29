@@ -12,6 +12,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { USABLE_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import { isAuditLogsEnabled, isBillingEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('V1AuditLogsAuth')
 
@@ -30,7 +31,13 @@ type AuthResult =
  * Checks:
  * 1. User belongs to an organization
  * 2. User has admin or owner role
- * 3. Organization has an active enterprise subscription
+ * 3. The organization is entitled to audit logs — an active enterprise
+ *    subscription when billing runs, otherwise the deployment's audit-logs
+ *    entitlement
+ *
+ * The subscription query is skipped entirely with billing off. Requiring it
+ * there made audit logs unreachable on every self-hosted deployment, since no
+ * subscription row is ever written without billing.
  *
  * Returns the organization ID and all member user IDs on success,
  * or an error response on failure.
@@ -66,36 +73,51 @@ export async function validateEnterpriseAuditAccess(
     }
   }
 
-  const billingBlocked = await isOrganizationBillingBlocked(membership.organizationId)
-  if (billingBlocked) {
+  if (isBillingEnabled) {
+    const billingBlocked = await isOrganizationBillingBlocked(membership.organizationId)
+    if (billingBlocked) {
+      return {
+        success: false,
+        response: NextResponse.json(
+          { error: 'Active enterprise subscription required' },
+          { status: 403 }
+        ),
+      }
+    }
+  } else if (!isAuditLogsEnabled) {
     return {
       success: false,
       response: NextResponse.json(
-        { error: 'Active enterprise subscription required' },
+        {
+          error:
+            'Audit logs are disabled. Set ENTERPRISE_ENABLED or AUDIT_LOGS_ENABLED to enable them.',
+        },
         { status: 403 }
       ),
     }
   }
 
   const [orgSub, orgMembers] = await Promise.all([
-    db
-      .select({ id: subscription.id })
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, membership.organizationId),
-          eq(subscription.plan, 'enterprise'),
-          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
-        )
-      )
-      .limit(1),
+    isBillingEnabled
+      ? db
+          .select({ id: subscription.id })
+          .from(subscription)
+          .where(
+            and(
+              eq(subscription.referenceId, membership.organizationId),
+              eq(subscription.plan, 'enterprise'),
+              inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
+            )
+          )
+          .limit(1)
+      : Promise.resolve([]),
     db
       .select({ userId: member.userId })
       .from(member)
       .where(eq(member.organizationId, membership.organizationId)),
   ])
 
-  if (orgSub.length === 0) {
+  if (isBillingEnabled && orgSub.length === 0) {
     return {
       success: false,
       response: NextResponse.json(

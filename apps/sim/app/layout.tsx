@@ -7,6 +7,7 @@ import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
 import { generateBrandedMetadata, generateThemeCSS } from '@/ee/whitelabeling'
 import '@/app/_styles/globals.css'
 import { isHosted, isReactGrabEnabled, isReactScanEnabled } from '@/lib/core/config/env-flags'
+import { DesktopUpdateGate } from '@/app/_shell/desktop-update-gate'
 import { HydrationErrorHandler } from '@/app/_shell/hydration-error-handler'
 import { QueryProvider } from '@/app/_shell/providers/query-provider'
 import { SessionProvider } from '@/app/_shell/providers/session-provider'
@@ -66,6 +67,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{
             __html: `
               (function () {
+                // The macOS desktop shell overlays native traffic lights on the
+                // workspace. Mark it before first paint so the sidebar reserves
+                // its inset title-bar lane without a post-hydration layout shift.
+                var collapsedSidebarWidth = 51;
+                try {
+                  if (window.simDesktop && /Mac/i.test(navigator.userAgent)) {
+                    document.documentElement.setAttribute('data-sim-desktop-title-bar', 'inset');
+                    collapsedSidebarWidth = 0;
+                  }
+                } catch (e) {}
+
                 try {
                   var path = window.location.pathname;
                   if (path.indexOf('/workspace/') === -1) {
@@ -101,7 +113,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   }
 
                   if (collapsed) {
-                    document.documentElement.style.setProperty('--sidebar-width', '51px');
+                    document.documentElement.style.setProperty(
+                      '--sidebar-width',
+                      collapsedSidebarWidth + 'px'
+                    );
                   } else {
                     var width = state && state.sidebarWidth;
                     var maxSidebarWidth = Math.max(248, window.innerWidth * 0.3);
@@ -244,6 +259,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           </noscript>
         )}
         <HydrationErrorHandler />
+        <DesktopUpdateGate />
         <NuqsAdapter>
           <PostHogProvider>
             <ThemeProvider>

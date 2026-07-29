@@ -637,6 +637,46 @@ export function useUpdateTableLocks(workspaceId: string) {
 }
 
 /**
+ * Move a table into a folder, or to the workspace root with `folderId: null`.
+ *
+ * Optimistically repoints `folderId` in the cached active list so the row leaves
+ * the current folder the instant the move is issued; the list is the only surface
+ * that renders folder placement, so no other cache entry needs patching.
+ */
+export function useMoveTable(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ tableId, folderId }: { tableId: string; folderId: string | null }) => {
+      return requestJson(updateTableContract, {
+        params: { tableId },
+        body: { workspaceId, folderId },
+      })
+    },
+    onMutate: async ({ tableId, folderId }) => {
+      const listKey = tableKeys.list(workspaceId, 'active')
+      await queryClient.cancelQueries({ queryKey: listKey })
+      const snapshot = queryClient.getQueryData<TableDefinition[]>(listKey)
+      queryClient.setQueryData<TableDefinition[]>(listKey, (old) =>
+        old?.map((table) => (table.id === tableId ? { ...table, folderId } : table))
+      )
+      return { snapshot }
+    },
+    onError: (error, _variables, context) => {
+      if (context?.snapshot) {
+        queryClient.setQueryData(tableKeys.list(workspaceId, 'active'), context.snapshot)
+      }
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, { tableId }) => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
+    },
+  })
+}
+
+/**
  * Delete a table from a workspace.
  */
 export function useDeleteTable(workspaceId: string) {
@@ -1554,6 +1594,8 @@ export function useRestoreTable() {
 
 interface UploadCsvParams {
   workspaceId: string
+  /** Folder to create the imported table in; omitted imports to the workspace root. */
+  folderId?: string | null
   file: File
 }
 
@@ -1565,11 +1607,13 @@ export function useUploadCsvToTable() {
   const timezone = useTimezone()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, file }: UploadCsvParams) => {
+    mutationFn: async ({ workspaceId, folderId, file }: UploadCsvParams) => {
       // Text fields must precede the file part: the server parses the body as a
-      // stream and needs workspaceId before it reaches the (large) file.
+      // stream and resolves as soon as it reaches the file, so any field appended
+      // after it is never seen.
       const formData = new FormData()
       formData.append('workspaceId', workspaceId)
+      if (folderId) formData.append('folderId', folderId)
       formData.append('timezone', timezone)
       formData.append('file', file)
 
@@ -1604,6 +1648,8 @@ export function useUploadCsvToTable() {
 
 interface ImportCsvAsyncParams {
   workspaceId: string
+  /** Folder to create the imported table in; omitted imports to the workspace root. */
+  folderId?: string | null
   file: File
   onProgress?: (percent: number) => void
 }
@@ -1636,10 +1682,10 @@ export function useImportCsvAsync() {
   const queryClient = useQueryClient()
   const timezone = useTimezone()
   return useMutation({
-    mutationFn: async ({ workspaceId, file, onProgress }: ImportCsvAsyncParams) => {
+    mutationFn: async ({ workspaceId, folderId, file, onProgress }: ImportCsvAsyncParams) => {
       const fileKey = await uploadCsvToWorkspaceStorage(file, workspaceId, onProgress)
       const response = await requestJson(importTableAsyncContract, {
-        body: { workspaceId, fileKey, fileName: file.name, timezone },
+        body: { workspaceId, folderId, fileKey, fileName: file.name, timezone },
       })
       return response.data
     },

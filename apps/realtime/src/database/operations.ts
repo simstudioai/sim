@@ -214,6 +214,8 @@ const socketDb = drizzle(
   instrumentPoolClient(
     postgres(connectionString, {
       prepare: false,
+      // See `packages/db/db.ts` — skips the per-connection pg_type roundtrip.
+      fetch_types: false,
       idle_timeout: 10,
       connect_timeout: 20,
       max: 10,

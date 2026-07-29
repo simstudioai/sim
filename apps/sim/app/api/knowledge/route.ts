@@ -15,6 +15,7 @@ import {
   createKnowledgeBase,
   getKnowledgeBases,
   KnowledgeBaseConflictError,
+  KnowledgeBaseFolderError,
   KnowledgeBasePermissionError,
   type KnowledgeBaseScope,
 } from '@/lib/knowledge/service'
@@ -159,6 +160,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     } catch (createError) {
       if (createError instanceof KnowledgeBaseConflictError) {
         return NextResponse.json({ error: createError.message }, { status: 409 })
+      }
+      if (createError instanceof KnowledgeBaseFolderError) {
+        return NextResponse.json({ error: createError.message }, { status: 400 })
       }
       if (createError instanceof KnowledgeBasePermissionError) {
         logger.warn(`[${requestId}] Forbidden knowledge base creation: ${createError.message}`)
