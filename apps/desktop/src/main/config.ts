@@ -328,14 +328,22 @@ export function createConfigStore(
     },
     setOrigin(raw: string) {
       const validated = validateOriginInput(raw)
-      if (validated.ok) {
-        settings.origin = validated.origin
-        // Not debounced: changing the origin tears the session down and
-        // reloads, so a pending write could be lost on the way out — and this
-        // is the one setting whose loss strands the app on the wrong server.
-        writeNow()
+      if (!validated.ok) {
+        return validated
       }
-      return validated
+      // Same canonicalization the load path applies (ORIGIN_REWRITES).
+      // Without it, entering the apex origin mid-session persists it and
+      // immediately drives the wrong cookie partition and social-login
+      // classification for the rest of the session — the load-time rewrite
+      // only repairs it on the next launch. The canonical origin is also
+      // returned so the caller sees what was actually stored.
+      const origin = canonicalOrigin(validated.origin)
+      settings.origin = origin
+      // Not debounced: changing the origin tears the session down and
+      // reloads, so a pending write could be lost on the way out — and this
+      // is the one setting whose loss strands the app on the wrong server.
+      writeNow()
+      return { ok: true, origin }
     },
     get(key) {
       return settings[key]

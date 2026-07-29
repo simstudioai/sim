@@ -145,6 +145,20 @@ describe('createConfigStore', () => {
     expect(reloaded.getOrigin()).toBe('https://self-hosted.example')
   })
 
+  it('canonicalizes the apex production origin on setOrigin, not just on load', () => {
+    // Entering https://sim.ai mid-session must not persist the apex: the
+    // running session would use the wrong cookie partition and misclassify
+    // social login until the next launch's load-time rewrite repaired it.
+    const filePath = tempSettingsPath()
+    const store = createConfigStore(filePath, {})
+    const result = store.setOrigin('https://sim.ai')
+    expect(result).toEqual({ ok: true, origin: 'https://www.sim.ai' })
+    expect(store.getOrigin()).toBe('https://www.sim.ai')
+
+    const reloaded = createConfigStore(filePath, {})
+    expect(reloaded.getOrigin()).toBe('https://www.sim.ai')
+  })
+
   it('recovers from a corrupted settings file', () => {
     const filePath = tempSettingsPath()
     writeFileSync(filePath, '{not json')
