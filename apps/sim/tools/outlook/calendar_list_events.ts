@@ -43,7 +43,8 @@ export const outlookCalendarListEventsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'ID of the calendar to read. Defaults to the mailbox default calendar.',
+      description:
+        'ID of the calendar to read. Defaults to the mailbox default calendar. Calendars shared by another user are not supported and may return 403.',
     },
     // Not `required`, because a paging call supplies only `pageToken` and the window bounds
     // are baked into the nextLink. The url builder enforces "pageToken OR both bounds".

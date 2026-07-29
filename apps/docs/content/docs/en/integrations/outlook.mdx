@@ -481,7 +481,7 @@ List Outlook calendar events within a start/end time window
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `calendarId` | string | No | ID of the calendar to read. Defaults to the mailbox default calendar. |
+| `calendarId` | string | No | ID of the calendar to read. Defaults to the mailbox default calendar. Calendars shared by another user are not supported and may return 403. |
 | `startDateTime` | string | No | Start of the time window \(ISO 8601, e.g. 2025-06-03T00:00:00-08:00\). Interpreted as UTC if no offset is given. Required unless paging with pageToken. |
 | `endDateTime` | string | No | End of the time window \(ISO 8601, e.g. 2025-06-10T00:00:00-08:00\). Interpreted as UTC if no offset is given. Required unless paging with pageToken. |
 | `maxResults` | number | No | Maximum number of events to return per page \(default: 10, max: 100\) |
@@ -565,7 +565,7 @@ Create a new Outlook calendar event
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `calendarId` | string | No | ID of the calendar to create the event in. Defaults to the default calendar. |
+| `calendarId` | string | No | ID of the calendar to create the event in. Defaults to the mailbox default calendar. Calendars shared by another user are not supported and may return 403. |
 | `subject` | string | Yes | Event subject/title |
 | `startDateTime` | string | Yes | Start time \(ISO 8601, e.g. 2025-06-03T10:00:00-08:00\). A date-only value \(2025-06-03\) for both start and end creates an all-day event. |
 | `endDateTime` | string | Yes | End time \(ISO 8601, e.g. 2025-06-03T11:00:00-08:00\). A date-only value \(2025-06-04\) for both start and end creates an all-day event. |

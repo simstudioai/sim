@@ -46,7 +46,8 @@ export const outlookCalendarCreateEventTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'ID of the calendar to create the event in. Defaults to the default calendar.',
+      description:
+        'ID of the calendar to create the event in. Defaults to the mailbox default calendar. Calendars shared by another user are not supported and may return 403.',
     },
     subject: {
       type: 'string',
