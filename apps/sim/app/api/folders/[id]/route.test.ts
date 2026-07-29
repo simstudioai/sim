@@ -8,16 +8,14 @@ import {
   authMockFns,
   createMockRequest,
   dbChainMockFns,
+  foldersLifecycleMock,
+  foldersLifecycleMockFns,
   type MockUser,
   permissionsMock,
   permissionsMockFns,
   queueTableRows,
   resetDbChainMock,
   schemaMock,
-  workflowsOrchestrationMock,
-  workflowsOrchestrationMockFns,
-  workflowsUtilsMock,
-  workflowsUtilsMockFns,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -36,8 +34,11 @@ const { mockLogger } = vi.hoisted(() => {
   }
 })
 
-const mockPerformDeleteFolder = workflowsOrchestrationMockFns.mockPerformDeleteFolder
-const mockPerformUpdateFolder = workflowsOrchestrationMockFns.mockPerformUpdateFolder
+const mockDeleteFolder = foldersLifecycleMockFns.mockDeleteFolder
+const mockUpdateFolder = foldersLifecycleMockFns.mockUpdateFolder
+
+/** Parent ids the mocked engine treats as closing a cycle for the folder under test. */
+const cyclicParentIds = new Set<string>()
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
@@ -48,8 +49,7 @@ vi.mock('@sim/logger', () => ({
   getRequestContext: () => undefined,
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
-vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
+vi.mock('@/lib/folders/lifecycle', () => foldersLifecycleMock)
 
 import { DELETE, PUT } from '@/app/api/folders/[id]/route'
 
@@ -101,11 +101,11 @@ describe('Individual Folder API Route', () => {
     resetDbChainMock()
 
     mockGetUserEntityPermissions.mockResolvedValue('admin')
-    mockPerformDeleteFolder.mockResolvedValue({
+    mockDeleteFolder.mockResolvedValue({
       success: true,
       deletedItems: { folders: 1, workflows: 0 },
     })
-    mockPerformUpdateFolder.mockImplementation(async (params) => {
+    mockUpdateFolder.mockImplementation(async (params) => {
       if (params.parentId && params.parentId === params.folderId) {
         return {
           success: false,
@@ -113,13 +113,7 @@ describe('Individual Folder API Route', () => {
           errorCode: 'validation',
         }
       }
-      if (
-        params.parentId &&
-        (await workflowsUtilsMockFns.mockCheckForCircularReference(
-          params.folderId,
-          params.parentId
-        ))
-      ) {
+      if (params.parentId && cyclicParentIds.has(params.parentId)) {
         return {
           success: false,
           error: 'Cannot create circular folder reference',
@@ -140,7 +134,7 @@ describe('Individual Folder API Route', () => {
         },
       }
     })
-    workflowsUtilsMockFns.mockCheckForCircularReference.mockResolvedValue(false)
+    cyclicParentIds.clear()
   })
 
   describe('PUT /api/folders/[id]', () => {
@@ -368,7 +362,7 @@ describe('Individual Folder API Route', () => {
         workspaceId: 'workspace-123',
       })
 
-      workflowsUtilsMockFns.mockCheckForCircularReference.mockResolvedValue(true)
+      cyclicParentIds.add('folder-1')
 
       const req = createMockRequest('PUT', {
         name: 'Updated Folder 3',
@@ -382,9 +376,8 @@ describe('Individual Folder API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('error', 'Cannot create circular folder reference')
-      expect(workflowsUtilsMockFns.mockCheckForCircularReference).toHaveBeenCalledWith(
-        'folder-3',
-        'folder-1'
+      expect(mockUpdateFolder).toHaveBeenCalledWith(
+        expect.objectContaining({ folderId: 'folder-3', parentId: 'folder-1' })
       )
     })
   })
@@ -405,7 +398,8 @@ describe('Individual Folder API Route', () => {
       const data = await response.json()
       expect(data).toHaveProperty('success', true)
       expect(data).toHaveProperty('deletedItems')
-      expect(mockPerformDeleteFolder).toHaveBeenCalledWith({
+      expect(mockDeleteFolder).toHaveBeenCalledWith({
+        resourceType: 'workflow',
         folderId: 'folder-1',
         workspaceId: 'workspace-123',
         userId: TEST_USER.id,
@@ -458,7 +452,7 @@ describe('Individual Folder API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('success', true)
-      expect(mockPerformDeleteFolder).toHaveBeenCalled()
+      expect(mockDeleteFolder).toHaveBeenCalled()
     })
 
     it('should allow folder deletion for admin permissions', async () => {
@@ -476,7 +470,7 @@ describe('Individual Folder API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('success', true)
-      expect(mockPerformDeleteFolder).toHaveBeenCalled()
+      expect(mockDeleteFolder).toHaveBeenCalled()
     })
 
     it('should handle database errors during deletion', async () => {

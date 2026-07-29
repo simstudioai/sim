@@ -510,36 +510,6 @@ export async function verifyFolderWorkspace(
   return Boolean(row)
 }
 
-/**
- * Walks the parent chain upward from `parentId` to check whether re-parenting `folderId`
- * under it would form a cycle. Returns true when a cycle would be created.
- */
-export async function checkForCircularReference(
-  folderId: string,
-  parentId: string
-): Promise<boolean> {
-  let currentParentId: string | null = parentId
-  const visited = new Set<string>()
-
-  while (currentParentId) {
-    if (visited.has(currentParentId) || currentParentId === folderId) {
-      return true
-    }
-
-    visited.add(currentParentId)
-
-    const [parent] = await db
-      .select({ parentId: folderTable.parentId })
-      .from(folderTable)
-      .where(and(eq(folderTable.id, currentParentId), eq(folderTable.resourceType, 'workflow')))
-      .limit(1)
-
-    currentParentId = parent?.parentId || null
-  }
-
-  return false
-}
-
 export async function listFolders(workspaceId: string) {
   return db
     .select({

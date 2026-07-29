@@ -24,7 +24,6 @@ export const workflowsUtilsMockFns = {
   mockUpdateWorkflowRecord: vi.fn(),
   mockDeleteWorkflowRecord: vi.fn(),
   mockSetWorkflowVariables: vi.fn(),
-  mockCheckForCircularReference: vi.fn(),
   mockListFolders: vi.fn(),
 }
 
@@ -58,6 +57,5 @@ export const workflowsUtilsMock = {
   updateWorkflowRecord: workflowsUtilsMockFns.mockUpdateWorkflowRecord,
   deleteWorkflowRecord: workflowsUtilsMockFns.mockDeleteWorkflowRecord,
   setWorkflowVariables: workflowsUtilsMockFns.mockSetWorkflowVariables,
-  checkForCircularReference: workflowsUtilsMockFns.mockCheckForCircularReference,
   listFolders: workflowsUtilsMockFns.mockListFolders,
 }
