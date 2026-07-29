@@ -462,13 +462,6 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         // whatever the configured origin served, so `smb://…/x.dmg` or a bare
         // `file:///…` would otherwise pass the suffix test and be advertised as
         // an available update.
-        //
-        // Constrained to the release host, not merely to https. The feed rewrites
-        // every entry to an absolute release-asset URL, so nothing
-        // legitimate is excluded — while scheme-only validation would still admit
-        // `https://attacker.example/Sim.dmg`, and the download dialog walks the
-        // user through installing whatever it hands to the browser. That is a
-        // worse outcome than the protocol-handler launch this guards against.
         const urls = Array.from(
           manifest.matchAll(/^\s*(?:-\s*)?url:\s*(\S+)\s*$/gm),
           (m) => m[1]

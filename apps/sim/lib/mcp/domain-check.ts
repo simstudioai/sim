@@ -186,9 +186,6 @@ export async function validateMcpServerSsrf(url: string | undefined): Promise<st
     throw new McpDnsResolutionError(cleanHostname)
   }
 
-  // Every address is judged, not just the pinned one: a host publishing both a
-  // public and a private record would otherwise pass on record order alone. The
-  // pin stays on the IPv4-preferred address, which is what callers connect to.
   for (const candidate of addresses) {
     if (isLoopbackIp(candidate)) {
       if (isHosted) {

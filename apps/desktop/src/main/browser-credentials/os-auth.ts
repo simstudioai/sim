@@ -12,10 +12,6 @@ const logger = createLogger('BrowserCredentialAuth')
  * their way to is typically still on screen — asking a second time to put that
  * same string on the clipboard is friction that buys nothing, and teaches
  * people to approve prompts without reading them.
- *
- * That reasoning is per-operation, which is why grants carry the one they were
- * proven for. It justifies skipping a second prompt for the SAME operation, and
- * nothing more: neither operation implies consent to the other's exposure.
  */
 const AUTH_GRACE_MS = 30_000
 

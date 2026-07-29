@@ -39,11 +39,6 @@ function isFillable(field: HTMLInputElement): boolean {
 }
 
 /**
- * Matches the same definition the agent guards use: a reveal toggle flips a
- * password field to `type="text"` without making it any less secret, and the
- * autocomplete token is the page's own declaration either way.
- */
-/**
  * The field's `autocomplete` tokens.
  *
  * Token membership, not whole-string equality: the spec allows space-separated
@@ -57,6 +52,11 @@ function autocompleteTokens(field: HTMLInputElement): string[] {
     .split(/\s+/)
 }
 
+/**
+ * Matches the same definition the agent guards use: a reveal toggle flips a
+ * password field to `type="text"` without making it any less secret, and the
+ * autocomplete token is the page's own declaration either way.
+ */
 function isPasswordField(field: HTMLInputElement): boolean {
   if (String(field.type || '').toLowerCase() === 'password') return true
   const tokens = autocompleteTokens(field)

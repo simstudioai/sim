@@ -303,7 +303,6 @@ export function clickElement(id: number): unknown {
   const isSecretField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
-    // Token membership, not equality — see the module header.
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint
       .split(/\s+/)
@@ -356,7 +355,6 @@ export function focusElementForTyping(id: number): unknown {
   const isSecretField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
-    // Token membership, not equality — see the module header.
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint
       .split(/\s+/)
@@ -410,7 +408,6 @@ export function readActiveElementState(): unknown {
   const isSecretField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
-    // Token membership, not equality — see the module header.
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint
       .split(/\s+/)
@@ -531,7 +528,6 @@ export function activeElementSecrecy(): string {
   const isSecretField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
-    // Token membership, not equality — see the module header.
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint
       .split(/\s+/)
@@ -574,10 +570,6 @@ export function activeElementSecrecy(): string {
     // detector is `attachShadow` throwing, which is destructive. Narrowing this
     // needs the driver to stop trusting a page-derived signal, not a better
     // guess here.
-    // Declared inside the function: this is injected as source, so it cannot
-    // reference module scope, but a local is fine and keeps the list diffable.
-    // IFRAME/FRAME are here so the frame branch below, not this early return,
-    // classifies them.
     const FOCUSABLE_TAGS = [
       'INPUT',
       'TEXTAREA',
@@ -623,7 +615,6 @@ export function typeIntoElement(id: number, text: string, submit: boolean): unkn
   const isSecretField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
-    // Token membership, not equality — see the module header.
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint
       .split(/\s+/)
@@ -696,7 +687,6 @@ export function pressKeyOnPage(
   const isSecretField = (node: Element | null): boolean => {
     if (!node || node.tagName !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
-    // Token membership, not equality — see the module header.
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
     return hint
       .split(/\s+/)

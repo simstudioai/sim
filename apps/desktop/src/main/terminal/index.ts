@@ -841,7 +841,7 @@ export class TerminalService {
       handle.dispose()
     } else {
       // Still going, and nothing polls the status file again — `read` captures
-      // the pane instead. Without this the handle would go out of scope here.
+      // the pane instead.
       const pending = this.pendingRuns.get(terminal.terminalId)
       if (pending) pending.push(handle)
       else this.pendingRuns.set(terminal.terminalId, [handle])

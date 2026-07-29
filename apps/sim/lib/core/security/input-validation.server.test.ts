@@ -7,9 +7,6 @@ const { mockResolve } = vi.hoisted(() => ({ mockResolve: vi.fn() }))
 
 vi.mock('@sim/security/dns', () => ({
   resolveHostAddresses: mockResolve,
-  // Mirrors the real rule so a pin taken over a narrowed set behaves as it does
-  // in production; a stub returning addresses[0] would hide the divergence the
-  // preference exists for.
   preferIpv4: (addresses: string[]) =>
     addresses.find((address) => address.includes('.')) ?? addresses[0],
 }))

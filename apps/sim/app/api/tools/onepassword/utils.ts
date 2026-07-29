@@ -326,8 +326,6 @@ export async function validateConnectServerUrl(serverUrl: string): Promise<strin
     throw new Error('1Password server URL hostname could not be resolved')
   }
 
-  // Asserted on every address, pinned on the IPv4-preferred one: a host with both
-  // a public and a private record must not pass on record order alone.
   for (const candidate of addresses) {
     assertConnectIpAllowed(candidate, clean)
   }

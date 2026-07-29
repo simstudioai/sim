@@ -66,11 +66,6 @@ export async function validateUrlWithDNS(
   const isLocalhost = cleanHostname === 'localhost' || isLoopbackIp(cleanHostname)
 
   try {
-    // Every address is judged, not just the pinned one: classifying a single
-    // address let a host publishing both a public and a private record through
-    // whenever the public one sorted first, which is record order rather than
-    // policy.
-    //
     // Refused records are filtered rather than failing the whole host, matching
     // createSsrfGuardedLookup below. Pinning to a surviving public address is
     // just as safe as refusing outright, and rejecting the host would break a

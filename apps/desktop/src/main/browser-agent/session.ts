@@ -306,15 +306,9 @@ function configureAgentPartition(ses: Session): void {
   // can't slip in that way.
   //
   // Subresources that come back readable or that execute get the resolving
-  // check too, cached per host: a literal-IP backstop alone let a public
-  // hostname with a private A record reach internal services, and a WebSocket
-  // to one is a cross-origin read primitive because internal servers commonly
-  // ignore Origin. Only images and fonts keep the cheap synchronous path —
-  // they are the high-volume types and are not readable cross-origin, leaving a
-  // load/error timing oracle as the accepted residual. The list is expressed as
-  // what is exempt rather than what is checked, so a resource type Chromium
-  // labels differently than expected fails safe into the checked path; see
-  // subresourceNeedsResolution.
+  // check too, cached per host; images and fonts keep the cheap synchronous
+  // path. See isBlockedSubresourceUrl and subresourceNeedsResolution for why
+  // each way round.
   ses.webRequest.onBeforeRequest((details, callback) => {
     // Answered exactly once, and never throwing. A throw inside the `then`
     // below would otherwise land in the `catch` and answer a second time, and
