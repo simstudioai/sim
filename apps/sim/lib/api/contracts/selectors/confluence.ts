@@ -24,6 +24,8 @@ export const confluencePagesBodySchema = z.object({
   cloudId: optionalString,
   title: optionalString,
   limit: z.number().int().positive().optional().default(50),
+  /** Opaque Confluence cursor for the next page, echoed back from `nextCursor`. */
+  cursor: optionalString,
 })
 
 /**
@@ -386,7 +388,7 @@ export const confluenceSpacesSelectorContract = definePostSelector(
 export const confluencePagesSelectorContract = definePostSelector(
   '/api/tools/confluence/pages',
   confluencePagesBodySchema,
-  z.object({ files: z.array(fileOptionSchema) })
+  z.object({ files: z.array(fileOptionSchema), nextCursor: optionalString })
 )
 
 export const confluencePageSelectorContract = definePostSelector(

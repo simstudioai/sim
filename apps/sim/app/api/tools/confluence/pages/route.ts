@@ -23,7 +23,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const parsed = await parseRequest(confluencePagesSelectorContract, request, {})
     if (!parsed.success) return parsed.response
 
-    const { domain, accessToken, title, cloudId: providedCloudId, limit } = parsed.data.body
+    const { domain, accessToken, title, cloudId: providedCloudId, limit, cursor } = parsed.data.body
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
@@ -41,6 +41,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     if (title) {
       queryParams.append('title', title)
+    }
+
+    if (cursor) {
+      queryParams.append('cursor', cursor)
     }
 
     const queryString = queryParams.toString()
@@ -82,8 +86,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
+    /**
+     * Confluence paginates with an opaque cursor carried in `_links.next`. Reading
+     * it is what lets the selector continue past the first page — without it the
+     * dropdown silently showed only `limit` pages of however many exist.
+     */
+    let nextCursor: string | undefined
+    const nextLink = data._links?.next as string | undefined
+    if (nextLink) {
+      try {
+        nextCursor =
+          new URL(nextLink, 'https://placeholder').searchParams.get('cursor') || undefined
+      } catch {
+        nextCursor = undefined
+      }
+    }
+
     return NextResponse.json({
-      files: data.results.map((page: any) => ({
+      files: (data.results || []).map((page: any) => ({
         id: page.id,
         name: page.title,
         mimeType: 'confluence/page',
@@ -92,6 +112,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         spaceId: page.spaceId,
         webViewLink: page._links?.webui || '',
       })),
+      nextCursor,
     })
   } catch (error) {
     logger.error('Error fetching Confluence pages:', error)

@@ -88,7 +88,14 @@ export const confluenceSelectors = {
       search ?? '',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
-    fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
+    /**
+     * Paged rather than a single fetch: `/pages` is cursor-paginated, so one request
+     * returned only the first `limit` pages of however many exist and the rest were
+     * unreachable — a search for a real page silently found nothing. `search` is
+     * still forwarded as the server-side `title` filter, and pagination now applies
+     * to the filtered stream too.
+     */
+    fetchPage: async ({ context, search, cursor, signal }) => {
       const credentialId = ensureCredential(context, 'confluence.pages')
       const domain = ensureDomain(context, 'confluence.pages')
       const bundle = await fetchOAuthToken(credentialId, context.workflowId)
@@ -101,13 +108,17 @@ export const confluenceSelectors = {
           accessToken: bundle.accessToken,
           cloudId: bundle.cloudId,
           title: search,
+          cursor,
         },
         signal,
       })
-      return (data.files || []).map((file) => ({
-        id: file.id,
-        label: file.name,
-      }))
+      return {
+        items: (data.files || []).map((file) => ({
+          id: file.id,
+          label: file.name,
+        })),
+        nextCursor: data.nextCursor,
+      }
     },
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null
