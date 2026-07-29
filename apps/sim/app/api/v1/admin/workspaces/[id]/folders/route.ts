@@ -47,10 +47,9 @@ export const GET = withRouteHandler(
       }
 
       /**
-       * Soft-deleted folders are excluded. Without this the count and the page both include rows
-       * sitting in Recently Deleted, so an operator inspecting a workspace sees phantom folders
-       * and an inflated total — and the two disagree with every user-facing folder list, all of
-       * which filter on `deletedAt`.
+       * Without the `deletedAt` filter the count and the page both include rows sitting in
+       * Recently Deleted, so an operator sees phantom folders and an inflated total, and this
+       * endpoint disagrees with every user-facing folder list.
        */
       const activeWorkflowFolders = and(
         eq(folderTable.workspaceId, workspaceId),

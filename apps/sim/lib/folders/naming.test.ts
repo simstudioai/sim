@@ -29,11 +29,8 @@ function makeTx(siblingNames: string[]) {
 }
 
 /**
- * The suffix shape is a cross-surface contract: the client's `nextUntitledFolderName` and
- * migration 0272's backfill both produce `"<name> (N)"` starting at (1). A server-side drift
- * either collides on `folder_workspace_resource_parent_name_active_unique` (23505 on a path the
- * user cannot retry) or renders a folder named differently depending on how it was created.
- * Nothing asserted this before — every caller mocks this module out.
+ * Pins the `"<name> (N)"` shape the client and migration 0272 also produce (see `naming.ts`).
+ * Every caller mocks this module out, so nothing else in the suite covers it.
  */
 describe('deduplicateFolderName', () => {
   it('returns the requested name untouched when no sibling holds it', async () => {
@@ -43,8 +40,6 @@ describe('deduplicateFolderName', () => {
   })
 
   it('starts the suffix at (1), not (2)', async () => {
-    // A loop seeded at 2 — the shape of a bug already fixed twice in this feature — yields
-    // "Reports (2)" here and silently diverges from the client and the migration.
     const { tx } = makeTx(['Reports'])
 
     expect(await deduplicateFolderName(tx, 'ws-1', null, 'Reports', 'workflow')).toBe('Reports (1)')
@@ -73,9 +68,9 @@ describe('deduplicateFolderName', () => {
   })
 
   /**
-   * The sibling query defines the namespace the suffix is chosen within. Every clause below
-   * mirrors one column of the partial unique index — dropping any of them counts the wrong rows
-   * and either inflates the suffix or picks a name that is already taken.
+   * The sibling query defines the namespace the suffix is chosen within, and must match the
+   * scope of the partial unique index — workspace, resourceType, parent, active-only. Drop any
+   * clause and it counts the wrong rows, inflating the suffix or picking a taken name.
    */
   describe('sibling scoping', () => {
     it('scopes to workspace, resourceType, root parent, and active rows', async () => {
@@ -111,6 +106,7 @@ describe('deduplicateFolderName', () => {
 
       await deduplicateFolderName(tx, 'ws-1', null, 'Reports', 'workflow')
 
+      // Two isNull nodes: the root parent scope and the soft-delete filter.
       expect(
         flattenMockConditions(selectCalls[0].where).filter((n) => n.type === 'isNull')
       ).toHaveLength(2)
