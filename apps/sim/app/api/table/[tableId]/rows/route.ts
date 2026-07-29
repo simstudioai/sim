@@ -13,7 +13,7 @@ import { isZodError, parseJsonBody, validationErrorResponse } from '@/lib/api/se
 import { type AuthTypeValue, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { Filter, RowData, Sort, TableRowsCursor, TableSchema } from '@/lib/table'
+import type { Filter, RowData, Sort, SortSpec, TableRowsCursor, TableSchema } from '@/lib/table'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -26,7 +26,7 @@ import {
   validateRowSize,
 } from '@/lib/table'
 import { TableQueryValidationError } from '@/lib/table/errors'
-import { predicateToFilter } from '@/lib/table/query-builder/converters'
+import { isTablePredicate, predicateToFilter } from '@/lib/table/query-builder/converters'
 import { validatePredicate } from '@/lib/table/query-builder/validate'
 import { queryRows } from '@/lib/table/rows/service'
 import { predicateToStorage } from '@/lib/table/select-values'
@@ -36,8 +36,15 @@ import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table
 
 const logger = createLogger('TableRowsAPI')
 
-function isTablePredicate(raw: TablePredicate | Filter): raw is TablePredicate {
-  return 'all' in raw || 'any' in raw
+/** Dual-grammar sort: an ordered spec (v2) or the legacy record, either keying. */
+function resolveWireSort(
+  sort: Sort | SortSpec | undefined,
+  wire: RowWireTranslators
+): Sort | undefined {
+  if (!sort) return undefined
+  if (!Array.isArray(sort)) return wire.sortIn(sort)
+  const spec = wire.sortSpecIn(sort)
+  return spec.length > 0 ? Object.fromEntries(spec.map((s) => [s.field, s.direction])) : undefined
 }
 
 /**
@@ -286,8 +293,10 @@ export const GET = withRouteHandler(
       const result = await queryRows(
         table,
         {
-          filter: validated.filter ? wire.filterIn(validated.filter as Filter) : undefined,
-          sort: validated.sort ? wire.sortIn(validated.sort) : undefined,
+          ...(validated.filter && isTablePredicate(validated.filter as Filter | TablePredicate)
+            ? { predicate: wire.predicateIn(validated.filter as TablePredicate) }
+            : { filter: validated.filter ? wire.filterIn(validated.filter as Filter) : undefined }),
+          sort: resolveWireSort(validated.sort as Sort | SortSpec | undefined, wire),
           limit: validated.limit,
           offset: validated.offset,
           after: validated.after,

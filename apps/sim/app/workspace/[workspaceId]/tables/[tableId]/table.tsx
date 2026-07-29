@@ -12,21 +12,16 @@ import type { RunLimit, RunMode, TableViewWire } from '@/lib/api/contracts/table
 import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
-  Filter,
-  Sort,
   SortDirection,
+  SortSpec,
   TableMetadata,
+  TablePredicate,
   TableRow as TableRowType,
   TableViewConfig,
   WorkflowGroup,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import {
-  filterRulesToPredicate,
-  filterToRules,
-  predicateToFilter,
-} from '@/lib/table/query-builder/converters'
 import {
   type BreadcrumbItem,
   type ColumnOption,
@@ -260,7 +255,7 @@ export function Table({
     selectionStats: { hasIncompleteOrFailed: false, hasCompleted: false, hasInFlight: false },
     singleWorkflowCell: null,
   })
-  const [filter, setFilter] = useState<Filter | null>(null)
+  const [filter, setFilter] = useState<TablePredicate | null>(null)
   const [filterOpen, setFilterOpen] = useState(false)
   /** Hidden **column ids**. Lives here (not in the grid) because the filter
    *  panel's Columns section edits it and the active view persists it. */
@@ -276,9 +271,9 @@ export function Table({
   const hiddenColumnsRef = useRef(hiddenColumns)
   hiddenColumnsRef.current = hiddenColumns
 
-  /** Resolved single-column sort, or `null` when no column is active. */
-  const sortQuery = useMemo<Sort | null>(
-    () => (sortColumn ? { [sortColumn]: sortDirection } : null),
+  /** Resolved single-column sort as an ordered spec, or `null` when none is active. */
+  const sortQuery = useMemo<SortSpec | null>(
+    () => (sortColumn ? [{ field: sortColumn, direction: sortDirection }] : null),
     [sortColumn, sortDirection]
   )
 
@@ -428,11 +423,7 @@ export function Table({
       config: TableViewConfig | null,
       keep?: { sort?: boolean; filter?: boolean; hiddenColumns?: boolean }
     ) => {
-      // Stored views speak the v2 grammar; the grid's runtime state is still the
-      // legacy Filter/Sort pair, so translate at this boundary. A stored predicate
-      // is always builder-authored (the save path converts from builder output),
-      // so the legacy projection is total here.
-      if (!keep?.filter) setFilter(config?.filter ? predicateToFilter(config.filter) : null)
+      if (!keep?.filter) setFilter(config?.filter ?? null)
       if (!keep?.hiddenColumns) setHiddenColumns(config?.hiddenColumns ?? [])
       if (keep?.sort) return
       const sortEntry = config?.sort?.[0]
@@ -660,20 +651,11 @@ export function Table({
   const currentViewConfig = useMemo<TableViewConfig>(
     () => ({
       ...(activeView?.config ?? tableData?.metadata),
-      // Views store the v2 grammar; the grid runs on the legacy pair. The filter
-      // is builder-authored, so the rule round-trip is lossless here.
-      filter: effectiveFilter ? filterRulesToPredicate(filterToRules(effectiveFilter)) : null,
-      sort: sortColumn ? [{ field: sortColumn, direction: sortDirection }] : null,
+      filter: effectiveFilter ?? null,
+      sort: sortQuery,
       hiddenColumns: effectiveHiddenColumns,
     }),
-    [
-      activeView,
-      tableData?.metadata,
-      effectiveFilter,
-      sortColumn,
-      sortDirection,
-      effectiveHiddenColumns,
-    ]
+    [activeView, tableData?.metadata, effectiveFilter, sortQuery, effectiveHiddenColumns]
   )
 
   /**
@@ -855,7 +837,7 @@ export function Table({
     (args: {
       groupIds: string[]
       rowIds?: string[]
-      filter?: Filter
+      filter?: TablePredicate
       excludeRowIds?: string[]
       runMode: RunMode
       limit?: RunLimit
@@ -894,7 +876,7 @@ export function Table({
       runMode: RunMode,
       rowIds?: string[],
       limit?: RunLimit,
-      filter?: Filter,
+      filter?: TablePredicate,
       excludeRowIds?: string[]
     ) => {
       runScope({
@@ -911,7 +893,12 @@ export function Table({
   )
 
   const onRunRows = useCallback(
-    (rowIds: string[] | undefined, runMode: RunMode, filter?: Filter, excludeRowIds?: string[]) => {
+    (
+      rowIds: string[] | undefined,
+      runMode: RunMode,
+      filter?: TablePredicate,
+      excludeRowIds?: string[]
+    ) => {
       runScope({
         groupIds: tableWorkflowGroups.map((g) => g.id),
         rowIds,
@@ -979,7 +966,7 @@ export function Table({
 
   /** Select-all Stop — filter-scoped when a filter is active; deselected rows keep running. */
   const onStopAllRows = useCallback(
-    (filter?: Filter, excludeRowIds?: string[]) => {
+    (filter?: TablePredicate, excludeRowIds?: string[]) => {
       // `sort` scopes the optimistic flip to the active view's cache (filtered stops
       // only cancel matching rows server-side).
       cancelRunsMutate({ scope: 'all', filter, sort: queryOptions.sort, excludeRowIds })
@@ -1079,7 +1066,7 @@ export function Table({
     [columnOptions, sortColumn, sortDirection, setTableParams]
   )
 
-  const handleFilterApply = (next: Filter | null) => {
+  const handleFilterApply = (next: TablePredicate | null) => {
     setFilter(next)
   }
 

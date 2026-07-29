@@ -226,6 +226,42 @@ describe('GET /api/table/[tableId]/rows', () => {
     const body = await res.json()
     expect(body.data.rows[0].data).toEqual({ col_aaa: 'Ada', col_bbb: 36 })
   })
+
+  /**
+   * The grid now speaks the v2 grammar on this route: a predicate-shaped filter
+   * takes the NATIVE predicate path into queryRows (not a downgrade), and an
+   * ordered sort spec compiles to the record the engine's sort builder takes.
+   */
+  it('routes a predicate filter + spec sort natively for session callers', async () => {
+    authAs('session')
+
+    const res = await callGet({
+      workspaceId: 'workspace-1',
+      filter: JSON.stringify({ all: [{ field: 'col_aaa', op: 'eq', value: 'Ada' }] }),
+      sort: JSON.stringify([{ field: 'col_bbb', direction: 'desc' }]),
+    })
+
+    expect(res.status).toBe(200)
+    const options = mockQueryRows.mock.calls[0][1]
+    expect(options.predicate).toEqual({ all: [{ field: 'col_aaa', op: 'eq', value: 'Ada' }] })
+    expect(options.filter).toBeUndefined()
+    expect(options.sort).toEqual({ col_bbb: 'desc' })
+  })
+
+  it('translates a name-keyed predicate for internal-JWT callers', async () => {
+    authAs('internal_jwt')
+
+    const res = await callGet({
+      workspaceId: 'workspace-1',
+      filter: JSON.stringify({ all: [{ field: 'Name', op: 'eq', value: 'Ada' }] }),
+      sort: JSON.stringify([{ field: 'Age', direction: 'asc' }]),
+    })
+
+    expect(res.status).toBe(200)
+    const options = mockQueryRows.mock.calls[0][1]
+    expect(options.predicate).toEqual({ all: [{ field: 'col_aaa', op: 'eq', value: 'Ada' }] })
+    expect(options.sort).toEqual({ col_bbb: 'asc' })
+  })
 })
 
 describe('PUT/DELETE /api/table/[tableId]/rows — predicate filters', () => {

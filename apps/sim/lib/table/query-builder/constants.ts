@@ -34,7 +34,8 @@ export const VALUELESS_OPERATORS = new Set<string>(['isEmpty', 'isNotEmpty'])
  * against the whole array can never be true.
  *
  * These must stay in step with the server whitelist in `lib/table/sql.ts`: the
- * filter picker offers exactly these, and `pruneFilterForColumns` DROPS
+ * filter picker offers exactly these, and `pruneFilterForColumns` /
+ * `prunePredicateForColumns` DROP
  * anything outside them, so an operator missing here is silently discarded from
  * a filter the server would have accepted. `sql.test.ts` asserts the two sets
  * agree through `UI_TO_WIRE_OPERATOR` rather than leaving it to a comment.

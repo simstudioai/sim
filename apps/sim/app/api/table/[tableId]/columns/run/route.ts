@@ -5,6 +5,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { toLegacyFilter } from '@/lib/table/query-builder/converters'
 import { runWorkflowColumn } from '@/lib/table/workflow-columns'
 import { accessError, checkAccess, tableFilterError } from '@/app/api/table/utils'
 
@@ -25,8 +26,18 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     const parsed = await parseRequest(runColumnContract, request, { params })
     if (!parsed.success) return parsed.response
     const { tableId } = parsed.data.params
-    const { workspaceId, groupIds, runMode, rowIds, filter, excludeRowIds, limit } =
-      parsed.data.body
+    const {
+      workspaceId,
+      groupIds,
+      runMode,
+      rowIds,
+      filter: wireFilter,
+      excludeRowIds,
+      limit,
+    } = parsed.data.body
+    // Dual-grammar wire: downgrade a predicate to the legacy Filter the
+    // dispatcher and scheduled runs still compile.
+    const filter = toLegacyFilter(wireFilter)
     const access = await checkAccess(tableId, auth.userId, 'write')
     if (!access.ok) return accessError(access, requestId, tableId)
 

@@ -11,6 +11,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import { assertRowDelete } from '@/lib/table/mutation-locks'
+import { toLegacyFilter } from '@/lib/table/query-builder/converters'
 import type { TableDeleteJobPayload } from '@/lib/table/types'
 import { accessError, checkAccess, tableFilterError } from '@/app/api/table/utils'
 
@@ -43,7 +44,10 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   const parsed = await parseRequest(deleteTableRowsAsyncContract, request, { params })
   if (!parsed.success) return parsed.response
   const { tableId } = parsed.data.params
-  const { workspaceId, filter, excludeRowIds, estimatedCount } = parsed.data.body
+  const { workspaceId, filter: wireFilter, excludeRowIds, estimatedCount } = parsed.data.body
+  // Dual-grammar wire: a predicate downgrades losslessly-or-throws to the
+  // legacy Filter the runners/persisted payloads still compile.
+  const filter = toLegacyFilter(wireFilter)
 
   const access = await checkAccess(tableId, userId, 'write')
   if (!access.ok) return accessError(access, requestId, tableId)

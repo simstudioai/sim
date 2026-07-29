@@ -548,8 +548,11 @@ export const deleteTableRowsBodySchema = z
 /** Unrefined base so v1 contracts can `.extend()` — consumers use {@link tableRowsQuerySchema}. */
 export const tableRowsQueryBaseSchema = z.object({
   workspaceId: workspaceIdSchema,
-  filter: domainObjectSchema<Filter>().optional(),
-  sort: domainObjectSchema<Sort>().optional(),
+  // Dual-grammar during the v2 transition: the strict predicate tree wins the
+  // union; anything else falls through to the legacy `$`-object. Same for sort:
+  // an ordered spec array vs the legacy `{col: dir}` record.
+  filter: z.union([predicateSchema, domainObjectSchema<Filter>()]).optional(),
+  sort: z.union([sortSpecSchema, domainObjectSchema<Sort>()]).optional(),
   /**
    * Keyset cursor `(orderKey, id)` for the default row order — each page is an index seek
    * instead of OFFSET's scan-and-discard. Mutually exclusive with `sort` (cursors only make
@@ -862,8 +865,8 @@ export type RowQueryResponse = ContractJsonResponse<typeof rowQueryContract>
 export const findTableRowsQuerySchema = z.object({
   workspaceId: workspaceIdSchema,
   q: requiredFieldSchema('Search query is required'),
-  filter: domainObjectSchema<Filter>().optional(),
-  sort: domainObjectSchema<Sort>().optional(),
+  filter: z.union([predicateSchema, domainObjectSchema<Filter>()]).optional(),
+  sort: z.union([sortSpecSchema, domainObjectSchema<Sort>()]).optional(),
 })
 
 /** One matching cell: its 0-based ordinal in the filtered+sorted view, its row id, and the column name. */
@@ -1292,7 +1295,7 @@ export const deleteTableRowsContract = defineRouteContract({
  */
 export const deleteTableRowsAsyncBodySchema = z.object({
   workspaceId: workspaceIdSchema,
-  filter: nonEmptyFilterSchema.optional(),
+  filter: bulkFilterSchema.optional(),
   excludeRowIds: z
     .array(z.string().min(1))
     .max(
@@ -1487,7 +1490,7 @@ export const cancelTableRunsBodySchema = z
     workspaceId: workspaceIdSchema,
     scope: z.enum(['all', 'row']),
     rowId: z.string().min(1).optional(),
-    filter: domainObjectSchema<Filter>().optional(),
+    filter: z.union([predicateSchema, domainObjectSchema<Filter>()]).optional(),
     /** Scope-`all` only: rows deselected from the selection — their cells keep running. */
     excludeRowIds: z
       .array(z.string().min(1))
@@ -1591,7 +1594,7 @@ export const runColumnBodySchema = z
     rowIds: z.array(z.string().min(1)).min(1).optional(),
     /** "Select all under a filter" — run every row matching this filter instead of `rowIds`. The
      *  dispatcher walks only matching rows (paginated), so no id list is materialized. */
-    filter: nonEmptyFilterSchema.optional(),
+    filter: bulkFilterSchema.optional(),
     /** Select-all scope only: rows deselected from the selection — the dispatcher skips them. */
     excludeRowIds: z
       .array(z.string().min(1))

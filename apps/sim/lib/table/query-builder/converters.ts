@@ -117,6 +117,40 @@ export function pruneFilterForColumns(
   return filterRulesToFilter(kept, columns)
 }
 
+/**
+ * Predicate-grammar sibling of {@link pruneFilterForColumns}: drops conditions a
+ * `select` column no longer accepts (operator stranded by a type/`multiple`
+ * change), so a stale applied filter can't fail every subsequent rows query.
+ */
+export function prunePredicateForColumns(
+  predicate: TablePredicate | null,
+  columns: ColumnDefinition[]
+): TablePredicate | null {
+  if (!predicate) return null
+  // A malformed value (corrupt persisted state, a stale cast) fails CLOSED to
+  // "no filter" — throwing here would take down the whole table page render.
+  if (!('all' in predicate) && !('any' in predicate)) return null
+
+  const rules = predicateToFilterRules(predicate)
+  const kept = rules.filter((rule) => {
+    const column = columns.find((c) => columnMatchesRef(c, rule.column))
+    if (column?.type !== 'select') return true
+    const allowed = column.multiple ? MULTI_SELECT_FILTER_OPERATORS : SINGLE_SELECT_FILTER_OPERATORS
+    return allowed.has(rule.operator)
+  })
+
+  if (kept.length === rules.length) return predicate
+  return filterRulesToPredicate(kept, columns)
+}
+
+/**
+ * Discriminates the v2 predicate tree from the legacy `$`-object on dual-grammar
+ * wire fields. Group-first, matching every other discrimination site.
+ */
+export function isTablePredicate(value: Filter | TablePredicate): value is TablePredicate {
+  return 'all' in value || 'any' in value
+}
+
 /** Converts a single UI sort rule to a Sort object for API queries. */
 export function sortRuleToSort(rule: SortRule | null): Sort | null {
   if (!rule || !rule.column) return null
@@ -290,10 +324,10 @@ function normalizeSortDirection(direction: string): SortDirection {
 
 const VALUELESS_OPS = new Set<FilterOp>(['isEmpty', 'isNotEmpty', 'isNull', 'isNotNull'])
 
-function ruleToPredicate(rule: FilterRule): Predicate {
+function ruleToPredicate(rule: FilterRule, keepAsText = false): Predicate {
   const op = rule.operator as FilterOp
   if (VALUELESS_OPS.has(op)) return { field: rule.column, op }
-  return { field: rule.column, op, value: parseValue(rule.value, rule.operator) }
+  return { field: rule.column, op, value: parseValue(rule.value, rule.operator, keepAsText) }
 }
 
 /**
@@ -301,7 +335,10 @@ function ruleToPredicate(rule: FilterRule): Predicate {
  * boundary form an `all` group; multiple groups are combined under `any`.
  * Mirrors {@link filterRulesToFilter} but emits the bare-operator grammar.
  */
-export function filterRulesToPredicate(rules: FilterRule[]): TablePredicate | null {
+export function filterRulesToPredicate(
+  rules: FilterRule[],
+  columns: ColumnDefinition[] = []
+): TablePredicate | null {
   // Tolerate a non-array (the builder value can arrive malformed from an agent
   // that doesn't speak the rule shape) instead of throwing "rules is not iterable".
   if (!Array.isArray(rules) || rules.length === 0) return null
@@ -329,7 +366,11 @@ export function filterRulesToPredicate(rules: FilterRule[]): TablePredicate | nu
       // A genuinely blank builder row (no column picked yet) contributes nothing.
       continue
     }
-    current.push(ruleToPredicate(rule))
+    // A select value is an opaque option id — never scalar-coerce it (an id
+    // that happens to look numeric would silently become a number and match
+    // nothing). Same rule as filterRulesToFilter.
+    const isSelect = columns.find((c) => columnMatchesRef(c, rule.column))?.type === 'select'
+    current.push(ruleToPredicate(rule, isSelect))
   }
   if (current.length > 0) groups.push(current)
 
@@ -423,4 +464,23 @@ export function predicateToFilter(predicate: TablePredicate): Filter {
     return { [node.field]: predicateLeafToFilterValue(node) }
   }
   return nodeToFilter(predicate)
+}
+
+/**
+ * Downgrades a dual-grammar wire filter to the legacy `Filter` the job runners
+ * and search service still compile. The predicate path throws (via
+ * `predicateToFilter`) on any leaf the legacy compiler would silently discard,
+ * so a downgraded filter can never widen. Grammar-only: field keys pass through
+ * untranslated (session callers already speak column ids).
+ */
+export function toLegacyFilter(filter: Filter | TablePredicate | undefined): Filter | undefined {
+  if (!filter) return undefined
+  return isTablePredicate(filter) ? predicateToFilter(filter) : filter
+}
+
+/** Downgrades a dual-grammar wire sort (ordered spec array or legacy record). */
+export function toLegacySort(sort: Sort | SortSpec | undefined): Sort | undefined {
+  if (!sort) return undefined
+  if (!Array.isArray(sort)) return sort
+  return sort.length > 0 ? Object.fromEntries(sort.map((s) => [s.field, s.direction])) : undefined
 }

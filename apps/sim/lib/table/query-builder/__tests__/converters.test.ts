@@ -10,9 +10,11 @@ import {
   filterRulesToFilter,
   filterRulesToPredicate,
   filterToRules,
+  isTablePredicate,
   predicateToFilter,
   predicateToFilterRules,
   pruneFilterForColumns,
+  prunePredicateForColumns,
   sortRulesToSortSpec,
 } from '@/lib/table/query-builder/converters'
 import type { ColumnDefinition, FilterRule, SortRule, TablePredicate } from '@/lib/table/types'
@@ -365,4 +367,83 @@ describe('pruneFilterForColumns', () => {
   it('returns the same object when nothing is pruned', () => {
     expect(pruneFilterForColumns(null, [single])).toBeNull()
   })
+})
+
+describe('filterRulesToPredicate select-awareness (grid parity)', () => {
+  const SELECT_COLS: ColumnDefinition[] = [
+    {
+      id: 'col_status',
+      name: 'col_status',
+      type: 'select',
+      options: [{ id: '123', name: 'One Two Three' }],
+    },
+  ]
+
+  it('never scalar-coerces a select operand (a numeric-looking option id stays a string)', () => {
+    const p = filterRulesToPredicate(
+      [rule({ column: 'col_status', operator: 'eq', value: '123' })],
+      SELECT_COLS
+    )
+    expect(p).toEqual({ all: [{ field: 'col_status', op: 'eq', value: '123' }] })
+  })
+
+  it('keeps select in-list members as strings', () => {
+    const p = filterRulesToPredicate(
+      [rule({ column: 'col_status', operator: 'in', value: '123, 456' })],
+      SELECT_COLS
+    )
+    expect(p).toEqual({ all: [{ field: 'col_status', op: 'in', value: ['123', '456'] }] })
+  })
+
+  it('still coerces non-select columns', () => {
+    const p = filterRulesToPredicate(
+      [rule({ column: 'wins', operator: 'eq', value: '123' })],
+      SELECT_COLS
+    )
+    expect(p).toEqual({ all: [{ field: 'wins', op: 'eq', value: 123 }] })
+  })
+})
+
+describe('prunePredicateForColumns', () => {
+  const COLS: ColumnDefinition[] = [
+    { id: 'col_s', name: 'col_s', type: 'select', options: [{ id: 'o1', name: 'One' }] },
+    { id: 'col_n', name: 'col_n', type: 'number' },
+  ]
+
+  it('drops an operator a select column no longer accepts, keeps the rest', () => {
+    const p = prunePredicateForColumns(
+      {
+        all: [
+          { field: 'col_s', op: 'contains', value: 'o1' }, // single-select: contains not allowed
+          { field: 'col_n', op: 'gte', value: 5 },
+        ],
+      },
+      COLS
+    )
+    expect(p).toEqual({ all: [{ field: 'col_n', op: 'gte', value: 5 }] })
+  })
+
+  it('returns the same reference when nothing is dropped', () => {
+    const p = { all: [{ field: 'col_n', op: 'gte' as const, value: 5 }] }
+    expect(prunePredicateForColumns(p, COLS)).toBe(p)
+  })
+
+  it('collapses to null when every condition is dropped', () => {
+    expect(
+      prunePredicateForColumns({ all: [{ field: 'col_s', op: 'contains', value: 'o1' }] }, COLS)
+    ).toBeNull()
+  })
+})
+
+describe('isTablePredicate', () => {
+  it('discriminates the two grammars group-first', () => {
+    expect(isTablePredicate({ all: [] })).toBe(true)
+    expect(isTablePredicate({ any: [] })).toBe(true)
+    expect(isTablePredicate({ status: 'active' })).toBe(false)
+    expect(isTablePredicate({ $or: [{ a: 1 }] } as never)).toBe(false)
+  })
+})
+
+it('prunePredicateForColumns fails closed on a malformed value instead of throwing', () => {
+  expect(prunePredicateForColumns({ column: 'name', operator: 'eq' } as never, [])).toBeNull()
 })
