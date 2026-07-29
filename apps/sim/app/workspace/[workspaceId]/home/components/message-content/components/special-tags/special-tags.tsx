@@ -639,6 +639,13 @@ function isViableJsonPrefixOf(scannable: string): boolean {
  * would itself act on proves the enclosing opener was text. Shared so the
  * streaming and matched-pair paths cannot answer the same question differently
  * — them disagreeing is what let a late close swallow content already on screen.
+ *
+ * The match is by substring, so a generic is safe only when its parameter is not
+ * itself a tag name: `Promise<void>` does not match, `Promise<options>` does. The
+ * narrowing is not worth its cost — it needs a `<thinking>` body, which the agent
+ * no longer emits (reasoning arrives as structured thinking blocks), discussing a
+ * type named exactly after a tag; and the boundary check that would fix it wants a
+ * lookbehind, unavailable on the Safari versions this app still supports.
  */
 function hasSpecialTagMarker(text: string): boolean {
   return SPECIAL_TAG_NAMES.some((name) => text.includes(`</${name}>`) || text.includes(`<${name}>`))
